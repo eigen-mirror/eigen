@@ -1,4 +1,13 @@
-# You can override the included template(s) by including variable overrides
+# This file is part of Eigen, a lightweight C++ template library
+# for linear algebra.
+#
+# Copyright (C) 2020 Arm Ltd. and Contributors
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License v. 2.0. If a copy of the MPL was not distributed
+# with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# You can override the included SAST template(s) by including variable overrides
 # SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
 # Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
 # Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
