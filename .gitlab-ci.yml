@@ -14,17 +14,17 @@
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
 stages:
- - buildsmoketests
- - smoketests
- - build
- - test
+  - buildsmoketests
+  - smoketests
+  - build
+  - test
 variables:
   BUILDDIR: builddir
   EIGEN_CI_CMAKE_GENEATOR: Ninja
 include:
- - "/ci/smoketests.gitlab-ci.yml"
- - "/ci/build.gitlab-ci.yml"
- - "/ci/test.gitlab-ci.yml"
- - template: Security/SAST.gitlab-ci.yml
+  - "/ci/smoketests.gitlab-ci.yml"
+  - "/ci/build.gitlab-ci.yml"
+  - "/ci/test.gitlab-ci.yml"
+  - template: Security/SAST.gitlab-ci.yml
 sast:
   stage: test
