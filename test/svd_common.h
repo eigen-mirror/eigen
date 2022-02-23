@@ -490,14 +490,16 @@ void svd_verify_assert(const MatrixType& m, bool fullOnly = false)
   svd.singularValues();
   VERIFY_RAISES_ASSERT(svd.solve(rhs))
 
-  svd.compute(a, ComputeFullU);
-  svd.matrixU();
-  VERIFY_RAISES_ASSERT(svd.matrixV())
-  VERIFY_RAISES_ASSERT(svd.solve(rhs))
-  svd.compute(a, ComputeFullV);
-  svd.matrixV();
-  VERIFY_RAISES_ASSERT(svd.matrixU())
-  VERIFY_RAISES_ASSERT(svd.solve(rhs))
+  // Deprecated behavior.
+  SvdType svd3(a, ComputeFullU);
+  svd3.matrixU();
+  VERIFY_RAISES_ASSERT(svd3.matrixV())
+  VERIFY_RAISES_ASSERT(svd3.solve(rhs))
+
+  SvdType svd4(a, ComputeFullV);
+  svd4.matrixV();
+  VERIFY_RAISES_ASSERT(svd4.matrixU())
+  VERIFY_RAISES_ASSERT(svd4.solve(rhs))
 
   if (!fullOnly && ColsAtCompileTime == Dynamic)
   {
