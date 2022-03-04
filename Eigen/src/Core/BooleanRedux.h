@@ -83,9 +83,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const
   typedef internal::evaluator<Derived> Evaluator;
   enum {
     unroll = SizeAtCompileTime != Dynamic
-          && SizeAtCompileTime * (int(Evaluator::CoeffReadCost) + int(NumTraits<Scalar>::AddCost)) <= EIGEN_UNROLLING_LIMIT,
-    IsRowMajor = (int(internal::traits<Derived>::Flags) & int(RowMajor)),
-    InnerSizeAtCompileTime = IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : internal::traits<Derived>::RowsAtCompileTime
+          && SizeAtCompileTime * (int(Evaluator::CoeffReadCost) + int(NumTraits<Scalar>::AddCost)) <= EIGEN_UNROLLING_LIMIT
   };
   Evaluator evaluator(derived());
   if(unroll)
@@ -109,9 +107,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const
   typedef internal::evaluator<Derived> Evaluator;
   enum {
     unroll = SizeAtCompileTime != Dynamic
-          && SizeAtCompileTime * (int(Evaluator::CoeffReadCost) + int(NumTraits<Scalar>::AddCost)) <= EIGEN_UNROLLING_LIMIT,
-    IsRowMajor = (int(internal::traits<Derived>::Flags) & int(RowMajor)),
-    InnerSizeAtCompileTime = IsRowMajor ? internal::traits<Derived>::ColsAtCompileTime : internal::traits<Derived>::RowsAtCompileTime
+          && SizeAtCompileTime * (int(Evaluator::CoeffReadCost) + int(NumTraits<Scalar>::AddCost)) <= EIGEN_UNROLLING_LIMIT
   };
   Evaluator evaluator(derived());
   if(unroll)
