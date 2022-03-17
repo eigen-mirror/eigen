@@ -191,7 +191,8 @@ MatrixBase<Derived>::diagonal()
 
 /** This is the const version of diagonal(). */
 template<typename Derived>
-EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::ConstDiagonalReturnType
+EIGEN_DEVICE_FUNC inline
+const typename MatrixBase<Derived>::ConstDiagonalReturnType
 MatrixBase<Derived>::diagonal() const
 {
   return ConstDiagonalReturnType(derived());
@@ -217,7 +218,7 @@ MatrixBase<Derived>::diagonal(Index index)
 
 /** This is the const version of diagonal(Index). */
 template<typename Derived>
-EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::ConstDiagonalDynamicIndexReturnType
+EIGEN_DEVICE_FUNC inline const typename MatrixBase<Derived>::ConstDiagonalDynamicIndexReturnType
 MatrixBase<Derived>::diagonal(Index index) const
 {
   return ConstDiagonalDynamicIndexReturnType(derived(), index);
