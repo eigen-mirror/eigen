@@ -693,7 +693,7 @@ EIGEN_STRONG_INLINE Packet8d pload<Packet8d>(const double* from) {
 template <>
 EIGEN_STRONG_INLINE Packet16i pload<Packet16i>(const int* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return _mm512_load_si512(
-      reinterpret_cast<const __m512i*>(from));
+    reinterpret_cast<const __m512i*>(from));
 }
 
 template <>
