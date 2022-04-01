@@ -422,7 +422,13 @@ template<> inline long double test_precision<std::complex<long double> >() { ret
 
 #define EIGEN_TEST_SCALAR_TEST_OVERLOAD(TYPE)                             \
   inline bool test_isApprox(TYPE a, TYPE b)                               \
-  { return internal::isApprox(a, b, test_precision<TYPE>()); }            \
+  { return numext::equal_strict(a, b) ||                                  \
+      ((numext::isnan)(a) && (numext::isnan)(b)) ||                       \
+      (internal::isApprox(a, b, test_precision<TYPE>())); }               \
+  inline bool test_isCwiseApprox(TYPE a, TYPE b, bool exact)              \
+  { return numext::equal_strict(a, b) ||                                  \
+      ((numext::isnan)(a) && (numext::isnan)(b)) ||                       \
+      (!exact && internal::isApprox(a, b, test_precision<TYPE>())); }     \
   inline bool test_isMuchSmallerThan(TYPE a, TYPE b)                      \
   { return internal::isMuchSmallerThan(a, b, test_precision<TYPE>()); }   \
   inline bool test_isApproxOrLessThan(TYPE a, TYPE b)                     \
