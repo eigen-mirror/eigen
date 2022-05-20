@@ -1035,7 +1035,7 @@ void BDCSVD<MatrixType>::perturbCol0
 #endif
           // Avoid index out of bounds.
           // Will end up setting zhat(k) = 0.
-          if (l == 0) {
+          if (i >= k && l == 0) {
             m_info = NumericalIssue;
             prod = 0;
             break;
