@@ -279,10 +279,10 @@ struct vectorization_logic_half
     // which causes many of these tests to fail since they don't vectorize if
     // EIGEN_UNALIGNED_VECTORIZE is 0 (the matrix is assumed unaligned).
     // Adjust the matrix sizes to account for these alignment issues.
-    constexpr int PacketBytes = sizeof(Scalar)*PacketSize;
-    constexpr int MinVSize = EIGEN_UNALIGNED_VECTORIZE ? PacketSize
+    enum { PacketBytes = sizeof(Scalar)*PacketSize };
+    enum { MinVSize = EIGEN_UNALIGNED_VECTORIZE ? PacketSize
                              : PacketBytes >= EIGEN_MIN_ALIGN_BYTES ? PacketSize
-                             : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar);
+                             : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar) };
     
     typedef Matrix<Scalar,MinVSize,1> Vector1;
     typedef Matrix<Scalar,MinVSize,MinVSize> Matrix11;
