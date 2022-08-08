@@ -100,7 +100,8 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasAbs2   = 0,
     HasMin    = 0,
     HasMax    = 0,
-#ifdef EIGEN_VECTORIZE_VSXs
+    HasSqrt   = 1,
+#ifdef EIGEN_VECTORIZE_VSX
     HasBlend  = 1,
 #endif
     HasSetLinear = 0
@@ -317,6 +318,7 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasAbs2   = 0,
     HasMin    = 0,
     HasMax    = 0,
+    HasSqrt   = 1,
     HasSetLinear = 0
   };
 };

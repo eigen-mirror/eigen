@@ -40,13 +40,13 @@ Packet4f pcos<Packet4f>(const Packet4f& _x)
   return pcos_float(_x);
 }
 
+#ifdef __VSX__
 #ifndef EIGEN_COMP_CLANG
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED
 Packet4f prsqrt<Packet4f>(const Packet4f& x)
 {
   return  vec_rsqrt(x);
 }
-#endif
 
 #ifdef EIGEN_VECTORIZE_VSX
 #ifndef EIGEN_COMP_CLANG
