@@ -35,7 +35,7 @@
 #ifndef EIGEN_INVERSE_SIZE_4_H
 #define EIGEN_INVERSE_SIZE_4_H
 
-#ifdef EIGEN_COMP_GNUC
+#if !EIGEN_COMP_LLVM
 // These routines requires bit manipulation of the sign, which is not compatible
 // with fastmath.
 #pragma GCC push_options
@@ -356,7 +356,7 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
 } // namespace internal
 } // namespace Eigen
 
-#ifdef EIGEN_COMP_GNUC
+#if !EIGEN_COMP_LLVM
 #pragma GCC pop_options
 #endif
 
