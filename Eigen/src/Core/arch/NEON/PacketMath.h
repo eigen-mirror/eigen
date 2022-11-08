@@ -4472,7 +4472,7 @@ EIGEN_STRONG_INLINE Packet8hf pabs<Packet8hf>(const Packet8hf& a) {
 }
 
 template<>
-EIGEN_STRONG_INLINE Packet8hf psignbit(const Packet8h& a) {
+EIGEN_STRONG_INLINE Packet8hf psignbit(const Packet8hf& a) {
   return vreinterpretq_f16_s16(vshrq_n_s16(vreinterpretq_s16_f16(a), 15));
 }
 
@@ -4482,7 +4482,7 @@ EIGEN_STRONG_INLINE Packet4hf pabs<Packet4hf>(const Packet4hf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4h& a) {
+EIGEN_STRONG_INLINE Packet4hf psignbit(const Packet4hf& a) {
   return vreinterpret_f16_s16( vshr_n_s16( vreinterpret_s16_f16(a), 15)); 
 }
 
