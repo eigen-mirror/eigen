@@ -2372,8 +2372,14 @@ template<> EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
 }
 template<> EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) { return a; }
 
-template<> EIGEN_STRONG_INLINE Packet2f psignbit(const Packet2f& a) { return vreinterpret_f32_s32( vshr_n_s32( vreinterpret_s32_f32(a), 31)); }
-template<> EIGEN_STRONG_INLINE Packet4f psignbit(const Packet4f& a) { return vreinterpretq_f32_s32(vshrq_n_s32(vreinterpretq_s32_f32(a), 31)); }
+template <>
+EIGEN_STRONG_INLINE Packet2f psignbit(const Packet2f& a) {
+  return vreinterpret_f32_s32(vshr_n_s32(vreinterpret_s32_f32(a), 31));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f psignbit(const Packet4f& a) {
+  return vreinterpretq_f32_s32(vshrq_n_s32(vreinterpretq_s32_f32(a), 31));
+}
 
 template<> EIGEN_STRONG_INLINE Packet2f pfrexp<Packet2f>(const Packet2f& a, Packet2f& exponent)
 { return pfrexp_generic(a,exponent); }
@@ -3907,8 +3913,10 @@ template<> EIGEN_STRONG_INLINE Packet2d preverse(const Packet2d& a)
 
 template<> EIGEN_STRONG_INLINE Packet2d pabs(const Packet2d& a) { return vabsq_f64(a); }
 
-template<> EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a) {
-  return vreinterpretq_f64_s64(vshrq_n_s64(vreinterpretq_s64_f64(a), 63)); }
+template <>
+EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a) {
+  return vreinterpretq_f64_s64(vshrq_n_s64(vreinterpretq_s64_f64(a), 63));
+}
 
 template<> EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a)
 { return vaddvq_f64(a); }
