@@ -140,7 +140,7 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t n
     void* aligned = static_cast<Byte_t*>(original) + offset;
     if (offset != old_offset) {
       const void* src = static_cast<const Byte_t*>(original) + old_offset;
-      std::size_t count = std::min(new_size, old_size);
+      std::size_t count = (std::min)(new_size, old_size);
       std::memmove(aligned, src, count);
     }
     *(static_cast<Byte_t*>(aligned) - 1) = offset;
