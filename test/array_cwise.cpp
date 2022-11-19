@@ -58,7 +58,7 @@ void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x,
         const Scalar abs_y = abs_vals[j];
         for (Index sign_y = 0; sign_y < 2; ++sign_y) {
           Scalar y_case = sign_y == 0 ? -abs_y : abs_y;
-          for (size_t repeat = 0; repeat < num_repeats; ++repeat) {
+          for (Index repeat = 0; repeat < num_repeats; ++repeat) {
             x(repeat, count) = x_case;
             y(repeat, count) = y_case;
           }
