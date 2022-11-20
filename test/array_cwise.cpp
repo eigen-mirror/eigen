@@ -12,31 +12,31 @@
 
 template <typename Scalar, std::enable_if_t<NumTraits<Scalar>::IsInteger,int> = 0>
 std::vector<Scalar> special_values() {
-	const Scalar zero = Scalar(0);
-	const Scalar one = Scalar(1);
-	const Scalar two = Scalar(2);
-	const Scalar three = Scalar(3);
-	const Scalar min = (std::numeric_limits<Scalar>::min)();
-	const Scalar max = (std::numeric_limits<Scalar>::max)();
-	return { zero, min, one, two, three, max };
+  const Scalar zero = Scalar(0);
+  const Scalar one = Scalar(1);
+  const Scalar two = Scalar(2);
+  const Scalar three = Scalar(3);
+  const Scalar min = (std::numeric_limits<Scalar>::min)();
+  const Scalar max = (std::numeric_limits<Scalar>::max)();
+  return { zero, min, one, two, three, max };
 }
 
 template <typename Scalar, std::enable_if_t<!NumTraits<Scalar>::IsInteger, int> = 0>
 std::vector<Scalar> special_values() {
-	const Scalar zero = Scalar(0);
-	const Scalar eps = Eigen::NumTraits<Scalar>::epsilon();
-	const Scalar one = Scalar(1);
-	const Scalar two = Scalar(2);
-	const Scalar three = Scalar(3);
-	const Scalar sqrt_half = Scalar(std::sqrt(0.5));
-	const Scalar sqrt2 = Scalar(std::sqrt(2));
-	const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
-	const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
-	const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
-	const Scalar min = (std::numeric_limits<Scalar>::min)();
-	const Scalar max = (std::numeric_limits<Scalar>::max)();
-	const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-	return { zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan };
+  const Scalar zero = Scalar(0);
+  const Scalar eps = Eigen::NumTraits<Scalar>::epsilon();
+  const Scalar one = Scalar(1);
+  const Scalar two = Scalar(2);
+  const Scalar three = Scalar(3);
+  const Scalar sqrt_half = Scalar(std::sqrt(0.5));
+  const Scalar sqrt2 = Scalar(std::sqrt(2));
+  const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
+  const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
+  const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar min = (std::numeric_limits<Scalar>::min)();
+  const Scalar max = (std::numeric_limits<Scalar>::max)();
+  const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
+  return { zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan };
 }
 
 template<typename Scalar>
