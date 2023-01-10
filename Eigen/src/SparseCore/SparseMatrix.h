@@ -1462,7 +1462,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
     constexpr StorageIndex kReserveSizePerVector(2);
     reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
     Index start = outerIndexPtr()[target];
-    Index end = start + innerNonZeroPtr()[target]
+    Index end = start + innerNonZeroPtr()[target];
     dst = start + dst_offset;
     // shift the existing data to the right if necessary
     Index chunkSize = end - dst;
