@@ -1373,10 +1373,8 @@ inline typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar& SparseMa
 template <typename Scalar_, int Options_, typename StorageIndex_>
 EIGEN_STRONG_INLINE typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
 SparseMatrix<Scalar_, Options_, StorageIndex_>::insertAtByOuterInner(Index outer, Index inner, Index dst) {
-  if (isCompressed())
-    return insertCompressedAtByOuterInner(outer, inner, dst);
-  else
-    return insertUncompressedAtByOuterInner(outer, inner, dst);
+  uncompress();
+  return insertUncompressedAtByOuterInner(outer, inner, dst);
 }
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
@@ -1441,6 +1439,8 @@ typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
 SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner(Index outer, Index inner, Index dst) {
   eigen_assert(!isCompressed());
   // find nearest outer vector to the right with capacity (if any) to minimize copy size
+  // possible tuning parameter: only search some distance away from target to avoid lengthy search for capacity
+  // e.g. max_target = outer + 2;
   Index target = outer;
   for (; target < outerSize(); target++) {
     Index start = outerIndexPtr()[target];
@@ -1454,12 +1454,18 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       break;
     }
   }
+  // or max_target
   if (target == outerSize()) {
     // no room for interior insertion, must expand storage
-    checkAllocatedSpaceAndMaybeExpand();
-    data().resize(data().size() + 1);
+    target = outer;
+    Index dst_offset = dst - outerIndexPtr()[target];
+    constexpr StorageIndex kReserveSizePerVector(2);
+    reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
+    Index start = outerIndexPtr()[target];
+    Index end = start + innerNonZeroPtr()[target]
+    dst = start + dst_offset;
     // shift the existing data to the right if necessary
-    Index chunkSize = outerIndexPtr()[outerSize()] - dst;
+    Index chunkSize = end - dst;
     if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
   }
   // update nonzero counts
