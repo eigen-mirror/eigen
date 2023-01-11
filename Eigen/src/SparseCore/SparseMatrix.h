@@ -1452,7 +1452,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertCompressedAtByOuterInner(I
   // shift the existing data to the right if necessary
   if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
   // update nonzero counts
-  for (; outer < outerSize(); outer++) outerIndexPtr()[outer + 1]++;
+  typename IndexVector::AlignedMapType outerIndexMap(outerIndexPtr(), outerSize() + 1);
+  outerIndexMap.segment(outer + 1, outerSize() - outer).array() += 1;
   // initialize the coefficient
   data().index(dst) = StorageIndex(inner);
   // return a reference to the coefficient
@@ -1495,14 +1496,16 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       // each vector in the range [outer,outerSize) will receive totalCapacity / (outerSize - outer) nonzero
       // reservations each vector in the range [outer,remainder) will receive an additional nonzero reservation where
       // remainder = totalCapacity % (outerSize - outer)
-      typename IndexVector::NullaryExpr reserveOp(
-          outerSize(), internal::sparse_reserve_op<StorageIndex>(target, outerSize(), totalCapacity));
-      eigen_assert(reserveOp.sum() == totalCapacity);
-      reserveInnerVectors(reserveOp);
+      typedef internal::sparse_reserve_op<StorageIndex> ReserveSizesOp;
+      typedef CwiseNullaryOp<ReserveSizesOp, IndexVector> ReserveSizesXpr;
+      ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(target, outerSize(), totalCapacity));
+      eigen_assert(reserveSizesXpr.sum() == totalCapacity);
+      reserveInnerVectors(reserveSizesXpr);
   }
   // update nonzero counts
   innerNonZeroPtr()[outer]++;
-  for (; outer < target; outer++) outerIndexPtr()[outer + 1]++;
+  typename IndexVector::AlignedMapType outerIndexMap(outerIndexPtr(), outerSize() + 1);
+  outerIndexMap.segment(outer + 1, target - outer).array() += 1;
   // initialize the coefficient
   data().index(dst) = StorageIndex(inner);
   // return a reference to the coefficient
