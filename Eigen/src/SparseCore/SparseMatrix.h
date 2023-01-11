@@ -996,7 +996,7 @@ protected:
               assignFunc.assignCoeff(insertBackUncompressed(j, j), diaEval.coeff(j));
             // the insertion requires a data move, record insertion location and handle in second pass
             else {
-              insertionLocations.coeffRef(j) = dst;
+              insertionLocations.coeffRef(j) = StorageIndex(dst);
               deferredInsertions++;
               // if there is no capacity, all vectors to the right of this are shifted
               if (capacity == 0) shift++;
