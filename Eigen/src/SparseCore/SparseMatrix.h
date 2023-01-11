@@ -92,6 +92,31 @@ struct traits<Diagonal<const SparseMatrix<Scalar_, Options_, StorageIndex_>, Dia
   };
 };
 
+template <typename StorageIndex>
+struct sparse_reserve_op {
+  EIGEN_DEVICE_FUNC sparse_reserve_op(Index begin, Index end, Index size) {
+    Index range = numext::mini(end - begin, size);
+    m_begin = begin;
+    m_end = begin + range;
+    m_val = StorageIndex(size / range);
+    m_remainder = StorageIndex(size % range);
+  }
+  template <typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageIndex operator()(IndexType i) const {
+    if ((i >= m_begin) && (i < m_end))
+      return m_val + ((i - m_begin) < m_remainder ? 1 : 0);
+    else
+      return 0;
+  }
+  StorageIndex m_val, m_remainder;
+  Index m_begin, m_end;
+};
+
+template <typename Scalar>
+struct functor_traits<sparse_reserve_op<Scalar>> {
+  enum { Cost = 1, PacketAccess = false, IsRepeatable = true };
+};
+
 } // end namespace internal
 
 template<typename Scalar_, int Options_, typename StorageIndex_>
@@ -1456,17 +1481,24 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
   }
   // or max_target
   if (target == outerSize()) {
-    // no room for interior insertion, must expand storage
+    // no room for interior insertion (to the right of `outer`)
     target = outer;
     Index dst_offset = dst - outerIndexPtr()[target];
-    constexpr StorageIndex kReserveSizePerVector(2);
-    reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
-    Index start = outerIndexPtr()[target];
-    Index end = start + innerNonZeroPtr()[target];
-    dst = start + dst_offset;
-    // shift the existing data to the right if necessary
-    Index chunkSize = end - dst;
-    if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
+    Index totalCapacity = data().allocatedSize() - data().size();
+    eigen_assert(totalCapacity >= 0);
+    if (totalCapacity == 0) {
+      // there is no room left. we must reallocate. reserve space in each vector
+      constexpr StorageIndex kReserveSizePerVector(2);
+      reserveInnerVectors(IndexVector::Constant(outerSize(), kReserveSizePerVector));
+    } else {
+      // dont reallocate, but re-distribute the remaining capacity to the right of `outer`
+      // each vector in the range [outer,outerSize) will receive totalCapacity / (outerSize - outer) nonzero
+      // reservations each vector in the range [outer,remainder) will receive an additional nonzero reservation where
+      // remainder = totalCapacity % (outerSize - outer)
+      typename IndexVector::NullaryExpr reserveOp(
+          outerSize(), internal::sparse_reserve_op<StorageIndex>(target, outerSize(), totalCapacity));
+      eigen_assert(reserveOp.sum() == capacity);
+      reserveInnerVectors(reserveOp);
   }
   // update nonzero counts
   innerNonZeroPtr()[outer]++;
