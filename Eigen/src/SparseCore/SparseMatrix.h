@@ -1497,7 +1497,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       // remainder = totalCapacity % (outerSize - outer)
       typename IndexVector::NullaryExpr reserveOp(
           outerSize(), internal::sparse_reserve_op<StorageIndex>(target, outerSize(), totalCapacity));
-      eigen_assert(reserveOp.sum() == capacity);
+      eigen_assert(reserveOp.sum() == totalCapacity);
       reserveInnerVectors(reserveOp);
   }
   // update nonzero counts
