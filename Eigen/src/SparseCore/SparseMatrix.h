@@ -1465,8 +1465,6 @@ typename SparseMatrix<Scalar_, Options_, StorageIndex_>::Scalar&
 SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner(Index outer, Index inner, Index dst) {
   eigen_assert(!isCompressed());
   // find nearest outer vector to the right with capacity (if any) to minimize copy size
-  // possible tuning parameter: only search some distance away from target to avoid lengthy search for capacity
-  // e.g. max_target = outer + 2;
   Index target = outer;
   for (; target < outerSize(); target++) {
     Index start = outerIndexPtr()[target];
@@ -1476,11 +1474,10 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       // `target` has room for interior insertion
       Index chunkSize = end - dst;
       // shift the existing data to the right if necessary
-      if(chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
+      if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
       break;
     }
   }
-  // or max_target
   if (target == outerSize()) {
     // no room for interior insertion (to the right of `outer`)
     target = outer;
@@ -1501,6 +1498,12 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       ReserveSizesXpr reserveSizesXpr(outerSize(), 1, ReserveSizesOp(target, outerSize(), totalCapacity));
       eigen_assert(reserveSizesXpr.sum() == totalCapacity);
       reserveInnerVectors(reserveSizesXpr);
+    }
+    Index start = outerIndexPtr()[target];
+    Index end = start + innerNonZeroPtr()[target];
+    dst = start + dst_offset;
+    Index chunkSize = end - dst;
+    if (chunkSize > 0) data().moveChunk(dst, dst + 1, chunkSize);
   }
   // update nonzero counts
   innerNonZeroPtr()[outer]++;
