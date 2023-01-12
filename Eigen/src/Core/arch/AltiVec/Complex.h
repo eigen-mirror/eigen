@@ -16,7 +16,7 @@ namespace Eigen {
 namespace internal {
 
 static Packet4ui  p4ui_CONJ_XOR = vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);//{ 0x00000000, 0x80000000, 0x00000000, 0x80000000 };
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 #if defined(_BIG_ENDIAN)
 static Packet2ul  p2ul_CONJ_XOR1 = (Packet2ul) vec_sld((Packet4ui) p2d_MZERO, (Packet4ui) p2l_ZERO, 8);//{ 0x8000000000000000, 0x0000000000000000 };
 static Packet2ul  p2ul_CONJ_XOR2 = (Packet2ul) vec_sld((Packet4ui) p2l_ZERO,  (Packet4ui) p2d_MZERO, 8);//{ 0x8000000000000000, 0x0000000000000000 };
@@ -100,7 +100,7 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasAbs2   = 0,
     HasMin    = 0,
     HasMax    = 0,
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSXs
     HasBlend  = 1,
 #endif
     HasSetLinear = 0
@@ -130,7 +130,7 @@ template<> EIGEN_STRONG_INLINE void pstoreu<std::complex<float> >(std::complex<f
 EIGEN_STRONG_INLINE Packet2cf pload2(const std::complex<float>& from0, const std::complex<float>& from1)
 {
   Packet4f res0, res1;
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
   __asm__ ("lxsdx %x0,%y1" : "=wa" (res0) : "Z" (from0));
   __asm__ ("lxsdx %x0,%y1" : "=wa" (res1) : "Z" (from1));
 #ifdef _BIG_ENDIAN
@@ -230,7 +230,7 @@ template<> EIGEN_STRONG_INLINE Packet2cf pcmp_eq(const Packet2cf& a, const Packe
   return Packet2cf(vec_and(eq, vec_perm(eq, eq, p16uc_COMPLEX32_REV)));
 }
 
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 template<> EIGEN_STRONG_INLINE Packet2cf pblend(const Selector<2>& ifPacket, const Packet2cf& thenPacket, const Packet2cf& elsePacket) {
   Packet2cf result;
   result.v = reinterpret_cast<Packet4f>(pblend<Packet2d>(ifPacket, reinterpret_cast<Packet2d>(thenPacket.v), reinterpret_cast<Packet2d>(elsePacket.v)));
@@ -244,7 +244,7 @@ template<> EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a)
 }
 
 //---------- double ----------
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 struct Packet1cd
 {
   EIGEN_STRONG_INLINE Packet1cd() {}
@@ -403,7 +403,7 @@ template<> EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a)
   return psqrt_complex<Packet1cd>(a);
 }
 
-#endif // __VSX__
+#endif // EIGEN_VECTORIZE_VSX
 } // end namespace internal
 
 } // end namespace Eigen

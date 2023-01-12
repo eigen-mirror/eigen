@@ -84,7 +84,7 @@ static _EIGEN_DECLARE_CONST_FAST_Packet4ui(PREV0DOT5, 0x3EFFFFFFu);
 static _EIGEN_DECLARE_CONST_FAST_Packet8us(ONE,1); //{ 1, 1, 1, 1, 1, 1, 1, 1}
 static _EIGEN_DECLARE_CONST_FAST_Packet16uc(ONE,1);
 static Packet4f p4f_MZERO = (Packet4f) vec_sl((Packet4ui)p4i_MINUS1, (Packet4ui)p4i_MINUS1); //{ 0x80000000, 0x80000000, 0x80000000, 0x80000000}
-#ifndef __VSX__
+#ifndef EIGEN_VECTORIZE_VSX
 static Packet4f p4f_ONE = vec_ctf(p4i_ONE, 0); //{ 1.0, 1.0, 1.0, 1.0}
 #endif
 
@@ -114,7 +114,7 @@ static Packet16uc p16uc_QUADRUPLICATE16_HI = { 0,1,0,1,0,1,0,1, 2,3,2,3,2,3,2,3 
 // Define global static constants:
 #ifdef _BIG_ENDIAN
 static Packet16uc p16uc_FORWARD = vec_lvsl(0, (float*)0);
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 static Packet16uc p16uc_REVERSE64 = { 8,9,10,11, 12,13,14,15, 0,1,2,3, 4,5,6,7 };
 #endif
 static Packet16uc p16uc_PSET32_WODD   = vec_sld((Packet16uc) vec_splat((Packet4ui)p16uc_FORWARD, 0), (Packet16uc) vec_splat((Packet4ui)p16uc_FORWARD, 2), 8);//{ 0,1,2,3, 0,1,2,3, 8,9,10,11, 8,9,10,11 };
@@ -168,7 +168,7 @@ struct packet_traits<float> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
     HasSqrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
@@ -210,7 +210,7 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
     HasSqrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
@@ -432,7 +432,7 @@ EIGEN_STRONG_INLINE Packet pload_common(const __UNPACK_TYPE__(Packet)* from)
   // ignoring these warnings for now.
   EIGEN_UNUSED_VARIABLE(from);
   EIGEN_DEBUG_ALIGNED_LOAD
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
   return vec_xl(0, const_cast<__UNPACK_TYPE__(Packet)*>(from));
 #else
   return vec_ld(0, from);
@@ -481,7 +481,7 @@ EIGEN_STRONG_INLINE void pstore_common(__UNPACK_TYPE__(Packet)* to, const Packet
   // ignoring these warnings for now.
   EIGEN_UNUSED_VARIABLE(to);
   EIGEN_DEBUG_ALIGNED_STORE
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
   vec_xst(from, 0, to);
 #else
   vec_st(from, 0, to);
@@ -816,7 +816,7 @@ template<> EIGEN_STRONG_INLINE Packet16uc pmul<Packet16uc>(const Packet16uc& a, 
 
 template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
-#ifndef __VSX__  // VSX actually provides a div instruction
+#ifndef EIGEN_VECTORIZE_VSX  // VSX actually provides a div instruction
   Packet4f t, y_0, y_1;
 
   // Altivec does not offer a divide instruction, we have to do a reciprocal approximation
@@ -845,7 +845,7 @@ template<> EIGEN_STRONG_INLINE Packet8us pmadd(const Packet8us& a, const Packet8
 
 template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
-  #ifdef __VSX__
+  #ifdef EIGEN_VECTORIZE_VSX
   // NOTE: about 10% slower than vec_min, but consistent with std::min and SSE regarding NaN
   Packet4f ret;
   __asm__ ("xvcmpgesp %x0,%x1,%x2\n\txxsel %x0,%x1,%x2,%x0" : "=&wa" (ret) : "wa" (a), "wa" (b));
@@ -863,7 +863,7 @@ template<> EIGEN_STRONG_INLINE Packet16uc pmin<Packet16uc>(const Packet16uc& a, 
 
 template<> EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
-  #ifdef __VSX__
+  #ifdef EIGEN_VECTORIZE_VSX
   // NOTE: about 10% slower than vec_max, but consistent with std::max and SSE regarding NaN
   Packet4f ret;
   __asm__ ("xvcmpgtsp %x0,%x2,%x1\n\txxsel %x0,%x1,%x2,%x0" : "=&wa" (ret) : "wa" (a), "wa" (b));
@@ -940,7 +940,7 @@ template<> EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a)
     Packet4f t = vec_add(reinterpret_cast<Packet4f>(vec_or(vec_and(reinterpret_cast<Packet4ui>(a), p4ui_SIGN), p4ui_PREV0DOT5)), a);
     Packet4f res;
 
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
     __asm__("xvrspiz %x0, %x1\n\t"
         : "=&wa" (res)
         : "wa" (t));
@@ -2259,7 +2259,7 @@ template<> EIGEN_STRONG_INLINE Packet4f preinterpret<Packet4f,Packet4i>(const Pa
 
 
 //---------- double ----------
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 typedef __vector double              Packet2d;
 typedef __vector unsigned long long  Packet2ul;
 typedef __vector long long           Packet2l;
@@ -2721,7 +2721,7 @@ template<> EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, cons
 }
 
 
-#endif // __VSX__
+#endif // EIGEN_VECTORIZE_VSX
 } // end namespace internal
 
 } // end namespace Eigen
