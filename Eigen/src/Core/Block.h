@@ -334,6 +334,17 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
     enum {
       XprTypeIsRowMajor = (int(traits<XprType>::Flags)&RowMajorBit) != 0
     };
+
+    /** \internal Returns base+offset (unless base is null, in which case returns null).
+      * Adding an offset to nullptr is undefined behavior, so we must avoid it.
+      */
+    template <typename Scalar>
+    EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR EIGEN_ALWAYS_INLINE
+    static Scalar* add_to_nullable_pointer(Scalar* base, Index offset)
+    {
+      return base != NULL ? base+offset : NULL;
+    }
+
   public:
 
     typedef MapBase<BlockType> Base;
@@ -344,8 +355,9 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     BlockImpl_dense(XprType& xpr, Index i)
-      : Base(xpr.data() + i * (    ((BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) && (!XprTypeIsRowMajor))
-                                || ((BlockRows==XprType::RowsAtCompileTime) && (BlockCols==1) && ( XprTypeIsRowMajor)) ? xpr.innerStride() : xpr.outerStride()),
+      : Base(add_to_nullable_pointer(xpr.data(),
+                 i * (    ((BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) && (!XprTypeIsRowMajor))
+                       || ((BlockRows==XprType::RowsAtCompileTime) && (BlockCols==1) && ( XprTypeIsRowMajor)) ? xpr.innerStride() : xpr.outerStride())),
              BlockRows==1 ? 1 : xpr.rows(),
              BlockCols==1 ? 1 : xpr.cols()),
         m_xpr(xpr),
@@ -359,7 +371,8 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
       */
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     BlockImpl_dense(XprType& xpr, Index startRow, Index startCol)
-      : Base(xpr.data()+xpr.innerStride()*(XprTypeIsRowMajor?startCol:startRow) + xpr.outerStride()*(XprTypeIsRowMajor?startRow:startCol)),
+      : Base(add_to_nullable_pointer(xpr.data(),
+                 xpr.innerStride()*(XprTypeIsRowMajor?startCol:startRow) + xpr.outerStride()*(XprTypeIsRowMajor?startRow:startCol))),
         m_xpr(xpr), m_startRow(startRow), m_startCol(startCol)
     {
       init();
@@ -371,7 +384,9 @@ class BlockImpl_dense<XprType,BlockRows,BlockCols, InnerPanel,true>
     BlockImpl_dense(XprType& xpr,
           Index startRow, Index startCol,
           Index blockRows, Index blockCols)
-      : Base(xpr.data()+xpr.innerStride()*(XprTypeIsRowMajor?startCol:startRow) + xpr.outerStride()*(XprTypeIsRowMajor?startRow:startCol), blockRows, blockCols),
+      : Base(add_to_nullable_pointer(xpr.data(),
+                 xpr.innerStride()*(XprTypeIsRowMajor?startCol:startRow) + xpr.outerStride()*(XprTypeIsRowMajor?startRow:startCol)),
+             blockRows, blockCols),
         m_xpr(xpr), m_startRow(startRow), m_startCol(startCol)
     {
       init();
