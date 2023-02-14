@@ -57,16 +57,6 @@ typedef eigen_packet_wrapper<uint32x4_t ,15> Packet4ui;
 typedef eigen_packet_wrapper<int64x2_t  ,16> Packet2l;
 typedef eigen_packet_wrapper<uint64x2_t ,17> Packet2ul;
 
-EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) {
-  float from[4] = {a, b, c, d};
-  return vld1q_f32(from);
-}
-
-EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) {
-  float from[2] = {a, b};
-  return vld1_f32(from);
-}
-
 #else
 
 typedef float32x2_t                          Packet2f;
@@ -88,10 +78,17 @@ typedef uint32x4_t                           Packet4ui;
 typedef int64x2_t                            Packet2l;
 typedef uint64x2_t                           Packet2ul;
 
-EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) { return {a, b, c, d}; }
-EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) { return {a, b}; }
-
 #endif // EIGEN_COMP_MSVC_STRICT
+
+EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) {
+  float from[4] = {a, b, c, d};
+  return vld1q_f32(from);
+}
+
+EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) {
+  float from[2] = {a, b};
+  return vld1_f32(from);
+}
 
 EIGEN_STRONG_INLINE Packet4f shuffle1(const Packet4f& m, int mask){
   const float* a = reinterpret_cast<const float*>(&m);
@@ -3665,19 +3662,15 @@ template <typename T> float64x2_t vreinterpretq_f64_u64(T a) { return (float64x2
 #if EIGEN_COMP_MSVC_STRICT
 typedef eigen_packet_wrapper<float64x2_t, 18> Packet2d;
 typedef eigen_packet_wrapper<float64x1_t, 19> Packet1d;
+#else
+typedef float64x2_t Packet2d;
+typedef float64x1_t Packet1d;
+#endif
 
 EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) {
   double from[2] = {a, b};
   return vld1q_f64(from);
 }
-
-#else
-typedef float64x2_t Packet2d;
-typedef float64x1_t Packet1d;
-
-EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) { return {a, b}; }
-#endif
-
 
 // fuctionally equivalent to _mm_shuffle_pd in SSE (i.e. shuffle(m, n, mask) equals _mm_shuffle_pd(m,n,mask))
 // Currently used in LU/arch/InverseSize4.h to enable a shared implementation
