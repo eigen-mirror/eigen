@@ -37,7 +37,7 @@ template<> struct packet_traits<std::complex<float> >  : default_packet_traits
     HasMul    = 1,
     HasDiv    = 1,
     HasNegate = 1,
-    HasSqrt   = 1,
+    HasSqrt   = EIGEN_HAS_AVX512_MATH,
     HasAbs    = 0,
     HasAbs2   = 0,
     HasMin    = 0,
@@ -194,7 +194,7 @@ template<> struct packet_traits<std::complex<double> >  : default_packet_traits
     HasMul    = 1,
     HasDiv    = 1,
     HasNegate = 1,
-    HasSqrt   = 1,
+    HasSqrt   = EIGEN_HAS_AVX512_MATH,
     HasAbs    = 0,
     HasAbs2   = 0,
     HasMin    = 0,
@@ -406,6 +406,8 @@ ptranspose(PacketBlock<Packet4cd,4>& kernel) {
   kernel.packet[0] = Packet4cd(_mm512_shuffle_f64x2(T0, T2, (shuffle_mask<0,2,0,2>::mask))); // [a0 b0 c0 d0]
 }
 
+#if EIGEN_HAS_AVX512_MATH
+
 template<> EIGEN_STRONG_INLINE Packet4cd psqrt<Packet4cd>(const Packet4cd& a) {
   return psqrt_complex<Packet4cd>(a);
 }
@@ -413,6 +415,8 @@ template<> EIGEN_STRONG_INLINE Packet4cd psqrt<Packet4cd>(const Packet4cd& a) {
 template<> EIGEN_STRONG_INLINE Packet8cf psqrt<Packet8cf>(const Packet8cf& a) {
   return psqrt_complex<Packet8cf>(a);
 }
+
+#endif
 
 } // end namespace internal
 } // end namespace Eigen
