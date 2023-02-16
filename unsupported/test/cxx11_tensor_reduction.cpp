@@ -484,7 +484,39 @@ static void test_reduce_middle_dims() {
   }
 }
 
+<<<<<<< HEAD
 void test_cxx11_tensor_reduction() {
+=======
+template <typename ScalarType, int num_elements, int max_mean>
+void test_sum_accuracy() {
+  Tensor<double, 1> double_tensor(num_elements);
+  Tensor<ScalarType, 1> tensor(num_elements);
+  for (double prescribed_mean = 0; prescribed_mean <= max_mean; prescribed_mean = numext::maxi(1.0, prescribed_mean*3.99)) {
+    // FIXME: NormalRandomGenerator doesn't work in bfloat and half.
+    double_tensor.setRandom<Eigen::internal::NormalRandomGenerator<double>>();
+    double_tensor += double_tensor.constant(prescribed_mean);
+    tensor = double_tensor.cast<ScalarType>();
+
+    Tensor<ScalarType, 0> sum;
+    sum = tensor.sum();
+
+    // Compute the reference value in double precsion.
+    double expected_sum = 0.0;
+    double abs_sum = 0.0;
+    for (int i = 0; i < num_elements; ++i) {
+      expected_sum += static_cast<double>(tensor(i));
+      abs_sum += static_cast<double>(numext::abs(tensor(i)));
+    }
+    // Test against probabilistic forward error bound. In reality, the error is much smaller
+    // when we use tree summation.
+    double err = Eigen::numext::abs(static_cast<double>(sum()) - expected_sum);
+    double tol = numext::sqrt(static_cast<double>(num_elements)) * NumTraits<ScalarType>::epsilon() * static_cast<ScalarType>(abs_sum);
+    VERIFY_LE(err, tol);
+  }
+}
+
+EIGEN_DECLARE_TEST(cxx11_tensor_reduction) {
+>>>>>>> 54459214a (Fix epsilon and dummy_precision values in long double for double doubles.  Prevented some algorithms from converging on PPC.)
   CALL_SUBTEST(test_trivial_reductions<ColMajor>());
   CALL_SUBTEST(test_trivial_reductions<RowMajor>());
   CALL_SUBTEST(test_simple_reductions<ColMajor>());
