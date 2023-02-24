@@ -245,6 +245,8 @@ template<> struct NumTraits<double> : GenericNumTraits<double>
   static inline double dummy_precision() { return 1e-12; }
 };
 
+// GPU devices treat `long double` as `double`.
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<> struct NumTraits<long double>
   : GenericNumTraits<long double>
 {
@@ -261,6 +263,7 @@ template<> struct NumTraits<long double>
   }
 #endif
 };
+#endif
 
 template<typename _Real> struct NumTraits<std::complex<_Real> >
   : GenericNumTraits<std::complex<_Real> >

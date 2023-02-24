@@ -133,7 +133,10 @@ template<typename T> struct remove_all<T*>        { typedef typename remove_all<
 template<typename T> struct is_arithmetic      { enum { value = false }; };
 template<> struct is_arithmetic<float>         { enum { value = true }; };
 template<> struct is_arithmetic<double>        { enum { value = true }; };
+// GPU devices treat `long double` as `double`.
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<> struct is_arithmetic<long double>   { enum { value = true }; };
+#endif
 template<> struct is_arithmetic<bool>          { enum { value = true }; };
 template<> struct is_arithmetic<char>          { enum { value = true }; };
 template<> struct is_arithmetic<signed char>   { enum { value = true }; };

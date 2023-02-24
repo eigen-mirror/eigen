@@ -1032,11 +1032,15 @@ template<typename T> EIGEN_DEVICE_FUNC bool isinf_msvc_helper(T x)
 }
 
 //MSVC defines a _isnan builtin function, but for double only
+#ifndef EIGEN_GPU_COMPILE_PHASE
 EIGEN_DEVICE_FUNC inline bool isnan_impl(const long double& x) { return _isnan(x)!=0; }
+#endif
 EIGEN_DEVICE_FUNC inline bool isnan_impl(const double& x)      { return _isnan(x)!=0; }
 EIGEN_DEVICE_FUNC inline bool isnan_impl(const float& x)       { return _isnan(x)!=0; }
 
+#ifndef EIGEN_GPU_COMPILE_PHASE
 EIGEN_DEVICE_FUNC inline bool isinf_impl(const long double& x) { return isinf_msvc_helper(x); }
+#endif
 EIGEN_DEVICE_FUNC inline bool isinf_impl(const double& x)      { return isinf_msvc_helper(x); }
 EIGEN_DEVICE_FUNC inline bool isinf_impl(const float& x)       { return isinf_msvc_helper(x); }
 
@@ -1050,12 +1054,16 @@ EIGEN_DEVICE_FUNC inline bool isinf_impl(const float& x)       { return isinf_ms
   #define EIGEN_TMP_NOOPT_ATTRIB EIGEN_DEVICE_FUNC inline __attribute__((noinline,optimize("no-finite-math-only")))
 #endif
 
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isnan_impl(const long double& x) { return __builtin_isnan(x); }
+#endif
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isnan_impl(const double& x)      { return __builtin_isnan(x); }
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isnan_impl(const float& x)       { return __builtin_isnan(x); }
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isinf_impl(const double& x)      { return __builtin_isinf(x); }
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isinf_impl(const float& x)       { return __builtin_isinf(x); }
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<> EIGEN_TMP_NOOPT_ATTRIB bool isinf_impl(const long double& x) { return __builtin_isinf(x); }
+#endif
 
 #undef EIGEN_TMP_NOOPT_ATTRIB
 
@@ -1112,6 +1120,8 @@ EIGEN_ALWAYS_INLINE double mini(const double& x, const double& y)
 {
   return fmin(x, y);
 }
+
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<>
 EIGEN_DEVICE_FUNC
 EIGEN_ALWAYS_INLINE long double mini(const long double& x, const long double& y)
@@ -1123,6 +1133,7 @@ EIGEN_ALWAYS_INLINE long double mini(const long double& x, const long double& y)
   return fminl(x, y);
 #endif
 }
+#endif
 
 template<typename T>
 EIGEN_DEVICE_FUNC
@@ -1142,6 +1153,7 @@ EIGEN_ALWAYS_INLINE double maxi(const double& x, const double& y)
 {
   return fmax(x, y);
 }
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<>
 EIGEN_DEVICE_FUNC
 EIGEN_ALWAYS_INLINE long double maxi(const long double& x, const long double& y)
@@ -1153,6 +1165,7 @@ EIGEN_ALWAYS_INLINE long double maxi(const long double& x, const long double& y)
   return fmaxl(x, y);
 #endif
 }
+#endif
 #endif
 
 #if defined(SYCL_DEVICE_ONLY)
@@ -1310,8 +1323,8 @@ EIGEN_ALWAYS_INLINE double absdiff(const double& x, const double& y)
   return fabs(x - y);
 }
 
-#if !defined(EIGEN_GPUCC)
 // HIP and CUDA do not support long double.
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template<>
 EIGEN_DEVICE_FUNC
 EIGEN_ALWAYS_INLINE long double absdiff(const long double& x, const long double& y) {
