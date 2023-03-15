@@ -897,7 +897,7 @@ EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity || std:
                                    bool>
 isfinite_impl(const T& x) {
   EIGEN_USING_STD(isfinite);
-  return (isfinite)(x);
+  return isfinite EIGEN_NOT_A_MACRO (x);
 }
 
 template <typename T>
@@ -911,7 +911,7 @@ EIGEN_DEVICE_FUNC std::enable_if_t<
     (std::numeric_limits<T>::has_infinity && !NumTraits<T>::IsComplex), bool>
 isinf_impl(const T& x) {
   EIGEN_USING_STD(isinf);
-  return (isinf)(x);
+  return isinf EIGEN_NOT_A_MACRO (x);
 }
 
 template <typename T>
@@ -930,7 +930,7 @@ EIGEN_DEVICE_FUNC
                      bool>
     isnan_impl(const T& x) {
   EIGEN_USING_STD(isnan);
-  return (isnan)(x);
+  return isnan EIGEN_NOT_A_MACRO (x);
 }
 
 // The following overload are defined at the end of this file
