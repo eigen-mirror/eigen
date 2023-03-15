@@ -57,10 +57,10 @@ EIGEN_ALWAYS_INLINE void KLoop
   }
 
   BFLOAT16_UNROLL
-  for(Index i = 0, k = 0; i < num_rhs; i++) {
+  for(Index i = 0, x = 0; i < num_rhs; i++) {
     BFLOAT16_UNROLL
-    for(Index j = 0; j < num_lhs; j++, k++) {
-      __builtin_mma_xvbf16ger2pp(&(quad_acc[k]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs[j].m_val));
+    for(Index j = 0; j < num_lhs; j++, x++) {
+      __builtin_mma_xvbf16ger2pp(&(quad_acc[x]), reinterpret_cast<Packet16uc>(rhs[i].m_val), reinterpret_cast<Packet16uc>(lhs[j].m_val));
     }
   }
 }
@@ -730,12 +730,8 @@ EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][4], float *re
     } else {
       if (extra == 3) {
         pstoreu_partial(result + k, d0, extra);
-      } else if (extra == 2) {
-        Packet2ul d1 = reinterpret_cast<Packet2ul>(d0);
-        *(unsigned long long *)(result + k) = d1[0];
       } else {
-        Packet4i d1 = reinterpret_cast<Packet4i>(d0);
-        *(unsigned int *)(result + k) = d1[0];
+        memcpy((void *)(result + k), (void *)(&d0), sizeof(float) * extra);
       }
     }
   }

@@ -48,7 +48,7 @@
     #if __has_warning("-Wimplicit-int-float-conversion")
       #pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
     #endif
-    #if ( defined(__ALTIVEC__) || defined(__VSX__) ) && __cplusplus < 201103L
+    #if ( defined(__ALTIVEC__) || defined(__VSX__) ) && ( !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 201112L) )
       // warning: generic selections are a C11-specific feature
       // ignoring warnings thrown at vec_ctf in Altivec/PacketMath.h
       #if __has_warning("-Wc11-extensions")
