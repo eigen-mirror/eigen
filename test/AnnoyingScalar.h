@@ -65,7 +65,7 @@ class AnnoyingScalar
 
     AnnoyingScalar operator-() const
     { return AnnoyingScalar(-*v); }
-    
+
     AnnoyingScalar operator-(const AnnoyingScalar& other) const
     { return AnnoyingScalar(*v-*other.v); }
     
@@ -139,11 +139,6 @@ template<>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
 bool (isfinite)(const AnnoyingScalar& x) {
   return (numext::isfinite)(*x.v);
-}
-template<>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-bool (isnan)(const AnnoyingScalar& x) {
-  return (numext::isnan)(*x.v);
 }
 }
 
