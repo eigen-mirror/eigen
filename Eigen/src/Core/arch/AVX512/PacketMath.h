@@ -353,7 +353,7 @@ EIGEN_STRONG_INLINE Packet8d pnegate(const Packet8d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet16i pnegate(const Packet16i& a) {
-  return _mm512_sub_epi32(_mm512_set1_epi32(0), a);
+  return _mm512_sub_epi32(_mm512_setzero_si512(), a);
 }
 
 template <>
@@ -581,65 +581,71 @@ EIGEN_STRONG_INLINE __m256i Pack32To16(Packet16f rf) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet16f pisnan(const Packet16f& a) {
+  __mmask16 mask = _mm512_cmp_ps_mask(a, a, _CMP_UNORD_Q);
+  return _mm512_castsi512_ps(_mm512_maskz_set1_epi32(mask, 0xffffffffu));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet16f pcmp_eq(const Packet16f& a, const Packet16f& b) {
   __mmask16 mask = _mm512_cmp_ps_mask(a, b, _CMP_EQ_OQ);
   return _mm512_castsi512_ps(
-      _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu));
+      _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu));
 }
 template<> EIGEN_STRONG_INLINE Packet16f pcmp_le(const Packet16f& a, const Packet16f& b) {
   __mmask16 mask = _mm512_cmp_ps_mask(a, b, _CMP_LE_OQ);
   return _mm512_castsi512_ps(
-      _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu));
+      _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16f pcmp_lt(const Packet16f& a, const Packet16f& b) {
   __mmask16 mask = _mm512_cmp_ps_mask(a, b, _CMP_LT_OQ);
   return _mm512_castsi512_ps(
-      _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu));
+      _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16f pcmp_lt_or_nan(const Packet16f& a, const Packet16f& b) {
   __mmask16 mask = _mm512_cmp_ps_mask(a, b, _CMP_NGE_UQ);
   return _mm512_castsi512_ps(
-      _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu));
+      _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16i pcmp_eq(const Packet16i& a, const Packet16i& b) {
   __mmask16 mask = _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_EQ);
-  return _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu);
+  return _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu);
 }
 template<> EIGEN_STRONG_INLINE Packet16i pcmp_le(const Packet16i& a, const Packet16i& b) {
   __mmask16 mask = _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_LE);
-  return _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu);
+  return _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu);
 }
 template<> EIGEN_STRONG_INLINE Packet16i pcmp_lt(const Packet16i& a, const Packet16i& b) {
   __mmask16 mask = _mm512_cmp_epi32_mask(a, b, _MM_CMPINT_LT);
-  return _mm512_mask_set1_epi32(_mm512_set1_epi32(0), mask, 0xffffffffu);
+  return _mm512_mask_set1_epi32(_mm512_setzero_epi32(), mask, 0xffffffffu);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d pcmp_eq(const Packet8d& a, const Packet8d& b) {
   __mmask8 mask = _mm512_cmp_pd_mask(a, b, _CMP_EQ_OQ);
   return _mm512_castsi512_pd(
-      _mm512_mask_set1_epi64(_mm512_set1_epi64(0), mask, 0xffffffffffffffffu));
+      _mm512_mask_set1_epi64(_mm512_setzero_epi32(), mask, 0xffffffffffffffffu));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pcmp_le(const Packet8d& a, const Packet8d& b) {
   __mmask8 mask = _mm512_cmp_pd_mask(a, b, _CMP_LE_OQ);
   return _mm512_castsi512_pd(
-      _mm512_mask_set1_epi64(_mm512_set1_epi64(0), mask, 0xffffffffffffffffu));
+      _mm512_mask_set1_epi64(_mm512_setzero_epi32(), mask, 0xffffffffffffffffu));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pcmp_lt(const Packet8d& a, const Packet8d& b) {
   __mmask8 mask = _mm512_cmp_pd_mask(a, b, _CMP_LT_OQ);
   return _mm512_castsi512_pd(
-      _mm512_mask_set1_epi64(_mm512_set1_epi64(0), mask, 0xffffffffffffffffu));
+      _mm512_mask_set1_epi64(_mm512_setzero_epi32(), mask, 0xffffffffffffffffu));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pcmp_lt_or_nan(const Packet8d& a, const Packet8d& b) {
   __mmask8 mask = _mm512_cmp_pd_mask(a, b, _CMP_NGE_UQ);
   return _mm512_castsi512_pd(
-      _mm512_mask_set1_epi64(_mm512_set1_epi64(0), mask, 0xffffffffffffffffu));
+      _mm512_mask_set1_epi64(_mm512_setzero_epi32(), mask, 0xffffffffffffffffu));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16f print<Packet16f>(const Packet16f& a) { return _mm512_roundscale_ps(a, _MM_FROUND_CUR_DIRECTION); }

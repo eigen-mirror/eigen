@@ -79,8 +79,36 @@ static void test_equality()
 }
 
 
+
+static void test_isnan()
+{
+  Tensor<Scalar, 3> mat(2,3,7);
+
+  mat.setRandom();
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 7; ++k) {
+        if (internal::random<bool>()) {
+          mat(i,j,k) = std::numeric_limits<Scalar>::quiet_NaN();
+        }
+      }
+    }
+  }
+  Tensor<bool, 3> nan(2,3,7);
+  nan = (mat.isnan)();
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 7; ++k) {
+        VERIFY_IS_EQUAL(nan(i,j,k), (std::isnan)(mat(i,j,k)));
+      }
+    }
+  }
+
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_comparisons)
 {
   CALL_SUBTEST(test_orderings());
   CALL_SUBTEST(test_equality());
+  CALL_SUBTEST(test_isnan());
 }

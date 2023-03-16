@@ -859,22 +859,39 @@ struct functor_traits<scalar_ceil_op<Scalar> >
   * \brief Template functor to compute whether a scalar is NaN
   * \sa class CwiseUnaryOp, ArrayBase::isnan()
   */
-template<typename Scalar> struct scalar_isnan_op {
-  typedef bool result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator() (const Scalar& a) const {
+template<typename Scalar, bool UseTypedPredicate=false>
+struct scalar_isnan_op {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator() (const Scalar& a) const {
 #if defined(SYCL_DEVICE_ONLY)
     return numext::isnan(a);
 #else
-    return (numext::isnan)(a);
+    return numext::isnan EIGEN_NOT_A_MACRO (a);
 #endif
   }
 };
+
+
 template<typename Scalar>
-struct functor_traits<scalar_isnan_op<Scalar> >
+struct scalar_isnan_op<Scalar, true> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator() (const Scalar& a) const {
+#if defined(SYCL_DEVICE_ONLY)
+    return (numext::isnan(a) ? ptrue(a) : pzero(a));
+#else
+    return (numext::isnan EIGEN_NOT_A_MACRO (a)  ? ptrue(a) : pzero(a));
+#endif
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
+    return pisnan(a);
+  }
+};
+
+template<typename Scalar, bool UseTypedPredicate>
+struct functor_traits<scalar_isnan_op<Scalar, UseTypedPredicate> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = false
+    PacketAccess = packet_traits<Scalar>::HasCmp && UseTypedPredicate
   };
 };
 

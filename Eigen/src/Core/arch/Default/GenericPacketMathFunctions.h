@@ -1124,7 +1124,7 @@ Packet psqrt_complex(const Packet& a) {
   Packet imag_inf_result;
   imag_inf_result.v = por(pand(cst_pos_inf, real_mask), pandnot(a.v, real_mask));
   // unless otherwise specified, if either the real or imaginary component is nan, the entire result is nan
-  Packet result_is_nan = pandnot(ptrue(result), pcmp_eq(result, result));
+  Packet result_is_nan = pisnan(result);
   result = por(result_is_nan, result);
 
   return pselect(is_imag_inf, imag_inf_result, pselect(is_real_inf, real_inf_result, result));
@@ -1796,7 +1796,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet abs_x_is_lt_one = pcmp_lt(abs_x, cst_one);
   const Packet x_is_one = pandnot(abs_x_is_one, x_is_neg);
   const Packet x_is_neg_one = pand(abs_x_is_one, x_is_neg);
-  const Packet x_is_nan = pandnot(ptrue(x), pcmp_eq(x, x));
+  const Packet x_is_nan = pisnan(x);
 
   // Predicates for sign and magnitude of y.
   const Packet abs_y = pabs(y);
@@ -1804,7 +1804,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_pow(const Pac
   const Packet abs_y_is_zero = pcmp_eq(abs_y, cst_zero);
   const Packet y_is_neg = pcmp_lt(y, cst_zero);
   const Packet y_is_pos = pandnot(ptrue(y), por(abs_y_is_zero, y_is_neg));
-  const Packet y_is_nan = pandnot(ptrue(y), pcmp_eq(y, y));
+  const Packet y_is_nan = pisnan(y);
   const Packet abs_y_is_inf = pcmp_eq(abs_y, cst_pos_inf);
   EIGEN_CONSTEXPR Scalar huge_exponent =
       (NumTraits<Scalar>::max_exponent() * Scalar(EIGEN_LN2)) / NumTraits<Scalar>::epsilon();

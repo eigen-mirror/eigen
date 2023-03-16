@@ -16,6 +16,33 @@ namespace Eigen {
 
 namespace internal {
 
+template <>
+struct type_casting_traits<float, bool> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 1
+  };
+};
+
+template <>
+struct type_casting_traits<bool,float> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 1
+  };
+};
+
+template<> EIGEN_STRONG_INLINE Packet16b pcast<Packet16f, Packet16b>(const Packet16f& a) {
+  __mmask16 mask = _mm512_cmpneq_ps_mask(a, pzero(a));
+  return _mm512_maskz_cvtepi32_epi8(mask, _mm512_set1_epi32(1));
+}
+
+template<> EIGEN_STRONG_INLINE Packet16f pcast<Packet16b, Packet16f>(const Packet16b& a) {
+  return _mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(a));
+}
+
 template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packet16f& a) {
   return _mm512_cvttps_epi32(a);
 }

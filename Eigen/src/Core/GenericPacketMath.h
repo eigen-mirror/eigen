@@ -443,6 +443,12 @@ pnot(const Packet& a) {
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 pandnot(const Packet& a, const Packet& b) { return pand(a, pnot(b)); }
 
+/** \internal \returns isnan(a) */
+template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
+pisnan(const Packet& a) {
+  return pandnot(ptrue(a), pcmp_eq(a, a));
+}
+
 // In the general case, use bitwise select.
 template<typename Packet, typename EnableIf = void>
 struct pselect_impl {
