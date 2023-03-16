@@ -9,7 +9,7 @@ using Eigen::SparseMatrix;
 
 namespace Eigen {
 namespace internal {
-  // MatrixReplacement looks-like a SparseMatrix, so let's inherits its traits:
+  // MatrixReplacement looks-like a SparseMatrix, so let's inherit its traits:
   template<>
   struct traits<MatrixReplacement> :  public Eigen::internal::traits<Eigen::SparseMatrix<double> >
   {};
