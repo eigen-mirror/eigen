@@ -670,6 +670,13 @@ else (CMAKE_VERSION VERSION_LESS 3.14)
                                     ARCH_INDEPENDENT)
 endif (CMAKE_VERSION VERSION_LESS 3.14)
 
+# Build and link pool requires CMake 3.11
+if (CMAKE_VERSION VERSION_LESS 3.11)
+  unset (CMAKE_JOB_POOL_COMPILE)
+  unset (CMAKE_JOB_POOL_LINK)
+  unset (CMAKE_JOB_POOLS)
+endif (CMAKE_VERSION VERSION_LESS 3.11)
+
 # The Eigen target will be located in the Eigen3 namespace. Other CMake
 # targets can refer to it using Eigen3::Eigen.
 export (TARGETS eigen NAMESPACE Eigen3:: FILE Eigen3Targets.cmake)
