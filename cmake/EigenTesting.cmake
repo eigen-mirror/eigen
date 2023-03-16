@@ -83,7 +83,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
   endif()
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
-    ei_add_target_property(${targetname} COMPILE_FLAGS "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
+    ei_add_target_property(${targetname} COMPILE_FLAGS ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
   endif()
 
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
