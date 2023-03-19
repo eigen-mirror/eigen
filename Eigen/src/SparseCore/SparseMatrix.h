@@ -1112,8 +1112,8 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
     StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
     outerIndexMap.coeffRef(j + 1)++;
+    if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
     nonZeros++;
-    if (nonZeros > NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
   }
 
   // finalize outer indices and allocate memory
@@ -1167,8 +1167,8 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
     bool duplicate = (previous_j == j) && (previous_i == i);
     if (!duplicate) {
       outerIndexMap.coeffRef(j + 1)++;
+      if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
       nonZeros++;
-      if (nonZeros > NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
     }
     previous_j = j;
     previous_i = i;
