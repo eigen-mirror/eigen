@@ -292,6 +292,28 @@
   #endif
 #endif
 
+/// \internal EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC set to 1 if the architecture
+/// supports Neon vector intrinsics for fp16.
+#if EIGEN_ARCH_ARM_OR_ARM64
+  #ifndef EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+    #if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+      #define EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC 1
+    #else
+      #define EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC 0
+    #endif
+  #endif
+#endif
+
+/// \internal EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC set to 1 if the architecture
+/// supports Neon scalar intrinsics for fp16.
+#if EIGEN_ARCH_ARM_OR_ARM64
+  #ifndef EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC
+    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+      #define EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC 1
+    #endif
+  #endif
+#endif
+
 /// \internal EIGEN_ARCH_MIPS set to 1 if the architecture is MIPS
 #if defined(__mips__) || defined(__mips)
   #define EIGEN_ARCH_MIPS 1
