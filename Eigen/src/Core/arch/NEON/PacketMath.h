@@ -145,7 +145,7 @@ EIGEN_STRONG_INLINE Packet4f vec4f_unpackhi(const Packet4f& a, const Packet4f& b
   return shuffle2<true>(a,b,eigen_neon_shuffle_mask(2, 2, 3, 3));
 }
 #define vec4f_duplane(a, p) \
-  vdupq_lane_f32(vget_low_f32(a), p)
+  Packet4f(vdupq_lane_f32(vget_low_f32(a), p))
 
 #define _EIGEN_DECLARE_CONST_Packet4f(NAME,X) \
   const Packet4f p4f_##NAME = pset1<Packet4f>(X)
@@ -3696,7 +3696,7 @@ EIGEN_STRONG_INLINE Packet2d vec2d_unpackhi(const Packet2d& a,const Packet2d& b)
   return shuffle(a, b, 3);
 }
 #define vec2d_duplane(a, p) \
-  vdupq_laneq_f64(a, p)
+  Packet2d(vdupq_laneq_f64(a, p))
 
 template<> struct packet_traits<double>  : default_packet_traits
 {

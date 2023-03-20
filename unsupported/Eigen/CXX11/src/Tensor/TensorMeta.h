@@ -263,8 +263,8 @@ namespace internal {
 
   template<typename IndexType, typename Index, Index... Is>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  array<Index, sizeof...(Is)> customIndices2Array(IndexType& idx, numeric_list<Index, Is...>) {
-    return { idx[Is]... };
+  array<Index, 1 + sizeof...(Is)> customIndices2Array(IndexType& idx, numeric_list<Index, First, Is...>) {
+    return { static_cast<Index>(idx[First]), static_cast<Index>(idx[Is])... };
   }
   template<typename IndexType, typename Index>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
