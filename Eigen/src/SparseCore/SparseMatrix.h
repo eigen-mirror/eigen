@@ -135,7 +135,7 @@ class SparseMatrix
     using Base::operator+=;
     using Base::operator-=;
 
-    typedef Eigen::Map<SparseMatrix<Scalar,Flags,StorageIndex>> Map;
+    typedef Eigen::Map<SparseMatrix<Scalar,Options_,StorageIndex>> Map;
     typedef Diagonal<SparseMatrix> DiagonalReturnType;
     typedef Diagonal<const SparseMatrix> ConstDiagonalReturnType;
     typedef typename Base::InnerIterator InnerIterator;
@@ -1107,15 +1107,18 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
   // scan triplets to determine allocation size before constructing matrix
   IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+  Index nonZeros = 0;
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-    StorageIndex j = static_cast<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
     outerIndexMap.coeffRef(j + 1)++;
+    if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
+    nonZeros++;
   }
 
   // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
+  eigen_assert(nonZeros == mat.outerIndexPtr()[mat.outerSize()]);
   mat.resizeNonZeros(nonZeros);
 
   // use tmp to track nonzero insertions
@@ -1124,8 +1127,8 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
 
   // push triplets to back of each inner vector
   for (InputIterator it(begin); it != end; ++it) {
-    StorageIndex j = static_cast<StorageIndex>(IsRowMajor ? it->row() : it->col());
-    StorageIndex i = static_cast<StorageIndex>(IsRowMajor ? it->col() : it->row());
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
     mat.data().index(back.coeff(j)) = i;
     mat.data().value(back.coeff(j)) = it->value();
     back.coeffRef(j)++;
@@ -1154,29 +1157,34 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   StorageIndex previous_i = kEmptyIndexValue;
   // scan triplets to determine allocation size before constructing matrix
   IndexMap outerIndexMap(mat.outerIndexPtr(), mat.outerSize() + 1);
+  Index nonZeros = 0;
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-    StorageIndex j = IsRowMajor ? it->row() : it->col();
-    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
     eigen_assert(j > previous_j || (j == previous_j && i >= previous_i));
     // identify duplicates by examining previous location
     bool duplicate = (previous_j == j) && (previous_i == i);
-    if (!duplicate) outerIndexMap.coeffRef(j + 1)++;
+    if (!duplicate) {
+      outerIndexMap.coeffRef(j + 1)++;
+      if (nonZeros == NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
+      nonZeros++;
+    }
     previous_j = j;
     previous_i = i;
   }
   
   // finalize outer indices and allocate memory
   std::partial_sum(outerIndexMap.begin(), outerIndexMap.end(), outerIndexMap.begin());
-  Index nonZeros = mat.outerIndexPtr()[mat.outerSize()];
+  eigen_assert(nonZeros == mat.outerIndexPtr()[mat.outerSize()]);
   mat.resizeNonZeros(nonZeros);
 
   previous_i = kEmptyIndexValue;
   previous_j = kEmptyIndexValue;
   Index back = 0;
   for (InputIterator it(begin); it != end; ++it) {
-    StorageIndex j = IsRowMajor ? it->row() : it->col();
-    StorageIndex i = IsRowMajor ? it->col() : it->row();
+    StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
     bool duplicate = (previous_j == j) && (previous_i == i);
     if (duplicate) {
       mat.data().value(back - 1) = dup_func(mat.data().value(back - 1), it->value());
