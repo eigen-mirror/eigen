@@ -27,9 +27,6 @@
 
 #endif
 
-// Recent versions of ICC require <cstdint> for pointer types below.
-#define EIGEN_ICC_NEEDS_CSTDINT (EIGEN_COMP_ICC>=1600)
-
 // Define portable (u)int{32,64} types
 #include <cstdint>
 
@@ -92,17 +89,6 @@ namespace internal {
   * \note In case you wonder, yes we're aware that Boost already provides all these features,
   * we however don't want to add a dependency to Boost.
   */
-
-// Only recent versions of ICC complain about using ptrdiff_t to hold pointers,
-// and older versions do not provide *intptr_t types.
-#if EIGEN_ICC_NEEDS_CSTDINT
-typedef std::intptr_t  IntPtr;
-typedef std::uintptr_t UIntPtr;
-#else
-typedef std::ptrdiff_t IntPtr;
-typedef std::size_t UIntPtr;
-#endif
-#undef EIGEN_ICC_NEEDS_CSTDINT
 
 struct true_type {  enum { value = 1 }; };
 struct false_type { enum { value = 0 }; };

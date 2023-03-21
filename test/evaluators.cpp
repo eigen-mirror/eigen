@@ -512,7 +512,7 @@ EIGEN_DECLARE_TEST(evaluators)
     float *destMem = new float[(M*N) + 1];
     // In case of no alignment, avoid division by zero.
     constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
-    float *dest = (internal::UIntPtr(destMem)%alignment) == 0 ? destMem+1 : destMem;
+    float *dest = (std::uintptr_t(destMem)%alignment) == 0 ? destMem+1 : destMem;
 
     const Matrix<float, Dynamic, Dynamic, RowMajor> a = Matrix<float, Dynamic, Dynamic, RowMajor>::Random(M, K);
     const Matrix<float, Dynamic, Dynamic, RowMajor> b = Matrix<float, Dynamic, Dynamic, RowMajor>::Random(K, N);

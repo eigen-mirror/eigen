@@ -22,7 +22,7 @@ template<typename VectorType> void map_class_vector(const VectorType& m)
   Scalar* array3 = new Scalar[size+1];
   // In case of no alignment, avoid division by zero.
   constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
-  Scalar* array3unaligned = (internal::UIntPtr(array3)%alignment) == 0 ? array3+1 : array3;
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
   Scalar  array4[EIGEN_TESTMAP_MAX_SIZE];
 
   Map<VectorType, AlignedMax>(array1, size) = VectorType::Random(size);
@@ -64,7 +64,7 @@ template<typename MatrixType> void map_class_matrix(const MatrixType& m)
   for(Index i = 0; i < sizep1; i++) array3[i] = Scalar(1);
     // In case of no alignment, avoid division by zero.
   constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
-  Scalar* array3unaligned = (internal::UIntPtr(array3)%alignment) == 0 ? array3+1 : array3;
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
   Scalar array4[256];
   if(size<=256)
     for(int i = 0; i < size; i++) array4[i] = Scalar(1);
@@ -129,7 +129,7 @@ template<typename VectorType> void map_static_methods(const VectorType& m)
   Scalar* array3 = new Scalar[size+1];
     // In case of no alignment, avoid division by zero.
   constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
-  Scalar* array3unaligned = (internal::UIntPtr(array3)%alignment) == 0 ? array3+1 : array3;
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
 
   VectorType::MapAligned(array1, size) = VectorType::Random(size);
   VectorType::Map(array2, size) = VectorType::Map(array1, size);

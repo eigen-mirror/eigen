@@ -541,7 +541,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
     // so that all elements of the array have the same alignment.
     return 0;
   }
-  else if( (UIntPtr(array) & (sizeof(Scalar)-1)) || (Alignment%ScalarSize)!=0)
+  else if( (std::uintptr_t(array) & (sizeof(Scalar)-1)) || (Alignment%ScalarSize)!=0)
   {
     // The array is not aligned to the size of a single scalar, or the requested alignment is not a multiple of the scalar size.
     // Consequently, no element of the array is well aligned.
@@ -549,7 +549,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
   }
   else
   {
-    Index first = (AlignmentSize - (Index((UIntPtr(array)/sizeof(Scalar))) & AlignmentMask)) & AlignmentMask;
+    Index first = (AlignmentSize - (Index((std::uintptr_t(array)/sizeof(Scalar))) & AlignmentMask)) & AlignmentMask;
     return (first < size) ? first : size;
   }
 }
@@ -583,7 +583,7 @@ template<typename T> EIGEN_DEVICE_FUNC void smart_copy(const T* start, const T* 
 template<typename T> struct smart_copy_helper<T,true> {
   EIGEN_DEVICE_FUNC static inline void run(const T* start, const T* end, T* target)
   {
-    IntPtr size = IntPtr(end)-IntPtr(start);
+    std::intptr_t size = std::intptr_t(end)-std::intptr_t(start);
     if(size==0) return;
     eigen_internal_assert(start!=0 && end!=0 && target!=0);
     EIGEN_USING_STD(memcpy)
@@ -607,7 +607,7 @@ template<typename T> void smart_memmove(const T* start, const T* end, T* target)
 template<typename T> struct smart_memmove_helper<T,true> {
   static inline void run(const T* start, const T* end, T* target)
   {
-    IntPtr size = IntPtr(end)-IntPtr(start);
+    std::intptr_t size = std::intptr_t(end)-std::intptr_t(start);
     if(size==0) return;
     eigen_internal_assert(start!=0 && end!=0 && target!=0);
     std::memmove(target, start, size);
@@ -617,7 +617,7 @@ template<typename T> struct smart_memmove_helper<T,true> {
 template<typename T> struct smart_memmove_helper<T,false> {
   static inline void run(const T* start, const T* end, T* target)
   {
-    if (UIntPtr(target) < UIntPtr(start))
+    if (std::uintptr_t(target) < std::uintptr_t(start))
     {
       std::copy(start, end, target);
     }
@@ -799,7 +799,7 @@ template<typename T> void swap(scoped_array<T> &a,scoped_array<T> &b)
   #if EIGEN_DEFAULT_ALIGN_BYTES>0
     // We always manually re-align the result of EIGEN_ALLOCA.
     // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
-    #define EIGEN_ALIGNED_ALLOCA(SIZE) reinterpret_cast<void*>((internal::UIntPtr(EIGEN_ALLOCA(SIZE+EIGEN_DEFAULT_ALIGN_BYTES-1)) + EIGEN_DEFAULT_ALIGN_BYTES-1) & ~(std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1)))
+    #define EIGEN_ALIGNED_ALLOCA(SIZE) reinterpret_cast<void*>((std::uintptr_t(EIGEN_ALLOCA(SIZE+EIGEN_DEFAULT_ALIGN_BYTES-1)) + EIGEN_DEFAULT_ALIGN_BYTES-1) & ~(std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1)))
   #else
     #define EIGEN_ALIGNED_ALLOCA(SIZE) EIGEN_ALLOCA(SIZE)
   #endif
