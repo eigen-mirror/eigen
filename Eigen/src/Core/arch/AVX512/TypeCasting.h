@@ -26,7 +26,7 @@ struct type_casting_traits<float, bool> {
 };
 
 template <>
-struct type_casting_traits<bool,float> {
+struct type_casting_traits<bool, float> {
   enum {
     VectorizedCast = 1,
     SrcCoeffRatio = 1,
@@ -40,7 +40,7 @@ template<> EIGEN_STRONG_INLINE Packet16b pcast<Packet16f, Packet16b>(const Packe
 }
 
 template<> EIGEN_STRONG_INLINE Packet16f pcast<Packet16b, Packet16f>(const Packet16b& a) {
-  return _mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(a));
+  return _mm512_cvtepi32_ps(_mm512_and_si512(_mm512_cvtepi8_epi32(a), _mm512_set1_epi32(1)));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packet16f& a) {
@@ -49,6 +49,10 @@ template<> EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packe
 
 template<> EIGEN_STRONG_INLINE Packet16f pcast<Packet16i, Packet16f>(const Packet16i& a) {
   return _mm512_cvtepi32_ps(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet16f pcast<Packet8d, Packet16f>(const Packet8d& a, const Packet8d& b) {
+  return  cat256(_mm512_cvtpd_ps(a), _mm512_cvtpd_ps(b));
 }
 
 template<> EIGEN_STRONG_INLINE Packet16i preinterpret<Packet16i, Packet16f>(const Packet16f& a) {

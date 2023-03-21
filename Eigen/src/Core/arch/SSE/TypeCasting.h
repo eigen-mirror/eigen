@@ -18,6 +18,15 @@ namespace internal {
 
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
+struct type_casting_traits<float, bool> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 4,
+    TgtCoeffRatio = 1
+  };
+};
+
+template <>
 struct type_casting_traits<float, int> {
   enum {
     VectorizedCast = 1,
@@ -36,6 +45,16 @@ struct type_casting_traits<int, float> {
 };
 
 template <>
+struct type_casting_traits<float, double> {
+  enum {
+    VectorizedCast = 1,
+    SrcCoeffRatio = 1,
+    TgtCoeffRatio = 2
+  };
+};
+#endif
+
+template <>
 struct type_casting_traits<double, float> {
   enum {
     VectorizedCast = 1,
@@ -45,14 +64,20 @@ struct type_casting_traits<double, float> {
 };
 
 template <>
-struct type_casting_traits<float, double> {
-  enum {
-    VectorizedCast = 1,
-    SrcCoeffRatio = 1,
-    TgtCoeffRatio = 2
-  };
-};
-#endif
+EIGEN_STRONG_INLINE Packet16b pcast<Packet4f, Packet16b>(const Packet4f& a,
+                                                         const Packet4f& b,
+                                                         const Packet4f& c,
+                                                         const Packet4f& d) {
+  __m128 zero = pzero(a);
+  __m128 nonzero_a = _mm_cmpneq_ps(a, zero);
+  __m128 nonzero_b = _mm_cmpneq_ps(b, zero);
+  __m128 nonzero_c = _mm_cmpneq_ps(c, zero);
+  __m128 nonzero_d = _mm_cmpneq_ps(d, zero);
+  __m128i ab_bytes = _mm_packs_epi32(_mm_castps_si128(nonzero_a), _mm_castps_si128(nonzero_b));
+  __m128i cd_bytes = _mm_packs_epi32(_mm_castps_si128(nonzero_c), _mm_castps_si128(nonzero_d));
+  __m128i merged = _mm_packs_epi16(ab_bytes, cd_bytes);
+  return _mm_and_si128(merged, _mm_set1_epi8(1));
+}
 
 template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet4f, Packet4i>(const Packet4f& a) {
   return _mm_cvttps_epi32(a);
