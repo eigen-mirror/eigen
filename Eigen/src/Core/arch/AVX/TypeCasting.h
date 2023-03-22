@@ -92,22 +92,19 @@ EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
   __m128i a_lo = _mm_shuffle_epi8(_mm256_extractf128_si256(_mm256_castps_si256(nonzero_a), 0), shuffle_mask128_a_lo);
   __m128i b_hi = _mm_shuffle_epi8(_mm256_extractf128_si256(_mm256_castps_si256(nonzero_b), 1), shuffle_mask128_b_hi);
   __m128i b_lo = _mm_shuffle_epi8(_mm256_extractf128_si256(_mm256_castps_si256(nonzero_b), 0), shuffle_mask128_b_lo);
-
+  __m128i merged = _mm_or_si128(_mm_or_si128(b_lo, b_hi), _mm_or_si128(a_lo, a_hi));
+  return _mm_and_si128(merged, _mm_set1_epi8(1));
  #else
-
   __m256i a_shuffle_mask = _mm256_set_epi8(kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF,  12,   8,   4,   0, kFF, kFF, kFF, kFF,
                                            kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF,  12,   8,   4,   0);
   __m256i b_shuffle_mask = _mm256_set_epi8( 12,   8,   4,   0, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF,
                                            kFF, kFF, kFF, kFF,  12,   8,   4,   0, kFF, kFF, kFF, kFF, kFF, kFF, kFF, kFF);
   __m256i a_shuff = _mm256_shuffle_epi8(_mm256_castps_si256(nonzero_a), a_shuffle_mask);
   __m256i b_shuff = _mm256_shuffle_epi8(_mm256_castps_si256(nonzero_b), b_shuffle_mask);
-  __m128i a_hi = _mm256_extractf128_si256(a_shuff, 1);
-  __m128i a_lo = _mm256_extractf128_si256(a_shuff, 0);
-  __m128i b_hi = _mm256_extractf128_si256(b_shuff, 1);
-  __m128i b_lo = _mm256_extractf128_si256(b_shuff, 0);
+  __m256i a_or_b = _mm256_or_si256(a_shuff, b_shuff);
+  __m256i merged = _mm256_or_si256(a_or_b, _mm256_castsi128_si256(_mm256_extractf128_si256(a_or_b, 1)));
+  return _mm256_castsi256_si128(_mm256_and_si256(merged, _mm256_set1_epi8(1)));
 #endif
-  __m128i merged = _mm_or_si128(_mm_or_si128(b_lo, b_hi), _mm_or_si128(a_lo, a_hi));
-  return _mm_and_si128(merged, _mm_set1_epi8(1));
 }
 
 template<> EIGEN_STRONG_INLINE Packet8i preinterpret<Packet8i,Packet8f>(const Packet8f& a) {
