@@ -1,7 +1,7 @@
 #ifndef LAPACK_H
 #define LAPACK_H
 
-#include "blas.h"
+#include "../blas/blas.h"
 
 #ifdef __cplusplus
 extern "C"
