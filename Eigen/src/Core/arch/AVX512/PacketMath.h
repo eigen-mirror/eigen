@@ -544,8 +544,7 @@ EIGEN_STRONG_INLINE Packet8d pmax<PropagateNaN, Packet8d>(const Packet8d& a, con
 template<int I_> EIGEN_STRONG_INLINE Packet8f extract256(Packet16f x) { return _mm512_extractf32x8_ps(x,I_); }
 template<int I_> EIGEN_STRONG_INLINE Packet2d extract128(Packet8d x) { return _mm512_extractf64x2_pd(x,I_); }
 EIGEN_STRONG_INLINE Packet16f cat256(Packet8f a, Packet8f b) { return _mm512_insertf32x8(_mm512_castps256_ps512(a),b,1); }
-EIGEN_STRONG_INLINE Packet16i cat256i(Packet8i a, Packet8i b) {
-  return _mm512_insertf32x8(_mm512_castsi256_si512(a),b,1); }
+EIGEN_STRONG_INLINE Packet16i cat256i(Packet8i a, Packet8i b) { return _mm512_inserti32x8(_mm512_castsi256_si512(a), b, 1); }
 #else
 // AVX512F does not define _mm512_extractf32x8_ps to extract _m256 from _m512
 template<int I_> EIGEN_STRONG_INLINE Packet8f extract256(Packet16f x) {
