@@ -169,13 +169,11 @@ operator()(const Indices& indices) EIGEN_INDEXED_VIEW_METHOD_CONST
 }
 
 #ifndef EIGEN_INDEXED_VIEW_METHOD_2ND_PASS
-// const version
 template <typename IndexType>
 std::enable_if_t<symbolic::is_symbolic<IndexType>::value, CoeffReturnType> operator()(const IndexType& id) const {
   return Base::operator()(internal::eval_expr_given_size(id, size()));
 }
 #else
-// non-const version
 template <typename IndexType>
 std::enable_if_t<symbolic::is_symbolic<IndexType>::value, Scalar&> operator()(const IndexType& id) {
   return Base::operator()(internal::eval_expr_given_size(id, size()));
