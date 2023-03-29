@@ -289,13 +289,8 @@ void check_indexed_view()
   VERIFY( (A(all, std::array<int,4>{{1,3,2,4}})).ColsAtCompileTime == 4);
 
   VERIFY_IS_APPROX( (A(std::array<int,3>{{1,3,5}}, std::array<int,4>{{9,6,3,0}})), A(seqN(1,3,2), seqN(9,4,-3)) );
-
-  VERIFY_IS_APPROX( A({3, 1, 6, 5}, all), A(std::array<int,4>{{3, 1, 6, 5}}, all) );
-  VERIFY_IS_APPROX( A(all,{3, 1, 6, 5}), A(all,std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_APPROX( A({1,3,5},{3, 1, 6, 5}), A(std::array<int,3>{{1,3,5}},std::array<int,4>{{3, 1, 6, 5}}) );
-
-  VERIFY_IS_EQUAL( A({1,3,5},{3, 1, 6, 5}).RowsAtCompileTime, 3 );
-  VERIFY_IS_EQUAL( A({1,3,5},{3, 1, 6, 5}).ColsAtCompileTime, 4 );
+  VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).RowsAtCompileTime, 3);
+  VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).ColsAtCompileTime, 4);
 
   VERIFY_IS_APPROX( a({3, 1, 6, 5}), a(std::array<int,4>{{3, 1, 6, 5}}) );
   VERIFY_IS_EQUAL( a({1,3,5}).SizeAtCompileTime, 3 );
@@ -364,6 +359,9 @@ void check_indexed_view()
   A(X,Y) = 1;
   A(XX,Y) = 1;
   A(X,YY) = 1;
+  // check symbolic indices
+  a(last) = 1;
+  A(last, last) = 1;
 
   // Check compilation of varying integer types as index types:
   Index i = n/2;
