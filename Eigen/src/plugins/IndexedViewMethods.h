@@ -183,34 +183,6 @@ std::enable_if_t<symbolic::is_symbolic<IndexType>::value, CoeffReturnType> opera
   return Base::operator()(internal::eval_expr_given_size(id, size()));
 }
 
-template <typename IndicesT, std::size_t IndicesN>
-std::enable_if_t<IsRowMajor, IndexedView<Derived, IvcIndex, const IndicesT (&)[IndicesN]>> operator()(
-    const IndicesT (&indices)[IndicesN]) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  return IndexedView<Derived, IvcIndex, const IndicesT(&)[IndicesN]>(derived(), IvcIndex(0), indices);
-}
-
-template <typename IndicesT, std::size_t IndicesN>
-std::enable_if_t<IsRowMajor, IndexedView<const Derived, IvcIndex, const IndicesT (&)[IndicesN]>> operator()(
-    const IndicesT (&indices)[IndicesN]) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  return IndexedView<const Derived, IvcIndex, const IndicesT(&)[IndicesN]>(derived(), IvcIndex(0), indices);
-}
-
-template <typename IndicesT, std::size_t IndicesN>
-std::enable_if_t<!IsRowMajor, IndexedView<Derived, const IndicesT (&)[IndicesN], IvcIndex>> operator()(
-    const IndicesT (&indices)[IndicesN]) {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  return IndexedView<Derived, const IndicesT(&)[IndicesN], IvcIndex>(derived(), indices, IvcIndex(0));
-}
-
-template <typename IndicesT, std::size_t IndicesN>
-std::enable_if_t<!IsRowMajor, IndexedView<const Derived, const IndicesT (&)[IndicesN], IvcIndex>> operator()(
-    const IndicesT (&indices)[IndicesN]) const {
-  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  return IndexedView<const Derived, const IndicesT(&)[IndicesN], IvcIndex>(derived(), indices, IvcIndex(0));
-}
-
 #else // EIGEN_PARSED_BY_DOXYGEN
 
 /**

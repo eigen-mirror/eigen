@@ -292,11 +292,8 @@ void check_indexed_view()
   VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).RowsAtCompileTime, 3);
   VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).ColsAtCompileTime, 4);
 
-  VERIFY_IS_APPROX( a({3, 1, 6, 5}), a(std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_EQUAL( a({1,3,5}).SizeAtCompileTime, 3 );
-
-  VERIFY_IS_APPROX( b({3, 1, 6, 5}), b(std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_EQUAL( b({1,3,5}).SizeAtCompileTime, 3 );
+  VERIFY_IS_EQUAL( a(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
+  VERIFY_IS_EQUAL( b(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
 
   // check mat(i,j) with weird types for i and j
   {
