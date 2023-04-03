@@ -101,8 +101,8 @@ template<> EIGEN_STRONG_INLINE Packet4f pcast<Packet2d, Packet4f>(const Packet2d
 }
 
 template<> EIGEN_STRONG_INLINE Packet4i pcast<Packet2d, Packet4i>(const Packet2d& a, const Packet2d& b) {
-  return _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(_mm_cvtpd_epi32(a)),
-                                         _mm_castsi128_ps(_mm_cvtpd_epi32(b)),
+  return _mm_castps_si128(_mm_shuffle_ps(_mm_castsi128_ps(_mm_cvttpd_epi32(a)),
+                                         _mm_castsi128_ps(_mm_cvttpd_epi32(b)),
                                          (1 << 2) | (1 << 6)));
 }
 

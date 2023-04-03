@@ -77,7 +77,7 @@ template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet4d, Packet8f>(const Packet4d
 }
 
 template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet4d, Packet8i>(const Packet4d& a, const Packet4d& b) {
-  return _mm256_set_m128i(_mm256_cvtpd_epi32(b), _mm256_cvtpd_epi32(a));
+  return _mm256_set_m128i(_mm256_cvttpd_epi32(b), _mm256_cvttpd_epi32(a));
 }
 
 template <>
