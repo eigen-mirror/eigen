@@ -97,7 +97,7 @@ operator()(const RowIndices& rowIndices, const ColIndices& colIndices) const {
 
 template <typename RowIndices, typename ColIndices>
 std::enable_if_t<internal::valid_indexed_view_overload<RowIndices, ColIndices>::value &&
-                     internal::traits<IndexedViewType<RowIndices, ColIndices>>::ReturnAsScalar,
+                     internal::traits<IndexedViewType<RowIndices, ColIndices>>::ReturnAsScalar && internal::is_lvalue<Derived>::value,
                  Scalar&>
 operator()(const RowIndices& rowIndices, const ColIndices& colIndices) {
   return Base::operator()(internal::eval_expr_given_size(rowIndices, rows()),
@@ -174,7 +174,7 @@ operator()(const Indices& indices) const {
 }
 
 template <typename IndexType>
-std::enable_if_t<symbolic::is_symbolic<IndexType>::value, Scalar&> operator()(const IndexType& id) {
+std::enable_if_t<symbolic::is_symbolic<IndexType>::value && internal::is_lvalue<Derived>::value, Scalar&> operator()(const IndexType& id) {
   return Base::operator()(internal::eval_expr_given_size(id, size()));
 }
 
