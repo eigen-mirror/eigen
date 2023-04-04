@@ -84,6 +84,35 @@ namespace Eigen {
 
 namespace internal {
 
+/*****************************************************************************
+*** Implementation of portable aligned versions of malloc/free/realloc     ***
+*****************************************************************************/
+
+#ifdef EIGEN_NO_MALLOC
+EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
+{
+  eigen_assert(false && "heap allocation is forbidden (EIGEN_NO_MALLOC is defined)");
+}
+#elif defined EIGEN_RUNTIME_NO_MALLOC
+EIGEN_DEVICE_FUNC inline bool is_malloc_allowed_impl(bool update, bool new_value = false)
+{
+  EIGEN_MALLOC_CHECK_THREAD_LOCAL static bool value = true;
+  if (update == 1)
+    value = new_value;
+  return value;
+}
+EIGEN_DEVICE_FUNC inline bool is_malloc_allowed() { return is_malloc_allowed_impl(false); }
+EIGEN_DEVICE_FUNC inline bool set_is_malloc_allowed(bool new_value) { return is_malloc_allowed_impl(true, new_value); }
+EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
+{
+  eigen_assert(is_malloc_allowed() && "heap allocation is forbidden (EIGEN_RUNTIME_NO_MALLOC is defined and g_is_malloc_allowed is false)");
+}
+#else
+EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
+{}
+#endif
+
+
 EIGEN_DEVICE_FUNC
 inline void throw_std_bad_alloc()
 {
@@ -121,7 +150,10 @@ inline void throw_std_bad_alloc()
 EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
 {
   eigen_assert(alignment >= sizeof(void*) && alignment <= 128 && (alignment & (alignment-1)) == 0 && "Alignment must be at least sizeof(void*), less than or equal to 128, and a power of 2");
-  void* original = std::malloc(size + alignment);
+
+  check_that_malloc_is_allowed();
+  EIGEN_USING_STD(malloc)
+  void* original = malloc(size + alignment);
   if (original == 0) return 0;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
@@ -135,7 +167,10 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
   if (ptr) {
     uint8_t offset = static_cast<uint8_t>(*(static_cast<uint8_t*>(ptr) - 1));
     void* original = static_cast<void*>(static_cast<uint8_t*>(ptr) - offset);
-    std::free(original);
+
+    check_that_malloc_is_allowed();
+    EIGEN_USING_STD(free)
+    free(original);
   }
 }
 
@@ -146,11 +181,14 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
   */
 EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t new_size, std::size_t old_size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
 {
-  if (ptr == 0) return handmade_aligned_malloc(new_size, alignment);
+  if (ptr == nullptr) return handmade_aligned_malloc(new_size, alignment);
   uint8_t old_offset = *(static_cast<uint8_t*>(ptr) - 1);
   void* old_original = static_cast<uint8_t*>(ptr) - old_offset;
-  void* original = std::realloc(old_original, new_size + alignment);
-  if (original == 0) return 0;
+
+  check_that_malloc_is_allowed();
+  EIGEN_USING_STD(realloc)
+  void* original = realloc(old_original, new_size + alignment);
+  if (original == nullptr) return nullptr;
   if (original == old_original) return ptr;
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
@@ -163,44 +201,17 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t n
   return aligned;
 }
 
-/*****************************************************************************
-*** Implementation of portable aligned versions of malloc/free/realloc     ***
-*****************************************************************************/
-
-#ifdef EIGEN_NO_MALLOC
-EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
-{
-  eigen_assert(false && "heap allocation is forbidden (EIGEN_NO_MALLOC is defined)");
-}
-#elif defined EIGEN_RUNTIME_NO_MALLOC
-EIGEN_DEVICE_FUNC inline bool is_malloc_allowed_impl(bool update, bool new_value = false)
-{
-  EIGEN_MALLOC_CHECK_THREAD_LOCAL static bool value = true;
-  if (update == 1)
-    value = new_value;
-  return value;
-}
-EIGEN_DEVICE_FUNC inline bool is_malloc_allowed() { return is_malloc_allowed_impl(false); }
-EIGEN_DEVICE_FUNC inline bool set_is_malloc_allowed(bool new_value) { return is_malloc_allowed_impl(true, new_value); }
-EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
-{
-  eigen_assert(is_malloc_allowed() && "heap allocation is forbidden (EIGEN_RUNTIME_NO_MALLOC is defined and g_is_malloc_allowed is false)");
-}
-#else
-EIGEN_DEVICE_FUNC inline void check_that_malloc_is_allowed()
-{}
-#endif
-
 /** \internal Allocates \a size bytes. The returned pointer is guaranteed to have 16 or 32 bytes alignment depending on the requirements.
   * On allocation error, the returned pointer is null, and std::bad_alloc is thrown.
   */
 EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size)
 {
-  check_that_malloc_is_allowed();
-
+  if (size == 0) return nullptr;
+  
   void *result;
   #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
 
+    check_that_malloc_is_allowed();
     EIGEN_USING_STD(malloc)
     result = malloc(size);
 
@@ -222,6 +233,8 @@ EIGEN_DEVICE_FUNC inline void aligned_free(void *ptr)
 {
   #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
 
+    if(ptr)
+      check_that_malloc_is_allowed();
     EIGEN_USING_STD(free)
     free(ptr);
 
@@ -237,22 +250,23 @@ EIGEN_DEVICE_FUNC inline void aligned_free(void *ptr)
   */
 EIGEN_DEVICE_FUNC inline void* aligned_realloc(void *ptr, std::size_t new_size, std::size_t old_size)
 {
-  if (ptr == 0) return aligned_malloc(new_size);
+  if (ptr == nullptr) return aligned_malloc(new_size);
+  if (old_size == new_size) return ptr;
+  if (new_size == 0) { aligned_free(ptr); return nullptr; }
+
   void *result;
 #if (EIGEN_DEFAULT_ALIGN_BYTES==0) || EIGEN_MALLOC_ALREADY_ALIGNED
   EIGEN_UNUSED_VARIABLE(old_size)
-  result = std::realloc(ptr,new_size);
+
+  check_that_malloc_is_allowed();
+  EIGEN_USING_STD(realloc)
+  result = realloc(ptr,new_size);
 #else
   result = handmade_aligned_realloc(ptr,new_size,old_size);
 #endif
 
   if (!result && new_size)
     throw_std_bad_alloc();
-
-#ifdef EIGEN_RUNTIME_NO_MALLOC
-  if (result != ptr)
-    check_that_malloc_is_allowed();
-#endif
 
   return result;
 }
@@ -271,8 +285,9 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_malloc(s
 
 template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_malloc<false>(std::size_t size)
 {
-  check_that_malloc_is_allowed();
+  if (size == 0) return nullptr;
 
+  check_that_malloc_is_allowed();
   EIGEN_USING_STD(malloc)
   void *result = malloc(size);
 
@@ -289,6 +304,8 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void conditional_aligned_free(void
 
 template<> EIGEN_DEVICE_FUNC inline void conditional_aligned_free<false>(void *ptr)
 {
+  if(ptr)
+    check_that_malloc_is_allowed();
   EIGEN_USING_STD(free)
   free(ptr);
 }
@@ -298,9 +315,15 @@ template<bool Align> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc(
   return aligned_realloc(ptr, new_size, old_size);
 }
 
-template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t)
+template<> EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std::size_t new_size, std::size_t old_size)
 {
-  return std::realloc(ptr, new_size);
+  if (ptr == nullptr) return conditional_aligned_malloc<false>(new_size);
+  if (old_size == new_size) return ptr;
+  if (new_size == 0) { conditional_aligned_free<false>(ptr); return nullptr; }
+
+  check_that_malloc_is_allowed();
+  EIGEN_USING_STD(realloc)
+  return realloc(ptr, new_size);
 }
 
 /*****************************************************************************
@@ -424,7 +447,7 @@ template<typename T, bool Align> EIGEN_DEVICE_FUNC inline T* conditional_aligned
 template<typename T> EIGEN_DEVICE_FUNC inline void aligned_delete(T *ptr, std::size_t size)
 {
   destruct_elements_of_array<T>(ptr, size);
-  Eigen::internal::aligned_free(ptr);
+  aligned_free(ptr);
 }
 
 /** \internal Deletes objects constructed with conditional_aligned_new

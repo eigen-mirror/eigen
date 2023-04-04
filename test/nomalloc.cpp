@@ -225,4 +225,7 @@ EIGEN_DECLARE_TEST(nomalloc)
   CALL_SUBTEST_6(test_reference(Matrix<float,32,32>()));
   CALL_SUBTEST_7(test_reference(R1));
   CALL_SUBTEST_8(Ref<MatrixXd> R2 = M1.topRows<2>(); test_reference(R2));
+
+  // freeing is now possible
+  Eigen::internal::set_is_malloc_allowed(true);
 }
