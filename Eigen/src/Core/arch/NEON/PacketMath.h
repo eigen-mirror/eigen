@@ -187,7 +187,6 @@ struct packet_traits<float> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -237,7 +236,6 @@ struct packet_traits<int8_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -267,7 +265,6 @@ struct packet_traits<uint8_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -299,7 +296,6 @@ struct packet_traits<int16_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -329,7 +325,6 @@ struct packet_traits<uint16_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -360,7 +355,6 @@ struct packet_traits<int32_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -390,7 +384,6 @@ struct packet_traits<uint32_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 1,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -422,7 +415,6 @@ struct packet_traits<int64_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 2,
-    HasHalfPacket = 0,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -452,7 +444,6 @@ struct packet_traits<uint64_t> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 2,
-    HasHalfPacket = 0,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -3410,7 +3401,6 @@ template<> struct packet_traits<bfloat16> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 0,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -3784,7 +3774,6 @@ template<> struct packet_traits<double>  : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 2,
-    HasHalfPacket = 0,
 
     HasCmp       = 1,
     HasAdd       = 1,
@@ -4027,7 +4016,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 1,
 
     HasCmp = 1,
     HasCast = 1,

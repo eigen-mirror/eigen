@@ -46,7 +46,6 @@ template<> struct packet_traits<float> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=4,
-    HasHalfPacket = 0,
 
     HasDiv  = 1,
     HasSin  = 0,
@@ -82,7 +81,6 @@ template<> struct packet_traits<double> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=2,
-    HasHalfPacket = 0,
 
     HasDiv  = 1,
     HasLog  = 1,
@@ -534,7 +532,6 @@ template<> struct packet_traits<Eigen::half> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=8,
-    HasHalfPacket = 0,
     HasAdd    = 1,
     HasSub    = 1,
     HasMul    = 1,

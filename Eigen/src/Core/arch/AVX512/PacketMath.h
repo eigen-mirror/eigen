@@ -63,7 +63,6 @@ struct packet_traits<half> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 1,
 
     HasCmp    = 1,
     HasAdd    = 1,
@@ -89,7 +88,7 @@ struct packet_traits<half> : default_packet_traits {
     HasCos    = EIGEN_FAST_MATH,
     HasTanh   = EIGEN_FAST_MATH,
     HasErf    = EIGEN_FAST_MATH,
-    HasBlend = 0,
+    HasBlend  = 0,
     HasRound  = 1,
     HasFloor  = 1,
     HasCeil   = 1,
@@ -106,13 +105,12 @@ template<> struct packet_traits<float>  : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 1,
 
     HasAbs = 1,
-    HasMin    = 1,
-    HasMax    = 1,
-    HasConj   = 1,
-    HasBlend = 0,
+    HasMin   = 1,
+    HasMax   = 1,
+    HasConj  = 1,
+    HasBlend = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasACos = 1,
@@ -146,7 +144,7 @@ template<> struct packet_traits<double> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 1,
+    HasBlend = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
     HasLog  = 1,
@@ -168,6 +166,7 @@ template<> struct packet_traits<int> : default_packet_traits
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
+    HasBlend = 0,
     HasCmp = 1,
     HasDiv = 1,
     size=16
@@ -455,9 +454,16 @@ template <>
 EIGEN_DEVICE_FUNC inline Packet16f pselect(const Packet16f& mask,
                                            const Packet16f& a,
                                            const Packet16f& b) {
-  __mmask16 mask16 = _mm512_cmp_epi32_mask(
-      _mm512_castps_si512(mask), _mm512_setzero_epi32(), _MM_CMPINT_EQ);
+  __mmask16 mask16 = _mm512_cmpeq_epi32_mask(_mm512_castps_si512(mask), _mm512_setzero_epi32());
   return _mm512_mask_blend_ps(mask16, a, b);
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline Packet16i pselect(const Packet16i& mask,
+                                           const Packet16i& a,
+                                           const Packet16i& b) {
+  __mmask16 mask16 = _mm512_cmpeq_epi32_mask(mask, _mm512_setzero_epi32());
+  return _mm512_mask_blend_epi32(mask16, a, b);
 }
 
 template <>
@@ -1847,11 +1853,16 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16i, 4>& kernel) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& /*ifPacket*/,
-                                     const Packet16f& /*thenPacket*/,
-                                     const Packet16f& /*elsePacket*/) {
-  eigen_assert(false && "To be implemented");
-  return Packet16f();
+EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& ifPacket,
+                                     const Packet16f& thenPacket,
+                                     const Packet16f& elsePacket) {
+  __mmask16 m = (ifPacket.select[0]) | (ifPacket.select[1] << 1) | (ifPacket.select[2] << 2) |
+                (ifPacket.select[3] << 3) | (ifPacket.select[4] << 4) | (ifPacket.select[5] << 5) |
+                (ifPacket.select[6] << 6) | (ifPacket.select[7] << 7) | (ifPacket.select[8] << 8) |
+                (ifPacket.select[9] << 9) | (ifPacket.select[10] << 10) | (ifPacket.select[11] << 11) |
+                (ifPacket.select[12] << 12) | (ifPacket.select[13] << 13) | (ifPacket.select[14] << 14) |
+                (ifPacket.select[15] << 15);
+  return _mm512_mask_blend_ps(m, elsePacket, thenPacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pblend(const Selector<8>& ifPacket,
@@ -2295,7 +2306,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 1,
     HasBlend = 0,
     HasInsert = 1,
     HasSin = EIGEN_FAST_MATH,

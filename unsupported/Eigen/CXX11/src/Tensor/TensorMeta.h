@@ -166,7 +166,6 @@ struct PacketType<Scalar, SyclDevice> : internal::default_packet_traits {
     Vectorizable = 0,
     size = 1,
     AlignedOnScalar = 0,
-    HasHalfPacket = 0
   };
   enum {
     HasAdd    = 0,

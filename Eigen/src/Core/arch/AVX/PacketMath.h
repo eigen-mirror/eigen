@@ -66,7 +66,6 @@ template<> struct packet_traits<float>  : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 1,
 
     HasCmp  = 1,
     HasDiv = 1,
@@ -102,7 +101,6 @@ template<> struct packet_traits<double> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=4,
-    HasHalfPacket = 1,
 
     HasCmp  = 1,
     HasDiv  = 1,
@@ -128,7 +126,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 0,
 
     HasCmp    = 1,
     HasAdd    = 1,
@@ -172,7 +169,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 0,
 
     HasCmp = 1,
     HasAdd = 1,
@@ -873,6 +869,9 @@ template<> EIGEN_STRONG_INLINE Packet4d pround<Packet4d>(const Packet4d& a)
 
 template<> EIGEN_STRONG_INLINE Packet8f pselect<Packet8f>(const Packet8f& mask, const Packet8f& a, const Packet8f& b)
 { return _mm256_blendv_ps(b,a,mask); }
+template<> EIGEN_STRONG_INLINE Packet8i pselect<Packet8i>(const Packet8i& mask, const Packet8i& a, const Packet8i& b)
+{ return _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(b), _mm256_castsi256_ps(a), _mm256_castsi256_ps(mask))); }
+
 template<> EIGEN_STRONG_INLINE Packet4d pselect<Packet4d>(const Packet4d& mask, const Packet4d& a, const Packet4d& b)
 { return _mm256_blendv_pd(b,a,mask); }
 

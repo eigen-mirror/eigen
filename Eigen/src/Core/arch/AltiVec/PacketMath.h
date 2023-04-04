@@ -157,7 +157,6 @@ struct packet_traits<float> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 1,
 
     HasAdd = 1,
     HasSub = 1,
@@ -206,7 +205,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 0,
 
     HasAdd = 1,
     HasSub = 1,
@@ -250,7 +248,6 @@ struct packet_traits<int> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 4,
-    HasHalfPacket = 0,
 
     HasAdd   = 1,
     HasSub   = 1,
@@ -274,7 +271,6 @@ struct packet_traits<short int> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 0,
 
     HasAdd  = 1,
     HasSub  = 1,
@@ -293,7 +289,6 @@ struct packet_traits<unsigned short int> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasHalfPacket = 0,
 
     HasAdd  = 1,
     HasSub  = 1,
@@ -312,7 +307,6 @@ struct packet_traits<signed char> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 0,
 
     HasAdd  = 1,
     HasSub  = 1,
@@ -331,7 +325,6 @@ struct packet_traits<unsigned char> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasHalfPacket = 0,
 
     HasAdd  = 1,
     HasSub  = 1,
@@ -2710,7 +2703,6 @@ template<> struct packet_traits<double> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=2,
-    HasHalfPacket = 1,
 
     HasAdd  = 1,
     HasSub  = 1,
