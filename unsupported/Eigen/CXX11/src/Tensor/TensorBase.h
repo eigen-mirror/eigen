@@ -629,11 +629,18 @@ class TensorBase<Derived, ReadOnlyAccessors>
       return unaryExpr(internal::scalar_isfinite_op<Scalar>());
     }
 
+    template<typename IfXprType, typename ThenXprType, typename ElseXprType>
+    using TensorSelectOp = TensorCwiseTernaryOp<internal::scalar_boolean_select_op<typename internal::traits<ThenXprType>::Scalar, typename internal::traits<ElseXprType>::Scalar, typename internal::traits<IfXprType>::Scalar>, ThenXprType, ElseXprType, IfXprType>;
+
     // Coefficient-wise ternary operators.
     template<typename ThenDerived, typename ElseDerived> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorSelectOp<const Derived, const ThenDerived, const ElseDerived>
     select(const ThenDerived& thenTensor, const ElseDerived& elseTensor) const {
-      return TensorSelectOp<const Derived, const ThenDerived, const ElseDerived>(derived(), thenTensor.derived(), elseTensor.derived());
+      using ThenScalar = typename internal::traits<ThenDerived>::Scalar;
+      using ElseScalar = typename internal::traits<ElseDerived>::Scalar;
+      using SelectOp = internal::scalar_boolean_select_op<ThenScalar, ElseScalar, Scalar>;
+      using SelectExpr = TensorCwiseTernaryOp<SelectOp, const ThenDerived, const ElseDerived, const Derived>;
+      return SelectExpr(thenTensor, elseTensor, derived(), SelectOp());
     }
 
     // Contractions.

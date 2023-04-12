@@ -313,43 +313,6 @@ class TensorCwiseTernaryOp : public TensorBase<TensorCwiseTernaryOp<TernaryOp, A
     const TernaryOp m_functor;
 };
 
-
-namespace internal {
-template<typename IfXprType, typename ThenXprType, typename ElseXprType>
-struct traits<TensorSelectOp<IfXprType, ThenXprType, ElseXprType> >
-    : traits<ThenXprType>
-{
-  typedef typename traits<ThenXprType>::Scalar Scalar;
-  typedef traits<ThenXprType> XprTraits;
-  typedef typename promote_storage_type<typename traits<ThenXprType>::StorageKind,
-                                        typename traits<ElseXprType>::StorageKind>::ret StorageKind;
-  typedef typename promote_index_type<typename traits<ElseXprType>::Index,
-                                      typename traits<ThenXprType>::Index>::type Index;
-  typedef typename IfXprType::Nested IfNested;
-  typedef typename ThenXprType::Nested ThenNested;
-  typedef typename ElseXprType::Nested ElseNested;
-  static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
-  typedef std::conditional_t<Pointer_type_promotion<typename ThenXprType::Scalar, Scalar>::val,
-                               typename traits<ThenXprType>::PointerType,
-                               typename traits<ElseXprType>::PointerType> PointerType;
-};
-
-template<typename IfXprType, typename ThenXprType, typename ElseXprType>
-struct eval<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, Eigen::Dense>
-{
-  typedef const TensorSelectOp<IfXprType, ThenXprType, ElseXprType>& type;
-};
-
-template<typename IfXprType, typename ThenXprType, typename ElseXprType>
-struct nested<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, 1, typename eval<TensorSelectOp<IfXprType, ThenXprType, ElseXprType> >::type>
-{
-  typedef TensorSelectOp<IfXprType, ThenXprType, ElseXprType> type;
-};
-
-}  // end namespace internal
-
-
 template<typename IfXprType, typename ThenXprType, typename ElseXprType>
 class TensorSelectOp : public TensorBase<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, ReadOnlyAccessors>
 {
