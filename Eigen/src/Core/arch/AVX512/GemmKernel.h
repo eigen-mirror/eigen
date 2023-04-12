@@ -21,8 +21,7 @@
 #include "../../InternalHeaderCheck.h"
 
 #if !defined(EIGEN_USE_AVX512_GEMM_KERNELS)
-// Disable new AVX512 kernels by default.
-#define EIGEN_USE_AVX512_GEMM_KERNELS 0
+#define EIGEN_USE_AVX512_GEMM_KERNELS 1
 #endif
 
 #define SECOND_FETCH (32)
