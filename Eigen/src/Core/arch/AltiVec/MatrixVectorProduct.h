@@ -17,8 +17,8 @@
 #define USE_GEMV_MMA
 #endif
 
-#if !EIGEN_COMP_LLVM && (__GNUC__ == 10 && __GNUC_MINOR__ <= 3)
-// Only allow one vector_pair in buggy gcc - gcc 10.3 has a bug
+#if !EIGEN_COMP_LLVM && (__GNUC__ < 11)
+// Only allow one vector_pair in buggy gcc - gcc 10.x has a bug
 #define GCC_ONE_VECTORPAIR_BUG
 #endif
 #endif

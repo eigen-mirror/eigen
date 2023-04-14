@@ -84,6 +84,18 @@ EIGEN_ALWAYS_INLINE void gemm_complex_extra_cols(
   const Packet& pAlphaImag,
   const Packet& pMask);
 
+template<typename DataMapper>
+EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float *result, Index cols, Index rows, const DataMapper& src);
+
+template<const Index size, bool non_unit_stride, Index delta>
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc, Index extra = 0);
+
+template<bool non_unit_stride = false>
+EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float *result, Index cols, Index rows, bfloat16* src, Index resInc = 1);
+
+template<bool rhsExtraCols, bool lhsExtraRows>
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result, Index extra_cols, Index extra_rows);
+
 template<typename Packet>
 EIGEN_ALWAYS_INLINE Packet ploadLhs(const __UNPACK_TYPE__(Packet)* lhs);
 
