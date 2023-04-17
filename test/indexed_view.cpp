@@ -295,6 +295,69 @@ void check_indexed_view()
   VERIFY_IS_EQUAL( a(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
   VERIFY_IS_EQUAL( b(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
 
+  // check different index types (C-style array, STL container, Eigen type)
+  {
+    Index size = 10;
+    ArrayXd r = ArrayXd::Random(size);
+    ArrayXi idx = ArrayXi::EqualSpaced(size, 0, 1);
+    std::shuffle(idx.begin(), idx.end(), std::random_device());
+
+    int c_array[3] = { idx[0], idx[1], idx[2] };
+    std::vector<int> std_vector{ idx[0], idx[1], idx[2] };
+    Matrix<int, 3, 1> eigen_matrix{ idx[0], idx[1], idx[2] };
+
+    // non-const access
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(c_array));
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(std_vector));
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(c_array));
+    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r(eigen_matrix), r(c_array));
+
+    const ArrayXd& r_ref = r;
+    // const access
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(c_array));
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(std_vector));
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(c_array));
+    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r_ref(eigen_matrix), r_ref(c_array));
+  }
+
+  {
+    Index rows = 8;
+    Index cols = 11;
+    ArrayXXd R = ArrayXXd::Random(rows, cols);
+    ArrayXi r_idx = ArrayXi::EqualSpaced(rows, 0, 1);
+    ArrayXi c_idx = ArrayXi::EqualSpaced(cols, 0, 1);
+    std::shuffle(r_idx.begin(), r_idx.end(), std::random_device());
+    std::shuffle(c_idx.begin(), c_idx.end(), std::random_device());
+
+    int c_array_rows[3] = { r_idx[0], r_idx[1], r_idx[2] };
+    int c_array_cols[4] = { c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+    std::vector<int> std_vector_rows{ r_idx[0], r_idx[1], r_idx[2] };
+    std::vector<int> std_vector_cols{ c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+    Matrix<int, 3, 1> eigen_matrix_rows{ r_idx[0], r_idx[1], r_idx[2] };
+    Matrix<int, 4, 1> eigen_matrix_cols{ c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+
+    // non-const access
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(std_vector_rows, std_vector_cols));
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R(eigen_matrix_rows, eigen_matrix_cols), R(c_array_rows, c_array_cols));
+
+    const ArrayXXd& R_ref = R;
+    // const access
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(std_vector_rows, std_vector_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(std_vector_rows, std_vector_cols), R_ref(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(std_vector_rows, std_vector_cols), R_ref(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(eigen_matrix_rows, eigen_matrix_cols), R_ref(c_array_rows, c_array_cols));
+  }
+
   // check mat(i,j) with weird types for i and j
   {
     VERIFY_IS_APPROX( A(B.RowsAtCompileTime-1, 1), A(3,1) );
@@ -357,8 +420,33 @@ void check_indexed_view()
   A(XX,Y) = 1;
   A(X,YY) = 1;
   // check symbolic indices
-  a(last) = 1;
+  a(last) = 1.0;
   A(last, last) = 1;
+  // check weird non-const, non-lvalue scenarios
+  {
+    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const
+    // overloads without intervention
+
+    // non-const map to a const object
+    Map<const ArrayXd> a_map(a.data(), a.size());
+    Map<const ArrayXXi> A_map(A.data(), A.rows(), A.cols());
+
+    VERIFY_IS_EQUAL(a_map(last), a.coeff(a.size() - 1));
+    VERIFY_IS_EQUAL(A_map(last, last), A.coeff(A.rows() - 1, A.cols() - 1));
+
+    // non-const expressions that have no modifiable data
+    using Op = internal::scalar_constant_op<double>;
+    using VectorXpr = CwiseNullaryOp<Op, VectorXd>;
+    using MatrixXpr = CwiseNullaryOp<Op, MatrixXd>;
+    double constant_val = internal::random<double>();
+    Op op(constant_val);
+    VectorXpr vectorXpr(10, 1, op);
+    MatrixXpr matrixXpr(8, 11, op);
+
+    VERIFY_IS_EQUAL(vectorXpr.coeff(vectorXpr.size() - 1), vectorXpr(last));
+    VERIFY_IS_EQUAL(matrixXpr.coeff(matrixXpr.rows() - 1, matrixXpr.cols() - 1), matrixXpr(last, last));
+  }
+
 
   // Check compilation of varying integer types as index types:
   Index i = n/2;
