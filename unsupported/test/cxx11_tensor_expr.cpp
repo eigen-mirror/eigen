@@ -280,6 +280,8 @@ static void test_type_casting()
 
 static void test_select()
 {
+  using TypedGTOp = internal::scalar_cmp_op<float, float, internal::cmp_GT, true>;
+
   Tensor<float, 3> selector(2,3,7);
   Tensor<float, 3> mat1(2,3,7);
   Tensor<float, 3> mat2(2,3,7);
@@ -288,6 +290,8 @@ static void test_select()
   selector.setRandom();
   mat1.setRandom();
   mat2.setRandom();
+
+  // test select with a boolean condition
   result = (selector > selector.constant(0.5f)).select(mat1, mat2);
 
   for (int i = 0; i < 2; ++i) {
@@ -297,6 +301,18 @@ static void test_select()
       }
     }
   }
+
+  // test select with a typed condition
+  result = selector.binaryExpr(selector.constant(0.5f), TypedGTOp()).select(mat1, mat2);
+
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 7; ++k) {
+        VERIFY_IS_APPROX(result(i, j, k), (selector(i, j, k) > 0.5f) ? mat1(i, j, k) : mat2(i, j, k));
+      }
+    }
+  }
+
 }
 
 template <typename Scalar>
