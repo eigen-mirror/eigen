@@ -1070,7 +1070,7 @@ template<> EIGEN_STRONG_INLINE void prefetch<uint32_t>(const uint32_t*       add
 template<> EIGEN_STRONG_INLINE float  pfirst<Packet4f>(const Packet4f& a) { return a.m128_f32[0]; }
 template<> EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) { return a.m128d_f64[0]; }
 template<> EIGEN_STRONG_INLINE int    pfirst<Packet4i>(const Packet4i& a) { int x = _mm_cvtsi128_si32(a); return x; }
-template<> EIGEN_STRONG_INLINE uint32_t    pfirst<Packet4i>(const Packet4i& a) { uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a)); return x; }
+template<> EIGEN_STRONG_INLINE uint32_t    pfirst<Packet4ui>(const Packet4ui& a) { uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a)); return x; }
 #elif EIGEN_COMP_MSVC_STRICT
 // The temporary variable fixes an internal compilation error in vs <= 2008 and a wrong-result bug in vs 2010
 template<> EIGEN_STRONG_INLINE float  pfirst<Packet4f>(const Packet4f& a) { float x = _mm_cvtss_f32(a); return x; }
