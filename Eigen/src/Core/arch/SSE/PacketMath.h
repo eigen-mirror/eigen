@@ -1076,7 +1076,7 @@ template<> EIGEN_STRONG_INLINE uint32_t    pfirst<Packet4ui>(const Packet4ui& a)
 template<> EIGEN_STRONG_INLINE float  pfirst<Packet4f>(const Packet4f& a) { float x = _mm_cvtss_f32(a); return x; }
 template<> EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) { double x = _mm_cvtsd_f64(a); return x; }
 template<> EIGEN_STRONG_INLINE int    pfirst<Packet4i>(const Packet4i& a) { int x = _mm_cvtsi128_si32(a); return x; }
-template<> EIGEN_STRONG_INLINE int pfirst<Packet4ui>(const Packet4ui& a) { uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a)); return x; }
+template<> EIGEN_STRONG_INLINE uint32_t pfirst<Packet4ui>(const Packet4ui& a) { uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a)); return x; }
 #else
 template<> EIGEN_STRONG_INLINE float  pfirst<Packet4f>(const Packet4f& a) { return _mm_cvtss_f32(a); }
 template<> EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) { return _mm_cvtsd_f64(a); }
