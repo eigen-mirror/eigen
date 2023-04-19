@@ -400,7 +400,7 @@ template<typename Derived> class MatrixBase
     inline PlainObject unitOrthogonal(void) const;
 
     EIGEN_DEVICE_FUNC
-    inline Matrix<Scalar,3,1> eulerAngles(Index a0, Index a1, Index a2) const;
+    inline Matrix<Scalar,3,1> eulerAngles(Index a0, Index a1, Index a2, bool canonical = true) const;
 
     // put this as separate enum value to work around possible GCC 4.3 bug (?)
     enum { HomogeneousReturnTypeDirection = ColsAtCompileTime==1&&RowsAtCompileTime==1 ? ((internal::traits<Derived>::Flags&RowMajorBit)==RowMajorBit ? Horizontal : Vertical)
