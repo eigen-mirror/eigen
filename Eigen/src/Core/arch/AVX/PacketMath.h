@@ -276,7 +276,7 @@ template<> struct packet_traits<uint64_t> : default_packet_traits
     HasTranspose = 0,
     HasNegate = 0,
     HasSqrt = 0,
-
+    HasMul = 0,
     HasCmp = 1,
     HasShift = 1
   };

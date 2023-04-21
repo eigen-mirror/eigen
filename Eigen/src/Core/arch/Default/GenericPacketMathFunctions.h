@@ -2152,15 +2152,15 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(
   return result;
 }
 
-template <typename Packet, typename ScalarExponent>
+template <typename Packet, typename ScalarExponent, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet& x, const ScalarExponent& exponent) {
   typedef typename unpacket_traits<Packet>::type Scalar;
 
-  // integer base, integer exponent case
+  // signed integer base, integer exponent case
 
   // This routine handles negative and very large positive exponents
   // Signed integer overflow and divide by zero is undefined behavior
-  // Unsigned intgers do not overflow
+  // Unsigned integers do not overflow
 
   const bool exponent_is_odd = unary_pow::is_odd<ScalarExponent>::run(exponent);
 
@@ -2181,6 +2181,31 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
   result = pselect(pand(pow_is_one, pow_is_neg), pnegate(cst_pos_one), result);
   return result;
 }
+
+template <typename Packet, typename ScalarExponent, std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsSigned, bool> = true>
+static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet& x, const ScalarExponent& exponent) {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+
+  // unsigned integer base, integer exponent case
+
+  // This routine handles negative and very large positive exponents
+  // Signed integer overflow and divide by zero is undefined behavior
+  // Unsigned integers do not overflow
+
+  const Scalar zero = Scalar(0);
+  const Scalar pos_one = Scalar(1);
+
+  const Packet cst_zero = pset1<Packet>(zero);
+  const Packet cst_pos_one = pset1<Packet>(pos_one);
+
+  const Packet pow_is_zero = exponent < 0 ? pcmp_lt(cst_pos_one, x) : pzero(x);
+  const Packet pow_is_one = pcmp_eq(cst_pos_one, x);
+
+  Packet result = pselect(pow_is_zero, cst_zero, x);
+  result = pselect(pow_is_one, cst_pos_one, result);
+  return result;
+}
+
 }  // end namespace unary_pow
 
 template <typename Packet, typename ScalarExponent,
