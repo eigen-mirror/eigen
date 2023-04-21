@@ -2192,8 +2192,6 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_int_int(const Packet&
   // Signed integer overflow and divide by zero is undefined behavior
   // Unsigned integers do not overflow
 
-  const bool exponent_is_odd = unary_pow::is_odd<ScalarExponent>::run(exponent);
-
   const Scalar zero = Scalar(0);
   const Scalar pos_one = Scalar(1);
 
