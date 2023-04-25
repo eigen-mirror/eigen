@@ -151,7 +151,9 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
     DenseVector refVec1 = DenseVector::Zero(rows);
     DenseIndexVector innerIndices(rows);
     innerIndices.setLinSpaced(0, rows - 1);
-    std::random_shuffle(innerIndices.begin(), innerIndices.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(innerIndices.begin(), innerIndices.end(), g);
     Index nz = internal::random<Index>(2, rows / 2);
     for (Index k = 0; k < nz; k++)
     {
