@@ -621,6 +621,110 @@ protected:
   Data m_d;
 };
 
+// ----------------------- Casting ---------------------
+template <typename SrcType, typename DstType, typename ArgType>
+struct unary_evaluator<CwiseUnaryOp<scalar_cast_op<SrcType, DstType>, ArgType>, IndexBased> {
+  using CastOp = scalar_cast_op<SrcType, DstType>;
+  using XprType = CwiseUnaryOp<CastOp, ArgType>;
+  using SrcPacketType = typename packet_traits<SrcType>::type;
+
+  static constexpr int SrcPacketSize = packet_traits<SrcType>::size;
+  static constexpr int SrcPacketSizeBytes = SrcPacketSize * sizeof(SrcType);
+
+  enum {
+    CoeffReadCost = int(evaluator<ArgType>::CoeffReadCost) + int(functor_traits<CastOp>::Cost),
+    Flags = evaluator<ArgType>::Flags &
+            (HereditaryBits | LinearAccessBit | (functor_traits<CastOp>::PacketAccess ? PacketAccessBit : 0)),
+    Alignment = evaluator<ArgType>::Alignment
+  };
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit unary_evaluator(const XprType& xpr)
+      : m_argImpl(xpr.nestedExpression()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<CastOp>::Cost);
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index row, Index col) const {
+    return CastOp()(m_argImpl.coeff(row, col));
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstType coeff(Index index) const {
+    return CastOp()(m_argImpl.coeff(index));
+  }
+
+  template <int LoadMode>
+  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index row, Index col, Index offset) const {
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    constexpr bool ArgIsRowMajor = evaluator<ArgType>::Flags & RowMajorBit;
+    return m_argImpl.template packet<LoadMode, SrcPacketType>(ArgIsRowMajor ? row : row + (offset * SrcPacketSize),
+                                                              ArgIsRowMajor ? col + (offset * SrcPacketSize) : col);
+  }
+  template <int LoadMode>
+  EIGEN_ALWAYS_INLINE SrcPacketType srcPacket(Index index, Index offset) const {
+    EIGEN_STATIC_ASSERT((LoadMode & (LoadMode - 1)) == 0, LoadMode must be a power of two)
+    return m_argImpl.template packet<LoadMode, SrcPacketType>(index + (offset * SrcPacketSize));
+  }
+
+  template <typename DstPacketType>
+  using SrcPacketArgs1 = std::enable_if_t<unpacket_traits<DstPacketType>::size <= (1 * SrcPacketSize), bool>;
+  template <typename DstPacketType>
+  using SrcPacketArgs2 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (2 * SrcPacketSize), bool>;
+  template <typename DstPacketType>
+  using SrcPacketArgs4 = std::enable_if_t<unpacket_traits<DstPacketType>::size == (4 * SrcPacketSize), bool>;
+
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(row, col, 0));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(row, col, 0),
+                                                     srcPacket<SrcLoadMode1>(row, col, 1));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
+    constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(
+        srcPacket<SrcLoadMode0>(row, col, 0), srcPacket<SrcLoadMode1>(row, col, 1),
+        srcPacket<SrcLoadMode2>(row, col, 2), srcPacket<SrcLoadMode3>(row, col, 3));
+  }
+
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcIncrementBytes = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcIncrementBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode>(index, 0));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int SrcLoadMode0 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode1 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(srcPacket<SrcLoadMode0>(index, 0),
+                                                     srcPacket<SrcLoadMode1>(index, 1));
+  }
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
+    constexpr int SrcLoadMode0 = plain_enum_min(4 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode1 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode2 = plain_enum_min(2 * SrcPacketSizeBytes, LoadMode);
+    constexpr int SrcLoadMode3 = plain_enum_min(1 * SrcPacketSizeBytes, LoadMode);
+    return CastOp().template packetOp<DstPacketType>(
+        srcPacket<SrcLoadMode0>(index, 0), srcPacket<SrcLoadMode1>(index, 1),
+        srcPacket<SrcLoadMode2>(index, 2), srcPacket<SrcLoadMode3>(index, 3));
+  }
+
+ protected:
+  const evaluator<ArgType> m_argImpl;
+};
+
 // -------------------- CwiseTernaryOp --------------------
 
 // this is a ternary expression
