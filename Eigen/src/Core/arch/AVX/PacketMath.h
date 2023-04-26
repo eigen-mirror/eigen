@@ -276,8 +276,6 @@ template<> struct packet_traits<uint64_t> : default_packet_traits
     HasTranspose = 0,
     HasNegate = 0,
     HasSqrt = 0,
-    HasMul = 0,
-    HasAbs2 = 0,
     HasCmp = 1,
     HasShift = 1
   };
@@ -661,6 +659,10 @@ EIGEN_STRONG_INLINE Packet4l pmul<Packet4l>(const Packet4l& a, const Packet4l& b
 
   __m256i high = _mm256_slli_epi64(_mm256_add_epi64(mul1, mul2), 32);
   return _mm256_add_epi64(high, mul3);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4ul pmul<Packet4ul>(const Packet4ul& a, const Packet4ul& b) {
+  return (Packet4ul)pmul<Packet4l>((Packet4l)a, (Packet4l)b);
 }
 #endif
 

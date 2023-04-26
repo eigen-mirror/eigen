@@ -476,7 +476,7 @@ template<typename ArrayType> void array(const ArrayType& m)
   // reductions
   VERIFY_IS_APPROX(m1.abs().colwise().sum().sum(), m1.abs().sum());
   VERIFY_IS_APPROX(m1.abs().rowwise().sum().sum(), m1.abs().sum());
-  using std::abs;
+  using numext::abs;
   VERIFY_IS_MUCH_SMALLER_THAN(abs(m1.colwise().sum().sum() - m1.sum()), m1.abs().sum());
   VERIFY_IS_MUCH_SMALLER_THAN(abs(m1.rowwise().sum().sum() - m1.sum()), m1.abs().sum());
   if (!internal::isMuchSmallerThan(abs(m1.sum() - (m1+m2).sum()), m1.abs().sum(), test_precision<Scalar>()))
@@ -587,7 +587,7 @@ template<typename ArrayType> void array(const ArrayType& m)
 
 template<typename ArrayType> void comparisons(const ArrayType& m)
 {
-  using std::abs;
+  using numext::abs;
   typedef typename ArrayType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
@@ -709,7 +709,7 @@ template<typename ArrayType> void comparisons(const ArrayType& m)
 
 template<typename ArrayType> void array_real(const ArrayType& m)
 {
-  using std::abs;
+  using numext::abs;
   using std::sqrt;
   typedef typename ArrayType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -1251,7 +1251,8 @@ EIGEN_DECLARE_TEST(array_cwise)
     CALL_SUBTEST_6( array_integer(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
     CALL_SUBTEST_7( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_7( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-
+    CALL_SUBTEST_8( array(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_8( array(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1( comparisons(Array<float, 1, 1>()) );
