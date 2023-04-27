@@ -28,26 +28,135 @@ using Eigen::TensorMap;
 // Functions used to compare the TensorMap implementation on the device with
 // the equivalent on the host
 namespace SYCL {
-template <typename T> T abs(T x) { 
+
+template <typename T> T abs(T x) {
   return cl::sycl::abs(x);
 }
+template <> Eigen::half abs(Eigen::half x) {
+  return Eigen::half(cl::sycl::fabs(static_cast<cl::sycl::half>(x)));
+}
 
-template <> float abs(float x) { 
+template <> float abs(float x) {
   return cl::sycl::fabs(x);
 }
 
-template <> double abs(double x) { 
+template <> double abs(double x) {
   return cl::sycl::fabs(x);
 }
 
 template <typename T> T square(T x) { return x * x; }
 template <typename T> T cube(T x) { return x * x * x; }
 template <typename T> T inverse(T x) { return T(1) / x; }
-template <typename T> T cwiseMax(T x, T y) { 
-return cl::sycl::max(x, y);
+template <typename T> T cwiseMax(T x, T y) {
+  return cl::sycl::max(x, y);
 }
-template <typename T> T cwiseMin(T x, T y) { 
-  return cl::sycl::min(x, y); 
+template <> Eigen::half cwiseMax(Eigen::half x, Eigen::half y) {
+return Eigen::half(cl::sycl::max(static_cast<cl::sycl::half>(x), static_cast<cl::sycl::half>(y)));
+}
+
+template <typename T> T cwiseMin(T x, T y) {
+  return cl::sycl::min(x, y);
+}
+template <> Eigen::half cwiseMin(Eigen::half x, Eigen::half y) {
+  return Eigen::half(cl::sycl::min(static_cast<cl::sycl::half>(x), static_cast<cl::sycl::half>(y)));
+}
+
+template <typename T> T sqrt(T x) {
+  return cl::sycl::sqrt(x);
+}
+template <> Eigen::half sqrt(Eigen::half x) {
+  return Eigen::half(cl::sycl::sqrt(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T rsqrt(T x) {
+  return cl::sycl::rsqrt(x);
+}
+template <> Eigen::half rsqrt(Eigen::half x) {
+  return Eigen::half(cl::sycl::rsqrt(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T tanh(T x) {
+  return cl::sycl::tanh(x);
+}
+template <> Eigen::half tanh(Eigen::half x) {
+  return Eigen::half(cl::sycl::tanh(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T exp(T x) {
+  return cl::sycl::exp(x);
+}
+template <> Eigen::half exp(Eigen::half x) {
+  return Eigen::half(cl::sycl::exp(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T expm1(T x) {
+  return cl::sycl::expm1(x);
+}
+template <> Eigen::half expm1(Eigen::half x) {
+  return Eigen::half(cl::sycl::expm1(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T log(T x) {
+  return cl::sycl::log(x);
+}
+template <> Eigen::half log(Eigen::half x) {
+  return Eigen::half(cl::sycl::log(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T ceil(T x) {
+  return cl::sycl::ceil(x);
+}
+template <> Eigen::half ceil(Eigen::half x) {
+  return Eigen::half(cl::sycl::ceil(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T floor(T x) {
+  return cl::sycl::floor(x);
+}
+template <> Eigen::half floor(Eigen::half x) {
+  return Eigen::half(cl::sycl::floor(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T round(T x) {
+  return cl::sycl::round(x);
+}
+template <> Eigen::half round(Eigen::half x) {
+  return Eigen::half(cl::sycl::round(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T log1p(T x) {
+  return cl::sycl::log1p(x);
+}
+template <> Eigen::half log1p(Eigen::half x) {
+  return Eigen::half(cl::sycl::log1p(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T sign(T x) {
+  return cl::sycl::sign(x);
+}
+template <> Eigen::half sign(Eigen::half x) {
+  return Eigen::half(cl::sycl::sign(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T isnan(T x) {
+  return cl::sycl::isnan(x);
+}
+template <> Eigen::half isnan(Eigen::half x) {
+  return Eigen::half(cl::sycl::isnan(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T isfinite(T x) {
+  return cl::sycl::isfinite(x);
+}
+template <> Eigen::half isfinite(Eigen::half x) {
+  return Eigen::half(cl::sycl::isfinite(static_cast<cl::sycl::half>(x)));
+}
+
+template <typename T> T isinf(T x) {
+  return cl::sycl::isinf(x);
+}
+template <> Eigen::half isinf(Eigen::half x) {
+  return Eigen::half(cl::sycl::isinf(static_cast<cl::sycl::half>(x)));
 }
 }
 
@@ -157,15 +266,14 @@ void test_unary_builtins_for_scalar(const Eigen::SyclDevice& sycl_device,
 #define DECLARE_UNARY_STRUCT(FUNC)                                 \
   struct op_##FUNC {                                               \
     template <typename T>                                          \
-    auto operator()(const T& x) -> decltype(cl::sycl::FUNC(x)) {   \
-      return cl::sycl::FUNC(x);                                    \
+    auto operator()(const T& x) -> decltype(SYCL::FUNC(x)) {   \
+      return SYCL::FUNC(x);                                    \
     }                                                              \
     template <typename T>                                          \
     auto operator()(const TensorMap<T>& x) -> decltype(x.FUNC()) { \
       return x.FUNC();                                             \
     }                                                              \
-  };
-
+};
 
 DECLARE_UNARY_STRUCT(sqrt)
 DECLARE_UNARY_STRUCT(rsqrt)
@@ -390,8 +498,10 @@ EIGEN_DECLARE_TEST(cxx11_tensor_builtins_sycl) {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
     QueueInterface queueInterface(device);
     Eigen::SyclDevice sycl_device(&queueInterface);
-    CALL_SUBTEST_1(test_builtin_unary_sycl<float>(sycl_device));
-    CALL_SUBTEST_2(test_floating_builtin_binary_sycl<float>(sycl_device));
-    CALL_SUBTEST_3(test_integer_builtin_binary_sycl<int>(sycl_device));
+    CALL_SUBTEST_1(test_builtin_unary_sycl<half>(sycl_device));
+    CALL_SUBTEST_2(test_floating_builtin_binary_sycl<half>(sycl_device));
+    CALL_SUBTEST_3(test_builtin_unary_sycl<float>(sycl_device));
+    CALL_SUBTEST_4(test_floating_builtin_binary_sycl<float>(sycl_device));
+    CALL_SUBTEST_5(test_integer_builtin_binary_sycl<int>(sycl_device));
   }
 }

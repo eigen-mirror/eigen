@@ -151,6 +151,7 @@ if(EIGEN_TEST_SYCL)
   ei_add_test(cxx11_tensor_argmax_sycl)
   ei_add_test(cxx11_tensor_custom_op_sycl)
   ei_add_test(cxx11_tensor_scan_sycl)
+  ei_add_test(cxx11_tensor_of_float16_sycl)
   set(EIGEN_SYCL OFF)
 endif()
 

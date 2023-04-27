@@ -82,6 +82,7 @@ template<typename DataType> void sycl_device_test_per_device(const cl::sycl::dev
 
 EIGEN_DECLARE_TEST(cxx11_tensor_device_sycl) {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(sycl_device_test_per_device<half>(device));
     CALL_SUBTEST(sycl_device_test_per_device<float>(device));
     CALL_SUBTEST(sycl_device_test_per_device<OffByOneScalar<int>>(device));
   }
