@@ -30,19 +30,13 @@ namespace Eigen {
   *      * AngleAxisf(ea[2], Vector3f::UnitZ()); \endcode
   * This corresponds to the right-multiply conventions (with right hand side frames).
   * 
-  * When canonical == true (the default):
-  * For Tait-Bryan angle configurations (a0 != a2), the returned angles are in the ranges [-pi:pi]x[-pi/2:pi/2]x[-pi:pi].
-  * For proper Euler angle configurations (a0 == a2), the returned angles are in the ranges [-pi:pi]x[0:pi]x[-pi:pi].
-  *
-  * When canonical == false:
-  * The returned angles follow a non-standard range convention used by legacy versions of Eigen, [0:pi]x[-pi:pi]x[-pi:pi].
-  * Set canonical to false to retain legacy behaviour.
+  * The returned angles are in the ranges [0:pi]x[-pi:pi]x[-pi:pi].
   * 
   * \sa class AngleAxis
   */
 template<typename Derived>
 EIGEN_DEVICE_FUNC inline Matrix<typename MatrixBase<Derived>::Scalar,3,1>
-MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2, bool canonical) const
+MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2) const
 {
   EIGEN_USING_STD(atan2)
   EIGEN_USING_STD(sin)
@@ -113,24 +107,6 @@ MatrixBase<Derived>::eulerAngles(Index a0, Index a1, Index a2, bool canonical) c
   }
   if (!odd)
     res = -res;
-
-  if (canonical)
-  {
-    // If Tait-Bryan angles, make sure that the result is in the canonical range (middle axis angle in [-pi/2, pi/2]).
-    if (a0 != a2 && res.cwiseAbs()[1] > Scalar(EIGEN_PI / 2))
-    {
-      res -= Scalar(EIGEN_PI) * res.cwiseSign();
-      res[1] = -res[1];
-    }
-
-    // If proper Euler angles, make sure that the result is in the canonical range (middle axis angle in [0, pi]).
-    if (a0 == a2 && res[1] < Scalar(0))
-    {
-        res[0] -= Scalar(EIGEN_PI) * res.cwiseSign()[0];
-        res[2] -= Scalar(EIGEN_PI) * res.cwiseSign()[2];
-        res[1] = -res[1];
-    }
-  }
   
   return res;
 }
