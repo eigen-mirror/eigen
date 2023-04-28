@@ -227,17 +227,9 @@ template<> struct packet_traits<uint32_t> : default_packet_traits
     HasDiv = 0,
     HasNegate = 0,
     HasSqrt = 0,
-
-#ifdef EIGEN_VECTORIZE_SSE4_1
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
-#else
-    HasCmp = 0,
-    HasMin = 0,
-    HasMax = 0,
-#endif
-
     HasShift = 1,
     HasBlend = 1
   };
