@@ -657,7 +657,7 @@ template<const Index size, bool inc = false>
 EIGEN_ALWAYS_INLINE void convertPointerF32toBF16VSX(Index& i, float* result, Index rows, bfloat16*& dst, Index resInc = 1)
 {
   constexpr Index extra = ((size < 8) ? 8 : size);
-  for(; i + size <= rows; i += extra, dst += extra*resInc){
+  while (i + size <= rows) {
     PacketBlock<Packet8bf,(size+7)/8> r32;
     r32.packet[0] = convertF32toBF16VSX(result + i +  0);
     if (size >= 16) {
@@ -675,6 +675,8 @@ EIGEN_ALWAYS_INLINE void convertPointerF32toBF16VSX(Index& i, float* result, Ind
       storeBF16fromResult<size, inc, 16>(dst, r32.packet[2], resInc);
       storeBF16fromResult<size, inc, 24>(dst, r32.packet[3], resInc);
     }
+    i += extra; dst += extra*resInc;
+    if (size != 32) break;
   }
 }
 

@@ -1154,6 +1154,7 @@ template<> EIGEN_STRONG_INLINE Packet8bf por<Packet8bf>(const Packet8bf& a, cons
 
 template<> EIGEN_STRONG_INLINE Packet4f pxor<Packet4f>(const Packet4f& a, const Packet4f& b) { return vec_xor(a, b); }
 template<> EIGEN_STRONG_INLINE Packet4i pxor<Packet4i>(const Packet4i& a, const Packet4i& b) { return vec_xor(a, b); }
+template<> EIGEN_STRONG_INLINE Packet8us pxor<Packet8us>(const Packet8us& a, const Packet8us& b) { return vec_xor(a, b); }
 template<> EIGEN_STRONG_INLINE Packet8bf pxor<Packet8bf>(const Packet8bf& a, const Packet8bf& b) { 
   return pxor<Packet8us>(a, b);
 }
@@ -1884,7 +1885,8 @@ template<> EIGEN_STRONG_INLINE Packet8bf pdiv<Packet8bf>(const Packet8bf& a, con
 }
 
 template<> EIGEN_STRONG_INLINE Packet8bf pnegate<Packet8bf>(const Packet8bf& a) {
-  BF16_TO_F32_UNARY_OP_WRAPPER(pnegate<Packet4f>, a);
+  EIGEN_DECLARE_CONST_FAST_Packet8us(neg_mask,0x8000);
+  return pxor<Packet8us>(p8us_neg_mask, a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet8bf psub<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {

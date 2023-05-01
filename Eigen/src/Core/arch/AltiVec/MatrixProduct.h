@@ -2839,13 +2839,13 @@ EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Perm(Packet8us data, Packet16uc mask)
 }
 
 template<bool lhsExtraRows, bool odd, Index size>
-EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32DupOne(float *result, Index col, Index rows, const bfloat16* src, Index extra_rows)
+EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32DupOne(float *result, Index rows, const bfloat16* src, Index extra_rows)
 {
   Packet4f dup[4*4];
   Packet8bf data[4];
 
   for (Index i = 0; i < size; i++) {
-    data[i] = ploadu<Packet8bf>(src + col + rows*i);
+    data[i] = ploadu<Packet8bf>(src + rows*i);
   }
 
   for (Index i = 0, j = 0; i < size; i++, j += 4) {
@@ -2876,15 +2876,16 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32DupOne(float *result, Index
 template<bool lhsExtraRows>
 EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32Dup(float *result, Index cols, Index rows, const bfloat16* src, Index delta, Index extra_rows)
 {
-  Index col2 = 0, col = 0;
-  for(; col + 4*2 <= cols; col += 4*2, col2 += 4*rows, result += 4*4*4) {
-    convertArrayPointerBF16toF32DupOne<lhsExtraRows,false,4>(result, col2 + delta*2, rows, src, extra_rows);
+  Index col = 0;
+  src += delta*2;
+  for(; col + 4*2 <= cols; col += 4*2, result += 4*4*4, src += 4*rows) {
+    convertArrayPointerBF16toF32DupOne<lhsExtraRows,false,4>(result, rows, src, extra_rows);
   }
-  for(; col + 2 <= cols; col += 2, col2 += rows, result += 4*4) {
-    convertArrayPointerBF16toF32DupOne<lhsExtraRows,false,1>(result, col2 + delta*2, rows, src, extra_rows);
+  for(; col + 2 <= cols; col += 2, result += 4*4, src += rows) {
+    convertArrayPointerBF16toF32DupOne<lhsExtraRows,false,1>(result, rows, src, extra_rows);
   }
   if (cols & 1) {
-    convertArrayPointerBF16toF32DupOne<lhsExtraRows,true,1>(result, col2 + delta, rows, src, extra_rows);
+    convertArrayPointerBF16toF32DupOne<lhsExtraRows,true,1>(result, rows, src - delta, extra_rows);
   }
 }
 
@@ -2892,7 +2893,7 @@ template<const Index size, bool non_unit_stride>
 EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index rows, bfloat16*& src, Index resInc)
 {
   constexpr Index extra = ((size < 4) ? 4 : size);
-  for(; i + size <= rows; i += extra, src += extra*resInc){
+  while (i + size <= rows) {
     PacketBlock<Packet8bf,(size+7)/8> r32;
     r32.packet[0] = loadBF16fromResult<non_unit_stride, 0>(src, resInc);
     if (size >= 16) {
@@ -2903,6 +2904,8 @@ EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float *result, Index 
       r32.packet[3] = loadBF16fromResult<non_unit_stride, 24>(src, resInc);
     }
     storeConvertBlockBF16<size>(result + i, r32, rows & 3);
+    i += extra; src += extra*resInc;
+    if (size != 32) break;
   }
 }
 
@@ -3131,7 +3134,7 @@ template<const Index size, typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result, Index rows, const DataMapper& src)
 {
   constexpr Index extra = ((size < 4) ? 4 : size);
-  for(; i + size <= rows; i += extra){
+  while (i + size <= rows) {
     PacketBlock<Packet8bf,(size+7)/8> r32;
     r32.packet[0] = src.template loadPacket<Packet8bf>(i +  0);
     if (size >= 16) {
@@ -3142,6 +3145,8 @@ EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float *result, Index rows, c
       r32.packet[3] = src.template loadPacket<Packet8bf>(i + 24);
     }
     storeConvertBlockBF16<size>(result + i, r32, rows & 3);
+    i += extra;
+    if (size != 32) break;
   }
 }
 
@@ -3171,18 +3176,18 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16ColVSX(float *result, Index col, I
   const DataMapper res2 = res.getSubMapper(0, col);
   Index row;
   float *result2 = result + col*rows;
-  for(row = 0; row + 8 <= rows; row += 8){
+  for(row = 0; row + 8 <= rows; row += 8, result2 += 8){
     // get and save block
     PacketBlock<Packet8bf,size> block;
     for(Index j = 0; j < size; j++){
-      block.packet[j] = convertF32toBF16VSX(result2 + j*rows + row);
+      block.packet[j] = convertF32toBF16VSX(result2 + j*rows);
     }
     res2.template storePacketBlock<Packet8bf,size>(row, 0, block);
   }
   // extra rows
   if(row < rows){
     for(Index j = 0; j < size; j++){
-      Packet8bf fp16 = convertF32toBF16VSX(result2 + j*rows + row);
+      Packet8bf fp16 = convertF32toBF16VSX(result2 + j*rows);
       res2.template storePacketPartial<Packet8bf>(row, j, fp16, rows & 7);
     }
   }
@@ -3196,9 +3201,16 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16VSX(float *result, Index cols, Ind
     convertArrayF32toBF16ColVSX<DataMapper,4>(result, col, rows, res);
   }
   // extra cols
-  while(col < cols){
+  switch (cols - col) {
+  case 1:
     convertArrayF32toBF16ColVSX<DataMapper,1>(result, col, rows, res);
-    col++;
+    break;
+  case 2:
+    convertArrayF32toBF16ColVSX<DataMapper,2>(result, col, rows, res);
+    break;
+  case 3:
+    convertArrayF32toBF16ColVSX<DataMapper,3>(result, col, rows, res);
+    break;
   }
 }
 
