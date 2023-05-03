@@ -796,12 +796,20 @@ template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pgather_c
 {
   EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
   eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will gather past end of packet");
-  LOAD_STORE_UNROLL_16
-  for (Index i = 0; i < n; i++) {
-    a[i] = from[i*stride];
+  if (stride == 1) {
+    if (n == unpacket_traits<Packet>::size) {
+      return ploadu<Packet>(from);
+    } else {
+      return ploadu_partial<Packet>(from, n);
+    }
+  } else {
+    LOAD_STORE_UNROLL_16
+    for (Index i = 0; i < n; i++) {
+      a[i] = from[i*stride];
+    }
+    // Leave rest of the array uninitialized
+    return pload_ignore<Packet>(a);
   }
-  // Leave rest of the array uninitialized
-  return pload_ignore<Packet>(a);
 }
 
 template<> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride)
@@ -878,10 +886,18 @@ template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter_co
 {
   EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) a[unpacket_traits<Packet>::size];
   eigen_internal_assert(n <= unpacket_traits<Packet>::size && "number of elements will scatter past end of packet");
-  pstore<__UNPACK_TYPE__(Packet)>(a, from);
-  LOAD_STORE_UNROLL_16
-  for (Index i = 0; i < n; i++) {
-    to[i*stride] = a[i];
+  if (stride == 1) {
+    if (n == unpacket_traits<Packet>::size) {
+      return pstoreu(to, from);
+    } else {
+      return pstoreu_partial(to, from, n);
+    }
+  } else {
+    pstore<__UNPACK_TYPE__(Packet)>(a, from);
+    LOAD_STORE_UNROLL_16
+    for (Index i = 0; i < n; i++) {
+      to[i*stride] = a[i];
+    }
   }
 }
 
@@ -1256,15 +1272,14 @@ template<typename Packet> EIGEN_ALWAYS_INLINE Packet ploadu_partial_common(const
   return vec_xl_len(const_cast<__UNPACK_TYPE__(Packet)*>(from), n * size);
 #else
   if (n) {
+    Index n2 = n * size;
+    if (16 <= n2) {
+      return ploadu<Packet>(from);
+    }
     EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) load[packet_size];
     unsigned char* load2 = reinterpret_cast<unsigned char *>(load);
     unsigned char* from2 = reinterpret_cast<unsigned char *>(const_cast<__UNPACK_TYPE__(Packet)*>(from));
-    Index n2 = n * size;
-    if (16 <= n2) {
-      pstore(load2, ploadu<Packet16uc>(from2));
-    } else {
-      memcpy((void *)load2, (void *)from2, n2);
-    }
+    memcpy((void *)load2, (void *)from2, n2);
     return pload_ignore<Packet>(load);
   } else {
     return Packet(pset1<Packet16uc>(0));
@@ -1432,16 +1447,15 @@ template<typename Packet> EIGEN_ALWAYS_INLINE void pstoreu_partial_common(__UNPA
   vec_xst_len(from, to, n * size);
 #else
   if (n) {
+    Index n2 = n * size;
+    if (16 <= n2) {
+      pstoreu(to, from);
+    }
     EIGEN_ALIGN16 __UNPACK_TYPE__(Packet) store[packet_size];
     pstore(store, from);
     unsigned char* store2 = reinterpret_cast<unsigned char *>(store);
     unsigned char* to2 = reinterpret_cast<unsigned char *>(to);
-    Index n2 = n * size;
-    if (16 <= n2) {
-      pstoreu(to2, pload<Packet16uc>(store2));
-    } else {
-      memcpy((void *)to2, (void *)store2, n2);
-    }
+    memcpy((void *)to2, (void *)store2, n2);
   }
 #endif
 }

@@ -521,11 +521,23 @@ EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][2], Packet4f (&a0)[
   }
 }
 
-template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero>
+template<typename RhsMapper, bool linear, std::enable_if_t<linear, bool> = true>
+EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
+{
+  return rhs.template loadPacket<Packet8bf>(j + 0);
+}
+
+template<typename RhsMapper, bool linear, std::enable_if_t<!linear, bool> = true>
+EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
+{
+  return pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
+}
+
+template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool linear>
 EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2])
 {
   Packet4f a0[num_acc][2], b0[2];
-  Packet8bf b2 = rhs.template loadPacket<Packet8bf>(j + 0);
+  Packet8bf b2 = loadColData<RhsMapper, linear>(rhs, j);
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
   if (!zero) {
@@ -551,7 +563,7 @@ EIGEN_ALWAYS_INLINE void addResultsVSX(Packet4f (&acc)[num_acc][2])
 // Uses 2X the accumulators or 4X the number of VSX registers
 #define MAX_BFLOAT16_VEC_ACC_VSX   8
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
 void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   constexpr Index step = (num_acc * 4);
@@ -565,10 +577,10 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
 
     LhsMapper lhs2 = lhs.getSubMapper(row, 0);
     for(Index j = 0; j + 2 <= cend; j += 2) {
-      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, false>(j, lhs2, rhs, acc);
+      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, false, linear>(j, lhs2, rhs, acc);
     }
     if (cend & 1) {
-      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, true>(cend - 1, lhs2, rhs, acc);
+      vecColLoopVSX<num_acc, LhsMapper, RhsMapper, true, linear>(cend - 1, lhs2, rhs, acc);
     }
 
     addResultsVSX<num_acc>(acc);
@@ -579,59 +591,59 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
   } while(multiIters && (step <= rows - (row += step)));
 }
 
-template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows>
+template<const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
 EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtraN(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   if (MAX_BFLOAT16_VEC_ACC_VSX > num_acc) {
-    colVSXVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
   }
 }
 
-template<typename LhsMapper, typename RhsMapper, bool extraRows>
+template<typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
 EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtra(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   switch ((rows - row) >> 2) {
   case 7:
-    colVSXVecColLoopBodyExtraN<7, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<7, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 6:
-    colVSXVecColLoopBodyExtraN<6, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<6, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 5:
-    colVSXVecColLoopBodyExtraN<5, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<5, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 4:
-    colVSXVecColLoopBodyExtraN<4, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<4, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 3:
-    colVSXVecColLoopBodyExtraN<3, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<3, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 2:
-    colVSXVecColLoopBodyExtraN<2, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<2, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   case 1:
-    colVSXVecColLoopBodyExtraN<1, LhsMapper, RhsMapper, extraRows>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtraN<1, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     break;
   default:
     if (extraRows) {
-      colVSXVecColLoopBody<1, LhsMapper, RhsMapper, true>(row, cend, rows, lhs, rhs, pAlpha, result);
+      colVSXVecColLoopBody<1, LhsMapper, RhsMapper, true, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     }
     break;
   }
 }
 
-template<typename LhsMapper, typename RhsMapper>
+template<typename LhsMapper, typename RhsMapper, bool linear>
 EIGEN_ALWAYS_INLINE void calcVSXVecColLoops(Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha, float *result)
 {
   Index row = 0;
   if (rows >= (MAX_BFLOAT16_VEC_ACC_VSX * 4)) {
-    colVSXVecColLoopBody<MAX_BFLOAT16_VEC_ACC_VSX, LhsMapper, RhsMapper, false>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBody<MAX_BFLOAT16_VEC_ACC_VSX, LhsMapper, RhsMapper, false, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
     result += row;
   }
   if (rows & 3) {
-    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, true>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, true, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
   } else {
-    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, false>(row, cend, rows, lhs, rhs, pAlpha, result);
+    colVSXVecColLoopBodyExtra<LhsMapper, RhsMapper, false, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
   }
 }
 
@@ -724,8 +736,13 @@ void gemv_bfloat16_col(
     Index jend = numext::mini(j2 + block_cols, cols);
 
     LhsMapper lhs2 = lhs.getSubMapper(0, j2);
-    LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
-    calcVSXVecColLoops<LhsMapper, LinearMapper>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    if (rhs.stride() == 1) {
+      LinearMapper rhs3 = rhs2.getLinearMapper(j2, 0);
+      calcVSXVecColLoops<LhsMapper, LinearMapper, true>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    } else {
+      RhsMapper rhs3 = rhs2.getSubMapper(j2, 0);
+      calcVSXVecColLoops<LhsMapper, RhsMapper, false>(jend - j2, rows, lhs2, rhs3, pAlpha, result);
+    }
   }
 
   convertArrayPointerF32toBF16VSX(result, rows, res);
