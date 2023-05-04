@@ -263,7 +263,7 @@ template <typename Base, typename Exponent, bool ExpIsInteger = NumTraits<Expone
 struct ref_pow {
   static Base run(Base base, Exponent exponent) {
     EIGEN_USING_STD(pow);
-    return pow(base, static_cast<Base>(exponent));
+    return static_cast<Base>(pow(base, static_cast<Base>(exponent)));
   }
 };
 
@@ -271,7 +271,7 @@ template <typename Base, typename Exponent>
 struct ref_pow<Base, Exponent, true> {
   static Base run(Base base, Exponent exponent) {
     EIGEN_USING_STD(pow);
-    return pow(base, exponent);
+    return static_cast<Base>(pow(base, exponent));
   }
 };
 
