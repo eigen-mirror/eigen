@@ -521,16 +521,30 @@ EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][2], Packet4f (&a0)[
   }
 }
 
-template<typename RhsMapper, bool linear, std::enable_if_t<linear, bool> = true>
-EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
+template<typename RhsMapper, bool linear>
+struct loadColData_impl
 {
-  return rhs.template loadPacket<Packet8bf>(j + 0);
-}
+  // linear == false
+  static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j)
+  {
+    return pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
+  }
+};
 
-template<typename RhsMapper, bool linear, std::enable_if_t<!linear, bool> = true>
+template<typename RhsMapper>
+struct loadColData_impl<RhsMapper, true>
+{
+  // linear == true
+  static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j)
+  {
+    return rhs.template loadPacket<Packet8bf>(j + 0);
+  }
+};
+
+template<typename RhsMapper, bool linear>
 EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j)
 {
-  return pgather<bfloat16, Packet8bf>(&rhs(j + 0, 0), rhs.stride());
+  return loadColData_impl<RhsMapper, linear>::run(rhs, j);
 }
 
 template<Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool linear>

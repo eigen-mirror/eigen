@@ -102,7 +102,7 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], flo
 template<Index num_acc, Index size = 4>
 EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float *result, Packet4f pAlpha);
 
-template<typename RhsMapper, bool linear, std::enable_if_t<linear, bool>>
+template<typename RhsMapper, bool linear>
 EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j);
 
 template<typename Packet>
