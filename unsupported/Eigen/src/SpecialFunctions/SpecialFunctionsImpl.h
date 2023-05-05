@@ -474,9 +474,9 @@ struct erfc_impl<double> {
  * ERROR MESSAGES:
  *
  *   message         condition    value returned
- * ndtri domain       x <= 0        -MAXNUM
- * ndtri domain       x >= 1         MAXNUM
- *
+ * ndtri domain       x == 0        -INF
+ * ndtri domain       x == 1         INF
+ * ndtri domain       x < 0, x > 1   NAN
  */
  /*
    Cephes Math Library Release 2.2: June, 1992
@@ -637,8 +637,8 @@ T generic_ndtri(const T& a) {
       generic_ndtri_lt_exp_neg_two<T, ScalarType>(b, should_flipsign));
 
   return pselect(
-      pcmp_le(a, zero), neg_maxnum,
-      pselect(pcmp_le(one, a), maxnum, ndtri));
+      pcmp_eq(a, zero), neg_maxnum,
+      pselect(pcmp_eq(one, a), maxnum, ndtri));
 }
 
 template <typename Scalar>

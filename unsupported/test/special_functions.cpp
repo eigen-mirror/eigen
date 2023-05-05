@@ -171,9 +171,9 @@ template<typename ArrayType> void array_special_functions()
 
   // Check the ndtri function against scipy.special.ndtri
   {
-    ArrayType x(7), res(7), ref(7);
-    x << 0.5, 0.2, 0.8, 0.9, 0.1, 0.99, 0.01;
-    ref << 0., -0.8416212335729142, 0.8416212335729142, 1.2815515655446004, -1.2815515655446004, 2.3263478740408408, -2.3263478740408408;
+    ArrayType x(11), res(11), ref(11);
+    x << 0.5, 0.2, 0.8, 0.9, 0.1, 0.99, 0.01, 0, 1, -0.01, 1.01;
+    ref << 0., -0.8416212335729142, 0.8416212335729142, 1.2815515655446004, -1.2815515655446004, 2.3263478740408408, -2.3263478740408408, -plusinf, plusinf, nan, nan;
     CALL_SUBTEST( verify_component_wise(ref, ref); );
     CALL_SUBTEST( res = x.ndtri(); verify_component_wise(res, ref); );
     CALL_SUBTEST( res = ndtri(x); verify_component_wise(res, ref); );
