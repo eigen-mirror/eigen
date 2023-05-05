@@ -289,7 +289,7 @@ void test_exponent(Exponent exponent) {
   const Index array_size = 2 * internal::packet_traits<Base>::size + 1;
 
   Base max_base = numext::mini(testing_threshold, max_abs_bases);
-  Base min_base = NumTraits<Base>::IsSigned ? -max_base : Base(0);
+  Base min_base = negative_or_zero(max_base);
 
   ArrayX<Base> x(array_size), y(array_size);
   bool all_pass = true;
@@ -419,7 +419,7 @@ void signbit_tests() {
   signbit_test<int64_t>();
 }
 
-template<typename ArrayType> void array(const ArrayType& m)
+template<typename ArrayType> void array_generic(const ArrayType& m)
 {
   typedef typename ArrayType::Scalar Scalar;
   typedef typename ArrayType::RealScalar RealScalar;
@@ -815,7 +815,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   ArrayType tmp = m1.atan2(m2);
   for (Index i = 0; i < tmp.size(); ++i) {
     Scalar actual = tmp.array()(i);
-    Scalar expected = atan2(m1.array()(i), m2.array()(i));
+    Scalar expected = Scalar(std::atan2(m1.array()(i), m2.array()(i)));
     VERIFY_IS_APPROX(actual, expected);
   }
 
@@ -1183,17 +1183,17 @@ void typed_logicals_test(const ArrayType& m) {
 EIGEN_DECLARE_TEST(array_cwise)
 {
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1( array(Array<float, 1, 1>()) );
-    CALL_SUBTEST_2( array(Array22f()) );
-    CALL_SUBTEST_3( array(Array44d()) );
-    CALL_SUBTEST_4( array(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_5( array(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
-    CALL_SUBTEST_6( array(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_1( array_generic(Array<float, 1, 1>()) );
+    CALL_SUBTEST_2( array_generic(Array22f()) );
+    CALL_SUBTEST_3( array_generic(Array44d()) );
+    CALL_SUBTEST_4( array_generic(ArrayXXcf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_5( array_generic(ArrayXXf(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_6( array_generic(ArrayXXi(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
+    CALL_SUBTEST_6( array_generic(Array<Index,Dynamic,Dynamic>(internal::random<int>(1,EIGEN_TEST_MAX_SIZE), internal::random<int>(1,EIGEN_TEST_MAX_SIZE))) );
     CALL_SUBTEST_7( signed_shift_test(ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_7( signed_shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8( array(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_8( array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_8( array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1( comparisons(Array<float, 1, 1>()) );
