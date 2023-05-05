@@ -2,7 +2,7 @@
 
 #include <exception>  // std::exception
 
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <Eigen/src/Core/util/MaxSizeVector.h>
 
 struct Foo
 {

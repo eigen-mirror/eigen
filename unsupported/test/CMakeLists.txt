@@ -223,12 +223,6 @@ if(EIGEN_TEST_SYCL)
   set(EIGEN_SYCL OFF)
 endif()
 
-ei_add_test(cxx11_eventcount "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
-ei_add_test(cxx11_runqueue "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
-ei_add_test(cxx11_non_blocking_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
-
-ei_add_test(cxx11_meta)
-ei_add_test(cxx11_maxsizevector)
 ei_add_test(cxx11_tensor_argmax)
 ei_add_test(cxx11_tensor_assign)
 ei_add_test(cxx11_tensor_block_access)

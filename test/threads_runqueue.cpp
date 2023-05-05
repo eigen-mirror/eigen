@@ -11,7 +11,7 @@
 #define EIGEN_USE_THREADS
 #include <cstdlib>
 #include "main.h"
-#include <Eigen/CXX11/ThreadPool>
+#include <Eigen/ThreadPool>
 
 
 // Visual studio doesn't implement a rand_r() function since its
