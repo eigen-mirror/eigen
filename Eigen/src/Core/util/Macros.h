@@ -531,12 +531,12 @@
   #error "NVCC as the target platform for HIPCC is currently not supported."
 #endif
 
-#if defined(__CUDACC__) && !defined(EIGEN_NO_CUDA)
+#if defined(__CUDACC__) && !defined(EIGEN_NO_CUDA) && !defined(__SYCL_DEVICE_ONLY__)
   // Means the compiler is either nvcc or clang with CUDA enabled
   #define EIGEN_CUDACC __CUDACC__
 #endif
 
-#if defined(__CUDA_ARCH__) && !defined(EIGEN_NO_CUDA)
+#if defined(__CUDA_ARCH__) && !defined(EIGEN_NO_CUDA) && !defined(__SYCL_DEVICE_ONLY__)
   // Means we are generating code for the device
   #define EIGEN_CUDA_ARCH __CUDA_ARCH__
 #endif
@@ -548,7 +548,7 @@
   #define EIGEN_CUDA_SDK_VER 0
 #endif
 
-#if defined(__HIPCC__) && !defined(EIGEN_NO_HIP)
+#if defined(__HIPCC__) && !defined(EIGEN_NO_HIP) && !defined(__SYCL_DEVICE_ONLY__)
   // Means the compiler is HIPCC (analogous to EIGEN_CUDACC, but for HIP)
   #define EIGEN_HIPCC __HIPCC__
 
@@ -557,7 +557,7 @@
   // ++ host_defines.h which contains the defines for the __host__ and __device__ macros
   #include <hip/hip_runtime.h>
 
-  #if defined(__HIP_DEVICE_COMPILE__)
+  #if defined(__HIP_DEVICE_COMPILE__) && !defined(__SYCL_DEVICE_ONLY__)
     // analogous to EIGEN_CUDA_ARCH, but for HIP
     #define EIGEN_HIP_DEVICE_COMPILE __HIP_DEVICE_COMPILE__
   #endif

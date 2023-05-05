@@ -249,7 +249,6 @@ using std::ptrdiff_t;
 #endif
 
 #if defined(EIGEN_USE_SYCL)
-  #include "src/Core/arch/SYCL/SyclMemoryModel.h"
   #include "src/Core/arch/SYCL/InteropHeaders.h"
 #if !defined(EIGEN_DONT_VECTORIZE_SYCL)
   #include "src/Core/arch/SYCL/PacketMath.h"
