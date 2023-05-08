@@ -95,6 +95,7 @@
 #include <algorithm>
 
 #include <array>
+#include <vector>
 
 // for std::is_nothrow_move_assignable
 #include <type_traits>
@@ -174,6 +175,8 @@ using std::ptrdiff_t;
 #include "src/Core/util/IntegralConstant.h"
 #include "src/Core/util/Serializer.h"
 #include "src/Core/util/SymbolicIndex.h"
+#include "src/Core/util/EmulateArray.h"
+#include "src/Core/util/MoreMeta.h"
 
 #include "src/Core/NumTraits.h"
 #include "src/Core/MathFunctions.h"
