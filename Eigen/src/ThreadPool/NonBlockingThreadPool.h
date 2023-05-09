@@ -248,7 +248,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   EventCount ec_;
 #ifndef EIGEN_THREAD_LOCAL
   std::unique_ptr<Barrier> init_barrier_;
-  std::mutex per_thread_map_mutex_;  // Protects per_thread_map_.
+  EIGEN_MUTEX per_thread_map_mutex_;  // Protects per_thread_map_.
   std::unordered_map<uint64_t, std::unique_ptr<PerThread>> per_thread_map_;
 #endif
 

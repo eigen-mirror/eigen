@@ -51,6 +51,16 @@
 #include "src/Core/util/Meta.h"
 #include "src/Core/util/MaxSizeVector.h"
 
+#ifndef EIGEN_MUTEX
+#define EIGEN_MUTEX std::mutex
+#endif
+#ifndef EIGEN_MUTEX_LOCK
+#define EIGEN_MUTEX_LOCK std::unique_lock<std::mutex>
+#endif
+#ifndef EIGEN_CONDVAR
+#define EIGEN_CONDVAR std::condition_variable
+#endif
+
 // IWYU pragma: begin_exports
 #include "src/ThreadPool/ThreadLocal.h"
 #include "src/ThreadPool/ThreadYield.h"

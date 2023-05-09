@@ -225,7 +225,7 @@ class ThreadLocal {
     if (filled_records_.load(std::memory_order_relaxed) < capacity_) return;
 
     // Adds a happens before edge from the last call to SpilledLocal().
-    std::unique_lock<std::mutex> lock(mu_);
+    EIGEN_MUTEX_LOCK lock(mu_);
     for (auto& kv : per_thread_map_) {
       f(kv.first, kv.second);
     }
@@ -245,7 +245,7 @@ class ThreadLocal {
     if (filled_records_.load(std::memory_order_relaxed) < capacity_) return;
 
     // Adds a happens before edge from the last call to SpilledLocal().
-    std::unique_lock<std::mutex> lock(mu_);
+    EIGEN_MUTEX_LOCK lock(mu_);
     for (auto& kv : per_thread_map_) {
       release_(kv.second);
     }
@@ -259,7 +259,7 @@ class ThreadLocal {
 
   // Use unordered map guarded by a mutex when lock free storage is full.
   T& SpilledLocal(std::thread::id this_thread) {
-    std::unique_lock<std::mutex> lock(mu_);
+    EIGEN_MUTEX_LOCK lock(mu_);
 
     auto it = per_thread_map_.find(this_thread);
     if (it == per_thread_map_.end()) {
@@ -290,7 +290,7 @@ class ThreadLocal {
   // We fallback on per thread map if lock-free storage is full. In practice
   // this should never happen, if `capacity_` is a reasonable estimate of the
   // number of threads running in a system.
-  std::mutex mu_;  // Protects per_thread_map_.
+  EIGEN_MUTEX mu_;  // Protects per_thread_map_.
   std::unordered_map<std::thread::id, T> per_thread_map_;
 };
 

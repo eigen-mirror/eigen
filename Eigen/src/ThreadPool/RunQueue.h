@@ -84,7 +84,7 @@ class RunQueue {
   // PushBack adds w at the end of the queue.
   // If queue is full returns w, otherwise returns default-constructed Work.
   Work PushBack(Work w) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    EIGEN_MUTEX_LOCK lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[(back - 1) & kMask];
     uint8_t s = e->state.load(std::memory_order_relaxed);
@@ -101,7 +101,7 @@ class RunQueue {
   // PopBack removes and returns the last elements in the queue.
   Work PopBack() {
     if (Empty()) return Work();
-    std::unique_lock<std::mutex> lock(mutex_);
+    EIGEN_MUTEX_LOCK lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     Elem* e = &array_[back & kMask];
     uint8_t s = e->state.load(std::memory_order_relaxed);
@@ -118,7 +118,7 @@ class RunQueue {
   // Returns number of elements removed.
   unsigned PopBackHalf(std::vector<Work>* result) {
     if (Empty()) return 0;
-    std::unique_lock<std::mutex> lock(mutex_);
+    EIGEN_MUTEX_LOCK lock(mutex_);
     unsigned back = back_.load(std::memory_order_relaxed);
     unsigned size = Size();
     unsigned mid = back;
@@ -174,7 +174,7 @@ class RunQueue {
     kBusy,
     kReady,
   };
-  std::mutex mutex_;
+  EIGEN_MUTEX mutex_;
   // Low log(kSize) + 1 bits in front_ and back_ contain rolling index of
   // front/back, respectively. The remaining bits contain modification counters
   // that are incremented on Push operations. This allows us to (1) distinguish
