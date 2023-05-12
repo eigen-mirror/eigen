@@ -503,12 +503,12 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
     struct init_helper {
       static constexpr Index Size = sizeof...(ArgTypes);
       template <Index Idx = 0, bool Done = (Idx >= Size), std::enable_if_t<!Done, bool> = true>
-      static void run(T* storage, const std::tuple<ArgTypes...>& args) {
+      static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(T* storage, const std::tuple<ArgTypes...>& args) {
         storage[Idx + Offset] = std::get<Idx>(args);
         run<Idx + 1>(storage, args);
       }
       template <Index Idx = 0, bool Done = (Idx >= Size), std::enable_if_t<Done, bool> = true>
-      static void run(T*, const std::tuple<ArgTypes...>&) {}
+      static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(T*, const std::tuple<ArgTypes...>&) {}
     };
 
     /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
