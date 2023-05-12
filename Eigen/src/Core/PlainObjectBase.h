@@ -499,6 +499,18 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
 //       EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
     }
 
+    template <typename T, typename... ArgTypes>
+    struct init_helper {
+      static constexpr Index Size = sizeof...(ArgTypes);
+      template <Index Offset, Index I = 0, bool Done = (I >= Size), std::enable_if_t<!Done, bool> = true>
+      static void run(T* storage, const std::tuple<ArgTypes...>& args) {
+        storage[I + Offset] = std::get<I>(args);
+        run<Offset, I + 1>(storage, args);
+      }
+      template <Index Offset, Index I = 0, bool Done = (I >= Size), std::enable_if_t<Done, bool> = true>
+      static void run(T*, const std::tuple<ArgTypes...>&) {}
+    };
+
     /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
       *
       * \only_for_vectors
@@ -518,9 +530,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
       m_storage.data()[1] = a1;
       m_storage.data()[2] = a2;
       m_storage.data()[3] = a3;
-      Index i = 4;
-      auto x = {(m_storage.data()[i++] = args, 0)...};
-      static_cast<void>(x);
+      constexpr Index Offset = 4;
+      init_helper<Scalar, ArgTypes...>::run<Offset>(m_storage.data(), std::make_tuple(args...));
     }
 
     /** \brief Constructs a Matrix or Array and initializes it by elements given by an initializer list of initializer
