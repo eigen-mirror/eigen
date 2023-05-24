@@ -99,12 +99,10 @@ public:
 
 /*** no vectorization ***/
 
-template<typename Func, typename Evaluator, int Start, int Length>
+template<typename Func, typename Evaluator, Index Start, Index Length>
 struct redux_novec_unroller
 {
-  enum {
-    HalfLength = Length/2
-  };
+  static constexpr Index HalfLength = Length/2;
 
   typedef typename Evaluator::Scalar Scalar;
 
@@ -116,13 +114,11 @@ struct redux_novec_unroller
   }
 };
 
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_novec_unroller<Func, Evaluator, Start, 1>
 {
-  enum {
-    outer = Start / Evaluator::InnerSizeAtCompileTime,
-    inner = Start % Evaluator::InnerSizeAtCompileTime
-  };
+  static constexpr Index outer = Start / Evaluator::InnerSizeAtCompileTime;
+  static constexpr Index inner = Start % Evaluator::InnerSizeAtCompileTime;
 
   typedef typename Evaluator::Scalar Scalar;
 
@@ -136,7 +132,7 @@ struct redux_novec_unroller<Func, Evaluator, Start, 1>
 // This is actually dead code and will never be called. It is required
 // to prevent false warnings regarding failed inlining though
 // for 0 length run() will never be called at all.
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_novec_unroller<Func, Evaluator, Start, 0>
 {
   typedef typename Evaluator::Scalar Scalar;
@@ -144,12 +140,10 @@ struct redux_novec_unroller<Func, Evaluator, Start, 0>
   static EIGEN_STRONG_INLINE Scalar run(const Evaluator&, const Func&) { return Scalar(); }
 };
 
-template<typename Func, typename Evaluator, int Start, int Length>
+template<typename Func, typename Evaluator, Index Start, Index Length>
 struct redux_novec_linear_unroller
 {
-  enum {
-    HalfLength = Length/2
-  };
+  static constexpr Index HalfLength = Length/2;
 
   typedef typename Evaluator::Scalar Scalar;
 
@@ -161,7 +155,7 @@ struct redux_novec_linear_unroller
   }
 };
 
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_novec_linear_unroller<Func, Evaluator, Start, 1>
 {
   typedef typename Evaluator::Scalar Scalar;
@@ -176,7 +170,7 @@ struct redux_novec_linear_unroller<Func, Evaluator, Start, 1>
 // This is actually dead code and will never be called. It is required
 // to prevent false warnings regarding failed inlining though
 // for 0 length run() will never be called at all.
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_novec_linear_unroller<Func, Evaluator, Start, 0>
 {
   typedef typename Evaluator::Scalar Scalar;
@@ -186,17 +180,14 @@ struct redux_novec_linear_unroller<Func, Evaluator, Start, 0>
 
 /*** vectorization ***/
 
-template<typename Func, typename Evaluator, int Start, int Length>
+template<typename Func, typename Evaluator, Index Start, Index Length>
 struct redux_vec_unroller
 {
   template<typename PacketType>
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE PacketType run(const Evaluator &eval, const Func& func)
   {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      HalfLength = Length/2
-    };
+    constexpr Index HalfLength = Length/2;
 
     return func.packetOp(
             redux_vec_unroller<Func, Evaluator, Start, HalfLength>::template run<PacketType>(eval,func),
@@ -204,35 +195,31 @@ struct redux_vec_unroller
   }
 };
 
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_vec_unroller<Func, Evaluator, Start, 1>
 {
   template<typename PacketType>
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE PacketType run(const Evaluator &eval, const Func&)
   {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      index = Start * PacketSize,
-      outer = index / int(Evaluator::InnerSizeAtCompileTime),
-      inner = index % int(Evaluator::InnerSizeAtCompileTime),
-      alignment = Evaluator::Alignment
-    };
+    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    constexpr Index index = Start * PacketSize;
+    constexpr Index outer = index / int(Evaluator::InnerSizeAtCompileTime);
+    constexpr Index inner = index % int(Evaluator::InnerSizeAtCompileTime);
+    constexpr int alignment = Evaluator::Alignment;
+
     return eval.template packetByOuterInner<alignment,PacketType>(outer, inner);
   }
 };
 
-template<typename Func, typename Evaluator, int Start, int Length>
+template<typename Func, typename Evaluator, Index Start, Index Length>
 struct redux_vec_linear_unroller
 {
   template<typename PacketType>
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE PacketType run(const Evaluator &eval, const Func& func)
   {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      HalfLength = Length/2
-    };
+    constexpr Index HalfLength = Length/2;
 
     return func.packetOp(
             redux_vec_linear_unroller<Func, Evaluator, Start, HalfLength>::template run<PacketType>(eval,func),
@@ -240,18 +227,16 @@ struct redux_vec_linear_unroller
   }
 };
 
-template<typename Func, typename Evaluator, int Start>
+template<typename Func, typename Evaluator, Index Start>
 struct redux_vec_linear_unroller<Func, Evaluator, Start, 1>
 {
   template<typename PacketType>
   EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE PacketType run(const Evaluator &eval, const Func&)
   {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      index = Start * PacketSize,
-      alignment = Evaluator::Alignment
-    };
+    constexpr Index PacketSize = unpacket_traits<PacketType>::size;
+    constexpr Index index = (Start * PacketSize);
+    constexpr int alignment = Evaluator::Alignment;
     return eval.template packet<alignment,PacketType>(index);
   }
 };
@@ -342,12 +327,10 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling>
   {
     const Index size = xpr.size();
     
-    const Index packetSize = redux_traits<Func, Evaluator>::PacketSize;
-    const int packetAlignment = unpacket_traits<PacketScalar>::alignment;
-    enum {
-      alignment0 = (bool(Evaluator::Flags & DirectAccessBit) && bool(packet_traits<Scalar>::AlignedOnScalar)) ? int(packetAlignment) : int(Unaligned),
-      alignment = plain_enum_max(alignment0, Evaluator::Alignment)
-    };
+    constexpr Index packetSize = redux_traits<Func, Evaluator>::PacketSize;
+    constexpr int packetAlignment = unpacket_traits<PacketScalar>::alignment;
+    constexpr int alignment0 = (bool(Evaluator::Flags & DirectAccessBit) && bool(packet_traits<Scalar>::AlignedOnScalar)) ? int(packetAlignment) : int(Unaligned);
+    constexpr int alignment = plain_enum_max(alignment0, Evaluator::Alignment);
     const Index alignedStart = internal::first_default_aligned(xpr);
     const Index alignedSize2 = ((size-alignedStart)/(2*packetSize))*(2*packetSize);
     const Index alignedSize = ((size-alignedStart)/(packetSize))*(packetSize);
@@ -401,11 +384,9 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling>
   EIGEN_DEVICE_FUNC static Scalar run(const Evaluator &eval, const Func& func, const XprType& xpr)
   {
     eigen_assert(xpr.rows()>0 && xpr.cols()>0 && "you are using an empty matrix");
+    constexpr Index packetSize = redux_traits<Func, Evaluator>::PacketSize;
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
-    enum {
-      packetSize = redux_traits<Func, Evaluator>::PacketSize
-    };
     const Index packetedInnerSize = ((innerSize)/packetSize)*packetSize;
     Scalar res;
     if(packetedInnerSize)
@@ -436,11 +417,9 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
   typedef typename Evaluator::Scalar Scalar;
 
   typedef typename redux_traits<Func, Evaluator>::PacketType PacketType;
-  enum {
-    PacketSize = redux_traits<Func, Evaluator>::PacketSize,
-    Size = Evaluator::SizeAtCompileTime,
-    VectorizedSize = (int(Size) / int(PacketSize)) * int(PacketSize)
-  };
+  static constexpr Index PacketSize = redux_traits<Func, Evaluator>::PacketSize;
+  static constexpr Index  Size = Evaluator::SizeAtCompileTime;
+  static constexpr Index  VectorizedSize = (int(Size) / int(PacketSize)) * int(PacketSize);
 
   template<typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE
