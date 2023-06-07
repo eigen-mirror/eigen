@@ -98,6 +98,10 @@ template<typename Scalar, int Options> void quaternion(void)
     VERIFY_IS_MUCH_SMALLER_THAN(abs(q1.angularDistance(q2) - refangle), Scalar(1));
   }
 
+  // Action on vector by the q v q* formula
+  VERIFY_IS_APPROX(q1 * v2, (q1 * Quaternionx(Scalar(0), v2) * q1.inverse()).vec());
+  VERIFY_IS_APPROX(q1.inverse() * v2, (q1.inverse() * Quaternionx(Scalar(0), v2) * q1).vec());
+
   // rotation matrix conversion
   VERIFY_IS_APPROX(q1 * v2, q1.toRotationMatrix() * v2);
   VERIFY_IS_APPROX(q1 * q2 * v2,
