@@ -190,6 +190,30 @@ struct find_best_packet
   typedef typename find_best_packet_helper<Size,typename packet_traits<T>::type>::type type;
 };
 
+template <int Size, typename PacketType,
+          bool Stop = (Size == unpacket_traits<PacketType>::size) ||
+                      is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
+struct find_packet_by_size_helper;
+template <int Size, typename PacketType>
+struct find_packet_by_size_helper<Size, PacketType, true> {
+  using type = PacketType;
+};
+template <int Size, typename PacketType>
+struct find_packet_by_size_helper<Size, PacketType, false> {
+  using type = typename find_packet_by_size_helper<Size, typename unpacket_traits<PacketType>::half>::type;
+};
+
+template <typename T, int Size>
+struct find_packet_by_size {
+  using type = typename find_packet_by_size_helper<Size, typename packet_traits<T>::type>::type;
+  static constexpr bool value = (Size == unpacket_traits<type>::size);
+};
+template <typename T>
+struct find_packet_by_size<T, 1> {
+  using type = typename unpacket_traits<T>::type;
+  static constexpr bool value = (unpacket_traits<type>::size == 1);
+};
+
 #if EIGEN_MAX_STATIC_ALIGN_BYTES>0
 constexpr inline int compute_default_alignment_helper(int ArrayBytes, int AlignmentBytes) {
   if((ArrayBytes % AlignmentBytes) == 0) {

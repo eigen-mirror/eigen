@@ -135,6 +135,13 @@ template<> EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i,Packet2d>(const Pa
   return _mm_castpd_si128(a);
 }
 
+template<> EIGEN_STRONG_INLINE Packet4ui preinterpret<Packet4ui, Packet4i>(const Packet4i& a) {
+  return Packet4ui(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i, Packet4ui>(const Packet4ui& a) {
+  return Packet4i(a);
+}
 // Disable the following code since it's broken on too many platforms / compilers.
 //#elif defined(EIGEN_VECTORIZE_SSE) && (!EIGEN_ARCH_x86_64) && (!EIGEN_COMP_MSVC)
 #if 0

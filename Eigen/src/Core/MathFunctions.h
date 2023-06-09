@@ -430,6 +430,13 @@ struct cast_impl
   }
 };
 
+template <typename OldType>
+struct cast_impl<OldType, bool> {
+  EIGEN_DEVICE_FUNC
+  static inline bool run(const OldType& x) { return x != OldType(0); }
+};
+
+
 // Casting from S -> Complex<T> leads to an implicit conversion from S to T,
 // generating warnings on clang.  Here we explicitly cast the real component.
 template<typename OldType, typename NewType>

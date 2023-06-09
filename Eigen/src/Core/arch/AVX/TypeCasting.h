@@ -80,6 +80,14 @@ template<> EIGEN_STRONG_INLINE Packet8i pcast<Packet4d, Packet8i>(const Packet4d
   return _mm256_set_m128i(_mm256_cvttpd_epi32(b), _mm256_cvttpd_epi32(a));
 }
 
+template <> EIGEN_STRONG_INLINE Packet4f pcast<Packet4d, Packet4f>(const Packet4d& a) {
+  return _mm256_cvtpd_ps(a);
+}
+
+template <> EIGEN_STRONG_INLINE Packet4i pcast<Packet4d, Packet4i>(const Packet4d& a) {
+  return _mm256_cvttpd_epi32(a);
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet16b pcast<Packet8f, Packet16b>(const Packet8f& a,
                                                          const Packet8f& b) {
@@ -117,6 +125,44 @@ template<> EIGEN_STRONG_INLINE Packet8i preinterpret<Packet8i,Packet8f>(const Pa
 template<> EIGEN_STRONG_INLINE Packet8f preinterpret<Packet8f,Packet8i>(const Packet8i& a) {
   return _mm256_castsi256_ps(a);
 }
+
+template<> EIGEN_STRONG_INLINE Packet8ui preinterpret<Packet8ui, Packet8i>(const Packet8i& a) {
+  return Packet8ui(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet8i preinterpret<Packet8i, Packet8ui>(const Packet8ui& a) {
+  return Packet8i(a);
+}
+
+// truncation operations
+
+template<> EIGEN_STRONG_INLINE Packet4f preinterpret<Packet4f, Packet8f>(const Packet8f& a) {
+  return _mm256_castps256_ps128(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet2d preinterpret<Packet2d, Packet4d>(const Packet4d& a) {
+  return _mm256_castpd256_pd128(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i, Packet8i>(const Packet8i& a) {
+  return _mm256_castsi256_si128(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4ui preinterpret<Packet4ui, Packet8ui>(const Packet8ui& a) {
+  return _mm256_castsi256_si128(a);
+}
+
+
+#ifdef EIGEN_VECTORIZE_AVX2
+template<> EIGEN_STRONG_INLINE Packet4ul preinterpret<Packet4ul, Packet4l>(const Packet4l& a) {
+  return Packet4ul(a);
+}
+
+template<> EIGEN_STRONG_INLINE Packet4l preinterpret<Packet4l, Packet4ul>(const Packet4ul& a) {
+  return Packet4l(a);
+}
+
+#endif
 
 template<> EIGEN_STRONG_INLINE Packet8f pcast<Packet8h, Packet8f>(const Packet8h& a) {
   return half2float(a);
