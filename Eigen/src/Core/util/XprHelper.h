@@ -235,7 +235,8 @@ constexpr inline int compute_default_alignment_helper(int ArrayBytes, int Alignm
 #endif
 
 template<typename T, int Size> struct compute_default_alignment {
-  enum { value = compute_default_alignment_helper(Size*sizeof(T), EIGEN_MAX_STATIC_ALIGN_BYTES) };
+  static constexpr int default_value = compute_default_alignment_helper(Size * sizeof(T), EIGEN_MAX_STATIC_ALIGN_BYTES);
+  static constexpr int value = plain_enum_max(default_value, sizeof(T));
 };
 
 template<typename T> struct compute_default_alignment<T,Dynamic> {
