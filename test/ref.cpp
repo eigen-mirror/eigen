@@ -317,6 +317,30 @@ void test_ref_overloads()
   test_ref_ambiguous(A, B);
 }
 
+template<typename Ref_>
+struct RefDerived
+  : Ref_
+{
+  using Ref_::m_object;
+};
+
+template <typename MatrixType, typename Derived> void test_cref_move_ctor(const DenseBase<Derived> &expr) {
+  typedef Ref<const MatrixType> CRef;
+  typedef RefDerived<CRef> CRefDerived;
+
+  const bool owns_data = !bool(internal::traits<CRef>::template match<Derived>::type::value);
+  CRef cref1(expr);
+  const double *data1 = cref1.data(),
+               *obj_data1 = static_cast<CRefDerived &>(cref1).m_object.data();
+  VERIFY(test_is_equal(data1, obj_data1, owns_data));
+  CRef cref2(std::move(cref1));
+  VERIFY_IS_EQUAL(data1, cref1.data());
+  const double *data2 = cref2.data(),
+               *obj_data2 = static_cast<CRefDerived &>(cref2).m_object.data();
+  VERIFY(test_is_equal(data1, data2, MatrixType::MaxSizeAtCompileTime == Dynamic || !owns_data));
+  VERIFY(test_is_equal(data1, obj_data2, MatrixType::MaxSizeAtCompileTime == Dynamic && owns_data));
+}
+
 EIGEN_DECLARE_TEST(ref)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -342,4 +366,13 @@ EIGEN_DECLARE_TEST(ref)
   }
   
   CALL_SUBTEST_7( test_ref_overloads() );
+
+  CALL_SUBTEST_9( test_cref_move_ctor<VectorXd>(VectorXd::Ones(9)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<VectorXd>(VectorXd(9)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Vector3d>(Vector3d::Ones()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Vector3d>(Vector3d()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<MatrixXd>(MatrixXd::Ones(9, 5)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<MatrixXd>(MatrixXd(9, 5)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d::Ones()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d()) );
 }

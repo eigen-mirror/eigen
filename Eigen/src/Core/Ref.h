@@ -363,6 +363,15 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
       // copy constructor shall not copy the m_object, to avoid unnecessary malloc and copy
     }
 
+    EIGEN_DEVICE_FUNC inline Ref(Ref&& other) {
+      if (other.data() == other.m_object.data()) {
+        m_object = std::move(other.m_object);
+        Base::construct(m_object);
+      }
+      else
+        Base::construct(other);
+    }
+
     template<typename OtherRef>
     EIGEN_DEVICE_FUNC inline Ref(const RefBase<OtherRef>& other) {
       EIGEN_STATIC_ASSERT(Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
