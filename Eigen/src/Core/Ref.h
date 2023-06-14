@@ -332,6 +332,16 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
   : public RefBase<Ref<const TPlainObjectType, Options, StrideType> >
 {
     typedef internal::traits<Ref> Traits;
+
+    static constexpr bool may_map_m_object_successfully = 
+      (StrideType::InnerStrideAtCompileTime == 0 ||
+       StrideType::InnerStrideAtCompileTime == 1 ||
+       StrideType::InnerStrideAtCompileTime == Dynamic) &&
+      (TPlainObjectType::IsVectorAtCompileTime ||
+       StrideType::OuterStrideAtCompileTime == 0 ||
+       StrideType::OuterStrideAtCompileTime == Dynamic ||
+       StrideType::OuterStrideAtCompileTime == TPlainObjectType::InnerSizeAtCompileTime ||
+       TPlainObjectType::InnerSizeAtCompileTime == Dynamic);
   public:
 
     typedef RefBase<Ref> Base;
@@ -344,6 +354,8 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
 //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << "," << match_helper<Derived>::InnerStrideMatch << "\n";
 //      std::cout << int(StrideType::OuterStrideAtCompileTime) << " - " << int(Derived::OuterStrideAtCompileTime) << "\n";
 //      std::cout << int(StrideType::InnerStrideAtCompileTime) << " - " << int(Derived::InnerStrideAtCompileTime) << "\n";
+      EIGEN_STATIC_ASSERT(Traits::template match<Derived>::type::value || may_map_m_object_successfully,
+                          STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(expr.derived(), typename Traits::template match<Derived>::type());
     }
 
@@ -353,6 +365,8 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
 
     template<typename OtherRef>
     EIGEN_DEVICE_FUNC inline Ref(const RefBase<OtherRef>& other) {
+      EIGEN_STATIC_ASSERT(Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
+                          STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(other.derived(), typename Traits::template match<OtherRef>::type());
     }
 
@@ -371,7 +385,9 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type)
     {
       internal::call_assignment_no_alias(m_object,expr,internal::assign_op<Scalar,Scalar>());
-      Base::construct(m_object);
+      const bool success = Base::construct(m_object);
+      EIGEN_ONLY_USED_FOR_DEBUG(success)
+      eigen_assert(success);
     }
 
   protected:
