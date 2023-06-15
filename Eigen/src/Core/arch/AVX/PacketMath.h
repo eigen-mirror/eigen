@@ -524,11 +524,11 @@ EIGEN_STRONG_INLINE Packet4ul ploaddup<Packet4ul>(const uint64_t* from) {
 }
 template<>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet4l& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint64_t>(uint64_t* to, const Packet4ul& from) {
-  EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
+  EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstoreu<int64_t>(int64_t* to, const Packet4l& from) {
@@ -1286,8 +1286,8 @@ template<> EIGEN_STRONG_INLINE Packet8ui ploadquad<Packet8ui>(const uint32_t* fr
 
 template<> EIGEN_STRONG_INLINE void pstore<float>(float*   to, const Packet8f& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_store_ps(to, from); }
 template<> EIGEN_STRONG_INLINE void pstore<double>(double* to, const Packet4d& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_store_pd(to, from); }
-template<> EIGEN_STRONG_INLINE void pstore<int>(int*       to, const Packet8i& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from); }
-template<> EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet8ui& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from); }
+template<> EIGEN_STRONG_INLINE void pstore<int>(int*       to, const Packet8i& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from); }
+template<> EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet8ui& from) { EIGEN_DEBUG_ALIGNED_STORE _mm256_store_si256(reinterpret_cast<__m256i*>(to), from); }
 
 template<> EIGEN_STRONG_INLINE void pstoreu<float>(float*   to, const Packet8f& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm256_storeu_ps(to, from); }
 template<> EIGEN_STRONG_INLINE void pstoreu<double>(double* to, const Packet4d& from) { EIGEN_DEBUG_UNALIGNED_STORE _mm256_storeu_pd(to, from); }
