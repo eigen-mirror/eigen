@@ -278,9 +278,10 @@ void svd_inf_nan() {
   svd.compute(m);
   VERIFY(svd.info() == InvalidInput);
   
+  Scalar min = (std::numeric_limits<Scalar>::min)();
   m.resize(4,4);
   m <<  1, 0, 0, 0,
-        0, 3, 1, 2e-308,
+        0, 3, 1, min,
         1, 0, 1, nan,
         0, nan, nan, 0;
   svd.compute(m);
@@ -482,35 +483,6 @@ void svd_compute_checks(const MatrixType& m) {
   }
 }
 
-// Deprecated behavior.
-template <typename SvdType, typename MatrixType>
-void svd_check_runtime_options(const MatrixType& m, unsigned int computationOptions) {
-  const bool fixedRowAndThinU = SvdType::RowsAtCompileTime != Dynamic && (computationOptions & ComputeThinU) != 0 && m.cols() < m.rows();
-  const bool fixedColAndThinV = SvdType::ColsAtCompileTime != Dynamic && (computationOptions & ComputeThinV) != 0 && m.rows() < m.cols();
-  if (fixedRowAndThinU || fixedColAndThinV) {
-    VERIFY_RAISES_ASSERT(SvdType svd(m, computationOptions));
-    return;
-  }
-
-  Index diagSize = (std::min)(m.rows(), m.cols());
-
-  SvdType svd(m, computationOptions);
-  if (svd.computeU()) {
-    VERIFY(svd.matrixU().isUnitary());
-    if (computationOptions & ComputeThinU) VERIFY(svd.matrixU().cols() == diagSize);
-  }
-
-  if (svd.computeV()) {
-    VERIFY(svd.matrixV().isUnitary());
-    if (computationOptions & ComputeThinV) VERIFY(svd.matrixV().cols() == diagSize);
-  }
-  if (svd.computeU() && svd.computeV()) {
-    svd_test_solvers(m, svd);
-    svd.matrixU().isUnitary();
-    svd.matrixV().isUnitary();
-  }
-}
-
 template <typename MatrixType, int QRPreconditioner = 0>
 void svd_option_checks(const MatrixType& input) {
   MatrixType m(input.rows(), input.cols());
@@ -531,20 +503,6 @@ void svd_option_checks(const MatrixType& input) {
   FullSvdType fullSvd(m);
   svd_check_full(m, fullSvd);
   svd_compare_to_full<MatrixType, FullSvdType, QRPreconditioner | ComputeFullU | ComputeFullV>(m, fullSvd);
-
-  // Deprecated behavior.
-  typedef SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner) DynamicSvd;
-  svd_check_runtime_options<DynamicSvd>(m, 0);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeThinU);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeThinV);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeThinU | ComputeThinV);
-
-  svd_check_runtime_options<DynamicSvd>(m, ComputeFullU);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeFullV);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeFullU | ComputeFullV);
-
-  svd_check_runtime_options<DynamicSvd>(m, ComputeThinU | ComputeFullV);
-  svd_check_runtime_options<DynamicSvd>(m, ComputeFullU | ComputeThinV);
 }
 
 template <typename MatrixType, int QRPreconditioner = 0>
@@ -592,7 +550,7 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
 }
 
 template <typename SvdType, typename MatrixType>
-void svd_verify_constructor_options_assert(const MatrixType& m, bool fullOnly = false) {
+void svd_verify_constructor_options_assert(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   Index rows = m.rows();
   Index cols = m.cols();
@@ -619,30 +577,6 @@ void svd_verify_constructor_options_assert(const MatrixType& m, bool fullOnly = 
   VERIFY_RAISES_ASSERT(svd2.matrixV())
   svd2.singularValues();
   VERIFY_RAISES_ASSERT(svd2.solve(rhs))
-
-  // Deprecated behavior.
-  SvdType svd3(a, ComputeFullU);
-  svd3.matrixU();
-  VERIFY_RAISES_ASSERT(svd3.matrixV())
-  VERIFY_RAISES_ASSERT(svd3.solve(rhs))
-
-  SvdType svd4(a, ComputeFullV);
-  svd4.matrixV();
-  VERIFY_RAISES_ASSERT(svd4.matrixU())
-  VERIFY_RAISES_ASSERT(svd4.solve(rhs))
-
-  if (!fullOnly && ColsAtCompileTime == Dynamic)
-  {
-    SvdType svd5(a, ComputeThinU);
-    svd5.matrixU();
-    VERIFY_RAISES_ASSERT(svd5.matrixV())
-    VERIFY_RAISES_ASSERT(svd5.solve(rhs))
-
-    SvdType svd6(a, ComputeThinV);
-    svd6.matrixV();
-    VERIFY_RAISES_ASSERT(svd6.matrixU())
-    VERIFY_RAISES_ASSERT(svd6.solve(rhs))
-  }
 }
 
 #undef SVD_DEFAULT
