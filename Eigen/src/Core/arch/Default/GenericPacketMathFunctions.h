@@ -1998,8 +1998,8 @@ struct exponent_helper<ScalarExponent, true> {
   using safe_abs_type = typename numext::get_integer_by_size<sizeof(ScalarExponent)>::unsigned_type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE safe_abs_type safe_abs(const ScalarExponent& exp) {
     ScalarExponent mask = numext::signbit(exp);
-    safe_abs_type abs_result = numext::bit_cast<safe_abs_type>(exp ^ mask);
-    return abs_result + (1 & mask);
+    safe_abs_type result = numext::bit_cast<safe_abs_type>(exp ^ mask);
+    return result + safe_abs_type(ScalarExponent(1) & mask);
   }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_odd(const safe_abs_type& exp) {
     return exp % safe_abs_type(2) != safe_abs_type(0);
