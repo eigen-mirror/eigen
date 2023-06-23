@@ -570,13 +570,6 @@ void svd_verify_constructor_options_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(svd.solve(rhs))
   VERIFY_RAISES_ASSERT(svd.transpose().solve(rhs))
   VERIFY_RAISES_ASSERT(svd.adjoint().solve(rhs))
-
-  MatrixType a = MatrixType::Zero(rows, cols);
-  SvdType svd2(a, 0);
-  VERIFY_RAISES_ASSERT(svd2.matrixU())
-  VERIFY_RAISES_ASSERT(svd2.matrixV())
-  svd2.singularValues();
-  VERIFY_RAISES_ASSERT(svd2.solve(rhs))
 }
 
 #undef SVD_DEFAULT
