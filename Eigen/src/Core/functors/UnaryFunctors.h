@@ -809,7 +809,7 @@ struct functor_traits<scalar_round_op<Scalar> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasRound
+    PacketAccess = packet_traits<Scalar>::HasRound || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -827,7 +827,7 @@ struct functor_traits<scalar_floor_op<Scalar> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasFloor
+    PacketAccess = packet_traits<Scalar>::HasFloor || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -845,7 +845,7 @@ struct functor_traits<scalar_rint_op<Scalar> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasRint
+    PacketAccess = packet_traits<Scalar>::HasRint || NumTraits<Scalar>::IsInteger
   };
 };
 
@@ -863,7 +863,7 @@ struct functor_traits<scalar_ceil_op<Scalar> >
 {
   enum {
     Cost = NumTraits<Scalar>::MulCost,
-    PacketAccess = packet_traits<Scalar>::HasCeil
+    PacketAccess = packet_traits<Scalar>::HasCeil || NumTraits<Scalar>::IsInteger
   };
 };
 
