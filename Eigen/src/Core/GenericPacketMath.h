@@ -730,14 +730,14 @@ ploadu(const typename unpacket_traits<Packet>::type* from) { return *from; }
 /** \internal \returns n elements of a packet version of \a *from, (un-aligned load)
   * All elements after the last element loaded will initialized with zero */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
-ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n)
+ploadu_partial(const typename unpacket_traits<Packet>::type* from, const Index n, const Index offset = 0)
 {
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_assert(n <= packet_size && "number of elements will read past end of packet");
+  eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
   typedef typename unpacket_traits<Packet>::type Scalar;
   EIGEN_ALIGN_MAX Scalar elements[packet_size] = { Scalar(0) };
-  for (Index i = 0; i < numext::mini(n,packet_size); i++) {
-    elements[i] = from[i];
+  for (Index i = offset; i < numext::mini(n+offset,packet_size); i++) {
+    elements[i] = from[i-offset];
   }
   return pload<Packet>(elements);
 }
@@ -855,14 +855,14 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 {  (*to) = from; }
 
 /** \internal copy n elements of the packet \a from to \a *to, (un-aligned store) */
-template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n)
+template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0)
 {
   const Index packet_size = unpacket_traits<Packet>::size;
-  eigen_assert(n <= packet_size && "number of elements will write past end of packet");
+  eigen_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
   EIGEN_ALIGN_MAX Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
-  for (Index i = 0; i < numext::mini(n,packet_size); i++) {
-    to[i] = elements[i];
+  for (Index i = 0; i < numext::mini(n,packet_size-offset); i++) {
+    to[i] = elements[i + offset];
   }
 }
 
@@ -1201,7 +1201,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
   if(Alignment >= unpacket_traits<Packet>::alignment)
     return pload_partial<Packet>(from, n, offset);
   else
-    return ploadu_partial<Packet>(from, n);
+    return ploadu_partial<Packet>(from, n, offset);
 }
 
 /** \internal copy the packet \a from to \a *to.
@@ -1223,7 +1223,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Pac
   if(Alignment >= unpacket_traits<Packet>::alignment)
     pstore_partial(to, from, n, offset);
   else
-    pstoreu_partial(to, from, n);
+    pstoreu_partial(to, from, n, offset);
 }
 
 /** \internal \returns a packet version of \a *from.
