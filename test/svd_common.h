@@ -553,8 +553,7 @@ template <typename SvdType, typename MatrixType>
 void svd_verify_constructor_options_assert(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   Index rows = m.rows();
-  Index cols = m.cols();
-
+  
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime
