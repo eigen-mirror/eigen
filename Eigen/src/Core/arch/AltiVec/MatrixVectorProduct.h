@@ -1410,7 +1410,7 @@ EIGEN_ALWAYS_INLINE Packet pset_init(Packet& c1)
 template<typename PResPacket, typename ResPacket, typename ResScalar, typename Scalar>
 struct alpha_store
 {
-    alpha_store<PResPacket, ResPacket, ResScalar, Scalar>(ResScalar& alpha) {
+    alpha_store(ResScalar& alpha) {
         separate.r = pset1_complex<Scalar, ResScalar, ResPacket, 0x3>(alpha);
         separate.i = pset1_complex<Scalar, ResScalar, ResPacket, 0x0>(alpha);
     }
