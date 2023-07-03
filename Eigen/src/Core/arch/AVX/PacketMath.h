@@ -1847,7 +1847,7 @@ EIGEN_STRONG_INLINE Packet8f half2float(const Packet8h& a) {
 
 EIGEN_STRONG_INLINE Packet8h float2half(const Packet8f& a) {
 #ifdef EIGEN_HAS_FP16_C
-  return _mm256_cvtps_ph(a, _MM_FROUND_TO_NEAREST_INT|_MM_FROUND_NO_EXC);
+  return _mm256_cvtps_ph(a, _MM_FROUND_TO_NEAREST_INT);
 #else
   __m128i lo = float2half(_mm256_extractf128_ps(a, 0));
   __m128i hi = float2half(_mm256_extractf128_ps(a, 1));
