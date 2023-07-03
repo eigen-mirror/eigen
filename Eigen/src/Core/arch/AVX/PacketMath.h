@@ -1020,7 +1020,7 @@ EIGEN_STRONG_INLINE Packet8f half2float(const Packet8h& a) {
 
 EIGEN_STRONG_INLINE Packet8h float2half(const Packet8f& a) {
 #ifdef EIGEN_HAS_FP16_C
-  return _mm256_cvtps_ph(a, _MM_FROUND_TO_NEAREST_INT|_MM_FROUND_NO_EXC);
+  return _mm256_cvtps_ph(a, _MM_FROUND_TO_NEAREST_INT);
 #else
   EIGEN_ALIGN32 float aux[8];
   pstore(aux, a);
