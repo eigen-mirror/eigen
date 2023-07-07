@@ -17,12 +17,52 @@ namespace Eigen {
 
 namespace internal {
 
-template<typename IndexDest, typename IndexSrc>
-EIGEN_DEVICE_FUNC
-inline IndexDest convert_index(const IndexSrc& idx) {
-  // for sizeof(IndexDest)>=sizeof(IndexSrc) compilers should be able to optimize this away:
-  eigen_internal_assert(idx <= NumTraits<IndexDest>::highest() && "Index value to big for target type");
-  return IndexDest(idx);
+
+// useful for unsigned / signed integer comparisons when idx is intended to be non-negative
+template <typename IndexType>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename make_unsigned<IndexType>::type returnUnsignedIndexValue(
+    const IndexType& idx) {
+  EIGEN_STATIC_ASSERT((NumTraits<IndexType>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
+  eigen_internal_assert(idx >= 0 && "Index value is negative and target type is unsigned");
+  using UnsignedType = typename make_unsigned<IndexType>::type;
+  return static_cast<UnsignedType>(idx);
+}
+
+template <typename IndexDest, typename IndexSrc, 
+          bool IndexDestIsInteger = NumTraits<IndexDest>::IsInteger,
+          bool IndexDestIsSigned = NumTraits<IndexDest>::IsSigned,
+          bool IndexSrcIsInteger = NumTraits<IndexSrc>::IsInteger,
+          bool IndexSrcIsSigned = NumTraits<IndexSrc>::IsSigned>
+struct convert_index_impl {
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+    eigen_internal_assert(idx <= NumTraits<IndexDest>::highest() && "Index value is too big for target type");
+    return static_cast<IndexDest>(idx);
+  }
+};
+template <typename IndexDest, typename IndexSrc>
+struct convert_index_impl<IndexDest, IndexSrc, true, true, true, false> {
+  // IndexDest is a signed integer
+  // IndexSrc is an unsigned integer
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+    eigen_internal_assert(idx <= returnUnsignedIndexValue(NumTraits<IndexDest>::highest()) &&
+                          "Index value is too big for target type");
+    return static_cast<IndexDest>(idx);
+  }
+};
+template <typename IndexDest, typename IndexSrc>
+struct convert_index_impl<IndexDest, IndexSrc, true, false, true, true> {
+  // IndexDest is an unsigned integer
+  // IndexSrc is a signed integer
+  static inline EIGEN_DEVICE_FUNC IndexDest run(const IndexSrc& idx) {
+    eigen_internal_assert(returnUnsignedIndexValue(idx) <= NumTraits<IndexDest>::highest() &&
+                          "Index value is too big for target type");
+    return static_cast<IndexDest>(idx);
+  }
+};
+
+template <typename IndexDest, typename IndexSrc>
+EIGEN_DEVICE_FUNC inline IndexDest convert_index(const IndexSrc& idx) {
+  return convert_index_impl<IndexDest, IndexSrc>::run(idx);
 }
 
 // true if T can be considered as an integral index (i.e., and integral type or enum)

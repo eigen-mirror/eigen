@@ -30,7 +30,7 @@ static void test_type_cast() {
 
   for (int i = 0; i < 101; ++i) {
     for (int j = 0; j < 201; ++j) {
-      const ToType ref = static_cast<ToType>(ftensor(i, j));
+      const ToType ref = internal::cast<FromType, ToType>(ftensor(i, j));
       VERIFY_IS_EQUAL(ttensor(i, j), ref);
     }
   }

@@ -368,9 +368,11 @@ protected:
         m_computeFullV(false),
         m_computeThinV(false),
         m_computationOptions(0),
+        m_nonzeroSingularValues(0),
         m_rows(-1),
         m_cols(-1),
-        m_diagSize(0) {}
+        m_diagSize(0),
+        m_prescribedThreshold(0) {}
 };
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

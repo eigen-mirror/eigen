@@ -1366,8 +1366,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
 /** \internal \returns the argument of \a a as a complex number */
 template <typename Packet, std::enable_if_t<!is_scalar<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsComplex, THIS METHOD IS FOR COMPLEX TYPES ONLY)
+  EIGEN_STATIC_ASSERT(NumTraits<typename unpacket_traits<Packet>::type>::IsComplex, THIS METHOD IS FOR COMPLEX TYPES ONLY)
   using RealPacket = typename unpacket_traits<Packet>::as_real;
   // a                                              // r     i    r     i    ...
   RealPacket aflip = pcplxflip(a).v;                // i     r    i     r    ...

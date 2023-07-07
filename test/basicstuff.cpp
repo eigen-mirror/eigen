@@ -69,8 +69,10 @@ template<typename MatrixType> void basicStuff(const MatrixType& m)
   x = v1(static_cast<unsigned int>(r1));
   x = v1(static_cast<signed long>(r1));
   x = v1(static_cast<unsigned long>(r1));
-  x = v1(static_cast<long long int>(r1));
-  x = v1(static_cast<unsigned long long int>(r1));
+  if(sizeof(Index) >= sizeof(long long int))
+    x = v1(static_cast<long long int>(r1));
+  if(sizeof(Index) >= sizeof(unsigned long long int))
+    x = v1(static_cast<unsigned long long int>(r1));
 
   VERIFY_IS_APPROX(               v1,    v1);
   VERIFY_IS_NOT_APPROX(           v1,    2*v1);

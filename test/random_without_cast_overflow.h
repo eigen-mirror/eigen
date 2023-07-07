@@ -23,7 +23,7 @@ struct random_without_cast_overflow {
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar,
-    std::enable_if_t<NumTraits<SrcScalar>::IsInteger && NumTraits<TgtScalar>::IsInteger &&
+    std::enable_if_t<NumTraits<SrcScalar>::IsInteger && NumTraits<SrcScalar>::IsSigned && NumTraits<TgtScalar>::IsInteger &&
                    !NumTraits<TgtScalar>::IsSigned &&
                    (std::numeric_limits<SrcScalar>::digits < std::numeric_limits<TgtScalar>::digits ||
                     (std::numeric_limits<SrcScalar>::digits == std::numeric_limits<TgtScalar>::digits &&
@@ -34,16 +34,44 @@ struct random_without_cast_overflow<
   }
 };
 
+// Signed to unsigned integer widening cast.
+template <typename SrcScalar, typename TgtScalar>
+struct random_without_cast_overflow<
+    SrcScalar, TgtScalar,
+    std::enable_if_t<NumTraits<SrcScalar>::IsInteger && !NumTraits<SrcScalar>::IsSigned && NumTraits<TgtScalar>::IsInteger &&
+                   !NumTraits<TgtScalar>::IsSigned &&
+                   (std::numeric_limits<SrcScalar>::digits < std::numeric_limits<TgtScalar>::digits ||
+                    (std::numeric_limits<SrcScalar>::digits == std::numeric_limits<TgtScalar>::digits &&
+                     NumTraits<SrcScalar>::IsSigned))>> {
+  static SrcScalar value() {
+    SrcScalar a = internal::random<SrcScalar>();
+    return a;
+  }
+};
+
 // Integer to unsigned narrowing cast.
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar,
     std::enable_if_t<
-        NumTraits<SrcScalar>::IsInteger && NumTraits<TgtScalar>::IsInteger && !NumTraits<SrcScalar>::IsSigned &&
+        NumTraits<SrcScalar>::IsInteger && NumTraits<TgtScalar>::IsInteger && NumTraits<TgtScalar>::IsSigned && !NumTraits<SrcScalar>::IsSigned &&
         (std::numeric_limits<SrcScalar>::digits > std::numeric_limits<TgtScalar>::digits)>> {
   static SrcScalar value() {
     TgtScalar b = internal::random<TgtScalar>();
     return static_cast<SrcScalar>(b < TgtScalar(0) ? -(b + 1) : b);
+  }
+};
+
+// Integer to unsigned narrowing cast.
+template <typename SrcScalar, typename TgtScalar>
+struct random_without_cast_overflow<
+    SrcScalar, TgtScalar,
+    std::enable_if_t<
+        NumTraits<SrcScalar>::IsInteger && NumTraits<TgtScalar>::IsInteger && !NumTraits<TgtScalar>::IsSigned && !NumTraits<SrcScalar>::IsSigned &&
+        (std::numeric_limits<SrcScalar>::digits > std::numeric_limits<TgtScalar>::digits)>> {
+  static SrcScalar value() {
+    TgtScalar b = internal::random<TgtScalar>();
+    return static_cast<SrcScalar>(b);
   }
 };
 
@@ -83,7 +111,7 @@ template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar,
     std::enable_if_t<
-        !NumTraits<SrcScalar>::IsInteger && !NumTraits<SrcScalar>::IsComplex && NumTraits<TgtScalar>::IsInteger &&
+        !NumTraits<SrcScalar>::IsInteger && !NumTraits<SrcScalar>::IsComplex && NumTraits<TgtScalar>::IsInteger && NumTraits<TgtScalar>::IsSigned &&
         (std::numeric_limits<TgtScalar>::digits > std::numeric_limits<SrcScalar>::digits)>> {
   static SrcScalar value() {
     // NOTE: internal::random<T>() is limited by RAND_MAX, so random<int64_t> is always within that range.
@@ -92,6 +120,22 @@ struct random_without_cast_overflow<
     static const TgtScalar KeepMask = (static_cast<TgtScalar>(1) << std::numeric_limits<SrcScalar>::digits) - 1;
     const TgtScalar a = internal::random<TgtScalar>();
     return static_cast<SrcScalar>(a > TgtScalar(0) ? (a & KeepMask) : -(a & KeepMask));
+  }
+};
+
+template <typename SrcScalar, typename TgtScalar>
+struct random_without_cast_overflow<
+    SrcScalar, TgtScalar,
+    std::enable_if_t<
+        !NumTraits<SrcScalar>::IsInteger && !NumTraits<SrcScalar>::IsComplex && NumTraits<TgtScalar>::IsInteger && !NumTraits<TgtScalar>::IsSigned &&
+        (std::numeric_limits<TgtScalar>::digits > std::numeric_limits<SrcScalar>::digits)>> {
+  static SrcScalar value() {
+    // NOTE: internal::random<T>() is limited by RAND_MAX, so random<int64_t> is always within that range.
+    // This prevents us from simply shifting bits, which would result in only 0 or -1.
+    // Instead, keep least-significant K bits and sign.
+    static const TgtScalar KeepMask = (static_cast<TgtScalar>(1) << std::numeric_limits<SrcScalar>::digits) - 1;
+    const TgtScalar a = internal::random<TgtScalar>();
+    return static_cast<SrcScalar>(a & KeepMask);
   }
 };
 

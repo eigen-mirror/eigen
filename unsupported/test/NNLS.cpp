@@ -54,7 +54,7 @@ void test_nnls_known_solution(const MatrixType &A, const VectorB &b, const Vecto
 }
 
 template <typename MatrixType>
-void test_nnls_random_problem() {
+void test_nnls_random_problem(const MatrixType&) {
   //
   // SETUP
   //
@@ -448,12 +448,9 @@ EIGEN_DECLARE_TEST(NNLS) {
 
   for (int i = 0; i < g_repeat; i++) {
     // Essential NNLS properties, across different types.
-    CALL_SUBTEST_2(test_nnls_random_problem<MatrixXf>());
-    CALL_SUBTEST_3(test_nnls_random_problem<MatrixXd>());
-    {
-      using MatFixed = Matrix<double, 12, 5>;
-      CALL_SUBTEST_4(test_nnls_random_problem<MatFixed>());
-    }
+    CALL_SUBTEST_2(test_nnls_random_problem(MatrixXf()));
+    CALL_SUBTEST_3(test_nnls_random_problem(MatrixXd()));
+    CALL_SUBTEST_4(test_nnls_random_problem(Matrix<double, 12, 5>()));
     CALL_SUBTEST_5(test_nnls_with_half_precision());
 
     // Robustness tests:
