@@ -311,7 +311,9 @@ constexpr inline unsigned compute_matrix_flags(int Options) {
 }
 
 constexpr inline int size_at_compile_time(int rows, int cols) {
-  return (rows==Dynamic || cols==Dynamic) ? Dynamic : rows * cols;
+  if (rows == 0 || cols == 0) return 0;
+  if (rows == Dynamic || cols == Dynamic) return Dynamic;
+  return rows * cols;
 }
 
 template<typename XprType> struct size_of_xpr_at_compile_time
