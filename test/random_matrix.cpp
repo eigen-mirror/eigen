@@ -63,7 +63,7 @@ void check_generateRandomMatrixSvs(const Index rows, const Index cols, const Ind
 {
     RealVectorType svs = setupRangeSvs<RealVectorType, RealScalar>(diag_size, min_svs, max_svs);
 
-    MatrixType M;
+    MatrixType M = MatrixType::Zero(rows, cols);
     generateRandomMatrixSvs(svs, rows, cols, M);
 
     // validate dimensions

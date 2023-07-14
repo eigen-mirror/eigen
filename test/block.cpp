@@ -40,14 +40,14 @@ template <typename MatrixType>
 std::enable_if_t<((MatrixType::Flags&RowMajorBit)==0),void>
 check_left_top(const MatrixType& m, Index r, Index c,
                Index rows, Index /*unused*/) {
-  VERIFY_IS_EQUAL(m.leftCols(c).coeff(r+c*rows), m(r,c));
+  if(c > 0) VERIFY_IS_EQUAL(m.leftCols(c).coeff(r+c*rows), m(r,c));
 }
 
 template <typename MatrixType>
 std::enable_if_t<((MatrixType::Flags&RowMajorBit)!=0),void>
 check_left_top(const MatrixType& m,  Index r, Index c,
                Index /*unused*/, Index cols) {
-  VERIFY_IS_EQUAL(m.topRows(r).coeff(c+r*cols), m(r,c));
+  if(r > 0) VERIFY_IS_EQUAL(m.topRows(r).coeff(c+r*cols), m(r,c));
 }
 
 template<typename MatrixType> void block(const MatrixType& m)
