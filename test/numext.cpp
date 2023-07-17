@@ -286,9 +286,9 @@ struct check_signbit_impl {
       return all_pass;
     };
 
-    bool all_pass = check_all(non_negative_values, false_mask);
-    all_pass = all_pass && check_all(negative_values, (NumTraits<T>::IsSigned ? true_mask : false_mask));
-    VERIFY(all_pass);
+    bool check_all_pass = check_all(non_negative_values, false_mask);
+    check_all_pass = check_all_pass && check_all(negative_values, (NumTraits<T>::IsSigned ? true_mask : false_mask));
+    VERIFY(check_all_pass);
   }
 };
 template <typename T>
