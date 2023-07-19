@@ -297,14 +297,14 @@ template<typename T> EIGEN_DEVICE_FUNC inline T* default_construct_elements_of_a
   std::size_t i=0;
   EIGEN_TRY
   {
-      for (i = 0; i < size; ++i) ::new (ptr + i) T;
-      return ptr;
+    for (i = 0; i < size; ++i) ::new (ptr + i) T;
   }
   EIGEN_CATCH(...)
   {
     destruct_elements_of_array(ptr, i);
     EIGEN_THROW;
   }
+  return ptr;
 }
 
 /** \internal Copy-constructs the elements of an array.

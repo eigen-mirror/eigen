@@ -594,7 +594,7 @@ static const bool RunningOnGPU = false;
           m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
         }
       } else {
-        m_outputStrides[NumOutputDims - 1] = 1;
+        m_outputStrides[static_cast<size_t>(NumOutputDims - 1)] = 1;
         for (int i = NumOutputDims - 2; i >= 0; --i) {
           m_outputStrides[i] = m_outputStrides[i + 1] * m_dimensions[i + 1];
           m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
