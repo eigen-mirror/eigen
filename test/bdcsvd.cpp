@@ -69,8 +69,13 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16)
 }
 
 template <typename MatrixType>
-void bdcsvd_all_options(const MatrixType& input = MatrixType()) {
-  svd_option_checks<MatrixType, 0>(input);
+void bdcsvd_thin_options(const MatrixType& input = MatrixType()) {
+  svd_thin_option_checks<MatrixType, 0>(input);
+}
+
+template <typename MatrixType>
+void bdcsvd_full_options(const MatrixType& input = MatrixType()) {
+  svd_option_checks_full_only<MatrixType, 0>(input);
 }
 
 template <typename MatrixType>
@@ -82,13 +87,15 @@ void bdcsvd_verify_assert(const MatrixType& input = MatrixType()) {
 EIGEN_DECLARE_TEST(bdcsvd)
 {
   CALL_SUBTEST_1((bdcsvd_verify_assert<Matrix3f>()));
-  CALL_SUBTEST_1((bdcsvd_verify_assert<Matrix4d>()));
-  CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix<float, 10, 7>>()));
-  CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix<float, 7, 10>>()));
-  CALL_SUBTEST_3((bdcsvd_verify_assert<Matrix<std::complex<double>, 6, 9>>()));
+  CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix4d>()));
+  CALL_SUBTEST_3((bdcsvd_verify_assert<Matrix<float, 10, 7>>()));
+  CALL_SUBTEST_4((bdcsvd_verify_assert<Matrix<float, 7, 10>>()));
+  CALL_SUBTEST_5((bdcsvd_verify_assert<Matrix<std::complex<double>, 6, 9>>()));
 
-  CALL_SUBTEST_4((svd_all_trivial_2x2(bdcsvd_all_options<Matrix2cd>)));
-  CALL_SUBTEST_5((svd_all_trivial_2x2(bdcsvd_all_options<Matrix2d>)));
+  CALL_SUBTEST_6((svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2cd>)));
+  CALL_SUBTEST_7((svd_all_trivial_2x2(bdcsvd_full_options<Matrix2cd>)));
+  CALL_SUBTEST_8((svd_all_trivial_2x2(bdcsvd_thin_options<Matrix2d>)));
+  CALL_SUBTEST_9((svd_all_trivial_2x2(bdcsvd_full_options<Matrix2d>)));
 
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE/2),
@@ -97,58 +104,68 @@ EIGEN_DECLARE_TEST(bdcsvd)
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
 
-    CALL_SUBTEST_6((compare_bdc_jacobi<MatrixXf>(MatrixXf(r, c))));
-    CALL_SUBTEST_7((compare_bdc_jacobi<MatrixXd>(MatrixXd(r, c))));
-    CALL_SUBTEST_8((compare_bdc_jacobi<MatrixXcd>(MatrixXcd(r, c))));
+    CALL_SUBTEST_10((compare_bdc_jacobi<MatrixXf>(MatrixXf(r, c))));
+    CALL_SUBTEST_11((compare_bdc_jacobi<MatrixXd>(MatrixXd(r, c))));
+    CALL_SUBTEST_12((compare_bdc_jacobi<MatrixXcd>(MatrixXcd(r, c))));
     // Test on inf/nan matrix
-    CALL_SUBTEST_9((svd_inf_nan<MatrixXf>()));
-    CALL_SUBTEST_10((svd_inf_nan<MatrixXd>()));
+    CALL_SUBTEST_13((svd_inf_nan<MatrixXf>()));
+    CALL_SUBTEST_14((svd_inf_nan<MatrixXd>()));
 
     // Verify some computations using all combinations of the Options template parameter.
-    CALL_SUBTEST_11((bdcsvd_all_options<Matrix3f>()));
-    CALL_SUBTEST_12((bdcsvd_all_options<Matrix<float, 2, 3>>()));
-    CALL_SUBTEST_13((bdcsvd_all_options<MatrixXd>(MatrixXd(20, 17))));
-    CALL_SUBTEST_14((bdcsvd_all_options<MatrixXd>(MatrixXd(17, 20))));
-    CALL_SUBTEST_15((bdcsvd_all_options<Matrix<double, Dynamic, 15>>(Matrix<double, Dynamic, 15>(r, 15))));
-    CALL_SUBTEST_16((bdcsvd_all_options<Matrix<double, 13, Dynamic>>(Matrix<double, 13, Dynamic>(13, c))));
-    CALL_SUBTEST_17((bdcsvd_all_options<MatrixXf>(MatrixXf(r, c))));
-    CALL_SUBTEST_18((bdcsvd_all_options<MatrixXcd>(MatrixXcd(r, c))));
-    CALL_SUBTEST_19((bdcsvd_all_options<MatrixXd>(MatrixXd(r, c))));
-    CALL_SUBTEST_20((bdcsvd_all_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(20, 27))));
-    CALL_SUBTEST_21((bdcsvd_all_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(27, 20))));
-
-    CALL_SUBTEST_22((
+    CALL_SUBTEST_15((bdcsvd_thin_options<Matrix3f>()));
+    CALL_SUBTEST_16((bdcsvd_full_options<Matrix3f>()));
+    CALL_SUBTEST_17((bdcsvd_thin_options<Matrix<float, 2, 3>>()));
+    CALL_SUBTEST_18((bdcsvd_full_options<Matrix<float, 2, 3>>()));
+    CALL_SUBTEST_19((bdcsvd_thin_options<MatrixXd>(MatrixXd(20, 17))));
+    CALL_SUBTEST_20((bdcsvd_full_options<MatrixXd>(MatrixXd(20, 17))));
+    CALL_SUBTEST_21((bdcsvd_thin_options<MatrixXd>(MatrixXd(17, 20))));
+    CALL_SUBTEST_22((bdcsvd_full_options<MatrixXd>(MatrixXd(17, 20))));
+    CALL_SUBTEST_23((bdcsvd_thin_options<Matrix<double, Dynamic, 15>>(Matrix<double, Dynamic, 15>(r, 15))));
+    CALL_SUBTEST_24((bdcsvd_full_options<Matrix<double, Dynamic, 15>>(Matrix<double, Dynamic, 15>(r, 15))));
+    CALL_SUBTEST_25((bdcsvd_thin_options<Matrix<double, 13, Dynamic>>(Matrix<double, 13, Dynamic>(13, c))));
+    CALL_SUBTEST_26((bdcsvd_full_options<Matrix<double, 13, Dynamic>>(Matrix<double, 13, Dynamic>(13, c))));
+    CALL_SUBTEST_27((bdcsvd_thin_options<MatrixXf>(MatrixXf(r, c))));
+    CALL_SUBTEST_28((bdcsvd_full_options<MatrixXf>(MatrixXf(r, c))));
+    CALL_SUBTEST_29((bdcsvd_thin_options<MatrixXcd>(MatrixXcd(r, c))));
+    CALL_SUBTEST_30((bdcsvd_full_options<MatrixXcd>(MatrixXcd(r, c))));
+    CALL_SUBTEST_31((bdcsvd_thin_options<MatrixXd>(MatrixXd(r, c))));
+    CALL_SUBTEST_32((bdcsvd_full_options<MatrixXd>(MatrixXd(r, c))));
+    CALL_SUBTEST_33((bdcsvd_thin_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(20, 27))));
+    CALL_SUBTEST_34((bdcsvd_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(20, 27))));
+    CALL_SUBTEST_35((bdcsvd_thin_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(27, 20))));
+    CALL_SUBTEST_36((bdcsvd_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(Matrix<double, Dynamic, Dynamic, RowMajor>(27, 20))));
+    CALL_SUBTEST_37((
         svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, ColMajor, 20, 35>, ColPivHouseholderQRPreconditioner>(
             r, c)));
-    CALL_SUBTEST_22(
+    CALL_SUBTEST_38(
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, ColMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
-    CALL_SUBTEST_22((
+    CALL_SUBTEST_39((
         svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 20, 35>, ColPivHouseholderQRPreconditioner>(
             r, c)));
-    CALL_SUBTEST_22(
+    CALL_SUBTEST_40(
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
   }
 
   // test matrixbase method
-  CALL_SUBTEST_23(( bdcsvd_method<Matrix2cd>() ));
-  CALL_SUBTEST_23(( bdcsvd_method<Matrix3f>() ));
+  CALL_SUBTEST_41(( bdcsvd_method<Matrix2cd>() ));
+  CALL_SUBTEST_42(( bdcsvd_method<Matrix3f>() ));
 
   // Test problem size constructors
-  CALL_SUBTEST_24( BDCSVD<MatrixXf>(10,10) );
+  CALL_SUBTEST_43( BDCSVD<MatrixXf>(10,10) );
 
   // Check that preallocation avoids subsequent mallocs
   // Disabled because not supported by BDCSVD
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
-  CALL_SUBTEST_25( svd_underoverflow<void>() );
+  CALL_SUBTEST_44( svd_underoverflow<void>() );
 
   // Without total deflation issues.
-  CALL_SUBTEST_26((  compare_bdc_jacobi_instance(true) ));
-  CALL_SUBTEST_26((  compare_bdc_jacobi_instance(false) ));
+  CALL_SUBTEST_45((  compare_bdc_jacobi_instance(true) ));
+  CALL_SUBTEST_46((  compare_bdc_jacobi_instance(false) ));
 
   // With total deflation issues before, when it shouldn't be triggered.
-  CALL_SUBTEST_27((  compare_bdc_jacobi_instance(true, 3) ));
-  CALL_SUBTEST_27((  compare_bdc_jacobi_instance(false, 3) ));
+  CALL_SUBTEST_47((  compare_bdc_jacobi_instance(true, 3) ));
+  CALL_SUBTEST_48((  compare_bdc_jacobi_instance(false, 3) ));
 }
