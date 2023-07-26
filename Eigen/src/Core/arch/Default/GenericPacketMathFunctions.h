@@ -72,11 +72,22 @@ Packet pfrexp_generic(const Packet& a, Packet& exponent) {
   exponent = pfrexp_generic_get_biased_exponent(normalized_a);
   // Zero, Inf and NaN return 'a' unmodified, exponent is zero
   // (technically the exponent is unspecified for inf/NaN, but GCC/Clang set it to zero)
-  const Scalar scalar_non_finite_exponent = Scalar((ScalarUI(1) << ExponentBits) - ScalarUI(1));  // 255
-  const Packet non_finite_exponent = pset1<Packet>(scalar_non_finite_exponent);
-  const Packet is_zero_or_not_finite = por(pcmp_eq(a, zero), pcmp_eq(exponent, non_finite_exponent));
-  const Packet m = pselect(is_zero_or_not_finite, a, por(pand(normalized_a, sign_mantissa_mask), half));
-  exponent = pselect(is_zero_or_not_finite, zero, padd(exponent, exponent_offset));
+  //const Scalar scalar_non_finite_exponent = Scalar((ScalarUI(1) << ExponentBits) - ScalarUI(1));  // 255
+  //const Packet non_finite_exponent = pset1<Packet>(scalar_non_finite_exponent);
+  //const Packet is_zero_or_not_finite = por(pcmp_eq(a, zero), pcmp_eq(exponent, non_finite_exponent));
+  //const Packet m = pselect(is_zero_or_not_finite, a, por(pand(normalized_a, sign_mantissa_mask), half));
+  //exponent = pselect(is_zero_or_not_finite, zero, padd(exponent, exponent_offset));
+
+  Packet is_finite = pcmp_eq(psub(a, a), zero);
+  Packet is_zero = pcmp_eq(a, zero);
+  Packet not_degenerate = pandnot(is_finite, is_zero);
+
+  Packet m = por(pand(normalized_a, sign_mantissa_mask), half);
+  m = pselect(not_degenerate, m, a);
+
+  exponent = padd(exponent, exponent_offset);
+  exponent = pand(exponent, not_degenerate);
+
   return m;
 }
 
