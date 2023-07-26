@@ -156,6 +156,7 @@ EIGEN_DECLARE_TEST(boostmultiprec)
   std::cout << "NumTraits<Real>::lowest()          = " << NumTraits<Real>::lowest() << std::endl;
   std::cout << "NumTraits<Real>::highest()         = " << NumTraits<Real>::highest() << std::endl;
   std::cout << "NumTraits<Real>::digits10()        = " << NumTraits<Real>::digits10() << std::endl;
+  std::cout << "NumTraits<Real>::max_digits10()    = " << NumTraits<Real>::max_digits10() << std::endl;
 
   // check stream output
   {
