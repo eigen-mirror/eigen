@@ -43,45 +43,46 @@ Packet pfrexp_generic(const Packet& a, Packet& exponent) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename make_unsigned<typename make_integer<Scalar>::type>::type ScalarUI;
   static constexpr int
-    TotalBits = sizeof(Scalar) * CHAR_BIT,
-    MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-    ExponentBits = TotalBits - MantissaBits - 1;
+      TotalBits = sizeof(Scalar) * CHAR_BIT,
+      MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
+      ExponentBits = TotalBits - MantissaBits - 1;
+  static constexpr ScalarUI
+      NormalizationOffset = MantissaBits + 1,
+      NormalizationFactor = ScalarUI(1) << NormalizationOffset,
+      ExponentOffset = (1 << (ExponentBits - 1)) - 2;
 
-  EIGEN_CONSTEXPR ScalarUI scalar_sign_mantissa_mask =
-      ~(((ScalarUI(1) << ExponentBits) - ScalarUI(1)) << MantissaBits); // ~0x7f800000
-  const Packet sign_mantissa_mask = pset1frombits<Packet>(static_cast<ScalarUI>(scalar_sign_mantissa_mask));
-  const Packet half = pset1<Packet>(Scalar(0.5));
+  const Packet normalization_factor = pset1<Packet>(Scalar(NormalizationFactor)); // 2^24
+  const Packet norm_exponent_offset = pset1<Packet>(Scalar(ExponentOffset));   // 126
+  const Packet denorm_exponent_offset = pset1<Packet>(Scalar(ExponentOffset+NormalizationOffset));   // 126+24
+
   const Packet zero = pzero(a);
   const Packet normal_min = pset1<Packet>((numext::numeric_limits<Scalar>::min)()); // Minimum normal value, 2^-126
+  const Packet half = pset1<Packet>(Scalar(0.5));
+  const Packet pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity()); // the bitwise complement of infinity also serves as the signed mantissa mask
+
+  const Packet abs_a = pabs(a);
+  const Packet a_is_zero = pcmp_eq(a, zero);
+  //const Packet a_is_denormal = pcmp_lt(abs_a, normal_min);
+  //const Packet a_is_finite = pcmp_lt(abs_a, pos_inf);
+  //const Packet a_is_not_degenerate = pandnot(a_is_finite, a_is_zero);
+  const Packet a_is_not_degenerate = pcmp_eq(pandnot(a, pos_inf), zero);
+
 
   // To handle denormals, normalize by multiplying by 2^(int(MantissaBits)+1).
-  const Packet is_denormal = pcmp_lt(pabs(a), normal_min);
-  EIGEN_CONSTEXPR ScalarUI scalar_normalization_offset = ScalarUI(MantissaBits + 1); // 24
-  // The following cannot be constexpr because bfloat16(uint16_t) is not constexpr.
-  const Scalar scalar_normalization_factor = Scalar(ScalarUI(1) << int(scalar_normalization_offset)); // 2^24
-  const Packet normalization_factor = pset1<Packet>(scalar_normalization_factor);
-  const Packet normalized_a = pselect(is_denormal, pmul(a, normalization_factor), a);
-
-  // Determine exponent offset: -126 if normal, -126-24 if denormal
-  const Scalar scalar_exponent_offset = -Scalar((ScalarUI(1)<<(ExponentBits-1)) - ScalarUI(2)); // -126
-  Packet exponent_offset = pset1<Packet>(scalar_exponent_offset);
-  const Packet normalization_offset = pset1<Packet>(-Scalar(scalar_normalization_offset)); // -24
-  exponent_offset = pselect(is_denormal, padd(exponent_offset, normalization_offset), exponent_offset);
+  const Packet normalized_a = pselect(a_is_denormal, pmul(a, normalization_factor), a);
+  // Determine exponent offset: 126 if normal, 126+24 if denormal
+  const Packet exponent_offset = pselect(a_is_denormal, denorm_exponent_offset, norm_exponent_offset);
 
   // Determine exponent and mantissa from normalized_a.
-  exponent = pfrexp_generic_get_biased_exponent(normalized_a);
   // Zero, Inf and NaN return 'a' unmodified, exponent is zero
   // (technically the exponent is unspecified for inf/NaN, but GCC/Clang set it to zero)
 
-  Packet is_finite = pcmp_eq(psub(a, a), zero);
-  Packet is_zero = pcmp_eq(a, zero);
-  Packet not_degenerate = pandnot(is_finite, is_zero);
+  Packet m = por(pandnot(normalized_a, pos_inf), half);
+  m = pselect(a_is_not_degenerate, m, a);
 
-  Packet m = por(pand(normalized_a, sign_mantissa_mask), half);
-  m = pselect(not_degenerate, m, a);
-
-  exponent = padd(exponent, exponent_offset);
-  exponent = pand(exponent, not_degenerate);
+  exponent = pfrexp_generic_get_biased_exponent(normalized_a);
+  exponent = psub(exponent, exponent_offset);
+  exponent = pand(exponent, a_is_not_degenerate);
 
   return m;
 }
