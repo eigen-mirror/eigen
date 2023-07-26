@@ -58,15 +58,13 @@ Packet pfrexp_generic(const Packet& a, Packet& exponent) {
   const Packet zero = pzero(a);
   const Packet normal_min = pset1<Packet>((numext::numeric_limits<Scalar>::min)()); // Minimum normal value, 2^-126
   const Packet half = pset1<Packet>(Scalar(0.5));
-  const Packet pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity()); // the bitwise complement of infinity also serves as the signed mantissa mask
+  const Packet pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity()); // the bitwise complement of inf serves as the signed mantissa mask
 
   const Packet abs_a = pabs(a);
   const Packet a_is_zero = pcmp_eq(a, zero);
-  //const Packet a_is_denormal = pcmp_lt(abs_a, normal_min);
-  //const Packet a_is_finite = pcmp_lt(abs_a, pos_inf);
-  //const Packet a_is_not_degenerate = pandnot(a_is_finite, a_is_zero);
-  const Packet a_is_not_degenerate = pcmp_eq(pandnot(a, pos_inf), zero);
-
+  const Packet a_is_denormal = pcmp_lt(abs_a, normal_min);
+  const Packet a_is_finite = pcmp_lt(abs_a, pos_inf);
+  const Packet a_is_not_degenerate = pandnot(a_is_finite, a_is_zero);
 
   // To handle denormals, normalize by multiplying by 2^(int(MantissaBits)+1).
   const Packet normalized_a = pselect(a_is_denormal, pmul(a, normalization_factor), a);
