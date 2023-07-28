@@ -477,6 +477,14 @@ if (EIGEN_TEST_HIP)
   endif()
 endif()
 
+if(EIGEN_TEST_SYCL)
+  set(EIGEN_SYCL ON)
+  include(SyclConfigureTesting)
+
+  ei_add_test(sycl_basic)
+  set(EIGEN_SYCL OFF)
+endif()
+
 cmake_dependent_option(EIGEN_TEST_BUILD_DOCUMENTATION "Test building the doxygen documentation" OFF "EIGEN_BUILD_DOC" OFF)
 if(EIGEN_TEST_BUILD_DOCUMENTATION)
   add_dependencies(buildtests doc)
