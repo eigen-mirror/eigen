@@ -424,7 +424,7 @@ struct triangular_product_impl<Mode,LhsIsTriangular,Lhs,false,Rhs,false>
 
     // Empty product, return early.  Otherwise, we get `nullptr` use errors below when we try to access
     // coeffRef(0,0).
-    if (a_lhs.size() == 0 || a_rhs.size() == 0) {
+    if (lhs.size() == 0 || rhs.size() == 0) {
       return;
     }
 
