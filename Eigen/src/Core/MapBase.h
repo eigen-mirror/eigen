@@ -193,6 +193,8 @@ template<typename Derived> class MapBase<Derived, ReadOnlyAccessors>
     EIGEN_DEVICE_FUNC
     void checkSanity(std::enable_if_t<(internal::traits<T>::Alignment>0),void*> = 0) const
     {
+      // Pointer must be aligned to the Scalar type, otherwise we get UB.
+      eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");
 #if EIGEN_MAX_ALIGN_BYTES>0
       // innerStride() is not set yet when this function is called, so we optimistically assume the lowest plausible value:
       const Index minInnerStride = InnerStrideAtCompileTime == Dynamic ? 1 : Index(InnerStrideAtCompileTime);
@@ -205,7 +207,7 @@ template<typename Derived> class MapBase<Derived, ReadOnlyAccessors>
     template<typename T>
     EIGEN_DEVICE_FUNC
     void checkSanity(std::enable_if_t<internal::traits<T>::Alignment==0,void*> = 0) const
-    {}
+    { eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned"); }
 
     PointerType m_data;
     const internal::variable_if_dynamic<Index, RowsAtCompileTime> m_rows;
