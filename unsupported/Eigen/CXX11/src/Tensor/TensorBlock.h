@@ -1061,9 +1061,9 @@ class StridedLinearBufferCopy {
     if (kind == StridedLinearBufferCopy::Kind::Linear) {
       // ******************************************************************** //
       // Linear copy from `src` to `dst`.
-      const IndexType unrolled_size = count - 4 * PacketSize;
+      const IndexType unrolled_size = (4 * PacketSize) * (count / (4 * PacketSize));
       eigen_assert(src_stride == 1 && dst_stride == 1);
-      for (; i <= unrolled_size; i += 4 * PacketSize) {
+      for (; i < unrolled_size; i += 4 * PacketSize) {
         for (int j = 0; j < 4; ++j) {
           Packet p = ploadu<Packet>(src + i + j * PacketSize);
           pstoreu<Scalar, Packet>(dst + i + j * PacketSize, p);
@@ -1074,8 +1074,8 @@ class StridedLinearBufferCopy {
         pstoreu<Scalar, Packet>(dst + i, p);
       }
       if (HasHalfPacket) {
-        const IndexType vectorized_half_size = count - HalfPacketSize;
-        if (i <= vectorized_half_size) {
+        const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
+        if (i < vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
           pstoreu<Scalar, HalfPacket>(dst + i, p);
           i += HalfPacketSize;
@@ -1093,8 +1093,8 @@ class StridedLinearBufferCopy {
         pscatter<Scalar, Packet>(dst + i * dst_stride, p, dst_stride);
       }
       if (HasHalfPacket) {
-        const IndexType vectorized_half_size = count - HalfPacketSize;
-        if (i <= vectorized_half_size) {
+        const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
+        if (i < vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
           pscatter<Scalar, HalfPacket>(dst + i * dst_stride, p, dst_stride);
           i += HalfPacketSize;
@@ -1457,11 +1457,11 @@ class TensorBlockAssignment {
                                         IndexType eval_offset) {
       typedef typename packet_traits<Scalar>::type Packet;
 
-      const IndexType unrolled_size = count - 4 * PacketSize;
-      const IndexType vectorized_size = count - PacketSize;
+      const IndexType unrolled_size = (4 * PacketSize) * (count / (4 * PacketSize));
+      const IndexType vectorized_size = PacketSize * (count / PacketSize);
       IndexType i = 0;
 
-      for (; i <= unrolled_size; i += 4 * PacketSize) {
+      for (; i < unrolled_size; i += 4 * PacketSize) {
         for (int j = 0; j < 4; ++j) {
           const IndexType idx = eval_offset + i + j * PacketSize;
           Packet p = eval.template packet<Unaligned>(idx);
@@ -1469,7 +1469,7 @@ class TensorBlockAssignment {
         }
       }
 
-      for (; i <= vectorized_size; i += PacketSize) {
+      for (; i < vectorized_size; i += PacketSize) {
         Packet p = eval.template packet<Unaligned>(eval_offset + i);
         pstoreu<Scalar>(target + i, p);
       }
