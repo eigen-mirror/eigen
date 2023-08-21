@@ -142,7 +142,7 @@ reshaped() EIGEN_RESHAPED_METHOD_CONST
 
 #ifndef EIGEN_RESHAPED_METHOD_2ND_PASS
 #define EIGEN_RESHAPED_METHOD_2ND_PASS
-#include "ReshapedMethods.h"
+#include "ReshapedMethods.inc"
 #undef EIGEN_RESHAPED_METHOD_2ND_PASS
 #endif
 
