@@ -11,6 +11,7 @@
 #ifndef EIGEN_META_H
 #define EIGEN_META_H
 
+// IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)

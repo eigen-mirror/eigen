@@ -21,6 +21,7 @@
 #ifndef EIGEN_INTEROP_HEADERS_SYCL_H
 #define EIGEN_INTEROP_HEADERS_SYCL_H
 
+// IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
 namespace Eigen {

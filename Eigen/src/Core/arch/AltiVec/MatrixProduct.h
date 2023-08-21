@@ -54,6 +54,7 @@
  * - Check StorageOrder on dhs_pack (the innermost second loop seems unvectorized when it could). *
  * - Check the possibility of transposing as GETREAL and GETIMAG when needed.                     *
  **************************************************************************************************/
+// IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
 namespace Eigen {

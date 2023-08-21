@@ -11,6 +11,7 @@
 #ifndef EIGEN_XPRHELPER_H
 #define EIGEN_XPRHELPER_H
 
+// IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
 namespace Eigen {

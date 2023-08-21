@@ -22,6 +22,7 @@
 #define EIGEN_PACKET_MATH_SYCL_H
 #include <type_traits>
 
+// IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
 namespace Eigen {

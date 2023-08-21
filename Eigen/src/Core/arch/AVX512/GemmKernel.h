@@ -18,6 +18,7 @@
 #include <immintrin.h>
 #include <type_traits>
 
+// IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
 #if !defined(EIGEN_USE_AVX512_GEMM_KERNELS)

@@ -26,6 +26,7 @@
 #endif
 #endif
 
+// IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
 #include "MatrixProductMMAbfloat16.h"

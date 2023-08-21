@@ -13,6 +13,7 @@
 // evaluator for thread pool device
 #ifdef EIGEN_USE_THREADS
 
+// IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
 namespace Eigen {
