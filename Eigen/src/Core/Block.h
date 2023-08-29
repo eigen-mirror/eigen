@@ -17,9 +17,10 @@
 namespace Eigen {
 
 namespace internal {
-template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
-struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprType>
+template<typename XprType_, int BlockRows, int BlockCols, bool InnerPanel_>
+struct traits<Block<XprType_, BlockRows, BlockCols, InnerPanel_> > : traits<XprType_>
 {
+  typedef XprType_ XprType;
   typedef typename traits<XprType>::Scalar Scalar;
   typedef typename traits<XprType>::StorageKind StorageKind;
   typedef typename traits<XprType>::XprKind XprKind;
@@ -53,12 +54,13 @@ struct traits<Block<XprType, BlockRows, BlockCols, InnerPanel> > : traits<XprTyp
     // FIXME, this traits is rather specialized for dense object and it needs to be cleaned further
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
     FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
-    Flags = (traits<XprType>::Flags & (DirectAccessBit | (InnerPanel?CompressedAccessBit:0))) | FlagsLvalueBit | FlagsRowMajorBit,
+    Flags = (traits<XprType>::Flags & (DirectAccessBit | (InnerPanel_?CompressedAccessBit:0))) | FlagsLvalueBit | FlagsRowMajorBit,
     // FIXME DirectAccessBit should not be handled by expressions
     //
     // Alignment is needed by MapBase's assertions
     // We can sefely set it to false here. Internal alignment errors will be detected by an eigen_internal_assert in the respective evaluator
-    Alignment = 0
+    Alignment = 0,
+    InnerPanel = InnerPanel_ ? 1 : 0
   };
 };
 
@@ -107,6 +109,7 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
   : public BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind>
 {
     typedef BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind> Impl;
+    using BlockHelper = internal::block_xpr_helper<Block>;
   public:
     //typedef typename Impl::Base Base;
     typedef Impl Base;
@@ -149,9 +152,25 @@ template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel> class 
       eigen_assert(startRow >= 0 && blockRows >= 0 && startRow  <= xpr.rows() - blockRows
           && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols);
     }
+
+    // convert nested blocks (e.g. Block<Block<MatrixType>>) to a simple block expression (Block<MatrixType>)
+
+    using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+    using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ConstUnwindReturnType unwind() const {
+      return ConstUnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                                   this->rows(), this->cols());
+    }
+
+    template <typename T = Block, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UnwindReturnType unwind() {
+      return UnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
+                              this->rows(), this->cols());
+    }
 };
 
-// The generic default implementation for dense block simplu forward to the internal::BlockImpl_dense
+// The generic default implementation for dense block simply forward to the internal::BlockImpl_dense
 // that must be specialized for direct and non-direct access...
 template<typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 class BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, Dense>
