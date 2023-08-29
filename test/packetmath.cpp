@@ -754,7 +754,7 @@ void packetmath_test_IEEE_corner_cases(const RefFunctorT& ref_fun,
   }
 
   // Test for subnormals.
-  if (Cond && std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+  if (Cond && std::numeric_limits<Scalar>::has_denorm == std::denorm_present && !EIGEN_ARCH_ARM) {
 
     for (int scale = 1; scale < 5; ++scale) {
       // When EIGEN_FAST_MATH is 1 we relax the conditions slightly, and allow the function
@@ -912,12 +912,14 @@ void packetmath_real() {
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {
     // Check denormals:
+    #if !EIGEN_ARCH_ARM
     for (int j=0; j<3; ++j) {
       data1[0] = Scalar(std::ldexp(1, NumTraits<Scalar>::min_exponent()-j));
       CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
       data1[0] = -data1[0];
       CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
     }
+    #endif
 
     // zero
     data1[0] = Scalar(0);

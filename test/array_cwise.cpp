@@ -47,7 +47,7 @@ std::vector<Scalar> special_values() {
   const Scalar sqrt2 = Scalar(std::sqrt(2));    
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
-  const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar denorm_min = EIGEN_ARCH_ARM ? zero : std::numeric_limits<Scalar>::denorm_min();
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
@@ -97,6 +97,12 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
     for (Index j = 0; j < lhs.cols(); ++j) {
       Scalar e = static_cast<Scalar>(ref(lhs(i,j), rhs(i,j)));
       Scalar a = actual(i, j);
+      #if EIGEN_ARCH_ARM
+      // Work around NEON flush-to-zero mode
+      // if ref returns denormalized value and Eigen returns 0, then skip the test
+      int ref_fpclass = std::fpclassify(e);
+      if (a == Scalar(0) && ref_fpclass == FP_SUBNORMAL) continue;
+      #endif
       bool success = (a==e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) || ((numext::isnan)(a) && (numext::isnan)(e));
       if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
       all_pass &= success;
@@ -767,7 +773,12 @@ template<typename ArrayType> void array_real(const ArrayType& m)
             m3(rows, cols),
             m4 = m1;
 
-  m4 = (m4.abs()==Scalar(0)).select(Scalar(1),m4);
+  // avoid denormalized values so verification doesn't fail on platforms that don't support them
+  // denormalized behavior is tested elsewhere (unary_op_test, binary_ops_test)
+  const Scalar min = (std::numeric_limits<Scalar>::min)();
+  m1 = (m1.abs()<min).select(Scalar(0),m1);
+  m2 = (m2.abs()<min).select(Scalar(0),m2);
+  m4 = (m4.abs()<min).select(Scalar(1),m4);
 
   Scalar  s1 = internal::random<Scalar>();
 
@@ -808,6 +819,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
 
   // avoid inf and NaNs so verification doesn't fail
   m3 = m4.abs();
+
   VERIFY_IS_APPROX(m3.sqrt(), sqrt(abs(m3)));
   VERIFY_IS_APPROX(m3.rsqrt(), Scalar(1)/sqrt(abs(m3)));
   VERIFY_IS_APPROX(rsqrt(m3), Scalar(1)/sqrt(abs(m3)));

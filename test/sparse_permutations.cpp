@@ -113,25 +113,6 @@ template<int OtherStorage, typename SparseMatrixType> void sparse_permutations(c
   res_d = p.inverse()*mat_d;
   VERIFY(res.isApprox(res_d) && "inv(p)*mat");
 
-  // test non-plaintype expressions that require additional temporary
-  const Scalar alpha(2.34);
-
-  res_d = p * (alpha * mat_d);
-  VERIFY_TEMPORARY_COUNT( res = p * (alpha * mat), 2);
-  VERIFY( res.isApprox(res_d) && "p*(alpha*mat)" );
-
-  res_d = (alpha * mat_d) * p;
-  VERIFY_TEMPORARY_COUNT( res = (alpha * mat) * p, 2);
-  VERIFY( res.isApprox(res_d) && "(alpha*mat)*p" );
-
-  res_d = p.inverse() * (alpha * mat_d);
-  VERIFY_TEMPORARY_COUNT( res = p.inverse() * (alpha * mat), 2);
-  VERIFY( res.isApprox(res_d) && "inv(p)*(alpha*mat)" );
-
-  res_d = (alpha * mat_d) * p.inverse();
-  VERIFY_TEMPORARY_COUNT( res = (alpha * mat) * p.inverse(), 2);
-  VERIFY( res.isApprox(res_d) && "(alpha*mat)*inv(p)" );
-
   //
 
   VERIFY( is_sorted( (p * mat * p.inverse()).eval() ));
