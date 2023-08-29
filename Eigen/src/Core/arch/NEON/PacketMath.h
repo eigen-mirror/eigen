@@ -32,7 +32,7 @@ namespace internal {
 #if EIGEN_ARCH_ARM64
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #else
-#define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 16 
+#define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 16
 #endif
 #endif
 
@@ -107,7 +107,7 @@ template<> struct packet_traits<float>  : default_packet_traits
     AlignedOnScalar = 1,
     size = 4,
     HasHalfPacket=0, // Packet2f intrinsics not implemented yet
-   
+
     HasDiv  = 1,
     // FIXME check the Has*
     HasSin  = 0,
@@ -173,31 +173,47 @@ template<> EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) { return a; }
 template<> EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) { return vmulq_f32(a,b); }
 template<> EIGEN_STRONG_INLINE Packet4i pmul<Packet4i>(const Packet4i& a, const Packet4i& b) { return vmulq_s32(a,b); }
 
-template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b)
-{
-#if EIGEN_ARCH_ARM64
-  return vdivq_f32(a,b);
-#else
-  Packet4f inv, restep, div;
-
-  // NEON does not offer a divide instruction, we have to do a reciprocal approximation
-  // However NEON in contrast to other SIMD engines (AltiVec/SSE), offers
-  // a reciprocal estimate AND a reciprocal step -which saves a few instructions
-  // vrecpeq_f32() returns an estimate to 1/b, which we will finetune with
-  // Newton-Raphson and vrecpsq_f32()
-  inv = vrecpeq_f32(b);
-
-  // This returns a differential, by which we will have to multiply inv to get a better
-  // approximation of 1/b.
-  restep = vrecpsq_f32(b, inv);
-  inv = vmulq_f32(restep, inv);
-
-  // Finally, multiply a by 1/b and get the wanted result of the division.
-  div = vmulq_f32(a, inv);
-
-  return div;
-#endif
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4f pselect(const Packet4f& mask, const Packet4f& a, const Packet4f& b) {
+  return vbslq_f32(vreinterpretq_u32_f32(mask), a, b);
 }
+
+EIGEN_STRONG_INLINE Packet4f pcmp_le(const Packet4f& a, const Packet4f& b) {
+  return vreinterpretq_f32_u32(vcleq_f32(a, b));
+}
+
+EIGEN_STRONG_INLINE Packet4f preciprocal(const Packet4f& a)
+{
+  // Compute approximate reciprocal.
+  float32x4_t result = vrecpeq_f32(a);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  result = vmulq_f32(vrecpsq_f32(a, result), result);
+  return result;
+}
+
+#if EIGEN_ARCH_ARM64
+template<> EIGEN_STRONG_INLINE Packet4f pdiv(const Packet4f& a, const Packet4f& b) { return vdivq_f32(a, b); }
+template<> EIGEN_STRONG_INLINE Packet2f pdiv(const Packet2f& a, const Packet2f& b) { return vdiv_f32(a, b); }
+#else
+template<typename Packet>
+EIGEN_STRONG_INLINE Packet pdiv_float_common(const Packet& a, const Packet& b) {
+  // if b is large, NEON intrinsics will flush preciprocal(b) to zero
+  // avoid underflow with the following manipulation:
+  // a / b = f * (a * reciprocal(f * b))
+  const Packet cst_one = pset1<Packet>(1.0f);
+  const Packet cst_quarter = pset1<Packet>(0.25f);
+  const Packet cst_thresh = pset1<Packet>(NumTraits<float>::highest() / 4.0f);
+
+  Packet b_will_underflow = pcmp_le(cst_thresh, pabs(b));
+  Packet f = pselect(b_will_underflow, cst_quarter, cst_one);
+  Packet result = pmul(f, pmul(a, preciprocal(pmul(b, f))));
+  return result;
+}
+
+template<> EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b) {
+  return pdiv_float_common(a, b);
+}
+
+#endif
 
 template<> EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& /*a*/, const Packet4i& /*b*/)
 { eigen_assert(false && "packet integer division are not supported by NEON");
@@ -478,7 +494,7 @@ template<> EIGEN_STRONG_INLINE int32_t predux_min<Packet4i>(const Packet4i& a)
   a_hi = vget_high_s32(a);
   min = vpmin_s32(a_lo, a_hi);
   min = vpmin_s32(min, min);
-  
+
   return vget_lane_s32(min, 0);
 }
 
@@ -595,7 +611,7 @@ template<> struct packet_traits<double>  : default_packet_traits
     AlignedOnScalar = 1,
     size = 2,
     HasHalfPacket=0,
-   
+
     HasDiv  = 1,
     // FIXME check the Has*
     HasSin  = 0,
@@ -751,7 +767,7 @@ ptranspose(PacketBlock<Packet2d,2>& kernel) {
   kernel.packet[0] = trn1;
   kernel.packet[1] = trn2;
 }
-#endif // EIGEN_ARCH_ARM64 
+#endif // EIGEN_ARCH_ARM64
 
 } // end namespace internal
 
