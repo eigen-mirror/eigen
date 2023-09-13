@@ -1432,7 +1432,7 @@ struct transform_left_product_impl<Other,Mode,Options,Dim,HDim, HDim,HDim>
   typedef Transform<typename Other::Scalar,Dim,Mode,Options> TransformType;
   typedef typename TransformType::MatrixType MatrixType;
   typedef Transform<typename Other::Scalar,Dim,Projective,Options> ResultType;
-  static ResultType run(const Other& other,const TransformType& tr)
+  static EIGEN_DEVICE_FUNC ResultType run(const Other& other,const TransformType& tr)
   { return ResultType(other * tr.matrix()); }
 };
 
@@ -1443,7 +1443,7 @@ struct transform_left_product_impl<Other,AffineCompact,Options,Dim,HDim, HDim,HD
   typedef Transform<typename Other::Scalar,Dim,AffineCompact,Options> TransformType;
   typedef typename TransformType::MatrixType MatrixType;
   typedef Transform<typename Other::Scalar,Dim,Projective,Options> ResultType;
-  static ResultType run(const Other& other,const TransformType& tr)
+  static EIGEN_DEVICE_FUNC ResultType run(const Other& other,const TransformType& tr)
   {
     ResultType res;
     res.matrix().noalias() = other.template block<HDim,Dim>(0,0) * tr.matrix();
@@ -1459,7 +1459,7 @@ struct transform_left_product_impl<Other,Mode,Options,Dim,HDim, Dim,HDim>
   typedef Transform<typename Other::Scalar,Dim,Mode,Options> TransformType;
   typedef typename TransformType::MatrixType MatrixType;
   typedef TransformType ResultType;
-  static ResultType run(const Other& other,const TransformType& tr)
+  static EIGEN_DEVICE_FUNC ResultType run(const Other& other,const TransformType& tr)
   {
     ResultType res;
     res.affine().noalias() = other * tr.matrix();
@@ -1475,7 +1475,7 @@ struct transform_left_product_impl<Other,AffineCompact,Options,Dim,HDim, Dim,HDi
   typedef Transform<typename Other::Scalar,Dim,AffineCompact,Options> TransformType;
   typedef typename TransformType::MatrixType MatrixType;
   typedef TransformType ResultType;
-  static ResultType run(const Other& other,const TransformType& tr)
+  static EIGEN_DEVICE_FUNC ResultType run(const Other& other,const TransformType& tr)
   {
     ResultType res;
     res.matrix().noalias() = other.template block<Dim,Dim>(0,0) * tr.matrix();
@@ -1491,7 +1491,7 @@ struct transform_left_product_impl<Other,Mode,Options,Dim,HDim, Dim,Dim>
   typedef Transform<typename Other::Scalar,Dim,Mode,Options> TransformType;
   typedef typename TransformType::MatrixType MatrixType;
   typedef TransformType ResultType;
-  static ResultType run(const Other& other, const TransformType& tr)
+  static EIGEN_DEVICE_FUNC ResultType run(const Other& other, const TransformType& tr)
   {
     TransformType res;
     if(Mode!=int(AffineCompact))
@@ -1513,7 +1513,7 @@ struct transform_transform_product_impl<Transform<Scalar,Dim,LhsMode,LhsOptions>
   typedef Transform<Scalar,Dim,LhsMode,LhsOptions> Lhs;
   typedef Transform<Scalar,Dim,RhsMode,RhsOptions> Rhs;
   typedef Transform<Scalar,Dim,ResultMode,LhsOptions> ResultType;
-  static ResultType run(const Lhs& lhs, const Rhs& rhs)
+  static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs)
   {
     ResultType res;
     res.linear() = lhs.linear() * rhs.linear();
@@ -1529,7 +1529,7 @@ struct transform_transform_product_impl<Transform<Scalar,Dim,LhsMode,LhsOptions>
   typedef Transform<Scalar,Dim,LhsMode,LhsOptions> Lhs;
   typedef Transform<Scalar,Dim,RhsMode,RhsOptions> Rhs;
   typedef Transform<Scalar,Dim,Projective> ResultType;
-  static ResultType run(const Lhs& lhs, const Rhs& rhs)
+  static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs)
   {
     return ResultType( lhs.matrix() * rhs.matrix() );
   }
@@ -1541,7 +1541,7 @@ struct transform_transform_product_impl<Transform<Scalar,Dim,AffineCompact,LhsOp
   typedef Transform<Scalar,Dim,AffineCompact,LhsOptions> Lhs;
   typedef Transform<Scalar,Dim,Projective,RhsOptions> Rhs;
   typedef Transform<Scalar,Dim,Projective> ResultType;
-  static ResultType run(const Lhs& lhs, const Rhs& rhs)
+  static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs)
   {
     ResultType res;
     res.matrix().template topRows<Dim>() = lhs.matrix() * rhs.matrix();
@@ -1556,7 +1556,7 @@ struct transform_transform_product_impl<Transform<Scalar,Dim,Projective,LhsOptio
   typedef Transform<Scalar,Dim,Projective,LhsOptions> Lhs;
   typedef Transform<Scalar,Dim,AffineCompact,RhsOptions> Rhs;
   typedef Transform<Scalar,Dim,Projective> ResultType;
-  static ResultType run(const Lhs& lhs, const Rhs& rhs)
+  static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs)
   {
     ResultType res(lhs.matrix().template leftCols<Dim>() * rhs.matrix());
     res.matrix().col(Dim) += lhs.matrix().col(Dim);
