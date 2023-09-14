@@ -825,7 +825,7 @@ struct block_xpr_helper {
 
   // For regular block expressions, simply forward along the InnerPanel argument,
   // which is set when calling row/column expressions.
-  static constexpr bool is_inner_panel(bool inner_panel) { return inner_panel; };
+  static constexpr bool is_inner_panel(bool inner_panel) { return inner_panel; }
   
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicate definition).
   template<typename T = XprType, typename EnableIf=std::enable_if_t<!std::is_const<T>::value>>
