@@ -152,8 +152,8 @@ public:
         }
       }
 
-//       inline Index row() const { return (ArgType::Flags&RowMajorBit ? Base::outer() : this->index()); }
-//       inline Index col() const { return (ArgType::Flags&RowMajorBit ? this->index() : Base::outer()); }
+      inline Index row() const { return (ArgType::Flags&RowMajorBit ? Base::outer() : this->index()); }
+      inline Index col() const { return (ArgType::Flags&RowMajorBit ? this->index() : Base::outer()); }
       inline StorageIndex index() const
       {
         if(HasUnitDiag && m_returnOne)  return internal::convert_index<StorageIndex>(Base::outer());

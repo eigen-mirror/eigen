@@ -746,6 +746,11 @@ template<typename SparseMatrixType> void sparse_basic(const SparseMatrixType& re
     // check sparse-triangular to dense
     refMat3 = m2.template triangularView<StrictlyUpper>();
     VERIFY_IS_APPROX(refMat3, DenseMatrix(refMat2.template triangularView<StrictlyUpper>()));
+
+    // check sparse triangular view iteration-based evaluation
+    m2.setZero();
+    VERIFY_IS_CWISE_EQUAL(m2.template triangularView<UnitLower>().toDense(), DenseMatrix::Identity(rows, cols));
+    VERIFY_IS_CWISE_EQUAL(m2.template triangularView<UnitUpper>().toDense(), DenseMatrix::Identity(rows, cols));
   }
   
   // test selfadjointView
