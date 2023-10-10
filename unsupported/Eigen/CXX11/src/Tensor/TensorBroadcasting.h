@@ -898,7 +898,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device>
       // First multiple after a. This is b when <= bcast_dim_left_index +
       // bcast_dim_size.
       const Index first_multiple =
-          divup<Index>(bcast_dim_left_index, input_bcast_dim_size) *
+          numext::div_ceil<Index>(bcast_dim_left_index, input_bcast_dim_size) *
           input_bcast_dim_size;
 
       if (first_multiple <= bcast_dim_left_index + params.bcast_dim_size) {

@@ -443,7 +443,7 @@ class TensorBlockMapper {
         const int dim = isColMajor ? i : NumDims - i - 1;
         m_block_dimensions[dim] =
             numext::mini(coeff_to_allocate, m_tensor_dimensions[dim]);
-        coeff_to_allocate = divup(
+        coeff_to_allocate = numext::div_ceil(
             coeff_to_allocate,
             numext::maxi(static_cast<IndexType>(1), m_block_dimensions[dim]));
       }
@@ -474,7 +474,7 @@ class TensorBlockMapper {
           const IndexType total_size_other_dims =
               total_size / m_block_dimensions[dim];
           const IndexType alloc_avail =
-              divup<IndexType>(target_block_size, total_size_other_dims);
+              numext::div_ceil<IndexType>(target_block_size, total_size_other_dims);
           if (alloc_avail == m_block_dimensions[dim]) {
             // Insufficient excess coefficients to allocate.
             break;
@@ -496,7 +496,7 @@ class TensorBlockMapper {
     // Calculate block counts by dimension and total block count.
     DSizes<IndexType, NumDims> block_count;
     for (int i = 0; i < NumDims; ++i) {
-      block_count[i] = divup(m_tensor_dimensions[i], m_block_dimensions[i]);
+      block_count[i] = numext::div_ceil(m_tensor_dimensions[i], m_block_dimensions[i]);
     }
     m_total_block_count = array_prod(block_count);
 

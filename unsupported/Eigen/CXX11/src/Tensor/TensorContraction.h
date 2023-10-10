@@ -144,8 +144,8 @@ struct TensorContractionBlockMemAllocator {
                                                               const Index bn) {
     Index align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
     BlockSizes sz;
-    sz.lhs_size = divup<Index>(bm * bk * sizeof(LhsScalar), align) * align;
-    sz.rhs_size = divup<Index>(bn * bk * sizeof(RhsScalar), align) * align;
+    sz.lhs_size = numext::div_ceil<Index>(bm * bk * sizeof(LhsScalar), align) * align;
+    sz.rhs_size = numext::div_ceil<Index>(bn * bk * sizeof(RhsScalar), align) * align;
     return sz;
   }
 };

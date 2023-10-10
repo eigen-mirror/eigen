@@ -422,15 +422,6 @@ template<typename T> EIGEN_STRONG_INLINE void swap(T &a, T &b) { std::swap(a,b);
 
 using std::numeric_limits;
 
-// Integer division with rounding up.
-// T is assumed to be an integer type with a>=0, and b>0
-template<typename T>
-EIGEN_DEVICE_FUNC
-T div_ceil(const T &a, const T &b)
-{
-  return (a+b-1) / b;
-}
-
 // Handle integer comparisons of different signedness.
 template <typename X, typename Y, bool XIsInteger = NumTraits<X>::IsInteger, bool XIsSigned = NumTraits<X>::IsSigned,
           bool YIsInteger = NumTraits<Y>::IsInteger, bool YIsSigned = NumTraits<Y>::IsSigned>

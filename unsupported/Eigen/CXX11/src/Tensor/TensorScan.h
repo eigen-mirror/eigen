@@ -215,7 +215,7 @@ EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
   EIGEN_CONSTEXPR Index kBlockAlignment = 128;
   const Index items_per_cacheline =
       numext::maxi<Index>(1, kBlockAlignment / item_size);
-  return items_per_cacheline * divup(block_size, items_per_cacheline);
+  return items_per_cacheline * numext::div_ceil(block_size, items_per_cacheline);
 }
 
 template <typename Self>
