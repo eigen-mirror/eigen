@@ -125,6 +125,10 @@ struct imag {};
 // B0 is defined in POSIX header termios.h
 #define B0 FORBIDDEN_IDENTIFIER
 #define I  FORBIDDEN_IDENTIFIER
+
+// _res is defined by resolv.h
+#define _res FORBIDDEN_IDENTIFIER
+
 // Unit tests calling Eigen's blas library must preserve the default blocking size
 // to avoid troubles.
 #ifndef EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
