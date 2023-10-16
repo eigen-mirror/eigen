@@ -470,9 +470,8 @@ template<typename T, std::size_t N> struct array_size<std::array<T,N> > {
   */
 #if EIGEN_COMP_CXXVER < 20
 template <typename T>
-EIGEN_CONSTEXPR auto index_list_size(const T& x) {
-  using R = std::common_type_t<std::ptrdiff_t, std::make_signed_t<decltype(x.size())>>;
-  return static_cast<R>(x.size());
+EIGEN_CONSTEXPR std::ptrdiff_t index_list_size(const T& x) {
+  return static_cast<std::ptrdiff_t>(x.size());
 }
 
 template<typename T, std::ptrdiff_t N>
