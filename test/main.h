@@ -111,6 +111,9 @@ struct imag {};
 // `I` may be defined by complex.h:
 #define I  FORBIDDEN_IDENTIFIER
 
+// _res is defined by resolv.h
+#define _res FORBIDDEN_IDENTIFIER
+
 // Unit tests calling Eigen's blas library must preserve the default blocking size
 // to avoid troubles.
 #ifndef EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
