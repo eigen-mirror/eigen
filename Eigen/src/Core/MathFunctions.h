@@ -1345,7 +1345,7 @@ double ceil(const double &x) { return ::ceil(x); }
 // T is assumed to be an integer type with a>=0, and b>0
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_CONSTEXPR
-T div_ceil(const T &a, const T &b)
+T div_ceil(T a, T b)
 {
   EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   eigen_assert(a >= 0);
