@@ -8,6 +8,11 @@
 #ifndef EIGEN_PERMANENTLY_DISABLE_STUPID_WARNINGS
   #ifdef _MSC_VER
     #pragma warning( pop )
+    #ifdef EIGEN_REENABLE_CXX23_DENORM_DEPRECATION_WARNING
+      #undef EIGEN_REENABLE_CXX23_DENORM_DEPRECATION_WARNING
+      #undef _SILENCE_CXX23_DENORM_DEPRECATION_WARNING
+    #endif
+
   #elif defined __INTEL_COMPILER
     #pragma warning pop
   #elif defined __clang__
