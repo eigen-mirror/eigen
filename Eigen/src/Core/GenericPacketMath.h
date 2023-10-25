@@ -1017,6 +1017,10 @@ Packet plog2(const Packet& a) {
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psqrt(const Packet& a) { return numext::sqrt(a); }
 
+/** \internal \returns the cube-root of \a a (coeff-wise) */
+template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+Packet pcbrt(const Packet& a) { return numext::cbrt(a); }
+
 /** \internal \returns the rounded value of \a a (coeff-wise) */
 template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pround(const Packet& a) { using numext::round; return round(a); }

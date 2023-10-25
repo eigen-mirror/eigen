@@ -1394,6 +1394,14 @@ bool sqrt<bool>(const bool &x) { return x; }
 SYCL_SPECIALIZE_FLOATING_TYPES_UNARY(sqrt, sqrt)
 #endif
 
+/** \returns the cube root of \a x. **/
+template<typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
+T cbrt(const T &x) {
+  EIGEN_USING_STD(cbrt);
+  return static_cast<T>(cbrt(x));
+}
+
 /** \returns the reciprocal square root of \a x. **/
 template<typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE

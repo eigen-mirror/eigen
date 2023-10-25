@@ -5,6 +5,7 @@ typedef CwiseUnaryOp<internal::scalar_arg_op<Scalar>, const Derived> ArgReturnTy
 typedef CwiseUnaryOp<internal::scalar_carg_op<Scalar>, const Derived> CArgReturnType;
 typedef CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const Derived> Abs2ReturnType;
 typedef CwiseUnaryOp<internal::scalar_sqrt_op<Scalar>, const Derived> SqrtReturnType;
+typedef CwiseUnaryOp<internal::scalar_cbrt_op<Scalar>, const Derived> CbrtReturnType;
 typedef CwiseUnaryOp<internal::scalar_rsqrt_op<Scalar>, const Derived> RsqrtReturnType;
 typedef CwiseUnaryOp<internal::scalar_sign_op<Scalar>, const Derived> SignReturnType;
 typedef CwiseUnaryOp<internal::scalar_inverse_op<Scalar>, const Derived> InverseReturnType;
@@ -184,13 +185,29 @@ log2() const
   * Example: \include Cwise_sqrt.cpp
   * Output: \verbinclude Cwise_sqrt.out
   *
-  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_sqrt">Math functions</a>, pow(), square()
+  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_sqrt">Math functions</a>, pow(), square(), cbrt()
   */
 EIGEN_DEVICE_FUNC
 inline const SqrtReturnType
 sqrt() const
 {
   return SqrtReturnType(derived());
+}
+
+/** \returns an expression of the coefficient-wise cube root of *this.
+  *
+  * This function computes the coefficient-wise cube root. 
+  *
+  * Example: \include Cwise_cbrt.cpp
+  * Output: \verbinclude Cwise_cbrt.out
+  *
+  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_cbrt">Math functions</a>, sqrt(), pow(), square()
+  */
+EIGEN_DEVICE_FUNC
+inline const CbrtReturnType
+cbrt() const
+{
+  return CbrtReturnType(derived());
 }
 
 /** \returns an expression of the coefficient-wise inverse square root of *this.

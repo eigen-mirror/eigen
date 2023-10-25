@@ -472,6 +472,20 @@ struct functor_traits<scalar_sqrt_op<bool> > {
 };
 
 /** \internal
+  * \brief Template functor to compute the cube root of a scalar
+  * \sa class CwiseUnaryOp, Cwise::sqrt()
+  */
+template <typename Scalar>
+struct scalar_cbrt_op {
+  EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const { return numext::cbrt(a); }
+};
+
+template <typename Scalar>
+struct functor_traits<scalar_cbrt_op<Scalar> > {
+  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
+};
+
+/** \internal
   * \brief Template functor to compute the reciprocal square root of a scalar
   * \sa class CwiseUnaryOp, Cwise::rsqrt()
   */

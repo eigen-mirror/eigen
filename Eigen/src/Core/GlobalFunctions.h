@@ -89,6 +89,7 @@ namespace Eigen
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(arg,scalar_arg_op,complex argument,\sa ArrayBase::arg DOXCOMMA MatrixBase::cwiseArg)
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(carg, scalar_carg_op, complex argument, \sa ArrayBase::carg DOXCOMMA MatrixBase::cwiseCArg)
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(sqrt,scalar_sqrt_op,square root,\sa ArrayBase::sqrt DOXCOMMA MatrixBase::cwiseSqrt)
+  EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(cbrt,scalar_cbrt_op,cube root,\sa ArrayBase::cbrt DOXCOMMA MatrixBase::cwiseCbrt)
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(rsqrt,scalar_rsqrt_op,reciprocal square root,\sa ArrayBase::rsqrt)
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(square,scalar_square_op,square (power 2),\sa Eigen::abs2 DOXCOMMA Eigen::pow DOXCOMMA ArrayBase::square)
   EIGEN_ARRAY_DECLARE_GLOBAL_UNARY(cube,scalar_cube_op,cube (power 3),\sa Eigen::pow DOXCOMMA ArrayBase::cube)

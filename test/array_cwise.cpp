@@ -169,7 +169,9 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
 
 template <typename Scalar>
 void unary_ops_test() {
+  
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sqrt));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cbrt));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sin));
@@ -821,6 +823,7 @@ template<typename ArrayType> void array_real(const ArrayType& m)
   m3 = m4.abs();
 
   VERIFY_IS_APPROX(m3.sqrt(), sqrt(abs(m3)));
+  VERIFY_IS_APPROX(m3.cbrt(), cbrt(m3));
   VERIFY_IS_APPROX(m3.rsqrt(), Scalar(1)/sqrt(abs(m3)));
   VERIFY_IS_APPROX(rsqrt(m3), Scalar(1)/sqrt(abs(m3)));
   VERIFY_IS_APPROX(m3.log(), log(m3));
@@ -882,6 +885,8 @@ template<typename ArrayType> void array_real(const ArrayType& m)
 
   VERIFY_IS_APPROX(m3.pow(RealScalar(0.5)), m3.sqrt());
   VERIFY_IS_APPROX(pow(m3,RealScalar(0.5)), m3.sqrt());
+  VERIFY_IS_APPROX(m3.pow(RealScalar(1.0/3.0)), m3.cbrt());
+  VERIFY_IS_APPROX(pow(m3,RealScalar(1.0/3.0)), m3.cbrt());
 
   VERIFY_IS_APPROX(m3.pow(RealScalar(-0.5)), m3.rsqrt());
   VERIFY_IS_APPROX(pow(m3,RealScalar(-0.5)), m3.rsqrt());

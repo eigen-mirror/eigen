@@ -140,6 +140,7 @@ EIGEN_MKL_VML_DECLARE_UNARY_CALLS_CPLX(arg, Arg,      _)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(round, Round,  _)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(floor, Floor,  _)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(ceil,  Ceil,   _)
+EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(cbrt,  Cbrt,  _)
 
 #define EIGEN_MKL_VML_DECLARE_POW_CALL(EIGENOP, VMLOP, EIGENTYPE, VMLTYPE, VMLMODE)                                           \
   template< typename DstXprType, typename SrcXprNested, typename Plain>                                                       \
