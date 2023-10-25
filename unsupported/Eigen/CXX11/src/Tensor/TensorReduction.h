@@ -271,7 +271,7 @@ struct InnerMostDimReducer<Self, Op, true, true> {
       // Make sure the split point is aligned on a packet boundary.
       const typename Self::Index split =
           packetSize *
-          divup(firstIndex + divup(numValuesToReduce, typename Self::Index(2)),
+          numext::div_ceil(firstIndex + numext::div_ceil(numValuesToReduce, typename Self::Index(2)),
                 packetSize);
       const typename Self::Index num_left =
           numext::mini(split - firstIndex, numValuesToReduce);
