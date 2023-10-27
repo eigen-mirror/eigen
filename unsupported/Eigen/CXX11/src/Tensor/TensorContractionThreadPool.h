@@ -1548,10 +1548,10 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     Index nn0 = numext::div_ceil(n, bn);
     Index new_tasks = numext::div_ceil(nm0, gm) * numext::div_ceil(nn0, gn);
     double new_parallelism = static_cast<double>(new_tasks) /
-                             (numext::div_ceil<int>(new_tasks, num_threads) * num_threads);
+                             (numext::div_ceil<Index>(new_tasks, num_threads) * num_threads);
     Index old_tasks = numext::div_ceil(nm0, oldgm) * numext::div_ceil(nn0, oldgn);
     double old_parallelism = static_cast<double>(old_tasks) /
-                             (numext::div_ceil<int>(old_tasks, num_threads) * num_threads);
+                             (numext::div_ceil<Index>(old_tasks, num_threads) * num_threads);
     if (new_parallelism > old_parallelism || new_parallelism == 1) return 1;
     return 0;
   }
