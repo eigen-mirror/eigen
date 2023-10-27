@@ -373,7 +373,7 @@ struct ThreadPoolDevice {
     // computations:
     double max_efficiency =
         static_cast<double>(block_count) /
-        (numext::div_ceil<int>(block_count, numThreads()) * numThreads());
+        (numext::div_ceil<Index>(block_count, numThreads()) * numThreads());
 
     // Now try to increase block size up to max_block_size as long as it
     // doesn't decrease parallel efficiency.
@@ -396,7 +396,7 @@ struct ThreadPoolDevice {
       prev_block_count = coarser_block_count;
       const double coarser_efficiency =
           static_cast<double>(coarser_block_count) /
-          (numext::div_ceil<int>(coarser_block_count, numThreads()) * numThreads());
+          (numext::div_ceil<Index>(coarser_block_count, numThreads()) * numThreads());
       if (coarser_efficiency + 0.01 >= max_efficiency) {
         // Taking it.
         block_size = coarser_block_size;
