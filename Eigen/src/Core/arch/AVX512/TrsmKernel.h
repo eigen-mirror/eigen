@@ -1082,7 +1082,7 @@ EIGEN_DONT_INLINE void trsmKernelR<float, Index, Mode, false, TriStorageOrder, 1
     Index size, Index otherSize, const float *_tri, Index triStride, float *_other, Index otherIncr,
     Index otherStride) {
   EIGEN_UNUSED_VARIABLE(otherIncr);
-#ifdef EIGEN_NO_RUNTIME_MALLOC
+#ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
     trsmKernelR<float, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
           size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
@@ -1098,7 +1098,7 @@ EIGEN_DONT_INLINE void trsmKernelR<double, Index, Mode, false, TriStorageOrder, 
     Index size, Index otherSize, const double *_tri, Index triStride, double *_other, Index otherIncr,
     Index otherStride) {
   EIGEN_UNUSED_VARIABLE(otherIncr);
-#ifdef EIGEN_NO_RUNTIME_MALLOC
+#ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
     trsmKernelR<double, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
           size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
@@ -1132,7 +1132,7 @@ EIGEN_DONT_INLINE void trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1
     Index size, Index otherSize, const float *_tri, Index triStride, float *_other, Index otherIncr,
     Index otherStride) {
   EIGEN_UNUSED_VARIABLE(otherIncr);
-#ifdef EIGEN_NO_RUNTIME_MALLOC
+#ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
     trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
           size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
@@ -1148,7 +1148,7 @@ EIGEN_DONT_INLINE void trsmKernelL<double, Index, Mode, false, TriStorageOrder, 
     Index size, Index otherSize, const double *_tri, Index triStride, double *_other, Index otherIncr,
     Index otherStride) {
   EIGEN_UNUSED_VARIABLE(otherIncr);
-#ifdef EIGEN_NO_RUNTIME_MALLOC
+#ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
     trsmKernelL<double, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
           size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
