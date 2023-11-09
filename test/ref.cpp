@@ -341,6 +341,17 @@ template <typename MatrixType, typename Derived> void test_cref_move_ctor(const 
   VERIFY(test_is_equal(data1, obj_data2, MatrixType::MaxSizeAtCompileTime == Dynamic && owns_data));
 }
 
+template <typename MatrixType>
+void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
+  typedef Ref<MatrixType, Unaligned, Stride<0, 0>> Ref_;
+  typedef Ref<const MatrixType, Unaligned, Stride<0, 0>> CRef_;
+  MatrixType m(obj);
+  Ref_ ref(m);
+  VERIFY(test_is_equal(ref.data(), m.data(), true));
+  CRef_ cref(m);
+  VERIFY(test_is_equal(cref.data(), m.data(), true));
+}
+
 EIGEN_DECLARE_TEST(ref)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -375,4 +386,8 @@ EIGEN_DECLARE_TEST(ref)
   CALL_SUBTEST_9( test_cref_move_ctor<MatrixXd>(MatrixXd(9, 5)) );
   CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d::Ones()) );
   CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d()) );
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(VectorXd(9)));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(Vector3d()));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
 }

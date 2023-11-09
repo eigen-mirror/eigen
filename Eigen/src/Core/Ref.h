@@ -26,7 +26,9 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
   enum {
     Options = Options_,
     Flags = traits<Map<PlainObjectType_, Options_, StrideType_> >::Flags | NestByRefBit,
-    Alignment = traits<Map<PlainObjectType_, Options_, StrideType_> >::Alignment
+    Alignment = traits<Map<PlainObjectType_, Options_, StrideType_> >::Alignment,
+    InnerStrideAtCompileTime = traits<Map<PlainObjectType_, Options_, StrideType_> >::InnerStrideAtCompileTime,
+    OuterStrideAtCompileTime = traits<Map<PlainObjectType_, Options_, StrideType_> >::OuterStrideAtCompileTime
   };
 
   template<typename Derived> struct match {
@@ -34,11 +36,11 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       IsVectorAtCompileTime = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime,
       HasDirectAccess = internal::has_direct_access<Derived>::ret,
       StorageOrderMatch = IsVectorAtCompileTime || ((PlainObjectType::Flags&RowMajorBit)==(Derived::Flags&RowMajorBit)),
-      InnerStrideMatch = int(StrideType::InnerStrideAtCompileTime)==int(Dynamic)
-                      || int(StrideType::InnerStrideAtCompileTime)==int(Derived::InnerStrideAtCompileTime)
-                      || (int(StrideType::InnerStrideAtCompileTime)==0 && int(Derived::InnerStrideAtCompileTime)==1),
+      InnerStrideMatch = int(InnerStrideAtCompileTime)==int(Dynamic)
+                      || int(InnerStrideAtCompileTime)==int(Derived::InnerStrideAtCompileTime)
+                      || (int(InnerStrideAtCompileTime)==0 && int(Derived::InnerStrideAtCompileTime)==1),
       OuterStrideMatch = IsVectorAtCompileTime
-                      || int(StrideType::OuterStrideAtCompileTime)==int(Dynamic) || int(StrideType::OuterStrideAtCompileTime)==int(Derived::OuterStrideAtCompileTime),
+                      || int(OuterStrideAtCompileTime)==int(Dynamic) || int(OuterStrideAtCompileTime)==int(Derived::OuterStrideAtCompileTime),
       // NOTE, this indirection of evaluator<Derived>::Alignment is needed
       // to workaround a very strange bug in MSVC related to the instantiation
       // of has_*ary_operator in evaluator<CwiseNullaryOp>.
