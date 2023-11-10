@@ -84,12 +84,12 @@ static void run(Index rows, Index cols, Index depth,
   gemm_pack_rhs<RhsScalar, Index, RhsMapper, Traits::nr, RhsStorageOrder> pack_rhs;
   gebp_kernel<LhsScalar, RhsScalar, Index, ResMapper, Traits::mr, Traits::nr, ConjugateLhs, ConjugateRhs> gebp;
 
-#ifdef EIGEN_HAS_OPENMP
+#if defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
   if(info)
   {
     // this is the parallel version!
-    int tid = omp_get_thread_num();
-    int threads = omp_get_num_threads();
+    int tid = info->logical_thread_id;
+    int threads = info->num_threads;
 
     LhsScalar* blockA = blocking.blockA();
     eigen_internal_assert(blockA!=0);
@@ -110,15 +110,15 @@ static void run(Index rows, Index cols, Index depth,
       // each thread packs the sub block A_k,i to A'_i where i is the thread id.
 
       // However, before copying to A'_i, we have to make sure that no other thread is still using it,
-      // i.e., we test that info[tid].users equals 0.
-      // Then, we set info[tid].users to the number of threads to mark that all other threads are going to use it.
-      while(info[tid].users!=0) {}
-      info[tid].users = threads;
+      // i.e., we test that info->task_info[tid].users equals 0.
+      // Then, we set info->task_info[tid].users to the number of threads to mark that all other threads are going to use it.
+      while(info->task_info[tid].users!=0) {}
+      info->task_info[tid].users = threads;
 
-      pack_lhs(blockA+info[tid].lhs_start*actual_kc, lhs.getSubMapper(info[tid].lhs_start,k), actual_kc, info[tid].lhs_length);
+      pack_lhs(blockA+info->task_info[tid].lhs_start*actual_kc, lhs.getSubMapper(info->task_info[tid].lhs_start,k), actual_kc, info->task_info[tid].lhs_length);
 
       // Notify the other threads that the part A'_i is ready to go.
-      info[tid].sync = k;
+      info->task_info[tid].sync = k;
 
       // Computes C_i += A' * B' per A'_i
       for(int shift=0; shift<threads; ++shift)
@@ -129,11 +129,10 @@ static void run(Index rows, Index cols, Index depth,
         // we use testAndSetOrdered to mimic a volatile access.
         // However, no need to wait for the B' part which has been updated by the current thread!
         if (shift>0) {
-          while(info[i].sync!=k) {
-          }
+          while(info->task_info[i].sync!=k) {}
         }
 
-        gebp(res.getSubMapper(info[i].lhs_start, 0), blockA+info[i].lhs_start*actual_kc, blockB, info[i].lhs_length, actual_kc, nc, alpha);
+        gebp(res.getSubMapper(info->task_info[i].lhs_start, 0), blockA+info->task_info[i].lhs_start*actual_kc, blockB, info->task_info[i].lhs_length, actual_kc, nc, alpha);
       }
 
       // Then keep going as usual with the remaining B'
@@ -151,11 +150,11 @@ static void run(Index rows, Index cols, Index depth,
       // Release all the sub blocks A'_i of A' for the current thread,
       // i.e., we simply decrement the number of users by 1
       for(Index i=0; i<threads; ++i)
-        info[i].users -= 1;
+        info->task_info[i].users -= 1;
     }
   }
   else
-#endif // EIGEN_HAS_OPENMP
+#endif // defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
   {
     EIGEN_UNUSED_VARIABLE(info);
 
