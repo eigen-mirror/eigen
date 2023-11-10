@@ -261,7 +261,7 @@ template <typename Idx> struct IndexPair {
 #ifdef EIGEN_HAS_SFINAE
 namespace internal {
 
-  template<typename IndexType, typename Index, Index... Is>
+  template<typename IndexType, typename Index, Index First, Index... Is>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   array<Index, 1 + sizeof...(Is)> customIndices2Array(IndexType& idx, numeric_list<Index, First, Is...>) {
     return { static_cast<Index>(idx[First]), static_cast<Index>(idx[Is])... };
