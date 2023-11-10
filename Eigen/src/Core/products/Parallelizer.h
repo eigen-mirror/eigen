@@ -150,7 +150,7 @@ inline void manage_multi_threading(Action action, int* v) {
     m_maxThreads = (*v == 0 ? pool_threads : numext::mini(pool_threads, *v));
 #endif
   } else if (action == GetAction) {
-    eigen_internal_assert(*v != nullptr);
+    eigen_internal_assert(v != nullptr);
     *v = m_maxThreads;
   } else {
     eigen_internal_assert(false);
