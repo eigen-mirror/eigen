@@ -178,7 +178,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
 
   // compute the number of threads we are going to use
-  int threads = std::min<int>(nbThreads(), pb_max_threads);
+  int threads = std::min<int>(nbThreads(), static_cast<int>(pb_max_threads));
 
   // if multi-threading is explicitly disabled, not useful, or if we already are
   // inside a parallel session, then abort multi-threading
