@@ -99,7 +99,16 @@ namespace internal {
 
 #if defined(EIGEN_USE_BLAS) || (!defined(EIGEN_HAS_OPENMP) && !defined(EIGEN_GEMM_THREADPOOL))
 
-inline void manage_multi_threading(Action /*unused*/, int* /*unused*/) {}
+inline void manage_multi_threading(Action action, int* v) {
+  if (action == SetAction) {
+    eigen_internal_assert(v != nullptr);
+  } else if (action == GetAction) {
+    eigen_internal_assert(v != nullptr);
+    *v = 1;
+  } else {
+    eigen_internal_assert(false);
+  }
+}
 template<typename Index> struct GemmParallelInfo {};
 template <bool Condition, typename Functor, typename Index>
 EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols,
@@ -212,7 +221,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
     // Note that the actual number of threads might be lower than the number of
     // requested ones
     Index actual_threads = omp_get_num_threads();
-    GemmParallelInfo<Index> info(i, int(actual_threads), task_info);
+    GemmParallelInfo<Index> info(i, static_cast<int>(actual_threads), task_info);
 
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
@@ -237,7 +246,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   auto task = [=, &func, &barrier, &task_info](int i)
   {
     Index actual_threads = threads;
-    GemmParallelInfo<Index> info(i, int(actual_threads), task_info);
+    GemmParallelInfo<Index> info(i, static_cast<int>(actual_threads), task_info);
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
     blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
