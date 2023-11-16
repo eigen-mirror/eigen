@@ -78,11 +78,14 @@ struct general_matrix_matrix_triangular_product<Index,LhsScalar,LhsStorageOrder,
     ResMapper res(res_, resStride, resIncr);
 
     Index kc = blocking.kc();
-    Index mc = (std::min)(size,blocking.mc());
+    // Ensure that mc >= nr and <= size
+    Index mc = (std::min)(size,(std::max)(static_cast<decltype(blocking.mc())>(Traits::nr),blocking.mc()));
 
-    // !!! mc must be a multiple of nr:
-    if(mc > Traits::nr)
-      mc = (mc/Traits::nr)*Traits::nr;
+    // !!! mc must be a multiple of nr
+    if (mc > Traits::nr) {
+      using UnsignedIndex = typename make_unsigned<Index>::type;
+      mc = (UnsignedIndex(mc)/Traits::nr)*Traits::nr;
+    }
 
     std::size_t sizeA = kc*mc;
     std::size_t sizeB = kc*size;
