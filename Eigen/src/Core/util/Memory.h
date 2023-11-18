@@ -148,7 +148,7 @@ inline void throw_std_bad_alloc()
 /** \internal Like malloc, but the returned pointer is guaranteed to be aligned to `alignment`.
   * Fast, but wastes `alignment` additional bytes of memory. Does not throw any exception.
   */
-EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
+EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size, uint8_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
 {
   eigen_assert(alignment >= sizeof(void*) && alignment <= 128 && (alignment & (alignment-1)) == 0 && "Alignment must be at least sizeof(void*), less than or equal to 128, and a power of 2");
 
@@ -159,6 +159,7 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size, std::si
   uint8_t offset = static_cast<uint8_t>(alignment - (reinterpret_cast<std::size_t>(original) & (alignment - 1)));
   void* aligned = static_cast<void*>(static_cast<uint8_t*>(original) + offset);
   *(static_cast<uint8_t*>(aligned) - 1) = offset;
+  *(static_cast<uint8_t*>(aligned) - 2) = alignment;
   return aligned;
 }
 
@@ -180,10 +181,11 @@ EIGEN_DEVICE_FUNC inline void handmade_aligned_free(void *ptr)
   * Since we know that our handmade version is based on std::malloc
   * we can use std::realloc to implement efficient reallocation.
   */
-EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t new_size, std::size_t old_size, std::size_t alignment = EIGEN_DEFAULT_ALIGN_BYTES)
+EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t new_size, std::size_t old_size)
 {
   if (ptr == nullptr) return handmade_aligned_malloc(new_size, alignment);
   uint8_t old_offset = *(static_cast<uint8_t*>(ptr) - 1);
+  uint8_t alignment = *(static_cast<uint8_t*>(ptr) - 2);
   void* old_original = static_cast<uint8_t*>(ptr) - old_offset;
 
   check_that_malloc_is_allowed();
