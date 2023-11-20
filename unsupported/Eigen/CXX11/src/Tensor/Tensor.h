@@ -299,6 +299,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Tensor(const TensorBase<OtherDerived, ReadOnlyAccessors>& other)
     {
+      EIGEN_STATIC_ASSERT(OtherDerived::NumDimensions == Base::NumDimensions, Number_of_dimensions_must_match)
       typedef TensorAssignOp<Tensor, const OtherDerived> Assign;
       Assign assign(*this, other.derived());
       resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
@@ -309,6 +310,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Tensor(const TensorBase<OtherDerived, WriteAccessors>& other)
     {
+      EIGEN_STATIC_ASSERT(OtherDerived::NumDimensions == Base::NumDimensions, Number_of_dimensions_must_match)
       typedef TensorAssignOp<Tensor, const OtherDerived> Assign;
       Assign assign(*this, other.derived());
       resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
