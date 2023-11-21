@@ -1111,11 +1111,11 @@ struct type_casting_traits<numext::int64_t, float> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const Packet2l& b) {
-  return vcvtq_f32_s32(vcombine_s32(vmovn_s64(a), vmovn_s64(b)));
+  return vcombine_f32(vcvt_f32_f64(vcvtq_f64_s64(a)), vcvt_f32_f64(vcvtq_f64_s64(b)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
-  return vcvt_f32_s32(vmovn_s64(a));
+  return vcvt_f32_f64(vcvtq_f64_s64(a));
 }
 
 
@@ -1233,11 +1233,11 @@ struct type_casting_traits<numext::uint64_t, float> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, const Packet2ul& b) {
-  return vcvtq_f32_u32(vcombine_u32(vmovn_u64(a), vmovn_u64(b)));
+  return vcombine_f32(vcvt_f32_f64(vcvtq_f64_u64(a)), vcvt_f32_f64(vcvtq_f64_u64(b)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
-  return vcvt_f32_u32(vmovn_u64(a));
+  return vcvt_f32_f64(vcvtq_f64_u64(a));
 }
 
 
