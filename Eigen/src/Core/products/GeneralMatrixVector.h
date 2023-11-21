@@ -359,9 +359,10 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
          HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf
   };
 
-  const Index fullColBlockEnd = cols & (-LhsPacketSize);
-  const Index halfColBlockEnd = cols & (-LhsPacketSizeHalf);
-  const Index quarterColBlockEnd = cols & (-LhsPacketSizeQuarter);
+  using UnsignedIndex = typename make_unsigned<Index>::type;
+  const Index fullColBlockEnd = LhsPacketSize * (UnsignedIndex(cols) / LhsPacketSize);
+  const Index halfColBlockEnd = LhsPacketSizeHalf * (UnsignedIndex(cols) / LhsPacketSizeHalf);
+  const Index quarterColBlockEnd = LhsPacketSizeQuarter * (UnsignedIndex(cols) / LhsPacketSizeQuarter);
 
   Index i=0;
   for(; i<n8; i+=8)
