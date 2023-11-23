@@ -1109,15 +1109,32 @@ template <>
 struct type_casting_traits<numext::int64_t, float> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
 };
+
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const Packet2l& b) {
+#if EIGEN_ARCH_ARM64
   return vcombine_f32(vcvt_f32_f64(vcvtq_f64_s64(a)), vcvt_f32_f64(vcvtq_f64_s64(b)));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
-  return vcvt_f32_f64(vcvtq_f64_s64(a));
+#else
+  EIGEN_ALIGN_MAX int64_t lvals[4];
+  pstore(lvals, a);
+  pstore(lvals + 2, b);
+  EIGEN_ALIGN_MAX float fvals[4] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1]),
+                                    static_cast<float>(lvals[2]), static_cast<float>(lvals[3])};
+  return pload<Packet4f>(fvals);
+#endif
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
+#if EIGEN_ARCH_ARM64
+  return vcvt_f32_f64(vcvtq_f64_s64(a));
+#else
+  EIGEN_ALIGN_MAX int64_t lvals[2];
+  pstore(lvals, a);
+  EIGEN_ALIGN_MAX float fvals[2] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1])};
+  return pload<Packet2f>(fvals);
+#endif
+}
 
 template <>
 struct type_casting_traits<numext::int64_t, numext::int32_t> {
@@ -1233,11 +1250,27 @@ struct type_casting_traits<numext::uint64_t, float> {
 };
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, const Packet2ul& b) {
+#if EIGEN_ARCH_ARM64
   return vcombine_f32(vcvt_f32_f64(vcvtq_f64_u64(a)), vcvt_f32_f64(vcvtq_f64_u64(b)));
+#else
+  EIGEN_ALIGN_MAX uint64_t uvals[4];
+  pstore(uvals, a);
+  pstore(uvals + 2, b);
+  EIGEN_ALIGN_MAX float fvals[4] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1]),
+                                    static_cast<float>(uvals[2]), static_cast<float>(uvals[3])};
+  return pload<Packet4f>(fvals);
+#endif
 }
 template <>
 EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
+#if EIGEN_ARCH_ARM64
   return vcvt_f32_f64(vcvtq_f64_u64(a));
+#else
+  EIGEN_ALIGN_MAX uint64_t uvals[2];
+  pstore(uvals, a);
+  EIGEN_ALIGN_MAX float fvals[2] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1])};
+  return pload<Packet2f>(fvals);
+#endif
 }
 
 
