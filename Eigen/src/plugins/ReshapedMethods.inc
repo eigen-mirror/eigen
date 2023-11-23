@@ -119,14 +119,7 @@ reshaped(NRowsType nRows, NColsType nCols) EIGEN_RESHAPED_METHOD_CONST
 
 // Views as linear vectors
 
-EIGEN_DEVICE_FUNC
-inline Reshaped<EIGEN_RESHAPED_METHOD_CONST Derived,SizeAtCompileTime,1>
-reshaped() EIGEN_RESHAPED_METHOD_CONST
-{
-  return Reshaped<EIGEN_RESHAPED_METHOD_CONST Derived,SizeAtCompileTime,1>(derived(),size(),1);
-}
-
-template<int Order>
+template<int Order = Flags & RowMajorBit>
 EIGEN_DEVICE_FUNC
 inline Reshaped<EIGEN_RESHAPED_METHOD_CONST Derived, SizeAtCompileTime, 1,
                 internal::get_compiletime_reshape_order(Flags, Order)>
