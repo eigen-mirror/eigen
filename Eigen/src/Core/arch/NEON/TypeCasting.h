@@ -18,7 +18,6 @@ namespace Eigen {
 
 namespace internal {
 
-
 //==============================================================================
 // preinterpret (truncation operations)
 //==============================================================================
@@ -93,7 +92,6 @@ EIGEN_STRONG_INLINE Packet4f preinterpret<Packet4f, Packet4ui>(const Packet4ui& 
   return Packet4f(vreinterpretq_f32_u32(a));
 }
 
-
 template <>
 EIGEN_STRONG_INLINE Packet4c preinterpret<Packet4c, Packet4uc>(const Packet4uc& a) {
   return static_cast<Packet4c>(a);
@@ -106,7 +104,6 @@ template <>
 EIGEN_STRONG_INLINE Packet16c preinterpret<Packet16c, Packet16uc>(const Packet16uc& a) {
   return Packet16c(vreinterpretq_s8_u8(a));
 }
-
 
 template <>
 EIGEN_STRONG_INLINE Packet4uc preinterpret<Packet4uc, Packet4c>(const Packet4c& a) {
@@ -184,7 +181,6 @@ EIGEN_STRONG_INLINE Packet2ul preinterpret<Packet2ul, Packet2l>(const Packet2l& 
 //==============================================================================
 // pcast, SrcType = float
 //==============================================================================
-
 
 template <>
 struct type_casting_traits<float, numext::int64_t> {
@@ -415,7 +411,6 @@ EIGEN_STRONG_INLINE Packet2i pcast<Packet8c, Packet2i>(const Packet8c& a) {
   return vget_low_s32(vmovl_s16(vget_low_s16(vmovl_s8(a))));
 }
 
-
 template <>
 struct type_casting_traits<numext::int8_t, numext::uint32_t> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 4 };
@@ -476,7 +471,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4us pcast<Packet4c, Packet4us>(const Packet4c& a) {
   return preinterpret<Packet4us>(pcast<Packet4c, Packet4s>(a));
 }
-
 
 //==============================================================================
 // pcast, SrcType = uint8_t
@@ -577,7 +571,6 @@ EIGEN_STRONG_INLINE Packet4us pcast<Packet4uc, Packet4us>(const Packet4uc& a) {
   return vget_low_u16(vmovl_u8(vreinterpret_u8_u32(vdup_n_u32(a))));
 }
 
-
 template <>
 struct type_casting_traits<numext::uint8_t, numext::int16_t> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 2 };
@@ -594,7 +587,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4s pcast<Packet4uc, Packet4s>(const Packet4uc& a) {
   return preinterpret<Packet4s>(pcast<Packet4uc, Packet4us>(a));
 }
-
 
 //==============================================================================
 // pcast, SrcType = int16_t
@@ -672,7 +664,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2ui pcast<Packet4s, Packet2ui>(const Packet4s& a) {
   return preinterpret<Packet2ui>(pcast<Packet4s, Packet2i>(a));
 }
-
 
 template <>
 struct type_casting_traits<numext::int16_t, numext::int8_t> {
@@ -794,7 +785,6 @@ EIGEN_STRONG_INLINE Packet2i pcast<Packet4us, Packet2i>(const Packet4us& a) {
   return preinterpret<Packet2i>(pcast<Packet4us, Packet2ui>(a));
 }
 
-
 template <>
 struct type_casting_traits<numext::uint16_t, numext::uint8_t> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
@@ -880,7 +870,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2ul pcast<Packet2i, Packet2ul>(const Packet2i& a) {
   return preinterpret<Packet2ul>(pcast<Packet2i, Packet2l>(a));
 }
-
 
 template <>
 struct type_casting_traits<numext::int32_t, numext::int16_t> {
@@ -1012,7 +1001,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2l pcast<Packet2ui, Packet2l>(const Packet2ui& a) {
   return preinterpret<Packet2l>(pcast<Packet2ui, Packet2ul>(a));
 }
-
 
 template <>
 struct type_casting_traits<numext::uint32_t, numext::uint16_t> {
@@ -1273,7 +1261,6 @@ EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
 #endif
 }
 
-
 template <>
 struct type_casting_traits<numext::uint64_t, numext::uint32_t> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
@@ -1407,7 +1394,6 @@ EIGEN_STRONG_INLINE Packet4i preinterpret<Packet4i, Packet2d>(const Packet2d& a)
   return Packet4i(vreinterpretq_s32_f64(a));
 }
 
-
 template <>
 struct type_casting_traits<double, float> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1 };
@@ -1534,7 +1520,7 @@ EIGEN_STRONG_INLINE Packet16uc pcast<Packet2d, Packet16uc>(const Packet2d& a, co
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pcast<Packet2d, Packet8uc>(const Packet2d& a, const Packet2d& b, const Packet2d& c,
-                                                           const Packet2d& d) {
+                                                         const Packet2d& d) {
   return preinterpret<Packet8uc>(pcast<Packet2d, Packet8c>(a, b, c, d));
 }
 template <>

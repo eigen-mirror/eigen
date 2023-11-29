@@ -41,7 +41,7 @@
 namespace Eigen {
 
 namespace internal {
-   inline void manage_multi_threading(Action action, int* v);
+inline void manage_multi_threading(Action action, int* v);
 }
 
 // Public APIs.
@@ -50,20 +50,16 @@ namespace internal {
 EIGEN_DEPRECATED inline void initParallel() {}
 
 /** \returns the max number of threads reserved for Eigen
-  * \sa setNbThreads */
-inline int nbThreads()
-{
+ * \sa setNbThreads */
+inline int nbThreads() {
   int ret;
   internal::manage_multi_threading(GetAction, &ret);
   return ret;
 }
 
 /** Sets the max number of threads reserved for Eigen
-  * \sa nbThreads */
-inline void setNbThreads(int v)
-{
-  internal::manage_multi_threading(SetAction, &v);
-}
+ * \sa nbThreads */
+inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
 #ifdef EIGEN_GEMM_THREADPOOL
 // Sets the ThreadPool used by Eigen parallel Gemm.
@@ -87,11 +83,8 @@ inline ThreadPool* setGemmThreadPool(ThreadPool* new_pool) {
 }
 
 // Gets the ThreadPool used by Eigen parallel Gemm.
-inline ThreadPool* getGemmThreadPool() {
-  return setGemmThreadPool(nullptr);
-}
+inline ThreadPool* getGemmThreadPool() { return setGemmThreadPool(nullptr); }
 #endif
-
 
 namespace internal {
 
@@ -109,16 +102,18 @@ inline void manage_multi_threading(Action action, int* v) {
     eigen_internal_assert(false);
   }
 }
-template<typename Index> struct GemmParallelInfo {};
+template <typename Index>
+struct GemmParallelInfo {};
 template <bool Condition, typename Functor, typename Index>
-EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols,
-                                          Index /*unused*/, bool /*unused*/) {
-  func(0,rows, 0,cols);
+EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols, Index /*unused*/,
+                                          bool /*unused*/) {
+  func(0, rows, 0, cols);
 }
 
 #else
 
-template<typename Index> struct GemmParallelTaskInfo {
+template <typename Index>
+struct GemmParallelTaskInfo {
   GemmParallelTaskInfo() : sync(-1), users(0), lhs_start(0), lhs_length(0) {}
   std::atomic<Index> sync;
   std::atomic<int> users;
@@ -126,16 +121,14 @@ template<typename Index> struct GemmParallelTaskInfo {
   Index lhs_length;
 };
 
-template<typename Index> struct GemmParallelInfo {
+template <typename Index>
+struct GemmParallelInfo {
   const int logical_thread_id;
   const int num_threads;
   GemmParallelTaskInfo<Index>* task_info;
 
-  GemmParallelInfo(int logical_thread_id_, int num_threads_,
-                   GemmParallelTaskInfo<Index>* task_info_)
-      : logical_thread_id(logical_thread_id_),
-        num_threads(num_threads_),
-        task_info(task_info_) {}
+  GemmParallelInfo(int logical_thread_id_, int num_threads_, GemmParallelTaskInfo<Index>* task_info_)
+      : logical_thread_id(logical_thread_id_), num_threads(num_threads_), task_info(task_info_) {}
 };
 
 inline void manage_multi_threading(Action action, int* v) {
@@ -167,8 +160,7 @@ inline void manage_multi_threading(Action action, int* v) {
 }
 
 template <bool Condition, typename Functor, typename Index>
-EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols,
-                                          Index depth, bool transpose) {
+EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, bool transpose) {
   // Dynamically check whether we should even try to execute in parallel.
   // The conditions are:
   // - the max number of threads we can create is greater than 1
@@ -176,22 +168,22 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   // - the sizes are large enough
 
   // compute the maximal number of threads from the size of the product:
-  // This first heuristic takes into account that the product kernel is fully optimized when working with nr columns at once.
+  // This first heuristic takes into account that the product kernel is fully optimized when working with nr columns at
+  // once.
   Index size = transpose ? rows : cols;
-  Index pb_max_threads = std::max<Index>(1,size / Functor::Traits::nr);
+  Index pb_max_threads = std::max<Index>(1, size / Functor::Traits::nr);
 
   // compute the maximal number of threads from the total amount of work:
-  double work = static_cast<double>(rows) * static_cast<double>(cols) *
-      static_cast<double>(depth);
+  double work = static_cast<double>(rows) * static_cast<double>(cols) * static_cast<double>(depth);
   double kMinTaskSize = 50000;  // FIXME improve this heuristic.
-  pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>( work / kMinTaskSize ) ));
+  pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>(work / kMinTaskSize)));
 
   // compute the number of threads we are going to use
   int threads = std::min<int>(nbThreads(), static_cast<int>(pb_max_threads));
 
   // if multi-threading is explicitly disabled, not useful, or if we already are
   // inside a parallel session, then abort multi-threading
-  bool dont_parallelize = (!Condition) || (threads<=1);
+  bool dont_parallelize = (!Condition) || (threads <= 1);
 #if defined(EIGEN_HAS_OPENMP)
   // don't parallelize if we are executing in a parallel context already.
   dont_parallelize |= omp_get_num_threads() > 1;
@@ -203,19 +195,16 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   ThreadPool* pool = getGemmThreadPool();
   dont_parallelize |= (pool == nullptr || pool->CurrentThreadId() != -1);
 #endif
-  if (dont_parallelize)
-    return func(0,rows, 0,cols);
+  if (dont_parallelize) return func(0, rows, 0, cols);
 
   func.initParallelSession(threads);
 
-  if(transpose)
-    std::swap(rows,cols);
+  if (transpose) std::swap(rows, cols);
 
-  ei_declare_aligned_stack_constructed_variable(GemmParallelTaskInfo<Index>,task_info,threads,0);
-
+  ei_declare_aligned_stack_constructed_variable(GemmParallelTaskInfo<Index>, task_info, threads, 0);
 
 #if defined(EIGEN_HAS_OPENMP)
-  #pragma omp parallel num_threads(threads)
+#pragma omp parallel num_threads(threads)
   {
     Index i = omp_get_thread_num();
     // Note that the actual number of threads might be lower than the number of
@@ -225,50 +214,53 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
-    blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
+    blockRows = (blockRows / Functor::Traits::mr) * Functor::Traits::mr;
 
-    Index r0 = i*blockRows;
-    Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
+    Index r0 = i * blockRows;
+    Index actualBlockRows = (i + 1 == actual_threads) ? rows - r0 : blockRows;
 
-    Index c0 = i*blockCols;
-    Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
+    Index c0 = i * blockCols;
+    Index actualBlockCols = (i + 1 == actual_threads) ? cols - c0 : blockCols;
 
     info.task_info[i].lhs_start = r0;
     info.task_info[i].lhs_length = actualBlockRows;
 
-    if(transpose) func(c0, actualBlockCols, 0, rows, &info);
-    else          func(0, rows, c0, actualBlockCols, &info);
+    if (transpose)
+      func(c0, actualBlockCols, 0, rows, &info);
+    else
+      func(0, rows, c0, actualBlockCols, &info);
   }
 
 #elif defined(EIGEN_GEMM_THREADPOOL)
-  ei_declare_aligned_stack_constructed_variable(GemmParallelTaskInfo<Index>,meta_info,threads,0);
+  ei_declare_aligned_stack_constructed_variable(GemmParallelTaskInfo<Index>, meta_info, threads, 0);
   Barrier barrier(threads);
-  auto task = [=, &func, &barrier, &task_info](int i)
-  {
+  auto task = [=, &func, &barrier, &task_info](int i) {
     Index actual_threads = threads;
     GemmParallelInfo<Index> info(i, static_cast<int>(actual_threads), task_info);
     Index blockCols = (cols / actual_threads) & ~Index(0x3);
     Index blockRows = (rows / actual_threads);
-    blockRows = (blockRows/Functor::Traits::mr)*Functor::Traits::mr;
+    blockRows = (blockRows / Functor::Traits::mr) * Functor::Traits::mr;
 
-    Index r0 = i*blockRows;
-    Index actualBlockRows = (i+1==actual_threads) ? rows-r0 : blockRows;
+    Index r0 = i * blockRows;
+    Index actualBlockRows = (i + 1 == actual_threads) ? rows - r0 : blockRows;
 
-    Index c0 = i*blockCols;
-    Index actualBlockCols = (i+1==actual_threads) ? cols-c0 : blockCols;
+    Index c0 = i * blockCols;
+    Index actualBlockCols = (i + 1 == actual_threads) ? cols - c0 : blockCols;
 
     info.task_info[i].lhs_start = r0;
     info.task_info[i].lhs_length = actualBlockRows;
 
-    if(transpose) func(c0, actualBlockCols, 0, rows, &info);
-    else          func(0, rows, c0, actualBlockCols, &info);
+    if (transpose)
+      func(c0, actualBlockCols, 0, rows, &info);
+    else
+      func(0, rows, c0, actualBlockCols, &info);
 
     barrier.Notify();
   };
   // Notice that we do not schedule more than "threads" tasks, which allows us to
   // limit number of running threads, even if the threadpool itself was constructed
   // with a larger number of threads.
-  for (int i=0; i < threads - 1; ++i) {
+  for (int i = 0; i < threads - 1; ++i) {
     pool->Schedule([=, task = std::move(task)] { task(i); });
   }
   task(threads - 1);
@@ -278,7 +270,7 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
 #endif
 
-} // end namespace internal
-} // end namespace Eigen
+}  // end namespace internal
+}  // end namespace Eigen
 
-#endif // EIGEN_PARALLELIZER_H
+#endif  // EIGEN_PARALLELIZER_H
