@@ -976,7 +976,14 @@ template<typename ArrayType> void array_complex(const ArrayType& m)
   VERIFY_IS_APPROX(sinh(m1), 0.5*(exp(m1)-exp(-m1)));
   VERIFY_IS_APPROX(cosh(m1), 0.5*(exp(m1)+exp(-m1)));
   VERIFY_IS_APPROX(tanh(m1), (0.5*(exp(m1)-exp(-m1)))/(0.5*(exp(m1)+exp(-m1))));
-  VERIFY_IS_APPROX(logistic(m1), (1.0/(1.0 + exp(-m1))));
+  VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
+  if (m1.size() > 0) {
+    // Complex exponential overflow edge-case.
+    Scalar old_m1_val = m1(0, 0);
+    m1(0, 0) = std::complex<RealScalar>(1000.0, 1000.0);
+    VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
+    m1(0, 0) = old_m1_val;  // Restore value for future tests.
+  }
 
   for (Index i = 0; i < m.rows(); ++i)
     for (Index j = 0; j < m.cols(); ++j)
