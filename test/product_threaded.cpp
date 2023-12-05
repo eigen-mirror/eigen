@@ -13,21 +13,16 @@
 void test_parallelize_gemm() {
   constexpr int n = 1024;
   constexpr int num_threads = 4;
-  MatrixXf a(n,n);
-  MatrixXf b(n,n);
-  MatrixXf c(n,n);
-  c.noalias() = a*b;
+  MatrixXf a(n, n);
+  MatrixXf b(n, n);
+  MatrixXf c(n, n);
+  c.noalias() = a * b;
 
   ThreadPool pool(num_threads);
-  MatrixXf c_threaded(n,n);
-  c_threaded.noalias() = a*b;
+  MatrixXf c_threaded(n, n);
+  c_threaded.noalias() = a * b;
 
   VERIFY_IS_APPROX(c, c_threaded);
 }
 
-
-
-EIGEN_DECLARE_TEST(product_threaded)
-{
-  CALL_SUBTEST(test_parallelize_gemm());
-}
+EIGEN_DECLARE_TEST(product_threaded) { CALL_SUBTEST(test_parallelize_gemm()); }

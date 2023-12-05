@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-template<typename From, typename To>
+template <typename From, typename To>
 void test_conversion() {
   typedef Array<From, Dynamic, 1> ArrayXFrom;
   typedef Array<To, Dynamic, 1> ArrayXTo;
@@ -21,7 +21,7 @@ void test_conversion() {
 
   // ArrayXFrom::Random() only generates 32-bit values (#2749), so we generate
   // doubles and scale to fit the range.
-  ArrayXDouble doubles = (ArrayXDouble::Random(size)+1.0)*(from_range/2.0) + from_min;
+  ArrayXDouble doubles = (ArrayXDouble::Random(size) + 1.0) * (from_range / 2.0) + from_min;
   ArrayXFrom from = doubles.template cast<From>();
   ArrayXTo to(size);
   for (Index i = 0; i < size; ++i) {
@@ -30,7 +30,7 @@ void test_conversion() {
   VERIFY_IS_APPROX(from.template cast<To>(), to);
 }
 
-template<typename To>
+template <typename To>
 void test_conversion_to() {
   CALL_SUBTEST((test_conversion<int64_t, To>()));
   CALL_SUBTEST((test_conversion<uint64_t, To>()));
@@ -42,9 +42,8 @@ void test_conversion_to() {
   CALL_SUBTEST((test_conversion<uint8_t, To>()));
 }
 
-EIGEN_DECLARE_TEST(float_conversion)
-{
-  for(int i = 0; i < g_repeat; i++) {
+EIGEN_DECLARE_TEST(float_conversion) {
+  for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST(test_conversion_to<float>());
     CALL_SUBTEST(test_conversion_to<double>());
   }
