@@ -124,6 +124,19 @@ bool areEqual(const Scalar* a, const Scalar* b, int size) {
   return true;
 }
 
+template <typename Scalar>
+bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& precision) {
+  for (int i = 0; i < size; ++i) {
+    if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i], precision) &&
+        !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
+      print_mismatch(a, b, size);
+      std::cout << "Values differ in position " << i << ": " << a[i] << " vs " << b[i] << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
 #define CHECK_CWISE1(REFOP, POP)                                   \
   {                                                                \
     for (int i = 0; i < PacketSize; ++i) ref[i] = REFOP(data1[i]); \
@@ -139,6 +152,29 @@ bool areEqual(const Scalar* a, const Scalar* b, int size) {
     for (int i = 0; i < N; ++i) ref[i] = REFOP(data1[i]);                                                         \
     for (int j = 0; j < N; j += PacketSize) internal::pstore(data2 + j, POP(internal::pload<Packet>(data1 + j))); \
     VERIFY(test::areApprox(ref, data2, N) && #POP);                                                               \
+  }
+
+// Checks component-wise for input of complex type of size N. The real and
+// the imaginary part are compared separately, with 1ULP relaxed condition
+// for the imaginary part. All of data1 data2, ref, realdata1 and realref
+// should have size at least ceil(N/PacketSize)*PacketSize to avoid
+// memory access errors.
+#define CHECK_CWISE1_IM1ULP_N(REFOP, POP, N)                                            \
+  {                                                                                     \
+    RealScalar eps_1ulp = RealScalar(1e1) * std::numeric_limits<RealScalar>::epsilon(); \
+    for (int j = 0; j < N; j += PacketSize)                                             \
+      internal::pstore(data2 + j, internal::plog(internal::pload<Packet>(data1 + j)));  \
+    for (int i = 0; i < N; ++i) {                                                       \
+      ref[i] = REFOP(data1[i]);                                                         \
+      realref[i] = ref[i].imag();                                                       \
+      realdata[i] = data2[i].imag();                                                    \
+    }                                                                                   \
+    VERIFY(test::areApprox(realdata, realref, N, eps_1ulp));                            \
+    for (int i = 0; i < N; ++i) {                                                       \
+      realdata[i] = data2[i].real();                                                    \
+      realref[i] = ref[i].real();                                                       \
+    }                                                                                   \
+    VERIFY(test::areApprox(realdata, realref, N));                                      \
   }
 
 template <bool Cond, typename Packet>
