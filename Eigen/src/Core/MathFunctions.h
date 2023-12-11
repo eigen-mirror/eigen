@@ -877,13 +877,153 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus>
   // no value, error at compile time
 };
 
-template<typename Scalar>
-struct random_default_impl<Scalar, false, true>
-{
-  static inline Scalar run(const Scalar& x, const Scalar& y)
-  {
-    if (y <= x)
-      return x;
+template <typename BitsType, typename EnableIf = void>
+struct count_bits_impl {
+  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
+                "BitsType must be an unsigned integer");
+
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    int n = CHAR_BIT * sizeof(BitsType);
+    int shift = n / 2;
+    while (bits > 0 && shift > 0) {
+      BitsType y = bits >> shift;
+      if (y > 0) {
+        n -= shift;
+        bits = y;
+      }
+      shift /= 2;
+    }
+    if (shift == 0) {
+      --n;
+    }
+    return n;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    int n = CHAR_BIT * sizeof(BitsType);
+    int shift = n / 2;
+    while (bits > 0 && shift > 0) {
+      BitsType y = bits << shift;
+      if (y > 0) {
+        n -= shift;
+        bits = y;
+      }
+      shift /= 2;
+    }
+    if (shift == 0) {
+      --n;
+    }
+    return n;
+  }
+};
+
+// Count leading zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+  return count_bits_impl<BitsType>::clz(bits);
+}
+
+// Count trailing zeros.
+template <typename BitsType>
+EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+  return count_bits_impl<BitsType>::ctz(bits);
+}
+
+#if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+
+template <typename BitsType>
+struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(unsigned int)>> {
+  static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static const int kLeadingBitsOffset = (sizeof(unsigned int) - sizeof(BitsType)) * CHAR_BIT;
+    return bits == 0 ? kNumBits : __builtin_clz(static_cast<unsigned int>(bits)) - kLeadingBitsOffset;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    return bits == 0 ? kNumBits : __builtin_ctz(static_cast<unsigned int>(bits));
+  }
+};
+
+template <typename BitsType>
+struct count_bits_impl<
+    BitsType, std::enable_if_t<sizeof(unsigned int) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(unsigned long)>> {
+  static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static const int kLeadingBitsOffset = (sizeof(unsigned long) - sizeof(BitsType)) * CHAR_BIT;
+    return bits == 0 ? kNumBits : __builtin_clzl(static_cast<unsigned long>(bits)) - kLeadingBitsOffset;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    return bits == 0 ? kNumBits : __builtin_ctzl(static_cast<unsigned long>(bits));
+  }
+};
+
+template <typename BitsType>
+struct count_bits_impl<BitsType, std::enable_if_t<sizeof(unsigned long) < sizeof(BitsType) &&
+                                                  sizeof(BitsType) <= sizeof(unsigned long long)>> {
+  static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static const int kLeadingBitsOffset = (sizeof(unsigned long long) - sizeof(BitsType)) * CHAR_BIT;
+    return bits == 0 ? kNumBits : __builtin_clzll(static_cast<unsigned long long>(bits)) - kLeadingBitsOffset;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    return bits == 0 ? kNumBits : __builtin_ctzll(static_cast<unsigned long long>(bits));
+  }
+};
+
+#elif EIGEN_COMP_MSVC
+
+template <typename BitsType>
+struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(unsigned long)>> {
+  static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static const int kLeadingBitsOffset = static_cast<int>((sizeof(unsigned long) - sizeof(BitsType)) * CHAR_BIT);
+    unsigned long out;
+    _BitScanReverse(&out, static_cast<unsigned long>(bits));
+    return bits == 0 ? kNumBits : static_cast<int>(out - kLeadingBitsOffset);
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    unsigned long out;
+    _BitScanForward(&out, static_cast<unsigned long>(bits));
+    return bits == 0 ? kNumBits : static_cast<int>(out);
+  }
+};
+
+#ifdef _WIN64
+
+template <typename BitsType>
+struct count_bits_impl<
+    BitsType, std::enable_if_t<sizeof(unsigned long) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(__int64)>> {
+  static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static const int kLeadingBitsOffset = static_cast<int>((sizeof(__int64) - sizeof(BitsType)) * CHAR_BIT);
+    unsigned long out;
+    _BitScanReverse64(&out, static_cast<unsigned __int64>(bits));
+    return bits == 0 ? kNumBits : static_cast<int>(out - kLeadingBitsOffset);
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    unsigned long out;
+    _BitScanForward64(&out, static_cast<unsigned __int64>(bits));
+    return bits == 0 ? kNumBits : static_cast<int>(out);
+  }
+};
+
+#endif  // _WIN64
+
+#endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+
+template <typename Scalar>
+struct random_default_impl<Scalar, false, true> {
+  static inline Scalar run(const Scalar& x, const Scalar& y) {
+    if (y <= x) return x;
     // ScalarU is the unsigned counterpart of Scalar, possibly Scalar itself.
     typedef typename make_unsigned<Scalar>::type ScalarU;
     // ScalarX is the widest of ScalarU and unsigned int.
