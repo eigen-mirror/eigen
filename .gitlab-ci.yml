@@ -8,6 +8,7 @@
 # with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 stages:
+  - checkformat
   - buildsmoketests
   - smoketests
   - build
@@ -18,6 +19,7 @@ variables:
   EIGEN_CI_CMAKE_GENEATOR: "Ninja"
 
 include:
+  - "/ci/checkformat.gitlab-ci.yml"
   - "/ci/smoketests.gitlab-ci.yml"
   - "/ci/build.gitlab-ci.yml"
   - "/ci/test.gitlab-ci.yml"
