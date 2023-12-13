@@ -733,10 +733,9 @@ struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(uns
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
   static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
-    static constexpr int kLeadingBitsOffset = static_cast<int>((sizeof(unsigned long) - sizeof(BitsType)) * CHAR_BIT);
     unsigned long out;
     _BitScanReverse(&out, static_cast<unsigned long>(bits));
-    return bits == 0 ? kNumBits : static_cast<int>(out - kLeadingBitsOffset);
+    return bits == 0 ? kNumBits : (kNumBits - 1) - static_cast<int>(out);
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
@@ -754,10 +753,9 @@ struct count_bits_impl<
   static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
   static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
-    static constexpr int kLeadingBitsOffset = static_cast<int>((sizeof(__int64) - sizeof(BitsType)) * CHAR_BIT);
     unsigned long out;
     _BitScanReverse64(&out, static_cast<unsigned __int64>(bits));
-    return bits == 0 ? kNumBits : static_cast<int>(out - kLeadingBitsOffset);
+    return bits == 0 ? kNumBits : (kNumBits - 1) - static_cast<int>(out);
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
