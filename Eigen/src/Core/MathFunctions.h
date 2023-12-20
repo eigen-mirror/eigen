@@ -879,10 +879,10 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus>
 
 template <typename BitsType, typename EnableIf = void>
 struct count_bits_impl {
-  static_assert(std::is_integral<BitsType>::value && std::is_unsigned<BitsType>::value,
-                "BitsType must be an unsigned integer");
-
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(
+        is_integral<BitsType>::value && !NumTraits<BitsType>::IsSigned,
+        THIS_TYPE_IS_NOT_SUPPORTED);
     int n = CHAR_BIT * sizeof(BitsType);
     int shift = n / 2;
     while (bits > 0 && shift > 0) {
@@ -900,6 +900,9 @@ struct count_bits_impl {
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(
+        is_integral<BitsType>::value && !NumTraits<BitsType>::IsSigned,
+        THIS_TYPE_IS_NOT_SUPPORTED);
     int n = CHAR_BIT * sizeof(BitsType);
     int shift = n / 2;
     while (bits > 0 && shift > 0) {
@@ -932,45 +935,48 @@ EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
 #if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
 template <typename BitsType>
-struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(unsigned int)>> {
+struct count_bits_impl<BitsType, typename enable_if<sizeof(BitsType) <= sizeof(unsigned int)>::type> {
   static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     static const int kLeadingBitsOffset = (sizeof(unsigned int) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clz(static_cast<unsigned int>(bits)) - kLeadingBitsOffset;
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     return bits == 0 ? kNumBits : __builtin_ctz(static_cast<unsigned int>(bits));
   }
 };
 
 template <typename BitsType>
 struct count_bits_impl<
-    BitsType, std::enable_if_t<sizeof(unsigned int) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(unsigned long)>> {
+    BitsType, typename enable_if<sizeof(unsigned int) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(unsigned long)>::type> {
   static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     static const int kLeadingBitsOffset = (sizeof(unsigned long) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clzl(static_cast<unsigned long>(bits)) - kLeadingBitsOffset;
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     return bits == 0 ? kNumBits : __builtin_ctzl(static_cast<unsigned long>(bits));
   }
 };
 
 template <typename BitsType>
-struct count_bits_impl<BitsType, std::enable_if_t<sizeof(unsigned long) < sizeof(BitsType) &&
-                                                  sizeof(BitsType) <= sizeof(unsigned long long)>> {
+struct count_bits_impl<BitsType, typename enable_if<sizeof(unsigned long) < sizeof(BitsType) &&
+                                                  sizeof(BitsType) <= sizeof(unsigned long long)>::type> {
   static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     static const int kLeadingBitsOffset = (sizeof(unsigned long long) - sizeof(BitsType)) * CHAR_BIT;
     return bits == 0 ? kNumBits : __builtin_clzll(static_cast<unsigned long long>(bits)) - kLeadingBitsOffset;
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     return bits == 0 ? kNumBits : __builtin_ctzll(static_cast<unsigned long long>(bits));
   }
 };
@@ -978,16 +984,17 @@ struct count_bits_impl<BitsType, std::enable_if_t<sizeof(unsigned long) < sizeof
 #elif EIGEN_COMP_MSVC
 
 template <typename BitsType>
-struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(unsigned long)>> {
+struct count_bits_impl<BitsType, typename enable_if<sizeof(BitsType) <= sizeof(unsigned long)>::type> {
   static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     unsigned long out;
     _BitScanReverse(&out, static_cast<unsigned long>(bits));
     return bits == 0 ? kNumBits : (kNumBits - 1) - static_cast<int>(out);
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     unsigned long out;
     _BitScanForward(&out, static_cast<unsigned long>(bits));
     return bits == 0 ? kNumBits : static_cast<int>(out);
@@ -998,16 +1005,17 @@ struct count_bits_impl<BitsType, std::enable_if_t<sizeof(BitsType) <= sizeof(uns
 
 template <typename BitsType>
 struct count_bits_impl<
-    BitsType, std::enable_if_t<sizeof(unsigned long) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(__int64)>> {
+    BitsType, typename enable_if<sizeof(unsigned long) < sizeof(BitsType) && sizeof(BitsType) <= sizeof(__int64)>::type> {
   static const int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
-  static_assert(std::is_integral<BitsType>::value, "BitsType must be a built-in integer");
   static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     unsigned long out;
     _BitScanReverse64(&out, static_cast<unsigned __int64>(bits));
     return bits == 0 ? kNumBits : (kNumBits - 1) - static_cast<int>(out);
   }
 
   static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    EIGEN_STATIC_ASSERT(is_integral<BitsType>::value, THIS_TYPE_IS_NOT_SUPPORTED);
     unsigned long out;
     _BitScanForward64(&out, static_cast<unsigned __int64>(bits));
     return bits == 0 ? kNumBits : static_cast<int>(out);
