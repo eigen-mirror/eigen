@@ -280,8 +280,8 @@ struct vectorization_logic_half
     // EIGEN_UNALIGNED_VECTORIZE is 0 (the matrix is assumed unaligned).
     // Adjust the matrix sizes to account for these alignment issues.
     enum { PacketBytes = sizeof(Scalar)*PacketSize };
-    enum { MinVSize = EIGEN_UNALIGNED_VECTORIZE ? PacketSize
-                             : PacketBytes >= EIGEN_MIN_ALIGN_BYTES ? PacketSize
+    enum { MinVSize = EIGEN_UNALIGNED_VECTORIZE ? int(PacketSize)
+                             : int(PacketBytes) >= EIGEN_MIN_ALIGN_BYTES ? int(PacketSize)
                              : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar) };
     
     typedef Matrix<Scalar,MinVSize,1> Vector1;

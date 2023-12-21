@@ -161,7 +161,8 @@ void upperbidiagonalization_blocked_helper(MatrixType& A,
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
   typedef typename NumTraits<RealScalar>::Literal Literal;
-  enum { StorageOrder = (traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor };
+  static const int StorageOrder =
+      (traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor;
   typedef InnerStride<StorageOrder == ColMajor ? 1 : Dynamic> ColInnerStride;
   typedef InnerStride<StorageOrder == ColMajor ? Dynamic : 1> RowInnerStride;
   typedef Ref<Matrix<Scalar, Dynamic, 1>, 0, ColInnerStride>    SubColumnType;
