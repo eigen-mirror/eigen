@@ -612,11 +612,7 @@ struct pminmax_impl<PropagateNumbers> {
   }
 };
 
-#ifndef SYCL_DEVICE_ONLY
-#define EIGEN_BINARY_OP_NAN_PROPAGATION(Type, Func) Func
-#else
 #define EIGEN_BINARY_OP_NAN_PROPAGATION(Type, Func) [](const Type& a, const Type& b) { return Func(a, b); }
-#endif
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise).
     If \a a or \b b is NaN, the return value is implementation defined. */
