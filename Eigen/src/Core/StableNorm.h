@@ -46,78 +46,25 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
     ssq += (bl * invScale).squaredNorm();
 }
 
-template <typename VectorType, typename RealScalar>
-void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealScalar& scale, RealScalar& invScale) {
-  typedef typename VectorType::Scalar Scalar;
-  const Index blockSize = 4096;
-
-  typedef typename internal::nested_eval<VectorType, 2>::type VectorTypeCopy;
-  typedef internal::remove_all_t<VectorTypeCopy> VectorTypeCopyClean;
-  const VectorTypeCopy copy(vec);
-
-  enum {
-    CanAlign =
-        ((int(VectorTypeCopyClean::Flags) & DirectAccessBit) ||
-         (int(internal::evaluator<VectorTypeCopyClean>::Alignment) > 0)  // FIXME Alignment)>0 might not be enough
-         ) &&
-        (blockSize * sizeof(Scalar) * 2 < EIGEN_STACK_ALLOCATION_LIMIT) &&
-        (EIGEN_MAX_STATIC_ALIGN_BYTES >
-         0)  // if we cannot allocate on the stack, then let's not bother about this optimization
-  };
-  typedef std::conditional_t<
-      CanAlign,
-      Ref<const Matrix<Scalar, Dynamic, 1, 0, blockSize, 1>, internal::evaluator<VectorTypeCopyClean>::Alignment>,
-      typename VectorTypeCopyClean::ConstSegmentReturnType>
-      SegmentWrapper;
-  Index n = vec.size();
-
-  Index bi = internal::first_default_aligned(copy);
-  if (bi > 0) internal::stable_norm_kernel(copy.head(bi), ssq, scale, invScale);
-  for (; bi < n; bi += blockSize)
-    internal::stable_norm_kernel(SegmentWrapper(copy.segment(bi, numext::mini(blockSize, n - bi))), ssq, scale,
-                                 invScale);
-}
-
-template <typename VectorType>
-typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
-                                                 std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
-  using std::abs;
-  using std::sqrt;
-
-  Index n = vec.size();
-
-  if (n == 1) return abs(vec.coeff(0));
-
-  typedef typename VectorType::RealScalar RealScalar;
-  RealScalar scale(0);
-  RealScalar invScale(1);
-  RealScalar ssq(0);  // sum of squares
-
-  stable_norm_impl_inner_step(vec, ssq, scale, invScale);
-
-  return scale * sqrt(ssq);
-}
-
 template <typename MatrixType>
-typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
-                                                 std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
-  using std::sqrt;
+typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
+  using numext::sqrt;
 
   typedef typename MatrixType::RealScalar RealScalar;
   RealScalar scale(0);
   RealScalar invScale(1);
   RealScalar ssq(0);  // sum of squares
 
-  for (Index j = 0; j < mat.outerSize(); ++j) stable_norm_impl_inner_step(mat.innerVector(j), ssq, scale, invScale);
+  stable_norm_kernel(mat, ssq, scale, invScale);
   return scale * sqrt(ssq);
 }
 
 template <typename Derived>
 inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
   typedef typename Derived::RealScalar RealScalar;
-  using std::abs;
-  using std::pow;
-  using std::sqrt;
+  using numext::abs;
+  using numext::pow;
+  using numext::sqrt;
 
   // This program calculates the machine-dependent constants
   // bl, b2, slm, s2m, relerr overfl
@@ -140,7 +87,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
       RealScalar(pow(RealScalar(ibeta), RealScalar((2 - iemin) / 2)));  // scaling factor for lower range
   static const RealScalar s2m =
       RealScalar(pow(RealScalar(ibeta), RealScalar(-((iemax + it) / 2))));  // scaling factor for upper range
-  static const RealScalar eps = RealScalar(pow(double(ibeta), 1 - it));
+  static const RealScalar eps = RealScalar(pow(double(ibeta), double(1 - it)));
   static const RealScalar relerr = sqrt(eps);  // tolerance for neglecting asml
 
   const Derived& vec(_vec.derived());
