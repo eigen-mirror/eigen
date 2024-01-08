@@ -126,10 +126,16 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_op(op.expression()), m_device(device), m_buffer(NULL) {}
 
+  ~TensorEvaluator() { cleanup(); }
+
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     const Index numValues = internal::array_prod(m_impl.dimensions());
+
+    if (m_buffer != nullptr) {
+      m_device.deallocate_temp(m_buffer);
+    }
     m_buffer = m_device.get((CoeffReturnType*)m_device.allocate_temp(numValues * sizeof(CoeffReturnType)));
 
     internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
@@ -148,6 +154,9 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   template <typename EvalSubExprsCallback>
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
     const Index numValues = internal::array_prod(m_impl.dimensions());
+    if (m_buffer != nullptr) {
+      m_device.deallocate_temp(m_buffer);
+    }
     m_buffer = m_device.get((CoeffReturnType*)m_device.allocate_temp(numValues * sizeof(CoeffReturnType)));
     typedef TensorEvalToOp<const std::remove_const_t<ArgType>> EvalTo;
     EvalTo evalToTmp(m_device.get(m_buffer), m_op);
