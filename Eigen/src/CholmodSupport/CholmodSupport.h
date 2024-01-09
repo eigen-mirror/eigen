@@ -149,11 +149,20 @@ cholmod_dense viewAsCholmod(MatrixBase<Derived>& mat) {
 
 /** Returns a view of the Cholmod sparse matrix \a cm as an Eigen sparse matrix.
  * The data are not copied but shared. */
-template <typename Scalar, int Flags, typename StorageIndex>
-Map<SparseMatrix<Scalar, Flags, StorageIndex> > viewAsEigen(cholmod_sparse& cm) {
-  return Map<SparseMatrix<Scalar, Flags, StorageIndex> >(cm.nrow, cm.ncol, static_cast<StorageIndex*>(cm.p)[cm.ncol],
-                                                         static_cast<StorageIndex*>(cm.p),
-                                                         static_cast<StorageIndex*>(cm.i), static_cast<Scalar*>(cm.x));
+template <typename Scalar, typename StorageIndex>
+Map<const SparseMatrix<Scalar, ColMajor, StorageIndex> > viewAsEigen(cholmod_sparse& cm) {
+  return Map<const SparseMatrix<Scalar, ColMajor, StorageIndex> >(
+      cm.nrow, cm.ncol, static_cast<StorageIndex*>(cm.p)[cm.ncol], static_cast<StorageIndex*>(cm.p),
+      static_cast<StorageIndex*>(cm.i), static_cast<Scalar*>(cm.x));
+}
+
+/** Returns a view of the Cholmod sparse matrix factor \a cm as an Eigen sparse matrix.
+ * The data are not copied but shared. */
+template <typename Scalar, typename StorageIndex>
+Map<const SparseMatrix<Scalar, ColMajor, StorageIndex> > viewAsEigen(cholmod_factor& cm) {
+  return Map<const SparseMatrix<Scalar, ColMajor, StorageIndex> >(
+      cm.n, cm.n, static_cast<StorageIndex*>(cm.p)[cm.n], static_cast<StorageIndex*>(cm.p),
+      static_cast<StorageIndex*>(cm.i), static_cast<Scalar*>(cm.x));
 }
 
 namespace internal {
@@ -188,6 +197,7 @@ EIGEN_CHOLMOD_SPECIALIZE1(int, free_dense, cholmod_dense*, X)
 EIGEN_CHOLMOD_SPECIALIZE1(int, free_sparse, cholmod_sparse*, A)
 
 EIGEN_CHOLMOD_SPECIALIZE1(cholmod_factor*, analyze, cholmod_sparse, A)
+EIGEN_CHOLMOD_SPECIALIZE1(cholmod_sparse*, factor_to_sparse, cholmod_factor, L)
 
 template <typename StorageIndex_>
 inline cholmod_dense* cm_solve(int sys, cholmod_factor& L, cholmod_dense& B, cholmod_common& Common) {
@@ -377,7 +387,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
     // TODO optimize this copy by swapping when possible (be careful with alignment, etc.)
     // NOTE cholmod_spsolve in fact just calls the dense solver for blocks of 4 columns at a time (similar to Eigen's
     // sparse solver)
-    dest.derived() = viewAsEigen<typename DestDerived::Scalar, ColMajor, typename DestDerived::StorageIndex>(*x_cs);
+    dest.derived() = viewAsEigen<typename DestDerived::Scalar, typename DestDerived::StorageIndex>(*x_cs);
     internal::cm_free_sparse<StorageIndex>(x_cs, m_cholmod);
   }
 #endif  // EIGEN_PARSED_BY_DOXYGEN
@@ -483,6 +493,11 @@ class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimpl
 
  public:
   typedef MatrixType_ MatrixType;
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef typename MatrixType::StorageIndex StorageIndex;
+  typedef TriangularView<const MatrixType, Eigen::Lower> MatrixL;
+  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::Upper> MatrixU;
 
   CholmodSimplicialLLT() : Base() { init(); }
 
@@ -492,6 +507,12 @@ class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimpl
   }
 
   ~CholmodSimplicialLLT() {}
+
+  /** \returns an expression of the factor L */
+  inline MatrixL matrixL() const { return viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor); }
+
+  /** \returns an expression of the factor U (= L^*) */
+  inline MatrixU matrixU() const { return matrixL().adjoint(); }
 
  protected:
   void init() {
@@ -531,6 +552,12 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
 
  public:
   typedef MatrixType_ MatrixType;
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef typename MatrixType::StorageIndex StorageIndex;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  typedef TriangularView<const MatrixType, Eigen::UnitLower> MatrixL;
+  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::UnitUpper> MatrixU;
 
   CholmodSimplicialLDLT() : Base() { init(); }
 
@@ -540,6 +567,26 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
   }
 
   ~CholmodSimplicialLDLT() {}
+
+  /** \returns a vector expression of the diagonal D */
+  inline VectorType vectorD() const {
+    auto cholmodL = viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor);
+
+    VectorType D{cholmodL.rows()};
+
+    for (Index k = 0; k < cholmodL.outerSize(); ++k) {
+      typename decltype(cholmodL)::InnerIterator it{cholmodL, k};
+      D(k) = it.value();
+    }
+
+    return D;
+  }
+
+  /** \returns an expression of the factor L */
+  inline MatrixL matrixL() const { return viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor); }
+
+  /** \returns an expression of the factor U (= L^*) */
+  inline MatrixU matrixU() const { return matrixL().adjoint(); }
 
  protected:
   void init() {
@@ -578,6 +625,9 @@ class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSuper
 
  public:
   typedef MatrixType_ MatrixType;
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef typename MatrixType::StorageIndex StorageIndex;
 
   CholmodSupernodalLLT() : Base() { init(); }
 
@@ -587,6 +637,19 @@ class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSuper
   }
 
   ~CholmodSupernodalLLT() {}
+
+  /** \returns an expression of the factor L */
+  inline MatrixType matrixL() const {
+    // Convert Cholmod factor's supernodal storage format to Eigen's CSC storage format
+    cholmod_sparse* cholmodL = internal::cm_factor_to_sparse(*Base::m_cholmodFactor, m_cholmod);
+    MatrixType L = viewAsEigen<Scalar, StorageIndex>(*cholmodL);
+    internal::cm_free_sparse<StorageIndex>(cholmodL, m_cholmod);
+
+    return L;
+  }
+
+  /** \returns an expression of the factor U (= L^*) */
+  inline MatrixType matrixU() const { return matrixL().adjoint(); }
 
  protected:
   void init() {
