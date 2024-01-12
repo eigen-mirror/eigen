@@ -224,9 +224,11 @@ EIGEN_DEVICE_FUNC inline void* aligned_malloc(std::size_t size) {
 EIGEN_DEVICE_FUNC inline void aligned_free(void* ptr) {
 #if (EIGEN_DEFAULT_ALIGN_BYTES == 0) || EIGEN_MALLOC_ALREADY_ALIGNED
 
-  if (ptr) check_that_malloc_is_allowed();
-  EIGEN_USING_STD(free)
-  free(ptr);
+  if (ptr) {
+    check_that_malloc_is_allowed();
+    EIGEN_USING_STD(free)
+    free(ptr);
+  }
 
 #else
   handmade_aligned_free(ptr);
@@ -294,9 +296,11 @@ EIGEN_DEVICE_FUNC inline void conditional_aligned_free(void* ptr) {
 
 template <>
 EIGEN_DEVICE_FUNC inline void conditional_aligned_free<false>(void* ptr) {
-  if (ptr) check_that_malloc_is_allowed();
-  EIGEN_USING_STD(free)
-  free(ptr);
+  if (ptr) {
+    check_that_malloc_is_allowed();
+    EIGEN_USING_STD(free)
+    free(ptr);
+  }
 }
 
 template <bool Align>
