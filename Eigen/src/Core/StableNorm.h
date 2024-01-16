@@ -55,6 +55,10 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
   RealScalar invScale(1);
   RealScalar ssq(0);  // sum of squares
 
+  if (mat.size() == 0) {
+    return RealScalar(0);
+  }
+
   stable_norm_kernel(mat, ssq, scale, invScale);
   return scale * sqrt(ssq);
 }
