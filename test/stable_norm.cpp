@@ -225,7 +225,7 @@ void test_hypot() {
   while (numext::abs2(factor) < RealScalar(1e-4)) factor = internal::random<Scalar>();
   Scalar small = factor * ((std::numeric_limits<RealScalar>::min)() * RealScalar(1e4));
 
-  Scalar one(1), zero(0), sqrt2(std::sqrt(Scalar(2))), nan(std::numeric_limits<RealScalar>::quiet_NaN());
+  Scalar one(1), zero(0), sqrt2(std::sqrt(2)), nan(std::numeric_limits<RealScalar>::quiet_NaN());
 
   Scalar a = internal::random<Scalar>(-1, 1);
   Scalar b = internal::random<Scalar>(-1, 1);
