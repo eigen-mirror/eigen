@@ -208,7 +208,7 @@ template<> EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& /*a*/, co
 // then implements a slow software scalar fallback calling fmaf()!
 // Filed LLVM bug:
 //     https://llvm.org/bugs/show_bug.cgi?id=27216
-#if (defined __ARM_FEATURE_FMA) && !(EIGEN_COMP_CLANG && EIGEN_ARCH_ARM)
+#if (defined EIGEN_VECTORIZE_FMA) && !(EIGEN_COMP_CLANG && EIGEN_ARCH_ARM)
 // See bug 936.
 // FMA is available on VFPv4 i.e. when compiling with -mfpu=neon-vfpv4.
 // FMA is a true fused multiply-add i.e. only 1 rounding at the end, no intermediate rounding.
@@ -628,7 +628,7 @@ template<> EIGEN_STRONG_INLINE Packet2d pmul<Packet2d>(const Packet2d& a, const 
 
 template<> EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b) { return vdivq_f64(a,b); }
 
-#ifdef __ARM_FEATURE_FMA
+#ifdef EIGEN_VECTORIZE_FMA
 // See bug 936. See above comment about FMA for float.
 template<> EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) { return vfmaq_f64(c,a,b); }
 #else

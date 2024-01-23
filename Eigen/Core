@@ -213,6 +213,7 @@
     } // end extern "C"
   #elif defined __VSX__
     #define EIGEN_VECTORIZE
+    #define EIGEN_VECTORIZE_FMA
     #define EIGEN_VECTORIZE_VSX
     #include <altivec.h>
     // We need to #undef all these ugly tokens defined in <altivec.h>
@@ -222,6 +223,7 @@
     #undef pixel
   #elif defined __ALTIVEC__
     #define EIGEN_VECTORIZE
+    #define EIGEN_VECTORIZE_FMA
     #define EIGEN_VECTORIZE_ALTIVEC
     #include <altivec.h>
     // We need to #undef all these ugly tokens defined in <altivec.h>
@@ -233,6 +235,10 @@
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_NEON
     #include <arm_neon.h>
+    // Enable FMA for ARM.
+    #if defined(__ARM_FEATURE_FMA)
+      #define EIGEN_VECTORIZE_FMA
+    #endif
   #elif (defined __s390x__ && defined __VEC__)
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_ZVECTOR
