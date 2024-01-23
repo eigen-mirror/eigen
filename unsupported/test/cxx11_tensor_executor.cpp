@@ -136,7 +136,8 @@ void test_execute_broadcasting(Device d) {
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 struct test_execute_chipping_rvalue_runner {
   template <int ChipDim>
-  static void run_dim(Device& d, const array<Index, NumDims>& dims, const Tensor<T, NumDims, Layout, Index>& src) {
+  static std::enable_if_t<0 <= ChipDim, void>
+  run_dim(Device& d, const array<Index, NumDims>& dims, const Tensor<T, NumDims, Layout, Index>& src) {
     const auto offset = internal::random<Index>(0, dims[(ChipDim)] - 1);
     const auto expr = src.template chip<ChipDim>(offset);
 
@@ -158,8 +159,9 @@ struct test_execute_chipping_rvalue_runner {
     run_dim<ChipDim - 1>(d, dims, src);
   }
 
-  template <>
-  void run_dim<-1>(Device&, const array<Index, NumDims>&, const Tensor<T, NumDims, Layout, Index>&) {}
+  template <int ChipDim>
+  static std::enable_if_t<ChipDim < 0, void>
+  run_dim(Device&, const array<Index, NumDims>&, const Tensor<T, NumDims, Layout, Index>&) {}
 
   static void run(Device d) {
     auto dims = RandomDims<NumDims>(1, 10);
@@ -177,7 +179,8 @@ void test_execute_chipping_rvalue(Device d) {
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 struct test_execute_chipping_lvalue_runner {
   template <int ChipDim>
-  static void run_dim(Device& d, const array<Index, NumDims>& dims) {
+  static std::enable_if_t<0 <= ChipDim>
+  run_dim(Device& d, const array<Index, NumDims>& dims) {
     /* Generate random data that we'll assign to the chipped tensor dim. */
     array<Index, NumDims - 1> src_dims;
     for (int i = 0; i < NumDims - 1; ++i) {
@@ -213,8 +216,8 @@ struct test_execute_chipping_lvalue_runner {
     run_dim<ChipDim - 1>(d, dims);
   }
 
-  template <>
-  void run_dim<-1>(Device&, const array<Index, NumDims>&) {}
+  template <int ChipDim>
+  static std::enable_if_t<ChipDim < 0, void> run_dim(Device&, const array<Index, NumDims>&) {}
 
   static void run(Device d) {
     auto dims = RandomDims<NumDims>(1, 10);
