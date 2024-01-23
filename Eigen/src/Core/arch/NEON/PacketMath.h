@@ -1089,12 +1089,15 @@ template<> EIGEN_STRONG_INLINE Packet2ul pdiv<Packet2ul>(const Packet2ul& /*a*/,
   return pset1<Packet2ul>(0ULL);
 }
 
-
-#ifdef __ARM_FEATURE_FMA
-template<> EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c)
-{ return vfmaq_f32(c,a,b); }
-template<> EIGEN_STRONG_INLINE Packet2f pmadd(const Packet2f& a, const Packet2f& b, const Packet2f& c)
-{ return vfma_f32(c,a,b); }
+#ifdef EIGEN_VECTORIZE_FMA
+template <>
+EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+  return vfmaq_f32(c, a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2f pmadd(const Packet2f& a, const Packet2f& b, const Packet2f& c) {
+  return vfma_f32(c, a, b);
+}
 #else
 template<> EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c)
 {
@@ -3782,7 +3785,7 @@ template<> EIGEN_STRONG_INLINE Packet2d pmul<Packet2d>(const Packet2d& a, const 
 
 template<> EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b) { return vdivq_f64(a,b); }
 
-#ifdef __ARM_FEATURE_FMA
+#ifdef EIGEN_VECTORIZE_FMA
 // See bug 936. See above comment about FMA for float.
 template<> EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c)
 { return vfmaq_f64(c,a,b); }

@@ -367,6 +367,7 @@
 
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_VSX 1
+    #define EIGEN_VECTORIZE_FMA
     #include <altivec.h>
     // We need to #undef all these ugly tokens defined in <altivec.h>
     // => use __vector instead of vector
@@ -378,6 +379,7 @@
 
     #define EIGEN_VECTORIZE
     #define EIGEN_VECTORIZE_ALTIVEC
+    #define EIGEN_VECTORIZE_FMA
     #include <altivec.h>
     // We need to #undef all these ugly tokens defined in <altivec.h>
     // => use __vector instead of vector
@@ -438,7 +440,12 @@
   #include <arm_fp16.h>
 #endif
 
-#if defined(__F16C__) && (!defined(EIGEN_GPUCC) && (!EIGEN_COMP_CLANG || EIGEN_COMP_CLANG>=380))
+// Enable FMA for ARM.
+#if defined(__ARM_FEATURE_FMA)
+#define EIGEN_VECTORIZE_FMA
+#endif
+
+#if defined(__F16C__) && !defined(EIGEN_GPUCC) && (!EIGEN_COMP_CLANG_STRICT || EIGEN_COMP_CLANG>=380)
   // We can use the optimized fp16 to float and float to fp16 conversion routines
   #define EIGEN_HAS_FP16_C
 

@@ -642,10 +642,10 @@ Packet psincos_float(const Packet& _x)
   PacketI y_int = preinterpret<PacketI>(y_round); // last 23 digits represent integer (if abs(x)<2^24)
   y = psub(y_round, cst_rounding_magic); // nearest integer to x*4/pi
 
-  // Reduce x by y octants to get: -Pi/4 <= x <= +Pi/4
+  // Subtract y * Pi/2 to reduce x to the interval -Pi/4 <= x <= +Pi/4
   // using "Extended precision modular arithmetic"
-  #if defined(EIGEN_HAS_SINGLE_INSTRUCTION_MADD)
-  // This version requires true FMA for high accuracy
+  #if defined(EIGEN_VECTORIZE_FMA)
+  // This version requires true FMA for high accuracy.
   // It provides a max error of 1ULP up to (with absolute_error < 5.9605e-08):
   const float huge_th = ComputeSine ? 117435.992f : 71476.0625f;
   x = pmadd(y, pset1<Packet>(-1.57079601287841796875f), x);
@@ -915,7 +915,7 @@ void fast_twosum(const Packet& x, const Packet& y, Packet& s_hi, Packet& s_lo) {
   s_lo = psub(y, t);
 }
 
-#ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
+#ifdef EIGEN_VECTORIZE_FMA
 // This function implements the extended precision product of
 // a pair of floating point numbers. Given {x, y}, it computes the pair
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
@@ -966,7 +966,7 @@ void twoprod(const Packet& x, const Packet& y,
   p_lo = pmadd(x_lo, y_lo, p_lo);
 }
 
-#endif  // EIGEN_HAS_SINGLE_INSTRUCTION_MADD
+#endif  // EIGEN_VECTORIZE_FMA
 
 
 // This function implements Dekker's algorithm for the addition

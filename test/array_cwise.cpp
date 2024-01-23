@@ -72,7 +72,17 @@ void pow_test() {
     for (int j = 0; j < num_cases; ++j) {
       Scalar e = static_cast<Scalar>(std::pow(x(i,j), y(i,j)));
       Scalar a = actual(i, j);
-      bool success = (a==e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) || ((numext::isnan)(a) && (numext::isnan)(e));
+#if EIGEN_ARCH_ARM
+      // Work around NEON flush-to-zero mode
+      // if ref returns a subnormal value and Eigen returns 0, then skip the test
+      if (a == Scalar(0) &&
+          (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)() &&
+           e >= -std::numeric_limits<Scalar>::denorm_min() && e <= std::numeric_limits<Scalar>::denorm_min())) {
+        continue;
+      }
+#endif
+      bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
+                     ((numext::isnan)(a) && (numext::isnan)(e));
       all_pass &= success;
       if (!success) {
         std::cout << "pow(" << x(i,j) << "," << y(i,j) << ")   =   " << a << " !=  " << e << std::endl;
