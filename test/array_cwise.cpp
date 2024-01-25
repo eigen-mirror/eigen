@@ -97,11 +97,10 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
       Scalar e = static_cast<Scalar>(ref(lhs(i, j), rhs(i, j)));
       Scalar a = actual(i, j);
 #if EIGEN_ARCH_ARM
-      // Work around NEON flush-to-zero mode
-      // if ref returns a subnormal value and Eigen returns 0, then skip the test
-      if (a == Scalar(0) &&
-          (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)() &&
-           e >= -std::numeric_limits<Scalar>::denorm_min() && e <= std::numeric_limits<Scalar>::denorm_min())) {
+      // Work around NEON flush-to-zero mode.
+      // If ref returns a subnormal value and Eigen returns 0, then skip the test.
+      if (a == Scalar(0) && (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
+          (e <= -std::numeric_limits<Scalar>::denorm_min() || e >= std::numeric_limits<Scalar>::denorm_min())) {
         continue;
       }
 #endif
