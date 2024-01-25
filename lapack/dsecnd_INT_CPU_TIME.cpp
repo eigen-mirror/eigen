@@ -22,6 +22,9 @@ double dsecnd_();
 // Elapsed CPU Time in seconds.
 double dsecnd_() {
 #ifdef _WIN32
+  // For MSVC, use `GetProcessTimes` for proper CPU time - MSVC uses
+  // a non-standard `std::clock` implementation (see
+  // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/clock?view=msvc-170).
   // GetProcessTimes() uses 100-nanosecond time units.
   FILETIME creation_time, exit_time, kernel_time, user_time;
   GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time);
