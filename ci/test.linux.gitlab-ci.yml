@@ -98,7 +98,7 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   image: ubuntu:20.04
   needs: [ build:linux:cross:x86-64:clang-6:default ]
   variables:
-    EIGEN_CI_INSTALL: clang-6.0 lld-6.0
+    EIGEN_CI_INSTALL: g++-8 clang-6.0 lld-6.0
 
 test:linux:x86-64:clang-6:default:official:
   extends: .test:linux:x86-64:clang-6:default
