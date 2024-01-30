@@ -538,7 +538,7 @@ void packetmath() {
   CHECK_CWISE2_IF(PacketTraits::HasMul, REF_MUL, internal::pmul);
   CHECK_CWISE2_IF(PacketTraits::HasDiv, REF_DIV, internal::pdiv);
 
-  CHECK_CWISE1_IF(PacketTraits::HasNegate, internal::negate, internal::pnegate);
+  CHECK_CWISE1_IF(PacketTraits::HasNegate, test::negate, internal::pnegate);
   CHECK_CWISE1_IF(PacketTraits::HasReciprocal, REF_RECIPROCAL, internal::preciprocal);
   CHECK_CWISE1(numext::conj, internal::pconj);
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
@@ -1141,7 +1141,7 @@ void packetmath_real() {
 
       data1[0] = -Scalar(0.);
       h.store(data2, internal::psin(h.load(data1)));
-      VERIFY(internal::biteq(data2[0], data1[0]));
+      VERIFY(test::biteq(data2[0], data1[0]));
       h.store(data2, internal::pcos(h.load(data1)));
       VERIFY_IS_EQUAL(data2[0], Scalar(1));
     }

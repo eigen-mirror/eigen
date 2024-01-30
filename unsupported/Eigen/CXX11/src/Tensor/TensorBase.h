@@ -1007,13 +1007,14 @@ class TensorBase<Derived, ReadOnlyAccessors>
     #include EIGEN_READONLY_TENSORBASE_PLUGIN
     #endif
 
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
+
   protected:
     template <typename Scalar, int NumIndices, int Options, typename IndexType> friend class Tensor;
     template <typename Scalar, typename Dimensions, int Option, typename IndexTypes> friend class TensorFixedSize;
     // the Eigen:: prefix is required to workaround a compilation issue with nvcc 9.0
     template <typename OtherDerived, int AccessLevel> friend class Eigen::TensorBase;
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
 };
 
 template<typename Derived, int AccessLevel = internal::accessors_level<Derived>::value>
@@ -1199,6 +1200,11 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       return TensorAsyncDevice<Derived, DeviceType, DoneCallback>(dev, derived(), std::move(done));
     }
 
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE Derived& derived() { return *static_cast<Derived*>(this); }
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
+
     #ifdef EIGEN_TENSORBASE_PLUGIN
     #include EIGEN_TENSORBASE_PLUGIN
     #endif
@@ -1215,10 +1221,6 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
       internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
       return derived();
     }
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Derived& derived() { return *static_cast<Derived*>(this); }
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE const Derived& derived() const { return *static_cast<const Derived*>(this); }
 };
 #endif // EIGEN_PARSED_BY_DOXYGEN
 } // end namespace Eigen
