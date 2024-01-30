@@ -16,7 +16,6 @@ set(Eigen_HEADERS
   NumericalDiff
   OpenGLSupport
   Polynomials
-  Skyline
   SparseExtra
   SpecialFunctions
   Splines
