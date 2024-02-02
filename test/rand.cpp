@@ -10,8 +10,11 @@
 #include <cstdlib>
 #include "main.h"
 
+// For GCC-6, if this function is inlined then there seems to be an optimization
+// bug that triggers a failure.  This failure goes away if you access `r` in
+// in any way, and for any other compiler.
 template <typename Scalar>
-Scalar check_in_range(Scalar x, Scalar y) {
+EIGEN_DONT_INLINE Scalar check_in_range(Scalar x, Scalar y) {
   Scalar r = internal::random<Scalar>(x, y);
   VERIFY(r >= x);
   if (y >= x) {
