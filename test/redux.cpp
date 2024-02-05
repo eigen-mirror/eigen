@@ -30,6 +30,12 @@ void matrixRedux(const MatrixType& m) {
 
   Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> m2(rows, rows);
   m2.setRandom();
+  // Prevent overflows for integer types.
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    constexpr Scalar kMaxVal = Scalar(10000);
+    m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
+    m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
+  }
 
   VERIFY_IS_MUCH_SMALLER_THAN(MatrixType::Zero(rows, cols).sum(), Scalar(1));
   VERIFY_IS_APPROX(
