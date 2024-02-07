@@ -767,7 +767,7 @@ Scalar getRandomBits(int numRandomBits) {
     ScalarBits = sizeof(Scalar) * CHAR_BIT
   };
   eigen_assert((numRandomBits >= 0) && (numRandomBits <= ScalarBits));
-  const BitsType mask = BitsType(-1) >> (ScalarBits - numRandomBits);
+  const BitsType mask = BitsType(-1) >> ((ScalarBits - numRandomBits) & (ScalarBits - 1));
   BitsType randomBits = BitsType(0);
   for (int shift = 0; shift < numRandomBits; shift += StdRandBits) {
     int r = std::rand();
