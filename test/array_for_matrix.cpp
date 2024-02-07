@@ -26,7 +26,7 @@ void array_for_matrix(const MatrixType& m) {
 
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    constexpr Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(10000);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
   }

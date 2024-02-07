@@ -466,7 +466,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
     VectorType col = VectorType::Random(rows);
     // Prevent overflows for integer types.
     if (Eigen::NumTraits<Scalar>::IsInteger) {
-      constexpr Scalar kMaxVal = Scalar(1000);
+      Scalar kMaxVal = Scalar(1000);
       row.array() = row.array() - kMaxVal * (row.array() / kMaxVal);
       col.array() = col.array() - kMaxVal * (col.array() / kMaxVal);
     }

@@ -24,7 +24,7 @@ void matrixRedux(const MatrixType& m) {
 
   MatrixType m1 = MatrixType::Random(rows, cols);
 
-  // The entries of m1 are uniformly distributed in [0,1], so m1.prod() is very small. This may lead to test
+  // The entries of m1 are uniformly distributed in [-1,1), so m1.prod() is very small. This may lead to test
   // failures if we underflow into denormals. Thus, we scale so that entries are close to 1.
   MatrixType m1_for_prod = MatrixType::Ones(rows, cols) + RealScalar(0.2) * m1;
 
@@ -32,7 +32,7 @@ void matrixRedux(const MatrixType& m) {
   m2.setRandom();
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    constexpr Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(10000);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
   }
