@@ -140,7 +140,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     typedef typename Traits::ResScalar ResScalar;
     enum {
       kdiv = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
-      ksub = Traits::mr * Traits::nr * sizeof(ResScalar),
+      ksub = Traits::mr * (Traits::nr * sizeof(ResScalar)),
       kr = 8,
       mr = Traits::mr,
       nr = Traits::nr
@@ -197,7 +197,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     enum {
       k_peeling = 8,
       k_div = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
-      k_sub = Traits::mr * Traits::nr * sizeof(ResScalar)
+      k_sub = Traits::mr * (Traits::nr * sizeof(ResScalar))
     };
 
     // ---- 1st level of blocking on L1, yields kc ----
