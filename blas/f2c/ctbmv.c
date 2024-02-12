@@ -12,14 +12,16 @@
 
 #include "datatypes.h"
 
+static inline void r_cnjg(complex *r, complex *z) {
+  r->r = z->r;
+  r->i = -(z->i);
+}
+
 /* Subroutine */ int ctbmv_(char *uplo, char *trans, char *diag, integer *n, integer *k, complex *a, integer *lda,
                             complex *x, integer *incx, ftnlen uplo_len, ftnlen trans_len, ftnlen diag_len) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4, i__5;
   complex q__1, q__2, q__3;
-
-  /* Builtin functions */
-  void r_cnjg(complex *, complex *);
 
   /* Local variables */
   integer i__, j, l, ix, jx, kx, info;

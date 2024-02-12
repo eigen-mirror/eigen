@@ -12,15 +12,17 @@
 
 #include "datatypes.h"
 
+static inline void r_cnjg(complex *r, complex *z) {
+  r->r = z->r;
+  r->i = -(z->i);
+}
+
 /* Subroutine */ int chpmv_(char *uplo, integer *n, complex *alpha, complex *ap, complex *x, integer *incx,
                             complex *beta, complex *y, integer *incy, ftnlen uplo_len) {
   /* System generated locals */
   integer i__1, i__2, i__3, i__4, i__5;
   real r__1;
   complex q__1, q__2, q__3, q__4;
-
-  /* Builtin functions */
-  void r_cnjg(complex *, complex *);
 
   /* Local variables */
   integer i__, j, k, kk, ix, iy, jx, jy, kx, ky, info;
