@@ -660,7 +660,7 @@ void packetmath() {
       uint8_t v =
           internal::random<bool>() ? (std::is_same<Scalar, bool>::value ? static_cast<uint8_t>(true) : 0xff) : 0;
       // Avoid strict aliasing violation by using memset.
-      memset(data1 + i, v, sizeof(Scalar));
+      memset(static_cast<void*>(data1 + i), v, sizeof(Scalar));
       // "then" packet
       data1[i + PacketSize] = internal::random<Scalar>();
       // "else" packet
