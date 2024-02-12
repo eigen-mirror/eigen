@@ -329,8 +329,10 @@ class CholmodBase : public SparseSolverBase<Derived> {
     cholmod_sparse A = viewAsCholmod(matrix.template selfadjointView<UpLo>());
     internal::cm_factorize_p<StorageIndex>(&A, m_shiftOffset, 0, 0, m_cholmodFactor, m_cholmod);
 
-    // If the factorization failed, minor is the column at which it did. On success minor == n.
-    this->m_info = (m_cholmodFactor->minor == m_cholmodFactor->n ? Success : NumericalIssue);
+    // If the factorization failed, either the input matrix was zero (so m_cholmodFactor == nullptr), or minor is the
+    // column at which it failed. On success minor == n.
+    this->m_info =
+        (m_cholmodFactor != nullptr && m_cholmodFactor->minor == m_cholmodFactor->n ? Success : NumericalIssue);
     m_factorizationIsOk = true;
   }
 
