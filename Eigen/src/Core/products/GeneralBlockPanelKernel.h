@@ -2399,7 +2399,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         // fails, drop down to the scalar path.
         constexpr bool kCanLoadSRhsQuad =
             (unpacket_traits<SLhsPacket>::size < 4) ||
-            (unpacket_traits<SRhsPacket>::size % (unpacket_traits<SLhsPacket>::size / 4)) == 0;
+            (unpacket_traits<SRhsPacket>::size % ((std::max<int>)(unpacket_traits<SLhsPacket>::size, 4) / 4)) == 0;
         if (kCanLoadSRhsQuad && (SwappedTraits::LhsProgress % 4) == 0 && (SwappedTraits::LhsProgress <= 16) &&
             (SwappedTraits::LhsProgress != 8 || SResPacketHalfSize == nr) &&
             (SwappedTraits::LhsProgress != 16 || SResPacketQuarterSize == nr)) {
