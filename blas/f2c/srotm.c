@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ int srotm_(integer *n, real *sx, integer *incx, real *sy, integer *incy, real *sparam) {
+/* Subroutine */ void srotm_(integer *n, real *sx, integer *incx, real *sy, integer *incy, real *sparam) {
   /* Initialized data */
 
   static real zero = 0.f;
@@ -208,5 +208,5 @@ L120:
     /* L130: */
   }
 L140:
-  return 0;
+  return;
 } /* srotm_ */

@@ -11,7 +11,7 @@
 #include <Eigen/Cholesky>
 
 // POTRF computes the Cholesky factorization of a real symmetric positive definite matrix A.
-EIGEN_LAPACK_FUNC(potrf, (char *uplo, int *n, RealScalar *pa, int *lda, int *info)) {
+EIGEN_LAPACK_FUNC(potrf)(char *uplo, int *n, RealScalar *pa, int *lda, int *info) {
   *info = 0;
   if (UPLO(*uplo) == INVALID)
     *info = -1;
@@ -21,7 +21,7 @@ EIGEN_LAPACK_FUNC(potrf, (char *uplo, int *n, RealScalar *pa, int *lda, int *inf
     *info = -4;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "POTRF", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "POTRF", &e);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -33,15 +33,12 @@ EIGEN_LAPACK_FUNC(potrf, (char *uplo, int *n, RealScalar *pa, int *lda, int *inf
     ret = int(internal::llt_inplace<Scalar, Lower>::blocked(A));
 
   if (ret >= 0) *info = ret + 1;
-
-  return 0;
 }
 
 // POTRS solves a system of linear equations A*X = B with a symmetric
 // positive definite matrix A using the Cholesky factorization
 // A = U**T*U or A = L*L**T computed by DPOTRF.
-EIGEN_LAPACK_FUNC(potrs,
-                  (char *uplo, int *n, int *nrhs, RealScalar *pa, int *lda, RealScalar *pb, int *ldb, int *info)) {
+EIGEN_LAPACK_FUNC(potrs)(char *uplo, int *n, int *nrhs, RealScalar *pa, int *lda, RealScalar *pb, int *ldb, int *info) {
   *info = 0;
   if (UPLO(*uplo) == INVALID)
     *info = -1;
@@ -55,7 +52,7 @@ EIGEN_LAPACK_FUNC(potrs,
     *info = -7;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "POTRS", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "POTRS", &e);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -70,6 +67,4 @@ EIGEN_LAPACK_FUNC(potrs,
     A.triangularView<Lower>().solveInPlace(B);
     A.triangularView<Lower>().adjoint().solveInPlace(B);
   }
-
-  return 0;
 }

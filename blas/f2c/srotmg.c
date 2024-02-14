@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ int srotmg_(real *sd1, real *sd2, real *sx1, real *sy1, real *sparam) {
+/* Subroutine */ void srotmg_(real *sd1, real *sd2, real *sx1, real *sy1, real *sparam) {
   /* Initialized data */
 
   static real zero = 0.f;
@@ -38,6 +38,7 @@
 
   /* Assigned format variables */
   static char *igo_fmt;
+  (void)igo_fmt;
 
   /*     .. Scalar Arguments .. */
   /*     .. */
@@ -289,5 +290,4 @@ L250:
   sparam[5] = sh22;
 L260:
   sparam[1] = sflag;
-  return 0;
 } /* srotmg_ */

@@ -12,7 +12,7 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ int drotmg_(doublereal *dd1, doublereal *dd2, doublereal *dx1, doublereal *dy1, doublereal *dparam) {
+/* Subroutine */ void drotmg_(doublereal *dd1, doublereal *dd2, doublereal *dx1, doublereal *dy1, doublereal *dparam) {
   /* Initialized data */
 
   static doublereal zero = 0.;
@@ -38,6 +38,7 @@
 
   /* Assigned format variables */
   static char *igo_fmt;
+  (void)igo_fmt;
 
   /*     .. Scalar Arguments .. */
   /*     .. */
@@ -289,5 +290,4 @@ L250:
   dparam[5] = dh22;
 L260:
   dparam[1] = dflag;
-  return 0;
 } /* drotmg_ */

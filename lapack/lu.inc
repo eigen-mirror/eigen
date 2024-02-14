@@ -11,7 +11,7 @@
 #include <Eigen/LU>
 
 // computes an LU factorization of a general M-by-N matrix A using partial pivoting with row interchanges
-EIGEN_LAPACK_FUNC(getrf, (int *m, int *n, RealScalar *pa, int *lda, int *ipiv, int *info)) {
+EIGEN_LAPACK_FUNC(getrf)(int *m, int *n, RealScalar *pa, int *lda, int *ipiv, int *info) {
   *info = 0;
   if (*m < 0)
     *info = -1;
@@ -21,28 +21,26 @@ EIGEN_LAPACK_FUNC(getrf, (int *m, int *n, RealScalar *pa, int *lda, int *ipiv, i
     *info = -4;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GETRF", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "GETRF", &e);
   }
 
-  if (*m == 0 || *n == 0) return 0;
+  if (*m == 0 || *n == 0) return;
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   int nb_transpositions;
-  int ret = int(
-      Eigen::internal::partial_lu_impl<Scalar, ColMajor, int>::blocked_lu(*m, *n, a, *lda, ipiv, nb_transpositions));
+  int ret = int(Eigen::internal::partial_lu_impl<Scalar, Eigen::ColMajor, int>::blocked_lu(*m, *n, a, *lda, ipiv,
+                                                                                           nb_transpositions));
 
   for (int i = 0; i < std::min(*m, *n); ++i) ipiv[i]++;
 
   if (ret >= 0) *info = ret + 1;
-
-  return 0;
 }
 
 // GETRS solves a system of linear equations
 //     A * X = B  or  A' * X = B
 //   with a general N-by-N matrix A using the LU factorization computed  by GETRF
-EIGEN_LAPACK_FUNC(getrs, (char *trans, int *n, int *nrhs, RealScalar *pa, int *lda, int *ipiv, RealScalar *pb, int *ldb,
-                          int *info)) {
+EIGEN_LAPACK_FUNC(getrs)
+(char *trans, int *n, int *nrhs, RealScalar *pa, int *lda, int *ipiv, RealScalar *pb, int *ldb, int *info) {
   *info = 0;
   if (OP(*trans) == INVALID)
     *info = -1;
@@ -56,7 +54,7 @@ EIGEN_LAPACK_FUNC(getrs, (char *trans, int *n, int *nrhs, RealScalar *pa, int *l
     *info = -8;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GETRS", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "GETRS", &e);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -79,6 +77,4 @@ EIGEN_LAPACK_FUNC(getrs, (char *trans, int *n, int *nrhs, RealScalar *pa, int *l
     B = PivotsType(ipiv, *n).transpose() * B;
   }
   for (int i = 0; i < *n; ++i) ipiv[i]++;
-
-  return 0;
 }

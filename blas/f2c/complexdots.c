@@ -20,7 +20,7 @@
 
 complex cdotc_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
   complex res;
-  extern /* Subroutine */ int cdotcw_(integer *, complex *, integer *, complex *, integer *, complex *);
+  extern /* Subroutine */ void cdotcw_(integer *, complex *, integer *, complex *, integer *, complex *);
 
   /* Parameter adjustments */
   --cy;
@@ -33,7 +33,7 @@ complex cdotc_(integer *n, complex *cx, integer *incx, complex *cy, integer *inc
 
 complex cdotu_(integer *n, complex *cx, integer *incx, complex *cy, integer *incy) {
   complex res;
-  extern /* Subroutine */ int cdotuw_(integer *, complex *, integer *, complex *, integer *, complex *);
+  extern /* Subroutine */ void cdotuw_(integer *, complex *, integer *, complex *, integer *, complex *);
 
   /* Parameter adjustments */
   --cy;
@@ -46,8 +46,8 @@ complex cdotu_(integer *n, complex *cx, integer *incx, complex *cy, integer *inc
 
 doublecomplex zdotc_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
   doublecomplex res;
-  extern /* Subroutine */ int zdotcw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
-                                      doublecomplex *);
+  extern /* Subroutine */ void zdotcw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
+                                       doublecomplex *);
 
   /* Parameter adjustments */
   --cy;
@@ -60,8 +60,8 @@ doublecomplex zdotc_(integer *n, doublecomplex *cx, integer *incx, doublecomplex
 
 doublecomplex zdotu_(integer *n, doublecomplex *cx, integer *incx, doublecomplex *cy, integer *incy) {
   doublecomplex res;
-  extern /* Subroutine */ int zdotuw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
-                                      doublecomplex *);
+  extern /* Subroutine */ void zdotuw_(integer *, doublecomplex *, integer *, doublecomplex *, integer *,
+                                       doublecomplex *);
 
   /* Parameter adjustments */
   --cy;

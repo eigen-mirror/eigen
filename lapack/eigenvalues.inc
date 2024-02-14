@@ -11,8 +11,8 @@
 #include <Eigen/Eigenvalues>
 
 // computes eigen values and vectors of a general N-by-N matrix A
-EIGEN_LAPACK_FUNC(syev, (char* jobz, char* uplo, int* n, Scalar* a, int* lda, Scalar* w, Scalar* /*work*/, int* lwork,
-                         int* info)) {
+EIGEN_LAPACK_FUNC(syev)
+(char* jobz, char* uplo, int* n, Scalar* a, int* lda, Scalar* w, Scalar* /*work*/, int* lwork, int* info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
 
@@ -30,15 +30,15 @@ EIGEN_LAPACK_FUNC(syev, (char* jobz, char* uplo, int* n, Scalar* a, int* lda, Sc
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "SYEV ", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "SYEV ", &e);
   }
 
   if (query_size) {
     *lwork = 0;
-    return 0;
+    return;
   }
 
-  if (*n == 0) return 0;
+  if (*n == 0) return;
 
   PlainMatrixType mat(*n, *n);
   if (UPLO(*uplo) == UP)
@@ -53,11 +53,9 @@ EIGEN_LAPACK_FUNC(syev, (char* jobz, char* uplo, int* n, Scalar* a, int* lda, Sc
     make_vector(w, *n).setZero();
     if (computeVectors) matrix(a, *n, *n, *lda).setIdentity();
     //*info = 1;
-    return 0;
+    return;
   }
 
   make_vector(w, *n) = eig.eigenvalues();
   if (computeVectors) matrix(a, *n, *n, *lda) = eig.eigenvectors();
-
-  return 0;
 }

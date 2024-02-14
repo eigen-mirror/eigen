@@ -10,10 +10,16 @@
 #include "lapack_common.h"
 #include <Eigen/SVD>
 
+#if ISCOMPLEX
+#define EIGEN_LAPACK_ARG_IF_COMPLEX(X) X,
+#else
+#define EIGEN_LAPACK_ARG_IF_COMPLEX(X)
+#endif
+
 // computes the singular values/vectors a general M-by-N matrix A using divide-and-conquer
-EIGEN_LAPACK_FUNC(gesdd, (char *jobz, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u, int *ldu,
-                          Scalar *vt, int *ldvt, Scalar * /*work*/, int *lwork,
-                          EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/, int *info)) {
+EIGEN_LAPACK_FUNC(gesdd)
+(char *jobz, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u, int *ldu, Scalar *vt, int *ldvt,
+ Scalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/, int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   int diag_size = (std::min)(*m, *n);
@@ -37,15 +43,15 @@ EIGEN_LAPACK_FUNC(gesdd, (char *jobz, int *m, int *n, Scalar *a, int *lda, RealS
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GESDD ", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "GESDD ", &e);
   }
 
   if (query_size) {
     *lwork = 0;
-    return 0;
+    return;
   }
 
-  if (*n == 0 || *m == 0) return 0;
+  if (*n == 0 || *m == 0) return;
 
   PlainMatrixType mat(*m, *n);
   mat = matrix(a, *m, *n, *lda);
@@ -72,14 +78,12 @@ EIGEN_LAPACK_FUNC(gesdd, (char *jobz, int *m, int *n, Scalar *a, int *lda, RealS
     matrix(u, *m, *m, *ldu) = svd.matrixU();
     matrix(a, diag_size, *n, *lda) = svd.matrixV().adjoint();
   }
-
-  return 0;
 }
 
 // computes the singular values/vectors a general M-by-N matrix A using two sided jacobi algorithm
-EIGEN_LAPACK_FUNC(gesvd, (char *jobu, char *jobv, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u,
-                          int *ldu, Scalar *vt, int *ldvt, Scalar * /*work*/, int *lwork,
-                          EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info)) {
+EIGEN_LAPACK_FUNC(gesvd)
+(char *jobu, char *jobv, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u, int *ldu, Scalar *vt, int *ldvt,
+ Scalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   int diag_size = (std::min)(*m, *n);
@@ -102,15 +106,15 @@ EIGEN_LAPACK_FUNC(gesvd, (char *jobu, char *jobv, int *m, int *n, Scalar *a, int
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GESVD ", &e, 6);
+    return xerbla_(SCALAR_SUFFIX_UP "GESVD ", &e);
   }
 
   if (query_size) {
     *lwork = 0;
-    return 0;
+    return;
   }
 
-  if (*n == 0 || *m == 0) return 0;
+  if (*n == 0 || *m == 0) return;
 
   PlainMatrixType mat(*m, *n);
   mat = matrix(a, *m, *n, *lda);
@@ -141,5 +145,6 @@ EIGEN_LAPACK_FUNC(gesvd, (char *jobu, char *jobv, int *m, int *n, Scalar *a, int
     else if (*jobv == 'O')
       matrix(a, diag_size, *n, *lda) = svd.matrixV().adjoint();
   }
-  return 0;
 }
+
+#undef EIGEN_LAPACK_ARG_IF_COMPLEX

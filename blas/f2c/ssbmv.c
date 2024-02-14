@@ -12,17 +12,17 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ int ssbmv_(char *uplo, integer *n, integer *k, real *alpha, real *a, integer *lda, real *x,
-                            integer *incx, real *beta, real *y, integer *incy, ftnlen uplo_len) {
+/* Subroutine */ void ssbmv_(char *uplo, integer *n, integer *k, real *alpha, real *a, integer *lda, real *x,
+                             integer *incx, real *beta, real *y, integer *incy) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4;
 
   /* Local variables */
   integer i__, j, l, ix, iy, jx, jy, kx, ky, info;
   real temp1, temp2;
-  extern logical lsame_(char *, char *, ftnlen, ftnlen);
+  extern logical lsame_(char *, char *);
   integer kplus1;
-  extern /* Subroutine */ int xerbla_(char *, integer *, ftnlen);
+  extern /* Subroutine */ void xerbla_(const char *, integer *);
 
   /*     .. Scalar Arguments .. */
   /*     .. */
@@ -174,7 +174,7 @@
 
   /* Function Body */
   info = 0;
-  if (!lsame_(uplo, "U", (ftnlen)1, (ftnlen)1) && !lsame_(uplo, "L", (ftnlen)1, (ftnlen)1)) {
+  if (!lsame_(uplo, "U") && !lsame_(uplo, "L")) {
     info = 1;
   } else if (*n < 0) {
     info = 2;
@@ -188,14 +188,14 @@
     info = 11;
   }
   if (info != 0) {
-    xerbla_("SSBMV ", &info, (ftnlen)6);
-    return 0;
+    xerbla_("SSBMV ", &info);
+    return;
   }
 
   /*     Quick return if possible. */
 
   if (*n == 0 || (*alpha == 0.f && *beta == 1.f)) {
-    return 0;
+    return;
   }
 
   /*     Set up the start points in  X  and  Y. */
@@ -251,9 +251,9 @@
     }
   }
   if (*alpha == 0.f) {
-    return 0;
+    return;
   }
-  if (lsame_(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+  if (lsame_(uplo, "U")) {
     /*        Form  y  when upper triangle of A is stored. */
 
     kplus1 = *k + 1;
@@ -353,8 +353,6 @@
       }
     }
   }
-
-  return 0;
 
   /*     End of SSBMV . */
 

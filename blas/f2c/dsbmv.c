@@ -12,18 +12,17 @@
 
 #include "datatypes.h"
 
-/* Subroutine */ int dsbmv_(char *uplo, integer *n, integer *k, doublereal *alpha, doublereal *a, integer *lda,
-                            doublereal *x, integer *incx, doublereal *beta, doublereal *y, integer *incy,
-                            ftnlen uplo_len) {
+/* Subroutine */ void dsbmv_(char *uplo, integer *n, integer *k, doublereal *alpha, doublereal *a, integer *lda,
+                             doublereal *x, integer *incx, doublereal *beta, doublereal *y, integer *incy) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4;
 
   /* Local variables */
   integer i__, j, l, ix, iy, jx, jy, kx, ky, info;
   doublereal temp1, temp2;
-  extern logical lsame_(char *, char *, ftnlen, ftnlen);
+  extern logical lsame_(char *, char *);
   integer kplus1;
-  extern /* Subroutine */ int xerbla_(char *, integer *, ftnlen);
+  extern /* Subroutine */ void xerbla_(const char *, integer *);
 
   /*     .. Scalar Arguments .. */
   /*     .. */
@@ -172,7 +171,7 @@
 
   /* Function Body */
   info = 0;
-  if (!lsame_(uplo, "U", (ftnlen)1, (ftnlen)1) && !lsame_(uplo, "L", (ftnlen)1, (ftnlen)1)) {
+  if (!lsame_(uplo, "U") && !lsame_(uplo, "L")) {
     info = 1;
   } else if (*n < 0) {
     info = 2;
@@ -186,14 +185,14 @@
     info = 11;
   }
   if (info != 0) {
-    xerbla_("DSBMV ", &info, (ftnlen)6);
-    return 0;
+    xerbla_("DSBMV ", &info);
+    return;
   }
 
   /*     Quick return if possible. */
 
   if (*n == 0 || (*alpha == 0. && *beta == 1.)) {
-    return 0;
+    return;
   }
 
   /*     Set up the start points in  X  and  Y. */
@@ -249,9 +248,9 @@
     }
   }
   if (*alpha == 0.) {
-    return 0;
+    return;
   }
-  if (lsame_(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+  if (lsame_(uplo, "U")) {
     /*        Form  y  when upper triangle of A is stored. */
 
     kplus1 = *k + 1;
@@ -351,8 +350,6 @@
       }
     }
   }
-
-  return 0;
 
   /*     End of DSBMV . */
 

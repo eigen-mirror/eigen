@@ -17,8 +17,8 @@ static inline void r_cnjg(complex *r, complex *z) {
   r->i = -(z->i);
 }
 
-/* Subroutine */ int chbmv_(char *uplo, integer *n, integer *k, complex *alpha, complex *a, integer *lda, complex *x,
-                            integer *incx, complex *beta, complex *y, integer *incy, ftnlen uplo_len) {
+/* Subroutine */ void chbmv_(char *uplo, integer *n, integer *k, complex *alpha, complex *a, integer *lda, complex *x,
+                             integer *incx, complex *beta, complex *y, integer *incy) {
   /* System generated locals */
   integer a_dim1, a_offset, i__1, i__2, i__3, i__4, i__5;
   real r__1;
@@ -27,9 +27,9 @@ static inline void r_cnjg(complex *r, complex *z) {
   /* Local variables */
   integer i__, j, l, ix, iy, jx, jy, kx, ky, info;
   complex temp1, temp2;
-  extern logical lsame_(char *, char *, ftnlen, ftnlen);
+  extern logical lsame_(char *, char *);
   integer kplus1;
-  extern /* Subroutine */ int xerbla_(char *, integer *, ftnlen);
+  extern /* Subroutine */ void xerbla_(const char *, integer *);
 
   /*     .. Scalar Arguments .. */
   /*     .. */
@@ -183,7 +183,7 @@ static inline void r_cnjg(complex *r, complex *z) {
 
   /* Function Body */
   info = 0;
-  if (!lsame_(uplo, "U", (ftnlen)1, (ftnlen)1) && !lsame_(uplo, "L", (ftnlen)1, (ftnlen)1)) {
+  if (!lsame_(uplo, "U") && !lsame_(uplo, "L")) {
     info = 1;
   } else if (*n < 0) {
     info = 2;
@@ -197,14 +197,14 @@ static inline void r_cnjg(complex *r, complex *z) {
     info = 11;
   }
   if (info != 0) {
-    xerbla_("CHBMV ", &info, (ftnlen)6);
-    return 0;
+    xerbla_("CHBMV ", &info);
+    return;
   }
 
   /*     Quick return if possible. */
 
   if (*n == 0 || (alpha->r == 0.f && alpha->i == 0.f && (beta->r == 1.f && beta->i == 0.f))) {
-    return 0;
+    return;
   }
 
   /*     Set up the start points in  X  and  Y. */
@@ -268,9 +268,9 @@ static inline void r_cnjg(complex *r, complex *z) {
     }
   }
   if (alpha->r == 0.f && alpha->i == 0.f) {
-    return 0;
+    return;
   }
-  if (lsame_(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+  if (lsame_(uplo, "U")) {
     /*        Form  y  when upper triangle of A is stored. */
 
     kplus1 = *k + 1;
@@ -450,8 +450,6 @@ static inline void r_cnjg(complex *r, complex *z) {
       }
     }
   }
-
-  return 0;
 
   /*     End of CHBMV . */
 
