@@ -1447,6 +1447,35 @@ void packetmath_complex() {
     data1[3] = Scalar(nan, -inf);
     CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
   }
+
+  if (PacketTraits::HasExp) {
+    for (int i = 0; i < size; ++i) {
+      data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
+    }
+    CHECK_CWISE1_N(std::exp, internal::pexp, size);
+
+    // Test misc. corner cases.
+    const RealScalar zero = RealScalar(0);
+    const RealScalar one = RealScalar(1);
+    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+    for (RealScalar x : {zero, one, inf}) {
+      for (RealScalar y : {zero, one, inf}) {
+        data1[0] = Scalar(x, y);
+        data1[1] = Scalar(-x, y);
+        data1[2] = Scalar(x, -y);
+        data1[3] = Scalar(-x, -y);
+        CHECK_CWISE1_N(std::exp, internal::pexp, 4);
+      }
+    }
+    for (RealScalar x : {zero, one, inf}) {
+      data1[0] = Scalar(x, nan);
+      data1[1] = Scalar(-x, nan);
+      data1[2] = Scalar(nan, x);
+      data1[3] = Scalar(nan, -x);
+      CHECK_CWISE1_N(std::exp, internal::pexp, 4);
+    }
+  }
 }
 
 template <typename Scalar, typename Packet>
