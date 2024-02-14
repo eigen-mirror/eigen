@@ -1214,6 +1214,15 @@ void packetmath_notcomplex() {
   CHECK_CWISE2_IF(PacketTraits::HasMin, propagate_number_min, internal::pmin<PropagateNumbers>);
   CHECK_CWISE2_IF(PacketTraits::HasMax, propagate_number_max, internal::pmax<PropagateNumbers>);
   CHECK_CWISE1(numext::abs, internal::pabs);
+  // Vectorized versions may give a different result in the case of signed int overflow,
+  // which is undefined behavior (e.g. NEON).
+  // Also note that unsigned integers with size < sizeof(int) may be implicitly converted to a signed
+  // int, which can also trigger UB.
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    for (int i = 0; i < 2 * PacketSize; ++i) {
+      data1[i] = data1[i] / Scalar(2);
+    }
+  }
   CHECK_CWISE2_IF(PacketTraits::HasAbsDiff, REF_ABS_DIFF, internal::pabsdiff);
 
   ref[0] = data1[0];
