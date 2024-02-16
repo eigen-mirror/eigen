@@ -98,6 +98,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_float(const Pac
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_double(const Packet& x);
 
+/** \internal \returns tanh(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptanh_float(const Packet& x);
+
 /** \internal \returns atanh(x) for single precision float */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Packet& x);
@@ -133,6 +137,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   EIGEN_FLOAT_PACKET_FUNCTION(asin, PACKET)                                                    \
   EIGEN_FLOAT_PACKET_FUNCTION(acos, PACKET)                                                    \
   EIGEN_FLOAT_PACKET_FUNCTION(atan, PACKET)                                                    \
+  EIGEN_FLOAT_PACKET_FUNCTION(tanh, PACKET)                                                    \
   EIGEN_FLOAT_PACKET_FUNCTION(atanh, PACKET)                                                   \
   EIGEN_FLOAT_PACKET_FUNCTION(log, PACKET)                                                     \
   EIGEN_FLOAT_PACKET_FUNCTION(log2, PACKET)                                                    \
@@ -144,10 +149,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   template <>                                                                                  \
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC EIGEN_UNUSED PACKET plog1p<PACKET>(const PACKET& _x) { \
     return internal::generic_plog1p(_x);                                                       \
-  }                                                                                            \
-  template <>                                                                                  \
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC EIGEN_UNUSED PACKET ptanh<PACKET>(const PACKET& _x) {  \
-    return internal::generic_fast_tanh_float(_x);                                              \
   }
 
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PACKET) \
