@@ -1335,7 +1335,7 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
 struct exp_complex_test_impl {
   typedef typename Scalar::value_type RealScalar;
-  static void run(Scalar* data1, Scalar* data2, Scalar* ref, Index size) {
+  static void run(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
 
     for (int i = 0; i < size; ++i) {
@@ -1370,11 +1370,11 @@ struct exp_complex_test_impl {
 template <typename Scalar, typename Packet>
 struct exp_complex_test_impl<Scalar, Packet, false> {
   typedef typename Scalar::value_type RealScalar;
-  static void run(Scalar*, Scalar*, Scalar*, Index){};
+  static void run(Scalar*, Scalar*, Scalar*, int){};
 };
 
 template <typename Scalar, typename Packet>
-void exp_complex_test(Scalar* data1, Scalar* data2, Scalar* ref, Index size) {
+void exp_complex_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
   exp_complex_test_impl<Scalar, Packet>::run(data1, data2, ref, size);
 }
 
