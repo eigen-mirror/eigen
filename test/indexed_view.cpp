@@ -498,12 +498,39 @@ void check_indexed_view() {
     // A(1, seq(0,2,1)).cwiseAbs().colwise().replicate(2).eval();
     STATIC_CHECK(((internal::evaluator<decltype(A(1, seq(0, 2, 1)))>::Flags & RowMajorBit) == RowMajorBit));
   }
+
+  // Direct access.
+  {
+    int rows = 3;
+    int row_start = internal::random<int>(0, rows - 1);
+    int row_inc = internal::random<int>(1, rows - row_start);
+    int row_size = internal::random<int>(1, (rows - row_start) / row_inc);
+    auto row_seq = seqN(row_start, row_size, row_inc);
+
+    int cols = 3;
+    int col_start = internal::random<int>(0, cols - 1);
+    int col_inc = internal::random<int>(1, cols - col_start);
+    int col_size = internal::random<int>(1, (cols - col_start) / col_inc);
+    auto col_seq = seqN(col_start, col_size, col_inc);
+
+    MatrixXd m1 = MatrixXd::Random(rows, cols);
+    MatrixXd m2 = MatrixXd::Random(cols, rows);
+    VERIFY_IS_APPROX(m1(row_seq, indexing::all) * m2, m1(row_seq, indexing::all).eval() * m2);
+    VERIFY_IS_APPROX(m1 * m2(indexing::all, col_seq), m1 * m2(indexing::all, col_seq).eval());
+    VERIFY_IS_APPROX(m1(row_seq, col_seq) * m2(col_seq, row_seq),
+                     m1(row_seq, col_seq).eval() * m2(col_seq, row_seq).eval());
+
+    VectorXd v1 = VectorXd::Random(cols);
+    VERIFY_IS_APPROX(m1(row_seq, col_seq) * v1(col_seq), m1(row_seq, col_seq).eval() * v1(col_seq).eval());
+    VERIFY_IS_APPROX(v1(col_seq).transpose() * m2(col_seq, row_seq),
+                     v1(col_seq).transpose().eval() * m2(col_seq, row_seq).eval());
+  }
 }
 
 EIGEN_DECLARE_TEST(indexed_view) {
-  //   for(int i = 0; i < g_repeat; i++) {
-  CALL_SUBTEST_1(check_indexed_view());
-  //   }
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1(check_indexed_view());
+  }
 
   // static checks of some internals:
   STATIC_CHECK((internal::is_valid_index_type<int>::value));
