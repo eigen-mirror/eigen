@@ -939,7 +939,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_double(const Pa
     This implementation works on both scalars and packets.
 */
 template <typename T>
-T ptanh_float(const T& a_x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) {
   // Clamp the inputs to the range [-c, c]
 #ifdef EIGEN_VECTORIZE_FMA
   const T plus_clamp = pset1<T>(7.99881172180175781f);
