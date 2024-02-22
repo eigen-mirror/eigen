@@ -204,19 +204,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T& array_get(const array<T, N>& a) {
 
 template <class T, std::size_t N>
 struct array_size<array<T, N> > {
-  enum { value = N };
+  static constexpr Index value = N;
 };
 template <class T, std::size_t N>
 struct array_size<array<T, N>&> {
-  enum { value = N };
+  static constexpr Index value = N;
 };
 template <class T, std::size_t N>
 struct array_size<const array<T, N> > {
-  enum { value = N };
+  static constexpr Index value = N;
 };
 template <class T, std::size_t N>
 struct array_size<const array<T, N>&> {
-  enum { value = N };
+  static constexpr Index value = N;
 };
 
 }  // end namespace internal
