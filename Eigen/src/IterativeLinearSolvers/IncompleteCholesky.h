@@ -214,6 +214,19 @@ void IncompleteCholesky<Scalar, UpLo_, OrderingType>::factorize(const MatrixType
     m_L.template selfadjointView<Lower>() = mat.template selfadjointView<UpLo_>();
   }
 
+  // The algorithm will insert increasingly large shifts on the diagonal until
+  // factorization succeeds. Therefore we have to make sure that there is a
+  // space in the datastructure to store such values, even if the original
+  // matrix has a zero on the diagonal.
+  bool modified = false;
+  for (Index i = 0; i < mat.cols(); ++i) {
+    if (numext::is_exactly_zero(m_L.coeff(i, i))) {
+      m_L.insert(i, i) = Scalar(0);
+      modified = true;
+    }
+  }
+  if (modified) m_L.makeCompressed();
+
   Index n = m_L.cols();
   Index nnz = m_L.nonZeros();
   Map<VectorSx> vals(m_L.valuePtr(), nnz);           // values
