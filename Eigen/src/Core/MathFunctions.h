@@ -881,7 +881,9 @@ struct random_default_impl<Scalar, false, true> {
       // if the random draw is outside [0, range), try again (rejection sampling)
       // in the worst-case scenario, the probability of rejection is: 1/2 - 1/2^numRandomBits < 50%
     } while (randomBits >= range);
-    Scalar result = x + static_cast<Scalar>(randomBits);
+    // Avoid overflow in the case where `x` is negative and there is a large range so
+    // `randomBits` would also be negative if cast to `Scalar` first.
+    Scalar result = static_cast<Scalar>(static_cast<BitsType>(x) + randomBits);
     return result;
   }
 
