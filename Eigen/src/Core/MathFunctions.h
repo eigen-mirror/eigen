@@ -847,6 +847,9 @@ struct random_longdouble_impl {
     return result;
   }
 };
+
+// GPUs treat long double as double.
+#ifndef EIGEN_GPU_COMPILE_PHASE
 template <>
 struct random_longdouble_impl<false> {
   using Impl = random_impl<double>;
@@ -863,6 +866,7 @@ struct random_impl<long double> {
   }
   static EIGEN_DEVICE_FUNC inline long double run() { return random_longdouble_impl<>::run(); }
 };
+#endif
 
 template <typename Scalar>
 struct random_default_impl<Scalar, false, true> {

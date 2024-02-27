@@ -612,7 +612,18 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   using Base::rows;
 
  private:
-  void allocate(Index rows, Index cols, unsigned int computationOptions);
+  void allocate(Index rows_, Index cols_, unsigned int computationOptions) {
+    if (Base::allocate(rows_, cols_, computationOptions)) return;
+    eigen_assert(!(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
+                 !(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
+                 "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
+                 "Use the ColPivHouseholderQR preconditioner instead.");
+
+    m_workMatrix.resize(diagSize(), diagSize());
+    if (cols() > rows()) m_qr_precond_morecols.allocate(*this);
+    if (rows() > cols()) m_qr_precond_morerows.allocate(*this);
+  }
+
   JacobiSVD& compute_impl(const MatrixType& matrix, unsigned int computationOptions);
 
  protected:
@@ -649,20 +660,6 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
       m_qr_precond_morerows;
   WorkMatrixType m_workMatrix;
 };
-
-template <typename MatrixType, int Options>
-void JacobiSVD<MatrixType, Options>::allocate(Index rows_, Index cols_, unsigned int computationOptions_) {
-  if (Base::allocate(rows_, cols_, computationOptions_)) return;
-
-  eigen_assert(!(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
-               !(ShouldComputeThinU && int(QRPreconditioner) == int(FullPivHouseholderQRPreconditioner)) &&
-               "JacobiSVD: can't compute thin U or thin V with the FullPivHouseholderQR preconditioner. "
-               "Use the ColPivHouseholderQR preconditioner instead.");
-
-  m_workMatrix.resize(diagSize(), diagSize());
-  if (cols() > rows()) m_qr_precond_morecols.allocate(*this);
-  if (rows() > cols()) m_qr_precond_morerows.allocate(*this);
-}
 
 template <typename MatrixType, int Options>
 JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(const MatrixType& matrix,
