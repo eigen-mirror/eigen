@@ -65,7 +65,7 @@ void cod() {
     matrix(i, i) = internal::random<Scalar>();
   }
   Scalar det = matrix.diagonal().prod();
-  RealScalar absdet = abs(det);
+  RealScalar absdet = numext::abs(det);
   CompleteOrthogonalDecomposition<MatrixType> cod2(matrix);
   cod2.compute(matrix);
   q = cod2.householderQ();
