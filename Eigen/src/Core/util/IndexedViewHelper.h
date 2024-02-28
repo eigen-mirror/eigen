@@ -70,7 +70,7 @@ struct get_compile_time_incr {
 template <typename T>
 constexpr Index get_runtime_incr(const T&) EIGEN_NOEXCEPT {
   return Index(1);
-};
+}
 
 // Analogue of std::get<0>(x), but tailored for our needs.
 template <typename T>

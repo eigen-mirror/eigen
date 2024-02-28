@@ -435,7 +435,6 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::determinant() const {
-  using Scalar = typename MatrixType::Scalar;
   eigen_assert(m_isInitialized && "HouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
@@ -445,7 +444,6 @@ typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using RealScalar = typename MatrixType::RealScalar;
   using std::abs;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
@@ -454,7 +452,6 @@ typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationInde
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationIndex>::logAbsDeterminant() const {
-  using RealScalar = typename MatrixType::RealScalar;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return isInjective() ? m_qr.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
@@ -462,7 +459,6 @@ typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationInde
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::signDeterminant() const {
-  using Scalar = typename MatrixType::Scalar;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
