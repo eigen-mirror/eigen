@@ -229,7 +229,7 @@ struct get_compile_time_incr<ArithmeticSequence<FirstType, SizeType, IncrType> >
 template <typename FirstType, typename SizeType, typename IncrType>
 constexpr Index get_runtime_incr(const ArithmeticSequence<FirstType, SizeType, IncrType>& x) EIGEN_NOEXCEPT {
   return static_cast<Index>(x.incrObject());
-};
+}
 
 }  // end namespace internal
 
