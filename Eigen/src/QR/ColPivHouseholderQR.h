@@ -438,7 +438,6 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::determinant() const {
-  using Scalar = typename MatrixType::Scalar;
   eigen_assert(m_isInitialized && "HouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
@@ -449,7 +448,6 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::d
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
   using std::abs;
-  using RealScalar = typename MatrixType::RealScalar;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
@@ -457,7 +455,6 @@ typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::logAbsDeterminant() const {
-  using RealScalar = typename MatrixType::RealScalar;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   return isInjective() ? m_qr.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
@@ -465,7 +462,6 @@ typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::signDeterminant() const {
-  using Scalar = typename MatrixType::Scalar;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   eigen_assert(m_qr.rows() == m_qr.cols() && "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
