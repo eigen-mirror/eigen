@@ -14,6 +14,15 @@ if (POLICY CMP0090)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
 
+# Disable warning about find_package(CUDA).
+# CUDA language support is lacking for clang as the CUDA compiler
+# until at least cmake version 3.18.  Even then, there seems to be
+# issues on Windows+Ninja in passing build flags.  Continue using
+# the "old" way for now.
+if (POLICY CMP0146)
+  cmake_policy(SET CMP0146 OLD)
+endif ()
+
 project(Eigen3)
 
 # Remove this block after bumping CMake to v3.21.0
