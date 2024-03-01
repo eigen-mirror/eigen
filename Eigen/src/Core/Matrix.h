@@ -30,7 +30,7 @@ struct traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
     actual_alignment = ((Options_ & DontAlign) == 0) ? default_alignment : 0,
     required_alignment = unpacket_traits<PacketScalar>::alignment,
     packet_access_bit = (packet_traits<Scalar_>::Vectorizable &&
-                         (EIGEN_UNALIGNED_VECTORIZE || (actual_alignment >= required_alignment)))
+                         (EIGEN_UNALIGNED_VECTORIZE || (int(actual_alignment) >= int(required_alignment))))
                             ? PacketAccessBit
                             : 0
   };
@@ -48,7 +48,7 @@ struct traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
     Flags = compute_matrix_flags(Options_),
     Options = Options_,
     InnerStrideAtCompileTime = 1,
-    OuterStrideAtCompileTime = (Options & RowMajor) ? ColsAtCompileTime : RowsAtCompileTime,
+    OuterStrideAtCompileTime = (int(Options) & int(RowMajor)) ? ColsAtCompileTime : RowsAtCompileTime,
 
     // FIXME, the following flag in only used to define NeedsToAlign in PlainObjectBase
     EvaluatorFlags = LinearAccessBit | DirectAccessBit | packet_access_bit | row_major_bit,
