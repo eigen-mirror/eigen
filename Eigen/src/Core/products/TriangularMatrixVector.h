@@ -309,7 +309,7 @@ struct trmv_selector<Mode, RowMajor> {
       Index size = actualRhs.size();
       EIGEN_DENSE_STORAGE_CTOR_PLUGIN
 #endif
-      Map<typename ActualRhsTypeCleaned::PlainObject, Eigen::AlignedMax>(buffer, actualRhs.size()) = actualRhs;
+      smart_copy(actualRhsPtr, actualRhsPtr + actualRhs.size(), buffer);
       actualRhsPtr = buffer;
     }
     // Deallocate only if malloced.
