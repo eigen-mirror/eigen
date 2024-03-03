@@ -51,7 +51,7 @@ struct CoherentPadOp : public dense_xpr_base<CoherentPadOp<XprType, SizeAtCompil
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp(CoherentPadOp&& other) = default;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoherentPadOp(const XprType& xpr, Index size) : xpr_(xpr), size_(size) {
-    static_assert(XprNested_::IsVectorAtCompileTime && "input type must be a vector");
+    static_assert(XprNested_::IsVectorAtCompileTime, "input type must be a vector");
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const XprNested_& nestedExpression() const { return xpr_; }
