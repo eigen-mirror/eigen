@@ -1068,40 +1068,39 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
   const RealPacket even_mask = peven_mask(a.v);
-  const Packet even_maskp = Packet(even_mask);
   const RealPacket odd_mask = pcplxflip(Packet(even_mask)).v;
 
-  Packet p0y = Packet(pand(odd_mask, a.v));
-  Packet py0 = pcplxflip(p0y);
-  Packet pyy = padd(p0y, py0);
+  // Let a = x + iy.
+  // exp(a) = exp(x) * cis(y), plus some special edge-case handling.
 
-  RealPacket sincos = psincos_float<false, RealPacket, true>(pyy.v);
-  RealPacket cossin = pcplxflip(Packet(sincos)).v;
+  // exp(x):
+  RealPacket x = pand(a.v, even_mask);
+  x = por(x, pcplxflip(Packet(x)).v);
+  RealPacket expx = pexp(x);  // exp(x);
+
+  // cis(y):
+  RealPacket y = pand(odd_mask, a.v);
+  y = por(y, pcplxflip(Packet(y)).v);
+  RealPacket cisy = psincos_float<false, RealPacket, true>(y);
+  cisy = pcplxflip(Packet(cisy)).v;  // cos(y) + i * sin(y)
 
   const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
   const RealPacket cst_neg_inf = pset1<RealPacket>(-NumTraits<RealScalar>::infinity());
-  Packet x_is_inf = Packet(pcmp_eq(a.v, cst_pos_inf));
-  Packet x_is_minf = Packet(pcmp_eq(a.v, cst_neg_inf));
-  Packet x_is_zero = Packet(pcmp_eq(pzero(a).v, a.v));
-  Packet x_real_is_inf = pand(even_maskp, x_is_inf);
-  Packet x_real_is_minf = pand(even_maskp, x_is_minf);
-  Packet inf0 = pset1<Packet>(Scalar(NumTraits<RealScalar>::infinity(), RealScalar(0)));
-  Packet x_is_inf0 = pand(x_real_is_inf, pcplxflip(x_is_zero));
-  x_is_inf0 = por(x_is_inf0, pcplxflip(x_is_inf0));
-  Packet x_imag_goes_zero = pand(por(x_is_minf, x_is_inf), pcplxflip(x_real_is_minf));
-  Packet x_is_nan = Packet(pisnan(a.v));
-  Packet x_real_goes_zero = pand(x_is_nan, pcplxflip(x_real_is_minf));
 
-  RealPacket pexp_real = pexp(a.v);
-  Packet pexp_half = Packet(pand(even_mask, pexp_real));
-  RealPacket xexp_flip_rp = pcplxflip(pexp_half).v;
-  RealPacket xexp = padd(pexp_half.v, xexp_flip_rp);
-  Packet result(pmul(cossin, xexp));
+  // If x is -inf, we know that cossin(y) is bounded,
+  //   so the result is (0, +/-0), where the sign of the imaginary part comes
+  //   from the sign of cossin(y).
+  RealPacket cisy_sign = por(pandnot(cisy, pabs(cisy)), pset1<RealPacket>(RealScalar(1)));
+  cisy = pselect(pcmp_eq(x, cst_neg_inf), cisy_sign, cisy);
 
-  result = pselect(x_is_inf0, inf0, result);
-  result = pselect(x_real_is_minf, pzero(a), result);
-  result = pselect(x_imag_goes_zero, pzero(a), result);
-  result = pselect(x_real_goes_zero, pzero(a), result);
+  // If x is inf, and cos(y) has unknown sign (y is inf or NaN), the result
+  // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
+  RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
+  cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
+  Packet result = Packet(pmul(expx, cisy));
+
+  // If y is +/- 0, the input is real, so take the real result for consistency.
+  result = pselect(Packet(pcmp_eq(y, pzero(y))), Packet(por(pand(expx, even_mask), pand(y, odd_mask))), result);
 
   return result;
 }

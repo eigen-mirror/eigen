@@ -277,6 +277,7 @@ struct packetmath_pcast_ops_runner<Scalar, Packet, std::enable_if_t<NumTraits<Sc
 
 template <typename Scalar, typename Packet>
 void packetmath_boolean_mask_ops() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const int size = 2 * PacketSize;
   EIGEN_ALIGN_MAX Scalar data1[size];
@@ -289,7 +290,7 @@ void packetmath_boolean_mask_ops() {
   CHECK_CWISE1(internal::ptrue, internal::ptrue);
   CHECK_CWISE2_IF(true, internal::pandnot, internal::pandnot);
   for (int i = 0; i < PacketSize; ++i) {
-    data1[i] = Scalar(i);
+    data1[i] = Scalar(RealScalar(i));
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
 
@@ -1335,6 +1336,62 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
 struct exp_complex_test_impl {
   typedef typename Scalar::value_type RealScalar;
+
+  static Scalar pexp1(const Scalar& x) {
+    Packet px = internal::pset1<Packet>(x);
+    Packet py = internal::pexp(px);
+    return internal::pfirst(py);
+  }
+
+  static Scalar cis(const RealScalar& x) { return Scalar(numext::cos(x), numext::sin(x)); }
+
+  // Verify equality with signed zero.
+  static bool is_exactly_equal(const RealScalar& a, const RealScalar& b) {
+    // NaNs are always unsigned, and always compare not equal directly.
+    if ((numext::isnan)(a)) {
+      return (numext::isnan)(b);
+    }
+    // Signed zero.
+    RealScalar zero(0);
+    if (a == zero) {
+      // Signs are either 0 or NaN, so verify that their comparisons to zero are equal.
+      return (a == b) && ((numext::signbit(a) == zero) == (numext::signbit(b) == zero));
+    }
+    // Allow _some_ tolerance.
+    return verifyIsApprox(a, b);
+  }
+
+  // Verify equality with signed zero.
+  static bool is_exactly_equal(const Scalar& a, const Scalar& b) {
+    bool result = is_exactly_equal(numext::real_ref(a), numext::real_ref(b)) &&
+                  is_exactly_equal(numext::imag_ref(a), numext::imag_ref(b));
+    if (!result) {
+      std::cout << a << " != " << b << std::endl;
+    }
+    return result;
+  }
+
+  static bool is_sign_exp_unspecified(const Scalar& z) {
+    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+    // If z is (-∞,±∞), the result is (±0,±0) (signs are unspecified)
+    if (numext::real_ref(z) == -inf && (numext::isinf)(numext::imag_ref(z))) {
+      return true;
+    }
+    // If z is (+∞,±∞), the result is (±∞,NaN) and FE_INVALID is raised (the sign of the real part is unspecified)
+    if (numext::real_ref(z) == +inf && (numext::isinf)(numext::imag_ref(z))) {
+      return true;
+    }
+    // If z is (-∞,NaN), the result is (±0,±0) (signs are unspecified)
+    if (numext::real_ref(z) == -inf && (numext::isnan)(numext::imag_ref(z))) {
+      return true;
+    }
+    // If z is (+∞,NaN), the result is (±∞,NaN) (the sign of the real part is unspecified)
+    if (numext::real_ref(z) == +inf && (numext::isnan)(numext::imag_ref(z))) {
+      return true;
+    }
+    return false;
+  }
+
   static void run(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
 
@@ -1343,26 +1400,44 @@ struct exp_complex_test_impl {
     }
     CHECK_CWISE1_N(std::exp, internal::pexp, size);
 
-    // Test misc. corner cases.
-    const RealScalar zero = RealScalar(0);
-    const RealScalar one = RealScalar(1);
-    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
-    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
-    for (RealScalar x : {zero, one, inf}) {
-      for (RealScalar y : {zero, one, inf}) {
-        data1[0] = Scalar(x, y);
-        data1[1] = Scalar(-x, y);
-        data1[2] = Scalar(x, -y);
-        data1[3] = Scalar(-x, -y);
-        CHECK_CWISE1_N(std::exp, internal::pexp, 4);
+    // Test all corner cases (and more).
+    const RealScalar edges[] = {RealScalar(0),
+                                RealScalar(1),
+                                RealScalar(2),
+                                RealScalar(EIGEN_PI / 2),
+                                RealScalar(EIGEN_PI),
+                                RealScalar(3 * EIGEN_PI / 2),
+                                RealScalar(2 * EIGEN_PI),
+                                numext::log(NumTraits<RealScalar>::highest()) - 1,
+                                NumTraits<RealScalar>::highest(),
+                                std::numeric_limits<RealScalar>::infinity(),
+                                std::numeric_limits<RealScalar>::quiet_NaN(),
+                                -RealScalar(0),
+                                -RealScalar(1),
+                                -RealScalar(2),
+                                -RealScalar(EIGEN_PI / 2),
+                                -RealScalar(EIGEN_PI),
+                                -RealScalar(3 * EIGEN_PI / 2),
+                                -RealScalar(2 * EIGEN_PI),
+                                -numext::log(NumTraits<RealScalar>::highest()) + 1,
+                                -NumTraits<RealScalar>::highest(),
+                                -std::numeric_limits<RealScalar>::infinity(),
+                                -std::numeric_limits<RealScalar>::quiet_NaN()};
+
+    for (RealScalar x : edges) {
+      for (RealScalar y : edges) {
+        Scalar z = Scalar(x, y);
+        Scalar w = pexp1(z);
+        if (is_sign_exp_unspecified(z)) {
+          Scalar abs_w = Scalar(numext::abs(numext::real_ref(w)), numext::abs(numext::imag_ref(w)));
+          Scalar expected = numext::exp(z);
+          Scalar abs_expected =
+              Scalar(numext::abs(numext::real_ref(expected)), numext::abs(numext::imag_ref(expected)));
+          VERIFY(is_exactly_equal(abs_w, abs_expected));
+        } else {
+          VERIFY(is_exactly_equal(w, numext::exp(z)));
+        }
       }
-    }
-    for (RealScalar x : {zero, one, inf}) {
-      data1[0] = Scalar(x, nan);
-      data1[1] = Scalar(-x, nan);
-      data1[2] = Scalar(nan, x);
-      data1[3] = Scalar(nan, -x);
-      CHECK_CWISE1_N(std::exp, internal::pexp, 4);
     }
   }
 };
