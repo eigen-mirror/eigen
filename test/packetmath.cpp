@@ -1566,7 +1566,7 @@ void packetmath_complex() {
     data1[1] = Scalar(-inf, nan);
     data1[2] = Scalar(nan, inf);
     data1[3] = Scalar(nan, -inf);
-    CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
+    CHECK_CWISE1_IM1ULP_N(numext::log, internal::plog, 4);
   }
   exp_complex_test<Scalar, Packet>(data1, data2, ref, size);
 }
