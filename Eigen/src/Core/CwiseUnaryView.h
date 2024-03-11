@@ -18,7 +18,9 @@ namespace Eigen {
 namespace internal {
 template <typename ViewOp, typename MatrixType, typename StrideType>
 struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixType> {
-  typedef typename result_of<ViewOp(const typename traits<MatrixType>::Scalar&)>::type Scalar;
+  typedef typename std::result_of<ViewOp(typename traits<MatrixType>::Scalar&)>::type ScalarRef;
+  static_assert(std::is_reference<ScalarRef>::value, "Views must return a reference type.");
+  typedef remove_all_t<ScalarRef> Scalar;
   typedef typename MatrixType::Nested MatrixTypeNested;
   typedef remove_all_t<MatrixTypeNested> MatrixTypeNested_;
   enum {
@@ -112,7 +114,7 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense>
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
   EIGEN_DEVICE_FUNC inline Scalar* data() { return &(this->coeffRef(0)); }
-  EIGEN_DEVICE_FUNC inline const Scalar* data() const { return &(this->coeff(0)); }
+  EIGEN_DEVICE_FUNC inline const Scalar* data() const { return &(this->coeffRef(0)); }
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index innerStride() const {
     return StrideType::InnerStrideAtCompileTime != 0
@@ -128,8 +130,25 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense>
                      sizeof(Scalar);
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
+    return internal::evaluator<Derived>(derived()).coeffRef(row, col);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
+    return internal::evaluator<Derived>(derived()).coeffRef(index);
+  }
+
  protected:
   EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(CwiseUnaryViewImpl)
+
+  // Allow const access to coeffRef for the case of direct access being enabled.
+  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index index) const {
+    return const_cast<CwiseUnaryViewImpl*>(this)->coeffRef(index);
+  }
+
+  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index row, Index col) const {
+    return const_cast<CwiseUnaryViewImpl*>(this)->coeffRef(row, col);
+  }
 };
 
 }  // end namespace Eigen

@@ -286,9 +286,10 @@ struct functor_traits<scalar_imag_op<Scalar>> {
 template <typename Scalar>
 struct scalar_real_ref_op {
   typedef typename NumTraits<Scalar>::Real result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type& operator()(const Scalar& a) const {
-    return numext::real_ref(*const_cast<Scalar*>(&a));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type& operator()(const Scalar& a) const {
+    return numext::real_ref(a);
   }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type& operator()(Scalar& a) const { return numext::real_ref(a); }
 };
 template <typename Scalar>
 struct functor_traits<scalar_real_ref_op<Scalar>> {
@@ -303,8 +304,9 @@ struct functor_traits<scalar_real_ref_op<Scalar>> {
 template <typename Scalar>
 struct scalar_imag_ref_op {
   typedef typename NumTraits<Scalar>::Real result_type;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type& operator()(const Scalar& a) const {
-    return numext::imag_ref(*const_cast<Scalar*>(&a));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type& operator()(Scalar& a) const { return numext::imag_ref(a); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type& operator()(const Scalar& a) const {
+    return numext::imag_ref(a);
   }
 };
 template <typename Scalar>
