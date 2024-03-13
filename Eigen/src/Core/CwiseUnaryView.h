@@ -18,9 +18,11 @@ namespace Eigen {
 namespace internal {
 template <typename ViewOp, typename MatrixType, typename StrideType>
 struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixType> {
-  typedef typename std::result_of<ViewOp(typename traits<MatrixType>::Scalar&)>::type ScalarRef;
+  typedef typename result_of<ViewOp(typename traits<MatrixType>::Scalar&)>::type1 ScalarRef;
   static_assert(std::is_reference<ScalarRef>::value, "Views must return a reference type.");
-  typedef remove_all_t<ScalarRef> Scalar;
+  typedef remove_all_t<ScalarRef> MutableScalar;
+  // Ensure const matrices stay const.
+  typedef std::conditional_t<std::is_const<MatrixType>::value, const MutableScalar, MutableScalar> Scalar;
   typedef typename MatrixType::Nested MatrixTypeNested;
   typedef remove_all_t<MatrixTypeNested> MatrixTypeNested_;
   enum {
