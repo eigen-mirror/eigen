@@ -47,61 +47,9 @@ struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixTy
   };
 };
 
-template <typename ViewOp, typename MatrixType, typename StrideType, typename StorageKind,
-          bool Mutable = !std::is_const<MatrixType>::value>
-class CwiseUnaryViewImpl;
-
-}  // namespace internal
-
-/** \class CwiseUnaryView
- * \ingroup Core_Module
- *
- * \brief Generic lvalue expression of a coefficient-wise unary operator of a matrix or a vector
- *
- * \tparam ViewOp template functor implementing the view
- * \tparam MatrixType the type of the matrix we are applying the unary operator
- *
- * This class represents a lvalue expression of a generic unary view operator of a matrix or a vector.
- * It is the return type of real() and imag(), and most of the time this is the only way it is used.
- *
- * \sa MatrixBase::unaryViewExpr(const CustomUnaryOp &) const, class CwiseUnaryOp
- */
-template <typename ViewOp, typename MatrixType, typename StrideType>
-class CwiseUnaryView : public internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
-                                                           typename internal::traits<MatrixType>::StorageKind> {
- public:
-  typedef typename internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
-                                                typename internal::traits<MatrixType>::StorageKind>::Base Base;
-  EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseUnaryView)
-  typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<MatrixType> NestedExpression;
-
-  explicit EIGEN_DEVICE_FUNC inline CwiseUnaryView(MatrixType& mat, const ViewOp& func = ViewOp())
-      : m_matrix(mat), m_functor(func) {}
-
-  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryView)
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
-
-  /** \returns the functor representing unary operation */
-  EIGEN_DEVICE_FUNC const ViewOp& functor() const { return m_functor; }
-
-  /** \returns the nested expression */
-  EIGEN_DEVICE_FUNC const internal::remove_all_t<MatrixTypeNested>& nestedExpression() const { return m_matrix; }
-
-  /** \returns the nested expression */
-  EIGEN_DEVICE_FUNC std::remove_reference_t<MatrixTypeNested>& nestedExpression() { return m_matrix; }
-
- protected:
-  MatrixTypeNested m_matrix;
-  ViewOp m_functor;
-};
-
-namespace internal {
-
 // Generic API dispatcher
-template <typename ViewOp, typename XprType, typename StrideType, typename StorageKind, bool Mutable>
+template <typename ViewOp, typename XprType, typename StrideType, typename StorageKind,
+          bool Mutable = !std::is_const<XprType>::value>
 class CwiseUnaryViewImpl : public generic_xpr_base<CwiseUnaryView<ViewOp, XprType, StrideType> >::type {
  public:
   typedef typename generic_xpr_base<CwiseUnaryView<ViewOp, XprType, StrideType> >::type Base;
@@ -168,6 +116,51 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, true>
 };
 
 }  // namespace internal
+
+/** \class CwiseUnaryView
+ * \ingroup Core_Module
+ *
+ * \brief Generic lvalue expression of a coefficient-wise unary operator of a matrix or a vector
+ *
+ * \tparam ViewOp template functor implementing the view
+ * \tparam MatrixType the type of the matrix we are applying the unary operator
+ *
+ * This class represents a lvalue expression of a generic unary view operator of a matrix or a vector.
+ * It is the return type of real() and imag(), and most of the time this is the only way it is used.
+ *
+ * \sa MatrixBase::unaryViewExpr(const CustomUnaryOp &) const, class CwiseUnaryOp
+ */
+template <typename ViewOp, typename MatrixType, typename StrideType>
+class CwiseUnaryView : public internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
+                                                           typename internal::traits<MatrixType>::StorageKind> {
+ public:
+  typedef typename internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
+                                                typename internal::traits<MatrixType>::StorageKind>::Base Base;
+  EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseUnaryView)
+  typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
+  typedef internal::remove_all_t<MatrixType> NestedExpression;
+
+  explicit EIGEN_DEVICE_FUNC inline CwiseUnaryView(MatrixType& mat, const ViewOp& func = ViewOp())
+      : m_matrix(mat), m_functor(func) {}
+
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryView)
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
+
+  /** \returns the functor representing unary operation */
+  EIGEN_DEVICE_FUNC const ViewOp& functor() const { return m_functor; }
+
+  /** \returns the nested expression */
+  EIGEN_DEVICE_FUNC const internal::remove_all_t<MatrixTypeNested>& nestedExpression() const { return m_matrix; }
+
+  /** \returns the nested expression */
+  EIGEN_DEVICE_FUNC std::remove_reference_t<MatrixTypeNested>& nestedExpression() { return m_matrix; }
+
+ protected:
+  MatrixTypeNested m_matrix;
+  ViewOp m_functor;
+};
 
 }  // namespace Eigen
 
