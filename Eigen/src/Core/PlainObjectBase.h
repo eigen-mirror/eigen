@@ -31,6 +31,7 @@ namespace Eigen {
 
 namespace internal {
 
+#ifndef EIGEN_NO_DEBUG
 template <int MaxSizeAtCompileTime, int MaxRowsAtCompileTime, int MaxColsAtCompileTime>
 struct check_rows_cols_for_overflow {
   EIGEN_STATIC_ASSERT(MaxRowsAtCompileTime* MaxColsAtCompileTime == MaxSizeAtCompileTime,
@@ -44,7 +45,7 @@ struct check_rows_cols_for_overflow<Dynamic, MaxRowsAtCompileTime, Dynamic> {
   template <typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void run(Index, Index cols) {
     constexpr Index MaxIndex = NumTraits<Index>::highest();
-    bool error = cols > MaxIndex / MaxRowsAtCompileTime;
+    bool error = cols > (MaxIndex / MaxRowsAtCompileTime);
     if (error) throw_std_bad_alloc();
   }
 };
@@ -54,7 +55,7 @@ struct check_rows_cols_for_overflow<Dynamic, Dynamic, MaxColsAtCompileTime> {
   template <typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void run(Index rows, Index) {
     constexpr Index MaxIndex = NumTraits<Index>::highest();
-    bool error = rows > MaxIndex / MaxColsAtCompileTime;
+    bool error = rows > (MaxIndex / MaxColsAtCompileTime);
     if (error) throw_std_bad_alloc();
   }
 };
@@ -64,10 +65,11 @@ struct check_rows_cols_for_overflow<Dynamic, Dynamic, Dynamic> {
   template <typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void run(Index rows, Index cols) {
     constexpr Index MaxIndex = NumTraits<Index>::highest();
-    bool error = cols == 0 ? false : (rows > MaxIndex / cols);
+    bool error = cols == 0 ? false : (rows > (MaxIndex / cols));
     if (error) throw_std_bad_alloc();
   }
 };
+#endif
 
 template <typename Derived, typename OtherDerived = Derived,
           bool IsVector = bool(Derived::IsVectorAtCompileTime) && bool(OtherDerived::IsVectorAtCompileTime)>
@@ -297,8 +299,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
                  internal::check_implication(ColsAtCompileTime == Dynamic && MaxColsAtCompileTime != Dynamic,
                                              cols <= MaxColsAtCompileTime) &&
                  rows >= 0 && cols >= 0 && "Invalid sizes when resizing a matrix or array.");
+#ifndef EIGEN_NO_DEBUG
     internal::check_rows_cols_for_overflow<MaxSizeAtCompileTime, MaxRowsAtCompileTime, MaxColsAtCompileTime>::run(rows,
                                                                                                                   cols);
+#endif
 #ifdef EIGEN_INITIALIZE_COEFFS
     Index size = rows * cols;
     bool size_changed = size != this->size();
@@ -367,8 +371,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void resizeLike(const EigenBase<OtherDerived>& _other) {
     const OtherDerived& other = _other.derived();
+#ifndef EIGEN_NO_DEBUG
     internal::check_rows_cols_for_overflow<MaxSizeAtCompileTime, MaxRowsAtCompileTime, MaxColsAtCompileTime>::run(
         other.rows(), other.cols());
+#endif
     const Index othersize = other.rows() * other.cols();
     if (RowsAtCompileTime == 1) {
       eigen_assert(other.rows() == 1 || other.cols() == 1);
@@ -941,8 +947,10 @@ struct conservative_resize_like_impl {
         ((Derived::IsRowMajor && _this.cols() == cols) ||  // row-major and we change only the number of rows
          (!Derived::IsRowMajor && _this.rows() == rows)))  // column-major and we change only the number of columns
     {
+#ifndef EIGEN_NO_DEBUG
       internal::check_rows_cols_for_overflow<Derived::MaxSizeAtCompileTime, Derived::MaxRowsAtCompileTime,
                                              Derived::MaxColsAtCompileTime>::run(rows, cols);
+#endif
       _this.derived().m_storage.conservativeResize(rows * cols, rows, cols);
     } else {
       // The storage order does not allow us to use reallocation.
