@@ -1610,7 +1610,11 @@ EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet2l>(const Packet2l& a) {
+#if EIGEN_ARCH_x86_64
   int64_t x = _mm_cvtsi128_si64(a);
+#else
+  int64_t x = numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_castsi128_pd(a)));
+#endif
   return x;
 }
 template <>
@@ -1661,7 +1665,11 @@ EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet2l>(const Packet2l& a) {
+#if EIGEN_ARCH_x86_64
   return _mm_cvtsi128_si64(a);
+#else
+  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_castsi128_pd(a)));
+#endif
 }
 template <>
 EIGEN_STRONG_INLINE int pfirst<Packet4i>(const Packet4i& a) {

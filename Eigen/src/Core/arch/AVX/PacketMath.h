@@ -403,6 +403,21 @@ struct unpacket_traits<Packet8bf> {
   };
 };
 
+// Work around lack of extract/cvt for epi64 when compiling for 32-bit.
+#if EIGEN_ARCH_x86_64
+EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) { return _mm_cvtsi128_si64(a); }
+EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) { return _mm_extract_epi64(a, 1); }
+#else
+// epi64 instructions are not available.  The following seems to generate the same instructions
+// with -O2 in GCC/Clang.
+EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) {
+  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_castsi128_pd(a)));
+}
+EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
+  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_shuffle_pd(_mm_castsi128_pd(a), _mm_castsi128_pd(a), 0x1)));
+}
+#endif
+
 // Helper function for bit packing snippet of low precision comparison.
 // It packs the flags from 16x16 to 8x16.
 EIGEN_STRONG_INLINE __m128i Pack16To8(Packet8f rf) {
@@ -623,22 +638,22 @@ EIGEN_DEVICE_FUNC inline Packet4ul pgather<uint64_t, Packet4ul>(const uint64_t* 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<int64_t, Packet4l>(int64_t* to, const Packet4l& from, Index stride) {
   __m128i low = _mm256_extractf128_si256(from, 0);
-  to[stride * 0] = _mm_extract_epi64(low, 0);
-  to[stride * 1] = _mm_extract_epi64(low, 1);
+  to[stride * 0] = _mm_extract_epi64_0(low);
+  to[stride * 1] = _mm_extract_epi64_1(low);
 
   __m128i high = _mm256_extractf128_si256(from, 1);
-  to[stride * 2] = _mm_extract_epi64(high, 0);
-  to[stride * 3] = _mm_extract_epi64(high, 1);
+  to[stride * 2] = _mm_extract_epi64_0(high);
+  to[stride * 3] = _mm_extract_epi64_1(high);
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, Index stride) {
   __m128i low = _mm256_extractf128_si256(from, 0);
-  to[stride * 0] = _mm_extract_epi64(low, 0);
-  to[stride * 1] = _mm_extract_epi64(low, 1);
+  to[stride * 0] = _mm_extract_epi64_0(low);
+  to[stride * 1] = _mm_extract_epi64_1(low);
 
   __m128i high = _mm256_extractf128_si256(from, 1);
-  to[stride * 2] = _mm_extract_epi64(high, 0);
-  to[stride * 3] = _mm_extract_epi64(high, 1);
+  to[stride * 2] = _mm_extract_epi64_0(high);
+  to[stride * 3] = _mm_extract_epi64_1(high);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore1<Packet4l>(int64_t* to, const int64_t& a) {
@@ -652,21 +667,21 @@ EIGEN_STRONG_INLINE void pstore1<Packet4ul>(uint64_t* to, const uint64_t& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int64_t pfirst<Packet4l>(const Packet4l& a) {
-  return _mm_cvtsi128_si64(_mm256_castsi256_si128(a));
+  return _mm_extract_epi64_0(_mm256_castsi256_si128(a));
 }
 template <>
 EIGEN_STRONG_INLINE uint64_t pfirst<Packet4ul>(const Packet4ul& a) {
-  return _mm_cvtsi128_si64(_mm256_castsi256_si128(a));
+  return _mm_extract_epi64_0(_mm256_castsi256_si128(a));
 }
 template <>
 EIGEN_STRONG_INLINE int64_t predux<Packet4l>(const Packet4l& a) {
   __m128i r = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-  return _mm_extract_epi64(r, 0) + _mm_extract_epi64(r, 1);
+  return _mm_extract_epi64_0(r) + _mm_extract_epi64_1(r);
 }
 template <>
 EIGEN_STRONG_INLINE uint64_t predux<Packet4ul>(const Packet4ul& a) {
   __m128i r = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-  return numext::bit_cast<uint64_t>(_mm_extract_epi64(r, 0) + _mm_extract_epi64(r, 1));
+  return numext::bit_cast<uint64_t>(_mm_extract_epi64_0(r) + _mm_extract_epi64_1(r));
 }
 #define MM256_SHUFFLE_EPI64(A, B, M) _mm256_shuffle_pd(_mm256_castsi256_pd(A), _mm256_castsi256_pd(B), M)
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4l, 4>& kernel) {
