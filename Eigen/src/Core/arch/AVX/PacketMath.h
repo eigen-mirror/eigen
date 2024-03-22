@@ -270,9 +270,7 @@ struct packet_traits<uint32_t> : default_packet_traits {
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
   typedef Packet4l type;
-  // There is no half-size packet for current Packet4l.
-  // TODO: support as SSE path.
-  typedef Packet4l half;
+  typedef Packet2l half;
   enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 4 };
 };
 template <>
@@ -332,6 +330,7 @@ template <>
 struct unpacket_traits<Packet4d> {
   typedef double type;
   typedef Packet2d half;
+  typedef Packet4l integer_packet;
   enum {
     size = 4,
     alignment = Aligned32,
@@ -368,7 +367,7 @@ struct unpacket_traits<Packet8ui> {
 template <>
 struct unpacket_traits<Packet4l> {
   typedef int64_t type;
-  typedef Packet4l half;
+  typedef Packet2l half;
   enum {
     size = 4,
     alignment = Aligned32,
