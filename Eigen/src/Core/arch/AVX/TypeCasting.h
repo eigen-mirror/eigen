@@ -221,7 +221,7 @@ EIGEN_STRONG_INLINE Packet4d pcast<Packet4l, Packet4d>(const Packet4l& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pcast<Packet2l, Packet4d>(const Packet2l& a, const Packet2l& b) {
-  return _mm256_set_m128d(pcast<Packet2l, Packet2d>(b), pcast<Packet2l, Packet2d>(a));
+  return _mm256_set_m128d((pcast<Packet2l, Packet2d>(b)), (pcast<Packet2l, Packet2d>(a)));
 }
 
 template <>
