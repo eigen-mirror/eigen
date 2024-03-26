@@ -215,7 +215,6 @@ struct ScalarPrinter<Scalar, TensorIOFormatNative, std::enable_if_t<NumTraits<Sc
 template <typename Tensor, std::size_t rank, typename Format, typename EnableIf>
 struct TensorPrinter {
   using Scalar = std::remove_const_t<typename Tensor::Scalar>;
-  using ScalarPrinter = ScalarPrinter<Scalar, Format>;
 
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
     typedef typename Tensor::Index IndexType;
@@ -257,7 +256,7 @@ struct TensorPrinter {
       for (IndexType i = 0; i < total_size; i++) {
         std::stringstream sstr;
         sstr.copyfmt(s);
-        ScalarPrinter::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
+        ScalarPrinter<Scalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
         width = std::max<IndexType>(width, IndexType(sstr.str().length()));
       }
     }
@@ -336,7 +335,7 @@ struct TensorPrinter {
       // So we don't mess around with formatting, output scalar to a string stream, and adjust the width/fill manually.
       std::stringstream sstr;
       sstr.copyfmt(s);
-      ScalarPrinter::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
+      ScalarPrinter<Scalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
       std::string scalar_str = sstr.str();
       IndexType scalar_width = scalar_str.length();
       if (width && scalar_width < width) {
@@ -361,7 +360,6 @@ template <typename Tensor, std::size_t rank>
 struct TensorPrinter<Tensor, rank, TensorIOFormatLegacy, std::enable_if_t<rank != 0>> {
   using Format = TensorIOFormatLegacy;
   using Scalar = std::remove_const_t<typename Tensor::Scalar>;
-  using ScalarPrinter = ScalarPrinter<Scalar, Format>;
 
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
     typedef typename Tensor::Index IndexType;
@@ -382,7 +380,6 @@ template <typename Tensor, typename Format>
 struct TensorPrinter<Tensor, 0, Format> {
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
     using Scalar = std::remove_const_t<typename Tensor::Scalar>;
-    using ScalarPrinter = ScalarPrinter<Scalar, Format>;
 
     std::streamsize explicit_precision;
     if (fmt.precision == StreamPrecision) {
@@ -400,7 +397,7 @@ struct TensorPrinter<Tensor, 0, Format> {
     std::streamsize old_precision = 0;
     if (explicit_precision) old_precision = s.precision(explicit_precision);
     s << fmt.tenPrefix;
-    ScalarPrinter::run(s, tensor.coeff(0), fmt);
+    ScalarPrinter<Scalar, Format>::run(s, tensor.coeff(0), fmt);
     s << fmt.tenSuffix;
     if (explicit_precision) s.precision(old_precision);
   }
