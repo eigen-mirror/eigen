@@ -402,21 +402,6 @@ struct unpacket_traits<Packet8bf> {
   };
 };
 
-// Work around lack of extract/cvt for epi64 when compiling for 32-bit.
-#if EIGEN_ARCH_x86_64
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) { return _mm_cvtsi128_si64(a); }
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) { return _mm_extract_epi64(a, 1); }
-#else
-// epi64 instructions are not available.  The following seems to generate the same instructions
-// with -O2 in GCC/Clang.
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_0(const __m128i& a) {
-  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_castsi128_pd(a)));
-}
-EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
-  return numext::bit_cast<int64_t>(_mm_cvtsd_f64(_mm_shuffle_pd(_mm_castsi128_pd(a), _mm_castsi128_pd(a), 0x1)));
-}
-#endif
-
 // Helper function for bit packing snippet of low precision comparison.
 // It packs the flags from 16x16 to 8x16.
 EIGEN_STRONG_INLINE __m128i Pack16To8(Packet8f rf) {

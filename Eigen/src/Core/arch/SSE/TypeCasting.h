@@ -88,7 +88,11 @@ EIGEN_STRONG_INLINE Packet4i pcast<Packet2d, Packet4i>(const Packet2d& a, const 
 
 template <>
 EIGEN_STRONG_INLINE Packet2l pcast<Packet2d, Packet2l>(const Packet2d& a) {
+#if EIGEN_ARCH_x86_64
   return _mm_set_epi64x(_mm_cvtsd_si64(preverse(a)), _mm_cvtsd_si64(a));
+#else
+  return _mm_set_epi64x(static_cast<int64_t>(pfirst(preverse(a))), static_cast<int64_t>(pfirst(a)));
+#endif
 }
 
 template <>
