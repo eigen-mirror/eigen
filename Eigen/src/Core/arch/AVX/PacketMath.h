@@ -330,7 +330,9 @@ template <>
 struct unpacket_traits<Packet4d> {
   typedef double type;
   typedef Packet2d half;
+#ifdef EIGEN_VECTORIZE_AVX2
   typedef Packet4l integer_packet;
+#endif
   enum {
     size = 4,
     alignment = Aligned32,
