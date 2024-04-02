@@ -139,7 +139,7 @@ struct random_longdouble_impl {
 };
 template <>
 struct random_longdouble_impl<false> {
-  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<long double>::digits() - 1; }
+  static constexpr EIGEN_DEVICE_FUNC inline int mantissaBits() { return NumTraits<double>::digits() - 1; }
   static EIGEN_DEVICE_FUNC inline long double run(int numRandomBits) {
     return static_cast<long double>(random_float_impl<double>::run(numRandomBits));
   }
