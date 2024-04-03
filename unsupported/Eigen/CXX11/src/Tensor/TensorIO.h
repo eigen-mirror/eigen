@@ -218,9 +218,8 @@ struct TensorPrinter {
 
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
     typedef typename Tensor::Index IndexType;
-    static const int layout = Tensor::Layout;
 
-    eigen_assert(layout == RowMajor);
+    eigen_assert(Tensor::Layout == RowMajor);
     typedef std::conditional_t<is_same<Scalar, char>::value || is_same<Scalar, unsigned char>::value ||
                                    is_same<Scalar, numext::int8_t>::value || is_same<Scalar, numext::uint8_t>::value,
                                int,
@@ -363,13 +362,12 @@ struct TensorPrinter<Tensor, rank, TensorIOFormatLegacy, std::enable_if_t<rank !
 
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
     typedef typename Tensor::Index IndexType;
-    static const int layout = Tensor::Layout;
     // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x
     // (dim(1)*dim(2)*...*dim(rank-1)).
     const IndexType total_size = internal::array_prod(tensor.dimensions());
     if (total_size > 0) {
       const IndexType first_dim = Eigen::internal::array_get<0>(tensor.dimensions());
-      Map<const Array<Scalar, Dynamic, Dynamic, layout>> matrix(tensor.data(), first_dim, total_size / first_dim);
+      Map<const Array<Scalar, Dynamic, Dynamic, Tensor::Layout>> matrix(tensor.data(), first_dim, total_size / first_dim);
       s << matrix;
       return;
     }
