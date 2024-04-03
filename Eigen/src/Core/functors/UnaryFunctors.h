@@ -1126,7 +1126,7 @@ struct scalar_logistic_op : scalar_logistic_op_impl<T> {};
 
 // TODO(rmlarsen): Enable the following on host when integer_packet is defined
 // for the relevant packet types.
-#ifdef EIGEN_GPU_CC
+#ifndef EIGEN_GPUCC
 
 /** \internal
  * \brief Template specialization of the logistic function for float.
