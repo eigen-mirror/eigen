@@ -62,16 +62,19 @@ struct quat_conj<Architecture::Target, Derived, float> {
 
 template <typename VectorLhs, typename VectorRhs>
 struct cross3_impl<Architecture::Target, VectorLhs, VectorRhs, float, true> {
-  enum { ResAlignment = traits<typename plain_matrix_type<VectorLhs>::type>::Alignment };
-  static inline typename plain_matrix_type<VectorLhs>::type run(const VectorLhs& lhs, const VectorRhs& rhs) {
+  using LhsPlainType = typename plain_matrix_type<VectorLhs>::type;
+  using RhsPlainType = typename plain_matrix_type<VectorRhs>::type;
+  static constexpr int LhsAlignment = evaluator<LhsPlainType>::Alignment;
+  static constexpr int RhsAlignment = evaluator<RhsPlainType>::Alignment;
+  static inline LhsPlainType run(const VectorLhs& lhs, const VectorRhs& rhs) {
     evaluator<VectorLhs> lhs_eval(lhs);
     evaluator<VectorRhs> rhs_eval(rhs);
-    Packet4f a = lhs_eval.template packet<traits<VectorLhs>::Alignment, Packet4f>(0);
-    Packet4f b = rhs_eval.template packet<traits<VectorRhs>::Alignment, Packet4f>(0);
+    Packet4f a = lhs_eval.template packet<LhsAlignment, Packet4f>(0);
+    Packet4f b = rhs_eval.template packet<RhsAlignment, Packet4f>(0);
     Packet4f mul1 = pmul(vec4f_swizzle1(a, 1, 2, 0, 3), vec4f_swizzle1(b, 2, 0, 1, 3));
     Packet4f mul2 = pmul(vec4f_swizzle1(a, 2, 0, 1, 3), vec4f_swizzle1(b, 1, 2, 0, 3));
-    typename plain_matrix_type<VectorLhs>::type res;
-    pstoret<float, Packet4f, ResAlignment>(&res.x(), psub(mul1, mul2));
+    LhsPlainType res;
+    pstoret<float, Packet4f, LhsAlignment>(&res.x(), psub(mul1, mul2));
     return res;
   }
 };
