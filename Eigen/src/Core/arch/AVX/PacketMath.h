@@ -1844,7 +1844,7 @@ EIGEN_STRONG_INLINE Packet8f psignbit(const Packet8f& a) {
 #endif
 }
 template <>
-EIGEN_STRONG_INLINE Packet8ui psignbit(const Packet8ui& a) {
+EIGEN_STRONG_INLINE Packet8ui psignbit(const Packet8ui& /*unused*/) {
   return _mm256_setzero_si256();
 }
 #ifdef EIGEN_VECTORIZE_AVX2
@@ -1853,7 +1853,7 @@ EIGEN_STRONG_INLINE Packet4d psignbit(const Packet4d& a) {
   return _mm256_castsi256_pd(_mm256_cmpgt_epi64(_mm256_setzero_si256(), _mm256_castpd_si256(a)));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ul psignbit(const Packet4ul& a) {
+EIGEN_STRONG_INLINE Packet4ul psignbit(const Packet4ul& /*unused*/) {
   return _mm256_setzero_si256();
 }
 #endif
