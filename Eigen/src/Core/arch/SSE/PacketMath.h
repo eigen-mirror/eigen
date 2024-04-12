@@ -296,6 +296,7 @@ struct packet_traits<bool> : default_packet_traits {
     HasMax = 0,
     HasConj = 0,
     HasSqrt = 1,
+    HasNegate = 0,
     HasSign = 0  // Don't try to vectorize psign<bool> = identity.
   };
 };
@@ -599,11 +600,6 @@ EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a) {
   return psub(pzero(a), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16b pnegate(const Packet16b& a) {
-  return a;
 }
 
 template <>

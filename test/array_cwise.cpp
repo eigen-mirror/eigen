@@ -614,9 +614,9 @@ void array_generic(const ArrayType& m) {
     VERIFY(o2.cols() == cols);
 
     ArrayType2 o3(rows, cols);
-    VERIFY(o3(0) == Scalar(rows) && o3(1) == Scalar(cols));
+    VERIFY(o3(0) == RealScalar(rows) && o3(1) == RealScalar(cols));
     ArrayType2 o4(static_cast<int>(rows), static_cast<int>(cols));
-    VERIFY(o4(0) == Scalar(rows) && o4(1) == Scalar(cols));
+    VERIFY(o4(0) == RealScalar(rows) && o4(1) == RealScalar(cols));
   }
   {
     TwoDArrayType o1{rows, cols};
@@ -627,9 +627,9 @@ void array_generic(const ArrayType& m) {
     VERIFY(o2.cols() == cols);
 
     ArrayType2 o3{rows, cols};
-    VERIFY(o3(0) == Scalar(rows) && o3(1) == Scalar(cols));
+    VERIFY(o3(0) == RealScalar(rows) && o3(1) == RealScalar(cols));
     ArrayType2 o4{int(rows), int(cols)};
-    VERIFY(o4(0) == Scalar(rows) && o4(1) == Scalar(cols));
+    VERIFY(o4(0) == RealScalar(rows) && o4(1) == RealScalar(cols));
   }
 }
 

@@ -110,29 +110,29 @@ void sparse_vector(int rows, int cols) {
 
   // test move
   {
-    SparseVectorType v3(std::move(v1));
-    VERIFY_IS_APPROX(v3, refV1);
-    v1 = v3;
+    SparseVectorType tmp(std::move(v1));
+    VERIFY_IS_APPROX(tmp, refV1);
+    v1 = tmp;
   }
 
   {
-    SparseVectorType v3;
-    v3 = std::move(v1);
-    VERIFY_IS_APPROX(v3, refV1);
-    v1 = v3;
+    SparseVectorType tmp;
+    tmp = std::move(v1);
+    VERIFY_IS_APPROX(tmp, refV1);
+    v1 = tmp;
   }
 
   {
-    SparseVectorType v3(std::move(mv1));
-    VERIFY_IS_APPROX(v3, refV1);
-    mv1 = v3;
+    SparseVectorType tmp(std::move(mv1));
+    VERIFY_IS_APPROX(tmp, refV1);
+    mv1 = tmp;
   }
 
   {
-    SparseVectorType v3;
-    v3 = std::move(mv1);
-    VERIFY_IS_APPROX(v3, refV1);
-    mv1 = v3;
+    SparseVectorType tmp;
+    tmp = std::move(mv1);
+    VERIFY_IS_APPROX(tmp, refV1);
+    mv1 = tmp;
   }
 
   // test conservative resize

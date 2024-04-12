@@ -861,6 +861,25 @@ struct sign_retval {
   typedef Scalar type;
 };
 
+// suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
+// note: `0 - a` is distinct from `-a` when Scalar is a floating point type and `a` is zero
+
+template <typename Scalar, bool IsInteger = NumTraits<Scalar>::IsInteger>
+struct negate_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return -a; }
+};
+
+template <typename Scalar>
+struct negate_impl<Scalar, true> {
+  EIGEN_STATIC_ASSERT((!is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
+};
+
+template <typename Scalar>
+struct negate_retval {
+  typedef Scalar type;
+};
+
 template <typename Scalar, bool IsInteger = NumTraits<typename unpacket_traits<Scalar>::type>::IsInteger>
 struct nearest_integer_impl {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run_floor(const Scalar& x) {
@@ -1064,6 +1083,11 @@ EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& 
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(negate, Scalar) negate(const Scalar& x) {
+  return EIGEN_MATHFUNC_IMPL(negate, Scalar)::run(x);
 }
 
 template <typename Scalar>

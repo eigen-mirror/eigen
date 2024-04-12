@@ -790,6 +790,7 @@ void check_tutorial_examples() {
     VERIFY_IS_EQUAL(int(slice1.SizeAtCompileTime), 6);
     VERIFY_IS_EQUAL(int(slice2.SizeAtCompileTime), 6);
     auto slice3 = A(all, seq(fix<0>, last, fix<2>));
+    TEST_SET_BUT_UNUSED_VARIABLE(slice3)
     VERIFY_IS_EQUAL(int(slice3.RowsAtCompileTime), kRows);
     VERIFY_IS_EQUAL(int(slice3.ColsAtCompileTime), (kCols + 1) / 2);
   }

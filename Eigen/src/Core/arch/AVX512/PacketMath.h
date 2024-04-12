@@ -2147,20 +2147,13 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16i, 4>& kernel) {
 template <>
 EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& ifPacket, const Packet16f& thenPacket,
                                      const Packet16f& elsePacket) {
-  __mmask16 m = (ifPacket.select[0]) | (ifPacket.select[1] << 1) | (ifPacket.select[2] << 2) |
-                (ifPacket.select[3] << 3) | (ifPacket.select[4] << 4) | (ifPacket.select[5] << 5) |
-                (ifPacket.select[6] << 6) | (ifPacket.select[7] << 7) | (ifPacket.select[8] << 8) |
-                (ifPacket.select[9] << 9) | (ifPacket.select[10] << 10) | (ifPacket.select[11] << 11) |
-                (ifPacket.select[12] << 12) | (ifPacket.select[13] << 13) | (ifPacket.select[14] << 14) |
-                (ifPacket.select[15] << 15);
+  __mmask16 m = ifPacket.mask<__mmask16>();
   return _mm512_mask_blend_ps(m, elsePacket, thenPacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pblend(const Selector<8>& ifPacket, const Packet8d& thenPacket,
                                     const Packet8d& elsePacket) {
-  __mmask8 m = (ifPacket.select[0]) | (ifPacket.select[1] << 1) | (ifPacket.select[2] << 2) |
-               (ifPacket.select[3] << 3) | (ifPacket.select[4] << 4) | (ifPacket.select[5] << 5) |
-               (ifPacket.select[6] << 6) | (ifPacket.select[7] << 7);
+  __mmask8 m = ifPacket.mask<__mmask8>();
   return _mm512_mask_blend_pd(m, elsePacket, thenPacket);
 }
 
