@@ -129,8 +129,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const PacketI e = pcast<Packet, PacketI>(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
   PacketI b = parithmetic_shift_right<2>(e);                                          // floor(e/4);
   Packet c = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));  // 2^b
-  Packet out = pmul(pmul(pmul(a, c), c), c);                                          // a * 2^(3b)
-  b = psub(psub(psub(e, b), b), b);                                                   // e - 3b
+  Packet out = pmul(pmul(a, c), pmul(c, c));                                          // a * 2^(3b)
+  b = pnmadd(pset1<PacketI>(3), b, e);                                                // e - 3b
   c = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));         // 2^(e-3*b)
   out = pmul(out, c);
   return out;
