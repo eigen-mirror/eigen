@@ -308,6 +308,178 @@ struct IndexedViewHelper<AllRange<SizeAtCompileTime_>, void> {
   static Index incr(const Indices& indices) { return indices.incr(); }
 };
 
+// this helper class assumes internal::valid_indexed_view_overload<RowIndices, ColIndices>::value == true
+template <typename Derived, typename RowIndices, typename ColIndices, typename EnableIf = void>
+struct IndexedViewSelector;
+
+template <typename Indices, int SizeAtCompileTime>
+using IvcType = typename internal::IndexedViewHelperIndicesWrapper<Indices, SizeAtCompileTime>::type;
+
+template <int SizeAtCompileTime, typename Indices>
+inline IvcType<Indices, SizeAtCompileTime> CreateIndexSequence(size_t size, const Indices& indices) {
+  return internal::IndexedViewHelperIndicesWrapper<Indices, SizeAtCompileTime>::CreateIndexSequence(indices, size);
+}
+
+// Generic
+template <typename Derived, typename RowIndices, typename ColIndices>
+struct IndexedViewSelector<Derived, RowIndices, ColIndices,
+                           std::enable_if_t<internal::traits<
+                               IndexedView<Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
+                                           IvcType<ColIndices, Derived::ColsAtCompileTime>>>::ReturnAsIndexedView>> {
+  using ReturnType = IndexedView<Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
+                                 IvcType<ColIndices, Derived::ColsAtCompileTime>>;
+  using ConstReturnType = IndexedView<const Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
+                                      IvcType<ColIndices, Derived::ColsAtCompileTime>>;
+
+  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+    return ReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices),
+                      CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices));
+  }
+  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                    const ColIndices& colIndices) {
+    return ConstReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices),
+                           CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices));
+  }
+};
+
+// Block
+template <typename Derived, typename RowIndices, typename ColIndices>
+struct IndexedViewSelector<
+    Derived, RowIndices, ColIndices,
+    std::enable_if_t<internal::traits<IndexedView<Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
+                                                  IvcType<ColIndices, Derived::ColsAtCompileTime>>>::ReturnAsBlock>> {
+  using ActualRowIndices = IvcType<RowIndices, Derived::RowsAtCompileTime>;
+  using ActualColIndices = IvcType<ColIndices, Derived::ColsAtCompileTime>;
+  using IndexedViewType = IndexedView<Derived, ActualRowIndices, ActualColIndices>;
+  using ConstIndexedViewType = IndexedView<const Derived, ActualRowIndices, ActualColIndices>;
+  using ReturnType = typename internal::traits<IndexedViewType>::BlockType;
+  using ConstReturnType = typename internal::traits<ConstIndexedViewType>::BlockType;
+  using RowHelper = internal::IndexedViewHelper<ActualRowIndices>;
+  using ColHelper = internal::IndexedViewHelper<ActualColIndices>;
+
+  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+    auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
+    auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
+    return ReturnType(derived, RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices),
+                      RowHelper::size(actualRowIndices), ColHelper::size(actualColIndices));
+  }
+  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                    const ColIndices& colIndices) {
+    auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
+    auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
+    return ConstReturnType(derived, RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices),
+                           RowHelper::size(actualRowIndices), ColHelper::size(actualColIndices));
+  }
+};
+
+// Scalar
+template <typename Derived, typename RowIndices, typename ColIndices>
+struct IndexedViewSelector<
+    Derived, RowIndices, ColIndices,
+    std::enable_if_t<internal::traits<IndexedView<Derived, IvcType<RowIndices, Derived::RowsAtCompileTime>,
+                                                  IvcType<ColIndices, Derived::ColsAtCompileTime>>>::ReturnAsScalar>> {
+  using ReturnType = typename DenseBase<Derived>::Scalar&;
+  using ConstReturnType = typename DenseBase<Derived>::CoeffReturnType;
+  using ActualRowIndices = IvcType<RowIndices, Derived::RowsAtCompileTime>;
+  using ActualColIndices = IvcType<ColIndices, Derived::ColsAtCompileTime>;
+  using RowHelper = internal::IndexedViewHelper<ActualRowIndices>;
+  using ColHelper = internal::IndexedViewHelper<ActualColIndices>;
+  static inline ReturnType run(Derived& derived, const RowIndices& rowIndices, const ColIndices& colIndices) {
+    auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
+    auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
+    return derived(RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices));
+  }
+  static inline ConstReturnType run(const Derived& derived, const RowIndices& rowIndices,
+                                    const ColIndices& colIndices) {
+    auto actualRowIndices = CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), rowIndices);
+    auto actualColIndices = CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), colIndices);
+    return derived(RowHelper::first(actualRowIndices), ColHelper::first(actualColIndices));
+  }
+};
+
+// this helper class assumes internal::is_valid_index_type<Indices>::value == false
+template <typename Derived, typename Indices, typename EnableIf = void>
+struct VectorIndexedViewSelector;
+
+// Generic
+template <typename Derived, typename Indices>
+struct VectorIndexedViewSelector<
+    Derived, Indices,
+    std::enable_if_t<!internal::is_single_range<IvcType<Indices, Derived::SizeAtCompileTime>>::value &&
+                     internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>::IncrAtCompileTime !=
+                         1>> {
+  static constexpr bool IsRowMajor = DenseBase<Derived>::IsRowMajor;
+  using ZeroIndex = internal::SingleRange<Index(0)>;
+  using RowMajorReturnType = IndexedView<Derived, ZeroIndex, IvcType<Indices, Derived::SizeAtCompileTime>>;
+  using ConstRowMajorReturnType = IndexedView<const Derived, ZeroIndex, IvcType<Indices, Derived::SizeAtCompileTime>>;
+
+  using ColMajorReturnType = IndexedView<Derived, IvcType<Indices, Derived::SizeAtCompileTime>, ZeroIndex>;
+  using ConstColMajorReturnType = IndexedView<const Derived, IvcType<Indices, Derived::SizeAtCompileTime>, ZeroIndex>;
+
+  using ReturnType = typename internal::conditional<IsRowMajor, RowMajorReturnType, ColMajorReturnType>::type;
+  using ConstReturnType =
+      typename internal::conditional<IsRowMajor, ConstRowMajorReturnType, ConstColMajorReturnType>::type;
+
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
+  static inline RowMajorReturnType run(Derived& derived, const Indices& indices) {
+    return RowMajorReturnType(derived, ZeroIndex(0),
+                              CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), indices));
+  }
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
+  static inline ConstRowMajorReturnType run(const Derived& derived, const Indices& indices) {
+    return ConstRowMajorReturnType(derived, ZeroIndex(0),
+                                   CreateIndexSequence<Derived::ColsAtCompileTime>(derived.cols(), indices));
+  }
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
+  static inline ColMajorReturnType run(Derived& derived, const Indices& indices) {
+    return ColMajorReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), indices),
+                              ZeroIndex(0));
+  }
+  template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
+  static inline ConstColMajorReturnType run(const Derived& derived, const Indices& indices) {
+    return ConstColMajorReturnType(derived, CreateIndexSequence<Derived::RowsAtCompileTime>(derived.rows(), indices),
+                                   ZeroIndex(0));
+  }
+};
+
+// Block
+template <typename Derived, typename Indices>
+struct VectorIndexedViewSelector<
+    Derived, Indices,
+    std::enable_if_t<!internal::is_single_range<IvcType<Indices, Derived::SizeAtCompileTime>>::value &&
+                     internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>::IncrAtCompileTime ==
+                         1>> {
+  using Helper = internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>;
+  using ReturnType = VectorBlock<Derived, Helper::SizeAtCompileTime>;
+  using ConstReturnType = VectorBlock<const Derived, Helper::SizeAtCompileTime>;
+  static inline ReturnType run(Derived& derived, const Indices& indices) {
+    auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
+    return ReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
+  }
+  static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
+    auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
+    return ConstReturnType(derived, Helper::first(actualIndices), Helper::size(actualIndices));
+  }
+};
+
+// Symbolic
+template <typename Derived, typename Indices>
+struct VectorIndexedViewSelector<
+    Derived, Indices,
+    std::enable_if_t<internal::is_single_range<IvcType<Indices, Derived::SizeAtCompileTime>>::value>> {
+  using ReturnType = typename DenseBase<Derived>::Scalar&;
+  using ConstReturnType = typename DenseBase<Derived>::CoeffReturnType;
+  using Helper = internal::IndexedViewHelper<IvcType<Indices, Derived::SizeAtCompileTime>>;
+  static inline ReturnType run(Derived& derived, const Indices& indices) {
+    auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
+    return derived(Helper::first(actualIndices));
+  }
+  static inline ConstReturnType run(const Derived& derived, const Indices& indices) {
+    auto actualIndices = CreateIndexSequence<Derived::SizeAtCompileTime>(derived.size(), indices);
+    return derived(Helper::first(actualIndices));
+  }
+};
+
 }  // end namespace internal
 
 }  // end namespace Eigen
