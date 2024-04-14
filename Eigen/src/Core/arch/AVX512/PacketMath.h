@@ -1285,7 +1285,11 @@ EIGEN_STRONG_INLINE int64_t pfirst<Packet8l>(const Packet8l& a) {
 }
 template <>
 EIGEN_STRONG_INLINE int pfirst<Packet16i>(const Packet16i& a) {
+#if EIGEN_GNUC_STRICT_LESS_THAN(11, 0, 0)
+  return _mm_cvtsi128_si32(_mm512_castsi512_si128(a));
+#else
   return _mm512_cvtsi512_si32(a);
+#endif
 }
 
 template <>
