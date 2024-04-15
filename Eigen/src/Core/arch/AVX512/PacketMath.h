@@ -156,6 +156,8 @@ struct packet_traits<double> : default_packet_traits {
     HasBlend = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
+    HasSin = EIGEN_FAST_MATH,
+    HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
     HasATan = 1,
