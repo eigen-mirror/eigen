@@ -142,8 +142,10 @@ struct packet_traits<double> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
+#ifdef EIGEN_VECTORIZE_AVX2
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
+#endif
     HasLog = 1,
     HasExp = 1,
     HasSqrt = 1,
@@ -2135,20 +2137,33 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
 template <>
 EIGEN_STRONG_INLINE Packet8f pblend(const Selector<8>& ifPacket, const Packet8f& thenPacket,
                                     const Packet8f& elsePacket) {
+#ifdef EIGEN_VECTORIZE_AVX2
   const __m256i select =
       _mm256_set_epi32(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
                        ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m256i true_mask = _mm256_sub_epi32(_mm256_setzero_si256(), select);
-  return pselect<Packet8f>(_mm256_castsi256_ps(true_mask), thenPacket, elsePacket);
+  const __m256 true_mask = _mm256_castsi256_ps(_mm256_sub_epi32(_mm256_setzero_si256(), select));
+#else
+  const __m256 select = _mm256_set_ps(ifPacket.select[7], ifPacket.select[6], ifPacket.select[5], ifPacket.select[4],
+                                      ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  const __m256 true_mask = _mm256_cmp_ps(select, _mm256_setzero_ps(), _CMP_NEQ_UQ);
+#endif
+
+  return pselect<Packet8f>(true_mask, thenPacket, elsePacket);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pblend(const Selector<4>& ifPacket, const Packet4d& thenPacket,
                                     const Packet4d& elsePacket) {
+#ifdef EIGEN_VECTORIZE_AVX2
   const __m256i select =
       _mm256_set_epi64x(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m256i true_mask = _mm256_sub_epi64(_mm256_setzero_si256(), select);
-  return pselect<Packet4d>(_mm256_castsi256_pd(true_mask), thenPacket, elsePacket);
+  const __m256d true_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), select));
+#else
+  const __m256d select = _mm256_set_pd(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
+  __m256d true_mask = _mm256_cmp_pd(select, _mm256_setzero_pd(), _CMP_NEQ_UQ);
+#endif
+
+  return pselect<Packet4d>(true_mask, thenPacket, elsePacket);
 }
 
 // Packet math for Eigen::half
