@@ -3201,6 +3201,7 @@ struct packet_traits<double> : default_packet_traits {
 template <>
 struct unpacket_traits<Packet2d> {
   typedef double type;
+  typedef Packet2l integer_packet;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -3209,6 +3210,17 @@ struct unpacket_traits<Packet2d> {
     masked_store_available = false
   };
   typedef Packet2d half;
+};
+template <>
+struct unpacket_traits<Packet2l> {
+  typedef int64_t type;
+  enum {
+    size = 2,
+    alignment = Aligned16,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
 
 inline std::ostream& operator<<(std::ostream& s, const Packet2l& v) {
@@ -3257,6 +3269,11 @@ EIGEN_ALWAYS_INLINE void pstore_partial<double>(double* to, const Packet2d& from
 template <>
 EIGEN_STRONG_INLINE Packet2d pset1<Packet2d>(const double& from) {
   Packet2d v = {from, from};
+  return v;
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pset1<Packet2l>(const int64_t& from) {
+  Packet2l v = {from, from};
   return v;
 }
 

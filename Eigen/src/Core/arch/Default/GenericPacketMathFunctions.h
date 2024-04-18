@@ -741,6 +741,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     Packet
     psincos_double(const Packet& x) {
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  typedef typename unpacket_traits<PacketI>::type ScalarI;
 
   const Packet cst_sign_mask = pset1frombits<Packet>(static_cast<Eigen::numext::uint64_t>(0x8000000000000000u));
 
@@ -751,7 +752,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 
   const Packet cst_2oPI = pset1<Packet>(0.63661977236758134307553505349006);  // 2/PI
   // Integer Packet constants
-  const PacketI cst_one = pset1<PacketI>(1);
+  const PacketI cst_one = pset1<PacketI>(ScalarI(1));
   // Constant for splitting
   const Packet cst_split = pset1<Packet>(1 << 24);
 
