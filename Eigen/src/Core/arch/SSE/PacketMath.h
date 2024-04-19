@@ -2232,18 +2232,24 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
   kernel.packet[15] = _mm_unpackhi_epi64(u7, uf);
 }
 
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<2>& ifPacket) {
+  return _mm_set_epi64x(0 - ifPacket.select[1], 0 - ifPacket.select[0]);
+}
+
+EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<4>& ifPacket) {
+  return _mm_set_epi32(0 - ifPacket.select[3], 0 - ifPacket.select[2], 0 - ifPacket.select[1], 0 - ifPacket.select[0]);
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l& thenPacket,
                                     const Packet2l& elsePacket) {
-  const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi64(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet2l>(true_mask, thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
                                     const Packet4i& elsePacket) {
-  const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi32(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet4i>(true_mask, thenPacket, elsePacket);
 }
 template <>
@@ -2254,15 +2260,13 @@ EIGEN_STRONG_INLINE Packet4ui pblend(const Selector<4>& ifPacket, const Packet4u
 template <>
 EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
                                     const Packet4f& elsePacket) {
-  const __m128i select = _mm_set_epi32(ifPacket.select[3], ifPacket.select[2], ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi32(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet4f>(_mm_castsi128_ps(true_mask), thenPacket, elsePacket);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
                                     const Packet2d& elsePacket) {
-  const __m128i select = _mm_set_epi64x(ifPacket.select[1], ifPacket.select[0]);
-  const __m128i true_mask = _mm_sub_epi64(_mm_setzero_si128(), select);
+  const __m128i true_mask = sse_blend_mask(ifPacket);
   return pselect<Packet2d>(_mm_castsi128_pd(true_mask), thenPacket, elsePacket);
 }
 
