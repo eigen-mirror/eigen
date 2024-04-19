@@ -135,7 +135,14 @@ template <typename T>
 struct unpacket_traits {
   typedef T type;
   typedef T half;
-  enum { size = 1, alignment = 1, vectorizable = false, masked_load_available = false, masked_store_available = false };
+  typedef typename numext::get_integer_by_size<sizeof(T)>::signed_type integer_packet;
+  enum {
+    size = 1,
+    alignment = alignof(T),
+    vectorizable = false,
+    masked_load_available = false,
+    masked_store_available = false
+  };
 };
 
 template <typename T>
