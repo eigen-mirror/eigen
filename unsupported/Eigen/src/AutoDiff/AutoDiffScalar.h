@@ -22,13 +22,8 @@ struct auto_diff_special_op;
 
 template <typename DerivativeType, typename OtherDerivativeType, typename EnableIf = void>
 struct maybe_coherent_pad_helper {
-  static constexpr int SizeAtCompileTime = DerivativeType::SizeAtCompileTime == Dynamic ||
-                                                   OtherDerivativeType::SizeAtCompileTime == Dynamic
-                                               ? Dynamic
-                                           : int(DerivativeType::SizeAtCompileTime) >
-                                                   int(OtherDerivativeType::SizeAtCompileTime)
-                                               ? DerivativeType::SizeAtCompileTime
-                                               : OtherDerivativeType::SizeAtCompileTime;
+  static constexpr int SizeAtCompileTime =
+      max_size_prefer_dynamic(DerivativeType::SizeAtCompileTime, OtherDerivativeType::SizeAtCompileTime);
   using type = CoherentPadOp<DerivativeType, SizeAtCompileTime>;
   static type pad(const DerivativeType& x, const OtherDerivativeType& y) {
     // CoherentPadOp uses variable_if_dynamic<SizeAtCompileTime>.  In this case, `SizeAtCompileTime` might
