@@ -195,19 +195,19 @@ namespace internal {
 // Default scalar printer.
 template <typename Scalar, typename Format, typename EnableIf = void>
 struct ScalarPrinter {
-  static void run(std::ostream& stream, const Scalar& scalar, const Format& fmt) { stream << scalar; }
+  static void run(std::ostream& stream, const Scalar& scalar, const Format&) { stream << scalar; }
 };
 
 template <typename Scalar>
 struct ScalarPrinter<Scalar, TensorIOFormatNumpy, std::enable_if_t<NumTraits<Scalar>::IsComplex>> {
-  static void run(std::ostream& stream, const Scalar& scalar, const TensorIOFormatNumpy& fmt) {
+  static void run(std::ostream& stream, const Scalar& scalar, const TensorIOFormatNumpy&) {
     stream << numext::real(scalar) << "+" << numext::imag(scalar) << "j";
   }
 };
 
 template <typename Scalar>
 struct ScalarPrinter<Scalar, TensorIOFormatNative, std::enable_if_t<NumTraits<Scalar>::IsComplex>> {
-  static void run(std::ostream& stream, const Scalar& scalar, const TensorIOFormatNative& fmt) {
+  static void run(std::ostream& stream, const Scalar& scalar, const TensorIOFormatNative&) {
     stream << "{" << numext::real(scalar) << ", " << numext::imag(scalar) << "}";
   }
 };
@@ -339,7 +339,7 @@ struct TensorPrinter {
       IndexType scalar_width = scalar_str.length();
       if (width && scalar_width < width) {
         std::string filler;
-        for (IndexType i = scalar_width; i < width; ++i) {
+        for (IndexType j = scalar_width; j < width; ++j) {
           filler.push_back(fmt.fill);
         }
         s << filler;
@@ -360,7 +360,7 @@ struct TensorPrinter<Tensor, rank, TensorIOFormatLegacy, std::enable_if_t<rank !
   using Format = TensorIOFormatLegacy;
   using Scalar = std::remove_const_t<typename Tensor::Scalar>;
 
-  static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
+  static void run(std::ostream& s, const Tensor& tensor, const Format&) {
     typedef typename Tensor::Index IndexType;
     // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x
     // (dim(1)*dim(2)*...*dim(rank-1)).
