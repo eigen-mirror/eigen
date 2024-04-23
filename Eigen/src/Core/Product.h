@@ -21,7 +21,7 @@ class ProductImpl;
 namespace internal {
 
 template <typename Lhs, typename Rhs, int Option>
-struct traits<Product<Lhs, Rhs, Option> > {
+struct traits<Product<Lhs, Rhs, Option>> {
   typedef remove_all_t<Lhs> LhsCleaned;
   typedef remove_all_t<Rhs> RhsCleaned;
   typedef traits<LhsCleaned> LhsTraits;
@@ -93,6 +93,23 @@ class Product
   typedef internal::remove_all_t<LhsNested> LhsNestedCleaned;
   typedef internal::remove_all_t<RhsNested> RhsNestedCleaned;
 
+ private:
+  using LhsTransposeType = Transpose<const LhsNestedCleaned>;
+  using LhsScalar = typename internal::traits<LhsNestedCleaned>::Scalar;
+  using LhsConjugateTransposeType = CwiseUnaryOp<internal::scalar_conjugate_op<LhsScalar>, LhsTransposeType>;
+  using LhsAdjointType =
+      std::conditional_t<is_complex_helper<LhsScalar>::value, LhsConjugateTransposeType, LhsTransposeType>;
+
+  using RhsTransposeType = Transpose<const RhsNestedCleaned>;
+  using RhsScalar = typename internal::traits<RhsNestedCleaned>::Scalar;
+  using RhsConjugateTransposeType = CwiseUnaryOp<internal::scalar_conjugate_op<RhsScalar>, RhsTransposeType>;
+  using RhsAdjointType =
+      std::conditional_t<is_complex_helper<RhsScalar>::value, RhsConjugateTransposeType, RhsTransposeType>;
+
+ public:
+  using TransposeReturnType = Product<RhsTransposeType, LhsTransposeType, Option>;
+  using AdjointReturnType = Product<RhsAdjointType, LhsAdjointType, Option>;
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Product(const Lhs& lhs, const Rhs& rhs) : m_lhs(lhs), m_rhs(rhs) {
     eigen_assert(lhs.cols() == rhs.rows() && "invalid matrix product" &&
                  "if you wanted a coeff-wise or a dot product use the respective explicit functions");
@@ -104,6 +121,9 @@ class Product
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const LhsNestedCleaned& lhs() const { return m_lhs; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const RhsNestedCleaned& rhs() const { return m_rhs; }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TransposeReturnType transpose() const;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AdjointReturnType adjoint() const;
+
  protected:
   LhsNested m_lhs;
   RhsNested m_rhs;
@@ -112,12 +132,12 @@ class Product
 namespace internal {
 
 template <typename Lhs, typename Rhs, int Option, int ProductTag = internal::product_type<Lhs, Rhs>::ret>
-class dense_product_base : public internal::dense_xpr_base<Product<Lhs, Rhs, Option> >::type {};
+class dense_product_base : public internal::dense_xpr_base<Product<Lhs, Rhs, Option>>::type {};
 
 /** Conversion to scalar for inner-products */
 template <typename Lhs, typename Rhs, int Option>
 class dense_product_base<Lhs, Rhs, Option, InnerProduct>
-    : public internal::dense_xpr_base<Product<Lhs, Rhs, Option> >::type {
+    : public internal::dense_xpr_base<Product<Lhs, Rhs, Option>>::type {
   typedef Product<Lhs, Rhs, Option> ProductXpr;
   typedef typename internal::dense_xpr_base<ProductXpr>::type Base;
 

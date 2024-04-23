@@ -1011,6 +1011,16 @@ struct ScalarBinaryOpTraits<void, void, BinaryOp> {
   typedef void ReturnType;
 };
 
+template <typename Scalar>
+struct is_complex_helper {
+  static constexpr bool value = NumTraits<Scalar>::IsComplex;
+};
+// NumTraits<void> is not defined by intent
+template <>
+struct is_complex_helper<void> {
+  static constexpr bool value = false;
+};
+
 // We require Lhs and Rhs to have "compatible" scalar types.
 // It is tempting to always allow mixing different types but remember that this is often impossible in the vectorized
 // paths. So allowing mixing different types gives very unexpected errors when enabling vectorization, when the user

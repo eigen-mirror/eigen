@@ -196,6 +196,18 @@ EIGEN_DEVICE_FUNC inline const typename MatrixBase<Derived>::AdjointReturnType M
   return AdjointReturnType(this->transpose());
 }
 
+template <typename Lhs_, typename Rhs_, int Option>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Product<Lhs_, Rhs_, Option>::TransposeReturnType
+Product<Lhs_, Rhs_, Option>::transpose() const {
+  return TransposeReturnType(m_rhs.transpose(), m_lhs.transpose());
+}
+
+template <typename Lhs_, typename Rhs_, int Option>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Product<Lhs_, Rhs_, Option>::AdjointReturnType
+Product<Lhs_, Rhs_, Option>::adjoint() const {
+  return AdjointReturnType(m_rhs.adjoint(), m_lhs.adjoint());
+}
+
 /***************************************************************************
  * "in place" transpose implementation
  ***************************************************************************/
