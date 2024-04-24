@@ -3398,6 +3398,10 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
   return reinterpret_cast<Packet2d>(vec_cmpeq(a, b));
 }
 template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_eq(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmpeq(a, b));
+}
+template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan(const Packet2d& a, const Packet2d& b) {
   Packet2d c = reinterpret_cast<Packet2d>(vec_cmpge(a, b));
   return vec_nor(c, c);
