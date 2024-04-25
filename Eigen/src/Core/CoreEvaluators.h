@@ -1346,7 +1346,8 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor> >
   enum {
     CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,
     LinearAccessMask = XprType::IsVectorAtCompileTime ? LinearAccessBit : 0,
-    Flags = (evaluator<ArgTypeNestedCleaned>::Flags & (HereditaryBits | LinearAccessMask) & ~RowMajorBit) |
+    Flags = (evaluator<ArgTypeNestedCleaned>::Flags & (HereditaryBits | LinearAccessMask | PacketAccessBit) &
+             ~RowMajorBit) |
             (traits<XprType>::Flags & RowMajorBit),
 
     Alignment = evaluator<ArgTypeNestedCleaned>::Alignment
