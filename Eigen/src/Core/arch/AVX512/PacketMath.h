@@ -1562,10 +1562,28 @@ template <>
 EIGEN_STRONG_INLINE int predux_mul<Packet16i>(const Packet16i& a) {
   return _mm512_reduce_mul_epi32(a);
 }
+
+#if EIGEN_COMP_MSVC
+// MSVC's _mm512_reduce_mul_epi64 is borked, at least up to and including 1939.
+//    alignas(64) int64_t data[] = { 1,1,-1,-1,1,-1,-1,-1 };
+//    int64_t out = _mm512_reduce_mul_epi64(_mm512_load_epi64(data));
+// produces garbage: 4294967295.  It seems to happen whenever the output is supposed to be negative.
+// Fall back to a manual approach:
+template <>
+EIGEN_STRONG_INLINE int64_t predux_mul<Packet8l>(const Packet8l& a) {
+  Packet4l lane0 = _mm512_extracti64x4_epi64(a, 0);
+  Packet4l lane1 = _mm512_extracti64x4_epi64(a, 1);
+  Packet4l res = pmul(lane0, lane1);
+  res = pmul(res, Packet4l(_mm256_permute2x128_si256(res, res, 1)));
+  res = pmul(res, Packet4l(_mm256_shuffle_epi32(res, 0xE)));
+  return pfirst(res);
+}
+#else
 template <>
 EIGEN_STRONG_INLINE int64_t predux_mul<Packet8l>(const Packet8l& a) {
   return _mm512_reduce_mul_epi64(a);
 }
+#endif
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet16f>(const Packet16f& a) {
