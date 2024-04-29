@@ -47,7 +47,7 @@ struct eigen_random_device {
   using ReturnType = int;
   static constexpr int Entropy = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value;
   static constexpr ReturnType Highest = RAND_MAX;
-  static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); };
+  static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); }
 };
 
 // Fill a built-in unsigned integer with numRandomBits beginning with the least significant bit

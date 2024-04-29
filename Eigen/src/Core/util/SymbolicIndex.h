@@ -260,7 +260,7 @@ class SymbolValue<Tag, internal::FixedInt<N>> : public BaseExpr<SymbolValue<Tag,
   constexpr SymbolValue() = default;
 
   /** Default constructor from the value \a val */
-  constexpr SymbolValue(internal::FixedInt<N>){};
+  constexpr SymbolValue(internal::FixedInt<N>) {}
 
   /** \returns the stored value of the symbol */
   constexpr Index value() const { return static_cast<Index>(N); }
