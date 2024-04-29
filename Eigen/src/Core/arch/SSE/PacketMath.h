@@ -198,12 +198,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBlend = 1,
-    HasCeil = 1,
-    HasFloor = 1,
-#ifdef EIGEN_VECTORIZE_SSE4_1
-    HasRound = 1,
-#endif
-    HasRint = 1,
     HasSign = 0  // The manually vectorized version is slightly slower for SSE.
   };
 };
@@ -225,13 +219,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasATan = 1,
-    HasBlend = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-#ifdef EIGEN_VECTORIZE_SSE4_1
-    HasRound = 1,
-#endif
-    HasRint = 1
+    HasBlend = 1
   };
 };
 template <>
@@ -1309,73 +1297,14 @@ template <>
 EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
   return _mm_floor_pd(a);
 }
-#else
-template <>
-EIGEN_STRONG_INLINE Packet4f print(const Packet4f& a) {
-  // Adds and subtracts signum(a) * 2^23 to force rounding.
-  const Packet4f limit = pset1<Packet4f>(static_cast<float>(1 << 23));
-  const Packet4f abs_a = pabs(a);
-  Packet4f r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
-}
 
 template <>
-EIGEN_STRONG_INLINE Packet2d print(const Packet2d& a) {
-  // Adds and subtracts signum(a) * 2^52 to force rounding.
-  const Packet2d limit = pset1<Packet2d>(static_cast<double>(1ull << 52));
-  const Packet2d abs_a = pabs(a);
-  Packet2d r = padd(abs_a, limit);
-  // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(r);
-  r = psub(r, limit);
-  // If greater than limit, simply return a.  Otherwise, account for sign.
-  r = pselect(pcmp_lt(abs_a, limit), pselect(pcmp_lt(a, pzero(a)), pnegate(r), r), a);
-  return r;
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  return _mm_round_ps(a, _MM_FROUND_TRUNC);
 }
-
 template <>
-EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
-  Packet4f tmp = print<Packet4f>(a);
-  // If greater, subtract one.
-  Packet4f mask = _mm_cmpgt_ps(tmp, a);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
-  const Packet2d cst_1 = pset1<Packet2d>(1.0);
-  Packet2d tmp = print<Packet2d>(a);
-  // If greater, subtract one.
-  Packet2d mask = _mm_cmpgt_pd(tmp, a);
-  mask = pand(mask, cst_1);
-  return psub(tmp, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  const Packet4f cst_1 = pset1<Packet4f>(1.0f);
-  Packet4f tmp = print<Packet4f>(a);
-  // If smaller, add one.
-  Packet4f mask = _mm_cmplt_ps(tmp, a);
-  mask = pand(mask, cst_1);
-  return padd(tmp, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
-  const Packet2d cst_1 = pset1<Packet2d>(1.0);
-  Packet2d tmp = print<Packet2d>(a);
-  // If smaller, add one.
-  Packet2d mask = _mm_cmplt_pd(tmp, a);
-  mask = pand(mask, cst_1);
-  return padd(tmp, mask);
+EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
+  return _mm_round_pd(a, _MM_FROUND_TRUNC);
 }
 #endif
 

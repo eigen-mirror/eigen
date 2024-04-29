@@ -193,17 +193,12 @@ struct packet_traits<float> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasRint = 1,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
     HasTanh = 0,
     HasErf = 0,
-    HasRint = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -235,17 +230,12 @@ struct packet_traits<bfloat16> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRint = 1,
 #else
     HasSqrt = 0,
     HasRsqrt = 0,
-    HasRint = 0,
 #endif
     HasTanh = 0,
     HasErf = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -1506,6 +1496,10 @@ template <>
 EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
   return vec_floor(a);
 }
+template <>
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  return vec_trunc(a);
+}
 #ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
@@ -2364,6 +2358,10 @@ template <>
 EIGEN_STRONG_INLINE Packet8bf pround<Packet8bf>(const Packet8bf& a) {
   BF16_TO_F32_UNARY_OP_WRAPPER(pround<Packet4f>, a);
 }
+template <>
+EIGEN_STRONG_INLINE Packet8bf ptrunc<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(ptrunc<Packet4f>, a);
+}
 #ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet8bf print<Packet8bf>(const Packet8bf& a) {
@@ -3189,10 +3187,6 @@ struct packet_traits<double> : default_packet_traits {
 #else
     HasRsqrt = 0,
 #endif
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
     HasNegate = 1,
     HasBlend = 1
   };
@@ -3444,6 +3438,10 @@ EIGEN_STRONG_INLINE Packet2d pceil<Packet2d>(const Packet2d& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
   return vec_floor(a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
+  return vec_trunc(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d print<Packet2d>(const Packet2d& a) {

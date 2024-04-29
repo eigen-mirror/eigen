@@ -133,6 +133,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& x);
 
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a);
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a);
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a);
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a);
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
+
 // Macros for instantiating these generic functions for different backends.
 #define EIGEN_PACKET_FUNCTION(METHOD, SCALAR, PACKET)                                             \
   template <>                                                                                     \

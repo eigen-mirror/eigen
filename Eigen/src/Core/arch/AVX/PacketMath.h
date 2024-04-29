@@ -124,11 +124,7 @@ struct packet_traits<float> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasBlend = 1
   };
 };
 template <>
@@ -151,11 +147,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasATan = 1,
-    HasBlend = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasBlend = 1
   };
 };
 
@@ -192,10 +184,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBlend = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -235,10 +223,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBlend = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -1255,6 +1239,15 @@ EIGEN_STRONG_INLINE Packet8f pfloor<Packet8f>(const Packet8f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4d pfloor<Packet4d>(const Packet4d& a) {
   return _mm256_floor_pd(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8f ptrunc<Packet8f>(const Packet8f& a) {
+  return _mm256_round_ps(a, _MM_FROUND_TRUNC);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4d ptrunc<Packet4d>(const Packet4d& a) {
+  return _mm256_round_pd(a, _MM_FROUND_TRUNC);
 }
 
 template <>
@@ -2312,6 +2305,11 @@ EIGEN_STRONG_INLINE Packet8h pfloor<Packet8h>(const Packet8h& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8h ptrunc<Packet8h>(const Packet8h& a) {
+  return float2half(ptrunc<Packet8f>(half2float(a)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet8h pcmp_eq(const Packet8h& a, const Packet8h& b) {
   return Pack16To8(pcmp_eq(half2float(a), half2float(b)));
 }
@@ -2684,6 +2682,11 @@ EIGEN_STRONG_INLINE Packet8bf pceil<Packet8bf>(const Packet8bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8bf pfloor<Packet8bf>(const Packet8bf& a) {
   return F32ToBf16(pfloor<Packet8f>(Bf16ToF32(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf ptrunc<Packet8bf>(const Packet8bf& a) {
+  return F32ToBf16(ptrunc<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>

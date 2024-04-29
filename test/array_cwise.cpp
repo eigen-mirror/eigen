@@ -40,6 +40,7 @@ template <typename Scalar, std::enable_if_t<!NumTraits<Scalar>::IsInteger, int> 
 std::vector<Scalar> special_values() {
   const Scalar zero = Scalar(0);
   const Scalar eps = Eigen::NumTraits<Scalar>::epsilon();
+  const Scalar one_half = Scalar(0.5);
   const Scalar one = Scalar(1);
   const Scalar two = Scalar(2);
   const Scalar three = Scalar(3);
@@ -51,7 +52,7 @@ std::vector<Scalar> special_values() {
   const Scalar min = (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
-  return {zero, denorm_min, min, eps, sqrt_half, one, sqrt2, two, three, max_exp, max, inf, nan};
+  return {zero, denorm_min, min, eps, sqrt_half, one_half, one, sqrt2, two, three, max_exp, max, inf, nan};
 }
 
 template <typename Scalar>
@@ -184,6 +185,11 @@ void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(asinh));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(acosh));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(atanh));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(rint));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(floor));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(ceil));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(round));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(trunc));
   /* FIXME: Enable when the behavior of rsqrt on denormals for half and double is fixed.
   unary_op_test<Scalar>("rsqrt",
                         [](const auto& x) { return Eigen::rsqrt(x); },
@@ -791,6 +797,7 @@ void array_real(const ArrayType& m) {
   VERIFY_IS_APPROX(m1.rint(), rint(m1));
   VERIFY_IS_APPROX(m1.floor(), floor(m1));
   VERIFY_IS_APPROX(m1.ceil(), ceil(m1));
+  VERIFY_IS_APPROX(m1.trunc(), trunc(m1));
   VERIFY((m1.isNaN() == (Eigen::isnan)(m1)).all());
   VERIFY((m1.isInf() == (Eigen::isinf)(m1)).all());
   VERIFY((m1.isFinite() == (Eigen::isfinite)(m1)).all());

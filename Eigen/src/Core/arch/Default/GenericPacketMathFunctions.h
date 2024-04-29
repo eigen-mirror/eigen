@@ -2469,6 +2469,95 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
   }
 };
 
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using IntType = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
+  // Adds and subtracts signum(a) * 2^kMantissaBits to force rounding.
+  const IntType kLimit = IntType(1) << (NumTraits<Scalar>::digits() - 1);
+  const Packet cst_limit = pset1<Packet>(static_cast<Scalar>(kLimit));
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet rint_a = padd(abs_a, cst_limit);
+  // Don't compile-away addition and subtraction.
+  EIGEN_OPTIMIZATION_BARRIER(rint_a);
+  rint_a = psub(rint_a, cst_limit);
+  rint_a = por(rint_a, sign_a);
+  // If greater than limit (or NaN), simply return a.
+  Packet mask = pcmp_lt(abs_a, cst_limit);
+  Packet result = pselect(mask, rint_a, a);
+  return result;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet rint_a = generic_rint(a);
+  // if a < rint(a), then rint(a) == ceil(a)
+  Packet mask = pcmp_lt(a, rint_a);
+  Packet offset = pand(cst_1, mask);
+  Packet result = psub(rint_a, offset);
+  return result;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet rint_a = generic_rint(a);
+  // if rint(a) < a, then rint(a) == floor(a)
+  Packet mask = pcmp_lt(rint_a, a);
+  Packet offset = pand(cst_1, mask);
+  Packet result = padd(rint_a, offset);
+  return result;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet floor_abs_a = generic_floor(abs_a);
+  Packet result = por(floor_abs_a, sign_a);
+  return result;
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const Packet cst_half = pset1<Packet>(Scalar(0.5));
+  const Packet cst_1 = pset1<Packet>(Scalar(1));
+  Packet abs_a = pabs(a);
+  Packet sign_a = pandnot(a, abs_a);
+  Packet floor_abs_a = generic_floor(abs_a);
+  Packet diff = psub(abs_a, floor_abs_a);
+  Packet mask = pcmp_le(cst_half, diff);
+  Packet offset = pand(cst_1, mask);
+  Packet result = padd(floor_abs_a, offset);
+  result = por(result, sign_a);
+  return result;
+}
+
+template <typename Packet>
+struct nearest_integer_packetop_impl<Packet, /*IsScalar*/ false, /*IsInteger*/ false> {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  static_assert(packet_traits<Scalar>::HasRound, "Generic nearest integer functions are disabled for this type.");
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_floor(const Packet& x) { return generic_floor(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_ceil(const Packet& x) { return generic_ceil(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_rint(const Packet& x) { return generic_rint(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_round(const Packet& x) { return generic_round(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_trunc(const Packet& x) { return generic_trunc(x); }
+};
+
+template <typename Packet>
+struct nearest_integer_packetop_impl<Packet, /*IsScalar*/ false, /*IsInteger*/ true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_floor(const Packet& x) { return x; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_ceil(const Packet& x) { return x; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_rint(const Packet& x) { return x; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_round(const Packet& x) { return x; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_trunc(const Packet& x) { return x; }
+};
+
 }  // end namespace internal
 }  // end namespace Eigen
 

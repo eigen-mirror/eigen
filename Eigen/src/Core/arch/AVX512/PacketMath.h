@@ -97,11 +97,7 @@ struct packet_traits<half> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasBlend = 0
   };
 };
 #endif
@@ -138,11 +134,7 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasDiv = 1
   };
 };
 template <>
@@ -162,11 +154,7 @@ struct packet_traits<double> : default_packet_traits {
     HasExp = 1,
     HasATan = 1,
     HasCmp = 1,
-    HasDiv = 1,
-    HasRound = 1,
-    HasFloor = 1,
-    HasCeil = 1,
-    HasRint = 1
+    HasDiv = 1
   };
 };
 
@@ -779,6 +767,15 @@ EIGEN_STRONG_INLINE Packet16f pfloor<Packet16f>(const Packet16f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8d pfloor<Packet8d>(const Packet8d& a) {
   return _mm512_roundscale_pd(a, _MM_FROUND_TO_NEG_INF);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16f ptrunc<Packet16f>(const Packet16f& a) {
+  return _mm512_roundscale_ps(a, _MM_FROUND_TO_ZERO);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8d ptrunc<Packet8d>(const Packet8d& a) {
+  return _mm512_roundscale_pd(a, _MM_FROUND_TO_ZERO);
 }
 
 template <>
@@ -2323,6 +2320,11 @@ EIGEN_STRONG_INLINE Packet16h pfloor<Packet16h>(const Packet16h& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet16h ptrunc<Packet16h>(const Packet16h& a) {
+  return float2half(ptrunc<Packet16f>(half2float(a)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet16h pcmp_eq(const Packet16h& a, const Packet16h& b) {
   Packet16f af = half2float(a);
   Packet16f bf = half2float(b);
@@ -2819,6 +2821,11 @@ EIGEN_STRONG_INLINE Packet16bf pceil<Packet16bf>(const Packet16bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet16bf pfloor<Packet16bf>(const Packet16bf& a) {
   return F32ToBf16(pfloor<Packet16f>(Bf16ToF32(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf ptrunc<Packet16bf>(const Packet16bf& a) {
+  return F32ToBf16(ptrunc<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>

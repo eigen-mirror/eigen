@@ -57,6 +57,9 @@ struct default_packet_traits {
     HasConj = 1,
     HasSetLinear = 1,
     HasSign = 1,
+    // By default, the nearest integer functions (rint, round, floor, ceil, trunc) are enabled for all scalar and packet
+    // types
+    HasRound = 1,
 
     HasArg = 0,
     HasAbsDiff = 0,
@@ -64,10 +67,6 @@ struct default_packet_traits {
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq, pcmp_lt and pcmp_le should be defined for it to be true.
     HasCmp = 0,
-    HasRound = 0,
-    HasRint = 0,
-    HasFloor = 0,
-    HasCeil = 0,
 
     HasDiv = 0,
     HasReciprocal = 0,
@@ -1138,33 +1137,45 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt(const Packet& 
   return numext::cbrt(a);
 }
 
+template <typename Packet, bool IsScalar = is_scalar<Packet>::value,
+          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+struct nearest_integer_packetop_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_floor(const Packet& x) { return numext::floor(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_ceil(const Packet& x) { return numext::ceil(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_rint(const Packet& x) { return numext::rint(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_round(const Packet& x) { return numext::round(x); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run_trunc(const Packet& x) { return numext::trunc(x); }
+};
+
 /** \internal \returns the rounded value of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pround(const Packet& a) {
-  using numext::round;
-  return round(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pround(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_round(a);
 }
 
 /** \internal \returns the floor of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pfloor(const Packet& a) {
-  using numext::floor;
-  return floor(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pfloor(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_floor(a);
 }
 
 /** \internal \returns the rounded value of \a a (coeff-wise) with current
  * rounding mode */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet print(const Packet& a) {
-  using numext::rint;
-  return rint(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet print(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_rint(a);
 }
 
 /** \internal \returns the ceil of \a a (coeff-wise) */
 template <typename Packet>
-EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pceil(const Packet& a) {
-  using numext::ceil;
-  return ceil(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pceil(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_ceil(a);
+}
+
+/** \internal \returns the truncation of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet ptrunc(const Packet& a) {
+  return nearest_integer_packetop_impl<Packet>::run_trunc(a);
 }
 
 template <typename Packet, typename EnableIf = void>
