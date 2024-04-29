@@ -624,7 +624,8 @@ void packetmath() {
   }
 
   // Avoid overflows.
-  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned) {
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned &&
+      Eigen::internal::unpacket_traits<Packet>::size > 1) {
     Scalar limit =
         static_cast<Scalar>(std::pow(static_cast<double>(numext::real(NumTraits<Scalar>::highest())),
                                      1.0 / static_cast<double>(Eigen::internal::unpacket_traits<Packet>::size)));
