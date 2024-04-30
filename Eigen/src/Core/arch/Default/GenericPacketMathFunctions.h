@@ -2470,7 +2470,7 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
 };
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   using IntType = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
   // Adds and subtracts signum(a) * 2^kMantissaBits to force rounding.
@@ -2490,7 +2490,7 @@ EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
   Packet rint_a = generic_rint(a);
@@ -2502,7 +2502,7 @@ EIGEN_STRONG_INLINE Packet generic_floor(const Packet& a) {
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
   Packet rint_a = generic_rint(a);
@@ -2514,7 +2514,7 @@ EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
   Packet abs_a = pabs(a);
   Packet sign_a = pandnot(a, abs_a);
   Packet floor_abs_a = generic_floor(abs_a);
@@ -2523,7 +2523,7 @@ EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a) {
 }
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_half = pset1<Packet>(Scalar(0.5));
   const Packet cst_1 = pset1<Packet>(Scalar(1));

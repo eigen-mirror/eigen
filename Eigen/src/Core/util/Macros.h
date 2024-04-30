@@ -964,6 +964,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void ignore_unused_variable(cons
 // added then subtracted, which is otherwise compiled away with -ffast-math.
 //
 // See bug 1674
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+#define EIGEN_OPTIMIZATION_BARRIER(X)
+#endif
+
 #if !defined(EIGEN_OPTIMIZATION_BARRIER)
 #if EIGEN_COMP_GNUC
    // According to https://gcc.gnu.org/onlinedocs/gcc/Constraints.html:
