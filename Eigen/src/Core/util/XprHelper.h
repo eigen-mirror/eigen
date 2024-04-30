@@ -928,6 +928,12 @@ template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 struct block_xpr_helper<const Block<XprType, BlockRows, BlockCols, InnerPanel>>
     : block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {};
 
+template <typename XprType>
+struct is_matrix_base_xpr : std::is_base_of<MatrixBase<remove_all_t<XprType>>, remove_all_t<XprType>> {};
+
+template <typename XprType>
+struct is_permutation_base_xpr : std::is_base_of<PermutationBase<remove_all_t<XprType>>, remove_all_t<XprType>> {};
+
 }  // end namespace internal
 
 /** \class ScalarBinaryOpTraits
