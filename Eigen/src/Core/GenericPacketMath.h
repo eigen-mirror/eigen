@@ -709,33 +709,21 @@ EIGEN_DEVICE_FUNC inline Packet parg(const Packet& a) {
 }
 
 /** \internal \returns \a a arithmetically shifted by N bits to the right */
-template <int N>
-EIGEN_DEVICE_FUNC inline int parithmetic_shift_right(const int& a) {
-  return a >> N;
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int parithmetic_shift_right(const long int& a) {
-  return a >> N;
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T parithmetic_shift_right(const T& a) {
+  return numext::arithmetic_shift_right(a, N);
 }
 
 /** \internal \returns \a a logically shifted by N bits to the right */
-template <int N>
-EIGEN_DEVICE_FUNC inline int plogical_shift_right(const int& a) {
-  return static_cast<int>(static_cast<unsigned int>(a) >> N);
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int plogical_shift_right(const long int& a) {
-  return static_cast<long>(static_cast<unsigned long>(a) >> N);
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T plogical_shift_right(const T& a) {
+  return numext::logical_shift_right(a, N);
 }
 
 /** \internal \returns \a a shifted by N bits to the left */
-template <int N>
-EIGEN_DEVICE_FUNC inline int plogical_shift_left(const int& a) {
-  return a << N;
-}
-template <int N>
-EIGEN_DEVICE_FUNC inline long int plogical_shift_left(const long int& a) {
-  return a << N;
+template <int N, typename T>
+EIGEN_DEVICE_FUNC inline T plogical_shift_left(const T& a) {
+  return numext::logical_shift_left(a, N);
 }
 
 /** \internal \returns the significant and exponent of the underlying floating point numbers
