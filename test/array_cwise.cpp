@@ -1098,12 +1098,16 @@ struct arithmetic_right_shift_op {
   }
 };
 
+namespace Eigen {
+namespace internal {
 template <int N, typename Scalar>
-struct internal::functor_traits<logical_left_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
+struct functor_traits<logical_left_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
 template <int N, typename Scalar>
-struct internal::functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
+struct functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
 template <int N, typename Scalar>
-struct internal::functor_traits<arithmetic_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
+struct functor_traits<arithmetic_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
+}  // namespace internal
+}  // namespace Eigen
 
 template <typename ArrayType>
 struct shift_test_impl {
