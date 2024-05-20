@@ -960,9 +960,9 @@ void array_complex(const ArrayType& m) {
   // Check for larger magnitude complex numbers that expm1 matches exp - 1.
   VERIFY_IS_APPROX(expm1(10. * m1), exp(10. * m1) - 1.);
 
-  VERIFY_IS_APPROX(sinh(m1), 0.5*(exp(m1)-exp(-m1)));
-  VERIFY_IS_APPROX(cosh(m1), 0.5*(exp(m1)+exp(-m1)));
-  VERIFY_IS_APPROX(tanh(m1), (0.5*(exp(m1)-exp(-m1)))/(0.5*(exp(m1)+exp(-m1))));
+  VERIFY_IS_APPROX(sinh(m1), 0.5 * (exp(m1) - exp(-m1)));
+  VERIFY_IS_APPROX(cosh(m1), 0.5 * (exp(m1) + exp(-m1)));
+  VERIFY_IS_APPROX(tanh(m1), (0.5 * (exp(m1) - exp(-m1))) / (0.5 * (exp(m1) + exp(-m1))));
   VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
   if (m1.size() > 0) {
     // Complex exponential overflow edge-case.

@@ -140,7 +140,8 @@ void comparisons(const MatrixType& m) {
   // and/or
   VERIFY(((m1.array() < RealScalar(0)).matrix() && (m1.array() > RealScalar(0)).matrix()).count() == 0);
   VERIFY(((m1.array() < RealScalar(0)).matrix() || (m1.array() >= RealScalar(0)).matrix()).count() == rows * cols);
-  VERIFY(((m1.array() < -mid).matrix() || (m1.array() > mid).matrix()).count() == (m1.cwiseAbs().array() > mid).count());
+  VERIFY(((m1.array() < -mid).matrix() || (m1.array() > mid).matrix()).count() ==
+         (m1.cwiseAbs().array() > mid).count());
 
   typedef Matrix<Index, Dynamic, 1> VectorOfIndices;
 
