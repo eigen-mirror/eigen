@@ -53,7 +53,7 @@
 #include <random>
 #include <chrono>
 #ifdef EIGEN_USE_THREADS
-#include <future>
+#include <Eigen/ThreadPool>
 #endif
 #endif
 #if __cplusplus > 201703L
