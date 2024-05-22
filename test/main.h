@@ -336,7 +336,9 @@ static std::vector<std::string> eigen_assert_list;
 
 #endif  // EIGEN_NO_ASSERTION_CHECKING
 
+#ifndef EIGEN_TESTING_CONSTEXPR
 #define EIGEN_INTERNAL_DEBUGGING
+#endif
 #include <Eigen/QR>  // required for createRandomPIMatrixOfRank and generateRandomMatrixSvs
 
 inline void verify_impl(bool condition, const char* testname, const char* file, int line,
