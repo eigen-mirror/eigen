@@ -77,7 +77,7 @@ struct CoreThreadPoolDevice {
       Index size = end - begin;
       eigen_assert(size % PacketSize == 0 && "this function assumes size is a multiple of PacketSize");
       Index mid = begin + numext::round_down(size >> 1, PacketSize);
-      Task right = [=, this, &f, &barrier]() {
+      Task right = [this, mid, end, &f, &barrier, level]() {
         parallelForImpl<UnaryFunctor, PacketSize>(mid, end, f, barrier, level);
       };
       m_pool.Schedule(std::move(right));
@@ -96,7 +96,7 @@ struct CoreThreadPoolDevice {
       Index outerSize = outerEnd - outerBegin;
       if (outerSize > 1) {
         Index outerMid = outerBegin + (outerSize >> 1);
-        Task right = [=, this, &f, &barrier]() {
+        Task right = [this, &f, &barrier, outerMid, outerEnd, innerBegin, innerEnd, level]() {
           parallelForImpl<BinaryFunctor, PacketSize>(outerMid, outerEnd, innerBegin, innerEnd, f, barrier, level);
         };
         m_pool.Schedule(std::move(right));
@@ -105,7 +105,7 @@ struct CoreThreadPoolDevice {
         Index innerSize = innerEnd - innerBegin;
         eigen_assert(innerSize % PacketSize == 0 && "this function assumes innerSize is a multiple of PacketSize");
         Index innerMid = innerBegin + numext::round_down(innerSize >> 1, PacketSize);
-        Task right = [=, this, &f, &barrier]() {
+        Task right = [this, &f, &barrier, outerBegin, outerEnd, innerMid, innerEnd, level]() {
           parallelForImpl<BinaryFunctor, PacketSize>(outerBegin, outerEnd, innerMid, innerEnd, f, barrier, level);
         };
         m_pool.Schedule(std::move(right));
