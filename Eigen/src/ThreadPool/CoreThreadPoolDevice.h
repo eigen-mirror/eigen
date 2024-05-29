@@ -15,24 +15,24 @@ namespace Eigen {
 // CoreThreadPoolDevice provides an easy-to-understand Device for parallelizing Eigen Core expressions with
 // Threadpool. Expressions are recursively split evenly until the evaluation cost is less than the threshold for
 // delegating the task to a thread.
-
-//                a
-//               / \
-//              /   \
-//             /     \
-//            /       \
-//           /         \
-//          /           \
-//         /             \
-//        a               e
-//       / \             / \
-//      /   \           /   \
-//     /     \         /     \
-//    a       c       e       g
-//   / \     / \     / \     / \
-//  /   \   /   \   /   \   /   \
-// a     b c     d e     f g     h
-
+/*
+                 a
+                / \
+               /   \
+              /     \
+             /       \
+            /         \
+           /           \
+          /             \
+         a               e
+        / \             / \
+       /   \           /   \
+      /     \         /     \
+     a       c       e       g
+    / \     / \     / \     / \
+   /   \   /   \   /   \   /   \
+  a     b c     d e     f g     h
+*/
 // Each task descends the binary tree to the left, delegates the right task to a new thread, and continues to the
 // left. This ensures that work is evenly distributed to the thread pool as quickly as possible and minimizes the number
 // of tasks created during the evaluation. Consider an expression that is divided into 8 chunks. The

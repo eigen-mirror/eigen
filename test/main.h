@@ -52,9 +52,6 @@
 #if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#ifdef EIGEN_USE_THREADS
-#include <Eigen/ThreadPool>
-#endif
 #endif
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
@@ -219,11 +216,7 @@ class EigenTest {
 }  // namespace Eigen
 
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
-// #define TRACK while()
 
-#ifdef EIGEN_DEFAULT_IO_FORMAT
-#undef EIGEN_DEFAULT_IO_FORMAT
-#endif
 #define EIGEN_DEFAULT_IO_FORMAT IOFormat(4, 0, "  ", "\n", "", "", "", "")
 
 #if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
