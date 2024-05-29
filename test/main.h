@@ -221,6 +221,9 @@ class EigenTest {
 #define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
 // #define TRACK while()
 
+#ifdef EIGEN_DEFAULT_IO_FORMAT
+#undef EIGEN_DEFAULT_IO_FORMAT
+#endif
 #define EIGEN_DEFAULT_IO_FORMAT IOFormat(4, 0, "  ", "\n", "", "", "", "")
 
 #if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
