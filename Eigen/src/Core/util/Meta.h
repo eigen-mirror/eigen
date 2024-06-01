@@ -639,7 +639,7 @@ template <typename A>
 constexpr bool is_int_or_enum_v = std::is_enum<A>::value || std::is_integral<A>::value;
 
 template <typename A, typename B>
-inline constexpr void plain_enum_asserts(A a, B b) {
+inline constexpr void plain_enum_asserts(A, B) {
   static_assert(is_int_or_enum_v<A>, "Argument a must be an integer or enum");
   static_assert(is_int_or_enum_v<B>, "Argument b must be an integer or enum");
 }
