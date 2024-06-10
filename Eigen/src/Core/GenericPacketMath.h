@@ -580,18 +580,10 @@ EIGEN_DEVICE_FUNC inline Packet pandnot(const Packet& a, const Packet& b) {
 }
 
 // In the general case, use bitwise select.
-template <typename Packet, typename EnableIf = void>
+template <typename Packet>
 struct pselect_impl {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& mask, const Packet& a, const Packet& b) {
     return por(pand(a, mask), pandnot(b, mask));
-  }
-};
-
-// For scalars, use ternary select.
-template <typename Packet>
-struct pselect_impl<Packet, std::enable_if_t<is_scalar<Packet>::value>> {
-  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& mask, const Packet& a, const Packet& b) {
-    return numext::equal_strict(mask, Packet(0)) ? b : a;
   }
 };
 
