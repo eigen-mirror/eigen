@@ -42,12 +42,10 @@ struct type_casting_traits<double, int64_t> : vectorized_type_casting_traits<dou
 template <>
 struct type_casting_traits<int64_t, double> : vectorized_type_casting_traits<int64_t, double> {};
 
-#ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 struct type_casting_traits<half, float> : vectorized_type_casting_traits<half, float> {};
 template <>
 struct type_casting_traits<float, half> : vectorized_type_casting_traits<float, half> {};
-#endif
 
 template <>
 struct type_casting_traits<bfloat16, float> : vectorized_type_casting_traits<bfloat16, float> {};
@@ -249,8 +247,6 @@ EIGEN_STRONG_INLINE Packet8bf preinterpret<Packet8bf, Packet16bf>(const Packet16
   return _mm256_castsi256_si128(a);
 }
 
-#ifndef EIGEN_VECTORIZE_AVX512FP16
-
 template <>
 EIGEN_STRONG_INLINE Packet16f pcast<Packet16h, Packet16f>(const Packet16h& a) {
   return half2float(a);
@@ -260,8 +256,6 @@ template <>
 EIGEN_STRONG_INLINE Packet16h pcast<Packet16f, Packet16h>(const Packet16f& a) {
   return float2half(a);
 }
-
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pcast<Packet16bf, Packet16f>(const Packet16bf& a) {
