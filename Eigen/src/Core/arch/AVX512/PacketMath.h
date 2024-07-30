@@ -572,7 +572,7 @@ EIGEN_STRONG_INLINE Packet8l pmax<Packet8l>(const Packet8l& a, const Packet8l& b
   return _mm512_max_epi64(b, a);
 }
 
-// Add specializations for min/max with prescribed NaN progation.
+// Add specializations for min/max with prescribed NaN propagation.
 template <>
 EIGEN_STRONG_INLINE Packet16f pmin<PropagateNumbers, Packet16f>(const Packet16f& a, const Packet16f& b) {
   return pminmax_propagate_numbers(a, b, pmin<Packet16f>);

@@ -1257,7 +1257,7 @@ struct lhs_process_one_packet {
         traits.initAcc(C3);
         // To improve instruction pipelining, let's double the accumulation registers:
         //  even k will accumulate in C*, while odd k will accumulate in D*.
-        // This trick is crutial to get good performance with FMA, otherwise it is
+        // This trick is crucial to get good performance with FMA, otherwise it is
         // actually faster to perform separated MUL+ADD because of a naturally
         // better instruction-level parallelism.
         AccPacket D0, D1, D2, D3;
@@ -3130,9 +3130,8 @@ inline std::ptrdiff_t l2CacheSize() {
   return l2;
 }
 
-/** \returns the currently set level 3 cpu cache size (in bytes) used to estimate the ideal blocking size paramete\
-rs.
-* \sa setCpuCacheSize */
+/** \returns the currently set level 3 cpu cache size (in bytes) used to estimate the ideal blocking size parameters.
+ * \sa setCpuCacheSize */
 inline std::ptrdiff_t l3CacheSize() {
   std::ptrdiff_t l1, l2, l3;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);

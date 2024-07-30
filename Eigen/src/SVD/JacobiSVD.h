@@ -559,7 +559,7 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
   }
 
   /** \brief Constructor performing the decomposition of given matrix, using the custom options specified
-   *         with the \a Options template paramter.
+   *         with the \a Options template parameter.
    *
    * \param matrix the matrix to decompose
    */

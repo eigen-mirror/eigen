@@ -164,10 +164,10 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * Like the default constructor but with preallocation of the internal data
    * according to the specified problem size and the \a computationOptions.
    *
-   * One \b cannot request unitiaries using both the \a Options template parameter
+   * One \b cannot request unitaries using both the \a Options template parameter
    * and the constructor. If possible, prefer using the \a Options template parameter.
    *
-   * \param computationOptions specifification for computing Thin/Full unitaries U/V
+   * \param computationOptions specification for computing Thin/Full unitaries U/V
    * \sa BDCSVD()
    *
    * \deprecated Will be removed in the next major Eigen version. Options should
@@ -179,7 +179,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   }
 
   /** \brief Constructor performing the decomposition of given matrix, using the custom options specified
-   *         with the \a Options template paramter.
+   *         with the \a Options template parameter.
    *
    * \param matrix the matrix to decompose
    */
@@ -190,11 +190,11 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   /** \brief Constructor performing the decomposition of given matrix using specified options
    *         for computing unitaries.
    *
-   *  One \b cannot request unitiaries using both the \a Options template parameter
+   *  One \b cannot request unitaries using both the \a Options template parameter
    *  and the constructor. If possible, prefer using the \a Options template parameter.
    *
    * \param matrix the matrix to decompose
-   * \param computationOptions specifification for computing Thin/Full unitaries U/V
+   * \param computationOptions specification for computing Thin/Full unitaries U/V
    *
    * \deprecated Will be removed in the next major Eigen version. Options should
    * be specified in the \a Options template parameter.
