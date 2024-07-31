@@ -19,7 +19,7 @@ namespace internal {
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
-    typedef ArrayXpr XprKind;
+  typedef ArrayXpr XprKind;
   typedef ArrayBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> XprBase;
 };
 }  // namespace internal
