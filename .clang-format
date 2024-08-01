@@ -1,7 +1,8 @@
 ---
-Language:     Cpp
 BasedOnStyle: Google
 ColumnLimit:  120
+---
+Language:     Cpp
 StatementMacros:
   - EIGEN_STATIC_ASSERT
 SortIncludes: false
