@@ -360,7 +360,7 @@ $(document).ready(function() {
   
   (function (){ // wait until the first "selected" element has been created
     try {
-      // this line will triger an exception if there is no #selected element, i.e., before the tree structure is
+      // this line will trigger an exception if there is no #selected element, i.e., before the tree structure is
       // complete.
       document.getElementById("selected").className = "item selected";
       

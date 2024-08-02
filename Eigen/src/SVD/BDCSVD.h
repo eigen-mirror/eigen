@@ -1047,7 +1047,7 @@ void BDCSVD<MatrixType, Options>::computeSingVals(const ArrayRef& col0, const Ar
       } else {
         // We have a problem as shifting on the left or right give either a positive or negative value
         // at the middle of [left,right]...
-        // Instead fo abbording or entering an infinite loop,
+        // Instead of abbording or entering an infinite loop,
         // let's just use the middle as the estimated zero-crossing:
         muCur = (right - left) * RealScalar(0.5);
         // we can test exact equality here, because shift comes from `... ? left : right`
