@@ -718,10 +718,10 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
     LhsPacketSize = Vectorizable ? unpacket_traits<LhsPacket_>::size : 1,
     RhsPacketSize = Vectorizable ? unpacket_traits<RhsScalar>::size : 1,
     RealPacketSize = Vectorizable ? unpacket_traits<RealPacket>::size : 1,
+    NumberOfRegisters = EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS,
 
-    // FIXME: should depend on NumberOfRegisters
     nr = 4,
-    mr = ResPacketSize,
+    mr = (plain_enum_min(16, NumberOfRegisters) / 2 / nr) * ResPacketSize,
 
     LhsProgress = ResPacketSize,
     RhsProgress = 1
@@ -795,8 +795,8 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
                                                                                          DoublePacket<ResPacketType>& c,
                                                                                          TmpType& /*tmp*/,
                                                                                          const LaneIdType&) const {
-    c.first = padd(pmul(a, b.first), c.first);
-    c.second = padd(pmul(a, b.second), c.second);
+    c.first = pmadd(a, b.first, c.first);
+    c.second = pmadd(a, b.second, c.second);
   }
 
   template <typename LaneIdType>
