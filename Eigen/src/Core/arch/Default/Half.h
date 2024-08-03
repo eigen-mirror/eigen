@@ -685,7 +685,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log(const half& a) {
 #if (defined(EIGEN_HAS_CUDA_FP16) && EIGEN_CUDA_SDK_VER >= 80000 && defined(EIGEN_CUDA_ARCH) && \
      EIGEN_CUDA_ARCH >= 530) ||                                                                 \
     (defined(EIGEN_HAS_HIP_FP16) && defined(EIGEN_HIP_DEVICE_COMPILE))
-  return half(::hlog(a));
+  return half(hlog(a));
 #else
   return half(::logf(float(a)));
 #endif
