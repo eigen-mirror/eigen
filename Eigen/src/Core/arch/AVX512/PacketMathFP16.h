@@ -260,7 +260,7 @@ EIGEN_DEVICE_FUNC inline Packet32h pselect(const Packet32h& mask, const Packet32
 template <>
 EIGEN_STRONG_INLINE Packet32h pcmp_eq(const Packet32h& a, const Packet32h& b) {
   __mmask32 mask = _mm512_cmp_ph_mask(a, b, _CMP_EQ_OQ);
-  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, 0xffffu));
+  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, static_cast<short>(0xffffu)));
 }
 
 // pcmp_le
@@ -268,7 +268,7 @@ EIGEN_STRONG_INLINE Packet32h pcmp_eq(const Packet32h& a, const Packet32h& b) {
 template <>
 EIGEN_STRONG_INLINE Packet32h pcmp_le(const Packet32h& a, const Packet32h& b) {
   __mmask32 mask = _mm512_cmp_ph_mask(a, b, _CMP_LE_OQ);
-  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, 0xffffu));
+  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, static_cast<short>(0xffffu)));
 }
 
 // pcmp_lt
@@ -276,7 +276,7 @@ EIGEN_STRONG_INLINE Packet32h pcmp_le(const Packet32h& a, const Packet32h& b) {
 template <>
 EIGEN_STRONG_INLINE Packet32h pcmp_lt(const Packet32h& a, const Packet32h& b) {
   __mmask32 mask = _mm512_cmp_ph_mask(a, b, _CMP_LT_OQ);
-  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, 0xffffu));
+  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi32(0), mask, static_cast<short>(0xffffu)));
 }
 
 // pcmp_lt_or_nan
@@ -284,7 +284,7 @@ EIGEN_STRONG_INLINE Packet32h pcmp_lt(const Packet32h& a, const Packet32h& b) {
 template <>
 EIGEN_STRONG_INLINE Packet32h pcmp_lt_or_nan(const Packet32h& a, const Packet32h& b) {
   __mmask32 mask = _mm512_cmp_ph_mask(a, b, _CMP_NGE_UQ);
-  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi16(0), mask, 0xffffu));
+  return _mm512_castsi512_ph(_mm512_mask_set1_epi16(_mm512_set1_epi16(0), mask, static_cast<short>(0xffffu)));
 }
 
 // padd
