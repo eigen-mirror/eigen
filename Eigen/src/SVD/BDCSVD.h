@@ -52,8 +52,9 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
 
 template <typename MatrixType, int Options>
 struct allocate_small_svd {
-  static void run(JacobiSVD<MatrixType, Options>& smallSvd, Index rows, Index cols, unsigned int) {
-    internal::construct_at(&smallSvd, rows, cols);
+  static void run(JacobiSVD<MatrixType, Options>& smallSvd, Index rows, Index cols, unsigned int computationOptions) {
+    (void)computationOptions;
+    smallSvd = JacobiSVD<MatrixType, Options>(rows, cols);
   }
 };
 
@@ -63,7 +64,7 @@ EIGEN_DISABLE_DEPRECATED_WARNING
 template <typename MatrixType>
 struct allocate_small_svd<MatrixType, 0> {
   static void run(JacobiSVD<MatrixType>& smallSvd, Index rows, Index cols, unsigned int computationOptions) {
-    internal::construct_at(&smallSvd, rows, cols, computationOptions);
+    smallSvd = JacobiSVD<MatrixType>(rows, cols, computationOptions);
   }
 };
 
