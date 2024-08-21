@@ -110,6 +110,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_double(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptanh_float(const Packet& x);
 
+/** \internal \returns tanh(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptanh_double(const Packet& x);
+
 /** \internal \returns atanh(x) for single precision float */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Packet& x);
@@ -184,7 +188,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_DOUBLE_PACKET_FUNCTION(sin, PACKET)                 \
   EIGEN_DOUBLE_PACKET_FUNCTION(cos, PACKET)                 \
   EIGEN_DOUBLE_PACKET_FUNCTION(log2, PACKET)                \
-  EIGEN_DOUBLE_PACKET_FUNCTION(exp, PACKET)
+  EIGEN_DOUBLE_PACKET_FUNCTION(exp, PACKET)                 \
+  EIGEN_DOUBLE_PACKET_FUNCTION(tanh, PACKET)
 
 }  // end namespace internal
 }  // end namespace Eigen

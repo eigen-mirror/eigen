@@ -153,6 +153,7 @@ struct packet_traits<double> : default_packet_traits {
     HasLog = 1,
     HasExp = 1,
     HasATan = 1,
+    HasTanh = EIGEN_FAST_MATH,
     HasCmp = 1,
     HasDiv = 1
   };
