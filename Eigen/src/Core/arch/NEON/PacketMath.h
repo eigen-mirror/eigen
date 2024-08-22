@@ -655,6 +655,16 @@ struct unpacket_traits<Packet2ul> {
 };
 
 template <>
+EIGEN_STRONG_INLINE Packet2f pzero(const Packet2f& /*a*/) {
+  return vdup_n_f32(0.0f);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f pzero(const Packet4f& /*a*/) {
+  return vdupq_n_f32(0.0f);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2f pset1<Packet2f>(const float& from) {
   return vdup_n_f32(from);
 }
@@ -5146,6 +5156,11 @@ struct unpacket_traits<Packet2d> {
     masked_store_available = false
   };
 };
+
+template <>
+EIGEN_STRONG_INLINE Packet2d pzero<Packet2d>(const Packet2d& /*a*/) {
+  return vdupq_n_f64(0.0);
+}
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pset1<Packet2d>(const double& from) {

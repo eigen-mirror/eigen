@@ -109,6 +109,16 @@ EIGEN_STRONG_INLINE Packet2cf pcast<Packet2f, Packet2cf>(const Packet2f& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1cf pzero(const Packet1cf& /*a*/) {
+  return Packet1cf(vdup_n_f32(0.0f));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2cf pzero(const Packet2cf& /*a*/) {
+  return Packet2cf(vdupq_n_f32(0.0f));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1cf pset1<Packet1cf>(const std::complex<float>& from) {
   return Packet1cf(vld1_f32(reinterpret_cast<const float*>(&from)));
 }
@@ -156,6 +166,20 @@ EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a) {
   return Packet2cf(vreinterpretq_f32_u32(veorq_u32(b, p4ui_CONJ_XOR())));
 }
 
+#ifdef __ARM_FEATURE_COMPLEX
+template <>
+EIGEN_STRONG_INLINE Packet1cf pmadd<Packet1cf>(const Packet1cf& a, const Packet1cf& b, const Packet1cf& c) {
+  Packet1cf result;
+  result.v = vcmla_f32(c.v, a.v, b.v);
+  result.v = vcmla_rot90_f32(result.v, a.v, b.v);
+  return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1cf pmul<Packet1cf>(const Packet1cf& a, const Packet1cf& b) {
+  return pmadd(a, b, pzero(a));
+}
+#else
 template <>
 EIGEN_STRONG_INLINE Packet1cf pmul<Packet1cf>(const Packet1cf& a, const Packet1cf& b) {
   Packet2f v1, v2;
@@ -175,6 +199,22 @@ EIGEN_STRONG_INLINE Packet1cf pmul<Packet1cf>(const Packet1cf& a, const Packet1c
   // Add and return the result
   return Packet1cf(vadd_f32(v1, v2));
 }
+#endif
+
+#ifdef __ARM_FEATURE_COMPLEX
+template <>
+EIGEN_STRONG_INLINE Packet2cf pmadd<Packet2cf>(const Packet2cf& a, const Packet2cf& b, const Packet2cf& c) {
+  Packet2cf result;
+  result.v = vcmlaq_f32(c.v, a.v, b.v);
+  result.v = vcmlaq_rot90_f32(result.v, a.v, b.v);
+  return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
+  return pmadd(a, b, pzero(a));
+}
+#else
 template <>
 EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
   Packet4f v1, v2;
@@ -194,6 +234,7 @@ EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2c
   // Add and return the result
   return Packet2cf(vaddq_f32(v1, v2));
 }
+#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet1cf pcmp_eq(const Packet1cf& a, const Packet1cf& b) {
@@ -524,6 +565,11 @@ EIGEN_STRONG_INLINE Packet1cd ploadu<Packet1cd>(const std::complex<double>* from
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1cd pzero<Packet1cd>(const Packet1cd& /*a*/) {
+  return Packet1cd(vdupq_n_f64(0.0));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1cd pset1<Packet1cd>(const std::complex<double>& from) {
   /* here we really have to use unaligned loads :( */
   return ploadu<Packet1cd>(&from);
@@ -549,6 +595,20 @@ EIGEN_STRONG_INLINE Packet1cd pconj(const Packet1cd& a) {
   return Packet1cd(vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(a.v), p2ul_CONJ_XOR)));
 }
 
+#ifdef __ARM_FEATURE_COMPLEX
+template <>
+EIGEN_STRONG_INLINE Packet1cd pmadd<Packet1cd>(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
+  Packet1cd result;
+  result.v = vcmlaq_f64(c.v, a.v, b.v);
+  result.v = vcmlaq_rot90_f64(result.v, a.v, b.v);
+  return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1cd& b) {
+  return pmadd(a, b, pzero(a));
+}
+#else
 template <>
 EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1cd& b) {
   Packet2d v1, v2;
@@ -568,6 +628,7 @@ EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1c
   // Add and return the result
   return Packet1cd(vaddq_f64(v1, v2));
 }
+#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet1cd pcmp_eq(const Packet1cd& a, const Packet1cd& b) {
