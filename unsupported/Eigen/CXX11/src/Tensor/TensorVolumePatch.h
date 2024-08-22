@@ -276,7 +276,6 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
         }
         default: {
           eigen_assert(false && "unexpected padding");
-          return;
         }
       }
     }
