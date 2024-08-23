@@ -68,7 +68,7 @@ Packet generic_expm1(const Packet& x);
 
 /** \internal \returns atan(x) */
 template <typename Packet>
-Packet generic_patan(const Packet& x);
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_patan(const Packet& x);
 
 /** \internal \returns exp(x) for single precision float */
 template <typename Packet>
