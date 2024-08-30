@@ -220,6 +220,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasATan = 1,
+    HasATanh = 1,
     HasBlend = 1
   };
 };

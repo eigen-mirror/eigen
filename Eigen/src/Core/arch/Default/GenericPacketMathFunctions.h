@@ -1198,8 +1198,7 @@ template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
-  const Packet half = pset1<Packet>(0.5f);
-  const Packet x_gt_half = pcmp_le(half, pabs(x));
+
   // For |x| in [0:0.5] we use a polynomial approximation of the form
   // P(x) = x + x^3*(c3 + x^2 * (c5 + x^2 * (... x^2 * c11) ... )).
   const Packet C3 = pset1<Packet>(0.3333373963832855224609375f);
@@ -1215,10 +1214,61 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
   p = pmadd(pmul(x, x2), p, x);
 
   // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
+  const Packet half = pset1<Packet>(0.5f);
   const Packet one = pset1<Packet>(1.0f);
   Packet r = pdiv(padd(one, x), psub(one, x));
   r = pmul(half, plog(r));
-  return pselect(x_gt_half, r, p);
+
+  const Packet x_gt_half = pcmp_le(half, pabs(x));
+  const Packet x_eq_one = pcmp_eq(one, pabs(x));
+  const Packet x_gt_one = pcmp_lt(one, pabs(x));
+  const Packet inf = pset1<Packet>(std::numeric_limits<float>::infinity());
+  return por(x_gt_one, pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_half, r, p)));
+}
+
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const Packet& x) {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
+  // For x in [-0.5:0.5] we use a rational approximation of the form
+  // R(x) = x + x^3*P(x^2)/Q(x^2), where P is or order 4 and Q is of order 5.
+  const Packet p0 = pset1<Packet>(1.2306328729812676e-01);
+  const Packet p2 = pset1<Packet>(-2.5949536095445679e-01);
+  const Packet p4 = pset1<Packet>(1.8185306179826699e-01);
+  const Packet p6 = pset1<Packet>(-4.7129526768798737e-02);
+  const Packet p8 = pset1<Packet>(3.3071338469301391e-03);
+
+  const Packet q0 = pset1<Packet>(3.6918986189438030e-01);
+  const Packet q2 = pset1<Packet>(-1.0000000000000000e+00);
+  const Packet q4 = pset1<Packet>(9.8733495886883648e-01);
+  const Packet q6 = pset1<Packet>(-4.2828141436397615e-01);
+  const Packet q8 = pset1<Packet>(7.6391885763341910e-02);
+  const Packet q10 = pset1<Packet>(-3.8679974580640881e-03);
+
+  const Packet x2 = pmul(x, x);
+  const Packet x3 = pmul(x, x2);
+  Packet q = pmadd(q10, x2, q8);
+  Packet p = pmadd(p8, x2, p6);
+  q = pmadd(x2, q, q6);
+  p = pmadd(x2, p, p4);
+  q = pmadd(x2, q, q4);
+  p = pmadd(x2, p, p2);
+  q = pmadd(x2, q, q2);
+  p = pmadd(x2, p, p0);
+  q = pmadd(x2, q, q0);
+  Packet y_small = pmadd(x3, pdiv(p, q), x);
+
+  // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
+  const Packet half = pset1<Packet>(0.5);
+  const Packet one = pset1<Packet>(1.0);
+  Packet y_large = pdiv(padd(one, x), psub(one, x));
+  y_large = pmul(half, plog(y_large));
+
+  const Packet x_gt_half = pcmp_le(half, pabs(x));
+  const Packet x_eq_one = pcmp_eq(one, pabs(x));
+  const Packet x_gt_one = pcmp_lt(one, pabs(x));
+  const Packet inf = pset1<Packet>(std::numeric_limits<double>::infinity());
+  return por(x_gt_one, pselect(x_eq_one, por(psignbit(x), inf), pselect(x_gt_half, y_large, y_small)));
 }
 
 template <typename Packet>
