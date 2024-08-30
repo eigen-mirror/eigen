@@ -482,33 +482,33 @@ EIGEN_STRONG_INLINE Packet2cf pnmsub(const Packet2cf& a, const Packet2cf& b, con
 // std::complex<double>
 template <>
 EIGEN_STRONG_INLINE Packet1cd pmadd(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
-  __m128d a_odd = _mm_permute_pd(a.v, 0xF);
+  __m128d a_odd = _mm_permute_pd(a.v, 0x3);
   __m128d a_even = _mm_movedup_pd(a.v);
-  __m128d b_swap = _mm_permute_pd(b.v, 0x5);
+  __m128d b_swap = _mm_permute_pd(b.v, 0x1);
   __m128d result = _mm_fmaddsub_pd(a_even, b.v, _mm_fmaddsub_pd(a_odd, b_swap, c.v));
   return Packet1cd(result);
 }
 template <>
 EIGEN_STRONG_INLINE Packet1cd pmsub(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
-  __m128d a_odd = _mm_permute_pd(a.v, 0xF);
+  __m128d a_odd = _mm_permute_pd(a.v, 0x3);
   __m128d a_even = _mm_movedup_pd(a.v);
-  __m128d b_swap = _mm_permute_pd(b.v, 0x5);
+  __m128d b_swap = _mm_permute_pd(b.v, 0x1);
   __m128d result = _mm_fmaddsub_pd(a_even, b.v, _mm_fmsubadd_pd(a_odd, b_swap, c.v));
   return Packet1cd(result);
 }
 template <>
 EIGEN_STRONG_INLINE Packet1cd pnmadd(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
-  __m128d a_odd = _mm_permute_pd(a.v, 0xF);
+  __m128d a_odd = _mm_permute_pd(a.v, 0x3);
   __m128d a_even = _mm_movedup_pd(a.v);
-  __m128d b_swap = _mm_permute_pd(b.v, 0x5);
+  __m128d b_swap = _mm_permute_pd(b.v, 0x1);
   __m128d result = _mm_fmaddsub_pd(a_odd, b_swap, _mm_fmaddsub_pd(a_even, b.v, c.v));
   return Packet1cd(result);
 }
 template <>
 EIGEN_STRONG_INLINE Packet1cd pnmsub(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
-  __m128d a_odd = _mm_permute_pd(a.v, 0xF);
+  __m128d a_odd = _mm_permute_pd(a.v, 0x3);
   __m128d a_even = _mm_movedup_pd(a.v);
-  __m128d b_swap = _mm_permute_pd(b.v, 0x5);
+  __m128d b_swap = _mm_permute_pd(b.v, 0x1);
   __m128d result = _mm_fmaddsub_pd(a_odd, b_swap, _mm_fmsubadd_pd(a_even, b.v, c.v));
   return Packet1cd(result);
 }
