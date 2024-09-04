@@ -1222,7 +1222,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
   const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
-  const Packet sign_mask = pset1<Packet>(-1.0f);
+  const Packet sign_mask = pset1<Packet>(-0.0f);
   const Packet x_sign = pand(sign_mask, x);
   const Packet inf = pset1<Packet>(std::numeric_limits<float>::infinity());
   return por(x_gt_one, pselect(x_eq_one, por(x_sign, inf), pselect(x_gt_half, r, p)));
@@ -1269,7 +1269,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
   const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
-  const Packet sign_mask = pset1<Packet>(-1.0);
+  const Packet sign_mask = pset1<Packet>(-0.0);
   const Packet x_sign = pand(sign_mask, x);
   const Packet inf = pset1<Packet>(std::numeric_limits<double>::infinity());
   return por(x_gt_one, pselect(x_eq_one, por(x_sign, inf), pselect(x_gt_half, y_large, y_small)));
