@@ -358,7 +358,7 @@ struct packet_traits<float> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
-    HasSqrt = 0,
+    HasSqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH
   };
@@ -478,12 +478,12 @@ EIGEN_STRONG_INLINE PacketXf pcmp_eq<PacketXf>(const PacketXf& a, const PacketXf
   return svreinterpret_f32_u32(svdup_n_u32_z(svcmpeq_f32(svptrue_b32(), a, b), 0xffffffffu));
 }
 
-// Do a predicate inverse (svnot_b_x) on the predicate resulted from the
+// Do a predicate inverse (svnot_b_z) on the predicate resulted from the
 // greater/equal comparison (svcmpge_f32). Then fill a float vector with the
 // active elements.
 template <>
 EIGEN_STRONG_INLINE PacketXf pcmp_lt_or_nan<PacketXf>(const PacketXf& a, const PacketXf& b) {
-  return svreinterpret_f32_u32(svdup_n_u32_z(svnot_b_x(svptrue_b32(), svcmpge_f32(svptrue_b32(), a, b)), 0xffffffffu));
+  return svreinterpret_f32_u32(svdup_n_u32_z(svnot_b_z(svptrue_b32(), svcmpge_f32(svptrue_b32(), a, b)), 0xffffffffu));
 }
 
 template <>
@@ -658,6 +658,11 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE PacketXf pldexp<PacketXf>(const PacketXf& a, const PacketXf& exponent) {
   return pldexp_generic(a, exponent);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXf psqrt<PacketXf>(const PacketXf& a) {
+  return svsqrt_f32_x(svptrue_b32(), a);
 }
 
 }  // namespace internal
