@@ -263,13 +263,13 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       uint64_t num_spinning = (state & kNumSpinningMask);
       uint64_t num_no_notification = (state & kNumNoNotifyMask) >> kNumNoNotifyShift;
 
-      assert(num_no_notification <= num_spinning);
+      eigen_plain_assert(num_no_notification <= num_spinning);
       return {num_spinning, num_no_notification};
     }
 
     // Encodes as `spinning_state_` value.
     uint64_t Encode() const {
-      assert(num_no_notification <= num_spinning);
+      eigen_plain_assert(num_no_notification <= num_spinning);
       return (num_no_notification << kNumNoNotifyShift) | num_spinning;
     }
   };
