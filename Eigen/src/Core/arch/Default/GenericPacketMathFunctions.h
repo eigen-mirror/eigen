@@ -2598,11 +2598,14 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
+  const Packet sign_mask = pset1<Packet>(static_cast<Scalar>(-0.0));
   Packet rint_a = generic_rint(a);
   // if rint(a) < a, then rint(a) == floor(a)
   Packet mask = pcmp_lt(rint_a, a);
   Packet offset = pand(cst_1, mask);
   Packet result = padd(rint_a, offset);
+  // Signed zero must remain signed (e.g. ceil(-0.02) == -0).
+  result = por(result, pand(sign_mask, a));
   return result;
 }
 
