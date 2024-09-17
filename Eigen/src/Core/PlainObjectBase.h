@@ -485,8 +485,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   }
 #endif
 
-  EIGEN_DEVICE_FUNC constexpr PlainObjectBase(PlainObjectBase&& other) EIGEN_NOEXCEPT
-      : m_storage(std::move(other.m_storage)) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(PlainObjectBase&& other) = default;
 
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) EIGEN_NOEXCEPT {
     m_storage = std::move(other.m_storage);
@@ -494,8 +493,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   }
 
   /** Copy constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const PlainObjectBase& other)
-      : Base(), m_storage(other.m_storage) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const PlainObjectBase& other) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {
     //       EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
