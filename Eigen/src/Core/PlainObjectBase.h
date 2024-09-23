@@ -270,10 +270,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type
   }
 
   /** \returns a const pointer to the data array of this matrix */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar* data() const { return m_storage.data(); }
+  EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return m_storage.data(); }
 
   /** \returns a pointer to the data array of this matrix */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar* data() { return m_storage.data(); }
+  EIGEN_DEVICE_FUNC constexpr Scalar* data() { return m_storage.data(); }
 
   /** Resizes \c *this to a \a rows x \a cols matrix.
    *

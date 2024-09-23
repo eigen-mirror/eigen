@@ -90,9 +90,9 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   inline StorageIndex* innerNonZeroPtr() { return 0; }
 
   /** \internal */
-  inline Storage& data() { return m_data; }
+  constexpr Storage& data() { return m_data; }
   /** \internal */
-  inline const Storage& data() const { return m_data; }
+  constexpr const Storage& data() const { return m_data; }
 
   inline Scalar coeff(Index row, Index col) const {
     eigen_assert(IsColVector ? (col == 0 && row >= 0 && row < m_size) : (row == 0 && col >= 0 && col < m_size));
