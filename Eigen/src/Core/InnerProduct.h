@@ -85,13 +85,13 @@ struct inner_product_evaluator {
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
-  EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
     return m_func.packet(m_lhs.template packet<LhsMode, PacketType>(index),
                          m_rhs.template packet<RhsMode, PacketType>(index));
   }
 
   template <typename PacketType, int LhsMode = LhsAlignment, int RhsMode = RhsAlignment>
-  EIGEN_STRONG_INLINE PacketType packet(const PacketType& value, Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(const PacketType& value, Index index) const {
     return m_func.packet(value, m_lhs.template packet<LhsMode, PacketType>(index),
                          m_rhs.template packet<RhsMode, PacketType>(index));
   }
