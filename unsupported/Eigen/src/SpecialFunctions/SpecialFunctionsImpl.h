@@ -274,54 +274,50 @@ struct digamma_impl {
  ****************************************************************************/
 
 /** \internal \returns the error function of \a a (coeff-wise)
-    Doesn't do anything fancy, just a 9/12-degree rational interpolant which
-    is accurate to 3 ulp for normalized floats in the range [-c;c], where
-    c = erfinv(1-2^-23), outside of which x should be +/-1 in single precision.
-    Strictly speaking c should be erfinv(1-2^-24), but we clamp slightly earlier
-    to avoid returning values greater than 1.
+    This uses a 11/10-degree rational interpolantand is accurate to 3 ulp for
+    normalized floats.
 
-    This implementation works on both scalars and Ts.
+    This implementation works on both scalars and SIMD "packets".
 */
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& x) {
-  constexpr float kErfInvOneMinusHalfULP = 3.832506856900711f;
-  const T clamp = pcmp_le(pset1<T>(kErfInvOneMinusHalfULP), pabs(x));
   // The monomial coefficients of the numerator polynomial (odd).
-  const T alpha_1 = pset1<T>(1.128379143519084f);
-  const T alpha_3 = pset1<T>(0.18520832239976145f);
-  const T alpha_5 = pset1<T>(0.050955695062380861f);
-  const T alpha_7 = pset1<T>(0.0034082910107109506f);
-  const T alpha_9 = pset1<T>(0.00022905065861350646f);
+  const T alpha_1 = pset1<T>(1.128379106521606445312500000000000000e+00f);
+  const T alpha_3 = pset1<T>(1.874160766601562500000000000000000000e-01f);
+  const T alpha_5 = pset1<T>(5.243302136659622192382812500000000000e-02f);
+  const T alpha_7 = pset1<T>(3.658048342913389205932617187500000000e-03f);
+  const T alpha_9 = pset1<T>(2.861979592125862836837768554687500000e-04f);
+  const T alpha_11 = pset1<T>(2.123732201653183437883853912353515625e-06f);
 
   // The monomial coefficients of the denominator polynomial (even).
   const T beta_0 = pset1<T>(1.0f);
-  const T beta_2 = pset1<T>(0.49746925110067538f);
-  const T beta_4 = pset1<T>(0.11098505178285362f);
-  const T beta_6 = pset1<T>(0.014070470171167667f);
-  const T beta_8 = pset1<T>(0.0010179625278914885f);
-  const T beta_10 = pset1<T>(0.000023547966471313185f);
-  const T beta_12 = pset1<T>(-1.1791602954361697e-7f);
+  const T beta_2 = pset1<T>(4.99425798654556274414062500000e-01f);
+  const T beta_4 = pset1<T>(1.12945675849914550781250000000e-01f);
+  const T beta_6 = pset1<T>(1.47520881146192550659179687500e-02f);
+  const T beta_8 = pset1<T>(1.14329601638019084930419921875e-03f);
+  const T beta_10 = pset1<T>(3.89185734093189239501953125000e-05f);
 
   // Since the polynomials are odd/even, we need x^2.
   const T x2 = pmul(x, x);
 
   // Evaluate the numerator polynomial p.
-  T p = pmadd(x2, alpha_9, alpha_7);
+  T p = pmadd(x2, alpha_11, alpha_9);
+  p = pmadd(x2, p, alpha_7);
   p = pmadd(x2, p, alpha_5);
   p = pmadd(x2, p, alpha_3);
   p = pmadd(x2, p, alpha_1);
   p = pmul(x, p);
-
   // Evaluate the denominator polynomial p.
-  T q = pmadd(x2, beta_12, beta_10);
-  q = pmadd(x2, q, beta_8);
+  T q = pmadd(x2, beta_10, beta_8);
   q = pmadd(x2, q, beta_6);
   q = pmadd(x2, q, beta_4);
   q = pmadd(x2, q, beta_2);
   q = pmadd(x2, q, beta_0);
 
-  // Divide the numerator by the denominator.
-  return pselect(clamp, psign(x), pdiv(p, q));
+  const T r = pdiv(p, q);
+
+  // Clamp to [-1:1].
+  return pmax(pmin(r, pset1<T>(1.0f)), pset1<T>(-1.0f));
 }
 
 template <typename T>
