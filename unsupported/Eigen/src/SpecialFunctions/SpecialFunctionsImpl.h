@@ -298,7 +298,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& x) {
   const T beta_10 = pset1<T>(3.89185734093189239501953125000e-05f);
 
   // Since the polynomials are odd/even, we need x^2.
-  const T x2 = pmul(x, x);
+  // Since erf(4) == 1 in float, we clamp x^2 to 16 to avoid
+  // computing Inf/Inf below.
+  const T x2 = pmin(pset1<T>(16.0f), pmul(x, x));
 
   // Evaluate the numerator polynomial p.
   T p = pmadd(x2, alpha_11, alpha_9);
@@ -307,13 +309,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& x) {
   p = pmadd(x2, p, alpha_3);
   p = pmadd(x2, p, alpha_1);
   p = pmul(x, p);
+
   // Evaluate the denominator polynomial p.
   T q = pmadd(x2, beta_10, beta_8);
   q = pmadd(x2, q, beta_6);
   q = pmadd(x2, q, beta_4);
   q = pmadd(x2, q, beta_2);
   q = pmadd(x2, q, beta_0);
-
   const T r = pdiv(p, q);
 
   // Clamp to [-1:1].
