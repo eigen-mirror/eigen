@@ -131,8 +131,8 @@ struct digamma_impl_maybe_poly {
 template <>
 struct digamma_impl_maybe_poly<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float s) {
-    const float A[] = {-4.16666666666666666667E-3f, 3.96825396825396825397E-3f, -8.33333333333333333333E-3f,
-                       8.33333333333333333333E-2f};
+    constexpr float A[] = {-4.16666666666666666667E-3f, 3.96825396825396825397E-3f, -8.33333333333333333333E-3f,
+                           8.33333333333333333333E-2f};
 
     float z;
     if (s < 1.0e8f) {
@@ -146,9 +146,9 @@ struct digamma_impl_maybe_poly<float> {
 template <>
 struct digamma_impl_maybe_poly<double> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(const double s) {
-    const double A[] = {8.33333333333333333333E-2,  -2.10927960927960927961E-2, 7.57575757575757575758E-3,
-                        -4.16666666666666666667E-3, 3.96825396825396825397E-3,  -8.33333333333333333333E-3,
-                        8.33333333333333333333E-2};
+    constexpr double A[] = {8.33333333333333333333E-2,  -2.10927960927960927961E-2, 7.57575757575757575758E-3,
+                            -4.16666666666666666667E-3, 3.96825396825396825397E-3,  -8.33333333333333333333E-3,
+                            8.33333333333333333333E-2};
 
     double z;
     if (s < 1.0e17) {
@@ -282,20 +282,14 @@ struct digamma_impl {
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& x) {
   // The monomial coefficients of the numerator polynomial (odd).
-  const T alpha_1 = pset1<T>(1.128379106521606445312500000000000000e+00f);
-  const T alpha_3 = pset1<T>(1.874160766601562500000000000000000000e-01f);
-  const T alpha_5 = pset1<T>(5.243302136659622192382812500000000000e-02f);
-  const T alpha_7 = pset1<T>(3.658048342913389205932617187500000000e-03f);
-  const T alpha_9 = pset1<T>(2.861979592125862836837768554687500000e-04f);
-  const T alpha_11 = pset1<T>(2.123732201653183437883853912353515625e-06f);
+  constexpr float alpha[] = {2.123732201653183437883853912353515625e-06f, 2.861979592125862836837768554687500000e-04f,
+                             3.658048342913389205932617187500000000e-03f, 5.243302136659622192382812500000000000e-02f,
+                             1.874160766601562500000000000000000000e-01f, 1.128379106521606445312500000000000000e+00f};
 
   // The monomial coefficients of the denominator polynomial (even).
-  const T beta_0 = pset1<T>(1.0f);
-  const T beta_2 = pset1<T>(4.99425798654556274414062500000e-01f);
-  const T beta_4 = pset1<T>(1.12945675849914550781250000000e-01f);
-  const T beta_6 = pset1<T>(1.47520881146192550659179687500e-02f);
-  const T beta_8 = pset1<T>(1.14329601638019084930419921875e-03f);
-  const T beta_10 = pset1<T>(3.89185734093189239501953125000e-05f);
+  constexpr float beta[] = {3.89185734093189239501953125000e-05f, 1.14329601638019084930419921875e-03f,
+                            1.47520881146192550659179687500e-02f, 1.12945675849914550781250000000e-01f,
+                            4.99425798654556274414062500000e-01f, 1.0f};
 
   // Since the polynomials are odd/even, we need x^2.
   // Since erf(4) == 1 in float, we clamp x^2 to 16 to avoid
@@ -303,19 +297,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf_float(const T& x) {
   const T x2 = pmin(pset1<T>(16.0f), pmul(x, x));
 
   // Evaluate the numerator polynomial p.
-  T p = pmadd(x2, alpha_11, alpha_9);
-  p = pmadd(x2, p, alpha_7);
-  p = pmadd(x2, p, alpha_5);
-  p = pmadd(x2, p, alpha_3);
-  p = pmadd(x2, p, alpha_1);
+  T p = ppolevl<T, 5>::run(x2, alpha);
   p = pmul(x, p);
 
   // Evaluate the denominator polynomial p.
-  T q = pmadd(x2, beta_10, beta_8);
-  q = pmadd(x2, q, beta_6);
-  q = pmadd(x2, q, beta_4);
-  q = pmadd(x2, q, beta_2);
-  q = pmadd(x2, q, beta_0);
+  T q = ppolevl<T, 5>::run(x2, beta);
   const T r = pdiv(p, q);
 
   // Clamp to [-1:1].
@@ -475,18 +461,18 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float flipsign<float>(const float& should_
 
 template <typename T, typename ScalarType>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_gt_exp_neg_two(const T& b) {
-  const ScalarType p0[] = {ScalarType(-5.99633501014107895267e1), ScalarType(9.80010754185999661536e1),
-                           ScalarType(-5.66762857469070293439e1), ScalarType(1.39312609387279679503e1),
-                           ScalarType(-1.23916583867381258016e0)};
-  const ScalarType q0[] = {ScalarType(1.0),
-                           ScalarType(1.95448858338141759834e0),
-                           ScalarType(4.67627912898881538453e0),
-                           ScalarType(8.63602421390890590575e1),
-                           ScalarType(-2.25462687854119370527e2),
-                           ScalarType(2.00260212380060660359e2),
-                           ScalarType(-8.20372256168333339912e1),
-                           ScalarType(1.59056225126211695515e1),
-                           ScalarType(-1.18331621121330003142e0)};
+  constexpr ScalarType p0[] = {ScalarType(-5.99633501014107895267e1), ScalarType(9.80010754185999661536e1),
+                               ScalarType(-5.66762857469070293439e1), ScalarType(1.39312609387279679503e1),
+                               ScalarType(-1.23916583867381258016e0)};
+  constexpr ScalarType q0[] = {ScalarType(1.0),
+                               ScalarType(1.95448858338141759834e0),
+                               ScalarType(4.67627912898881538453e0),
+                               ScalarType(8.63602421390890590575e1),
+                               ScalarType(-2.25462687854119370527e2),
+                               ScalarType(2.00260212380060660359e2),
+                               ScalarType(-8.20372256168333339912e1),
+                               ScalarType(1.59056225126211695515e1),
+                               ScalarType(-1.18331621121330003142e0)};
   const T sqrt2pi = pset1<T>(ScalarType(2.50662827463100050242e0));
   const T half = pset1<T>(ScalarType(0.5));
   T c, c2, ndtri_gt_exp_neg_two;
@@ -503,20 +489,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_lt_exp_neg_two(const T& b,
   /* Approximation for interval z = sqrt(-2 log a ) between 2 and 8
    * i.e., a between exp(-2) = .135 and exp(-32) = 1.27e-14.
    */
-  const ScalarType p1[] = {ScalarType(4.05544892305962419923e0),   ScalarType(3.15251094599893866154e1),
-                           ScalarType(5.71628192246421288162e1),   ScalarType(4.40805073893200834700e1),
-                           ScalarType(1.46849561928858024014e1),   ScalarType(2.18663306850790267539e0),
-                           ScalarType(-1.40256079171354495875e-1), ScalarType(-3.50424626827848203418e-2),
-                           ScalarType(-8.57456785154685413611e-4)};
-  const ScalarType q1[] = {ScalarType(1.0),
-                           ScalarType(1.57799883256466749731e1),
-                           ScalarType(4.53907635128879210584e1),
-                           ScalarType(4.13172038254672030440e1),
-                           ScalarType(1.50425385692907503408e1),
-                           ScalarType(2.50464946208309415979e0),
-                           ScalarType(-1.42182922854787788574e-1),
-                           ScalarType(-3.80806407691578277194e-2),
-                           ScalarType(-9.33259480895457427372e-4)};
+  constexpr ScalarType p1[] = {ScalarType(4.05544892305962419923e0),   ScalarType(3.15251094599893866154e1),
+                               ScalarType(5.71628192246421288162e1),   ScalarType(4.40805073893200834700e1),
+                               ScalarType(1.46849561928858024014e1),   ScalarType(2.18663306850790267539e0),
+                               ScalarType(-1.40256079171354495875e-1), ScalarType(-3.50424626827848203418e-2),
+                               ScalarType(-8.57456785154685413611e-4)};
+  constexpr ScalarType q1[] = {ScalarType(1.0),
+                               ScalarType(1.57799883256466749731e1),
+                               ScalarType(4.53907635128879210584e1),
+                               ScalarType(4.13172038254672030440e1),
+                               ScalarType(1.50425385692907503408e1),
+                               ScalarType(2.50464946208309415979e0),
+                               ScalarType(-1.42182922854787788574e-1),
+                               ScalarType(-3.80806407691578277194e-2),
+                               ScalarType(-9.33259480895457427372e-4)};
   /* Approximation for interval z = sqrt(-2 log a ) between 8 and 64
    * i.e., a between exp(-32) = 1.27e-14 and exp(-2048) = 3.67e-890.
    */
@@ -1267,7 +1253,7 @@ struct zeta_impl {
     int i;
     Scalar p, r, a, b, k, s, t, w;
 
-    const Scalar A[] = {
+    constexpr Scalar A[] = {
         Scalar(12.0),
         Scalar(-720.0),
         Scalar(30240.0),
