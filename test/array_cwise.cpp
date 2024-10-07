@@ -48,8 +48,11 @@ std::vector<Scalar> special_values() {
   const Scalar sqrt2 = Scalar(std::sqrt(2));
   const Scalar inf = Eigen::NumTraits<Scalar>::infinity();
   const Scalar nan = Eigen::NumTraits<Scalar>::quiet_NaN();
+  // For 32-bit arm, working within or near the subnormal range can lead to incorrect results
+  // due to FTZ.
   const Scalar denorm_min = EIGEN_ARCH_ARM ? zero : std::numeric_limits<Scalar>::denorm_min();
-  const Scalar min = (std::numeric_limits<Scalar>::min)();
+  const Scalar min =
+      EIGEN_ARCH_ARM ? Scalar(1.1) * (std::numeric_limits<Scalar>::min)() : (std::numeric_limits<Scalar>::min)();
   const Scalar max = (std::numeric_limits<Scalar>::max)();
   const Scalar max_exp = (static_cast<Scalar>(int(Eigen::NumTraits<Scalar>::max_exponent())) * Scalar(EIGEN_LN2)) / eps;
   std::vector<Scalar> values = {zero,  denorm_min, min,   eps,     sqrt_half, one_half, one,
@@ -151,6 +154,14 @@ void unary_op_test(std::string name, Fn fun, RefFn ref) {
   for (Index i = 0; i < valuesMap.size(); ++i) {
     Scalar e = static_cast<Scalar>(ref(valuesMap(i)));
     Scalar a = actual(i);
+#if EIGEN_ARCH_ARM
+    // Work around NEON flush-to-zero mode.
+    // If ref returns a subnormal value and Eigen returns 0, then skip the test.
+    if (a == Scalar(0) && (e > -(std::numeric_limits<Scalar>::min)() && e < (std::numeric_limits<Scalar>::min)()) &&
+        (e <= -std::numeric_limits<Scalar>::denorm_min() || e >= std::numeric_limits<Scalar>::denorm_min())) {
+      continue;
+    }
+#endif
     bool success = (a == e) || ((numext::isfinite)(e) && internal::isApprox(a, e, tol)) ||
                    ((numext::isnan)(a) && (numext::isnan)(e));
     if ((a == a) && (e == e)) success &= (bool)numext::signbit(e) == (bool)numext::signbit(a);
