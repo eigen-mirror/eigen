@@ -461,10 +461,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float flipsign<float>(const float& should_
 
 template <typename T, typename ScalarType>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_gt_exp_neg_two(const T& b) {
-  constexpr ScalarType p0[] = {ScalarType(-5.99633501014107895267e1), ScalarType(9.80010754185999661536e1),
+  const ScalarType p0[] = {ScalarType(-5.99633501014107895267e1), ScalarType(9.80010754185999661536e1),
                                ScalarType(-5.66762857469070293439e1), ScalarType(1.39312609387279679503e1),
                                ScalarType(-1.23916583867381258016e0)};
-  constexpr ScalarType q0[] = {ScalarType(1.0),
+  const ScalarType q0[] = {ScalarType(1.0),
                                ScalarType(1.95448858338141759834e0),
                                ScalarType(4.67627912898881538453e0),
                                ScalarType(8.63602421390890590575e1),
@@ -489,20 +489,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_lt_exp_neg_two(const T& b,
   /* Approximation for interval z = sqrt(-2 log a ) between 2 and 8
    * i.e., a between exp(-2) = .135 and exp(-32) = 1.27e-14.
    */
-  constexpr ScalarType p1[] = {ScalarType(4.05544892305962419923e0),   ScalarType(3.15251094599893866154e1),
-                               ScalarType(5.71628192246421288162e1),   ScalarType(4.40805073893200834700e1),
-                               ScalarType(1.46849561928858024014e1),   ScalarType(2.18663306850790267539e0),
-                               ScalarType(-1.40256079171354495875e-1), ScalarType(-3.50424626827848203418e-2),
-                               ScalarType(-8.57456785154685413611e-4)};
-  constexpr ScalarType q1[] = {ScalarType(1.0),
-                               ScalarType(1.57799883256466749731e1),
-                               ScalarType(4.53907635128879210584e1),
-                               ScalarType(4.13172038254672030440e1),
-                               ScalarType(1.50425385692907503408e1),
-                               ScalarType(2.50464946208309415979e0),
-                               ScalarType(-1.42182922854787788574e-1),
-                               ScalarType(-3.80806407691578277194e-2),
-                               ScalarType(-9.33259480895457427372e-4)};
+  const ScalarType p1[] = {ScalarType(4.05544892305962419923e0),   ScalarType(3.15251094599893866154e1),
+                           ScalarType(5.71628192246421288162e1),   ScalarType(4.40805073893200834700e1),
+                           ScalarType(1.46849561928858024014e1),   ScalarType(2.18663306850790267539e0),
+                           ScalarType(-1.40256079171354495875e-1), ScalarType(-3.50424626827848203418e-2),
+                           ScalarType(-8.57456785154685413611e-4)};
+  const ScalarType q1[] = {ScalarType(1.0),
+                           ScalarType(1.57799883256466749731e1),
+                           ScalarType(4.53907635128879210584e1),
+                           ScalarType(4.13172038254672030440e1),
+                           ScalarType(1.50425385692907503408e1),
+                           ScalarType(2.50464946208309415979e0),
+                           ScalarType(-1.42182922854787788574e-1),
+                           ScalarType(-3.80806407691578277194e-2),
+                           ScalarType(-9.33259480895457427372e-4)};
   /* Approximation for interval z = sqrt(-2 log a ) between 8 and 64
    * i.e., a between exp(-32) = 1.27e-14 and exp(-2048) = 3.67e-890.
    */
@@ -1253,7 +1253,7 @@ struct zeta_impl {
     int i;
     Scalar p, r, a, b, k, s, t, w;
 
-    constexpr Scalar A[] = {
+    const Scalar A[] = {
         Scalar(12.0),
         Scalar(-720.0),
         Scalar(30240.0),
