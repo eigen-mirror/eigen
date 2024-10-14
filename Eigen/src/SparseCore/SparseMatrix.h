@@ -829,6 +829,8 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     std::swap(m_innerNonZeros, other.m_innerNonZeros);
     m_data.swap(other.m_data);
   }
+  /** Free-function swap. */
+  friend EIGEN_DEVICE_FUNC void swap(SparseMatrix& a, SparseMatrix& b) { a.swap(b); }
 
   /** Sets *this to the identity matrix.
    * This function also turns the matrix into compressed mode, and drop any reserved memory. */
