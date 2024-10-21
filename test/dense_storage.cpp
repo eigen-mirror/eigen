@@ -7,13 +7,20 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#define EIGEN_TESTING_PLAINOBJECT_CTOR
+
+#ifndef EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+#define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+#define EIGEN_TEST_REENABLE_UNALIGNED_ARRAY_ASSERT
+#endif
+
 #include "main.h"
 #include "AnnoyingScalar.h"
 #include "SafeScalar.h"
 
 #include <Eigen/Core>
 
-using DenseStorageD3x3 = Eigen::DenseStorage<double, 3, 3, 3, 3>;
+using DenseStorageD3x3 = Eigen::DenseStorage<double, 9, 3, 3, 0>;
 static_assert(std::is_trivially_move_constructible<DenseStorageD3x3>::value,
               "DenseStorage not trivially_move_constructible");
 static_assert(std::is_trivially_move_assignable<DenseStorageD3x3>::value, "DenseStorage not trivially_move_assignable");
@@ -22,6 +29,14 @@ static_assert(std::is_trivially_copy_constructible<DenseStorageD3x3>::value,
               "DenseStorage not trivially_copy_constructible");
 static_assert(std::is_trivially_copy_assignable<DenseStorageD3x3>::value, "DenseStorage not trivially_copy_assignable");
 static_assert(std::is_trivially_copyable<DenseStorageD3x3>::value, "DenseStorage not trivially_copyable");
+#endif
+
+static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
+#if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
+static_assert(std::is_trivially_copy_constructible<Matrix4f>::value, "Matrix4f not trivially_copy_constructible");
+#endif
+#if defined(EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT)
+static_assert(std::is_trivially_default_constructible<Matrix4f>::value, "Matrix4f not trivially_default_constructible");
 #endif
 
 template <typename T, int Size, int Rows, int Cols>
@@ -180,3 +195,9 @@ EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<SafeScalar<float> >();
   dense_storage_tests<AnnoyingScalar>();
 }
+
+#undef EIGEN_TESTING_PLAINOBJECT_CTOR
+#ifdef EIGEN_TEST_REENABLE_UNALIGNED_ARRAY_ASSERT
+#undef EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+#undef EIGEN_TEST_REENABLE_UNALIGNED_ARRAY_ASSERT
+#endif
