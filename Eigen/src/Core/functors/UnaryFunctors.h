@@ -376,6 +376,22 @@ struct functor_traits<scalar_exp_op<Scalar>> {
   };
 };
 
+template <typename Scalar>
+struct scalar_exp2_op {
+  EIGEN_DEVICE_FUNC inline const Scalar operator()(const Scalar& a) const { return internal::pexp2(a); }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
+    return internal::pexp2(a);
+  }
+};
+template <typename Scalar>
+struct functor_traits<scalar_exp2_op<Scalar>> {
+  enum {
+    PacketAccess = packet_traits<Scalar>::HasExp,
+    Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO measure cost of exp2
+  };
+};
+
 /** \internal
  *
  * \brief Template functor to compute the exponential of a scalar - 1.

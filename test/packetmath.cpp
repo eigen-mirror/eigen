@@ -931,6 +931,7 @@ void packetmath_real() {
     data1[0] = -NumTraits<Scalar>::infinity();
   }
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp, internal::pexp);
+  CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp2, internal::pexp2);
 
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {

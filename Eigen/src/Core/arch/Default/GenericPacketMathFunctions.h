@@ -469,7 +469,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Pa
     See: http://www.plunk.org/~hatch/rightway.php
  */
 template <typename Packet>
-Packet generic_plog1p(const Packet& x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type ScalarType;
   const Packet one = pset1<Packet>(ScalarType(1));
   Packet xp1 = padd(x, one);
@@ -484,7 +484,7 @@ Packet generic_plog1p(const Packet& x) {
     See: http://www.plunk.org/~hatch/rightway.php
  */
 template <typename Packet>
-Packet generic_expm1(const Packet& x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& x) {
   typedef typename unpacket_traits<Packet>::type ScalarType;
   const Packet one = pset1<Packet>(ScalarType(1));
   const Packet neg_one = pset1<Packet>(ScalarType(-1));
@@ -1109,7 +1109,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<float>:
 }
 
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_patan(const Packet& x_in) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Packet& x_in) {
   typedef typename unpacket_traits<Packet>::type Scalar;
 
   constexpr Scalar kPiOverTwo = static_cast<Scalar>(EIGEN_PI / 2);
@@ -1973,13 +1973,13 @@ struct accurate_log2<double> {
   }
 };
 
-// This function computes exp2(x) (i.e. 2**x).
+// This function accurately computes exp2(x) for x in [-0.5:0.5], which is
+// needed in pow(x,y).
 template <typename Scalar>
 struct fast_accurate_exp2 {
   template <typename Packet>
   EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
-    // TODO(rmlarsen): Add a pexp2 packetop.
-    return pexp(pmul(pset1<Packet>(Scalar(EIGEN_LN2)), x));
+    return generic_exp2(x);
   }
 };
 
@@ -2463,6 +2463,32 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
     return unary_pow::int_pow(x, exponent);
   }
 };
+
+// This function computes exp2(x) = exp(ln(2) * x).
+// To improve accuracy, the product ln(2)*x is computed using the twoprod
+// algorithm, such that ln(2) * x = p_hi + p_lo holds exactly. Then exp2(x) is
+// computed as exp2(x) = exp(p_hi) * exp(p_lo) ~= exp(p_hi) * (1 + p_lo). This
+// correction step this reduces the maximum absolute error as follows:
+//
+// type   | max error (simple product) | max error (twoprod) |
+// -----------------------------------------------------------
+// float  |       35 ulps              |       4 ulps        |
+// double |      363 ulps              |     110 ulps        |
+//
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+  constexpr int digits = std::numeric_limits<Scalar>::digits;
+  constexpr Scalar max_cap = Scalar(max_exponent + 1);
+  constexpr Scalar min_cap = -Scalar(max_exponent + digits - 1);
+  Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
+  Packet p_hi, p_lo;
+  twoprod(pset1<Packet>(Scalar(EIGEN_LN2)), x, p_hi, p_lo);
+  Packet exp2_hi = pexp(p_hi);
+  Packet exp2_lo = padd(pset1<Packet>(Scalar(1)), p_lo);
+  return pmul(exp2_hi, exp2_lo);
+}
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
