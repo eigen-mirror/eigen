@@ -18,6 +18,7 @@
 #include <sstream>
 #include <vector>
 #include <typeinfo>
+#include <type_traits>
 #include <functional>
 #ifdef EIGEN_USE_SYCL
 #include <CL/sycl.hpp>
