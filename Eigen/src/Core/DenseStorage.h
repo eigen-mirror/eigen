@@ -27,21 +27,21 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename T, int Size>
-struct check_static_allocation_size {
-#if EIGEN_STACK_ALLOCATION_LIMIT
-  EIGEN_STATIC_ASSERT(Size * sizeof(T) <= EIGEN_STACK_ALLOCATION_LIMIT, OBJECT_ALLOCATED_ON_STACK_IS_TOO_BIG)
-#endif
-};
-
 #if defined(EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT)
-#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(sizemask)
+#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)
 #else
-#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(sizemask)                                                \
-  eigen_assert((internal::is_constant_evaluated() || (std::uintptr_t(array) & (sizemask)) == 0) && \
-               "this assertion is explained here: "                                                \
-               "http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html"        \
+#define EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)                                              \
+  eigen_assert((internal::is_constant_evaluated() || (std::uintptr_t(array) % Alignment == 0)) && \
+               "this assertion is explained here: "                                               \
+               "http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html"       \
                " **** READ THIS WEB PAGE !!! ****");
+#endif
+
+#if EIGEN_STACK_ALLOCATION_LIMIT
+#define EIGEN_MAKE_STACK_ALLOCATION_ASSERT(X) \
+  EIGEN_STATIC_ASSERT(X <= EIGEN_STACK_ALLOCATION_LIMIT, OBJECT_ALLOCATED_ON_STACK_IS_TOO_BIG)
+#else
+#define EIGEN_MAKE_STACK_ALLOCATION_ASSERT(X)
 #endif
 
 /** \internal
@@ -50,19 +50,26 @@ struct check_static_allocation_size {
  */
 template <typename T, int Size, int MatrixOrArrayOptions,
           int Alignment = (MatrixOrArrayOptions & DontAlign) ? 0 : compute_default_alignment<T, Size>::value>
-struct plain_array : check_static_allocation_size<T, Size> {
+struct plain_array {
   EIGEN_ALIGN_TO_BOUNDARY(Alignment) T array[Size];
-#if defined(EIGEN_NO_DEBUG) || defined(EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT)
+#if defined(EIGEN_NO_DEBUG) || defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr plain_array() = default;
 #else
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr plain_array() { EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment - 1); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr plain_array() {
+    EIGEN_MAKE_UNALIGNED_ARRAY_ASSERT(Alignment)
+    EIGEN_MAKE_STACK_ALLOCATION_ASSERT(Size * sizeof(T))
+  }
 #endif
 };
 
 template <typename T, int Size, int MatrixOrArrayOptions>
-struct plain_array<T, Size, MatrixOrArrayOptions, 0> : check_static_allocation_size<T, Size> {
+struct plain_array<T, Size, MatrixOrArrayOptions, 0> {
   T array[Size];
+#if defined(EIGEN_NO_DEBUG) || defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr plain_array() = default;
+#else
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr plain_array() { EIGEN_MAKE_STACK_ALLOCATION_ASSERT(Size * sizeof(T)) }
+#endif
 };
 
 template <typename T, int MatrixOrArrayOptions, int Alignment>
@@ -84,7 +91,7 @@ struct DenseStorageIndices {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const { return Cols; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return Rows * Cols; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void set(Index /*rows*/, Index /*cols*/) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap(DenseStorageIndices& /*other*/) noexcept {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(DenseStorageIndices& /*other*/) noexcept {}
 };
 template <int Rows>
 struct DenseStorageIndices<Rows, Dynamic> {
@@ -95,11 +102,11 @@ struct DenseStorageIndices<Rows, Dynamic> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(DenseStorageIndices&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(const DenseStorageIndices&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(DenseStorageIndices&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorageIndices(Index /*rows*/, Index cols) : m_cols(cols) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(Index /*rows*/, Index cols) : m_cols(cols) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const { return Rows; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index cols() const { return m_cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return Rows * m_cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void set(Index /*rows*/, Index cols) { m_cols = cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const { return m_cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return Rows * m_cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void set(Index /*rows*/, Index cols) { m_cols = cols; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(DenseStorageIndices& other) noexcept {
     numext::swap(m_cols, other.m_cols);
   }
@@ -113,11 +120,11 @@ struct DenseStorageIndices<Dynamic, Cols> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(DenseStorageIndices&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(const DenseStorageIndices&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(DenseStorageIndices&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorageIndices(Index rows, Index /*cols*/) : m_rows(rows) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const { return m_rows; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(Index rows, Index /*cols*/) : m_rows(rows) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const { return m_rows; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const { return Cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_rows * Cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void set(Index rows, Index /*cols*/) { m_rows = rows; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return m_rows * Cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void set(Index rows, Index /*cols*/) { m_rows = rows; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void swap(DenseStorageIndices& other) noexcept {
     numext::swap(m_rows, other.m_rows);
   }
@@ -132,11 +139,12 @@ struct DenseStorageIndices<Dynamic, Dynamic> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(DenseStorageIndices&&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(const DenseStorageIndices&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices& operator=(DenseStorageIndices&&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseStorageIndices(Index rows, Index cols) : m_rows(rows), m_cols(cols) {}
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const { return m_rows; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index cols() const { return m_cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index size() const { return m_rows * m_cols; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void set(Index rows, Index cols) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorageIndices(Index rows, Index cols)
+      : m_rows(rows), m_cols(cols) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const { return m_rows; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const { return m_cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index size() const { return m_rows * m_cols; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void set(Index rows, Index cols) {
     m_rows = rows;
     m_cols = cols;
   }
