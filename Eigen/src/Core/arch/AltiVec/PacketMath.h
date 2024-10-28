@@ -2310,6 +2310,11 @@ EIGEN_STRONG_INLINE Packet8bf pexp<Packet8bf>(const Packet8bf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8bf pexp2<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(generic_pexp2, a);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent) {
   return pldexp_generic(a, exponent);
 }
