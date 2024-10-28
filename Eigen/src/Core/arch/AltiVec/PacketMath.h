@@ -2311,7 +2311,7 @@ EIGEN_STRONG_INLINE Packet8bf pexp<Packet8bf>(const Packet8bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pexp2<Packet8bf>(const Packet8bf& a) {
-  BF16_TO_F32_UNARY_OP_WRAPPER(generic_pexp2, a);
+  BF16_TO_F32_UNARY_OP_WRAPPER(generic_exp2, a);
 }
 
 template <>
