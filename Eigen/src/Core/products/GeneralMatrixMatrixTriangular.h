@@ -68,6 +68,10 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
                                       const RhsScalar* rhs_, Index rhsStride, ResScalar* res_, Index resIncr,
                                       Index resStride, const ResScalar& alpha,
                                       level3_blocking<LhsScalar, RhsScalar>& blocking) {
+    if (size == 0) {
+      return;
+    }
+
     typedef gebp_traits<LhsScalar, RhsScalar> Traits;
 
     typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
