@@ -1230,13 +1230,13 @@ EIGEN_STRONG_INLINE Packet4ui plogical_shift_left(const Packet4ui& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pabs(const Packet4f& a) {
-  const Packet4f mask = _mm_castsi128_ps(_mm_setr_epi32(0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF));
-  return _mm_and_ps(a, mask);
+  const __m128i mask = _mm_setr_epi32(0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF);
+  return _mm_castsi128_ps(_mm_and_si128(mask, _mm_castps_si128(a)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pabs(const Packet2d& a) {
-  const Packet2d mask = _mm_castsi128_pd(_mm_setr_epi32(0xFFFFFFFF, 0x7FFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF));
-  return _mm_and_pd(a, mask);
+  const __m128i mask = _mm_setr_epi32(0xFFFFFFFF, 0x7FFFFFFF, 0xFFFFFFFF, 0x7FFFFFFF);
+  return _mm_castsi128_pd(_mm_and_si128(mask, _mm_castpd_si128(a)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
