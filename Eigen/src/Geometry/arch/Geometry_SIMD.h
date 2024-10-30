@@ -73,12 +73,10 @@ struct cross3_impl<Architecture::Target, VectorLhs, VectorRhs, float, true> {
     Packet4f b = rhs_eval.template packet<RhsAlignment, Packet4f>(0);
     Packet4f mul1 = pmul(vec4f_swizzle1(a, 1, 2, 0, 3), vec4f_swizzle1(b, 2, 0, 1, 3));
     Packet4f mul2 = pmul(vec4f_swizzle1(a, 2, 0, 1, 3), vec4f_swizzle1(b, 1, 2, 0, 3));
-    a = psub(mul1, mul2);
-    // Zero-out last component in case of inf/nan.
-    const __m128i mask = _mm_setr_epi32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x0);
-    a = _mm_castsi128_ps(_mm_and_si128(mask, _mm_castps_si128(a)));
     DstPlainType res;
-    pstoret<float, Packet4f, DstAlignment>(res.data(), a);
+    pstoret<float, Packet4f, DstAlignment>(res.data(), psub(mul1, mul2));
+    // Ensure last component is 0 in case original a or b contain inf/nan.
+    res[3] = 0.0f;
     return res;
   }
 };
