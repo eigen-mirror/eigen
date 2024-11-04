@@ -373,13 +373,10 @@ template<> EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a) {
 //---------- double ----------
 #if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
 
-// See bug 1325, clang fails to call vld1q_u64.
-#if EIGEN_COMP_CLANG || EIGEN_COMP_CASTXML
-  static uint64x2_t p2ul_CONJ_XOR = {0x0, 0x8000000000000000};
-#else
-  const uint64_t  p2ul_conj_XOR_DATA[] = { 0x0, 0x8000000000000000 };
-  static uint64x2_t p2ul_CONJ_XOR = vld1q_u64( p2ul_conj_XOR_DATA );
-#endif
+inline uint64x2_t p2ul_CONJ_XOR() {
+  static const uint64_t p2ul_conj_XOR_DATA[] = {0x0, 0x8000000000000000};
+  return vld1q_u64(p2ul_conj_XOR_DATA);
+}
 
 struct Packet1cd
 {
@@ -449,7 +446,7 @@ template<> EIGEN_STRONG_INLINE Packet1cd pnegate(const Packet1cd& a)
 { return Packet1cd(pnegate<Packet2d>(a.v)); }
 
 template<> EIGEN_STRONG_INLINE Packet1cd pconj(const Packet1cd& a)
-{ return Packet1cd(vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(a.v), p2ul_CONJ_XOR))); }
+{ return Packet1cd(vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(a.v), p2ul_CONJ_XOR()))); }
 
 template<> EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, const Packet1cd& b)
 {
@@ -464,7 +461,7 @@ template<> EIGEN_STRONG_INLINE Packet1cd pmul<Packet1cd>(const Packet1cd& a, con
   // Multiply the imag a with b
   v2 = vmulq_f64(v2, b.v);
   // Conjugate v2
-  v2 = vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(v2), p2ul_CONJ_XOR));
+  v2 = vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(v2), p2ul_CONJ_XOR()));
   // Swap real/imag elements in v2.
   v2 = preverse<Packet2d>(v2);
   // Add and return the result

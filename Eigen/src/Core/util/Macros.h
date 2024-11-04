@@ -179,6 +179,13 @@
   #define EIGEN_COMP_PGI 0
 #endif
 
+/// \internal EIGEN_COMP_NVHPC set to NVHPC version if the compiler is nvc++
+#if defined(__NVCOMPILER)
+#define EIGEN_COMP_NVHPC (__NVCOMPILER_MAJOR__ * 100 + __NVCOMPILER_MINOR__)
+#else
+#define EIGEN_COMP_NVHPC 0
+#endif
+
 /// \internal EIGEN_COMP_ARM set to 1 if the compiler is ARM Compiler
 #if defined(__CC_ARM) || defined(__ARMCC_VERSION)
   #define EIGEN_COMP_ARM 1
