@@ -138,6 +138,8 @@ class MatrixBase : public DenseBase<Derived> {
    */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const MatrixBase& other);
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr MatrixBase& operator=(MatrixBase&&) = default;
+
   // We cannot inherit here via Base::operator= since it is causing
   // trouble with MSVC.
 
