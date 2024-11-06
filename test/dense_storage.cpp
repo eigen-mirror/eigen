@@ -27,9 +27,7 @@ static_assert(std::is_trivially_copyable<DenseStorageD3x3>::value, "DenseStorage
 #endif
 
 static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
-static_assert(std::is_trivially_move_assignable<Matrix4f>::value, "Matrix4f not trivially_move_assignable");
 static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
-static_assert(std::is_trivially_move_assignable<Array4f>::value, "Array4f not trivially_move_assignable");
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
 static_assert(std::is_trivially_copy_constructible<Matrix4f>::value, "Matrix4f not trivially_copy_constructible");
 static_assert(std::is_trivially_copy_constructible<Array4f>::value, "Array4f not trivially_copy_constructible");

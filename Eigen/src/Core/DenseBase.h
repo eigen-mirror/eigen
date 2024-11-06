@@ -573,12 +573,12 @@ class DenseBase
 #else
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<Derived>,
-                             internal::generic_randaccess_stl_iterator<Derived>>
+                             internal::generic_randaccess_stl_iterator<Derived> >
       iterator_type;
 
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<const Derived>,
-                             internal::generic_randaccess_stl_iterator<const Derived>>
+                             internal::generic_randaccess_stl_iterator<const Derived> >
       const_iterator_type;
 
   // Stl-style iterators are supported only for vectors.
@@ -619,9 +619,8 @@ class DenseBase
   }
 
  protected:
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(DenseBase)
   /** Default constructor. Do nothing. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseBase(const DenseBase&) = default;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseBase& operator=(DenseBase&&) = default;
 #ifdef EIGEN_INTERNAL_DEBUGGING
   EIGEN_DEVICE_FUNC constexpr DenseBase() {
     /* Just checks for self-consistency of the flags.
