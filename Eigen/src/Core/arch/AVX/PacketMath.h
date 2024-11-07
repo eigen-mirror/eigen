@@ -659,6 +659,16 @@ EIGEN_STRONG_INLINE uint64_t predux<Packet4ul>(const Packet4ul& a) {
   __m128i r = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
   return numext::bit_cast<uint64_t>(_mm_extract_epi64_0(r) + _mm_extract_epi64_1(r));
 }
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4l& a) {
+  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& a) {
+  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
+}
+
 #define MM256_SHUFFLE_EPI64(A, B, M) _mm256_shuffle_pd(_mm256_castsi256_pd(A), _mm256_castsi256_pd(B), M)
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4l, 4>& kernel) {
   __m256d T0 = MM256_SHUFFLE_EPI64(kernel.packet[0], kernel.packet[1], 15);
@@ -1999,6 +2009,11 @@ EIGEN_STRONG_INLINE double predux_max<Packet4d>(const Packet4d& a) {
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8f& x) {
   return _mm256_movemask_ps(x) != 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4d& x) {
+  return _mm256_movemask_pd(x) != 0;
 }
 
 template <>
