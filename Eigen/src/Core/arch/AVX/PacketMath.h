@@ -2025,6 +2025,15 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& x) {
   return _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0;
 }
 
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8h& x) {
+  return _mm_movemask_epi8(x) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
+  return _mm_movemask_epi8(x) != 0;
+}
+
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet8f, 8>& kernel) {
   __m256 T0 = _mm256_unpacklo_ps(kernel.packet[0], kernel.packet[1]);
   __m256 T1 = _mm256_unpackhi_ps(kernel.packet[0], kernel.packet[1]);
