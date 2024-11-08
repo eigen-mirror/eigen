@@ -1659,6 +1659,13 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi,
   p_lo = pmsub(x, y, p_hi);
 }
 
+// A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
+// x * y = xy + p_lo holds exactly.
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
+  return pmsub(x, y, xy);
+}
+
 #else
 
 // This function implements the Veltkamp splitting. Given a floating point
@@ -1692,6 +1699,21 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi,
   p_lo = pmadd(x_hi, y_lo, p_lo);
   p_lo = pmadd(x_lo, y_hi, p_lo);
   p_lo = pmadd(x_lo, y_lo, p_lo);
+}
+
+// A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
+// x * y = xy + p_lo holds exactly.
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
+  Packet x_hi, x_lo, y_hi, y_lo;
+  veltkamp_splitting(x, x_hi, x_lo);
+  veltkamp_splitting(y, y_hi, y_lo);
+
+  Packet p_lo = pmadd(x_hi, y_hi, pnegate(xy));
+  p_lo = pmadd(x_hi, y_lo, p_lo);
+  p_lo = pmadd(x_lo, y_hi, p_lo);
+  p_lo = pmadd(x_lo, y_lo, p_lo);
+  return p_lo;
 }
 
 #endif  // EIGEN_VECTORIZE_FMA

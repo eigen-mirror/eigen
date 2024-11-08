@@ -124,6 +124,7 @@ struct packet_traits<float> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
     HasBlend = 1
   };
 };
@@ -144,6 +145,7 @@ struct packet_traits<double> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasLog = 1,
+    HasErfc = 1,
     HasExp = 1,
     HasSqrt = 1,
     HasRsqrt = 1,

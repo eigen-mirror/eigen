@@ -133,6 +133,7 @@ struct packet_traits<float> : default_packet_traits {
     HasReciprocal = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
     HasCmp = 1,
     HasDiv = 1
   };
@@ -154,6 +155,7 @@ struct packet_traits<double> : default_packet_traits {
     HasExp = 1,
     HasATan = 1,
     HasTanh = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH,
     HasATanh = 1,
     HasCmp = 1,
     HasDiv = 1

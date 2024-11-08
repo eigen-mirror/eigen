@@ -117,6 +117,8 @@ void packetmath_real() {
 #if EIGEN_HAS_C99_MATH
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasLGamma, std::lgamma, internal::plgamma);
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErf, std::erf, internal::perf);
+  // FIXME(rmlarsen): This test occasionally fails due to difference in tiny subnormal results
+  // near the underflow boundary. I am not sure which version is correct.
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErfc, std::erfc, internal::perfc);
 #endif
 }
