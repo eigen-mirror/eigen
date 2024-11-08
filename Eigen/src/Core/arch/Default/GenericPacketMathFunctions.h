@@ -1634,7 +1634,7 @@ struct psign_impl<Packet, std::enable_if_t<NumTraits<typename unpacket_traits<Pa
 // This function splits x into the nearest integer n and fractional part r,
 // such that x = n + r holds exactly.
 template <typename Packet>
-EIGEN_STRONG_INLINE void absolute_split(const Packet& x, Packet& n, Packet& r) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void absolute_split(const Packet& x, Packet& n, Packet& r) {
   n = pround(x);
   r = psub(x, n);
 }
@@ -1642,7 +1642,7 @@ EIGEN_STRONG_INLINE void absolute_split(const Packet& x, Packet& n, Packet& r) {
 // This function computes the sum {s, r}, such that x + y = s_hi + s_lo
 // holds exactly, and s_hi = fl(x+y), if |x| >= |y|.
 template <typename Packet>
-EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y, Packet& s_hi, Packet& s_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y, Packet& s_hi, Packet& s_lo) {
   s_hi = padd(x, y);
   const Packet t = psub(s_hi, x);
   s_lo = psub(y, t);
@@ -1654,7 +1654,7 @@ EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y, Packet& s
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
 // p_hi = fl(x * y).
 template <typename Packet>
-EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
   p_hi = pmul(x, y);
   p_lo = pmsub(x, y, p_hi);
 }
@@ -1662,7 +1662,7 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi,
 // A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
 // x * y = xy + p_lo holds exactly.
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
   return pmsub(x, y, xy);
 }
 
@@ -1674,7 +1674,7 @@ EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const P
 // This is Algorithm 3 from Jean-Michel Muller, "Elementary Functions",
 // 3rd edition, Birkh\"auser, 2016.
 template <typename Packet>
-EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, Packet& x_hi, Packet& x_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, Packet& x_hi, Packet& x_lo) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   EIGEN_CONSTEXPR int shift = (NumTraits<Scalar>::digits() + 1) / 2;
   const Scalar shift_scale = Scalar(uint64_t(1) << shift);  // Scalar constructor not necessarily constexpr.
@@ -1689,7 +1689,7 @@ EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, Packet& x_hi, Packe
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
 // p_hi = fl(x * y).
 template <typename Packet>
-EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
   Packet x_hi, x_lo, y_hi, y_lo;
   veltkamp_splitting(x, x_hi, x_lo);
   veltkamp_splitting(y, y_hi, y_lo);
@@ -1704,7 +1704,7 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi,
 // A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
 // x * y = xy + p_lo holds exactly.
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
   Packet x_hi, x_lo, y_hi, y_lo;
   veltkamp_splitting(x, x_hi, x_lo);
   veltkamp_splitting(y, y_hi, y_lo);
@@ -1725,8 +1725,8 @@ EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const P
 // This is Algorithm 5 from Jean-Michel Muller, "Elementary Functions",
 // 3rd edition, Birkh\"auser, 2016.
 template <typename Packet>
-EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi, const Packet& y_lo,
-                                Packet& s_hi, Packet& s_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                  const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
   const Packet x_greater_mask = pcmp_lt(pabs(y_hi), pabs(x_hi));
   Packet r_hi_1, r_lo_1;
   fast_twosum(x_hi, y_hi, r_hi_1, r_lo_1);
@@ -1744,8 +1744,8 @@ EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Pa
 // This is a version of twosum for double word numbers,
 // which assumes that |x_hi| >= |y_hi|.
 template <typename Packet>
-EIGEN_STRONG_INLINE void fast_twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi, const Packet& y_lo,
-                                     Packet& s_hi, Packet& s_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                       const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
   Packet r_hi, r_lo;
   fast_twosum(x_hi, y_hi, r_hi, r_lo);
   const Packet s = padd(padd(y_lo, r_lo), x_lo);
@@ -1756,8 +1756,8 @@ EIGEN_STRONG_INLINE void fast_twosum(const Packet& x_hi, const Packet& x_lo, con
 // double word number {y_hi, y_lo} number, with the assumption
 // that |x| >= |y_hi|.
 template <typename Packet>
-EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y_hi, const Packet& y_lo, Packet& s_hi,
-                                     Packet& s_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y_hi, const Packet& y_lo,
+                                                       Packet& s_hi, Packet& s_lo) {
   Packet r_hi, r_lo;
   fast_twosum(x, y_hi, r_hi, r_lo);
   const Packet s = padd(y_lo, r_lo);
@@ -1773,7 +1773,8 @@ EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y_hi, const 
 // This is Algorithm 7 from Jean-Michel Muller, "Elementary Functions",
 // 3rd edition, Birkh\"auser, 2016.
 template <typename Packet>
-EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y, Packet& p_hi, Packet& p_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y,
+                                                   Packet& p_hi, Packet& p_lo) {
   Packet c_hi, c_lo1;
   twoprod(x_hi, y, c_hi, c_lo1);
   const Packet c_lo2 = pmul(x_lo, y);
@@ -1790,8 +1791,8 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const P
 // of less than 2*2^{-2p}, where p is the number of significand bit
 // in the floating point type.
 template <typename Packet>
-EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi, const Packet& y_lo,
-                                 Packet& p_hi, Packet& p_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                   const Packet& y_lo, Packet& p_hi, Packet& p_lo) {
   Packet p_hi_hi, p_hi_lo;
   twoprod(x_hi, x_lo, y_hi, p_hi_hi, p_hi_lo);
   Packet p_lo_hi, p_lo_lo;
@@ -1804,7 +1805,8 @@ EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const P
 // for basic building blocks of double-word arithmetic", Joldes, Muller, & Popescu,
 // 2017. https://hal.archives-ouvertes.fr/hal-01351529
 template <typename Packet>
-void doubleword_div_fp(const Packet& x_hi, const Packet& x_lo, const Packet& y, Packet& z_hi, Packet& z_lo) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void doubleword_div_fp(const Packet& x_hi, const Packet& x_lo, const Packet& y,
+                                                             Packet& z_hi, Packet& z_lo) {
   const Packet t_hi = pdiv(x_hi, y);
   Packet pi_hi, pi_lo;
   twoprod(t_hi, y, pi_hi, pi_lo);
@@ -1819,7 +1821,7 @@ void doubleword_div_fp(const Packet& x_hi, const Packet& x_lo, const Packet& y, 
 template <typename Scalar>
 struct accurate_log2 {
   template <typename Packet>
-  EIGEN_STRONG_INLINE void operator()(const Packet& x, Packet& log2_x_hi, Packet& log2_x_lo) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Packet& x, Packet& log2_x_hi, Packet& log2_x_lo) {
     log2_x_hi = plog2(x);
     log2_x_lo = pzero(x);
   }
@@ -1834,7 +1836,7 @@ struct accurate_log2 {
 template <>
 struct accurate_log2<float> {
   template <typename Packet>
-  EIGEN_STRONG_INLINE void operator()(const Packet& z, Packet& log2_x_hi, Packet& log2_x_lo) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Packet& z, Packet& log2_x_hi, Packet& log2_x_lo) {
     // The function log(1+x)/x is approximated in the interval
     // [1/sqrt(2)-1;sqrt(2)-1] by a degree 10 polynomial of the form
     //  Q(x) = (C0 + x * (C1 + x * (C2 + x * (C3 + x * P(x))))),
@@ -1914,7 +1916,7 @@ struct accurate_log2<float> {
 template <>
 struct accurate_log2<double> {
   template <typename Packet>
-  EIGEN_STRONG_INLINE void operator()(const Packet& x, Packet& log2_x_hi, Packet& log2_x_lo) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Packet& x, Packet& log2_x_hi, Packet& log2_x_lo) {
     // We use a transformation of variables:
     //    r = c * (x-1) / (x+1),
     // such that
@@ -2000,7 +2002,7 @@ struct accurate_log2<double> {
 template <typename Scalar>
 struct fast_accurate_exp2 {
   template <typename Packet>
-  EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
     return generic_exp2(x);
   }
 };
@@ -2012,7 +2014,7 @@ struct fast_accurate_exp2 {
 template <>
 struct fast_accurate_exp2<float> {
   template <typename Packet>
-  EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
     // This function approximates exp2(x) by a degree 6 polynomial of the form
     // Q(x) = 1 + x * (C + x * P(x)), where the degree 4 polynomial P(x) is evaluated in
     // single precision, and the remaining steps are evaluated with extra precision using
@@ -2069,7 +2071,7 @@ struct fast_accurate_exp2<float> {
 template <>
 struct fast_accurate_exp2<double> {
   template <typename Packet>
-  EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet operator()(const Packet& x) {
     // This function approximates exp2(x) by a degree 10 polynomial of the form
     // Q(x) = 1 + x * (C + x * P(x)), where the degree 8 polynomial P(x) is evaluated in
     // single precision, and the remaining steps are evaluated with extra precision using
@@ -2135,7 +2137,7 @@ struct fast_accurate_exp2<double> {
 // TODO(rmlarsen): We should probably add this as a packet up 'ppow', to make it
 // easier to specialize or turn off for specific types and/or backends.x
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::type Scalar;
   // Split x into exponent e_x and mantissa m_x.
   Packet e_x;
