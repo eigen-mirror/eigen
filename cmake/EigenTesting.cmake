@@ -81,8 +81,9 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
-    separate_arguments(compile_options NATIVE_COMMAND ${ARGV2})
-    ei_add_target_property(${targetname} COMPILE_FLAGS "${ARGV2}")
+    set(compile_options "${ARGV2}")
+    separate_arguments(compile_options)
+    ei_add_target_property(${targetname} COMPILE_FLAGS ${compile_options})
   endif()
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
