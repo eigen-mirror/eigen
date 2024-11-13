@@ -391,7 +391,7 @@ EIGEN_DEVICE_FUNC inline T* move_construct_elements_of_array(T* ptr, T* src, std
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void check_size_for_overflow(std::size_t size) {
-  constexpr std::size_t max_elements = PTRDIFF_MAX / sizeof(T);
+  constexpr std::size_t max_elements = (std::numeric_limits<std::ptrdiff_t>::max)() / sizeof(T);
   if (size > max_elements) throw_std_bad_alloc();
 }
 
