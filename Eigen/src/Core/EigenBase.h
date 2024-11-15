@@ -109,6 +109,20 @@ struct EigenBase {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<Derived, Device> device(Device& device);
   template <typename Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DeviceWrapper<const Derived, Device> device(Device& device) const;
+
+  /**
+   * By defining the empty destructor here, subclasses which override the destructor with `~SubClass = default` will not
+   * inline their destructor.  This ensures ensures the destructor symbol will exists in the binary.
+   * This is needed to support expression evaluation in lldb (for _some_ reason).  Without this hack, the destructor
+   * will be inlined and lldb will produce a missing symbol error (referring to eg ~MatrixBase destructor) when trying
+   * to evaluate an expression that returns an Eigen::Matrix.
+   *
+   * We use the normal default destructor to make the object trivially destructible when not debugging or when testing
+   * as the testsuite asserts std::is_trivially_destructible
+   */
+#if !defined(EIGEN_NO_DEBUG) && !defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
+  EIGEN_DEVICE_FUNC ~EigenBase() {}
+#endif
 };
 
 /***************************************************************************

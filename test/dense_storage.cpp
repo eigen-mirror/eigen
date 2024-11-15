@@ -38,6 +38,13 @@ static_assert(std::is_trivially_default_constructible<Array4f>::value, "Array4f 
 // all fixed-size, fixed-dimension plain object types are trivially move constructible
 static_assert(std::is_trivially_move_constructible<Matrix4f>::value, "Matrix4f not trivially_move_constructible");
 static_assert(std::is_trivially_move_constructible<Array4f>::value, "Array4f not trivially_move_constructible");
+// all statically-allocated plain object types are trivially destructible
+static_assert(std::is_trivially_destructible<Matrix4f>::value, "Matrix4f not trivially_destructible");
+static_assert(std::is_trivially_destructible<Array4f>::value, "Array4f not trivially_destructible");
+static_assert(std::is_trivially_destructible<Matrix<float, 4, Dynamic, 0, 4, 4>>::value,
+              "Matrix4X44 not trivially_destructible");
+static_assert(std::is_trivially_destructible<Array<float, 4, Dynamic, 0, 4, 4>>::value,
+              "Array4X44 not trivially_destructible");
 #if !defined(EIGEN_DENSE_STORAGE_CTOR_PLUGIN)
 // all fixed-size, fixed-dimension plain object types are trivially copy constructible
 static_assert(std::is_trivially_copy_constructible<Matrix4f>::value, "Matrix4f not trivially_copy_constructible");
