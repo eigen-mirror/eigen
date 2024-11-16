@@ -3183,6 +3183,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
+    HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH,
     HasATanh = 1,
     HasATan = 0,

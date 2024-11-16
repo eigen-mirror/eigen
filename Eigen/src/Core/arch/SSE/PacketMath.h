@@ -217,6 +217,7 @@ struct packet_traits<double> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasLog = 1,
+    HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH,
     HasExp = 1,
     HasSqrt = 1,

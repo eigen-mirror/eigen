@@ -5141,7 +5141,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSqrt = 1,
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
-    HasErf = 0,
+    HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH
   };
 };

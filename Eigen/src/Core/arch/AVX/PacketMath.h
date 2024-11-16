@@ -1,3 +1,4 @@
+
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
@@ -145,6 +146,7 @@ struct packet_traits<double> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasLog = 1,
+    HasErf = 1,
     HasErfc = 1,
     HasExp = 1,
     HasSqrt = 1,
