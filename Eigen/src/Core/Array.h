@@ -253,8 +253,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
           PrivateType())
       : Base(other.derived()) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index innerStride() const EIGEN_NOEXCEPT { return 1; }
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR inline Index outerStride() const EIGEN_NOEXCEPT { return this->innerSize(); }
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const EIGEN_NOEXCEPT { return 1; }
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const EIGEN_NOEXCEPT { return this->innerSize(); }
 
 #ifdef EIGEN_ARRAY_PLUGIN
 #include EIGEN_ARRAY_PLUGIN

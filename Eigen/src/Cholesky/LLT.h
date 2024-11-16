@@ -184,8 +184,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    */
   const LLT& adjoint() const EIGEN_NOEXCEPT { return *this; }
 
-  inline EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
-  inline EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
+  constexpr Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
+  constexpr Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
 
   template <typename VectorType>
   LLT& rankUpdate(const VectorType& vec, const RealScalar& sigma = 1);

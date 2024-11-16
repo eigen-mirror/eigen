@@ -353,10 +353,10 @@ class Transform {
   inline QTransform toQTransform(void) const;
 #endif
 
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index rows() const EIGEN_NOEXCEPT {
+  EIGEN_DEVICE_FUNC constexpr Index rows() const EIGEN_NOEXCEPT {
     return int(Mode) == int(Projective) ? m_matrix.cols() : (m_matrix.cols() - 1);
   }
-  EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
 
   /** shortcut for m_matrix(row,col);
    * \sa MatrixBase::operator(Index,Index) const */
