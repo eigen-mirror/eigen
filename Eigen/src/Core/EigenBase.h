@@ -121,7 +121,11 @@ struct EigenBase {
    * as the testsuite asserts std::is_trivially_destructible
    */
 #if !defined(EIGEN_NO_DEBUG) && !defined(EIGEN_TESTING_PLAINOBJECT_CTOR)
+#if __cpp_constexpr >= 201907L
+  EIGEN_DEVICE_FUNC constexpr ~EigenBase() {}
+#else
   EIGEN_DEVICE_FUNC ~EigenBase() {}
+#endif
 #endif
 };
 
