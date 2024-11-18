@@ -131,8 +131,7 @@ template <typename Scalar>
 struct functor_traits<linspaced_op<Scalar> > {
   enum {
     Cost = 1,
-    PacketAccess =
-        (!NumTraits<Scalar>::IsInteger) && packet_traits<Scalar>::HasSetLinear && packet_traits<Scalar>::HasBlend,
+    PacketAccess = (!NumTraits<Scalar>::IsInteger) && packet_traits<Scalar>::HasSetLinear,
     /*&& ((!NumTraits<Scalar>::IsInteger) || packet_traits<Scalar>::HasDiv),*/  // <- vectorization for integer is
                                                                                 // currently disabled
     IsRepeatable = true
