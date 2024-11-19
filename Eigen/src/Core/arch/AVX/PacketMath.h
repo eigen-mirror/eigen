@@ -1,4 +1,3 @@
-
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
@@ -146,7 +145,6 @@ struct packet_traits<double> : default_packet_traits {
 #endif
     HasTanh = EIGEN_FAST_MATH,
     HasLog = 1,
-    HasErf = 1,
     HasErfc = 1,
     HasExp = 1,
     HasSqrt = 1,
@@ -1933,6 +1931,22 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
   out = pmul(out, c);  // a * 2^e
   return out;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Packet4d& exponent) {
+  // Clamp exponent to [-1024, 1024]
+  const Packet4d min_exponent = pset1<Packet4d>(-1023.0);
+  const Packet4d max_exponent = pset1<Packet4d>(1024.0);
+  const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, min_exponent), max_exponent));
+  const Packet4i bias = pset1<Packet4i>(1023);
+
+  // 2^e
+  Packet4i hi = vec4i_swizzle1(padd(e, bias), 0, 2, 1, 3);
+  const Packet4i lo = _mm_slli_epi64(hi, 52);
+  hi = _mm_slli_epi64(_mm_srli_epi64(hi, 32), 52);
+  const Packet4d c = _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+  return pmul(a, c);  // a * 2^e
 }
 
 template <>
