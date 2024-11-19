@@ -738,6 +738,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void call_dense_assignment
 }
 
 // Specialization for filling the destination with a constant value.
+#if !EIGEN_COMP_MSVC
 #ifndef EIGEN_GPU_COMPILE_PHASE
 template <typename DstXprType>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_dense_assignment_loop(
@@ -747,6 +748,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_dense_assignment_loop(
   resize_if_allowed(dst, src, func);
   std::fill_n(dst.data(), dst.size(), src.functor()());
 }
+#endif
 #endif
 
 template <typename DstXprType, typename SrcXprType>
