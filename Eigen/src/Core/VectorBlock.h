@@ -55,9 +55,9 @@ struct traits<VectorBlock<VectorType, Size> >
  */
 template <typename VectorType, int Size>
 class VectorBlock : public Block<VectorType, internal::traits<VectorType>::Flags & RowMajorBit ? 1 : Size,
-                                 internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1> {
+                                 internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1, true> {
   typedef Block<VectorType, internal::traits<VectorType>::Flags & RowMajorBit ? 1 : Size,
-                internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1>
+                internal::traits<VectorType>::Flags & RowMajorBit ? Size : 1, true>
       Base;
   enum { IsColVector = !(internal::traits<VectorType>::Flags & RowMajorBit) };
 
