@@ -343,7 +343,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void DenseBase<Derived>::fill(const Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setConstant(const Scalar& val) {
-  return derived() = Constant(rows(), cols(), val);
+  internal::eigen_fill_impl<Derived>::run(derived(), val);
+  return derived();
 }
 
 /** Resizes to the given \a size, and sets all coefficients in this expression to the given value \a val.
@@ -547,7 +548,8 @@ EIGEN_DEVICE_FUNC bool DenseBase<Derived>::isZero(const RealScalar& prec) const 
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setZero() {
-  return setConstant(Scalar(0));
+  internal::eigen_zero_impl<Derived>::run(derived());
+  return derived();
 }
 
 /** Resizes to the given \a size, and sets all coefficients in this expression to zero.
@@ -562,7 +564,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::setZero() {
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setZero(Index newSize) {
   resize(newSize);
-  return setConstant(Scalar(0));
+  return setZero();
 }
 
 /** Resizes to the given size, and sets all coefficients in this expression to zero.
@@ -578,7 +580,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setZero
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& PlainObjectBase<Derived>::setZero(Index rows, Index cols) {
   resize(rows, cols);
-  return setConstant(Scalar(0));
+  return setZero();
 }
 
 /** Resizes to the given size, changing only the number of columns, and sets all
