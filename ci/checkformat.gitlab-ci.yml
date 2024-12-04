@@ -1,6 +1,6 @@
 checkformat:clangformat:
   stage: checkformat
-  image: ubuntu:23.10
+  image: ubuntu:latest
   only:
     - merge_requests
   allow_failure: true
