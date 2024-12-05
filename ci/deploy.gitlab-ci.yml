@@ -1,0 +1,12 @@
+ # Push a nightly tag if the pipeline succeeded.
+deploy:tag:
+  stage: deploy
+  script:
+    - git tag nightly master
+    - git push https://sillyprof:$EIGEN_CI_ACCESS_TOKEN@gitlab.com/libeigen/eigen.git master tag nightly
+  tags:
+    - linux
+    - eigen-runner
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
