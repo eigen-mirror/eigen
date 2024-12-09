@@ -2,15 +2,12 @@
 deploy:tag:
   stage: deploy
   image: ubuntu:latest
-  variables:
-    GIT_STRATEGY: "clone"
   before_script:
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get update -y
     - apt-get install -y --no-install-recommends git
   script:
-    - git status
-    - git tag -f nightly $CI_COMMIT_BRANCH
+    - git tag -f nightly $CI_COMMIT_SHORT_SHA
     - git push $EIGEN_CI_GIT_PUSH_URL $CI_COMMIT_BRANCH tag nightly
   tags:
     - linux
