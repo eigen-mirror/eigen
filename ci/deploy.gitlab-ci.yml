@@ -1,5 +1,5 @@
  # Push a nightly tag if the pipeline succeeded.
-deploy:tag:
+deploy:tag:nightly:
   stage: deploy
   image: ubuntu:latest
   before_script:
@@ -8,7 +8,7 @@ deploy:tag:
     - apt-get install -y --no-install-recommends git
   script:
     - git tag -f nightly $CI_COMMIT_SHORT_SHA
-    - git push $EIGEN_CI_GIT_PUSH_URL $CI_COMMIT_BRANCH tag nightly
+    - git push $EIGEN_CI_GIT_PUSH_URL tag nightly
   tags:
     - linux
     - eigen-runner
