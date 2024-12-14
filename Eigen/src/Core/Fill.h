@@ -54,19 +54,26 @@ template <typename Xpr, int Options, int OuterStride_>
 struct eigen_fill_helper<Map<Xpr, Options, OuterStride<OuterStride_>>>
     : eigen_fill_helper<Map<Xpr, Options, Stride<OuterStride_, 0>>> {};
 
-template <typename Xpr, bool use_fill = eigen_fill_helper<Xpr>::value>
-struct eigen_fill_impl {
+template <typename Xpr>
+struct eigen_fill_impl<Xpr, /*use_fill*/ false> {
   using Scalar = typename Xpr::Scalar;
   using Func = scalar_constant_op<Scalar>;
   using PlainObject = typename Xpr::PlainObject;
-  using Constant = CwiseNullaryOp<Func, PlainObject>;
+  using Constant = typename PlainObject::ConstantReturnType;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const Scalar& val) {
-    dst = Constant(dst.rows(), dst.cols(), Func(val));
+    const Constant src(dst.rows(), dst.cols(), val);
+    run(dst, src);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    call_dense_assignment_loop(dst, src, assign_op<Scalar, Scalar>());
   }
 };
 
-#if !EIGEN_COMP_MSVC
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#if EIGEN_COMP_MSVC || defined(EIGEN_GPU_COMPILE_PHASE)
+template <typename Xpr>
+struct eigen_fill_impl<Xpr, /*use_fill*/ true> : eigen_fill_impl<Xpr, /*use_fill*/ false> {};
+#else
 template <typename Xpr>
 struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
   using Scalar = typename Xpr::Scalar;
@@ -74,8 +81,13 @@ struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
     EIGEN_USING_STD(fill_n);
     fill_n(dst.data(), dst.size(), val);
   }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
+    const Scalar& val = src.functor()();
+    run(dst, val);
+  }
 };
-#endif
 #endif
 
 template <typename Xpr>
@@ -83,10 +95,19 @@ struct eigen_memset_helper {
   static constexpr bool value = std::is_trivial<typename Xpr::Scalar>::value && eigen_fill_helper<Xpr>::value;
 };
 
-template <typename Xpr, bool use_memset = eigen_memset_helper<Xpr>::value>
-struct eigen_zero_impl {
+template <typename Xpr>
+struct eigen_zero_impl<Xpr, /*use_memset*/ false> {
   using Scalar = typename Xpr::Scalar;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) { eigen_fill_impl<Xpr, false>::run(dst, Scalar(0)); }
+  using PlainObject = typename Xpr::PlainObject;
+  using Zero = typename PlainObject::ZeroReturnType;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
+    const Zero src(dst.rows(), dst.cols());
+    run(dst, src);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    call_dense_assignment_loop(dst, src, assign_op<Scalar, Scalar>());
+  }
 };
 
 template <typename Xpr>
@@ -103,6 +124,11 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
 #endif
     EIGEN_USING_STD(memset);
     memset(dst_ptr, 0, num_bytes);
+  }
+  template <typename SrcXpr>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
+    resize_if_allowed(dst, src, assign_op<Scalar, Scalar>());
+    run(dst);
   }
 };
 

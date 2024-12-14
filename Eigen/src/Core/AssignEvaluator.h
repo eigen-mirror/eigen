@@ -888,6 +888,32 @@ struct Assignment<DstXprType, SrcXprType, Functor, Dense2Dense, Weak> {
   }
 };
 
+template <typename DstXprType, typename SrcPlainObject, typename Weak>
+struct Assignment<DstXprType, CwiseNullaryOp<scalar_constant_op<typename DstXprType::Scalar>, SrcPlainObject>,
+                  assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Dense2Dense, Weak> {
+  using Scalar = typename DstXprType::Scalar;
+  using NullaryOp = scalar_constant_op<Scalar>;
+  using SrcXprType = CwiseNullaryOp<NullaryOp, SrcPlainObject>;
+  using Functor = assign_op<Scalar, Scalar>;
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
+                                                        const Functor& /*func*/) {
+    eigen_fill_impl<DstXprType>::run(dst, src);
+  }
+};
+
+template <typename DstXprType, typename SrcPlainObject, typename Weak>
+struct Assignment<DstXprType, CwiseNullaryOp<scalar_zero_op<typename DstXprType::Scalar>, SrcPlainObject>,
+                  assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Dense2Dense, Weak> {
+  using Scalar = typename DstXprType::Scalar;
+  using NullaryOp = scalar_zero_op<Scalar>;
+  using SrcXprType = CwiseNullaryOp<NullaryOp, SrcPlainObject>;
+  using Functor = assign_op<Scalar, Scalar>;
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
+                                                        const Functor& /*func*/) {
+    eigen_zero_impl<DstXprType>::run(dst, src);
+  }
+};
+
 // Generic assignment through evalTo.
 // TODO: not sure we have to keep that one, but it helps porting current code to new evaluator mechanism.
 // Note that the last template argument "Weak" is needed to make it possible to perform
