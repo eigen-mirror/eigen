@@ -12,6 +12,7 @@ cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
   -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
   -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET}    \
+  -DCMAKE_CXX_INCLUDE_WHAT_YOU_USE=include-what-you-use          \
   ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
 
 target=""

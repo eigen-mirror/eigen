@@ -16,7 +16,7 @@ export | grep EIGEN
 # geographical region.
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y > /dev/null
-apt-get install -y --no-install-recommends software-properties-common ninja-build cmake git > /dev/null
+apt-get install -y --no-install-recommends software-properties-common ninja-build cmake git iwyu > /dev/null
 add-apt-repository -y ppa:ubuntu-toolchain-r/test > /dev/null
 apt-get update -y > /dev/null
 
