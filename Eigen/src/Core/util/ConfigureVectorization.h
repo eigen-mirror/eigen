@@ -100,8 +100,8 @@
 // certain common platform (compiler+architecture combinations) to avoid these problems.
 // Only static alignment is really problematic (relies on nonstandard compiler extensions),
 // try to keep heap alignment even when we have to disable static alignment.
-#if EIGEN_COMP_GNUC && \
-    !(EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_PPC || EIGEN_ARCH_IA64 || EIGEN_ARCH_MIPS)
+#if EIGEN_COMP_GNUC && !(EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_PPC || EIGEN_ARCH_IA64 || \
+                         EIGEN_ARCH_MIPS || EIGEN_ARCH_LOONGARCH64)
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 1
 #else
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 0
@@ -430,6 +430,12 @@ extern "C" {
 #include <msa.h>
 #endif
 
+#elif (defined __loongarch64 && defined __loongarch_sx)
+
+#define EIGEN_VECTORIZE
+#define EIGEN_VECTORIZE_LSX
+#include <lsxintrin.h>
+
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
 
 #define EIGEN_VECTORIZE
@@ -520,6 +526,8 @@ inline static const char *SimdInstructionSetsInUse(void) {
   return "S390X ZVECTOR";
 #elif defined(EIGEN_VECTORIZE_MSA)
   return "MIPS MSA";
+#elif defined(EIGEN_VECTORIZE_LSX)
+  return "LOONGARCH64 LSX";
 #else
   return "None";
 #endif

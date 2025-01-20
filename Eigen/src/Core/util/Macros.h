@@ -376,6 +376,13 @@
 #define EIGEN_ARCH_MIPS 0
 #endif
 
+/// \internal EIGEN_ARCH_LOONGARCH64 set to 1 if the architecture is LOONGARCH64
+#if defined(__loongarch64)
+#define EIGEN_ARCH_LOONGARCH64 1
+#else
+#define EIGEN_ARCH_LOONGARCH64 0
+#endif
+
 /// \internal EIGEN_ARCH_SPARC set to 1 if the architecture is SPARC
 #if defined(__sparc__) || defined(__sparc)
 #define EIGEN_ARCH_SPARC 1
