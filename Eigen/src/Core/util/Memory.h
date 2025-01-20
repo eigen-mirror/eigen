@@ -913,7 +913,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
  * \sa \blank \ref TopicStlContainers.
  */
 template <class T>
-class aligned_allocator : public std::allocator<T> {
+class aligned_allocator {
  public:
   typedef std::size_t size_type;
   typedef std::ptrdiff_t difference_type;
@@ -928,14 +928,21 @@ class aligned_allocator : public std::allocator<T> {
     typedef aligned_allocator<U> other;
   };
 
-  aligned_allocator() : std::allocator<T>() {}
+  aligned_allocator() = default;
 
-  aligned_allocator(const aligned_allocator& other) : std::allocator<T>(other) {}
+  aligned_allocator(const aligned_allocator&) = default;
 
   template <class U>
-  aligned_allocator(const aligned_allocator<U>& other) : std::allocator<T>(other) {}
+  aligned_allocator(const aligned_allocator<U>&) {}
 
-  ~aligned_allocator() {}
+  template <class U>
+  constexpr bool operator==(const aligned_allocator<U>&) const noexcept {
+    return true;
+  }
+  template <class U>
+  constexpr bool operator!=(const aligned_allocator<U>&) const noexcept {
+    return false;
+  }
 
 #if EIGEN_COMP_GNUC_STRICT && EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0)
   // In gcc std::allocator::max_size() is bugged making gcc triggers a warning:
