@@ -418,13 +418,14 @@ test:linux:ppc64le:clang-12:default:unsupported:
 ##### loongarch64 ###################################################################
 .test:linux:loongarch64:
   extends: .test:linux
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_TARGET_ARCH: loongarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
     # Install QEMU and set up the execution environment in the image
-    EIGEN_CI_BEFORE_SCRIPT: "apt-get update && apt-get install g++-14-loongarch64-linux-gnu gcc-14-loongarch64-linux-gnu qemu-user-static -y && \
-                             ln -sf /usr/loongarch64-linux-gnu/lib64/ld-linux-loongarch-lp64d.so.1  /lib64/ld-linux-loongarch-lp64d.so.1 && \
-                             export LD_LIBRARY_PATH=/usr/loongarch64-linux-gnu/lib:$LD_LIBRARY_PAT"
+    EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
+    EIGEN_CI_BEFORE_SCRIPT: "ln -sf /usr/loongarch64-linux-gnu/lib64/ld-linux-loongarch-lp64d.so.1  /lib64/ld-linux-loongarch-lp64d.so.1 && \
+                             export LD_LIBRARY_PATH=/usr/loongarch64-linux-gnu/lib:$LD_LIBRARY_PATH"
   tags:
     - eigen-runner
     - linux
