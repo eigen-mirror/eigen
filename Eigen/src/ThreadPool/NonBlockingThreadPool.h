@@ -167,7 +167,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       if (EIGEN_PREDICT_FALSE(!t->f)) *t = GlobalSteal();
       if (EIGEN_PREDICT_FALSE(!t->f)) {
         if (allow_spinning_ && StartSpinning()) {
-          for (int i = 0; i < spin_count_ && !t->f; ++i) *t = q.PopFront();
+          for (int i = 0; i < spin_count_ && !t->f; ++i) *t = GlobalSteal();
           // Notify `spinning_state_` that we are no longer spinning.
           bool has_no_notify_task = StopSpinning();
           // If a task was submitted to the queue without a call to
