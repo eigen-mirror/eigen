@@ -418,6 +418,7 @@ test:linux:ppc64le:clang-12:default:unsupported:
 ##### loongarch64 ###################################################################
 .test:linux:loongarch64:
   extends: .test:linux
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_TARGET_ARCH: loongarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
