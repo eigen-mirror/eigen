@@ -42,11 +42,11 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       : env_(env),
         num_threads_(num_threads),
         allow_spinning_(allow_spinning),
+        spin_count_(0),
         thread_data_(num_threads),
         all_coprimes_(num_threads),
         waiters_(num_threads),
         global_steal_partition_(EncodePartition(0, num_threads_)),
-        spin_count_(0),
         spinning_state_(0),
         blocked_(0),
         done_(false),
@@ -345,8 +345,6 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     pt->pool = this;
     pt->rand = GlobalThreadIdHash();
     pt->thread_id = thread_id;
-    Queue& q = thread_data_[thread_id].queue;
-    EventCount::Waiter* waiter = &waiters_[thread_id];
     // TODO(dvyukov,rmlarsen): The time spent in NonEmptyQueueIndex() is
     // proportional to num_threads_ and we assume that new work is scheduled
     // at a constant rate, so we divide `kSpintCount` by number of threads
