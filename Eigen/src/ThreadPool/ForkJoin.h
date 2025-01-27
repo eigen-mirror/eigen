@@ -31,7 +31,7 @@ namespace Eigen {
 // where `s_{j+1} - s_{j}` and `end - s_n` are roughly within a factor of two of `granularity`. For a unary
 // task function `g(k)`, the same operation is applied with
 //
-//   f(i,j) = [&](){ for(int k=i; k<j; ++k) g(k); };
+//   f(i,j) = [&](){ for(int k = i; k < j; ++k) g(k); };
 //
 // Note that the parameter `granularity` should be tuned by the user based on the trade-off of running the
 // given task function sequentially vs. scheduling individual tasks in parallel. An example of a partially
@@ -48,11 +48,11 @@ namespace Eigen {
 // Example usage #2 (asynchronous):
 // ```
 // ThreadPool thread_pool(num_threads);
-// Barrier barrier(num_completions);
+// Barrier barrier(num_tasks * num_async_calls);
 // auto done = [&](){barrier.Notify();};
 // for (int k=0; k<num_async_calls; ++k) {
 //   thread_pool.Schedule([&](){
-//     ForkJoinScheduler::ParallelFor(0, num_tasks, granularity, parallel_task, done, &thread_pool);
+//     ForkJoinScheduler::ParallelForAsync(0, num_tasks, granularity, parallel_task, done, &thread_pool);
 //   });
 // }
 // barrier.Wait();
@@ -73,7 +73,7 @@ class ForkJoinScheduler {
     ForkJoinScheduler::RunParallelForAsync(start, end, granularity, do_func, done, thread_pool);
   }
 
-  // Synchronous variant of Async::ParallelFor.
+  // Synchronous variant of ParallelForAsync.
   template <typename DoFnType>
   static void ParallelFor(int start, int end, int granularity, DoFnType do_func, Eigen::ThreadPool* thread_pool) {
     if (start >= end) return;
@@ -87,8 +87,7 @@ class ForkJoinScheduler {
   }
 
  private:
-  // Schedules `right_thunk`, runs `left_thunk` and runs other tasks until
-  // `right_thunk` has finished.
+  // Schedules `right_thunk`, runs `left_thunk`, and runs other tasks until `right_thunk` has finished.
   template <typename LeftType, typename RightType>
   static void ForkJoin(LeftType&& left_thunk, RightType&& right_thunk, Eigen::ThreadPool* thread_pool) {
     std::atomic<bool> right_done(false);
