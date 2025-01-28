@@ -158,7 +158,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     PerThread* pt = GetPerThread();
     Queue& q = thread_data_[pt->thread_id].queue;
     *t = q.PopFront();
-    if (t->f != nullptr) return;
+    if (t->f) return;
     if (num_threads_ == 1) {
       // For num_threads_ == 1 there is no point in going through the expensive
       // steal loop. Moreover, since NonEmptyQueueIndex() calls PopBack() on the
