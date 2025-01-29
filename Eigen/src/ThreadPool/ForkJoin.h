@@ -16,14 +16,14 @@
 namespace Eigen {
 
 // ForkJoinScheduler provides implementations of various non-blocking ParallelFor algorithms for unary
-// and binary parallel tasks. More specfically, the implementations follow the binary tree-based
+// and binary parallel tasks. More specifically, the implementations follow the binary tree-based
 // algorithm from the following paper:
 //
 //   Lea, D. (2000, June). A java fork/join framework. *In Proceedings of the
 //   ACM 2000 conference on Java Grande* (pp. 36-43).
 //
 // For a given binary task function `f(i,j)` and integers `num_threads`, `granularity`, `start`, and `end`,
-// the implemented parallel for algorithm schedules and excutes at most `num_threads` of the functions
+// the implemented parallel for algorithm schedules and executes at most `num_threads` of the functions
 // from the following set in parallel (either synchronously or asynchronously):
 //
 //   f(start,start+s_1), f(start+s_1,start+s_2), ..., f(start+s_n,end)
