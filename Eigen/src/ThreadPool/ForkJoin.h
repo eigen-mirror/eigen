@@ -126,13 +126,9 @@ class ForkJoinScheduler {
       // `granularity` are powers of two. Since modern processors usually implement (2^x)-way
       // set-associative caches, we minimize the number of cache misses by choosing midpoints that are not
       // powers of two (to avoid having two addresses in the main memory pointing to the same point in the
-      // cache). More specifically, we restrict the set of candidate midpoints to:
-      //
-      //   P := {start, start + granularity, start + 2*granularity, ..., end},
-      //
-      // and choose the entry in `P` at (roughly) the 9/16 mark.
+      // cache). More specifically, we choose the midpoint at (roughly) the 9/16 mark.
       const int size = end - start;
-      const int mid = start + Eigen::numext::div_ceil(9 * (size + 1) / 16, granularity) * granularity;
+      const int mid = start + 9 * (size + 1) / 16;
       ForkJoinScheduler::ForkJoin(
           [start, mid, granularity, &do_func, &done, thread_pool]() {
             RunParallelForAsync(start, mid, granularity, do_func, done, thread_pool);
