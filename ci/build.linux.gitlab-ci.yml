@@ -313,12 +313,13 @@ build:linux:cross:loongarch64:gcc-14:default:
   extends: .build:linux:cross:loongarch64
   image: ubuntu:24.04
   variables:
-    EIGEN_CI_C_COMPILER: gcc-14
-    EIGEN_CI_CXX_COMPILER: g++-14
-    EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu gcc-14-loongarch64-linux-gnu
+    EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu
     EIGEN_CI_CROSS_C_COMPILER: loongarch64-linux-gnu-gcc-14
     EIGEN_CI_CROSS_CXX_COMPILER: loongarch64-linux-gnu-g++-14
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_LSX=on"
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_SYSTEM_NAME=Linux
+      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-loongarch64-static;-L;/usr/loongarch64-linux-gnu
+      -DEIGEN_TEST_LSX=on
 
 ######## MR Smoke Tests ########################################################
 
