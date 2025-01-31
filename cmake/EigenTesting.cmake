@@ -23,7 +23,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
     set(is_gpu_test ON)
     if(EIGEN_TEST_CUDA_CLANG)
       set_source_files_properties(${filename} PROPERTIES LANGUAGE CXX)
-      if(CUDA_64_BIT_DEVICE_CODE)
+      if(CUDA_64_BIT_DEVICE_CODE AND (EXISTS "${CUDA_TOOLKIT_ROOT_DIR}/lib64"))
         link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib64")
       else()
         link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib")
@@ -102,7 +102,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
     endif()
   endif()
 
-  add_test(${testname_with_suffix} "${targetname}")
+  add_test(NAME ${testname_with_suffix} COMMAND "${targetname}")
   if (is_gpu_test)
     # Add gpu tag for testing only GPU tests.
     set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "gpu")
@@ -201,7 +201,7 @@ macro(ei_add_test_internal_sycl testname testname_with_suffix)
     endif()
   endif()
 
-  add_test(${testname_with_suffix} "${targetname}")
+  add_test(NAME ${testname_with_suffix} COMMAND "${targetname}")
 
   # Specify target and test labels according to EIGEN_CURRENT_SUBPROJECT
   get_property(current_subproject GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT)
