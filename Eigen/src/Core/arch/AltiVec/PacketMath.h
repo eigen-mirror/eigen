@@ -2116,7 +2116,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f) {
 /**
  * Pack the high portion of two float Packets into one bfloat16 Packet
  *
- * @param lohi to expect either a low & high OR odd & even order
+ * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi>
 EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f lo, Packet4f hi) {
@@ -2163,7 +2163,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo) {
 /**
  * Convert and pack two float Packets into one bfloat16 Packet
  *
- * @param lohi to expect either a low & high OR odd & even order
+ * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi = true>
 EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi) {

@@ -261,7 +261,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
         // pos_j_base_powered[0] = ComplexScalar(1, 0);
         // if (line_len > 1) {
         //   const ComplexScalar pos_j_base = ComplexScalar(
-        //       numext::cos(M_PI / line_len), numext::sin(M_PI / line_len));
+        //       numext::cos(EIGEN_PI / line_len), numext::sin(EIGEN_PI / line_len));
         //   pos_j_base_powered[1] = pos_j_base;
         //   if (line_len > 2) {
         //     const ComplexScalar pos_j_base_sq = pos_j_base * pos_j_base;
@@ -511,8 +511,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   template <int Dir>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_1D_merge(ComplexScalar* data, Index n, Index n_power_of_2) {
     // Original code:
-    // RealScalar wtemp = std::sin(M_PI/n);
-    // RealScalar wpi =  -std::sin(2 * M_PI/n);
+    // RealScalar wtemp = std::sin(EIGEN_PI/n);
+    // RealScalar wpi =  -std::sin(2 * EIGEN_PI/n);
     const RealScalar wtemp = m_sin_PI_div_n_LUT[n_power_of_2];
     const RealScalar wpi =
         (Dir == FFT_FORWARD) ? m_minus_sin_2_PI_div_n_LUT[n_power_of_2] : -m_minus_sin_2_PI_div_n_LUT[n_power_of_2];
@@ -600,7 +600,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   const Device EIGEN_DEVICE_REF m_device;
 
   // This will support a maximum FFT size of 2^32 for each dimension
-  // m_sin_PI_div_n_LUT[i] = (-2) * std::sin(M_PI / std::pow(2,i)) ^ 2;
+  // m_sin_PI_div_n_LUT[i] = (-2) * std::sin(EIGEN_PI / std::pow(2,i)) ^ 2;
   const RealScalar m_sin_PI_div_n_LUT[32] = {RealScalar(0.0),
                                              RealScalar(-2),
                                              RealScalar(-0.999999999999999),
@@ -634,7 +634,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
                                              RealScalar(-1.71210344531737e-17),
                                              RealScalar(-4.28025861329343e-18)};
 
-  // m_minus_sin_2_PI_div_n_LUT[i] = -std::sin(2 * M_PI / std::pow(2,i));
+  // m_minus_sin_2_PI_div_n_LUT[i] = -std::sin(2 * EIGEN_PI / std::pow(2,i));
   const RealScalar m_minus_sin_2_PI_div_n_LUT[32] = {RealScalar(0.0),
                                                      RealScalar(0.0),
                                                      RealScalar(-1.00000000000000e+00),

@@ -87,13 +87,8 @@ struct cross_impl<Derived, OtherDerived, 2> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-#ifndef EIGEN_PARSED_BY_DOXYGEN
-    typename internal::cross_impl<Derived, OtherDerived>::return_type
-#else
-    inline std::conditional_t<SizeAtCompileTime == 2, Scalar, PlainObject>
-#endif
-    MatrixBase<Derived>::cross(const MatrixBase<OtherDerived>& other) const {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::cross_impl<Derived, OtherDerived>::return_type
+MatrixBase<Derived>::cross(const MatrixBase<OtherDerived>& other) const {
   return internal::cross_impl<Derived, OtherDerived>::run(*this, other);
 }
 
