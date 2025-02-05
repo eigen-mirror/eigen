@@ -40,7 +40,7 @@
 
 // Align to the boundary that avoids false sharing.
 // https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size
-#ifdef __cpp_lib_hardware_interference_size
+#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201603
 #include <new>
 #define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(std::hardware_destructive_interference_size)
 #else
