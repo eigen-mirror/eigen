@@ -15,13 +15,6 @@
 
 namespace Eigen {
 
-/** \class TensorBroadcasting
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Tensor broadcasting class.
- *
- *
- */
 namespace internal {
 template <typename Broadcast, typename XprType>
 struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType> {
@@ -62,6 +55,9 @@ struct is_input_scalar<Sizes<Indices...>> {
 
 }  // end namespace internal
 
+/** Tensor broadcasting class.
+ * \ingroup CXX11_Tensor_Module
+ */
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
  public:

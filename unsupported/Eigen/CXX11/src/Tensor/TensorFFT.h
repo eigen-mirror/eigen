@@ -15,17 +15,6 @@
 
 namespace Eigen {
 
-/** \class TensorFFT
- * \ingroup CXX11_Tensor_Module
- *
- * \brief Tensor FFT class.
- *
- * TODO:
- * Vectorize the Cooley Tukey and the Bluestein algorithm
- * Add support for multithreaded evaluation
- * Improve the performance on GPU
- */
-
 template <bool NeedUprade>
 struct MakeComplex {
   template <typename T>
@@ -105,6 +94,16 @@ struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
 
 }  // end namespace internal
 
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor FFT class.
+ *
+ * TODO:
+ * Vectorize the Cooley Tukey and the Bluestein algorithm
+ * Add support for multithreaded evaluation
+ * Improve the performance on GPU
+ */
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
 class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>, ReadOnlyAccessors> {
  public:
