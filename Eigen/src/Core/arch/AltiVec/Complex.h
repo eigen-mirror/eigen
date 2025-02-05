@@ -24,17 +24,21 @@ inline Packet4ui p4ui_CONJ_XOR() {
 #ifdef EIGEN_VECTORIZE_VSX
 #if defined(_BIG_ENDIAN)
 inline Packet2ul p2ul_CONJ_XOR1() {
-  (Packet2ul) vec_sld((Packet4ui)p2d_MZERO, (Packet4ui)p2l_ZERO, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
+  return (Packet2ul)vec_sld((Packet4ui)p2d_MZERO, (Packet4ui)p2l_ZERO,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
 }
 inline Packet2ul p2ul_CONJ_XOR2() {
-  (Packet2ul) vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_MZERO, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
+  return (Packet2ul)vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_MZERO,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
 }
 #else
 inline Packet2ul p2ul_CONJ_XOR1() {
-  (Packet2ul) vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_MZERO, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
+  return (Packet2ul)vec_sld((Packet4ui)p2l_ZERO, (Packet4ui)p2d_MZERO,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
 }
 inline Packet2ul p2ul_CONJ_XOR2() {
-  (Packet2ul) vec_sld((Packet4ui)p2d_MZERO, (Packet4ui)p2l_ZERO, 8);  //{ 0x8000000000000000, 0x0000000000000000 };
+  return (Packet2ul)vec_sld((Packet4ui)p2d_MZERO, (Packet4ui)p2l_ZERO,
+                            8);  //{ 0x8000000000000000, 0x0000000000000000 };
 }
 #endif
 #endif
