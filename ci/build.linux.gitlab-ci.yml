@@ -97,6 +97,16 @@ build:linux:cross:x86-64:clang-12:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
+build:linux:doc:
+  extends: .build:linux:cross
+  variables:
+    EIGEN_CI_TARGET_ARCH: any
+    EIGEN_CI_BUILD_TARGET: doc
+    EIGEN_CI_INSTALL: ca-certificates clang flex python3 bison
+    EIGEN_CI_C_COMPILER: clang
+    EIGEN_CI_CXX_COMPILER: clang++
+    EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
 # build:linux:cross:x86-64:clang-12:default:asan:
 #   extends: build:linux:cross:x86-64:clang-12:default
