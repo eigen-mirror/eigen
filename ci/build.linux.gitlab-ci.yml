@@ -316,7 +316,7 @@ build:linux:cross:ppc64le:clang-12:default:
   tags:
     - eigen-runner
     - linux
-    - x86-64
+    - cross-compiler
 
 # GCC-14 (minimum on Ubuntu 24)
 build:linux:cross:loongarch64:gcc-14:default:
