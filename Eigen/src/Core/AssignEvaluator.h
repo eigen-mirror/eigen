@@ -29,123 +29,112 @@ namespace internal {
 
 template <typename DstEvaluator, typename SrcEvaluator, typename AssignFunc, int MaxPacketSize = -1>
 struct copy_using_evaluator_traits {
-  typedef typename DstEvaluator::XprType Dst;
-  typedef typename Dst::Scalar DstScalar;
+  using Src = typename SrcEvaluator::XprType;
+  using Dst = typename DstEvaluator::XprType;
+  using DstScalar = typename Dst::Scalar;
 
-  enum { DstFlags = DstEvaluator::Flags, SrcFlags = SrcEvaluator::Flags };
+  static constexpr int DstFlags = DstEvaluator::Flags, SrcFlags = SrcEvaluator::Flags;
 
  public:
-  enum {
-    DstAlignment = DstEvaluator::Alignment,
-    SrcAlignment = SrcEvaluator::Alignment,
-    DstHasDirectAccess = (DstFlags & DirectAccessBit) == DirectAccessBit,
-    JointAlignment = plain_enum_min(DstAlignment, SrcAlignment)
-  };
+  static constexpr bool DstHasDirectAccess = bool(DstFlags & DirectAccessBit),
+                        DstIsRowMajor = bool(DstFlags & RowMajorBit),
+                        DstIsVectorAtCompileTime = Dst::IsVectorAtCompileTime,
+                        SrcIsRowMajor = bool(SrcFlags & RowMajorBit);
+  static constexpr int DstAlignment = DstEvaluator::Alignment, SrcAlignment = SrcEvaluator::Alignment,
+                       JointAlignment = plain_enum_min(DstAlignment, SrcAlignment);
 
  private:
-  enum {
-    InnerSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::SizeAtCompileTime)
-                : int(DstFlags) & RowMajorBit   ? int(Dst::ColsAtCompileTime)
-                                                : int(Dst::RowsAtCompileTime),
-    InnerMaxSize = int(Dst::IsVectorAtCompileTime) ? int(Dst::MaxSizeAtCompileTime)
-                   : int(DstFlags) & RowMajorBit   ? int(Dst::MaxColsAtCompileTime)
-                                                   : int(Dst::MaxRowsAtCompileTime),
-    RestrictedInnerSize = min_size_prefer_fixed(InnerSize, MaxPacketSize),
-    RestrictedLinearSize = min_size_prefer_fixed(Dst::SizeAtCompileTime, MaxPacketSize),
-    OuterStride = int(outer_stride_at_compile_time<Dst>::ret),
-    MaxSizeAtCompileTime = Dst::SizeAtCompileTime
-  };
+  static constexpr int RowsAtCompileTime = size_prefer_fixed(Src::RowsAtCompileTime, Dst::RowsAtCompileTime),
+                       ColsAtCompileTime = size_prefer_fixed(Src::ColsAtCompileTime, Dst::ColsAtCompileTime),
+                       SizeAtCompileTime = size_at_compile_time(RowsAtCompileTime, ColsAtCompileTime),
+                       MaxRowsAtCompileTime =
+                           min_size_prefer_fixed(Src::MaxRowsAtCompileTime, Dst::MaxRowsAtCompileTime),
+                       MaxColsAtCompileTime =
+                           min_size_prefer_fixed(Src::MaxColsAtCompileTime, Dst::MaxColsAtCompileTime),
+                       MaxSizeAtCompileTime = size_at_compile_time(MaxRowsAtCompileTime, MaxColsAtCompileTime),
+                       InnerSize = DstIsVectorAtCompileTime ? SizeAtCompileTime
+                                                            : (DstIsRowMajor ? ColsAtCompileTime : RowsAtCompileTime),
+                       InnerMaxSize = DstIsVectorAtCompileTime
+                                          ? MaxSizeAtCompileTime
+                                          : (DstIsRowMajor ? MaxColsAtCompileTime : MaxRowsAtCompileTime),
+                       RestrictedInnerSize = min_size_prefer_fixed(InnerSize, MaxPacketSize),
+                       RestrictedLinearSize = min_size_prefer_fixed(SizeAtCompileTime, MaxPacketSize),
+                       OuterStride = outer_stride_at_compile_time<Dst>::ret;
 
   // TODO distinguish between linear traversal and inner-traversals
-  typedef typename find_best_packet<DstScalar, RestrictedLinearSize>::type LinearPacketType;
-  typedef typename find_best_packet<DstScalar, RestrictedInnerSize>::type InnerPacketType;
+  using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
+  using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;
 
-  enum {
-    LinearPacketSize = unpacket_traits<LinearPacketType>::size,
-    InnerPacketSize = unpacket_traits<InnerPacketType>::size
-  };
+  static constexpr int LinearPacketSize = unpacket_traits<LinearPacketType>::size,
+                       InnerPacketSize = unpacket_traits<InnerPacketType>::size;
 
  public:
-  enum {
-    LinearRequiredAlignment = unpacket_traits<LinearPacketType>::alignment,
-    InnerRequiredAlignment = unpacket_traits<InnerPacketType>::alignment
-  };
+  static constexpr int LinearRequiredAlignment = unpacket_traits<LinearPacketType>::alignment,
+                       InnerRequiredAlignment = unpacket_traits<InnerPacketType>::alignment;
 
  private:
-  enum {
-    DstIsRowMajor = DstFlags & RowMajorBit,
-    SrcIsRowMajor = SrcFlags & RowMajorBit,
-    StorageOrdersAgree = (int(DstIsRowMajor) == int(SrcIsRowMajor)),
-    MightVectorize = bool(StorageOrdersAgree) && (int(DstFlags) & int(SrcFlags) & ActualPacketAccessBit) &&
-                     bool(functor_traits<AssignFunc>::PacketAccess),
-    MayInnerVectorize = MightVectorize && int(InnerSize) != Dynamic && int(InnerSize) % int(InnerPacketSize) == 0 &&
-                        int(OuterStride) != Dynamic && int(OuterStride) % int(InnerPacketSize) == 0 &&
-                        (EIGEN_UNALIGNED_VECTORIZE || int(JointAlignment) >= int(InnerRequiredAlignment)),
-    MayLinearize = bool(StorageOrdersAgree) && (int(DstFlags) & int(SrcFlags) & LinearAccessBit),
-    MayLinearVectorize = bool(MightVectorize) && bool(MayLinearize) && bool(DstHasDirectAccess) &&
-                         (EIGEN_UNALIGNED_VECTORIZE || (int(DstAlignment) >= int(LinearRequiredAlignment)) ||
-                          MaxSizeAtCompileTime == Dynamic),
-    /* If the destination isn't aligned, we have to do runtime checks and we don't unroll,
-       so it's only good for large enough sizes. */
-    MaySliceVectorize = bool(MightVectorize) && bool(DstHasDirectAccess) &&
-                        (int(InnerMaxSize) == Dynamic ||
-                         int(InnerMaxSize) >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)))
-    /* slice vectorization can be slow, so we only want it if the slices are big, which is
-       indicated by InnerMaxSize rather than InnerSize, think of the case of a dynamic block
-       in a fixed-size matrix
-       However, with EIGEN_UNALIGNED_VECTORIZE and unrolling, slice vectorization is still worth it */
-  };
+  static constexpr bool StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor,
+                        MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
+                                         bool(functor_traits<AssignFunc>::PacketAccess),
+                        InnerAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (JointAlignment >= InnerRequiredAlignment),
+                        MayInnerVectorize = MightVectorize && (InnerSize != Dynamic) &&
+                                            (InnerSize % InnerPacketSize == 0) && (OuterStride != Dynamic) &&
+                                            (OuterStride % InnerPacketSize == 0) && InnerAlignmentOk,
+                        MayLinearize = StorageOrdersAgree && bool(DstFlags & SrcFlags & LinearAccessBit),
+                        LinearAlignmentOk = EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment),
+                        MayLinearVectorize = MightVectorize && MayLinearize && DstHasDirectAccess &&
+                                             (LinearAlignmentOk || (MaxSizeAtCompileTime == Dynamic)) &&
+                                             (MaxSizeAtCompileTime >= LinearPacketSize),
+                        // MayLinearVectorize =
+                        //     bool(MightVectorize) && bool(MayLinearize) && bool(DstHasDirectAccess) &&
+                        //     (EIGEN_UNALIGNED_VECTORIZE || (int(DstAlignment) >= int(LinearRequiredAlignment)) ||
+                        //      MaxSizeAtCompileTime == Dynamic),
+
+      /* If the destination isn't aligned, we have to do runtime checks and we don't unroll, so it's only good for large
+         enough sizes. slice vectorization can be slow, so we only want it if the slices are big, which is indicated by
+         InnerMaxSize rather than InnerSize, think of the case of a dynamic block in a fixed-size matrix. However, with
+         EIGEN_UNALIGNED_VECTORIZE and unrolling, slice vectorization is still worth it */
+      MaySliceVectorize = MightVectorize && DstHasDirectAccess &&
+                          (InnerMaxSize == Dynamic ||
+                           InnerMaxSize >= (EIGEN_UNALIGNED_VECTORIZE ? InnerPacketSize : (3 * InnerPacketSize)));
 
  public:
-  enum {
-    Traversal = int(Dst::SizeAtCompileTime) == 0
-                    ? int(AllAtOnceTraversal)  // If compile-size is zero, traversing will fail at compile-time.
-                : (int(MayLinearVectorize) && (LinearPacketSize > InnerPacketSize)) ? int(LinearVectorizedTraversal)
-                : int(MayInnerVectorize)                                            ? int(InnerVectorizedTraversal)
-                : int(MayLinearVectorize)                                           ? int(LinearVectorizedTraversal)
-                : int(MaySliceVectorize)                                            ? int(SliceVectorizedTraversal)
-                : int(MayLinearize)                                                 ? int(LinearTraversal)
-                                                                                    : int(DefaultTraversal),
-    Vectorized = int(Traversal) == InnerVectorizedTraversal || int(Traversal) == LinearVectorizedTraversal ||
-                 int(Traversal) == SliceVectorizedTraversal
-  };
+  // If compile-size is zero, traversing will fail at compile-time.
+  static constexpr int Traversal = SizeAtCompileTime == 0 ? AllAtOnceTraversal
+                                   : MayLinearVectorize && (LinearPacketSize > InnerPacketSize)
+                                       ? LinearVectorizedTraversal
+                                   : MayInnerVectorize  ? InnerVectorizedTraversal
+                                   : MayLinearVectorize ? LinearVectorizedTraversal
+                                   : MaySliceVectorize  ? SliceVectorizedTraversal
+                                   : MayLinearize       ? LinearTraversal
+                                                        : DefaultTraversal;
+  static constexpr bool Vectorized = (Traversal == InnerVectorizedTraversal) ||
+                                     (Traversal == LinearVectorizedTraversal) ||
+                                     (Traversal == SliceVectorizedTraversal);
 
-  typedef std::conditional_t<int(Traversal) == LinearVectorizedTraversal, LinearPacketType, InnerPacketType> PacketType;
+  using PacketType = std::conditional_t<Traversal == LinearVectorizedTraversal, LinearPacketType, InnerPacketType>;
 
  private:
-  enum {
-    ActualPacketSize = int(Traversal) == LinearVectorizedTraversal ? LinearPacketSize
-                       : Vectorized                                ? InnerPacketSize
-                                                                   : 1,
-    UnrollingLimit = EIGEN_UNROLLING_LIMIT * ActualPacketSize,
-    MayUnrollCompletely =
-        int(Dst::SizeAtCompileTime) != Dynamic &&
-        int(Dst::SizeAtCompileTime) * (int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost)) <=
-            int(UnrollingLimit),
-    MayUnrollInner =
-        int(InnerSize) != Dynamic &&
-        int(InnerSize) * (int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost)) <= int(UnrollingLimit)
-  };
+  static constexpr int ActualPacketSize = Vectorized ? unpacket_traits<PacketType>::size : 1,
+                       UnrollingLimit = EIGEN_UNROLLING_LIMIT * ActualPacketSize,
+                       CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
+  static constexpr bool MayUnrollCompletely =
+                            (SizeAtCompileTime != Dynamic) && ((SizeAtCompileTime * CoeffReadCost) <= UnrollingLimit),
+                        MayUnrollInner = (InnerSize != Dynamic) && ((InnerSize * CoeffReadCost) <= UnrollingLimit);
 
  public:
-  enum {
-    Unrolling = (int(Traversal) == int(InnerVectorizedTraversal) || int(Traversal) == int(DefaultTraversal))
-                    ? (int(MayUnrollCompletely) ? int(CompleteUnrolling)
-                       : int(MayUnrollInner)    ? int(InnerUnrolling)
-                                                : int(NoUnrolling))
-                : int(Traversal) == int(LinearVectorizedTraversal)
-                    ? (bool(MayUnrollCompletely) &&
-                               (EIGEN_UNALIGNED_VECTORIZE || (int(DstAlignment) >= int(LinearRequiredAlignment)))
-                           ? int(CompleteUnrolling)
-                           : int(NoUnrolling))
-                : int(Traversal) == int(LinearTraversal)
-                    ? (bool(MayUnrollCompletely) ? int(CompleteUnrolling) : int(NoUnrolling))
+  static constexpr int Unrolling =
+      (Traversal == InnerVectorizedTraversal || Traversal == DefaultTraversal)
+          ? (MayUnrollCompletely ? CompleteUnrolling
+             : MayUnrollInner    ? InnerUnrolling
+                                 : NoUnrolling)
+      : Traversal == LinearVectorizedTraversal
+          ? (MayUnrollCompletely && LinearAlignmentOk ? CompleteUnrolling : NoUnrolling)
+      : Traversal == LinearTraversal ? (MayUnrollCompletely ? CompleteUnrolling : NoUnrolling)
 #if EIGEN_UNALIGNED_VECTORIZE
-                : int(Traversal) == int(SliceVectorizedTraversal)
-                    ? (bool(MayUnrollInner) ? int(InnerUnrolling) : int(NoUnrolling))
+      : Traversal == SliceVectorizedTraversal ? (MayUnrollInner ? InnerUnrolling : NoUnrolling)
 #endif
-                    : int(NoUnrolling)
-  };
+                                              : NoUnrolling;
 
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug() {

@@ -230,6 +230,12 @@ struct vectorization_logic {
                          InnerUnrolling + CompleteUnrolling));
     }
 
+    if (PacketSize > 2) {
+      typedef Matrix<Scalar, 2, 1, ColMajor> Vector2;
+      typedef Matrix<Scalar, Dynamic, 1, ColMajor, 3, 1> Vector3;
+      VERIFY(test_assign(Vector3(2), Vector2(), LinearTraversal, CompleteUnrolling));
+    }
+
     VERIFY(test_redux(Vector1(), LinearVectorizedTraversal, CompleteUnrolling));
 
     VERIFY(test_redux(Vector1().array() * Vector1().array(), LinearVectorizedTraversal, CompleteUnrolling));
