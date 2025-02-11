@@ -102,7 +102,7 @@ build:linux:doc:
   variables:
     EIGEN_CI_TARGET_ARCH: any
     EIGEN_CI_BUILD_TARGET: doc
-    EIGEN_CI_INSTALL: ca-certificates clang flex python3 bison
+    EIGEN_CI_INSTALL: ca-certificates clang flex python3 bison graphviz
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
