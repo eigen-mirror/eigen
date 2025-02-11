@@ -109,8 +109,9 @@ set(EIGEN_VERSION_NUMBER ${EIGEN_WORLD_VERSION}.${EIGEN_MAJOR_VERSION}.${EIGEN_M
 if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
   # if the git program is absent or this will leave the EIGEN_GIT_REVNUM string empty,
   # but won't stop CMake.
-  execute_process(COMMAND git ls-remote --refs -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
+  execute_process(COMMAND git ls-remote -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
 endif()
+
 # extract the git rev number from the git output...
 if(EIGEN_GIT_OUTPUT)
 string(REGEX MATCH "^([0-9;a-f]+).*" EIGEN_GIT_CHANGESET_MATCH "${EIGEN_GIT_OUTPUT}")
