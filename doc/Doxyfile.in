@@ -112,11 +112,13 @@ HTML_DYNAMIC_SECTIONS  = YES
 DISABLE_INDEX          = YES
 FULL_SIDEBAR           = NO
 ENUM_VALUES_PER_LINE   = 1
-FORMULA_FONTSIZE       = 12
+USE_MATHJAX            = @EIGEN_DOXY_USE_MATHJAX@
 MATHJAX_RELPATH        = https://cdn.jsdelivr.net/npm/mathjax@2
 MATHJAX_EXTENSIONS     = TeX/AMSmath \
                          TeX/AMSsymbols
 GENERATE_LATEX         = NO
+EXTRA_PACKAGES         = amssymb \
+                         amsmath
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = YES
 PREDEFINED             = EIGEN_EMPTY_STRUCT \
