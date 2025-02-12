@@ -15,7 +15,7 @@
 
 namespace Eigen {
 
-template <bool NeedUprade>
+template <bool IsReal>
 struct MakeComplex {
   template <typename T>
   EIGEN_DEVICE_FUNC T operator()(const T& val) const {
@@ -26,16 +26,8 @@ struct MakeComplex {
 template <>
 struct MakeComplex<true> {
   template <typename T>
-  EIGEN_DEVICE_FUNC std::complex<T> operator()(const T& val) const {
-    return std::complex<T>(val, 0);
-  }
-};
-
-template <>
-struct MakeComplex<false> {
-  template <typename T>
-  EIGEN_DEVICE_FUNC std::complex<T> operator()(const std::complex<T>& val) const {
-    return val;
+  EIGEN_DEVICE_FUNC internal::make_complex_t<T> operator()(const T& val) const {
+    return internal::make_complex_t<T>(val, T(0));
   }
 };
 
@@ -49,17 +41,17 @@ struct PartOf {
 
 template <>
 struct PartOf<RealPart> {
-  template <typename T>
-  T operator()(const std::complex<T>& val) const {
-    return val.real();
+  template <typename T, typename EnableIf = std::enable_if_t<NumTraits<T>::IsComplex>>
+  typename NumTraits<T>::Real operator()(const T& val) const {
+    return Eigen::numext::real(val);
   }
 };
 
 template <>
 struct PartOf<ImagPart> {
-  template <typename T>
-  T operator()(const std::complex<T>& val) const {
-    return val.imag();
+  template <typename T, typename EnableIf = std::enable_if_t<NumTraits<T>::IsComplex>>
+  typename NumTraits<T>::Real operator()(const T& val) const {
+    return Eigen::numext::imag(val);
   }
 };
 
@@ -67,8 +59,9 @@ namespace internal {
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
 struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
-  typedef typename NumTraits<typename XprTraits::Scalar>::Real RealScalar;
-  typedef typename std::complex<RealScalar> ComplexScalar;
+  typedef typename XprTraits::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef make_complex_t<Scalar> ComplexScalar;
   typedef typename XprTraits::Scalar InputScalar;
   typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
       OutputScalar;
@@ -109,7 +102,7 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
  public:
   typedef typename Eigen::internal::traits<TensorFFTOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename std::complex<RealScalar> ComplexScalar;
+  typedef internal::make_complex_t<Scalar> ComplexScalar;
   typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
       OutputScalar;
   typedef OutputScalar CoeffReturnType;
@@ -137,7 +130,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   typedef DSizes<Index, NumDims> Dimensions;
   typedef typename XprType::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename std::complex<RealScalar> ComplexScalar;
+  typedef internal::make_complex_t<Scalar> ComplexScalar;
   typedef typename TensorEvaluator<ArgType, Device>::Dimensions InputDimensions;
   typedef internal::traits<XprType> XprTraits;
   typedef typename XprTraits::Scalar InputScalar;

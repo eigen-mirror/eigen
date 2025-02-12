@@ -745,6 +745,9 @@ using std::is_constant_evaluated;
 constexpr bool is_constant_evaluated() { return false; }
 #endif
 
+template <typename Scalar>
+using make_complex_t = std::conditional_t<NumTraits<Scalar>::IsComplex, Scalar, std::complex<Scalar>>;
+
 }  // end namespace internal
 
 }  // end namespace Eigen
