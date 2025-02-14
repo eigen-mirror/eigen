@@ -27,6 +27,10 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType>
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
+  enum {
+    // Broadcast is read-only.
+    Flags = traits<XprType>::Flags & ~LvalueBit
+  };
 };
 
 template <typename Broadcast, typename XprType>
