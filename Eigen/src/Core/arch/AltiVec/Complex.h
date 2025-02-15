@@ -237,12 +237,12 @@ template<> EIGEN_STRONG_INLINE Packet2cf pblend(const Selector<2>& ifPacket, con
   result.v = reinterpret_cast<Packet4f>(pblend<Packet2d>(ifPacket, reinterpret_cast<Packet2d>(thenPacket.v), reinterpret_cast<Packet2d>(elsePacket.v)));
   return result;
 }
-#endif
 
 template<> EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a)
 {
   return psqrt_complex<Packet2cf>(a);
 }
+#endif
 
 //---------- double ----------
 #ifdef EIGEN_VECTORIZE_VSX

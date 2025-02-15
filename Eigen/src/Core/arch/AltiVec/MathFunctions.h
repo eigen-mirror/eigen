@@ -40,7 +40,7 @@ Packet4f pcos<Packet4f>(const Packet4f& _x)
   return pcos_float(_x);
 }
 
-#ifdef __VSX__
+#ifdef EIGEN_VECTORIZE_VSX
 #ifndef EIGEN_COMP_CLANG
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED
 Packet4f prsqrt<Packet4f>(const Packet4f& x)
@@ -48,8 +48,6 @@ Packet4f prsqrt<Packet4f>(const Packet4f& x)
   return  vec_rsqrt(x);
 }
 
-#ifdef EIGEN_VECTORIZE_VSX
-#ifndef EIGEN_COMP_CLANG
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED
 Packet2d prsqrt<Packet2d>(const Packet2d& x)
 {
@@ -85,29 +83,7 @@ Packet2d prsqrt<Packet2d>(const Packet2d& x)
 //  vec_rsqrt returns different results from the generic version
 //  return  vec_rsqrt(x);
 }
-
-template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet2d patan<Packet2d>(const Packet2d& _x)
-{
-  return patan_double(_x);
-}
 #endif
-
-template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet4f prsqrt<Packet4f>(const Packet4f& x)
-{
-  return pset1<Packet4f>(1.0f) / psqrt<Packet4f>(x);
-//  vec_rsqrt returns different results from the generic version
-//  return  vec_rsqrt(x);
-}
-
-template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-Packet2d prsqrt<Packet2d>(const Packet2d& x)
-{
-  return pset1<Packet2d>(1.0) / psqrt<Packet2d>(x);
-//  vec_rsqrt returns different results from the generic version
-//  return  vec_rsqrt(x);
-}
 
 template<> EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet2d pexp<Packet2d>(const Packet2d& _x)

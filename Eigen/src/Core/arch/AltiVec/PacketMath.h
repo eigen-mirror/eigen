@@ -846,12 +846,6 @@ template<> EIGEN_STRONG_INLINE Packet4i pmadd(const Packet4i& a, const Packet4i&
 template<> EIGEN_STRONG_INLINE Packet8s pmadd(const Packet8s& a, const Packet8s& b, const Packet8s& c) { return vec_madd(a,b,c); }
 template<> EIGEN_STRONG_INLINE Packet8us pmadd(const Packet8us& a, const Packet8us& b, const Packet8us& c) { return vec_madd(a,b,c); }
 
-#ifdef EIGEN_VECTORIZE_VSX
-template<> EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) { return vec_msub(a,b,c); }
-template<> EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) { return vec_nmsub(a,b,c); }
-template<> EIGEN_STRONG_INLINE Packet4f pnmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) { return vec_nmadd(a,b,c); }
-#endif
-
 template<> EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b)
 {
   #ifdef EIGEN_VECTORIZE_VSX
@@ -988,18 +982,15 @@ template<> EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a)
 
 template<typename Packet> EIGEN_STRONG_INLINE Packet ploadu_common(const __UNPACK_TYPE__(Packet)* from)
 {
-  EIGEN_DEBUG_ALIGNED_LOAD
-#ifdef _BIG_ENDIAN
-  Packet16uc MSQ, LSQ;
-  Packet16uc mask;
-  MSQ = vec_ld(0, (unsigned char *)from);          // most significant quadword
-  LSQ = vec_ld(15, (unsigned char *)from);         // least significant quadword
-  mask = vec_lvsl(0, from);                        // create the permute mask
-  //TODO: Add static_cast here
-  return (Packet) vec_perm(MSQ, LSQ, mask);           // align the data
-#else
   EIGEN_DEBUG_UNALIGNED_LOAD
+#ifdef EIGEN_VECTORIZE_VSX
   return vec_xl(0, const_cast<__UNPACK_TYPE__(Packet)*>(from));
+#else
+  Packet16uc mask = vec_lvsl(0, from);                 // create the permute mask
+  Packet16uc MSQ = vec_ld(0, (unsigned char *)from);   // most significant quadword
+  Packet16uc LSQ = vec_ld(15, (unsigned char *)from);  // least significant quadword
+  //TODO: Add static_cast here
+  return (Packet) vec_perm(MSQ, LSQ, mask);            // align the data
 #endif
 }
 
@@ -1104,7 +1095,9 @@ template<> EIGEN_STRONG_INLINE Packet16uc ploaddup<Packet16uc>(const unsigned ch
 template<typename Packet> EIGEN_STRONG_INLINE void pstoreu_common(__UNPACK_TYPE__(Packet)*  to, const Packet& from)
 {
   EIGEN_DEBUG_UNALIGNED_STORE
-#ifdef _BIG_ENDIAN
+#ifdef EIGEN_VECTORIZE_VSX
+  vec_xst(from, 0, to);
+#else
   // Taken from http://developer.apple.com/hardwaredrivers/ve/alignment.html
   // Warning: not thread safe!
   Packet16uc MSQ, LSQ, edges;
@@ -1119,8 +1112,6 @@ template<typename Packet> EIGEN_STRONG_INLINE void pstoreu_common(__UNPACK_TYPE_
   LSQ = vec_perm((Packet16uc)from,edges,align);             // misalign the data (LSQ)
   vec_st( LSQ, 15, (unsigned char *)to );                   // Store the LSQ part first
   vec_st( MSQ, 0, (unsigned char *)to );                   // Store the MSQ part second
-#else
-  vec_xst(from, 0, to);
 #endif
 }
 template<> EIGEN_STRONG_INLINE void pstoreu<float>(float*  to, const Packet4f& from)
@@ -1377,10 +1368,6 @@ template<> EIGEN_STRONG_INLINE Packet8bf pnegate<Packet8bf>(const Packet8bf& a) 
 
 template<> EIGEN_STRONG_INLINE Packet8bf psub<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {
   BF16_TO_F32_BINARY_OP_WRAPPER(psub<Packet4f>, a, b);
-}
-
-template<> EIGEN_STRONG_INLINE Packet8bf pexp<Packet8bf> (const Packet8bf& a){
-  BF16_TO_F32_UNARY_OP_WRAPPER(pexp_float, a);
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent) {
