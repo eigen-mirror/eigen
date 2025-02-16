@@ -112,84 +112,9 @@ ei_add_test(special_packetmath "-DEIGEN_FAST_MATH=1")
 if(EIGEN_TEST_CXX11)
   if(EIGEN_TEST_SYCL)
     set(EIGEN_SYCL ON)
-    # Forward CMake options as preprocessor definitions
-    if(EIGEN_SYCL_USE_DEFAULT_SELECTOR)
-      add_definitions(-DEIGEN_SYCL_USE_DEFAULT_SELECTOR=${EIGEN_SYCL_USE_DEFAULT_SELECTOR})
-    endif()
-    if(EIGEN_SYCL_NO_LOCAL_MEM)
-      add_definitions(-DEIGEN_SYCL_NO_LOCAL_MEM=${EIGEN_SYCL_NO_LOCAL_MEM})
-    endif()
-    if(EIGEN_SYCL_LOCAL_MEM)
-      add_definitions(-DEIGEN_SYCL_LOCAL_MEM=${EIGEN_SYCL_LOCAL_MEM})
-    endif()
-    if(EIGEN_SYCL_MAX_GLOBAL_RANGE)
-      add_definitions(-DEIGEN_SYCL_MAX_GLOBAL_RANGE=${EIGEN_SYCL_MAX_GLOBAL_RANGE})
-    endif()
-    if(EIGEN_SYCL_LOCAL_THREAD_DIM0)
-      add_definitions(-DEIGEN_SYCL_LOCAL_THREAD_DIM0=${EIGEN_SYCL_LOCAL_THREAD_DIM0})
-    endif()
-    if(EIGEN_SYCL_LOCAL_THREAD_DIM1)
-      add_definitions(-DEIGEN_SYCL_LOCAL_THREAD_DIM1=${EIGEN_SYCL_LOCAL_THREAD_DIM1})
-    endif()
-    if(EIGEN_SYCL_REG_M)
-      add_definitions(-DEIGEN_SYCL_REG_M=${EIGEN_SYCL_REG_M})
-    endif()
-    if(EIGEN_SYCL_REG_N)
-      add_definitions(-DEIGEN_SYCL_REG_N=${EIGEN_SYCL_REG_N})
-    endif()
-    if(EIGEN_SYCL_USE_PROGRAM_CLASS)
-      add_definitions(-DEIGEN_SYCL_USE_PROGRAM_CLASS=${EIGEN_SYCL_USE_PROGRAM_CLASS})
-    endif()
-    if(EIGEN_SYCL_ASYNC_EXECUTION)
-      add_definitions(-DEIGEN_SYCL_ASYNC_EXECUTION=${EIGEN_SYCL_ASYNC_EXECUTION})
-    endif()
-    if(EIGEN_SYCL_DISABLE_SKINNY)
-      add_definitions(-DEIGEN_SYCL_DISABLE_SKINNY=${EIGEN_SYCL_DISABLE_SKINNY})
-    endif()
-    if(EIGEN_SYCL_DISABLE_DOUBLE_BUFFER)
-    add_definitions(-DEIGEN_SYCL_DISABLE_DOUBLE_BUFFER=${EIGEN_SYCL_DISABLE_DOUBLE_BUFFER})
-  endif()
-    if(EIGEN_SYCL_DISABLE_RANK1)
-      add_definitions(-DEIGEN_SYCL_DISABLE_RANK1=${EIGEN_SYCL_DISABLE_RANK1})
-    endif()
-    if(EIGEN_SYCL_DISABLE_SCALAR)
-      add_definitions(-DEIGEN_SYCL_DISABLE_SCALAR=${EIGEN_SYCL_DISABLE_SCALAR})
-    endif()
-    if(EIGEN_SYCL_DISABLE_GEMV)
-      add_definitions(-DEIGEN_SYCL_DISABLE_GEMV=${EIGEN_SYCL_DISABLE_GEMV})
-    endif()
-    if(EIGEN_SYCL_DISABLE_ARM_GPU_CACHE_OPTIMISATION)
-      add_definitions(-DEIGEN_SYCL_DISABLE_ARM_GPU_CACHE_OPTIMISATION=${EIGEN_SYCL_DISABLE_ARM_GPU_CACHE_OPTIMISATION})
-    endif()
+    include(SyclConfigureTesting)
 
-    if(EIGEN_SYCL_TRISYCL)
-      # triSYCL now requires c++17.
-      set(CMAKE_CXX_STANDARD 17)
-    else()
-      if(MSVC)
-        # Set the host and device compilers C++ standard to C++14. On Windows setting this to C++11
-        # can cause issues with the ComputeCpp device compiler parsing Visual Studio Headers.
-        set(CMAKE_CXX_STANDARD 14)
-        list(APPEND COMPUTECPP_USER_FLAGS -DWIN32)
-      else()
-        set(CMAKE_CXX_STANDARD 11)
-        list(APPEND COMPUTECPP_USER_FLAGS -Wall)
-      endif()
-      # The following flags are not supported by Clang and can cause warnings
-      # if used with -Werror so they are removed here.
-      if(COMPUTECPP_USE_COMPILER_DRIVER)
-        set(CMAKE_CXX_COMPILER ${ComputeCpp_DEVICE_COMPILER_EXECUTABLE})
-        string(REPLACE "-Wlogical-op" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-        string(REPLACE "-Wno-psabi" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-        string(REPLACE "-ansi" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-      endif()
-      list(APPEND COMPUTECPP_USER_FLAGS
-          -DEIGEN_NO_ASSERTION_CHECKING=1
-          -no-serial-memop
-          -Xclang
-          -cl-mad-enable)
-    endif()
-
+ 
     ei_add_test(cxx11_tensor_sycl ${STD_CXX_FLAG})
     ei_add_test(cxx11_tensor_image_op_sycl ${STD_CXX_FLAG})
     ei_add_test(cxx11_tensor_math_sycl ${STD_CXX_FLAG})
@@ -281,11 +206,11 @@ if(EIGEN_TEST_CXX11)
   ei_add_test(cxx11_tensor_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
   ei_add_test(cxx11_tensor_trace)
   ei_add_test(cxx11_tensor_volume_patch)
-#  ei_add_test(cxx11_tensor_symmetry)
-if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  # This test requires __uint128_t which is only available on 64bit systems
-  ei_add_test(cxx11_tensor_uint128)
-endif()
+  #  ei_add_test(cxx11_tensor_symmetry)
+  if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # This test requires __uint128_t which is only available on 64bit systems
+    ei_add_test(cxx11_tensor_uint128)
+  endif()
 
 endif()
 
@@ -311,6 +236,16 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   else()
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
     set(NVCC_ARCH_FLAGS)
+    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
+    # those in the arch list for -gencode, the kernels will fail to run with
+    #    cudaErrorNoKernelImageForDevice
+    # This can happen with newer cards (e.g. sm_75) and compiling with older
+    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
+    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
+      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
+    endif()
     foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
       string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
     endforeach()
@@ -347,63 +282,57 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     ei_add_test(cxx11_tensor_random_gpu)
   endif()
 
-
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 endif()
 
 # Add HIP specific tests
 if (EIGEN_TEST_HIP)
 
-  set(HIP_PATH "/opt/rocm/hip" CACHE STRING "Path to the HIP installation.")
+  set(ROCM_PATH "/opt/rocm" CACHE STRING "Path to the ROCm installation.")
 
-  if (EXISTS ${HIP_PATH})
-
+  if (EXISTS ${ROCM_PATH}/hip)
+    set(HIP_PATH ${ROCM_PATH}/hip)
     list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/cmake)
-
-    find_package(HIP REQUIRED)
-    if (HIP_FOUND)
-
-      execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM)
-
-      if ((${HIP_PLATFORM} STREQUAL "hcc") OR (${HIP_PLATFORM} STREQUAL "amd"))
-
-	include_directories(${CMAKE_CURRENT_BINARY_DIR})
-	include_directories(${HIP_PATH}/include)
-
-	set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
-	#
-	# complex datatype is not yet supported by HIP
-	# so leaving out those tests for now
-	#
-	# ei_add_test(cxx11_tensor_complex_gpu)
-	# ei_add_test(cxx11_tensor_complex_cwise_ops_gpu)
-	#
-	ei_add_test(cxx11_tensor_reduction_gpu)
-	ei_add_test(cxx11_tensor_argmax_gpu)
-	ei_add_test(cxx11_tensor_cast_float16_gpu)
-	ei_add_test(cxx11_tensor_scan_gpu)
-	ei_add_test(cxx11_tensor_device)
-
-	ei_add_test(cxx11_tensor_gpu)
-	ei_add_test(cxx11_tensor_contract_gpu)
-	ei_add_test(cxx11_tensor_of_float16_gpu)
-	ei_add_test(cxx11_tensor_random_gpu)
-
-	unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-
-      elseif ((${HIP_PLATFORM} STREQUAL "nvcc") OR (${HIP_PLATFORM} STREQUAL "nvidia"))
-	message(FATAL_ERROR "HIP_PLATFORM = nvcc is not supported within Eigen")
-      else ()
-	message(FATAL_ERROR "Unknown HIP_PLATFORM = ${HIP_PLATFORM}")
-      endif()
-
-    endif()
-
+  elseif (EXISTS ${ROCM_PATH}/lib/cmake/hip)
+    set(HIP_PATH ${ROCM_PATH})
+    list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/lib/cmake/hip)
   else ()
-
-    message(FATAL_ERROR "EIGEN_TEST_HIP is ON, but the specified HIP_PATH (${HIP_PATH}) does not exist")
-
+    message(FATAL_ERROR "EIGEN_TEST_HIP is ON, but could not find the ROCm installation under ${ROCM_PATH}")
   endif()
 
-endif()
+  find_package(HIP REQUIRED)
+  if (HIP_FOUND)
+    execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM)
 
+    if ((${HIP_PLATFORM} STREQUAL "hcc") OR (${HIP_PLATFORM} STREQUAL "amd"))
+      include_directories(${CMAKE_CURRENT_BINARY_DIR})
+      include_directories(${HIP_PATH}/include)
+
+      set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
+      #
+      # complex datatype is not yet supported by HIP
+      # so leaving out those tests for now
+      #
+      # ei_add_test(cxx11_tensor_complex_gpu)
+      # ei_add_test(cxx11_tensor_complex_cwise_ops_gpu)
+      #
+      ei_add_test(cxx11_tensor_reduction_gpu)
+      ei_add_test(cxx11_tensor_argmax_gpu)
+      ei_add_test(cxx11_tensor_cast_float16_gpu)
+      ei_add_test(cxx11_tensor_scan_gpu)
+      ei_add_test(cxx11_tensor_device)
+
+      ei_add_test(cxx11_tensor_gpu)
+      ei_add_test(cxx11_tensor_contract_gpu)
+      ei_add_test(cxx11_tensor_of_float16_gpu)
+      ei_add_test(cxx11_tensor_random_gpu)
+
+      unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+
+    elseif ((${HIP_PLATFORM} STREQUAL "nvcc") OR (${HIP_PLATFORM} STREQUAL "nvidia"))
+      message(FATAL_ERROR "HIP_PLATFORM = nvcc is not supported within Eigen")
+    else ()
+      message(FATAL_ERROR "Unknown HIP_PLATFORM = ${HIP_PLATFORM}")
+    endif()
+  endif()
+endif()
