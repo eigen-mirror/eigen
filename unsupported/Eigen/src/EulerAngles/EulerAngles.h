@@ -299,6 +299,7 @@ namespace Eigen
 
 #define EIGEN_EULER_ANGLES_SINGLE_TYPEDEF(AXES, SCALAR_TYPE, SCALAR_POSTFIX) \
   /** \ingroup EulerAngles_Module */ \
+  /** \brief \noop                */ \
   typedef EulerAngles<SCALAR_TYPE, EulerSystem##AXES> EulerAngles##AXES##SCALAR_POSTFIX;
 
 #define EIGEN_EULER_ANGLES_TYPEDEFS(SCALAR_TYPE, SCALAR_POSTFIX) \

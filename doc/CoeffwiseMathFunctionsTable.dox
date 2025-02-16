@@ -313,7 +313,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_cosh
-  a.\link ArrayBase::cosh cohs\endlink(); \n
+  a.\link ArrayBase::cosh cosh\endlink(); \n
   \link Eigen::cosh cosh\endlink(a);
   </td>
   <td>computes hyperbolic cosine</td>
@@ -505,7 +505,7 @@ This also means that, unless specified, if the function \c std::foo is available
   <td class="code">
   \anchor cwisetable_digamma
   a.\link ArrayBase::digamma digamma\endlink(); \n
-  \link Eigen::digamma digamma\endlink(a);
+  digamma(a);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Digamma_function">logarithmic derivative of the gamma function</a></td>
   <td>
@@ -516,7 +516,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_igamma
-  \link Eigen::igamma igamma\endlink(a,x);
+  igamma(a,x);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Incomplete_gamma_function">lower incomplete gamma integral</a>
   \n \f$ \gamma(a_i,x_i)= \frac{1}{|a_i|} \int_{0}^{x_i}e^{\text{-}t} t^{a_i-1} \mathrm{d} t \f$</td>
@@ -528,7 +528,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_igammac
-  \link Eigen::igammac igammac\endlink(a,x);
+  igammac(a,x);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Incomplete_gamma_function">upper incomplete gamma integral</a>
   \n \f$ \Gamma(a_i,x_i) = \frac{1}{|a_i|} \int_{x_i}^{\infty}e^{\text{-}t} t^{a_i-1} \mathrm{d} t \f$</td>
@@ -544,7 +544,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_polygamma
-  \link Eigen::polygamma polygamma\endlink(n,x);
+  polygamma(n,x);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Polygamma_function">n-th derivative of digamma at x</a></td>
   <td>
@@ -557,7 +557,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_betainc
-  \link Eigen::betainc betainc\endlink(a,b,x);
+  betainc(a,b,x);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Beta_function#Incomplete_beta_function">Incomplete beta function</a></td>
   <td>
@@ -568,7 +568,7 @@ This also means that, unless specified, if the function \c std::foo is available
 <tr>
   <td class="code">
   \anchor cwisetable_zeta
-  \link Eigen::zeta zeta\endlink(a,b); \n
+  zeta(a,b); \n
   a.\link ArrayBase::zeta zeta\endlink(b);
   </td>
   <td><a href="https://en.wikipedia.org/wiki/Hurwitz_zeta_function">Hurwitz zeta function</a>

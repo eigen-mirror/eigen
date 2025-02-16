@@ -16,7 +16,9 @@ namespace Eigen {
 namespace internal {
 
 #if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
-static Packet4ui  p4ui_CONJ_XOR = { 0x00000000, 0x80000000, 0x00000000, 0x80000000 }; //vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);
+inline Packet4ui  p4ui_CONJ_XOR() {
+  return { 0x00000000, 0x80000000, 0x00000000, 0x80000000 }; //vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);
+}
 #endif
 
 static Packet2ul  p2ul_CONJ_XOR1 = (Packet2ul) vec_sld((Packet4ui) p2d_ZERO_, (Packet4ui) p2l_ZERO, 8);//{ 0x8000000000000000, 0x0000000000000000 };
@@ -345,7 +347,7 @@ template<> EIGEN_STRONG_INLINE Packet2cf pcmp_eq(const Packet2cf& a, const Packe
   Packet4f tmp = { eq[1], eq[0], eq[3], eq[2] };
   return (Packet2cf)pand<Packet4f>(eq, tmp);
 }
-template<> EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a) { return Packet2cf(pxor<Packet4f>(a.v, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR))); }
+template<> EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a) { return Packet2cf(pxor<Packet4f>(a.v, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR()))); }
 template<> EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b)
 {
   Packet4f a_re, a_im, prod, prod_im;
@@ -358,7 +360,7 @@ template<> EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, con
 
   // multiply a_im * b and get the conjugate result
   prod_im = a_im * b.v;
-  prod_im = pxor<Packet4f>(prod_im, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR));
+  prod_im = pxor<Packet4f>(prod_im, reinterpret_cast<Packet4f>(p4ui_CONJ_XOR()));
   // permute back to a proper order
   prod_im = vec_perm(prod_im, prod_im, p16uc_COMPLEX32_REV);
 
