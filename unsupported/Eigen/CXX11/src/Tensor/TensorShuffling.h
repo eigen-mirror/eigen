@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorShuffling
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor shuffling class.
-  *
-  *
-  */
 namespace internal {
 template<typename Shuffle, typename XprType>
 struct traits<TensorShufflingOp<Shuffle, XprType> > : public traits<XprType>
@@ -48,11 +41,13 @@ struct nested<TensorShufflingOp<Shuffle, XprType>, 1, typename eval<TensorShuffl
 
 }  // end namespace internal
 
-
-
-template<typename Shuffle, typename XprType>
-class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> >
-{
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor shuffling class.
+ */
+template <typename Shuffle, typename XprType>
+class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> > {
   public:
     typedef TensorBase<TensorShufflingOp<Shuffle, XprType> > Base;
     typedef typename Eigen::internal::traits<TensorShufflingOp>::Scalar Scalar;

@@ -12,21 +12,19 @@
 
 namespace Eigen {
 
-/** \class TensorEvaluator
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief The tensor evaluator classes.
-  *
-  * These classes are responsible for the evaluation of the tensor expression.
-  *
-  * TODO: add support for more types of expressions, in particular expressions
-  * leading to lvalues (slicing, reshaping, etc...)
-  */
-
 // Generic evaluator
-template<typename Derived, typename Device>
-struct TensorEvaluator
-{
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief The tensor evaluator class.
+ *
+ * These classes are responsible for the evaluation of the tensor expression.
+ *
+ * TODO: add support for more types of expressions, in particular expressions
+ * leading to lvalues (slicing, reshaping, etc...)
+ */
+template <typename Derived, typename Device>
+struct TensorEvaluator {
   typedef typename Derived::Index Index;
   typedef typename Derived::Scalar Scalar;
   typedef typename Derived::Scalar CoeffReturnType;

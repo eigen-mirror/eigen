@@ -12,20 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorImagePatch
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Patch extraction specialized for image processing.
-  * This assumes that the input has a least 3 dimensions ordered as follow:
-  *  1st dimension: channels (of size d)
-  *  2nd dimension: rows (of size r)
-  *  3rd dimension: columns (of size c)
-  *  There can be additional dimensions such as time (for video) or batch (for
-  * bulk processing after the first 3.
-  * Calling the image patch code with patch_rows and patch_cols is equivalent
-  * to calling the regular patch extraction code with parameters d, patch_rows,
-  * patch_cols, and 1 for all the additional dimensions.
-  */
 namespace internal {
 
 template<DenseIndex Rows, DenseIndex Cols, typename XprType>
@@ -116,10 +102,23 @@ struct ImagePatchPaddingOp {
 
 }  // end namespace internal
 
-template<DenseIndex Rows, DenseIndex Cols, typename XprType>
-class TensorImagePatchOp : public TensorBase<TensorImagePatchOp<Rows, Cols, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Patch extraction specialized for image processing.
+ * This assumes that the input has a least 3 dimensions ordered as follow:
+ *  1st dimension: channels (of size d)
+ *  2nd dimension: rows (of size r)
+ *  3rd dimension: columns (of size c)
+ *  There can be additional dimensions such as time (for video) or batch (for
+ * bulk processing after the first 3.
+ * Calling the image patch code with patch_rows and patch_cols is equivalent
+ * to calling the regular patch extraction code with parameters d, patch_rows,
+ * patch_cols, and 1 for all the additional dimensions.
+ */
+template <DenseIndex Rows, DenseIndex Cols, typename XprType>
+class TensorImagePatchOp : public TensorBase<TensorImagePatchOp<Rows, Cols, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorImagePatchOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

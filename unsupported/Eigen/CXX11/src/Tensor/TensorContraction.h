@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorContraction
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor contraction class.
-  *
-  *
-  */
 namespace internal {
 
 template<typename Dimensions, typename LhsXprType, typename RhsXprType, typename OutputKernelType>
@@ -320,10 +313,14 @@ struct NoOpOutputKernel {
   }
 };
 
-template<typename Indices, typename LhsXprType, typename RhsXprType, typename OutputKernelType = const NoOpOutputKernel>
-class TensorContractionOp : public TensorBase<TensorContractionOp<Indices, LhsXprType, RhsXprType, OutputKernelType>, ReadOnlyAccessors>
-{
-  public:
+/** Tensor contraction class.
+ * \ingroup CXX11_Tensor_Module
+ */
+template <typename Indices, typename LhsXprType, typename RhsXprType,
+          typename OutputKernelType = const NoOpOutputKernel>
+class TensorContractionOp
+    : public TensorBase<TensorContractionOp<Indices, LhsXprType, RhsXprType, OutputKernelType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorContractionOp>::Scalar Scalar;
   typedef typename internal::gebp_traits<typename LhsXprType::CoeffReturnType,
                                          typename RhsXprType::CoeffReturnType>::ResScalar CoeffReturnType;

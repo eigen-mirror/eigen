@@ -14,12 +14,12 @@ namespace Eigen {
 
 // FIXME use proper doxygen documentation (e.g. \tparam MakePointer_)
 
-/** \class TensorMap
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief A tensor expression mapping an existing array of data.
-  *
-  */
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief A tensor expression mapping an existing array of data.
+ *
+ */
 /// `template <class> class MakePointer_` is added to convert the host pointer to the device pointer.
 /// It is added due to the fact that for our device compiler `T*` is not allowed.
 /// If we wanted to use the same Evaluator functions we have to convert that type to our pointer `T`.

@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorBroadcasting
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor broadcasting class.
-  *
-  *
-  */
 namespace internal {
 template<typename Broadcast, typename XprType>
 struct traits<TensorBroadcastingOp<Broadcast, XprType> > : public traits<XprType>
@@ -63,12 +56,12 @@ struct is_input_scalar<Sizes<Indices...> > {
 
 }  // end namespace internal
 
-
-
-template<typename Broadcast, typename XprType>
-class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors>
-{
-  public:
+/** Tensor broadcasting class.
+ * \ingroup CXX11_Tensor_Module
+ */
+template <typename Broadcast, typename XprType>
+class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

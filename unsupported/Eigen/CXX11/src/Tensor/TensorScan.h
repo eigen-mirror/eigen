@@ -41,11 +41,11 @@ struct nested<TensorScanOp<Op, XprType>, 1,
 };
 } // end namespace internal
 
-/** \class TensorScan
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor scan class.
-  */
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor scan class.
+ */
 template <typename Op, typename XprType>
 class TensorScanOp
     : public TensorBase<TensorScanOp<Op, XprType>, ReadOnlyAccessors> {

@@ -12,12 +12,6 @@
 #define EIGEN_CXX11_TENSOR_TENSOR_REVERSE_H
 namespace Eigen {
 
-/** \class TensorReverse
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor reverse elements class.
-  *
-  */
 namespace internal {
 template<typename ReverseDimensions, typename XprType>
 struct traits<TensorReverseOp<ReverseDimensions,
@@ -49,19 +43,22 @@ struct nested<TensorReverseOp<ReverseDimensions, XprType>, 1,
 
 }  // end namespace internal
 
-template<typename ReverseDimensions, typename XprType>
-class TensorReverseOp : public TensorBase<TensorReverseOp<ReverseDimensions,
-                                          XprType>, WriteAccessors>
-{
-  public:
-    typedef TensorBase<TensorReverseOp<ReverseDimensions, XprType>, WriteAccessors>Base;
-    typedef typename Eigen::internal::traits<TensorReverseOp>::Scalar Scalar;
-    typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-    typedef typename XprType::CoeffReturnType CoeffReturnType;
-    typedef typename Eigen::internal::nested<TensorReverseOp>::type Nested;
-    typedef typename Eigen::internal::traits<TensorReverseOp>::StorageKind
-                                                                      StorageKind;
-    typedef typename Eigen::internal::traits<TensorReverseOp>::Index Index;
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor reverse elements class.
+ *
+ */
+template <typename ReverseDimensions, typename XprType>
+class TensorReverseOp : public TensorBase<TensorReverseOp<ReverseDimensions, XprType>, WriteAccessors> {
+ public:
+  typedef TensorBase<TensorReverseOp<ReverseDimensions, XprType>, WriteAccessors> Base;
+  typedef typename Eigen::internal::traits<TensorReverseOp>::Scalar Scalar;
+  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
+  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  typedef typename Eigen::internal::nested<TensorReverseOp>::type Nested;
+  typedef typename Eigen::internal::traits<TensorReverseOp>::StorageKind StorageKind;
+  typedef typename Eigen::internal::traits<TensorReverseOp>::Index Index;
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorReverseOp(
       const XprType& expr, const ReverseDimensions& reverse_dims)

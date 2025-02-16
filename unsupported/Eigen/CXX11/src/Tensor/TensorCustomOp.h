@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorCustomUnaryOp
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor custom class.
-  *
-  *
-  */
 namespace internal {
 template<typename CustomUnaryFunc, typename XprType>
 struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> >
@@ -47,12 +40,14 @@ struct nested<TensorCustomUnaryOp<CustomUnaryFunc, XprType> >
 
 }  // end namespace internal
 
-
-
-template<typename CustomUnaryFunc, typename XprType>
-class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor custom class.
+ */
+template <typename CustomUnaryFunc, typename XprType>
+class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename internal::traits<TensorCustomUnaryOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

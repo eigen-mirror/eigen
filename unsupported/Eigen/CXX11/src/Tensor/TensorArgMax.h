@@ -14,13 +14,6 @@
 namespace Eigen {
 namespace internal {
 
-/** \class TensorIndexTuple
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor + Index Tuple class.
-  *
-  *
-  */
 template<typename XprType>
 struct traits<TensorIndexTupleOp<XprType> > : public traits<XprType>
 {
@@ -49,6 +42,11 @@ struct nested<TensorIndexTupleOp<XprType>, 1,
 
 }  // end namespace internal
 
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor + Index Pair class.
+ */
 template<typename XprType>
 class TensorIndexTupleOp : public TensorBase<TensorIndexTupleOp<XprType>, ReadOnlyAccessors>
 {

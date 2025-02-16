@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorPatch
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor patch class.
-  *
-  *
-  */
 namespace internal {
 template<typename PatchDim, typename XprType>
 struct traits<TensorPatchOp<PatchDim, XprType> > : public traits<XprType>
@@ -48,12 +41,14 @@ struct nested<TensorPatchOp<PatchDim, XprType>, 1, typename eval<TensorPatchOp<P
 
 }  // end namespace internal
 
-
-
-template<typename PatchDim, typename XprType>
-class TensorPatchOp : public TensorBase<TensorPatchOp<PatchDim, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor patch class.
+ */
+template <typename PatchDim, typename XprType>
+class TensorPatchOp : public TensorBase<TensorPatchOp<PatchDim, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorPatchOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
