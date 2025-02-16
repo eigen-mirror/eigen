@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorPadding
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor padding class.
-  * At the moment only padding with a constant value is supported.
-  *
-  */
 namespace internal {
 template<typename PaddingDimensions, typename XprType>
 struct traits<TensorPaddingOp<PaddingDimensions, XprType> > : public traits<XprType>
@@ -47,12 +40,16 @@ struct nested<TensorPaddingOp<PaddingDimensions, XprType>, 1, typename eval<Tens
 
 }  // end namespace internal
 
-
-
-template<typename PaddingDimensions, typename XprType>
-class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor padding class.
+ * At the moment only padding with a constant value is supported.
+ *
+ */
+template <typename PaddingDimensions, typename XprType>
+class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorPaddingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

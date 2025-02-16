@@ -16,13 +16,13 @@
 
 namespace Eigen {
 
-/** \class TensorInitializer
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Helper template to initialize Tensors from std::initializer_lists.
-  */
 namespace internal {
 
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Helper template to initialize Tensors from std::initializer_lists.
+ */
 template <typename Derived, int N>
 struct Initializer {
   typedef std::initializer_list<

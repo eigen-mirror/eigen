@@ -12,8 +12,7 @@
 
 namespace Eigen {
 
-/** \class TensorFixedSize
-  * \ingroup CXX11_Tensor_Module
+/** \ingroup CXX11_Tensor_Module
   *
   * \brief The fixed sized version of the tensor class.
   *
@@ -22,7 +21,6 @@ namespace Eigen {
   * is
   * Eigen::TensorFixedSize<float, Size<3,5,7>> t;
   */
-
 template<typename Scalar_, typename Dimensions_, int Options_, typename IndexType>
 class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> >
 {

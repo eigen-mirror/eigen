@@ -13,19 +13,6 @@
 
 namespace Eigen {
 
-/** \internal
-  *
-  * \class TensorIntDiv
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Fast integer division by a constant.
-  *
-  * See the paper from Granlund and Montgomery for explanation.
-  *   (at http://dx.doi.org/10.1145/773473.178249)
-  *
-  * \sa Tensor
-  */
-
 namespace internal {
 
 namespace {
@@ -130,6 +117,17 @@ namespace {
 }
 
 
+/** \internal
+ *
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Fast integer division by a constant.
+ *
+ * See the paper from Granlund and Montgomery for explanation.
+ *   (at https://doi.org/10.1145/773473.178249)
+ *
+ * \sa Tensor
+ */
 template <typename T, bool div_gt_one = false>
 struct TensorIntDivisor {
  public:

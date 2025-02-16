@@ -6,21 +6,6 @@
 
 namespace Eigen {
 
-/** \class TensorVolumePatch
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Patch extraction specialized for processing of volumetric data.
-  * This assumes that the input has a least 4 dimensions ordered as follows:
-  *  - channels
-  *  - planes
-  *  - rows
-  *  - columns
-  *  - (optional) additional dimensions such as time or batch size.
-  * Calling the volume patch code with patch_planes, patch_rows, and patch_cols
-  * is equivalent to calling the regular patch extraction code with parameters
-  * d, patch_planes, patch_rows, patch_cols, and 1 for all the additional
-  * dimensions.
-  */
 namespace internal {
 template<DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
 struct traits<TensorVolumePatchOp<Planes, Rows, Cols, XprType> > : public traits<XprType>
@@ -49,10 +34,24 @@ struct nested<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, 1, typename eval
 
 }  // end namespace internal
 
-template<DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
-class TensorVolumePatchOp : public TensorBase<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Patch extraction specialized for processing of volumetric data.
+ * This assumes that the input has a least 4 dimensions ordered as follows:
+ *  - channels
+ *  - planes
+ *  - rows
+ *  - columns
+ *  - (optional) additional dimensions such as time or batch size.
+ * Calling the volume patch code with patch_planes, patch_rows, and patch_cols
+ * is equivalent to calling the regular patch extraction code with parameters
+ * d, patch_planes, patch_rows, patch_cols, and 1 for all the additional
+ * dimensions.
+ */
+template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
+class TensorVolumePatchOp : public TensorBase<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorVolumePatchOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

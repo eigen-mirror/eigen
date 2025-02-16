@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorInflation
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor inflation class.
-  *
-  *
-  */
 namespace internal {
 template<typename Strides, typename XprType>
 struct traits<TensorInflationOp<Strides, XprType> > : public traits<XprType>
@@ -47,10 +40,14 @@ struct nested<TensorInflationOp<Strides, XprType>, 1, typename eval<TensorInflat
 
 }  // end namespace internal
 
-template<typename Strides, typename XprType>
-class TensorInflationOp : public TensorBase<TensorInflationOp<Strides, XprType>, ReadOnlyAccessors>
-{
-  public:
+/**
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor inflation class.
+ */
+template <typename Strides, typename XprType>
+class TensorInflationOp : public TensorBase<TensorInflationOp<Strides, XprType>, ReadOnlyAccessors> {
+ public:
   typedef typename Eigen::internal::traits<TensorInflationOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;

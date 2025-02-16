@@ -20,19 +20,18 @@
 namespace Eigen {
 
 /** \internal
-  *
-  * \class TensorStorage
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Stores the data of a tensor
-  *
-  * This class stores the data of fixed-size, dynamic-size or mixed tensors
-  * in a way as compact as possible.
-  *
-  * \sa Tensor
-  */
-template<typename T, typename Dimensions, int Options> class TensorStorage;
-
+ *
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Stores the data of a tensor
+ *
+ * This class stores the data of fixed-size, dynamic-size or mixed tensors
+ * in a way as compact as possible.
+ *
+ * \sa Tensor
+ */
+template <typename T, typename Dimensions, int Options>
+class TensorStorage;
 
 // Pure fixed-size storage
 template<typename T, typename FixedDimensions, int Options_>

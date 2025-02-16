@@ -17,26 +17,6 @@
 
 namespace Eigen {
 
-/** \internal
-  *
-  * \class TensorIndexList
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Set of classes used to encode a set of Tensor dimensions/indices.
-  *
-  * The indices in the list can be known at compile time or at runtime. A mix
-  * of static and dynamic indices can also be provided if needed. The tensor
-  * code will attempt to take advantage of the indices that are known at
-  * compile time to optimize the code it generates.
-  *
-  * This functionality requires a c++11 compliant compiler. If your compiler
-  * is older you need to use arrays of indices instead.
-  *
-  * Several examples are provided in the cxx11_tensor_index_list.cpp file.
-  *
-  * \sa Tensor
-  */
-
 template <DenseIndex n>
 struct type2index {
   static const DenseIndex value = n;
@@ -294,9 +274,44 @@ struct tuple_coeff<0, ValueT> {
 };
 }  // namespace internal
 
+/** \internal
+ *
+ * \ingroup CXX11_Tensor_Module
+ *
+ * \brief Set of classes used to encode a set of Tensor dimensions/indices.
+ *
+ * The indices in the list can be known at compile time or at runtime. A mix
+ * of static and dynamic indices can also be provided if needed. The tensor
+ * code will attempt to take advantage of the indices that are known at
+ * compile time to optimize the code it generates.
+ *
+ * This functionality requires a c++11 compliant compiler. If your compiler
+ * is older you need to use arrays of indices instead.
+ *
+ * Several examples are provided in the cxx11_tensor_index_list.cpp file.
+ *
+ * \sa Tensor
+ */
 
-
-template<typename FirstType, typename... OtherTypes>
+ /** \internal
+  *
+  * \ingroup CXX11_Tensor_Module
+  *
+  * \brief Set of classes used to encode a set of Tensor dimensions/indices.
+  *
+  * The indices in the list can be known at compile time or at runtime. A mix
+  * of static and dynamic indices can also be provided if needed. The tensor
+  * code will attempt to take advantage of the indices that are known at
+  * compile time to optimize the code it generates.
+  *
+  * This functionality requires a c++11 compliant compiler. If your compiler
+  * is older you need to use arrays of indices instead.
+  *
+  * Several examples are provided in the cxx11_tensor_index_list.cpp file.
+  *
+  * \sa Tensor
+  */
+template <typename FirstType, typename... OtherTypes>
 struct IndexList : internal::IndexTuple<FirstType, OtherTypes...> {
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr DenseIndex operator[] (const DenseIndex i) const {
     return internal::tuple_coeff<internal::array_size<internal::IndexTuple<FirstType, OtherTypes...> >::value-1, DenseIndex>::get(i, *this);

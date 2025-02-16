@@ -12,13 +12,6 @@
 
 namespace Eigen {
 
-/** \class TensorContraction
-  * \ingroup CXX11_Tensor_Module
-  *
-  * \brief Tensor contraction class.
-  *
-  *
-  */
 namespace internal {
 
 template<typename Dimensions, typename LhsXprType, typename RhsXprType>
@@ -71,6 +64,12 @@ struct traits<TensorEvaluator<const TensorContractionOp<Indices_, LeftArgType_, 
 
 }  // end namespace internal
 
+/** \ingroup CXX11_Tensor_Module
+ *
+ * \brief Tensor contraction class.
+ *
+ *
+ */
 template<typename Indices, typename LhsXprType, typename RhsXprType>
 class TensorContractionOp : public TensorBase<TensorContractionOp<Indices, LhsXprType, RhsXprType>, ReadOnlyAccessors>
 {

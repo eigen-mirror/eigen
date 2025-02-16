@@ -12,6 +12,9 @@
 
 namespace Eigen {
 
+namespace internal {
+
+// Default strategy: the expression is evaluated with a single cpu thread.
 /** \class TensorExecutor
   * \ingroup CXX11_Tensor_Module
   *
@@ -20,9 +23,6 @@ namespace Eigen {
   * This class is responsible for launch the evaluation of the expression on
   * the specified computing device.
   */
-namespace internal {
-
-// Default strategy: the expression is evaluated with a single cpu thread.
 template<typename Expression, typename Device, bool Vectorizable>
 class TensorExecutor
 {
