@@ -105,26 +105,6 @@ EIGEN_DECLARE_TEST(meta)
     VERIFY(( check_is_convertible(A*B, A) ));
   }
 
-  #if (EIGEN_COMP_GNUC  && EIGEN_COMP_GNUC  <=  99) \
-   || (EIGEN_COMP_CLANG && EIGEN_COMP_CLANG <= 909) \
-   || (EIGEN_COMP_MSVC  && EIGEN_COMP_MSVC  <=1914)
-  // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // basically, a fix in the c++ standard breaks our c++98 implementation
-  // of is_convertible for abstract classes.
-  // So the following tests are expected to fail with recent compilers.
-
-  STATIC_CHECK(( !internal::is_convertible<MyInterface, MyImpl>::value ));
-  #if (!EIGEN_COMP_GNUC_STRICT) || (EIGEN_GNUC_AT_LEAST(4,8))
-  // GCC prior to 4.8 fails to compile this test:
-  // error: cannot allocate an object of abstract type 'MyInterface'
-  // In other word, it does not obey SFINAE.
-  // Nevertheless, we don't really care about supporting abstract type as scalar type!
-  STATIC_CHECK(( !internal::is_convertible<MyImpl, MyInterface>::value ));
-  #endif
-  STATIC_CHECK((  internal::is_convertible<MyImpl, const MyInterface&>::value ));
-
-  #endif
-
   {
     int i = 0;
     VERIFY(( check_is_convertible(fix<3>(), i) ));
