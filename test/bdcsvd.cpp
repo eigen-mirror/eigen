@@ -107,18 +107,18 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16)
 
 EIGEN_DECLARE_TEST(bdcsvd)
 {
-  CALL_SUBTEST_3(( svd_verify_assert<BDCSVD<Matrix3f>  >(Matrix3f()) ));
-  CALL_SUBTEST_4(( svd_verify_assert<BDCSVD<Matrix4d>  >(Matrix4d()) ));
-  CALL_SUBTEST_7(( svd_verify_assert<BDCSVD<MatrixXf>  >(MatrixXf(10,12)) ));
-  CALL_SUBTEST_8(( svd_verify_assert<BDCSVD<MatrixXcd> >(MatrixXcd(7,5)) ));
+  CALL_SUBTEST_1(( svd_verify_assert<BDCSVD<Matrix3f>  >(Matrix3f()) ));
+  CALL_SUBTEST_2(( svd_verify_assert<BDCSVD<Matrix4d>  >(Matrix4d()) ));
+  CALL_SUBTEST_3(( svd_verify_assert<BDCSVD<MatrixXf>  >(MatrixXf(10,12)) ));
+  CALL_SUBTEST_4(( svd_verify_assert<BDCSVD<MatrixXcd> >(MatrixXcd(7,5)) ));
   
-  CALL_SUBTEST_101(( svd_all_trivial_2x2(bdcsvd<Matrix2cd>) ));
-  CALL_SUBTEST_102(( svd_all_trivial_2x2(bdcsvd<Matrix2d>) ));
+  CALL_SUBTEST_5(( svd_all_trivial_2x2(bdcsvd<Matrix2cd>) ));
+  CALL_SUBTEST_6(( svd_all_trivial_2x2(bdcsvd<Matrix2d>) ));
 
   for(int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_3(( bdcsvd<Matrix3f>() ));
-    CALL_SUBTEST_4(( bdcsvd<Matrix4d>() ));
-    CALL_SUBTEST_5(( bdcsvd<Matrix<float,3,5> >() ));
+    CALL_SUBTEST_1(( bdcsvd<Matrix3f>() ));
+    CALL_SUBTEST_2(( bdcsvd<Matrix4d>() ));
+    CALL_SUBTEST_7(( bdcsvd<Matrix<float,3,5> >() ));
 
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE/2),
         c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE/2);
@@ -126,38 +126,38 @@ EIGEN_DECLARE_TEST(bdcsvd)
     TEST_SET_BUT_UNUSED_VARIABLE(r)
     TEST_SET_BUT_UNUSED_VARIABLE(c)
     
-    CALL_SUBTEST_6((  bdcsvd(Matrix<double,Dynamic,2>(r,2)) ));
-    CALL_SUBTEST_7((  bdcsvd(MatrixXf(r,c)) ));
-    CALL_SUBTEST_7((  compare_bdc_jacobi(MatrixXf(r,c)) ));
-    CALL_SUBTEST_10(( bdcsvd(MatrixXd(r,c)) ));
-    CALL_SUBTEST_10(( compare_bdc_jacobi(MatrixXd(r,c)) ));
-    CALL_SUBTEST_8((  bdcsvd(MatrixXcd(r,c)) ));
-    CALL_SUBTEST_8((  compare_bdc_jacobi(MatrixXcd(r,c)) ));
+    CALL_SUBTEST_8((  bdcsvd(Matrix<double,Dynamic,2>(r,2)) ));
+    CALL_SUBTEST_9((  bdcsvd(MatrixXf(r,c)) ));
+    CALL_SUBTEST_10((  compare_bdc_jacobi(MatrixXf(r,c)) ));
+    CALL_SUBTEST_11(( bdcsvd(MatrixXd(r,c)) ));
+    CALL_SUBTEST_12(( compare_bdc_jacobi(MatrixXd(r,c)) ));
+    CALL_SUBTEST_13((  bdcsvd(MatrixXcd(r,c)) ));
+    CALL_SUBTEST_14((  compare_bdc_jacobi(MatrixXcd(r,c)) ));
 
     // Test on inf/nan matrix
-    CALL_SUBTEST_7(  (svd_inf_nan<BDCSVD<MatrixXf>, MatrixXf>()) );
-    CALL_SUBTEST_10( (svd_inf_nan<BDCSVD<MatrixXd>, MatrixXd>()) );
+    CALL_SUBTEST_15(  (svd_inf_nan<BDCSVD<MatrixXf>, MatrixXf>()) );
+    CALL_SUBTEST_16( (svd_inf_nan<BDCSVD<MatrixXd>, MatrixXd>()) );
   }
 
   // test matrixbase method
-  CALL_SUBTEST_1(( bdcsvd_method<Matrix2cd>() ));
-  CALL_SUBTEST_3(( bdcsvd_method<Matrix3f>() ));
+  CALL_SUBTEST_17(( bdcsvd_method<Matrix2cd>() ));
+  CALL_SUBTEST_18(( bdcsvd_method<Matrix3f>() ));
 
   // Test problem size constructors
-  CALL_SUBTEST_7( BDCSVD<MatrixXf>(10,10) );
+  CALL_SUBTEST_19( BDCSVD<MatrixXf>(10,10) );
 
   // Check that preallocation avoids subsequent mallocs
   // Disabled because not supported by BDCSVD
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
-  CALL_SUBTEST_2( svd_underoverflow<void>() );
+  CALL_SUBTEST_20( svd_underoverflow<void>() );
 
   // Without total deflation issues.
-  CALL_SUBTEST_11((  compare_bdc_jacobi_instance(true) ));
-  CALL_SUBTEST_12((  compare_bdc_jacobi_instance(false) ));
+  CALL_SUBTEST_21((  compare_bdc_jacobi_instance(true) ));
+  CALL_SUBTEST_22((  compare_bdc_jacobi_instance(false) ));
 
   // With total deflation issues before, when it shouldn't be triggered.
-  CALL_SUBTEST_13((  compare_bdc_jacobi_instance(true, 3) ));
-  CALL_SUBTEST_14((  compare_bdc_jacobi_instance(false, 3) ));
+  CALL_SUBTEST_23((  compare_bdc_jacobi_instance(true, 3) ));
+  CALL_SUBTEST_24((  compare_bdc_jacobi_instance(false, 3) ));
 }
 
