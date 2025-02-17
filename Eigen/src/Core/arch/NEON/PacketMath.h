@@ -93,16 +93,6 @@ EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) { return Packet2f{a
 
 #endif // EIGEN_COMP_MSVC_STRICT
 
-EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) {
-  float from[4] = {a, b, c, d};
-  return vld1q_f32(from);
-}
-
-EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) {
-  float from[2] = {a, b};
-  return vld1_f32(from);
-}
-
 EIGEN_STRONG_INLINE Packet4f shuffle1(const Packet4f& m, int mask){
   const float* a = reinterpret_cast<const float*>(&m);
   Packet4f res = make_packet4f(*(a + (mask & 3)), *(a + ((mask >> 2) & 3)), *(a + ((mask >> 4) & 3 )), *(a + ((mask >> 6) & 3)));
@@ -3206,7 +3196,7 @@ template<> EIGEN_STRONG_INLINE Packet2f pceil<Packet2f>(const Packet2f& a)
   return padd(tmp, mask);
 }
 
-#endif
+#endif  // EIGEN_ARCH_ARMV8
 
 /**
  * Computes the integer square root
@@ -3671,7 +3661,6 @@ template<> EIGEN_STRONG_INLINE Packet4bf pnegate<Packet4bf>(const Packet4bf& a)
 // and has lower priority in overload resolution.
 // This doesn't work with MSVC though, since the function names are macros.
 template <typename T> uint64x2_t vreinterpretq_u64_f64(T a) { return (uint64x2_t) a; }
-
 template <typename T> float64x2_t vreinterpretq_f64_u64(T a) { return (float64x2_t) a; }
 #endif
 
@@ -3687,16 +3676,12 @@ EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) {
 #else
 typedef float64x2_t Packet2d;
 typedef float64x1_t Packet1d;
-#endif
 
 EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) {
   double from[2] = {a, b};
   return vld1q_f64(from);
 }
-
-EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) { return Packet2d{a, b}; }
 #endif
-
 
 // fuctionally equivalent to _mm_shuffle_pd in SSE (i.e. shuffle(m, n, mask) equals _mm_shuffle_pd(m,n,mask))
 // Currently used in LU/arch/InverseSize4.h to enable a shared implementation
