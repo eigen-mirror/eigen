@@ -46,6 +46,10 @@ test:linux:x86-64:gcc-6:default:unsupported:
   variables:
     EIGEN_CI_INSTALL: g++-10
 
+test:linux:x86-64:gcc-10:cxx03:
+  extends: .test:linux:x86-64:gcc-10:default
+  needs: [ build:linux:cross:x86-64:gcc-10:cxx03 ]
+
 test:linux:x86-64:gcc-10:default:official:
   extends: .test:linux:x86-64:gcc-10:default
   variables:

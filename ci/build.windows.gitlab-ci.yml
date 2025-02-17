@@ -16,6 +16,7 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
   cache:
     key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG-BUILD"
     paths:
@@ -36,6 +37,11 @@ build:windows:x86-64:msvc-14.29:default:
   extends: .build:windows
   variables:
     EIGEN_CI_MSVC_VER: "14.29"
+
+build:windows:x86-64:msvc-14.29:cxx03:
+  extends: build:windows:x86-64:msvc-14.29:default
+  variables:
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_CXX11=off"
 
 build:windows:x86-64:msvc-14.29:avx2:
   extends: build:windows:x86-64:msvc-14.29:default

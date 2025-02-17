@@ -338,7 +338,7 @@ if (EIGEN_BUILD_TESTING)
 
   check_cxx_compiler_flag("-std=c++11" EIGEN_COMPILER_SUPPORT_CPP11)
 
-  option(EIGEN_TEST_CXX11 "Enable testing with C++11 and C++11 features (e.g. Tensor module)." EIGEN_COMPILER_SUPPORT_CPP11)
+  option(EIGEN_TEST_CXX11 "Enable testing with C++11 and C++11 features (e.g. Tensor module)." ${EIGEN_COMPILER_SUPPORT_CPP11})
   if(EIGEN_TEST_CXX11)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_EXTENSIONS OFF)

@@ -6,8 +6,9 @@
   after_script:
     - ./ci/scripts/test.windows.after_script.ps1
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
   tags: 
     - eigen-runner
     - windows
@@ -34,6 +35,10 @@ test:windows:x86-64:msvc-14.16:default:unsupported:
 .test:windows:x86-64:msvc-14.29:default:
   extends: .test:windows
   needs: [ build:windows:x86-64:msvc-14.29:default ]
+
+test:windows:x86-64:msvc-14.29:default:official:
+  extends: .test:windows:x86-64:msvc-14.29:default
+  needs: [ build:windows:x86-64:msvc-14.29:cxx03 ]
 
 test:windows:x86-64:msvc-14.29:default:official:
   extends: .test:windows:x86-64:msvc-14.29:default

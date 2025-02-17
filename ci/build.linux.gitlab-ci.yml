@@ -48,6 +48,11 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
+build:linux:cross:x86-64:gcc-10:cxx03:
+  extends: build:linux:cross:x86-64:gcc-10:default
+  variables:
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_CXX11=off"
+
 build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:

@@ -21,7 +21,7 @@ endif()
 
 if(EIGEN_COMPILER_SUPPORT_CPP11)
   add_executable(random_cpp11 random_cpp11.cpp)
-  target_link_libraries(random_cpp11 ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+  target_link_libraries(random_cpp11 ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO} Eigen3::Eigen)
   add_dependencies(all_examples random_cpp11)
   target_compile_options(random_cpp11 PRIVATE "-std=c++11")
 
