@@ -1011,11 +1011,16 @@ void packetmath_real() {
     if (PacketTraits::HasSqrt) {
       test::packet_helper<PacketTraits::HasSqrt, Packet> h;
       data1[0] = Scalar(-1.0f);
+#if !EIGEN_ARCH_ARM
+
       if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
         data1[1] = -std::numeric_limits<Scalar>::denorm_min();
       } else {
         data1[1] = -NumTraits<Scalar>::epsilon();
       }
+#else
+      data1[1] = -NumTraits<Scalar>::epsilon();
+#endif
       h.store(data2, internal::psqrt(h.load(data1)));
       VERIFY((numext::isnan)(data2[0]));
       VERIFY((numext::isnan)(data2[1]));
