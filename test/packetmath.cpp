@@ -52,7 +52,7 @@ inline T REF_FREXP(const T& x, T& exp) {
   EIGEN_USING_STD(frexp)
   const T out = static_cast<T>(frexp(x, &iexp));
   exp = static_cast<T>(iexp);
-  
+
   // The exponent value is unspecified if the input is inf or NaN, but MSVC
   // seems to set it to 1.  We need to set it back to zero for consistency.
   if (!(numext::isfinite)(x)) {
@@ -362,7 +362,7 @@ void packetmath_minus_zero_add() {
   EIGEN_ALIGN_MAX Scalar data1[size] = {};
   EIGEN_ALIGN_MAX Scalar data2[size] = {};
   EIGEN_ALIGN_MAX Scalar ref[size] = {};
-  
+
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = Scalar(-0.0);
     data1[i + PacketSize] = Scalar(-0.0);
@@ -652,10 +652,10 @@ void packetmath_test_IEEE_corner_cases(const RefFunctorT& ref_fun,
   const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
   const Scalar norm_max = (std::numeric_limits<Scalar>::max)();
 
-  constexpr int size = PacketSize * 2;
-  EIGEN_ALIGN_MAX Scalar data1[size];
-  EIGEN_ALIGN_MAX Scalar data2[size];
-  EIGEN_ALIGN_MAX Scalar ref[size];
+  const int size = PacketSize * 2;
+  EIGEN_ALIGN_MAX Scalar data1[PacketSize * 2];
+  EIGEN_ALIGN_MAX Scalar data2[PacketSize * 2];
+  EIGEN_ALIGN_MAX Scalar ref[PacketSize * 2];
   for (int i = 0; i < size; ++i) {
     data1[i] = data2[i] = ref[i] = Scalar(0);
   }
@@ -719,7 +719,7 @@ void packetmath_real() {
   EIGEN_ALIGN_MAX Scalar data1[PacketSize * 4] = {};
   EIGEN_ALIGN_MAX Scalar data2[PacketSize * 4] = {};
   EIGEN_ALIGN_MAX Scalar ref[PacketSize * 4] = {};
-  
+
   // Negate with -0.
   if (PacketTraits::HasNegate) {
     test::packet_helper<PacketTraits::HasNegate,Packet> h;
@@ -755,7 +755,7 @@ void packetmath_real() {
   CHECK_CWISE1_EXACT_IF(PacketTraits::HasRint, numext::rint, internal::print);
 
   packetmath_boolean_mask_ops_real<Scalar,Packet>();
-  
+
   // Rounding edge cases.
   if (PacketTraits::HasRound || PacketTraits::HasCeil || PacketTraits::HasFloor || PacketTraits::HasRint) {
     typedef typename internal::make_integer<Scalar>::type IntType;
@@ -788,7 +788,7 @@ void packetmath_real() {
     values.push_back(NumTraits<Scalar>::infinity());
     values.push_back(-NumTraits<Scalar>::infinity());
     values.push_back(NumTraits<Scalar>::quiet_NaN());
-    
+
     for (size_t k=0; k<values.size(); ++k) {
       data1[0] = values[k];
       CHECK_CWISE1_EXACT_IF(PacketTraits::HasRound, numext::round, internal::pround);
@@ -810,7 +810,7 @@ void packetmath_real() {
     data2[i] = Scalar(internal::random<double>(-87, 88));
   }
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp, internal::pexp);
-  
+
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {
     // Check denormals:
@@ -826,12 +826,12 @@ void packetmath_real() {
     // zero
     data1[0] = Scalar(0);
     CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
-    
+
     // inf and NaN only compare output fraction, not exponent.
     test::packet_helper<PacketTraits::HasExp,Packet> h;
     Packet pout;
     Scalar sout;
-    Scalar special[] = { NumTraits<Scalar>::infinity(), 
+    Scalar special[] = { NumTraits<Scalar>::infinity(),
                         -NumTraits<Scalar>::infinity(),
                          NumTraits<Scalar>::quiet_NaN()};
     for (int i=0; i<3; ++i) {
@@ -841,7 +841,7 @@ void packetmath_real() {
       VERIFY(test::areApprox(ref, data2, 1) && "internal::pfrexp");
     }
   }
-  
+
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = Scalar(internal::random<double>(-1, 1));
     data2[i] = Scalar(internal::random<double>(-1, 1));
