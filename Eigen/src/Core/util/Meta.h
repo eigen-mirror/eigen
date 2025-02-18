@@ -698,6 +698,12 @@ inline constexpr int max_size_prefer_dynamic(A a, B b) {
 }
 
 template <typename A, typename B>
+inline constexpr int size_prefer_fixed(A a, B b) {
+  plain_enum_asserts(a, b);
+  return int(a) == Dynamic ? int(b) : int(a);
+}
+
+template <typename A, typename B>
 inline constexpr bool enum_eq_not_dynamic(A a, B b) {
   plain_enum_asserts(a, b);
   if ((int)a == Dynamic || (int)b == Dynamic) return false;
