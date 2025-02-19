@@ -384,11 +384,16 @@ if (EIGEN_BUILD_TESTING)
     ei_add_cxx_compiler_flag("-Wno-psabi")
     ei_add_cxx_compiler_flag("-Wno-variadic-macros")
     ei_add_cxx_compiler_flag("-Wno-long-long")
-    ei_add_cxx_compiler_flag("-fno-check-new")
     ei_add_cxx_compiler_flag("-fno-common")
     ei_add_cxx_compiler_flag("-fstrict-aliasing")
     ei_add_cxx_compiler_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
     ei_add_cxx_compiler_flag("-wd2304")                   # disable ICC's "warning #2304: non-explicit constructor with single argument may cause implicit type conversion" produced by -Wnon-virtual-dtor
+
+    # Clang emits warnings about unused flag.
+    if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      ei_add_cxx_compiler_flag("-fno-check-new")
+    endif()
+
 
     if(ANDROID_NDK)
       ei_add_cxx_compiler_flag("-pie")
