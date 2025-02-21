@@ -95,7 +95,8 @@ MatrixBase<Derived>::cross(const MatrixBase<OtherDerived>& other) const {
 namespace internal {
 
 template <int Arch, typename VectorLhs, typename VectorRhs, typename Scalar = typename VectorLhs::Scalar,
-          bool Vectorizable = bool((evaluator<VectorLhs>::Flags & evaluator<VectorRhs>::Flags) & PacketAccessBit)>
+          bool Vectorizable =
+              bool((int(evaluator<VectorLhs>::Flags) & int(evaluator<VectorRhs>::Flags)) & PacketAccessBit)>
 struct cross3_impl {
   EIGEN_DEVICE_FUNC static inline typename internal::plain_matrix_type<VectorLhs>::type run(const VectorLhs& lhs,
                                                                                             const VectorRhs& rhs) {
