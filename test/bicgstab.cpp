@@ -52,7 +52,7 @@ void test_2856() {
 
 // https://gitlab.com/libeigen/eigen/-/issues/2899
 void test_2899() {
-  Eigen::MatrixXd A(4, 4);
+  Eigen::MatrixXd A = Eigen::MatrixXd::Zero(4, 4);
   A(0, 0) = 1;
   A(1, 0) = -1.0 / 6;
   A(1, 1) = 2.0 / 3;
@@ -64,7 +64,7 @@ void test_2899() {
   A(3, 1) = -1.0 / 3;
   A(3, 2) = -1.0 / 3;
   A(3, 3) = 2.0 / 3;
-  Eigen::VectorXd b(4);
+  Eigen::VectorXd b = Eigen::VectorXd::Zero(4);
   b(0) = 0;
   b(1) = 1;
   b(2) = 1;
