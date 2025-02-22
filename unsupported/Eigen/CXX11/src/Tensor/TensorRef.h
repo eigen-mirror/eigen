@@ -247,12 +247,16 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
 
   EIGEN_STRONG_INLINE TensorRef() : Base() {}
 
+  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) : Base(other) {}
+
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef(const Expression& expr) : Base(expr) {
     EIGEN_STATIC_ASSERT(internal::is_lvalue<Expression>::value,
                         "Expression must be mutable to create a mutable TensorRef<Expression>.  Did you mean "
                         "TensorRef<const Expression>?)");
   }
+
+  TensorRef& operator=(const TensorRef& other) { return Base::operator=(other).derived(); }
 
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef& operator=(const Expression& expr) {
@@ -261,8 +265,6 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
                         "TensorRef<const Expression>?)");
     return Base::operator=(expr).derived();
   }
-
-  TensorRef& operator=(const TensorRef& other) { return Base::operator=(other).derived(); }
 
   template <typename... IndexTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index firstIndex, IndexTypes... otherIndices) {
@@ -306,17 +308,17 @@ class TensorRef<const PlainObjectType> : public internal::TensorRefBase<TensorRe
  public:
   EIGEN_STRONG_INLINE TensorRef() : Base() {}
 
+  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) : Base(other) {}
+
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef(const Expression& expr) : Base(expr) {}
+
+  TensorRef& operator=(const TensorRef& other) { return Base::operator=(other).derived(); }
 
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef& operator=(const Expression& expr) {
     return Base::operator=(expr).derived();
   }
-
-  TensorRef(const TensorRef& other) : Base(other) {}
-
-  TensorRef& operator=(const TensorRef& other) { return Base::operator=(other).derived(); }
 };
 
 // evaluator for rvalues
