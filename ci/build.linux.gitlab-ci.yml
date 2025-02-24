@@ -106,6 +106,8 @@ build:linux:doc:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
 
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
 # build:linux:cross:x86-64:clang-12:default:asan:
