@@ -97,7 +97,7 @@ build:linux:cross:x86-64:clang-12:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-build:linux:doc:
+build:linux:docs:
   extends: .build:linux:cross
   variables:
     EIGEN_CI_TARGET_ARCH: any
@@ -107,6 +107,8 @@ build:linux:doc:
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
 
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
