@@ -300,14 +300,14 @@ struct general_product_to_triangular_selector<MatrixType,ProductType,UpLo,false>
   }
 };
 
-template<typename MatrixType, unsigned int UpLo>
+template<typename _MatrixType, unsigned int _Mode>
 template<typename ProductType>
-TriangularView<MatrixType,UpLo>& TriangularViewImpl<MatrixType,UpLo,Dense>::_assignProduct(const ProductType& prod, const Scalar& alpha, bool beta)
+TriangularView<_MatrixType,_Mode>& TriangularViewImpl<_MatrixType,_Mode,Dense>::_assignProduct(const ProductType& prod, const Scalar& alpha, bool beta)
 {
-  EIGEN_STATIC_ASSERT((UpLo&UnitDiag)==0, WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
+  EIGEN_STATIC_ASSERT((_Mode&UnitDiag)==0, WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
   eigen_assert(derived().nestedExpression().rows() == prod.rows() && derived().cols() == prod.cols());
   
-  general_product_to_triangular_selector<MatrixType, ProductType, UpLo, internal::traits<ProductType>::InnerSize==1>::run(derived().nestedExpression().const_cast_derived(), prod, alpha, beta);
+  general_product_to_triangular_selector<_MatrixType, ProductType, _Mode, internal::traits<ProductType>::InnerSize==1>::run(derived().nestedExpression().const_cast_derived(), prod, alpha, beta);
   
   return derived();
 }

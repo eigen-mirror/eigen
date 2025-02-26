@@ -71,7 +71,7 @@ struct AntiHermiticity
 };
 
 /** \class DynamicSGroup
-  * \ingroup TensorSymmetry_Module
+  * \ingroup CXX11_TensorSymmetry_Module
   *
   * \brief Dynamic symmetry group
   *
@@ -88,7 +88,7 @@ class DynamicSGroup;
 /** \internal
   *
   * \class DynamicSGroupFromTemplateArgs
-  * \ingroup TensorSymmetry_Module
+  * \ingroup CXX11_TensorSymmetry_Module
   *
   * \brief Dynamic symmetry group, initialized from template arguments
   *
@@ -99,7 +99,7 @@ template<typename... Gen>
 class DynamicSGroupFromTemplateArgs;
 
 /** \class StaticSGroup
-  * \ingroup TensorSymmetry_Module
+  * \ingroup CXX11_TensorSymmetry_Module
   *
   * \brief Static symmetry group
   *
@@ -121,7 +121,7 @@ template<typename... Gen>
 class StaticSGroup;
 
 /** \class SGroup
-  * \ingroup TensorSymmetry_Module
+  * \ingroup CXX11_TensorSymmetry_Module
   *
   * \brief Symmetry group, initialized from template arguments
   *
@@ -179,7 +179,7 @@ template<int One_, int Two_, typename... Sym> struct tensor_symmetry_num_indices
 /** \internal
   *
   * \class tensor_symmetry_pre_analysis
-  * \ingroup TensorSymmetry_Module
+  * \ingroup CXX11_TensorSymmetry_Module
   *
   * \brief Pre-select whether to use a static or dynamic symmetry group
   *

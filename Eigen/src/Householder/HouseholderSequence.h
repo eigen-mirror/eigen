@@ -443,7 +443,8 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar,Ot
   return res;
 }
 
-/** \ingroup Householder_Module \householder_module
+/** \ingroup Householder_Module
+  * \householder_module
   * \brief Convenience function for constructing a Householder sequence. 
   * \returns A HouseholderSequence constructed from the specified arguments.
   */
@@ -453,7 +454,8 @@ HouseholderSequence<VectorsType,CoeffsType> householderSequence(const VectorsTyp
   return HouseholderSequence<VectorsType,CoeffsType,OnTheLeft>(v, h);
 }
 
-/** \ingroup Householder_Module \householder_module
+/** \ingroup Householder_Module
+  * \householder_module
   * \brief Convenience function for constructing a Householder sequence. 
   * \returns A HouseholderSequence constructed from the specified arguments.
   * \details This function differs from householderSequence() in that the template argument \p OnTheSide of

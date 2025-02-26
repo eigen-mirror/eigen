@@ -102,15 +102,15 @@ However there are a few corner cases where these alignment settings get overridd
 
 Three possibilities:
 <ul>
-  <li>Use the \c DontAlign option to Matrix, Array, Quaternion, etc. objects that gives you trouble. This way Eigen won't try to align them, and thus won"t assume any special alignment. On the down side, you will pay the cost of unaligned loads/stores for them, but on modern CPUs, the overhead is either null or marginal. See \link StructHavingEigenMembers_othersolutions here \endlink for an example.</li>
-  <li>Define \link TopicPreprocessorDirectivesPerformance EIGEN_DONT_ALIGN_STATICALLY \endlink. That disables all 16-byte (and above) static alignment code, while keeping 16-byte (or above) heap alignment. This has the effect of
-      vectorizing fixed-size objects (like Matrix4d) through unaligned stores (as controlled by \link TopicPreprocessorDirectivesPerformance EIGEN_UNALIGNED_VECTORIZE \endlink), while keeping unchanged the vectorization of dynamic-size objects
+  <li>Use the \c DontAlign option to Matrix, Array, Quaternion, etc. objects that gives you trouble. This way Eigen won't try to align them, and thus won't assume any special alignment. On the down side, you will pay the cost of unaligned loads/stores for them, but on modern CPUs, the overhead is either null or marginal. See \link StructHavingEigenMembers_othersolutions here \endlink for an example.</li>
+  <li>Define \link TopicPreprocessorDirectivesPerformance `EIGEN_DONT_ALIGN_STATICALLY` \endlink. That disables all 16-byte (and above) static alignment code, while keeping 16-byte (or above) heap alignment. This has the effect of
+      vectorizing fixed-size objects (like Matrix4d) through unaligned stores (as controlled by \link TopicPreprocessorDirectivesPerformance `EIGEN_UNALIGNED_VECTORIZE` \endlink), while keeping unchanged the vectorization of dynamic-size objects
       (like MatrixXd). But do note that this breaks ABI compatibility with the default behavior of static alignment.</li>
-  <li>Or define both \link TopicPreprocessorDirectivesPerformance  EIGEN_DONT_VECTORIZE \endlink and EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT. This keeps the
+  <li>Or define both \link TopicPreprocessorDirectivesPerformance  `EIGEN_DONT_VECTORIZE` \endlink and `EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT`. This keeps the
       16-byte alignment code and thus preserves ABI compatibility, but completely disables vectorization.</li>
 </ul>
 
-If you want to know why defining EIGEN_DONT_VECTORIZE does not by itself disable 16-byte alignment and the assertion, here's the explanation:
+If you want to know why defining `EIGEN_DONT_VECTORIZE` does not by itself disable 16-byte alignment and the assertion, here's the explanation:
 
 It doesn't disable the assertion, because otherwise code that runs fine without vectorization would suddenly crash when enabling vectorization.
 It doesn't disable 16-byte alignment, because that would mean that vectorized and non-vectorized code are not mutually ABI-compatible. This ABI compatibility is very important, even for people who develop only an in-house application, as for instance one may want to have in the same application a vectorized path and a non-vectorized path.

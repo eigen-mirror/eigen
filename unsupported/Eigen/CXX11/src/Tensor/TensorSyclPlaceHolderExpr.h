@@ -36,7 +36,7 @@ struct PlaceHolder {
   typedef Scalar Type;
 };
 
-/// \sttruct PlaceHolderExpression
+/// \struct PlaceHolderExpression
 /// \brief it is used to create the PlaceHolder expression. The PlaceHolder
 /// expression is a copy of expression type in which the TensorMap of the has
 /// been replaced with PlaceHolder.
