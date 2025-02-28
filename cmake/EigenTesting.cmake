@@ -71,7 +71,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
   endif(${ARGC} GREATER 2)
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
-    ei_add_target_property(${targetname} COMPILE_FLAGS "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
+    target_compile_options(${targetname} PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
   endif()
 
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
@@ -145,10 +145,10 @@ macro(ei_add_test_internal_sycl testname testname_with_suffix)
   endif()
 
   if(EIGEN_NO_ASSERTION_CHECKING)
-    ei_add_target_property(${targetname} COMPILE_FLAGS "-DEIGEN_NO_ASSERTION_CHECKING=1")
+    target_compile_options(${targetname} PRIVATE "-DEIGEN_NO_ASSERTION_CHECKING=1")
   else(EIGEN_NO_ASSERTION_CHECKING)
     if(EIGEN_DEBUG_ASSERTS)
-      ei_add_target_property(${targetname} COMPILE_FLAGS "-DEIGEN_DEBUG_ASSERTS=1")
+      target_compile_options(${targetname} PRIVATE "-DEIGEN_DEBUG_ASSERTS=1")
     endif(EIGEN_DEBUG_ASSERTS)
   endif(EIGEN_NO_ASSERTION_CHECKING)
 
@@ -166,7 +166,7 @@ macro(ei_add_test_internal_sycl testname testname_with_suffix)
   endif(${ARGC} GREATER 2)
 
   if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
-    ei_add_target_property(${targetname} COMPILE_FLAGS "${EIGEN_TEST_CUSTOM_CXX_FLAGS}")
+    target_compile_options(${targetname} PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
   endif()
 
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)

@@ -166,10 +166,8 @@ template<> struct make_unsigned<signed int>       { typedef unsigned int type; }
 template<> struct make_unsigned<unsigned int>     { typedef unsigned int type; };
 template<> struct make_unsigned<signed long>      { typedef unsigned long type; };
 template<> struct make_unsigned<unsigned long>    { typedef unsigned long type; };
-#if EIGEN_COMP_MSVC
-template<> struct make_unsigned<signed __int64>   { typedef unsigned __int64 type; };
-template<> struct make_unsigned<unsigned __int64> { typedef unsigned __int64 type; };
-#endif
+template<> struct make_unsigned<signed long long> { typedef unsigned long type; };
+template<> struct make_unsigned<unsigned long long> { typedef unsigned long type; };
 #endif
 
 template <typename T> struct add_const { typedef const T type; };
@@ -527,7 +525,7 @@ template<typename T, typename U> struct scalar_product_traits
 } // end namespace internal
 
 namespace numext {
-  
+
 #if defined(__CUDA_ARCH__)
 template<typename T> EIGEN_DEVICE_FUNC   void swap(T &a, T &b) { T tmp = b; b = a; a = tmp; }
 #else
