@@ -384,7 +384,7 @@ if(EIGEN_TEST_EIGEN2)
 endif()
 
 # boost MP unit test
-find_package(Boost 1.53.0)
+find_package(Boost 1.53.0 CONFIG)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
   ei_add_test(boostmultiprec "" "${Boost_LIBRARIES}")
