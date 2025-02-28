@@ -448,8 +448,11 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     eigen_assert(otherIndex == indices[1] / m_fastOtherStride);
 
     // Find the offset of the element wrt the location of the first element.
-    const Index patchOffsets[2] = {(indices[0] - patchIndex * m_patchStride) / m_fastOutputDepth,
-                                   (indices[1] - patchIndex * m_patchStride) / m_fastOutputDepth};
+    Index first_entry = (indices[0] - patchIndex * m_patchStride) / m_fastOutputDepth;
+    Index second_entry = PacketSize == 1 ? first_entry : 
+                        (indices[1] - patchIndex * m_patchStride) / m_fastOutputDepth;
+
+    const Index patchOffsets[2] = {first_entry, second_entry};
 
     const Index patch3DIndex =
         (NumDims == 5) ? patchIndex : (indices[0] - otherIndex * m_otherStride) / m_fastPatchStride;
