@@ -362,14 +362,35 @@ if(EIGEN_TEST_CUDA)
 find_package(CUDA 5.0)
 if(CUDA_FOUND)
 
-  set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CUDA_NVCC_FLAGS "-ccbin ${CMAKE_C_COMPILER}" CACHE STRING "nvcc flags" FORCE)
+  if( (NOT EIGEN_TEST_CXX11) OR (CMAKE_VERSION VERSION_LESS 3.3))
+    string(APPEND EIGEN_CUDA_CXX11_FLAGS " -std=c++11")
   endif()
+
   if(EIGEN_TEST_CUDA_CLANG)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 --cuda-gpu-arch=sm_30")
+    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
+    foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+      string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${GPU}")
+    endforeach()
+    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
+  else()
+    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+    set(NVCC_ARCH_FLAGS)
+    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
+    # those in the arch list for -gencode, the kernels will fail to run with
+    #    cudaErrorNoKernelImageForDevice
+    # This can happen with newer cards (e.g. sm_75) and compiling with older
+    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
+    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
+      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
+    endif()
+    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+      string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
+    endforeach()
+    set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
+    cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
   endif()
-  cuda_include_directories(${CMAKE_CURRENT_BINARY_DIR})
   set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
 
   ei_add_test(cuda_basic)

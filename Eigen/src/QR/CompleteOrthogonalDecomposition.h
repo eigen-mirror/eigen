@@ -41,7 +41,7 @@ struct traits<CompleteOrthogonalDecomposition<_MatrixType> >
   * size rank-by-rank. \b A may be rank deficient.
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::completeOrthogonalDecomposition()
   */
 template <typename _MatrixType>
@@ -489,7 +489,7 @@ void CompleteOrthogonalDecomposition<MatrixType>::applyZAdjointOnTheLeftInPlace(
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename _MatrixType>
 template <typename RhsType, typename DstType>
-void CompleteOrthogonalDecomposition<_MatrixType>::_solve_impl(
+EIGEN_DEVICE_FUNC void CompleteOrthogonalDecomposition<_MatrixType>::_solve_impl(
     const RhsType& rhs, DstType& dst) const {
   eigen_assert(rhs.rows() == this->rows());
 
@@ -532,7 +532,7 @@ struct Assignment<DstXprType, Inverse<CompleteOrthogonalDecomposition<MatrixType
 {
   typedef CompleteOrthogonalDecomposition<MatrixType> CodType;
   typedef Inverse<CodType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename CodType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename CodType::Scalar> &)
   {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.rows()));
   }

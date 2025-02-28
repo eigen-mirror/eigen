@@ -207,12 +207,12 @@ template<> struct gemv_dense_selector<OnTheRight,ColMajor,true>
     typedef typename Rhs::Scalar   RhsScalar;
     typedef typename Dest::Scalar  ResScalar;
     typedef typename Dest::RealScalar  RealScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
     typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-  
+
     typedef Map<Matrix<ResScalar,Dynamic,1>, EIGEN_PLAIN_ENUM_MIN(AlignedMax,internal::packet_traits<ResScalar>::size)> MappedDest;
 
     ActualLhsType actualLhs = LhsBlasTraits::extract(lhs);
@@ -300,7 +300,7 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,true>
     typedef typename Lhs::Scalar   LhsScalar;
     typedef typename Rhs::Scalar   RhsScalar;
     typedef typename Dest::Scalar  ResScalar;
-    
+
     typedef internal::blas_traits<Lhs> LhsBlasTraits;
     typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
     typedef internal::blas_traits<Rhs> RhsBlasTraits;
@@ -386,7 +386,7 @@ template<> struct gemv_dense_selector<OnTheRight,RowMajor,false>
   */
 template<typename Derived>
 template<typename OtherDerived>
-inline const Product<Derived, OtherDerived>
+EIGEN_DEVICE_FUNC inline const Product<Derived, OtherDerived>
 MatrixBase<Derived>::operator*(const MatrixBase<OtherDerived> &other) const
 {
   // A note regarding the function declaration: In MSVC, this function will sometimes
@@ -428,7 +428,7 @@ MatrixBase<Derived>::operator*(const MatrixBase<OtherDerived> &other) const
   */
 template<typename Derived>
 template<typename OtherDerived>
-const Product<Derived,OtherDerived,LazyProduct>
+EIGEN_DEVICE_FUNC const Product<Derived,OtherDerived,LazyProduct>
 MatrixBase<Derived>::lazyProduct(const MatrixBase<OtherDerived> &other) const
 {
   enum {

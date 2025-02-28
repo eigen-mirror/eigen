@@ -176,7 +176,7 @@ if(NOT MSVC)
   ei_add_cxx_compiler_flag("-Wall")
   ei_add_cxx_compiler_flag("-Wextra")
   #ei_add_cxx_compiler_flag("-Weverything")              # clang
-  
+
   ei_add_cxx_compiler_flag("-Wundef")
   ei_add_cxx_compiler_flag("-Wcast-align")
   ei_add_cxx_compiler_flag("-Wchar-subscripts")
@@ -191,29 +191,29 @@ if(NOT MSVC)
   ei_add_cxx_compiler_flag("-Wc++11-extensions")
   ei_add_cxx_compiler_flag("-Wdouble-promotion")
 #  ei_add_cxx_compiler_flag("-Wconversion")
-  
+
   # -Wshadow is insanely too strict with gcc, hopefully it will become usable with gcc 6
   # if(NOT CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.0.0"))
   if(NOT CMAKE_COMPILER_IS_GNUCXX)
     ei_add_cxx_compiler_flag("-Wshadow")
   endif()
-  
+
   ei_add_cxx_compiler_flag("-Wno-psabi")
   ei_add_cxx_compiler_flag("-Wno-variadic-macros")
   ei_add_cxx_compiler_flag("-Wno-long-long")
-  
+
   ei_add_cxx_compiler_flag("-fno-check-new")
   ei_add_cxx_compiler_flag("-fno-common")
   ei_add_cxx_compiler_flag("-fstrict-aliasing")
   ei_add_cxx_compiler_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
   ei_add_cxx_compiler_flag("-wd2304")                   # disable ICC's "warning #2304: non-explicit constructor with single argument may cause implicit type conversion" produced by -Wnon-virtual-dtor
-  
-  
+
+
   # The -ansi flag must be added last, otherwise it is also used as a linker flag by check_cxx_compiler_flag making it fails
   # Moreover we should not set both -strict-ansi and -ansi
   check_cxx_compiler_flag("-strict-ansi" COMPILER_SUPPORT_STRICTANSI)
   ei_add_cxx_compiler_flag("-Qunused-arguments")        # disable clang warning: argument unused during compilation: '-ansi'
-  
+
   if(COMPILER_SUPPORT_STRICTANSI)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -strict-ansi")
   else()
@@ -224,7 +224,7 @@ if(NOT MSVC)
     ei_add_cxx_compiler_flag("-pie")
     ei_add_cxx_compiler_flag("-fPIE")
   endif()
-  
+
   set(CMAKE_REQUIRED_FLAGS "")
 
   option(EIGEN_TEST_SSE2 "Enable/Disable SSE2 in tests/examples" OFF)
@@ -398,6 +398,7 @@ if(EIGEN_TEST_NO_EXCEPTIONS)
   message(STATUS "Disabling exceptions in tests/examples")
 endif()
 
+set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
 set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture level to target when compiling CUDA code")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
@@ -600,11 +601,11 @@ if (NOT CMAKE_VERSION VERSION_LESS 3.0)
 
 else (NOT CMAKE_VERSION VERSION_LESS 3.0)
   # Fallback to legacy Eigen3Config.cmake without the imported target
-  
+
   # If CMakePackageConfigHelpers module is available (CMake >= 2.8.8)
-  # create a relocatable Config file, otherwise leave the hardcoded paths       
+  # create a relocatable Config file, otherwise leave the hardcoded paths
   include(CMakePackageConfigHelpers OPTIONAL RESULT_VARIABLE CPCH_PATH)
-  
+
   if(CPCH_PATH)
     configure_package_config_file (
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Eigen3ConfigLegacy.cmake.in
@@ -613,7 +614,7 @@ else (NOT CMAKE_VERSION VERSION_LESS 3.0)
       INSTALL_DESTINATION ${CMAKEPACKAGE_INSTALL_DIR}
       NO_CHECK_REQUIRED_COMPONENTS_MACRO # Eigen does not provide components
     )
-  else() 
+  else()
     # The PACKAGE_* variables are defined by the configure_package_config_file
     # but without it we define them manually to the hardcoded paths
     set(PACKAGE_INIT "")

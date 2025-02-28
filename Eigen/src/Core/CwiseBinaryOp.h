@@ -74,7 +74,7 @@ class CwiseBinaryOpImpl;
   * \sa MatrixBase::binaryExpr(const MatrixBase<OtherDerived> &,const CustomBinaryOp &) const, class CwiseUnaryOp, class CwiseNullaryOp
   */
 template<typename BinaryOp, typename LhsType, typename RhsType>
-class CwiseBinaryOp : 
+class CwiseBinaryOp :
   public CwiseBinaryOpImpl<
           BinaryOp, LhsType, RhsType,
           typename internal::cwise_promote_storage_type<typename internal::traits<LhsType>::StorageKind,
@@ -83,7 +83,7 @@ class CwiseBinaryOp :
   internal::no_assignment_operator
 {
   public:
-    
+
     typedef typename internal::remove_all<BinaryOp>::type Functor;
     typedef typename internal::remove_all<LhsType>::type Lhs;
     typedef typename internal::remove_all<RhsType>::type Rhs;
@@ -158,7 +158,7 @@ public:
   */
 template<typename Derived>
 template<typename OtherDerived>
-EIGEN_STRONG_INLINE Derived &
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived &
 MatrixBase<Derived>::operator-=(const MatrixBase<OtherDerived> &other)
 {
   call_assignment(derived(), other.derived(), internal::sub_assign_op<Scalar,typename OtherDerived::Scalar>());
@@ -171,7 +171,7 @@ MatrixBase<Derived>::operator-=(const MatrixBase<OtherDerived> &other)
   */
 template<typename Derived>
 template<typename OtherDerived>
-EIGEN_STRONG_INLINE Derived &
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived &
 MatrixBase<Derived>::operator+=(const MatrixBase<OtherDerived>& other)
 {
   call_assignment(derived(), other.derived(), internal::add_assign_op<Scalar,typename OtherDerived::Scalar>());

@@ -11,7 +11,7 @@
 #ifndef EIGEN_DIAGONALMATRIX_H
 #define EIGEN_DIAGONALMATRIX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template<typename Derived>
@@ -44,7 +44,7 @@ class DiagonalBase : public EigenBase<Derived>
 
     EIGEN_DEVICE_FUNC
     DenseMatrixType toDenseMatrix() const { return derived(); }
-    
+
     EIGEN_DEVICE_FUNC
     inline const DiagonalVectorType& diagonal() const { return derived().diagonal(); }
     EIGEN_DEVICE_FUNC
@@ -70,7 +70,7 @@ class DiagonalBase : public EigenBase<Derived>
     {
       return InverseReturnType(diagonal().cwiseInverse());
     }
-    
+
     EIGEN_DEVICE_FUNC
     inline const DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(DiagonalVectorType,Scalar,product) >
     operator*(const Scalar& scalar) const
@@ -273,7 +273,7 @@ class DiagonalWrapper
   * \sa class DiagonalWrapper, class DiagonalMatrix, diagonal(), isDiagonal()
   **/
 template<typename Derived>
-inline const DiagonalWrapper<const Derived>
+EIGEN_DEVICE_FUNC inline const DiagonalWrapper<const Derived>
 MatrixBase<Derived>::asDiagonal() const
 {
   return DiagonalWrapper<const Derived>(derived());
@@ -318,20 +318,20 @@ template<> struct AssignmentKind<DenseShape,DiagonalShape> { typedef Diagonal2De
 template< typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Dense>
 {
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &/*func*/)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &/*func*/)
   {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
       dst.resize(dstRows, dstCols);
-    
+
     dst.setZero();
     dst.diagonal() = src.diagonal();
   }
-  
+
   static void run(DstXprType &dst, const SrcXprType &src, const internal::add_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &/*func*/)
   { dst.diagonal() += src.diagonal(); }
-  
+
   static void run(DstXprType &dst, const SrcXprType &src, const internal::sub_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &/*func*/)
   { dst.diagonal() -= src.diagonal(); }
 };

@@ -10,7 +10,7 @@
 #ifndef EIGEN_SOLVETRIANGULAR_H
 #define EIGEN_SOLVETRIANGULAR_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -64,7 +64,7 @@ struct triangular_solver_selector<Lhs,Rhs,Side,Mode,NoUnrolling,1>
 
     ei_declare_aligned_stack_constructed_variable(RhsScalar,actualRhs,rhs.size(),
                                                   (useRhsDirectly ? rhs.data() : 0));
-                                                  
+
     if(!useRhsDirectly)
       MappedRhs(actualRhs,rhs.size()) = rhs;
 
@@ -148,7 +148,7 @@ struct triangular_solver_selector<Lhs,Rhs,OnTheRight,Mode,CompleteUnrolling,1> {
   {
     Transpose<const Lhs> trLhs(lhs);
     Transpose<Rhs> trRhs(rhs);
-    
+
     triangular_solver_unroller<Transpose<const Lhs>,Transpose<Rhs>,
                               ((Mode&Upper)==Upper ? Lower : Upper) | (Mode&UnitDiag),
                               0,Rhs::SizeAtCompileTime>::run(trLhs,trRhs);
@@ -164,7 +164,7 @@ struct triangular_solver_selector<Lhs,Rhs,OnTheRight,Mode,CompleteUnrolling,1> {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template<typename MatrixType, unsigned int Mode>
 template<int Side, typename OtherDerived>
-void TriangularViewImpl<MatrixType,Mode,Dense>::solveInPlace(const MatrixBase<OtherDerived>& _other) const
+EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType,Mode,Dense>::solveInPlace(const MatrixBase<OtherDerived>& _other) const
 {
   OtherDerived& other = _other.const_cast_derived();
   eigen_assert( derived().cols() == derived().rows() && ((Side==OnTheLeft && derived().cols() == other.rows()) || (Side==OnTheRight && derived().cols() == other.cols())) );
@@ -187,7 +187,7 @@ void TriangularViewImpl<MatrixType,Mode,Dense>::solveInPlace(const MatrixBase<Ot
 
 template<typename Derived, unsigned int Mode>
 template<int Side, typename Other>
-const internal::triangular_solve_retval<Side,TriangularView<Derived,Mode>,Other>
+EIGEN_DEVICE_FUNC const internal::triangular_solve_retval<Side,TriangularView<Derived,Mode>,Other>
 TriangularViewImpl<Derived,Mode,Dense>::solve(const MatrixBase<Other>& other) const
 {
   return internal::triangular_solve_retval<Side,TriangularViewType,Other>(derived(), other.derived());

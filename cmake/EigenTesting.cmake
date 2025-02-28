@@ -18,7 +18,9 @@ macro(ei_add_test_internal testname testname_with_suffix)
     set(filename ${testname}.cpp)
   endif()
 
+  set(is_gpu_test OFF)
   if(EIGEN_ADD_TEST_FILENAME_EXTENSION STREQUAL cu)
+    set(is_gpu_test ON)
     if(EIGEN_TEST_CUDA_CLANG)
       set_source_files_properties(${filename} PROPERTIES LANGUAGE CXX)
       if(CUDA_64_BIT_DEVICE_CODE)
@@ -47,6 +49,9 @@ macro(ei_add_test_internal testname testname_with_suffix)
     add_dependencies(eigen2_buildtests ${targetname})
   else()
     add_dependencies(buildtests ${targetname})
+  endif()
+  if (is_gpu_test)
+    add_dependencies(buildtests_gpu ${targetname})
   endif()
 
   if(EIGEN_NO_ASSERTION_CHECKING)
@@ -98,6 +103,10 @@ macro(ei_add_test_internal testname testname_with_suffix)
   endif()
 
   add_test(${testname_with_suffix} "${targetname}")
+  if (is_gpu_test)
+    # Add gpu tag for testing only GPU tests.
+    set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "gpu")
+  endif()
 
   # Specify target and test labels accoirding to EIGEN_CURRENT_SUBPROJECT
   get_property(current_subproject GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT)

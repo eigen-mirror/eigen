@@ -53,7 +53,7 @@ template<typename _MatrixType> struct traits<FullPivLU<_MatrixType> >
   * Output: \verbinclude class_FullPivLU.out
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::fullPivLu(), MatrixBase::determinant(), MatrixBase::inverse()
   */
 template<typename _MatrixType> class FullPivLU
@@ -744,7 +744,7 @@ struct image_retval<FullPivLU<_MatrixType> >
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template<typename _MatrixType>
 template<typename RhsType, typename DstType>
-void FullPivLU<_MatrixType>::_solve_impl(const RhsType &rhs, DstType &dst) const
+EIGEN_DEVICE_FUNC void FullPivLU<_MatrixType>::_solve_impl(const RhsType &rhs, DstType &dst) const
 {
   /* The decomposition PAQ = LU can be rewritten as A = P^{-1} L U Q^{-1}.
   * So we proceed as follows:
@@ -792,7 +792,7 @@ void FullPivLU<_MatrixType>::_solve_impl(const RhsType &rhs, DstType &dst) const
 
 template<typename _MatrixType>
 template<bool Conjugate, typename RhsType, typename DstType>
-void FullPivLU<_MatrixType>::_solve_impl_transposed(const RhsType &rhs, DstType &dst) const
+EIGEN_DEVICE_FUNC void FullPivLU<_MatrixType>::_solve_impl_transposed(const RhsType &rhs, DstType &dst) const
 {
   /* The decomposition PAQ = LU can be rewritten as A = P^{-1} L U Q^{-1},
    * and since permutations are real and unitary, we can write this
@@ -864,7 +864,7 @@ struct Assignment<DstXprType, Inverse<FullPivLU<MatrixType> >, internal::assign_
 {
   typedef FullPivLU<MatrixType> LuType;
   typedef Inverse<LuType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename MatrixType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename MatrixType::Scalar> &)
   {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));
   }

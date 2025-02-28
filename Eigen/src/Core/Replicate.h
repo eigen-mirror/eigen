@@ -10,7 +10,7 @@
 #ifndef EIGEN_REPLICATE_H
 #define EIGEN_REPLICATE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 template<typename MatrixType,int RowFactor,int ColFactor>
@@ -35,7 +35,7 @@ struct traits<Replicate<MatrixType,RowFactor,ColFactor> >
     IsRowMajor = MaxRowsAtCompileTime==1 && MaxColsAtCompileTime!=1 ? 1
                : MaxColsAtCompileTime==1 && MaxRowsAtCompileTime!=1 ? 0
                : (MatrixType::Flags & RowMajorBit) ? 1 : 0,
-    
+
     // FIXME enable DirectAccess with negative strides?
     Flags = IsRowMajor ? RowMajorBit : 0
   };
@@ -95,8 +95,8 @@ template<typename MatrixType,int RowFactor,int ColFactor> class Replicate
 
     EIGEN_DEVICE_FUNC
     const _MatrixTypeNested& nestedExpression() const
-    { 
-      return m_matrix; 
+    {
+      return m_matrix;
     }
 
   protected:
@@ -115,7 +115,7 @@ template<typename MatrixType,int RowFactor,int ColFactor> class Replicate
   */
 template<typename Derived>
 template<int RowFactor, int ColFactor>
-const Replicate<Derived,RowFactor,ColFactor>
+EIGEN_DEVICE_FUNC const Replicate<Derived,RowFactor,ColFactor>
 DenseBase<Derived>::replicate() const
 {
   return Replicate<Derived,RowFactor,ColFactor>(derived());
@@ -130,7 +130,7 @@ DenseBase<Derived>::replicate() const
   * \sa VectorwiseOp::replicate(), DenseBase::replicate(), class Replicate
   */
 template<typename ExpressionType, int Direction>
-const typename VectorwiseOp<ExpressionType,Direction>::ReplicateReturnType
+EIGEN_DEVICE_FUNC const typename VectorwiseOp<ExpressionType,Direction>::ReplicateReturnType
 VectorwiseOp<ExpressionType,Direction>::replicate(Index factor) const
 {
   return typename VectorwiseOp<ExpressionType,Direction>::ReplicateReturnType

@@ -99,7 +99,7 @@ template<typename ExpressionType> class NestByValue
 /** \returns an expression of the temporary version of *this.
   */
 template<typename Derived>
-inline const NestByValue<Derived>
+EIGEN_DEVICE_FUNC inline const NestByValue<Derived>
 DenseBase<Derived>::nestByValue() const
 {
   return NestByValue<Derived>(derived());

@@ -237,7 +237,7 @@ ploaddup(const typename unpacket_traits<Packet>::type* from) { return *from; }
   * For instance, for a packet of 8 elements, 2 scalars will be read from \a *from and
   * replicated to form: {from[0],from[0],from[0],from[0],from[1],from[1],from[1],from[1]}
   * Currently, this function is only used in matrix products.
-  * For packet-size smaller or equal to 4, this function is equivalent to pload1 
+  * For packet-size smaller or equal to 4, this function is equivalent to pload1
   */
 template<typename Packet> EIGEN_DEVICE_FUNC inline Packet
 ploadquad(const typename unpacket_traits<Packet>::type* from)
@@ -359,77 +359,77 @@ template<typename Packet> EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet
 ***************************/
 
 /** \internal \returns the sine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psin(const Packet& a) { using std::sin; return sin(a); }
 
 /** \internal \returns the cosine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pcos(const Packet& a) { using std::cos; return cos(a); }
 
 /** \internal \returns the tan of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet ptan(const Packet& a) { using std::tan; return tan(a); }
 
 /** \internal \returns the arc sine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pasin(const Packet& a) { using std::asin; return asin(a); }
 
 /** \internal \returns the arc cosine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pacos(const Packet& a) { using std::acos; return acos(a); }
 
 /** \internal \returns the arc tangent of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet patan(const Packet& a) { using std::atan; return atan(a); }
 
 /** \internal \returns the hyperbolic sine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psinh(const Packet& a) { using std::sinh; return sinh(a); }
 
 /** \internal \returns the hyperbolic cosine of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pcosh(const Packet& a) { using std::cosh; return cosh(a); }
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet ptanh(const Packet& a) { using std::tanh; return tanh(a); }
 
 /** \internal \returns the exp of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pexp(const Packet& a) { using std::exp; return exp(a); }
 
 /** \internal \returns the log of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet plog(const Packet& a) { using std::log; return log(a); }
 
 /** \internal \returns the log1p of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet plog1p(const Packet& a) { return numext::log1p(a); }
 
 /** \internal \returns the log10 of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet plog10(const Packet& a) { using std::log10; return log10(a); }
 
 /** \internal \returns the square-root of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet psqrt(const Packet& a) { using std::sqrt; return sqrt(a); }
 
 /** \internal \returns the reciprocal square-root of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet prsqrt(const Packet& a) {
   return pdiv(pset1<Packet>(1), psqrt(a));
 }
 
 /** \internal \returns the rounded value of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pround(const Packet& a) { using numext::round; return round(a); }
 
 /** \internal \returns the floor of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pfloor(const Packet& a) { using numext::floor; return floor(a); }
 
 /** \internal \returns the ceil of \a a (coeff-wise) */
-template<typename Packet> EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
+template<typename Packet> EIGEN_DEVICE_FUNC EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 Packet pceil(const Packet& a) { using numext::ceil; return ceil(a); }
 
 /***************************************************************************
@@ -494,14 +494,14 @@ struct palign_impl
 
 /** \internal update \a first using the concatenation of the packet_size minus \a Offset last elements
   * of \a first and \a Offset first elements of \a second.
-  * 
+  *
   * This function is currently only used to optimize matrix-vector products on unligned matrices.
   * It takes 2 packets that represent a contiguous memory array, and returns a packet starting
   * at the position \a Offset. For instance, for packets of 4 elements, we have:
   *  Input:
   *  - first = {f0,f1,f2,f3}
   *  - second = {s0,s1,s2,s3}
-  * Output: 
+  * Output:
   *   - if Offset==0 then {f0,f1,f2,f3}
   *   - if Offset==1 then {f1,f2,f3,s0}
   *   - if Offset==2 then {f2,f3,s0,s1}

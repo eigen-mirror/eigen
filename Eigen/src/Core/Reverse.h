@@ -12,7 +12,7 @@
 #ifndef EIGEN_REVERSE_H
 #define EIGEN_REVERSE_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -44,7 +44,7 @@ template<typename PacketType> struct reverse_packet_cond<PacketType,false>
   static inline PacketType run(const PacketType& x) { return x; }
 };
 
-} // end namespace internal 
+} // end namespace internal
 
 /** \class Reverse
   * \ingroup Core_Module
@@ -98,7 +98,7 @@ template<typename MatrixType, int Direction> class Reverse
     }
 
     EIGEN_DEVICE_FUNC const typename internal::remove_all<typename MatrixType::Nested>::type&
-    nestedExpression() const 
+    nestedExpression() const
     {
       return m_matrix;
     }
@@ -114,7 +114,7 @@ template<typename MatrixType, int Direction> class Reverse
   *
   */
 template<typename Derived>
-inline typename DenseBase<Derived>::ReverseReturnType
+EIGEN_DEVICE_FUNC inline typename DenseBase<Derived>::ReverseReturnType
 DenseBase<Derived>::reverse()
 {
   return ReverseReturnType(derived());
@@ -136,7 +136,7 @@ DenseBase<Derived>::reverse()
   *
   * \sa VectorwiseOp::reverseInPlace(), reverse() */
 template<typename Derived>
-inline void DenseBase<Derived>::reverseInPlace()
+EIGEN_DEVICE_FUNC inline void DenseBase<Derived>::reverseInPlace()
 {
   if(cols()>rows())
   {
@@ -161,7 +161,7 @@ inline void DenseBase<Derived>::reverseInPlace()
 }
 
 namespace internal {
-  
+
 template<int Direction>
 struct vectorwise_reverse_inplace_impl;
 
@@ -201,7 +201,7 @@ struct vectorwise_reverse_inplace_impl<Horizontal>
   *
   * \sa DenseBase::reverseInPlace(), reverse() */
 template<typename ExpressionType, int Direction>
-void VectorwiseOp<ExpressionType,Direction>::reverseInPlace()
+EIGEN_DEVICE_FUNC void VectorwiseOp<ExpressionType,Direction>::reverseInPlace()
 {
   internal::vectorwise_reverse_inplace_impl<Direction>::run(_expression().const_cast_derived());
 }

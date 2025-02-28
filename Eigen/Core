@@ -123,7 +123,7 @@
   #endif
 #endif
 
-#ifndef EIGEN_DONT_VECTORIZE
+#if !defined(EIGEN_DONT_VECTORIZE) && !defined(EIGEN_CUDACC)
 
   #if defined (EIGEN_SSE2_ON_NON_MSVC_BUT_NOT_OLD_GCC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 

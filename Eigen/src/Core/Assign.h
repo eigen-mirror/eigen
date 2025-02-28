@@ -16,7 +16,7 @@ namespace Eigen {
 
 template<typename Derived>
 template<typename OtherDerived>
-EIGEN_STRONG_INLINE Derived& DenseBase<Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>
   ::lazyAssign(const DenseBase<OtherDerived>& other)
 {
   enum{
@@ -29,7 +29,7 @@ EIGEN_STRONG_INLINE Derived& DenseBase<Derived>
 
   eigen_assert(rows() == other.rows() && cols() == other.cols());
   internal::call_assignment_no_alias(derived(),other.derived());
-  
+
   return derived();
 }
 

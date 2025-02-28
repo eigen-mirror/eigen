@@ -1,7 +1,7 @@
 include(EigenTesting)
 include(CheckCXXSourceCompiles)
 
-# configure the "site" and "buildname" 
+# configure the "site" and "buildname"
 ei_set_sitename()
 
 # retrieve and store the build string
@@ -10,6 +10,15 @@ ei_set_build_string()
 add_custom_target(buildtests)
 add_custom_target(check COMMAND "ctest")
 add_dependencies(check buildtests)
+
+# Convenience target for only building GPU tests.
+add_custom_target(buildtests_gpu)
+add_custom_target(check_gpu COMMAND "ctest" "--output-on-failure"
+                                            "--no-compress-output"
+                                            "--build-no-clean"
+                                            "-T" "test"
+                                            "-L" "gpu")
+add_dependencies(check_gpu buildtests_gpu)
 
 # check whether /bin/bash exists (disabled as not used anymore)
 # find_file(EIGEN_BIN_BASH_EXISTS "/bin/bash" PATHS "/" NO_DEFAULT_PATH)
@@ -50,7 +59,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(CTEST_CUSTOM_COVERAGE_EXCLUDE "/test/")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_FLAGS}")
   endif(EIGEN_COVERAGE_TESTING)
-  
+
 elseif(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
 endif(CMAKE_COMPILER_IS_GNUCXX)

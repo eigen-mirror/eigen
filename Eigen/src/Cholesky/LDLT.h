@@ -44,7 +44,7 @@ namespace internal {
   * decomposition to determine whether a system of equations has a solution.
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT
   */
 template<typename _MatrixType, int _UpLo> class LDLT
@@ -558,7 +558,7 @@ LDLT<MatrixType,_UpLo>& LDLT<MatrixType,_UpLo>::rankUpdate(const MatrixBase<Deri
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template<typename _MatrixType, int _UpLo>
 template<typename RhsType, typename DstType>
-void LDLT<_MatrixType,_UpLo>::_solve_impl(const RhsType &rhs, DstType &dst) const
+EIGEN_DEVICE_FUNC void LDLT<_MatrixType,_UpLo>::_solve_impl(const RhsType &rhs, DstType &dst) const
 {
   eigen_assert(rhs.rows() == rows());
   // dst = P b

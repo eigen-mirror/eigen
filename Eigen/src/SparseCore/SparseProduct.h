@@ -10,7 +10,7 @@
 #ifndef EIGEN_SPARSEPRODUCT_H
 #define EIGEN_SPARSEPRODUCT_H
 
-namespace Eigen { 
+namespace Eigen {
 
 /** \returns an expression of the product of two sparse matrices.
   * By default a conservative product preserving the symbolic non zeros is performed.
@@ -102,13 +102,13 @@ template< typename DstXprType, typename Lhs, typename Rhs>
 struct Assignment<DstXprType, Product<Lhs,Rhs,AliasFreeProduct>, internal::assign_op<typename DstXprType::Scalar,typename Product<Lhs,Rhs,AliasFreeProduct>::Scalar>, Sparse2Dense>
 {
   typedef Product<Lhs,Rhs,AliasFreeProduct> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
   {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
     if((dst.rows()!=dstRows) || (dst.cols()!=dstCols))
       dst.resize(dstRows, dstCols);
-    
+
     generic_product_impl<Lhs, Rhs>::evalTo(dst,src.lhs(),src.rhs());
   }
 };
@@ -118,7 +118,7 @@ template< typename DstXprType, typename Lhs, typename Rhs>
 struct Assignment<DstXprType, Product<Lhs,Rhs,AliasFreeProduct>, internal::add_assign_op<typename DstXprType::Scalar,typename Product<Lhs,Rhs,AliasFreeProduct>::Scalar>, Sparse2Dense>
 {
   typedef Product<Lhs,Rhs,AliasFreeProduct> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::add_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::add_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
   {
     generic_product_impl<Lhs, Rhs>::addTo(dst,src.lhs(),src.rhs());
   }
@@ -129,7 +129,7 @@ template< typename DstXprType, typename Lhs, typename Rhs>
 struct Assignment<DstXprType, Product<Lhs,Rhs,AliasFreeProduct>, internal::sub_assign_op<typename DstXprType::Scalar,typename Product<Lhs,Rhs,AliasFreeProduct>::Scalar>, Sparse2Dense>
 {
   typedef Product<Lhs,Rhs,AliasFreeProduct> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::sub_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::sub_assign_op<typename DstXprType::Scalar,typename SrcXprType::Scalar> &)
   {
     generic_product_impl<Lhs, Rhs>::subTo(dst,src.lhs(),src.rhs());
   }

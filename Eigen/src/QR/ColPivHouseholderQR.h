@@ -42,7 +42,7 @@ template<typename _MatrixType> struct traits<ColPivHouseholderQR<_MatrixType> >
   * numerical stability. It is slower than HouseholderQR, and faster than FullPivHouseholderQR.
   *
   * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
-  * 
+  *
   * \sa MatrixBase::colPivHouseholderQr()
   */
 template<typename _MatrixType> class ColPivHouseholderQR
@@ -582,7 +582,7 @@ void ColPivHouseholderQR<MatrixType>::computeInPlace()
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template<typename _MatrixType>
 template<typename RhsType, typename DstType>
-void ColPivHouseholderQR<_MatrixType>::_solve_impl(const RhsType &rhs, DstType &dst) const
+EIGEN_DEVICE_FUNC void ColPivHouseholderQR<_MatrixType>::_solve_impl(const RhsType &rhs, DstType &dst) const
 {
   eigen_assert(rhs.rows() == rows());
 
@@ -618,7 +618,7 @@ struct Assignment<DstXprType, Inverse<ColPivHouseholderQR<MatrixType> >, interna
 {
   typedef ColPivHouseholderQR<MatrixType> QrType;
   typedef Inverse<QrType> SrcXprType;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename QrType::Scalar> &)
+  static EIGEN_DEVICE_FUNC void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<typename DstXprType::Scalar,typename QrType::Scalar> &)
   {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));
   }

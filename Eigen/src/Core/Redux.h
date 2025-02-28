@@ -11,7 +11,7 @@
 #ifndef EIGEN_REDUX_H
 #define EIGEN_REDUX_H
 
-namespace Eigen { 
+namespace Eigen {
 
 namespace internal {
 
@@ -60,7 +60,7 @@ public:
   enum {
     Unrolling = Cost <= UnrollingLimit ? CompleteUnrolling : NoUnrolling
   };
-  
+
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug()
   {
@@ -128,7 +128,7 @@ template<typename Func, typename Derived, int Start>
 struct redux_novec_unroller<Func, Derived, Start, 0>
 {
   typedef typename Derived::Scalar Scalar;
-  EIGEN_DEVICE_FUNC 
+  EIGEN_DEVICE_FUNC
   static EIGEN_STRONG_INLINE Scalar run(const Derived&, const Func&) { return Scalar(); }
 };
 
@@ -215,7 +215,7 @@ struct redux_impl<Func, Derived, LinearVectorizedTraversal, NoUnrolling>
   static Scalar run(const Derived &mat, const Func& func)
   {
     const Index size = mat.size();
-    
+
     const Index packetSize = redux_traits<Func, Derived>::PacketSize;
     const int packetAlignment = unpacket_traits<PacketScalar>::alignment;
     enum {
@@ -336,12 +336,12 @@ class redux_evaluator
 public:
   typedef _XprType XprType;
   EIGEN_DEVICE_FUNC explicit redux_evaluator(const XprType &xpr) : m_evaluator(xpr), m_xpr(xpr) {}
-  
+
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename XprType::PacketScalar PacketScalar;
   typedef typename XprType::PacketReturnType PacketReturnType;
-  
+
   enum {
     MaxRowsAtCompileTime = XprType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = XprType::MaxColsAtCompileTime,
@@ -353,7 +353,7 @@ public:
     CoeffReadCost = evaluator<XprType>::CoeffReadCost,
     Alignment = evaluator<XprType>::Alignment
   };
-  
+
   EIGEN_DEVICE_FUNC Index rows() const { return m_xpr.rows(); }
   EIGEN_DEVICE_FUNC Index cols() const { return m_xpr.cols(); }
   EIGEN_DEVICE_FUNC Index size() const { return m_xpr.size(); }
@@ -375,17 +375,17 @@ public:
   template<int LoadMode, typename PacketType>
   PacketType packet(Index index) const
   { return m_evaluator.template packet<LoadMode,PacketType>(index); }
-  
+
   EIGEN_DEVICE_FUNC
   CoeffReturnType coeffByOuterInner(Index outer, Index inner) const
   { return m_evaluator.coeff(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer); }
-  
+
   template<int LoadMode, typename PacketType>
   PacketType packetByOuterInner(Index outer, Index inner) const
   { return m_evaluator.template packet<LoadMode,PacketType>(IsRowMajor ? outer : inner, IsRowMajor ? inner : outer); }
-  
+
   const XprType & nestedExpression() const { return m_xpr; }
-  
+
 protected:
   internal::evaluator<XprType> m_evaluator;
   const XprType &m_xpr;
@@ -407,14 +407,14 @@ protected:
   */
 template<typename Derived>
 template<typename Func>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::redux(const Func& func) const
 {
   eigen_assert(this->rows()>0 && this->cols()>0 && "you are using an empty matrix");
 
   typedef typename internal::redux_evaluator<Derived> ThisEvaluator;
   ThisEvaluator thisEval(derived());
-  
+
   return internal::redux_impl<Func, ThisEvaluator>::run(thisEval, func);
 }
 
@@ -422,7 +422,7 @@ DenseBase<Derived>::redux(const Func& func) const
   * \warning the result is undefined if \c *this contains NaN.
   */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::minCoeff() const
 {
   return derived().redux(Eigen::internal::scalar_min_op<Scalar,Scalar>());
@@ -432,7 +432,7 @@ DenseBase<Derived>::minCoeff() const
   * \warning the result is undefined if \c *this contains NaN.
   */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::maxCoeff() const
 {
   return derived().redux(Eigen::internal::scalar_max_op<Scalar,Scalar>());
@@ -445,7 +445,7 @@ DenseBase<Derived>::maxCoeff() const
   * \sa trace(), prod(), mean()
   */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::sum() const
 {
   if(SizeAtCompileTime==0 || (SizeAtCompileTime==Dynamic && size()==0))
@@ -458,7 +458,7 @@ DenseBase<Derived>::sum() const
 * \sa trace(), prod(), sum()
 */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::mean() const
 {
 #ifdef __INTEL_COMPILER
@@ -479,7 +479,7 @@ DenseBase<Derived>::mean() const
   * \sa sum(), mean(), trace()
   */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC  EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::prod() const
 {
   if(SizeAtCompileTime==0 || (SizeAtCompileTime==Dynamic && size()==0))
@@ -494,7 +494,7 @@ DenseBase<Derived>::prod() const
   * \sa diagonal(), sum()
   */
 template<typename Derived>
-EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
+EIGEN_DEVICE_FUNC  EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 MatrixBase<Derived>::trace() const
 {
   return derived().diagonal().sum();

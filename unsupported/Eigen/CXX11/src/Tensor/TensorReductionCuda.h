@@ -168,7 +168,12 @@ __global__ void FullReductionKernel(Reducer reducer, const Self input, Index num
 
 #pragma unroll
   for (int offset = warpSize/2; offset > 0; offset /= 2) {
+#if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
+
     reducer.reduce(__shfl_down(accum, offset, warpSize), &accum);
+    #else
+    reducer.reduce(__shfl_down_sync(0xFFFFFFFF, accum, offset, warpSize), &accum);
+#endif
   }
 
   if ((threadIdx.x & (warpSize - 1)) == 0) {
@@ -244,7 +249,11 @@ __global__ void FullReductionKernelHalfFloat(Reducer reducer, const Self input, 
 
 #pragma unroll
   for (int offset = warpSize/2; offset > 0; offset /= 2) {
+#if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
     reducer.reducePacket(__shfl_down(accum, offset, warpSize), &accum);
+#else
+    reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, accum, offset, warpSize), &accum);
+#endif
   }
 
   if ((threadIdx.x & (warpSize - 1)) == 0) {
@@ -426,7 +435,11 @@ __global__ void InnerReductionKernel(Reducer reducer, const Self input, Index nu
 
 #pragma unroll
       for (int offset = warpSize/2; offset > 0; offset /= 2) {
+#if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
         reducer.reduce(__shfl_down(reduced_val, offset), &reduced_val);
+#else
+        reducer.reduce(__shfl_down_sync(0xFFFFFFFF, reduced_val, offset), &reduced_val);
+#endif
       }
 
       if ((threadIdx.x & (warpSize - 1)) == 0) {
@@ -516,8 +529,15 @@ __global__ void InnerReductionKernelHalfFloat(Reducer reducer, const Self input,
 
 #pragma unroll
       for (int offset = warpSize/2; offset > 0; offset /= 2) {
+#if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
+        
         reducer.reducePacket(__shfl_down(reduced_val1, offset, warpSize), &reduced_val1);
         reducer.reducePacket(__shfl_down(reduced_val2, offset, warpSize), &reduced_val2);
+#else
+        reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, reduced_val1, offset, warpSize), &reduced_val1);
+        reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, reduced_val2, offset, warpSize), &reduced_val2);
+
+#endif
       }
 
       half val1 =  __low2half(reduced_val1);

@@ -37,26 +37,26 @@ void run_on_cuda(const Kernel& ker, int n, const Input& in, Output& out)
   typename Output::Scalar* d_out;
   std::ptrdiff_t in_bytes  = in.size()  * sizeof(typename Input::Scalar);
   std::ptrdiff_t out_bytes = out.size() * sizeof(typename Output::Scalar);
-  
+
   cudaMalloc((void**)(&d_in),  in_bytes);
   cudaMalloc((void**)(&d_out), out_bytes);
-  
+
   cudaMemcpy(d_in,  in.data(),  in_bytes,  cudaMemcpyHostToDevice);
   cudaMemcpy(d_out, out.data(), out_bytes, cudaMemcpyHostToDevice);
-  
+
   // Simple and non-optimal 1D mapping assuming n is not too large
   // That's only for unit testing!
   dim3 Blocks(128);
   dim3 Grids( (n+int(Blocks.x)-1)/int(Blocks.x) );
 
-  cudaThreadSynchronize();
+  cudaDeviceSynchronize();
   run_on_cuda_meta_kernel<<<Grids,Blocks>>>(ker, n, d_in, d_out);
-  cudaThreadSynchronize();
-  
+  cudaDeviceSynchronize();
+
   // check inputs have not been modified
   cudaMemcpy(const_cast<typename Input::Scalar*>(in.data()),  d_in,  in_bytes,  cudaMemcpyDeviceToHost);
   cudaMemcpy(out.data(), d_out, out_bytes, cudaMemcpyDeviceToHost);
-  
+
   cudaFree(d_in);
   cudaFree(d_out);
 }
