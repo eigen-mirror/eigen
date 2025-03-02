@@ -626,25 +626,71 @@ struct hash<Eigen::half> {
 } // end namespace std
 
 
-// Add the missing shfl_xor intrinsic
-#if defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 300
-__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_xor(Eigen::half var, int laneMask, int width=warpSize) {
-  #if EIGEN_CUDACC_VER < 90000
-  return static_cast<Eigen::half>(__shfl_xor(static_cast<float>(var), laneMask, width));
-  #else
-  return static_cast<Eigen::half>(__shfl_xor_sync(0xFFFFFFFF, static_cast<float>(var), laneMask, width));
-  #endif
+// Add the missing shfl* intrinsics.
+// The __shfl* functions are only valid on HIP or _CUDA_ARCH_ >= 300.
+//   CUDA defines them for (__CUDA_ARCH__ >= 300 || !defined(__CUDA_ARCH__))
+//
+// HIP and CUDA prior to SDK 9.0 define
+//    __shfl, __shfl_up, __shfl_down, __shfl_xor for int and float
+// CUDA since 9.0 deprecates those and instead defines
+//    __shfl_sync, __shfl_up_sync, __shfl_down_sync, __shfl_xor_sync,
+//    with native support for __half and __nv_bfloat16
+//
+// Note that the following are __device__ - only functions.
+#if defined(EIGEN_CUDACC) && (!defined(EIGEN_CUDA_ARCH) || EIGEN_CUDA_ARCH >= 300)
+#if defined(EIGEN_HAS_CUDA_FP16) && EIGEN_CUDACC_VER >= 90000
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_sync(unsigned mask, Eigen::half var, int srcLane,
+                                                       int width = warpSize) {
+  const __half h = var;
+  return static_cast<Eigen::half>(__shfl_sync(mask, h, srcLane, width));
 }
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_up_sync(unsigned mask, Eigen::half var, unsigned int delta,
+                                                          int width = warpSize) {
+  const __half h = var;
+  return static_cast<Eigen::half>(__shfl_up_sync(mask, h, delta, width));
+}
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_down_sync(unsigned mask, Eigen::half var, unsigned int delta,
+                                                            int width = warpSize) {
+  const __half h = var;
+  return static_cast<Eigen::half>(__shfl_down_sync(mask, h, delta, width));
+}
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_xor_sync(unsigned mask, Eigen::half var, int laneMask,
+                                                           int width = warpSize) {
+  const __half h = var;
+  return static_cast<Eigen::half>(__shfl_xor_sync(mask, h, laneMask, width));
+}
+
+#else  // CUDA SDK < 9.0
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl(Eigen::half var, int srcLane, int width = warpSize) {
+  return static_cast<Eigen::half>(__shfl(static_cast<float>(var), laneMask, width));
+}
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_up(Eigen::half var, unsigned int delta, int width = warpSize) {
+  return static_cast<Eigen::half>(__shfl_up(static_cast<float>(var), laneMask, width));
+}
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_down(Eigen::half var, unsigned int delta, int width = warpSize) {
+  return static_cast<Eigen::half>(__shfl_down(static_cast<float>(var), laneMask, width));
+}
+
+__device__ EIGEN_STRONG_INLINE Eigen::half __shfl_xor(Eigen::half var, int laneMask, int width = warpSize) {
+  return static_cast<Eigen::half>(__shfl_xor(static_cast<float>(var), laneMask, width));
+}
+
 #endif
+#endif  // __shfl*
 
 // ldg() has an overload for __half_raw, but we also need one for Eigen::half.
-#if defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 350
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half __ldg(const Eigen::half* ptr) {
-  return Eigen::half_impl::raw_uint16_to_half(
-      __ldg(reinterpret_cast<const unsigned short*>(ptr)));
+#if defined(EIGEN_CUDACC) && (!defined(EIGEN_CUDA_ARCH) || EIGEN_CUDA_ARCH >= 350)
+EIGEN_STRONG_INLINE __device__ Eigen::half __ldg(const Eigen::half* ptr) {
+  return Eigen::half_impl::raw_uint16_to_half(__ldg(reinterpret_cast<const Eigen::numext::uint16_t*>(ptr)));
 }
-#endif
-
+#endif  // __ldg
 
 #if defined(EIGEN_CUDA_ARCH)
 namespace Eigen {
