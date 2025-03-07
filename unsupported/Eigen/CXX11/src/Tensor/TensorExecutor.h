@@ -352,7 +352,7 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable,
         TensorBlockDesc desc(0, tiling.block_mapper.blockDimensions());
         evaluator.evalBlock(desc, scratch);
       } else {
-        device.parallelFor(tiling.block_mapper.blockCount(), tiling.cost, eval_block);
+        device.parallelFor(tiling.block_mapper.blockCount(), tiling.cost, std::move(eval_block));
       }
     }
     evaluator.cleanup();
