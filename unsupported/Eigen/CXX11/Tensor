@@ -52,11 +52,14 @@
 #endif
 
 #ifdef _WIN32
+#define NOMINMAX
 #include <windows.h>
 #elif defined(__APPLE__)
 #include <mach/mach_time.h>
+#include <unistd.h>
 #else
 #include <time.h>
+#include <unistd.h>
 #endif
 
 #ifdef EIGEN_USE_THREADS
@@ -68,7 +71,8 @@
 #include <cuda_runtime.h>
 #if __cplusplus >= 201103L
 #include <atomic>
-#include <unistd.h>
+#include <chrono>
+#include <thread>
 #endif
 #endif
 

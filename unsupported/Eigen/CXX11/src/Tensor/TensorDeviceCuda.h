@@ -38,7 +38,7 @@ class StreamInterface {
 };
 
 static cudaDeviceProp* m_deviceProperties;
-static bool m_devicePropInitialized = false;
+static volatile bool m_devicePropInitialized = false;
 
 static void initializeDeviceProp() {
   if (!m_devicePropInitialized) {
@@ -87,8 +87,12 @@ static void initializeDeviceProp() {
       while (!m_devicePropInitialized) {
 #if __cplusplus >= 201103L
         std::atomic_thread_fence(std::memory_order_acquire);
-#endif
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+#elif defined(_WIN32)
+        Sleep(1);
+#else
         sleep(1);
+#endif
       }
     }
   }
@@ -214,10 +218,13 @@ struct GpuDevice {
 #ifndef __CUDA_ARCH__
     cudaError_t err = cudaMemcpyAsync(dst, src, n, cudaMemcpyDeviceToDevice,
                                       stream_->stream());
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_ONLY_USED_FOR_DEBUG(err);
     assert(err == cudaSuccess);
 #else
-  eigen_assert(false && "The default device should be used instead to generate kernel code");
+    EIGEN_UNUSED_VARIABLE(dst);
+    EIGEN_UNUSED_VARIABLE(src);
+    EIGEN_UNUSED_VARIABLE(n);
+    eigen_assert(false && "The default device should be used instead to generate kernel code");
 #endif
   }
 

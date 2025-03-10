@@ -700,7 +700,7 @@ __global__ void EigenConvolutionKernel3D(
   const int last_z = (first_z + maxZ < numZ ? first_z + maxZ : numZ) - 1;
   const int num_z_input = last_z - first_z + kernelSizeZ;
 
-  for (int p = 0; p < numPlanes; ++p) {
+  for (size_t p = 0; p < numPlanes; ++p) {
 
     const int plane_input_offset = indexMapper.mapCudaInputPlaneToTensorInputOffset(p);
     const int plane_kernel_offset = 0;
@@ -726,9 +726,9 @@ __global__ void EigenConvolutionKernel3D(
       for (int j = threadIdx.y; j < num_y_output; j += blockDim.y) {
         for (int i = threadIdx.x; i < num_x_output; i += blockDim.x) {
           float result = 0.0f;
-          for (int n = 0; n < kernelSizeZ; ++n) {
-            for (int m = 0; m < kernelSizeY; ++m) {
-              for (int l = 0; l < kernelSizeX; ++l) {
+          for (size_t n = 0; n < kernelSizeZ; ++n) {
+            for (size_t m = 0; m < kernelSizeY; ++m) {
+              for (size_t l = 0; l < kernelSizeX; ++l) {
                 result += s[i + l + num_x_input * (j + m + num_y_input * (k + n + plane_kernel_offset))] * kernel[l + kernelSizeX * (m + kernelSizeY * n)];
               }
             }
