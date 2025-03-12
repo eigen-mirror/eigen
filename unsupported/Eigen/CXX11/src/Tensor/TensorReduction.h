@@ -497,7 +497,7 @@ struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>,
     }
     else if(RunningOnSycl){
       const Index num_values_to_reduce = internal::array_prod(m_reducedDims);
-      const Index num_coeffs_to_preserve = internal::array_prod(m_dimensions);
+      const Index num_coeffs_to_preserve = static_cast<Index>(internal::array_prod(m_dimensions));
       if (!data) {
         data = static_cast<CoeffReturnType*>(m_device.allocate(sizeof(CoeffReturnType) * num_coeffs_to_preserve));
         m_result = data;

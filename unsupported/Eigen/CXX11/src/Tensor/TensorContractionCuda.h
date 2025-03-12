@@ -388,7 +388,7 @@ EigenContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
   // the sum across all big k blocks of the product of little k block of index (x, y)
   // with block of index (y, z). To compute the final output, we need to reduce
   // the 8 threads over y by summation.
-#if EIGEN_CUDACC_VER < 90000
+#if EIGEN_CUDA_SDK_VER < 90000
 #define shuffleInc(i, j, mask) res(i, j) += __shfl_xor(res(i, j), mask)
 #else
 #define shuffleInc(i, j, mask) res(i, j) += __shfl_xor_sync(0xFFFFFFFF, res(i, j), mask)
@@ -533,8 +533,6 @@ EigenFloatContractionKernelInternal16x16(const LhsMapper lhs, const RhsMapper rh
                        float2 rhs_shmem2[][8], const Index m_size,
                        const Index n_size, const Index k_size,
                        const Index base_m, const Index base_n) {
-  typedef float Scalar;
-
   // prefetch registers
   float4 lhs_pf0, rhs_pf0;
 
@@ -619,7 +617,7 @@ EigenFloatContractionKernelInternal16x16(const LhsMapper lhs, const RhsMapper rh
       x1 = rhs_pf0.x;
       x2 = rhs_pf0.z;
     }
-#if EIGEN_CUDACC_VER < 90000
+#if EIGEN_CUDA_SDK_VER < 90000
     x1 = __shfl_xor(x1, 4);
     x2 = __shfl_xor(x2, 4);
 #else
@@ -775,8 +773,6 @@ EigenFloatContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
                        float2 rhs_shmem2[][8], const Index m_size,
                        const Index n_size, const Index k_size,
                        const Index base_m, const Index base_n) {
-  typedef float Scalar;
-
   // prefetch registers
   float4 lhs_pf0, lhs_pf1, lhs_pf2, lhs_pf3;
   float4 rhs_pf0, rhs_pf1;
@@ -1145,9 +1141,6 @@ EigenFloatContractionKernel(const LhsMapper lhs, const RhsMapper rhs,
 
   typedef float2 LHS_MEM[64][32];
   typedef float2 RHS_MEM[128][8];
-
-  typedef float2 LHS_MEM16x16[32][16];
-  typedef float2 RHS_MEM16x16[64][8];
 
   const Index m_block_idx = blockIdx.x;
   const Index n_block_idx = blockIdx.y;

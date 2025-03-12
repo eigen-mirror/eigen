@@ -248,6 +248,9 @@ struct GpuDevice {
     EIGEN_UNUSED_VARIABLE(err)
     assert(err == cudaSuccess);
 #else
+  EIGEN_UNUSED_VARIABLE(buffer);
+  EIGEN_UNUSED_VARIABLE(c);
+  EIGEN_UNUSED_VARIABLE(n);
   eigen_assert(false && "The default device should be used instead to generate kernel code");
 #endif
   }
@@ -292,7 +295,7 @@ struct GpuDevice {
     return stream_->deviceProperties().maxThreadsPerMultiProcessor;
   }
   EIGEN_STRONG_INLINE int sharedMemPerBlock() const {
-    return stream_->deviceProperties().sharedMemPerBlock;
+    return static_cast<int>(stream_->deviceProperties().sharedMemPerBlock);
   }
   EIGEN_STRONG_INLINE int majorDeviceVersion() const {
     return stream_->deviceProperties().major;

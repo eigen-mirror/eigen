@@ -541,7 +541,7 @@ using std::numeric_limits;
 // Integer division with rounding up.
 // T is assumed to be an integer type with a>=0, and b>0
 template<typename T>
-T div_ceil(const T &a, const T &b)
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T div_ceil(const T &a, const T &b)
 {
   return (a+b-1) / b;
 }

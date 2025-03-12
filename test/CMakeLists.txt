@@ -365,7 +365,11 @@ find_package(CUDA 5.0)
 if(CUDA_FOUND)
 
   if( (NOT EIGEN_TEST_CXX11) OR (CMAKE_VERSION VERSION_LESS 3.3))
-    string(APPEND EIGEN_CUDA_CXX11_FLAGS " -std=c++11")
+    if (MSVC)
+      string(APPEND EIGEN_CUDA_CXX11_FLAGS " /std:c++11")
+    else()
+      string(APPEND EIGEN_CUDA_CXX11_FLAGS " -std=c++11")
+    endif(MSVC)
   endif()
 
   if(EIGEN_TEST_CUDA_CLANG)

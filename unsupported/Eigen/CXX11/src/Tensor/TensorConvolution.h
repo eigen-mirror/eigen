@@ -570,8 +570,8 @@ __global__ void EigenConvolutionKernel1D(
     const int maxX, const int kernelSize, float* buffer) {
   extern __shared__ float s[];
 
-  const int first_x = blockIdx.x * maxX;
-  const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
+  const int first_x = static_cast<int>(blockIdx.x * maxX);
+  const int last_x = static_cast<int>((first_x + maxX < numX ? first_x + maxX : numX) - 1);
   const int num_x_input = last_x - first_x + GetKernelSize<StaticKernelSize>()(kernelSize);
   const int num_x_output = last_x - first_x + 1;
 
@@ -619,13 +619,13 @@ __global__ void EigenConvolutionKernel2D(
     const int kernelSizeY, float* buffer) {
   extern __shared__ float s[];
 
-  const int first_x = blockIdx.x * maxX;
-  const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
+  const int first_x = static_cast<int>(blockIdx.x * maxX);
+  const int last_x = static_cast<int>((first_x + maxX < numX ? first_x + maxX : numX) - 1);
   const int num_x_input = last_x - first_x + GetKernelSize<StaticKernelSizeX>()(kernelSizeX);
   const int num_x_output = last_x - first_x + 1;
 
-  const int first_y = blockIdx.y * maxY;
-  const int last_y = (first_y + maxY < numY ? first_y + maxY : numY) - 1;
+  const int first_y = static_cast<int>(blockIdx.y * maxY);
+  const int last_y = static_cast<int>((first_y + maxY < numY ? first_y + maxY : numY) - 1);
   const int num_y_input = last_y - first_y + GetKernelSize<StaticKernelSizeY>()(kernelSizeY);
   const int num_y_output = last_y - first_y + 1;
 
@@ -688,17 +688,17 @@ __global__ void EigenConvolutionKernel3D(
   extern __shared__ float s[];
 
   // Load inputs to shared memory
-  const int first_x = blockIdx.x * maxX;
-  const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
-  const int num_x_input = last_x - first_x + kernelSizeX;
+  const int first_x = static_cast<int>(blockIdx.x * maxX);
+  const int last_x = static_cast<int>((first_x + maxX < numX ? first_x + maxX : numX) - 1);
+  const int num_x_input = static_cast<int>(last_x - first_x + kernelSizeX);
 
-  const int first_y = blockIdx.y * maxY;
-  const int last_y = (first_y + maxY < numY ? first_y + maxY : numY) - 1;
-  const int num_y_input = last_y - first_y + kernelSizeY;
+  const int first_y = static_cast<int>(blockIdx.y * maxY);
+  const int last_y = static_cast<int>((first_y + maxY < numY ? first_y + maxY : numY) - 1);
+  const int num_y_input = static_cast<int>(last_y - first_y + kernelSizeY);
 
-  const int first_z = blockIdx.z * maxZ;
-  const int last_z = (first_z + maxZ < numZ ? first_z + maxZ : numZ) - 1;
-  const int num_z_input = last_z - first_z + kernelSizeZ;
+  const int first_z = static_cast<int>(blockIdx.z * maxZ);
+  const int last_z = static_cast<int>((first_z + maxZ < numZ ? first_z + maxZ : numZ) - 1);
+  const int num_z_input = static_cast<int>(last_z - first_z + kernelSizeZ);
 
   for (size_t p = 0; p < numPlanes; ++p) {
 

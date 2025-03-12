@@ -22,6 +22,7 @@ struct type2index {
   static const DenseIndex value = n;
   EIGEN_DEVICE_FUNC constexpr operator DenseIndex() const { return n; }
   EIGEN_DEVICE_FUNC void set(DenseIndex val) {
+    EIGEN_ONLY_USED_FOR_DEBUG(val);
     eigen_assert(val == n);
   }
 };
@@ -38,6 +39,7 @@ struct type2indexpair {
   }
 
   EIGEN_DEVICE_FUNC void set(const IndexPair<DenseIndex>& val) {
+    EIGEN_ONLY_USED_FOR_DEBUG(val);
     eigen_assert(val.first == f);
     eigen_assert(val.second == s);
   }
@@ -254,6 +256,7 @@ struct tuple_coeff<0, ValueT> {
   }
   template <typename... T>
   EIGEN_DEVICE_FUNC static void set(const DenseIndex i, IndexTuple<T...>& t, const ValueT value) {
+    EIGEN_ONLY_USED_FOR_DEBUG(i);
     eigen_assert (i == 0);
     update_value(array_get<0>(t), value);
   }

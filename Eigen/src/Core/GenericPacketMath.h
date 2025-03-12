@@ -299,7 +299,7 @@ template<typename Scalar, typename Packet> EIGEN_DEVICE_FUNC inline void pstoreu
 template<typename Scalar> EIGEN_DEVICE_FUNC inline void prefetch(const Scalar* addr)
 {
 #ifdef __CUDA_ARCH__
-#if defined(__LP64__)
+#if defined(__LP64__) || EIGEN_OS_WIN64
   // 64-bit pointer operand constraint for inlined asm
   asm(" prefetch.L1 [ %1 ];" : "=l"(addr) : "l"(addr));
 #else

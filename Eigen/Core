@@ -62,8 +62,15 @@
 
 #else
   #define EIGEN_DEVICE_FUNC
-
 #endif
+
+#if defined(EIGEN_CUDACC)
+  #include <cuda.h>
+  #define EIGEN_CUDA_SDK_VER (CUDA_VERSION * 10)
+#else
+  #define EIGEN_CUDA_SDK_VER 0
+#endif
+
 
 // When compiling CUDA device code with NVCC, pull in math functions from the
 // global namespace.  In host mode, and when device doee with clang, use the
@@ -254,7 +261,7 @@
 #if defined EIGEN_CUDACC
   #define EIGEN_VECTORIZE_CUDA
   #include <vector_types.h>
-  #if EIGEN_CUDACC_VER >= 70500
+  #if EIGEN_CUDA_SDK_VER >= 70500
     #define EIGEN_HAS_CUDA_FP16
   #endif
 #endif

@@ -63,6 +63,9 @@ __device__ EIGEN_ALWAYS_INLINE void atomicReduce(T* output, T accum, R& reducer)
     assert(0 && "Wordsize not supported");
   }
 #else
+  EIGEN_UNUSED_VARIABLE(output);
+  EIGEN_UNUSED_VARIABLE(accum);
+  EIGEN_UNUSED_VARIABLE(reducer);
   assert(0 && "Shouldn't be called on unsupported device");
 #endif
 }
@@ -105,6 +108,8 @@ __device__ inline void atomicReduce(float* output, float accum, SumReducer<float
 #if __CUDA_ARCH__ >= 300
   atomicAdd(output, accum);
 #else
+  EIGEN_UNUSED_VARIABLE(output);
+  EIGEN_UNUSED_VARIABLE(accum);
   assert(0 && "Shouldn't be called on unsupported device");
 #endif
 }
@@ -185,6 +190,11 @@ __global__ void FullReductionKernel(Reducer reducer, const Self input, Index num
     atomicInc(semaphore, gridDim.x + 1);
   }
 #else
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(num_coeffs);
+  EIGEN_UNUSED_VARIABLE(output);
+  EIGEN_UNUSED_VARIABLE(semaphore);
   assert(0 && "Shouldn't be called on unsupported device");
 #endif
 }
@@ -194,14 +204,31 @@ __global__ void FullReductionKernel(Reducer reducer, const Self input, Index num
 template <typename Self,
           typename Reducer, typename Index>
 __global__ void ReductionInitFullReduxKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs, half2* scratch) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300  
   eigen_assert(blockDim.x == 1);
   eigen_assert(gridDim.x == 1);
-  if (num_coeffs % 2 != 0) {
-    half last = input.m_impl.coeff(num_coeffs-1);
-    *scratch = __halves2half2(last, reducer.initialize());
+  typedef packet_traits<Eigen::half>::type packet_type;
+  Index packet_remainder = num_coeffs % Index(unpacket_traits<packet_type>::size);
+  if (packet_remainder != 0) {
+    half2* h2scratch = reinterpret_cast<half2*>(scratch);
+    for (Index i = num_coeffs - packet_remainder; i + 2 <= num_coeffs; i += 2) {
+      *h2scratch = __halves2half2(input.coeff(i), input.coeff(i + 1));
+      h2scratch++;
+    }
+    if ((num_coeffs & 1) != 0) {
+      half lastCoeff = input.coeff(num_coeffs - 1);
+      *h2scratch = __halves2half2(lastCoeff, reducer.initialize());
+    }
   } else {
-    *scratch = reducer.template initializePacket<half2>();
+    packet_type reduce = reducer.template initializePacket<packet_type>();
+    internal::pstoreu(scratch, reduce);
   }
+#else
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(num_coeffs);
+  EIGEN_UNUSED_VARIABLE(scratch);
+#endif
 }
 
 template <typename Self,
@@ -209,13 +236,17 @@ template <typename Self,
 __global__ void ReductionInitKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs, half* output) {
   const Index thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   const Index num_threads = blockDim.x * gridDim.x;
-  const Index num_packets = num_coeffs / 2;
-  for (Index i = thread_id; i < num_packets; i += num_threads) {
-    ((half2*)output)[i] = reducer.template initializePacket<half2>();
-  }
+  typedef typename packet_traits<Eigen::half>::type PacketType;
+  EIGEN_UNUSED_VARIABLE(input);
 
-  if (thread_id == 0 && num_coeffs % 2 != 0) {
-    output[num_coeffs-1] = reducer.initialize();
+  const Index num_packets = num_coeffs / Index(unpacket_traits<PacketType>::size);
+  PacketType* p_output = reinterpret_cast<PacketType*>(output);
+  for (Index i = thread_id; i < num_packets; i += num_threads) {
+    p_output[i] = reducer.template initializePacket<PacketType>();
+  }
+  Index packet_remainder = num_coeffs % Index(unpacket_traits<PacketType>::size);
+  if (thread_id < packet_remainder) {
+    output[num_coeffs - packet_remainder + thread_id] = reducer.initialize();
   }
 }
 
@@ -223,50 +254,94 @@ template <int BlockSize, int NumPerThread, typename Self,
           typename Reducer, typename Index>
 __global__ void FullReductionKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs,
                                     half* output, half2* scratch) {
-  eigen_assert(NumPerThread % 2 == 0);
-
-  const Index first_index = blockIdx.x * BlockSize * NumPerThread + 2*threadIdx.x;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300  
+  EIGEN_UNUSED_VARIABLE(num_coeffs);
+  typedef typename packet_traits<Eigen::half>::type PacketType;
+  const int packet_width = unpacket_traits<PacketType>::size;
+  eigen_assert(NumPerThread % packet_width == 0);
+  const Index first_index = blockIdx.x * BlockSize * NumPerThread + packet_width * threadIdx.x;
 
   // Initialize the output value if it wasn't initialized by the ReductionInitKernel
-  if (gridDim.x == 1 && first_index == 0) {
-    if (num_coeffs % 2 != 0) {
-      half last = input.m_impl.coeff(num_coeffs-1);
-      *scratch = __halves2half2(last, reducer.initialize());
-    } else {
-      *scratch = reducer.template initializePacket<half2>();
+  if (gridDim.x == 1) {
+    if (first_index == 0) {
+      int rem = num_coeffs % packet_width;
+      if (rem != 0) {
+        half2* p_scratch = reinterpret_cast<half2*>(scratch);
+        pstoreu(scratch, reducer.template initializePacket<PacketType>());
+        for (int i = 0; i < rem / 2; i++) {
+          *p_scratch = __halves2half2(input.coeff(num_coeffs - packet_width + 2 * i),
+                                      input.coeff(num_coeffs - packet_width + 2 * i + 1));
+          p_scratch++;
+        }
+        if ((num_coeffs & 1) != 0) {
+          half last = input.coeff(num_coeffs - 1);
+          *p_scratch = __halves2half2(last, reducer.initialize());
+        }
+      } else {
+        PacketType reduce = reducer.template initializePacket<PacketType>();
+        pstoreu(scratch, reduce);
+      }
     }
     __syncthreads();
   }
 
-  half2 accum = reducer.template initializePacket<half2>();
-  const Index max_iter = numext::mini<Index>((num_coeffs - first_index) / 2, NumPerThread*BlockSize / 2);
+  PacketType accum = reducer.template initializePacket<PacketType>();
+  const Index max_iter =
+      numext::mini<Index>((num_coeffs - first_index) / packet_width, NumPerThread * BlockSize / packet_width);
   for (Index i = 0; i < max_iter; i += BlockSize) {
-    const Index index = first_index + 2*i;
-    eigen_assert(index + 1 < num_coeffs);
-    half2 val = input.m_impl.template packet<Unaligned>(index);
+    const Index index = first_index + packet_width * i;
+    eigen_assert(index + packet_width < num_coeffs);
+    PacketType val = input.template packet<Unaligned>(index);
     reducer.reducePacket(val, &accum);
   }
 
-#pragma unroll
-  for (int offset = warpSize/2; offset > 0; offset /= 2) {
+  #pragma unroll
+  for (int offset = warpSize / 2; offset > 0; offset /= 2) {
 #if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
-    reducer.reducePacket(__shfl_down(accum, offset, warpSize), &accum);
+    PacketType r1;
+    half2* hr = reinterpret_cast<half2*>(&r1);
+    half2* hacc = reinterpret_cast<half2*>(&accum);
+    for (int i = 0; i < packet_width / 2; i++) {
+      hr[i] = __shfl_down(hacc[i], offset, warpSize);
+    }
+    reducer.reducePacket(r1, &accum);
 #else
-    reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, accum, offset, warpSize), &accum);
+    PacketType r1;
+    half2* hr = reinterpret_cast<half2*>(&r1);
+    half2* hacc = reinterpret_cast<half2*>(&accum);
+    for (int i = 0; i < packet_width / 2; i++) {
+      hr[i] = __shfl_down_sync(0xFFFFFFFF, hacc[i], (unsigned)offset, warpSize);
+    }
+    reducer.reducePacket(r1, &accum);
+
 #endif
   }
 
   if ((threadIdx.x & (warpSize - 1)) == 0) {
-    atomicReduce(scratch, accum, reducer);
+    atomicReduce(reinterpret_cast<PacketType*>(scratch), accum, reducer);
   }
 
   __syncthreads();
-
-  if (gridDim.x == 1 && first_index == 0) {
-    half tmp = __low2half(*scratch);
-    reducer.reduce(__high2half(*scratch), &tmp);
-    *output = tmp;
+  half2* rv1 = reinterpret_cast<half2*>(scratch);
+  if (packet_width > 2) {
+    reducer.reducePacket(rv1[2], rv1);
+    reducer.reducePacket(rv1[3], rv1 + 1);
+    reducer.reducePacket(rv1[1], rv1);
   }
+  if (gridDim.x == 1) {
+    if (first_index == 0) {
+      half tmp = __low2half(*rv1);
+      reducer.reduce(__high2half(*rv1), &tmp);
+      *output = tmp;
+    }
+  }
+#else
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(num_coeffs);
+  EIGEN_UNUSED_VARIABLE(output);
+  EIGEN_UNUSED_VARIABLE(scratch);
+#endif
 }
 
 template <typename Op>
@@ -296,7 +371,6 @@ struct FullReductionLauncher<
     void>::type> {
   static void run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output, typename Self::Index num_coeffs) {
     typedef typename Self::Index Index;
-    typedef typename Self::CoeffReturnType Scalar;
     const int block_size = 256;
     const int num_per_thread = 128;
     const int num_blocks = divup<int>(num_coeffs, block_size * num_per_thread);
@@ -448,6 +522,11 @@ __global__ void InnerReductionKernel(Reducer reducer, const Self input, Index nu
     }
   }
 #else
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(num_coeffs_to_reduce);
+  EIGEN_UNUSED_VARIABLE(num_preserved_coeffs);
+  EIGEN_UNUSED_VARIABLE(output);
   assert(0 && "Shouldn't be called on unsupported device");
 #endif
 }
@@ -458,27 +537,30 @@ template <int NumPerThread, typename Self,
           typename Reducer, typename Index>
 __global__ void InnerReductionKernelHalfFloat(Reducer reducer, const Self input, Index num_coeffs_to_reduce, Index num_preserved_coeffs,
                                               half* output) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300  
   eigen_assert(blockDim.y == 1);
   eigen_assert(blockDim.z == 1);
   eigen_assert(gridDim.y == 1);
   eigen_assert(gridDim.z == 1);
 
-  const int unroll_times = 16;
+  typedef typename packet_traits<Eigen::half>::type PacketType;
+  const int packet_width = unpacket_traits<PacketType>::size;
+  const int unroll_times = 16 / packet_width;
   eigen_assert(NumPerThread % unroll_times == 0);
   eigen_assert(unroll_times % 2 == 0);
 
-  const Index input_col_blocks = divup<Index>(num_coeffs_to_reduce, blockDim.x * NumPerThread * 2);
-  const Index num_input_blocks = divup<Index>(input_col_blocks * num_preserved_coeffs, 2);
+  const Index input_col_blocks = numext::div_ceil<Index>(num_coeffs_to_reduce, blockDim.x * NumPerThread * 2);
+  const Index num_input_blocks = numext::div_ceil<Index>(input_col_blocks * num_preserved_coeffs, 2);
 
   const Index num_threads = blockDim.x * gridDim.x;
   const Index thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
   // Initialize the output values if they weren't initialized by the ReductionInitKernel
   if (gridDim.x == 1) {
-    Index i = 2*thread_id;
-    for (; i + 1 < num_preserved_coeffs; i += 2*num_threads) {
-      half* loc = output + i;
-      *((half2*)loc) = reducer.template initializePacket<half2>();
+    Index i = packet_width * thread_id;
+    for (; i + packet_width <= num_preserved_coeffs; i += packet_width * num_threads) {
+      PacketType* poutput = reinterpret_cast<PacketType*>(output + i);
+      *poutput = reducer.template initializePacket<PacketType>();
     }
     if (i < num_preserved_coeffs) {
       output[i] = reducer.initialize();
@@ -487,71 +569,123 @@ __global__ void InnerReductionKernelHalfFloat(Reducer reducer, const Self input,
   }
 
   for (Index i = blockIdx.x; i < num_input_blocks; i += gridDim.x) {
-    const Index row = 2 * (i / input_col_blocks);
+    const Index row = 2 * (i / input_col_blocks);  // everybody takes 2 rows
 
     if (row + 1 < num_preserved_coeffs) {
       const Index col_block = i % input_col_blocks;
-      const Index col_begin = 2 * (col_block * blockDim.x * NumPerThread + threadIdx.x);
+      const Index col_begin = packet_width * (col_block * blockDim.x * NumPerThread + threadIdx.x);
 
-      half2 reduced_val1 = reducer.template initializePacket<half2>();
-      half2 reduced_val2 = reducer.template initializePacket<half2>();
+      PacketType reduced_val1 = reducer.template initializePacket<PacketType>();
+      PacketType reduced_val2 = reducer.template initializePacket<PacketType>();
 
       for (Index j = 0; j < NumPerThread; j += unroll_times) {
-        const Index last_col = col_begin + blockDim.x * (j + unroll_times - 1) * 2;
+        const Index last_col = col_begin + blockDim.x * (j + unroll_times - 1) * packet_width;
         if (last_col >= num_coeffs_to_reduce) {
           Index col = col_begin + blockDim.x * j;
-          for (; col + 1 < num_coeffs_to_reduce; col += blockDim.x) {
-            const half2 val1 = input.m_impl.template packet<Unaligned>(row * num_coeffs_to_reduce + col);
+          for (; col + packet_width <= num_coeffs_to_reduce; col += blockDim.x) {
+            const PacketType val1 = input.m_impl.template packet<Unaligned>(row * num_coeffs_to_reduce + col);
             reducer.reducePacket(val1, &reduced_val1);
-            const half2 val2 = input.m_impl.template packet<Unaligned>((row+1) * num_coeffs_to_reduce + col);
+            const PacketType val2 = input.m_impl.template packet<Unaligned>((row + 1) * num_coeffs_to_reduce + col);
             reducer.reducePacket(val2, &reduced_val2);
           }
           if (col < num_coeffs_to_reduce) {
-            // Peel;
-            const half last1 = input.m_impl.coeff(row * num_coeffs_to_reduce + col);
-            const half2 val1 = __halves2half2(last1, reducer.initialize());
-            reducer.reducePacket(val1, &reduced_val1);
-            const half last2 = input.m_impl.coeff((row+1) * num_coeffs_to_reduce + col);
-            const half2 val2 = __halves2half2(last2, reducer.initialize());
-            reducer.reducePacket(val2, &reduced_val2);
+            PacketType r1 = reducer.template initializePacket<PacketType>();
+            PacketType r2 = reducer.template initializePacket<PacketType>();
+            half2* hr1 = reinterpret_cast<half2*>(&r1);
+            half2* hr2 = reinterpret_cast<half2*>(&r2);
+            while (col + 1 < num_coeffs_to_reduce) {
+              *hr1 = __halves2half2(input.m_impl.coeff(row * num_coeffs_to_reduce + col),
+                                    input.m_impl.coeff(row * num_coeffs_to_reduce + col + 1));
+              *hr2 = __halves2half2(input.m_impl.coeff((row + 1) * num_coeffs_to_reduce + col),
+                                    input.m_impl.coeff((row + 1) * num_coeffs_to_reduce + col + 1));
+              hr1++;
+              hr2++;
+              col += 2;
+            }
+            if (col < num_coeffs_to_reduce) {
+              // Peel;
+              const half last1 = input.m_impl.coeff(row * num_coeffs_to_reduce + col);
+              *hr1 = __halves2half2(last1, reducer.initialize());
+              const half last2 = input.m_impl.coeff((row + 1) * num_coeffs_to_reduce + col);
+              *hr2 = __halves2half2(last2, reducer.initialize());
+            }
+            reducer.reducePacket(r1, &reduced_val1);
+            reducer.reducePacket(r2, &reduced_val2);
           }
           break;
         } else {
           // Faster version of the loop with no branches after unrolling.
-#pragma unroll
+          #pragma unroll
           for (int k = 0; k < unroll_times; ++k) {
-            const Index col = col_begin + blockDim.x * (j + k) * 2;
-            reducer.reducePacket(input.m_impl.template packet<Unaligned>(row * num_coeffs_to_reduce + col), &reduced_val1);
-            reducer.reducePacket(input.m_impl.template packet<Unaligned>((row + 1)* num_coeffs_to_reduce + col), &reduced_val2);
+            const Index col = col_begin + blockDim.x * (j + k) * packet_width;
+            reducer.reducePacket(input.m_impl.template packet<Unaligned>(row * num_coeffs_to_reduce + col),
+                                  &reduced_val1);
+            reducer.reducePacket(input.m_impl.template packet<Unaligned>((row + 1) * num_coeffs_to_reduce + col),
+                                  &reduced_val2);
           }
         }
       }
 
-#pragma unroll
-      for (int offset = warpSize/2; offset > 0; offset /= 2) {
+      #pragma unroll
+      for (int offset = warpSize / 2; offset > 0; offset /= 2) {
 #if defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000
-        
-        reducer.reducePacket(__shfl_down(reduced_val1, offset, warpSize), &reduced_val1);
-        reducer.reducePacket(__shfl_down(reduced_val2, offset, warpSize), &reduced_val2);
+        PacketType r1;
+        PacketType r2;
+        half2* hr1 = reinterpret_cast<half2*>(&r1);
+        half2* hr2 = reinterpret_cast<half2*>(&r2);
+        half2* rv1 = reinterpret_cast<half2*>(&reduced_val1);
+        half2* rv2 = reinterpret_cast<half2*>(&reduced_val2);
+        for (int i = 0; i < packet_width / 2; i++) {
+          hr1[i] = __shfl_down(rv1[i], offset, warpSize);
+          hr2[i] = __shfl_down(rv2[i], offset, warpSize);
+        }
+        reducer.reducePacket(r1, &reduced_val1);
+        reducer.reducePacket(r2, &reduced_val2);
 #else
-        reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, reduced_val1, offset, warpSize), &reduced_val1);
-        reducer.reducePacket(__shfl_down_sync(0xFFFFFFFF, reduced_val2, offset, warpSize), &reduced_val2);
+        PacketType r1;
+        PacketType r2;
+        half2* hr1 = reinterpret_cast<half2*>(&r1);
+        half2* hr2 = reinterpret_cast<half2*>(&r2);
+        half2* rr1 = reinterpret_cast<half2*>(&reduced_val1);
+        half2* rr2 = reinterpret_cast<half2*>(&reduced_val2);
+        for (int j = 0; j < packet_width / 2; j++) {
+          hr1[j] = __shfl_down_sync(0xFFFFFFFF, rr1[j], (unsigned)offset, warpSize);
+          hr2[j] = __shfl_down_sync(0xFFFFFFFF, rr2[j], (unsigned)offset, warpSize);
+        }
+        reducer.reducePacket(r1, &reduced_val1);
+        reducer.reducePacket(r2, &reduced_val2);
 
 #endif
       }
-
-      half val1 =  __low2half(reduced_val1);
-      reducer.reduce(__high2half(reduced_val1), &val1);
-      half val2 =  __low2half(reduced_val2);
-      reducer.reduce(__high2half(reduced_val2), &val2);
-      half2 val = __halves2half2(val1, val2);
-
+      half2* rv1 = reinterpret_cast<half2*>(&reduced_val1);
+      half2* rv2 = reinterpret_cast<half2*>(&reduced_val2);
+      half2 val;
+      if (packet_width > 2) {
+        reducer.reducePacket(rv1[2], rv1);
+        reducer.reducePacket(rv1[3], rv1 + 1);
+        reducer.reducePacket(rv1[1], rv1);
+        reducer.reducePacket(rv2[2], rv2);
+        reducer.reducePacket(rv2[3], rv2 + 1);
+        reducer.reducePacket(rv2[1], rv2);
+      }
+      half val1 = __low2half(*rv1);
+      reducer.reduce(__high2half(*rv1), &val1);
+      half val2 = __low2half(*rv2);
+      reducer.reduce(__high2half(*rv2), &val2);
+      val = __halves2half2(val1, val2);
       if ((threadIdx.x & (warpSize - 1)) == 0) {
         half* loc = output + row;
-        atomicReduce((half2*)loc, val, reducer);
+        atomicReduce(reinterpret_cast<half2*>(loc), val, reducer);
       }
     }
   }
+#else
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(num_coeffs_to_reduce);
+  EIGEN_UNUSED_VARIABLE(num_preserved_coeffs);
+  EIGEN_UNUSED_VARIABLE(output);
+#endif
 }
 
 #endif
@@ -586,12 +720,12 @@ struct InnerReductionLauncher<
     if (num_blocks > 1) {
       // We initialize the outputs outside the reduction kernel when we can't be sure that there
       // won't be a race conditions between multiple thread blocks.
-      const int dyn_blocks = divup<int>(num_preserved_vals, 1024);
-      const int max_blocks = device.getNumCudaMultiProcessors() *
+      const int dyn_blocks2 = divup<int>(num_preserved_vals, 1024);
+      const int max_blocks2 = device.getNumCudaMultiProcessors() *
                            device.maxCudaThreadsPerMultiProcessor() / 1024;
-      const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
+      const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
       LAUNCH_CUDA_KERNEL((ReductionInitKernel<OutputType, Index>),
-                         num_blocks, 1024, 0, device, reducer.initialize(),
+                         num_blocks2, 1024, 0, device, reducer.initialize(),
                          num_preserved_vals, output);
     }
 
@@ -632,10 +766,6 @@ struct InnerReductionLauncher<Self, Op, Eigen::half, true> {
     if (num_blocks > 1) {
       // We initialize the outputs outside the reduction kernel when we can't be sure that there
       // won't be a race conditions between multiple thread blocks.
-      const int dyn_blocks = divup<int>(num_preserved_vals, 1024);
-      const int max_blocks = device.getNumCudaMultiProcessors() *
-                           device.maxCudaThreadsPerMultiProcessor() / 1024;
-      const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
       LAUNCH_CUDA_KERNEL((ReductionInitKernelHalfFloat<Self, Op, Index>),
                          1, 1, 0, device, reducer, self, num_preserved_vals, output);
     }
@@ -745,12 +875,12 @@ struct OuterReducer<Self, Op, GpuDevice> {
     if (num_blocks > 1) {
       // We initialize the outputs in the reduction kernel itself when we don't have to worry
       // about race conditions between multiple thread blocks.
-      const int dyn_blocks = divup<int>(num_preserved_vals, 1024);
-      const int max_blocks = device.getNumCudaMultiProcessors() *
+      const int dyn_blocks2 = divup<int>(num_preserved_vals, 1024);
+      const int max_blocks2 = device.getNumCudaMultiProcessors() *
                              device.maxCudaThreadsPerMultiProcessor() / 1024;
-      const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
+      const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
       LAUNCH_CUDA_KERNEL((ReductionInitKernel<float, Index>),
-                         num_blocks, 1024, 0, device, reducer.initialize(),
+                         num_blocks2, 1024, 0, device, reducer.initialize(),
                          num_preserved_vals, output);
     }
 
