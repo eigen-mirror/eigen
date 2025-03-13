@@ -21,7 +21,7 @@ workaround_9220(Fortran EIGEN_Fortran_COMPILER_WORKS)
 if(EIGEN_Fortran_COMPILER_WORKS)
   enable_language(Fortran OPTIONAL)
   if(NOT CMAKE_Fortran_COMPILER)
-    set(EIGEN_Fortran_COMPILER_WORKS OFF)
+  set(EIGEN_Fortran_COMPILER_WORKS OFF)
   endif()
 endif()
 
@@ -288,8 +288,8 @@ ei_add_test(fastmath " ${EIGEN_FASTMATH_FLAGS} ")
 # # ei_add_test(denseLM)
 
 if (NOT CMAKE_CROSSCOMPILING)
-  if(QT4_FOUND)
-    ei_add_test(qtvector "" "${QT_QTCORE_LIBRARY}")
+if(QT4_FOUND)
+  ei_add_test(qtvector "" "${QT_QTCORE_LIBRARY}")
   endif(QT4_FOUND)
 
   if(UMFPACK_FOUND)
@@ -302,23 +302,23 @@ if (NOT CMAKE_CROSSCOMPILING)
 
   if(CHOLMOD_FOUND)
     ei_add_test(cholmod_support "" "${CHOLMOD_ALL_LIBS}")
-  endif()
+endif()
 
-  if(PARDISO_FOUND)
-    ei_add_test(pardiso_support "" "${PARDISO_ALL_LIBS}")
-  endif()
+if(PARDISO_FOUND)
+  ei_add_test(pardiso_support "" "${PARDISO_ALL_LIBS}")
+endif()
 
-  if(PASTIX_FOUND AND (SCOTCH_FOUND OR METIS_FOUND))
-    ei_add_test(pastix_support "" "${PASTIX_ALL_LIBS}")
-  endif()
+if(PASTIX_FOUND AND (SCOTCH_FOUND OR METIS_FOUND))
+  ei_add_test(pastix_support "" "${PASTIX_ALL_LIBS}")
+endif()
 
   if(SPQR_FOUND AND CHOLMOD_FOUND AND EIGEN_TEST_CXX11)
-    ei_add_test(spqr_support "" "${SPQR_ALL_LIBS}")
-  endif()
+  ei_add_test(spqr_support "" "${SPQR_ALL_LIBS}")
+endif()
 
-  if(METIS_FOUND)
-  ei_add_test(metis_support "" "${METIS_LIBRARIES}")
-  endif()
+if(METIS_FOUND)
+ei_add_test(metis_support "" "${METIS_LIBRARIES}")
+endif()
 endif()
 
 string(TOLOWER "${CMAKE_CXX_COMPILER}" cmake_cxx_compiler_tolower)
@@ -359,51 +359,57 @@ if(EIGEN_TEST_CUDA_CLANG AND NOT CMAKE_CXX_COMPILER MATCHES "clang")
   message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
 endif()
 
-if(EIGEN_TEST_CUDA)
+if (EIGEN_TEST_CUDA)
 
-find_package(CUDA 5.0)
-if(CUDA_FOUND)
-
-  if( (NOT EIGEN_TEST_CXX11) OR (CMAKE_VERSION VERSION_LESS 3.3))
-    if (MSVC)
-      string(APPEND EIGEN_CUDA_CXX11_FLAGS " /std:c++11")
-    else()
-      string(APPEND EIGEN_CUDA_CXX11_FLAGS " -std=c++11")
-    endif(MSVC)
-  endif()
-
-  if(EIGEN_TEST_CUDA_CLANG)
-    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
-    foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${GPU}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  else()
-    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-    set(NVCC_ARCH_FLAGS)
-    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
-    # those in the arch list for -gencode, the kernels will fail to run with
-    #    cudaErrorNoKernelImageForDevice
-    # This can happen with newer cards (e.g. sm_75) and compiling with older
-    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
-    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
-      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
+  find_package(CUDA 9.0)
+  if(CUDA_FOUND)
+    # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
+    # and -fno-check-new flags since they trigger thousands of compilation warnings
+    # in the CUDA runtime
+    string(REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    if( (NOT EIGEN_TEST_CXX11) OR (CMAKE_VERSION VERSION_LESS 3.3))
+      if (MSVC)
+        string(APPEND EIGEN_CUDA_CXX11_FLAGS " /std:c++11")
+      else()
+        string(APPEND EIGEN_CUDA_CXX11_FLAGS " -std=c++11")
+      endif(MSVC)
     endif()
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
-    endforeach()
-    set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
-    cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
-  endif()
-  set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
 
-  ei_add_test(cuda_basic)
+    if(EIGEN_TEST_CUDA_CLANG)
+      string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
+      foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+        string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${GPU}")
+      endforeach()
+      string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
+    else()
+      set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+      set(NVCC_ARCH_FLAGS)
+      # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
+      # those in the arch list for -gencode, the kernels will fail to run with
+      #    cudaErrorNoKernelImageForDevice
+      # This can happen with newer cards (e.g. sm_75) and compiling with older
+      # versions of nvcc (e.g. 9.2) that do not support their specific arch.
+      list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+      if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
+        list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
+        set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
+      endif()
+      foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+        string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
+      endforeach()
+      set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
+      cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
+    endif()
+    set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
 
-  unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    ei_add_test(cuda_basic)
 
-endif(CUDA_FOUND)
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+
+  endif(CUDA_FOUND)
 
 endif(EIGEN_TEST_CUDA)
 

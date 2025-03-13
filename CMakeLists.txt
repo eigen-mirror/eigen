@@ -1,6 +1,6 @@
-project(Eigen3)
-
 cmake_minimum_required(VERSION 2.8.5)
+
+project(Eigen3)
 
 # guard against in-source builds
 
@@ -470,7 +470,7 @@ if (NOT CMAKE_CROSSCOMPILING)
     add_subdirectory(blas EXCLUDE_FROM_ALL)
     add_subdirectory(lapack EXCLUDE_FROM_ALL)
   endif()
-endif(CMAKE_CROSSCOMPILING)
+endif(NOT CMAKE_CROSSCOMPILING)
 
 # add SYCL
 option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
