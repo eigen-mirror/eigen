@@ -541,7 +541,7 @@ struct random_default_impl<half, false, false>
 {
   static inline half run(const half& x, const half& y)
   {
-    return x + (y-x) * half(float(std::rand()) / float(RAND_MAX));
+    return x + (y-x) * half(random<float>());
   }
   static inline half run()
   {

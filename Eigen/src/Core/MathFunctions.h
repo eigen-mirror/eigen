@@ -624,19 +624,6 @@ struct random_retval
 template<typename Scalar> inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y);
 template<typename Scalar> inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random();
 
-template<typename Scalar>
-struct random_default_impl<Scalar, false, false>
-{
-  static inline Scalar run(const Scalar& x, const Scalar& y)
-  {
-    return x + (y-x) * Scalar(std::rand()) / Scalar(RAND_MAX);
-  }
-  static inline Scalar run()
-  {
-    return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1));
-  }
-};
-
 enum {
   meta_floor_log2_terminate,
   meta_floor_log2_move_up,
@@ -684,6 +671,38 @@ struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus>
   // no value, error at compile time
 };
 
+#define EIGEN_RAND_MAX INT_MAX
+// Fill a signed positive int with random bits.
+// This is to overcome issues in MSVC which limits RAND_MAX to 32767.
+inline int random_int() {
+#if RAND_MAX == INT_MAX
+  return std::rand();
+#else
+  enum {
+    rand_bits = meta_floor_log2<(unsigned int)(RAND_MAX)+1>::value,
+    int_bits = meta_floor_log2<(unsigned int)(INT_MAX)+1>::value,
+  };
+  unsigned int out = std::rand();
+  for (int bit = rand_bits; bit < int(int_bits); bit += rand_bits) {
+    out = (out << rand_bits) ^ std::rand();
+  }
+  return static_cast<int>(out & INT_MAX);
+#endif
+}
+
+template<typename Scalar>
+struct random_default_impl<Scalar, false, false>
+{
+  static inline Scalar run(const Scalar& x, const Scalar& y)
+  {
+    return x + (y-x) * Scalar(random_int()) / Scalar(EIGEN_RAND_MAX);
+  }
+  static inline Scalar run()
+  {
+    return run(Scalar(NumTraits<Scalar>::IsSigned ? -1 : 0), Scalar(1));
+  }
+};
+
 template<typename Scalar>
 struct random_default_impl<Scalar, false, true>
 {
@@ -704,12 +723,12 @@ struct random_default_impl<Scalar, false, true>
     ScalarX offset = 0;
     ScalarX divisor = 1;
     ScalarX multiplier = 1;
-    const unsigned rand_max = RAND_MAX;
+    const unsigned rand_max = EIGEN_RAND_MAX;
     if (range <= rand_max) divisor = (rand_max + 1) / (range + 1);
     else                   multiplier = 1 + range / (rand_max + 1);
     // Rejection sampling.
     do {
-      offset = (unsigned(std::rand()) * multiplier) / divisor;
+      offset = (unsigned(random_int()) * multiplier) / divisor;
     } while (offset > range);
     return Scalar(ScalarX(x) + offset);
   }
@@ -719,12 +738,12 @@ struct random_default_impl<Scalar, false, true>
 #ifdef EIGEN_MAKING_DOCS
     return run(Scalar(NumTraits<Scalar>::IsSigned ? -10 : 0), Scalar(10));
 #else
-    enum { rand_bits = meta_floor_log2<(unsigned int)(RAND_MAX)+1>::value,
+    enum { rand_bits = meta_floor_log2<(unsigned int)(EIGEN_RAND_MAX)+1>::value,
            scalar_bits = sizeof(Scalar) * CHAR_BIT,
            shift = EIGEN_PLAIN_ENUM_MAX(0, int(rand_bits) - int(scalar_bits)),
            offset = NumTraits<Scalar>::IsSigned ? (1 << (EIGEN_PLAIN_ENUM_MIN(rand_bits,scalar_bits)-1)) : 0
     };
-    return Scalar((std::rand() >> shift) - offset);
+    return Scalar((random_int() >> shift) - offset);
 #endif
   }
 };
