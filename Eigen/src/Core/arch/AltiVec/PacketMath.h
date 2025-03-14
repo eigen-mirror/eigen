@@ -224,29 +224,25 @@ inline std::ostream & operator <<(std::ostream & s, const Packet4ui & v)
   return s;
 }
 
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet pload_common(const __UNPACK_TYPE__(Packet)* from)
+template <typename Packet, typename Scalar>
+EIGEN_STRONG_INLINE Packet pload_common(const Scalar* from)
 {
   // some versions of GCC throw "unused-but-set-parameter".
   // ignoring these warnings for now.
   EIGEN_UNUSED_VARIABLE(from);
   EIGEN_DEBUG_ALIGNED_LOAD
-#ifdef __VSX__
-  return vec_xl(0, const_cast<__UNPACK_TYPE__(Packet)*>(from));
-#else
   return vec_ld(0, from);
-#endif
 }
 
 // Need to define them first or we get specialization after instantiation errors
 template<> EIGEN_STRONG_INLINE Packet4f pload<Packet4f>(const float* from)
 {
-  return pload_common<Packet4f>(from);
+  return pload_common<Packet4f, float>(from);
 }
 
 template<> EIGEN_STRONG_INLINE Packet4i pload<Packet4i>(const int*     from)
 {
-  return pload_common<Packet4i>(from);
+  return pload_common<Packet4i, int>(from);
 }
 
 template <typename Packet>
@@ -455,15 +451,11 @@ template<> EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) { re
 template<typename Packet> EIGEN_STRONG_INLINE Packet ploadu_common(const __UNPACK_TYPE__(Packet)* from)
 {
   EIGEN_DEBUG_UNALIGNED_LOAD
-#ifdef __VSX__
-  return vec_xl(0, const_cast<__UNPACK_TYPE__(Packet)*>(from));
-#else
   Packet16uc mask = vec_lvsl(0, from);                 // create the permute mask
   Packet16uc MSQ = vec_ld(0, (unsigned char *)from);   // most significant quadword
   Packet16uc LSQ = vec_ld(15, (unsigned char *)from);  // least significant quadword
   //TODO: Add static_cast here
   return (Packet) vec_perm(MSQ, LSQ, mask);            // align the data
-#endif
 }
 
 template<> EIGEN_STRONG_INLINE Packet4f ploadu<Packet4f>(const float* from)
