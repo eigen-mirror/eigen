@@ -243,6 +243,35 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
     return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index n) const {
+    if (IsRowMajor)
+      return ploadtRange<PacketType, LoadMode>(m_d.data + row * m_d.outerStride() + col, begin, n);
+    else
+      return ploadtRange<PacketType, LoadMode>(m_d.data + row + col * m_d.outerStride(), begin, n);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index n) const {
+    return ploadtRange<PacketType, LoadMode>(m_d.data + index, begin, n);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index n) {
+    if (IsRowMajor)
+      return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row * m_d.outerStride() + col,
+                                                         x, begin, n);
+    else
+      return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row + col * m_d.outerStride(),
+                                                         x, begin, n);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin, Index n) {
+    return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, begin, n);
+  }
+
  protected:
   plainobjectbase_evaluator_data<Scalar, OuterStrideAtCompileTime> m_d;
 };
@@ -316,6 +345,27 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     m_argImpl.template writePacket<StoreMode, PacketType>(index, x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index n) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(col, row, begin, n);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index n) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, n);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index n) {
+    m_argImpl.template writePacketRange<StoreMode, PacketType>(col, row, x, begin, n);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin, Index n) {
+    m_argImpl.template writePacketRange<StoreMode, PacketType>(index, x, begin, n);
   }
 
  protected:
