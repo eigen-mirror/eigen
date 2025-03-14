@@ -606,7 +606,7 @@ __global__ void EigenConvolutionKernel1D(
     }
     __syncthreads();
   }
-};
+}
 
 template <typename InputEvaluator, typename Index, typename InputDims,
           int StaticKernelSizeX, int StaticKernelSizeY>
@@ -674,7 +674,7 @@ __global__ void EigenConvolutionKernel2D(
 
     __syncthreads();
   }
-};
+}
 
 template <typename InputEvaluator, typename Index, typename InputDims>
 __global__ void EigenConvolutionKernel3D(
@@ -740,9 +740,7 @@ __global__ void EigenConvolutionKernel3D(
     }
     __syncthreads();
   }
-};
-
-
+}
 
 template<typename Indices, typename InputArgType, typename KernelArgType>
 struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelArgType>, GpuDevice>
