@@ -198,19 +198,15 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index row, Index col) const {
-    if (IsRowMajor)
-      return m_d.data[row * m_d.outerStride() + col];
-    else
-      return m_d.data[row + col * m_d.outerStride()];
+    Index index = getIndex(row, col);
+    return coeff(index);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_d.data[index]; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index row, Index col) {
-    if (IsRowMajor)
-      return const_cast<Scalar*>(m_d.data)[row * m_d.outerStride() + col];
-    else
-      return const_cast<Scalar*>(m_d.data)[row + col * m_d.outerStride()];
+    Index index = getIndex(row, col);
+    return coeffRef(index);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index index) {
@@ -219,10 +215,8 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    if (IsRowMajor)
-      return ploadt<PacketType, LoadMode>(m_d.data + row * m_d.outerStride() + col);
-    else
-      return ploadt<PacketType, LoadMode>(m_d.data + row + col * m_d.outerStride());
+    Index index = getIndex(row, col);
+    return packet(index);
   }
 
   template <int LoadMode, typename PacketType>
@@ -232,48 +226,46 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index row, Index col, const PacketType& x) {
-    if (IsRowMajor)
-      return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row * m_d.outerStride() + col, x);
-    else
-      return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row + col * m_d.outerStride(), x);
+    Index index = getIndex(row, col);
+    writePacket(index, x);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
-    return pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
+    pstoret<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index n) const {
-    if (IsRowMajor)
-      return ploadtRange<PacketType, LoadMode>(m_d.data + row * m_d.outerStride() + col, begin, n);
-    else
-      return ploadtRange<PacketType, LoadMode>(m_d.data + row + col * m_d.outerStride(), begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    Index index = getIndex(row, col);
+    return packetRange(index, begin, count)
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index n) const {
-    return ploadtRange<PacketType, LoadMode>(m_d.data + index, begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return ploadtRange<PacketType, LoadMode>(m_d.data + index, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
-                                                              Index n) {
-    if (IsRowMajor)
-      return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row * m_d.outerStride() + col,
-                                                         x, begin, n);
-    else
-      return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + row + col * m_d.outerStride(),
-                                                         x, begin, n);
+                                                              Index count) {
+    Index index = getIndex(row, col);
+    writePacketRange(index, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin, Index n) {
-    return pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, begin, count);
   }
 
  protected:
   plainobjectbase_evaluator_data<Scalar, OuterStrideAtCompileTime> m_d;
+
+ private:
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index getIndex(Index row, Index col) const {
+    return IsRowMajor ? row * m_d.outerStride() + col : row + col * m_d.outerStride();
+  }
 };
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
@@ -348,24 +340,25 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index n) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(col, row, begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(col, row, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index n) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
-                                                              Index n) {
-    m_argImpl.template writePacketRange<StoreMode, PacketType>(col, row, x, begin, n);
+                                                              Index count) {
+    m_argImpl.template writePacketRange<StoreMode, PacketType>(col, row, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin, Index n) {
-    m_argImpl.template writePacketRange<StoreMode, PacketType>(index, x, begin, n);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    m_argImpl.template writePacketRange<StoreMode, PacketType>(index, x, begin, count);
   }
 
  protected:
@@ -514,10 +507,10 @@ template <typename NullaryOp, typename PlainObjectType>
 struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
     : evaluator_base<CwiseNullaryOp<NullaryOp, PlainObjectType>> {
   typedef CwiseNullaryOp<NullaryOp, PlainObjectType> XprType;
-  typedef internal::remove_all_t<PlainObjectType> PlainObjectTypeCleaned;
+  typedef remove_all_t<PlainObjectType> PlainObjectTypeCleaned;
 
   enum {
-    CoeffReadCost = internal::functor_traits<NullaryOp>::Cost,
+    CoeffReadCost = functor_traits<NullaryOp>::Cost,
 
     Flags = (evaluator<PlainObjectTypeCleaned>::Flags &
              (HereditaryBits | (functor_has_linear_access<NullaryOp>::ret ? LinearAccessBit : 0) |
@@ -552,9 +545,21 @@ struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
     return m_wrapper.template packetOp<PacketType>(m_functor, index);
   }
 
+  template <int LoadMode, typename PacketType, typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(IndexType row, IndexType col, Index /*begin*/,
+                                                               Index /*count*/) const {
+    return packet<LoadMode, PacketType, IndexType>(row, col);
+  }
+
+  template <int LoadMode, typename PacketType, typename IndexType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(IndexType index, Index /*begin*/,
+                                                               Index /*count*/) const {
+    return packet<LoadMode, PacketType, IndexType>(index);
+  }
+
  protected:
   const NullaryOp m_functor;
-  const internal::nullary_wrapper<CoeffReturnType, NullaryOp> m_wrapper;
+  const nullary_wrapper<CoeffReturnType, NullaryOp> m_wrapper;
 };
 
 // -------------------- CwiseUnaryOp --------------------
@@ -594,6 +599,16 @@ struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IndexBased> : evaluator_b
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
     return m_d.func().packetOp(m_d.argImpl.template packet<LoadMode, PacketType>(index));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.argImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.argImpl.template packetRange<LoadMode, PacketType>(index, begin, count));
   }
 
  protected:
@@ -651,15 +666,15 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   using SrcPacketArgs8 = std::enable_if_t<(unpacket_traits<DstPacketType>::size) == (8 * SrcPacketSize), bool>;
 
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index, Index col, Index packetSize) const {
-    return col + packetSize <= cols();
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index, Index col, Index begin, Index count) const {
+    return col + count + begin <= cols();
   }
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<!UseRowMajor, bool> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index row, Index, Index packetSize) const {
-    return row + packetSize <= rows();
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index row, Index, Index begin, Index count) const {
+    return row + count + begin <= rows();
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index index, Index packetSize) const {
-    return index + packetSize <= size();
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool check_array_bounds(Index index, Index begin, Index count) const {
+    return index + count + begin <= size();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE SrcType srcCoeff(Index row, Index col, Index offset) const {
@@ -682,17 +697,73 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacket(Index row, Index col, Index offset) const {
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    Index actualRow = IsRowMajor ? row : row + (offset * PacketSize);
-    Index actualCol = IsRowMajor ? col + (offset * PacketSize) : col;
-    eigen_assert(check_array_bounds(actualRow, actualCol, PacketSize) && "Array index out of bounds");
+    Index packetOffset = offset * PacketSize;
+    Index actualRow = IsRowMajor ? row : row + packetOffset;
+    Index actualCol = IsRowMajor ? col + packetOffset : col;
+    eigen_assert(check_array_bounds(actualRow, actualCol, 0, PacketSize) && "Array index out of bounds");
     return m_argImpl.template packet<LoadMode, PacketType>(actualRow, actualCol);
   }
   template <int LoadMode, typename PacketType = SrcPacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacket(Index index, Index offset) const {
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
-    Index actualIndex = index + (offset * PacketSize);
-    eigen_assert(check_array_bounds(actualIndex, PacketSize) && "Array index out of bounds");
+    Index packetOffset = offset * PacketSize;
+    Index actualIndex = index + packetOffset;
+    eigen_assert(check_array_bounds(actualIndex, 0, PacketSize) && "Array index out of bounds");
     return m_argImpl.template packet<LoadMode, PacketType>(actualIndex);
+  }
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketRange(Index row, Index col, Index begin, Index count,
+                                                                  Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    Index packetOffset = offset * PacketSize;
+    Index actualRow = IsRowMajor ? row : row + packetOffset;
+    Index actualCol = IsRowMajor ? col + packetOffset : col;
+    eigen_assert(check_array_bounds(actualRow, actualCol, 0, count) && "Array index out of bounds");
+    return m_argImpl.template packetRange<LoadMode, PacketType>(actualRow, actualCol, begin, count);
+  }
+  template <int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketRange(Index index, Index begin, Index count,
+                                                                  Index offset) const {
+    constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    Index packetOffset = offset * PacketSize;
+    Index actualIndex = index + packetOffset + begin;
+    eigen_assert(check_array_bounds(actualIndex, 0, count) && "Array index out of bounds");
+    return m_argImpl.template packetRange<LoadMode, PacketType>(actualIndex, begin, count);
+  }
+
+  template <int NumPackets, int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketRangeHelper(Index row, Index col,
+                                                                                                 Index begin,
+                                                                                                 Index count) {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<PacketType, NumPackets> packets;
+    Index offset = begin / SrcPacketSize;
+    Index actualBegin = begin % SrcPacketSize;
+    for (; offset < NumPackets; offset++) {
+      Index actualCount = numext::mini(SrcPacketSize - actualBegin, count);
+      packets.packet[offset] = srcPacketRange<SrcLoadMode>(row, col, actualBegin, actualCount, offset);
+      if (count == actualCount) break;
+      actualBegin = 0;
+      count -= actualCount;
+    }
+    return packets;
+  }
+  template <int NumPackets, int LoadMode, typename PacketType = SrcPacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketRangeHelper(Index index,
+                                                                                                 Index begin,
+                                                                                                 Index count) {
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<PacketType, NumPackets> packets;
+    Index offset = begin / SrcPacketSize;
+    Index actualBegin = begin % SrcPacketSize;
+    for (; offset < NumPackets; offset++) {
+      Index actualCount = numext::mini(SrcPacketSize - actualBegin, count);
+      packets.packet[offset] = srcPacketRange<SrcLoadMode>(index, actualBegin, actualCount, offset);
+      if (count == actualCount) break;
+      actualBegin = 0;
+      count -= actualCount;
+    }
+    return packets;
   }
 
   // There is no source packet type with equal or fewer elements than DstPacketType.
@@ -700,25 +771,13 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
   // For example, consider the cast utilizing pcast<Packet4f,Packet2d> with an array of size 4: {0.0f,1.0f,2.0f,3.0f}.
   // The first iteration of the evaluation loop will load 16 bytes: {0.0f,1.0f,2.0f,3.0f} and cast to {0.0,1.0}, which
   // is acceptable. The second iteration will load 16 bytes: {2.0f,3.0f,?,?}, which is outside the bounds of the array.
-
-  // Instead, perform runtime check to determine if the load would access data outside the bounds of the array.
-  // If not, perform full load. Otherwise, revert to a scalar loop to perform a partial load.
-  // In either case, perform a vectorized cast of the source packet.
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packet(Index row, Index col) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    SrcPacketType src;
-    if (EIGEN_PREDICT_TRUE(check_array_bounds(row, col, SrcPacketSize))) {
-      src = srcPacket<SrcLoadMode>(row, col, 0);
-    } else {
-      Array<SrcType, SrcPacketSize, 1> srcArray;
-      for (size_t k = 0; k < DstPacketSize; k++) srcArray[k] = srcCoeff(row, col, k);
-      for (size_t k = DstPacketSize; k < SrcPacketSize; k++) srcArray[k] = SrcType(0);
-      src = pload<SrcPacketType>(srcArray.data());
-    }
-    return pcast<SrcPacketType, DstPacketType>(src);
+    return pcast<SrcPacketType, DstPacketType>(
+        m_argImpl.template packetRange<SrcLoadMode, SrcPacketType>(row, col, 0, DstPacketSize));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
@@ -752,6 +811,60 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
         srcPacket<SrcLoadMode>(row, col, 0), srcPacket<SrcLoadMode>(row, col, 1), srcPacket<SrcLoadMode>(row, col, 2),
         srcPacket<SrcLoadMode>(row, col, 3), srcPacket<SrcLoadMode>(row, col, 4), srcPacket<SrcLoadMode>(row, col, 5),
         srcPacket<SrcLoadMode>(row, col, 6), srcPacket<SrcLoadMode>(row, col, 7));
+  }
+
+  // packetRange variants
+  template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+                                                                  Index count) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(row, col, begin, count, 0));
+  }
+  // Use the source packet type with the same size as DstPacketType, if it exists
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+                                                                  Index count) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SizedSrcPacketType, DstPacketType>(
+        srcPacketRange<SrcLoadMode, SizedSrcPacketType>(row, col, begin, count, 0));
+  }
+  // unpacket_traits<DstPacketType>::size == 2 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+                                                                  Index count) const {
+    constexpr int NumPackets = 2;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets =
+        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1]);
+  }
+  // unpacket_traits<DstPacketType>::size == 4 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+                                                                  Index count) const {
+    constexpr int NumPackets = 4;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets =
+        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
+                                               packets.packet[3]);
+  }
+  // unpacket_traits<DstPacketType>::size == 8 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+                                                                  Index count) const {
+    constexpr int NumPackets = 8;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets =
+        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
+                                               packets.packet[3], packets.packet[4], packets.packet[5],
+                                               packets.packet[6], packets.packet[7]);
   }
 
   // Analogous routines for linear access.
@@ -797,6 +910,52 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
                                                srcPacket<SrcLoadMode>(index, 2), srcPacket<SrcLoadMode>(index, 3),
                                                srcPacket<SrcLoadMode>(index, 4), srcPacket<SrcLoadMode>(index, 5),
                                                srcPacket<SrcLoadMode>(index, 6), srcPacket<SrcLoadMode>(index, 7));
+  }
+
+  // packetRange variants
+  template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(index, begin, count, 0));
+  }
+  // Use the source packet type with the same size as DstPacketType, if it exists
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+    constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
+    using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
+    constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
+    constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
+    return pcast<SizedSrcPacketType, DstPacketType>(
+        srcPacketRange<SrcLoadMode, SizedSrcPacketType>(index, begin, count, 0));
+  }
+  // unpacket_traits<DstPacketType>::size == 2 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+    constexpr int NumPackets = 2;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1]);
+  }
+  // unpacket_traits<DstPacketType>::size == 4 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+    constexpr int NumPackets = 4;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
+                                               packets.packet[3]);
+  }
+  // unpacket_traits<DstPacketType>::size == 8 * SrcPacketSize
+  template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+    constexpr int NumPackets = 8;
+    constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
+                                               packets.packet[3], packets.packet[4], packets.packet[5],
+                                               packets.packet[6], packets.packet[7]);
   }
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rows() const { return m_rows; }
@@ -874,6 +1033,20 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
     return m_d.func().packetOp(m_d.arg1Impl.template packet<LoadMode, PacketType>(index),
                                m_d.arg2Impl.template packet<LoadMode, PacketType>(index),
                                m_d.arg3Impl.template packet<LoadMode, PacketType>(index));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.arg2Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.arg3Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template packetRange<LoadMode, PacketType>(index, begin, count),
+                               m_d.arg2Impl.template packetRange<LoadMode, PacketType>(index, begin, count),
+                               m_d.arg3Impl.template packetRange<LoadMode, PacketType>(index, begin, count));
   }
 
  protected:
@@ -972,6 +1145,18 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
                                m_d.rhsImpl.template packet<LoadMode, PacketType>(index));
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.rhsImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template packetRange<LoadMode, PacketType>(index, begin, count),
+                               m_d.rhsImpl.template packetRange<LoadMode, PacketType>(index, begin, count));
+  }
+
  protected:
   // this helper permits to completely eliminate the functor if it is empty
   struct Data {
@@ -1063,7 +1248,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
         m_innerStride(map.innerStride()),
         m_outerStride(map.outerStride()) {
     EIGEN_STATIC_ASSERT(check_implication((evaluator<Derived>::Flags & PacketAccessBit) != 0,
-                                          internal::inner_stride_at_compile_time<Derived>::ret == 1),
+                                          inner_stride_at_compile_time<Derived>::ret == 1),
                         PACKET_ACCESS_REQUIRES_TO_HAVE_INNER_STRIDE_FIXED_TO_1);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -1085,23 +1270,47 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
     PointerType ptr = m_data + row * rowStride() + col * colStride();
-    return internal::ploadt<PacketType, LoadMode>(ptr);
+    return ploadt<PacketType, LoadMode>(ptr);
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    return internal::ploadt<PacketType, LoadMode>(m_data + index * m_innerStride.value());
+    return ploadt<PacketType, LoadMode>(m_data + index * m_innerStride.value());
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index row, Index col, const PacketType& x) {
     PointerType ptr = m_data + row * rowStride() + col * colStride();
-    return internal::pstoret<Scalar, PacketType, StoreMode>(ptr, x);
+    pstoret<Scalar, PacketType, StoreMode>(ptr, x);
   }
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
-    internal::pstoret<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x);
+    pstoret<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    PointerType ptr = m_data + row * rowStride() + col * colStride();
+    return ploadt<PacketType, LoadMode>(ptr);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return ploadt<PacketType, LoadMode>(m_data + index * m_innerStride.value());
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index count) {
+    PointerType ptr = m_data + row * rowStride() + col * colStride();
+    pstoretRange<Scalar, PacketType, StoreMode>(ptr, x, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    pstoretRange<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x, begin, count);
   }
 
  protected:
@@ -1113,8 +1322,8 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   }
 
   PointerType m_data;
-  const internal::variable_if_dynamic<Index, XprType::InnerStrideAtCompileTime> m_innerStride;
-  const internal::variable_if_dynamic<Index, XprType::OuterStrideAtCompileTime> m_outerStride;
+  const variable_if_dynamic<Index, XprType::InnerStrideAtCompileTime> m_innerStride;
+  const variable_if_dynamic<Index, XprType::OuterStrideAtCompileTime> m_outerStride;
 };
 
 template <typename PlainObjectType, int MapOptions, typename StrideType>
@@ -1167,7 +1376,7 @@ struct evaluator<Ref<PlainObjectType, RefOptions, StrideType>>
 // -------------------- Block --------------------
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel,
-          bool HasDirectAccess = internal::has_direct_access<ArgType>::ret>
+          bool HasDirectAccess = has_direct_access<ArgType>::ret>
 struct block_evaluator;
 
 template <typename ArgType, int BlockRows, int BlockCols, bool InnerPanel>
@@ -1296,6 +1505,39 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
                                                 x);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(m_startRow.value() + row, m_startCol.value() + col,
+                                                                begin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    if (ForwardLinearAccess)
+      return m_argImpl.template packetRange<LoadMode, PacketType>(m_linear_offset.value() + index, begin, count);
+    else
+      return packetRange<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
+                                               begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index count) {
+    return m_argImpl.template writePacketRange<StoreMode, PacketType>(m_startRow.value() + row,
+                                                                      m_startCol.value() + col, x, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    if (ForwardLinearAccess)
+      return m_argImpl.template writePacketRange<StoreMode, PacketType>(m_linear_offset.value() + index, x, begin,
+                                                                        count);
+    else
+      return writePacketRange<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
+                                                     RowsAtCompileTime == 1 ? index : 0, x, begin, count);
+  }
+
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType
   linear_coeff_impl(Index index, internal::true_type /* ForwardLinearAccess */) const {
@@ -1391,8 +1633,8 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
   typedef Replicate<ArgType, RowFactor, ColFactor> XprType;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   enum { Factor = (RowFactor == Dynamic || ColFactor == Dynamic) ? Dynamic : RowFactor * ColFactor };
-  typedef typename internal::nested_eval<ArgType, Factor>::type ArgTypeNested;
-  typedef internal::remove_all_t<ArgTypeNested> ArgTypeNestedCleaned;
+  typedef typename nested_eval<ArgType, Factor>::type ArgTypeNested;
+  typedef remove_all_t<ArgTypeNested> ArgTypeNestedCleaned;
 
   enum {
     CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,
@@ -1411,19 +1653,15 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     // try to avoid using modulo; this is a pure optimization strategy
-    const Index actual_row = internal::traits<XprType>::RowsAtCompileTime == 1 ? 0
-                             : RowFactor == 1                                  ? row
-                                                                               : row % m_rows.value();
-    const Index actual_col = internal::traits<XprType>::ColsAtCompileTime == 1 ? 0
-                             : ColFactor == 1                                  ? col
-                                                                               : col % m_cols.value();
+    const Index actual_row = traits<XprType>::RowsAtCompileTime == 1 ? 0 : RowFactor == 1 ? row : row % m_rows.value();
+    const Index actual_col = traits<XprType>::ColsAtCompileTime == 1 ? 0 : ColFactor == 1 ? col : col % m_cols.value();
 
     return m_argImpl.coeff(actual_row, actual_col);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // try to avoid using modulo; this is a pure optimization strategy
-    const Index actual_index = internal::traits<XprType>::RowsAtCompileTime == 1
+    const Index actual_index = traits<XprType>::RowsAtCompileTime == 1
                                    ? (ColFactor == 1 ? index : index % m_cols.value())
                                    : (RowFactor == 1 ? index : index % m_rows.value());
 
@@ -1432,23 +1670,36 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    const Index actual_row = internal::traits<XprType>::RowsAtCompileTime == 1 ? 0
-                             : RowFactor == 1                                  ? row
-                                                                               : row % m_rows.value();
-    const Index actual_col = internal::traits<XprType>::ColsAtCompileTime == 1 ? 0
-                             : ColFactor == 1                                  ? col
-                                                                               : col % m_cols.value();
+    const Index actual_row = traits<XprType>::RowsAtCompileTime == 1 ? 0 : RowFactor == 1 ? row : row % m_rows.value();
+    const Index actual_col = traits<XprType>::ColsAtCompileTime == 1 ? 0 : ColFactor == 1 ? col : col % m_cols.value();
 
     return m_argImpl.template packet<LoadMode, PacketType>(actual_row, actual_col);
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    const Index actual_index = internal::traits<XprType>::RowsAtCompileTime == 1
+    const Index actual_index = traits<XprType>::RowsAtCompileTime == 1
                                    ? (ColFactor == 1 ? index : index % m_cols.value())
                                    : (RowFactor == 1 ? index : index % m_rows.value());
 
     return m_argImpl.template packet<LoadMode, PacketType>(actual_index);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    const Index actual_row = traits<XprType>::RowsAtCompileTime == 1 ? 0 : RowFactor == 1 ? row : row % m_rows.value();
+    const Index actual_col = traits<XprType>::ColsAtCompileTime == 1 ? 0 : ColFactor == 1 ? col : col % m_cols.value();
+
+    return m_argImpl.template packetRange<LoadMode, PacketType>(actual_row, actual_col, begin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    const Index actual_index = traits<XprType>::RowsAtCompileTime == 1
+                                   ? (ColFactor == 1 ? index : index % m_cols.value())
+                                   : (RowFactor == 1 ? index : index % m_rows.value());
+
+    return m_argImpl.template packetRange<LoadMode, PacketType>(actual_index, begin, count);
   }
 
  protected:
@@ -1505,6 +1756,28 @@ struct evaluator_wrapper_base : evaluator_base<XprType> {
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
     m_argImpl.template writePacket<StoreMode>(index, x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index count) {
+    m_argImpl.template writePacketRange<StoreMode>(row, col, x, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    m_argImpl.template writePacketRange<StoreMode>(index, x, begin, count);
   }
 
  protected:
@@ -1586,41 +1859,99 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1,
-      OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1
-    };
-    typedef internal::reverse_packet_cond<PacketType, ReversePacket> reverse_packet;
-    return reverse_packet::run(m_argImpl.template packet<LoadMode, PacketType>(
-        ReverseRow ? m_rows.value() - row - OffsetRow : row, ReverseCol ? m_cols.value() - col - OffsetCol : col));
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    using reverse_packet = reverse_packet_cond<PacketType, ReversePacket>;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+
+    return reverse_packet::run(m_argImpl.template packet<LoadMode, PacketType>(actualRow, actualCol));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    enum { PacketSize = unpacket_traits<PacketType>::size };
-    return preverse(
-        m_argImpl.template packet<LoadMode, PacketType>(m_rows.value() * m_cols.value() - index - PacketSize));
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualBegin = PacketSize - count - begin;
+
+    return preverse(m_argImpl.template packet<LoadMode, PacketType>(actualIndex));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index row, Index col, const PacketType& x) {
-    // FIXME we could factorize some code with packet(i,j)
-    enum {
-      PacketSize = unpacket_traits<PacketType>::size,
-      OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1,
-      OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1
-    };
-    typedef internal::reverse_packet_cond<PacketType, ReversePacket> reverse_packet;
-    m_argImpl.template writePacket<LoadMode>(ReverseRow ? m_rows.value() - row - OffsetRow : row,
-                                             ReverseCol ? m_cols.value() - col - OffsetCol : col,
-                                             reverse_packet::run(x));
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    using reverse_packet = reverse_packet_cond<PacketType, ReversePacket>;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+
+    m_argImpl.template writePacket<LoadMode>(actualRow, actualCol, reverse_packet::run(x));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
-    enum { PacketSize = unpacket_traits<PacketType>::size };
-    m_argImpl.template writePacket<LoadMode>(m_rows.value() * m_cols.value() - index - PacketSize, preverse(x));
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualBegin = PacketSize - count - begin;
+
+    m_argImpl.template writePacket<LoadMode>(actualIndex, preverse(x));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    using reverse_packet = reverse_packet_cond<PacketType, ReversePacket>;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    Index actualBegin = ReversePacket ? (PacketSize - count - begin) : begin;
+
+    return reverse_packet::run(
+        m_argImpl.template packetRange<LoadMode, PacketType>(actualRow, actualCol, actualBegin, count));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualBegin = PacketSize - count - begin;
+
+    return preverse(m_argImpl.template packetRange<LoadMode, PacketType>(actualIndex, actualBegin, count));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+                                                              Index count) {
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+    static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
+    static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
+    using reverse_packet = reverse_packet_cond<PacketType, ReversePacket>;
+
+    Index actualRow = ReverseRow ? m_rows.value() - row - OffsetRow : row;
+    Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
+    Index actualBegin = ReversePacket ? (PacketSize - count - begin) : begin;
+
+    m_argImpl.template writePacketRange<LoadMode>(actualRow, actualCol, reverse_packet::run(x), actualBegin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+                                                              Index count) {
+    static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+
+    Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
+    Index actualBegin = PacketSize - count - begin;
+
+    m_argImpl.template writePacketRange<LoadMode>(actualIndex, preverse(x), actualBegin, count);
   }
 
  protected:
@@ -1671,7 +2002,7 @@ struct evaluator<Diagonal<ArgType, DiagIndex>> : evaluator_base<Diagonal<ArgType
 
  protected:
   evaluator<ArgType> m_argImpl;
-  const internal::variable_if_dynamicindex<Index, XprType::DiagIndex> m_index;
+  const variable_if_dynamicindex<Index, XprType::DiagIndex> m_index;
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EIGEN_CONSTEXPR Index rowOffset() const {
