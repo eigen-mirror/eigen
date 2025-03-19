@@ -1839,10 +1839,13 @@ EIGEN_STRONG_INLINE Packet8ui pabs(const Packet8ui& a) {
   return a;
 }
 
+#ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 EIGEN_STRONG_INLINE Packet8h psignbit(const Packet8h& a) {
   return _mm_cmpgt_epi16(_mm_setzero_si128(), a);
 }
+#endif  // EIGEN_VECTORIZE_AVX512FP16
+
 template <>
 EIGEN_STRONG_INLINE Packet8bf psignbit(const Packet8bf& a) {
   return _mm_cmpgt_epi16(_mm_setzero_si128(), a);
@@ -2044,10 +2047,13 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& x) {
   return _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0;
 }
 
+#ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8h& x) {
   return _mm_movemask_epi8(x) != 0;
 }
+#endif  // EIGEN_VECTORIZE_AVX512FP16
+
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
   return _mm_movemask_epi8(x) != 0;
@@ -2211,7 +2217,6 @@ struct unpacket_traits<Packet8h> {
   };
   typedef Packet8h half;
 };
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pset1<Packet8h>(const Eigen::half& from) {
@@ -2446,14 +2451,12 @@ EIGEN_STRONG_INLINE void pscatter<Eigen::half, Packet8h>(Eigen::half* to, const 
   to[stride * 7] = aux[7];
 }
 
-#ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux<Packet8h>(const Packet8h& a) {
   Packet8f af = half2float(a);
   float reduced = predux<Packet8f>(af);
   return Eigen::half(reduced);
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_max<Packet8h>(const Packet8h& a) {
@@ -2552,6 +2555,8 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8h, 4>& kernel) {
   kernel.packet[2] = pload<Packet8h>(out[2]);
   kernel.packet[3] = pload<Packet8h>(out[3]);
 }
+
+#endif
 
 // BFloat16 implementation.
 
