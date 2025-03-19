@@ -632,6 +632,15 @@ struct functor_traits<count_visitor<Scalar>> {
   };
 };
 
+template <typename Derived, bool AlwaysTrue = NumTraits<typename traits<Derived>::Scalar>::IsInteger>
+struct is_all_finite_impl {
+  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) { return derived.array().isFiniteTyped().all(); }
+};
+template <typename Derived>
+struct is_all_finite_impl<Derived, true> {
+  static EIGEN_DEVICE_FUNC inline bool run(const Derived& /*derived*/) { return true; }
+};
+
 }  // end namespace internal
 
 /** \fn DenseBase<Derived>::minCoeff(IndexType* rowId, IndexType* colId) const
@@ -781,7 +790,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
-  return derived().array().isFiniteTyped().all();
+  return internal::is_all_finite_impl<Derived>::run(derived());
 }
 
 }  // end namespace Eigen
