@@ -183,8 +183,8 @@ struct imag_ref_retval {
 };
 
 // implementation in MathFunctionsImpl.h
-template <typename Scalar, typename Mask, bool is_built_in_float = std::is_floating_point<Mask>::value>
-struct scalar_select_impl;
+template <typename Mask, bool is_built_in_float = std::is_floating_point<Mask>::value>
+struct scalar_select_mask;
 
 }  // namespace internal
 
@@ -213,7 +213,7 @@ EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(imag, Scalar) imag(const Scalar& 
 
 template <typename Scalar, typename Mask>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar select(const Mask& mask, const Scalar& a, const Scalar& b) {
-  return internal::scalar_select_impl<Scalar, Mask>::run(mask, a, b);
+  return internal::scalar_select_mask<Mask>::run(mask) ? b : a;
 }
 
 }  // namespace numext

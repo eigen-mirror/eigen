@@ -257,27 +257,45 @@ EIGEN_DEVICE_FUNC ComplexT complex_log(const ComplexT& z) {
 }
 
 // For generic scalars, use ternary select.
-template <typename Scalar, typename Mask>
-struct scalar_select_impl<Scalar, Mask, /*is_built_in_float*/ false> {
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Mask& mask, const Scalar& a, const Scalar& b) {
-    return numext::is_exactly_zero(mask) ? b : a;
-  }
+template <typename Mask>
+struct scalar_select_mask<Mask, /*is_built_in_float*/ false> {
+  static EIGEN_DEVICE_FUNC inline bool run(const Mask& mask) { return numext::is_exactly_zero(mask); }
 };
 
 // For built-in float mask, bitcast the mask to its integer counterpart and use ternary select.
-template <typename Scalar, typename Mask>
-struct scalar_select_impl<Scalar, Mask, /*is_built_in_float*/ true> {
+template <typename Mask>
+struct scalar_select_mask<Mask, /*is_built_in_float*/ true> {
   using IntegerType = typename numext::get_integer_by_size<sizeof(Mask)>::unsigned_type;
-  static EIGEN_DEVICE_FUNC inline Scalar run(const Mask& mask, const Scalar& a, const Scalar& b) {
-    return scalar_select_impl<Scalar, IntegerType, false>::run(numext::bit_cast<IntegerType>(std::abs(mask)), a, b);
+  static EIGEN_DEVICE_FUNC inline bool run(const Mask& mask) {
+    return numext::is_exactly_zero(numext::bit_cast<IntegerType>(std::abs(mask)));
   }
 };
 
 #if defined(__SIZEOF_LONG_DOUBLE__) && (__SIZEOF_LONG_DOUBLE__ > __SIZEOF_DOUBLE__)
-//  For platforms where long double is not identical to double, treat as a non-built-in type
-template <typename Scalar>
-struct scalar_select_impl<Scalar, long double, true> : scalar_select_impl<Scalar, long double, false> {};
+// For platforms where long double is not identical to double, treat as a non-built-in type
+template <>
+struct scalar_select_mask<long double, true> /*: scalar_select_impl<long double, false> {};*/
+{
+  static constexpr int NumBytes = sizeof(long double);
+  static EIGEN_DEVICE_FUNC inline bool run(const long double& mask) {
+    uint8_t mask_bytes[NumBytes];
+    EIGEN_USING_STD(memcpy);
+    memcpy(static_cast<void*>(&mask_bytes), static_cast<const void*>(&mask), NumBytes);
+    for (Index i = 0; i < NumBytes; i++) {
+      if (mask_bytes[i] != 0) return false;
+    }
+    return true;
+  }
+}
 #endif
+
+template <typename RealMask>
+struct scalar_select_mask<std::complex<RealMask>, false> {
+  using impl = scalar_select_mask<RealMask>;
+  static EIGEN_DEVICE_FUNC inline bool run(const std::complex<RealMask>& mask) {
+    return impl::run(numext::real(mask)) && impl::run(numext::imag(mask));
+  }
+};
 
 }  // end namespace internal
 
