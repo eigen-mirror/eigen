@@ -633,12 +633,12 @@ struct functor_traits<count_visitor<Scalar>> {
 };
 
 template <typename Derived, bool AlwaysTrue = NumTraits<typename traits<Derived>::Scalar>::IsInteger>
-struct is_all_finite_impl {
+struct all_finite_impl {
   static EIGEN_DEVICE_FUNC inline bool run(const Derived& /*derived*/) { return true; }
 };
 #if !defined(__FINITE_MATH_ONLY__) || !(__FINITE_MATH_ONLY__)
 template <typename Derived>
-struct is_all_finite_impl<Derived, false> {
+struct all_finite_impl<Derived, false> {
   static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) { return derived.array().isFiniteTyped().all(); }
 };
 #endif
@@ -792,7 +792,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
-  return internal::is_all_finite_impl<Derived>::run(derived());
+  return internal::all_finite_impl<Derived>::run(derived());
 }
 
 }  // end namespace Eigen
