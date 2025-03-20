@@ -269,17 +269,15 @@ template <typename Scalar, typename Mask>
 struct scalar_select_impl<Scalar, Mask, /*is_built_in_float*/ true> {
   using IntegerType = typename numext::get_integer_by_size<sizeof(Mask)>::unsigned_type;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Mask& mask, const Scalar& a, const Scalar& b) {
-    return scalar_select_impl<Scalar, IntegerType, false>::run(numext::bit_cast<IntegerType>(mask), a, b);
+    return scalar_select_impl<Scalar, IntegerType, false>::run(numext::bit_cast<IntegerType>(std::abs(mask)), a, b);
   }
 };
 
-// For long double, convert mask to double and handle as any other built-in float.
+#if defined(__SIZEOF_LONG_DOUBLE__) && (__SIZEOF_LONG_DOUBLE__ > __SIZEOF_DOUBLE__)
+//  For platforms where long double is not identical to double, treat as a non-built-in type
 template <typename Scalar>
-struct scalar_select_impl<Scalar, long double, std::is_floating_point<long double>::value> {
-  static EIGEN_DEVICE_FUNC inline Scalar run(const long double& mask, const Scalar& a, const Scalar& b) {
-    return scalar_select_impl<Scalar, double, true>::run(static_cast<double>(mask), a, b);
-  }
-};
+struct scalar_select_impl<Scalar, long double, true> : scalar_select_impl<Scalar, long double, false> {};
+#endif
 
 }  // end namespace internal
 
