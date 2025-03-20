@@ -256,6 +256,31 @@ EIGEN_DEVICE_FUNC ComplexT complex_log(const ComplexT& z) {
   return ComplexT(numext::log(a), b);
 }
 
+// For generic scalars, use ternary select.
+template <typename Scalar, typename Mask>
+struct scalar_select_impl<Scalar, Mask, /*is_built_in_float*/ false> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Mask& mask, const Scalar& a, const Scalar& b) {
+    return numext::is_exactly_zero(mask) ? b : a;
+  }
+};
+
+// For built-in float mask, bitcast the mask to its integer counterpart and use ternary select.
+template <typename Scalar, typename Mask>
+struct scalar_select_impl<Scalar, Mask, /*is_built_in_float*/ true> {
+  using IntegerType = typename numext::get_integer_by_size<sizeof(Mask)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Mask& mask, const Scalar& a, const Scalar& b) {
+    return scalar_select_impl<Scalar, IntegerType, false>::run(numext::bit_cast<IntegerType>(mask), a, b);
+  }
+};
+
+// For long double, convert mask to double and handle as any other built-in float.
+template <typename Scalar>
+struct scalar_select_impl<Scalar, long double, std::is_floating_point<long double>::value> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const long double& mask, const Scalar& a, const Scalar& b) {
+    return scalar_select_impl<Scalar, double, true>::run(static_cast<double>(mask), a, b);
+  }
+};
+
 }  // end namespace internal
 
 }  // end namespace Eigen
