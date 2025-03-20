@@ -274,8 +274,7 @@ struct scalar_select_mask<Mask, /*is_built_in_float*/ true> {
 #if defined(__SIZEOF_LONG_DOUBLE__) && (__SIZEOF_LONG_DOUBLE__ > __SIZEOF_DOUBLE__)
 // For platforms where long double is not identical to double, treat as a non-built-in type
 template <>
-struct scalar_select_mask<long double, true> /*: scalar_select_impl<long double, false> {};*/
-{
+struct scalar_select_mask<long double, true> {
   static constexpr int NumBytes = sizeof(long double);
   static EIGEN_DEVICE_FUNC inline bool run(const long double& mask) {
     uint8_t mask_bytes[NumBytes];
