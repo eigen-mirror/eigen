@@ -634,12 +634,14 @@ struct functor_traits<count_visitor<Scalar>> {
 
 template <typename Derived, bool AlwaysTrue = NumTraits<typename traits<Derived>::Scalar>::IsInteger>
 struct is_all_finite_impl {
-  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) { return derived.array().isFiniteTyped().all(); }
-};
-template <typename Derived>
-struct is_all_finite_impl<Derived, true> {
   static EIGEN_DEVICE_FUNC inline bool run(const Derived& /*derived*/) { return true; }
 };
+#if !defined(__FINITE_MATH_ONLY__) || !(__FINITE_MATH_ONLY__)
+template <typename Derived>
+struct is_all_finite_impl<Derived, false> {
+  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) { return derived.array().isFiniteTyped().all(); }
+};
+#endif
 
 }  // end namespace internal
 
