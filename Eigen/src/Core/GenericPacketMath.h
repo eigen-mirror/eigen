@@ -580,18 +580,36 @@ EIGEN_DEVICE_FUNC inline Packet pandnot(const Packet& a, const Packet& b) {
 }
 
 // In the general case, use bitwise select.
-template <typename Packet, typename EnableIf = void>
+template <typename Packet, bool is_scalar = is_scalar<Packet>::value,
+          bool is_built_in_float = std::is_floating_point<Packet>::value>
 struct pselect_impl {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& mask, const Packet& a, const Packet& b) {
     return por(pand(a, mask), pandnot(b, mask));
   }
 };
 
-// For scalars, use ternary select.
-template <typename Packet>
-struct pselect_impl<Packet, std::enable_if_t<is_scalar<Packet>::value>> {
-  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& mask, const Packet& a, const Packet& b) {
-    return numext::equal_strict(mask, Packet(0)) ? b : a;
+// For generic scalars, use ternary select.
+template <typename Scalar>
+struct pselect_impl<Scalar, /*is_scalar*/ true, /*is_built_in_float*/ false> {
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& mask, const Scalar& a, const Scalar& b) {
+    return numext::is_exactly_zero(mask) ? b : a;
+  }
+};
+
+// For built-in floats, bitcast the mask to its integer counterpart and use ternary select.
+template <typename Scalar>
+struct pselect_impl<Scalar, /*is_scalar*/ true, /*is_built_in_float*/ true> {
+  using IntegerType = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& mask, const Scalar& a, const Scalar& b) {
+    return numext::is_exactly_zero(numext::bit_cast<IntegerType>(mask)) ? b : a;
+  }
+};
+
+// For long double, convert mask to double and handle as any other built-in float.
+template <>
+struct pselect_impl<long double, /*is_scalar*/ true, /*is_built_in_float*/ true> {
+  static EIGEN_DEVICE_FUNC inline long double run(const long double& mask, const long double& a, const long double& b) {
+    return numext::is_exactly_zero(numext::bit_cast<int64_t>(static_cast<double>(mask))) ? b : a;
   }
 };
 
