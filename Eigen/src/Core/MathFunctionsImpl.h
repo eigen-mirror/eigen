@@ -272,20 +272,17 @@ struct scalar_select_mask<Mask, /*is_built_in_float*/ true> {
 };
 
 #if defined(__SIZEOF_LONG_DOUBLE__) && (__SIZEOF_LONG_DOUBLE__ > __SIZEOF_DOUBLE__)
-// For platforms where long double is not identical to double, treat as a non-built-in type
 template <>
 struct scalar_select_mask<long double, true> {
   static constexpr int NumBytes = sizeof(long double);
   static EIGEN_DEVICE_FUNC inline bool run(const long double& mask) {
-    uint8_t mask_bytes[NumBytes];
-    EIGEN_USING_STD(memcpy);
-    memcpy(static_cast<void*>(&mask_bytes), static_cast<const void*>(&mask), NumBytes);
+    const uint8_t* mask_bytes = reinterpret_cast<const uint8_t*>(&mask);
     for (Index i = 0; i < NumBytes; i++) {
       if (mask_bytes[i] != 0) return false;
     }
     return true;
   }
-}
+};
 #endif
 
 template <typename RealMask>
