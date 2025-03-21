@@ -31,8 +31,8 @@ struct assign_op {
   }
 
   template <int Alignment, typename Packet>
-  EIGEN_STRONG_INLINE void assignPacketRange(DstScalar* a, const Packet& b, Index begin, Index n) const {
-    pstoretRange<DstScalar, Packet, Alignment>(a, b, begin, n);
+  EIGEN_STRONG_INLINE void assignPacketRange(DstScalar* a, const Packet& b, Index begin, Index count) const {
+    pstoretRange<DstScalar, Packet, Alignment>(a, b, begin, count);
   }
 };
 
