@@ -271,10 +271,10 @@ struct scalar_select_mask<Mask, /*is_built_in_float*/ true> {
   }
 };
 
-#if defined(__SIZEOF_LONG_DOUBLE__) && (__SIZEOF_LONG_DOUBLE__ > __SIZEOF_DOUBLE__)
-template <>
-struct scalar_select_mask<long double, true> {
-  static constexpr int NumBytes = sizeof(long double);
+template <int Size = sizeof(long double)>
+struct ldbl_select_mask {
+  static constexpr int MantissaDigits = std::numeric_limits<long double>::digits;
+  static constexpr int NumBytes = (MantissaDigits == 64 ? 80 : 128) / CHAR_BIT;
   static EIGEN_DEVICE_FUNC inline bool run(const long double& mask) {
     const uint8_t* mask_bytes = reinterpret_cast<const uint8_t*>(&mask);
     for (Index i = 0; i < NumBytes; i++) {
@@ -283,7 +283,12 @@ struct scalar_select_mask<long double, true> {
     return true;
   }
 };
-#endif
+
+template <>
+struct ldbl_select_mask<sizeof(double)> : scalar_select_mask<double> {};
+
+template<>
+struct scalar_select_mask<long double, true> : ldbl_select_mask<> {};
 
 template <typename RealMask>
 struct scalar_select_mask<std::complex<RealMask>, false> {
