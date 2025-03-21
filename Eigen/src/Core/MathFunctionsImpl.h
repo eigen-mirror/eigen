@@ -287,7 +287,7 @@ struct ldbl_select_mask {
 template <>
 struct ldbl_select_mask<sizeof(double)> : scalar_select_mask<double> {};
 
-template<>
+template <>
 struct scalar_select_mask<long double, true> : ldbl_select_mask<> {};
 
 template <typename RealMask>
