@@ -1277,12 +1277,12 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
     PointerType ptr = m_data + row * rowStride() + col * colStride();
-    return ploadt<PacketType, LoadMode>(ptr);
+    return ploadtRange<PacketType, LoadMode>(ptr, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return ploadt<PacketType, LoadMode>(m_data + index * m_innerStride.value());
+    return ploadtRange<PacketType, LoadMode>(m_data + index * m_innerStride.value(), begin, count);
   }
 
   template <int StoreMode, typename PacketType>
