@@ -1059,11 +1059,11 @@ EIGEN_DEVICE_FUNC void Transform<Scalar, Dim, Mode, Options>::computeRotationSca
                  : Scalar(1);  // so x has absolute value 1
   VectorType sv(svd.singularValues());
   sv.coeffRef(Dim - 1) *= x;
-  if (scaling) *scaling = svd.matrixV() * sv.asDiagonal() * svd.matrixV().adjoint();
+  if (scaling) (*scaling).noalias() = svd.matrixV() * sv.asDiagonal() * svd.matrixV().adjoint();
   if (rotation) {
     LinearMatrixType m(svd.matrixU());
     m.col(Dim - 1) *= x;
-    *rotation = m * svd.matrixV().adjoint();
+    (*rotation).noalias() = m * svd.matrixV().adjoint();
   }
 }
 
@@ -1182,7 +1182,8 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options> Transform<Scalar, Dim, M
       eigen_assert(false && "Invalid transform traits in Transform::Inverse");
     }
     // translation and remaining parts
-    res.matrix().template topRightCorner<Dim, 1>() = -res.matrix().template topLeftCorner<Dim, Dim>() * translation();
+    res.matrix().template topRightCorner<Dim, 1>().noalias() =
+        -res.matrix().template topLeftCorner<Dim, Dim>() * translation();
     res.makeAffine();  // we do need this, because in the beginning res is uninitialized
   }
   return res;
@@ -1432,7 +1433,7 @@ struct transform_transform_product_impl<Transform<Scalar, Dim, LhsMode, LhsOptio
   typedef Transform<Scalar, Dim, ResultMode, LhsOptions> ResultType;
   static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs) {
     ResultType res;
-    res.linear() = lhs.linear() * rhs.linear();
+    res.linear().noalias() = lhs.linear() * rhs.linear();
     res.translation() = lhs.linear() * rhs.translation() + lhs.translation();
     res.makeAffine();
     return res;

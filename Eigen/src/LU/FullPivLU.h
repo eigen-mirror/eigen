@@ -717,7 +717,7 @@ void FullPivLU<MatrixType_, PermutationIndex_>::_solve_impl(const RhsType& rhs, 
 
   // Step 2
   m_lu.topLeftCorner(smalldim, smalldim).template triangularView<UnitLower>().solveInPlace(c.topRows(smalldim));
-  if (rows > cols) c.bottomRows(rows - cols) -= m_lu.bottomRows(rows - cols) * c.topRows(cols);
+  if (rows > cols) c.bottomRows(rows - cols).noalias() -= m_lu.bottomRows(rows - cols) * c.topRows(cols);
 
   // Step 3
   m_lu.topLeftCorner(nonzero_pivots, nonzero_pivots)
