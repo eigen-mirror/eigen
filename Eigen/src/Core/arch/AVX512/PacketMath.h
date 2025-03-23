@@ -2264,6 +2264,7 @@ template <>
 EIGEN_STRONG_INLINE void pstore<half>(Eigen::half* to, const Packet16h& from) {
   // (void*) -> workaround clang warning:
   // cast from 'Eigen::half *' to '__m256i *' increases required alignment from 2 to 32
+  EIGEN_DEBUG_ALIGNED_STORE
   _mm256_store_si256((__m256i*)(void*)to, from);
 }
 
@@ -2271,6 +2272,7 @@ template <>
 EIGEN_STRONG_INLINE void pstoreu<half>(Eigen::half* to, const Packet16h& from) {
   // (void*) -> workaround clang warning:
   // cast from 'Eigen::half *' to '__m256i *' increases required alignment from 2 to 32
+  EIGEN_DEBUG_UNALIGNED_STORE
   _mm256_storeu_si256((__m256i*)(void*)to, from);
 }
 
@@ -2754,11 +2756,13 @@ EIGEN_STRONG_INLINE Packet16bf ploadu<Packet16bf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<bfloat16>(bfloat16* to, const Packet16bf& from) {
+  EIGEN_DEBUG_ALIGNED_STORE
   _mm256_store_si256(reinterpret_cast<__m256i*>(to), from);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<bfloat16>(bfloat16* to, const Packet16bf& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE
   _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
 }
 
@@ -3154,32 +3158,46 @@ EIGEN_STRONG_INLINE Packet8s pset1<Packet8s>(const numext::int16_t& x) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet32s>(numext::int16_t* out, const Packet32s& x) {
-  _mm512_storeu_epi16(out, x);
+  EIGEN_DEBUG_ALIGNED_STORE
+  _mm512_store_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet16s>(numext::int16_t* out, const Packet16s& x) {
-  _mm256_storeu_epi16(out, x);
+  EIGEN_DEBUG_ALIGNED_STORE
+#if defined(EIGEN_VECTORIZE_AVX512F) && defined(EIGEN_VECTORIZE_AVX512VL)
+  _mm256_store_epi32(out, x);
+#else
+  _mm256_store_si256(reinterpret_cast<__m256i*>(out), x);
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet8s>(numext::int16_t* out, const Packet8s& x) {
-  _mm_storeu_epi16(out, x);
+  EIGEN_DEBUG_ALIGNED_STORE
+#if defined(EIGEN_VECTORIZE_AVX512F) && defined(EIGEN_VECTORIZE_AVX512VL)
+  _mm256_store_epi32(out, x);
+#else
+  _mm_store_si128(reinterpret_cast<__m128i*>(out), x);
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet32s>(numext::int16_t* out, const Packet32s& x) {
-  _mm512_storeu_epi16(out, x);
+  EIGEN_DEBUG_UNALIGNED_STORE
+  _mm512_storeu_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet16s>(numext::int16_t* out, const Packet16s& x) {
-  _mm256_storeu_epi16(out, x);
+  EIGEN_DEBUG_UNALIGNED_STORE
+  _mm256_storeu_epi32(out, x);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstoreu<numext::int16_t, Packet8s>(numext::int16_t* out, const Packet8s& x) {
-  _mm_storeu_epi16(out, x);
+  EIGEN_DEBUG_UNALIGNED_STORE
+  _mm_storeu_epi32(out, x);
 }
 
 template <>

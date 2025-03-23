@@ -2416,6 +2416,26 @@ EIGEN_STRONG_INLINE Packet8h pmul<Packet8h>(const Packet8h& a, const Packet8h& b
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8h pmadd<Packet8h>(const Packet8h& a, const Packet8h& b, const Packet8h& c) {
+  return float2half(pmadd(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8h pmsub<Packet8h>(const Packet8h& a, const Packet8h& b, const Packet8h& c) {
+  return float2half(pmsub(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8h pnmadd<Packet8h>(const Packet8h& a, const Packet8h& b, const Packet8h& c) {
+  return float2half(pnmadd(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8h pnmsub<Packet8h>(const Packet8h& a, const Packet8h& b, const Packet8h& c) {
+  return float2half(pnmsub(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet8h pdiv<Packet8h>(const Packet8h& a, const Packet8h& b) {
   Packet8f af = half2float(a);
   Packet8f bf = half2float(b);
@@ -2783,6 +2803,26 @@ EIGEN_STRONG_INLINE Packet8bf psub<Packet8bf>(const Packet8bf& a, const Packet8b
 template <>
 EIGEN_STRONG_INLINE Packet8bf pmul<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {
   return F32ToBf16(pmul<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pmadd<Packet8bf>(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  return F32ToBf16(pmadd(Bf16ToF32(a), Bf16ToF32(b), Bf16ToF32(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pmsub<Packet8bf>(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  return F32ToBf16(pmsub(Bf16ToF32(a), Bf16ToF32(b), Bf16ToF32(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pnmadd<Packet8bf>(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  return F32ToBf16(pnmadd(Bf16ToF32(a), Bf16ToF32(b), Bf16ToF32(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pnmsub<Packet8bf>(const Packet8bf& a, const Packet8bf& b, const Packet8bf& c) {
+  return F32ToBf16(pnmsub(Bf16ToF32(a), Bf16ToF32(b), Bf16ToF32(c)));
 }
 
 template <>
