@@ -3040,22 +3040,23 @@ EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet8i>(int* to, const Packet8
 
 template <>
 EIGEN_STRONG_INLINE Packet4i ploaduRange<Packet4i>(const int* from, Index begin, Index count) {
-  return preinterpret<Packet4i>(ploaduRange<Packet4f>(reinterpret_cast<const float*>(from), begin, count));
+  return _mm_castps_si128(_mm_maskload_ps(reinterpret_cast<const float*>(from), mm128i_range_mask_epi32(begin, count)));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
-  pstoreuRange<float, Packet4f>(reinterpret_cast<float*>(to), preinterpret<Packet4f>(from), begin, count);
+  _mm_maskstore_ps(reinterpret_cast<float*>(to), mm128i_range_mask_epi32(begin, count), _mm_castsi128_ps(from));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8i ploaduRange<Packet8i>(const int* from, Index begin, Index count) {
-  return preinterpret<Packet8i>(ploaduRange<Packet8f>(reinterpret_cast<const float*>(from), begin, count));
+  return _mm256_castps_si256(
+      _mm256_maskload_ps(reinterpret_cast<const float*>(from), mm256i_range_mask_epi32(begin, count)));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
-  pstoreuRange<float, Packet8f>(reinterpret_cast<float*>(to), preinterpret<Packet8f>(from), begin, count);
+  _mm256_maskstore_ps(reinterpret_cast<float*>(to), mm256i_range_mask_epi32(begin, count), _mm256_castsi256_ps(from));
 }
 
 #endif
@@ -3070,24 +3071,24 @@ struct packet_range_enable<Packet8ui> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4ui ploaduRange<Packet4ui>(const uint32_t* from, Index begin, Index count) {
-  return preinterpret<Packet4ui>(ploaduRange<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
+  return Packet4ui(ploaduRange<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuRange<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, Index begin,
                                                                 Index count) {
-  pstoreuRange<int, Packet4i>(reinterpret_cast<int*>(to), preinterpret<Packet4i>(from), begin, count);
+  pstoreuRange<int, Packet4i>(reinterpret_cast<int*>(to), Packet4i(from), begin, count);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8ui ploaduRange<Packet8ui>(const uint32_t* from, Index begin, Index count) {
-  return preinterpret<Packet8ui>(ploaduRange<Packet8i>(reinterpret_cast<const int*>(from), begin, count));
+  return Packet8ui(ploaduRange<Packet8i>(reinterpret_cast<const int*>(from), begin, count));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuRange<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, Index begin,
                                                                 Index count) {
-  pstoreuRange<int, Packet8i>(reinterpret_cast<int*>(to), preinterpret<Packet8i>(from), begin, count);
+  pstoreuRange<int, Packet8i>(reinterpret_cast<int*>(to), Packet8i(from), begin, count);
 }
 
 /*---------------- double ----------------*/
@@ -3155,12 +3156,12 @@ struct packet_range_enable<Packet4ul> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4ul ploaduRange<Packet4ul>(const uint64_t* from, Index begin, Index count) {
-  return preinterpret<Packet4ul>(ploaduRange<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
+  return Packet4ul(ploaduRange<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuRange<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, Index begin,
                                                                 Index count) {
-  pstoreuRange<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), preinterpret<Packet4l>(from), begin, count);
+  pstoreuRange<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), Packet4l(from), begin, count);
 }
 #endif
 
