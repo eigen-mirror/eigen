@@ -2967,8 +2967,8 @@ EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi32(Index begin, Index count) {
 }
 
 EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi64(Index begin, Index count) {
-#ifdef EIGEN_VECTORIZE_AVX2
   __m128i mask_epi8 = mm128i_range_mask_epi8(begin, count);
+#ifdef EIGEN_VECTORIZE_AVX2
   return _mm256_cvtepi8_epi64(mask_epi8);
 #else
   __m128i mask_epi64_lo = _mm_cvtepi8_epi64(mask_epi8);
