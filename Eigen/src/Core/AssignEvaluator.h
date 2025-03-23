@@ -386,8 +386,8 @@ struct unaligned_dense_assignment_loop {
 };
 
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*Skip*/ false,
-                                       /*UsePartialPackets*/ true> {
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePartialPackets*/ true,
+                                       /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
@@ -404,8 +404,8 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
 };
 
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*Skip*/ false,
-                                       /*UsePartialPackets*/ false> {
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePartialPackets*/ false,
+                                       /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     for (Index index = start; index < end; ++index) kernel.assignCoeff(index);

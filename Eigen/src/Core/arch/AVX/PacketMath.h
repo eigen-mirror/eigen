@@ -2938,7 +2938,7 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
   kernel.packet[3] = _mm_unpackhi_epi32(ab_47, cd_47);
 }
 
-// packet range support
+/*---------------- load/store range support ----------------*/
 
 EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi8(Index begin, Index count) {
   int64_t mask = (int64_t(1) << (CHAR_BIT * count)) - 1;
