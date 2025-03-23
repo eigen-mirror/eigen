@@ -804,6 +804,18 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(min)(const half& a, const half& b) { 
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(max)(const half& a, const half& b) { return a < b ? b : a; }
 
+EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
+#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+  return half(vfmah_f16(c.x, a.x, b.x));
+#elif defined(EIGEN_VECTORIZE_AVX512FP16)
+  // Reduces to vfmadd213sh.
+  return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), _mm_set_sh(c.x))));
+#else
+  // Emulate FMA via float.
+  return half(static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c));
+#endif
+}
+
 #ifndef EIGEN_NO_IO
 EIGEN_ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, const half& v) {
   os << static_cast<float>(v);
@@ -1022,36 +1034,6 @@ struct cast_impl<half, float> {
 #endif
   }
 };
-
-#ifdef EIGEN_VECTORIZE_FMA
-
-template <>
-EIGEN_DEVICE_FUNC inline half pmadd(const half& a, const half& b, const half& c) {
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
-  return half(vfmah_f16(a.x, b.x, c.x));
-#elif defined(EIGEN_VECTORIZE_AVX512FP16)
-  // Reduces to vfmadd213sh.
-  return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), _mm_set_sh(c.x))));
-#else
-  // Emulate FMA via float.
-  return half(static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c));
-#endif
-}
-
-template <>
-EIGEN_DEVICE_FUNC inline half pmsub(const half& a, const half& b, const half& c) {
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
-  return half(vfmah_f16(a.x, b.x, -c.x));
-#elif defined(EIGEN_VECTORIZE_AVX512FP16)
-  // Reduces to vfmadd213sh.
-  return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), -_mm_set_sh(c.x))));
-#else
-  // Emulate FMA via float.
-  return half(static_cast<float>(a) * static_cast<float>(b) - static_cast<float>(c));
-#endif
-}
-
-#endif
 
 }  // namespace internal
 }  // namespace Eigen

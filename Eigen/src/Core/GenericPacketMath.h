@@ -368,6 +368,11 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pdiv(const Packet& a, const Packet& b) {
   return a / b;
 }
+// Avoid compiler warning for boolean algebra.
+template <>
+EIGEN_DEVICE_FUNC inline bool pdiv(const bool& a, const bool& b) {
+  return a && b;
+}
 
 // In the generic case, memset to all one bits.
 template <typename Packet, typename EnableIf = void>
@@ -1294,29 +1299,61 @@ EIGEN_DEVICE_FUNC inline bool predux_any(const Packet& a) {
  * The following functions might not have to be overwritten for vectorized types
  ***************************************************************************/
 
+template <typename Packet, typename EnableIf = void>
+struct pmadd_impl {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
+    return padd(pmul(a, b), c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
+    return psub(pmul(a, b), c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
+    return psub(c, pmul(a, b));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
+    return pnegate(pmadd(a, b, c));
+  }
+};
+
+template <typename Scalar>
+struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits<Scalar>::IsSigned>> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(a, b, c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(a, b, Scalar(-c));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(Scalar(-a), b, c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return -Scalar(numext::fma(a, b, c));
+  }
+};
+
 // FMA instructions.
 /** \internal \returns a * b + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
-  return padd(pmul(a, b), c);
+  return pmadd_impl<Packet>::pmadd(a, b, c);
 }
 
 /** \internal \returns a * b - c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
-  return psub(pmul(a, b), c);
+  return pmadd_impl<Packet>::pmsub(a, b, c);
 }
 
 /** \internal \returns -(a * b) + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
-  return psub(c, pmul(a, b));
+  return pmadd_impl<Packet>::pnmadd(a, b, c);
 }
 
 /** \internal \returns -((a * b + c) (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-  return pnegate(pmadd(a, b, c));
+  return pmadd_impl<Packet>::pnmsub(a, b, c);
 }
 
 /** \internal copy a packet with constant coefficient \a a (e.g., [a,a,a,a]) to \a *to. \a to must be 16 bytes aligned
