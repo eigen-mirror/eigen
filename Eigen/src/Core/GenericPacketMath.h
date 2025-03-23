@@ -1563,11 +1563,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
 }
 
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet ploaduRange(const typename unpacket_traits<Packet>::type* from, Index begin, Index n) {
+EIGEN_DEVICE_FUNC inline Packet ploaduRange(const typename unpacket_traits<Packet>::type* from, Index begin,
+                                            Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
   Scalar aux[PacketSize];
-  for (Index i = begin; i < begin + n; i++) aux[i] = from[i];
+  for (Index i = begin; i < begin + count; i++) aux[i] = from[i];
   return ploadu<Packet>(aux);
 }
 
