@@ -435,8 +435,7 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
-template <typename Kernel, int Index_, int Stop,
-          bool UsePartialPacket = packet_range_enable<typename Kernel::PacketType>::value>
+template <typename Kernel, int Index_, int Stop, bool UsePartialPacket>
 struct copy_using_evaluator_linearvec_range {
   using PacketType = typename Kernel::PacketType;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
@@ -451,8 +450,13 @@ template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_linearvec_range<Kernel, Index_, Stop, /*UsePartialPacket*/ false>
     : copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_, Stop> {};
 
-template <typename Kernel, int Stop, bool UsePartialPacket>
-struct copy_using_evaluator_linearvec_range<Kernel, Stop, Stop, UsePartialPacket> {
+template <typename Kernel, int Stop>
+struct copy_using_evaluator_linearvec_range<Kernel, Stop, Stop, /*UsePartialPacket*/ true> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
+};
+
+template <typename Kernel, int Stop>
+struct copy_using_evaluator_linearvec_range<Kernel, Stop, Stop, /*UsePartialPacket*/ false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
@@ -492,10 +496,11 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, CompleteUnr
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int Size = Kernel::AssignmentTraits::SizeAtCompileTime;
   static constexpr int AlignedSize = numext::round_down(Size, PacketSize);
+  static constexpr bool UsePartialPacket = packet_range_enable<PacketType>::value;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
-    copy_using_evaluator_linearvec_range<Kernel, AlignedSize, Size>::run(kernel);
+    copy_using_evaluator_linearvec_range<Kernel, AlignedSize, Size, UsePartialPacket>::run(kernel);
   }
 };
 
