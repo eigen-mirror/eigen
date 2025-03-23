@@ -273,8 +273,7 @@ struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlign
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
-template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment,
-          bool UsePartialPacket = packet_range_enable<typename Kernel::PacketType>::value>
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment, bool UsePartialPacket>
 struct copy_using_evaluator_innervec_range {
   using PacketType = typename Kernel::PacketType;
 
@@ -289,8 +288,13 @@ struct copy_using_evaluator_innervec_range<Kernel, Start, Stop, SrcAlignment, Ds
                                            /*UsePartialPacket*/ false>
     : copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Start, Stop> {};
 
-template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment, bool UsePartialPacket>
-struct copy_using_evaluator_innervec_range<Kernel, Stop, Stop, SrcAlignment, DstAlignment, UsePartialPacket> {
+template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_innervec_range<Kernel, Stop, Stop, SrcAlignment, DstAlignment, /*UsePartialPacket*/ true> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
+};
+
+template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_innervec_range<Kernel, Stop, Stop, SrcAlignment, DstAlignment, /*UsePartialPacket*/ false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
@@ -620,10 +624,11 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
   static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
+  static constexpr bool UsePartialPacket = packet_range_enable<PacketType>::value;
 
   using packet_loop = copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, Unaligned, Unaligned>;
   using packet_range_loop =
-      copy_using_evaluator_innervec_range<Kernel, VectorizableSize, InnerSize, Unaligned, Unaligned>;
+      copy_using_evaluator_innervec_range<Kernel, VectorizableSize, InnerSize, Unaligned, Unaligned, UsePartialPacket>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
