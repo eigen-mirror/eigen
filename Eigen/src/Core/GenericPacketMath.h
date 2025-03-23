@@ -1529,21 +1529,17 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploaduRange(const typename unpacket_traits<Packet>::type* from, Index begin, Index n) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
-  // todo -- benchmark whether it is worth forcing the aligned load
-  alignas(Packet) Scalar aux[PacketSize];
-  // todo -- benchmark this vs memcpy
-  // std::memcpy(aux + begin, from + begin, n * sizeof(Scalar));
-  for (Index i = begin; i < begin + n; i++) {
-    aux[i] = from[i];
-  }
-  return pload<Packet>(aux);
+  Scalar aux[PacketSize];
+  for (Index i = begin; i < begin + n; i++) aux[i] = from[i];
+  return ploadu<Packet>(aux);
 }
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploadRange(const typename unpacket_traits<Packet>::type* from, Index begin,
                                            Index count) {
-  // return pload<Packet>(from);
-  // todo: evaluate if pload can be used and not trigger asan
+  // todo: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
+  // memory boundary, provided that the unitialized data is not referneced
+  // evaluate if this can be implemented without triggering asan asserts
   return ploaduRange<Packet>(from, begin, count);
 }
 
@@ -1552,11 +1548,8 @@ Elements outside of the range [begin, end) are not defined. \a *to does not need
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreuRange(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
-  // todo -- benchmark whether it is worth forcing the aligned store
-  alignas(Packet) Scalar aux[PacketSize];
-  pstore<Scalar, Packet>(aux, from);
-  // todo -- benchmark this vs memcpy
-  // std::memcpy(to + begin, aux + begin, n * sizeof(Scalar));
+  Scalar aux[PacketSize];
+  pstoreu<Scalar, Packet>(aux, from);
   for (Index i = begin; i < begin + count; i++) {
     to[i] = aux[i];
   }
@@ -1566,7 +1559,6 @@ EIGEN_DEVICE_FUNC inline void pstoreuRange(Scalar* to, const Packet& from, Index
 Elements outside of the range [begin, end) are not defined. \a *to must be aligned */
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreRange(Scalar* to, const Packet& from, Index begin, Index count) {
-  // aligned arrays provide no advantage in the generic case
   return pstoreuRange(to, from, begin, count);
 }
 
@@ -1590,6 +1582,9 @@ EIGEN_DEVICE_FUNC inline void pstoretRange(Scalar* to, const Packet& from, Index
   pstoreRange<Scalar, Packet>(to, from, begin, count);
   else pstoreuRange<Scalar, Packet>(to, from, begin, count);
 }
+
+template <typename Packet>
+struct packet_range_enable : std::false_type {};
 
 }  // end namespace internal
 

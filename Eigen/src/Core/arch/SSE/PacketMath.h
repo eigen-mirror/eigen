@@ -2366,6 +2366,97 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
 }
 #endif
 
+// creates a mask of bytes that is 0xFF in the range [begin, begin + count) and zero elsewhere
+EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi8(Index begin, Index count) {
+  int64_t mask = (int64_t(1) << (CHAR_BIT * count)) - 1;
+  mask <<= CHAR_BIT * begin;
+  return _mm_cvtsi64_si128(mask);
+}
+EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi32(Index begin, Index count) {
+  return _mm_cvtepi8_epi32(mm128i_range_mask_epi8(begin, count));
+}
+EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi64(Index begin, Index count) {
+  return _mm_cvtepi8_epi64(mm128i_range_mask_epi8(begin, count));
+}
+#ifdef EIGEN_VECTORIZE_AVX
+// float
+template <>
+struct packet_range_enable<Packet4f> : std::true_type {};
+
+template <>
+EIGEN_STRONG_INLINE Packet4f ploaduRange(const float* from, Index begin, Index count) {
+  return _mm_maskload_ps(from, mm128i_range_mask_epi32(begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(float* to, const Packet4f& from, Index begin, Index count) {
+  _mm_maskstore_ps(to, mm128i_range_mask_epi32(begin, count), from);
+}
+
+// int32
+template <>
+struct packet_range_enable<Packet4i> : std::true_type {};
+
+#ifdef EIGEN_VECTORIZE_AVX2
+EIGEN_STRONG_INLINE Packet4i ploaduRange(const int* from, Index begin, Index count) {
+  return _mm_maskload_epi32(from, mm128i_range_mask_epi32(begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(int* to, const Packet4i& from, Index begin, Index count) {
+  _mm_maskstore_epi32(to, mm128i_range_mask_epi32(begin, count), from);
+}
+#else
+EIGEN_STRONG_INLINE Packet4i ploaduRange(const int* from, Index begin, Index count) {
+  return Packet4i(ploaduRange<Packet4f>(reinterpret_cast<const float*>(from), begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(int* to, const Packet4i& from, Index begin, Index count) {
+  pstoreuRange<float, Packet4f>(reinterpret_cast<float*>(to), Packet4f(from), begin, count);
+}
+#endif
+
+// uint32
+
+template <>
+struct packet_range_enable<Packet4ui> : std::true_type {};
+
+EIGEN_STRONG_INLINE Packet4ui ploaduRange(const uint32_t* from, Index begin, Index count) {
+  return Packet4ui(ploaduRange<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(uint32_t* to, const Packet4ui& from, Index begin, Index count) {
+  pstoreuRange<int, Packet4i>(reinterpret_cast<int*>(to), Packet4i(from), begin, count);
+}
+
+// double
+
+template <>
+struct packet_range_enable<Packet2d> : std::true_type {};
+
+template <>
+EIGEN_STRONG_INLINE Packet2d ploaduRange(const double* from, Index begin, Index count) {
+  return _mm_maskload_pd(from, mm128i_range_mask_epi64(begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(double* to, const Packet2d& from, Index begin, Index count) {
+  _mm_maskstore_pd(to, mm128i_range_mask_epi64(begin, count), from);
+}
+#endif
+#ifdef EIGEN_VECTORIZE_AVX2
+// int64_t
+
+template <>
+struct packet_range_enable<Packet2l> : std::true_type {};
+
+template <>
+EIGEN_STRONG_INLINE Packet2l ploaduRange(const int64_t* from, Index begin, Index count) {
+  return _mm_maskload_epi64(from, mm128i_range_mask_epi64(begin, count));
+}
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuRange(int64_t* to, const Packet2l& from, Index begin, Index count) {
+  _mm_maskstore_epi64(to, mm128i_range_mask_epi64(begin, count), from);
+}
+#endif
+
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.
 // #elif defined(EIGEN_VECTORIZE_SSE) && (!EIGEN_ARCH_x86_64) && (!EIGEN_COMP_MSVC)

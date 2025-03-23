@@ -273,22 +273,24 @@ struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlign
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
-template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment>
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment,
+          bool UsePartialPacket = packet_range_enable<typename Kernel::PacketType>::value>
 struct copy_using_evaluator_innervec_range {
   using PacketType = typename Kernel::PacketType;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
-#ifdef EIGEN_USE_PARTIAL_PACKETS
     kernel.template assignPacketRangeByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, Start, 0,
                                                                                           Stop - Start);
-#else
-    copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Start, Stop>::run(kernel, outer);
-#endif
   }
 };
 
-template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
-struct copy_using_evaluator_innervec_range<Kernel, Stop, Stop, SrcAlignment, DstAlignment> {
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment>
+struct copy_using_evaluator_innervec_range<Kernel, Start, Stop, SrcAlignment, DstAlignment,
+                                           /*UsePartialPacket*/ false>
+    : copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Start, Stop> {};
+
+template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment, bool UsePartialPacket>
+struct copy_using_evaluator_innervec_range<Kernel, Stop, Stop, SrcAlignment, DstAlignment, UsePartialPacket> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
@@ -372,7 +374,7 @@ struct dense_assignment_loop_impl<Kernel, DefaultTraversal, InnerUnrolling> {
 // The goal of unaligned_dense_assignment_loop is simply to factorize the handling
 // of the non vectorizable beginning and ending parts
 
-template <typename PacketType, int DstAlignment, int SrcAlignment, bool Skip>
+template <typename PacketType, int DstAlignment, int SrcAlignment, bool UsePartialPackets, bool Skip>
 struct unaligned_dense_assignment_loop {
   // if Skip == true, then do nothing
   template <typename Kernel>
@@ -382,9 +384,10 @@ struct unaligned_dense_assignment_loop {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& /*kernel*/, Index outer,
                                                                         Index /*innerStart*/, Index /*innerEnd*/) {}
 };
-#ifdef EIGEN_USE_PARTIAL_PACKETS
+
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, false> {
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*Skip*/ false,
+                                       /*UsePartialPackets*/ true> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
@@ -399,9 +402,10 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, f
                                                                                             end - start);
   }
 };
-#else
+
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, false> {
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*Skip*/ false,
+                                       /*UsePartialPackets*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     for (Index index = start; index < end; ++index) kernel.assignCoeff(index);
@@ -409,10 +413,9 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, f
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index outer, Index innerStart,
                                                                         Index innerEnd) {
-    for (Index index = innerStart; index < innerEnd; ++index) kernel.assignCoeffByOuterInner(outer, inner);
+    for (Index inner = innerStart; inner < innerEnd; ++inner) kernel.assignCoeffByOuterInner(outer, inner);
   }
 };
-#endif
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_linearvec_CompleteUnrolling {
@@ -432,7 +435,8 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
-template <typename Kernel, int Index_, int Stop>
+template <typename Kernel, int Index_, int Stop,
+          bool UsePartialPacket = packet_range_enable<typename Kernel::PacketType>::value>
 struct copy_using_evaluator_linearvec_range {
   using PacketType = typename Kernel::PacketType;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
@@ -443,8 +447,12 @@ struct copy_using_evaluator_linearvec_range {
   }
 };
 
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_linearvec_range<Kernel, Stop, Stop> {
+template <typename Kernel, int Index_, int Stop>
+struct copy_using_evaluator_linearvec_range<Kernel, Index_, Stop, /*UsePartialPacket*/ false>
+    : copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_, Stop> {};
+
+template <typename Kernel, int Stop, bool UsePartialPacket>
+struct copy_using_evaluator_linearvec_range<Kernel, Stop, Stop, UsePartialPacket> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
@@ -458,9 +466,11 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
   static constexpr int DstAlignment =
       packet_traits<Scalar>::AlignedOnScalar ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment;
+  static constexpr bool UsePartialPacket = packet_range_enable<PacketType>::value;
 
-  using head_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, DstIsAligned>;
-  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, false>;
+  using head_loop =
+      unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePartialPacket, DstIsAligned>;
+  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePartialPacket, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Index size = kernel.size();
@@ -485,11 +495,7 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, CompleteUnr
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, 0, AlignedSize>::run(kernel);
-#ifdef EIGEN_USE_PARTIAL_PACKETS
     copy_using_evaluator_linearvec_range<Kernel, AlignedSize, Size>::run(kernel);
-#else
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, AlignedSize, Size>::run(kernel);
-#endif
   }
 };
 
@@ -570,8 +576,9 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
       packet_traits<Scalar>::AlignedOnScalar || Kernel::AssignmentTraits::DstAlignment >= sizeof(Scalar);
   static constexpr bool DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment;
   static constexpr int DstAlignment = Alignable ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment;
+  static constexpr bool UsePartialPacket = packet_range_enable<PacketType>::value;
 
-  using unaligned_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, false>;
+  using unaligned_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePartialPacket, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Scalar* dst_ptr = kernel.dstDataPtr();
@@ -612,16 +619,11 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
   using packet_loop = copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, Unaligned, Unaligned>;
   using packet_range_loop =
       copy_using_evaluator_innervec_range<Kernel, VectorizableSize, InnerSize, Unaligned, Unaligned>;
-  using scalar_loop = copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, VectorizableSize, InnerSize>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     for (Index outer = 0; outer < kernel.outerSize(); ++outer) {
       packet_loop::run(kernel, outer);
-#ifdef EIGEN_USE_PARTIAL_PACKETS
       packet_range_loop::run(kernel, outer);
-#elif
-      scalar_loop::run(kernel, outer);
-#endif
     }
   }
 };

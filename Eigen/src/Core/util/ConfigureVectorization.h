@@ -498,13 +498,6 @@ extern "C" {
 #include <hip/hip_bfloat16.h>
 #endif
 
-#ifndef EIGEN_USE_PARTIAL_PACKETS
-#ifdef EIGEN_VECTORIZE_AVX
-#define EIGEN_USE_PARTIAL_PACKETS
-#endif
-#endif
-
-
 /** \brief Namespace containing all symbols from the %Eigen library. */
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
