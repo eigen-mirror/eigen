@@ -67,9 +67,9 @@ struct compound_assign_op {
   }
 
   template <int Alignment, typename Packet>
-  EIGEN_STRONG_INLINE void assignPacketRange(DstScalar* a, const Packet& b, Index begin, Index n) const {
-    assign_op<DstScalar, DstScalar>().template assignPacket_range<Alignment, Packet>(
-        a, Func().packetOp(ploadtRange<Packet, Alignment>(a), b), begin, n);
+  EIGEN_STRONG_INLINE void assignPacketRange(DstScalar* a, const Packet& b, Index begin, Index count) const {
+    assign_op<DstScalar, DstScalar>().template assignPacketRange<Alignment, Packet>(
+        a, Func().packetOp(ploadtRange<Packet, Alignment>(a, begin, count), b), begin, count);
   }
 };
 
