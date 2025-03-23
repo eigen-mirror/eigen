@@ -765,7 +765,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<LoadMode>(row, col, 0, DstPacketSize, 0));
+    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(row, col, 0, DstPacketSize, 0));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
