@@ -198,15 +198,13 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index row, Index col) const {
-    Index index = getIndex(row, col);
-    return coeff(index);
+    return coeff(getIndex(row, col));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr CoeffReturnType coeff(Index index) const { return m_d.data[index]; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index row, Index col) {
-    Index index = getIndex(row, col);
-    return coeffRef(index);
+    return coeffRef(getIndex(row, col));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index index) {
@@ -215,8 +213,7 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
-    Index index = getIndex(row, col);
-    return packet<LoadMode, PacketType>(index);
+    return packet<LoadMode, PacketType>(getIndex(row, col));
   }
 
   template <int LoadMode, typename PacketType>
@@ -226,8 +223,7 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index row, Index col, const PacketType& x) {
-    Index index = getIndex(row, col);
-    writePacket<StoreMode, PacketType>(index, x);
+    writePacket<StoreMode, PacketType>(getIndex(row, col), x);
   }
 
   template <int StoreMode, typename PacketType>
@@ -237,8 +233,7 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    Index index = getIndex(row, col);
-    return packetRange<LoadMode, PacketType>(index, begin, count);
+    return packetRange<LoadMode, PacketType>(getIndex(row, col), begin, count);
   }
 
   template <int LoadMode, typename PacketType>
@@ -249,8 +244,7 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
-    Index index = getIndex(row, col);
-    writePacketRange<StoreMode, PacketType>(index, x, begin, count);
+    writePacketRange<StoreMode, PacketType>(getIndex(row, col), x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
