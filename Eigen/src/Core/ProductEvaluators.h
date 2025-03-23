@@ -1061,9 +1061,9 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return this->template packet_impl<LoadMode, PacketType>(row, col, col, begin, count,
-                                                            std::conditional_t < int(StorageOrder) == ColMajor,
-                                                            internal::true_type, internal::false_type > ());
+    return this->template packet_range_impl<LoadMode, PacketType>(row, col, col, begin, count,
+                                                                  std::conditional_t < int(StorageOrder) == ColMajor,
+                                                                  internal::true_type, internal::false_type > ());
   }
 
   template <int LoadMode, typename PacketType>
