@@ -308,9 +308,9 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVec
       this->template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
     }
   };
-  static constexpr bool UsePacketSegment = use_packet_segment<PacketType>::value;
+  static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
   using head_loop =
-      unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePartialPacket, DstIsAligned>;
+      unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, DstIsAligned>;
   using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, false>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
