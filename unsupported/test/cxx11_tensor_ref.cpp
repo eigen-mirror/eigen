@@ -113,7 +113,7 @@ static void test_ref_of_trace() {
   input.setRandom();
   int trace = 0;
   for (int i = 0; i < 6; ++i) {
-    trace += input(i,i);
+    trace += input(i, i);
   }
   TensorRef<const Tensor<int, 0>> ref(input.trace());
   VERIFY_IS_EQUAL(ref.coeff(0), trace);
