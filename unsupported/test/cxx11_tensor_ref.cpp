@@ -41,6 +41,9 @@ static void test_simple_lvalue_ref() {
   for (int i = 0; i < 6; ++i) {
     VERIFY_IS_EQUAL(input(i), -i * 2);
   }
+
+  TensorRef<const Tensor<int, 1>> ref5(input.trace());
+  VERIFY_IS_EQUAL(ref5[0], input[0]);
 }
 
 static void test_simple_rvalue_ref() {
