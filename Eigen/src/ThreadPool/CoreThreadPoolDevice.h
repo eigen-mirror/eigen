@@ -308,10 +308,10 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVec
       this->template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
     }
   };
-  static constexpr bool UsePartialPacket = packet_range_enable<PacketType>::value;
+  static constexpr bool UsePacketSegment = use_packet_segment<PacketType>::value;
   using head_loop =
       unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePartialPacket, DstIsAligned>;
-  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePartialPacket, false>;
+  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, false>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index size = kernel.size();

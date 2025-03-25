@@ -232,25 +232,25 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return packetRange<LoadMode, PacketType>(getIndex(row, col), begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return packetSegment<LoadMode, PacketType>(getIndex(row, col), begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return ploadtRange<PacketType, LoadMode>(m_d.data + index, begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return ploadtSegment<PacketType, LoadMode>(m_d.data + index, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
-    writePacketRange<StoreMode, PacketType>(getIndex(row, col), x, begin, count);
+    writePacketSegment<StoreMode, PacketType>(getIndex(row, col), x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
-    pstoretRange<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, begin, count);
+    pstoretSegment<Scalar, PacketType, StoreMode>(const_cast<Scalar*>(m_d.data) + index, x, begin, count);
   }
 
  protected:
@@ -334,25 +334,25 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(col, row, begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(col, row, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(index, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
-    m_argImpl.template writePacketRange<StoreMode, PacketType>(col, row, x, begin, count);
+    m_argImpl.template writePacketSegment<StoreMode, PacketType>(col, row, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
-    m_argImpl.template writePacketRange<StoreMode, PacketType>(index, x, begin, count);
+    m_argImpl.template writePacketSegment<StoreMode, PacketType>(index, x, begin, count);
   }
 
  protected:
@@ -540,13 +540,13 @@ struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
   }
 
   template <int LoadMode, typename PacketType, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(IndexType row, IndexType col, Index /*begin*/,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(IndexType row, IndexType col, Index /*begin*/,
                                                                Index /*count*/) const {
     return packet<LoadMode, PacketType, IndexType>(row, col);
   }
 
   template <int LoadMode, typename PacketType, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(IndexType index, Index /*begin*/,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(IndexType index, Index /*begin*/,
                                                                Index /*count*/) const {
     return packet<LoadMode, PacketType, IndexType>(index);
   }
@@ -596,13 +596,13 @@ struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IndexBased> : evaluator_b
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.argImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.argImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.argImpl.template packetRange<LoadMode, PacketType>(index, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.argImpl.template packetSegment<LoadMode, PacketType>(index, begin, count));
   }
 
  protected:
@@ -701,27 +701,27 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     return m_argImpl.template packet<LoadMode, PacketType>(actualIndex);
   }
   template <int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketRange(Index row, Index col, Index begin, Index count,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketSegment(Index row, Index col, Index begin, Index count,
                                                                   Index offset) const {
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
     Index packetOffset = offset * PacketSize;
     Index actualRow = IsRowMajor ? row : row + packetOffset;
     Index actualCol = IsRowMajor ? col + packetOffset : col;
     eigen_assert(check_array_bounds(actualRow, actualCol, 0, count) && "Array index out of bounds");
-    return m_argImpl.template packetRange<LoadMode, PacketType>(actualRow, actualCol, begin, count);
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(actualRow, actualCol, begin, count);
   }
   template <int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketRange(Index index, Index begin, Index count,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType srcPacketSegment(Index index, Index begin, Index count,
                                                                   Index offset) const {
     constexpr int PacketSize = unpacket_traits<PacketType>::size;
     Index packetOffset = offset * PacketSize;
     Index actualIndex = index + packetOffset + begin;
     eigen_assert(check_array_bounds(actualIndex, 0, count) && "Array index out of bounds");
-    return m_argImpl.template packetRange<LoadMode, PacketType>(actualIndex, begin, count);
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(actualIndex, begin, count);
   }
 
   template <int NumPackets, int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketRangeHelper(Index row, Index col,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketSegmentHelper(Index row, Index col,
                                                                                                  Index begin,
                                                                                                  Index count) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
@@ -730,7 +730,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     Index actualBegin = begin % SrcPacketSize;
     for (; offset < NumPackets; offset++) {
       Index actualCount = numext::mini(SrcPacketSize - actualBegin, count);
-      packets.packet[offset] = srcPacketRange<SrcLoadMode>(row, col, actualBegin, actualCount, offset);
+      packets.packet[offset] = srcPacketSegment<SrcLoadMode>(row, col, actualBegin, actualCount, offset);
       if (count == actualCount) break;
       actualBegin = 0;
       count -= actualCount;
@@ -738,7 +738,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     return packets;
   }
   template <int NumPackets, int LoadMode, typename PacketType = SrcPacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketRangeHelper(Index index,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketBlock<PacketType, NumPackets> srcPacketSegmentHelper(Index index,
                                                                                                  Index begin,
                                                                                                  Index count) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
@@ -747,7 +747,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     Index actualBegin = begin % SrcPacketSize;
     for (; offset < NumPackets; offset++) {
       Index actualCount = numext::mini(SrcPacketSize - actualBegin, count);
-      packets.packet[offset] = srcPacketRange<SrcLoadMode>(index, actualBegin, actualCount, offset);
+      packets.packet[offset] = srcPacketSegment<SrcLoadMode>(index, actualBegin, actualCount, offset);
       if (count == actualCount) break;
       actualBegin = 0;
       count -= actualCount;
@@ -765,7 +765,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(row, col, 0, DstPacketSize, 0));
+    return pcast<SrcPacketType, DstPacketType>(srcPacketSegment<SrcLoadMode>(row, col, 0, DstPacketSize, 0));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
@@ -801,55 +801,55 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
         srcPacket<SrcLoadMode>(row, col, 6), srcPacket<SrcLoadMode>(row, col, 7));
   }
 
-  // packetRange variants
+  // packetSegment variants
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index row, Index col, Index begin,
                                                                   Index count) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(row, col, begin, count, 0));
+    return pcast<SrcPacketType, DstPacketType>(srcPacketSegment<SrcLoadMode>(row, col, begin, count, 0));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index row, Index col, Index begin,
                                                                   Index count) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
     return pcast<SizedSrcPacketType, DstPacketType>(
-        srcPacketRange<SrcLoadMode, SizedSrcPacketType>(row, col, begin, count, 0));
+        srcPacketSegment<SrcLoadMode, SizedSrcPacketType>(row, col, begin, count, 0));
   }
   // unpacket_traits<DstPacketType>::size == 2 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index row, Index col, Index begin,
                                                                   Index count) const {
     constexpr int NumPackets = 2;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
     PacketBlock<SrcPacketType, NumPackets> packets =
-        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+        srcPacketSegmentHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1]);
   }
   // unpacket_traits<DstPacketType>::size == 4 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index row, Index col, Index begin,
                                                                   Index count) const {
     constexpr int NumPackets = 4;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
     PacketBlock<SrcPacketType, NumPackets> packets =
-        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+        srcPacketSegmentHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
                                                packets.packet[3]);
   }
   // unpacket_traits<DstPacketType>::size == 8 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index row, Index col, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index row, Index col, Index begin,
                                                                   Index count) const {
     constexpr int NumPackets = 8;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
     PacketBlock<SrcPacketType, NumPackets> packets =
-        srcPacketRangeHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
+        srcPacketSegmentHelper<NumPackets, SrcLoadMode>(row, col, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
                                                packets.packet[3], packets.packet[4], packets.packet[5],
                                                packets.packet[6], packets.packet[7]);
@@ -861,7 +861,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(index, 0, DstPacketSize, 0));
+    return pcast<SrcPacketType, DstPacketType>(srcPacketSegment<SrcLoadMode>(index, 0, DstPacketSize, 0));
   }
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packet(Index index) const {
@@ -891,47 +891,47 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
                                                srcPacket<SrcLoadMode>(index, 6), srcPacket<SrcLoadMode>(index, 7));
   }
 
-  // packetRange variants
+  // packetSegment variants
   template <int LoadMode, typename DstPacketType, AltSrcScalarOp<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index index, Index begin, Index count) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
-    return pcast<SrcPacketType, DstPacketType>(srcPacketRange<SrcLoadMode>(index, begin, count, 0));
+    return pcast<SrcPacketType, DstPacketType>(srcPacketSegment<SrcLoadMode>(index, begin, count, 0));
   }
   // Use the source packet type with the same size as DstPacketType, if it exists
   template <int LoadMode, typename DstPacketType, SrcPacketArgs1<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index index, Index begin, Index count) const {
     constexpr int DstPacketSize = unpacket_traits<DstPacketType>::size;
     using SizedSrcPacketType = typename find_packet_by_size<SrcType, DstPacketSize>::type;
     constexpr int SrcBytesIncrement = DstPacketSize * sizeof(SrcType);
     constexpr int SrcLoadMode = plain_enum_min(SrcBytesIncrement, LoadMode);
     return pcast<SizedSrcPacketType, DstPacketType>(
-        srcPacketRange<SrcLoadMode, SizedSrcPacketType>(index, begin, count, 0));
+        srcPacketSegment<SrcLoadMode, SizedSrcPacketType>(index, begin, count, 0));
   }
   // unpacket_traits<DstPacketType>::size == 2 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs2<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index index, Index begin, Index count) const {
     constexpr int NumPackets = 2;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketSegmentHelper<NumPackets, SrcLoadMode>(index, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1]);
   }
   // unpacket_traits<DstPacketType>::size == 4 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs4<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index index, Index begin, Index count) const {
     constexpr int NumPackets = 4;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketSegmentHelper<NumPackets, SrcLoadMode>(index, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
                                                packets.packet[3]);
   }
   // unpacket_traits<DstPacketType>::size == 8 * SrcPacketSize
   template <int LoadMode, typename DstPacketType, SrcPacketArgs8<DstPacketType> = true>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DstPacketType packetSegment(Index index, Index begin, Index count) const {
     constexpr int NumPackets = 8;
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
-    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketRangeHelper<NumPackets, SrcLoadMode>(index, begin, count);
+    PacketBlock<SrcPacketType, NumPackets> packets = srcPacketSegmentHelper<NumPackets, SrcLoadMode>(index, begin, count);
     return pcast<SrcPacketType, DstPacketType>(packets.packet[0], packets.packet[1], packets.packet[2],
                                                packets.packet[3], packets.packet[4], packets.packet[5],
                                                packets.packet[6], packets.packet[7]);
@@ -1015,17 +1015,17 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.arg1Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
-                               m_d.arg2Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
-                               m_d.arg3Impl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.arg2Impl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.arg3Impl.template packetSegment<LoadMode, PacketType>(row, col, begin, count));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.arg1Impl.template packetRange<LoadMode, PacketType>(index, begin, count),
-                               m_d.arg2Impl.template packetRange<LoadMode, PacketType>(index, begin, count),
-                               m_d.arg3Impl.template packetRange<LoadMode, PacketType>(index, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.arg1Impl.template packetSegment<LoadMode, PacketType>(index, begin, count),
+                               m_d.arg2Impl.template packetSegment<LoadMode, PacketType>(index, begin, count),
+                               m_d.arg3Impl.template packetSegment<LoadMode, PacketType>(index, begin, count));
   }
 
  protected:
@@ -1125,15 +1125,15 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IndexBase
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.lhsImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
-                               m_d.rhsImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+                               m_d.rhsImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return m_d.func().packetOp(m_d.lhsImpl.template packetRange<LoadMode, PacketType>(index, begin, count),
-                               m_d.rhsImpl.template packetRange<LoadMode, PacketType>(index, begin, count));
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_d.func().packetOp(m_d.lhsImpl.template packetSegment<LoadMode, PacketType>(index, begin, count),
+                               m_d.rhsImpl.template packetSegment<LoadMode, PacketType>(index, begin, count));
   }
 
  protected:
@@ -1269,27 +1269,27 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     PointerType ptr = m_data + row * rowStride() + col * colStride();
-    return ploadtRange<PacketType, LoadMode>(ptr, begin, count);
+    return ploadtSegment<PacketType, LoadMode>(ptr, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return ploadtRange<PacketType, LoadMode>(m_data + index * m_innerStride.value(), begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return ploadtSegment<PacketType, LoadMode>(m_data + index * m_innerStride.value(), begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
     PointerType ptr = m_data + row * rowStride() + col * colStride();
-    pstoretRange<Scalar, PacketType, StoreMode>(ptr, x, begin, count);
+    pstoretSegment<Scalar, PacketType, StoreMode>(ptr, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
-    pstoretRange<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x, begin, count);
+    pstoretSegment<Scalar, PacketType, StoreMode>(m_data + index * m_innerStride.value(), x, begin, count);
   }
 
  protected:
@@ -1485,35 +1485,35 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(m_startRow.value() + row, m_startCol.value() + col,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(m_startRow.value() + row, m_startCol.value() + col,
                                                                 begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
     if (ForwardLinearAccess)
-      return m_argImpl.template packetRange<LoadMode, PacketType>(m_linear_offset.value() + index, begin, count);
+      return m_argImpl.template packetSegment<LoadMode, PacketType>(m_linear_offset.value() + index, begin, count);
     else
-      return packetRange<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
+      return packetSegment<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
                                                begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
-    return m_argImpl.template writePacketRange<StoreMode, PacketType>(m_startRow.value() + row,
+    return m_argImpl.template writePacketSegment<StoreMode, PacketType>(m_startRow.value() + row,
                                                                       m_startCol.value() + col, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
     if (ForwardLinearAccess)
-      return m_argImpl.template writePacketRange<StoreMode, PacketType>(m_linear_offset.value() + index, x, begin,
+      return m_argImpl.template writePacketSegment<StoreMode, PacketType>(m_linear_offset.value() + index, x, begin,
                                                                         count);
     else
-      return writePacketRange<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
+      return writePacketSegment<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
                                                      RowsAtCompileTime == 1 ? index : 0, x, begin, count);
   }
 
@@ -1665,20 +1665,20 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     const Index actual_row = traits<XprType>::RowsAtCompileTime == 1 ? 0 : RowFactor == 1 ? row : row % m_rows.value();
     const Index actual_col = traits<XprType>::ColsAtCompileTime == 1 ? 0 : ColFactor == 1 ? col : col % m_cols.value();
 
-    return m_argImpl.template packetRange<LoadMode, PacketType>(actual_row, actual_col, begin, count);
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(actual_row, actual_col, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
     const Index actual_index = traits<XprType>::RowsAtCompileTime == 1
                                    ? (ColFactor == 1 ? index : index % m_cols.value())
                                    : (RowFactor == 1 ? index : index % m_rows.value());
 
-    return m_argImpl.template packetRange<LoadMode, PacketType>(actual_index, begin, count);
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(actual_index, begin, count);
   }
 
  protected:
@@ -1738,25 +1738,25 @@ struct evaluator_wrapper_base : evaluator_base<XprType> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
-    return m_argImpl.template packetRange<LoadMode, PacketType>(index, begin, count);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(index, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
-    m_argImpl.template writePacketRange<StoreMode>(row, col, x, begin, count);
+    m_argImpl.template writePacketSegment<StoreMode>(row, col, x, begin, count);
   }
 
   template <int StoreMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
-    m_argImpl.template writePacketRange<StoreMode>(index, x, begin, count);
+    m_argImpl.template writePacketSegment<StoreMode>(index, x, begin, count);
   }
 
  protected:
@@ -1881,7 +1881,7 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     static constexpr int PacketSize = unpacket_traits<PacketType>::size;
     static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
     static constexpr int OffsetCol = ReverseCol && IsRowMajor ? PacketSize : 1;
@@ -1892,21 +1892,21 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
     Index actualBegin = ReversePacket ? (PacketSize - count - begin) : begin;
 
     return reverse_packet::run(
-        m_argImpl.template packetRange<LoadMode, PacketType>(actualRow, actualCol, actualBegin, count));
+        m_argImpl.template packetSegment<LoadMode, PacketType>(actualRow, actualCol, actualBegin, count));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
     static constexpr int PacketSize = unpacket_traits<PacketType>::size;
 
     Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
     Index actualBegin = PacketSize - count - begin;
 
-    return preverse(m_argImpl.template packetRange<LoadMode, PacketType>(actualIndex, actualBegin, count));
+    return preverse(m_argImpl.template packetSegment<LoadMode, PacketType>(actualIndex, actualBegin, count));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index row, Index col, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
                                                               Index count) {
     static constexpr int PacketSize = unpacket_traits<PacketType>::size;
     static constexpr int OffsetRow = ReverseRow && IsColMajor ? PacketSize : 1;
@@ -1917,18 +1917,18 @@ struct unary_evaluator<Reverse<ArgType, Direction>> : evaluator_base<Reverse<Arg
     Index actualCol = ReverseCol ? m_cols.value() - col - OffsetCol : col;
     Index actualBegin = ReversePacket ? (PacketSize - count - begin) : begin;
 
-    m_argImpl.template writePacketRange<LoadMode>(actualRow, actualCol, reverse_packet::run(x), actualBegin, count);
+    m_argImpl.template writePacketSegment<LoadMode>(actualRow, actualCol, reverse_packet::run(x), actualBegin, count);
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketRange(Index index, const PacketType& x, Index begin,
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                               Index count) {
     static constexpr int PacketSize = unpacket_traits<PacketType>::size;
 
     Index actualIndex = m_rows.value() * m_cols.value() - index - PacketSize;
     Index actualBegin = PacketSize - count - begin;
 
-    m_argImpl.template writePacketRange<LoadMode>(actualIndex, preverse(x), actualBegin, count);
+    m_argImpl.template writePacketSegment<LoadMode>(actualIndex, preverse(x), actualBegin, count);
   }
 
  protected:

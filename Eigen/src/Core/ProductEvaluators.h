@@ -636,21 +636,21 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packetRange(Index row, Index col, Index begin,
-                                                                     Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packetSegment(Index row, Index col, Index begin,
+                                                                       Index count) const {
     PacketType res;
     typedef etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
                                      Unroll ? int(InnerSize) : Dynamic, LhsEtorType, RhsEtorType, PacketType, LoadMode>
         PacketImpl;
-    PacketImpl::run_range(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
+    PacketImpl::run_segment(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
     return res;
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packetRange(Index index, Index begin, Index count) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packetSegment(Index index, Index begin, Index count) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return packetRange<LoadMode, PacketType>(row, col, begin, count);
+    return packetSegment<LoadMode, PacketType>(row, col, begin, count);
   }
 
  protected:
@@ -688,12 +688,12 @@ struct etor_product_packet_impl<RowMajor, UnrollingIndex, Lhs, Rhs, Packet, Load
     res = pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
                 rhs.template packet<LoadMode, Packet>(Index(UnrollingIndex - 1), col), res);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index innerDim, Packet& res, Index begin, Index count) {
-    etor_product_packet_impl<RowMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_range(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index innerDim, Packet& res, Index begin, Index count) {
+    etor_product_packet_impl<RowMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment(
         row, col, lhs, rhs, innerDim, res, begin, count);
     res = pmadd(pset1<Packet>(lhs.coeff(row, Index(UnrollingIndex - 1))),
-                rhs.template packetRange<LoadMode, Packet>(Index(UnrollingIndex - 1), col, begin, count), res);
+                rhs.template packetSegment<LoadMode, Packet>(Index(UnrollingIndex - 1), col, begin, count), res);
   }
 };
 
@@ -706,11 +706,11 @@ struct etor_product_packet_impl<ColMajor, UnrollingIndex, Lhs, Rhs, Packet, Load
     res = pmadd(lhs.template packet<LoadMode, Packet>(row, Index(UnrollingIndex - 1)),
                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index innerDim, Packet& res, Index begin, Index count) {
-    etor_product_packet_impl<ColMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_range(
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index innerDim, Packet& res, Index begin, Index count) {
+    etor_product_packet_impl<ColMajor, UnrollingIndex - 1, Lhs, Rhs, Packet, LoadMode>::run_segment(
         row, col, lhs, rhs, innerDim, res, begin, count);
-    res = pmadd(lhs.template packetRange<LoadMode, Packet>(row, Index(UnrollingIndex - 1), begin, count),
+    res = pmadd(lhs.template packetSegment<LoadMode, Packet>(row, Index(UnrollingIndex - 1), begin, count),
                 pset1<Packet>(rhs.coeff(Index(UnrollingIndex - 1), col)), res);
   }
 };
@@ -721,11 +721,11 @@ struct etor_product_packet_impl<RowMajor, 1, Lhs, Rhs, Packet, LoadMode> {
                                                         Index /*innerDim*/, Packet& res) {
     res = pmul(pset1<Packet>(lhs.coeff(row, Index(0))), rhs.template packet<LoadMode, Packet>(Index(0), col));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index /*innerDim*/, Packet& res, Index begin,
-                                                              Index count) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index /*innerDim*/, Packet& res, Index begin,
+                                                                Index count) {
     res = pmul(pset1<Packet>(lhs.coeff(row, Index(0))),
-               rhs.template packetRange<LoadMode, Packet>(Index(0), col, begin, count));
+               rhs.template packetSegment<LoadMode, Packet>(Index(0), col, begin, count));
   }
 };
 
@@ -735,10 +735,10 @@ struct etor_product_packet_impl<ColMajor, 1, Lhs, Rhs, Packet, LoadMode> {
                                                         Index /*innerDim*/, Packet& res) {
     res = pmul(lhs.template packet<LoadMode, Packet>(row, Index(0)), pset1<Packet>(rhs.coeff(Index(0), col)));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index /*innerDim*/, Packet& res, Index begin,
-                                                              Index count) {
-    res = pmul(lhs.template packetRange<LoadMode, Packet>(row, Index(0), begin, count),
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index /*innerDim*/, Packet& res, Index begin,
+                                                                Index count) {
+    res = pmul(lhs.template packetSegment<LoadMode, Packet>(row, Index(0), begin, count),
                pset1<Packet>(rhs.coeff(Index(0), col)));
   }
 };
@@ -749,9 +749,9 @@ struct etor_product_packet_impl<RowMajor, 0, Lhs, Rhs, Packet, LoadMode> {
                                                         const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                              const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
-                                                              Index /*begin*/, Index /*count*/) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
+                                                                Index /*begin*/, Index /*count*/) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
   }
 };
@@ -762,9 +762,9 @@ struct etor_product_packet_impl<ColMajor, 0, Lhs, Rhs, Packet, LoadMode> {
                                                         const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
-                                                              const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
-                                                              Index /*begin*/, Index /*count*/) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index /*row*/, Index /*col*/, const Lhs& /*lhs*/,
+                                                                const Rhs& /*rhs*/, Index /*innerDim*/, Packet& res,
+                                                                Index /*begin*/, Index /*count*/) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
   }
 };
@@ -777,11 +777,11 @@ struct etor_product_packet_impl<RowMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packet<LoadMode, Packet>(i, col), res);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index innerDim, Packet& res, Index begin, Index count) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index innerDim, Packet& res, Index begin, Index count) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
-      res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packetRange<LoadMode, Packet>(i, col, begin, count),
+      res = pmadd(pset1<Packet>(lhs.coeff(row, i)), rhs.template packetSegment<LoadMode, Packet>(i, col, begin, count),
                   res);
   }
 };
@@ -794,11 +794,11 @@ struct etor_product_packet_impl<ColMajor, Dynamic, Lhs, Rhs, Packet, LoadMode> {
     for (Index i = 0; i < innerDim; ++i)
       res = pmadd(lhs.template packet<LoadMode, Packet>(row, i), pset1<Packet>(rhs.coeff(i, col)), res);
   }
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_range(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
-                                                              Index innerDim, Packet& res, Index begin, Index count) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_segment(Index row, Index col, const Lhs& lhs, const Rhs& rhs,
+                                                                Index innerDim, Packet& res, Index begin, Index count) {
     res = pset1<Packet>(typename unpacket_traits<Packet>::type(0));
     for (Index i = 0; i < innerDim; ++i)
-      res = pmadd(lhs.template packetRange<LoadMode, Packet>(row, i, begin, count), pset1<Packet>(rhs.coeff(i, col)),
+      res = pmadd(lhs.template packetSegment<LoadMode, Packet>(row, i, begin, count), pset1<Packet>(rhs.coeff(i, col)),
                   res);
   }
 };
@@ -942,7 +942,7 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet_range_impl(Index row, Index col, Index id, Index begin, Index count,
                                                    internal::true_type) const {
-    return internal::pmul(m_matImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
+    return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
@@ -955,8 +955,8 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
           LoadMode,
           ((InnerSize % 16) == 0) ? int(Aligned16) : int(evaluator<DiagonalType>::Alignment))  // FIXME hardcoded 16!!
     };
-    return internal::pmul(m_matImpl.template packetRange<LoadMode, PacketType>(row, col, begin, count),
-                          m_diagImpl.template packetRange<DiagonalPacketLoadMode, PacketType>(id, begin, count));
+    return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+                          m_diagImpl.template packetSegment<DiagonalPacketLoadMode, PacketType>(id, begin, count));
   }
 
   evaluator<DiagonalType> m_diagImpl;
@@ -1005,7 +1005,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+  EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_range_impl<LoadMode, PacketType>(row, col, row, begin, count,
@@ -1014,9 +1014,9 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetRange(Index idx, Index begin, Index count) const {
-    return packetRange<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
-                                             int(StorageOrder) == ColMajor ? 0 : idx, begin, count);
+  EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
+    return packetSegment<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
+                                               int(StorageOrder) == ColMajor ? 0 : idx, begin, count);
   }
 #endif
 };
@@ -1060,14 +1060,14 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetRange(Index row, Index col, Index begin, Index count) const {
+  EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     return this->template packet_range_impl<LoadMode, PacketType>(row, col, col, begin, count,
                                                                   std::conditional_t < int(StorageOrder) == ColMajor,
                                                                   internal::true_type, internal::false_type > ());
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packetRange(Index idx, Index begin, Index count) const {
+  EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
     return packet<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
                                         int(StorageOrder) == ColMajor ? 0 : idx, begin, count);
   }

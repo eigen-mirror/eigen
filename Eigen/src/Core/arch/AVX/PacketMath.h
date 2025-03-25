@@ -2940,22 +2940,22 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
 
 /*---------------- load/store range support ----------------*/
 
-EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi8(Index begin, Index count) {
+EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi8(Index begin, Index count) {
   int64_t mask = (int64_t(1) << (CHAR_BIT * count)) - 1;
   mask <<= CHAR_BIT * begin;
   return _mm_cvtsi64_si128(mask);
 }
 
-EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi32(Index begin, Index count) {
-  return _mm_cvtepi8_epi32(mm128i_range_mask_epi8(begin, count));
+EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi32(Index begin, Index count) {
+  return _mm_cvtepi8_epi32(mm128i_segment_mask_epi8(begin, count));
 }
 
-EIGEN_STRONG_INLINE __m128i mm128i_range_mask_epi64(Index begin, Index count) {
-  return _mm_cvtepi8_epi64(mm128i_range_mask_epi8(begin, count));
+EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi64(Index begin, Index count) {
+  return _mm_cvtepi8_epi64(mm128i_segment_mask_epi8(begin, count));
 }
 
-EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi32(Index begin, Index count) {
-  __m128i mask_epi8 = mm128i_range_mask_epi8(begin, count);
+EIGEN_STRONG_INLINE __m256i mm256i_segment_mask_epi32(Index begin, Index count) {
+  __m128i mask_epi8 = mm128i_segment_mask_epi8(begin, count);
 #ifdef EIGEN_VECTORIZE_AVX2
   return _mm256_cvtepi8_epi32(mask_epi8);
 #else
@@ -2966,8 +2966,8 @@ EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi32(Index begin, Index count) {
 #endif
 }
 
-EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi64(Index begin, Index count) {
-  __m128i mask_epi8 = mm128i_range_mask_epi8(begin, count);
+EIGEN_STRONG_INLINE __m256i mm256i_segment_mask_epi64(Index begin, Index count) {
+  __m128i mask_epi8 = mm128i_segment_mask_epi8(begin, count);
 #ifdef EIGEN_VECTORIZE_AVX2
   return _mm256_cvtepi8_epi64(mask_epi8);
 #else
@@ -2981,82 +2981,85 @@ EIGEN_STRONG_INLINE __m256i mm256i_range_mask_epi64(Index begin, Index count) {
 /*---------------- float ----------------*/
 
 template <>
-struct packet_range_enable<Packet4f> : std::true_type {};
+struct use_packet_segment<Packet4f> : std::true_type {};
 
 template <>
-struct packet_range_enable<Packet8f> : std::true_type {};
+struct use_packet_segment<Packet8f> : std::true_type {};
 
 template <>
-EIGEN_STRONG_INLINE Packet4f ploaduRange<Packet4f>(const float* from, Index begin, Index count) {
-  return _mm_maskload_ps(from, mm128i_range_mask_epi32(begin, count));
+EIGEN_STRONG_INLINE Packet4f ploaduSegment<Packet4f>(const float* from, Index begin, Index count) {
+  return _mm_maskload_ps(from, mm128i_segment_mask_epi32(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<float, Packet4f>(float* to, const Packet4f& from, Index begin, Index count) {
-  _mm_maskstore_ps(to, mm128i_range_mask_epi32(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<float, Packet4f>(float* to, const Packet4f& from, Index begin,
+                                                              Index count) {
+  _mm_maskstore_ps(to, mm128i_segment_mask_epi32(begin, count), from);
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8f ploaduRange<Packet8f>(const float* from, Index begin, Index count) {
-  return _mm256_maskload_ps(from, mm256i_range_mask_epi32(begin, count));
+EIGEN_STRONG_INLINE Packet8f ploaduSegment<Packet8f>(const float* from, Index begin, Index count) {
+  return _mm256_maskload_ps(from, mm256i_segment_mask_epi32(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<float, Packet8f>(float* to, const Packet8f& from, Index begin, Index count) {
-  _mm256_maskstore_ps(to, mm256i_range_mask_epi32(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<float, Packet8f>(float* to, const Packet8f& from, Index begin,
+                                                              Index count) {
+  _mm256_maskstore_ps(to, mm256i_segment_mask_epi32(begin, count), from);
 }
 
 /*---------------- int32 ----------------*/
 
 template <>
-struct packet_range_enable<Packet8i> : std::true_type {};
+struct use_packet_segment<Packet8i> : std::true_type {};
 
 template <>
-struct packet_range_enable<Packet4i> : std::true_type {};
+struct use_packet_segment<Packet4i> : std::true_type {};
 
 #ifdef EIGEN_VECTORIZE_AVX2
 
 template <>
-EIGEN_STRONG_INLINE Packet4i ploaduRange<Packet4i>(const int* from, Index begin, Index count) {
-  return _mm_maskload_epi32(from, mm128i_range_mask_epi32(begin, count));
+EIGEN_STRONG_INLINE Packet4i ploaduSegment<Packet4i>(const int* from, Index begin, Index count) {
+  return _mm_maskload_epi32(from, mm128i_segment_mask_epi32(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
-  _mm_maskstore_epi32(to, mm128i_range_mask_epi32(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
+  _mm_maskstore_epi32(to, mm128i_segment_mask_epi32(begin, count), from);
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8i ploaduRange<Packet8i>(const int* from, Index begin, Index count) {
-  return _mm256_maskload_epi32(from, mm256i_range_mask_epi32(begin, count));
+EIGEN_STRONG_INLINE Packet8i ploaduSegment<Packet8i>(const int* from, Index begin, Index count) {
+  return _mm256_maskload_epi32(from, mm256i_segment_mask_epi32(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
-  _mm256_maskstore_epi32(to, mm256i_range_mask_epi32(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
+  _mm256_maskstore_epi32(to, mm256i_segment_mask_epi32(begin, count), from);
 }
 
 #else
 
 template <>
-EIGEN_STRONG_INLINE Packet4i ploaduRange<Packet4i>(const int* from, Index begin, Index count) {
-  return _mm_castps_si128(_mm_maskload_ps(reinterpret_cast<const float*>(from), mm128i_range_mask_epi32(begin, count)));
+EIGEN_STRONG_INLINE Packet4i ploaduSegment<Packet4i>(const int* from, Index begin, Index count) {
+  return _mm_castps_si128(
+      _mm_maskload_ps(reinterpret_cast<const float*>(from), mm128i_segment_mask_epi32(begin, count)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
-  _mm_maskstore_ps(reinterpret_cast<float*>(to), mm128i_range_mask_epi32(begin, count), _mm_castsi128_ps(from));
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
+  _mm_maskstore_ps(reinterpret_cast<float*>(to), mm128i_segment_mask_epi32(begin, count), _mm_castsi128_ps(from));
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8i ploaduRange<Packet8i>(const int* from, Index begin, Index count) {
+EIGEN_STRONG_INLINE Packet8i ploaduSegment<Packet8i>(const int* from, Index begin, Index count) {
   return _mm256_castps_si256(
-      _mm256_maskload_ps(reinterpret_cast<const float*>(from), mm256i_range_mask_epi32(begin, count)));
+      _mm256_maskload_ps(reinterpret_cast<const float*>(from), mm256i_segment_mask_epi32(begin, count)));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
-  _mm256_maskstore_ps(reinterpret_cast<float*>(to), mm256i_range_mask_epi32(begin, count), _mm256_castsi256_ps(from));
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
+  _mm256_maskstore_ps(reinterpret_cast<float*>(to), mm256i_segment_mask_epi32(begin, count), _mm256_castsi256_ps(from));
 }
 
 #endif
@@ -3064,104 +3067,104 @@ EIGEN_DEVICE_FUNC inline void pstoreuRange<int, Packet8i>(int* to, const Packet8
 /*---------------- uint32 ----------------*/
 
 template <>
-struct packet_range_enable<Packet4ui> : std::true_type {};
+struct use_packet_segment<Packet4ui> : std::true_type {};
 
 template <>
-struct packet_range_enable<Packet8ui> : std::true_type {};
+struct use_packet_segment<Packet8ui> : std::true_type {};
 
 template <>
-EIGEN_STRONG_INLINE Packet4ui ploaduRange<Packet4ui>(const uint32_t* from, Index begin, Index count) {
-  return Packet4ui(ploaduRange<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
+EIGEN_STRONG_INLINE Packet4ui ploaduSegment<Packet4ui>(const uint32_t* from, Index begin, Index count) {
+  return Packet4ui(ploaduSegment<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, Index begin,
-                                                                Index count) {
-  pstoreuRange<int, Packet4i>(reinterpret_cast<int*>(to), Packet4i(from), begin, count);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& from, Index begin,
+                                                                  Index count) {
+  pstoreuSegment<int, Packet4i>(reinterpret_cast<int*>(to), Packet4i(from), begin, count);
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8ui ploaduRange<Packet8ui>(const uint32_t* from, Index begin, Index count) {
-  return Packet8ui(ploaduRange<Packet8i>(reinterpret_cast<const int*>(from), begin, count));
+EIGEN_STRONG_INLINE Packet8ui ploaduSegment<Packet8ui>(const uint32_t* from, Index begin, Index count) {
+  return Packet8ui(ploaduSegment<Packet8i>(reinterpret_cast<const int*>(from), begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, Index begin,
-                                                                Index count) {
-  pstoreuRange<int, Packet8i>(reinterpret_cast<int*>(to), Packet8i(from), begin, count);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& from, Index begin,
+                                                                  Index count) {
+  pstoreuSegment<int, Packet8i>(reinterpret_cast<int*>(to), Packet8i(from), begin, count);
 }
 
 /*---------------- double ----------------*/
 
 template <>
-struct packet_range_enable<Packet2d> : std::true_type {};
+struct use_packet_segment<Packet2d> : std::true_type {};
 
 template <>
-struct packet_range_enable<Packet4d> : std::true_type {};
+struct use_packet_segment<Packet4d> : std::true_type {};
 
 template <>
-EIGEN_STRONG_INLINE Packet2d ploaduRange<Packet2d>(const double* from, Index begin, Index count) {
-  return _mm_maskload_pd(from, mm128i_range_mask_epi64(begin, count));
+EIGEN_STRONG_INLINE Packet2d ploaduSegment<Packet2d>(const double* from, Index begin, Index count) {
+  return _mm_maskload_pd(from, mm128i_segment_mask_epi64(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<double, Packet2d>(double* to, const Packet2d& from, Index begin,
-                                                             Index count) {
-  _mm_maskstore_pd(to, mm128i_range_mask_epi64(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<double, Packet2d>(double* to, const Packet2d& from, Index begin,
+                                                               Index count) {
+  _mm_maskstore_pd(to, mm128i_segment_mask_epi64(begin, count), from);
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4d ploaduRange<Packet4d>(const double* from, Index begin, Index count) {
-  return _mm256_maskload_pd(from, mm256i_range_mask_epi64(begin, count));
+EIGEN_STRONG_INLINE Packet4d ploaduSegment<Packet4d>(const double* from, Index begin, Index count) {
+  return _mm256_maskload_pd(from, mm256i_segment_mask_epi64(begin, count));
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<double, Packet4d>(double* to, const Packet4d& from, Index begin,
-                                                             Index count) {
-  _mm256_maskstore_pd(to, mm256i_range_mask_epi64(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<double, Packet4d>(double* to, const Packet4d& from, Index begin,
+                                                               Index count) {
+  _mm256_maskstore_pd(to, mm256i_segment_mask_epi64(begin, count), from);
 }
 
 #ifdef EIGEN_VECTORIZE_AVX2
 
 /*---------------- int64_t ----------------*/
 template <>
-struct packet_range_enable<Packet2l> : std::true_type {};
+struct use_packet_segment<Packet2l> : std::true_type {};
 
 template <>
-struct packet_range_enable<Packet4l> : std::true_type {};
+struct use_packet_segment<Packet4l> : std::true_type {};
 
 template <>
-EIGEN_STRONG_INLINE Packet2l ploaduRange<Packet2l>(const int64_t* from, Index begin, Index count) {
-  return _mm_maskload_epi64(reinterpret_cast<const long long*>(from), mm128i_range_mask_epi64(begin, count));
+EIGEN_STRONG_INLINE Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
+  return _mm_maskload_epi64(reinterpret_cast<const long long*>(from), mm128i_segment_mask_epi64(begin, count));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index begin,
-                                                              Index count) {
-  _mm_maskstore_epi64(reinterpret_cast<long long*>(to), mm128i_range_mask_epi64(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index begin,
+                                                                Index count) {
+  _mm_maskstore_epi64(reinterpret_cast<long long*>(to), mm128i_segment_mask_epi64(begin, count), from);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4l ploaduRange<Packet4l>(const int64_t* from, Index begin, Index count) {
-  return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from), mm256i_range_mask_epi64(begin, count));
+EIGEN_STRONG_INLINE Packet4l ploaduSegment<Packet4l>(const int64_t* from, Index begin, Index count) {
+  return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from), mm256i_segment_mask_epi64(begin, count));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<int64_t, Packet4l>(int64_t* to, const Packet4l& from, Index begin,
-                                                              Index count) {
-  _mm256_maskstore_epi64(reinterpret_cast<long long*>(to), mm256i_range_mask_epi64(begin, count), from);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, const Packet4l& from, Index begin,
+                                                                Index count) {
+  _mm256_maskstore_epi64(reinterpret_cast<long long*>(to), mm256i_segment_mask_epi64(begin, count), from);
 }
 
 /*---------------- uint64_t ----------------*/
 
 template <>
-struct packet_range_enable<Packet4ul> : std::true_type {};
+struct use_packet_segment<Packet4ul> : std::true_type {};
 
 template <>
-EIGEN_STRONG_INLINE Packet4ul ploaduRange<Packet4ul>(const uint64_t* from, Index begin, Index count) {
-  return Packet4ul(ploaduRange<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
+EIGEN_STRONG_INLINE Packet4ul ploaduSegment<Packet4ul>(const uint64_t* from, Index begin, Index count) {
+  return Packet4ul(ploaduSegment<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
 }
 template <>
-EIGEN_DEVICE_FUNC inline void pstoreuRange<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, Index begin,
-                                                                Index count) {
-  pstoreuRange<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), Packet4l(from), begin, count);
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& from, Index begin,
+                                                                  Index count) {
+  pstoreuSegment<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), Packet4l(from), begin, count);
 }
 #endif
 
