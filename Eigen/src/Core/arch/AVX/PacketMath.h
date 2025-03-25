@@ -2981,10 +2981,10 @@ EIGEN_STRONG_INLINE __m256i mm256i_segment_mask_epi64(Index begin, Index count) 
 /*---------------- float ----------------*/
 
 template <>
-struct use_packet_segment<Packet4f> : std::true_type {};
+struct has_packet_segment<Packet4f> : std::true_type {};
 
 template <>
-struct use_packet_segment<Packet8f> : std::true_type {};
+struct has_packet_segment<Packet8f> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4f ploaduSegment<Packet4f>(const float* from, Index begin, Index count) {
@@ -3011,10 +3011,10 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<float, Packet8f>(float* to, const P
 /*---------------- int32 ----------------*/
 
 template <>
-struct use_packet_segment<Packet8i> : std::true_type {};
+struct has_packet_segment<Packet8i> : std::true_type {};
 
 template <>
-struct use_packet_segment<Packet4i> : std::true_type {};
+struct has_packet_segment<Packet4i> : std::true_type {};
 
 #ifdef EIGEN_VECTORIZE_AVX2
 
@@ -3067,10 +3067,10 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<int, Packet8i>(int* to, const Packe
 /*---------------- uint32 ----------------*/
 
 template <>
-struct use_packet_segment<Packet4ui> : std::true_type {};
+struct has_packet_segment<Packet4ui> : std::true_type {};
 
 template <>
-struct use_packet_segment<Packet8ui> : std::true_type {};
+struct has_packet_segment<Packet8ui> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4ui ploaduSegment<Packet4ui>(const uint32_t* from, Index begin, Index count) {
@@ -3097,10 +3097,10 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<uint32_t, Packet8ui>(uint32_t* to, 
 /*---------------- double ----------------*/
 
 template <>
-struct use_packet_segment<Packet2d> : std::true_type {};
+struct has_packet_segment<Packet2d> : std::true_type {};
 
 template <>
-struct use_packet_segment<Packet4d> : std::true_type {};
+struct has_packet_segment<Packet4d> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2d ploaduSegment<Packet2d>(const double* from, Index begin, Index count) {
@@ -3128,10 +3128,10 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<double, Packet4d>(double* to, const
 
 /*---------------- int64_t ----------------*/
 template <>
-struct use_packet_segment<Packet2l> : std::true_type {};
+struct has_packet_segment<Packet2l> : std::true_type {};
 
 template <>
-struct use_packet_segment<Packet4l> : std::true_type {};
+struct has_packet_segment<Packet4l> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
@@ -3155,7 +3155,7 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, con
 /*---------------- uint64_t ----------------*/
 
 template <>
-struct use_packet_segment<Packet4ul> : std::true_type {};
+struct has_packet_segment<Packet4ul> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4ul ploaduSegment<Packet4ul>(const uint64_t* from, Index begin, Index count) {

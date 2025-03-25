@@ -339,6 +339,8 @@ template <typename Scalar>
 struct scalar_bitwise_xor_op;
 template <typename Scalar>
 struct scalar_bitwise_not_op;
+template <typename SrcType, typename DstType>
+struct core_cast_op;
 
 // SpecialFunctions module
 template <typename Scalar>
@@ -514,6 +516,12 @@ template <typename Xpr>
 struct eigen_memset_helper;
 template <typename Xpr, bool use_memset = eigen_memset_helper<Xpr>::value>
 struct eigen_zero_impl;
+
+template <typename Packet>
+struct has_packet_segment : std::false_type {};
+
+template <typename Xpr>
+struct enable_packet_segment : std::true_type {};
 }  // namespace internal
 
 }  // end namespace Eigen
