@@ -1068,7 +1068,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
-    return packet<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
+    return packetSegment<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
                                         int(StorageOrder) == ColMajor ? 0 : idx, begin, count);
   }
 #endif
