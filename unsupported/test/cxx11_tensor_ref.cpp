@@ -41,9 +41,6 @@ static void test_simple_lvalue_ref() {
   for (int i = 0; i < 6; ++i) {
     VERIFY_IS_EQUAL(input(i), -i * 2);
   }
-
-  TensorRef<const Tensor<int, 1>> ref5(input.trace());
-  VERIFY_IS_EQUAL(ref5[0], input[0]);
 }
 
 static void test_simple_rvalue_ref() {
@@ -109,6 +106,17 @@ static void test_slice() {
   Eigen::DSizes<ptrdiff_t, 5> sizes3(2, 3, 1, 1, 1);
   slice = tensor.slice(indices3, sizes3);
   VERIFY_IS_EQUAL(slice.data(), tensor.data());
+}
+
+static void test_ref_of_trace() {
+  Tensor<int, 2> input(6, 6);
+  input.setRandom();
+  int trace = 0;
+  for (int i = 0; i < 6; ++i) {
+    trace += input(i, i);
+  }
+  TensorRef<const Tensor<int, 0>> ref(input.trace());
+  VERIFY_IS_EQUAL(ref.coeff(0), trace);
 }
 
 static void test_ref_of_ref() {
@@ -227,6 +235,7 @@ EIGEN_DECLARE_TEST(cxx11_tensor_ref) {
   CALL_SUBTEST(test_simple_rvalue_ref());
   CALL_SUBTEST(test_multiple_dims());
   CALL_SUBTEST(test_slice());
+  CALL_SUBTEST(test_ref_of_trace());
   CALL_SUBTEST(test_ref_of_ref());
   CALL_SUBTEST(test_ref_in_expr());
   CALL_SUBTEST(test_coeff_ref());
