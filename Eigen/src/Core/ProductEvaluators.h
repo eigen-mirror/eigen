@@ -940,15 +940,15 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_range_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                   internal::true_type) const {
+  EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
+                                                     internal::true_type) const {
     return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_range_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                   internal::false_type) const {
+  EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
+                                                     internal::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
@@ -1008,9 +1008,9 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
-    return this->template packet_range_impl<LoadMode, PacketType>(row, col, row, begin, count,
-                                                                  std::conditional_t < int(StorageOrder) == RowMajor,
-                                                                  internal::true_type, internal::false_type > ());
+    return this->template packet_segment_impl<LoadMode, PacketType>(row, col, row, begin, count,
+                                                                    std::conditional_t < int(StorageOrder) == RowMajor,
+                                                                    internal::true_type, internal::false_type > ());
   }
 
   template <int LoadMode, typename PacketType>
@@ -1061,9 +1061,9 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
-    return this->template packet_range_impl<LoadMode, PacketType>(row, col, col, begin, count,
-                                                                  std::conditional_t < int(StorageOrder) == ColMajor,
-                                                                  internal::true_type, internal::false_type > ());
+    return this->template packet_segment_impl<LoadMode, PacketType>(row, col, col, begin, count,
+                                                                    std::conditional_t < int(StorageOrder) == ColMajor,
+                                                                    internal::true_type, internal::false_type > ());
   }
 
   template <int LoadMode, typename PacketType>
