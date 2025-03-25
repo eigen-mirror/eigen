@@ -274,7 +274,7 @@ struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlign
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
-template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment, bool UsePartialPacket>
+template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment, bool UsePacketSegment>
 struct copy_using_evaluator_innervec_segment {
   using PacketType = typename Kernel::PacketType;
 
@@ -286,18 +286,18 @@ struct copy_using_evaluator_innervec_segment {
 
 template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_segment<Kernel, Start, Stop, SrcAlignment, DstAlignment,
-                                             /*UsePartialPacket*/ false>
+                                             /*UsePacketSegment*/ false>
     : copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Start, Stop> {};
 
 template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_segment<Kernel, Stop, Stop, SrcAlignment, DstAlignment,
-                                             /*UsePartialPacket*/ true> {
+                                             /*UsePacketSegment*/ true> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
 template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_segment<Kernel, Stop, Stop, SrcAlignment, DstAlignment,
-                                             /*UsePartialPacket*/ false> {
+                                             /*UsePacketSegment*/ false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
@@ -381,7 +381,7 @@ struct dense_assignment_loop_impl<Kernel, DefaultTraversal, InnerUnrolling> {
 // The goal of unaligned_dense_assignment_loop is simply to factorize the handling
 // of the non vectorizable beginning and ending parts
 
-template <typename PacketType, int DstAlignment, int SrcAlignment, bool UsePartialPackets, bool Skip>
+template <typename PacketType, int DstAlignment, int SrcAlignment, bool UsePacketSegments, bool Skip>
 struct unaligned_dense_assignment_loop {
   // if Skip == true, then do nothing
   template <typename Kernel>
@@ -393,7 +393,7 @@ struct unaligned_dense_assignment_loop {
 };
 
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePartialPackets*/ true,
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePacketSegments*/ true,
                                        /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
@@ -411,7 +411,7 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
 };
 
 template <typename PacketType, int DstAlignment, int SrcAlignment>
-struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePartialPackets*/ false,
+struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /*UsePacketSegments*/ false,
                                        /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
@@ -442,7 +442,7 @@ struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
-template <typename Kernel, int Index_, int Stop, bool UsePartialPacket>
+template <typename Kernel, int Index_, int Stop, bool UsePacketSegment>
 struct copy_using_evaluator_linearvec_segment {
   using PacketType = typename Kernel::PacketType;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
@@ -454,16 +454,16 @@ struct copy_using_evaluator_linearvec_segment {
 };
 
 template <typename Kernel, int Index_, int Stop>
-struct copy_using_evaluator_linearvec_segment<Kernel, Index_, Stop, /*UsePartialPacket*/ false>
+struct copy_using_evaluator_linearvec_segment<Kernel, Index_, Stop, /*UsePacketSegment*/ false>
     : copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_, Stop> {};
 
 template <typename Kernel, int Stop>
-struct copy_using_evaluator_linearvec_segment<Kernel, Stop, Stop, /*UsePartialPacket*/ true> {
+struct copy_using_evaluator_linearvec_segment<Kernel, Stop, Stop, /*UsePacketSegment*/ true> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
 template <typename Kernel, int Stop>
-struct copy_using_evaluator_linearvec_segment<Kernel, Stop, Stop, /*UsePartialPacket*/ false> {
+struct copy_using_evaluator_linearvec_segment<Kernel, Stop, Stop, /*UsePacketSegment*/ false> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel&) {}
 };
 
@@ -588,9 +588,9 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
       packet_traits<Scalar>::AlignedOnScalar || Kernel::AssignmentTraits::DstAlignment >= sizeof(Scalar);
   static constexpr bool DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment;
   static constexpr int DstAlignment = Alignable ? RequestedAlignment : Kernel::AssignmentTraits::DstAlignment;
-  static constexpr bool UsePartialPacket = packet_segment_enable<PacketType>::value;
+  static constexpr bool UsePacketSegment = packet_segment_enable<PacketType>::value;
 
-  using unaligned_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePartialPacket, false>;
+  using unaligned_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePacketSegment, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel) {
     const Scalar* dst_ptr = kernel.dstDataPtr();
