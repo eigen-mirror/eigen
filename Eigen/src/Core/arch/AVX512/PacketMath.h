@@ -2445,6 +2445,26 @@ EIGEN_STRONG_INLINE Packet16h pdiv<Packet16h>(const Packet16h& a, const Packet16
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet16h pmadd<Packet16h>(const Packet16h& a, const Packet16h& b, const Packet16h& c) {
+  return float2half(pmadd(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16h pmsub<Packet16h>(const Packet16h& a, const Packet16h& b, const Packet16h& c) {
+  return float2half(pmsub(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16h pnmadd<Packet16h>(const Packet16h& a, const Packet16h& b, const Packet16h& c) {
+  return float2half(pnmadd(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16h pnmsub<Packet16h>(const Packet16h& a, const Packet16h& b, const Packet16h& c) {
+  return float2half(pnmsub(half2float(a), half2float(b), half2float(c)));
+}
+
+template <>
 EIGEN_STRONG_INLINE half predux<Packet16h>(const Packet16h& from) {
   Packet16f from_float = half2float(from);
   return half(predux(from_float));
