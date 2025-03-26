@@ -2957,25 +2957,25 @@ EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi64(Index begin, Index count) 
 EIGEN_STRONG_INLINE __m256i mm256i_segment_mask_epi32(Index begin, Index count) {
   __m128i mask_epi8 = mm128i_segment_mask_epi8(begin, count);
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_cvtepi8_epi32(mask_epi8);
+  __m256i mask_epi32 = _mm256_cvtepi8_epi32(mask_epi8);
 #else
   __m128i mask_epi32_lo = _mm_cvtepi8_epi32(mask_epi8);
   __m128i mask_epi32_hi = _mm_cvtepi8_epi32(_mm_srli_epi64(mask_epi8, 32));
   __m256i mask_epi32 = _mm256_insertf128_si256(_mm256_castsi128_si256(mask_epi32_lo), mask_epi32_hi, 1);
-  return mask_epi32;
 #endif
+  return mask_epi32;
 }
 
 EIGEN_STRONG_INLINE __m256i mm256i_segment_mask_epi64(Index begin, Index count) {
   __m128i mask_epi8 = mm128i_segment_mask_epi8(begin, count);
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_cvtepi8_epi64(mask_epi8);
+  __m256i mask_epi64 = _mm256_cvtepi8_epi64(mask_epi8);
 #else
   __m128i mask_epi64_lo = _mm_cvtepi8_epi64(mask_epi8);
-  __m128i mask_epi64_hi = _mm_cvtepi8_epi64(_mm_srli_epi64(mask_epi8, 32));
+  __m128i mask_epi64_hi = _mm_cvtepi8_epi64(_mm_srli_epi64(mask_epi8, 16));
   __m256i mask_epi64 = _mm256_insertf128_si256(_mm256_castsi128_si256(mask_epi64_lo), mask_epi64_hi, 1);
-  return mask_epi64;
 #endif
+  return mask_epi64;
 }
 
 /*---------------- float ----------------*/
@@ -3127,6 +3127,7 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<double, Packet4d>(double* to, const
 #ifdef EIGEN_VECTORIZE_AVX2
 
 /*---------------- int64_t ----------------*/
+
 template <>
 struct has_packet_segment<Packet2l> : std::true_type {};
 
