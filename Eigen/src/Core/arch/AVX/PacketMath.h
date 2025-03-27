@@ -3169,6 +3169,8 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, 
 }
 #endif
 
+/*---------------- end load/store segment support ----------------*/
+
 }  // end namespace internal
 
 }  // end namespace Eigen
