@@ -999,28 +999,29 @@ struct is_permutation_base_xpr : std::is_base_of<PermutationBase<remove_all_t<Xp
 /*---------------- load/store segment support ----------------*/
 
 // recursively traverse unary, binary, and ternary expressions to determine if packet segments are supported
-template <typename Func, typename Xpr>
-struct enable_packet_segment<CwiseUnaryOp<Func, Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
 
 template <typename Func, typename Xpr>
 struct enable_packet_segment<CwiseNullaryOp<Func, Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
 
+template <typename Func, typename Xpr>
+struct enable_packet_segment<CwiseUnaryOp<Func, Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
+
 template <typename Func, typename LhsXpr, typename RhsXpr>
 struct enable_packet_segment<CwiseBinaryOp<Func, LhsXpr, RhsXpr>>
-    : std::integral_constant<bool, enable_packet_segment<remove_all_t<LhsXpr>>::value &&
-                                       enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
+    : bool_constant<enable_packet_segment<remove_all_t<LhsXpr>>::value &&
+                    enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
 
 template <typename Func, typename LhsXpr, typename MidXpr, typename RhsXpr>
 struct enable_packet_segment<CwiseTernaryOp<Func, LhsXpr, MidXpr, RhsXpr>>
-    : std::integral_constant<bool, enable_packet_segment<remove_all_t<LhsXpr>>::value &&
-                                       enable_packet_segment<remove_all_t<MidXpr>>::value &&
-                                       enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
+    : bool_constant<enable_packet_segment<remove_all_t<LhsXpr>>::value &&
+                    enable_packet_segment<remove_all_t<MidXpr>>::value &&
+                    enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
 
 // casting must be supported by the source and destination packet types
 template <typename SrcType, typename DstType, typename Xpr>
 struct enable_packet_segment<CwiseUnaryOp<core_cast_op<SrcType, DstType>, Xpr>>
-    : std::integral_constant<bool, has_packet_segment<typename packet_traits<SrcType>::type>::value &&
-                                       enable_packet_segment<remove_all_t<Xpr>>::value> {};
+    : bool_constant<has_packet_segment<typename packet_traits<SrcType>::type>::value &&
+                    enable_packet_segment<remove_all_t<Xpr>>::value> {};
 
 }  // end namespace internal
 

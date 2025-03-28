@@ -283,7 +283,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, cons
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
-  struct is_row_major : std::conditional_t<(int(T::Flags) & RowMajorBit), internal::true_type, internal::false_type> {};
+  struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   typedef typename Product<Lhs, Rhs>::Scalar Scalar;
 
   // TODO it would be nice to be able to exploit our *_assign_op functors for that purpose
@@ -445,7 +445,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
 
     eval_dynamic_impl(dst, blas_traits<Lhs>::extract(lhs).template conjugateIf<ConjLhs>(),
                       blas_traits<Rhs>::extract(rhs).template conjugateIf<ConjRhs>(), func, actualAlpha,
-                      std::conditional_t<HasScalarFactor, true_type, false_type>());
+                      bool_constant<HasScalarFactor>());
   }
 
  protected:
@@ -994,8 +994,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_impl<LoadMode, PacketType>(row, col, row,
-                                                            std::conditional_t < int(StorageOrder) == RowMajor,
-                                                            internal::true_type, internal::false_type > ());
+                                                            bool_constant < int(StorageOrder) == RowMajor > ());
   }
 
   template <int LoadMode, typename PacketType>
@@ -1008,9 +1007,8 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
-    return this->template packet_segment_impl<LoadMode, PacketType>(row, col, row, begin, count,
-                                                                    std::conditional_t < int(StorageOrder) == RowMajor,
-                                                                    internal::true_type, internal::false_type > ());
+    return this->template packet_segment_impl<LoadMode, PacketType>(
+        row, col, row, begin, count, bool_constant < int(StorageOrder) == RowMajor, > ());
   }
 
   template <int LoadMode, typename PacketType>
@@ -1049,8 +1047,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
     return this->template packet_impl<LoadMode, PacketType>(row, col, col,
-                                                            std::conditional_t < int(StorageOrder) == ColMajor,
-                                                            internal::true_type, internal::false_type > ());
+                                                            bool_constant < int(StorageOrder) == ColMajor > ());
   }
 
   template <int LoadMode, typename PacketType>
@@ -1062,8 +1059,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     return this->template packet_segment_impl<LoadMode, PacketType>(row, col, col, begin, count,
-                                                                    std::conditional_t < int(StorageOrder) == ColMajor,
-                                                                    internal::true_type, internal::false_type > ());
+                                                                    bool_constant < int(StorageOrder) == ColMajor > ());
   }
 
   template <int LoadMode, typename PacketType>

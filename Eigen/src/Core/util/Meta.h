@@ -90,12 +90,8 @@ namespace internal {
  * we however don't want to add a dependency to Boost.
  */
 
-struct true_type {
-  enum { value = 1 };
-};
-struct false_type {
-  enum { value = 0 };
-};
+using std::true_type;
+using std::false_type;
 
 template <bool Condition>
 struct bool_constant;
