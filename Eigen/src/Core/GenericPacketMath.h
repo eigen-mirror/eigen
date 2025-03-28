@@ -1564,7 +1564,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
-                                            Index count) {
+                                              Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
   Scalar aux[PacketSize];
@@ -1574,7 +1574,7 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploadSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
-                                           Index count) {
+                                             Index count) {
   // todo: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
   // memory boundary, provided that the unitialized data is not referneced
   // evaluate if this can be implemented without triggering asan asserts
@@ -1604,7 +1604,7 @@ EIGEN_DEVICE_FUNC inline void pstoreSegment(Scalar* to, const Packet& from, Inde
 Elements outside of the range [begin, end) are not defined. */
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
-                                            Index count) {
+                                              Index count) {
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");
   EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment)
   return ploadSegment<Packet>(from, begin, count);
