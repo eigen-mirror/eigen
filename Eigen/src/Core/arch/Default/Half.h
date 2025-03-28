@@ -812,7 +812,7 @@ EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
   return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), _mm_set_sh(c.x))));
 #else
   // Emulate FMA via float.
-  return half(static_cast<float>(a) * static_cast<float>(b) + static_cast<float>(c));
+  return half(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
 #endif
 }
 
