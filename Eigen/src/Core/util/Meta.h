@@ -90,8 +90,8 @@ namespace internal {
  * we however don't want to add a dependency to Boost.
  */
 
-using std::true_type;
 using std::false_type;
+using std::true_type;
 
 template <bool Condition>
 struct bool_constant;
