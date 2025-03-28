@@ -980,7 +980,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   typedef typename XprType::PlainObject PlainObject;
   typedef typename Lhs::DiagonalVectorType DiagonalType;
 
-  enum { StorageOrder = Base::StorageOrder_ };
+  static constexpr int StorageOrder = Base::StorageOrder_;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr) : Base(xpr.rhs(), xpr.lhs().diagonal()) {}
 
@@ -994,7 +994,7 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
     return this->template packet_impl<LoadMode, PacketType>(row, col, row,
-                                                            bool_constant < int(StorageOrder) == RowMajor > ());
+                                                            bool_constant<StorageOrder == RowMajor> ());
   }
 
   template <int LoadMode, typename PacketType>
@@ -1007,14 +1007,14 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
   EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     // FIXME: NVCC used to complain about the template keyword, but we have to check whether this is still the case.
     // See also similar calls below.
-    return this->template packet_segment_impl<LoadMode, PacketType>(
-        row, col, row, begin, count, bool_constant < int(StorageOrder) == RowMajor, > ());
+    return this->template packet_segment_impl<LoadMode, PacketType>(row, col, row, begin, count,
+                                                                    bool_constant< StorageOrder == RowMajor> ());
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packetSegment(Index idx, Index begin, Index count) const {
-    return packetSegment<LoadMode, PacketType>(int(StorageOrder) == ColMajor ? idx : 0,
-                                               int(StorageOrder) == ColMajor ? 0 : idx, begin, count);
+    return packetSegment<LoadMode, PacketType>(StorageOrder == ColMajor ? idx : 0, StorageOrder == ColMajor ? 0 : idx,
+                                               begin, count);
   }
 #endif
 };
