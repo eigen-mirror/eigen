@@ -2943,7 +2943,7 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
 EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi8(Index begin, Index count) {
   int64_t mask = (int64_t(1) << (CHAR_BIT * count)) - 1;
   mask <<= CHAR_BIT * begin;
-  return _mm_cvtsi64_si128(mask);
+  return _mm_cvtsi64x_si128(mask);
 }
 
 EIGEN_STRONG_INLINE __m128i mm128i_segment_mask_epi32(Index begin, Index count) {
