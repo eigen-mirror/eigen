@@ -2957,7 +2957,7 @@ EIGEN_STRONG_INLINE __m128i mm128i_segmask8_epi8(Index begin, Index count) {
 #if defined(_WIN32) && !defined(_WIN64)
   return _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&mask));
 #else
-  return _mm_cvtsi64x_si128(mask);
+  return _mm_cvtsi64_si128(mask);
 #endif
 }
 
