@@ -1,6 +1,7 @@
 include(EigenTesting)
 include(CheckCXXSourceCompiles)
 
+
 # configure the "site" and "buildname" 
 ei_set_sitename()
 
@@ -8,7 +9,17 @@ ei_set_sitename()
 ei_set_build_string()
 
 add_custom_target(buildtests)
+
+if (NOT EIGEN_CTEST_ARGS)
+  # By default, run tests in parallel on all available cores.
+  include(ProcessorCount)
+  ProcessorCount(NPROC)
+  if(NOT NPROC EQUAL 0)
+    set(EIGEN_CTEST_ARGS "" CACHE STRING "-j"${NPROC})
+  endif()
+endif()
 add_custom_target(check COMMAND "ctest" ${EIGEN_CTEST_ARGS})
+
 add_dependencies(check buildtests)
 
 # Convenience target for only building GPU tests.
