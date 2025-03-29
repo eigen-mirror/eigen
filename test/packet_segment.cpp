@@ -93,8 +93,7 @@ struct packet_segment_test_impl<Packet, false> {
   static void run() {}
 };
 
-template <typename Packet, typename HalfPacket = typename internal::unpacket_traits<Packet>::half,
-          bool RunHalf = !internal::is_same<Packet, HalfPacket>::value>
+template <typename Packet, typename HalfPacket = typename internal::unpacket_traits<Packet>::half>
 struct packet_segment_test_driver {
   static void run() {
     packet_segment_test_impl<Packet>::run();
@@ -103,7 +102,7 @@ struct packet_segment_test_driver {
 };
 
 template <typename Packet>
-struct packet_segment_test_driver<Packet, Packet, false> : packet_segment_test_impl<Packet> {};
+struct packet_segment_test_driver<Packet, Packet> : packet_segment_test_impl<Packet> {};
 
 template <typename Scalar>
 void test_packet_segment() {
