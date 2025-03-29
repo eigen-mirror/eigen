@@ -2,7 +2,7 @@ include(EigenTesting)
 include(CheckCXXSourceCompiles)
 
 
-# configure the "site" and "buildname" 
+# configure the "site" and "buildname"
 ei_set_sitename()
 
 # retrieve and store the build string
@@ -12,11 +12,7 @@ add_custom_target(buildtests)
 
 if (NOT EIGEN_CTEST_ARGS)
   # By default, run tests in parallel on all available cores.
-  include(ProcessorCount)
-  ProcessorCount(NPROC)
-  if(NOT NPROC EQUAL 0)
-    set(EIGEN_CTEST_ARGS "" CACHE STRING "-j"${NPROC})
-  endif()
+  set(EIGEN_CTEST_ARGS "" CACHE STRING "-j0")
 endif()
 add_custom_target(check COMMAND "ctest" ${EIGEN_CTEST_ARGS})
 
@@ -24,7 +20,7 @@ add_dependencies(check buildtests)
 
 # Convenience target for only building GPU tests.
 add_custom_target(buildtests_gpu)
-add_custom_target(check_gpu COMMAND "ctest" "--output-on-failure" 
+add_custom_target(check_gpu COMMAND "ctest" "--output-on-failure"
                                             "--no-compress-output"
                                             "--build-no-clean"
                                             "-T" "test"
@@ -70,7 +66,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(CTEST_CUSTOM_COVERAGE_EXCLUDE "/test/")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_FLAGS}")
   endif()
-  
+
 elseif(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
 endif()
