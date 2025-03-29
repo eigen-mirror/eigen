@@ -389,7 +389,7 @@ struct unaligned_dense_assignment_loop {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& /*kernel*/, Index /*start*/,
                                                                         Index /*end*/) {}
   template <typename Kernel>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& /*kernel*/, Index outer,
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& /*kernel*/, Index /*outer*/,
                                                                         Index /*innerStart*/, Index /*innerEnd*/) {}
 };
 
@@ -666,10 +666,9 @@ class generic_dense_assignment_kernel {
   typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
   typedef typename AssignmentTraits::PacketType PacketType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst,
-                                                                                  const SrcEvaluatorType& src,
-                                                                                  const Functor& func,
-                                                                                  DstXprType& dstExpr)
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
+                                                                const Functor& func, DstXprType& dstExpr)
       : m_dst(dst), m_src(src), m_functor(func), m_dstExpr(dstExpr) {
 #ifdef EIGEN_DEBUG_ASSIGN
     AssignmentTraits::debug();
