@@ -2950,8 +2950,9 @@ EIGEN_STRONG_INLINE __m128i mm128i_segmask4_epi8(Index begin, Index count) {
 
 // returns a mask of 8-bit elements (at most 8) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
 EIGEN_STRONG_INLINE __m128i mm128i_segmask8_epi8(Index begin, Index count) {
+  using T = long long;
   eigen_assert(begin >= 0 && begin + count <= 8);
-  __int64 mask = (__int64(1) << (CHAR_BIT * count)) - 1;
+  T mask = (T(1) << (CHAR_BIT * count)) - 1;
   mask <<= CHAR_BIT * begin;
 #if defined(_WIN32) && !defined(_WIN64)
   return _mm_loadl_epi64(reinterpret_cast<const __m128i*>(&mask));
@@ -3152,21 +3153,21 @@ struct has_packet_segment<Packet4l> : std::true_type {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
-  return _mm_maskload_epi64(reinterpret_cast<const __int64*>(from), mm128i_segmask2_epi64(begin, count));
+  return _mm_maskload_epi64(reinterpret_cast<const long long*>(from), mm128i_segmask2_epi64(begin, count));
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index begin,
                                                                 Index count) {
-  _mm_maskstore_epi64(reinterpret_cast<__int64*>(to), mm128i_segmask2_epi64(begin, count), from);
+  _mm_maskstore_epi64(reinterpret_cast<long long*>(to), mm128i_segmask2_epi64(begin, count), from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4l ploaduSegment<Packet4l>(const int64_t* from, Index begin, Index count) {
-  return _mm256_maskload_epi64(reinterpret_cast<const __int64*>(from), mm256i_segmask4_epi64(begin, count));
+  return _mm256_maskload_epi64(reinterpret_cast<const long long*>(from), mm256i_segmask4_epi64(begin, count));
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, const Packet4l& from, Index begin,
                                                                 Index count) {
-  _mm256_maskstore_epi64(reinterpret_cast<__int64*>(to), mm256i_segmask4_epi64(begin, count), from);
+  _mm256_maskstore_epi64(reinterpret_cast<long long*>(to), mm256i_segmask4_epi64(begin, count), from);
 }
 
 /*---------------- uint64_t ----------------*/
