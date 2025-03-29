@@ -507,6 +507,60 @@ EIGEN_STRONG_INLINE Packet2cd pnmsub(const Packet2cd& a, const Packet2cd& b, con
   return pnegate(pmadd(a, b, c));
 }
 #endif
+
+/*---------------- load/store segment support ----------------*/
+
+/*---------------- float ----------------*/
+
+template <>
+struct has_packet_segment<Packet2cf> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4cf> : std::true_type {};
+
+template <>
+EIGEN_STRONG_INLINE Packet2cf ploaduSegment<Packet2cf>(const std::complex<float>* from, Index begin, Index count) {
+  return (Packet2cf)_mm_maskload_ps(&numext::real_ref(*from), mm128i_segmask2_epi64(begin, count));
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<std::complex<float>, Packet2cf>(std::complex<float>* to,
+                                                                             const Packet2cf& from, Index begin,
+                                                                             Index count) {
+  _mm_maskstore_ps(&numext::real_ref(*to), mm128i_segmask2_epi64(begin, count), from.v);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4cf ploaduSegment<Packet4cf>(const std::complex<float>* from, Index begin, Index count) {
+  return (Packet4cf)_mm256_maskload_ps(&numext::real_ref(*from), mm256i_segmask4_epi64(begin, count));
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<std::complex<float>, Packet4cf>(std::complex<float>* to,
+                                                                             const Packet4cf& from, Index begin,
+                                                                             Index count) {
+  _mm256_maskstore_ps(&numext::real_ref(*to), mm256i_segmask4_epi64(begin, count), from.v);
+}
+
+/*---------------- double ----------------*/
+
+template <>
+struct has_packet_segment<Packet2cd> : std::true_type {};
+
+template <>
+EIGEN_STRONG_INLINE Packet2cd ploaduSegment<Packet2cd>(const std::complex<double>* from, Index begin, Index count) {
+  return (Packet2cd)_mm256_maskload_pd(&numext::real_ref(*from), mm256i_segmask4_epi64(2 * begin, 2 * count));
+}
+
+template <>
+EIGEN_DEVICE_FUNC inline void pstoreuSegment<std::complex<double>, Packet2cd>(std::complex<double>* to,
+                                                                              const Packet2cd& from, Index begin,
+                                                                              Index count) {
+  _mm256_maskstore_pd(&numext::real_ref(*to), mm256i_segmask4_epi64(2 * begin, 2 * count), from.v);
+}
+
+/*---------------- end load/store segment support ----------------*/
+
 }  // end namespace internal
 
 }  // end namespace Eigen
