@@ -1017,12 +1017,6 @@ struct enable_packet_segment<CwiseTernaryOp<Func, LhsXpr, MidXpr, RhsXpr>>
                     enable_packet_segment<remove_all_t<MidXpr>>::value &&
                     enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
 
-// casting must be supported by the source and destination packet types
-template <typename SrcType, typename DstType, typename Xpr>
-struct enable_packet_segment<CwiseUnaryOp<core_cast_op<SrcType, DstType>, Xpr>>
-    : bool_constant<has_packet_segment<typename packet_traits<SrcType>::type>::value &&
-                    enable_packet_segment<remove_all_t<Xpr>>::value> {};
-
 }  // end namespace internal
 
 /** \class ScalarBinaryOpTraits

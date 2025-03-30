@@ -1568,16 +1568,16 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   using Scalar = typename unpacket_traits<Packet>::type;
   Scalar aux[PacketSize];
-  for (Index i = begin; i < begin + count; i++) aux[i] = from[i];
+  smart_copy(from + begin, from + begin + count, aux + begin);
   return ploadu<Packet>(aux);
 }
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploadSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                              Index count) {
-  // todo: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
-  // memory boundary, provided that the unitialized data is not referneced
-  // evaluate if this can be implemented without triggering asan asserts
+  // TODO: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
+  // memory boundary, provided that the unitialized data is not referneced.
+  // Evaluate if this can be implemented without triggering asan asserts.
   return ploaduSegment<Packet>(from, begin, count);
 }
 
@@ -1588,9 +1588,7 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Ind
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
   Scalar aux[PacketSize];
   pstoreu<Scalar, Packet>(aux, from);
-  for (Index i = begin; i < begin + count; i++) {
-    to[i] = aux[i];
-  }
+  smart_copy(aux + begin, aux + begin + count, to + begin);
 }
 
 /** \internal copy the packet \a from in the range [begin, end) to \a *to.
