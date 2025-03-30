@@ -399,15 +399,14 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    if (end > start) kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, end - start);
+    kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, end - start);
   }
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index outer, Index start,
                                                                         Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    if (end > start)
-      kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0,
-                                                                                              end - start);
+    kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0,
+                                                                                            end - start);
   }
 };
 
@@ -666,10 +665,9 @@ class generic_dense_assignment_kernel {
   typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
   typedef typename AssignmentTraits::PacketType PacketType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst,
-                                                                                  const SrcEvaluatorType& src,
-                                                                                  const Functor& func,
-                                                                                  DstXprType& dstExpr)
+  EIGEN_DEVICE_FUNC
+  EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
+                                                                const Functor& func, DstXprType& dstExpr)
       : m_dst(dst), m_src(src), m_functor(func), m_dstExpr(dstExpr) {
 #ifdef EIGEN_DEBUG_ASSIGN
     AssignmentTraits::debug();

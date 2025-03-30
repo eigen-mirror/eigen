@@ -8,70 +8,31 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "main.h"
-#include <Eigen/Core>
 
-template <typename Packet, bool Run = internal::has_packet_segment<Packet>::value>
+template <typename Packet>
 struct packet_segment_test_impl {
   using Scalar = typename internal::unpacket_traits<Packet>::type;
   static constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-  static void test_unaligned() {
-    // test an unaligned array that is shorter than PacketSize
+  static void run() {
+    // 2 * PacketSize - 1 is used to avoid zero-size allocations when PacketSize == 1
+    constexpr int Size = 2 * PacketSize - 1;
+    alignas(Packet) Scalar data_in[Size];
+    alignas(Packet) Scalar data_out[Size];
+
     {
-      alignas(Packet) Scalar data_in[PacketSize], data_out[PacketSize];
+      // test loading a packet segment from aligned memory that includes unallocated memory
+      //    X X X X|* * * *|* * * *|X X X X
+      //           begin ->|* * * X| <- begin + count
 
       Index begin = 0;
       Index count = PacketSize - 1;
 
-      Scalar* unaligned_data_in = data_in + 1;
-      Scalar* unaligned_data_out = data_out + 1;
+      Scalar* aligned_data_in = data_in + PacketSize;
+      Scalar* aligned_data_out = data_out + PacketSize;
 
-      // unaligned_data_in[PacketSize - 1] is unallocated memory
-
-      for (Index i = begin; i < begin + count; i++) {
-        unaligned_data_in[i] = internal::random<Scalar>();
-        unaligned_data_out[i] = internal::random<Scalar>();
-      }
-
-      Packet a = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
-      internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, a, begin, count);
-
-      for (Index i = begin; i < begin + count; i++) {
-        VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
-      }
-
-      begin = 1;
-
-      unaligned_data_in = data_in - 1;
-      unaligned_data_out = data_out - 1;
-
-      // unaligned_data_in[0] is unallocated memory
-
-      for (Index i = begin; i < begin + count; i++) {
-        unaligned_data_in[i] = internal::random<Scalar>();
-        unaligned_data_out[i] = internal::random<Scalar>();
-      }
-
-      Packet b = internal::ploaduSegment<Packet>(unaligned_data_in, begin, count);
-      internal::pstoreuSegment<Scalar, Packet>(unaligned_data_out, b, begin, count);
-
-      for (Index i = begin; i < begin + count; i++) {
-        VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
-      }
-    }
-  }
-  static void test_aligned() {
-    // test an unaligned array that is shorter than PacketSize
-    {
-      alignas(Packet) Scalar aligned_data_in[PacketSize - 1], aligned_data_out[PacketSize - 1];
-
-      Index begin = 0;
-      Index count = PacketSize - 1;
-
-      // unaligned_data_in[PacketSize - 1] is unallocated memory
-
-      for (Index i = begin; i < begin + count; i++) {
-        aligned_data_in[i] = internal::random<Scalar>();
-        aligned_data_out[i] = internal::random<Scalar>();
+      for (Index i = 0; i < Size; i++) {
+        data_in[i] = internal::random<Scalar>();
+        data_out[i] = internal::random<Scalar>();
       }
 
       Packet a = internal::ploadSegment<Packet>(aligned_data_in, begin, count);
@@ -81,16 +42,44 @@ struct packet_segment_test_impl {
         VERIFY_IS_EQUAL(aligned_data_in[i], aligned_data_out[i]);
       }
     }
-  }
-  static void run() {
-    test_unaligned();
-    test_aligned();
-  }
-};
 
-template <typename Packet>
-struct packet_segment_test_impl<Packet, false> {
-  static void run() {}
+    {
+      // test loading a packet segment from unaligned memory that includes unallocated memory
+      //    X X X X|* * * *|* * * *|X X X X
+      // begin ->|X * * *| <- begin + count
+
+      Index begin = 1;
+      Index count = PacketSize - 1;
+
+      Scalar* unaligned_data_in = data_in - 1;
+      Scalar* unaligned_data_out = data_out - 1;
+
+      for (Index i = 0; i < Size; i++) {
+        data_in[i] = internal::random<Scalar>();
+        data_out[i] = internal::random<Scalar>();
+      }
+
+      Packet b = internal::ploadSegment<Packet>(unaligned_data_in, begin, count);
+      internal::pstoreSegment<Scalar, Packet>(unaligned_data_out, b, begin, count);
+
+      for (Index i = begin; i < begin + count; i++) {
+        VERIFY_IS_EQUAL(unaligned_data_in[i], unaligned_data_out[i]);
+      }
+    }
+
+    {
+      // test loading an empty packet segment from a null pointer
+      // begin can be anything, but offsetting a null pointer is undefined behavior
+      Index begin = 0;
+      Index count = 0;
+
+      Scalar* null_data_in = nullptr;
+      Scalar* null_data_out = nullptr;
+
+      Packet c = internal::ploadSegment<Packet>(null_data_in, begin, count);
+      internal::pstoreSegment<Scalar, Packet>(null_data_out, c, begin, count);
+    }
+  }
 };
 
 template <typename Packet, typename HalfPacket = typename internal::unpacket_traits<Packet>::half>
@@ -110,7 +99,6 @@ void test_packet_segment() {
   packet_segment_test_driver<Packet>::run();
 }
 
-// most of these will not test any code, but are included for future proofing
 EIGEN_DECLARE_TEST(packet_segment) {
   test_packet_segment<bool>();
   test_packet_segment<int8_t>();

@@ -339,8 +339,6 @@ template <typename Scalar>
 struct scalar_bitwise_xor_op;
 template <typename Scalar>
 struct scalar_bitwise_not_op;
-template <typename SrcType, typename DstType>
-struct core_cast_op;
 
 // SpecialFunctions module
 template <typename Scalar>
