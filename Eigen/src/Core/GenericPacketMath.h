@@ -1562,6 +1562,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
   return (Packet)pand(result, peven_mask(result));  // atan2 0    atan2 0    ...
 }
 
+/** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
+ * outside this range are not defined. \a *from does not need to be aligned, and can be null if \a count is zero.*/
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
@@ -1572,17 +1574,17 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
   return ploadu<Packet>(aux);
 }
 
+/** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
+ * outside this range are not defined. \a *from must be aligned, and cannot be null.*/
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploadSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                              Index count) {
-  // TODO: a full aligned load should be safe, i.e. return pload<Packet>(from), even if reading past the allocated
-  // memory boundary, provided that the unitialized data is not referneced.
-  // Evaluate if this can be implemented without triggering asan asserts.
   return ploaduSegment<Packet>(from, begin, count);
 }
 
-/** \internal copy the packet \a from in the range [begin, end) to \a *to.
-Elements outside of the range [begin, end) are not defined. \a *to does not need to be aligned */
+/** \internal copy the packet \a from in the range [begin, begin + count) to \a *to.
+Elements outside of the range [begin, begin + count) are not defined. \a *to does not need to be aligned, and can be
+null if \a count is zero.*/
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr Index PacketSize = unpacket_traits<Packet>::size;
@@ -1591,15 +1593,16 @@ EIGEN_DEVICE_FUNC inline void pstoreuSegment(Scalar* to, const Packet& from, Ind
   smart_copy(aux + begin, aux + begin + count, to + begin);
 }
 
-/** \internal copy the packet \a from in the range [begin, end) to \a *to.
-Elements outside of the range [begin, end) are not defined. \a *to must be aligned */
+/** \internal copy the packet \a from in the range [begin, begin + count) to \a *to.
+Elements outside of the range [begin, begin + count) are not defined. \a *to must be aligned, and cannot be
+null.*/
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   return pstoreuSegment(to, from, begin, count);
 }
 
-/** \internal \returns a packet version of \a *from, in the range [begin, end).
-Elements outside of the range [begin, end) are not defined. */
+/** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
+ * outside this range are not defined.*/
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
@@ -1609,8 +1612,8 @@ EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Pac
   else return ploaduSegment<Packet>(from, begin, count);
 }
 
-/** \internal copy the packet \a from in the range [begin, end) to \a *to.
-Elements outside of the range [begin, end) are not defined. */
+/** \internal copy the packet \a from in the range [begin, begin + count) to \a *to.
+Elements outside of the range [begin, begin + count) are not defined.*/
 template <typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   eigen_assert((begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size) && "invalid range");

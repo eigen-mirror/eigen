@@ -399,14 +399,15 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index start, Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, end - start);
+    if (end > start) kernel.template assignPacketSegment<DstAlignment, SrcAlignment, PacketType>(start, 0, end - start);
   }
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE EIGEN_CONSTEXPR void run(Kernel& kernel, Index outer, Index start,
                                                                         Index end) {
     eigen_assert(end - start <= unpacket_traits<PacketType>::size);
-    kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0,
-                                                                                            end - start);
+    if (end > start)
+      kernel.template assignPacketSegmentByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, start, 0,
+                                                                                              end - start);
   }
 };
 
