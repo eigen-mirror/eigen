@@ -10,7 +10,6 @@
 
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
-#include "packet_ostream.h"
 
 template <typename T>
 inline T REF_ADD(const T& a, const T& b) {
@@ -630,6 +629,7 @@ void packetmath() {
   negate_test<Scalar, Packet>(data1, data2, ref, PacketSize);
   CHECK_CWISE1_IF(PacketTraits::HasReciprocal, REF_RECIPROCAL, internal::preciprocal);
   CHECK_CWISE1(numext::conj, internal::pconj);
+
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
   for (int offset = 0; offset < 3; ++offset) {

@@ -1562,6 +1562,37 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
   return (Packet)pand(result, peven_mask(result));  // atan2 0    atan2 0    ...
 }
 
+#ifndef EIGEN_NO_IO
+
+template <typename Packet>
+class StreamablePacket {
+ public:
+  using Scalar = typename unpacket_traits<Packet>::type;
+  StreamablePacket(const Packet& packet) { pstoreu(v_, packet); }
+
+  friend std::ostream& operator<<(std::ostream& os, const StreamablePacket& packet) {
+    os << "{" << packet.v_[0];
+    for (int i = 1; i < unpacket_traits<Packet>::size; ++i) {
+      os << "," << packet.v_[i];
+    }
+    os << "}";
+    return os;
+  }
+
+ private:
+  Scalar v_[unpacket_traits<Packet>::size];
+};
+
+/**
+ * \internal \returns an intermediary that can be used to ostream packets, e.g. for debugging.
+ */
+template <typename Packet>
+StreamablePacket<Packet> postream(const Packet& packet) {
+  return StreamablePacket<Packet>(packet);
+}
+
+#endif  // EIGEN_NO_IO
+
 }  // end namespace internal
 
 }  // end namespace Eigen
