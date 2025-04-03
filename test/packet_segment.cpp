@@ -12,9 +12,9 @@
 template <typename Packet, bool Run = internal::has_packet_segment<Packet>::value>
 struct packet_segment_test_impl {
   using Scalar = typename internal::unpacket_traits<Packet>::type;
-  static constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-  static constexpr int Alignment = internal::unpacket_traits<Packet>::alignment;
   static void test_unaligned() {
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+
     // test loading a packet segment from unaligned memory that includes unallocated memory
 
     // | X   X   X   X | *   *   *   X | X   X   X   X |
@@ -56,6 +56,8 @@ struct packet_segment_test_impl {
     VERIFY_IS_CWISE_EQUAL(data_in, data_out);
   }
   static void test_aligned() {
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+
     // test loading a packet segment from aligned memory that includes unallocated memory
 
     // | X   X   X   X | *   *   *   X | X   X   X   X |
