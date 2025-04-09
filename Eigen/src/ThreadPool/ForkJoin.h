@@ -76,7 +76,7 @@ class ForkJoinScheduler {
   }
 
   // Synchronous variant of ParallelForAsync.
-  // WARNING: Making nested calls to `ParallelFor`, e.g., calling `ParallelFor` inside a task passed into another 
+  // WARNING: Making nested calls to `ParallelFor`, e.g., calling `ParallelFor` inside a task passed into another
   // `ParallelFor` call, may lead to deadlocks due to how task stealing is implemented.
   template <typename DoFnType, typename ThreadPoolEnv>
   static void ParallelFor(Index start, Index end, Index granularity, DoFnType&& do_func,
@@ -92,6 +92,7 @@ class ForkJoinScheduler {
   // Schedules `right_thunk`, runs `left_thunk`, and runs other tasks until `right_thunk` has finished.
   template <typename LeftType, typename RightType, typename ThreadPoolEnv>
   static void ForkJoin(LeftType&& left_thunk, RightType&& right_thunk, ThreadPoolTempl<ThreadPoolEnv>* thread_pool) {
+    typedef typename ThreadPoolTempl<ThreadPoolEnv>::Task Task;
     std::atomic<bool> right_done(false);
     auto execute_right = [&right_thunk, &right_done]() {
       std::forward<RightType>(right_thunk)();
@@ -99,7 +100,7 @@ class ForkJoinScheduler {
     };
     thread_pool->Schedule(execute_right);
     std::forward<LeftType>(left_thunk)();
-    ThreadPool::Task task;
+    Task task;
     while (!right_done.load(std::memory_order_acquire)) {
       thread_pool->MaybeGetTask(&task);
       if (task.f) task.f();
