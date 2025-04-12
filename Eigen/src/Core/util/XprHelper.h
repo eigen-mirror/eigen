@@ -1017,6 +1017,12 @@ struct enable_packet_segment<CwiseTernaryOp<Func, LhsXpr, MidXpr, RhsXpr>>
                     enable_packet_segment<remove_all_t<MidXpr>>::value &&
                     enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
 
+template <typename Xpr>
+struct enable_packet_segment<ArrayWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
+
+template <typename Xpr>
+struct enable_packet_segment<MatrixWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
+
 }  // end namespace internal
 
 /** \class ScalarBinaryOpTraits
