@@ -1023,6 +1023,9 @@ struct enable_packet_segment<ArrayWrapper<Xpr>> : enable_packet_segment<remove_a
 template <typename Xpr>
 struct enable_packet_segment<MatrixWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
 
+template <typename Xpr>
+struct enable_packet_segment<DiagonalWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
+
 }  // end namespace internal
 
 /** \class ScalarBinaryOpTraits
