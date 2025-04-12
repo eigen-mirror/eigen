@@ -257,7 +257,7 @@ struct evaluator<PlainObjectBase<Derived>> : evaluator_base<Derived> {
   plainobjectbase_evaluator_data<Scalar, OuterStrideAtCompileTime> m_d;
 
  private:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index getIndex(Index row, Index col) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index constexpr getIndex(Index row, Index col) const {
     return IsRowMajor ? row * m_d.outerStride() + col : row + col * m_d.outerStride();
   }
 };
