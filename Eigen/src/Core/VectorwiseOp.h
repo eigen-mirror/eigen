@@ -37,9 +37,6 @@ class PartialReduxExpr;
 
 namespace internal {
 
-template <typename ArgType, typename MemberOp, int Direction>
-struct enable_packet_segment<PartialReduxExpr<ArgType, MemberOp, Direction>> : std::false_type {};
-
 template <typename MatrixType, typename MemberOp, int Direction>
 struct traits<PartialReduxExpr<MatrixType, MemberOp, Direction> > : traits<MatrixType> {
   typedef typename MemberOp::result_type Scalar;

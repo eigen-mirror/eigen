@@ -136,8 +136,7 @@ struct copy_using_evaluator_traits {
       : Traversal == SliceVectorizedTraversal ? (MayUnrollInner ? InnerUnrolling : NoUnrolling)
 #endif
                                               : NoUnrolling;
-  static constexpr bool UsePacketSegment =
-      enable_packet_segment<Src>::value && enable_packet_segment<Dst>::value && has_packet_segment<PacketType>::value;
+  static constexpr bool UsePacketSegment = has_packet_segment<PacketType>::value;
 
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug() {

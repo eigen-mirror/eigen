@@ -996,36 +996,6 @@ struct is_matrix_base_xpr : std::is_base_of<MatrixBase<remove_all_t<XprType>>, r
 template <typename XprType>
 struct is_permutation_base_xpr : std::is_base_of<PermutationBase<remove_all_t<XprType>>, remove_all_t<XprType>> {};
 
-/*---------------- load/store segment support ----------------*/
-
-// recursively traverse unary, binary, and ternary expressions to determine if packet segments are supported
-
-template <typename Func, typename Xpr>
-struct enable_packet_segment<CwiseNullaryOp<Func, Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
-
-template <typename Func, typename Xpr>
-struct enable_packet_segment<CwiseUnaryOp<Func, Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
-
-template <typename Func, typename LhsXpr, typename RhsXpr>
-struct enable_packet_segment<CwiseBinaryOp<Func, LhsXpr, RhsXpr>>
-    : bool_constant<enable_packet_segment<remove_all_t<LhsXpr>>::value &&
-                    enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
-
-template <typename Func, typename LhsXpr, typename MidXpr, typename RhsXpr>
-struct enable_packet_segment<CwiseTernaryOp<Func, LhsXpr, MidXpr, RhsXpr>>
-    : bool_constant<enable_packet_segment<remove_all_t<LhsXpr>>::value &&
-                    enable_packet_segment<remove_all_t<MidXpr>>::value &&
-                    enable_packet_segment<remove_all_t<RhsXpr>>::value> {};
-
-template <typename Xpr>
-struct enable_packet_segment<ArrayWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
-
-template <typename Xpr>
-struct enable_packet_segment<MatrixWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
-
-template <typename Xpr>
-struct enable_packet_segment<DiagonalWrapper<Xpr>> : enable_packet_segment<remove_all_t<Xpr>> {};
-
 }  // end namespace internal
 
 /** \class ScalarBinaryOpTraits

@@ -517,9 +517,6 @@ struct eigen_zero_impl;
 
 template <typename Packet>
 struct has_packet_segment : std::false_type {};
-
-template <typename Xpr>
-struct enable_packet_segment : std::true_type {};
 }  // namespace internal
 
 }  // end namespace Eigen
