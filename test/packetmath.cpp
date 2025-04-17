@@ -812,6 +812,7 @@ void packetmath() {
 
   CHECK_CWISE1_IF(PacketTraits::HasSqrt, numext::sqrt, internal::psqrt);
   CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
+  CHECK_CWISE1_IF(PacketTraits::HasCbrt, numext::cbrt, internal::pcbrt);
 }
 
 // Notice that this definition works for complex types as well.
@@ -833,6 +834,7 @@ Scalar log2(Scalar x) {
 
 CREATE_FUNCTOR(psqrt_functor, internal::psqrt);
 CREATE_FUNCTOR(prsqrt_functor, internal::prsqrt);
+CREATE_FUNCTOR(pcbrt_functor, internal::pcbrt);
 
 // TODO(rmlarsen): Run this test for more functions.
 template <bool Cond, typename Scalar, typename Packet, typename RefFunctorT, typename FunctorT>
@@ -1203,6 +1205,7 @@ void packetmath_real() {
 
     packetmath_test_IEEE_corner_cases<PacketTraits::HasSqrt, Scalar, Packet>(numext::sqrt<Scalar>, psqrt_functor());
     packetmath_test_IEEE_corner_cases<PacketTraits::HasRsqrt, Scalar, Packet>(numext::rsqrt<Scalar>, prsqrt_functor());
+    packetmath_test_IEEE_corner_cases<PacketTraits::HasCbrt, Scalar, Packet>(numext::cbrt<Scalar>, pcbrt_functor());
 
     // TODO(rmlarsen): Re-enable for half and bfloat16.
     if (PacketTraits::HasCos && !internal::is_same<Scalar, half>::value &&

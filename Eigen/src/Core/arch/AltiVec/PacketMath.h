@@ -186,6 +186,7 @@ struct packet_traits<float> : default_packet_traits {
     HasExp = 1,
 #ifdef EIGEN_VECTORIZE_VSX
     HasSqrt = 1,
+    HasCbrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
 #else
@@ -3176,6 +3177,7 @@ struct packet_traits<double> : default_packet_traits {
     HasLog = 0,
     HasExp = 1,
     HasSqrt = 1,
+    HasCbrt = 1,
 #if !EIGEN_COMP_CLANG
     HasRsqrt = 1,
 #else
