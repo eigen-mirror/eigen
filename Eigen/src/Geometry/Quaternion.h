@@ -793,7 +793,7 @@ EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> Quatern
   } else {
     // theta is the angle between the 2 quaternions
     Scalar theta = acos(absD);
-    Scalar sinTheta = sin(theta);
+    Scalar sinTheta = numext::sqrt(Scalar(1) - absD * absD);
 
     scale0 = sin((Scalar(1) - t) * theta) / sinTheta;
     scale1 = sin((t * theta)) / sinTheta;
