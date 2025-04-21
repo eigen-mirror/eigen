@@ -333,12 +333,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
   const Packet x_sign = pand(sign_mask, x);
   Packet root = por(x_sign, abs_root);
 
-  // Handle non-finite and zero values of x.
-  //  constexpr Scalar kInf = NumTraits<Scalar>::infinity();
-  const Packet is_not_finite = psub(x,x);;
+  // Pass non-finite and zero values of x straight through.
+  const Packet is_not_finite = por(pisinf(x), pisnan(x));
   const Packet is_zero = pcmp_eq(pzero(x), x);
-  const Packet use_root = por(is_not_finite, is_zero);
-  return pselect(use_root, x, root);
+  const Packet use_x = por(is_not_finite, is_zero);
+  return pselect(use_x, x, root);
 }
 
 // Generic implementation of cbrt(x) for float.
