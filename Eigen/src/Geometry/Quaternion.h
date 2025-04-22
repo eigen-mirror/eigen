@@ -346,13 +346,11 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
 
   // We define a copy constructor, which means we don't get an implicit move constructor or assignment operator.
   /** Default move constructor */
-  EIGEN_DEVICE_FUNC inline Quaternion(Quaternion&& other)
-      EIGEN_NOEXCEPT_IF(std::is_nothrow_move_constructible<Scalar>::value)
+  EIGEN_DEVICE_FUNC inline Quaternion(Quaternion&& other) noexcept(std::is_nothrow_move_constructible<Scalar>::value)
       : m_coeffs(std::move(other.coeffs())) {}
 
   /** Default move assignment operator */
-  EIGEN_DEVICE_FUNC Quaternion& operator=(Quaternion&& other)
-      EIGEN_NOEXCEPT_IF(std::is_nothrow_move_assignable<Scalar>::value) {
+  EIGEN_DEVICE_FUNC Quaternion& operator=(Quaternion&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
     m_coeffs = std::move(other.coeffs());
     return *this;
   }

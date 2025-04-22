@@ -145,8 +145,8 @@ class CwiseUnaryView : public internal::CwiseUnaryViewImpl<ViewOp, MatrixType, S
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryView)
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const EIGEN_NOEXCEPT { return m_matrix.rows(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const EIGEN_NOEXCEPT { return m_matrix.cols(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const noexcept { return m_matrix.rows(); }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const noexcept { return m_matrix.cols(); }
 
   /** \returns the functor representing unary operation */
   EIGEN_DEVICE_FUNC const ViewOp& functor() const { return m_functor; }

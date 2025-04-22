@@ -473,25 +473,23 @@ class DenseCoeffsBase<Derived, DirectWriteAccessors> : public DenseCoeffsBase<De
    *
    * \sa outerStride(), rowStride(), colStride()
    */
-  EIGEN_DEVICE_FUNC constexpr Index innerStride() const EIGEN_NOEXCEPT { return derived().innerStride(); }
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return derived().innerStride(); }
 
   /** \returns the pointer increment between two consecutive inner slices (for example, between two consecutive columns
    *          in a column-major matrix).
    *
    * \sa innerStride(), rowStride(), colStride()
    */
-  EIGEN_DEVICE_FUNC constexpr Index outerStride() const EIGEN_NOEXCEPT { return derived().outerStride(); }
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return derived().outerStride(); }
 
   // FIXME shall we remove it ?
-  constexpr Index stride() const EIGEN_NOEXCEPT {
-    return Derived::IsVectorAtCompileTime ? innerStride() : outerStride();
-  }
+  constexpr Index stride() const noexcept { return Derived::IsVectorAtCompileTime ? innerStride() : outerStride(); }
 
   /** \returns the pointer increment between two consecutive rows.
    *
    * \sa innerStride(), outerStride(), colStride()
    */
-  EIGEN_DEVICE_FUNC constexpr Index rowStride() const EIGEN_NOEXCEPT {
+  EIGEN_DEVICE_FUNC constexpr Index rowStride() const noexcept {
     return Derived::IsRowMajor ? outerStride() : innerStride();
   }
 
@@ -499,7 +497,7 @@ class DenseCoeffsBase<Derived, DirectWriteAccessors> : public DenseCoeffsBase<De
    *
    * \sa innerStride(), outerStride(), rowStride()
    */
-  EIGEN_DEVICE_FUNC constexpr Index colStride() const EIGEN_NOEXCEPT {
+  EIGEN_DEVICE_FUNC constexpr Index colStride() const noexcept {
     return Derived::IsRowMajor ? innerStride() : outerStride();
   }
 };
@@ -508,7 +506,7 @@ namespace internal {
 
 template <int Alignment, typename Derived, bool JustReturnZero>
 struct first_aligned_impl {
-  static constexpr Index run(const Derived&) EIGEN_NOEXCEPT { return 0; }
+  static constexpr Index run(const Derived&) noexcept { return 0; }
 };
 
 template <int Alignment, typename Derived>

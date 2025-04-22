@@ -218,10 +218,10 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   }
 
   /** \internal */
-  constexpr Index rows() const EIGEN_NOEXCEPT { return matrix().rows(); }
+  constexpr Index rows() const noexcept { return matrix().rows(); }
 
   /** \internal */
-  constexpr Index cols() const EIGEN_NOEXCEPT { return matrix().cols(); }
+  constexpr Index cols() const noexcept { return matrix().cols(); }
 
   /** \returns the tolerance threshold used by the stopping criteria.
    * \sa setTolerance()

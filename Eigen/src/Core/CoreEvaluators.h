@@ -149,7 +149,7 @@ class plainobjectbase_evaluator_data {
 #endif
     eigen_internal_assert(outerStride == OuterStride);
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index outerStride() const EIGEN_NOEXCEPT { return OuterStride; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index outerStride() const noexcept { return OuterStride; }
   const Scalar* data;
 };
 
@@ -1296,10 +1296,10 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   }
 
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rowStride() const EIGEN_NOEXCEPT {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rowStride() const noexcept {
     return XprType::IsRowMajor ? m_outerStride.value() : m_innerStride.value();
   }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index colStride() const EIGEN_NOEXCEPT {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index colStride() const noexcept {
     return XprType::IsRowMajor ? m_innerStride.value() : m_outerStride.value();
   }
 
@@ -2017,9 +2017,9 @@ class EvalToTemp : public dense_xpr_base<EvalToTemp<ArgType>>::type {
 
   const ArgType& arg() const { return m_arg; }
 
-  constexpr Index rows() const EIGEN_NOEXCEPT { return m_arg.rows(); }
+  constexpr Index rows() const noexcept { return m_arg.rows(); }
 
-  constexpr Index cols() const EIGEN_NOEXCEPT { return m_arg.cols(); }
+  constexpr Index cols() const noexcept { return m_arg.cols(); }
 
  private:
   const ArgType& m_arg;

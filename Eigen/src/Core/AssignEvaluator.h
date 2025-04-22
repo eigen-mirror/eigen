@@ -674,15 +674,15 @@ class generic_dense_assignment_kernel {
 #endif
   }
 
-  EIGEN_DEVICE_FUNC constexpr Index size() const EIGEN_NOEXCEPT { return m_dstExpr.size(); }
-  EIGEN_DEVICE_FUNC constexpr Index innerSize() const EIGEN_NOEXCEPT { return m_dstExpr.innerSize(); }
-  EIGEN_DEVICE_FUNC constexpr Index outerSize() const EIGEN_NOEXCEPT { return m_dstExpr.outerSize(); }
-  EIGEN_DEVICE_FUNC constexpr Index rows() const EIGEN_NOEXCEPT { return m_dstExpr.rows(); }
-  EIGEN_DEVICE_FUNC constexpr Index cols() const EIGEN_NOEXCEPT { return m_dstExpr.cols(); }
-  EIGEN_DEVICE_FUNC constexpr Index outerStride() const EIGEN_NOEXCEPT { return m_dstExpr.outerStride(); }
+  EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return m_dstExpr.size(); }
+  EIGEN_DEVICE_FUNC constexpr Index innerSize() const noexcept { return m_dstExpr.innerSize(); }
+  EIGEN_DEVICE_FUNC constexpr Index outerSize() const noexcept { return m_dstExpr.outerSize(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_dstExpr.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_dstExpr.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return m_dstExpr.outerStride(); }
 
-  EIGEN_DEVICE_FUNC DstEvaluatorType& dstEvaluator() EIGEN_NOEXCEPT { return m_dst; }
-  EIGEN_DEVICE_FUNC const SrcEvaluatorType& srcEvaluator() const EIGEN_NOEXCEPT { return m_src; }
+  EIGEN_DEVICE_FUNC DstEvaluatorType& dstEvaluator() noexcept { return m_dst; }
+  EIGEN_DEVICE_FUNC const SrcEvaluatorType& srcEvaluator() const noexcept { return m_src; }
 
   /// Assign src(row,col) to dst(row,col) through the assignment functor.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeff(Index row, Index col) {

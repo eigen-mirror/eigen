@@ -235,7 +235,7 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
  * Tie arguments together into a tuple.
  */
 template <typename... Args, typename ReturnType = TupleImpl<sizeof...(Args), Args&...>>
-constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ReturnType tie(Args&... args) EIGEN_NOEXCEPT {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ReturnType tie(Args&... args) noexcept {
   return ReturnType{args...};
 }
 

@@ -391,8 +391,8 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
 
   MatrixType reconstructedMatrix() const;
 
-  EIGEN_DEVICE_FUNC constexpr Index rows() const EIGEN_NOEXCEPT { return m_lu.rows(); }
-  EIGEN_DEVICE_FUNC constexpr Index cols() const EIGEN_NOEXCEPT { return m_lu.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_lu.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_lu.cols(); }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>

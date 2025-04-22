@@ -294,9 +294,9 @@ class visitor_evaluator {
 
   EIGEN_DEVICE_FUNC explicit visitor_evaluator(const XprType& xpr) : m_evaluator(xpr), m_xpr(xpr) {}
 
-  EIGEN_DEVICE_FUNC constexpr Index rows() const EIGEN_NOEXCEPT { return m_xpr.rows(); }
-  EIGEN_DEVICE_FUNC constexpr Index cols() const EIGEN_NOEXCEPT { return m_xpr.cols(); }
-  EIGEN_DEVICE_FUNC constexpr Index size() const EIGEN_NOEXCEPT { return m_xpr.size(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_xpr.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_xpr.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index size() const noexcept { return m_xpr.size(); }
   // outer-inner access
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     return m_evaluator.coeff(row, col);
