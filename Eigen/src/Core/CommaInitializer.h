@@ -90,7 +90,13 @@ struct CommaInitializer {
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC inline ~CommaInitializer() { finished(); }
+  EIGEN_DEVICE_FUNC inline ~CommaInitializer()
+#if defined VERIFY_RAISES_ASSERT && (!defined EIGEN_NO_ASSERTION_CHECKING) && defined EIGEN_EXCEPTIONS
+      noexcept(false)  // Eigen::eigen_assert_exception
+#endif
+  {
+    finished();
+  }
 
   /** \returns the built matrix once all its coefficients have been set.
    * Calling finished is 100% optional. Its purpose is to write expressions
