@@ -254,7 +254,7 @@ if(EIGEN_BUILD_CMAKE_PACKAGE)
           DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
 
   # Add uninstall target
-  if(NOT TARGET uninstall)
+  if(NOT TARGET uninstall AND PROJECT_IS_TOP_LEVEL)
     add_custom_target ( uninstall
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EigenUninstall.cmake)
   endif()
