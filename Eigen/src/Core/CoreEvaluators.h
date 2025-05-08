@@ -726,6 +726,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
                                                                                                    Index count) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
     PacketBlock<PacketType, NumPackets> packets;
+    for (Index i = 0; i < NumPackets; i++) packets[i] = pzero(PacketType());
     Index offset = begin / SrcPacketSize;
     Index actualBegin = begin % SrcPacketSize;
     for (; offset < NumPackets; offset++) {
@@ -743,6 +744,7 @@ struct unary_evaluator<CwiseUnaryOp<core_cast_op<SrcType, DstType>, ArgType>, In
                                                                                                    Index count) const {
     constexpr int SrcLoadMode = plain_enum_min(SrcPacketBytes, LoadMode);
     PacketBlock<PacketType, NumPackets> packets;
+    for (Index i = 0; i < NumPackets; i++) packets[i] = pzero(PacketType());
     Index offset = begin / SrcPacketSize;
     Index actualBegin = begin % SrcPacketSize;
     for (; offset < NumPackets; offset++) {
