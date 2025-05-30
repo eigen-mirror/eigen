@@ -654,25 +654,6 @@ template <>
 EIGEN_STRONG_INLINE uint64_t pfirst<Packet4ul>(const Packet4ul& a) {
   return _mm_extract_epi64_0(_mm256_castsi256_si128(a));
 }
-template <>
-EIGEN_STRONG_INLINE int64_t predux<Packet4l>(const Packet4l& a) {
-  __m128i r = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-  return _mm_extract_epi64_0(r) + _mm_extract_epi64_1(r);
-}
-template <>
-EIGEN_STRONG_INLINE uint64_t predux<Packet4ul>(const Packet4ul& a) {
-  __m128i r = _mm_add_epi64(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-  return numext::bit_cast<uint64_t>(_mm_extract_epi64_0(r) + _mm_extract_epi64_1(r));
-}
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4l& a) {
-  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
-}
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4ul& a) {
-  return _mm256_movemask_pd(_mm256_castsi256_pd(a)) != 0;
-}
 
 #define MM256_SHUFFLE_EPI64(A, B, M) _mm256_shuffle_pd(_mm256_castsi256_pd(A), _mm256_castsi256_pd(B), M)
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4l, 4>& kernel) {
@@ -1956,23 +1937,6 @@ EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Pack
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux<Packet8f>(const Packet8f& a) {
-  return predux(Packet4f(_mm_add_ps(_mm256_castps256_ps128(a), _mm256_extractf128_ps(a, 1))));
-}
-template <>
-EIGEN_STRONG_INLINE double predux<Packet4d>(const Packet4d& a) {
-  return predux(Packet2d(_mm_add_pd(_mm256_castpd256_pd128(a), _mm256_extractf128_pd(a, 1))));
-}
-template <>
-EIGEN_STRONG_INLINE int predux<Packet8i>(const Packet8i& a) {
-  return predux(Packet4i(_mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1))));
-}
-template <>
-EIGEN_STRONG_INLINE uint32_t predux<Packet8ui>(const Packet8ui& a) {
-  return predux(Packet4ui(_mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1))));
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f predux_half_dowto4<Packet8f>(const Packet8f& a) {
   return _mm_add_ps(_mm256_castps256_ps128(a), _mm256_extractf128_ps(a, 1));
 }
@@ -1983,82 +1947,6 @@ EIGEN_STRONG_INLINE Packet4i predux_half_dowto4<Packet8i>(const Packet8i& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4ui predux_half_dowto4<Packet8ui>(const Packet8ui& a) {
   return _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_mul<Packet8f>(const Packet8f& a) {
-  Packet8f tmp;
-  tmp = _mm256_mul_ps(a, _mm256_permute2f128_ps(a, a, 1));
-  tmp = _mm256_mul_ps(tmp, _mm256_shuffle_ps(tmp, tmp, _MM_SHUFFLE(1, 0, 3, 2)));
-  return pfirst(_mm256_mul_ps(tmp, _mm256_shuffle_ps(tmp, tmp, 1)));
-}
-template <>
-EIGEN_STRONG_INLINE double predux_mul<Packet4d>(const Packet4d& a) {
-  Packet4d tmp;
-  tmp = _mm256_mul_pd(a, _mm256_permute2f128_pd(a, a, 1));
-  return pfirst(_mm256_mul_pd(tmp, _mm256_shuffle_pd(tmp, tmp, 1)));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_min<Packet8f>(const Packet8f& a) {
-  Packet8f tmp = _mm256_min_ps(a, _mm256_permute2f128_ps(a, a, 1));
-  tmp = _mm256_min_ps(tmp, _mm256_shuffle_ps(tmp, tmp, _MM_SHUFFLE(1, 0, 3, 2)));
-  return pfirst(_mm256_min_ps(tmp, _mm256_shuffle_ps(tmp, tmp, 1)));
-}
-template <>
-EIGEN_STRONG_INLINE double predux_min<Packet4d>(const Packet4d& a) {
-  Packet4d tmp = _mm256_min_pd(a, _mm256_permute2f128_pd(a, a, 1));
-  return pfirst(_mm256_min_pd(tmp, _mm256_shuffle_pd(tmp, tmp, 1)));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_max<Packet8f>(const Packet8f& a) {
-  Packet8f tmp = _mm256_max_ps(a, _mm256_permute2f128_ps(a, a, 1));
-  tmp = _mm256_max_ps(tmp, _mm256_shuffle_ps(tmp, tmp, _MM_SHUFFLE(1, 0, 3, 2)));
-  return pfirst(_mm256_max_ps(tmp, _mm256_shuffle_ps(tmp, tmp, 1)));
-}
-
-template <>
-EIGEN_STRONG_INLINE double predux_max<Packet4d>(const Packet4d& a) {
-  Packet4d tmp = _mm256_max_pd(a, _mm256_permute2f128_pd(a, a, 1));
-  return pfirst(_mm256_max_pd(tmp, _mm256_shuffle_pd(tmp, tmp, 1)));
-}
-
-// not needed yet
-// template<> EIGEN_STRONG_INLINE bool predux_all(const Packet8f& x)
-// {
-//   return _mm256_movemask_ps(x)==0xFF;
-// }
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8f& x) {
-  return _mm256_movemask_ps(x) != 0;
-}
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4d& x) {
-  return _mm256_movemask_pd(x) != 0;
-}
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8i& x) {
-  return _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0;
-}
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8ui& x) {
-  return _mm256_movemask_ps(_mm256_castsi256_ps(x)) != 0;
-}
-
-#ifndef EIGEN_VECTORIZE_AVX512FP16
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8h& x) {
-  return _mm_movemask_epi8(x) != 0;
-}
-#endif  // EIGEN_VECTORIZE_AVX512FP16
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
-  return _mm_movemask_epi8(x) != 0;
 }
 
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet8f, 8>& kernel) {
@@ -2474,34 +2362,6 @@ EIGEN_STRONG_INLINE void pscatter<Eigen::half, Packet8h>(Eigen::half* to, const 
 }
 
 template <>
-EIGEN_STRONG_INLINE Eigen::half predux<Packet8h>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux<Packet8f>(af);
-  return Eigen::half(reduced);
-}
-
-template <>
-EIGEN_STRONG_INLINE Eigen::half predux_max<Packet8h>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_max<Packet8f>(af);
-  return Eigen::half(reduced);
-}
-
-template <>
-EIGEN_STRONG_INLINE Eigen::half predux_min<Packet8h>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_min<Packet8f>(af);
-  return Eigen::half(reduced);
-}
-
-template <>
-EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet8h>(const Packet8h& a) {
-  Packet8f af = half2float(a);
-  float reduced = predux_mul<Packet8f>(af);
-  return Eigen::half(reduced);
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet8h preverse(const Packet8h& a) {
   __m128i m = _mm_setr_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
   return _mm_shuffle_epi8(a, m);
@@ -2857,26 +2717,6 @@ EIGEN_STRONG_INLINE void pscatter<bfloat16, Packet8bf>(bfloat16* to, const Packe
   to[stride * 5] = aux[5];
   to[stride * 6] = aux[6];
   to[stride * 7] = aux[7];
-}
-
-template <>
-EIGEN_STRONG_INLINE bfloat16 predux<Packet8bf>(const Packet8bf& a) {
-  return static_cast<bfloat16>(predux<Packet8f>(Bf16ToF32(a)));
-}
-
-template <>
-EIGEN_STRONG_INLINE bfloat16 predux_max<Packet8bf>(const Packet8bf& a) {
-  return static_cast<bfloat16>(predux_max<Packet8f>(Bf16ToF32(a)));
-}
-
-template <>
-EIGEN_STRONG_INLINE bfloat16 predux_min<Packet8bf>(const Packet8bf& a) {
-  return static_cast<bfloat16>(predux_min<Packet8f>(Bf16ToF32(a)));
-}
-
-template <>
-EIGEN_STRONG_INLINE bfloat16 predux_mul<Packet8bf>(const Packet8bf& a) {
-  return static_cast<bfloat16>(predux_mul<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
