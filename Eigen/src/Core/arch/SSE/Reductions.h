@@ -86,6 +86,21 @@ EIGEN_STRONG_INLINE bool predux_mul(const Packet16b& a) {
   return ((pfirst<Packet4i>(tmp) == 0x01010101) && (pfirst<Packet4i>(_mm_shuffle_epi32(tmp, 1)) == 0x01010101));
 }
 
+template <>
+EIGEN_STRONG_INLINE bool predux_min(const Packet16b& a) {
+  return predux_mul(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_max(const Packet16b& a) {
+  return predux(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16b& a) {
+  return predux(a);
+}
+
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4i -- -- -- -- -- -- -- -- -- -- -- -- */
 
 template <typename Op>
@@ -121,8 +136,8 @@ EIGEN_STRONG_INLINE int predux_max(const Packet4i& a) {
 #endif
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4i& x) {
-  return _mm_movemask_ps(_mm_castsi128_ps(x)) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4i& a) {
+  return _mm_movemask_ps(_mm_castsi128_ps(a)) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4ui -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -160,8 +175,8 @@ EIGEN_STRONG_INLINE uint32_t predux_max(const Packet4ui& a) {
 #endif
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& x) {
-  return _mm_movemask_ps(_mm_castsi128_ps(x)) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& a) {
+  return _mm_movemask_ps(_mm_castsi128_ps(a)) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2l -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -181,8 +196,8 @@ EIGEN_STRONG_INLINE int64_t predux(const Packet2l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet2l& x) {
-  return _mm_movemask_pd(_mm_castsi128_pd(x)) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet2l& a) {
+  return _mm_movemask_pd(_mm_castsi128_pd(a)) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4f -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -217,11 +232,6 @@ EIGEN_STRONG_INLINE float predux_min(const Packet4f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_min<PropagateFast>(const Packet4f& a) {
-  return sse_predux_min_prop_impl<PropagateFast, Packet4f>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet4f& a) {
   return sse_predux_min_prop_impl<PropagateNumbers, Packet4f>::run(a);
 }
@@ -237,11 +247,6 @@ EIGEN_STRONG_INLINE float predux_max(const Packet4f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_max<PropagateFast>(const Packet4f& a) {
-  return sse_predux_max_prop_impl<PropagateFast, Packet4f>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNumbers>(const Packet4f& a) {
   return sse_predux_max_prop_impl<PropagateNumbers, Packet4f>::run(a);
 }
@@ -252,8 +257,8 @@ EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet4f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
-  return _mm_movemask_ps(x) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  return _mm_movemask_ps(a) != 0x0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2d -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -283,11 +288,6 @@ EIGEN_STRONG_INLINE double predux_min(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE double predux_min<PropagateFast>(const Packet2d& a) {
-  return sse_predux_min_prop_impl<PropagateFast, Packet2d>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNumbers>(const Packet2d& a) {
   return sse_predux_min_prop_impl<PropagateNumbers, Packet2d>::run(a);
 }
@@ -303,11 +303,6 @@ EIGEN_STRONG_INLINE double predux_max(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE double predux_max<PropagateFast>(const Packet2d& a) {
-  return sse_predux_max_prop_impl<PropagateFast, Packet2d>::run(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNumbers>(const Packet2d& a) {
   return sse_predux_max_prop_impl<PropagateNumbers, Packet2d>::run(a);
 }
@@ -318,8 +313,8 @@ EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet2d& x) {
-  return _mm_movemask_pd(x) != 0x0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  return _mm_movemask_pd(a) != 0x0;
 }
 
 }  // end namespace internal

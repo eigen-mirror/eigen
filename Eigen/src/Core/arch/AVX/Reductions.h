@@ -149,11 +149,6 @@ EIGEN_STRONG_INLINE float predux_min(const Packet8f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_min<PropagateFast>(const Packet8f& a) {
-  return predux_min(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet8f& a) {
   Packet4f lo = _mm256_castps256_ps128(a);
   Packet4f hi = _mm256_extractf128_ps(a, 1);
@@ -172,11 +167,6 @@ EIGEN_STRONG_INLINE float predux_max(const Packet8f& a) {
   Packet4f lo = _mm256_castps256_ps128(a);
   Packet4f hi = _mm256_extractf128_ps(a, 1);
   return predux_max(pmax(lo, hi));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_max<PropagateFast>(const Packet8f& a) {
-  return predux_max(a);
 }
 
 template <>
@@ -222,11 +212,6 @@ EIGEN_STRONG_INLINE double predux_min(const Packet4d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE double predux_min<PropagateFast>(const Packet4d& a) {
-  return predux_min(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNumbers>(const Packet4d& a) {
   Packet2d lo = _mm256_castpd256_pd128(a);
   Packet2d hi = _mm256_extractf128_pd(a, 1);
@@ -245,11 +230,6 @@ EIGEN_STRONG_INLINE double predux_max(const Packet4d& a) {
   Packet2d lo = _mm256_castpd256_pd128(a);
   Packet2d hi = _mm256_extractf128_pd(a, 1);
   return predux_max(pmax(lo, hi));
-}
-
-template <>
-EIGEN_STRONG_INLINE double predux_max<PropagateFast>(const Packet4d& a) {
-  return predux_max(a);
 }
 
 template <>
@@ -290,11 +270,6 @@ EIGEN_STRONG_INLINE half predux_min(const Packet8h& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE half predux_min<PropagateFast>(const Packet8h& a) {
-  return static_cast<half>(predux_min<PropagateFast>(half2float(a)));
-}
-
-template <>
 EIGEN_STRONG_INLINE half predux_min<PropagateNumbers>(const Packet8h& a) {
   return static_cast<half>(predux_min<PropagateNumbers>(half2float(a)));
 }
@@ -307,11 +282,6 @@ EIGEN_STRONG_INLINE half predux_min<PropagateNaN>(const Packet8h& a) {
 template <>
 EIGEN_STRONG_INLINE half predux_max(const Packet8h& a) {
   return static_cast<half>(predux_max(half2float(a)));
-}
-
-template <>
-EIGEN_STRONG_INLINE half predux_max<PropagateFast>(const Packet8h& a) {
-  return static_cast<half>(predux_max<PropagateFast>(half2float(a)));
 }
 
 template <>
@@ -348,11 +318,6 @@ EIGEN_STRONG_INLINE bfloat16 predux_min(const Packet8bf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bfloat16 predux_min<PropagateFast>(const Packet8bf& a) {
-  return predux_min(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE bfloat16 predux_min<PropagateNumbers>(const Packet8bf& a) {
   return static_cast<bfloat16>(predux_min<PropagateNumbers>(Bf16ToF32(a)));
 }
@@ -365,11 +330,6 @@ EIGEN_STRONG_INLINE bfloat16 predux_min<PropagateNaN>(const Packet8bf& a) {
 template <>
 EIGEN_STRONG_INLINE bfloat16 predux_max(const Packet8bf& a) {
   return static_cast<bfloat16>(predux_max<Packet8f>(Bf16ToF32(a)));
-}
-
-template <>
-EIGEN_STRONG_INLINE bfloat16 predux_max<PropagateFast>(const Packet8bf& a) {
-  return predux_max(a);
 }
 
 template <>

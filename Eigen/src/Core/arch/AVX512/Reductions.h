@@ -103,11 +103,6 @@ EIGEN_STRONG_INLINE float predux_min(const Packet16f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_min<PropagateFast>(const Packet16f& a) {
-  return _mm512_reduce_min_ps(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet16f& a) {
   Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
   Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
@@ -127,11 +122,6 @@ EIGEN_STRONG_INLINE float predux_max(const Packet16f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE float predux_max<PropagateFast>(const Packet16f& a) {
-  return _mm512_reduce_max_ps(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNumbers>(const Packet16f& a) {
   Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
   Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
@@ -146,8 +136,8 @@ EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet16f& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16f& x) {
-  return _mm512_reduce_or_epi32(_mm512_castps_si512(x)) != 0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet16f& a) {
+  return _mm512_reduce_or_epi32(_mm512_castps_si512(a)) != 0;
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet8d -- -- -- -- -- -- -- -- -- -- -- -- */
@@ -164,11 +154,6 @@ EIGEN_STRONG_INLINE double predux_mul(const Packet8d& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_min(const Packet8d& a) {
-  return _mm512_reduce_min_pd(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE double predux_min<PropagateFast>(const Packet8d& a) {
   return _mm512_reduce_min_pd(a);
 }
 
@@ -192,11 +177,6 @@ EIGEN_STRONG_INLINE double predux_max(const Packet8d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE double predux_max<PropagateFast>(const Packet8d& a) {
-  return _mm512_reduce_max_pd(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNumbers>(const Packet8d& a) {
   Packet4d lane0 = _mm512_extractf64x4_pd(a, 0);
   Packet4d lane1 = _mm512_extractf64x4_pd(a, 1);
@@ -211,8 +191,8 @@ EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet8d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet8d& x) {
-  return _mm512_reduce_or_epi64(_mm512_castpd_si512(x)) != 0;
+EIGEN_STRONG_INLINE bool predux_any(const Packet8d& a) {
+  return _mm512_reduce_or_epi64(_mm512_castpd_si512(a)) != 0;
 }
 
 #ifndef EIGEN_VECTORIZE_AVX512FP16
@@ -234,11 +214,6 @@ EIGEN_STRONG_INLINE half predux_min(const Packet16h& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE half predux_min<PropagateFast>(const Packet16h& from) {
-  return half(predux_min<PropagateFast>(half2float(from)));
-}
-
-template <>
 EIGEN_STRONG_INLINE half predux_min<PropagateNumbers>(const Packet16h& from) {
   return half(predux_min<PropagateNumbers>(half2float(from)));
 }
@@ -254,11 +229,6 @@ EIGEN_STRONG_INLINE half predux_max(const Packet16h& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE half predux_max<PropagateFast>(const Packet16h& from) {
-  return half(predux_max<PropagateFast>(half2float(from)));
-}
-
-template <>
 EIGEN_STRONG_INLINE half predux_max<PropagateNumbers>(const Packet16h& from) {
   return half(predux_max<PropagateNumbers>(half2float(from)));
 }
@@ -269,8 +239,8 @@ EIGEN_STRONG_INLINE half predux_max<PropagateNaN>(const Packet16h& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16h& x) {
-  return predux_any<Packet8i>(x.m_val);
+EIGEN_STRONG_INLINE bool predux_any(const Packet16h& a) {
+  return predux_any<Packet8i>(a.m_val);
 }
 #endif
 
@@ -292,11 +262,6 @@ EIGEN_STRONG_INLINE bfloat16 predux_min(const Packet16bf& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bfloat16 predux_min<PropagateFast>(const Packet16bf& from) {
-  return static_cast<bfloat16>(predux_min<PropagateFast>(Bf16ToF32(from)));
-}
-
-template <>
 EIGEN_STRONG_INLINE bfloat16 predux_min<PropagateNumbers>(const Packet16bf& from) {
   return static_cast<bfloat16>(predux_min<PropagateNumbers>(Bf16ToF32(from)));
 }
@@ -312,11 +277,6 @@ EIGEN_STRONG_INLINE bfloat16 predux_max(const Packet16bf& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bfloat16 predux_max<PropagateFast>(const Packet16bf& from) {
-  return static_cast<bfloat16>(predux_max<PropagateFast>(Bf16ToF32(from)));
-}
-
-template <>
 EIGEN_STRONG_INLINE bfloat16 predux_max<PropagateNumbers>(const Packet16bf& from) {
   return static_cast<bfloat16>(predux_max<PropagateNumbers>(Bf16ToF32(from)));
 }
@@ -327,8 +287,8 @@ EIGEN_STRONG_INLINE bfloat16 predux_max<PropagateNaN>(const Packet16bf& from) {
 }
 
 template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet16bf& x) {
-  return predux_any<Packet8i>(x.m_val);
+EIGEN_STRONG_INLINE bool predux_any(const Packet16bf& a) {
+  return predux_any<Packet8i>(a.m_val);
 }
 
 }  // end namespace internal
