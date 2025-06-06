@@ -343,6 +343,7 @@ using std::ptrdiff_t;
 #include "src/Core/SkewSymmetricMatrix3.h"
 #include "src/Core/Redux.h"
 #include "src/Core/Visitor.h"
+#include "src/Core/FindCoeff.h"
 #include "src/Core/Fuzzy.h"
 #include "src/Core/Swap.h"
 #include "src/Core/CommaInitializer.h"
