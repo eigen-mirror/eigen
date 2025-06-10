@@ -5704,16 +5704,6 @@ EIGEN_STRONG_INLINE Packet4hf pmadd(const Packet4hf& a, const Packet4hf& b, cons
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8hf pmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4hf pmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet8hf pnmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
   return vfmsq_f16(c, a, b);
 }
@@ -5721,6 +5711,16 @@ EIGEN_STRONG_INLINE Packet8hf pnmadd(const Packet8hf& a, const Packet8hf& b, con
 template <>
 EIGEN_STRONG_INLINE Packet4hf pnmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
   return vfms_f16(c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8hf pmsub(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
+  return pnegate(pnmadd(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4hf pmsub(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
+  return pnegate(pnmadd(a, b, c));
 }
 
 template <>
