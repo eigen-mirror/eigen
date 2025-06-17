@@ -277,7 +277,7 @@ struct find_coeff_evaluator : public evaluator<Derived> {
   using Scalar = typename Derived::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
   static constexpr int Flags = Base::Flags;
-  static constexpr bool IsRowMajor = Flags & RowMajorBit;
+  static constexpr bool IsRowMajor = bool(Flags & RowMajorBit);
   EIGEN_DEVICE_FUNC inline find_coeff_evaluator(const Derived& xpr) : Base(xpr), m_xpr(xpr) {}
 
   EIGEN_DEVICE_FUNC inline Scalar coeffByOuterInner(Index outer, Index inner) const {
@@ -313,7 +313,7 @@ struct find_coeff_impl {
   using Packet = typename Evaluator::Packet;
 
   static constexpr int PacketSize = unpacket_traits<Packet>::size;
-  static constexpr bool Linearize = Flags & LinearAccessBit;
+  static constexpr bool Linearize = bool(Flags & LinearAccessBit);
   static constexpr bool DontVectorize =
       enum_lt_not_dynamic(Linearize ? MaxSizeAtCompileTime : MaxInnerSizeAtCompileTime, PacketSize);
   static constexpr bool Vectorize =
