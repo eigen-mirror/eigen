@@ -2250,23 +2250,63 @@ EIGEN_STRONG_INLINE Packet8h ptrunc<Packet8h>(const Packet8h& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet8h pisinf<Packet8h>(const Packet8h& a) {
+  constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmpeq_epi16(_mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8h pisnan<Packet8h>(const Packet8h& a) {
+  constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmpgt_epi16(_mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
+}
+
+// convert the sign-magnitude representation to two's complement
+EIGEN_STRONG_INLINE __m128i pmaptosigned(const __m128i& a) {
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  // if 'a' has the sign bit set, clear the sign bit and negate the result as if it were an integer
+  return _mm_sign_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), a);
+}
+
+// return true if both `a` and `b` are not NaN
+EIGEN_STRONG_INLINE Packet8h pisordered(const Packet8h& a, const Packet8h& b) {
+  constexpr uint16_t kInf = ((1 << 5) - 1) << 10;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  __m128i abs_a = _mm_and_si128(a.m_val, _mm_set1_epi16(kAbsMask));
+  __m128i abs_b = _mm_and_si128(b.m_val, _mm_set1_epi16(kAbsMask));
+  // check if both `abs_a <= kInf` and `abs_b <= kInf` by checking if max(abs_a, abs_b) <= kInf
+  // SSE has no `lesser or equal` instruction for integers, but comparing against kInf + 1 accomplishes the same goal
+  return _mm_cmplt_epi16(_mm_max_epu16(abs_a, abs_b), _mm_set1_epi16(kInf + 1));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet8h pcmp_eq(const Packet8h& a, const Packet8h& b) {
-  return Pack16To8(pcmp_eq(half2float(a), half2float(b)));
+  __m128i isOrdered = pisordered(a, b);
+  __m128i isEqual = _mm_cmpeq_epi16(pmaptosigned(a.m_val), pmaptosigned(b.m_val));
+  return _mm_and_si128(isOrdered, isEqual);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pcmp_le(const Packet8h& a, const Packet8h& b) {
-  return Pack16To8(pcmp_le(half2float(a), half2float(b)));
+  __m128i isOrdered = pisordered(a, b);
+  __m128i isGreater = _mm_cmpgt_epi16(pmaptosigned(a.m_val), pmaptosigned(b.m_val));
+  return _mm_andnot_si128(isGreater, isOrdered);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pcmp_lt(const Packet8h& a, const Packet8h& b) {
-  return Pack16To8(pcmp_lt(half2float(a), half2float(b)));
+  __m128i isOrdered = pisordered(a, b);
+  __m128i isLess = _mm_cmplt_epi16(pmaptosigned(a.m_val), pmaptosigned(b.m_val));
+  return _mm_and_si128(isOrdered, isLess);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pcmp_lt_or_nan(const Packet8h& a, const Packet8h& b) {
-  return Pack16To8(pcmp_lt_or_nan(half2float(a), half2float(b)));
+  __m128i isUnordered = por(pisnan(a), pisnan(b));
+  __m128i isLess = _mm_cmplt_epi16(pmaptosigned(a.m_val), pmaptosigned(b.m_val));
+  return _mm_or_si128(isUnordered, isLess);
 }
 
 template <>
