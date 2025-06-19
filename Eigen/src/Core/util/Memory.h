@@ -762,7 +762,7 @@ void swap(scoped_array<T>& a, scoped_array<T>& b) {
  * This is accomplished through alloca if this later is supported and if the required number of bytes
  * is below EIGEN_STACK_ALLOCATION_LIMIT.
  */
-#ifdef EIGEN_ALLOCA
+#if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
 
 #if EIGEN_DEFAULT_ALIGN_BYTES > 0
 // We always manually re-align the result of EIGEN_ALLOCA.
