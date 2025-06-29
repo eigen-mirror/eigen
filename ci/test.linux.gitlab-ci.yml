@@ -290,6 +290,8 @@ test:linux:cuda-12.2:clang-12:
     EIGEN_CI_TARGET_ARCH: arm
     EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_CTEST_ARGS: --timeout 2000
+  tags:
+    - saas-linux-large-arm64
 
 .test:linux:arm:gcc-10:default:
   extends: .test:linux:arm

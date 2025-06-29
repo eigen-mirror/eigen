@@ -246,6 +246,9 @@ build:linux:rocm-latest:gcc-10:
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv7-a;-mfpu=neon-vfpv4
       -DCMAKE_SYSTEM_NAME=Linux
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-arm-static;-L;/usr/arm-linux-gnueabihf
+  tags:
+    - saas-linux-large-arm64
+      
 
 build:linux:cross:arm:gcc-10:default:
   extends: .build:linux:cross:arm
