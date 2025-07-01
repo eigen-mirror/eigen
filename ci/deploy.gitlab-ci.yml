@@ -19,7 +19,7 @@ deploy:tag:nightly:
 deploy:docs:
   stage: deploy
   image: busybox
-  dependencies: [ build:linux:doc ]
+  dependencies: [ build:linux:docs ]
   variables:
     PAGES_PREFIX: docs-nightly
   script:
