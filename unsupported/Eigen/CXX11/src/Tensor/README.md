@@ -92,7 +92,7 @@ TensorMap<Tensor<float, 1>> t_12(t_4x3.data(), 12);
 
 #### Class TensorRef
 
-See [Assigning to a TensorRef.](#assigning-to-a-tensorref)
+See **Assigning to a `TensorRef`**.
 
 ## Accessing Tensor Elements
 
@@ -602,8 +602,8 @@ std::cout << "Size: " << a.size();
 A few operations provide `dimensions()` directly,
 e.g. `TensorReslicingOp`.  Most operations defer calculating dimensions
 until the operation is being evaluated.  If you need access to the dimensions
-of a deferred operation, you can wrap it in a TensorRef (see 
-[Assigning to a TensorRef.](#assigning-to-a-tensorref)), which provides 
+of a deferred operation, you can wrap it in a `TensorRef` (see
+**Assigning to a TensorRef** above), which provides
 `dimensions()` and `dimension()` as above.
 
 `TensorRef` can also wrap the plain `Tensor` types, so this is a useful idiom in
@@ -635,7 +635,7 @@ is not initialized.
 Eigen::TensorFixedSize<float, Sizes<3, 4>> a;
 std::cout << "Rank: " << a.rank() << endl;
 // Rank: 2
-std::cout << "NumRows: " << a.dimension(0) 
+std::cout << "NumRows: " << a.dimension(0)
           << " NumCols: " << a.dimension(1) << endl;
 // NumRows: 3 NumCols: 4
 ```
@@ -848,7 +848,7 @@ These can be chained: you can apply another `Tensor` Operation to the value
 returned by the method.
 
 The chain of Operation is evaluated lazily, typically when it is assigned to a
-tensor.  See [Controlling When Expression are Evaluated](#controlling-when-expression-are-evaluated) for more details about
+tensor.  See **Controlling When Expression are Evaluated** for more details about
 their evaluation.
 
 ### (Operation) constant(const Scalar& val)
@@ -858,7 +858,7 @@ where all elements have the value `val`.
 
 This is useful, for example, when you want to add or subtract a constant from a
 tensor, or multiply every element of a tensor by a scalar.
-However, such operations can also be performed using operator overloads (see [operator+](#operation-operator-scalar-s)).
+However, such operations can also be performed using operator overloads (see `operator+`).
 
 
 ```cpp
@@ -927,7 +927,7 @@ std::cout << "b\n" << b << "\n\n";
 // a
 // 1 1 1
 // 1 1 1
-// 
+//
 // b
 // -1 -1 -1
 // -1 -1 -1
@@ -1010,7 +1010,7 @@ std::cout << "b" << endl << b << endl << endl;
 // a
 // 0   1   8
 // 27  64 125
-// 
+//
 // b
 // 0 1 2
 // 3 4 5
@@ -1031,7 +1031,7 @@ std::cout << "scaled_a\n" << scaled_a << "\n";
 // a
 // 1 2 3
 // 4 5 6
-// 
+//
 // scaled_a
 // 2  4  6
 // 8 10 12
@@ -1048,8 +1048,8 @@ Divides every element in the tensor by `s`.
 ### (Operation) operator% (Scalar s)
 Computes the element-wise modulus (remainder) of each tensor element divided by `s`
 
-**Only integer types are supported.**  
-For floating-point tensors, implement a [unaryExpr](#operation-unaryexprcustomunaryop-func) using `std::fmod`.
+**Only integer types are supported.**
+For floating-point tensors, implement a `unaryExpr` using `std::fmod`.
 
 ### (Operation)  cwiseMax(Scalar threshold)
 Returns the coefficient-wise maximum between two tensors.
@@ -1203,10 +1203,10 @@ The following boolean operators are supported:
  * `operator>=(const OtherDerived& other)`
  * `operator==(const OtherDerived& other)`
  * `operator!=(const OtherDerived& other)`
- 
+
  as well as bitwise operators:
 
- * `operator&(const OtherDerived& other)` 
+ * `operator&(const OtherDerived& other)`
  * `operator|(const OtherDerived& other)`
  * `operator^(const OtherDerived& other)`
 
@@ -1448,7 +1448,7 @@ std::cout << "Flat argmax index: " << argmax_flat();
 
 ### (Operation) argmin(const Dimensions& reduction_dim)
 ### (Operation) argmin()
-See [argmax](#operation-argmaxconst-dimensions-reduction_dim)
+See `argmax`.
 
 ### (Operation) reduce(const Dimensions& reduction_dims, const Reducer& reducer)
 
@@ -1953,7 +1953,7 @@ std::cout << "b\n" << b << "\n";
 
 ### (Operation) roll(const Rolls& shifts)
 
-Returns a tensor with the elements **circularly shifted** (like bit rotation) along one or more dimensions.  
+Returns a tensor with the elements **circularly shifted** (like bit rotation) along one or more dimensions.
 
 For each dimension `i`, the content is shifted by `shifts[i]` positions:
 
@@ -2277,7 +2277,7 @@ std::cout << "b\n" << b << "\n";
 ```
 
 ### (Operation)     eval()
-See [Calling eval()](#calling-eval)
+See **Calling eval()**.
 
 
 
@@ -2340,7 +2340,7 @@ For example `Tensor<T, N>::maximum()` returns a `Tensor<T, 0>`.
 
 Similarly, the inner product of 2 1d tensors (through contractions) returns a 0d tensor.
 
-The scalar value can be extracted as explained in [Reduction along all dimensions](#reduction-along-all-dimensions).
+The scalar value can be extracted as explained in **Reduction along all dimensions**.
 
 
 ## Limitations
