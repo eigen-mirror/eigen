@@ -173,6 +173,11 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
 
     eigen_assert(dest.rows() == a_lhs.rows() && dest.cols() == a_rhs.cols());
 
+    if (a_lhs.rows() == 1) {
+      dest = a_lhs.coeff(0, 0) * a_rhs;
+      return;
+    }
+
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
 
