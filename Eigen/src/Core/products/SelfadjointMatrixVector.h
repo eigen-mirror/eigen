@@ -174,7 +174,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
     eigen_assert(dest.rows() == a_lhs.rows() && dest.cols() == a_rhs.cols());
 
     if (a_lhs.rows() == 1) {
-      dest = a_lhs.coeff(0, 0) * a_rhs;
+      dest = (alpha * a_lhs.coeff(0, 0)) * a_rhs;
       return;
     }
 
