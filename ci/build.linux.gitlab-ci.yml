@@ -7,9 +7,7 @@
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
-    - linux
-    - eigen-runner
-    - cross-compiler
+    - saas-linux-2xlarge-amd64
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
@@ -309,12 +307,12 @@ build:linux:cross:ppc64le:gcc-14:default:
     EIGEN_CI_CROSS_C_COMPILER: powerpc64le-linux-gnu-gcc-14
     EIGEN_CI_CROSS_CXX_COMPILER: powerpc64le-linux-gnu-g++-14
 
-build:linux:cross:ppc64le:clang-12:default:
+build:linux:cross:ppc64le:clang-16:default:
   extends: .build:linux:cross:ppc64le
   variables:
-    EIGEN_CI_C_COMPILER: clang-12
-    EIGEN_CI_CXX_COMPILER: clang++-12
-    EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu clang-12 qemu-user-static
+    EIGEN_CI_C_COMPILER: clang-16
+    EIGEN_CI_CXX_COMPILER: clang++-16
+    EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu clang-16 qemu-user-static
 
 ######## loongarch64 #################################################
 

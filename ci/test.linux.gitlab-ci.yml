@@ -10,9 +10,7 @@
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
   tags:
-    - eigen-runner
-    - linux
-    - x86-64
+    - saas-linux-2xlarge-amd64
 
 ##### x86-64 ###################################################################
 .test:linux:x86-64:
@@ -373,13 +371,13 @@ test:linux:aarch64:clang-12:default:unsupported:
   variables:
     EIGEN_CI_TARGET_ARCH: ppc64le
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
+    EIGEN_CI_CTEST_ARGS: --timeout 2000
 
 .test:linux:ppc64le:gcc-14:default:
   extends: .test:linux:ppc64le
   needs: [ build:linux:cross:ppc64le:gcc-14:default ]
   variables:
     EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu qemu-user-static
-    EIGEN_CI_CTEST_ARGS: --timeout 2000
 
 test:linux:ppc64le:gcc-14:default:official:
   extends: .test:linux:ppc64le:gcc-14:default
@@ -391,19 +389,19 @@ test:linux:ppc64le:gcc-14:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:linux:ppc64le:clang-12:default:
+.test:linux:ppc64le:clang-16:default:
   extends: .test:linux:ppc64le
-  needs: [ build:linux:cross:ppc64le:clang-12:default ]
+  needs: [ build:linux:cross:ppc64le:clang-16:default ]
   variables:
-    EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu clang-12 qemu-user-static
+    EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu clang-16 qemu-user-static
 
-test:linux:ppc64le:clang-12:default:official:
-  extends: .test:linux:ppc64le:clang-12:default
+test:linux:ppc64le:clang-16:default:official:
+  extends: .test:linux:ppc64le:clang-16:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:ppc64le:clang-12:default:unsupported:
-  extends: .test:linux:ppc64le:clang-12:default
+test:linux:ppc64le:clang-16:default:unsupported:
+  extends: .test:linux:ppc64le:clang-16:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
