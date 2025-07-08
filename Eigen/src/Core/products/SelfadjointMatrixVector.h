@@ -164,6 +164,11 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
 
   enum { LhsUpLo = LhsMode & (Upper | Lower) };
 
+  // Verify that the Rhs is a vector in the correct orientation.
+  // Otherwise, we break the assumption that we are multiplying
+  // MxN * Nx1.
+  static_assert(Rhs::ColsAtCompileTime == 1, "The RHS must be a column vector.");
+
   template <typename Dest>
   static EIGEN_DEVICE_FUNC void run(Dest& dest, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
     typedef typename Dest::Scalar ResScalar;
@@ -172,11 +177,6 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
         MappedDest;
 
     eigen_assert(dest.rows() == a_lhs.rows() && dest.cols() == a_rhs.cols());
-
-    if (a_lhs.rows() == 1) {
-      dest = (alpha * a_lhs.coeff(0, 0)) * a_rhs;
-      return;
-    }
 
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
