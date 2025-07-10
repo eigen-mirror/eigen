@@ -264,7 +264,7 @@ struct functor_cost {
   static constexpr Index Cost = plain_enum_max(nested_functor_cost<Xpr>::Cost, 1);
 };
 
-template <typename T>
+template <typename T, int LMul = 1>
 struct packet_traits;
 
 template <typename T>
@@ -285,9 +285,12 @@ struct find_best_packet_helper<Size, PacketType, false> {
   typedef typename find_best_packet_helper<Size, typename unpacket_traits<PacketType>::half>::type type;
 };
 
-template <typename T, int Size>
+template <typename T, int Size, int LMul = 1>
+struct find_best_packet;
+
+template <typename T, int Size, int LMul>
 struct find_best_packet {
-  typedef typename find_best_packet_helper<Size, typename packet_traits<T>::type>::type type;
+  typedef typename find_best_packet_helper<Size, typename packet_traits<T, LMul>::type>::type type;
 };
 
 template <int Size, typename PacketType,

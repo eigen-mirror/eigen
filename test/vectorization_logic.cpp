@@ -107,7 +107,11 @@ template <typename Scalar, bool Enable = internal::packet_traits<Scalar>::Vector
 struct vectorization_logic {
   typedef internal::packet_traits<Scalar> PacketTraits;
 
+#ifdef EIGEN_RISCV64_USE_RVV10
+  typedef typename internal::packet_traits<Scalar, 4>::type PacketType;
+#else
   typedef typename internal::packet_traits<Scalar>::type PacketType;
+#endif
   typedef typename internal::unpacket_traits<PacketType>::half HalfPacketType;
   enum {
     PacketSize = internal::unpacket_traits<PacketType>::size,

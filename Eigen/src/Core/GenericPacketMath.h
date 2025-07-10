@@ -105,7 +105,7 @@ struct default_packet_traits {
   };
 };
 
-template <typename T>
+template <typename T, int LMul>
 struct packet_traits : default_packet_traits {
   typedef T type;
   typedef T half;

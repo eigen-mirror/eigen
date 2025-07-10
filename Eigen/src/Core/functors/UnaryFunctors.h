@@ -111,7 +111,11 @@ struct squared_norm_functor {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const {
+#if defined EIGEN_VECTORIZE_RVV10
+    return Packet(pmul(a.real, a.real), pmul(a.imag, a.imag));
+#else
     return Packet(pmul(a.v, a.v));
+#endif
   }
 };
 template <typename Scalar>

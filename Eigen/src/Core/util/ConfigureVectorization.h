@@ -68,6 +68,8 @@
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 32
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
+#elif defined(EIGEN_RISCV64_USE_RVV10)
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
 #else
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 16
 #endif
@@ -104,7 +106,7 @@
 // Only static alignment is really problematic (relies on nonstandard compiler extensions),
 // try to keep heap alignment even when we have to disable static alignment.
 #if EIGEN_COMP_GNUC && !(EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_PPC || EIGEN_ARCH_IA64 || \
-                         EIGEN_ARCH_MIPS || EIGEN_ARCH_LOONGARCH64)
+                         EIGEN_ARCH_MIPS || EIGEN_ARCH_LOONGARCH64 || EIGEN_ARCH_RISCV)
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 1
 #else
 #define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 0
@@ -406,13 +408,47 @@ extern "C" {
 #define EIGEN_VECTORIZE_SVE
 #include <arm_sve.h>
 
-// Since we depend on knowing SVE vector lengths at compile-time, we need
-// to ensure a fixed lengths is set
+// Since we depend on knowing SVE vector length at compile-time, we need
+// to ensure a fixed length is set
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
 #else
 #error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
+
+#elif defined(EIGEN_ARCH_RISCV)
+
+#if defined(__riscv_zfh)
+#define EIGEN_HAS_BUILTIN_FLOAT16
+#endif
+
+// We currently require RVV to be enabled explicitly via EIGEN_RISCV64_USE_RVV and
+// will not select the backend automatically
+#if (defined EIGEN_RISCV64_USE_RVV10)
+
+#define EIGEN_VECTORIZE
+#define EIGEN_VECTORIZE_RVV10
+#include <riscv_vector.h>
+
+// Since we depend on knowing RVV vector length at compile-time, we need
+// to ensure a fixed length is set
+#if defined(__riscv_v_fixed_vlen)
+#define EIGEN_RISCV64_RVV_VL __riscv_v_fixed_vlen
+#if __riscv_v_fixed_vlen >= 256
+#undef EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
+#define EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT 1
+#endif
+#else
+#error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
+#endif
+
+#if defined(__riscv_zvfh) && defined(__riscv_zfh)
+#define EIGEN_VECTORIZE_RVV10FP16
+#elif defined(__riscv_zvfh)
+#error "The Eigen::Half vectorization requires Zfh and Zvfh extensions."
+#endif
+
+#endif  // defined(EIGEN_ARCH_RISCV)
 
 #elif (defined __s390x__ && defined __VEC__)
 

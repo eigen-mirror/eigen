@@ -1816,6 +1816,19 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
     CALL_SUBTEST_14((packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>()));
     CALL_SUBTEST_15(test::runner<bfloat16>::run());
+#ifdef EIGEN_RISCV64_USE_RVV10
+    CALL_SUBTEST_16((test::runner<float, typename internal::packet_traits<float, 2>::type>::run()));
+    CALL_SUBTEST_17((test::runner<float, typename internal::packet_traits<float, 4>::type>::run()));
+    CALL_SUBTEST_18((test::runner<double, typename internal::packet_traits<double, 2>::type>::run()));
+    CALL_SUBTEST_19((test::runner<double, typename internal::packet_traits<double, 4>::type>::run()));
+    CALL_SUBTEST_20((test::runner<int32_t, typename internal::packet_traits<int32_t, 2>::type>::run()));
+    CALL_SUBTEST_21((test::runner<int32_t, typename internal::packet_traits<int32_t, 4>::type>::run()));
+    CALL_SUBTEST_22((test::runner<int64_t, typename internal::packet_traits<int64_t, 2>::type>::run()));
+    CALL_SUBTEST_23((test::runner<int64_t, typename internal::packet_traits<int64_t, 4>::type>::run()));
+    CALL_SUBTEST_24((test::runner<int16_t, typename internal::packet_traits<int16_t, 2>::type>::run()));
+    CALL_SUBTEST_25((test::runner<int16_t, typename internal::packet_traits<int16_t, 4>::type>::run()));
+    CALL_SUBTEST_26((test::runner<half, typename internal::packet_traits<half, 2>::type>::run()));
+#endif
     g_first_pass = false;
   }
 }
