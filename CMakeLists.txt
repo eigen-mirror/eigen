@@ -29,6 +29,11 @@ if (POLICY CMP0146)
   cmake_policy(SET CMP0146 OLD)
 endif ()
 
+# Normalize DESTINATION paths
+if (POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif ()
+
 #==============================================================================
 # CMake Project.
 #==============================================================================
@@ -254,7 +259,7 @@ if(EIGEN_BUILD_CMAKE_PACKAGE)
           DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
 
   # Add uninstall target
-  if(NOT TARGET uninstall)
+  if(NOT TARGET uninstall AND PROJECT_IS_TOP_LEVEL)
     add_custom_target ( uninstall
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EigenUninstall.cmake)
   endif()
