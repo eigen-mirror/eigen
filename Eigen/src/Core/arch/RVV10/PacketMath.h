@@ -906,7 +906,7 @@ EIGEN_STRONG_INLINE PacketMul2Xi pabs(const PacketMul2Xi& a) {
 template <>
 EIGEN_STRONG_INLINE numext::int32_t predux<PacketMul2Xi>(const PacketMul2Xi& a) {
   return __riscv_vmv_x(__riscv_vredsum_vs_i32m2_i32m1(
-      a, __riscv_vmv_v_x_i32m1(0, unpacket_traits<PacketMul2Xi>::size / 4), unpacket_traits<PacketMul2Xi>::size));
+      a, __riscv_vmv_v_x_i32m1(0, unpacket_traits<PacketMul2Xi>::size / 2), unpacket_traits<PacketMul2Xi>::size));
 }
 
 template <>
@@ -918,14 +918,14 @@ EIGEN_STRONG_INLINE numext::int32_t predux_mul<PacketMul2Xi>(const PacketMul2Xi&
 template <>
 EIGEN_STRONG_INLINE numext::int32_t predux_min<PacketMul2Xi>(const PacketMul2Xi& a) {
   return __riscv_vmv_x(__riscv_vredmin_vs_i32m2_i32m1(
-      a, __riscv_vmv_v_x_i32m1((std::numeric_limits<numext::int32_t>::max)(), unpacket_traits<PacketMul2Xi>::size / 4),
+      a, __riscv_vmv_v_x_i32m1((std::numeric_limits<numext::int32_t>::max)(), unpacket_traits<PacketMul2Xi>::size / 2),
       unpacket_traits<PacketMul2Xi>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE numext::int32_t predux_max<PacketMul2Xi>(const PacketMul2Xi& a) {
   return __riscv_vmv_x(__riscv_vredmax_vs_i32m2_i32m1(
-      a, __riscv_vmv_v_x_i32m1((std::numeric_limits<numext::int32_t>::min)(), unpacket_traits<PacketMul2Xi>::size / 4),
+      a, __riscv_vmv_v_x_i32m1((std::numeric_limits<numext::int32_t>::min)(), unpacket_traits<PacketMul2Xi>::size / 2),
       unpacket_traits<PacketMul2Xi>::size));
 }
 
@@ -2091,7 +2091,7 @@ EIGEN_STRONG_INLINE PacketMul2Xf pfrexp<PacketMul2Xf>(const PacketMul2Xf& a, Pac
 template <>
 EIGEN_STRONG_INLINE float predux<PacketMul2Xf>(const PacketMul2Xf& a) {
   return __riscv_vfmv_f(__riscv_vfredusum_vs_f32m2_f32m1(
-      a, __riscv_vfmv_v_f_f32m1(0.0, unpacket_traits<PacketMul2Xf>::size / 4), unpacket_traits<PacketMul2Xf>::size));
+      a, __riscv_vfmv_v_f_f32m1(0.0, unpacket_traits<PacketMul2Xf>::size / 2), unpacket_traits<PacketMul2Xf>::size));
 }
 
 template <>
@@ -2103,14 +2103,14 @@ EIGEN_STRONG_INLINE float predux_mul<PacketMul2Xf>(const PacketMul2Xf& a) {
 template <>
 EIGEN_STRONG_INLINE float predux_min<PacketMul2Xf>(const PacketMul2Xf& a) {
   return __riscv_vfmv_f(__riscv_vfredmin_vs_f32m2_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::max)(), unpacket_traits<PacketMul2Xf>::size / 4),
+      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::max)(), unpacket_traits<PacketMul2Xf>::size / 2),
       unpacket_traits<PacketMul2Xf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PacketMul2Xf>(const PacketMul2Xf& a) {
   return __riscv_vfmv_f(__riscv_vfredmax_vs_f32m2_f32m1(
-      a, __riscv_vfmv_v_f_f32m1(-(std::numeric_limits<float>::max)(), unpacket_traits<PacketMul2Xf>::size / 4),
+      a, __riscv_vfmv_v_f_f32m1(-(std::numeric_limits<float>::max)(), unpacket_traits<PacketMul2Xf>::size / 2),
       unpacket_traits<PacketMul2Xf>::size));
 }
 
@@ -3013,7 +3013,7 @@ EIGEN_STRONG_INLINE PacketMul2Xl pabs(const PacketMul2Xl& a) {
 template <>
 EIGEN_STRONG_INLINE numext::int64_t predux<PacketMul2Xl>(const PacketMul2Xl& a) {
   return __riscv_vmv_x(__riscv_vredsum_vs_i64m2_i64m1(
-      a, __riscv_vmv_v_x_i64m1(0, unpacket_traits<PacketMul2Xl>::size / 4), unpacket_traits<PacketMul2Xl>::size));
+      a, __riscv_vmv_v_x_i64m1(0, unpacket_traits<PacketMul2Xl>::size / 2), unpacket_traits<PacketMul2Xl>::size));
 }
 
 template <>
@@ -3025,14 +3025,14 @@ EIGEN_STRONG_INLINE numext::int64_t predux_mul<PacketMul2Xl>(const PacketMul2Xl&
 template <>
 EIGEN_STRONG_INLINE numext::int64_t predux_min<PacketMul2Xl>(const PacketMul2Xl& a) {
   return __riscv_vmv_x(__riscv_vredmin_vs_i64m2_i64m1(
-      a, __riscv_vmv_v_x_i64m1((std::numeric_limits<numext::int64_t>::max)(), unpacket_traits<PacketMul2Xl>::size / 4),
+      a, __riscv_vmv_v_x_i64m1((std::numeric_limits<numext::int64_t>::max)(), unpacket_traits<PacketMul2Xl>::size / 2),
       unpacket_traits<PacketMul2Xl>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE numext::int64_t predux_max<PacketMul2Xl>(const PacketMul2Xl& a) {
   return __riscv_vmv_x(__riscv_vredmax_vs_i64m2_i64m1(
-      a, __riscv_vmv_v_x_i64m1((std::numeric_limits<numext::int64_t>::min)(), unpacket_traits<PacketMul2Xl>::size / 4),
+      a, __riscv_vmv_v_x_i64m1((std::numeric_limits<numext::int64_t>::min)(), unpacket_traits<PacketMul2Xl>::size / 2),
       unpacket_traits<PacketMul2Xl>::size));
 }
 
@@ -3654,13 +3654,10 @@ EIGEN_STRONG_INLINE PacketMul4Xd pdiv<PacketMul4Xd>(const PacketMul4Xd& a, const
   return __riscv_vfdiv_vv_f64m4(a, b, unpacket_traits<PacketMul4Xd>::size);
 }
 
-#if 1
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xd pmadd(const PacketMul4Xd& a, const PacketMul4Xd& b, const PacketMul4Xd& c) {
-//  return padd(pmul(a, b), c);
   return __riscv_vfmadd_vv_f64m4(a, b, c, unpacket_traits<PacketMul4Xd>::size);
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xd pmsub(const PacketMul4Xd& a, const PacketMul4Xd& b, const PacketMul4Xd& c) {
@@ -4195,7 +4192,7 @@ EIGEN_STRONG_INLINE PacketMul2Xd pfrexp<PacketMul2Xd>(const PacketMul2Xd& a, Pac
 template <>
 EIGEN_STRONG_INLINE double predux<PacketMul2Xd>(const PacketMul2Xd& a) {
   return __riscv_vfmv_f(__riscv_vfredusum_vs_f64m2_f64m1(
-      a, __riscv_vfmv_v_f_f64m1(0.0, unpacket_traits<PacketMul2Xd>::size / 4), unpacket_traits<PacketMul2Xd>::size));
+      a, __riscv_vfmv_v_f_f64m1(0.0, unpacket_traits<PacketMul2Xd>::size / 2), unpacket_traits<PacketMul2Xd>::size));
 }
 
 template <>
@@ -4207,14 +4204,14 @@ EIGEN_STRONG_INLINE double predux_mul<PacketMul2Xd>(const PacketMul2Xd& a) {
 template <>
 EIGEN_STRONG_INLINE double predux_min<PacketMul2Xd>(const PacketMul2Xd& a) {
   return __riscv_vfmv_f(__riscv_vfredmin_vs_f64m2_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::max)(), unpacket_traits<PacketMul2Xd>::size / 4),
+      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::max)(), unpacket_traits<PacketMul2Xd>::size / 2),
       unpacket_traits<PacketMul2Xd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PacketMul2Xd>(const PacketMul2Xd& a) {
   return __riscv_vfmv_f(__riscv_vfredmax_vs_f64m2_f64m1(
-      a, __riscv_vfmv_v_f_f64m1(-(std::numeric_limits<double>::max)(), unpacket_traits<PacketMul2Xd>::size / 4),
+      a, __riscv_vfmv_v_f_f64m1(-(std::numeric_limits<double>::max)(), unpacket_traits<PacketMul2Xd>::size / 2),
       unpacket_traits<PacketMul2Xd>::size));
 }
 
@@ -5119,7 +5116,7 @@ EIGEN_STRONG_INLINE PacketMul2Xs pabs(const PacketMul2Xs& a) {
 template <>
 EIGEN_STRONG_INLINE numext::int16_t predux<PacketMul2Xs>(const PacketMul2Xs& a) {
   return __riscv_vmv_x(__riscv_vredsum_vs_i16m2_i16m1(
-      a, __riscv_vmv_v_x_i16m1(0, unpacket_traits<PacketMul2Xs>::size / 4), unpacket_traits<PacketMul2Xs>::size));
+      a, __riscv_vmv_v_x_i16m1(0, unpacket_traits<PacketMul2Xs>::size / 2), unpacket_traits<PacketMul2Xs>::size));
 }
 
 template <>
@@ -5131,14 +5128,14 @@ EIGEN_STRONG_INLINE numext::int16_t predux_mul<PacketMul2Xs>(const PacketMul2Xs&
 template <>
 EIGEN_STRONG_INLINE numext::int16_t predux_min<PacketMul2Xs>(const PacketMul2Xs& a) {
   return __riscv_vmv_x(__riscv_vredmin_vs_i16m2_i16m1(
-      a, __riscv_vmv_v_x_i16m1((std::numeric_limits<numext::int16_t>::max)(), unpacket_traits<PacketMul2Xs>::size / 4),
+      a, __riscv_vmv_v_x_i16m1((std::numeric_limits<numext::int16_t>::max)(), unpacket_traits<PacketMul2Xs>::size / 2),
       unpacket_traits<PacketMul2Xs>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE numext::int16_t predux_max<PacketMul2Xs>(const PacketMul2Xs& a) {
   return __riscv_vmv_x(__riscv_vredmax_vs_i16m2_i16m1(
-      a, __riscv_vmv_v_x_i16m1((std::numeric_limits<numext::int16_t>::min)(), unpacket_traits<PacketMul2Xs>::size / 4),
+      a, __riscv_vmv_v_x_i16m1((std::numeric_limits<numext::int16_t>::min)(), unpacket_traits<PacketMul2Xs>::size / 2),
       unpacket_traits<PacketMul2Xs>::size));
 }
 
