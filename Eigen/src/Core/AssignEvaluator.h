@@ -65,8 +65,8 @@ struct copy_using_evaluator_traits {
 
   // TODO distinguish between linear traversal and inner-traversals
 #ifdef EIGEN_RISCV64_USE_RVV10
-  using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize, 4>::type;
-  using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize, 4>::type;
+  using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize, EIGEN_RISCV64_DEFAULT_LMUL>::type;
+  using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize, EIGEN_RISCV64_DEFAULT_LMUL>::type;
 #else
   using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
   using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;

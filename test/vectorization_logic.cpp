@@ -108,7 +108,7 @@ struct vectorization_logic {
   typedef internal::packet_traits<Scalar> PacketTraits;
 
 #ifdef EIGEN_RISCV64_USE_RVV10
-  typedef typename internal::packet_traits<Scalar, 4>::type PacketType;
+  typedef typename internal::packet_traits<Scalar, EIGEN_RISCV64_DEFAULT_LMUL>::type PacketType;
 #else
   typedef typename internal::packet_traits<Scalar>::type PacketType;
 #endif

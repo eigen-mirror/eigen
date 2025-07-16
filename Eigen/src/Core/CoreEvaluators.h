@@ -1370,7 +1370,7 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>>
   typedef typename XprType::Scalar Scalar;
   // TODO: should check for smaller packet types once we can handle multi-sized packet types
 #ifdef EIGEN_RISCV64_USE_RVV10
-  typedef typename packet_traits<Scalar, 4>::type PacketScalar;
+  typedef typename packet_traits<Scalar, EIGEN_RISCV64_DEFAULT_LMUL>::type PacketScalar;
 #else
   typedef typename packet_traits<Scalar>::type PacketScalar;
 #endif

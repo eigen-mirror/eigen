@@ -534,6 +534,13 @@ extern "C" {
 #include <hip/hip_bfloat16.h>
 #endif
 
+#if defined(__riscv)
+// Defines the default LMUL for RISC-V
+#ifndef EIGEN_RISCV64_DEFAULT_LMUL
+#define EIGEN_RISCV64_DEFAULT_LMUL  4
+#endif
+#endif
+
 /** \brief Namespace containing all symbols from the %Eigen library. */
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"

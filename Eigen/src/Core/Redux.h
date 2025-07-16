@@ -30,7 +30,7 @@ template <typename Func, typename Evaluator>
 struct redux_traits {
  public:
 #ifdef EIGEN_RISCV64_USE_RVV10
-  typedef typename find_best_packet<typename Evaluator::Scalar, Evaluator::SizeAtCompileTime, 4>::type PacketType;
+  typedef typename find_best_packet<typename Evaluator::Scalar, Evaluator::SizeAtCompileTime, EIGEN_RISCV64_DEFAULT_LMUL>::type PacketType;
 #else
   typedef typename find_best_packet<typename Evaluator::Scalar, Evaluator::SizeAtCompileTime>::type PacketType;
 #endif
