@@ -67,7 +67,7 @@ inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot
   Scalar res(0);
   while (i && j) {
     if (i.index() == j.index()) {
-      res += numext::conj(i.value()) * j.value();
+      res = numext::fma(numext::conj(i.value()), j.value(), res);
       ++i;
       ++j;
     } else if (i.index() < j.index())
