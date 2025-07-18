@@ -92,6 +92,7 @@
 #include <algorithm>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 // for std::is_nothrow_move_assignable
@@ -121,7 +122,6 @@
 #undef isfinite
 #include <CL/sycl.hpp>
 #include <map>
-#include <memory>
 #include <thread>
 #include <utility>
 #ifndef EIGEN_SYCL_LOCAL_THREAD_DIM0
