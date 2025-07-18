@@ -205,6 +205,7 @@ struct packet_traits<float> : default_packet_traits {
     HasATanh = 1,
     HasLog = 1,
     HasExp = 1,
+    HasPow = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
     HasCbrt = 1,
@@ -5060,6 +5061,7 @@ struct packet_traits<double> : default_packet_traits {
 #if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
     HasExp = 1,
     HasLog = 1,
+    HasPow = 1,
     HasATan = 1,
     HasATanh = 1,
 #endif
