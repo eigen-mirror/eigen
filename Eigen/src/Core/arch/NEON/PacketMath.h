@@ -35,6 +35,13 @@ namespace internal {
 #endif
 #endif
 
+// Use this macro to disable alignment hints
+#ifndef EIGEN_ARM_NO_ASSUME_ALIGNED
+#define EIGEN_ARM_ASSUME_ALIGNED(PTR, ALIGN_BYTES) EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES)
+#else
+#define EIGEN_ARM_ASSUME_ALIGNED(PTR, ALIGN_BYTES)
+#endif
+
 #if EIGEN_COMP_MSVC_STRICT
 
 // In MSVC's arm_neon.h header file, all NEON vector types
@@ -2268,12 +2275,12 @@ EIGEN_STRONG_INLINE Packet2ul plogical_shift_left(Packet2ul a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pload<Packet2f>(const float* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2f>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2f>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_f32(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pload<Packet4f>(const float* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4f>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4f>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f32(from);
 }
 template <>
@@ -2284,12 +2291,12 @@ EIGEN_STRONG_INLINE Packet4c pload<Packet4c>(const int8_t* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8c pload<Packet8c>(const int8_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8c>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet8c>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_s8(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16c pload<Packet16c>(const int8_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet16c>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet16c>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_s8(from);
 }
 template <>
@@ -2300,62 +2307,62 @@ EIGEN_STRONG_INLINE Packet4uc pload<Packet4uc>(const uint8_t* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8uc pload<Packet8uc>(const uint8_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8uc>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet8uc>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_u8(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc pload<Packet16uc>(const uint8_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet16uc>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet16uc>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_u8(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4s pload<Packet4s>(const int16_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4s>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4s>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_s16(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8s pload<Packet8s>(const int16_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8s>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet8s>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_s16(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4us pload<Packet4us>(const uint16_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4us>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4us>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_u16(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8us pload<Packet8us>(const uint16_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8us>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet8us>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_u16(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2i pload<Packet2i>(const int32_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2i>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2i>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_s32(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pload<Packet4i>(const int32_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4i>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4i>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_s32(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ui pload<Packet2ui>(const uint32_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2ui>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2ui>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_u32(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui pload<Packet4ui>(const uint32_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4ui>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4ui>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_u32(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l pload<Packet2l>(const int64_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2l>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2l>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_s64(from);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul pload<Packet2ul>(const uint64_t* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2ul>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2ul>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_u64(from);
 }
 
@@ -2580,12 +2587,12 @@ EIGEN_STRONG_INLINE Packet4ui ploadquad<Packet4ui>(const uint32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet2f& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2f>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2f>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_f32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4f>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4f>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f32(to, from);
 }
 template <>
@@ -2594,12 +2601,12 @@ EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet4c& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet8c& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet8c>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet8c>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int8_t>(int8_t* to, const Packet16c& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet16c>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet16c>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s8(to, from);
 }
 template <>
@@ -2608,62 +2615,62 @@ EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet4uc& from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet8uc& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet8uc>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet8uc>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint8_t>(uint8_t* to, const Packet16uc& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet16uc>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet16uc>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u8(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int16_t>(int16_t* to, const Packet4s& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4s>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4s>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int16_t>(int16_t* to, const Packet8s& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet8s>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet8s>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint16_t>(uint16_t* to, const Packet4us& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4us>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4us>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint16_t>(uint16_t* to, const Packet8us& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet8us>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet8us>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u16(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int32_t>(int32_t* to, const Packet2i& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2i>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2i>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_s32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int32_t>(int32_t* to, const Packet4i& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4i>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4i>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet2ui& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2ui>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2ui>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint32_t>(uint32_t* to, const Packet4ui& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4ui>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4ui>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u32(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<int64_t>(int64_t* to, const Packet2l& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2l>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2l>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_s64(to, from);
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<uint64_t>(uint64_t* to, const Packet2ul& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2ul>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2ul>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_u64(to, from);
 }
 
@@ -4739,7 +4746,7 @@ EIGEN_STRONG_INLINE bfloat16 pfirst<Packet4bf>(const Packet4bf& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pload<Packet4bf>(const bfloat16* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4bf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4bf>::alignment);
   return Packet4bf(pload<Packet4us>(reinterpret_cast<const uint16_t*>(from)));
 }
 
@@ -4750,7 +4757,7 @@ EIGEN_STRONG_INLINE Packet4bf ploadu<Packet4bf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE void pstore<bfloat16>(bfloat16* to, const Packet4bf& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4bf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4bf>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_u16(reinterpret_cast<uint16_t*>(to), from);
 }
 
@@ -5240,7 +5247,7 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pload<Packet2d>(const double* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet2d>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet2d>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(from);
 }
 
@@ -5255,7 +5262,7 @@ EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
 }
 template <>
 EIGEN_STRONG_INLINE void pstore<double>(double* to, const Packet2d& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet2d>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet2d>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f64(to, from);
 }
 
@@ -5784,13 +5791,13 @@ EIGEN_STRONG_INLINE Packet4hf pandnot<Packet4hf>(const Packet4hf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf pload<Packet8hf>(const Eigen::half* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8hf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet8hf>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(reinterpret_cast<const float16_t*>(from));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4hf pload<Packet4hf>(const Eigen::half* from) {
-  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet4hf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(from, unpacket_traits<Packet4hf>::alignment);
   EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(reinterpret_cast<const float16_t*>(from));
 }
 
@@ -5866,13 +5873,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pinsertlast(const Packet4hf& a, 
 
 template <>
 EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet8hf& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet8hf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet8hf>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1q_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<Eigen::half>(Eigen::half* to, const Packet4hf& from) {
-  EIGEN_ASSUME_ALIGNED(to, unpacket_traits<Packet4hf>::alignment);
+  EIGEN_ARM_ASSUME_ALIGNED(to, unpacket_traits<Packet4hf>::alignment);
   EIGEN_DEBUG_ALIGNED_STORE vst1_f16(reinterpret_cast<float16_t*>(to), from);
 }
 
