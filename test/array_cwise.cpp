@@ -734,7 +734,7 @@ void comparisons(const ArrayType& m) {
   VERIFY_IS_CWISE_EQUAL(m1.abs().cwiseLessOrEqual(NumTraits<Scalar>::highest()), bool_true);
   VERIFY_IS_CWISE_EQUAL(m1.abs().cwiseGreaterOrEqual(Scalar(0)), bool_true);
 
-  // test Select
+  // test select
   VERIFY_IS_APPROX((m1 < m2).select(m1, m2), m1.cwiseMin(m2));
   VERIFY_IS_APPROX((m1 > m2).select(m1, m2), m1.cwiseMax(m2));
   Scalar mid = (m1.cwiseAbs().minCoeff() + m1.cwiseAbs().maxCoeff()) / Scalar(2);

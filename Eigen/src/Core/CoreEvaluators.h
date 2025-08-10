@@ -1565,50 +1565,6 @@ struct block_evaluator<ArgType, BlockRows, BlockCols, InnerPanel, /* HasDirectAc
   }
 };
 
-// -------------------- Select --------------------
-// NOTE shall we introduce a ternary_evaluator?
-
-// TODO enable vectorization for Select
-template <typename ConditionMatrixType, typename ThenMatrixType, typename ElseMatrixType>
-struct evaluator<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType>>
-    : evaluator_base<Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType>> {
-  typedef Select<ConditionMatrixType, ThenMatrixType, ElseMatrixType> XprType;
-  enum {
-    CoeffReadCost = evaluator<ConditionMatrixType>::CoeffReadCost +
-                    plain_enum_max(evaluator<ThenMatrixType>::CoeffReadCost, evaluator<ElseMatrixType>::CoeffReadCost),
-
-    Flags = (unsigned int)evaluator<ThenMatrixType>::Flags & evaluator<ElseMatrixType>::Flags & HereditaryBits,
-
-    Alignment = plain_enum_min(evaluator<ThenMatrixType>::Alignment, evaluator<ElseMatrixType>::Alignment)
-  };
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& select)
-      : m_conditionImpl(select.conditionMatrix()), m_thenImpl(select.thenMatrix()), m_elseImpl(select.elseMatrix()) {
-    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
-  }
-
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
-    if (m_conditionImpl.coeff(row, col))
-      return m_thenImpl.coeff(row, col);
-    else
-      return m_elseImpl.coeff(row, col);
-  }
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    if (m_conditionImpl.coeff(index))
-      return m_thenImpl.coeff(index);
-    else
-      return m_elseImpl.coeff(index);
-  }
-
- protected:
-  evaluator<ConditionMatrixType> m_conditionImpl;
-  evaluator<ThenMatrixType> m_thenImpl;
-  evaluator<ElseMatrixType> m_elseImpl;
-};
-
 // -------------------- Replicate --------------------
 
 template <typename ArgType, int RowFactor, int ColFactor>

@@ -397,8 +397,6 @@ template <typename Scalar_, int Rows_, int Cols_,
                                                                    : EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION),
           int MaxRows_ = Rows_, int MaxCols_ = Cols_>
 class Array;
-template <typename ConditionMatrixType, typename ThenMatrixType, typename ElseMatrixType>
-class Select;
 template <typename MatrixType, typename BinaryOp, int Direction>
 class PartialReduxExpr;
 template <typename ExpressionType, int Direction>
