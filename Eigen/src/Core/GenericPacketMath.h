@@ -253,6 +253,12 @@ struct preinterpret_generic<Packet, Packet, true> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& a) { return a; }
 };
 
+template <typename ComplexPacket>
+struct preinterpret_generic<typename unpacket_traits<ComplexPacket>::as_real, ComplexPacket, false> {
+  using RealPacket = typename unpacket_traits<ComplexPacket>::as_real;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealPacket run(const ComplexPacket& a) { return a.v; }
+};
+
 /** \internal \returns reinterpret_cast<Target>(a) */
 template <typename Target, typename Packet>
 EIGEN_DEVICE_FUNC inline Target preinterpret(const Packet& a) {

@@ -171,6 +171,8 @@ template <typename MatrixType, unsigned int Mode>
 class TriangularView;
 template <typename MatrixType, unsigned int Mode>
 class SelfAdjointView;
+template <typename Derived>
+class RealView;
 template <typename MatrixType>
 class SparseView;
 template <typename ExpressionType>
