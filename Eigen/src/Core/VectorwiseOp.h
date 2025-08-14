@@ -705,7 +705,7 @@ class VectorwiseOp {
 
  protected:
   EIGEN_DEVICE_FUNC Index redux_length() const { return Direction == Vertical ? m_matrix.rows() : m_matrix.cols(); }
-  ExpressionTypeNested m_matrix;
+  ExpressionTypeNestedCleaned& m_matrix;
 };
 
 // const colwise moved to DenseBase.h due to CUDA compiler bug
