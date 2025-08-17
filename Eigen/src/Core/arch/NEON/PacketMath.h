@@ -88,8 +88,16 @@ typedef uint32x4_t                           Packet4ui;
 typedef int64x2_t                            Packet2l;
 typedef uint64x2_t                           Packet2ul;
 
-EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) { return Packet4f{a, b, c, d}; }
-EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) { return Packet2f{a, b}; }
+EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) {
+  const Packet2f low = {a, b};
+  const Packet2f high = {c, d};
+  return vcombine_f32(low, high);
+}
+
+EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) {
+  const Packet2f result = {a, b};
+  return result;
+}
 
 #endif // EIGEN_COMP_MSVC_STRICT
 
