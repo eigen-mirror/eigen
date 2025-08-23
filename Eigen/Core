@@ -103,6 +103,11 @@
 #include <thread>
 #endif
 
+// for std::bit_cast()
+#if defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L
+#include <bit>
+#endif
+
 // for outputting debug info
 #ifdef EIGEN_DEBUG_ASSIGN
 #include <iostream>
