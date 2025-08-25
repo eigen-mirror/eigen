@@ -75,7 +75,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
         } else if (it && it.index() == i)
           ++it;
         for (; it; ++it) {
-          tmp = numext::fma(-it.value(), other.coeff(it.index(), col), tmp);
+          tmp = numext::fma<Scalar>(-it.value(), other.coeff(it.index(), col), tmp);
         }
 
         if (Mode & UnitDiag)
@@ -108,7 +108,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
           }
           if (it && it.index() == i) ++it;
           for (; it; ++it) {
-            other.coeffRef(it.index(), col) = numext::fma(-tmp, it.value(), other.coeffRef(it.index(), col));
+            other.coeffRef(it.index(), col) = numext::fma<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
           }
         }
       }
@@ -138,7 +138,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
           }
           LhsIterator it(lhsEval, i);
           for (; it && it.index() < i; ++it) {
-            other.coeffRef(it.index(), col) = numext::fma(-tmp, it.value(), other.coeffRef(it.index(), col));
+            other.coeffRef(it.index(), col) = numext::fma<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
           }
         }
       }
