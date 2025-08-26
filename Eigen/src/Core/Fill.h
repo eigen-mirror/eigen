@@ -78,10 +78,9 @@ template <typename Xpr>
 struct eigen_fill_impl<Xpr, /*use_fill*/ true> {
   using Scalar = typename Xpr::Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const Scalar& val) {
-    Scalar* first = dst.data();
-    const Scalar* last = dst.data() + dst.size();
     const Scalar val_copy = val;
-    for (; first != last; ++first) *first = val_copy;
+    using std::fill_n;
+    fill_n(dst.data(), dst.size(), val_copy);
   }
   template <typename SrcXpr>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {
