@@ -145,10 +145,8 @@ build:linux:docs:
       -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
       -DEIGEN_TEST_CUDA_CLANG=${EIGEN_CI_TEST_CUDA_CLANG}
   tags:
-    - eigen-runner
-    - linux
-    # Requires intel runner for cuda docker image support.
-    - x86-64
+    # Build on regular linux to limit GPU cost.
+    - saas-linux-2xlarge-amd64
 
 # NVidia no longer provides docker images < CUDA 11.0.3.
 # # GCC-7, CUDA-9.2

@@ -206,10 +206,7 @@ test:linux:x86-64:clang-12:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
   tags:
-    - eigen-runner
-    - linux
-    - x86-64
-    - cuda
+    - saas-linux-medium-amd64-gpu-standard
 
 # NVidia no longer provides docker images < CUDA 11.0.3.
 # # GCC-7, CUDA-9.2
