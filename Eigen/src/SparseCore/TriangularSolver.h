@@ -41,7 +41,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
           lastVal = it.value();
           lastIndex = it.index();
           if (lastIndex == i) break;
-          tmp = numext::fma(-lastVal, other.coeff(lastIndex, col), tmp);
+          tmp = numext::madd<Scalar>(-lastVal, other.coeff(lastIndex, col), tmp);
         }
         if (Mode & UnitDiag)
           other.coeffRef(i, col) = tmp;
@@ -75,7 +75,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
         } else if (it && it.index() == i)
           ++it;
         for (; it; ++it) {
-          tmp = numext::fma<Scalar>(-it.value(), other.coeff(it.index(), col), tmp);
+          tmp = numext::madd<Scalar>(-it.value(), other.coeff(it.index(), col), tmp);
         }
 
         if (Mode & UnitDiag)
@@ -108,7 +108,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
           }
           if (it && it.index() == i) ++it;
           for (; it; ++it) {
-            other.coeffRef(it.index(), col) = numext::fma<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
+            other.coeffRef(it.index(), col) = numext::madd<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
           }
         }
       }
@@ -138,7 +138,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
           }
           LhsIterator it(lhsEval, i);
           for (; it && it.index() < i; ++it) {
-            other.coeffRef(it.index(), col) = numext::fma<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
+            other.coeffRef(it.index(), col) = numext::madd<Scalar>(-tmp, it.value(), other.coeffRef(it.index(), col));
           }
         }
       }
@@ -220,11 +220,11 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
           if (IsLower) {
             if (it.index() == i) ++it;
             for (; it; ++it) {
-              tempVector.coeffRef(it.index()) = numext::fma(-ci, it.value(), tempVector.coeffRef(it.index()));
+              tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
             }
           } else {
             for (; it && it.index() < i; ++it) {
-              tempVector.coeffRef(it.index()) = numext::fma(-ci, it.value(), tempVector.coeffRef(it.index()));
+              tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
             }
           }
         }

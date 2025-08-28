@@ -1350,20 +1350,20 @@ struct pmadd_impl {
 template <typename Scalar>
 struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits<Scalar>::IsSigned>> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return numext::fma(a, b, c);
+    return numext::madd<Scalar>(a, b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return numext::fma(a, b, Scalar(-c));
+    return numext::madd<Scalar>(a, b, Scalar(-c));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return numext::fma(Scalar(-a), b, c);
+    return numext::madd<Scalar>(Scalar(-a), b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return -Scalar(numext::fma(a, b, c));
+    return -Scalar(numext::madd<Scalar>(a, b, c));
   }
 };
 
-// FMA instructions.
+// Multiply-add instructions.
 /** \internal \returns a * b + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {

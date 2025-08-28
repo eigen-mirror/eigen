@@ -2026,38 +2026,38 @@ EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d&
 }
 
 // Scalar path for pmadd with FMA to ensure consistency with vectorized path.
-#ifdef EIGEN_VECTORIZE_FMA
+#if defined(EIGEN_VECTORIZE_FMA)
 template <>
 EIGEN_STRONG_INLINE float pmadd(const float& a, const float& b, const float& c) {
-  return ::fmaf(a, b, c);
+  return std::fmaf(a, b, c);
 }
 template <>
 EIGEN_STRONG_INLINE double pmadd(const double& a, const double& b, const double& c) {
-  return ::fma(a, b, c);
+  return std::fma(a, b, c);
 }
 template <>
 EIGEN_STRONG_INLINE float pmsub(const float& a, const float& b, const float& c) {
-  return ::fmaf(a, b, -c);
+  return std::fmaf(a, b, -c);
 }
 template <>
 EIGEN_STRONG_INLINE double pmsub(const double& a, const double& b, const double& c) {
-  return ::fma(a, b, -c);
+  return std::fma(a, b, -c);
 }
 template <>
 EIGEN_STRONG_INLINE float pnmadd(const float& a, const float& b, const float& c) {
-  return ::fmaf(-a, b, c);
+  return std::fmaf(-a, b, c);
 }
 template <>
 EIGEN_STRONG_INLINE double pnmadd(const double& a, const double& b, const double& c) {
-  return ::fma(-a, b, c);
+  return std::fma(-a, b, c);
 }
 template <>
 EIGEN_STRONG_INLINE float pnmsub(const float& a, const float& b, const float& c) {
-  return ::fmaf(-a, b, -c);
+  return std::fmaf(-a, b, -c);
 }
 template <>
 EIGEN_STRONG_INLINE double pnmsub(const double& a, const double& b, const double& c) {
-  return ::fma(-a, b, -c);
+  return std::fma(-a, b, -c);
 }
 #endif
 
