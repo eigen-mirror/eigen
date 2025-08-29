@@ -976,8 +976,7 @@ struct fma_impl<T, std::enable_if_t<has_fma<T>::value>> {
 
 #if defined(EIGEN_GPUCC)
 template <>
-struct has_fma<float> : public true_type {
-}
+struct has_fma<float> : public true_type {};
 
 template <>
 struct fma_impl<float, void> {
@@ -987,8 +986,7 @@ struct fma_impl<float, void> {
 };
 
 template <>
-struct has_fma<double> : public true_type {
-}
+struct has_fma<double> : public true_type {};
 
 template <>
 struct fma_impl<double, void> {
