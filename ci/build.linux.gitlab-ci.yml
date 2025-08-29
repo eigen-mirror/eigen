@@ -227,10 +227,6 @@ build:linux:rocm-latest:gcc-10:
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
-  tags:
-    - eigen-runner
-    - linux
-    - x86-64
 
 ######## Arm ###################################################################
 
