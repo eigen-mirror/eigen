@@ -968,7 +968,7 @@ struct fma_impl {
 // STD or ADL version if it exists.
 template <typename T>
 struct fma_impl<T, std::enable_if_t<has_fma<T>::value>> {
-  static T run(const T& a, const T& b, const T& c) {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T run(const T& a, const T& b, const T& c) {
     using std::fma;
     return fma(a, b, c);
   }
