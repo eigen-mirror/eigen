@@ -339,7 +339,7 @@ class SuperLUBase : public SparseSolverBase<Derived> {
     derived().factorize(matrix);
   }
 
-  /** Performs a symbolic decomposition on the sparcity of \a matrix.
+  /** Performs a symbolic decomposition on the sparsity of \a matrix.
    *
    * This function is particularly useful when solving for several problems having the same structure.
    *
@@ -473,7 +473,7 @@ class SuperLU : public SuperLUBase<MatrixType_, SuperLU<MatrixType_> > {
 
   ~SuperLU() {}
 
-  /** Performs a symbolic decomposition on the sparcity of \a matrix.
+  /** Performs a symbolic decomposition on the sparsity of \a matrix.
    *
    * This function is particularly useful when solving for several problems having the same structure.
    *
@@ -487,7 +487,7 @@ class SuperLU : public SuperLUBase<MatrixType_, SuperLU<MatrixType_> > {
 
   /** Performs a numeric decomposition of \a matrix
    *
-   * The given matrix must has the same sparcity than the matrix on which the symbolic decomposition has been performed.
+   * The given matrix must has the same sparsity than the matrix on which the symbolic decomposition has been performed.
    *
    * \sa analyzePattern()
    */
@@ -781,7 +781,7 @@ class SuperILU : public SuperLUBase<MatrixType_, SuperILU<MatrixType_> > {
 
   ~SuperILU() {}
 
-  /** Performs a symbolic decomposition on the sparcity of \a matrix.
+  /** Performs a symbolic decomposition on the sparsity of \a matrix.
    *
    * This function is particularly useful when solving for several problems having the same structure.
    *
@@ -791,7 +791,7 @@ class SuperILU : public SuperLUBase<MatrixType_, SuperILU<MatrixType_> > {
 
   /** Performs a numeric decomposition of \a matrix
    *
-   * The given matrix must has the same sparcity than the matrix on which the symbolic decomposition has been performed.
+   * The given matrix must has the same sparsity than the matrix on which the symbolic decomposition has been performed.
    *
    * \sa analyzePattern()
    */
