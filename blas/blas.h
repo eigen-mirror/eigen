@@ -464,6 +464,19 @@ void BLASFUNC(zher2m)(const char *, const char *, const char *, const int *, con
 void BLASFUNC(xher2m)(const char *, const char *, const char *, const int *, const int *, const double *,
                       const double *, const int *, const double *, const int *, const double *, double *, const int *);
 
+void BLASFUNC(sgemmtr)(const char *, const char *, const char *, const int *, const int *, const float *, const float *,
+                       const int *, const float *, const int *, const float *, float *, const int *);
+void BLASFUNC(dgemmtr)(const char *, const char *, const char *, const int *, const int *, const double *,
+                       const double *, const int *, const double *, const int *, const double *, double *, const int *);
+void BLASFUNC(qgemmtr)(const char *, const char *, const char *, const int *, const int *, const double *,
+                       const double *, const int *, const double *, const int *, const double *, double *, const int *);
+void BLASFUNC(cgemmtr)(const char *, const char *, const char *, const int *, const int *, const float *, const float *,
+                       const int *, const float *, const int *, const float *, float *, const int *);
+void BLASFUNC(zgemmtr)(const char *, const char *, const char *, const int *, const int *, const double *,
+                       const double *, const int *, const double *, const int *, const double *, double *, const int *);
+void BLASFUNC(xgemmtr)(const char *, const char *, const char *, const int *, const int *, const double *,
+                       const double *, const int *, const double *, const int *, const double *, double *, const int *);
+
 #ifdef __cplusplus
 }
 #endif
