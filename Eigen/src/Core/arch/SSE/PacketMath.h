@@ -287,7 +287,7 @@ struct packet_traits<bool> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 16,
 
-    HasCmp = 1,  // note -- only pcmp_eq is defined
+    HasCmp = 1,
     HasShift = 0,
     HasAbs = 0,
     HasAbs2 = 0,
@@ -883,7 +883,14 @@ template <>
 EIGEN_STRONG_INLINE Packet4ui pandnot<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
   return _mm_andnot_si128(b, a);
 }
-
+template <>
+EIGEN_STRONG_INLINE Packet16b pandnot<Packet16b>(const Packet16b& a, const Packet16b& b) {
+  return _mm_andnot_si128(b, a);
+}
+template <>
+EIGEN_STRONG_INLINE Packet16b pcmp_lt(const Packet16b& a, const Packet16b& b) {
+  return _mm_andnot_si128(a, b);
+}
 template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_le(const Packet4f& a, const Packet4f& b) {
   return _mm_cmple_ps(a, b);
@@ -961,6 +968,10 @@ EIGEN_STRONG_INLINE Packet16b pcmp_eq(const Packet16b& a, const Packet16b& b) {
   // Mask out invalid bool bits to avoid UB.
   const Packet16b kBoolMask = pset1<Packet16b>(true);
   return _mm_and_si128(_mm_cmpeq_epi8(a, b), kBoolMask);
+}
+template <>
+EIGEN_STRONG_INLINE Packet16b pcmp_le(const Packet16b& a, const Packet16b& b) {
+  return por(pcmp_lt(a, b), pcmp_eq(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui pcmp_eq(const Packet4ui& a, const Packet4ui& b) {
