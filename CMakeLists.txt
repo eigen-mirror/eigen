@@ -217,6 +217,9 @@ target_include_directories (eigen INTERFACE
   $<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>
 )
 
+# Eigen requires at least C++14
+target_compile_features (eigen INTERFACE cxx_std_14)
+
 # Export as title case Eigen
 set_target_properties (eigen PROPERTIES EXPORT_NAME Eigen)
 
