@@ -222,7 +222,7 @@ EIGEN_BLAS_FUNC(gemmtr)
   Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*n, *n, *k, 1,
                                                                                                      false);
 
-  int code = OP(*opa) | (OP(*opb) << 2) + (UPLO(*uplo) * 12);
+  int code = OP(*opa) | ((OP(*opb) << 2) + (UPLO(*uplo) * 12));
   func[code](*n, *k, a, *lda, b, *ldb, c, 1, *ldc, alpha, blocking);
 }
 
