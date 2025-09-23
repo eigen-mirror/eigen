@@ -112,7 +112,9 @@ build:linux:docs:
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
   rules:
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
 
 # # Sanitizers (Disabled because ASAN hangs and MSAN requires instrumented libc++)
@@ -319,6 +321,8 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-small-amd64
 
 build:linux:cross:x86-64:clang-12:default:smoketest:
   extends: build:linux:cross:x86-64:clang-12:default
@@ -326,3 +330,5 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-small-amd64
