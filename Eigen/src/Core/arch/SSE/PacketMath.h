@@ -934,7 +934,11 @@ EIGEN_STRONG_INLINE Packet4i pcmp_eq(const Packet4i& a, const Packet4i& b) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pcmp_le(const Packet4i& a, const Packet4i& b) {
+#ifdef EIGEN_VECTORIZE_SSE4_1
+  return _mm_cmpeq_epi32(a, _mm_min_epi32(a, b));
+#else
   return por(pcmp_lt(a, b), pcmp_eq(a, b));
+#endif
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l pcmp_lt(const Packet2l& a, const Packet2l& b) {
@@ -968,10 +972,6 @@ EIGEN_STRONG_INLINE Packet16b pcmp_eq(const Packet16b& a, const Packet16b& b) {
   // Mask out invalid bool bits to avoid UB.
   const Packet16b kBoolMask = pset1<Packet16b>(true);
   return _mm_and_si128(_mm_cmpeq_epi8(a, b), kBoolMask);
-}
-template <>
-EIGEN_STRONG_INLINE Packet16b pcmp_le(const Packet16b& a, const Packet16b& b) {
-  return por(pcmp_lt(a, b), pcmp_eq(a, b));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui pcmp_eq(const Packet4ui& a, const Packet4ui& b) {
