@@ -112,6 +112,18 @@ void homogeneous(void) {
 
   VERIFY_IS_APPROX((t2.template triangularView<Lower>() * v0.homogeneous()).eval(),
                    (t2.template triangularView<Lower>() * hv0));
+
+  {
+    const MatrixType points = MatrixType::Random();
+    const VectorType center = VectorType::Random();
+
+    const auto pts3 = points.rowwise() - center.transpose();
+    const auto pts_xy1 = pts3.template leftCols<Size - 1>().rowwise().homogeneous();
+    const auto pts_xy2 = pts3.template topRows<Size - 1>().colwise().homogeneous();
+
+    VERIFY_IS_APPROX(pts_xy1.transpose() * pts_xy1, pts_xy1.transpose() * pts_xy1.eval());
+    VERIFY_IS_APPROX(pts_xy2 * pts_xy2.transpose(), pts_xy2.eval() * pts_xy2.transpose());
+  }
 }
 
 EIGEN_DECLARE_TEST(geo_homogeneous) {
