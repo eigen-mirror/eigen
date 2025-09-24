@@ -762,6 +762,18 @@ void comparisons(const ArrayType& m) {
   VERIFY_IS_APPROX(((m1.abs() + 1) > RealScalar(0.1)).colwise().count(),
                    ArrayOfIndices::Constant(cols, rows).transpose());
   VERIFY_IS_APPROX(((m1.abs() + 1) > RealScalar(0.1)).rowwise().count(), ArrayOfIndices::Constant(rows, cols));
+
+  // simple data type that does not permit implicit conversions
+  struct scalar_wrapper {
+    Scalar m_data;
+    scalar_wrapper() : m_data(0) {}
+    explicit scalar_wrapper(Scalar data) : m_data(data) {}
+    bool operator==(scalar_wrapper other) const { return m_data == other.m_data; }
+  };
+
+  // test bug2966: select did not support some scalar types that forbade implicit conversions from bool
+  ArrayX<scalar_wrapper> m5(10);
+  m5 = (m5 == scalar_wrapper(0)).select(m5, m5);
 }
 
 template <typename ArrayType>
