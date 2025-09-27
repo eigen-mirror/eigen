@@ -124,6 +124,15 @@ void homogeneous(void) {
     VERIFY_IS_APPROX(pts_xy1.transpose() * pts_xy1, pts_xy1.transpose() * pts_xy1.eval());
     VERIFY_IS_APPROX(pts_xy2 * pts_xy2.transpose(), pts_xy2.eval() * pts_xy2.transpose());
   }
+
+  {
+    const Eigen::PermutationMatrix<Size> P{Eigen::Vector<int, Size>::EqualSpaced(0, 1)};
+    const auto right = Eigen::Vector<Scalar, Size - 1>::Random().homogeneous();
+    const auto left = Eigen::RowVector<Scalar, Size - 1>::Random().homogeneous();
+
+    VERIFY_IS_APPROX(P * right, P * right.eval());
+    VERIFY_IS_APPROX(left * P, left.eval() * P);
+  }
 }
 
 EIGEN_DECLARE_TEST(geo_homogeneous) {
