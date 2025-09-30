@@ -1,5 +1,6 @@
 # Base configuration for linux cross-compilation.
 .build:linux:cross:
+  needs: []
   extends: .common:linux:cross
   stage: build
   variables:
@@ -146,57 +147,6 @@ build:linux:docs:
   tags:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
-
-# NVidia no longer provides docker images < CUDA 11.0.3.
-# # GCC-7, CUDA-9.2
-# build:linux:cuda-9.2:gcc-7:
-#   extends: .build:linux:cuda
-#   image: nvidia/cuda:9.2-devel-ubuntu18.04
-#   variables:
-#     # cuda 9.2 doesn't support sm_75, so lower to 70.
-#     EIGEN_CI_CUDA_COMPUTE_ARCH: "50;70"
-#     EIGEN_CI_C_COMPILER: gcc-7
-#     EIGEN_CI_CXX_COMPILER: g++-7
-
-# # Clang-10, CUDA-9.2
-# build:linux:cuda-9.2:clang-10:
-#   extends: build:linux:cuda-9.2:gcc-7
-#   variables:
-#     EIGEN_CI_C_COMPILER: clang-10
-#     EIGEN_CI_CXX_COMPILER: clang++-10
-#     EIGEN_CI_TEST_CUDA_CLANG: "on"
-
-# # GCC-8, CUDA-10.2
-# build:linux:cuda-10.2:gcc-8:
-#   extends: .build:linux:cuda
-#   image: nvidia/cuda:10.2-devel-ubuntu18.04
-#   variables:
-#     EIGEN_CI_C_COMPILER: gcc-8
-#     EIGEN_CI_CXX_COMPILER: g++-8
-
-# # Clang-10, CUDA-10.2
-# build:linux:cuda-10.2:clang-10:
-#   extends: build:linux:cuda-10.2:gcc-8
-#   variables:
-#     EIGEN_CI_C_COMPILER: clang-10
-#     EIGEN_CI_CXX_COMPILER: clang++-10
-#     EIGEN_CI_TEST_CUDA_CLANG: "on"
-
-# GCC-10, CUDA-11.4
-build:linux:cuda-11.4:gcc-10:
-  extends: .build:linux:cuda
-  image: nvidia/cuda:11.4.3-devel-ubuntu20.04
-  variables:
-    EIGEN_CI_C_COMPILER: gcc-10
-    EIGEN_CI_CXX_COMPILER: g++-10
-
-# Clang-12, CUDA-11.4
-build:linux:cuda-11.4:clang-12:
-  extends: build:linux:cuda-11.4:gcc-10
-  variables:
-    EIGEN_CI_C_COMPILER: clang-12
-    EIGEN_CI_CXX_COMPILER: clang++-12
-    EIGEN_CI_TEST_CUDA_CLANG: "on"
 
 # GCC-10, CUDA-12.2
 build:linux:cuda-12.2:gcc-10:

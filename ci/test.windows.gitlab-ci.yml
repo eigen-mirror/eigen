@@ -17,22 +17,8 @@
 
 ##### MSVC #####################################################################
 
-# MSVC 14.16 (VS 2017)
-.test:windows:x86-64:msvc-14.16:default:
-  extends: .test:windows
-  needs: [ build:windows:x86-64:msvc-14.16:default ]
+# MSVC 14.29 (VS 2019) 64 bit
 
-test:windows:x86-64:msvc-14.16:default:official:
-  extends: .test:windows:x86-64:msvc-14.16:default
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:windows:x86-64:msvc-14.16:default:unsupported:
-  extends: .test:windows:x86-64:msvc-14.16:default
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
-
-# MSVC 14.29 (VS 2019)
 .test:windows:x86-64:msvc-14.29:default:
   extends: .test:windows
   needs: [ build:windows:x86-64:msvc-14.29:default ]
@@ -80,7 +66,8 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-##### MSVC + CUDA ##############################################################
+# MSVC 14.29 (VS 2019) + CUDA
+
 .test:windows:cuda:
   extends: .test:windows
   allow_failure: true
@@ -91,17 +78,6 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
     - windows
     - x86-64
     - cuda
-
-# The CUDA 9.2 compiler crashes with an internal error.
-# # MSVC 14.16 + CUDA 9.2
-# test:windows:x86-64:cuda-9.2:msvc-14.16:
-#   extends: .test:windows:cuda
-#   needs: [ build:windows:x86-64:cuda-9.2:msvc-14.16 ]
-
-# MSVC 14.29 + CUDA 10.2
-test:windows:x86-64:cuda-10.2:msvc-14.29:
-  extends: .test:windows:cuda
-  needs: [ build:windows:x86-64:cuda-10.2:msvc-14.29 ]
 
 # MSVC 14.29 + CUDA 11.4
 test:windows:x86-64:cuda-11.4:msvc-14.29:
