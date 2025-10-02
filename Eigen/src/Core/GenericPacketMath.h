@@ -160,7 +160,11 @@ struct eigen_packet_wrapper
 {
   EIGEN_ALWAYS_INLINE operator T&() { return m_val; }
   EIGEN_ALWAYS_INLINE operator const T&() const { return m_val; }
+#if EIGEN_HAS_CXX11
+  EIGEN_ALWAYS_INLINE eigen_packet_wrapper() = default;
+#else
   EIGEN_ALWAYS_INLINE eigen_packet_wrapper() {};
+#endif
   EIGEN_ALWAYS_INLINE eigen_packet_wrapper(const T &v) : m_val(v) {}
   EIGEN_ALWAYS_INLINE eigen_packet_wrapper& operator=(const T &v) {
     m_val = v;
