@@ -19,35 +19,29 @@
 
 # MSVC 14.29 (VS 2019) 64 bit
 
-.test:windows:x86-64:msvc-14.29:default:
+test:windows:x86-64:msvc-14.29:default:official:
   extends: .test:windows
   needs: [ build:windows:x86-64:msvc-14.29:default ]
-
-test:windows:x86-64:msvc-14.29:default:official:
-  extends: .test:windows:x86-64:msvc-14.29:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
 test:windows:x86-64:msvc-14.29:default:unsupported:
-  extends: .test:windows:x86-64:msvc-14.29:default
+  extends: test:windows:x86-64:msvc-14.29:default:official
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:windows:x86-64:msvc-14.29:avx2:
+test:windows:x86-64:msvc-14.29:avx2:official:
   extends: .test:windows
   needs: [ build:windows:x86-64:msvc-14.29:avx2 ]
-
-test:windows:x86-64:msvc-14.29:avx2:official:
-  extends: .test:windows:x86-64:msvc-14.29:avx2
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
 test:windows:x86-64:msvc-14.29:avx2:unsupported:
-  extends: .test:windows:x86-64:msvc-14.29:avx2
+  extends: test:windows:x86-64:msvc-14.29:avx2:official
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:windows:x86-64:msvc-14.29:avx512dq:
+test:windows:x86-64:msvc-14.29:avx512dq:official:
   extends: .test:windows
   needs: [ build:windows:x86-64:msvc-14.29:avx512dq ]
   tags:
@@ -55,14 +49,11 @@ test:windows:x86-64:msvc-14.29:avx2:unsupported:
     - windows
     - x86-64
     - avx512
-
-test:windows:x86-64:msvc-14.29:avx512dq:official:
-  extends: .test:windows:x86-64:msvc-14.29:avx512dq
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
 test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
-  extends: .test:windows:x86-64:msvc-14.29:avx512dq
+  extends: test:windows:x86-64:msvc-14.29:avx512dq:official
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 

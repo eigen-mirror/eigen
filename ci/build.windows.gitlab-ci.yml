@@ -31,23 +31,20 @@
 build:windows:x86:msvc-14.29:default:
   extends: .build:windows
   variables:
-    EIGEN_CI_MSVC_VER: "14.29"
-    EIGEN_CI_MSVC_ARCH: "x86"
+    EIGEN_CI_MSVC_ARCH: "x64_x86"
 
 # MSVC 14.29 (VS 2019) 64 bit
 
 build:windows:x86-64:msvc-14.29:default:
   extends: .build:windows
-  variables:
-    EIGEN_CI_MSVC_VER: "14.29"
 
 build:windows:x86-64:msvc-14.29:avx2:
-  extends: build:windows:x86-64:msvc-14.29:default
+  extends: .build:windows
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX2=on"
 
 build:windows:x86-64:msvc-14.29:avx512dq:
-  extends: build:windows:x86-64:msvc-14.29:default
+  extends: .build:windows
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
@@ -73,5 +70,4 @@ build:windows:x86-64:msvc-14.29:avx512dq:
 build:windows:x86-64:cuda-11.4:msvc-14.29:
   extends: .build:windows:cuda
   variables:
-    EIGEN_CI_MSVC_VER: "14.29"
     EIGEN_CI_BEFORE_SCRIPT: $$env:CUDA_PATH=$$env:CUDA_PATH_V11_4
