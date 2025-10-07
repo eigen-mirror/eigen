@@ -97,7 +97,7 @@ endif()
 
 set(EIGEN_LAPACK_TARGETS "")
 
-add_library(eigen_lapack_static ${EigenLapack_SRCS} ${ReferenceLapack_SRCS})
+add_library(eigen_lapack_static STATIC ${EigenLapack_SRCS} ${ReferenceLapack_SRCS})
 list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack_static)
 
 if (EIGEN_BUILD_SHARED_LIBS)
