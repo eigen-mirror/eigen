@@ -112,6 +112,27 @@ void homogeneous(void) {
 
   VERIFY_IS_APPROX((t2.template triangularView<Lower>() * v0.homogeneous()).eval(),
                    (t2.template triangularView<Lower>() * hv0));
+
+  {
+    const MatrixType points = MatrixType::Random();
+    const VectorType center = VectorType::Random();
+
+    const auto pts3 = points.rowwise() - center.transpose();
+    const auto pts_xy1 = pts3.template leftCols<Size - 1>().rowwise().homogeneous();
+    const auto pts_xy2 = pts3.template topRows<Size - 1>().colwise().homogeneous();
+
+    VERIFY_IS_APPROX(pts_xy1.transpose() * pts_xy1, pts_xy1.transpose() * pts_xy1.eval());
+    VERIFY_IS_APPROX(pts_xy2 * pts_xy2.transpose(), pts_xy2.eval() * pts_xy2.transpose());
+  }
+
+  {
+    const Eigen::PermutationMatrix<Size> P{Eigen::Vector<int, Size>::EqualSpaced(0, 1)};
+    const auto right = Eigen::Vector<Scalar, Size - 1>::Random().eval().homogeneous();
+    const auto left = Eigen::RowVector<Scalar, Size - 1>::Random().eval().homogeneous();
+
+    VERIFY_IS_APPROX(P * right, P * right.eval());
+    VERIFY_IS_APPROX(left * P, left.eval() * P);
+  }
 }
 
 EIGEN_DECLARE_TEST(geo_homogeneous) {
