@@ -63,13 +63,8 @@ option(EIGEN_LEAVE_TEST_IN_ALL_TARGET "Leaves tests in the all target, needed by
 option(EIGEN_BUILD_BLAS "Toggles the building of the Eigen Blas library" ${PROJECT_IS_TOP_LEVEL})
 option(EIGEN_BUILD_LAPACK "Toggles the building of the included Eigen LAPACK library" ${PROJECT_IS_TOP_LEVEL})
 if (EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK)
-  # BLAS and LAPACK currently need a fortran compiler.
-  include(CMakeDetermineFortranCompiler)
-  if (NOT CMAKE_Fortran_COMPILER)
-    set(EIGEN_BUILD_BLAS OFF)
-    set(EIGEN_BUILD_LAPACK OFF)
-  else()
-    # Determine if we should build shared libraries for BLAS/LAPACK on this platform.
+  # Determine if we should build shared libraries for BLAS/LAPACK on this platform.
+  if (NOT EIGEN_BUILD_SHARED_LIBS)
     get_cmake_property(EIGEN_BUILD_SHARED_LIBS TARGET_SUPPORTS_SHARED_LIBS)
   endif()
 endif()

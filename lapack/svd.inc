@@ -56,27 +56,29 @@ EIGEN_LAPACK_FUNC(gesdd)
   PlainMatrixType mat(*m, *n);
   mat = matrix(a, *m, *n, *lda);
 
-  int option = *jobz == 'A'   ? Eigen::ComputeFullU | Eigen::ComputeFullV
-               : *jobz == 'S' ? Eigen::ComputeThinU | Eigen::ComputeThinV
-               : *jobz == 'O' ? Eigen::ComputeThinU | Eigen::ComputeThinV
-                              : 0;
-
-  Eigen::BDCSVD<PlainMatrixType> svd(mat, option);
-
-  make_vector(s, diag_size) = svd.singularValues().head(diag_size);
-
   if (*jobz == 'A') {
+    Eigen::BDCSVD<PlainMatrixType, Eigen::ComputeFullU | Eigen::ComputeFullV> svd(mat);
+    make_vector(s, diag_size) = svd.singularValues().head(diag_size);
     matrix(u, *m, *m, *ldu) = svd.matrixU();
     matrix(vt, *n, *n, *ldvt) = svd.matrixV().adjoint();
   } else if (*jobz == 'S') {
+    Eigen::BDCSVD<PlainMatrixType, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(mat);
+    make_vector(s, diag_size) = svd.singularValues().head(diag_size);
     matrix(u, *m, diag_size, *ldu) = svd.matrixU();
     matrix(vt, diag_size, *n, *ldvt) = svd.matrixV().adjoint();
   } else if (*jobz == 'O' && *m >= *n) {
+    Eigen::BDCSVD<PlainMatrixType, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(mat);
+    make_vector(s, diag_size) = svd.singularValues().head(diag_size);
     matrix(a, *m, *n, *lda) = svd.matrixU();
     matrix(vt, *n, *n, *ldvt) = svd.matrixV().adjoint();
   } else if (*jobz == 'O') {
+    Eigen::BDCSVD<PlainMatrixType, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(mat);
+    make_vector(s, diag_size) = svd.singularValues().head(diag_size);
     matrix(u, *m, *m, *ldu) = svd.matrixU();
     matrix(a, diag_size, *n, *lda) = svd.matrixV().adjoint();
+  } else {
+    Eigen::BDCSVD<PlainMatrixType> svd(mat);
+    make_vector(s, diag_size) = svd.singularValues().head(diag_size);
   }
 }
 

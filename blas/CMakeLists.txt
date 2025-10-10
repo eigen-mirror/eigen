@@ -21,6 +21,7 @@ list(APPEND EIGEN_BLAS_TARGETS eigen_blas_static)
 if (EIGEN_BUILD_SHARED_LIBS)
   add_library(eigen_blas SHARED ${EigenBlas_SRCS})
   list(APPEND EIGEN_BLAS_TARGETS eigen_blas)
+  target_compile_definitions(eigen_blas PUBLIC "EIGEN_BUILD_DLL")
 endif()
 
 foreach(target IN LISTS EIGEN_BLAS_TARGETS)
