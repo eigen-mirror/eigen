@@ -13,18 +13,21 @@ if (${EIGEN_CI_CTEST_REGEX}) {
   $target = "-L","${EIGEN_CI_CTEST_LABEL}"
 }
 
-# Repeat tests up to three times to ignore flakes.  Do not re-run with -T test,
-# otherwise we lose test results for those that passed.
-# Note: starting with CMake 3.17, we can use --repeat until-pass:3, but we have
-#       no way of easily installing this on ppc64le.
-ctest $EIGEN_CI_CTEST_ARGS -j$NPROC --output-on-failure --no-compress-output --build-no-clean -T test $target || `
-  ctest $EIGEN_CI_CTEST_ARGS -j$NPROC --output-on-failure --no-compress-output --rerun-failed || `
-  ctest $EIGEN_CI_CTEST_ARGS -j$NPROC --output-on-failure --no-compress-output --rerun-failed
+run_ctest="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
+run_ctest+=" --output-on-failure --no-compress-output"
+run_ctest+=" --build-no-clean -T test ${target}"
 
-$success = $LASTEXITCODE
+eval "${run_ctest}"
+exit_code=$LASTEXITCODE
+if [ $exit_code -ne 0 ]; then
+  eval "${run_ctest} --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
+  exit_code=$LASTEXITCODE
+  if [ $exit_code -eq 0 ]; then
+    exit_code=${EIGEN_CI_CTEST_EXIT_WARNING}
+  fi
+fi
 
 # Return to root directory.
 cd ${rootdir}
 
-# Explicitly propagate exit code to indicate pass/failure of test command.
-if($success -ne 0) { Exit $success }
+Exit exit_code
