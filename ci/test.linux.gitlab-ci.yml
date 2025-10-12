@@ -11,6 +11,8 @@
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
   tags:
     - saas-linux-2xlarge-amd64
+  allow_failure:
+    exit_codes: $EIGEN_CI_CTEST_EXIT_WARNING
 
 ##### x86-64 ###################################################################
 .test:linux:x86-64:
