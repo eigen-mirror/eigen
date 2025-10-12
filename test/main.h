@@ -860,8 +860,7 @@ inline void set_seed_from_string(const char* str) {
 
 inline void set_seed_from_time() {
   using namespace std::chrono;
-  using clock_t = high_resolution_clock;
-  long long ns = duration_cast<nanoseconds>(clock_t::now().time_since_epoch()).count();
+  long long ns = duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count();
   g_seed = static_cast<decltype(g_seed)>(ns);
 }
 
