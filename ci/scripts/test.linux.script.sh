@@ -22,10 +22,10 @@ run_ctest+=" --build-no-clean -T test ${target}"
 
 eval "${run_ctest}"
 exit_code=$?
-if [ $exit_code -ne 0 ]; then
+if [[ $exit_code -ne 0 ]]; then
   eval "${run_ctest} --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
   exit_code=$?
-  if [ $exit_code -eq 0 ]; then
+  if [[ $exit_code -eq 0 ]]; then
     exit_code=42
   fi
 fi

@@ -13,19 +13,20 @@ if (${EIGEN_CI_CTEST_REGEX}) {
   $target = "-L","${EIGEN_CI_CTEST_LABEL}"
 }
 
-run_ctest="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
-run_ctest+=" --output-on-failure --no-compress-output"
-run_ctest+=" --build-no-clean -T test ${target}"
+$run_ctest = "ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
+$run_ctest += " --output-on-failure --no-compress-output"
+$run_ctest += " --build-no-clean -T test ${target}"
 
-eval "${run_ctest}"
-exit_code=$LASTEXITCODE
-if [ $exit_code -ne 0 ]; then
-  eval "${run_ctest} --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
-  exit_code=$LASTEXITCODE
-  if [ $exit_code -eq 0 ]; then
-    exit_code=42
-  fi
-fi
+Invoke-Expression $run_ctest
+$exit_code = $LASTEXITCODE
+if(${$exit_code} != 0) {
+  $run_ctest += " --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
+  Invoke-Expression $run_ctest
+  $exit_code = $LASTEXITCODE
+  if(${$exit_code} == 0) {
+    $exit_code = 42
+  }
+}
 
 # Return to root directory.
 cd ${rootdir}
