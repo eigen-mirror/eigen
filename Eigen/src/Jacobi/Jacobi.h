@@ -335,8 +335,8 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
         for (Index i = alignedStart; i < alignedEnd; i += PacketSize) {
           Packet xi = pload<Packet>(px);
           Packet yi = pload<Packet>(py);
-          pstore(px, padd(pm.pmul(pc, xi), pcj.pmul(ps, yi)));
-          pstore(py, psub(pcj.pmul(pc, yi), pm.pmul(ps, xi)));
+          pstore(px, pm.pmadd(pc, xi, pcj.pmul(ps, yi)));
+          pstore(py, pcj.pmsub(pc, yi, pm.pmul(ps, xi)));
           px += PacketSize;
           py += PacketSize;
         }
@@ -347,18 +347,18 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
           Packet xi1 = ploadu<Packet>(px + PacketSize);
           Packet yi = pload<Packet>(py);
           Packet yi1 = pload<Packet>(py + PacketSize);
-          pstoreu(px, padd(pm.pmul(pc, xi), pcj.pmul(ps, yi)));
-          pstoreu(px + PacketSize, padd(pm.pmul(pc, xi1), pcj.pmul(ps, yi1)));
-          pstore(py, psub(pcj.pmul(pc, yi), pm.pmul(ps, xi)));
-          pstore(py + PacketSize, psub(pcj.pmul(pc, yi1), pm.pmul(ps, xi1)));
+          pstoreu(px, pm.pmadd(pc, xi, pcj.pmul(ps, yi)));
+          pstoreu(px + PacketSize, pm.pmadd(pc, xi1, pcj.pmul(ps, yi1)));
+          pstore(py, pcj.pmsub(pc, yi, pm.pmul(ps, xi)));
+          pstore(py + PacketSize, pcj.pmsub(pc, yi1, pm.pmul(ps, xi1)));
           px += Peeling * PacketSize;
           py += Peeling * PacketSize;
         }
         if (alignedEnd != peelingEnd) {
           Packet xi = ploadu<Packet>(x + peelingEnd);
           Packet yi = pload<Packet>(y + peelingEnd);
-          pstoreu(x + peelingEnd, padd(pm.pmul(pc, xi), pcj.pmul(ps, yi)));
-          pstore(y + peelingEnd, psub(pcj.pmul(pc, yi), pm.pmul(ps, xi)));
+          pstoreu(x + peelingEnd, pm.pmadd(pc, xi, pcj.pmul(ps, yi)));
+          pstore(y + peelingEnd, pcj.pmsub(pc, yi, pm.pmul(ps, xi)));
         }
       }
 
@@ -381,8 +381,8 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
       for (Index i = 0; i < size; i += PacketSize) {
         Packet xi = pload<Packet>(px);
         Packet yi = pload<Packet>(py);
-        pstore(px, padd(pm.pmul(pc, xi), pcj.pmul(ps, yi)));
-        pstore(py, psub(pcj.pmul(pc, yi), pm.pmul(ps, xi)));
+        pstore(px, pm.pmadd(pc, xi, pcj.pmul(ps, yi)));
+        pstore(py, pcj.pmsub(pc, yi, pm.pmul(ps, xi)));
         px += PacketSize;
         py += PacketSize;
       }
