@@ -12,7 +12,7 @@
   tags:
     - saas-linux-2xlarge-amd64
   allow_failure:
-    exit_codes: $EIGEN_CI_CTEST_EXIT_WARNING
+    exit_codes: $(( EIGEN_CI_CTEST_EXIT_WARNING ))
 
 ##### x86-64 ###################################################################
 .test:linux:x86-64:
