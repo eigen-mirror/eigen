@@ -23,7 +23,7 @@ if [ $exit_code -ne 0 ]; then
   eval "${run_ctest} --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
   exit_code=$LASTEXITCODE
   if [ $exit_code -eq 0 ]; then
-    exit_code=${EIGEN_CI_CTEST_EXIT_WARNING}
+    exit_code=42
   fi
 fi
 
