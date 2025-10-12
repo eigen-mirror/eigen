@@ -858,6 +858,13 @@ inline void set_seed_from_string(const char* str) {
   g_has_set_seed = true;
 }
 
+inline void set_seed_from_time() {
+  using namespace std::chrono;
+  using clock_t = high_resolution_clock;
+  long long ns = duration_cast<nanoseconds>(clock_t::now().time_since_epoch()).count();
+  g_seed = static_cast<decltype(g_seed)>(ns);
+}
+
 int main(int argc, char* argv[]) {
   g_has_set_repeat = false;
   g_has_set_seed = false;
@@ -896,7 +903,7 @@ int main(int argc, char* argv[]) {
   char* env_EIGEN_SEED = getenv("EIGEN_SEED");
   if (!g_has_set_seed && env_EIGEN_SEED) set_seed_from_string(env_EIGEN_SEED);
 
-  if (!g_has_set_seed) g_seed = (unsigned int)time(NULL);
+  if (!g_has_set_seed) set_seed_from_time();
   if (!g_has_set_repeat) g_repeat = DEFAULT_REPEAT;
 
   std::cout << "Initializing random number generator with seed " << g_seed << std::endl;
