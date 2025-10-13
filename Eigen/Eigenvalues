@@ -44,6 +44,7 @@
 #include "src/Eigenvalues/ComplexSchur.h"
 #include "src/Eigenvalues/ComplexEigenSolver.h"
 #include "src/Eigenvalues/RealQZ.h"
+#include "src/Eigenvalues/ComplexQZ.h"
 #include "src/Eigenvalues/GeneralizedEigenSolver.h"
 #include "src/Eigenvalues/MatrixBaseEigenvalues.h"
 #ifdef EIGEN_USE_LAPACKE
