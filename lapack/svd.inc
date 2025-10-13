@@ -18,8 +18,9 @@
 
 // computes the singular values/vectors a general M-by-N matrix A using divide-and-conquer
 EIGEN_LAPACK_FUNC(gesdd)
-(char *jobz, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u, int *ldu, Scalar *vt, int *ldvt,
- Scalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/, int *info) {
+(const char *jobz, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu, RealScalar *rvt,
+ int *ldvt, RealScalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/,
+ int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   int diag_size = (std::min)(*m, *n);
@@ -53,6 +54,10 @@ EIGEN_LAPACK_FUNC(gesdd)
 
   if (*n == 0 || *m == 0) return;
 
+  Scalar *a = reinterpret_cast<Scalar *>(ra);
+  Scalar *u = reinterpret_cast<Scalar *>(ru);
+  Scalar *vt = reinterpret_cast<Scalar *>(rvt);
+
   PlainMatrixType mat(*m, *n);
   mat = matrix(a, *m, *n, *lda);
 
@@ -84,8 +89,9 @@ EIGEN_LAPACK_FUNC(gesdd)
 
 // computes the singular values/vectors a general M-by-N matrix A using two sided jacobi algorithm
 EIGEN_LAPACK_FUNC(gesvd)
-(char *jobu, char *jobv, int *m, int *n, Scalar *a, int *lda, RealScalar *s, Scalar *u, int *ldu, Scalar *vt, int *ldvt,
- Scalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
+(const char *jobu, const char *jobv, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu,
+ RealScalar *rvt, int *ldvt, RealScalar * /*work*/, int *lwork,
+ EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   int diag_size = (std::min)(*m, *n);
@@ -117,6 +123,10 @@ EIGEN_LAPACK_FUNC(gesvd)
   }
 
   if (*n == 0 || *m == 0) return;
+
+  Scalar *a = reinterpret_cast<Scalar *>(ra);
+  Scalar *u = reinterpret_cast<Scalar *>(ru);
+  Scalar *vt = reinterpret_cast<Scalar *>(rvt);
 
   PlainMatrixType mat(*m, *n);
   mat = matrix(a, *m, *n, *lda);
