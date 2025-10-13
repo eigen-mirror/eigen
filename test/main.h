@@ -186,7 +186,7 @@ inline void on_temporary_creation(long int size, int) {
 
 namespace Eigen {
 static std::vector<std::string> g_test_stack;
-// level == 0 <=> abort if test fail
+// level == 0 <=> return 1 if test fail
 // level >= 1 <=> warning message to std::cerr if test fail
 static int g_test_level = 0;
 static int g_repeat = 1;
@@ -356,7 +356,7 @@ inline void verify_impl(bool condition, const char* testname, const char* file, 
     const int test_stack_size = static_cast<int>(Eigen::g_test_stack.size());
     for (int i = test_stack_size - 1; i >= 0; --i) std::cerr << "  - " << Eigen::g_test_stack[i] << "\n";
     std::cerr << "\n";
-    if (Eigen::g_test_level == 0) abort();
+    if (Eigen::g_test_level == 0) return 1;
   }
 }
 
