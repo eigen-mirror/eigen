@@ -16,23 +16,22 @@ fi
 # Repeat tests up to EIGEN_CI_CTEST_REPEAT times.
 # Tests that pass during the repeated attempts will return a non-zero error code.
 
-declare -a ctest_cmd=(
-    ctest
-    ${EIGEN_CI_CTEST_ARGS}
-    --parallel "${NPROC}"
-    --output-on-failure
-    --no-compress-output
-    --build-no-clean
-    -T test
-    "${target}"
-)
+run_ctest="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
+run_ctest+=" --output-on-failure --no-compress-output"
+run_ctest+=" --build-no-clean -T test ${target}"
+
+run_ctest_retry="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
+run_ctest_retry+=" --output-on-failure --no-compress-output"
+run_ctest_retry+=" --build-no-clean"
+run_ctest_retry+=" --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
+
+eval "${run_ctest}"
 
 "${ctest_cmd[@]}"
 exit_code=$?
 if (( exit_code != 0 )); then
   echo "Retrying tests up to ${EIGEN_CI_CTEST_REPEAT} times."
-  ctest_cmd+=( "--rerun-failed" "--repeat" "until-pass:${EIGEN_CI_CTEST_REPEAT}" )
-  "${ctest_cmd[@]}"
+  eval "${run_ctest_retry}"
   exit_code=$?
   if (( exit_code == 0 )); then
     echo "Tests passed on retry."
