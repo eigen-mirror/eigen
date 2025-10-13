@@ -31,7 +31,7 @@ declare -a ctest_cmd=(
 exit_code=$?
 if (( exit_code != 0 )); then
   echo "Retrying tests up to ${EIGEN_CI_CTEST_REPEAT} times."
-  ctest_cmd+=( --rerun-failed "--repeat" "until-pass:${EIGEN_CI_CTEST_REPEAT}" )
+  ctest_cmd+=( "--rerun-failed" "--repeat" "until-pass:${EIGEN_CI_CTEST_REPEAT}" )
   "${ctest_cmd[@]}"
   exit_code=$?
   if (( exit_code == 0 )); then
