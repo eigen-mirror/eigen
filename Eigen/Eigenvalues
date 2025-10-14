@@ -32,8 +32,6 @@
  * \endcode
  */
 
-#include "src/misc/RealSvd2x2.h"
-
 // IWYU pragma: begin_exports
 #include "src/Eigenvalues/Tridiagonalization.h"
 #include "src/Eigenvalues/RealSchur.h"
