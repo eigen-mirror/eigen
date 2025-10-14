@@ -18,15 +18,13 @@ fi
 
 run_ctest="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
 run_ctest+=" --output-on-failure --no-compress-output"
-run_ctest+=" --build-no-clean -T test ${target}"
+run_ctest+=" --build-noclean -T test ${target}"
 
 run_ctest_retry="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC}"
 run_ctest_retry+=" --output-on-failure --no-compress-output"
 run_ctest_retry+=" --repeat until-pass:${EIGEN_CI_CTEST_REPEAT}"
 
 eval "${run_ctest}"
-
-"${ctest_cmd[@]}"
 exit_code=$?
 if (( exit_code != 0 )); then
   echo "Retrying tests up to ${EIGEN_CI_CTEST_REPEAT} times."
