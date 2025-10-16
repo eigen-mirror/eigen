@@ -269,8 +269,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  int steps = 0;
-
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -300,7 +298,6 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const Mat
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
@@ -331,7 +328,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
 
   if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
 
-  unsigned int steps = 0;
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {
     for (Index i = m_n - 1; i >= j + 2; i--) {
@@ -363,7 +359,6 @@ void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& 
         // update Z
         if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
       }
-      steps++;
     }
   }
 }
