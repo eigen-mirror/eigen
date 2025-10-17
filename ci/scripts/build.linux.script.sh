@@ -12,7 +12,7 @@ cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
   -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
   -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET}    \
-  ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
+  "${EIGEN_CI_ADDITIONAL_ARGS}" ${rootdir}
 
 target=""
 if [[ ${EIGEN_CI_BUILD_TARGET} ]]; then

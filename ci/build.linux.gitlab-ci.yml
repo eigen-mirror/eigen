@@ -26,5 +26,6 @@ build:linux:docs:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+    EIGEN_CI_ADDITIONAL_ARGS: "-DCMAKE_CXX_FLAGS='-Wno-deprecated-declarations -Wno-ignored-reference-qualifiers'"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen"
