@@ -126,12 +126,12 @@ void homogeneous(void) {
   }
 
   {
-    const Eigen::PermutationMatrix<Size> P{Eigen::Vector<int, Size>::EqualSpaced(0, 1)};
-    const auto right = Eigen::Vector<Scalar, Size - 1>::Random().eval().homogeneous();
-    const auto left = Eigen::RowVector<Scalar, Size - 1>::Random().eval().homogeneous();
+    PermutationMatrix<Size> P{Vector<int, Size>::EqualSpaced(0, 1).reverse()};
+    auto right = Vector<Scalar, Size - 1>::Random().eval().nestByValue().homogeneous();
+    auto left = RowVector<Scalar, Size - 1>::Random().eval().nestByValue().homogeneous();
 
-    VERIFY_IS_APPROX(P * right, P * right.eval());
-    VERIFY_IS_APPROX(left * P, left.eval() * P);
+    VERIFY_IS_APPROX(P * right, right.reverse());
+    VERIFY_IS_APPROX(left * P, left.reverse());
   }
 }
 

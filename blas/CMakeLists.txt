@@ -19,7 +19,9 @@ add_library(eigen_blas_static STATIC ${EigenBlas_SRCS})
 list(APPEND EIGEN_BLAS_TARGETS eigen_blas_static)
 
 if (EIGEN_BUILD_SHARED_LIBS)
-  add_library(eigen_blas SHARED ${EigenBlas_SRCS})
+  add_library(eigen_blas SHARED ${EigenBlas_SRCS} "eigen_blas.def")
+  target_compile_definitions(eigen_blas PUBLIC "EIGEN_BLAS_BUILD_DLL")
+  set_target_properties(eigen_blas PROPERTIES CXX_VISIBILITY_PRESET hidden)
   list(APPEND EIGEN_BLAS_TARGETS eigen_blas)
 endif()
 
