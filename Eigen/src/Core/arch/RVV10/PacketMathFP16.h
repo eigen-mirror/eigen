@@ -46,8 +46,7 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasFloor = 1,
-    HasRint = 1,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -86,8 +85,7 @@ struct packet_traits<Eigen::half, 2> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasFloor = 1,
-    HasRint = 1,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
