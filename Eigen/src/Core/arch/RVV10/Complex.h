@@ -423,7 +423,7 @@ struct conj_helper<PacketXcf, PacketMul2Xf, false, false> {
     return padd(c, this->pmul(x, y));
   }
   EIGEN_STRONG_INLINE PacketXcf pmsub(const PacketXcf& x, const PacketMul2Xf& y, const PacketXcf& c) const {
-    return psub(c, this->pmul(x, y));
+    return psub(this->pmul(x, y), c);
   }
   EIGEN_STRONG_INLINE PacketXcf pmul(const PacketXcf& x, const PacketMul2Xf& y) const {
     return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(pcast<PacketXcf, PacketMul2Xf>(x), y));
@@ -698,7 +698,7 @@ struct conj_helper<PacketMul2Xd, PacketXcd, false, false> {
     return padd(c, this->pmul(x, y));
   }
   EIGEN_STRONG_INLINE PacketXcd pmsub(const PacketMul2Xd& x, const PacketXcd& y, const PacketXcd& c) const {
-    return psub(c, this->pmul(x, y));
+    return psub(this->pmul(x, y), c);
   }
   EIGEN_STRONG_INLINE PacketXcd pmul(const PacketMul2Xd& x, const PacketXcd& y) const {
     return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(x, pcast<PacketXcd, PacketMul2Xd>(y)));
@@ -711,7 +711,7 @@ struct conj_helper<PacketXcd, PacketMul2Xd, false, false> {
     return padd(c, this->pmul(x, y));
   }
   EIGEN_STRONG_INLINE PacketXcd pmsub(const PacketXcd& x, const PacketMul2Xd& y, const PacketXcd& c) const {
-    return psub(c, this->pmul(x, y));
+    return psub(this->pmul(x, y), c);
   }
   EIGEN_STRONG_INLINE PacketXcd pmul(const PacketXcd& x, const PacketMul2Xd& y) const {
     return PacketXcd(Eigen::internal::pmul<PacketMul2Xd>(pcast<PacketXcd, PacketMul2Xd>(x), y));
