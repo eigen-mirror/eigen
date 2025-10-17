@@ -410,7 +410,7 @@ struct conj_helper<PacketMul2Xf, PacketXcf, false, false> {
     return padd(c, this->pmul(x, y));
   }
   EIGEN_STRONG_INLINE PacketXcf pmsub(const PacketMul2Xf& x, const PacketXcf& y, const PacketXcf& c) const {
-    return psub(c, this->pmul(x, y));
+    return psub(this->pmul(x, y), c);
   }
   EIGEN_STRONG_INLINE PacketXcf pmul(const PacketMul2Xf& x, const PacketXcf& y) const {
     return PacketXcf(Eigen::internal::pmul<PacketMul2Xf>(x, pcast<PacketXcf, PacketMul2Xf>(y)));
