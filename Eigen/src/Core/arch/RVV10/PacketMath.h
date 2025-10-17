@@ -51,11 +51,15 @@ typedef vbool4_t PacketMask4;
 typedef eigen_packet_wrapper<vint32m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 0> PacketXi;
 typedef eigen_packet_wrapper<vuint32m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 1> PacketXu;
 
-typedef eigen_packet_wrapper<vint32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 2> PacketMul2Xi;
-typedef eigen_packet_wrapper<vuint32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 3> PacketMul2Xu;
+typedef eigen_packet_wrapper<vint32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 2>
+    PacketMul2Xi;
+typedef eigen_packet_wrapper<vuint32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 3>
+    PacketMul2Xu;
 
-typedef eigen_packet_wrapper<vint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 4> PacketMul4Xi;
-typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 5> PacketMul4Xu;
+typedef eigen_packet_wrapper<vint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 4>
+    PacketMul4Xi;
+typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 5>
+    PacketMul4Xu;
 
 template <>
 struct packet_traits<numext::int32_t> : default_packet_traits {
@@ -945,18 +949,18 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketMul2Xi, N>& kernel) {
 
 template <typename Packet = PacketMul4Xi>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul4Xi>::value && (unpacket_traits<PacketMul4Xi>::size % 8) == 0,
-                            PacketMul2Xi>::type
-    predux_half_dowto4(const PacketMul4Xi& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul4Xi>::value && (unpacket_traits<PacketMul4Xi>::size % 8) == 0,
+                        PacketMul2Xi>::type
+predux_half_dowto4(const PacketMul4Xi& a) {
   return __riscv_vadd_vv_i32m2(__riscv_vget_v_i32m4_i32m2(a, 0), __riscv_vget_v_i32m4_i32m2(a, 1),
                                unpacket_traits<PacketMul2Xi>::size);
 }
 
 template <typename Packet = PacketMul2Xi>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xi>::value && (unpacket_traits<PacketMul2Xi>::size % 8) == 0,
-                            PacketXi>::type
-    predux_half_dowto4(const PacketMul2Xi& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xi>::value && (unpacket_traits<PacketMul2Xi>::size % 8) == 0,
+                        PacketXi>::type
+predux_half_dowto4(const PacketMul2Xi& a) {
   return __riscv_vadd_vv_i32m1(__riscv_vget_v_i32m2_i32m1(a, 0), __riscv_vget_v_i32m2_i32m1(a, 1),
                                unpacket_traits<PacketXi>::size);
 }
@@ -964,8 +968,10 @@ EIGEN_STRONG_INLINE
 /********************************* float32 ************************************/
 
 typedef eigen_packet_wrapper<vfloat32m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 6> PacketXf;
-typedef eigen_packet_wrapper<vfloat32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 7> PacketMul2Xf;
-typedef eigen_packet_wrapper<vfloat32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 8> PacketMul4Xf;
+typedef eigen_packet_wrapper<vfloat32m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 7>
+    PacketMul2Xf;
+typedef eigen_packet_wrapper<vfloat32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 8>
+    PacketMul4Xf;
 
 template <>
 struct packet_traits<float> : default_packet_traits {
@@ -994,7 +1000,7 @@ struct packet_traits<float> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -1033,7 +1039,7 @@ struct packet_traits<float, 2> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -1072,7 +1078,7 @@ struct packet_traits<float, 4> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -1164,8 +1170,9 @@ EIGEN_STRONG_INLINE PacketXf pset1frombits<PacketXf>(numext::uint32_t from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf plset<PacketXf>(const float& a) {
-  PacketXf idx =
-      __riscv_vfcvt_f_x_v_f32m1(__riscv_vreinterpret_v_u32m1_i32m1(__riscv_vid_v_u32m1(unpacket_traits<PacketXi>::size)), unpacket_traits<PacketXf>::size);
+  PacketXf idx = __riscv_vfcvt_f_x_v_f32m1(
+      __riscv_vreinterpret_v_u32m1_i32m1(__riscv_vid_v_u32m1(unpacket_traits<PacketXi>::size)),
+      unpacket_traits<PacketXf>::size);
   return __riscv_vfadd_vf_f32m1(idx, a, unpacket_traits<PacketXf>::size);
 }
 
@@ -1434,16 +1441,22 @@ EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PacketXf>(const PacketXf& a) {
-  return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f32m1_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketXf>::size),
-      unpacket_traits<PacketXf>::size)), (std::numeric_limits<float>::max)());
+  return (
+      std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f32m1_f32m1(
+                    a,
+                    __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketXf>::size),
+                    unpacket_traits<PacketXf>::size)),
+                (std::numeric_limits<float>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PacketXf>(const PacketXf& a) {
-  return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f32m1_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketXf>::size),
-      unpacket_traits<PacketXf>::size)), -(std::numeric_limits<float>::max)());
+  return (
+      std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f32m1_f32m1(
+                    a,
+                    __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketXf>::size),
+                    unpacket_traits<PacketXf>::size)),
+                -(std::numeric_limits<float>::max)());
 }
 
 template <int N>
@@ -1517,8 +1530,9 @@ EIGEN_STRONG_INLINE PacketMul4Xf pset1frombits<PacketMul4Xf>(numext::uint32_t fr
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xf plset<PacketMul4Xf>(const float& a) {
-  PacketMul4Xf idx = __riscv_vfcvt_f_x_v_f32m4(__riscv_vreinterpret_v_u32m4_i32m4(__riscv_vid_v_u32m4(unpacket_traits<PacketMul4Xi>::size)),
-                                               unpacket_traits<PacketMul4Xf>::size);
+  PacketMul4Xf idx = __riscv_vfcvt_f_x_v_f32m4(
+      __riscv_vreinterpret_v_u32m4_i32m4(__riscv_vid_v_u32m4(unpacket_traits<PacketMul4Xi>::size)),
+      unpacket_traits<PacketMul4Xf>::size);
   return __riscv_vfadd_vf_f32m4(idx, a, unpacket_traits<PacketMul4Xf>::size);
 }
 
@@ -1780,15 +1794,21 @@ EIGEN_STRONG_INLINE float predux_mul<PacketMul4Xf>(const PacketMul4Xf& a) {
 template <>
 EIGEN_STRONG_INLINE float predux_min<PacketMul4Xf>(const PacketMul4Xf& a) {
   return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f32m4_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketMul4Xf>::size / 4),
-      unpacket_traits<PacketMul4Xf>::size)), (std::numeric_limits<float>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul4Xf>::size / 4),
+                        unpacket_traits<PacketMul4Xf>::size)),
+                    (std::numeric_limits<float>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PacketMul4Xf>(const PacketMul4Xf& a) {
   return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f32m4_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketMul4Xf>::size / 4),
-      unpacket_traits<PacketMul4Xf>::size)), -(std::numeric_limits<float>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul4Xf>::size / 4),
+                        unpacket_traits<PacketMul4Xf>::size)),
+                    -(std::numeric_limits<float>::max)());
 }
 
 template <int N>
@@ -1840,8 +1860,9 @@ EIGEN_STRONG_INLINE PacketMul2Xf pset1frombits<PacketMul2Xf>(numext::uint32_t fr
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xf plset<PacketMul2Xf>(const float& a) {
-  PacketMul2Xf idx = __riscv_vfcvt_f_x_v_f32m2(__riscv_vreinterpret_v_u32m2_i32m2(__riscv_vid_v_u32m2(unpacket_traits<PacketMul4Xi>::size)),
-                                               unpacket_traits<PacketMul2Xf>::size);
+  PacketMul2Xf idx = __riscv_vfcvt_f_x_v_f32m2(
+      __riscv_vreinterpret_v_u32m2_i32m2(__riscv_vid_v_u32m2(unpacket_traits<PacketMul4Xi>::size)),
+      unpacket_traits<PacketMul2Xf>::size);
   return __riscv_vfadd_vf_f32m2(idx, a, unpacket_traits<PacketMul2Xf>::size);
 }
 
@@ -2100,15 +2121,21 @@ EIGEN_STRONG_INLINE float predux_mul<PacketMul2Xf>(const PacketMul2Xf& a) {
 template <>
 EIGEN_STRONG_INLINE float predux_min<PacketMul2Xf>(const PacketMul2Xf& a) {
   return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f32m2_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketMul2Xf>::size / 2),
-      unpacket_traits<PacketMul2Xf>::size)), (std::numeric_limits<float>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul2Xf>::size / 2),
+                        unpacket_traits<PacketMul2Xf>::size)),
+                    (std::numeric_limits<float>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PacketMul2Xf>(const PacketMul2Xf& a) {
   return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f32m2_f32m1(
-      a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<PacketMul2Xf>::size / 2),
-      unpacket_traits<PacketMul2Xf>::size)), -(std::numeric_limits<float>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul2Xf>::size / 2),
+                        unpacket_traits<PacketMul2Xf>::size)),
+                    -(std::numeric_limits<float>::max)());
 }
 
 template <int N>
@@ -2133,18 +2160,18 @@ EIGEN_STRONG_INLINE PacketMul2Xf pldexp<PacketMul2Xf>(const PacketMul2Xf& a, con
 
 template <typename Packet = PacketMul4Xf>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul4Xf>::value && (unpacket_traits<PacketMul4Xf>::size % 8) == 0,
-                            PacketMul2Xf>::type
-    predux_half_dowto4(const PacketMul4Xf& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul4Xf>::value && (unpacket_traits<PacketMul4Xf>::size % 8) == 0,
+                        PacketMul2Xf>::type
+predux_half_dowto4(const PacketMul4Xf& a) {
   return __riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
                                 unpacket_traits<PacketMul2Xf>::size);
 }
 
 template <typename Packet = PacketMul2Xf>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xf>::value && (unpacket_traits<PacketMul2Xf>::size % 8) == 0,
-                            PacketXf>::type
-    predux_half_dowto4(const PacketMul2Xf& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xf>::value && (unpacket_traits<PacketMul2Xf>::size % 8) == 0,
+                        PacketXf>::type
+predux_half_dowto4(const PacketMul2Xf& a) {
   return __riscv_vfadd_vv_f32m1(__riscv_vget_v_f32m2_f32m1(a, 0), __riscv_vget_v_f32m2_f32m1(a, 1),
                                 unpacket_traits<PacketXf>::size);
 }
@@ -2154,11 +2181,15 @@ EIGEN_STRONG_INLINE
 typedef eigen_packet_wrapper<vint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 9> PacketXl;
 typedef eigen_packet_wrapper<vuint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 10> PacketXul;
 
-typedef eigen_packet_wrapper<vint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 11> PacketMul2Xl;
-typedef eigen_packet_wrapper<vuint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 12> PacketMul2Xul;
+typedef eigen_packet_wrapper<vint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 11>
+    PacketMul2Xl;
+typedef eigen_packet_wrapper<vuint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 12>
+    PacketMul2Xul;
 
-typedef eigen_packet_wrapper<vint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 13> PacketMul4Xl;
-typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 14> PacketMul4Xul;
+typedef eigen_packet_wrapper<vint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 13>
+    PacketMul4Xl;
+typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 14>
+    PacketMul4Xul;
 
 template <>
 struct packet_traits<numext::int64_t> : default_packet_traits {
@@ -3049,18 +3080,18 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketMul2Xl, N>& kernel) {
 
 template <typename Packet = PacketMul4Xl>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul4Xl>::value && (unpacket_traits<PacketMul4Xl>::size % 8) == 0,
-                            PacketMul2Xl>::type
-    predux_half_dowto4(const PacketMul4Xl& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul4Xl>::value && (unpacket_traits<PacketMul4Xl>::size % 8) == 0,
+                        PacketMul2Xl>::type
+predux_half_dowto4(const PacketMul4Xl& a) {
   return __riscv_vadd_vv_i64m2(__riscv_vget_v_i64m4_i64m2(a, 0), __riscv_vget_v_i64m4_i64m2(a, 1),
                                unpacket_traits<PacketMul2Xl>::size);
 }
 
 template <typename Packet = PacketMul2Xl>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xl>::value && (unpacket_traits<PacketMul2Xl>::size % 8) == 0,
-                            PacketXl>::type
-    predux_half_dowto4(const PacketMul2Xl& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xl>::value && (unpacket_traits<PacketMul2Xl>::size % 8) == 0,
+                        PacketXl>::type
+predux_half_dowto4(const PacketMul2Xl& a) {
   return __riscv_vadd_vv_i64m1(__riscv_vget_v_i64m2_i64m1(a, 0), __riscv_vget_v_i64m2_i64m1(a, 1),
                                unpacket_traits<PacketXl>::size);
 }
@@ -3068,8 +3099,10 @@ EIGEN_STRONG_INLINE
 /********************************* double ************************************/
 
 typedef eigen_packet_wrapper<vfloat64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 15> PacketXd;
-typedef eigen_packet_wrapper<vfloat64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 16> PacketMul2Xd;
-typedef eigen_packet_wrapper<vfloat64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 17> PacketMul4Xd;
+typedef eigen_packet_wrapper<vfloat64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 16>
+    PacketMul2Xd;
+typedef eigen_packet_wrapper<vfloat64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 17>
+    PacketMul4Xd;
 
 template <>
 struct packet_traits<double> : default_packet_traits {
@@ -3098,7 +3131,7 @@ struct packet_traits<double> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasLog = 1,
     HasExp = 1,
@@ -3133,7 +3166,7 @@ struct packet_traits<double, 2> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasLog = 1,
     HasExp = 1,
@@ -3168,7 +3201,7 @@ struct packet_traits<double, 4> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasLog = 1,
     HasExp = 1,
@@ -3256,8 +3289,9 @@ EIGEN_STRONG_INLINE PacketXd pset1frombits<PacketXd>(numext::uint64_t from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXd plset<PacketXd>(const double& a) {
-  PacketXd idx =
-      __riscv_vfcvt_f_x_v_f64m1(__riscv_vreinterpret_v_u64m1_i64m1(__riscv_vid_v_u64m1(unpacket_traits<PacketXl>::size)), unpacket_traits<PacketXd>::size);
+  PacketXd idx = __riscv_vfcvt_f_x_v_f64m1(
+      __riscv_vreinterpret_v_u64m1_i64m1(__riscv_vid_v_u64m1(unpacket_traits<PacketXl>::size)),
+      unpacket_traits<PacketXd>::size);
   return __riscv_vfadd_vf_f64m1(idx, a, unpacket_traits<PacketXd>::size);
 }
 
@@ -3525,16 +3559,22 @@ EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PacketXd>(const PacketXd& a) {
-  return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f64m1_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketXd>::size),
-      unpacket_traits<PacketXd>::size)), (std::numeric_limits<double>::max)());
+  return (
+      std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f64m1_f64m1(
+                    a,
+                    __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketXd>::size),
+                    unpacket_traits<PacketXd>::size)),
+                (std::numeric_limits<double>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PacketXd>(const PacketXd& a) {
-  return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f64m1_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketXd>::size),
-      unpacket_traits<PacketXd>::size)), -(std::numeric_limits<double>::max)());
+  return (
+      std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f64m1_f64m1(
+                    a,
+                    __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketXd>::size),
+                    unpacket_traits<PacketXd>::size)),
+                -(std::numeric_limits<double>::max)());
 }
 
 template <int N>
@@ -3613,8 +3653,9 @@ EIGEN_STRONG_INLINE PacketMul4Xd pset1frombits<PacketMul4Xd>(numext::uint64_t fr
 
 template <>
 EIGEN_STRONG_INLINE PacketMul4Xd plset<PacketMul4Xd>(const double& a) {
-  PacketMul4Xd idx = __riscv_vfcvt_f_x_v_f64m4(__riscv_vreinterpret_v_u64m4_i64m4(__riscv_vid_v_u64m4(unpacket_traits<PacketMul4Xi>::size)),
-                                               unpacket_traits<PacketMul4Xd>::size);
+  PacketMul4Xd idx = __riscv_vfcvt_f_x_v_f64m4(
+      __riscv_vreinterpret_v_u64m4_i64m4(__riscv_vid_v_u64m4(unpacket_traits<PacketMul4Xi>::size)),
+      unpacket_traits<PacketMul4Xd>::size);
   return __riscv_vfadd_vf_f64m4(idx, a, unpacket_traits<PacketMul4Xd>::size);
 }
 
@@ -3877,15 +3918,21 @@ EIGEN_STRONG_INLINE double predux_mul<PacketMul4Xd>(const PacketMul4Xd& a) {
 template <>
 EIGEN_STRONG_INLINE double predux_min<PacketMul4Xd>(const PacketMul4Xd& a) {
   return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f64m4_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketMul4Xd>::size / 4),
-      unpacket_traits<PacketMul4Xd>::size)), (std::numeric_limits<double>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul4Xd>::size / 4),
+                        unpacket_traits<PacketMul4Xd>::size)),
+                    (std::numeric_limits<double>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PacketMul4Xd>(const PacketMul4Xd& a) {
   return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f64m4_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketMul4Xd>::size / 4),
-      unpacket_traits<PacketMul4Xd>::size)), -(std::numeric_limits<double>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul4Xd>::size / 4),
+                        unpacket_traits<PacketMul4Xd>::size)),
+                    -(std::numeric_limits<double>::max)());
 }
 
 template <int N>
@@ -3937,8 +3984,9 @@ EIGEN_STRONG_INLINE PacketMul2Xd pset1frombits<PacketMul2Xd>(numext::uint64_t fr
 
 template <>
 EIGEN_STRONG_INLINE PacketMul2Xd plset<PacketMul2Xd>(const double& a) {
-  PacketMul2Xd idx = __riscv_vfcvt_f_x_v_f64m2(__riscv_vreinterpret_v_u64m2_i64m2(__riscv_vid_v_u64m2(unpacket_traits<PacketMul4Xi>::size)),
-                                               unpacket_traits<PacketMul2Xd>::size);
+  PacketMul2Xd idx = __riscv_vfcvt_f_x_v_f64m2(
+      __riscv_vreinterpret_v_u64m2_i64m2(__riscv_vid_v_u64m2(unpacket_traits<PacketMul4Xi>::size)),
+      unpacket_traits<PacketMul2Xd>::size);
   return __riscv_vfadd_vf_f64m2(idx, a, unpacket_traits<PacketMul2Xd>::size);
 }
 
@@ -4198,15 +4246,21 @@ EIGEN_STRONG_INLINE double predux_mul<PacketMul2Xd>(const PacketMul2Xd& a) {
 template <>
 EIGEN_STRONG_INLINE double predux_min<PacketMul2Xd>(const PacketMul2Xd& a) {
   return (std::min)(__riscv_vfmv_f(__riscv_vfredmin_vs_f64m2_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketMul2Xd>::size / 2),
-      unpacket_traits<PacketMul2Xd>::size)), (std::numeric_limits<double>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul2Xd>::size / 2),
+                        unpacket_traits<PacketMul2Xd>::size)),
+                    (std::numeric_limits<double>::max)());
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PacketMul2Xd>(const PacketMul2Xd& a) {
   return (std::max)(__riscv_vfmv_f(__riscv_vfredmax_vs_f64m2_f64m1(
-      a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<PacketMul2Xd>::size / 2),
-      unpacket_traits<PacketMul2Xd>::size)), -(std::numeric_limits<double>::max)());
+                        a,
+                        __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(),
+                                               unpacket_traits<PacketMul2Xd>::size / 2),
+                        unpacket_traits<PacketMul2Xd>::size)),
+                    -(std::numeric_limits<double>::max)());
 }
 
 template <int N>
@@ -4231,18 +4285,18 @@ EIGEN_STRONG_INLINE PacketMul2Xd pldexp<PacketMul2Xd>(const PacketMul2Xd& a, con
 
 template <typename Packet = PacketMul4Xd>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul4Xd>::value && (unpacket_traits<PacketMul4Xd>::size % 8) == 0,
-                            PacketMul2Xd>::type
-    predux_half_dowto4(const PacketMul4Xd& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul4Xd>::value && (unpacket_traits<PacketMul4Xd>::size % 8) == 0,
+                        PacketMul2Xd>::type
+predux_half_dowto4(const PacketMul4Xd& a) {
   return __riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
                                 unpacket_traits<PacketMul2Xd>::size);
 }
 
 template <typename Packet = PacketMul2Xd>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xd>::value && (unpacket_traits<PacketMul2Xd>::size % 8) == 0,
-                            PacketXd>::type
-    predux_half_dowto4(const PacketMul2Xd& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xd>::value && (unpacket_traits<PacketMul2Xd>::size % 8) == 0,
+                        PacketXd>::type
+predux_half_dowto4(const PacketMul2Xd& a) {
   return __riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a, 0), __riscv_vget_v_f64m2_f64m1(a, 1),
                                 unpacket_traits<PacketXd>::size);
 }
@@ -4252,11 +4306,15 @@ EIGEN_STRONG_INLINE
 typedef eigen_packet_wrapper<vint16m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 18> PacketXs;
 typedef eigen_packet_wrapper<vuint16m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 19> PacketXsu;
 
-typedef eigen_packet_wrapper<vint16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 20> PacketMul2Xs;
-typedef eigen_packet_wrapper<vuint16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 21> PacketMul2Xsu;
+typedef eigen_packet_wrapper<vint16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 20>
+    PacketMul2Xs;
+typedef eigen_packet_wrapper<vuint16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 21>
+    PacketMul2Xsu;
 
-typedef eigen_packet_wrapper<vint16m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 22> PacketMul4Xs;
-typedef eigen_packet_wrapper<vuint16m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 23> PacketMul4Xsu;
+typedef eigen_packet_wrapper<vint16m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 22>
+    PacketMul4Xs;
+typedef eigen_packet_wrapper<vuint16m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 23>
+    PacketMul4Xsu;
 
 template <>
 struct packet_traits<numext::int16_t> : default_packet_traits {
@@ -5149,18 +5207,18 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketMul2Xs, N>& kernel) {
 
 template <typename Packet = PacketMul4Xs>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul4Xs>::value && (unpacket_traits<PacketMul4Xs>::size % 8) == 0,
-                            PacketMul2Xs>::type
-    predux_half_dowto4(const PacketMul4Xs& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul4Xs>::value && (unpacket_traits<PacketMul4Xs>::size % 8) == 0,
+                        PacketMul2Xs>::type
+predux_half_dowto4(const PacketMul4Xs& a) {
   return __riscv_vadd_vv_i16m2(__riscv_vget_v_i16m4_i16m2(a, 0), __riscv_vget_v_i16m4_i16m2(a, 1),
                                unpacket_traits<PacketMul2Xs>::size);
 }
 
 template <typename Packet = PacketMul2Xs>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xs>::value && (unpacket_traits<PacketMul2Xs>::size % 8) == 0,
-                            PacketXs>::type
-    predux_half_dowto4(const PacketMul2Xs& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xs>::value && (unpacket_traits<PacketMul2Xs>::size % 8) == 0,
+                        PacketXs>::type
+predux_half_dowto4(const PacketMul2Xs& a) {
   return __riscv_vadd_vv_i16m1(__riscv_vget_v_i16m2_i16m1(a, 0), __riscv_vget_v_i16m2_i16m1(a, 1),
                                unpacket_traits<PacketXs>::size);
 }

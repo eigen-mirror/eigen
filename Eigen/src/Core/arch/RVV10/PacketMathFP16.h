@@ -46,7 +46,7 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -85,7 +85,7 @@ struct packet_traits<Eigen::half, 2> : default_packet_traits {
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 0,
+    HasRound = 1,
 
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
@@ -802,9 +802,9 @@ EIGEN_STRONG_INLINE PacketMul2Xh float2half(const PacketMul4Xf& a) {
 
 template <typename Packet = PacketMul2Xh>
 EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, PacketMul2Xh>::value && (unpacket_traits<PacketMul2Xh>::size % 8) == 0,
-                            PacketXh>::type
-    predux_half_dowto4(const PacketMul2Xh& a) {
+typename std::enable_if<std::is_same<Packet, PacketMul2Xh>::value && (unpacket_traits<PacketMul2Xh>::size % 8) == 0,
+                        PacketXh>::type
+predux_half_dowto4(const PacketMul2Xh& a) {
   return __riscv_vfadd_vv_f16m1(__riscv_vget_v_f16m2_f16m1(a, 0), __riscv_vget_v_f16m2_f16m1(a, 1),
                                 unpacket_traits<PacketXh>::size);
 }
