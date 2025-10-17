@@ -176,6 +176,8 @@ build:linux:rocm-latest:gcc-10:
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
+  cache: {} # Disable cache for ROCm, since it fails whenever the image updates.
+
 
 ######## Arm ###################################################################
 

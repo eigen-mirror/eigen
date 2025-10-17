@@ -1345,10 +1345,10 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
 #ifndef EIGEN_ASSUME_ALIGNED
 #if defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
 #define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
-  { PTR = std::assume_aligned<8 * (ALIGN_BYTES)>(PTR); }
+  { PTR = std::assume_aligned<ALIGN_BYTES>(PTR); }
 #elif EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
 #define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
-  { PTR = static_cast<decltype(PTR)>(__builtin_assume_aligned(PTR, (ALIGN_BYTES))); }
+  { PTR = static_cast<decltype(PTR)>(__builtin_assume_aligned(PTR, ALIGN_BYTES)); }
 #else
 #define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) /* do nothing */
 #endif
