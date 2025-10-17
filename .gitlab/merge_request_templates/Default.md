@@ -1,26 +1,30 @@
-<!-- 
-Thanks for contributing a merge request! Please name and fully describe your MR as you would for a commit message.
-If the MR fixes an issue, please include "Fixes #issue" in the commit message and the MR description.
+<!--
+Thanks for contributing a merge request!
 
-In addition, we recommend that first-time contributors read our [contribution guidelines](https://eigen.tuxfamily.org/index.php?title=Contributing_to_Eigen) and [git page](https://eigen.tuxfamily.org/index.php?title=Git), which will help you submit a more standardized MR.
+We recommend that first-time contributors read our [contribution guidelines](https://eigen.tuxfamily.org/index.php?title=Contributing_to_Eigen).
 
-Before submitting the MR, you also need to complete the following checks:
-- Make one PR per feature/bugfix (don't mix multiple changes into one PR). Avoid committing unrelated changes.
-- Rebase before committing
-- For code changes, run the test suite (at least the tests that are likely affected by the change).
+Before submitting the MR, please complete the following checks:
+- Create one PR per feature or bugfix,
+- Run the test suite to verify your changes.
   See our [test guidelines](https://eigen.tuxfamily.org/index.php?title=Tests).
-- If possible, add a test (both for bug-fixes as well as new features)
-- Make sure new features are documented
+- Add tests to cover the bug addressed or any new feature.
+- Document new features.  If it is a substantial change, add it to the [Changelog](https://gitlab.com/libeigen/eigen/-/blob/master/CHANGELOG.md).
+- Leave the following box checked when submitting: `Allow commits from members who can merge to the target branch`.
+  This allows us to rebase and merge your change.
 
 Note that we are a team of volunteers; we appreciate your patience during the review process.
+-->
 
-Again, thanks for contributing! -->
+### Description
+<!--Please explain your changes.-->
+
+%{first_multiline_commit}
 
 ### Reference issue
-<!-- You can link to a specific issue using the gitlab syntax #<issue number>  -->
-
-### What does this implement/fix?
-<!--Please explain your changes.-->
+<!--
+You can link to a specific issue using the gitlab syntax #<issue number>.
+If the MR fixes an issue, write "Fixes #<issue number>" to have the issue automatically closed on merge.
+-->
 
 ### Additional information
 <!--Any additional information you think is important.-->
