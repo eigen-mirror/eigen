@@ -537,7 +537,7 @@ extern "C" {
 #if defined(__riscv)
 // Defines the default LMUL for RISC-V
 #ifndef EIGEN_RISCV64_DEFAULT_LMUL
-#define EIGEN_RISCV64_DEFAULT_LMUL  4
+#define EIGEN_RISCV64_DEFAULT_LMUL 4
 #endif
 #endif
 
