@@ -11,13 +11,10 @@
 //
 // Derived from: Eigen/src/Eigenvalues/RealQZ.h
 
-#include "Eigen/Core"
-#include "Eigen/Jacobi"
-
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_
 
-#include "../../SparseQR"
+#include "../../Sparse"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
