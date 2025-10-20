@@ -1,4 +1,4 @@
-<!-- 
+<!--
 Thanks for contributing a merge request!
 
 We recommend that first-time contributors read our [contribution guidelines](https://eigen.tuxfamily.org/index.php?title=Contributing_to_Eigen).
@@ -22,7 +22,7 @@ Note that we are a team of volunteers; we appreciate your patience during the re
 
 ### Reference issue
 <!--
-You can link to a specific issue using the gitlab syntax #<issue number>. 
+You can link to a specific issue using the gitlab syntax #<issue number>.
 If the MR fixes an issue, write "Fixes #<issue number>" to have the issue automatically closed on merge.
 -->
 
