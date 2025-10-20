@@ -51,7 +51,7 @@ min
 #else
 (min)
 #endif
-(const OtherDerived &other) const
+(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
   return (min<PropagateFast>)(other);
 }
@@ -115,7 +115,7 @@ max
 #else
 (max)
 #endif
-(const OtherDerived &other) const
+(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const
 {
   return (max<PropagateFast>)(other);
 }
