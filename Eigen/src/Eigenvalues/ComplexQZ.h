@@ -14,8 +14,6 @@
 #ifndef EIGEN_COMPLEX_QZ_H_
 #define EIGEN_COMPLEX_QZ_H_
 
-#include "../../Sparse"
-
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
@@ -126,9 +124,7 @@ class ComplexQZ {
             computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * n),
         m_computeQZ(computeQZ),
-        m_maxIters(maxIters){
-
-        };
+        m_maxIters(maxIters) {}
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -178,14 +174,14 @@ class ComplexQZ {
    *
    * \returns \c Success if computation was successfull, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; };
+  ComputationInfo info() const { return m_info; }
 
   /** \brief number of performed QZ steps
    */
   unsigned int iterations() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     return m_global_iter;
-  };
+  }
 
  private:
   Index m_n;
@@ -569,7 +565,9 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
   for (Index j = k + 1; j <= l; j++) {
     // Create a 0 at _T(j, j)
     J.makeGivens(m_T(j - 1, j), m_T(j, j), &m_T.coeffRef(j - 1, j));
-    m_T.rightCols(m_n - j - 1).applyOnTheLeft(j - 1, j, J.adjoint());
+    if (m_n - j - 1 > 0) {
+      m_T.rightCols(m_n - j - 1).applyOnTheLeft(j - 1, j, J.adjoint());
+    }
     m_T.coeffRef(j, j) = Scalar(0);
 
     m_S.applyOnTheLeft(j - 1, j, J.adjoint());

@@ -290,7 +290,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-small-amd64
+    - saas-linux-medium-amd64
 
 build:linux:cross:x86-64:clang-12:default:smoketest:
   extends: build:linux:cross:x86-64:clang-12:default
@@ -299,4 +299,4 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-small-amd64
+    - saas-linux-medium-amd64
