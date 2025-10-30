@@ -184,6 +184,8 @@ struct packet_traits<float> : default_packet_traits {
     HasATanh = 1,
     HasLog = 1,
     HasExp = 1,
+    HasLog1p = 1,
+    HasExpm1 = 1,
 #ifdef EIGEN_VECTORIZE_VSX
     HasCmp = 1,
     HasPow = 1,
@@ -3176,9 +3178,11 @@ struct packet_traits<double> : default_packet_traits {
     HasErfc = EIGEN_FAST_MATH,
     HasATanh = 1,
     HasATan = 0,
-    HasLog = 0,
     HasCmp = 1,
+    HasLog = 1,
     HasExp = 1,
+    HasLog1p = 1,
+    HasExpm1 = 1,
     HasSqrt = 1,
     HasCbrt = 1,
 #if !EIGEN_COMP_CLANG
