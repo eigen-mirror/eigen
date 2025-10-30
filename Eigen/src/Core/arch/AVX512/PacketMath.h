@@ -84,7 +84,6 @@ struct packet_traits<half> : default_packet_traits {
     HasDiv = 1,
     HasNegate = 1,
     HasAbs = 1,
-    HasAbs2 = 0,
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
