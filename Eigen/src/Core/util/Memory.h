@@ -1354,19 +1354,21 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
 }
 #endif
 
-/** \internal
- * This informs the implementation that PTR is aligned to at least ALIGN_BYTES
- */
-#ifndef EIGEN_ASSUME_ALIGNED
-#if defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
-#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
-  { PTR = std::assume_aligned<ALIGN_BYTES>(PTR); }
-#elif EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
-#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) \
-  { PTR = static_cast<decltype(PTR)>(__builtin_assume_aligned(PTR, ALIGN_BYTES)); }
+#if !defined(EIGEN_DONT_ASSUME_ALIGNED) && defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
+template <std::size_t N, typename T>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr T* assume_aligned(T* ptr) {
+  return std::assume_aligned<N, T>(ptr);
+}
+#elif !defined(EIGEN_DONT_ASSUME_ALIGNED) && EIGEN_HAS_BUILTIN(__builtin_assume_aligned)
+template <std::size_t N, typename T>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC T* assume_aligned(T* ptr) {
+  return static_cast<T*>(__builtin_assume_aligned(ptr, N));
+}
 #else
-#define EIGEN_ASSUME_ALIGNED(PTR, ALIGN_BYTES) /* do nothing */
-#endif
+template <std::size_t N, typename T>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr T* assume_aligned(T* ptr) {
+  return ptr;
+}
 #endif
 
 }  // end namespace internal
