@@ -4699,8 +4699,8 @@ EIGEN_STRONG_INLINE bfloat16 pfirst<Packet4bf>(const Packet4bf& from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pload<Packet4bf>(const bfloat16* from) {
-unpacket_traits<Packet4bf>::alignment);
-return Packet4bf(pload<Packet4us>(reinterpret_cast<const uint16_t*>(from)));
+  return Packet4bf(
+      pload<Packet4us>(reinterpret_cast<const uint16_t*>(assume_aligned<unpacket_traits<Packet4bf>::alignment>(from))));
 }
 
 template <>
@@ -5201,8 +5201,7 @@ EIGEN_STRONG_INLINE Packet2d pcmp_eq(const Packet2d& a, const Packet2d& b) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pload<Packet2d>(const double* from) {
-unpacket_traits<Packet2d>::alignment);
-EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(from);
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f64(assume_aligned<unpacket_traits<Packet2d>::alignment>(from));
 }
 
 template <>
@@ -5743,14 +5742,14 @@ EIGEN_STRONG_INLINE Packet4hf pandnot<Packet4hf>(const Packet4hf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet8hf pload<Packet8hf>(const Eigen::half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(reinterpret_cast<const float16_t*>(
-    assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet8hf>::alignment>(from)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4hf pload<Packet4hf>(const Eigen::half* from) {
-  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(reinterpret_cast<const float16_t*>(
-    assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1_f16(
+      reinterpret_cast<const float16_t*>(assume_aligned<unpacket_traits<Packet4hf>::alignment>(from)));
 }
 
 template <>
