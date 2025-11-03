@@ -206,7 +206,6 @@ struct packet_traits<float> : default_packet_traits {
     HasErf = 0,
 #endif
     HasNegate = 1,
-    HasBlend = 1
   };
 };
 template <>
@@ -243,7 +242,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasTanh = 0,
     HasErf = 0,
     HasNegate = 1,
-    HasBlend = 1
   };
 };
 
@@ -265,7 +263,6 @@ struct packet_traits<int> : default_packet_traits {
 #else
     HasDiv = 0,
 #endif
-    HasBlend = 1,
     HasCmp = 1
   };
 };
@@ -283,7 +280,6 @@ struct packet_traits<short int> : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 0,
-    HasBlend = 1,
     HasCmp = 1
   };
 };
@@ -301,7 +297,6 @@ struct packet_traits<unsigned short int> : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 0,
-    HasBlend = 1,
     HasCmp = 1
   };
 };
@@ -319,7 +314,6 @@ struct packet_traits<signed char> : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 0,
-    HasBlend = 1,
     HasCmp = 1
   };
 };
@@ -337,7 +331,6 @@ struct packet_traits<unsigned char> : default_packet_traits {
     HasSub = 1,
     HasMul = 1,
     HasDiv = 0,
-    HasBlend = 1,
     HasCmp = 1
   };
 };
@@ -3055,74 +3048,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16uc, 16>& kernel) {
   kernel.packet[15] = vec_mergel(step3[7], step3[15]);
 }
 
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet pblend4(const Selector<4>& ifPacket, const Packet& thenPacket, const Packet& elsePacket) {
-  Packet4ui select = {ifPacket.select[0], ifPacket.select[1], ifPacket.select[2], ifPacket.select[3]};
-  Packet4ui mask = reinterpret_cast<Packet4ui>(pnegate(reinterpret_cast<Packet4i>(select)));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
-                                    const Packet4i& elsePacket) {
-  return pblend4<Packet4i>(ifPacket, thenPacket, elsePacket);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
-                                    const Packet4f& elsePacket) {
-  return pblend4<Packet4f>(ifPacket, thenPacket, elsePacket);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8s pblend(const Selector<8>& ifPacket, const Packet8s& thenPacket,
-                                    const Packet8s& elsePacket) {
-  Packet8us select = {ifPacket.select[0], ifPacket.select[1], ifPacket.select[2], ifPacket.select[3],
-                      ifPacket.select[4], ifPacket.select[5], ifPacket.select[6], ifPacket.select[7]};
-  Packet8us mask = reinterpret_cast<Packet8us>(pnegate(reinterpret_cast<Packet8s>(select)));
-  Packet8s result = vec_sel(elsePacket, thenPacket, mask);
-  return result;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8us pblend(const Selector<8>& ifPacket, const Packet8us& thenPacket,
-                                     const Packet8us& elsePacket) {
-  Packet8us select = {ifPacket.select[0], ifPacket.select[1], ifPacket.select[2], ifPacket.select[3],
-                      ifPacket.select[4], ifPacket.select[5], ifPacket.select[6], ifPacket.select[7]};
-  Packet8us mask = reinterpret_cast<Packet8us>(pnegate(reinterpret_cast<Packet8s>(select)));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8bf pblend(const Selector<8>& ifPacket, const Packet8bf& thenPacket,
-                                     const Packet8bf& elsePacket) {
-  return pblend<Packet8us>(ifPacket, thenPacket, elsePacket);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16c pblend(const Selector<16>& ifPacket, const Packet16c& thenPacket,
-                                     const Packet16c& elsePacket) {
-  Packet16uc select = {ifPacket.select[0],  ifPacket.select[1],  ifPacket.select[2],  ifPacket.select[3],
-                       ifPacket.select[4],  ifPacket.select[5],  ifPacket.select[6],  ifPacket.select[7],
-                       ifPacket.select[8],  ifPacket.select[9],  ifPacket.select[10], ifPacket.select[11],
-                       ifPacket.select[12], ifPacket.select[13], ifPacket.select[14], ifPacket.select[15]};
-
-  Packet16uc mask = reinterpret_cast<Packet16uc>(pnegate(reinterpret_cast<Packet16c>(select)));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16uc pblend(const Selector<16>& ifPacket, const Packet16uc& thenPacket,
-                                      const Packet16uc& elsePacket) {
-  Packet16uc select = {ifPacket.select[0],  ifPacket.select[1],  ifPacket.select[2],  ifPacket.select[3],
-                       ifPacket.select[4],  ifPacket.select[5],  ifPacket.select[6],  ifPacket.select[7],
-                       ifPacket.select[8],  ifPacket.select[9],  ifPacket.select[10], ifPacket.select[11],
-                       ifPacket.select[12], ifPacket.select[13], ifPacket.select[14], ifPacket.select[15]};
-
-  Packet16uc mask = reinterpret_cast<Packet16uc>(pnegate(reinterpret_cast<Packet16c>(select)));
-  return vec_sel(elsePacket, thenPacket, mask);
-}
-
 //---------- double ----------
 #ifdef EIGEN_VECTORIZE_VSX
 typedef __vector double Packet2d;
@@ -3191,7 +3116,6 @@ struct packet_traits<double> : default_packet_traits {
     HasRsqrt = 0,
 #endif
     HasNegate = 1,
-    HasBlend = 1
   };
 };
 
@@ -3715,14 +3639,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2d, 2>& kernel) {
   t1 = vec_mergel(kernel.packet[0], kernel.packet[1]);
   kernel.packet[0] = t0;
   kernel.packet[1] = t1;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
-                                    const Packet2d& elsePacket) {
-  Packet2l select = {ifPacket.select[0], ifPacket.select[1]};
-  Packet2ul mask = reinterpret_cast<Packet2ul>(pnegate(reinterpret_cast<Packet2l>(select)));
-  return vec_sel(elsePacket, thenPacket, mask);
 }
 
 #endif  // __VSX__

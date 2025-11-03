@@ -747,22 +747,6 @@ void packetmath() {
     }
   }
 
-  if (PacketTraits::HasBlend) {
-    Packet thenPacket = internal::pload<Packet>(data1);
-    Packet elsePacket = internal::pload<Packet>(data2);
-    EIGEN_ALIGN_MAX internal::Selector<PacketSize> selector;
-    for (int i = 0; i < PacketSize; ++i) {
-      selector.select[i] = i;
-    }
-
-    Packet blend = internal::pblend(selector, thenPacket, elsePacket);
-    EIGEN_ALIGN_MAX Scalar result[size];
-    internal::pstore(result, blend);
-    for (int i = 0; i < PacketSize; ++i) {
-      VERIFY(test::isApproxAbs(result[i], (selector.select[i] ? data1[i] : data2[i]), refvalue));
-    }
-  }
-
   {
     for (int i = 0; i < PacketSize; ++i) {
       // "if" mask

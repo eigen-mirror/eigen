@@ -1999,44 +1999,6 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet16b, 16>& kernel) {
   kernel.packet[15] = _mm_unpackhi_epi64(u7, uf);
 }
 
-EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<2>& ifPacket) {
-  return _mm_set_epi64x(0 - ifPacket.select[1], 0 - ifPacket.select[0]);
-}
-
-EIGEN_STRONG_INLINE __m128i sse_blend_mask(const Selector<4>& ifPacket) {
-  return _mm_set_epi32(0 - ifPacket.select[3], 0 - ifPacket.select[2], 0 - ifPacket.select[1], 0 - ifPacket.select[0]);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2l pblend(const Selector<2>& ifPacket, const Packet2l& thenPacket,
-                                    const Packet2l& elsePacket) {
-  const __m128i true_mask = sse_blend_mask(ifPacket);
-  return pselect<Packet2l>(true_mask, thenPacket, elsePacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pblend(const Selector<4>& ifPacket, const Packet4i& thenPacket,
-                                    const Packet4i& elsePacket) {
-  const __m128i true_mask = sse_blend_mask(ifPacket);
-  return pselect<Packet4i>(true_mask, thenPacket, elsePacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pblend(const Selector<4>& ifPacket, const Packet4ui& thenPacket,
-                                     const Packet4ui& elsePacket) {
-  return (Packet4ui)pblend(ifPacket, (Packet4i)thenPacket, (Packet4i)elsePacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pblend(const Selector<4>& ifPacket, const Packet4f& thenPacket,
-                                    const Packet4f& elsePacket) {
-  const __m128i true_mask = sse_blend_mask(ifPacket);
-  return pselect<Packet4f>(_mm_castsi128_ps(true_mask), thenPacket, elsePacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pblend(const Selector<2>& ifPacket, const Packet2d& thenPacket,
-                                    const Packet2d& elsePacket) {
-  const __m128i true_mask = sse_blend_mask(ifPacket);
-  return pselect<Packet2d>(_mm_castsi128_pd(true_mask), thenPacket, elsePacket);
-}
-
 // Scalar path for pmadd with FMA to ensure consistency with vectorized path.
 #if defined(EIGEN_VECTORIZE_FMA)
 template <>

@@ -53,7 +53,6 @@ struct packet_traits<numext::int32_t> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 0,
-    HasBlend = 0,
     HasReduxp = 0  // Not implemented in SVE
   };
 };
@@ -347,7 +346,6 @@ struct packet_traits<float> : default_packet_traits {
     HasMax = 1,
     HasConj = 1,
     HasSetLinear = 0,
-    HasBlend = 0,
     HasReduxp = 0,  // Not implemented in SVE
 
     HasDiv = 1,

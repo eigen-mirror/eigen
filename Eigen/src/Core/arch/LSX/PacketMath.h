@@ -171,7 +171,6 @@ struct packet_traits<int8_t> : default_packet_traits {
 
     HasSetLinear = 0,
     HasCmp = 1,
-    HasBlend = 0
   };
 };
 
@@ -187,7 +186,6 @@ struct packet_traits<int16_t> : default_packet_traits {
     HasSetLinear = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -203,7 +201,6 @@ struct packet_traits<int32_t> : default_packet_traits {
     HasSetLinear = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -219,7 +216,6 @@ struct packet_traits<int64_t> : default_packet_traits {
     HasSetLinear = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -235,7 +231,6 @@ struct packet_traits<uint8_t> : default_packet_traits {
     HasSetLinear = 0,
     HasNegate = 0,
     HasCmp = 1,
-    HasBlend = 0
   };
 };
 
@@ -252,7 +247,6 @@ struct packet_traits<uint16_t> : default_packet_traits {
     HasNegate = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -269,7 +263,6 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasNegate = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -286,7 +279,6 @@ struct packet_traits<uint64_t> : default_packet_traits {
     HasNegate = 0,
     HasCmp = 1,
     HasDiv = 1,
-    HasBlend = 0
   };
 };
 
@@ -300,7 +292,6 @@ struct packet_traits<float> : default_packet_traits {
     size = 4,
 
     HasSetLinear = 0,
-    HasBlend = 0,
     HasSign = 0,
     HasDiv = 1,
     HasExp = 1,
@@ -320,7 +311,6 @@ struct packet_traits<double> : default_packet_traits {
     size = 2,
 
     HasSetLinear = 0,
-    HasBlend = 0,
     HasSign = 0,
     HasDiv = 1,
     HasSqrt = 1,
