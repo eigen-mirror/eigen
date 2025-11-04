@@ -89,7 +89,7 @@ class TriangularBase : public EigenBase<Derived> {
     return coeffRef(row, col);
   }
 
-#if __cpp_multidimensional_subscript >= 202110L
+#ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   EIGEN_DEVICE_FUNC inline Scalar operator[](Index row, Index col) const { return operator()(row, col); }
   EIGEN_DEVICE_FUNC inline Scalar& operator[](Index row, Index col) { return operator()(row, col); }
 #endif

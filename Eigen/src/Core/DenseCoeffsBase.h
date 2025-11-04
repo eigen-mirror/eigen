@@ -113,7 +113,7 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
     return coeff(row, col);
   }
 
-#if __cpp_multidimensional_subscript >= 202110L
+#ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   /** \returns the coefficient at given the given row and column.
    *
    * \sa operator[](Index,Index), operator[](Index)
@@ -331,7 +331,7 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
     return coeffRef(row, col);
   }
 
-#if __cpp_multidimensional_subscript >= 202110L
+#ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   /** \returns a reference to the coefficient at given the given row and column.
    *
    * \sa operator[](Index)

@@ -63,7 +63,7 @@ class companion {
     }
   }
 
-#if __cpp_multidimensional_subscript >= 202110L
+#ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   EIGEN_STRONG_INLINE const Scalar_ operator[](Index row, Index col) const { return operator()(row, col); }
 #endif
 

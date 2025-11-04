@@ -117,7 +117,7 @@ class SimpleTensorContractionMapper {
     return m_tensor.coeff(computeIndex(row, col));
   }
 
-#if __cpp_multidimensional_subscript >= 202110L
+#ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator[](Index row, Index col) const { return operator()(row, col); }
 #endif
 
