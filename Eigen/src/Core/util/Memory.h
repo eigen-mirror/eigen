@@ -1354,6 +1354,13 @@ EIGEN_DEVICE_FUNC void destroy_at(T* p) {
 }
 #endif
 
+// FIXME(rmlarsen): Work around missing linker symbol with msan on ARM.
+#if !defined(EIGEN_DONT_ASSUME_ALIGNED) && __has_feature(memory_sanitizer) && \
+    (EIGEN_ARCH_ARM || EIGEN_ARCH_ARM64)
+#define EIGEN_DONT_ASSUME_ALIGNED
+#endif
+
+
 #if !defined(EIGEN_DONT_ASSUME_ALIGNED) && defined(__cpp_lib_assume_aligned) && (__cpp_lib_assume_aligned >= 201811L)
 template <std::size_t N, typename T>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr T* assume_aligned(T* ptr) {
