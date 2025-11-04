@@ -63,6 +63,10 @@ class companion {
     }
   }
 
+#if __cpp_multidimensional_subscript >= 202110L
+  EIGEN_STRONG_INLINE const Scalar_ operator[](Index row, Index col) const { return operator()(row, col); }
+#endif
+
  public:
   template <typename VectorType>
   void setPolynomial(const VectorType& poly) {

@@ -89,6 +89,11 @@ class TriangularBase : public EigenBase<Derived> {
     return coeffRef(row, col);
   }
 
+#if __cpp_multidimensional_subscript >= 202110L
+  EIGEN_DEVICE_FUNC inline Scalar operator[](Index row, Index col) const { return operator()(row, col); }
+  EIGEN_DEVICE_FUNC inline Scalar& operator[](Index row, Index col) { return operator()(row, col); }
+#endif
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
   EIGEN_DEVICE_FUNC inline Derived& derived() { return *static_cast<Derived*>(this); }

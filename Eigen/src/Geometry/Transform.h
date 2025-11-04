@@ -365,6 +365,15 @@ class Transform {
    * \sa MatrixBase::operator(Index,Index) */
   EIGEN_DEVICE_FUNC inline Scalar& operator()(Index row, Index col) { return m_matrix(row, col); }
 
+#if __cpp_multidimensional_subscript >= 202110L
+  /** shortcut for m_matrix(row,col);
+   * \sa MatrixBase::operator(Index,Index) const */
+  EIGEN_DEVICE_FUNC inline Scalar operator[](Index row, Index col) const { return m_matrix[row, col]; }
+  /** shortcut for m_matrix(row,col);
+   * \sa MatrixBase::operator(Index,Index) */
+  EIGEN_DEVICE_FUNC inline Scalar& operator[](Index row, Index col) { return m_matrix[row, col]; }
+#endif
+
   /** \returns a read-only expression of the transformation matrix */
   EIGEN_DEVICE_FUNC inline const MatrixType& matrix() const { return m_matrix; }
   /** \returns a writable expression of the transformation matrix */
