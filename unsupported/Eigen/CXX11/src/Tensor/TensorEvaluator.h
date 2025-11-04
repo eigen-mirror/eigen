@@ -789,7 +789,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<!UseTernary, bool> = true>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    Scalar arr[PacketSize];
+    std::remove_const_t<Scalar> arr[PacketSize];
     EIGEN_UNROLL_LOOP
     for (Index i = 0; i < PacketSize; ++i) {
       arr[i] = m_condImpl.coeff(index + i) ? Scalar(-1) : Scalar(0);
