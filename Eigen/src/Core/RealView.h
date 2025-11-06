@@ -17,7 +17,7 @@ namespace Eigen {
 
 namespace internal {
 
-// Vectorized assignment to RealView requires array-oriented access to the real and imaginary components.
+// Write access and vectorization requires array-oriented access to the real and imaginary components.
 // From https://en.cppreference.com/w/cpp/numeric/complex.html:
 // For any pointer to an element of an array of std::complex<T> named p and any valid array index i,
 // reinterpret_cast<T*>(p)[2 * i] is the real part of the complex number p[i], and
@@ -40,15 +40,17 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
     if (size_as_int == Dynamic) return Dynamic;
     return times_two ? (2 * size_as_int) : size_as_int;
   }
+
   using Base = traits<Xpr>;
   using ComplexScalar = typename Base::Scalar;
-
   using Scalar = typename NumTraits<ComplexScalar>::Real;
+
   static constexpr int ActualDirectAccessBit = complex_array_access<ComplexScalar>::value ? DirectAccessBit : 0;
-  static constexpr int ActualLvaluebit = complex_array_access<ComplexScalar>::value ? LvalueBit : 0;
+  static constexpr int ActualLvaluebit =
+      !std::is_const<Xpr>::value && complex_array_access<ComplexScalar>::value ? LvalueBit : 0;
   static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
   static constexpr int FlagMask =
-      ActualLvaluebit | ActualPacketAccessBit | ActualDirectAccessBit | HereditaryBits | LinearAccessBit;
+      ActualDirectAccessBit | ActualLvaluebit | ActualPacketAccessBit | HereditaryBits | LinearAccessBit;
   static constexpr int BaseFlags = int(evaluator<Xpr>::Flags) | int(Base::Flags);
   static constexpr int Flags = BaseFlags & FlagMask;
   static constexpr bool IsRowMajor = Flags & RowMajorBit;
@@ -70,19 +72,18 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
   using ComplexScalar = typename ExpressionTraits::ComplexScalar;
   using Scalar = typename ExpressionTraits::Scalar;
 
-  static constexpr bool IsRowMajor = ExpressionTraits::IsRowMajor;
   static constexpr int Flags = ExpressionTraits::Flags;
-  static constexpr bool ArrayAccess = complex_array_access<ComplexScalar>::value;
   static constexpr int CoeffReadCost = BaseEvaluator::CoeffReadCost;
   static constexpr int Alignment = BaseEvaluator::Alignment;
-  static constexpr bool ReturnConstRef = Flags & DirectAccessBit;
+  static constexpr bool IsRowMajor = ExpressionTraits::IsRowMajor;
+  static constexpr bool DirectAccess = Flags & DirectAccessBit;
 
-  using ComplexCoeffReturnType = std::conditional_t<ReturnConstRef, const ComplexScalar&, ComplexScalar>;
-  using CoeffReturnType = std::conditional_t<ReturnConstRef, const Scalar&, Scalar>;
+  using ComplexCoeffReturnType = std::conditional_t<DirectAccess, const ComplexScalar&, ComplexScalar>;
+  using CoeffReturnType = std::conditional_t<DirectAccess, const Scalar&, Scalar>;
 
   EIGEN_DEVICE_FUNC explicit evaluator(XprType realView) : BaseEvaluator(realView.m_xpr) {}
 
-  template <bool Enable = ArrayAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -90,7 +91,7 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexScalar ccoeff = BaseEvaluator::coeff(r, c);
     return p ? numext::imag(ccoeff) : numext::real(ccoeff);
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -98,23 +99,23 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexCoeffReturnType ccoeff = BaseEvaluator::coeff(r, c);
     return reinterpret_cast<const Scalar(&)[2]>(ccoeff)[p];
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
     ComplexScalar ccoeff = BaseEvaluator::coeff(index / 2);
     bool p = index & 1;
     return p ? numext::imag(ccoeff) : numext::real(ccoeff);
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     ComplexCoeffReturnType ccoeff = BaseEvaluator::coeff(index / 2);
     Index p = index & 1;
     return reinterpret_cast<const Scalar(&)[2]>(ccoeff)[p];
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
     EIGEN_STATIC_ASSERT(false, WRITE ACCESS IS NOT SUPPORTED FOR CUSTOM COMPLEX SCALARS)
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index row, Index col) {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -122,16 +123,20 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexScalar& ccoeffRef = BaseEvaluator::coeffRef(r, c);
     return reinterpret_cast<Scalar(&)[2]>(ccoeffRef)[p];
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
     EIGEN_STATIC_ASSERT(false, WRITE ACCESS IS NOT SUPPORTED FOR CUSTOM COMPLEX SCALARS)
   }
-  template <bool Enable = ArrayAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) {
     ComplexScalar& ccoeffRef = BaseEvaluator::coeffRef(index / 2);
     Index p = index & 1;
     return reinterpret_cast<Scalar(&)[2]>(ccoeffRef)[p];
   }
+
+  // In the event that Eigen attempts packet access beginning with an odd (imaginary) index, discard the first scalar
+  // in 'result' and assign the missing scalar.
+  // This operation is safe as the real component of the first scalar must exist.
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
@@ -173,24 +178,33 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     return result;
   }
 
+  // The requested real packet segment forms the half-open interval [begin, end), where 'end' = 'begin' + 'count'.
+  // In order to access the underlying complex array and obtain the requested interval, even indices must be
+  // aligned with the real components of the complex scalars. 'begin' and 'count' must be modified as follows:
+  // a) 'begin' must be rounded down to the nearest even number; and
+  // b) 'end' must be rounded up to the nearest even number.
+
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
     constexpr int RealPacketSize = unpacket_traits<PacketType>::size;
     using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
     EIGEN_STATIC_ASSERT((find_packet_by_size<ComplexScalar, RealPacketSize / 2>::value),
                         MISSING COMPATIBLE COMPLEX PACKET TYPE)
-    count += (begin & 1) + 1;
+    Index actualBegin = numext::round_down(begin, 2);
+    Index actualEnd = numext::round_down(begin + count + 1, 2);
+    Index actualCount = actualEnd - actualBegin;
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
-    bool p = (IsRowMajor ? col : row) & 1;
-    ComplexPacket cresult = BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(r, c, begin / 2, count / 2);
+    ComplexPacket cresult =
+        BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(r, c, actualBegin / 2, actualCount / 2);
     PacketType result = preinterpret<PacketType>(cresult);
+    bool p = (IsRowMajor ? col : row) & 1;
     if (p) {
-      Scalar aux[RealPacketSize + 1];
+      Scalar aux[RealPacketSize + 1] = {};
       pstoreu(aux, result);
-      Index lastr = IsRowMajor ? row : row + RealPacketSize - 1;
-      Index lastc = IsRowMajor ? col + RealPacketSize - 1 : col;
-      aux[RealPacketSize] = coeff(lastr, lastc);
+      Index lastr = IsRowMajor ? row : row + actualEnd - 1;
+      Index lastc = IsRowMajor ? col + actualEnd - 1 : col;
+      aux[actualEnd] = coeff(lastr, lastc);
       result = ploadu<PacketType>(aux + 1);
     }
     return result;
@@ -202,15 +216,17 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
     EIGEN_STATIC_ASSERT((find_packet_by_size<ComplexScalar, RealPacketSize / 2>::value),
                         MISSING COMPATIBLE COMPLEX PACKET TYPE)
-    count += (begin & 1) + 1;
-    bool p = index & 1;
+    Index actualBegin = numext::round_down(begin, 2);
+    Index actualEnd = numext::round_down(begin + count + 1, 2);
+    Index actualCount = actualEnd - actualBegin;
     ComplexPacket cresult =
-        BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(index / 2, begin / 2, count / 2);
+        BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(index / 2, actualBegin / 2, actualCount / 2);
     PacketType result = preinterpret<PacketType>(cresult);
+    bool p = index & 1;
     if (p) {
-      Scalar aux[RealPacketSize + 1];
+      Scalar aux[RealPacketSize + 1] = {};
       pstoreu(aux, result);
-      aux[RealPacketSize] = coeff(index + RealPacketSize - 1);
+      aux[actualEnd] = coeff(index + actualEnd - 1);
       result = ploadu<PacketType>(aux + 1);
     }
     return result;
@@ -237,7 +253,10 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
     m_xpr.resize(Xpr::IsRowMajor ? rows : rows / 2, Xpr::IsRowMajor ? cols / 2 : cols);
   }
   EIGEN_DEVICE_FUNC void resize(Index size) { m_xpr.resize(size / 2); }
-  EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
+  template <bool Enable = !std::is_const<Xpr>::value, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC Scalar* data() {
+    return reinterpret_cast<Scalar*>(m_xpr.data());
+  }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
   EIGEN_DEVICE_FUNC RealView(const RealView&) = default;
