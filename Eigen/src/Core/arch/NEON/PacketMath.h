@@ -3500,27 +3500,27 @@ EIGEN_STRONG_INLINE uint64_t predux<Packet2ul>(const Packet2ul& a) {
 #endif
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c predux_half_dowto4(const Packet8c& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4c predux_half(const Packet8c& a) {
   return vget_lane_s32(vreinterpret_s32_s8(vadd_s8(a, vreinterpret_s8_s32(vrev64_s32(vreinterpret_s32_s8(a))))), 0);
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8c predux_half_dowto4(const Packet16c& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8c predux_half(const Packet16c& a) {
   return vadd_s8(vget_high_s8(a), vget_low_s8(a));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc predux_half_dowto4(const Packet8uc& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4uc predux_half(const Packet8uc& a) {
   return vget_lane_u32(vreinterpret_u32_u8(vadd_u8(a, vreinterpret_u8_u32(vrev64_u32(vreinterpret_u32_u8(a))))), 0);
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8uc predux_half_dowto4(const Packet16uc& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8uc predux_half(const Packet16uc& a) {
   return vadd_u8(vget_high_u8(a), vget_low_u8(a));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4s predux_half_dowto4(const Packet8s& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4s predux_half(const Packet8s& a) {
   return vadd_s16(vget_high_s16(a), vget_low_s16(a));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4us predux_half_dowto4(const Packet8us& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4us predux_half(const Packet8us& a) {
   return vadd_u16(vget_high_u16(a), vget_low_u16(a));
 }
 
@@ -5401,7 +5401,7 @@ struct unpacket_traits<Packet8hf> : neon_unpacket_default<Packet8hf, half> {
 };
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half_dowto4<Packet8hf>(const Packet8hf& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf predux_half<Packet8hf>(const Packet8hf& a) {
   return vadd_f16(vget_low_f16(a), vget_high_f16(a));
 }
 
