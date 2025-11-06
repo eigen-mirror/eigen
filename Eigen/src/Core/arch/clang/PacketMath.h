@@ -541,7 +541,7 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
 #endif
 
 // --- Fused Multiply-Add (MADD) ---
-#if defined(EIGEN_VECTORIZE_FMA) && __has_builtin(__builtin_elementwise_fma)
+#if defined(__FMA__) && __has_builtin(__builtin_elementwise_fma)
 #define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
