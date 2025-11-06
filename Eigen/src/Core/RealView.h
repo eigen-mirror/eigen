@@ -45,9 +45,9 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   using ComplexScalar = typename Base::Scalar;
   using Scalar = typename NumTraits<ComplexScalar>::Real;
 
-  static constexpr int ActualDirectAccessBit = complex_array_access<ComplexScalar>::value ? DirectAccessBit : 0;
-  static constexpr int ActualLvaluebit =
-      !std::is_const<Xpr>::value && complex_array_access<ComplexScalar>::value ? LvalueBit : 0;
+  static constexpr bool ArrayAccess = complex_array_access<ComplexScalar>::value;
+  static constexpr int ActualDirectAccessBit = ArrayAccess ? DirectAccessBit : 0;
+  static constexpr int ActualLvaluebit = !std::is_const<Xpr>::value && ArrayAccess ? LvalueBit : 0;
   static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
   static constexpr int FlagMask =
       ActualDirectAccessBit | ActualLvaluebit | ActualPacketAccessBit | HereditaryBits | LinearAccessBit;
@@ -134,7 +134,7 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     return reinterpret_cast<Scalar(&)[2]>(ccoeffRef)[p];
   }
 
-  // In the event that Eigen attempts packet access beginning with an odd (imaginary) index, discard the first scalar
+  // If the first index is odd (imaginary), discard the first scalar
   // in 'result' and assign the missing scalar.
   // This operation is safe as the real component of the first scalar must exist.
 
@@ -179,8 +179,8 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
   }
 
   // The requested real packet segment forms the half-open interval [begin, end), where 'end' = 'begin' + 'count'.
-  // In order to access the underlying complex array and obtain the requested interval, even indices must be
-  // aligned with the real components of the complex scalars. 'begin' and 'count' must be modified as follows:
+  // In order to access the underlying complex array, even indices must be aligned with the real components
+  // of the complex scalars. 'begin' and 'count' must be modified as follows:
   // a) 'begin' must be rounded down to the nearest even number; and
   // b) 'end' must be rounded up to the nearest even number.
 
