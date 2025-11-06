@@ -100,7 +100,10 @@ struct scalar_abs2_op {
 };
 template <typename Scalar>
 struct functor_traits<scalar_abs2_op<Scalar>> {
-  enum { Cost = NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasAbs2 };
+  enum {
+    Cost = NumTraits<Scalar>::MulCost,
+    PacketAccess = packet_traits<Scalar>::HasMul && !NumTraits<Scalar>::IsComplex
+  };
 };
 
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>

@@ -84,7 +84,6 @@ struct packet_traits<half> : default_packet_traits {
     HasDiv = 1,
     HasNegate = 1,
     HasAbs = 1,
-    HasAbs2 = 0,
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
@@ -160,6 +159,8 @@ struct packet_traits<double> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
+    HasLog1p = 1,
+    HasExpm1 = 1,
     HasPow = 1,
     HasATan = 1,
     HasTanh = EIGEN_FAST_MATH,
@@ -2055,27 +2056,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16i, 4>& kernel) {
   PACK_OUTPUT_I32_2(kernel.packet, tmp.packet, 1, 1);
   PACK_OUTPUT_I32_2(kernel.packet, tmp.packet, 2, 1);
   PACK_OUTPUT_I32_2(kernel.packet, tmp.packet, 3, 1);
-}
-
-template <size_t N>
-EIGEN_STRONG_INLINE int avx512_blend_mask(const Selector<N>& ifPacket) {
-  alignas(__m128i) uint8_t aux[sizeof(__m128i)];
-  for (size_t i = 0; i < N; i++) aux[i] = static_cast<uint8_t>(ifPacket.select[i]);
-  __m128i paux = _mm_sub_epi8(_mm_setzero_si128(), _mm_load_si128(reinterpret_cast<const __m128i*>(aux)));
-  return _mm_movemask_epi8(paux);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16f pblend(const Selector<16>& ifPacket, const Packet16f& thenPacket,
-                                     const Packet16f& elsePacket) {
-  __mmask16 m = avx512_blend_mask(ifPacket);
-  return _mm512_mask_blend_ps(m, elsePacket, thenPacket);
-}
-template <>
-EIGEN_STRONG_INLINE Packet8d pblend(const Selector<8>& ifPacket, const Packet8d& thenPacket,
-                                    const Packet8d& elsePacket) {
-  __mmask8 m = avx512_blend_mask(ifPacket);
-  return _mm512_mask_blend_pd(m, elsePacket, thenPacket);
 }
 
 // Packet math for Eigen::half

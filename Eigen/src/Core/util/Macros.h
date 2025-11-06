@@ -837,6 +837,11 @@
 #endif
 #endif
 
+// Multidimensional subscript operator feature test
+#if defined(__cpp_multidimensional_subscript) && __cpp_multidimensional_subscript >= 202110L
+#define EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
+#endif
+
 //------------------------------------------------------------------------------------------
 // Preprocessor programming helpers
 //------------------------------------------------------------------------------------------

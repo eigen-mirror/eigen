@@ -25,8 +25,8 @@ EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(Packet8f)
 
 EIGEN_DOUBLE_PACKET_FUNCTION(atanh, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(log, Packet4d)
-EIGEN_DOUBLE_PACKET_FUNCTION(log2, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(exp, Packet4d)
+EIGEN_DOUBLE_PACKET_FUNCTION(log2, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(tanh, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(cbrt, Packet4d)
 #ifdef EIGEN_VECTORIZE_AVX2
@@ -35,6 +35,8 @@ EIGEN_DOUBLE_PACKET_FUNCTION(cos, Packet4d)
 #endif
 EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet4d)
 EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet4d)
+EIGEN_GENERIC_PACKET_FUNCTION(expm1, Packet4d)
+EIGEN_GENERIC_PACKET_FUNCTION(log1p, Packet4d)
 
 // Notice that for newer processors, it is counterproductive to use Newton
 // iteration for square root. In particular, Skylake and Zen2 processors
