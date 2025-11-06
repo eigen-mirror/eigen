@@ -38,21 +38,10 @@ template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEMVPacketFu
 class gemv_traits {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 
-#ifdef EIGEN_RISCV64_USE_RVV10
-#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                                       \
-  typedef typename std::conditional_t<                                                                             \
-      NumTraits<LhsScalar>::IsComplex || NumTraits<RhsScalar>::IsComplex,                                          \
-      typename packet_traits<name##Scalar, 2>::type,                                                               \
-      typename gemv_packet_cond<packet_size, typename packet_traits<name##Scalar>::type,                           \
-                                typename packet_traits<name##Scalar>::half,                                        \
-                                typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type> \
-      name##Packet##postfix
-#else
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
   typedef typename gemv_packet_cond<                                                                       \
       packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
       typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet##postfix
-#endif
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);

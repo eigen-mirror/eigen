@@ -533,13 +533,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
     MaxColsAtCompileTime = RhsNestedCleaned::MaxColsAtCompileTime
   };
 
-#ifdef EIGEN_RISCV64_USE_RVV10
-  typedef typename find_best_packet<Scalar, RowsAtCompileTime, EIGEN_RISCV64_DEFAULT_LMUL>::type LhsVecPacketType;
-  typedef typename find_best_packet<Scalar, ColsAtCompileTime, EIGEN_RISCV64_DEFAULT_LMUL>::type RhsVecPacketType;
-#else
   typedef typename find_best_packet<Scalar, RowsAtCompileTime>::type LhsVecPacketType;
   typedef typename find_best_packet<Scalar, ColsAtCompileTime>::type RhsVecPacketType;
-#endif
 
   enum {
 

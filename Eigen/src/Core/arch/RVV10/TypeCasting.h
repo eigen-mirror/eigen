@@ -29,22 +29,22 @@ struct type_casting_traits<numext::int32_t, float> {
 };
 
 template <>
-EIGEN_STRONG_INLINE PacketXf pcast<PacketXi, PacketXf>(const PacketXi& a) {
-  return __riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketXi>::size);
+EIGEN_STRONG_INLINE PacketMul1Xf pcast<PacketMul1Xi, PacketMul1Xf>(const PacketMul1Xi& a) {
+  return __riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketMul1Xi>::size);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXi pcast<PacketXf, PacketXi>(const PacketXf& a) {
-  return __riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketXf>::size);
+EIGEN_STRONG_INLINE PacketMul1Xi pcast<PacketMul1Xf, PacketMul1Xi>(const PacketMul1Xf& a) {
+  return __riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketMul1Xf>::size);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXf preinterpret<PacketXf, PacketXi>(const PacketXi& a) {
+EIGEN_STRONG_INLINE PacketMul1Xf preinterpret<PacketMul1Xf, PacketMul1Xi>(const PacketMul1Xi& a) {
   return __riscv_vreinterpret_v_i32m1_f32m1(a);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXi preinterpret<PacketXi, PacketXf>(const PacketXf& a) {
+EIGEN_STRONG_INLINE PacketMul1Xi preinterpret<PacketMul1Xi, PacketMul1Xf>(const PacketMul1Xf& a) {
   return __riscv_vreinterpret_v_f32m1_i32m1(a);
 }
 
@@ -89,55 +89,55 @@ EIGEN_STRONG_INLINE PacketMul2Xi preinterpret<PacketMul2Xi, PacketMul2Xf>(const 
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xi pcast<PacketXi, PacketMul4Xi>(const PacketXi& a, const PacketXi& b, const PacketXi& c,
-                                                               const PacketXi& d) {
+EIGEN_STRONG_INLINE PacketMul4Xi pcast<PacketMul1Xi, PacketMul4Xi>(const PacketMul1Xi& a, const PacketMul1Xi& b, const PacketMul1Xi& c,
+                                                               const PacketMul1Xi& d) {
   return __riscv_vcreate_v_i32m1_i32m4(a, b, c, d);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xf pcast<PacketXi, PacketMul4Xf>(const PacketXi& a, const PacketXi& b, const PacketXi& c,
-                                                               const PacketXi& d) {
-  return __riscv_vcreate_v_f32m1_f32m4(__riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketXi>::size),
-                                       __riscv_vfcvt_f_x_v_f32m1(b, unpacket_traits<PacketXi>::size),
-                                       __riscv_vfcvt_f_x_v_f32m1(c, unpacket_traits<PacketXi>::size),
-                                       __riscv_vfcvt_f_x_v_f32m1(d, unpacket_traits<PacketXi>::size));
+EIGEN_STRONG_INLINE PacketMul4Xf pcast<PacketMul1Xi, PacketMul4Xf>(const PacketMul1Xi& a, const PacketMul1Xi& b, const PacketMul1Xi& c,
+                                                               const PacketMul1Xi& d) {
+  return __riscv_vcreate_v_f32m1_f32m4(__riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketMul1Xi>::size),
+                                       __riscv_vfcvt_f_x_v_f32m1(b, unpacket_traits<PacketMul1Xi>::size),
+                                       __riscv_vfcvt_f_x_v_f32m1(c, unpacket_traits<PacketMul1Xi>::size),
+                                       __riscv_vfcvt_f_x_v_f32m1(d, unpacket_traits<PacketMul1Xi>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xf pcast<PacketXf, PacketMul4Xf>(const PacketXf& a, const PacketXf& b, const PacketXf& c,
-                                                               const PacketXf& d) {
+EIGEN_STRONG_INLINE PacketMul4Xf pcast<PacketMul1Xf, PacketMul4Xf>(const PacketMul1Xf& a, const PacketMul1Xf& b, const PacketMul1Xf& c,
+                                                               const PacketMul1Xf& d) {
   return __riscv_vcreate_v_f32m1_f32m4(a, b, c, d);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xi pcast<PacketXf, PacketMul4Xi>(const PacketXf& a, const PacketXf& b, const PacketXf& c,
-                                                               const PacketXf& d) {
-  return __riscv_vcreate_v_i32m1_i32m4(__riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketXf>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i32m1(b, unpacket_traits<PacketXf>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i32m1(c, unpacket_traits<PacketXf>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i32m1(d, unpacket_traits<PacketXf>::size));
+EIGEN_STRONG_INLINE PacketMul4Xi pcast<PacketMul1Xf, PacketMul4Xi>(const PacketMul1Xf& a, const PacketMul1Xf& b, const PacketMul1Xf& c,
+                                                               const PacketMul1Xf& d) {
+  return __riscv_vcreate_v_i32m1_i32m4(__riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketMul1Xf>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i32m1(b, unpacket_traits<PacketMul1Xf>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i32m1(c, unpacket_traits<PacketMul1Xf>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i32m1(d, unpacket_traits<PacketMul1Xf>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xi pcast<PacketXi, PacketMul2Xi>(const PacketXi& a, const PacketXi& b) {
+EIGEN_STRONG_INLINE PacketMul2Xi pcast<PacketMul1Xi, PacketMul2Xi>(const PacketMul1Xi& a, const PacketMul1Xi& b) {
   return __riscv_vcreate_v_i32m1_i32m2(a, b);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xf pcast<PacketXi, PacketMul2Xf>(const PacketXi& a, const PacketXi& b) {
-  return __riscv_vcreate_v_f32m1_f32m2(__riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketXi>::size),
-                                       __riscv_vfcvt_f_x_v_f32m1(b, unpacket_traits<PacketXi>::size));
+EIGEN_STRONG_INLINE PacketMul2Xf pcast<PacketMul1Xi, PacketMul2Xf>(const PacketMul1Xi& a, const PacketMul1Xi& b) {
+  return __riscv_vcreate_v_f32m1_f32m2(__riscv_vfcvt_f_x_v_f32m1(a, unpacket_traits<PacketMul1Xi>::size),
+                                       __riscv_vfcvt_f_x_v_f32m1(b, unpacket_traits<PacketMul1Xi>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xf pcast<PacketXf, PacketMul2Xf>(const PacketXf& a, const PacketXf& b) {
+EIGEN_STRONG_INLINE PacketMul2Xf pcast<PacketMul1Xf, PacketMul2Xf>(const PacketMul1Xf& a, const PacketMul1Xf& b) {
   return __riscv_vcreate_v_f32m1_f32m2(a, b);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xi pcast<PacketXf, PacketMul2Xi>(const PacketXf& a, const PacketXf& b) {
-  return __riscv_vcreate_v_i32m1_i32m2(__riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketXf>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i32m1(b, unpacket_traits<PacketXf>::size));
+EIGEN_STRONG_INLINE PacketMul2Xi pcast<PacketMul1Xf, PacketMul2Xi>(const PacketMul1Xf& a, const PacketMul1Xf& b) {
+  return __riscv_vcreate_v_i32m1_i32m2(__riscv_vfcvt_rtz_x_f_v_i32m1(a, unpacket_traits<PacketMul1Xf>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i32m1(b, unpacket_traits<PacketMul1Xf>::size));
 }
 
 /********************************* 64 bits ************************************/
@@ -153,22 +153,22 @@ struct type_casting_traits<numext::int64_t, double> {
 };
 
 template <>
-EIGEN_STRONG_INLINE PacketXd pcast<PacketXl, PacketXd>(const PacketXl& a) {
-  return __riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketXl>::size);
+EIGEN_STRONG_INLINE PacketMul1Xd pcast<PacketMul1Xl, PacketMul1Xd>(const PacketMul1Xl& a) {
+  return __riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketMul1Xl>::size);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXl pcast<PacketXd, PacketXl>(const PacketXd& a) {
-  return __riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketXd>::size);
+EIGEN_STRONG_INLINE PacketMul1Xl pcast<PacketMul1Xd, PacketMul1Xl>(const PacketMul1Xd& a) {
+  return __riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketMul1Xd>::size);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXd preinterpret<PacketXd, PacketXl>(const PacketXl& a) {
+EIGEN_STRONG_INLINE PacketMul1Xd preinterpret<PacketMul1Xd, PacketMul1Xl>(const PacketMul1Xl& a) {
   return __riscv_vreinterpret_v_i64m1_f64m1(a);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXl preinterpret<PacketXl, PacketXd>(const PacketXd& a) {
+EIGEN_STRONG_INLINE PacketMul1Xl preinterpret<PacketMul1Xl, PacketMul1Xd>(const PacketMul1Xd& a) {
   return __riscv_vreinterpret_v_f64m1_i64m1(a);
 }
 
@@ -213,68 +213,68 @@ EIGEN_STRONG_INLINE PacketMul2Xl preinterpret<PacketMul2Xl, PacketMul2Xd>(const 
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xl pcast<PacketXl, PacketMul4Xl>(const PacketXl& a, const PacketXl& b, const PacketXl& c,
-                                                               const PacketXl& d) {
+EIGEN_STRONG_INLINE PacketMul4Xl pcast<PacketMul1Xl, PacketMul4Xl>(const PacketMul1Xl& a, const PacketMul1Xl& b, const PacketMul1Xl& c,
+                                                               const PacketMul1Xl& d) {
   return __riscv_vcreate_v_i64m1_i64m4(a, b, c, d);
   ;
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xd pcast<PacketXl, PacketMul4Xd>(const PacketXl& a, const PacketXl& b, const PacketXl& c,
-                                                               const PacketXl& d) {
-  return __riscv_vcreate_v_f64m1_f64m4(__riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketXl>::size),
-                                       __riscv_vfcvt_f_x_v_f64m1(b, unpacket_traits<PacketXl>::size),
-                                       __riscv_vfcvt_f_x_v_f64m1(c, unpacket_traits<PacketXl>::size),
-                                       __riscv_vfcvt_f_x_v_f64m1(d, unpacket_traits<PacketXl>::size));
+EIGEN_STRONG_INLINE PacketMul4Xd pcast<PacketMul1Xl, PacketMul4Xd>(const PacketMul1Xl& a, const PacketMul1Xl& b, const PacketMul1Xl& c,
+                                                               const PacketMul1Xl& d) {
+  return __riscv_vcreate_v_f64m1_f64m4(__riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketMul1Xl>::size),
+                                       __riscv_vfcvt_f_x_v_f64m1(b, unpacket_traits<PacketMul1Xl>::size),
+                                       __riscv_vfcvt_f_x_v_f64m1(c, unpacket_traits<PacketMul1Xl>::size),
+                                       __riscv_vfcvt_f_x_v_f64m1(d, unpacket_traits<PacketMul1Xl>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xd pcast<PacketXd, PacketMul4Xd>(const PacketXd& a, const PacketXd& b, const PacketXd& c,
-                                                               const PacketXd& d) {
+EIGEN_STRONG_INLINE PacketMul4Xd pcast<PacketMul1Xd, PacketMul4Xd>(const PacketMul1Xd& a, const PacketMul1Xd& b, const PacketMul1Xd& c,
+                                                               const PacketMul1Xd& d) {
   return __riscv_vcreate_v_f64m1_f64m4(a, b, c, d);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xl pcast<PacketXd, PacketMul4Xl>(const PacketXd& a, const PacketXd& b, const PacketXd& c,
-                                                               const PacketXd& d) {
-  return __riscv_vcreate_v_i64m1_i64m4(__riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketXd>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i64m1(b, unpacket_traits<PacketXd>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i64m1(c, unpacket_traits<PacketXd>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i64m1(d, unpacket_traits<PacketXd>::size));
+EIGEN_STRONG_INLINE PacketMul4Xl pcast<PacketMul1Xd, PacketMul4Xl>(const PacketMul1Xd& a, const PacketMul1Xd& b, const PacketMul1Xd& c,
+                                                               const PacketMul1Xd& d) {
+  return __riscv_vcreate_v_i64m1_i64m4(__riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketMul1Xd>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i64m1(b, unpacket_traits<PacketMul1Xd>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i64m1(c, unpacket_traits<PacketMul1Xd>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i64m1(d, unpacket_traits<PacketMul1Xd>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xl pcast<PacketXl, PacketMul2Xl>(const PacketXl& a, const PacketXl& b) {
+EIGEN_STRONG_INLINE PacketMul2Xl pcast<PacketMul1Xl, PacketMul2Xl>(const PacketMul1Xl& a, const PacketMul1Xl& b) {
   return __riscv_vcreate_v_i64m1_i64m2(a, b);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xd pcast<PacketXl, PacketMul2Xd>(const PacketXl& a, const PacketXl& b) {
-  return __riscv_vcreate_v_f64m1_f64m2(__riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketXl>::size),
-                                       __riscv_vfcvt_f_x_v_f64m1(b, unpacket_traits<PacketXl>::size));
+EIGEN_STRONG_INLINE PacketMul2Xd pcast<PacketMul1Xl, PacketMul2Xd>(const PacketMul1Xl& a, const PacketMul1Xl& b) {
+  return __riscv_vcreate_v_f64m1_f64m2(__riscv_vfcvt_f_x_v_f64m1(a, unpacket_traits<PacketMul1Xl>::size),
+                                       __riscv_vfcvt_f_x_v_f64m1(b, unpacket_traits<PacketMul1Xl>::size));
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xd pcast<PacketXd, PacketMul2Xd>(const PacketXd& a, const PacketXd& b) {
+EIGEN_STRONG_INLINE PacketMul2Xd pcast<PacketMul1Xd, PacketMul2Xd>(const PacketMul1Xd& a, const PacketMul1Xd& b) {
   return __riscv_vcreate_v_f64m1_f64m2(a, b);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xl pcast<PacketXd, PacketMul2Xl>(const PacketXd& a, const PacketXd& b) {
-  return __riscv_vcreate_v_i64m1_i64m2(__riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketXd>::size),
-                                       __riscv_vfcvt_rtz_x_f_v_i64m1(b, unpacket_traits<PacketXd>::size));
+EIGEN_STRONG_INLINE PacketMul2Xl pcast<PacketMul1Xd, PacketMul2Xl>(const PacketMul1Xd& a, const PacketMul1Xd& b) {
+  return __riscv_vcreate_v_i64m1_i64m2(__riscv_vfcvt_rtz_x_f_v_i64m1(a, unpacket_traits<PacketMul1Xd>::size),
+                                       __riscv_vfcvt_rtz_x_f_v_i64m1(b, unpacket_traits<PacketMul1Xd>::size));
 }
 
 /********************************* 16 bits ************************************/
 
 template <>
-EIGEN_STRONG_INLINE PacketMul2Xs pcast<PacketXs, PacketMul2Xs>(const PacketXs& a, const PacketXs& b) {
+EIGEN_STRONG_INLINE PacketMul2Xs pcast<PacketMul1Xs, PacketMul2Xs>(const PacketMul1Xs& a, const PacketMul1Xs& b) {
   return __riscv_vcreate_v_i16m1_i16m2(a, b);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketMul4Xs pcast<PacketXs, PacketMul4Xs>(const PacketXs& a, const PacketXs& b, const PacketXs& c,
-                                                               const PacketXs& d) {
+EIGEN_STRONG_INLINE PacketMul4Xs pcast<PacketMul1Xs, PacketMul4Xs>(const PacketMul1Xs& a, const PacketMul1Xs& b, const PacketMul1Xs& c,
+                                                               const PacketMul1Xs& d) {
   return __riscv_vcreate_v_i16m1_i16m4(a, b, c, d);
 }
 

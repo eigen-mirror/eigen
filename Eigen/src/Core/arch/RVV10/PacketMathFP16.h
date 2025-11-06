@@ -19,6 +19,7 @@ namespace internal {
 typedef vfloat16m1_t PacketXh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL)));
 typedef vfloat16m2_t PacketMul2Xh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2)));
 
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1
 template <>
 struct packet_traits<Eigen::half> : default_packet_traits {
   typedef PacketXh type;
@@ -58,8 +59,9 @@ struct packet_traits<Eigen::half> : default_packet_traits {
   };
 };
 
+#else
 template <>
-struct packet_traits<Eigen::half, 2> : default_packet_traits {
+struct packet_traits<Eigen::half> : default_packet_traits {
   typedef PacketMul2Xh type;
   typedef PacketXh half;
 
@@ -96,6 +98,7 @@ struct packet_traits<Eigen::half, 2> : default_packet_traits {
     HasErf = 0
   };
 };
+#endif
 
 template <>
 struct unpacket_traits<PacketXh> {
