@@ -16,14 +16,16 @@
 namespace Eigen {
 namespace internal {
 
-typedef vfloat16m1_t PacketXh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL)));
+typedef vfloat16m1_t PacketMul1Xh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL)));
 typedef vfloat16m2_t PacketMul2Xh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2)));
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
+typedef PacketMul1Xh PacketXh;
+
 template <>
 struct packet_traits<Eigen::half> : default_packet_traits {
-  typedef PacketXh type;
-  typedef PacketXh half;
+  typedef PacketMul1Xh type;
+  typedef PacketMul1Xh half;
 
   enum {
     Vectorizable = 1,
@@ -60,10 +62,12 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 };
 
 #else
+typedef PacketMul2Xh PacketXh;
+
 template <>
 struct packet_traits<Eigen::half> : default_packet_traits {
   typedef PacketMul2Xh type;
-  typedef PacketXh half;
+  typedef PacketMul1Xh half;
 
   enum {
     Vectorizable = 1,
@@ -101,9 +105,9 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 #endif
 
 template <>
-struct unpacket_traits<PacketXh> {
+struct unpacket_traits<PacketMul1Xh> {
   typedef Eigen::half type;
-  typedef PacketXh half;  // Half not yet implemented
+  typedef PacketMul1Xh half;  // Half not yet implemented
   typedef PacketXs integer_packet;
   typedef numext::uint8_t mask_t;
 
@@ -119,7 +123,7 @@ struct unpacket_traits<PacketXh> {
 template <>
 struct unpacket_traits<PacketMul2Xh> {
   typedef Eigen::half type;
-  typedef PacketXh half;
+  typedef PacketMul1Xh half;
   typedef PacketMul2Xs integer_packet;
   typedef numext::uint8_t mask_t;
 
