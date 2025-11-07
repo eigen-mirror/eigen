@@ -458,8 +458,8 @@ EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail:
 #undef EIGEN_CLANG_PACKET_BITWISE_FLOAT
 
 // --- Min/Max operations ---
-#if __has_builtin(__builtin_elementwise_min) && __has_builtin(__builtin_elementwise_max) && \
-    __has_builtin(__builtin_elementwise_abs)
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_min) && EIGEN_HAS_BUILTIN(__builtin_elementwise_max) && \
+    EIGEN_HAS_BUILTIN(__builtin_elementwise_abs)
 #define EIGEN_CLANG_PACKET_ELEMENTWISE(PACKET_TYPE)                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
@@ -506,9 +506,9 @@ EIGEN_CLANG_PACKET_ELEMENTWISE(Packet8l)
 
 // --- Math functions (float/double only) ---
 
-#if __has_builtin(__builtin_elementwise_floor) && __has_builtin(__builtin_elementwise_ceil) &&      \
-    __has_builtin(__builtin_elementwise_round) && __has_builtin(__builtin_elementwise_roundeven) && \
-    __has_builtin(__builtin_elementwise_trunc) && __has_builtin(__builtin_elementwise_sqrt)
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_floor) && EIGEN_HAS_BUILTIN(__builtin_elementwise_ceil) &&      \
+    EIGEN_HAS_BUILTIN(__builtin_elementwise_round) && EIGEN_HAS_BUILTIN(__builtin_elementwise_roundeven) && \
+    EIGEN_HAS_BUILTIN(__builtin_elementwise_trunc) && EIGEN_HAS_BUILTIN(__builtin_elementwise_sqrt)
 #define EIGEN_CLANG_PACKET_MATH_FLOAT(PACKET_TYPE)                            \
   template <>                                                                 \
   EIGEN_STRONG_INLINE PACKET_TYPE pfloor<PACKET_TYPE>(const PACKET_TYPE& a) { \
@@ -541,7 +541,7 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
 #endif
 
 // --- Fused Multiply-Add (MADD) ---
-#if defined(__FMA__) && __has_builtin(__builtin_elementwise_fma)
+#if defined(__FMA__) && EIGEN_HAS_BUILTIN(__builtin_elementwise_fma)
 #define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
@@ -603,7 +603,7 @@ EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet8l)
 #undef EIGEN_CLANG_PACKET_SCATTER_GATHER
 
 // ---- Various operations that depend on __builtin_shufflevector.
-#if __has_builtin(__builtin_shufflevector)
+#if EIGEN_HAS_BUILTIN(__builtin_shufflevector)
 namespace detail {
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet preverse_impl_8(const Packet& a) {

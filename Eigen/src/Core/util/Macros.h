@@ -700,6 +700,13 @@
 #define EIGEN_HAS_BUILTIN(x) 0
 #endif
 
+// Cross compiler wrapper around LLVM's __has_attribute
+#ifdef __has_attribute
+#define EIGEN_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+#define EIGEN_HAS_ATTRIBUTE(x) 0
+#endif
+
 // A Clang feature extension to determine compiler features.
 // We use it to determine 'cxx_rvalue_references'
 #ifndef __has_feature
@@ -831,7 +838,7 @@
 #endif
 
 // Does the compiler support vector types?
-#if __has_attribute(ext_vector_type) && __has_builtin(__builtin_vectorelements)
+#if EIGEN_HAS_ATTRIBUTE(ext_vector_type) && EIGEN_HAS_BUILTIN(__builtin_vectorelements)
 #define EIGEN_ARCH_VECTOR_EXTENSIONS 1
 #else
 #define EIGEN_ARCH_VECTOR_EXTENSIONS 0
