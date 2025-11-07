@@ -1934,15 +1934,15 @@ EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Pack
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f predux_half_dowto4<Packet8f>(const Packet8f& a) {
+EIGEN_STRONG_INLINE Packet4f predux_half<Packet8f>(const Packet8f& a) {
   return _mm_add_ps(_mm256_castps256_ps128(a), _mm256_extractf128_ps(a, 1));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4i predux_half_dowto4<Packet8i>(const Packet8i& a) {
+EIGEN_STRONG_INLINE Packet4i predux_half<Packet8i>(const Packet8i& a) {
   return _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ui predux_half_dowto4<Packet8ui>(const Packet8ui& a) {
+EIGEN_STRONG_INLINE Packet4ui predux_half<Packet8ui>(const Packet8ui& a) {
   return _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
 }
 

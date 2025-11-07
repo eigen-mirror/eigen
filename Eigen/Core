@@ -205,6 +205,12 @@ using std::ptrdiff_t;
 #include "src/Core/arch/Default/BFloat16.h"
 #include "src/Core/arch/Default/GenericPacketMathFunctionsFwd.h"
 
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
+#include "src/Core/arch/clang/PacketMath.h"
+#include "src/Core/arch/clang/TypeCasting.h"
+#include "src/Core/arch/clang/Reductions.h"
+#include "src/Core/arch/clang/MathFunctions.h"
+#else
 #if defined EIGEN_VECTORIZE_AVX512
 #include "src/Core/arch/SSE/PacketMath.h"
 #include "src/Core/arch/SSE/Reductions.h"
@@ -304,6 +310,8 @@ using std::ptrdiff_t;
 #include "src/Core/arch/SYCL/TypeCasting.h"
 #endif
 #endif
+
+#endif  // #ifndef EIGEN_VECTORIZE_GENERIC
 
 #include "src/Core/arch/Default/Settings.h"
 // This file provides generic implementations valid for scalar as well
@@ -415,6 +423,7 @@ using std::ptrdiff_t;
 #include "src/Core/CoreIterators.h"
 #include "src/Core/ConditionEstimator.h"
 
+#if !defined(EIGEN_VECTORIZE_GENERIC)
 #if defined(EIGEN_VECTORIZE_VSX)
 #include "src/Core/arch/AltiVec/MatrixProduct.h"
 #elif defined EIGEN_VECTORIZE_NEON
@@ -425,6 +434,7 @@ using std::ptrdiff_t;
 
 #if defined(EIGEN_VECTORIZE_AVX512)
 #include "src/Core/arch/AVX512/GemmKernel.h"
+#endif
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)

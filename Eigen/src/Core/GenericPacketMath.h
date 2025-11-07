@@ -1224,7 +1224,7 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type pfirst(const Pac
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline std::conditional_t<(unpacket_traits<Packet>::size % 8) == 0,
                                             typename unpacket_traits<Packet>::half, Packet>
-predux_half_dowto4(const Packet& a) {
+predux_half(const Packet& a) {
   return a;
 }
 
@@ -1342,7 +1342,7 @@ struct pmadd_impl {
     return psub(c, pmul(a, b));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-    return pnegate(pmadd(a, b, c));
+    return pnegate(padd(pmul(a, b), c));
   }
 };
 
@@ -1476,8 +1476,8 @@ struct PacketBlock {
   Packet packet[N];
 };
 
-template <typename Packet>
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, 1>& /*kernel*/) {
+template <typename Packet, int size = 1>
+EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, size>& /*kernel*/) {
   // Nothing to do in the scalar case, i.e. a 1x1 matrix.
 }
 

@@ -685,8 +685,8 @@ void packetmath() {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
     for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];
-    internal::pstore(data2, internal::predux_half_dowto4(internal::pload<Packet>(data1)));
-    VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half_dowto4");
+    internal::pstore(data2, internal::predux_half(internal::pload<Packet>(data1)));
+    VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half");
   }
 
   // Avoid overflows.

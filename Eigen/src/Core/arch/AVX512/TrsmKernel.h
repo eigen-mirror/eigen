@@ -44,6 +44,8 @@
 namespace Eigen {
 namespace internal {
 
+#if (EIGEN_USE_AVX512_TRSM_KERNELS) && (EIGEN_COMP_CLANG != 0)
+
 #define EIGEN_AVX_MAX_NUM_ACC (int64_t(24))
 #define EIGEN_AVX_MAX_NUM_ROW (int64_t(8))  // Denoted L in code.
 #define EIGEN_AVX_MAX_K_UNROL (int64_t(4))
@@ -58,7 +60,6 @@ typedef Packet4d vecHalfDouble;
 // Note: this depends on macros and typedefs above.
 #include "TrsmUnrolls.inc"
 
-#if (EIGEN_USE_AVX512_TRSM_KERNELS) && (EIGEN_COMP_CLANG != 0)
 /**
  * For smaller problem sizes, and certain compilers, using the optimized kernels trsmKernelL/R directly
  * is faster than the packed versions in TriangularSolverMatrix.h.
