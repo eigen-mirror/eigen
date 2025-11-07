@@ -35,6 +35,8 @@
 namespace Eigen {
 namespace internal {
 
+#if EIGEN_USE_AVX512_GEMM_KERNELS
+
 template <typename Scalar, bool is_unit_inc>
 class gemm_class {
   using vec = typename packet_traits<Scalar>::type;
@@ -947,7 +949,6 @@ EIGEN_DONT_INLINE void gemm_kern_avx512(Index m, Index n, Index k, Scalar *alpha
 }
 
 // Template specializations of GEBP kernels with nr = 8.
-#if EIGEN_USE_AVX512_GEMM_KERNELS
 template <bool ConjLhs_, bool ConjRhs_, int PacketSize_>
 class gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Target, PacketSize_>
     : public gebp_traits<float, float, ConjLhs_, ConjRhs_, Architecture::Generic, PacketSize_> {
