@@ -44,7 +44,7 @@
 namespace Eigen {
 namespace internal {
 
-#if (EIGEN_USE_AVX512_TRSM_KERNELS) && (EIGEN_COMP_CLANG != 0)
+#if (EIGEN_USE_AVX512_TRSM_KERNELS)
 
 #define EIGEN_AVX_MAX_NUM_ACC (int64_t(24))
 #define EIGEN_AVX_MAX_NUM_ROW (int64_t(8))  // Denoted L in code.
@@ -59,6 +59,8 @@ typedef Packet4d vecHalfDouble;
 // Compile-time unrolls are implemented here.
 // Note: this depends on macros and typedefs above.
 #include "TrsmUnrolls.inc"
+
+#if (EIGEN_COMP_CLANG != 0)
 
 /**
  * For smaller problem sizes, and certain compilers, using the optimized kernels trsmKernelL/R directly
@@ -1061,7 +1063,6 @@ void triSolve(Scalar *A_arr, Scalar *B_arr, int64_t M, int64_t numRHS, int64_t L
 }
 
 // Template specializations of trsmKernelL/R for float/double and inner strides of 1.
-#if (EIGEN_USE_AVX512_TRSM_KERNELS)
 #if (EIGEN_USE_AVX512_TRSM_R_KERNELS)
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
@@ -1162,7 +1163,9 @@ EIGEN_DONT_INLINE void trsmKernelL<double, Index, Mode, false, TriStorageOrder, 
       const_cast<double *>(_tri), _other, size, otherSize, triStride, otherStride);
 }
 #endif  // EIGEN_USE_AVX512_TRSM_L_KERNELS
+
 #endif  // EIGEN_USE_AVX512_TRSM_KERNELS
+
 }  // namespace internal
 }  // namespace Eigen
 #endif  // EIGEN_CORE_ARCH_AVX512_TRSM_KERNEL_H
