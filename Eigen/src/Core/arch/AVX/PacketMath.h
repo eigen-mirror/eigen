@@ -115,9 +115,9 @@ struct packet_traits<float> : default_packet_traits {
     HasATan = 1,
     HasATanh = 1,
     HasLog = 1,
+    HasExp = 1,
     HasLog1p = 1,
     HasExpm1 = 1,
-    HasExp = 1,
     HasPow = 1,
     HasNdtri = 1,
     HasBessel = 1,
@@ -127,7 +127,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH,
-    HasBlend = 1
   };
 };
 template <>
@@ -146,17 +145,18 @@ struct packet_traits<double> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
 #endif
     HasTanh = EIGEN_FAST_MATH,
-    HasLog = 1,
     HasErf = 1,
     HasErfc = 1,
+    HasLog = 1,
     HasExp = 1,
+    HasLog1p = 1,
+    HasExpm1 = 1,
     HasPow = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
     HasCbrt = 1,
     HasATan = 1,
     HasATanh = 1,
-    HasBlend = 1
   };
 };
 
@@ -179,7 +179,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasNegate = 1,
     HasAbs = 1,
-    HasAbs2 = 0,
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
@@ -192,7 +191,6 @@ struct packet_traits<Eigen::half> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -218,7 +216,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasNegate = 1,
     HasAbs = 1,
-    HasAbs2 = 0,
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
@@ -231,7 +228,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0,
     HasBessel = 1,
     HasNdtri = 1
   };
@@ -284,7 +280,6 @@ struct packet_traits<uint64_t> : default_packet_traits {
     // HasMin = 0,
     // HasMax = 0,
     HasDiv = 0,
-    HasBlend = 0,
     HasTranspose = 0,
     HasNegate = 0,
     HasSqrt = 0,
@@ -1939,15 +1934,15 @@ EIGEN_STRONG_INLINE Packet4d pldexp_fast<Packet4d>(const Packet4d& a, const Pack
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f predux_half_dowto4<Packet8f>(const Packet8f& a) {
+EIGEN_STRONG_INLINE Packet4f predux_half<Packet8f>(const Packet8f& a) {
   return _mm_add_ps(_mm256_castps256_ps128(a), _mm256_extractf128_ps(a, 1));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4i predux_half_dowto4<Packet8i>(const Packet8i& a) {
+EIGEN_STRONG_INLINE Packet4i predux_half<Packet8i>(const Packet8i& a) {
   return _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ui predux_half_dowto4<Packet8ui>(const Packet8ui& a) {
+EIGEN_STRONG_INLINE Packet4ui predux_half<Packet8ui>(const Packet8ui& a) {
   return _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
 }
 
@@ -2068,31 +2063,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
   kernel.packet[3] = _mm256_permute2f128_pd(T0, T2, 49);
   kernel.packet[0] = _mm256_permute2f128_pd(T1, T3, 32);
   kernel.packet[2] = _mm256_permute2f128_pd(T1, T3, 49);
-}
-
-EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<4>& ifPacket) {
-  return _mm256_set_epi64x(0 - ifPacket.select[3], 0 - ifPacket.select[2], 0 - ifPacket.select[1],
-                           0 - ifPacket.select[0]);
-}
-
-EIGEN_STRONG_INLINE __m256i avx_blend_mask(const Selector<8>& ifPacket) {
-  return _mm256_set_epi32(0 - ifPacket.select[7], 0 - ifPacket.select[6], 0 - ifPacket.select[5],
-                          0 - ifPacket.select[4], 0 - ifPacket.select[3], 0 - ifPacket.select[2],
-                          0 - ifPacket.select[1], 0 - ifPacket.select[0]);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8f pblend(const Selector<8>& ifPacket, const Packet8f& thenPacket,
-                                    const Packet8f& elsePacket) {
-  const __m256 true_mask = _mm256_castsi256_ps(avx_blend_mask(ifPacket));
-  return pselect<Packet8f>(true_mask, thenPacket, elsePacket);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4d pblend(const Selector<4>& ifPacket, const Packet4d& thenPacket,
-                                    const Packet4d& elsePacket) {
-  const __m256d true_mask = _mm256_castsi256_pd(avx_blend_mask(ifPacket));
-  return pselect<Packet4d>(true_mask, thenPacket, elsePacket);
 }
 
 // Packet math for Eigen::half

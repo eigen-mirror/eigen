@@ -685,8 +685,8 @@ void packetmath() {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
     for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];
-    internal::pstore(data2, internal::predux_half_dowto4(internal::pload<Packet>(data1)));
-    VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half_dowto4");
+    internal::pstore(data2, internal::predux_half(internal::pload<Packet>(data1)));
+    VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half");
   }
 
   // Avoid overflows.
@@ -744,22 +744,6 @@ void packetmath() {
       for (int j = 0; j < PacketSize; ++j) {
         VERIFY(test::isApproxAbs(data3[j], data2[i * PacketSize + j], refvalue) && "ptranspose");
       }
-    }
-  }
-
-  if (PacketTraits::HasBlend) {
-    Packet thenPacket = internal::pload<Packet>(data1);
-    Packet elsePacket = internal::pload<Packet>(data2);
-    EIGEN_ALIGN_MAX internal::Selector<PacketSize> selector;
-    for (int i = 0; i < PacketSize; ++i) {
-      selector.select[i] = i;
-    }
-
-    Packet blend = internal::pblend(selector, thenPacket, elsePacket);
-    EIGEN_ALIGN_MAX Scalar result[size];
-    internal::pstore(result, blend);
-    for (int i = 0; i < PacketSize; ++i) {
-      VERIFY(test::isApproxAbs(result[i], (selector.select[i] ? data1[i] : data2[i]), refvalue));
     }
   }
 

@@ -63,7 +63,6 @@ struct default_packet_traits {
 
     HasArg = 0,
     HasAbsDiff = 0,
-    HasBlend = 0,
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq and pcmp_lt should be defined for it to be true.
     HasCmp = 0,
@@ -1225,7 +1224,7 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type pfirst(const Pac
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline std::conditional_t<(unpacket_traits<Packet>::size % 8) == 0,
                                             typename unpacket_traits<Packet>::half, Packet>
-predux_half_dowto4(const Packet& a) {
+predux_half(const Packet& a) {
   return a;
 }
 
@@ -1343,7 +1342,7 @@ struct pmadd_impl {
     return psub(c, pmul(a, b));
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-    return pnegate(pmadd(a, b, c));
+    return pnegate(padd(pmul(a, b), c));
   }
 };
 
@@ -1477,24 +1476,9 @@ struct PacketBlock {
   Packet packet[N];
 };
 
-template <typename Packet>
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, 1>& /*kernel*/) {
+template <typename Packet, int size = 1>
+EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet, size>& /*kernel*/) {
   // Nothing to do in the scalar case, i.e. a 1x1 matrix.
-}
-
-/***************************************************************************
- * Selector, i.e. vector of N boolean values used to select (i.e. blend)
- * words from 2 packets.
- ***************************************************************************/
-template <size_t N>
-struct Selector {
-  bool select[N];
-};
-
-template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pblend(const Selector<unpacket_traits<Packet>::size>& ifPacket,
-                                       const Packet& thenPacket, const Packet& elsePacket) {
-  return ifPacket.select[0] ? thenPacket : elsePacket;
 }
 
 /** \internal \returns 1 / a (coeff-wise) */
