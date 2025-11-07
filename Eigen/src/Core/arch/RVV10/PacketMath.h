@@ -25,6 +25,10 @@ namespace internal {
 
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 
+// Temporarily make LMUL = 1
+#undef EIGEN_RISCV64_DEFAULT_LMUL
+#define EIGEN_RISCV64_DEFAULT_LMUL 1
+
 template <typename Scalar, std::size_t VectorLength, std::size_t VectorLMul>
 struct rvv_packet_size_selector {
   enum { size = VectorLength * VectorLMul / (sizeof(Scalar) * CHAR_BIT) };
