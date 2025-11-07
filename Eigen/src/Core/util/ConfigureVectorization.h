@@ -442,6 +442,9 @@ extern "C" {
 #error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
 #endif
 
+#undef EIGEN_STACK_ALLOCATION_LIMIT
+#define EIGEN_STACK_ALLOCATION_LIMIT 196608
+
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
 #define EIGEN_VECTORIZE_RVV10FP16
 #elif defined(__riscv_zvfh)
