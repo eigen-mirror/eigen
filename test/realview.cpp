@@ -177,7 +177,7 @@ struct test_edge_cases_impl {
       for (Index begin = 0; offset + begin < RealSize; begin++) {
         for (Index count = 0; begin + count < RealSize; count++) {
           b_data.setRandom();
-          RealPacket res = eval.packetSegment<Unaligned, RealPacket>(offset, begin, count);
+          RealPacket res = eval.template packetSegment<Unaligned, RealPacket>(offset, begin, count);
           pstoreSegment(b_data.data(), res, begin, count);
           VERIFY_IS_CWISE_EQUAL(a_data_asreal.segment(offset + begin, count), b_data.segment(begin, count));
         }
