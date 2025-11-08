@@ -157,10 +157,7 @@ struct packet_traits<float> : default_packet_traits {
     HasMax = 1,
     HasConj = 0,
     HasSetLinear = 0,
-    HasBlend = 0,
-
     HasDiv = 0,
-
     HasSin = 0,
     HasCos = 0,
     HasACos = 0,

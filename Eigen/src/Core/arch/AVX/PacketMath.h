@@ -250,7 +250,6 @@ struct packet_traits<uint32_t> : default_packet_traits {
 
     HasDiv = 0,
     HasNegate = 0,
-    HasSqrt = 0,
 
     HasCmp = 1,
     HasMin = 1,
@@ -277,12 +276,9 @@ struct packet_traits<uint64_t> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 4,
 
-    // HasMin = 0,
-    // HasMax = 0,
     HasDiv = 0,
     HasTranspose = 0,
     HasNegate = 0,
-    HasSqrt = 0,
     HasCmp = 1,
     HasShift = 1
   };

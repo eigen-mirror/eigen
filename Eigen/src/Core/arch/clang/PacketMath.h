@@ -31,13 +31,9 @@ using Packet16i = detail::VectorType<int32_t, 16>;
 using Packet8l = detail::VectorType<int64_t, 8>;
 
 // --- packet_traits specializations ---
-template <>
-struct packet_traits<float> : default_packet_traits {
-  using type = Packet16f;
-  using half = Packet16f;
+struct generic_float_packet_traits : default_packet_traits {
   enum {
     Vectorizable = 1,
-    size = 16,
     AlignedOnScalar = 1,
     HasAdd = 1,
     HasSub = 1,
@@ -46,7 +42,8 @@ struct packet_traits<float> : default_packet_traits {
     HasNegate = 1,
     HasAbs = 1,
     HasRound = 1,
-    HasMinMax = 1,
+    HasMin = 1,
+    HasMax = 1,
     HasCmp = 1,
     HasSet1 = 1,
     HasCast = 1,
@@ -80,12 +77,24 @@ struct packet_traits<float> : default_packet_traits {
 };
 
 template <>
-struct packet_traits<double> : default_packet_traits {
+struct packet_traits<float> : generic_float_packet_traits {
+  using type = Packet16f;
+  using half = Packet16f;
+  enum {
+    size = 16,
+  };
+};
+
+template <>
+struct packet_traits<double> : generic_float_packet_traits {
   using type = Packet8d;
   using half = Packet8d;
+  enum { size = 8, HasACos = 0, HasASin = 0 };
+};
+
+struct generic_integer_packet_traits : default_packet_traits {
   enum {
     Vectorizable = 1,
-    size = 8,
     AlignedOnScalar = 1,
     HasAdd = 1,
     HasSub = 1,
@@ -93,157 +102,85 @@ struct packet_traits<double> : default_packet_traits {
     HasDiv = 1,
     HasNegate = 1,
     HasAbs = 1,
-    HasRound = 1,
-    HasMinMax = 1,
+    HasMin = 1,
+    HasMax = 1,
     HasCmp = 1,
     HasSet1 = 1,
     HasCast = 1,
     HasBitwise = 1,
     HasRedux = 1,
-    HasSign = 1,
+    // Set remaining to 0
+    HasRound = 1,
+    HasSqrt = 0,
+    HasRsqrt = 0,
+    HasReciprocal = 0,
     HasArg = 0,
     HasConj = 1,
-    // Math functions
-    HasReciprocal = 1,
-    HasSin = 1,
-    HasCos = 1,
-    HasACos = 0,
-    HasASin = 0,
-    HasATan = 1,
-    HasATanh = 1,
-    HasLog = 1,
-    HasLog1p = 1,
-    HasExpm1 = 1,
-    HasExp = 1,
-    HasPow = 1,
-    HasNdtri = 1,
-    HasBessel = 1,
-    HasSqrt = 1,
-    HasRsqrt = 1,
-    HasCbrt = 1,
-    HasTanh = 1,
-    HasErf = 1,
-    HasErfc = 1
+    HasExp = 0,
+    HasLog = 0,
+    HasSin = 0,
+    HasCos = 0,
   };
 };
 
 template <>
-struct packet_traits<int32_t> : default_packet_traits {
+struct packet_traits<int32_t> : generic_integer_packet_traits {
   using type = Packet16i;
   using half = Packet16i;
   enum {
-    Vectorizable = 1,
     size = 16,
-    AlignedOnScalar = 1,
-    HasAdd = 1,
-    HasSub = 1,
-    HasMul = 1,
-    HasDiv = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasMinMax = 1,
-    HasCmp = 1,
-    HasSet1 = 1,
-    HasCast = 1,
-    HasBitwise = 1,
-    HasRedux = 1,
-    // Set remaining to 0
-    HasRound = 1,
-    HasSqrt = 0,
-    HasRsqrt = 0,
-    HasReciprocal = 0,
-    HasArg = 0,
-    HasConj = 1,
-    HasExp = 0,
-    HasLog = 0,
-    HasSin = 0,
-    HasCos = 0,
   };
 };
 
 template <>
-struct packet_traits<int64_t> : default_packet_traits {
+struct packet_traits<int64_t> : generic_integer_packet_traits {
   using type = Packet8l;
   using half = Packet8l;
   enum {
-    Vectorizable = 1,
     size = 8,
-    AlignedOnScalar = 1,
-    HasAdd = 1,
-    HasSub = 1,
-    HasMul = 1,
-    HasDiv = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasMinMax = 1,
-    HasCmp = 1,
-    HasSet1 = 1,
-    HasCast = 1,
-    HasBitwise = 1,
-    HasRedux = 1,
-    // Set remaining to 0
-    HasRound = 1,
-    HasSqrt = 0,
-    HasRsqrt = 0,
-    HasReciprocal = 0,
-    HasArg = 0,
-    HasConj = 1,
-    HasExp = 0,
-    HasLog = 0,
-    HasSin = 0,
-    HasCos = 0,
   };
 };
 
 // --- unpacket_traits specializations ---
+struct generic_unpacket_traits : default_unpacket_traits {
+  enum {
+    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
+    vectorizable = true,
+  };
+};
+
 template <>
-struct unpacket_traits<Packet16f> {
+struct unpacket_traits<Packet16f> : generic_unpacket_traits {
   using type = float;
   using half = Packet16f;
   using integer_packet = Packet16i;
   enum {
     size = 16,
-    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
   };
 };
 template <>
-struct unpacket_traits<Packet8d> {
+struct unpacket_traits<Packet8d> : generic_unpacket_traits {
   using type = double;
   using half = Packet8d;
   using integer_packet = Packet8l;
   enum {
     size = 8,
-    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
   };
 };
 template <>
-struct unpacket_traits<Packet16i> {
+struct unpacket_traits<Packet16i> : generic_unpacket_traits {
   using type = int32_t;
   using half = Packet16i;
   enum {
     size = 16,
-    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
   };
 };
 template <>
-struct unpacket_traits<Packet8l> {
+struct unpacket_traits<Packet8l> : generic_unpacket_traits {
   using type = int64_t;
   using half = Packet8l;
   enum {
     size = 8,
-    alignment = EIGEN_GENERIC_VECTOR_SIZE_BYTES,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
   };
 };
 
@@ -494,7 +431,7 @@ EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail:
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pselect<PACKET_TYPE>(const PACKET_TYPE& mask, const PACKET_TYPE& a,               \
                                                        const PACKET_TYPE& b) {                                      \
-    return __builtin_elementwise_abs(mask) == 0 ? b : a;                                                            \
+    return mask != 0 ? a : b;                                                                                       \
   }
 
 EIGEN_CLANG_PACKET_ELEMENTWISE(Packet16f)
@@ -589,11 +526,11 @@ EIGEN_CLANG_PACKET_MADD(Packet8d)
   EIGEN_STRONG_INLINE PACKET_TYPE pgather<typename unpacket_traits<PACKET_TYPE>::type, PACKET_TYPE>(                 \
       const unpacket_traits<PACKET_TYPE>::type* from, Index stride) {                                                \
     constexpr int size = unpacket_traits<PACKET_TYPE>::size;                                                         \
-    unpacket_traits<PACKET_TYPE>::type arr[size];                                                                    \
+    PACKET_TYPE result;                                                                                              \
     for (int i = 0; i < size; ++i) {                                                                                 \
-      arr[i] = from[i * stride];                                                                                     \
+      result[i] = from[i * stride];                                                                                  \
     }                                                                                                                \
-    return *reinterpret_cast<PACKET_TYPE*>(arr);                                                                     \
+    return result;                                                                                                   \
   }
 
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet16f)
