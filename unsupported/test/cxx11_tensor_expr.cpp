@@ -435,7 +435,7 @@ void test_minmax_nan_propagation_templ() {
 }
 #else
 template <typename Scalar>
-void test_minmax_nan_propagation_templ() {};
+void test_minmax_nan_propagation_templ() {}
 #endif
 
 static void test_clip() {
