@@ -57,12 +57,12 @@ struct default_packet_traits {
     HasConj = 1,
     HasSetLinear = 1,
     HasSign = 1,
+    HasAbsDiff = 1,
     // By default, the nearest integer functions (rint, round, floor, ceil, trunc) are enabled for all scalar and packet
     // types
     HasRound = 1,
 
     HasArg = 0,
-    HasAbsDiff = 0,
     // This flag is used to indicate whether packet comparison is supported.
     // pcmp_eq and pcmp_lt should be defined for it to be true.
     HasCmp = 0,
@@ -116,6 +116,7 @@ struct packet_traits : default_packet_traits {
   enum {
     HasAdd = 0,
     HasSub = 0,
+    HasAbsDiff = 0,
     HasMul = 0,
     HasNegate = 0,
     HasAbs = 0,
@@ -130,17 +131,18 @@ struct packet_traits : default_packet_traits {
 template <typename T>
 struct packet_traits<const T> : packet_traits<T> {};
 
+struct default_unpacket_traits {
+  enum { vectorizable = false, masked_load_available = false, masked_store_available = false };
+};
+
 template <typename T>
-struct unpacket_traits {
+struct unpacket_traits : default_unpacket_traits {
   typedef T type;
   typedef T half;
   typedef typename numext::get_integer_by_size<sizeof(T)>::signed_type integer_packet;
   enum {
     size = 1,
     alignment = alignof(T),
-    vectorizable = false,
-    masked_load_available = false,
-    masked_store_available = false
   };
 };
 
@@ -747,8 +749,14 @@ EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) 
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pabsdiff(const Packet& a, const Packet& b) {
+EIGEN_DEVICE_FUNC inline std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
+pabsdiff(const Packet& a, const Packet& b) {
   return pselect(pcmp_lt(a, b), psub(b, a), psub(a, b));
+}
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline std::enable_if_t<!NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
+pabsdiff(const Packet& a, const Packet& b) {
+  return pabs(psub(a, b));
 }
 
 /** \internal \returns a packet version of \a *from, from must be properly aligned */
