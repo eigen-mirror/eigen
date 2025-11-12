@@ -14,7 +14,8 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
-#if __has_builtin(__builtin_reduce_min) && __has_builtin(__builtin_reduce_max) && __has_builtin(__builtin_reduce_or)
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max) && \
+    EIGEN_HAS_BUILTIN(__builtin_reduce_or)
 #define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
@@ -36,7 +37,7 @@ EIGEN_CLANG_PACKET_REDUX_MINMAX(Packet8l)
 #undef EIGEN_CLANG_PACKET_REDUX_MINMAX
 #endif
 
-#if __has_builtin(__builtin_reduce_add) && __has_builtin(__builtin_reduce_mul)
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_add) && EIGEN_HAS_BUILTIN(__builtin_reduce_mul)
 #define EIGEN_CLANG_PACKET_REDUX_INT(PACKET_TYPE)                                                        \
   template <>                                                                                            \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
@@ -53,7 +54,7 @@ EIGEN_CLANG_PACKET_REDUX_INT(Packet8l)
 #undef EIGEN_CLANG_PACKET_REDUX_INT
 #endif
 
-#if __has_builtin(__builtin_shufflevector)
+#if EIGEN_HAS_BUILTIN(__builtin_shufflevector)
 namespace detail {
 template <typename VectorT>
 EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> ReduceAdd16(const VectorT& a) {

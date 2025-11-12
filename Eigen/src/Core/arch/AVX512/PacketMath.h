@@ -100,7 +100,6 @@ struct packet_traits<half> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
-    HasBlend = 0
   };
 };
 #endif
@@ -118,7 +117,6 @@ struct packet_traits<float> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
-    HasBlend = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasACos = 1,
@@ -151,7 +149,6 @@ struct packet_traits<double> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 8,
-    HasBlend = 1,
     HasSqrt = 1,
     HasRsqrt = 1,
     HasCbrt = 1,
@@ -176,7 +173,7 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   typedef Packet16i type;
   typedef Packet8i half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasBlend = 0, HasCmp = 1, HasDiv = 1, size = 16 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 16 };
 };
 
 template <>
@@ -2512,7 +2509,6 @@ struct packet_traits<bfloat16> : default_packet_traits {
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size = 16,
-    HasBlend = 0,
     HasInsert = 1,
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,

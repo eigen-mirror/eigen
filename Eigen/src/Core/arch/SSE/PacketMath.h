@@ -200,7 +200,6 @@ struct packet_traits<float> : default_packet_traits {
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasErfc = EIGEN_FAST_MATH,
-    HasBlend = 1,
     HasSign = 0  // The manually vectorized version is slightly slower for SSE.
   };
 };
@@ -230,7 +229,6 @@ struct packet_traits<double> : default_packet_traits {
     HasCbrt = 1,
     HasATan = 1,
     HasATanh = 1,
-    HasBlend = 1
   };
 };
 template <>
@@ -245,7 +243,6 @@ struct packet_traits<int> : default_packet_traits {
     HasCmp = 1,
     HasDiv = 1,
     HasShift = 1,
-    HasBlend = 1
   };
 };
 template <>
@@ -257,11 +254,9 @@ struct packet_traits<uint32_t> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 4,
 
-    HasDiv = 0,
     HasNegate = 0,
     HasCmp = 1,
     HasShift = 1,
-    HasBlend = 1
   };
 };
 template <>
@@ -273,10 +268,8 @@ struct packet_traits<int64_t> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 2,
 
-    HasDiv = 0,
     HasCmp = 1,
     HasShift = 1,
-    HasBlend = 1
   };
 };
 #endif
