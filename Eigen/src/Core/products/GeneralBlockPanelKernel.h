@@ -1105,7 +1105,7 @@ struct lhs_process_one_packet {
     EIGEN_ASM_COMMENT("end step of gebp micro kernel 1X4");
   }
 
-  EIGEN_STRONG_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
+  EIGEN_ALWAYS_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
                                       ResScalar alpha, Index peelStart, Index peelEnd, Index strideA, Index strideB,
                                       Index offsetA, Index offsetB, int prefetch_res_offset, Index peeled_kc, Index pk,
                                       Index cols, Index depth, Index packet_cols4) {
