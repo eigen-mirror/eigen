@@ -460,7 +460,7 @@ extern "C" {
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
 #define EIGEN_VECTORIZE_RVV10FP16
 #elif defined(__riscv_zvfh)
-#error "The Eigen::Half vectorization requires Zfh and Zvfh extensions."
+#warning "The Eigen::Half vectorization requires Zfh and Zvfh extensions."
 #endif
 
 #endif  // defined(EIGEN_ARCH_RISCV)

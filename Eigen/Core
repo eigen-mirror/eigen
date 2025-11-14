@@ -278,6 +278,8 @@ using std::ptrdiff_t;
 #include "src/Core/arch/SVE/MathFunctions.h"
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/PacketMath.h"
+#include "src/Core/arch/RVV10/PacketMath4.h"
+#include "src/Core/arch/RVV10/PacketMath2.h"
 #include "src/Core/arch/RVV10/TypeCasting.h"
 #include "src/Core/arch/RVV10/MathFunctions.h"
 #if defined EIGEN_VECTORIZE_RVV10FP16
