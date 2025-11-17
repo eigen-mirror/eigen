@@ -75,7 +75,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
-    separate_arguments(compile_options NATIVE_COMMAND ${ARGV2})
+    separate_arguments(compile_options NATIVE_COMMAND "${ARGV2}")
     target_compile_options(${targetname} PRIVATE ${compile_options})
   endif()
 
