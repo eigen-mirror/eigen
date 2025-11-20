@@ -1010,10 +1010,24 @@ EIGEN_DEVICE_FUNC inline Packet preverse(const Packet& a) {
   return a;
 }
 
-/** \internal \returns \a a with real and imaginary part flipped (for complex type only) */
+/** \internal \returns \a a with real and imaginary parts flipped (for complex types only) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pcplxflip(const Packet& a) {
   return Packet(numext::imag(a), numext::real(a));
+}
+
+/** \internal \returns \a a with real part duplicated (for complex types only) */
+// TODO(rmlarsen): Define and use in all complex backends.
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pdupreal(const Packet& a) {
+  return Packet(numext::real(a), numext::real(a));
+}
+
+/** \internal \returns \a a with imaginary part duplicated (for complex types only) */
+// TODO(rmlarsen): Define and use in all complex backends.
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
+  return Packet(numext::imag(a), numext::imag(a));
 }
 
 /**************************
