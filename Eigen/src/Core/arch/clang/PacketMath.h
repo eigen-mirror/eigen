@@ -245,28 +245,30 @@ EIGEN_STRONG_INLINE void store_vector_aligned(scalar_type_of_vector_t<VectorT>* 
 // --- Intrinsic-like specializations ---
 
 // --- Load/Store operations ---
-#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE, SCALAR_TYPE)                                    \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(const SCALAR_TYPE* from) {                          \
-    return detail::load_vector_unaligned<PACKET_TYPE>(from);                                              \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(const SCALAR_TYPE* from) {                           \
-    return detail::load_vector_aligned<PACKET_TYPE>(from);                                                \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE void pstoreu<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) { \
-    detail::store_vector_unaligned<PACKET_TYPE>(to, from);                                                \
-  }                                                                                                       \
-  template <>                                                                                             \
-  EIGEN_STRONG_INLINE void pstore<SCALAR_TYPE, PACKET_TYPE>(SCALAR_TYPE * to, const PACKET_TYPE& from) {  \
-    detail::store_vector_aligned<PACKET_TYPE>(to, from);                                                  \
+#define EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(PACKET_TYPE)                                                         \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE ploadu<PACKET_TYPE>(const detail::scalar_type_of_vector_t<PACKET_TYPE>* from) { \
+    return detail::load_vector_unaligned<PACKET_TYPE>(from);                                                      \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pload<PACKET_TYPE>(const detail::scalar_type_of_vector_t<PACKET_TYPE>* from) {  \
+    return detail::load_vector_aligned<PACKET_TYPE>(from);                                                        \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE void pstoreu<detail::scalar_type_of_vector_t<PACKET_TYPE>, PACKET_TYPE>(                    \
+      detail::scalar_type_of_vector_t<PACKET_TYPE> * to, const PACKET_TYPE& from) {                               \
+    detail::store_vector_unaligned<PACKET_TYPE>(to, from);                                                        \
+  }                                                                                                               \
+  template <>                                                                                                     \
+  EIGEN_STRONG_INLINE void pstore<detail::scalar_type_of_vector_t<PACKET_TYPE>, PACKET_TYPE>(                     \
+      detail::scalar_type_of_vector_t<PACKET_TYPE> * to, const PACKET_TYPE& from) {                               \
+    detail::store_vector_aligned<PACKET_TYPE>(to, from);                                                          \
   }
 
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16f, float)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8d, double)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16i, int32_t)
-EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8l, int64_t)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16f)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8d)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet16i)
+EIGEN_CLANG_PACKET_LOAD_STORE_PACKET(Packet8l)
 #undef EIGEN_CLANG_PACKET_LOAD_STORE_PACKET
 
 // --- Broadcast operation ---
@@ -330,6 +332,10 @@ EIGEN_STRONG_INLINE Packet8d pcast_long_to_double(const Packet8l& a) { return re
 // Bitwise ops for integer packets
 #define EIGEN_CLANG_PACKET_BITWISE_INT(PACKET_TYPE)                                                  \
   template <>                                                                                        \
+  constexpr EIGEN_STRONG_INLINE PACKET_TYPE pzero<PACKET_TYPE>(const PACKET_TYPE& /*unused*/) {      \
+    return PACKET_TYPE(0);                                                                           \
+  }                                                                                                  \
+  template <>                                                                                        \
   constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /*unused*/) {      \
     return PACKET_TYPE(0) == PACKET_TYPE(0);                                                         \
   }                                                                                                  \
@@ -370,8 +376,9 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
 // Bitwise ops for floating point packets
 #define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, CAST_TO_INT, CAST_FROM_INT)                    \
   template <>                                                                                        \
-  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& a) {                         \
-    return CAST_FROM_INT(CAST_TO_INT(a) == CAST_TO_INT(a));                                          \
+  EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /* unused */) {              \
+    using Scalar = detail::scalar_type_of_vector_t<PACKET_TYPE>;                                     \
+    return CAST_FROM_INT(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0)));                          \
   }                                                                                                  \
   template <>                                                                                        \
   EIGEN_STRONG_INLINE PACKET_TYPE pand<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {    \
@@ -537,6 +544,7 @@ EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet16f)
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet8d)
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet16i)
 EIGEN_CLANG_PACKET_SCATTER_GATHER(Packet8l)
+
 #undef EIGEN_CLANG_PACKET_SCATTER_GATHER
 
 // ---- Various operations that depend on __builtin_shufflevector.
@@ -651,6 +659,21 @@ EIGEN_STRONG_INLINE Packet16i plset<Packet16i>(const int32_t& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8l plset<Packet8l>(const int64_t& a) {
   return Packet8l{a + 0, a + 1, a + 2, a + 3, a + 4, a + 5, a + 6, a + 7};
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16f peven_mask(const Packet16f& /* unused */) {
+  float kTrue = numext::bit_cast<float>(int32_t(-1));
+  float kFalse = 0.0f;
+  return Packet16f{kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse,
+                   kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse};
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8d peven_mask(const Packet8d& /* unused */) {
+  double kTrue = numext::bit_cast<double>(int64_t(-1l));
+  double kFalse = 0.0;
+  return Packet8d{kTrue, kFalse, kTrue, kFalse, kTrue, kFalse, kTrue, kFalse};
 }
 
 // Helpers for ptranspose.
