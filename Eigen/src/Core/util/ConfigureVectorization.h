@@ -428,7 +428,7 @@ extern "C" {
 #error "Eigen requires a fixed SVE lector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
-#elif defined(EIGEN_ARCH_RISCV)
+#elif EIGEN_ARCH_RISCV
 
 #if defined(__riscv_zfh)
 #define EIGEN_HAS_BUILTIN_FLOAT16
