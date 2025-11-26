@@ -95,7 +95,7 @@ template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& x);
 
 /** \internal \returns exp(x) for single precision float */
-template <typename Packet>
+template <typename Packet, bool IsFinite = false>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x);
 
 /** \internal \returns exp(x) for double precision real numbers */

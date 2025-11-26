@@ -4,6 +4,7 @@
 // Copyright (C) 2007 Julien Pommier
 // Copyright (C) 2014 Pedro Gonnet (pedro.gonnet@gmail.com)
 // Copyright (C) 2009-2019 Gael Guennebaud <gael.guennebaud@inria.fr>
+// Copyright (C) 2018-2025 Rasmus Munk Larsen <rmlarsen@gmail.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -641,7 +642,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // "m = floor(x/log(2)+1/2)" and "r" is the remainder. The result is then
 // "exp(x) = 2^m*exp(r)" where exp(r) is in the range [-1,1).
 // exp(r) is computed using a 6th order minimax polynomial approximation.
-template <typename Packet>
+template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
   const Packet cst_zero = pset1<Packet>(0.0f);
   const Packet cst_one = pset1<Packet>(1.0f);
@@ -656,10 +657,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet cst_p4 = pset1<Packet>(4.166965186595916748046875e-2f);
   const Packet cst_p5 = pset1<Packet>(8.36894474923610687255859375e-3f);
   const Packet cst_p6 = pset1<Packet>(1.37449637986719608306884765625e-3f);
-
-  // Clamp x.
-  Packet zero_mask = pcmp_lt(_x, cst_exp_lo);
-  Packet x = pmin(_x, cst_exp_hi);
+  Packet zero_mask;
+  Packet x;
+  if (!IsFinite) {
+    // Clamp x.
+    zero_mask = pcmp_lt(_x, cst_exp_lo);
+    x = pmin(_x, cst_exp_hi);
+  } else {
+    x = _x;
+  }
 
   // Express exp(x) as exp(m*ln(2) + r), start by extracting
   // m = floor(x/ln(2) + 0.5).
@@ -682,7 +688,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet p_low = padd(r, cst_one);
   Packet y = pmadd(r, p_odd, p_even);
   y = pmadd(r2, y, p_low);
-
+  if (IsFinite) {
+    return pldexp_fast(y, m);
+  }
   // Return 2^m * exp(r).
   const Packet fast_pldexp_unsafe = pcmp_lt(cst_pldexp_threshold, pabs(x));
   if (!predux_any(fast_pldexp_unsafe)) {
@@ -1292,6 +1300,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
   return pxor(result, x_signmask);
 }
 
+#ifdef EIGEN_FAST_MATH
+
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
     Doesn't do anything fancy, just a 9/8-degree rational interpolant which
     is accurate up to a couple of ulps in the (approximate) range [-8, 8],
@@ -1342,6 +1352,55 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
   // Divide the numerator by the denominator.
   return pdiv(p, q);
 }
+
+#else
+
+/** \internal \returns the hyperbolic tan of \a a (coeff-wise).
+    On the domain [-1.25:1.25] we use an approximation of the form
+    tanh(x) ~= x^3 * (P(x) / Q(x)) + x, where P and Q are polynomials in x^2.
+    For |x| > 1.25, tanh is implememented as tanh(x) = 1 - (2 / (1 + exp(2*x))).
+
+    This implementation has a maximum error of 1 ULP (measured with AVX2+FMA).
+
+    This implementation works on both scalars and packets.
+*/
+template <typename T>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
+  // The polynomial coefficients were computed using Rminimax:
+  // % ./ratapprox --function="tanh(x)-x" --dom='[-1.25,1.25]' --num="[x^3,x^5]" --den="even"
+  //     --type="[3,4]" --numF="[SG]" --denF="[SG]" --log --dispCoeff="dec" --output=tanhf.solly
+  constexpr float alpha[] = {-1.46725140511989593505859375e-02f, -3.333333432674407958984375e-01f};
+  constexpr float beta[] = {1.570280082523822784423828125e-02, 4.4401752948760986328125e-01, 1.0f};
+  const T x2 = pmul(x, x);
+  const T x3 = pmul(x2, x);
+  const T p = ppolevl<T, 1>::run(x2, alpha);
+  const T q = ppolevl<T, 2>::run(x2, beta);
+  const T small_tanh = pmadd(x3, pdiv(p, q), x);
+
+  const T sign_mask = pset1<T>(-0.0f);
+  const T abs_x = pandnot(x, sign_mask);
+  constexpr float kSmallThreshold = 1.25f;
+  const T large_mask = pcmp_lt(pset1<T>(kSmallThreshold), abs_x);
+  // Fast exit if all elements are small.
+  if (!predux_any(large_mask)) {
+    return small_tanh;
+  }
+
+  //  Compute as 1 - (2 / (1 + exp(2*x)))
+  const T one = pset1<T>(1.0f);
+  const T two = pset1<T>(2.0f);
+  const T s = pexp_float<T, true>(pmul(two, abs_x));
+  const T abs_tanh = psub(one, pdiv(two, padd(s, one)));
+
+  // Handle infinite inputs and set sign bit.
+  constexpr float kHugeThreshold = 16.0f;
+  const T huge_mask = pcmp_lt(pset1<T>(kHugeThreshold), abs_x);
+  const T x_sign = pand(sign_mask, x);
+  const T large_tanh = por(x_sign, pselect(huge_mask, one, abs_tanh));
+  return pselect(large_mask, large_tanh, small_tanh);
+}
+
+#endif  // EIGEN_FAST_MATH
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
     This uses a 19/18-degree rational interpolant which
