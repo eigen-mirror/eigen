@@ -34,6 +34,11 @@ if (POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif ()
 
+# Respect <PackageName>_ROOT variables.
+if (POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif ()
+
 #==============================================================================
 # CMake Project.
 #==============================================================================
@@ -306,7 +311,6 @@ if (EIGEN_IS_BUILDING_)
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
 
   find_package(StandardMathLibrary)
-  cmake_policy(SET CMP0074 NEW)
   find_package(AOCL QUIET)
   set(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO "")
   if(AOCL_FOUND)

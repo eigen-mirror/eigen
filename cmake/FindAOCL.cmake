@@ -37,7 +37,7 @@
 # AOCL_INCLUDE_DIRS   - Include directories for AOCL headers
 # AOCL_BLAS_TYPE      - Type of BLIS library found ("multithreaded" or "single-threaded")
 # AOCL_CORE_LIB       - Path to core AOCL math library
-# AOCL_BLAS_LIB       - Path to AOCL BLAS library  
+# AOCL_BLAS_LIB       - Path to AOCL BLAS library
 # AOCL_LAPACK_LIB     - Path to AOCL LAPACK library
 #
 # Configuration Options:
@@ -47,7 +47,7 @@
 #
 # # For multithreaded BLIS:
 # cmake .. -DEIGEN_AOCL_BENCH_USE_MT=ON
-# 
+#
 # # For single-threaded BLIS:
 # cmake .. -DEIGEN_AOCL_BENCH_USE_MT=OFF
 #
@@ -55,7 +55,7 @@
 # ---------------------
 # The module searches for AOCL libraries in the following order:
 # 1. ${AOCL_ROOT}/lib (or ${AOCL_ROOT}/lib32 for 32-bit)
-# 2. /opt/amd/aocl/lib64 (or /opt/amd/aocl/lib32 for 32-bit)  
+# 2. /opt/amd/aocl/lib64 (or /opt/amd/aocl/lib32 for 32-bit)
 # 3. ${LIB_INSTALL_DIR}
 #
 # Expected Library Names:
@@ -86,9 +86,13 @@
 if(NOT DEFINED AOCL_ROOT)
   if(DEFINED ENV{AOCL_ROOT})
     set(AOCL_ROOT $ENV{AOCL_ROOT})
-    message(STATUS "AOCL_ROOT set from environment: ${AOCL_ROOT}")
+    if (NOT AOCL_FIND_QUIETLY)
+      message(STATUS "AOCL_ROOT set from environment: ${AOCL_ROOT}")
+    endif()
   else()
-    message(WARNING "AOCL_ROOT is not set. AOCL support will be disabled.")
+    if (NOT AOCL_FIND_QUIETLY)
+      message(WARNING "AOCL_ROOT is not set. AOCL support will be disabled.")
+    endif()
     set(AOCL_LIBRARIES "")
   endif()
 endif()
@@ -115,27 +119,33 @@ endif()
         /opt/amd/aocl/lib64
         ${LIB_INSTALL_DIR}
     )
-    if(AOCL_CORE_LIB)
-      message(STATUS "Found AOCL core library: ${AOCL_CORE_LIB}")
-    else()
-      message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
+    if (NOT AOCL_FIND_QUIETLY)
+      if(AOCL_CORE_LIB)
+        message(STATUS "Found AOCL core library: ${AOCL_CORE_LIB}")
+      else()
+        message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
+      endif()
     endif()
 
     # Conditional BLIS library search based on MT requirement
     if(EIGEN_AOCL_BENCH_USE_MT)
       # Search for multithreaded BLIS first
       find_library(AOCL_BLAS_LIB
-        NAMES blis-mt 
+        NAMES blis-mt
         PATHS
           ${AOCL_ROOT}/lib
           /opt/amd/aocl/lib64
           ${LIB_INSTALL_DIR}
       )
       if(AOCL_BLAS_LIB)
-        message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        endif()
         set(AOCL_BLAS_TYPE "multithreaded")
       else()
-        message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        endif()
         find_library(AOCL_BLAS_LIB
           NAMES blis
           PATHS
@@ -155,10 +165,14 @@ endif()
           ${LIB_INSTALL_DIR}
       )
       if(AOCL_BLAS_LIB)
-        message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        endif()
         set(AOCL_BLAS_TYPE "single-threaded")
       else()
-        message(WARNING "AOCL single-threaded BLAS library not found.")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(WARNING "AOCL single-threaded BLAS library not found.")
+        endif()
       endif()
     endif()
 
@@ -170,10 +184,12 @@ endif()
         /opt/amd/aocl/lib64
         ${LIB_INSTALL_DIR}
     )
-    if(AOCL_LAPACK_LIB)
-      message(STATUS "Found AOCL LAPACK library: ${AOCL_LAPACK_LIB}")
-    else()
-      message(WARNING "AOCL LAPACK library not found in ${AOCL_ROOT}/lib or default locations.")
+    if (NOT AOCL_FIND_QUIETLY)
+      if(AOCL_LAPACK_LIB)
+        message(STATUS "Found AOCL LAPACK library: ${AOCL_LAPACK_LIB}")
+      else()
+        message(WARNING "AOCL LAPACK library not found in ${AOCL_ROOT}/lib or default locations.")
+      endif()
     endif()
 
   else()
@@ -185,26 +201,32 @@ endif()
         /opt/amd/aocl/lib32
         ${LIB_INSTALL_DIR}
     )
-    if(AOCL_CORE_LIB)
-      message(STATUS "Found AOCL core library: ${AOCL_CORE_LIB}")
-    else()
-      message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
+    if (NOT AOCL_FIND_QUIETLY)
+      if(AOCL_CORE_LIB)
+        message(STATUS "Found AOCL core library: ${AOCL_CORE_LIB}")
+      else()
+        message(WARNING "AOCL core library not found in ${AOCL_ROOT}/lib or default locations.")
+      endif()
     endif()
 
     # Conditional BLIS library search for 32-bit
     if(EIGEN_AOCL_BENCH_USE_MT)
       find_library(AOCL_BLAS_LIB
-        NAMES blis-mt 
+        NAMES blis-mt
         PATHS
           ${AOCL_ROOT}/lib
           /opt/amd/aocl/lib32
           ${LIB_INSTALL_DIR}
       )
       if(AOCL_BLAS_LIB)
-        message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(STATUS "Found AOCL BLAS (MT) library: ${AOCL_BLAS_LIB}")
+        endif()
         set(AOCL_BLAS_TYPE "multithreaded")
       else()
-        message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(WARNING "AOCL multithreaded BLAS library not found, falling back to single-threaded.")
+        endif()
         find_library(AOCL_BLAS_LIB
           NAMES blis
           PATHS
@@ -223,10 +245,14 @@ endif()
           ${LIB_INSTALL_DIR}
       )
       if(AOCL_BLAS_LIB)
-        message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(STATUS "Found AOCL BLAS (ST) library: ${AOCL_BLAS_LIB}")
+        endif()
         set(AOCL_BLAS_TYPE "single-threaded")
       else()
-        message(WARNING "AOCL single-threaded BLAS library not found.")
+        if (NOT AOCL_FIND_QUIETLY)
+          message(WARNING "AOCL single-threaded BLAS library not found.")
+        endif()
       endif()
     endif()
 
@@ -237,10 +263,12 @@ endif()
         /opt/amd/aocl/lib32
         ${LIB_INSTALL_DIR}
     )
-    if(AOCL_LAPACK_LIB)
-      message(STATUS "Found AOCL LAPACK library: ${AOCL_LAPACK_LIB}")
-    else()
-      message(WARNING "AOCL LAPACK library not found in ${AOCL_ROOT}/lib or default locations.")
+    if (NOT AOCL_FIND_QUIETLY)
+      if(AOCL_LAPACK_LIB)
+        message(STATUS "Found AOCL LAPACK library: ${AOCL_LAPACK_LIB}")
+      else()
+        message(WARNING "AOCL LAPACK library not found in ${AOCL_ROOT}/lib or default locations.")
+      endif()
     endif()
 endif()
 
