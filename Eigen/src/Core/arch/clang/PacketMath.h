@@ -56,6 +56,7 @@ struct generic_float_packet_traits : default_packet_traits {
     HasReciprocal = 1,
     HasSin = 1,
     HasCos = 1,
+    HasTan = 1,
     HasACos = 1,
     HasASin = 1,
     HasATan = 1,
