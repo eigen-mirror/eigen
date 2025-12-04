@@ -201,6 +201,7 @@ using std::ptrdiff_t;
 #include "src/Core/RandomImpl.h"
 #include "src/Core/GenericPacketMath.h"
 #include "src/Core/MathFunctionsImpl.h"
+#include "src/Core/IntegerDivision.h"
 #include "src/Core/arch/Default/ConjHelper.h"
 // Generic half float support
 #include "src/Core/arch/Default/Half.h"

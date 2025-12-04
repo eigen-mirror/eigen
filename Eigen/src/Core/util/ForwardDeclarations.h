@@ -324,7 +324,9 @@ template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_product_op;
 template <typename LhsScalar, typename RhsScalar = LhsScalar>
 struct scalar_quotient_op;
-// logical and bitwise operations
+template <typename Scalar>
+struct fast_div_op;
+    // logical and bitwise operations
 template <typename Scalar>
 struct scalar_boolean_and_op;
 template <typename Scalar>
