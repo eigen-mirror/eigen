@@ -259,6 +259,7 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasNegate = 0,
     HasCmp = 1,
     HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 template <>
@@ -2124,6 +2125,37 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
   return _mm_and_si128(o, _mm_set1_epi32(0xffff));
 }
 #endif
+
+template <>
+EIGEN_STRONG_INLINE Packet4ui pfast_int_div(const Packet4ui& a, const uint32_t& magic, int shift) {
+  const __m128i cst_magic = _mm_set1_epi32(magic);
+  const __m128i cst_shift_epu64 = _mm_cvtsi64_si128(shift);
+
+  __m128i a_lo = _mm_cvtepu32_epi64(a);
+  __m128i a_hi = _mm_cvtepu32_epi64(_mm_unpackhi_epi64(a, a));
+
+  __m128i b_lo = _mm_srli_epi64(_mm_mul_epu32(a_lo, cst_magic), 32);
+  __m128i b_hi = _mm_srli_epi64(_mm_mul_epu32(a_hi, cst_magic), 32);
+
+  __m128i t_lo = _mm_srl_epi64(_mm_add_epi64(b_lo, a_lo), cst_shift_epu64);
+  __m128i t_hi = _mm_srl_epi64(_mm_add_epi64(b_hi, a_hi), cst_shift_epu64);
+
+  __m128i result = _mm_castps_si128(
+      _mm_shuffle_ps(_mm_castsi128_ps(t_lo), _mm_castsi128_ps(t_hi), (shuffle_mask<0, 2, 0, 2>::mask)));
+
+  return result;
+}
+
+//template <>
+//EIGEN_STRONG_INLINE Packet4i pfast_int_div(const Packet4i& a, const int32_t& magic, int shift, bool divisorIsNegative) {
+//  //bool returnNegative = (a < 0) != negative_divisor;
+//  //UnsignedScalar abs_a = static_cast<UnsignedScalar>(numext::abs(a));
+//  //Scalar result = static_cast<Scalar>(UnsignedImpl::operator()(abs_a));
+//  //return returnNegative ? -result : result;
+//  __m128i sign_mask = _mm_srai_epi32(a, 31);
+//
+//
+//}
 
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.

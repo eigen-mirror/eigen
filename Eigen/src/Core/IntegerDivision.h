@@ -214,7 +214,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t muluh(uint64_t a, uint64_t b) {
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T fast_int_div_generic(T a, T magic, int shift) {
-  constexpr int k = CHAR_BIT * sizeof(T);
   DoubleWordInteger<T> b(0, muluh(a, magic));
   DoubleWordInteger<T> t = (b + a) >> shift;
   return t.lo;

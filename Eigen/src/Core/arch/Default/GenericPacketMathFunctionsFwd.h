@@ -188,12 +188,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_trunc(const Packet& a);
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
 
-template <typename Packet, typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const Scalar& magic, int shift);
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const typename unpacket_traits<Packet>::type& magic,
+                                         int shift);
 
-template <typename Packet, typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const Scalar& magic, int shift,
-                                                           bool divisorIsNegative);
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const typename unpacket_traits<Packet>::type& magic,
+                                         int shift, bool divisorIsNegative);
 
 // Macros for instantiating these generic functions for different backends.
 #define EIGEN_PACKET_FUNCTION(METHOD, SCALAR, PACKET)                                             \

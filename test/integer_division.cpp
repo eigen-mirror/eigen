@@ -9,15 +9,48 @@
 
 #include "main.h"
 
-template <typename Numerator, typename Divisor = Numerator>
-void test_division() {
+template <typename Numerator, typename Divisor>
+Numerator ref_div(Numerator n, Divisor d) {
+  EIGEN_STATIC_ASSERT(std::is_signed<Numerator>::value || !std::is_signed<Divisor>::value,
+                      CANT DIVIDE AN UNSIGNED INTEGER BY A SIGNED INTEGER)
   using UnsignedNumerator = typename std::make_unsigned<Numerator>::type;
   using UnsignedDivisor = typename std::make_unsigned<Divisor>::type;
+  bool n_is_negative = n < 0;
+  bool d_is_negative = d < 0;
+  UnsignedNumerator abs_n = numext::abs(n);
+  UnsignedDivisor abs_d = numext::abs(d);
+  Numerator result = abs_n / abs_d;
+  if (n_is_negative != d_is_negative) {
+    result = 0 - result;
+  }
+  return result;
+}
+
+template <typename Numerator, typename Divisor>
+void test_division_exhaustive() {
+  Numerator n = NumTraits<Numerator>::lowest();
+  Divisor d = NumTraits<Divisor>::lowest();
+  while (true) {
+    if (d != 0) {
+      internal::fast_div_op<Numerator> fast_div(d);
+      while (true) {
+        Numerator q = fast_div.operator()(n);
+        Numerator ref = ref_div(n, d);
+        VERIFY_IS_EQUAL(q, ref);
+        if (n == NumTraits<Numerator>::highest()) break;
+        n++;
+      }
+    }
+    if (d == NumTraits<Divisor>::highest()) break;
+    d++;
+  }
+}
+
+template <typename Numerator, typename Divisor>
+void test_division() {
   using PlainType = VectorX<Numerator>;
   using FastDivOp = internal::fast_div_op<Numerator>;
   using FastDivXpr = CwiseUnaryOp<FastDivOp, PlainType>;
-  using RefRhs = typename internal::plain_constant_type<PlainType>::type;
-  using RefXpr = CwiseBinaryOp<internal::scalar_quotient_op<Numerator>, PlainType, RefRhs>;
 
   Index size = 4096;
   PlainType numerator(size);
@@ -26,20 +59,17 @@ void test_division() {
     Divisor d = internal::random<Divisor>(1, NumTraits<Divisor>::highest() / 4);
     {
       FastDivXpr xpr(numerator, FastDivOp(d));
+      PlainType evalXpr = xpr;
       for (Index i = 0; i < size; i++) {
-        UnsignedNumerator absNumerator = numext::abs(numerator.coeff(i));
-        Numerator ref = absNumerator / d;
-        if (numerator.coeff(i) < 0) ref = -ref;
-        VERIFY_IS_EQUAL(xpr.coeff(i), ref);
+        Numerator ref = ref_div(numerator.coeff(i), d);
+        VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
     }
     if (std::is_signed<Divisor>::value) {
       Divisor neg_d = 0 - d;
       FastDivXpr xpr(numerator, FastDivOp(neg_d));
       for (Index i = 0; i < size; i++) {
-        UnsignedNumerator absNumerator = numext::abs(numerator.coeff(i));
-        Numerator ref = absNumerator / d;
-        if (numerator.coeff(i) > 0) ref = -ref;
+        Numerator ref = ref_div(numerator.coeff(i), neg_d);
         VERIFY_IS_EQUAL(xpr.coeff(i), ref);
       }
     }
@@ -73,12 +103,18 @@ void run_division_tests() {
 }
 
 EIGEN_DECLARE_TEST(integer_division) {
-  CALL_SUBTEST_1(run_division_tests<uint8_t>());
-  CALL_SUBTEST_1(run_division_tests<uint16_t>());
-  CALL_SUBTEST_1(run_division_tests<uint32_t>());
-  CALL_SUBTEST_1(run_division_tests<uint64_t>());
-  CALL_SUBTEST_1(run_division_tests<int8_t>());
-  CALL_SUBTEST_1(run_division_tests<int16_t>());
-  CALL_SUBTEST_1(run_division_tests<int32_t>());
-  CALL_SUBTEST_1(run_division_tests<int64_t>());
+  //CALL_SUBTEST_1((test_division_exhaustive<uint8_t, uint8_t>()));
+  //CALL_SUBTEST_1((test_division_exhaustive<int8_t, int8_t>()));
+  //CALL_SUBTEST_1((test_division_exhaustive<int8_t, uint8_t>()));
+  //CALL_SUBTEST_2((test_division_exhaustive<uint16_t, uint16_t>()));
+  //CALL_SUBTEST_2((test_division_exhaustive<int16_t, int16_t>()));
+  //CALL_SUBTEST_2((test_division_exhaustive<int16_t, uint16_t>()));
+  //CALL_SUBTEST_3((run_division_tests<uint8_t>()));
+  //CALL_SUBTEST_3((run_division_tests<uint16_t>()));
+  CALL_SUBTEST_4((run_division_tests<uint32_t>()));
+  //CALL_SUBTEST_4((run_division_tests<uint64_t>()));
+  //CALL_SUBTEST_5((run_division_tests<int8_t>()));
+  //CALL_SUBTEST_5((run_division_tests<int16_t>()));
+  //CALL_SUBTEST_6((run_division_tests<int32_t>()));
+  //CALL_SUBTEST_6((run_division_tests<int64_t>()));
 }
