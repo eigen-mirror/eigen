@@ -346,6 +346,23 @@ struct functor_traits<fast_div_op<Scalar>> {
   };
 };
 
+template <typename Packet>
+EIGEN_STRONG_INLINE Packet pfast_sint_div(const Packet& a,
+                                          std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic, int shift,
+                                          bool sign) {
+  using UnsignedScalar = std::make_unsigned_t<typename unpacket_traits<Packet>::type>;
+  EIGEN_STATIC_ASSERT((find_packet_by_size<UnsignedScalar, unpacket_traits<Packet>::size>::value),
+                      NO COMPATIBLE UNSIGNED PACKET)
+  using UnsignedPacket = typename find_packet_by_size<UnsignedScalar, unpacket_traits<Packet>::size>::type;
+
+  const Packet cst_divisor_sign = pset1<Packet>(sign ? -1 : 0);
+  Packet sign_a = psignbit(a);
+  Packet abs_result = (Packet)pfast_uint_div((UnsignedPacket)pabs(a), magic, shift);
+  Packet sign_mask = pxor(sign_a, cst_divisor_sign);
+  Packet result = psub(pxor(abs_result, sign_mask), sign_mask);
+  return result;
+}
+
 }  // namespace internal
 
 }  // namespace Eigen

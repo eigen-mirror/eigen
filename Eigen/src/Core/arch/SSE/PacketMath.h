@@ -2148,36 +2148,28 @@ EIGEN_STRONG_INLINE Packet4ui pfast_uint_div(const Packet4ui& a, uint32_t magic,
   return result;
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet4i pfast_sint_div(const Packet4i& a, uint32_t magic, int shift, bool sign) {
-  const __m128i cst_divisor_sign = _mm_set1_epi32(sign ? -1 : 0);
-
-  __m128i abs_a = _mm_abs_epi32(a);
-  __m128i abs_result = pfast_uint_div<Packet4ui>(abs_a, magic, shift);
-  __m128i result = _mm_sign_epi32(abs_result, _mm_xor_epi32(a, cst_divisor_sign));
-  return result;
-}
-
+// non-generic implementations for Packet2ul as the type does not yet exist
 EIGEN_STRONG_INLINE __m128i pcmp_lt_2ul(__m128i a, __m128i b) {
   const __m128i cst_msb = _mm_set1_epi64x(1ULL << 63);
   return _mm_cmpgt_epi64(_mm_xor_si128(b, cst_msb), _mm_xor_si128(a, cst_msb));
 }
 
-EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> add_wide_epu64(std::pair<__m128i, __m128i> lhs,
-                                                               std::pair<__m128i, __m128i> rhs) {
+EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> padd_wide_2ul(std::pair<__m128i, __m128i> lhs,
+                                                              std::pair<__m128i, __m128i> rhs) {
   __m128i hi = _mm_add_epi64(lhs.first, rhs.first);
   __m128i lo = _mm_add_epi64(lhs.second, rhs.second);
   hi = _mm_sub_epi64(hi, pcmp_lt_2ul(lo, rhs.second));
   return std::make_pair(hi, lo);
 }
-EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> add_wide_epu64(__m128i lhs, __m128i rhs) {
+
+EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> padd_wide_2ul(__m128i lhs, __m128i rhs) {
   __m128i lo = _mm_add_epi64(lhs, rhs);
-  __m128i hi = _mm_srli_epi64(pcmp_lt_2ul(lo, rhs), 63);
+  __m128i hi = _mm_sub_epi64(_mm_setzero_si128(), pcmp_lt_2ul(lo, rhs));
   return std::make_pair(hi, lo);
 }
 
-EIGEN_STRONG_INLINE __m128i muluh_2ul(__m128i a, __m128i b) {
-  using WidePacket = std::pair<__m128i, __m128i>;
+EIGEN_STRONG_INLINE __m128i pmuluh_2ul(__m128i a, __m128i b) {
+  using WidePacket2ul = std::pair<__m128i, __m128i>;
   constexpr int kh = 32;
   constexpr uint64_t kLowMask = uint64_t(-1) >> kh;
   const __m128i cst_lowMask = _mm_set1_epi64x(kLowMask);
@@ -2192,19 +2184,20 @@ EIGEN_STRONG_INLINE __m128i muluh_2ul(__m128i a, __m128i b) {
   __m128i ab_lh = _mm_mul_epu32(a_l, b_h);
   __m128i ab_ll = _mm_mul_epu32(a_l, b_l);
 
-  WidePacket result(ab_hh, ab_ll);
-  result = add_wide_epu64(result, WidePacket(_mm_srli_epi64(ab_hl, kh), _mm_slli_epi64(ab_hl, kh)));
-  result = add_wide_epu64(result, WidePacket(_mm_srli_epi64(ab_lh, kh), _mm_slli_epi64(ab_lh, kh)));
+  WidePacket2ul result(ab_hh, ab_ll);
+  result = padd_wide_2ul(result, WidePacket2ul(_mm_srli_epi64(ab_hl, kh), _mm_slli_epi64(ab_hl, kh)));
+  result = padd_wide_2ul(result, WidePacket2ul(_mm_srli_epi64(ab_lh, kh), _mm_slli_epi64(ab_lh, kh)));
 
   return result.first;
 }
 
 EIGEN_STRONG_INLINE __m128i pfast_uint_div_2ul(const __m128i& a, uint64_t magic, int shift) {
-  using WidePacket = std::pair<__m128i, __m128i>;
+  // unlike the scalar implementation, shift == 64 is defined and results in zero
+  using WidePacket2ul = std::pair<__m128i, __m128i>;
   const __m128i cst_magic = _mm_set1_epi64x(magic);
 
-  __m128i b = muluh_2ul(a, cst_magic);
-  WidePacket t = add_wide_epu64(b, a);
+  __m128i b = pmuluh_2ul(a, cst_magic);
+  WidePacket2ul t = padd_wide_2ul(b, a);
   __m128i result = _mm_srl_epi64(t.second, _mm_cvtsi64_si128(shift));
   result = _mm_add_epi64(result, _mm_sll_epi64(t.first, _mm_cvtsi64_si128(64 - shift)));
 

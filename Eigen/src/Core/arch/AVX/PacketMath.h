@@ -266,7 +266,7 @@ template <>
 struct packet_traits<int64_t> : default_packet_traits {
   typedef Packet4l type;
   typedef Packet2l half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 4 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasFastIntDiv = 1, size = 4 };
 };
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
@@ -3063,13 +3063,40 @@ EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic,
   return result;
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet8i pfast_sint_div(const Packet8i& a, uint32_t magic, int shift, bool sign) {
-  const __m256i cst_divisor_sign = _mm256_set1_epi32(sign ? -1 : 0);
+EIGEN_STRONG_INLINE Packet4ul pmuluh(Packet4ul a, Packet4ul b) {
+  using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
+  constexpr int kh = 32;
+  constexpr uint64_t kLowMask = uint64_t(-1) >> kh;
+  const __m256i cst_lowMask = _mm256_set1_epi64x(kLowMask);
 
-  __m256i abs_a = _mm256_abs_epi32(a);
-  __m256i abs_result = pfast_uint_div<Packet8ui>(abs_a, magic, shift);
-  __m256i result = _mm256_sign_epi32(abs_result, _mm256_xor_epi32(a, cst_divisor_sign));
+  __m256i a_h = _mm256_srli_epi64(a, kh);
+  __m256i a_l = _mm256_and_si256(a, cst_lowMask);
+  __m256i b_h = _mm256_srli_epi64(b, kh);
+  __m256i b_l = _mm256_and_si256(b, cst_lowMask);
+
+  __m256i ab_hh = _mm256_mul_epu32(a_h, b_h);
+  __m256i ab_hl = _mm256_mul_epu32(a_h, b_l);
+  __m256i ab_lh = _mm256_mul_epu32(a_l, b_h);
+  __m256i ab_ll = _mm256_mul_epu32(a_l, b_l);
+
+  WidePacket4ul result(ab_hh, ab_ll);
+  result = padd_wide(result, WidePacket4ul(_mm256_srli_epi64(ab_hl, kh), _mm256_slli_epi64(ab_hl, kh)));
+  result = padd_wide(result, WidePacket4ul(_mm256_srli_epi64(ab_lh, kh), _mm256_slli_epi64(ab_lh, kh)));
+
+  return result.first;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4ul pfast_uint_div(const Packet4ul& a, uint64_t magic, int shift) {
+  // unlike the scalar implementation, shift == 64 is defined and results in zero
+  using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
+  const __m256i cst_magic = _mm256_set1_epi64x(magic);
+
+  Packet4ul b = pmuluh(a, cst_magic);
+  WidePacket4ul t = padd_wide(b, a);
+  Packet4ul result = _mm256_srl_epi64(t.second, _mm_cvtsi64_si128(shift));
+  result = _mm256_add_epi64(result, _mm256_sll_epi64(t.first, _mm_cvtsi64_si128(64 - shift)));
+
   return result;
 }
 

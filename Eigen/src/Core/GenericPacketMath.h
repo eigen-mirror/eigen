@@ -1671,6 +1671,21 @@ EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Ind
   }
 }
 
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide(std::pair<Packet, Packet> a, std::pair<Packet, Packet> b) {
+  Packet hi = padd(a.first, b.first);
+  Packet lo = padd(a.second, b.second);
+  hi = psub(hi, pcmp_lt(lo, b.second));
+  return std::make_pair(hi, lo);
+}
+
+template <typename Packet>
+EIGEN_STRONG_INLINE std::pair<Packet, Packet> padd_wide(Packet a, Packet b) {
+  Packet lo = padd(a, b);
+  Packet hi = psub(pzero(a), pcmp_lt(lo, b));
+  return std::make_pair(hi, lo);
+}
+
 #ifndef EIGEN_NO_IO
 
 template <typename Packet>
