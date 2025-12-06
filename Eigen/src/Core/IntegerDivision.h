@@ -24,14 +24,14 @@ struct DoubleWordInteger {
   static constexpr int k = CHAR_BIT * sizeof(T);
 
   EIGEN_DEVICE_FUNC DoubleWordInteger(T highBits, T lowBits) : hi(highBits), lo(lowBits) {}
-  EIGEN_DEVICE_FUNC DoubleWordInteger(T lowBits) : hi(0), lo(lowBits) {}
 
   static EIGEN_DEVICE_FUNC DoubleWordInteger FromSum(T a, T b) {
+    // convenient constructor that returns the full sum a + b
     T sum = a + b;
     return DoubleWordInteger(sum < a ? 1 : 0, sum);
   }
   static EIGEN_DEVICE_FUNC DoubleWordInteger FromProduct(T a, T b) {
-    // convenient constructor that computes the full product of a*b
+    // convenient constructor that returns the full product a * b
     constexpr int kh = k / 2;
     constexpr T kLowMask = T(-1) >> kh;
 
@@ -219,19 +219,18 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t muluh(uint32_t a, uint32_t b) {
   return static_cast<uint32_t>(result);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t muluh(uint64_t a, uint64_t b) {
-//#if defined(EIGEN_GPU_COMPILE_PHASE)
-//  return __umul64hi(a, b);
-//#elif defined(SYCL_DEVICE_ONLY)
-//  return cl::sycl::mul_hi(a, b);
-//#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
-//  return __umulh(a, b);
-//#elif EIGEN_HAS_BUILTIN_INT128
-//  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
-//  return static_cast<uint64_t>(v >> 64);
-//#else
-//  return muluh_generic(a, b);
-//#endif
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+  return __umul64hi(a, b);
+#elif defined(SYCL_DEVICE_ONLY)
+  return cl::sycl::mul_hi(a, b);
+#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
+  return __umulh(a, b);
+#elif EIGEN_HAS_BUILTIN_INT128
+  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+  return static_cast<uint64_t>(v >> 64);
+#else
   return muluh_generic(a, b);
+#endif
 }
 
 template <typename T>
@@ -313,10 +312,10 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<typename std::make_unsi
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), sign(d < 0) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    bool returnNegative = (a < 0) != sign;
+    bool negative = (a < 0) != sign;
     UnsignedScalar abs_a = numext::abs(a);
     Scalar result = UnsignedImpl::operator()(abs_a);
-    return returnNegative ? -result : result;
+    return negative ? -result : result;
   }
 
   template <typename Packet>
