@@ -24,6 +24,34 @@ struct DoubleWordInteger {
   static constexpr int k = CHAR_BIT * sizeof(T);
 
   EIGEN_DEVICE_FUNC DoubleWordInteger(T highBits, T lowBits) : hi(highBits), lo(lowBits) {}
+  EIGEN_DEVICE_FUNC DoubleWordInteger(T lowBits) : hi(0), lo(lowBits) {}
+
+  static EIGEN_DEVICE_FUNC DoubleWordInteger FromSum(T a, T b) {
+    T sum = a + b;
+    return DoubleWordInteger(sum < a ? 1 : 0, sum);
+  }
+  static EIGEN_DEVICE_FUNC DoubleWordInteger FromProduct(T a, T b) {
+    // convenient constructor that computes the full product of a*b
+    constexpr int kh = k / 2;
+    constexpr T kLowMask = T(-1) >> kh;
+
+    T a_h = a >> kh;
+    T a_l = a & kLowMask;
+    T b_h = b >> kh;
+    T b_l = b & kLowMask;
+
+    T ab_hh = a_h * b_h;
+    T ab_hl = a_h * b_l;
+    T ab_lh = a_l * b_h;
+    T ab_ll = a_l * b_l;
+
+    DoubleWordInteger<T> result(ab_hh, ab_ll);
+    result += DoubleWordInteger<T>(ab_hl >> kh, ab_hl << kh);
+    result += DoubleWordInteger<T>(ab_lh >> kh, ab_lh << kh);
+
+    eigen_assert(result.lo == T(a * b));
+    return result;
+  }
 
   EIGEN_DEVICE_FUNC DoubleWordInteger& operator+=(const DoubleWordInteger& rhs) {
     hi += rhs.hi;
@@ -58,6 +86,17 @@ struct DoubleWordInteger {
     }
     return *this;
   }
+  EIGEN_DEVICE_FUNC DoubleWordInteger& operator<<=(int shift) {
+    if (shift >= k) {
+      hi = lo << (shift - k);
+      lo = 0;
+    } else {
+      hi <<= shift;
+      hi |= lo >> (k - shift);
+      lo <<= shift;
+    }
+    return *this;
+  }
 
   EIGEN_DEVICE_FUNC DoubleWordInteger operator+(const DoubleWordInteger& rhs) const {
     DoubleWordInteger result = *this;
@@ -82,6 +121,11 @@ struct DoubleWordInteger {
   EIGEN_DEVICE_FUNC DoubleWordInteger operator>>(int shift) const {
     DoubleWordInteger result = *this;
     result >>= shift;
+    return result;
+  }
+  EIGEN_DEVICE_FUNC DoubleWordInteger operator<<(int shift) const {
+    DoubleWordInteger result = *this;
+    result <<= shift;
     return result;
   }
 
@@ -112,13 +156,16 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
   // if d == 1, then the magic number is 2^k mod 2^k == 0
   if (d == 1) return 0;
 
-  // magic = ceil(2^(k+p) / d) mod 2^k = 1 + floor(2^(k+p)-1 / d) mod 2^k
+  // magic = 1 + floor(n / d) mod 2^k
   // n = 2^(k+p)-1, which is at least k+1 bits and at most 2k bits
   // p = log2_ceil(d), d <= 2^p
   // 2^k+1 > q >= 2^k
   // subtract 2^k * d, 2^k-1 * d ... and so forth until the high bits of q are depleted
 
-  DoubleWordInteger<T> n = DoubleWordInteger<T>(T(-1), T(-1)) >> (k - p);
+  constexpr T nLowBits = T(-1);
+  T nHighBits = nLowBits >> (k - p);
+
+  DoubleWordInteger<T> n(nHighBits, nLowBits);
   DoubleWordInteger<T> q_inc(1, 0);   // the incremental amount to add to q
   DoubleWordInteger<T> qd_inc(d, 0);  // the incremental amount to subtract from n
   DoubleWordInteger<T> q(0, 0);       // the total number of times q is subtracted from n
@@ -132,11 +179,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
     q_inc >>= 1;
     qd_inc >>= 1;
   }
-  // finally, use the built-in division to finalize the quotient
   q += n.lo / d;
-  // magic = (1 + q) mod 2^k
-  T magic = q.lo + 1;
-  return magic;
+  return q.lo + 1;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calc_magic(uint8_t d, int p) {
   uint16_t n = uint16_t(-1) >> (8 - p);
@@ -160,77 +204,55 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t calc_magic(uint64_t d, int p) { r
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T muluh_generic(T a, T b) {
-  constexpr int k = CHAR_BIT * sizeof(T);
-  constexpr T kLowMask = (T(1) << (k / 2)) - 1;
-
-  T a_h = a >> (k / 2);
-  T a_l = a & kLowMask;
-  T b_h = b >> (k / 2);
-  T b_l = b & kLowMask;
-
-  T p_hh = a_h * b_h;
-  T p_hl = a_h * b_l;
-  T p_lh = a_l * b_h;
-  T p_ll = a_l * b_l;
-
-  T p_hl_h = p_hl >> (k / 2);
-  T p_hl_l = p_hl & kLowMask;
-  T p_lh_h = p_lh >> (k / 2);
-  T p_lh_l = p_lh & kLowMask;
-  T p_ll_h = p_ll >> (k / 2);
-  /* discard the lowest bits
-  T p_ll_l = p_ll & kLowMask;
-  */
-  T carry = p_hl_h + p_lh_h + ((p_hl_l + p_lh_l + p_ll_h) >> (k / 2));
-  T result = p_hh + carry;
-  return result;
+  return DoubleWordInteger<T>::FromProduct(a, b).hi;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t muluh(uint8_t a, uint8_t b) {
-  uint16_t result = (uint16_t(a) * uint16_t(b)) >> 8;
+  uint_fast16_t result = (uint_fast16_t(a) * uint_fast16_t(b)) >> 8;
   return static_cast<uint8_t>(result);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t muluh(uint16_t a, uint16_t b) {
-  uint32_t result = (uint32_t(a) * uint32_t(b)) >> 16;
+  uint_fast32_t result = (uint_fast32_t(a) * uint_fast32_t(b)) >> 16;
   return static_cast<uint16_t>(result);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t muluh(uint32_t a, uint32_t b) {
-  uint64_t result = (uint64_t(a) * uint64_t(b)) >> 32;
+  uint_fast64_t result = (uint_fast64_t(a) * uint_fast64_t(b)) >> 32;
   return static_cast<uint32_t>(result);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t muluh(uint64_t a, uint64_t b) {
-#if defined(EIGEN_GPU_COMPILE_PHASE)
-  return __umul64hi(a, b);
-#elif defined(SYCL_DEVICE_ONLY)
-  return cl::sycl::mul_hi(a, b);
-#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
-  return __umulh(a, b);
-#elif EIGEN_HAS_BUILTIN_INT128
-  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
-  return static_cast<uint64_t>(v >> 64);
-#else
+//#if defined(EIGEN_GPU_COMPILE_PHASE)
+//  return __umul64hi(a, b);
+//#elif defined(SYCL_DEVICE_ONLY)
+//  return cl::sycl::mul_hi(a, b);
+//#elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
+//  return __umulh(a, b);
+//#elif EIGEN_HAS_BUILTIN_INT128
+//  __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
+//  return static_cast<uint64_t>(v >> 64);
+//#else
+//  return muluh_generic(a, b);
+//#endif
   return muluh_generic(a, b);
-#endif
 }
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T fast_int_div_generic(T a, T magic, int shift) {
-  DoubleWordInteger<T> b(0, muluh(a, magic));
-  DoubleWordInteger<T> t = (b + a) >> shift;
+  T b = muluh(a, magic);
+  DoubleWordInteger<T> t = DoubleWordInteger<T>::FromSum(b, a) >> shift;
   return t.lo;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t fast_int_div(uint8_t a, uint8_t magic, int shift) {
-  uint16_t b = muluh(a, magic);
-  uint16_t t = (b + a) >> shift;
+  uint_fast16_t b = muluh(a, magic);
+  uint_fast16_t t = (b + a) >> shift;
   return static_cast<uint8_t>(t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t fast_int_div(uint16_t a, uint16_t magic, int shift) {
-  uint32_t b = muluh(a, magic);
-  uint32_t t = (b + a) >> shift;
+  uint_fast32_t b = muluh(a, magic);
+  uint_fast32_t t = (b + a) >> shift;
   return static_cast<uint16_t>(t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t fast_int_div(uint32_t a, uint32_t magic, int shift) {
-  uint64_t b = muluh(a, magic);
-  uint64_t t = (b + a) >> shift;
+  uint_fast64_t b = muluh(a, magic);
+  uint_fast64_t t = (b + a) >> shift;
   return static_cast<uint32_t>(t);
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t fast_int_div(uint64_t a, uint64_t magic, int shift) {
@@ -276,7 +298,7 @@ struct fast_div_op_impl<Scalar, false> {
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    return pfast_int_div(a, magic, shift);
+    return pfast_uint_div(a, magic, shift);
   }
 
   Scalar magic;
@@ -288,23 +310,21 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<typename std::make_unsi
   using UnsignedScalar = typename std::make_unsigned<Scalar>::type;
   using UnsignedImpl = fast_div_op_impl<UnsignedScalar>;
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), negative_divisor(d < 0) {}
+  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), sign(d < 0) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    bool returnNegative = (a < 0) != negative_divisor;
-    UnsignedScalar abs_a = static_cast<UnsignedScalar>(numext::abs(a));
-    Scalar result = static_cast<Scalar>(UnsignedImpl::operator()(abs_a));
+    bool returnNegative = (a < 0) != sign;
+    UnsignedScalar abs_a = numext::abs(a);
+    Scalar result = UnsignedImpl::operator()(abs_a);
     return returnNegative ? -result : result;
   }
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    using UnsignedImpl::magic;
-    using UnsignedImpl::shift;
-    return pfast_int_div(a, magic, shift, negative_divisor);
+    return pfast_sint_div(a, UnsignedImpl::magic, UnsignedImpl::shift, sign);
   }
 
-  bool negative_divisor;
+  bool sign;
 };
 
 template <typename Scalar>

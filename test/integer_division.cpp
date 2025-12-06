@@ -103,18 +103,18 @@ void run_division_tests() {
 }
 
 EIGEN_DECLARE_TEST(integer_division) {
-  //CALL_SUBTEST_1((test_division_exhaustive<uint8_t, uint8_t>()));
-  //CALL_SUBTEST_1((test_division_exhaustive<int8_t, int8_t>()));
-  //CALL_SUBTEST_1((test_division_exhaustive<int8_t, uint8_t>()));
-  //CALL_SUBTEST_2((test_division_exhaustive<uint16_t, uint16_t>()));
-  //CALL_SUBTEST_2((test_division_exhaustive<int16_t, int16_t>()));
-  //CALL_SUBTEST_2((test_division_exhaustive<int16_t, uint16_t>()));
-  //CALL_SUBTEST_3((run_division_tests<uint8_t>()));
-  //CALL_SUBTEST_3((run_division_tests<uint16_t>()));
+  CALL_SUBTEST_1((test_division_exhaustive<uint8_t, uint8_t>()));
+  CALL_SUBTEST_1((test_division_exhaustive<int8_t, int8_t>()));
+  CALL_SUBTEST_1((test_division_exhaustive<int8_t, uint8_t>()));
+  CALL_SUBTEST_2((test_division_exhaustive<uint16_t, uint16_t>()));
+  CALL_SUBTEST_2((test_division_exhaustive<int16_t, int16_t>()));
+  CALL_SUBTEST_2((test_division_exhaustive<int16_t, uint16_t>()));
+  CALL_SUBTEST_3((run_division_tests<uint8_t>()));
+  CALL_SUBTEST_3((run_division_tests<uint16_t>()));
   CALL_SUBTEST_4((run_division_tests<uint32_t>()));
-  //CALL_SUBTEST_4((run_division_tests<uint64_t>()));
-  //CALL_SUBTEST_5((run_division_tests<int8_t>()));
-  //CALL_SUBTEST_5((run_division_tests<int16_t>()));
-  //CALL_SUBTEST_6((run_division_tests<int32_t>()));
-  //CALL_SUBTEST_6((run_division_tests<int64_t>()));
+  CALL_SUBTEST_4((run_division_tests<uint64_t>()));
+  CALL_SUBTEST_5((run_division_tests<int8_t>()));
+  CALL_SUBTEST_5((run_division_tests<int16_t>()));
+  CALL_SUBTEST_6((run_division_tests<int32_t>()));
+  CALL_SUBTEST_6((run_division_tests<int64_t>()));
 }

@@ -189,12 +189,12 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const typename unpacket_traits<Packet>::type& magic,
-                                         int shift);
+EIGEN_STRONG_INLINE Packet pfast_uint_div(const Packet& a, typename unpacket_traits<Packet>::type magic, int shift);
 
 template <typename Packet>
-EIGEN_STRONG_INLINE Packet pfast_int_div(const Packet& a, const typename unpacket_traits<Packet>::type& magic,
-                                         int shift, bool divisorIsNegative);
+EIGEN_STRONG_INLINE Packet pfast_sint_div(const Packet& a,
+                                          std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic, int shift,
+                                          bool sign);
 
 // Macros for instantiating these generic functions for different backends.
 #define EIGEN_PACKET_FUNCTION(METHOD, SCALAR, PACKET)                                             \

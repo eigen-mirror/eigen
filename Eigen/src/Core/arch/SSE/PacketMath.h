@@ -245,6 +245,7 @@ struct packet_traits<int> : default_packet_traits {
     HasCmp = 1,
     HasDiv = 1,
     HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 template <>
@@ -273,6 +274,7 @@ struct packet_traits<int64_t> : default_packet_traits {
 
     HasCmp = 1,
     HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 #endif
@@ -2127,12 +2129,12 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
 #endif
 
 template <>
-EIGEN_STRONG_INLINE Packet4ui pfast_int_div(const Packet4ui& a, const uint32_t& magic, int shift) {
+EIGEN_STRONG_INLINE Packet4ui pfast_uint_div(const Packet4ui& a, uint32_t magic, int shift) {
   const __m128i cst_magic = _mm_set1_epi32(magic);
   const __m128i cst_shift_epu64 = _mm_cvtsi64_si128(shift);
 
-  __m128i a_lo = _mm_cvtepu32_epi64(a);
-  __m128i a_hi = _mm_cvtepu32_epi64(_mm_unpackhi_epi64(a, a));
+  __m128i a_lo = _mm_unpacklo_epi32(a, _mm_setzero_si128());
+  __m128i a_hi = _mm_unpackhi_epi32(a, _mm_setzero_si128());
 
   __m128i b_lo = _mm_srli_epi64(_mm_mul_epu32(a_lo, cst_magic), 32);
   __m128i b_hi = _mm_srli_epi64(_mm_mul_epu32(a_hi, cst_magic), 32);
@@ -2146,16 +2148,81 @@ EIGEN_STRONG_INLINE Packet4ui pfast_int_div(const Packet4ui& a, const uint32_t& 
   return result;
 }
 
-//template <>
-//EIGEN_STRONG_INLINE Packet4i pfast_int_div(const Packet4i& a, const int32_t& magic, int shift, bool divisorIsNegative) {
-//  //bool returnNegative = (a < 0) != negative_divisor;
-//  //UnsignedScalar abs_a = static_cast<UnsignedScalar>(numext::abs(a));
-//  //Scalar result = static_cast<Scalar>(UnsignedImpl::operator()(abs_a));
-//  //return returnNegative ? -result : result;
-//  __m128i sign_mask = _mm_srai_epi32(a, 31);
-//
-//
-//}
+template <>
+EIGEN_STRONG_INLINE Packet4i pfast_sint_div(const Packet4i& a, uint32_t magic, int shift, bool sign) {
+  const __m128i cst_divisor_sign = _mm_set1_epi32(sign ? -1 : 0);
+
+  __m128i abs_a = _mm_abs_epi32(a);
+  __m128i abs_result = pfast_uint_div<Packet4ui>(abs_a, magic, shift);
+  __m128i result = _mm_sign_epi32(abs_result, _mm_xor_epi32(a, cst_divisor_sign));
+  return result;
+}
+
+EIGEN_STRONG_INLINE __m128i pcmp_lt_2ul(__m128i a, __m128i b) {
+  const __m128i cst_msb = _mm_set1_epi64x(1ULL << 63);
+  return _mm_cmpgt_epi64(_mm_xor_si128(b, cst_msb), _mm_xor_si128(a, cst_msb));
+}
+
+EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> add_wide_epu64(std::pair<__m128i, __m128i> lhs,
+                                                               std::pair<__m128i, __m128i> rhs) {
+  __m128i hi = _mm_add_epi64(lhs.first, rhs.first);
+  __m128i lo = _mm_add_epi64(lhs.second, rhs.second);
+  hi = _mm_sub_epi64(hi, pcmp_lt_2ul(lo, rhs.second));
+  return std::make_pair(hi, lo);
+}
+EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> add_wide_epu64(__m128i lhs, __m128i rhs) {
+  __m128i lo = _mm_add_epi64(lhs, rhs);
+  __m128i hi = _mm_srli_epi64(pcmp_lt_2ul(lo, rhs), 63);
+  return std::make_pair(hi, lo);
+}
+
+EIGEN_STRONG_INLINE __m128i muluh_2ul(__m128i a, __m128i b) {
+  using WidePacket = std::pair<__m128i, __m128i>;
+  constexpr int kh = 32;
+  constexpr uint64_t kLowMask = uint64_t(-1) >> kh;
+  const __m128i cst_lowMask = _mm_set1_epi64x(kLowMask);
+
+  __m128i a_h = _mm_srli_epi64(a, kh);
+  __m128i a_l = _mm_and_si128(a, cst_lowMask);
+  __m128i b_h = _mm_srli_epi64(b, kh);
+  __m128i b_l = _mm_and_si128(b, cst_lowMask);
+
+  __m128i ab_hh = _mm_mul_epu32(a_h, b_h);
+  __m128i ab_hl = _mm_mul_epu32(a_h, b_l);
+  __m128i ab_lh = _mm_mul_epu32(a_l, b_h);
+  __m128i ab_ll = _mm_mul_epu32(a_l, b_l);
+
+  WidePacket result(ab_hh, ab_ll);
+  result = add_wide_epu64(result, WidePacket(_mm_srli_epi64(ab_hl, kh), _mm_slli_epi64(ab_hl, kh)));
+  result = add_wide_epu64(result, WidePacket(_mm_srli_epi64(ab_lh, kh), _mm_slli_epi64(ab_lh, kh)));
+
+  return result.first;
+}
+
+EIGEN_STRONG_INLINE __m128i pfast_uint_div_2ul(const __m128i& a, uint64_t magic, int shift) {
+  using WidePacket = std::pair<__m128i, __m128i>;
+  const __m128i cst_magic = _mm_set1_epi64x(magic);
+
+  __m128i b = muluh_2ul(a, cst_magic);
+  WidePacket t = add_wide_epu64(b, a);
+  __m128i result = _mm_srl_epi64(t.second, _mm_cvtsi64_si128(shift));
+  result = _mm_add_epi64(result, _mm_sll_epi64(t.first, _mm_cvtsi64_si128(64 - shift)));
+
+  return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2l pfast_sint_div(const Packet2l& a, uint64_t magic, int shift, bool sign) {
+  const __m128i cst_divisor_sign = _mm_set1_epi64x(sign ? -1 : 0);
+
+  __m128i sign_a = _mm_cmpgt_epi64(_mm_setzero_si128(), a);
+  __m128i abs_a = _mm_sub_epi64(_mm_xor_si128(a, sign_a), sign_a);
+  __m128i abs_result = pfast_uint_div_2ul(abs_a, magic, shift);
+  __m128i sign_mask = _mm_xor_si128(sign_a, cst_divisor_sign);
+  __m128i result = _mm_sub_epi64(_mm_xor_si128(abs_result, sign_mask), sign_mask);
+
+  return result;
+}
 
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.
