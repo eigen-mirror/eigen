@@ -239,7 +239,7 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   typedef Packet8i type;
   typedef Packet4i half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 8 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, HasFastIntDiv = 1, size = 8 };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
@@ -256,7 +256,8 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
-    HasShift = 1
+    HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 
@@ -3041,6 +3042,36 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 #endif
 
 /*---------------- end load/store segment support ----------------*/
+
+template <>
+EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic, int shift) {
+  const __m256i cst_magic = _mm256_set1_epi32(magic);
+  const __m128i cst_shift_epu64 = _mm_cvtsi64_si128(shift);
+
+  __m256i a_lo = _mm256_unpacklo_epi32(a, _mm256_setzero_si256());
+  __m256i a_hi = _mm256_unpackhi_epi32(a, _mm256_setzero_si256());
+
+  __m256i b_lo = _mm256_srli_epi64(_mm256_mul_epu32(a_lo, cst_magic), 32);
+  __m256i b_hi = _mm256_srli_epi64(_mm256_mul_epu32(a_hi, cst_magic), 32);
+
+  __m256i t_lo = _mm256_srl_epi64(_mm256_add_epi64(b_lo, a_lo), cst_shift_epu64);
+  __m256i t_hi = _mm256_srl_epi64(_mm256_add_epi64(b_hi, a_hi), cst_shift_epu64);
+
+  __m256i result = _mm256_castps_si256(
+      _mm256_shuffle_ps(_mm256_castsi256_ps(t_lo), _mm256_castsi256_ps(t_hi), (shuffle_mask<0, 2, 0, 2>::mask)));
+
+  return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8i pfast_sint_div(const Packet8i& a, uint32_t magic, int shift, bool sign) {
+  const __m256i cst_divisor_sign = _mm256_set1_epi32(sign ? -1 : 0);
+
+  __m256i abs_a = _mm256_abs_epi32(a);
+  __m256i abs_result = pfast_uint_div<Packet8ui>(abs_a, magic, shift);
+  __m256i result = _mm256_sign_epi32(abs_result, _mm256_xor_epi32(a, cst_divisor_sign));
+  return result;
+}
 
 }  // end namespace internal
 
