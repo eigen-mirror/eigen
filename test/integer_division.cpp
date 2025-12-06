@@ -19,7 +19,7 @@ Numerator ref_div(Numerator n, Divisor d) {
   bool d_is_negative = d < 0;
   UnsignedNumerator abs_n = numext::abs(n);
   UnsignedDivisor abs_d = numext::abs(d);
-  Numerator result = abs_n / abs_d;
+  Numerator result = static_cast<Numerator>(abs_n / abs_d);
   if (n_is_negative != d_is_negative) {
     result = 0 - result;
   }

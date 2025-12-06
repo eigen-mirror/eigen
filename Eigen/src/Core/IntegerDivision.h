@@ -273,8 +273,8 @@ struct fast_div_op_impl<Scalar, false> {
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
     eigen_assert(d != 0 && "Error: Division by zero attempted!");
-    using UnsignedDivisor = typename std::make_unsigned<Divisor>::type;
-    UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
+    using UnsignedDivisor = std::make_unsigned_t<Divisor>;
+    UnsignedDivisor abs_d = numext::abs(d);
     if (abs_d <= NumTraits<Scalar>::highest()) {
       // d is in range
       // reduce d to 2^tz * d_odd so that the magic number is smaller and easier to calculate
@@ -305,8 +305,8 @@ struct fast_div_op_impl<Scalar, false> {
 };
 
 template <typename Scalar>
-struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<typename std::make_unsigned<Scalar>::type> {
-  using UnsignedScalar = typename std::make_unsigned<Scalar>::type;
+struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<std::make_unsigned_t<Scalar>> {
+  using UnsignedScalar = std::make_unsigned_t<Scalar>;
   using UnsignedImpl = fast_div_op_impl<UnsignedScalar>;
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), sign(d < 0) {}
@@ -342,7 +342,7 @@ template <typename Scalar>
 struct functor_traits<fast_div_op<Scalar>> {
   enum {
     PacketAccess = packet_traits<Scalar>::HasFastIntDiv,
-    Cost = functor_traits<scalar_product_op<Scalar>>::Cost + 4 * functor_traits<scalar_sum_op<Scalar>>::Cost
+    Cost = functor_traits<scalar_product_op<Scalar>>::Cost + 2 * functor_traits<scalar_sum_op<Scalar>>::Cost
   };
 };
 
