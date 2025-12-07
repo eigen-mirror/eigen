@@ -147,6 +147,17 @@ struct unpacket_traits : default_unpacket_traits {
   };
 };
 
+template <typename Packet, typename Scalar>
+struct generic_unpacket_traits {
+  using type = Scalar;
+  using half = Packet;
+  static constexpr int size = sizeof(Packet) / sizeof(Scalar);
+  static constexpr int alignment = sizeof(Packet);
+  static constexpr bool vectorizable = true;
+  static constexpr bool masked_load_available = false;
+  static constexpr bool masked_store_available = false;
+};
+
 template <typename T>
 struct unpacket_traits<const T> : unpacket_traits<T> {};
 
