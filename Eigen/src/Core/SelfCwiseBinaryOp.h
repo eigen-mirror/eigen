@@ -30,11 +30,28 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(co
   return derived();
 }
 
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
+template <typename Derived, typename Scalar, bool IsIntegral = std::is_integral<Scalar>::value>
+struct div_assign_impl
+{
   using ConstantExpr = typename internal::plain_constant_type<Derived, Scalar>::type;
   using Op = internal::div_assign_op<Scalar>;
-  internal::call_assignment(derived(), ConstantExpr(rows(), cols(), other), Op());
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Derived& derived, const Scalar& other)
+  {
+    internal::call_assignment(derived, ConstantExpr(derived.rows(), derived.cols(), other), Op());
+  }
+};
+template <typename Derived, typename Scalar>
+struct div_assign_impl<Derived,Scalar,true> {
+  using FastDivOp = internal::fast_div_op<Scalar>;
+  using FastDivXpr = CwiseUnaryOp<FastDivOp, Derived>;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Derived& derived, const Scalar& other) {
+    internal::call_assignment(derived, FastDivXpr(derived, FastDivOp(other)));
+  }
+};
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(const Scalar& other) {
+  div_assign_impl<Derived, Scalar>::run(derived(), other);
   return derived();
 }
 
