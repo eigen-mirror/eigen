@@ -31,17 +31,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator*=(co
 }
 
 template <typename Derived, typename Scalar, bool IsIntegral = std::is_integral<Scalar>::value>
-struct div_assign_impl
-{
+struct div_assign_impl {
   using ConstantExpr = typename internal::plain_constant_type<Derived, Scalar>::type;
   using Op = internal::div_assign_op<Scalar>;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Derived& derived, const Scalar& other)
-  {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Derived& derived, const Scalar& other) {
     internal::call_assignment(derived, ConstantExpr(derived.rows(), derived.cols(), other), Op());
   }
 };
 template <typename Derived, typename Scalar>
-struct div_assign_impl<Derived,Scalar,true> {
+struct div_assign_impl<Derived, Scalar, true> {
   using FastDivOp = internal::fast_div_op<Scalar>;
   using FastDivXpr = CwiseUnaryOp<FastDivOp, Derived>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Derived& derived, const Scalar& other) {
