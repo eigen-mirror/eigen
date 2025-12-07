@@ -53,43 +53,24 @@ typedef eigen_packet_wrapper<__m128i, 0> Packet4i;
 typedef eigen_packet_wrapper<__m128i, 1> Packet16b;
 typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
 typedef eigen_packet_wrapper<__m128i, 5> Packet2l;
-typedef eigen_packet_wrapper<__m128i, 7> Packet2ul;
 
 template <>
-struct is_arithmetic<__m128> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128> : std::true_type {};
 template <>
-struct is_arithmetic<__m128i> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128i> : std::true_type {};
 template <>
-struct is_arithmetic<__m128d> {
-  enum { value = true };
-};
+struct is_arithmetic<__m128d> : std::true_type {};
 template <>
-struct is_arithmetic<Packet4i> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4i> : std::true_type {};
 template <>
-struct is_arithmetic<Packet2l> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet2l> : std::true_type {};
 // Note that `Packet4ui` uses the underlying type `__m128i`, which is
 // interpreted as a vector of _signed_ `int32`s, which breaks some arithmetic
 // operations used in `GenericPacketMath.h`.
 template <>
-struct is_arithmetic<Packet4ui> {
-  enum { value = false };
-};
+struct is_arithmetic<Packet4ui> : std::false_type {};
 template <>
-struct is_arithmetic<Packet2ul> {
-  enum { value = false };
-};
-template <>
-struct is_arithmetic<Packet16b> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet16b> : std::true_type {};
 
 template <int p, int q, int r, int s>
 struct shuffle_mask {
@@ -319,23 +300,23 @@ struct packet_traits<bool> : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet4f> : default_unpacket_traits<Packet4f, float> {
+struct unpacket_traits<Packet4f> : generic_unpacket_traits<Packet4f, float> {
   using integer_packet = Packet4i;
 };
 template <>
-struct unpacket_traits<Packet2d> : default_unpacket_traits<Packet2d, double> {
+struct unpacket_traits<Packet2d> : generic_unpacket_traits<Packet2d, double> {
   using integer_packet = Packet2l;
 };
 template <>
-struct unpacket_traits<Packet2l> : default_unpacket_traits<Packet2l, int64_t> {};
+struct unpacket_traits<Packet2l> : generic_unpacket_traits<Packet2l, int64_t> {};
 template <>
-struct unpacket_traits<Packet2ul> : default_unpacket_traits<Packet2ul, uint64_t> {};
+struct unpacket_traits<Packet2ul> : generic_unpacket_traits<Packet2ul, uint64_t> {};
 template <>
-struct unpacket_traits<Packet4i> : default_unpacket_traits<Packet4i, int> {};
+struct unpacket_traits<Packet4i> : generic_unpacket_traits<Packet4i, int> {};
 template <>
-struct unpacket_traits<Packet4ui> : default_unpacket_traits<Packet4ui, uint32_t> {};
+struct unpacket_traits<Packet4ui> : generic_unpacket_traits<Packet4ui, uint32_t> {};
 template <>
-struct unpacket_traits<Packet16b> : default_unpacket_traits<Packet16b, bool> {};
+struct unpacket_traits<Packet16b> : generic_unpacket_traits<Packet16b, bool> {};
 
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
