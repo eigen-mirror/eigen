@@ -53,6 +53,7 @@ typedef eigen_packet_wrapper<__m128i, 0> Packet4i;
 typedef eigen_packet_wrapper<__m128i, 1> Packet16b;
 typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
 typedef eigen_packet_wrapper<__m128i, 5> Packet2l;
+typedef eigen_packet_wrapper<__m128i, 7> Packet2ul;
 
 template <>
 struct is_arithmetic<__m128> {
@@ -79,6 +80,10 @@ struct is_arithmetic<Packet2l> {
 // operations used in `GenericPacketMath.h`.
 template <>
 struct is_arithmetic<Packet4ui> {
+  enum { value = false };
+};
+template <>
+struct is_arithmetic<Packet2ul> {
   enum { value = false };
 };
 template <>
@@ -277,6 +282,20 @@ struct packet_traits<int64_t> : default_packet_traits {
     HasFastIntDiv = 1
   };
 };
+template <>
+struct packet_traits<uint64_t> : default_packet_traits {
+  typedef Packet2ul type;
+  typedef Packet2ul half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = 2,
+
+    HasCmp = 1,
+    HasShift = 1,
+    HasFastIntDiv = 1
+  };
+};
 #endif
 template <>
 struct packet_traits<bool> : default_packet_traits {
@@ -300,79 +319,23 @@ struct packet_traits<bool> : default_packet_traits {
 };
 
 template <>
-struct unpacket_traits<Packet4f> {
-  typedef float type;
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet4f> : default_unpacket_traits<Packet4f, float> {
+  using integer_packet = Packet4i;
 };
 template <>
-struct unpacket_traits<Packet2d> {
-  typedef double type;
-  typedef Packet2d half;
-  typedef Packet2l integer_packet;
-  enum {
-    size = 2,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
+struct unpacket_traits<Packet2d> : default_unpacket_traits<Packet2d, double> {
+  using integer_packet = Packet2l;
 };
 template <>
-struct unpacket_traits<Packet2l> {
-  typedef int64_t type;
-  typedef Packet2l half;
-  enum {
-    size = 2,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet2l> : default_unpacket_traits<Packet2l, int64_t> {};
 template <>
-struct unpacket_traits<Packet4i> {
-  typedef int type;
-  typedef Packet4i half;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet2ul> : default_unpacket_traits<Packet2ul, uint64_t> {};
 template <>
-struct unpacket_traits<Packet4ui> {
-  typedef uint32_t type;
-  typedef Packet4ui half;
-  enum {
-    size = 4,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet4i> : default_unpacket_traits<Packet4i, int> {};
 template <>
-struct unpacket_traits<Packet16b> {
-  typedef bool type;
-  typedef Packet16b half;
-  enum {
-    size = 16,
-    alignment = Aligned16,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
+struct unpacket_traits<Packet4ui> : default_unpacket_traits<Packet4ui, uint32_t> {};
+template <>
+struct unpacket_traits<Packet16b> : default_unpacket_traits<Packet16b, bool> {};
 
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
