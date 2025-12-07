@@ -263,20 +263,7 @@ struct packet_traits<int64_t> : default_packet_traits {
     HasFastIntDiv = 1
   };
 };
-template <>
-struct packet_traits<uint64_t> : default_packet_traits {
-  typedef Packet2ul type;
-  typedef Packet2ul half;
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = 2,
 
-    HasCmp = 1,
-    HasShift = 1,
-    HasFastIntDiv = 1
-  };
-};
 #endif
 template <>
 struct packet_traits<bool> : default_packet_traits {
@@ -309,8 +296,6 @@ struct unpacket_traits<Packet2d> : generic_unpacket_traits<Packet2d, double> {
 };
 template <>
 struct unpacket_traits<Packet2l> : generic_unpacket_traits<Packet2l, int64_t> {};
-template <>
-struct unpacket_traits<Packet2ul> : generic_unpacket_traits<Packet2ul, uint64_t> {};
 template <>
 struct unpacket_traits<Packet4i> : generic_unpacket_traits<Packet4i, int> {};
 template <>
