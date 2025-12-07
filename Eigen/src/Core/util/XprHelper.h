@@ -270,6 +270,17 @@ struct packet_traits;
 template <typename T>
 struct unpacket_traits;
 
+template <typename Packet, typename Scalar>
+struct default_unpacket_traits {
+  using type = Scalar;
+  using half = Packet;
+  static constexpr int size = sizeof(Packet) / sizeof(Scalar);
+  static constexpr int alignment = sizeof(Packet);
+  static constexpr bool vectorizable = true;
+  static constexpr bool masked_load_available = false;
+  static constexpr bool masked_store_available = false;
+};
+
 template <int Size, typename PacketType,
           bool Stop = Size == Dynamic || (Size % unpacket_traits<PacketType>::size) == 0 ||
                       is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
