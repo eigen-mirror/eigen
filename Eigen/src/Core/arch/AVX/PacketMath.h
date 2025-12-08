@@ -3090,8 +3090,8 @@ EIGEN_STRONG_INLINE Packet4ul pfast_uint_div(const Packet4ul& a, uint64_t magic,
 
   Packet4ul b = pmuluh(a, cst_magic);
   WidePacket4ul t = padd_wide(b, a);
-  Packet4ul result = _mm256_srl_epi64(t.second, _mm_cvtsi64_si128(shift));
-  result = _mm256_or_si256(result, _mm256_sll_epi64(t.first, _mm_cvtsi64_si128(64 - shift)));
+  Packet4ul result = _mm256_srl_epi64(t.second, _mm_cvtsi32_si128(shift));
+  result = _mm256_or_si256(result, _mm256_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
 
   return result;
 }
