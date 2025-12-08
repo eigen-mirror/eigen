@@ -3043,27 +3043,32 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 
 /*---------------- end load/store segment support ----------------*/
 
+EIGEN_STRONG_INLINE Packet8ui pmuluh(const Packet8ui& a, const uint32_t& b) {
+  // we can avoid a few swizzle operations knowing that b is a constant vector
+  const __m256i cst_b = _mm256_set1_epi32(b);
+
+  __m256i ab_lo = _mm256_mul_epu32(_mm256_unpacklo_epi32(a, _mm256_setzero_si256()), cst_b);
+  __m256i ab_hi = _mm256_mul_epu32(_mm256_unpackhi_epi32(a, _mm256_setzero_si256()), cst_b);
+  __m256i result = _mm256_castps_si256(
+      _mm256_shuffle_ps(_mm256_castsi256_ps(ab_lo), _mm256_castsi256_ps(ab_hi), (shuffle_mask<1, 3, 1, 3>::mask)));
+  return result;
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic, int shift) {
-  const __m256i cst_magic = _mm256_set1_epi32(magic);
-  const __m128i cst_shift_epu64 = _mm_cvtsi64_si128(shift);
+  using WidePacket8ui = std::pair<Packet8ui, Packet8ui>;
+  const __m128i cst_right_shift = _mm_cvtsi32_si128(shift);
+  const __m128i cst_left_shift = _mm_cvtsi32_si128(32 - shift);
 
-  __m256i a_lo = _mm256_unpacklo_epi32(a, _mm256_setzero_si256());
-  __m256i a_hi = _mm256_unpackhi_epi32(a, _mm256_setzero_si256());
-
-  __m256i b_lo = _mm256_srli_epi64(_mm256_mul_epu32(a_lo, cst_magic), 32);
-  __m256i b_hi = _mm256_srli_epi64(_mm256_mul_epu32(a_hi, cst_magic), 32);
-
-  __m256i t_lo = _mm256_srl_epi64(_mm256_add_epi64(b_lo, a_lo), cst_shift_epu64);
-  __m256i t_hi = _mm256_srl_epi64(_mm256_add_epi64(b_hi, a_hi), cst_shift_epu64);
-
-  __m256i result = _mm256_castps_si256(
-      _mm256_shuffle_ps(_mm256_castsi256_ps(t_lo), _mm256_castsi256_ps(t_hi), (shuffle_mask<0, 2, 0, 2>::mask)));
-
+  Packet8ui b = pmuluh(a, magic);
+  WidePacket8ui t = padd_wide(b, a);
+  Packet8ui result = _mm256_srl_epi32(t.second, cst_right_shift);
+  result = _mm256_add_epi32(result, _mm256_sll_epi32(t.first, cst_left_shift));
   return result;
 }
 
 EIGEN_STRONG_INLINE Packet4ul pmuluh(Packet4ul a, Packet4ul b) {
+  // there is no apparent optimization for b = _mm256_set1_epi64(magic)
   using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
   constexpr int kh = 32;
   constexpr uint64_t kLowMask = uint64_t(-1) >> kh;
