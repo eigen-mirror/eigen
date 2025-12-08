@@ -54,32 +54,26 @@ void test_division() {
 
   Index size = 4096;
   PlainType numerator(size);
-  PlainType evalXpr(size), evalXpr2(size);
+  PlainType evalXpr(size);
   for (int repeat = 0; repeat < EIGEN_TEST_MAX_SIZE; repeat++) {
     numerator.setRandom();
     Divisor d = internal::random<Divisor>(1, NumTraits<Divisor>::highest() / 4);
     {
       IntDivider<Numerator> divider(d);
-      evalXpr = numerator / divider;
+      evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), d);
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
-      evalXpr2 = numerator;
-      evalXpr2 /= divider;
-      VERIFY_IS_CWISE_EQUAL(evalXpr, evalXpr2);
     }
     if (std::is_signed<Divisor>::value) {
       Divisor neg_d = 0 - d;
       IntDivider<Numerator> divider(neg_d);
-      evalXpr = numerator / divider;
+      evalXpr = FastDivXpr(numerator, divider.op);
       for (Index i = 0; i < size; i++) {
         Numerator ref = ref_div(numerator.coeff(i), neg_d);
         VERIFY_IS_EQUAL(evalXpr.coeff(i), ref);
       }
-      evalXpr2 = numerator;
-      evalXpr2 /= divider;
-      VERIFY_IS_CWISE_EQUAL(evalXpr, evalXpr2);
     }
   }
 }

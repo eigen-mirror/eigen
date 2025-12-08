@@ -380,22 +380,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator/(const Scalar& lhs, const 
   return rhs.divide(lhs);
 }
 
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    CwiseUnaryOp<internal::fast_div_op<typename internal::traits<Derived>::Scalar>, Derived>
-    operator/(const DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
-  using Scalar = typename internal::traits<Derived>::Scalar;
-  using FastDivOp = internal::fast_div_op<Scalar>;
-  using ReturnType = CwiseUnaryOp<FastDivOp, Derived>;
-  return ReturnType(lhs.derived(), rhs.op);
-}
-
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator/=(
-    DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
-  lhs.derived() = lhs.derived() / rhs;
-}
-
 }  // namespace Eigen
 
 #endif  // EIGEN_INTDIV_H
