@@ -2123,8 +2123,8 @@ EIGEN_STRONG_INLINE __m128i pfast_uint_div_2ul(const __m128i& a, uint64_t magic,
 
   __m128i b = pmuluh_2ul(a, cst_magic);
   WidePacket2ul t = padd_wide_2ul(b, a);
-  __m128i result = _mm_srl_epi64(t.second, _mm_cvtsi64_si128(shift));
-  result = _mm_or_si128(result, _mm_sll_epi64(t.first, _mm_cvtsi64_si128(64 - shift)));
+  __m128i result = _mm_srl_epi64(t.second, _mm_cvtsi32_si128(shift));
+  result = _mm_or_si128(result, _mm_sll_epi64(t.first, _mm_cvtsi32_si128(64 - shift)));
 
   return result;
 }
