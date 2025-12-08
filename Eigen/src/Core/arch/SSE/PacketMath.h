@@ -2080,7 +2080,7 @@ EIGEN_STRONG_INLINE Packet4ui pfast_uint_div(const Packet4ui& a, uint32_t magic,
 // non-generic implementations for Packet2ul as the type does not yet exist
 EIGEN_STRONG_INLINE __m128i pcmp_lt_2ul(__m128i a, __m128i b) {
   const __m128i cst_msb = _mm_set1_epi64x(1ULL << 63);
-  return _mm_cmpgt_epi64(_mm_xor_si128(b, cst_msb), _mm_xor_si128(a, cst_msb));
+  return pcmp_lt<Packet2l>(_mm_xor_si128(a, cst_msb), _mm_xor_si128(b, cst_msb));
 }
 
 EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> padd_wide_2ul(std::pair<__m128i, __m128i> lhs,
