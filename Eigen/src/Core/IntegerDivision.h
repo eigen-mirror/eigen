@@ -329,6 +329,7 @@ struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<std::make_unsigned_t<Sc
 template <typename Scalar>
 struct fast_div_op : fast_div_op_impl<Scalar> {
   EIGEN_STATIC_ASSERT((std::is_integral<Scalar>::value), "THE SCALAR MUST BE A BUILT IN INTEGER")
+  using result_type = Scalar;
   using Base = fast_div_op_impl<Scalar>;
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op(Divisor d) : Base(d) {
@@ -364,6 +365,36 @@ EIGEN_STRONG_INLINE Packet pfast_sint_div(const Packet& a,
 }
 
 }  // namespace internal
+
+template <typename Scalar>
+struct IntDivider {
+  using FastDivOp = internal::fast_div_op<Scalar>;
+  template <typename Divisor>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar divide(const Scalar& numerator) const { return op(numerator); }
+  FastDivOp op;
+};
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator/(const Scalar& lhs, const IntDivider<Scalar>& rhs) {
+  return rhs.divide(lhs);
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC
+EIGEN_STRONG_INLINE CwiseUnaryOp<internal::fast_div_op<typename internal::traits<Derived>::Scalar>, Derived>
+operator/(const DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using FastDivOp = internal::fast_div_op<Scalar>;
+  using ReturnType = CwiseUnaryOp<FastDivOp, Derived>;
+  return CwiseUnaryOp<FastDivOp, Derived>(lhs.derived(), rhs.op);
+}
+
+template <typename Derived>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator/=(
+    DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
+  lhs.derived() = lhs.derived() / rhs;
+}
 
 }  // namespace Eigen
 
