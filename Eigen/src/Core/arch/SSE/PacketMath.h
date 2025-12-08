@@ -2059,10 +2059,14 @@ EIGEN_STRONG_INLINE __m128i float2half(__m128 f) {
 
 EIGEN_STRONG_INLINE Packet4ui pmuluh(const Packet4ui& a, const uint32_t& b) {
   // we can avoid a few swizzle operations knowing that b is a constant vector
-  const __m128i cst_b = _mm_set1_epi32(b);
+  const __m128i cst_b = _mm_set1_epi64x(b);
 
-  __m128i ab_lo = _mm_mul_epu32(_mm_unpacklo_epi32(a, _mm_setzero_si128()), cst_b);
-  __m128i ab_hi = _mm_mul_epu32(_mm_unpackhi_epi32(a, _mm_setzero_si128()), cst_b);
+  __m128i a_lo = _mm_unpacklo_epi32(a, _mm_undefined_si128());
+  __m128i a_hi = _mm_unpackhi_epi32(a, _mm_undefined_si128());
+
+  __m128i ab_lo = _mm_mul_epu32(a_lo, cst_b);
+  __m128i ab_hi = _mm_mul_epu32(a_hi, cst_b);
+
   __m128i result = _mm_castps_si128(
       _mm_shuffle_ps(_mm_castsi128_ps(ab_lo), _mm_castsi128_ps(ab_hi), (shuffle_mask<1, 3, 1, 3>::mask)));
   return result;
@@ -2071,13 +2075,11 @@ EIGEN_STRONG_INLINE Packet4ui pmuluh(const Packet4ui& a, const uint32_t& b) {
 template <>
 EIGEN_STRONG_INLINE Packet4ui pfast_uint_div(const Packet4ui& a, uint32_t magic, int shift) {
   using WidePacket4ui = std::pair<Packet4ui, Packet4ui>;
-  const __m128i cst_right_shift = _mm_cvtsi32_si128(shift);
-  const __m128i cst_left_shift = _mm_cvtsi32_si128(32 - shift);
 
   Packet4ui b = pmuluh(a, magic);
   WidePacket4ui t = padd_wide(b, a);
-  Packet4ui result = _mm_srl_epi32(t.second, cst_right_shift);
-  result = _mm_add_epi32(result, _mm_sll_epi32(t.first, cst_left_shift));
+  Packet4ui result = _mm_srl_epi32(t.second, _mm_cvtsi32_si128(shift));
+  result = _mm_add_epi32(result, _mm_sll_epi32(t.first, _mm_cvtsi32_si128(32 - shift)));
   return result;
 }
 
@@ -2105,18 +2107,14 @@ EIGEN_STRONG_INLINE __m128i pmuluh_2ul(__m128i a, __m128i b) {
   // there is no apparent optimization for b = _mm_set1_epi64(magic)
   using WidePacket2ul = std::pair<__m128i, __m128i>;
   constexpr int kh = 32;
-  constexpr uint64_t kLowMask = uint64_t(-1) >> kh;
-  const __m128i cst_lowMask = _mm_set1_epi64x(kLowMask);
 
   __m128i a_h = _mm_srli_epi64(a, kh);
-  __m128i a_l = _mm_and_si128(a, cst_lowMask);
   __m128i b_h = _mm_srli_epi64(b, kh);
-  __m128i b_l = _mm_and_si128(b, cst_lowMask);
 
   __m128i ab_hh = _mm_mul_epu32(a_h, b_h);
-  __m128i ab_hl = _mm_mul_epu32(a_h, b_l);
-  __m128i ab_lh = _mm_mul_epu32(a_l, b_h);
-  __m128i ab_ll = _mm_mul_epu32(a_l, b_l);
+  __m128i ab_hl = _mm_mul_epu32(a_h, b);
+  __m128i ab_lh = _mm_mul_epu32(a, b_h);
+  __m128i ab_ll = _mm_mul_epu32(a, b);
 
   WidePacket2ul result(ab_hh, ab_ll);
   result = padd_wide_2ul(result, WidePacket2ul(_mm_srli_epi64(ab_hl, kh), _mm_slli_epi64(ab_hl, kh)));
