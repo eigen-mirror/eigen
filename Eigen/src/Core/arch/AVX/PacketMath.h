@@ -283,7 +283,8 @@ struct packet_traits<uint64_t> : default_packet_traits {
     HasTranspose = 0,
     HasNegate = 0,
     HasCmp = 1,
-    HasShift = 1
+    HasShift = 1,
+    HasFastIntDiv = 1
   };
 };
 #endif
