@@ -2133,7 +2133,7 @@ template <>
 EIGEN_STRONG_INLINE Packet2l pfast_sint_div(const Packet2l& a, uint64_t magic, int shift, bool sign) {
   const __m128i cst_divisor_sign = _mm_set1_epi64x(sign ? -1 : 0);
 
-  __m128i sign_a = _mm_cmpgt_epi64(_mm_setzero_si128(), a);
+  __m128i sign_a = pcmp_lt<Packet2l>(_mm_setzero_si128(), a);
   __m128i abs_a = _mm_sub_epi64(_mm_xor_si128(a, sign_a), sign_a);
   __m128i abs_result = pfast_uint_div_2ul(abs_a, magic, shift);
   __m128i sign_mask = _mm_xor_si128(sign_a, cst_divisor_sign);
