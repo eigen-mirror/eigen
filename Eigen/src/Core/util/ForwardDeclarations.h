@@ -409,6 +409,8 @@ template <typename MatrixType, int RowFactor, int ColFactor>
 class Replicate;
 template <typename MatrixType, int Direction = BothDirections>
 class Reverse;
+template <typename Scalar>
+struct IntDivider;
 
 #if defined(EIGEN_USE_LAPACKE) && defined(lapack_int)
 // Lapacke interface requires StorageIndex to be lapack_int
