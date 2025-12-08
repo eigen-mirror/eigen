@@ -382,8 +382,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator/(const Scalar& lhs, const 
 
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-CwiseUnaryOp<internal::fast_div_op<typename internal::traits<Derived>::Scalar>, Derived>
-operator/(const DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
+    CwiseUnaryOp<internal::fast_div_op<typename internal::traits<Derived>::Scalar>, Derived>
+    operator/(const DenseBase<Derived>& lhs, const IntDivider<typename internal::traits<Derived>::Scalar>& rhs) {
   using Scalar = typename internal::traits<Derived>::Scalar;
   using FastDivOp = internal::fast_div_op<Scalar>;
   using ReturnType = CwiseUnaryOp<FastDivOp, Derived>;
