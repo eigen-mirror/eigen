@@ -370,7 +370,7 @@ template <typename Scalar>
 struct IntDivider {
   using FastDivOp = internal::fast_div_op<Scalar>;
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
+  explicit EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IntDivider(Divisor d) : op(d) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar divide(const Scalar& numerator) const { return op(numerator); }
   FastDivOp op;
 };
@@ -387,7 +387,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
   using Scalar = typename internal::traits<Derived>::Scalar;
   using FastDivOp = internal::fast_div_op<Scalar>;
   using ReturnType = CwiseUnaryOp<FastDivOp, Derived>;
-  return CwiseUnaryOp<FastDivOp, Derived>(lhs.derived(), rhs.op);
+  return ReturnType(lhs.derived(), rhs.op);
 }
 
 template <typename Derived>
