@@ -183,20 +183,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
   return q.lo + 1;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calc_magic(uint8_t d, int p) {
-  uint16_t n = uint16_t(-1) >> (8 - p);
-  uint16_t q = 1 + (n / d);
+  uint_fast16_t n = uint_fast16_t(-1) >> (8 - p);
+  uint_fast16_t q = 1 + (n / d);
   uint8_t result = static_cast<uint8_t>(q);
   return result;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t calc_magic(uint16_t d, int p) {
-  uint32_t n = uint32_t(-1) >> (16 - p);
-  uint32_t q = 1 + (n / d);
+  uint_fast32_t n = uint_fast32_t(-1) >> (16 - p);
+  uint_fast32_t q = 1 + (n / d);
   uint16_t result = static_cast<uint16_t>(q);
   return result;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t calc_magic(uint32_t d, int p) {
-  uint64_t n = uint64_t(-1) >> (32 - p);
-  uint64_t q = 1 + (n / d);
+  uint_fast64_t n = uint_fast64_t(-1) >> (32 - p);
+  uint_fast64_t q = 1 + (n / d);
   uint32_t result = static_cast<uint32_t>(q);
   return result;
 }
