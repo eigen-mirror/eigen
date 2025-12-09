@@ -259,8 +259,10 @@ struct packet_traits<int64_t> : default_packet_traits {
     size = 2,
 
     HasCmp = 1,
-    HasShift = 1,
+#ifdef EIGEN_VECTORIZE_SSE4_1
     HasFastIntDiv = 1
+#endif
+    HasShift = 1
   };
 };
 
@@ -2077,10 +2079,12 @@ EIGEN_STRONG_INLINE Packet4ui pfast_uint_div(const Packet4ui& a, uint32_t magic,
   return result;
 }
 
+#ifdef EIGEN_VECTORIZE_SSE4_1
 // non-generic implementations for Packet2ul as the type does not yet exist
+// the implementation is cumbersome for SSE2
 EIGEN_STRONG_INLINE __m128i pcmp_lt_2ul(__m128i a, __m128i b) {
   const __m128i cst_msb = _mm_set1_epi64x(1ULL << 63);
-  return pcmp_lt<Packet2l>(_mm_xor_si128(a, cst_msb), _mm_xor_si128(b, cst_msb));
+  return _mm_cmpgt_epi64(_mm_xor_si128(b, cst_msb), _mm_xor_si128(a, cst_msb));
 }
 
 EIGEN_STRONG_INLINE std::pair<__m128i, __m128i> padd_wide_2ul(std::pair<__m128i, __m128i> lhs,
@@ -2133,7 +2137,7 @@ template <>
 EIGEN_STRONG_INLINE Packet2l pfast_sint_div(const Packet2l& a, uint64_t magic, int shift, bool sign) {
   const __m128i cst_divisor_sign = _mm_set1_epi64x(sign ? -1 : 0);
 
-  __m128i sign_a = pcmp_lt<Packet2l>(_mm_setzero_si128(), a);
+  __m128i sign_a = psignbit(a);
   __m128i abs_a = _mm_sub_epi64(_mm_xor_si128(a, sign_a), sign_a);
   __m128i abs_result = pfast_uint_div_2ul(abs_a, magic, shift);
   __m128i sign_mask = _mm_xor_si128(sign_a, cst_divisor_sign);
@@ -2141,6 +2145,8 @@ EIGEN_STRONG_INLINE Packet2l pfast_sint_div(const Packet2l& a, uint64_t magic, i
 
   return result;
 }
+
+#endif
 
 // Packet math for Eigen::half
 // Disable the following code since it's broken on too many platforms / compilers.
