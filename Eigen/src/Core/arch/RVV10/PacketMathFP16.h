@@ -16,8 +16,10 @@
 namespace Eigen {
 namespace internal {
 
-typedef vfloat16m1_t Packet1Xh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL)));
-typedef vfloat16m2_t Packet2Xh __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2)));
+typedef eigen_packet_wrapper<vfloat16m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 24>
+    Packet1Xh;
+typedef eigen_packet_wrapper<vfloat16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 25>
+    Packet2Xh;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xh PacketXh;
@@ -145,7 +147,7 @@ EIGEN_STRONG_INLINE PacketXh ptrue<PacketXh>(const PacketXh& /*a*/) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXh pzero<PacketXh>(const PacketXh& /*a*/) {
-  return __riscv_vfmv_v_f_f16m1(static_cast<Eigen::half>(0.0), unpacket_traits<PacketXh>::size);
+  return __riscv_vfmv_v_f_f16m1(static_cast<_Float16>(0.0), unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -155,7 +157,7 @@ EIGEN_STRONG_INLINE PacketXh pabs(const PacketXh& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXh pset1<PacketXh>(const Eigen::half& from) {
-  return __riscv_vfmv_v_f_f16m1(static_cast<_Float16>(from), unpacket_traits<PacketXh>::size);
+  return __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(from), unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -166,8 +168,9 @@ EIGEN_STRONG_INLINE PacketXh pset1frombits<PacketXh>(numext::uint16_t from) {
 template <>
 EIGEN_STRONG_INLINE PacketXh plset<PacketXh>(const Eigen::half& a) {
   PacketXh idx =
-      __riscv_vfcvt_f_x_v_f16m1(__riscv_vid_v_i16m1(unpacket_traits<PacketXs>::size), unpacket_traits<PacketXh>::size);
-  return __riscv_vfadd_vf_f16m1(idx, a, unpacket_traits<PacketXh>::size);
+      __riscv_vfcvt_f_x_v_f16m1(__riscv_vreinterpret_v_u16m1_i16m1(__riscv_vid_v_u16m1(unpacket_traits<PacketXs>::size)),
+      unpacket_traits<PacketXh>::size);
+  return __riscv_vfadd_vf_f16m1(idx, numext::bit_cast<_Float16>(a), unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -222,13 +225,14 @@ EIGEN_STRONG_INLINE PacketXh pnmsub(const PacketXh& a, const PacketXh& b, const 
 
 template <>
 EIGEN_STRONG_INLINE PacketXh pmin<PacketXh>(const PacketXh& a, const PacketXh& b) {
+  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   PacketXh nans =
-      __riscv_vfmv_v_f_f16m1((std::numeric_limits<Eigen::half>::quiet_NaN)(), unpacket_traits<PacketXh>::size);
+      __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<PacketXh>::size);
   PacketMask16 mask = __riscv_vmfeq_vv_f16m1_b16(a, a, unpacket_traits<PacketXh>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f16m1_b16(b, b, unpacket_traits<PacketXh>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<PacketXh>::size);
 
-  return __riscv_vfmin_vv_f16m1_tum(mask, nans, a, b, unpacket_traits<PacketXh>::size);
+  return __riscv_vfmin_vv_f16m1_tumu(mask, nans, a, b, unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -243,13 +247,14 @@ EIGEN_STRONG_INLINE PacketXh pmin<PropagateNumbers, PacketXh>(const PacketXh& a,
 
 template <>
 EIGEN_STRONG_INLINE PacketXh pmax<PacketXh>(const PacketXh& a, const PacketXh& b) {
+  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   PacketXh nans =
-      __riscv_vfmv_v_f_f16m1((std::numeric_limits<Eigen::half>::quiet_NaN)(), unpacket_traits<PacketXh>::size);
+      __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<PacketXh>::size);
   PacketMask16 mask = __riscv_vmfeq_vv_f16m1_b16(a, a, unpacket_traits<PacketXh>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f16m1_b16(b, b, unpacket_traits<PacketXh>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<PacketXh>::size);
 
-  return __riscv_vfmax_vv_f16m1_tum(mask, nans, a, b, unpacket_traits<PacketXh>::size);
+  return __riscv_vfmax_vv_f16m1_tumu(mask, nans, a, b, unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -283,7 +288,7 @@ EIGEN_STRONG_INLINE PacketXh pcmp_eq<PacketXh>(const PacketXh& a, const PacketXh
 template <>
 EIGEN_STRONG_INLINE PacketXh pcmp_lt_or_nan<PacketXh>(const PacketXh& a, const PacketXh& b) {
   PacketMask16 mask = __riscv_vmfge_vv_f16m1_b16(a, b, unpacket_traits<PacketXh>::size);
-  return __riscv_vfmerge_vfm_f16m1(ptrue<PacketXh>(a), static_cast<Eigen::half>(0.0), mask,
+  return __riscv_vfmerge_vfm_f16m1(ptrue<PacketXh>(a), static_cast<_Float16>(0.0), mask,
                                    unpacket_traits<PacketXh>::size);
 }
 
@@ -380,7 +385,7 @@ EIGEN_STRONG_INLINE PacketXh print<PacketXh>(const PacketXh& a) {
   const PacketXh abs_a = pabs(a);
 
   PacketMask16 mask = __riscv_vmfne_vv_f16m1_b16(a, a, unpacket_traits<PacketXh>::size);
-  const PacketXh x = __riscv_vfadd_vv_f16m1_tum(mask, a, a, a, unpacket_traits<PacketXh>::size);
+  const PacketXh x = __riscv_vfadd_vv_f16m1_tumu(mask, a, a, a, unpacket_traits<PacketXh>::size);
   const PacketXh new_x = __riscv_vfcvt_f_x_v_f16m1(__riscv_vfcvt_x_f_v_i16m1(a, unpacket_traits<PacketXh>::size),
                                                    unpacket_traits<PacketXh>::size);
 
@@ -394,7 +399,7 @@ EIGEN_STRONG_INLINE PacketXh pfloor<PacketXh>(const PacketXh& a) {
   PacketXh tmp = print<PacketXh>(a);
   // If greater, subtract one.
   PacketMask16 mask = __riscv_vmflt_vv_f16m1_b16(a, tmp, unpacket_traits<PacketXh>::size);
-  return __riscv_vfsub_vf_f16m1_tum(mask, tmp, tmp, static_cast<Eigen::half>(1.0), unpacket_traits<PacketXh>::size);
+  return __riscv_vfsub_vf_f16m1_tumu(mask, tmp, tmp, static_cast<_Float16>(1.0), unpacket_traits<PacketXh>::size);
 }
 
 template <>
@@ -407,7 +412,7 @@ EIGEN_STRONG_INLINE PacketXh preverse(const PacketXh& a) {
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux<PacketXh>(const PacketXh& a) {
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredusum_vs_f16m1_f16m1(
-      a, __riscv_vfmv_v_f_f16m1(static_cast<Eigen::half>(0.0), unpacket_traits<PacketXh>::size),
+      a, __riscv_vfmv_v_f_f16m1(static_cast<_Float16>(0.0), unpacket_traits<PacketXh>::size),
       unpacket_traits<PacketXh>::size)));
 }
 
@@ -442,15 +447,17 @@ EIGEN_STRONG_INLINE Eigen::half predux_mul<PacketXh>(const PacketXh& a) {
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_min<PacketXh>(const PacketXh& a) {
+  const Eigen::half max = (std::numeric_limits<Eigen::half>::max)();
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmin_vs_f16m1_f16m1(
-      a, __riscv_vfmv_v_f_f16m1((std::numeric_limits<Eigen::half>::max)(), unpacket_traits<PacketXh>::size),
+      a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(max), unpacket_traits<PacketXh>::size),
       unpacket_traits<PacketXh>::size)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_max<PacketXh>(const PacketXh& a) {
+  const Eigen::half min = (std::numeric_limits<Eigen::half>::min)();
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmax_vs_f16m1_f16m1(
-      a, __riscv_vfmv_v_f_f16m1(-(std::numeric_limits<Eigen::half>::max)(), unpacket_traits<PacketXh>::size),
+      a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(min), unpacket_traits<PacketXh>::size),
       unpacket_traits<PacketXh>::size)));
 }
 
@@ -487,7 +494,7 @@ EIGEN_STRONG_INLINE Packet2Xh ptrue<Packet2Xh>(const Packet2Xh& /*a*/) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pzero<Packet2Xh>(const Packet2Xh& /*a*/) {
-  return __riscv_vfmv_v_f_f16m2(static_cast<Eigen::half>(0.0), unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfmv_v_f_f16m2(static_cast<_Float16>(0.0), unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -497,7 +504,7 @@ EIGEN_STRONG_INLINE Packet2Xh pabs(const Packet2Xh& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pset1<Packet2Xh>(const Eigen::half& from) {
-  return __riscv_vfmv_v_f_f16m2(static_cast<_Float16>(from), unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(from), unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -507,9 +514,10 @@ EIGEN_STRONG_INLINE Packet2Xh pset1frombits<Packet2Xh>(numext::uint16_t from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh plset<Packet2Xh>(const Eigen::half& a) {
-  Packet2Xh idx = __riscv_vfcvt_f_x_v_f16m2(__riscv_vid_v_i16m2(unpacket_traits<Packet4Xs>::size),
-                                               unpacket_traits<Packet2Xh>::size);
-  return __riscv_vfadd_vf_f16m2(idx, a, unpacket_traits<Packet2Xh>::size);
+  Packet2Xh idx = __riscv_vfcvt_f_x_v_f16m2(
+      __riscv_vreinterpret_v_u16m2_i16m2(__riscv_vid_v_u16m2(unpacket_traits<Packet4Xs>::size)),
+      unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfadd_vf_f16m2(idx, numext::bit_cast<_Float16>(a), unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -564,13 +572,14 @@ EIGEN_STRONG_INLINE Packet2Xh pnmsub(const Packet2Xh& a, const Packet2Xh& b, con
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pmin<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
+  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   Packet2Xh nans =
-      __riscv_vfmv_v_f_f16m2((std::numeric_limits<Eigen::half>::quiet_NaN)(), unpacket_traits<Packet2Xh>::size);
+      __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask = __riscv_vmfeq_vv_f16m2_b8(a, a, unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask2 = __riscv_vmfeq_vv_f16m2_b8(b, b, unpacket_traits<Packet2Xh>::size);
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);
 
-  return __riscv_vfmin_vv_f16m2_tum(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfmin_vv_f16m2_tumu(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -585,13 +594,14 @@ EIGEN_STRONG_INLINE Packet2Xh pmin<PropagateNumbers, Packet2Xh>(const Packet2Xh&
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pmax<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
+  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
   Packet2Xh nans =
-      __riscv_vfmv_v_f_f16m2((std::numeric_limits<Eigen::half>::quiet_NaN)(), unpacket_traits<Packet2Xh>::size);
+      __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask = __riscv_vmfeq_vv_f16m2_b8(a, a, unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask2 = __riscv_vmfeq_vv_f16m2_b8(b, b, unpacket_traits<Packet2Xh>::size);
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);
 
-  return __riscv_vfmax_vv_f16m2_tum(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfmax_vv_f16m2_tumu(mask, nans, a, b, unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -628,7 +638,7 @@ EIGEN_STRONG_INLINE Packet2Xh pcmp_eq<Packet2Xh>(const Packet2Xh& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pcmp_lt_or_nan<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
   PacketMask8 mask = __riscv_vmfge_vv_f16m2_b8(a, b, unpacket_traits<Packet2Xh>::size);
-  return __riscv_vfmerge_vfm_f16m2(ptrue<Packet2Xh>(a), static_cast<Eigen::half>(0.0), mask,
+  return __riscv_vfmerge_vfm_f16m2(ptrue<Packet2Xh>(a), static_cast<_Float16>(0.0), mask,
                                    unpacket_traits<Packet2Xh>::size);
 }
 
@@ -730,7 +740,7 @@ EIGEN_STRONG_INLINE Packet2Xh print<Packet2Xh>(const Packet2Xh& a) {
   const Packet2Xh abs_a = pabs(a);
 
   PacketMask8 mask = __riscv_vmfne_vv_f16m2_b8(a, a, unpacket_traits<Packet2Xh>::size);
-  const Packet2Xh x = __riscv_vfadd_vv_f16m2_tum(mask, a, a, a, unpacket_traits<Packet2Xh>::size);
+  const Packet2Xh x = __riscv_vfadd_vv_f16m2_tumu(mask, a, a, a, unpacket_traits<Packet2Xh>::size);
   const Packet2Xh new_x = __riscv_vfcvt_f_x_v_f16m2(
       __riscv_vfcvt_x_f_v_i16m2(a, unpacket_traits<Packet2Xh>::size), unpacket_traits<Packet2Xh>::size);
 
@@ -744,7 +754,7 @@ EIGEN_STRONG_INLINE Packet2Xh pfloor<Packet2Xh>(const Packet2Xh& a) {
   Packet2Xh tmp = print<Packet2Xh>(a);
   // If greater, subtract one.
   PacketMask8 mask = __riscv_vmflt_vv_f16m2_b8(a, tmp, unpacket_traits<Packet2Xh>::size);
-  return __riscv_vfsub_vf_f16m2_tum(mask, tmp, tmp, static_cast<Eigen::half>(1.0), unpacket_traits<Packet2Xh>::size);
+  return __riscv_vfsub_vf_f16m2_tumu(mask, tmp, tmp, static_cast<_Float16>(1.0), unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -758,7 +768,7 @@ EIGEN_STRONG_INLINE Packet2Xh preverse(const Packet2Xh& a) {
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux<Packet2Xh>(const Packet2Xh& a) {
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredusum_vs_f16m2_f16m1(
-      a, __riscv_vfmv_v_f_f16m1(static_cast<Eigen::half>(0.0), unpacket_traits<Packet2Xh>::size / 4),
+      a, __riscv_vfmv_v_f_f16m1(static_cast<_Float16>(0.0), unpacket_traits<Packet2Xh>::size / 2),
       unpacket_traits<Packet2Xh>::size)));
 }
 
@@ -770,15 +780,17 @@ EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet2Xh>(const Packet2Xh& a) {
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_min<Packet2Xh>(const Packet2Xh& a) {
+  const Eigen::half max = (std::numeric_limits<Eigen::half>::max)();
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmin_vs_f16m2_f16m1(
-      a, __riscv_vfmv_v_f_f16m1((std::numeric_limits<Eigen::half>::max)(), unpacket_traits<Packet2Xh>::size / 4),
+      a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(max), unpacket_traits<Packet2Xh>::size / 2),
       unpacket_traits<Packet2Xh>::size)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_max<Packet2Xh>(const Packet2Xh& a) {
+  const Eigen::half min = (std::numeric_limits<Eigen::half>::min)();
   return static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmax_vs_f16m2_f16m1(
-      a, __riscv_vfmv_v_f_f16m1(-(std::numeric_limits<Eigen::half>::max)(), unpacket_traits<Packet2Xh>::size / 4),
+      a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(min), unpacket_traits<Packet2Xh>::size / 2),
       unpacket_traits<Packet2Xh>::size)));
 }
 
