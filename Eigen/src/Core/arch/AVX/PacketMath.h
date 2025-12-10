@@ -239,7 +239,16 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   typedef Packet8i type;
   typedef Packet4i half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, HasFastIntDiv = 1, size = 8 };
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasCmp = 1,
+    HasDiv = 1,
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
+    size = 8
+  };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
