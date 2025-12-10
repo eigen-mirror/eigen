@@ -256,8 +256,10 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
-    HasShift = 1,
-    HasFastIntDiv = 1
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
+    HasShift = 1
   };
 };
 
@@ -3044,6 +3046,8 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 
 /*---------------- end load/store segment support ----------------*/
 
+#ifdef EIGEN_VECTORIZE_AVX2
+
 template <>
 EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic, int shift) {
   const __m256i cst_magic = _mm256_set1_epi32(magic);
@@ -3063,8 +3067,6 @@ EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic,
 
   return result;
 }
-
-#ifdef EIGEN_VECTORIZE_AVX2
 
 EIGEN_STRONG_INLINE Packet4ul pmuluh(Packet4ul a, Packet4ul b) {
   // there is no apparent optimization for b = _mm256_set1_epi64(magic)
