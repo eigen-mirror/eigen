@@ -266,7 +266,7 @@ template <typename Packet = Packet4Xi>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet4Xi>::value && (unpacket_traits<Packet4Xi>::size % 8) == 0,
                         Packet2Xi>::type
-predux_half_dowto4(const Packet4Xi& a) {
+predux_half(const Packet4Xi& a) {
   return __riscv_vadd_vv_i32m2(__riscv_vget_v_i32m4_i32m2(a, 0), __riscv_vget_v_i32m4_i32m2(a, 1),
                                unpacket_traits<Packet2Xi>::size);
 }
@@ -275,7 +275,7 @@ template <typename Packet = Packet2Xi>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xi>::value && (unpacket_traits<Packet2Xi>::size % 8) == 0,
                         Packet1Xi>::type
-predux_half_dowto4(const Packet2Xi& a) {
+predux_half(const Packet2Xi& a) {
   return __riscv_vadd_vv_i32m1(__riscv_vget_v_i32m2_i32m1(a, 0), __riscv_vget_v_i32m2_i32m1(a, 1),
                                unpacket_traits<Packet1Xi>::size);
 }
@@ -611,7 +611,7 @@ template <typename Packet = Packet4Xf>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet4Xf>::value && (unpacket_traits<Packet4Xf>::size % 8) == 0,
                         Packet2Xf>::type
-predux_half_dowto4(const Packet4Xf& a) {
+predux_half(const Packet4Xf& a) {
   return __riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
                                 unpacket_traits<Packet2Xf>::size);
 }
@@ -620,7 +620,7 @@ template <typename Packet = Packet2Xf>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xf>::value && (unpacket_traits<Packet2Xf>::size % 8) == 0,
                         Packet1Xf>::type
-predux_half_dowto4(const Packet2Xf& a) {
+predux_half(const Packet2Xf& a) {
   return __riscv_vfadd_vv_f32m1(__riscv_vget_v_f32m2_f32m1(a, 0), __riscv_vget_v_f32m2_f32m1(a, 1),
                                 unpacket_traits<Packet1Xf>::size);
 }
@@ -876,7 +876,7 @@ template <typename Packet = Packet4Xl>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet4Xl>::value && (unpacket_traits<Packet4Xl>::size % 8) == 0,
                         Packet2Xl>::type
-predux_half_dowto4(const Packet4Xl& a) {
+predux_half(const Packet4Xl& a) {
   return __riscv_vadd_vv_i64m2(__riscv_vget_v_i64m4_i64m2(a, 0), __riscv_vget_v_i64m4_i64m2(a, 1),
                                unpacket_traits<Packet2Xl>::size);
 }
@@ -885,7 +885,7 @@ template <typename Packet = Packet2Xl>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xl>::value && (unpacket_traits<Packet2Xl>::size % 8) == 0,
                         Packet1Xl>::type
-predux_half_dowto4(const Packet2Xl& a) {
+predux_half(const Packet2Xl& a) {
   return __riscv_vadd_vv_i64m1(__riscv_vget_v_i64m2_i64m1(a, 0), __riscv_vget_v_i64m2_i64m1(a, 1),
                                unpacket_traits<Packet1Xl>::size);
 }
@@ -1222,7 +1222,7 @@ template <typename Packet = Packet4Xd>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet4Xd>::value && (unpacket_traits<Packet4Xd>::size % 8) == 0,
                         Packet2Xd>::type
-predux_half_dowto4(const Packet4Xd& a) {
+predux_half(const Packet4Xd& a) {
   return __riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
                                 unpacket_traits<Packet2Xd>::size);
 }
@@ -1231,7 +1231,7 @@ template <typename Packet = Packet2Xd>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xd>::value && (unpacket_traits<Packet2Xd>::size % 8) == 0,
                         Packet1Xd>::type
-predux_half_dowto4(const Packet2Xd& a) {
+predux_half(const Packet2Xd& a) {
   return __riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a, 0), __riscv_vget_v_f64m2_f64m1(a, 1),
                                 unpacket_traits<Packet1Xd>::size);
 }
@@ -1486,7 +1486,7 @@ template <typename Packet = Packet4Xs>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet4Xs>::value && (unpacket_traits<Packet4Xs>::size % 8) == 0,
                         Packet2Xs>::type
-predux_half_dowto4(const Packet4Xs& a) {
+predux_half(const Packet4Xs& a) {
   return __riscv_vadd_vv_i16m2(__riscv_vget_v_i16m4_i16m2(a, 0), __riscv_vget_v_i16m4_i16m2(a, 1),
                                unpacket_traits<Packet2Xs>::size);
 }
@@ -1495,7 +1495,7 @@ template <typename Packet = Packet2Xs>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xs>::value && (unpacket_traits<Packet2Xs>::size % 8) == 0,
                         Packet1Xs>::type
-predux_half_dowto4(const Packet2Xs& a) {
+predux_half(const Packet2Xs& a) {
   return __riscv_vadd_vv_i16m1(__riscv_vget_v_i16m2_i16m1(a, 0), __riscv_vget_v_i16m2_i16m1(a, 1),
                                unpacket_traits<Packet1Xs>::size);
 }

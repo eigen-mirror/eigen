@@ -811,7 +811,7 @@ template <typename Packet = Packet2Xh>
 EIGEN_STRONG_INLINE
 typename std::enable_if<std::is_same<Packet, Packet2Xh>::value && (unpacket_traits<Packet2Xh>::size % 8) == 0,
                         PacketXh>::type
-predux_half_dowto4(const Packet2Xh& a) {
+predux_half(const Packet2Xh& a) {
   return __riscv_vfadd_vv_f16m1(__riscv_vget_v_f16m2_f16m1(a, 0), __riscv_vget_v_f16m2_f16m1(a, 1),
                                 unpacket_traits<PacketXh>::size);
 }
