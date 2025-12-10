@@ -3064,6 +3064,8 @@ EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic,
   return result;
 }
 
+#ifdef EIGEN_VECTORIZE_AVX2
+
 EIGEN_STRONG_INLINE Packet4ul pmuluh(Packet4ul a, Packet4ul b) {
   // there is no apparent optimization for b = _mm256_set1_epi64(magic)
   using WidePacket4ul = std::pair<Packet4ul, Packet4ul>;
@@ -3096,6 +3098,8 @@ EIGEN_STRONG_INLINE Packet4ul pfast_uint_div(const Packet4ul& a, uint64_t magic,
 
   return result;
 }
+
+#endif
 
 }  // end namespace internal
 
