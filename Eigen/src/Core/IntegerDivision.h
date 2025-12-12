@@ -203,22 +203,22 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t calc_magic(uint32_t d, int p) {
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t calc_magic(uint64_t d, int p) { return calc_magic_generic(d, p); }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T muluh_generic(T a, T b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T umuluh_generic(T a, T b) {
   return DoubleWordInteger<T>::FromProduct(a, b).hi;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t muluh(uint8_t a, uint8_t b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t umuluh(uint8_t a, uint8_t b) {
   uint_fast16_t result = (uint_fast16_t(a) * uint_fast16_t(b)) >> 8;
   return static_cast<uint8_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t muluh(uint16_t a, uint16_t b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t umuluh(uint16_t a, uint16_t b) {
   uint_fast32_t result = (uint_fast32_t(a) * uint_fast32_t(b)) >> 16;
   return static_cast<uint16_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t muluh(uint32_t a, uint32_t b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t umuluh(uint32_t a, uint32_t b) {
   uint_fast64_t result = (uint_fast64_t(a) * uint_fast64_t(b)) >> 32;
   return static_cast<uint32_t>(result);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t muluh(uint64_t a, uint64_t b) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return __umul64hi(a, b);
 #elif defined(SYCL_DEVICE_ONLY)
@@ -229,38 +229,38 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t muluh(uint64_t a, uint64_t b) {
   __uint128_t v = static_cast<__uint128_t>(a) * static_cast<__uint128_t>(b);
   return static_cast<uint64_t>(v >> 64);
 #else
-  return muluh_generic(a, b);
+  return umuluh_generic(a, b);
 #endif
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T fast_int_div_generic(T a, T magic, int shift) {
-  T b = muluh(a, magic);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T fast_uint_div_generic(T a, T magic, int shift) {
+  T b = umuluh(a, magic);
   DoubleWordInteger<T> t = DoubleWordInteger<T>::FromSum(b, a) >> shift;
   return t.lo;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t fast_int_div(uint8_t a, uint8_t magic, int shift) {
-  uint_fast16_t b = muluh(a, magic);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t fast_uint_div(uint8_t a, uint8_t magic, int shift) {
+  uint_fast16_t b = umuluh(a, magic);
   uint_fast16_t t = (b + a) >> shift;
   return static_cast<uint8_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t fast_int_div(uint16_t a, uint16_t magic, int shift) {
-  uint_fast32_t b = muluh(a, magic);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t fast_uint_div(uint16_t a, uint16_t magic, int shift) {
+  uint_fast32_t b = umuluh(a, magic);
   uint_fast32_t t = (b + a) >> shift;
   return static_cast<uint16_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t fast_int_div(uint32_t a, uint32_t magic, int shift) {
-  uint_fast64_t b = muluh(a, magic);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t fast_uint_div(uint32_t a, uint32_t magic, int shift) {
+  uint_fast64_t b = umuluh(a, magic);
   uint_fast64_t t = (b + a) >> shift;
   return static_cast<uint32_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t fast_int_div(uint64_t a, uint64_t magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t fast_uint_div(uint64_t a, uint64_t magic, int shift) {
 #if EIGEN_HAS_BUILTIN_INT128
-  __uint128_t b = muluh(a, magic);
+  __uint128_t b = umuluh(a, magic);
   __uint128_t t = (b + a) >> shift;
   return static_cast<uint64_t>(t);
 #else
-  return fast_int_div_generic(a, magic, shift);
+  return fast_uint_div_generic(a, magic, shift);
 #endif
 }
 
@@ -292,7 +292,7 @@ struct fast_div_op_impl<Scalar, false> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    return fast_int_div(a, magic, shift);
+    return fast_uint_div(a, magic, shift);
   }
 
   template <typename Packet>

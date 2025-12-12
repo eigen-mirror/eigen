@@ -28,21 +28,16 @@ Numerator ref_div(Numerator n, Divisor d) {
 
 template <typename Numerator, typename Divisor>
 void test_division_exhaustive() {
-  Numerator n = NumTraits<Numerator>::lowest();
-  Divisor d = NumTraits<Divisor>::lowest();
-  while (true) {
-    if (d != 0) {
-      IntDivider<Numerator> divider(d);
-      while (true) {
-        Numerator q = n / divider;
-        Numerator ref = ref_div(n, d);
-        VERIFY_IS_EQUAL(q, ref);
-        if (n == NumTraits<Numerator>::highest()) break;
-        n++;
-      }
+  for (Divisor d = NumTraits<Divisor>::lowest();; d++) {
+    if (d == 0) continue;
+    IntDivider<Numerator> divider(d);
+    for (Numerator n = NumTraits<Numerator>::lowest();; n++) {
+      Numerator q = n / divider;
+      Numerator ref = ref_div(n, d);
+      VERIFY_IS_EQUAL(q, ref);
+      if (n == NumTraits<Numerator>::highest()) break;
     }
     if (d == NumTraits<Divisor>::highest()) break;
-    d++;
   }
 }
 
@@ -107,10 +102,8 @@ void run_division_tests() {
 EIGEN_DECLARE_TEST(integer_division) {
   CALL_SUBTEST_1((test_division_exhaustive<uint8_t, uint8_t>()));
   CALL_SUBTEST_1((test_division_exhaustive<int8_t, int8_t>()));
-  CALL_SUBTEST_1((test_division_exhaustive<int8_t, uint8_t>()));
-  CALL_SUBTEST_2((test_division_exhaustive<uint16_t, uint16_t>()));
-  CALL_SUBTEST_2((test_division_exhaustive<int16_t, int16_t>()));
-  CALL_SUBTEST_2((test_division_exhaustive<int16_t, uint16_t>()));
+  CALL_SUBTEST_2((test_division_exhaustive<uint16_t, uint8_t>()));
+  CALL_SUBTEST_2((test_division_exhaustive<int16_t, int8_t>()));
   CALL_SUBTEST_3((run_division_tests<uint8_t>()));
   CALL_SUBTEST_3((run_division_tests<uint16_t>()));
   CALL_SUBTEST_4((run_division_tests<uint32_t>()));

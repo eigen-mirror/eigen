@@ -239,7 +239,16 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   typedef Packet8i type;
   typedef Packet4i half;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, HasFastIntDiv = 1, size = 8 };
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasCmp = 1,
+    HasDiv = 1,
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
+    size = 8
+  };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
@@ -256,8 +265,10 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
-    HasShift = 1,
-    HasFastIntDiv = 1
+#ifdef EIGEN_VECTORIZE_AVX2
+    HasFastIntDiv = 1,
+#endif
+    HasShift = 1
   };
 };
 
@@ -3044,6 +3055,8 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 
 /*---------------- end load/store segment support ----------------*/
 
+#ifdef EIGEN_VECTORIZE_AVX2
+
 template <>
 EIGEN_STRONG_INLINE Packet8ui pfast_uint_div(const Packet8ui& a, uint32_t magic, int shift) {
   const __m256i cst_magic = _mm256_set1_epi32(magic);
@@ -3096,6 +3109,8 @@ EIGEN_STRONG_INLINE Packet4ul pfast_uint_div(const Packet4ul& a, uint64_t magic,
 
   return result;
 }
+
+#endif
 
 }  // end namespace internal
 
