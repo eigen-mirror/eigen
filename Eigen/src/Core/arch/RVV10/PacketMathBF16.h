@@ -48,10 +48,11 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasSetLinear = 0,
     HasBlend = 0,
     HasReduxp = 0,
+    HasSign = 0,
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 1,
+    HasRound = 0,
 
     HasSin = 0,
     HasCos = 0,
@@ -90,10 +91,11 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasSetLinear = 0,
     HasBlend = 0,
     HasReduxp = 0,
+    HasSign = 0,
 
     HasCmp = 1,
     HasDiv = 1,
-    HasRound = 1,
+    HasRound = 0,
 
     HasSin = 0,
     HasCos = 0,
@@ -150,7 +152,7 @@ EIGEN_STRONG_INLINE PacketXbf F32ToBf16(const Packet2Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXbf ptrue<PacketXbf>(const PacketXbf& /*a*/) {
-  return __riscv_vreinterpret_bf16m1(__riscv_vmv_v_x_u16m1(0xffffu, unpacket_traits<PacketXbf>::size));
+  return __riscv_vreinterpret_bf16m1(__riscv_vmv_v_x_u16m1(static_cast<numext::uint16_t>(0xffffu), unpacket_traits<PacketXbf>::size));
 }
 
 template <>
@@ -162,7 +164,7 @@ EIGEN_STRONG_INLINE PacketXbf pzero<PacketXbf>(const PacketXbf& /*a*/) {
 template <>
 EIGEN_STRONG_INLINE PacketXbf pabs(const PacketXbf& a) {
   return __riscv_vreinterpret_v_u16m1_bf16m1(__riscv_vand_vx_u16m1(
-      __riscv_vreinterpret_v_bf16m1_u16m1(a), 0x7fffu, unpacket_traits<PacketXsu>::size));
+      __riscv_vreinterpret_v_bf16m1_u16m1(a), static_cast<numext::uint16_t>(0x7fffu), unpacket_traits<PacketXs>::size));
 }
 
 template <>
@@ -194,7 +196,7 @@ EIGEN_STRONG_INLINE PacketXbf psub<PacketXbf>(const PacketXbf& a, const PacketXb
 template <>
 EIGEN_STRONG_INLINE PacketXbf pnegate(const PacketXbf& a) {
   return __riscv_vreinterpret_v_u16m1_bf16m1(__riscv_vxor_vx_u16m1(
-      __riscv_vreinterpret_v_bf16m1_u16m1(a), 0x8000u, unpacket_traits<PacketXsu>::size));
+      __riscv_vreinterpret_v_bf16m1_u16m1(a), static_cast<numext::uint16_t>(0x8000u), unpacket_traits<PacketXs>::size));
 }
 
 template <>
@@ -260,7 +262,7 @@ EIGEN_STRONG_INLINE PacketXbf pmax<PropagateNaN, PacketXbf>(const PacketXbf& a, 
 
 template <>
 EIGEN_STRONG_INLINE PacketXbf pmax<PropagateNumbers, PacketXbf>(const PacketXbf& a, const PacketXbf& b) {
-  return F32ToBf16(pmin<PropagateNumbers, Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16(pmax<PropagateNumbers, Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
@@ -325,14 +327,14 @@ EIGEN_STRONG_INLINE PacketXbf ploadu<PacketXbf>(const bfloat16* from) {
 template <>
 EIGEN_STRONG_INLINE PacketXbf ploaddup<PacketXbf>(const bfloat16* from) {
   PacketXsu idx = __riscv_vid_v_u16m1(unpacket_traits<PacketXbf>::size);
-  idx = __riscv_vand_vx_u16m1(idx, 0xfffeu, unpacket_traits<PacketXbf>::size);
+  idx = __riscv_vand_vx_u16m1(idx, static_cast<numext::uint16_t>(0xfffeu), unpacket_traits<PacketXbf>::size);
   return __riscv_vloxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<PacketXbf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXbf ploadquad<PacketXbf>(const bfloat16* from) {
   PacketXsu idx = __riscv_vid_v_u16m1(unpacket_traits<PacketXbf>::size);
-  idx = __riscv_vsrl_vx_u16m1(__riscv_vand_vx_u16m1(idx, 0xfffcu, unpacket_traits<PacketXbf>::size), 1,
+  idx = __riscv_vsrl_vx_u16m1(__riscv_vand_vx_u16m1(idx, static_cast<numext::uint16_t>(0xfffcu), unpacket_traits<PacketXbf>::size), 1,
                               unpacket_traits<PacketXbf>::size);
   return __riscv_vloxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<PacketXbf>::size);
 }
@@ -433,7 +435,7 @@ EIGEN_STRONG_INLINE Packet2Xbf F32ToBf16(const Packet4Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf ptrue<Packet2Xbf>(const Packet2Xbf& /*a*/) {
-  return __riscv_vreinterpret_bf16m2(__riscv_vmv_v_x_u16m2(0xffffu, unpacket_traits<Packet2Xbf>::size));
+  return __riscv_vreinterpret_bf16m2(__riscv_vmv_v_x_u16m2(static_cast<numext::uint16_t>(0xffffu), unpacket_traits<Packet2Xbf>::size));
 }
 
 template <>
@@ -445,7 +447,7 @@ EIGEN_STRONG_INLINE Packet2Xbf pzero<Packet2Xbf>(const Packet2Xbf& /*a*/) {
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pabs(const Packet2Xbf& a) {
   return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vand_vx_u16m2(
-      __riscv_vreinterpret_v_bf16m2_u16m2(a), 0x7fffu, unpacket_traits<Packet2Xsu>::size));
+      __riscv_vreinterpret_v_bf16m2_u16m2(a), static_cast<numext::uint16_t>(0x7fffu), unpacket_traits<Packet2Xs>::size));
 }
 
 template <>
@@ -477,7 +479,7 @@ EIGEN_STRONG_INLINE Packet2Xbf psub<Packet2Xbf>(const Packet2Xbf& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pnegate(const Packet2Xbf& a) {
   return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vxor_vx_u16m2(
-      __riscv_vreinterpret_v_bf16m2_u16m2(a), 0x8000u, unpacket_traits<Packet2Xsu>::size));
+      __riscv_vreinterpret_v_bf16m2_u16m2(a), static_cast<numext::uint16_t>(0x8000u), unpacket_traits<Packet2Xs>::size));
 }
 
 template <>
@@ -611,14 +613,14 @@ EIGEN_STRONG_INLINE Packet2Xbf ploadu<Packet2Xbf>(const bfloat16* from) {
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf ploaddup<Packet2Xbf>(const bfloat16* from) {
   Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xbf>::size);
-  idx = __riscv_vand_vx_u16m2(idx, 0xfffeu, unpacket_traits<Packet2Xbf>::size);
+  idx = __riscv_vand_vx_u16m2(idx, static_cast<numext::uint16_t>(0xfffeu), unpacket_traits<Packet2Xbf>::size);
   return __riscv_vloxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf ploadquad<Packet2Xbf>(const bfloat16* from) {
   Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xbf>::size);
-  idx = __riscv_vsrl_vx_u16m2(__riscv_vand_vx_u16m2(idx, 0xfffcu, unpacket_traits<Packet2Xbf>::size), 1,
+  idx = __riscv_vsrl_vx_u16m2(__riscv_vand_vx_u16m2(idx, static_cast<numext::uint16_t>(0xfffcu), unpacket_traits<Packet2Xbf>::size), 1,
                               unpacket_traits<Packet2Xs>::size);
   return __riscv_vloxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
 }
