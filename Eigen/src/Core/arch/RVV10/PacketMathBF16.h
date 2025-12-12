@@ -200,6 +200,12 @@ EIGEN_STRONG_INLINE PacketXbf pnegate(const PacketXbf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE PacketXbf psignbit(const PacketXbf& a) {
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vsra_vx_i16m1(
+      __riscv_vreinterpret_v_bf16m1_i16m1(a), 15, unpacket_traits<PacketXs>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE PacketXbf pconj(const PacketXbf& a) {
   return a;
 }
@@ -480,6 +486,12 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xbf pnegate(const Packet2Xbf& a) {
   return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vxor_vx_u16m2(
       __riscv_vreinterpret_v_bf16m2_u16m2(a), static_cast<numext::uint16_t>(0x8000u), unpacket_traits<Packet2Xs>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf psignbit(const Packet2Xbf& a) {
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vsra_vx_i16m2(
+      __riscv_vreinterpret_v_bf16m2_i16m2(a), 15, unpacket_traits<Packet2Xs>::size));
 }
 
 template <>
