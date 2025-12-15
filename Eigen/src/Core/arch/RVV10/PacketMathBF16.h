@@ -109,7 +109,7 @@ struct packet_traits<bfloat16> : default_packet_traits {
 #endif
 
 template <>
-struct unpacket_traits<Packet1Xbf> {
+struct unpacket_traits<Packet1Xbf> : default_unpacket_traits {
   typedef bfloat16 type;
   typedef Packet1Xbf half;  // Half not yet implemented
   typedef PacketXs integer_packet;
@@ -118,14 +118,12 @@ struct unpacket_traits<Packet1Xbf> {
   enum {
     size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 1>::size,
     alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
+    vectorizable = true
   };
 };
 
 template <>
-struct unpacket_traits<Packet2Xbf> {
+struct unpacket_traits<Packet2Xbf> : default_unpacket_traits {
   typedef bfloat16 type;
   typedef Packet1Xbf half;
   typedef Packet2Xs integer_packet;
@@ -134,9 +132,7 @@ struct unpacket_traits<Packet2Xbf> {
   enum {
     size = rvv_packet_size_selector<bfloat16, EIGEN_RISCV64_RVV_VL, 2>::size,
     alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
+    vectorizable = true
   };
 };
 
