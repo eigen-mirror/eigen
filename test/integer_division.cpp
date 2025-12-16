@@ -17,8 +17,8 @@ Numerator ref_div(Numerator n, Divisor d) {
   using UnsignedDivisor = typename std::make_unsigned<Divisor>::type;
   bool n_is_negative = n < 0;
   bool d_is_negative = d < 0;
-  UnsignedNumerator abs_n = numext::abs(n);
-  UnsignedDivisor abs_d = numext::abs(d);
+  UnsignedNumerator abs_n = static_cast<UnsignedNumerator>(numext::abs(n));
+  UnsignedDivisor abs_d = static_cast<UnsignedDivisor>(numext::abs(d));
   Numerator result = static_cast<Numerator>(abs_n / abs_d);
   if (n_is_negative != d_is_negative) {
     result = 0 - result;
@@ -34,6 +34,12 @@ void test_division_exhaustive() {
     for (Numerator n = NumTraits<Numerator>::lowest();; n++) {
       Numerator q = n / divider;
       Numerator ref = ref_div(n, d);
+      if (q != ref) {
+        std::cout << "n: " << +n << "\n";
+        std::cout << "d: " << +d << "\n";
+        std::cout << "q: " << +q << "\n";
+        std::cout << "ref: " << +ref << "\n";
+      }
       VERIFY_IS_EQUAL(q, ref);
       if (n == NumTraits<Numerator>::highest()) break;
     }
@@ -47,12 +53,12 @@ void test_division() {
   using FastDivOp = internal::fast_div_op<Numerator>;
   using FastDivXpr = CwiseUnaryOp<FastDivOp, PlainType>;
 
-  Index size = 4096;
+  constexpr Index size = 4096;
   PlainType numerator(size);
   PlainType evalXpr(size);
   for (int repeat = 0; repeat < EIGEN_TEST_MAX_SIZE; repeat++) {
     numerator.setRandom();
-    Divisor d = internal::random<Divisor>(1, NumTraits<Divisor>::highest() / 4);
+    Divisor d = internal::random<Divisor>(1, NumTraits<Divisor>::highest());
     {
       IntDivider<Numerator> divider(d);
       evalXpr = FastDivXpr(numerator, divider.op);

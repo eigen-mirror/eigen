@@ -183,19 +183,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T calc_magic_generic(T d, int p) {
   return q.lo + 1;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t calc_magic(uint8_t d, int p) {
-  uint_fast16_t n = uint_fast16_t(-1) >> (8 - p);
+  uint_fast16_t n = uint16_t(-1) >> (8 - p);
   uint_fast16_t q = 1 + (n / d);
   uint8_t result = static_cast<uint8_t>(q);
   return result;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t calc_magic(uint16_t d, int p) {
-  uint_fast32_t n = uint_fast32_t(-1) >> (16 - p);
+  uint_fast32_t n = uint32_t(-1) >> (16 - p);
   uint_fast32_t q = 1 + (n / d);
   uint16_t result = static_cast<uint16_t>(q);
   return result;
 }
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t calc_magic(uint32_t d, int p) {
-  uint_fast64_t n = uint_fast64_t(-1) >> (32 - p);
+  uint_fast64_t n = uint64_t(-1) >> (32 - p);
   uint_fast64_t q = 1 + (n / d);
   uint32_t result = static_cast<uint32_t>(q);
   return result;
@@ -234,33 +234,109 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t umuluh(uint64_t a, uint64_t b) {
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T fast_uint_div_generic(T a, T magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T smuluh_generic(T a, T b) {
+  using UT = std::make_unsigned_t<T>;
+  UT ua = static_cast<UT>(a);
+  UT ub = static_cast<UT>(b);
+  UT result = umuluh(ua, ub);
+  if (a < 0) result -= ub;
+  if (b < 0) result -= ua;
+  return static_cast<T>(result);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int8_t smuluh(int8_t a, int8_t b) {
+  int_fast16_t result = (int_fast16_t(a) * int_fast16_t(b)) >> 8;
+  return static_cast<int8_t>(result);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int16_t smuluh(int16_t a, int16_t b) {
+  int_fast32_t result = (int_fast32_t(a) * int_fast32_t(b)) >> 16;
+  return static_cast<int16_t>(result);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int32_t smuluh(int32_t a, int32_t b) {
+  int_fast64_t result = (int_fast64_t(a) * int_fast64_t(b)) >> 32;
+  return static_cast<int32_t>(result);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int64_t smuluh(int64_t a, int64_t b) {
+#if EIGEN_HAS_BUILTIN_INT128
+  __int128_t v = static_cast<__int128_t>(a) * static_cast<__int128_t>(b);
+  return static_cast<__int128_t>(v >> 64);
+#else
+  return smuluh_generic(a, b);
+#endif
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T uintdiv_generic(T a, T magic, int shift) {
   T b = umuluh(a, magic);
   DoubleWordInteger<T> t = DoubleWordInteger<T>::FromSum(b, a) >> shift;
   return t.lo;
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t fast_uint_div(uint8_t a, uint8_t magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint8_t uintdiv(uint8_t a, uint8_t magic, int shift) {
   uint_fast16_t b = umuluh(a, magic);
   uint_fast16_t t = (b + a) >> shift;
   return static_cast<uint8_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t fast_uint_div(uint16_t a, uint16_t magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint16_t uintdiv(uint16_t a, uint16_t magic, int shift) {
   uint_fast32_t b = umuluh(a, magic);
   uint_fast32_t t = (b + a) >> shift;
   return static_cast<uint16_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t fast_uint_div(uint32_t a, uint32_t magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint32_t uintdiv(uint32_t a, uint32_t magic, int shift) {
   uint_fast64_t b = umuluh(a, magic);
   uint_fast64_t t = (b + a) >> shift;
   return static_cast<uint32_t>(t);
 }
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t fast_uint_div(uint64_t a, uint64_t magic, int shift) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t uintdiv(uint64_t a, uint64_t magic, int shift) {
 #if EIGEN_HAS_BUILTIN_INT128
   __uint128_t b = umuluh(a, magic);
   __uint128_t t = (b + a) >> shift;
   return static_cast<uint64_t>(t);
 #else
-  return fast_uint_div_generic(a, magic, shift);
+  return uintdiv_generic(a, magic, shift);
+#endif
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T sintdiv_generic(T a, T magic, int shift, bool sign) {
+  constexpr int k = CHAR_BIT * sizeof(T);
+  using UT = std::make_unsigned_t<T>;
+  if (shift >= k) return 0;
+  T b = smuluh(a, magic);
+  UT ua = static_cast<UT>(a);
+  UT ub = static_cast<UT>(b);
+  UT lo = ub + ua;
+  T hi = lo < ua ? 1 : 0;
+  if (a < 0) hi--;
+  if (b < 0) hi--;
+  T t = shift == 0 ? static_cast<T>(lo) : static_cast<T>((hi << (k - shift)) | (lo >> shift));
+  if (a < 0) t++;
+  return sign ? -t : t;
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int8_t sintdiv(int8_t a, int8_t magic, int shift, bool sign) {
+  int_fast16_t b = smuluh(a, magic);
+  int_fast16_t t = (b + a) >> shift;
+  t -= a >> 7;
+  return static_cast<int8_t>(sign ? -t : t);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int16_t sintdiv(int16_t a, int16_t magic, int shift, bool sign) {
+  int_fast32_t b = smuluh(a, magic);
+  int_fast32_t t = (b + a) >> shift;
+  t -= a >> 15;
+  return static_cast<int16_t>(sign ? -t : t);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int32_t sintdiv(int32_t a, int32_t magic, int shift, bool sign) {
+  int_fast64_t b = smuluh(a, magic);
+  int_fast64_t t = (b + a) >> shift;
+  t -= a >> 31;
+  return static_cast<int32_t>(sign ? -t : t);
+}
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int64_t sintdiv(int64_t a, int64_t magic, int shift, bool sign) {
+#if EIGEN_HAS_BUILTIN_INT128
+  __int128_t b = smuluh(a, magic);
+  __int128_t t = (b + a) >> shift;
+  t -= a >> 63;
+  return static_cast<int64_t>(sign ? -t : t);
+#else
+  return sintdiv_generic(a, magic, shift, sign);
 #endif
 }
 
@@ -269,35 +345,36 @@ struct fast_div_op_impl;
 
 template <typename Scalar>
 struct fast_div_op_impl<Scalar, false> {
+  using UnsignedScalar = std::make_unsigned_t<Scalar>;
   static constexpr int k = CHAR_BIT * sizeof(Scalar);
   template <typename Divisor>
   EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) {
-    eigen_assert(d != 0 && "Error: Division by zero attempted!");
     using UnsignedDivisor = std::make_unsigned_t<Divisor>;
-    UnsignedDivisor abs_d = numext::abs(d);
-    if (abs_d <= NumTraits<Scalar>::highest()) {
-      // d is in range
-      // reduce d to 2^tz * d_odd so that the magic number is smaller and easier to calculate
-      int tz = ctz(abs_d);
-      Scalar d_odd = static_cast<Scalar>(abs_d >> tz);
-      int p = log2_ceil(d_odd);
-      magic = calc_magic(d_odd, p);
-      shift = p + tz;
+    eigen_assert(d != 0 && "Error: Division by zero attempted!");
+    int tz = ctz(d);
+    Divisor d_odd = d >> tz;
+    UnsignedDivisor d_odd_abs = static_cast<UnsignedDivisor>(numext::abs(d_odd));
+    int p = std::is_signed<Scalar>::value ? log2_floor(d_odd_abs) : log2_ceil(d_odd_abs);
+    shift = tz + p;
+    if (shift <= k) {
+      if (p == 0) {
+        magic = std::is_signed<Scalar>::value ? 1 : 0;
+      } else {
+        magic = static_cast<Scalar>(calc_magic(static_cast<UnsignedScalar>(d_odd_abs), p));
+      }
     } else {
-      // d is not in range
-      // all divisions result in zero
       magic = 0;
       shift = k;
     }
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    return fast_uint_div(a, magic, shift);
+    return uintdiv(a, magic, shift);
   }
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    return pfast_uint_div(a, magic, shift);
+    return puintdiv(a, magic, shift);
   }
 
   Scalar magic;
@@ -305,22 +382,20 @@ struct fast_div_op_impl<Scalar, false> {
 };
 
 template <typename Scalar>
-struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<std::make_unsigned_t<Scalar>> {
+struct fast_div_op_impl<Scalar, true> : fast_div_op_impl<Scalar, false> {
+  using Base = fast_div_op_impl<Scalar, false>;
+  static constexpr int k = CHAR_BIT * sizeof(Scalar);
   using UnsignedScalar = std::make_unsigned_t<Scalar>;
-  using UnsignedImpl = fast_div_op_impl<UnsignedScalar>;
   template <typename Divisor>
-  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : UnsignedImpl(d), sign(d < 0) {}
+  EIGEN_DEVICE_FUNC fast_div_op_impl(Divisor d) : Base(d), sign(d < 0) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    bool negative = (a < 0) != sign;
-    UnsignedScalar abs_a = numext::abs(a);
-    Scalar result = UnsignedImpl::operator()(abs_a);
-    return negative ? -result : result;
+    return sintdiv(a, Base::magic, Base::shift, sign);
   }
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    return pfast_sint_div(a, UnsignedImpl::magic, UnsignedImpl::shift, sign);
+    return psintdiv(a, Base::magic, Base::shift, sign);
   }
 
   bool sign;
@@ -346,23 +421,6 @@ struct functor_traits<fast_div_op<Scalar>> {
     Cost = functor_traits<scalar_product_op<Scalar>>::Cost + 2 * functor_traits<scalar_sum_op<Scalar>>::Cost
   };
 };
-
-template <typename Packet>
-EIGEN_STRONG_INLINE Packet pfast_sint_div(const Packet& a,
-                                          std::make_unsigned_t<typename unpacket_traits<Packet>::type> magic, int shift,
-                                          bool sign) {
-  using UnsignedScalar = std::make_unsigned_t<typename unpacket_traits<Packet>::type>;
-  EIGEN_STATIC_ASSERT((find_packet_by_size<UnsignedScalar, unpacket_traits<Packet>::size>::value),
-                      NO COMPATIBLE UNSIGNED PACKET)
-  using UnsignedPacket = typename find_packet_by_size<UnsignedScalar, unpacket_traits<Packet>::size>::type;
-
-  const Packet cst_divisor_sign = pset1<Packet>(sign ? -1 : 0);
-  Packet sign_a = psignbit(a);
-  Packet abs_result = (Packet)pfast_uint_div((UnsignedPacket)pabs(a), magic, shift);
-  Packet sign_mask = pxor(sign_a, cst_divisor_sign);
-  Packet result = psub(pxor(abs_result, sign_mask), sign_mask);
-  return result;
-}
 
 }  // namespace internal
 
