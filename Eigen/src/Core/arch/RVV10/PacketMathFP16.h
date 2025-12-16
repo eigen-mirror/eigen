@@ -174,6 +174,15 @@ EIGEN_STRONG_INLINE Packet1Xh plset<Packet1Xh>(const Eigen::half& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xh>(const Eigen::half* a, Packet1Xh& a0, Packet1Xh& a1, Packet1Xh& a2,
+                                               Packet1Xh& a3) {
+  a0 = pset1<Packet1Xh>(a[0]);
+  a1 = pset1<Packet1Xh>(a[1]);
+  a2 = pset1<Packet1Xh>(a[2]);
+  a3 = pset1<Packet1Xh>(a[3]);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xh padd<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
   return __riscv_vfadd_vv_f16m1(a, b, unpacket_traits<Packet1Xh>::size);
 }
@@ -518,6 +527,15 @@ EIGEN_STRONG_INLINE Packet2Xh plset<Packet2Xh>(const Eigen::half& a) {
       __riscv_vreinterpret_v_u16m2_i16m2(__riscv_vid_v_u16m2(unpacket_traits<Packet4Xs>::size)),
       unpacket_traits<Packet2Xh>::size);
   return __riscv_vfadd_vf_f16m2(idx, numext::bit_cast<_Float16>(a), unpacket_traits<Packet2Xh>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xh>(const Eigen::half* a, Packet2Xh& a0, Packet2Xh& a1, Packet2Xh& a2,
+                                               Packet2Xh& a3) {
+  a0 = pset1<Packet2Xh>(a[0]);
+  a1 = pset1<Packet2Xh>(a[1]);
+  a2 = pset1<Packet2Xh>(a[2]);
+  a3 = pset1<Packet2Xh>(a[3]);
 }
 
 template <>

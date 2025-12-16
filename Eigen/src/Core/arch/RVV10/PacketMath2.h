@@ -316,6 +316,15 @@ EIGEN_STRONG_INLINE Packet2Xf plset<Packet2Xf>(const float& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xf>(const float* a, Packet2Xf& a0, Packet2Xf& a1, Packet2Xf& a2,
+                                               Packet2Xf& a3) {
+  a0 = pset1<Packet2Xf>(a[0]);
+  a1 = pset1<Packet2Xf>(a[1]);
+  a2 = pset1<Packet2Xf>(a[2]);
+  a3 = pset1<Packet2Xf>(a[3]);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xf padd<Packet2Xf>(const Packet2Xf& a, const Packet2Xf& b) {
   return __riscv_vfadd_vv_f32m2(a, b, unpacket_traits<Packet2Xf>::size);
 }
@@ -923,6 +932,15 @@ EIGEN_STRONG_INLINE Packet2Xd plset<Packet2Xd>(const double& a) {
       __riscv_vreinterpret_v_u64m2_i64m2(__riscv_vid_v_u64m2(unpacket_traits<Packet4Xi>::size)),
       unpacket_traits<Packet2Xd>::size);
   return __riscv_vfadd_vf_f64m2(idx, a, unpacket_traits<Packet2Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xd>(const double* a, Packet2Xd& a0, Packet2Xd& a1, Packet2Xd& a2,
+                                               Packet2Xd& a3) {
+  a0 = pset1<Packet2Xd>(a[0]);
+  a1 = pset1<Packet2Xd>(a[1]);
+  a2 = pset1<Packet2Xd>(a[2]);
+  a3 = pset1<Packet2Xd>(a[3]);
 }
 
 template <>

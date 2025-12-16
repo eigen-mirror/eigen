@@ -180,6 +180,15 @@ EIGEN_STRONG_INLINE Packet1Xbf plset<Packet1Xbf>(const bfloat16& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xbf>(const bfloat16* a, Packet1Xbf& a0, Packet1Xbf& a1, Packet1Xbf& a2,
+                                               Packet1Xbf& a3) {
+  a0 = pset1<Packet1Xbf>(a[0]);
+  a1 = pset1<Packet1Xbf>(a[1]);
+  a2 = pset1<Packet1Xbf>(a[2]);
+  a3 = pset1<Packet1Xbf>(a[3]);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xbf padd<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
   return F32ToBf16(padd<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
 }
@@ -466,6 +475,15 @@ EIGEN_STRONG_INLINE Packet2Xbf pset1frombits<Packet2Xbf>(numext::uint16_t from) 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf plset<Packet2Xbf>(const bfloat16& a) {
   return F32ToBf16(plset<Packet4Xf>(static_cast<float>(a)));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xbf>(const bfloat16* a, Packet2Xbf& a0, Packet2Xbf& a1, Packet2Xbf& a2,
+                                               Packet2Xbf& a3) {
+  a0 = pset1<Packet2Xbf>(a[0]);
+  a1 = pset1<Packet2Xbf>(a[1]);
+  a2 = pset1<Packet2Xbf>(a[2]);
+  a3 = pset1<Packet2Xbf>(a[3]);
 }
 
 template <>
