@@ -10,8 +10,6 @@
 #ifndef EIGEN_RVV10_GENERAL_BLOCK_KERNEL_H
 #define EIGEN_RVV10_GENERAL_BLOCK_KERNEL_H
 
-#if EIGEN_RISCV64_DEFAULT_LMUL == 1  // Currently only works for LMUL = 1
-
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
 
@@ -46,6 +44,19 @@ struct gebp_traits<float, float, false, false, Architecture::RVV10, GEBPPacketFu
     c = __riscv_vfmadd_vf_f32m4(a, b, c, unpacket_traits<AccPacket>::size);
 #endif
   }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE void madd(const Packet1Xf& a, const RhsPacket& b, Packet1Xf& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = __riscv_vfmadd_vf_f32m1(a, b, c, unpacket_traits<Packet1Xf>::size);
+  }
+#endif
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
+  EIGEN_STRONG_INLINE void madd(const Packet2Xf& a, const RhsPacket& b, Packet2Xf& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = __riscv_vfmadd_vf_f32m2(a, b, c, unpacket_traits<Packet2Xf>::size);
+  }
+#endif
 
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c, RhsPacket& /*tmp*/,
@@ -86,6 +97,19 @@ struct gebp_traits<double, double, false, false, Architecture::RVV10, GEBPPacket
     c = __riscv_vfmadd_vf_f64m4(a, b, c, unpacket_traits<AccPacket>::size);
 #endif
   }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE void madd(const Packet1Xd& a, const RhsPacket& b, Packet1Xd& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = __riscv_vfmadd_vf_f64m1(a, b, c, unpacket_traits<Packet1Xd>::size);
+  }
+#endif
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
+  EIGEN_STRONG_INLINE void madd(const Packet2Xd& a, const RhsPacket& b, Packet2Xd& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = __riscv_vfmadd_vf_f64m2(a, b, c, unpacket_traits<Packet2Xd>::size);
+  }
+#endif
 
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c, RhsPacket& /*tmp*/,
@@ -130,6 +154,13 @@ struct gebp_traits<half, half, false, false, Architecture::RVV10>
 #endif
   }
 
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE void madd(const Packet1Xh& a, const RhsPacket& b, Packet1Xh& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = __riscv_vfmadd_vf_f16m1(a, numext::bit_cast<_Float16>(b), c, unpacket_traits<Packet1Xh>::size);
+  }
+#endif
+
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c, RhsPacket& /*tmp*/,
                                 const LaneIdType& lane) const {
@@ -173,6 +204,13 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
 #endif
   }
 
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE void madd(const Packet1Xbf& a, const RhsPacket& b, Packet1Xbf& c, RhsPacket& /*tmp*/,
+                                const FixedInt<0>&) const {
+    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<Packet1Xbf>::size));
+  }
+#endif
+
   template <typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c, RhsPacket& /*tmp*/,
                                 const LaneIdType& lane) const {
@@ -188,7 +226,5 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
 
 }  // namespace internal
 }  // namespace Eigen
-
-#endif
 
 #endif  // EIGEN_RVV10_GENERAL_BLOCK_KERNEL_H
