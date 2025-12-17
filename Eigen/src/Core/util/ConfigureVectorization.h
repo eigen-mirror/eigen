@@ -467,6 +467,10 @@ extern "C" {
 #endif
 #endif
 
+#if defined(__riscv_zvfbfwma)
+#define EIGEN_VECTORIZE_RVV10BF16
+#endif
+
 #endif  // defined(EIGEN_ARCH_RISCV)
 
 #elif (defined __s390x__ && defined __VEC__)
