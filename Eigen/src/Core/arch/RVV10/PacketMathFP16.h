@@ -176,10 +176,11 @@ EIGEN_STRONG_INLINE Packet1Xh plset<Packet1Xh>(const Eigen::half& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xh>(const Eigen::half* a, Packet1Xh& a0, Packet1Xh& a1, Packet1Xh& a2,
                                                Packet1Xh& a3) {
-  a0 = pset1<Packet1Xh>(a[0]);
-  a1 = pset1<Packet1Xh>(a[1]);
-  a2 = pset1<Packet1Xh>(a[2]);
-  a3 = pset1<Packet1Xh>(a[3]);
+  vfloat16m1_t aa = __riscv_vle16_v_f16m1(reinterpret_cast<const _Float16*>(a), 4);
+  a0 = __riscv_vrgather_vx_f16m1(aa, 0, unpacket_traits<Packet1Xh>::size);
+  a1 = __riscv_vrgather_vx_f16m1(aa, 1, unpacket_traits<Packet1Xh>::size);
+  a2 = __riscv_vrgather_vx_f16m1(aa, 2, unpacket_traits<Packet1Xh>::size);
+  a3 = __riscv_vrgather_vx_f16m1(aa, 3, unpacket_traits<Packet1Xh>::size);
 }
 
 template <>
@@ -532,10 +533,11 @@ EIGEN_STRONG_INLINE Packet2Xh plset<Packet2Xh>(const Eigen::half& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xh>(const Eigen::half* a, Packet2Xh& a0, Packet2Xh& a1, Packet2Xh& a2,
                                                Packet2Xh& a3) {
-  a0 = pset1<Packet2Xh>(a[0]);
-  a1 = pset1<Packet2Xh>(a[1]);
-  a2 = pset1<Packet2Xh>(a[2]);
-  a3 = pset1<Packet2Xh>(a[3]);
+  vfloat16m2_t aa = __riscv_vle16_v_f16m2(reinterpret_cast<const _Float16*>(a), 4);
+  a0 = __riscv_vrgather_vx_f16m2(aa, 0, unpacket_traits<Packet1Xh>::size);
+  a1 = __riscv_vrgather_vx_f16m2(aa, 1, unpacket_traits<Packet1Xh>::size);
+  a2 = __riscv_vrgather_vx_f16m2(aa, 2, unpacket_traits<Packet1Xh>::size);
+  a3 = __riscv_vrgather_vx_f16m2(aa, 3, unpacket_traits<Packet1Xh>::size);
 }
 
 template <>

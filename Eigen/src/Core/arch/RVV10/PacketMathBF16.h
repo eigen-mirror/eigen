@@ -339,7 +339,7 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xbf ploaddup<Packet1Xbf>(const bfloat16* from) {
   Packet1Xsu idx = __riscv_vid_v_u16m1(unpacket_traits<Packet1Xbf>::size);
   idx = __riscv_vand_vx_u16m1(idx, static_cast<numext::uint16_t>(0xfffeu), unpacket_traits<Packet1Xbf>::size);
-  return __riscv_vloxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vluxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet1Xbf>::size);
 }
 
 template <>
@@ -347,7 +347,7 @@ EIGEN_STRONG_INLINE Packet1Xbf ploadquad<Packet1Xbf>(const bfloat16* from) {
   Packet1Xsu idx = __riscv_vid_v_u16m1(unpacket_traits<Packet1Xbf>::size);
   idx = __riscv_vsrl_vx_u16m1(__riscv_vand_vx_u16m1(idx, static_cast<numext::uint16_t>(0xfffcu), unpacket_traits<Packet1Xbf>::size), 1,
                               unpacket_traits<Packet1Xbf>::size);
-  return __riscv_vloxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vluxei16_v_bf16m1(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet1Xbf>::size);
 }
 
 template <>
@@ -640,7 +640,7 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xbf ploaddup<Packet2Xbf>(const bfloat16* from) {
   Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xbf>::size);
   idx = __riscv_vand_vx_u16m2(idx, static_cast<numext::uint16_t>(0xfffeu), unpacket_traits<Packet2Xbf>::size);
-  return __riscv_vloxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vluxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
 }
 
 template <>
@@ -648,7 +648,7 @@ EIGEN_STRONG_INLINE Packet2Xbf ploadquad<Packet2Xbf>(const bfloat16* from) {
   Packet2Xsu idx = __riscv_vid_v_u16m2(unpacket_traits<Packet2Xbf>::size);
   idx = __riscv_vsrl_vx_u16m2(__riscv_vand_vx_u16m2(idx, static_cast<numext::uint16_t>(0xfffcu), unpacket_traits<Packet2Xbf>::size), 1,
                               unpacket_traits<Packet2Xs>::size);
-  return __riscv_vloxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vluxei16_v_bf16m2(reinterpret_cast<const __bf16*>(from), idx, unpacket_traits<Packet2Xbf>::size);
 }
 
 template <>

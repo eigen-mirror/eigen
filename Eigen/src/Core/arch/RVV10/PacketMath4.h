@@ -2,6 +2,7 @@
 // for linear algebra.
 //
 // Copyright (C) 2024 Kseniya Zaytseva <kseniya.zaytseva@syntacore.com>
+// Copyright (C) 2025 Chip Kerchner <ckerchner@tenstorrent.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -170,14 +171,14 @@ EIGEN_STRONG_INLINE Packet4Xi ploaddup<Packet4Xi>(const numext::int32_t* from) {
   idx = __riscv_vsll_vx_u32m4(__riscv_vand_vx_u32m4(idx, 0xfffffffeu, unpacket_traits<Packet4Xi>::size), 1,
                               unpacket_traits<Packet4Xi>::size);
   // idx = 0 0 sizeof(int32_t) sizeof(int32_t) 2*sizeof(int32_t) 2*sizeof(int32_t) ...
-  return __riscv_vloxei32_v_i32m4(from, idx, unpacket_traits<Packet4Xi>::size);
+  return __riscv_vluxei32_v_i32m4(from, idx, unpacket_traits<Packet4Xi>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4Xi ploadquad<Packet4Xi>(const numext::int32_t* from) {
   Packet4Xu idx = __riscv_vid_v_u32m4(unpacket_traits<Packet4Xi>::size);
   idx = __riscv_vand_vx_u32m4(idx, 0xfffffffcu, unpacket_traits<Packet4Xi>::size);
-  return __riscv_vloxei32_v_i32m4(from, idx, unpacket_traits<Packet4Xi>::size);
+  return __riscv_vluxei32_v_i32m4(from, idx, unpacket_traits<Packet4Xi>::size);
 }
 
 template <>
@@ -303,10 +304,11 @@ EIGEN_STRONG_INLINE Packet4Xf plset<Packet4Xf>(const float& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet4Xf>(const float* a, Packet4Xf& a0, Packet4Xf& a1, Packet4Xf& a2,
                                                Packet4Xf& a3) {
-  a0 = pset1<Packet4Xf>(a[0]);
-  a1 = pset1<Packet4Xf>(a[1]);
-  a2 = pset1<Packet4Xf>(a[2]);
-  a3 = pset1<Packet4Xf>(a[3]);
+  vfloat32m4_t aa = __riscv_vle32_v_f32m4(a, 4);
+  a0 = __riscv_vrgather_vx_f32m4(aa, 0, unpacket_traits<Packet4Xf>::size);
+  a1 = __riscv_vrgather_vx_f32m4(aa, 1, unpacket_traits<Packet4Xf>::size);
+  a2 = __riscv_vrgather_vx_f32m4(aa, 2, unpacket_traits<Packet4Xf>::size);
+  a3 = __riscv_vrgather_vx_f32m4(aa, 3, unpacket_traits<Packet4Xf>::size);
 }
 
 template <>
@@ -473,14 +475,14 @@ EIGEN_STRONG_INLINE Packet4Xf ploaddup<Packet4Xf>(const float* from) {
   Packet4Xu idx = __riscv_vid_v_u32m4(unpacket_traits<Packet4Xf>::size);
   idx = __riscv_vsll_vx_u32m4(__riscv_vand_vx_u32m4(idx, 0xfffffffeu, unpacket_traits<Packet4Xf>::size), 1,
                               unpacket_traits<Packet4Xf>::size);
-  return __riscv_vloxei32_v_f32m4(from, idx, unpacket_traits<Packet4Xf>::size);
+  return __riscv_vluxei32_v_f32m4(from, idx, unpacket_traits<Packet4Xf>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4Xf ploadquad<Packet4Xf>(const float* from) {
   Packet4Xu idx = __riscv_vid_v_u32m4(unpacket_traits<Packet4Xf>::size);
   idx = __riscv_vand_vx_u32m4(idx, 0xfffffffcu, unpacket_traits<Packet4Xf>::size);
-  return __riscv_vloxei32_v_f32m4(from, idx, unpacket_traits<Packet4Xf>::size);
+  return __riscv_vluxei32_v_f32m4(from, idx, unpacket_traits<Packet4Xf>::size);
 }
 
 template <>
@@ -758,7 +760,7 @@ EIGEN_STRONG_INLINE Packet4Xl ploaddup<Packet4Xl>(const numext::int64_t* from) {
   idx = __riscv_vsll_vx_u64m4(__riscv_vand_vx_u64m4(idx, 0xfffffffffffffffeu, unpacket_traits<Packet4Xl>::size), 2,
                               unpacket_traits<Packet4Xl>::size);
   // idx = 0 0 sizeof(int64_t) sizeof(int64_t) 2*sizeof(int64_t) 2*sizeof(int64_t) ...
-  return __riscv_vloxei64_v_i64m4(from, idx, unpacket_traits<Packet4Xl>::size);
+  return __riscv_vluxei64_v_i64m4(from, idx, unpacket_traits<Packet4Xl>::size);
 }
 
 template <>
@@ -766,7 +768,7 @@ EIGEN_STRONG_INLINE Packet4Xl ploadquad<Packet4Xl>(const numext::int64_t* from) 
   Packet4Xul idx = __riscv_vid_v_u64m4(unpacket_traits<Packet4Xl>::size);
   idx = __riscv_vsll_vx_u64m4(__riscv_vand_vx_u64m4(idx, 0xfffffffffffffffcu, unpacket_traits<Packet4Xl>::size), 1,
                               unpacket_traits<Packet4Xl>::size);
-  return __riscv_vloxei64_v_i64m4(from, idx, unpacket_traits<Packet4Xl>::size);
+  return __riscv_vluxei64_v_i64m4(from, idx, unpacket_traits<Packet4Xl>::size);
 }
 
 template <>
@@ -892,10 +894,11 @@ EIGEN_STRONG_INLINE Packet4Xd plset<Packet4Xd>(const double& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet4Xd>(const double* a, Packet4Xd& a0, Packet4Xd& a1, Packet4Xd& a2,
                                                Packet4Xd& a3) {
-  a0 = pset1<Packet4Xd>(a[0]);
-  a1 = pset1<Packet4Xd>(a[1]);
-  a2 = pset1<Packet4Xd>(a[2]);
-  a3 = pset1<Packet4Xd>(a[3]);
+  vfloat64m4_t aa = __riscv_vle64_v_f64m4(a, 4);
+  a0 = __riscv_vrgather_vx_f64m4(aa, 0, unpacket_traits<Packet4Xd>::size);
+  a1 = __riscv_vrgather_vx_f64m4(aa, 1, unpacket_traits<Packet4Xd>::size);
+  a2 = __riscv_vrgather_vx_f64m4(aa, 2, unpacket_traits<Packet4Xd>::size);
+  a3 = __riscv_vrgather_vx_f64m4(aa, 3, unpacket_traits<Packet4Xd>::size);
 }
 
 template <>
@@ -1062,7 +1065,7 @@ EIGEN_STRONG_INLINE Packet4Xd ploaddup<Packet4Xd>(const double* from) {
   Packet4Xul idx = __riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size);
   idx = __riscv_vsll_vx_u64m4(__riscv_vand_vx_u64m4(idx, 0xfffffffffffffffeu, unpacket_traits<Packet4Xd>::size), 2,
                               unpacket_traits<Packet4Xd>::size);
-  return __riscv_vloxei64_v_f64m4(from, idx, unpacket_traits<Packet4Xd>::size);
+  return __riscv_vluxei64_v_f64m4(from, idx, unpacket_traits<Packet4Xd>::size);
 }
 
 template <>
@@ -1070,7 +1073,7 @@ EIGEN_STRONG_INLINE Packet4Xd ploadquad<Packet4Xd>(const double* from) {
   Packet4Xul idx = __riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size);
   idx = __riscv_vsll_vx_u64m4(__riscv_vand_vx_u64m4(idx, 0xfffffffffffffffcu, unpacket_traits<Packet4Xd>::size), 1,
                               unpacket_traits<Packet4Xd>::size);
-  return __riscv_vloxei64_v_f64m4(from, idx, unpacket_traits<Packet4Xd>::size);
+  return __riscv_vluxei64_v_f64m4(from, idx, unpacket_traits<Packet4Xd>::size);
 }
 
 template <>
@@ -1347,7 +1350,7 @@ EIGEN_STRONG_INLINE Packet4Xs ploaddup<Packet4Xs>(const numext::int16_t* from) {
   Packet4Xsu idx = __riscv_vid_v_u16m4(unpacket_traits<Packet4Xs>::size);
   idx = __riscv_vand_vx_u16m4(idx, 0xfffeu, unpacket_traits<Packet4Xs>::size);
   // idx = 0 0 sizeof(int16_t) sizeof(int16_t) 2*sizeof(int16_t) 2*sizeof(int16_t) ...
-  return __riscv_vloxei16_v_i16m4(from, idx, unpacket_traits<Packet4Xs>::size);
+  return __riscv_vluxei16_v_i16m4(from, idx, unpacket_traits<Packet4Xs>::size);
 }
 
 template <>
@@ -1355,7 +1358,7 @@ EIGEN_STRONG_INLINE Packet4Xs ploadquad<Packet4Xs>(const numext::int16_t* from) 
   Packet4Xsu idx = __riscv_vid_v_u16m4(unpacket_traits<Packet4Xs>::size);
   idx = __riscv_vsrl_vx_u16m4(__riscv_vand_vx_u16m4(idx, 0xfffcu, unpacket_traits<Packet4Xs>::size), 1,
                               unpacket_traits<Packet4Xs>::size);
-  return __riscv_vloxei16_v_i16m4(from, idx, unpacket_traits<Packet4Xs>::size);
+  return __riscv_vluxei16_v_i16m4(from, idx, unpacket_traits<Packet4Xs>::size);
 }
 
 template <>
