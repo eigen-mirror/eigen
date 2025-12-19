@@ -352,9 +352,11 @@ EIGEN_STRONG_INLINE Packet1Xi ploadu<Packet1Xi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xi ploaddup<Packet1Xi>(const numext::int32_t* from) {
-  Packet1Xu idx = __riscv_vsrl_vx_u32m1(__riscv_vid_v_u32m1(
-     unpacket_traits<Packet1Xi>::size), 1, unpacket_traits<Packet1Xi>::size);
-  return __riscv_vrgather_vv_i32m1(pload<Packet1Xi>(from), idx, unpacket_traits<Packet1Xi>::size);
+  Packet1Xu data = __riscv_vreinterpret_v_i32m1_u32m1(pload<Packet1Xi>(from));
+  return __riscv_vreinterpret_v_i64m1_i32m1(__riscv_vreinterpret_v_u64m1_i64m1(
+    __riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vwmaccu_vx_u64m2(
+    __riscv_vwaddu_vv_u64m2(data, data, unpacket_traits<Packet1Xi>::size), 0xffffffffu,
+    data, unpacket_traits<Packet1Xi>::size))));
 }
 
 template <>
@@ -849,9 +851,11 @@ EIGEN_STRONG_INLINE Packet1Xf ploadu<Packet1Xf>(const float* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xf ploaddup<Packet1Xf>(const float* from) {
-  Packet1Xu idx = __riscv_vsrl_vx_u32m1(__riscv_vid_v_u32m1(
-     unpacket_traits<Packet1Xf>::size), 1, unpacket_traits<Packet1Xf>::size);
-  return __riscv_vrgather_vv_f32m1(pload<Packet1Xf>(from), idx, unpacket_traits<Packet1Xf>::size);
+  Packet1Xu data = __riscv_vreinterpret_v_f32m1_u32m1(pload<Packet1Xf>(from));
+  return __riscv_vreinterpret_v_i32m1_f32m1(__riscv_vreinterpret_v_i64m1_i32m1(__riscv_vreinterpret_v_u64m1_i64m1(
+    __riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vwmaccu_vx_u64m2(
+    __riscv_vwaddu_vv_u64m2(data, data, unpacket_traits<Packet1Xi>::size), 0xffffffffu,
+    data, unpacket_traits<Packet1Xi>::size)))));
 }
 
 template <>
@@ -2284,9 +2288,11 @@ EIGEN_STRONG_INLINE Packet1Xs ploadu<Packet1Xs>(const numext::int16_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xs ploaddup<Packet1Xs>(const numext::int16_t* from) {
-  Packet1Xsu idx = __riscv_vsrl_vx_u16m1(__riscv_vid_v_u16m1(
-     unpacket_traits<Packet1Xs>::size), 1, unpacket_traits<Packet1Xs>::size);
-  return __riscv_vrgather_vv_i16m1(pload<Packet1Xs>(from), idx, unpacket_traits<Packet1Xs>::size);
+  Packet1Xsu data = __riscv_vreinterpret_v_i16m1_u16m1(pload<Packet1Xs>(from));
+  return __riscv_vreinterpret_v_i32m1_i16m1(__riscv_vreinterpret_v_u32m1_i32m1(
+    __riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vwmaccu_vx_u32m2(
+    __riscv_vwaddu_vv_u32m2(data, data, unpacket_traits<Packet1Xs>::size), 0xffffu,
+    data, unpacket_traits<Packet1Xs>::size))));
 }
 
 template <>
