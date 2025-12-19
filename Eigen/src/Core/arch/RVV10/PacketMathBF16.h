@@ -684,7 +684,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<bfloat16, Packet2Xbf>(bfloat16* to, const
 
 template <>
 EIGEN_STRONG_INLINE bfloat16 pfirst<Packet2Xbf>(const Packet2Xbf& a) {
-  return static_cast<bfloat16>(__riscv_vmv_x_s_i16m2_i16(__riscv_vreinterpret_v_bf16m2_i16m2(a)));
+  return numext::bit_cast<bfloat16>(__riscv_vmv_x_s_i16m2_i16(__riscv_vreinterpret_v_bf16m2_i16m2(a)));
 }
 
 template <>

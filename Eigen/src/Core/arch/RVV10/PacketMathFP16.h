@@ -535,10 +535,10 @@ template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xh>(const Eigen::half* a, Packet2Xh& a0, Packet2Xh& a1, Packet2Xh& a2,
                                                Packet2Xh& a3) {
   vfloat16m2_t aa = __riscv_vle16_v_f16m2(reinterpret_cast<const _Float16*>(a), 4);
-  a0 = __riscv_vrgather_vx_f16m2(aa, 0, unpacket_traits<Packet1Xh>::size);
-  a1 = __riscv_vrgather_vx_f16m2(aa, 1, unpacket_traits<Packet1Xh>::size);
-  a2 = __riscv_vrgather_vx_f16m2(aa, 2, unpacket_traits<Packet1Xh>::size);
-  a3 = __riscv_vrgather_vx_f16m2(aa, 3, unpacket_traits<Packet1Xh>::size);
+  a0 = __riscv_vrgather_vx_f16m2(aa, 0, unpacket_traits<Packet2Xh>::size);
+  a1 = __riscv_vrgather_vx_f16m2(aa, 1, unpacket_traits<Packet2Xh>::size);
+  a2 = __riscv_vrgather_vx_f16m2(aa, 2, unpacket_traits<Packet2Xh>::size);
+  a3 = __riscv_vrgather_vx_f16m2(aa, 3, unpacket_traits<Packet2Xh>::size);
 }
 
 template <>
@@ -748,7 +748,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<Eigen::half, Packet2Xh>(Eigen::half* to, 
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half pfirst<Packet2Xh>(const Packet2Xh& a) {
-  return static_cast<Eigen::half>(__riscv_vfmv_f_s_f16m2_f16(a));
+  return numext::bit_cast<Eigen::half>(__riscv_vfmv_f_s_f16m2_f16(a));
 }
 
 template <>
