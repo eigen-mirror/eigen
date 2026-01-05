@@ -83,7 +83,9 @@ class HistogramHelper {
 
 // helper class to avoid extending std:: namespace
 template <typename T>
-struct get_range_type : internal::make_unsigned<T> {};
+struct get_range_type {
+  using type = std::conditional_t<(sizeof(T) < sizeof(int)), unsigned int, std::make_unsigned_t<T>>;
+};
 template <typename T>
 struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
 

@@ -131,28 +131,28 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
 
     bool hasRealRoot;
     // Test absGreatestRealRoot
-    RealScalar r = psolve.absGreatestRealRoot(hasRealRoot);
+    RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().maxCoeff(), abs(r), psPrec));
     }
 
     // Test absSmallestRealRoot
-    r = psolve.absSmallestRealRoot(hasRealRoot);
+    r = psolve.absSmallestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().minCoeff(), abs(r), psPrec));
     }
 
     // Test greatestRealRoot
-    r = psolve.greatestRealRoot(hasRealRoot);
+    r = psolve.greatestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().maxCoeff(), r, psPrec));
     }
 
     // Test smallestRealRoot
-    r = psolve.smallestRealRoot(hasRealRoot);
+    r = psolve.smallestRealRoot(hasRealRoot, test_precision<RealScalar>());
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().minCoeff(), r, psPrec));
@@ -180,6 +180,9 @@ void polynomialsolver(int deg) {
 
   cout << "Test sugar" << endl;
   RealRootsType realRoots = RealRootsType::Random(deg);
+  // sort by ascending absolute value to mitigate precision lost during polynomial expansion
+  std::sort(realRoots.begin(), realRoots.end(),
+            [](RealScalar a, RealScalar b) { return numext::abs(a) < numext::abs(b); });
   roots_to_monicPolynomial(realRoots, pols);
   evalSolverSugarFunction<Deg_>(pols, realRoots.template cast<std::complex<RealScalar> >().eval(), realRoots);
 }
