@@ -671,6 +671,12 @@ EIGEN_STRONG_INLINE Packet1Xf pabs(const Packet1Xf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xf pabsdiff(const Packet1Xf& a, const Packet1Xf& b) {
+  return __riscv_vfabs_v_f32m1(__riscv_vfsub_vv_f32m1(a, b, unpacket_traits<Packet1Xf>::size),
+      unpacket_traits<Packet1Xf>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xf pset1<Packet1Xf>(const float& from) {
   return __riscv_vfmv_v_f_f32m1(from, unpacket_traits<Packet1Xf>::size);
 }
@@ -711,6 +717,12 @@ EIGEN_STRONG_INLINE Packet1Xf psub<Packet1Xf>(const Packet1Xf& a, const Packet1X
 template <>
 EIGEN_STRONG_INLINE Packet1Xf pnegate(const Packet1Xf& a) {
   return __riscv_vfneg_v_f32m1(a, unpacket_traits<Packet1Xf>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xf psignbit(const Packet1Xf& a) {
+  return __riscv_vreinterpret_v_i32m1_f32m1(__riscv_vsra_vx_i32m1(
+      __riscv_vreinterpret_v_f32m1_i32m1(a), 31, unpacket_traits<Packet1Xi>::size));
 }
 
 template <>
@@ -1022,6 +1034,12 @@ EIGEN_STRONG_INLINE PacketMask32 pcmp_lt_mask(const Packet1Xf& a, const Packet1X
 
 EIGEN_STRONG_INLINE Packet1Xf pselect(const PacketMask32& mask, const Packet1Xf& a, const Packet1Xf& b) {
   return __riscv_vmerge_vvm_f32m1(b, a, mask, unpacket_traits<Packet1Xf>::size);
+}
+
+EIGEN_STRONG_INLINE Packet1Xf pselect(const Packet1Xf& mask, const Packet1Xf& a, const Packet1Xf& b) {
+  PacketMask32 mask2 = __riscv_vmsne_vx_i32m1_b32(__riscv_vreinterpret_v_f32m1_i32m1(mask), 0,
+      unpacket_traits<Packet1Xf>::size);
+  return __riscv_vmerge_vvm_f32m1(b, a, mask2, unpacket_traits<Packet1Xf>::size);
 }
 
 /********************************* int64 **************************************/
@@ -1630,6 +1648,12 @@ EIGEN_STRONG_INLINE Packet1Xd pabs(const Packet1Xd& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xd pabsdiff(const Packet1Xd& a, const Packet1Xd& b) {
+  return __riscv_vfabs_v_f64m1(__riscv_vfsub_vv_f64m1(a, b, unpacket_traits<Packet1Xd>::size),
+      unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xd pset1<Packet1Xd>(const double& from) {
   return __riscv_vfmv_v_f_f64m1(from, unpacket_traits<Packet1Xd>::size);
 }
@@ -1670,6 +1694,12 @@ EIGEN_STRONG_INLINE Packet1Xd psub<Packet1Xd>(const Packet1Xd& a, const Packet1X
 template <>
 EIGEN_STRONG_INLINE Packet1Xd pnegate(const Packet1Xd& a) {
   return __riscv_vfneg_v_f64m1(a, unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xd psignbit(const Packet1Xd& a) {
+  return __riscv_vreinterpret_v_i64m1_f64m1(__riscv_vsra_vx_i64m1(
+      __riscv_vreinterpret_v_f64m1_i64m1(a), 63, unpacket_traits<Packet1Xl>::size));
 }
 
 template <>
@@ -1981,6 +2011,12 @@ EIGEN_STRONG_INLINE PacketMask64 pcmp_lt_mask(const Packet1Xd& a, const Packet1X
 
 EIGEN_STRONG_INLINE Packet1Xd pselect(const PacketMask64& mask, const Packet1Xd& a, const Packet1Xd& b) {
   return __riscv_vmerge_vvm_f64m1(b, a, mask, unpacket_traits<Packet1Xd>::size);
+}
+
+EIGEN_STRONG_INLINE Packet1Xd pselect(const Packet1Xd& mask, const Packet1Xd& a, const Packet1Xd& b) {
+  PacketMask64 mask2 = __riscv_vmsne_vx_i64m1_b64(__riscv_vreinterpret_v_f64m1_i64m1(mask), 0,
+      unpacket_traits<Packet1Xd>::size);
+  return __riscv_vmerge_vvm_f64m1(b, a, mask2, unpacket_traits<Packet1Xd>::size);
 }
 
 /********************************* short **************************************/

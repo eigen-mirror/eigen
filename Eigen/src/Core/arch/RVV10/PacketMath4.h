@@ -284,6 +284,12 @@ EIGEN_STRONG_INLINE Packet4Xf pabs(const Packet4Xf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet4Xf pabsdiff(const Packet4Xf& a, const Packet4Xf& b) {
+  return __riscv_vfabs_v_f32m4(__riscv_vfsub_vv_f32m4(a, b, unpacket_traits<Packet4Xf>::size),
+      unpacket_traits<Packet4Xf>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4Xf pset1<Packet4Xf>(const float& from) {
   return __riscv_vfmv_v_f_f32m4(from, unpacket_traits<Packet4Xf>::size);
 }
@@ -324,6 +330,12 @@ EIGEN_STRONG_INLINE Packet4Xf psub<Packet4Xf>(const Packet4Xf& a, const Packet4X
 template <>
 EIGEN_STRONG_INLINE Packet4Xf pnegate(const Packet4Xf& a) {
   return __riscv_vfneg_v_f32m4(a, unpacket_traits<Packet4Xf>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xf psignbit(const Packet4Xf& a) {
+  return __riscv_vreinterpret_v_i32m4_f32m4(__riscv_vsra_vx_i32m4(
+      __riscv_vreinterpret_v_f32m4_i32m4(a), 31, unpacket_traits<Packet4Xi>::size));
 }
 
 template <>
@@ -428,6 +440,16 @@ template <>
 EIGEN_STRONG_INLINE Packet4Xf pcmp_lt_or_nan<Packet4Xf>(const Packet4Xf& a, const Packet4Xf& b) {
   PacketMask8 mask = __riscv_vmfge_vv_f32m4_b8(a, b, unpacket_traits<Packet4Xf>::size);
   return __riscv_vfmerge_vfm_f32m4(ptrue<Packet4Xf>(a), 0.0f, mask, unpacket_traits<Packet4Xf>::size);
+}
+
+EIGEN_STRONG_INLINE Packet4Xf pselect(const PacketMask8& mask, const Packet4Xf& a, const Packet4Xf& b) {
+  return __riscv_vmerge_vvm_f32m4(b, a, mask, unpacket_traits<Packet4Xf>::size);
+}
+
+EIGEN_STRONG_INLINE Packet4Xf pselect(const Packet4Xf& mask, const Packet4Xf& a, const Packet4Xf& b) {
+  PacketMask8 mask2 = __riscv_vmsne_vx_i32m4_b8(__riscv_vreinterpret_v_f32m4_i32m4(mask), 0,
+      unpacket_traits<Packet4Xf>::size);
+  return __riscv_vmerge_vvm_f32m4(b, a, mask2, unpacket_traits<Packet4Xf>::size);
 }
 
 // Logical Operations are not supported for float, so reinterpret casts
@@ -872,6 +894,12 @@ EIGEN_STRONG_INLINE Packet4Xd pabs(const Packet4Xd& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet4Xd pabsdiff(const Packet4Xd& a, const Packet4Xd& b) {
+  return __riscv_vfabs_v_f64m4(__riscv_vfsub_vv_f64m4(a, b, unpacket_traits<Packet4Xd>::size),
+      unpacket_traits<Packet4Xd>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4Xd pset1<Packet4Xd>(const double& from) {
   return __riscv_vfmv_v_f_f64m4(from, unpacket_traits<Packet4Xd>::size);
 }
@@ -912,6 +940,12 @@ EIGEN_STRONG_INLINE Packet4Xd psub<Packet4Xd>(const Packet4Xd& a, const Packet4X
 template <>
 EIGEN_STRONG_INLINE Packet4Xd pnegate(const Packet4Xd& a) {
   return __riscv_vfneg_v_f64m4(a, unpacket_traits<Packet4Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xd psignbit(const Packet4Xd& a) {
+  return __riscv_vreinterpret_v_i64m4_f64m4(__riscv_vsra_vx_i64m4(
+      __riscv_vreinterpret_v_f64m4_i64m4(a), 63, unpacket_traits<Packet4Xl>::size));
 }
 
 template <>
@@ -1016,6 +1050,16 @@ template <>
 EIGEN_STRONG_INLINE Packet4Xd pcmp_lt_or_nan<Packet4Xd>(const Packet4Xd& a, const Packet4Xd& b) {
   PacketMask16 mask = __riscv_vmfge_vv_f64m4_b16(a, b, unpacket_traits<Packet4Xd>::size);
   return __riscv_vfmerge_vfm_f64m4(ptrue<Packet4Xd>(a), 0.0, mask, unpacket_traits<Packet4Xd>::size);
+}
+
+EIGEN_STRONG_INLINE Packet4Xd pselect(const PacketMask16& mask, const Packet4Xd& a, const Packet4Xd& b) {
+  return __riscv_vmerge_vvm_f64m4(b, a, mask, unpacket_traits<Packet4Xd>::size);
+}
+
+EIGEN_STRONG_INLINE Packet4Xd pselect(const Packet4Xd& mask, const Packet4Xd& a, const Packet4Xd& b) {
+  PacketMask16 mask2 = __riscv_vmsne_vx_i64m4_b16(__riscv_vreinterpret_v_f64m4_i64m4(mask), 0,
+      unpacket_traits<Packet4Xd>::size);
+  return __riscv_vmerge_vvm_f64m4(b, a, mask2, unpacket_traits<Packet4Xd>::size);
 }
 
 // Logical Operations are not supported for double, so reinterpret casts

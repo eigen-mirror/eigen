@@ -156,6 +156,12 @@ EIGEN_STRONG_INLINE Packet1Xh pabs(const Packet1Xh& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xh pabsdiff(const Packet1Xh& a, const Packet1Xh& b) {
+  return __riscv_vfabs_v_f16m1(__riscv_vfsub_vv_f16m1(a, b, unpacket_traits<Packet1Xh>::size),
+      unpacket_traits<Packet1Xh>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xh pset1<Packet1Xh>(const Eigen::half& from) {
   return __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(from), unpacket_traits<Packet1Xh>::size);
 }
@@ -196,6 +202,12 @@ EIGEN_STRONG_INLINE Packet1Xh psub<Packet1Xh>(const Packet1Xh& a, const Packet1X
 template <>
 EIGEN_STRONG_INLINE Packet1Xh pnegate(const Packet1Xh& a) {
   return __riscv_vfneg_v_f16m1(a, unpacket_traits<Packet1Xh>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xh psignbit(const Packet1Xh& a) {
+  return __riscv_vreinterpret_v_i16m1_f16m1(__riscv_vsra_vx_i16m1(
+      __riscv_vreinterpret_v_f16m1_i16m1(a), 15, unpacket_traits<Packet1Xs>::size));
 }
 
 template <>
@@ -300,6 +312,17 @@ EIGEN_STRONG_INLINE Packet1Xh pcmp_lt_or_nan<Packet1Xh>(const Packet1Xh& a, cons
   PacketMask16 mask = __riscv_vmfge_vv_f16m1_b16(a, b, unpacket_traits<Packet1Xh>::size);
   return __riscv_vfmerge_vfm_f16m1(ptrue<Packet1Xh>(a), static_cast<_Float16>(0.0), mask,
                                    unpacket_traits<Packet1Xh>::size);
+}
+
+EIGEN_STRONG_INLINE Packet1Xh pselect(const PacketMask16& mask, const Packet1Xh& a, const Packet1Xh& b) {
+  return __riscv_vmerge_vvm_f16m1(b, a, mask, unpacket_traits<Packet1Xh>::size);
+}
+
+EIGEN_STRONG_INLINE Packet1Xh pselect(const Packet1Xh& mask, const Packet1Xh& a, const Packet1Xh& b) {
+  PacketMask16 mask2 = __riscv_vmsne_vx_i16m1_b16(__riscv_vreinterpret_v_f16m1_i16m1(mask), 0,
+      unpacket_traits<Packet1Xh>::size);
+  return __riscv_vreinterpret_v_i16m1_f16m1(__riscv_vmerge_vvm_i16m1(__riscv_vreinterpret_v_f16m1_i16m1(b),
+      __riscv_vreinterpret_v_f16m1_i16m1(a), mask2, unpacket_traits<Packet1Xh>::size));
 }
 
 // Logical Operations are not supported for half, so reinterpret casts
@@ -514,6 +537,12 @@ EIGEN_STRONG_INLINE Packet2Xh pabs(const Packet2Xh& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xh pabsdiff(const Packet2Xh& a, const Packet2Xh& b) {
+  return __riscv_vfabs_v_f16m2(__riscv_vfsub_vv_f16m2(a, b, unpacket_traits<Packet2Xh>::size),
+      unpacket_traits<Packet2Xh>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xh pset1<Packet2Xh>(const Eigen::half& from) {
   return __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(from), unpacket_traits<Packet2Xh>::size);
 }
@@ -554,6 +583,12 @@ EIGEN_STRONG_INLINE Packet2Xh psub<Packet2Xh>(const Packet2Xh& a, const Packet2X
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pnegate(const Packet2Xh& a) {
   return __riscv_vfneg_v_f16m2(a, unpacket_traits<Packet2Xh>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xh psignbit(const Packet2Xh& a) {
+  return __riscv_vreinterpret_v_i16m2_f16m2(__riscv_vsra_vx_i16m2(
+      __riscv_vreinterpret_v_f16m2_i16m2(a), 15, unpacket_traits<Packet2Xs>::size));
 }
 
 template <>
@@ -661,6 +696,17 @@ EIGEN_STRONG_INLINE Packet2Xh pcmp_lt_or_nan<Packet2Xh>(const Packet2Xh& a, cons
   PacketMask8 mask = __riscv_vmfge_vv_f16m2_b8(a, b, unpacket_traits<Packet2Xh>::size);
   return __riscv_vfmerge_vfm_f16m2(ptrue<Packet2Xh>(a), static_cast<_Float16>(0.0), mask,
                                    unpacket_traits<Packet2Xh>::size);
+}
+
+EIGEN_STRONG_INLINE Packet2Xh pselect(const PacketMask8& mask, const Packet2Xh& a, const Packet2Xh& b) {
+  return __riscv_vmerge_vvm_f16m2(b, a, mask, unpacket_traits<Packet2Xh>::size);
+}
+
+EIGEN_STRONG_INLINE Packet2Xh pselect(const Packet2Xh& mask, const Packet2Xh& a, const Packet2Xh& b) {
+  PacketMask8 mask2 = __riscv_vmsne_vx_i16m2_b8(__riscv_vreinterpret_v_f16m2_i16m2(mask), 0,
+      unpacket_traits<Packet2Xh>::size);
+  return __riscv_vreinterpret_v_i16m2_f16m2(__riscv_vmerge_vvm_i16m2(__riscv_vreinterpret_v_f16m2_i16m2(b),
+      __riscv_vreinterpret_v_f16m2_i16m2(a), mask2, unpacket_traits<Packet2Xh>::size));
 }
 
 // Logical Operations are not supported for half, so reinterpret casts

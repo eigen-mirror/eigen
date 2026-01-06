@@ -164,6 +164,11 @@ EIGEN_STRONG_INLINE Packet1Xbf pabs(const Packet1Xbf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xbf pabsdiff(const Packet1Xbf& a, const Packet1Xbf& b) {
+  return F32ToBf16(pabsdiff<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xbf pset1<Packet1Xbf>(const bfloat16& from) {
   return __riscv_vreinterpret_bf16m1(
       __riscv_vmv_v_x_i16m1(numext::bit_cast<int16_t>(from), unpacket_traits<Packet1Xbf>::size));
@@ -295,6 +300,18 @@ EIGEN_STRONG_INLINE Packet1Xbf pcmp_eq<Packet1Xbf>(const Packet1Xbf& a, const Pa
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf pcmp_lt_or_nan<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
   return F32ToBf16(pcmp_lt_or_nan<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+EIGEN_STRONG_INLINE Packet1Xbf pselect(const PacketMask16& mask, const Packet1Xbf& a, const Packet1Xbf& b) {
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vvm_i16m1(__riscv_vreinterpret_v_bf16m1_i16m1(b),
+        __riscv_vreinterpret_v_bf16m1_i16m1(a), mask, unpacket_traits<Packet1Xbf>::size));
+}
+
+EIGEN_STRONG_INLINE Packet1Xbf pselect(const Packet1Xbf& mask, const Packet1Xbf& a, const Packet1Xbf& b) {
+  PacketMask16 mask2 = __riscv_vmsne_vx_i16m1_b16(__riscv_vreinterpret_v_bf16m1_i16m1(mask), 0,
+      unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vvm_i16m1(__riscv_vreinterpret_v_bf16m1_i16m1(b),
+      __riscv_vreinterpret_v_bf16m1_i16m1(a), mask2, unpacket_traits<Packet1Xbf>::size));
 }
 
 // Logical Operations are not supported for bfloat16, so reinterpret casts
@@ -465,6 +482,11 @@ EIGEN_STRONG_INLINE Packet2Xbf pabs(const Packet2Xbf& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xbf pabsdiff(const Packet2Xbf& a, const Packet2Xbf& b) {
+  return F32ToBf16(pabsdiff<Packet4Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xbf pset1<Packet2Xbf>(const bfloat16& from) {
   return __riscv_vreinterpret_bf16m2(
       __riscv_vmv_v_x_i16m2(numext::bit_cast<int16_t>(from), unpacket_traits<Packet2Xbf>::size));
@@ -596,6 +618,18 @@ EIGEN_STRONG_INLINE Packet2Xbf pcmp_eq<Packet2Xbf>(const Packet2Xbf& a, const Pa
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pcmp_lt_or_nan<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
   return F32ToBf16(pcmp_lt_or_nan<Packet4Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+EIGEN_STRONG_INLINE Packet2Xbf pselect(const PacketMask8& mask, const Packet2Xbf& a, const Packet2Xbf& b) {
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vmerge_vvm_i16m2(__riscv_vreinterpret_v_bf16m2_i16m2(b),
+      __riscv_vreinterpret_v_bf16m2_i16m2(a), mask, unpacket_traits<Packet2Xbf>::size));
+}
+
+EIGEN_STRONG_INLINE Packet2Xbf pselect(const Packet2Xbf& mask, const Packet2Xbf& a, const Packet2Xbf& b) {
+  PacketMask8 mask2 = __riscv_vmsne_vx_i16m2_b8(__riscv_vreinterpret_v_bf16m2_i16m2(mask), 0,
+      unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vmerge_vvm_i16m2(__riscv_vreinterpret_v_bf16m2_i16m2(b),
+      __riscv_vreinterpret_v_bf16m2_i16m2(a), mask2, unpacket_traits<Packet2Xbf>::size));
 }
 
 // Logical Operations are not supported for bflaot16, so reinterpret casts
