@@ -24,7 +24,7 @@ struct gebp_traits<float, float, false, false, Architecture::RVV10, GEBPPacketFu
     : gebp_traits<float, float, false, false, Architecture::Generic, GEBPPacketFull> {
   typedef float RhsPacket;
   typedef QuadPacket<float> RhsPacketx4;
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -77,7 +77,7 @@ struct gebp_traits<double, double, false, false, Architecture::RVV10, GEBPPacket
     : gebp_traits<double, double, false, false, Architecture::Generic, GEBPPacketFull> {
   typedef double RhsPacket;
   typedef QuadPacket<double> RhsPacketx4;
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -135,7 +135,7 @@ struct gebp_traits<half, half, false, false, Architecture::RVV10>
   typedef PacketXh AccPacket;
   typedef QuadPacket<half> RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -185,7 +185,7 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
   typedef PacketXbf AccPacket;
   typedef QuadPacket<bfloat16> RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const {  dest = pset1<RhsPacket>(*b); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
   }
@@ -199,16 +199,19 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacket& b, AccPacket& c, RhsPacket& /*tmp*/,
                                 const FixedInt<0>&) const {
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
-    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<AccPacket>::size));
+    c = F32ToBf16(
+        __riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<AccPacket>::size));
 #else
-    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<AccPacket>::size));
+    c = F32ToBf16(
+        __riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<AccPacket>::size));
 #endif
   }
 
 #if EIGEN_RISCV64_DEFAULT_LMUL >= 2
   EIGEN_STRONG_INLINE void madd(const Packet1Xbf& a, const RhsPacket& b, Packet1Xbf& c, RhsPacket& /*tmp*/,
                                 const FixedInt<0>&) const {
-    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<Packet1Xbf>::size));
+    c = F32ToBf16(
+        __riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b), a, unpacket_traits<Packet1Xbf>::size));
   }
 #endif
 
@@ -216,9 +219,11 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
   EIGEN_STRONG_INLINE void madd(const LhsPacket& a, const RhsPacketx4& b, AccPacket& c, RhsPacket& /*tmp*/,
                                 const LaneIdType& lane) const {
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
-    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b.get(lane)), a, unpacket_traits<AccPacket>::size));
+    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(c), numext::bit_cast<__bf16>(b.get(lane)), a,
+                                               unpacket_traits<AccPacket>::size));
 #else
-    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(c), numext::bit_cast<__bf16>(b.get(lane)), a, unpacket_traits<AccPacket>::size));
+    c = F32ToBf16(__riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(c), numext::bit_cast<__bf16>(b.get(lane)), a,
+                                               unpacket_traits<AccPacket>::size));
 #endif
   }
 };
