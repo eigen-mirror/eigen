@@ -481,20 +481,20 @@ template <>
 EIGEN_STRONG_INLINE Eigen::half predux_min<Packet1Xh>(const Packet1Xh& a) {
   const Eigen::half max = (std::numeric_limits<Eigen::half>::max)();
   const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  return (std::min)(
-      static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmin_vs_f16m1_f16m1(
-          a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size),
-          unpacket_traits<Packet1Xh>::size))), max);
+  return (std::min)(static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmin_vs_f16m1_f16m1(
+                        a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size),
+                        unpacket_traits<Packet1Xh>::size))),
+                    max);
 }
 
 template <>
 EIGEN_STRONG_INLINE Eigen::half predux_max<Packet1Xh>(const Packet1Xh& a) {
   const Eigen::half min = -(std::numeric_limits<Eigen::half>::max)();
   const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  return (std::max)(
-      static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmax_vs_f16m1_f16m1(
-          a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size),
-          unpacket_traits<Packet1Xh>::size))), min);
+  return (std::max)(static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmax_vs_f16m1_f16m1(
+                        a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size),
+                        unpacket_traits<Packet1Xh>::size))),
+                    min);
 }
 
 template <int N>
@@ -845,7 +845,8 @@ EIGEN_STRONG_INLINE Eigen::half predux_min<Packet2Xh>(const Packet2Xh& a) {
   return (std::min)(
       static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmin_vs_f16m2_f16m1(
           a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size / 2),
-          unpacket_traits<Packet2Xh>::size))), max);
+          unpacket_traits<Packet2Xh>::size))),
+      max);
 }
 
 template <>
@@ -855,7 +856,8 @@ EIGEN_STRONG_INLINE Eigen::half predux_max<Packet2Xh>(const Packet2Xh& a) {
   return (std::max)(
       static_cast<Eigen::half>(__riscv_vfmv_f(__riscv_vfredmax_vs_f16m2_f16m1(
           a, __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size / 2),
-          unpacket_traits<Packet2Xh>::size))), min);
+          unpacket_traits<Packet2Xh>::size))),
+      min);
 }
 
 template <int N>
