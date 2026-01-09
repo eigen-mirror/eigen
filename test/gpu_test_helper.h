@@ -389,6 +389,7 @@ void print_gpu_device_info() {
   std::cout << "  warpSize:                    " << deviceProp.warpSize << std::endl;
   std::cout << "  regsPerBlock:                " << deviceProp.regsPerBlock << std::endl;
   std::cout << "  concurrentKernels:           " << deviceProp.concurrentKernels << std::endl;
+  std::cout << "  canMapHostMemory:            " << deviceProp.canMapHostMemory << "\n";
 }
 
 #endif  // EIGEN_GPUCC
