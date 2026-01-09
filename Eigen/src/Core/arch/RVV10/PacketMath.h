@@ -1665,11 +1665,20 @@ EIGEN_STRONG_INLINE Packet1Xd plset<Packet1Xd>(const double& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xd>(const double* a, Packet1Xd& a0, Packet1Xd& a1, Packet1Xd& a2,
                                                 Packet1Xd& a3) {
-  vfloat64m1_t aa = __riscv_vle64_v_f64m1(a, 4);
-  a0 = __riscv_vrgather_vx_f64m1(aa, 0, unpacket_traits<Packet1Xd>::size);
-  a1 = __riscv_vrgather_vx_f64m1(aa, 1, unpacket_traits<Packet1Xd>::size);
-  a2 = __riscv_vrgather_vx_f64m1(aa, 2, unpacket_traits<Packet1Xd>::size);
-  a3 = __riscv_vrgather_vx_f64m1(aa, 3, unpacket_traits<Packet1Xd>::size);
+  if (EIGEN_RISCV64_RVV_VL >= 256) {
+    vfloat64m1_t aa = __riscv_vle64_v_f64m1(a, 4);
+    a0 = __riscv_vrgather_vx_f64m1(aa, 0, unpacket_traits<Packet1Xd>::size);
+    a1 = __riscv_vrgather_vx_f64m1(aa, 1, unpacket_traits<Packet1Xd>::size);
+    a2 = __riscv_vrgather_vx_f64m1(aa, 2, unpacket_traits<Packet1Xd>::size);
+    a3 = __riscv_vrgather_vx_f64m1(aa, 3, unpacket_traits<Packet1Xd>::size);
+  } else {
+    vfloat64m1_t aa0 = __riscv_vle64_v_f64m1(a + 0, 2);
+    vfloat64m1_t aa1 = __riscv_vle64_v_f64m1(a + 2, 2);
+    a0 = __riscv_vrgather_vx_f64m1(aa0, 0, unpacket_traits<Packet1Xd>::size);
+    a1 = __riscv_vrgather_vx_f64m1(aa0, 1, unpacket_traits<Packet1Xd>::size);
+    a2 = __riscv_vrgather_vx_f64m1(aa1, 0, unpacket_traits<Packet1Xd>::size);
+    a3 = __riscv_vrgather_vx_f64m1(aa1, 1, unpacket_traits<Packet1Xd>::size);
+  }
 }
 
 template <>

@@ -165,11 +165,6 @@ EIGEN_STRONG_INLINE Packet1Xbf pabs(const Packet1Xbf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1Xbf pabsdiff(const Packet1Xbf& a, const Packet1Xbf& b) {
-  return F32ToBf16(pabsdiff<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet1Xbf pset1<Packet1Xbf>(const bfloat16& from) {
   return __riscv_vreinterpret_bf16m1(
       __riscv_vmv_v_x_i16m1(numext::bit_cast<int16_t>(from), unpacket_traits<Packet1Xbf>::size));
@@ -197,12 +192,23 @@ EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xbf>(const bfloat16* a, Packet1Xbf& 
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf padd<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
-  return F32ToBf16(padd<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+  // b + (1 * a)
+  return F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(b),
+                                                numext::bit_cast<__bf16>(static_cast<numext::int16_t>(0x3f80u)), a,
+                                                unpacket_traits<Packet1Xbf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf psub<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
-  return F32ToBf16(psub<Packet2Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+  // a + (-1 * b)
+  return F32ToBf16(__riscv_vfwmaccbf16_vf_f32m2(Bf16ToF32(a),
+                                                numext::bit_cast<__bf16>(static_cast<numext::int16_t>(0xbf80u)), b,
+                                                unpacket_traits<Packet1Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xbf pabsdiff(const Packet1Xbf& a, const Packet1Xbf& b) {
+  return pabs<Packet1Xbf>(psub<Packet1Xbf>(a, b));
 }
 
 template <>
@@ -494,11 +500,6 @@ EIGEN_STRONG_INLINE Packet2Xbf pabs(const Packet2Xbf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2Xbf pabsdiff(const Packet2Xbf& a, const Packet2Xbf& b) {
-  return F32ToBf16(pabsdiff<Packet4Xf>(Bf16ToF32(a), Bf16ToF32(b)));
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2Xbf pset1<Packet2Xbf>(const bfloat16& from) {
   return __riscv_vreinterpret_bf16m2(
       __riscv_vmv_v_x_i16m2(numext::bit_cast<int16_t>(from), unpacket_traits<Packet2Xbf>::size));
@@ -526,12 +527,23 @@ EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xbf>(const bfloat16* a, Packet2Xbf& 
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf padd<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
-  return F32ToBf16(padd<Packet4Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+  // b + (1 * a)
+  return F32ToBf16(__riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(b),
+                                                numext::bit_cast<__bf16>(static_cast<numext::int16_t>(0x3f80u)), a,
+                                                unpacket_traits<Packet2Xbf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf psub<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
-  return F32ToBf16(psub<Packet4Xf>(Bf16ToF32(a), Bf16ToF32(b)));
+  // a + (-1 * b)
+  return F32ToBf16(__riscv_vfwmaccbf16_vf_f32m4(Bf16ToF32(a),
+                                                numext::bit_cast<__bf16>(static_cast<numext::int16_t>(0xbf80u)), b,
+                                                unpacket_traits<Packet2Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf pabsdiff(const Packet2Xbf& a, const Packet2Xbf& b) {
+  return pabs<Packet2Xbf>(psub<Packet2Xbf>(a, b));
 }
 
 template <>
