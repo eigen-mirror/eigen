@@ -49,6 +49,7 @@ typedef vbool8_t PacketMask8;
 typedef vbool4_t PacketMask4;
 
 /********************************* int32 **************************************/
+
 typedef eigen_packet_wrapper<vint32m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 0> Packet1Xi;
 typedef eigen_packet_wrapper<vuint32m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 1> Packet1Xu;
 
@@ -57,6 +58,9 @@ typedef eigen_packet_wrapper<vuint32m2_t __attribute__((riscv_rvv_vector_bits(EI
 
 typedef eigen_packet_wrapper<vint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 4> Packet4Xi;
 typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 5> Packet4Xu;
+
+typedef eigen_packet_wrapper<vint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 28> Packet8Xi;
+typedef eigen_packet_wrapper<vuint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 29> Packet8Xu;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xi PacketXi;
@@ -192,6 +196,169 @@ struct unpacket_traits<Packet4Xi> {
 };
 
 template <>
+struct unpacket_traits<Packet8Xi> {
+  enum {  // Only need size
+    size = rvv_packet_size_selector<numext::int32_t, EIGEN_RISCV64_RVV_VL, 8>::size,
+  };
+};
+
+// forward declaration of PacketXl
+
+typedef eigen_packet_wrapper<vint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 9> Packet1Xl;
+typedef eigen_packet_wrapper<vuint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 10> Packet1Xul;
+
+typedef eigen_packet_wrapper<vint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 11> Packet2Xl;
+typedef eigen_packet_wrapper<vuint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 12>
+    Packet2Xul;
+
+typedef eigen_packet_wrapper<vint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 13> Packet4Xl;
+typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 14>
+    Packet4Xul;
+
+typedef eigen_packet_wrapper<vint64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 30> Packet8Xl;
+typedef eigen_packet_wrapper<vuint64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 31> Packet8Xul;
+
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1
+typedef Packet1Xl PacketXl;
+typedef Packet1Xul PacketXul;
+
+template <>
+struct packet_traits<numext::int64_t> : default_packet_traits {
+  typedef Packet1Xl type;
+  typedef Packet1Xl half;  // Half not implemented yet
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 1>::size,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0
+  };
+};
+
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 2
+typedef Packet2Xl PacketXl;
+typedef Packet2Xul PacketXul;
+
+template <>
+struct packet_traits<numext::int64_t> : default_packet_traits {
+  typedef Packet2Xl type;
+  typedef Packet1Xl half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 2>::size,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0
+  };
+};
+
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 4
+typedef Packet4Xl PacketXl;
+typedef Packet4Xul PacketXul;
+
+template <>
+struct packet_traits<numext::int64_t> : default_packet_traits {
+  typedef Packet4Xl type;
+  typedef Packet2Xl half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 4>::size,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasShift = 1,
+    HasMul = 1,
+    HasNegate = 1,
+    HasAbs = 1,
+    HasArg = 0,
+    HasAbs2 = 1,
+    HasMin = 1,
+    HasMax = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasBlend = 0,
+    HasReduxp = 0
+  };
+};
+#endif
+
+template <>
+struct unpacket_traits<Packet1Xl> {
+  typedef numext::int64_t type;
+  typedef Packet1Xl half;  // Half not yet implemented
+  typedef numext::uint8_t mask_t;
+  enum {
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 1>::size,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
+template <>
+struct unpacket_traits<Packet2Xl> {
+  typedef numext::int64_t type;
+  typedef Packet1Xl half;
+  typedef numext::uint8_t mask_t;
+  enum {
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 2>::size,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
+template <>
+struct unpacket_traits<Packet4Xl> {
+  typedef numext::int64_t type;
+  typedef Packet2Xl half;
+  typedef numext::uint8_t mask_t;
+  enum {
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 4>::size,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 4>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
+template <>
+struct unpacket_traits<Packet8Xl> {
+  enum {  // Only need size
+    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 8>::size,
+  };
+};
+
+template <>
 EIGEN_STRONG_INLINE void prefetch<numext::int32_t>(const numext::int32_t* addr) {
 #if EIGEN_HAS_BUILTIN(__builtin_prefetch) || EIGEN_COMP_GNUC
   __builtin_prefetch(addr);
@@ -199,6 +366,10 @@ EIGEN_STRONG_INLINE void prefetch<numext::int32_t>(const numext::int32_t* addr) 
 }
 
 /********************************* Packet1Xi ************************************/
+
+EIGEN_STRONG_INLINE Packet1Xi __riscv_vreinterpret_v_u64m1_i32m1(const Packet1Xul& a) {
+  return __riscv_vreinterpret_v_i64m1_i32m1(__riscv_vreinterpret_v_u64m1_i64m1(a));
+}
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xi pset1<Packet1Xi>(const numext::int32_t& from) {
@@ -348,10 +519,10 @@ EIGEN_STRONG_INLINE Packet1Xi ploadu<Packet1Xi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xi ploaddup<Packet1Xi>(const numext::int32_t* from) {
-  Packet1Xu data = __riscv_vreinterpret_v_i32m1_u32m1(pload<Packet1Xi>(from));
-  return __riscv_vreinterpret_v_i64m1_i32m1(__riscv_vreinterpret_v_u64m1_i64m1(__riscv_vlmul_trunc_v_u64m2_u64m1(
-      __riscv_vwmaccu_vx_u64m2(__riscv_vwaddu_vv_u64m2(data, data, unpacket_traits<Packet1Xi>::size), 0xffffffffu, data,
-                               unpacket_traits<Packet1Xi>::size))));
+  Packet2Xul data = __riscv_vwcvtu_x_x_v_u64m2(__riscv_vreinterpret_v_i32m1_u32m1(pload<Packet1Xi>(from)),
+      unpacket_traits<Packet1Xi>::size);
+  return __riscv_vreinterpret_v_u64m1_i32m1(__riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vadd_vv_u64m2(
+      __riscv_vsll_vx_u64m2(data, 32, unpacket_traits<Packet2Xl>::size), data, unpacket_traits<Packet2Xl>::size)));
 }
 
 template <>
@@ -650,6 +821,10 @@ struct unpacket_traits<Packet4Xf> {
 
 /********************************* Packet1Xf ************************************/
 
+EIGEN_STRONG_INLINE Packet1Xf __riscv_vreinterpret_v_u64m1_f32m1(const Packet1Xul& a) {
+  return __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vreinterpret_v_u64m1_u32m1(a));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet1Xf ptrue<Packet1Xf>(const Packet1Xf& /*a*/) {
   return __riscv_vreinterpret_f32m1(__riscv_vmv_v_x_u32m1(0xffffffffu, unpacket_traits<Packet1Xf>::size));
@@ -858,11 +1033,10 @@ EIGEN_STRONG_INLINE Packet1Xf ploadu<Packet1Xf>(const float* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xf ploaddup<Packet1Xf>(const float* from) {
-  Packet1Xu data = __riscv_vreinterpret_v_f32m1_u32m1(pload<Packet1Xf>(from));
-  return __riscv_vreinterpret_v_i32m1_f32m1(
-      __riscv_vreinterpret_v_i64m1_i32m1(__riscv_vreinterpret_v_u64m1_i64m1(__riscv_vlmul_trunc_v_u64m2_u64m1(
-          __riscv_vwmaccu_vx_u64m2(__riscv_vwaddu_vv_u64m2(data, data, unpacket_traits<Packet1Xi>::size), 0xffffffffu,
-                                   data, unpacket_traits<Packet1Xi>::size)))));
+  Packet2Xul data = __riscv_vwcvtu_x_x_v_u64m2(__riscv_vreinterpret_v_f32m1_u32m1(pload<Packet1Xf>(from)),
+      unpacket_traits<Packet1Xi>::size);
+  return __riscv_vreinterpret_v_u64m1_f32m1(__riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vadd_vv_u64m2(
+      __riscv_vsll_vx_u64m2(data, 32, unpacket_traits<Packet2Xl>::size), data, unpacket_traits<Packet2Xl>::size)));
 }
 
 template <>
@@ -1036,150 +1210,6 @@ EIGEN_STRONG_INLINE Packet1Xf pselect(const Packet1Xf& mask, const Packet1Xf& a,
 }
 
 /********************************* int64 **************************************/
-
-typedef eigen_packet_wrapper<vint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 9> Packet1Xl;
-typedef eigen_packet_wrapper<vuint64m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 10> Packet1Xul;
-
-typedef eigen_packet_wrapper<vint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 11> Packet2Xl;
-typedef eigen_packet_wrapper<vuint64m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 12>
-    Packet2Xul;
-
-typedef eigen_packet_wrapper<vint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 13> Packet4Xl;
-typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 14>
-    Packet4Xul;
-
-#if EIGEN_RISCV64_DEFAULT_LMUL == 1
-typedef Packet1Xl PacketXl;
-typedef Packet1Xul PacketXul;
-
-template <>
-struct packet_traits<numext::int64_t> : default_packet_traits {
-  typedef Packet1Xl type;
-  typedef Packet1Xl half;  // Half not implemented yet
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 1>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0
-  };
-};
-
-#elif EIGEN_RISCV64_DEFAULT_LMUL == 2
-typedef Packet2Xl PacketXl;
-typedef Packet2Xul PacketXul;
-
-template <>
-struct packet_traits<numext::int64_t> : default_packet_traits {
-  typedef Packet2Xl type;
-  typedef Packet1Xl half;
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 2>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0
-  };
-};
-
-#elif EIGEN_RISCV64_DEFAULT_LMUL == 4
-typedef Packet4Xl PacketXl;
-typedef Packet4Xul PacketXul;
-
-template <>
-struct packet_traits<numext::int64_t> : default_packet_traits {
-  typedef Packet4Xl type;
-  typedef Packet2Xl half;
-  enum {
-    Vectorizable = 1,
-    AlignedOnScalar = 1,
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 4>::size,
-
-    HasAdd = 1,
-    HasSub = 1,
-    HasShift = 1,
-    HasMul = 1,
-    HasNegate = 1,
-    HasAbs = 1,
-    HasArg = 0,
-    HasAbs2 = 1,
-    HasMin = 1,
-    HasMax = 1,
-    HasConj = 1,
-    HasSetLinear = 0,
-    HasBlend = 0,
-    HasReduxp = 0
-  };
-};
-#endif
-
-template <>
-struct unpacket_traits<Packet1Xl> {
-  typedef numext::int64_t type;
-  typedef Packet1Xl half;  // Half not yet implemented
-  typedef numext::uint8_t mask_t;
-  enum {
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 1>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
-
-template <>
-struct unpacket_traits<Packet2Xl> {
-  typedef numext::int64_t type;
-  typedef Packet1Xl half;
-  typedef numext::uint8_t mask_t;
-  enum {
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 2>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 2>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
-
-template <>
-struct unpacket_traits<Packet4Xl> {
-  typedef numext::int64_t type;
-  typedef Packet2Xl half;
-  typedef numext::uint8_t mask_t;
-  enum {
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 4>::size,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 4>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
 
 template <>
 EIGEN_STRONG_INLINE void prefetch<numext::int64_t>(const numext::int64_t* addr) {
@@ -2172,6 +2202,10 @@ EIGEN_STRONG_INLINE void prefetch<numext::int16_t>(const numext::int16_t* addr) 
 
 /********************************* Packet1Xs ************************************/
 
+EIGEN_STRONG_INLINE Packet1Xs __riscv_vreinterpret_v_u32m1_i16m1(const Packet1Xu& a) {
+  return __riscv_vreinterpret_v_i32m1_i16m1(__riscv_vreinterpret_v_u32m1_i32m1(a));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet1Xs pset1<Packet1Xs>(const numext::int16_t& from) {
   return __riscv_vmv_v_x_i16m1(from, unpacket_traits<Packet1Xs>::size);
@@ -2320,10 +2354,10 @@ EIGEN_STRONG_INLINE Packet1Xs ploadu<Packet1Xs>(const numext::int16_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xs ploaddup<Packet1Xs>(const numext::int16_t* from) {
-  Packet1Xsu data = __riscv_vreinterpret_v_i16m1_u16m1(pload<Packet1Xs>(from));
-  return __riscv_vreinterpret_v_i32m1_i16m1(__riscv_vreinterpret_v_u32m1_i32m1(__riscv_vlmul_trunc_v_u32m2_u32m1(
-      __riscv_vwmaccu_vx_u32m2(__riscv_vwaddu_vv_u32m2(data, data, unpacket_traits<Packet1Xs>::size), 0xffffu, data,
-                               unpacket_traits<Packet1Xs>::size))));
+  Packet2Xu data = __riscv_vwcvtu_x_x_v_u32m2(__riscv_vreinterpret_v_i16m1_u16m1(pload<Packet1Xs>(from)),
+      unpacket_traits<Packet1Xs>::size);
+  return __riscv_vreinterpret_v_u32m1_i16m1(__riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vadd_vv_u32m2(
+      __riscv_vsll_vx_u32m2(data, 16, unpacket_traits<Packet2Xi>::size), data, unpacket_traits<Packet2Xi>::size)));
 }
 
 template <>

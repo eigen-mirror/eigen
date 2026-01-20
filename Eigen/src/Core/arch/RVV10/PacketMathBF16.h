@@ -137,6 +137,10 @@ struct unpacket_traits<Packet2Xbf> : default_unpacket_traits {
 
 /********************************* Packet1Xbf ************************************/
 
+EIGEN_STRONG_INLINE Packet1Xbf __riscv_vreinterpret_v_u32m1_bf16m1(const Packet1Xu& a) {
+  return __riscv_vreinterpret_v_u16m1_bf16m1(__riscv_vreinterpret_v_u32m1_u16m1(a));
+}
+
 EIGEN_STRONG_INLINE Packet2Xf Bf16ToF32(const Packet1Xbf& a) {
   return __riscv_vfwcvtbf16_f_f_v_f32m2(a, unpacket_traits<Packet1Xbf>::size);
 }
@@ -371,11 +375,10 @@ EIGEN_STRONG_INLINE Packet1Xbf ploadu<Packet1Xbf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf ploaddup<Packet1Xbf>(const bfloat16* from) {
-  Packet1Xsu data = __riscv_vreinterpret_v_bf16m1_u16m1(pload<Packet1Xbf>(from));
-  return __riscv_vreinterpret_v_i16m1_bf16m1(
-      __riscv_vreinterpret_v_i32m1_i16m1(__riscv_vreinterpret_v_u32m1_i32m1(__riscv_vlmul_trunc_v_u32m2_u32m1(
-          __riscv_vwmaccu_vx_u32m2(__riscv_vwaddu_vv_u32m2(data, data, unpacket_traits<Packet1Xs>::size), 0xffffu, data,
-                                   unpacket_traits<Packet1Xs>::size)))));
+  Packet2Xu data = __riscv_vwcvtu_x_x_v_u32m2(__riscv_vreinterpret_v_bf16m1_u16m1(pload<Packet1Xbf>(from)),
+      unpacket_traits<Packet1Xs>::size);
+  return __riscv_vreinterpret_v_u32m1_bf16m1(__riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vadd_vv_u32m2(
+      __riscv_vsll_vx_u32m2(data, 16, unpacket_traits<Packet2Xi>::size), data, unpacket_traits<Packet2Xi>::size)));
 }
 
 template <>
@@ -471,6 +474,10 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet1Xbf, N>& kernel) {
 }
 
 /********************************* Packet2Xbf ************************************/
+
+EIGEN_STRONG_INLINE Packet2Xbf __riscv_vreinterpret_v_u32m2_bf16m2(const Packet2Xu& a) {
+  return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vreinterpret_v_u32m2_u16m2(a));
+}
 
 EIGEN_STRONG_INLINE Packet4Xf Bf16ToF32(const Packet2Xbf& a) {
   return __riscv_vfwcvtbf16_f_f_v_f32m4(a, unpacket_traits<Packet2Xbf>::size);
@@ -706,11 +713,10 @@ EIGEN_STRONG_INLINE Packet2Xbf ploadu<Packet2Xbf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf ploaddup<Packet2Xbf>(const bfloat16* from) {
-  Packet2Xsu data = __riscv_vreinterpret_v_bf16m2_u16m2(pload<Packet2Xbf>(from));
-  return __riscv_vreinterpret_v_i16m2_bf16m2(
-      __riscv_vreinterpret_v_i32m2_i16m2(__riscv_vreinterpret_v_u32m2_i32m2(__riscv_vlmul_trunc_v_u32m4_u32m2(
-          __riscv_vwmaccu_vx_u32m4(__riscv_vwaddu_vv_u32m4(data, data, unpacket_traits<Packet2Xs>::size), 0xffffu, data,
-                                   unpacket_traits<Packet2Xs>::size)))));
+  Packet4Xu data = __riscv_vwcvtu_x_x_v_u32m4(__riscv_vreinterpret_v_bf16m2_u16m2(pload<Packet2Xbf>(from)),
+      unpacket_traits<Packet2Xs>::size);
+  return __riscv_vreinterpret_v_u32m2_bf16m2(__riscv_vlmul_trunc_v_u32m4_u32m2(__riscv_vadd_vv_u32m4(
+      __riscv_vsll_vx_u32m4(data, 16, unpacket_traits<Packet4Xi>::size), data, unpacket_traits<Packet4Xi>::size)));
 }
 
 template <>
