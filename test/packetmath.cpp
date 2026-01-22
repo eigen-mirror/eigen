@@ -1232,7 +1232,9 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   for (Scalar abs_value : values) {
     data1[0] = abs_value;
     data1[1] = -data1[0];
+    g_test_stack.push_back("IEEE cases: " + fun.name);
     CHECK_CWISE1_IF(Cond, fun.expected, fun.actual);
+    g_test_stack.pop_back();
   }
 }
 
@@ -1248,6 +1250,7 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
     T expected(const T& val) const {          \
       return EXPECTED(val);                   \
     }                                         \
+    const std::string name = #NAME;           \
   }
 
 CREATE_TESTER(sqrt_fun, internal::psqrt, numext::sqrt);
