@@ -1204,10 +1204,10 @@ Scalar propagate_number_min(const Scalar& a, const Scalar& b) {
   return (numext::mini)(a, b);
 }
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<!Cond, void> run_ieee_cases(const FunctorT&) {}
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
