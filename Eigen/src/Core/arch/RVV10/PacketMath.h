@@ -1114,7 +1114,7 @@ EIGEN_STRONG_INLINE Packet1Xf pfrexp<Packet1Xf>(const Packet1Xf& a, Packet1Xf& e
 template <>
 EIGEN_STRONG_INLINE float predux<Packet1Xf>(const Packet1Xf& a) {
   return __riscv_vfmv_f(__riscv_vfredusum_vs_f32m1_f32m1(
-      a, __riscv_vfmv_v_f_f32m1(0.0, unpacket_traits<Packet1Xf>::size), unpacket_traits<Packet1Xf>::size));
+      a, __riscv_vfmv_v_f_f32m1(0.0f, unpacket_traits<Packet1Xf>::size), unpacket_traits<Packet1Xf>::size));
 }
 
 template <>
