@@ -267,10 +267,19 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xi, N>& kernel) {
   }
 }
 
+template <typename Packet = Packet4Xi>
+EIGEN_STRONG_INLINE
+    typename std::enable_if<std::is_same<Packet, Packet4Xi>::value && (unpacket_traits<Packet4Xi>::size % 8) == 0,
+                            Packet2Xi>::type
+    predux_half(const Packet4Xi& a) {
+  return __riscv_vadd_vv_i32m2(__riscv_vget_v_i32m4_i32m2(a, 0), __riscv_vget_v_i32m4_i32m2(a, 1),
+                               unpacket_traits<Packet2Xi>::size);
+}
+
 /********************************* Packet4Xf ************************************/
 
-EIGEN_STRONG_INLINE Packet4Xf __riscv_vreinterpret_v_u64m4_f32m4(const Packet4Xul& a) {
-  return __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vreinterpret_v_u64m4_u32m4(a));
+EIGEN_STRONG_INLINE Packet8Xf __riscv_vreinterpret_v_u64m8_f32m8(const Packet8Xul& a) {
+  return __riscv_vreinterpret_v_u32m8_f32m8(__riscv_vreinterpret_v_u64m8_u32m8(a));
 }
 
 template <>
@@ -489,6 +498,11 @@ EIGEN_STRONG_INLINE Packet4Xf ploadu<Packet4Xf>(const float* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle32_v_f32m4(from, unpacket_traits<Packet4Xf>::size);
 }
 
+EIGEN_STRONG_INLINE Packet8Xf pdup(const Packet4Xf& a) {
+  return __riscv_vreinterpret_v_u64m8_f32m8(__riscv_vwcvtu_x_x_v_u64m8(__riscv_vreinterpret_v_f32m4_u32m4(a),
+    unpacket_traits<Packet4Xi>::size));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet4Xf ploaddup<Packet4Xf>(const float* from) {
   Packet8Xul data = __riscv_vwcvtu_x_x_v_u64m8(__riscv_vreinterpret_v_f32m4_u32m4(pload<Packet4Xf>(from)),
@@ -620,6 +634,15 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xf, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xf pldexp<Packet4Xf>(const Packet4Xf& a, const Packet4Xf& exponent) {
   return pldexp_generic(a, exponent);
+}
+
+template <typename Packet = Packet4Xf>
+EIGEN_STRONG_INLINE
+    typename std::enable_if<std::is_same<Packet, Packet4Xf>::value && (unpacket_traits<Packet4Xf>::size % 8) == 0,
+                            Packet2Xf>::type
+    predux_half(const Packet4Xf& a) {
+  return __riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
+                                unpacket_traits<Packet2Xf>::size);
 }
 
 /********************************* Packet4Xl ************************************/
@@ -867,6 +890,15 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xl, N>& kernel) {
   }
 }
 
+template <typename Packet = Packet4Xl>
+EIGEN_STRONG_INLINE
+    typename std::enable_if<std::is_same<Packet, Packet4Xl>::value && (unpacket_traits<Packet4Xl>::size % 8) == 0,
+                            Packet2Xl>::type
+    predux_half(const Packet4Xl& a) {
+  return __riscv_vadd_vv_i64m2(__riscv_vget_v_i64m4_i64m2(a, 0), __riscv_vget_v_i64m4_i64m2(a, 1),
+                               unpacket_traits<Packet2Xl>::size);
+}
+
 /********************************* Packet4Xd ************************************/
 
 template <>
@@ -1085,6 +1117,12 @@ EIGEN_STRONG_INLINE Packet4Xd ploadu<Packet4Xd>(const double* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle64_v_f64m4(from, unpacket_traits<Packet4Xd>::size);
 }
 
+EIGEN_STRONG_INLINE Packet8Xd pdup(const Packet4Xd& a) {
+  Packet8Xul idx =
+      __riscv_vsrl_vx_u64m8(__riscv_vid_v_u64m8(unpacket_traits<Packet8Xd>::size), 1, unpacket_traits<Packet8Xd>::size);
+  return __riscv_vrgather_vv_f64m8(__riscv_vlmul_ext_v_f64m4_f64m8(a), idx, unpacket_traits<Packet8Xd>::size);
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet4Xd ploaddup<Packet4Xd>(const double* from) {
   Packet4Xul idx =
@@ -1215,6 +1253,15 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xd, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xd pldexp<Packet4Xd>(const Packet4Xd& a, const Packet4Xd& exponent) {
   return pldexp_generic(a, exponent);
+}
+
+template <typename Packet = Packet4Xd>
+EIGEN_STRONG_INLINE
+    typename std::enable_if<std::is_same<Packet, Packet4Xd>::value && (unpacket_traits<Packet4Xd>::size % 8) == 0,
+                            Packet2Xd>::type
+    predux_half(const Packet4Xd& a) {
+  return __riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
+                                unpacket_traits<Packet2Xd>::size);
 }
 
 /********************************* Packet4Xs ************************************/
@@ -1465,6 +1512,15 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xs, N>& kernel) {
     kernel.packet[i] =
         __riscv_vle16_v_i16m4(&buffer[i * unpacket_traits<Packet4Xs>::size], unpacket_traits<Packet4Xs>::size);
   }
+}
+
+template <typename Packet = Packet4Xs>
+EIGEN_STRONG_INLINE
+    typename std::enable_if<std::is_same<Packet, Packet4Xs>::value && (unpacket_traits<Packet4Xs>::size % 8) == 0,
+                            Packet2Xs>::type
+    predux_half(const Packet4Xs& a) {
+  return __riscv_vadd_vv_i16m2(__riscv_vget_v_i16m4_i16m2(a, 0), __riscv_vget_v_i16m4_i16m2(a, 1),
+                               unpacket_traits<Packet2Xs>::size);
 }
 
 }  // namespace internal

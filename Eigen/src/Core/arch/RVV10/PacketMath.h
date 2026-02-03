@@ -639,6 +639,8 @@ typedef eigen_packet_wrapper<vfloat32m2_t __attribute__((riscv_rvv_vector_bits(E
     Packet2Xf;
 typedef eigen_packet_wrapper<vfloat32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 8>
     Packet4Xf;
+typedef eigen_packet_wrapper<vfloat32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 32>
+    Packet8Xf;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xf PacketXf;
@@ -823,6 +825,10 @@ struct unpacket_traits<Packet4Xf> {
 
 EIGEN_STRONG_INLINE Packet1Xf __riscv_vreinterpret_v_u64m1_f32m1(const Packet1Xul& a) {
   return __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vreinterpret_v_u64m1_u32m1(a));
+}
+
+EIGEN_STRONG_INLINE Packet2Xf __riscv_vreinterpret_v_u64m2_f32m2(const Packet2Xul& a) {
+  return __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vreinterpret_v_u64m2_u32m2(a));
 }
 
 template <>
@@ -1029,6 +1035,11 @@ EIGEN_STRONG_INLINE Packet1Xf pload<Packet1Xf>(const float* from) {
 template <>
 EIGEN_STRONG_INLINE Packet1Xf ploadu<Packet1Xf>(const float* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle32_v_f32m1(from, unpacket_traits<Packet1Xf>::size);
+}
+
+EIGEN_STRONG_INLINE Packet2Xf pdup(const Packet1Xf& a) {
+  return __riscv_vreinterpret_v_u64m2_f32m2(__riscv_vwcvtu_x_x_v_u64m2(__riscv_vreinterpret_v_f32m1_u32m1(a),
+    unpacket_traits<Packet1Xi>::size));
 }
 
 template <>
@@ -1484,6 +1495,8 @@ typedef eigen_packet_wrapper<vfloat64m2_t __attribute__((riscv_rvv_vector_bits(E
     Packet2Xd;
 typedef eigen_packet_wrapper<vfloat64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 17>
     Packet4Xd;
+typedef eigen_packet_wrapper<vfloat64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 33>
+    Packet8Xd;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xd PacketXd;
@@ -1866,6 +1879,12 @@ EIGEN_STRONG_INLINE Packet1Xd pload<Packet1Xd>(const double* from) {
 template <>
 EIGEN_STRONG_INLINE Packet1Xd ploadu<Packet1Xd>(const double* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle64_v_f64m1(from, unpacket_traits<Packet1Xd>::size);
+}
+
+EIGEN_STRONG_INLINE Packet2Xd pdup(const Packet1Xd& a) {
+  Packet2Xul idx =
+      __riscv_vsrl_vx_u64m2(__riscv_vid_v_u64m2(unpacket_traits<Packet2Xd>::size), 1, unpacket_traits<Packet2Xd>::size);
+  return __riscv_vrgather_vv_f64m2(__riscv_vlmul_ext_v_f64m1_f64m2(a), idx, unpacket_traits<Packet2Xd>::size);
 }
 
 template <>
