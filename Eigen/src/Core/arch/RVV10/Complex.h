@@ -20,12 +20,18 @@ namespace internal {
 
 /********************************* float32 ************************************/
 
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#define USE_LMUL2_ONLY
+#endif
+
+#ifndef USE_LMUL2_ONLY
 struct Packet1Xcf {
   EIGEN_STRONG_INLINE Packet1Xcf() {}
   EIGEN_STRONG_INLINE explicit Packet1Xcf(const Packet2Xf& a) : v(a) {}
 
   Packet2Xf v;
 };
+#endif
 
 struct Packet2Xcf {
   EIGEN_STRONG_INLINE Packet2Xcf() {}
@@ -70,7 +76,7 @@ typedef Packet2Xcf PacketXcf;
 template <>
 struct packet_traits<std::complex<float>> : default_packet_traits {
   typedef Packet2Xcf type;
-#if 0
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcf half;
 #else
   typedef Packet2Xcf half;
@@ -100,6 +106,7 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 };
 #endif
 
+#ifndef USE_LMUL2_ONLY
 template <>
 struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
   typedef std::complex<float> type;
@@ -113,11 +120,12 @@ struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
     masked_store_available = false
   };
 };
+#endif
 
 template <>
 struct unpacket_traits<Packet2Xcf> : default_unpacket_traits {
   typedef std::complex<float> type;
-#if 0
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcf half;
 #else
   typedef Packet2Xcf half;
@@ -132,6 +140,7 @@ struct unpacket_traits<Packet2Xcf> : default_unpacket_traits {
   };
 };
 
+#ifndef USE_LMUL2_ONLY
 template <>
 EIGEN_STRONG_INLINE Packet1Xcf pcast<Packet2Xf, Packet1Xcf>(const Packet2Xf& a) {
   return Packet1Xcf(a);
@@ -360,15 +369,18 @@ EIGEN_STRONG_INLINE Packet1Xcf pexp<Packet1Xcf>(const Packet1Xcf& a) {
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcf, Packet2Xf)
+#endif
 
 /********************************* double ************************************/
 
+#ifndef USE_LMUL2_ONLY
 struct Packet1Xcd {
   EIGEN_STRONG_INLINE Packet1Xcd() {}
   EIGEN_STRONG_INLINE explicit Packet1Xcd(const Packet2Xd& a) : v(a) {}
 
   Packet2Xd v;
 };
+#endif
 
 struct Packet2Xcd {
   EIGEN_STRONG_INLINE Packet2Xcd() {}
@@ -417,7 +429,7 @@ typedef Packet2Xcd PacketXcd;
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
   typedef Packet2Xcd type;
-#if 0
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcd half;
 #else
   typedef Packet2Xcd half;
@@ -451,6 +463,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
 };
 #endif
 
+#ifndef USE_LMUL2_ONLY
 template <>
 struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
   typedef std::complex<double> type;
@@ -464,11 +477,12 @@ struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
     masked_store_available = false
   };
 };
+#endif
 
 template <>
 struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
   typedef std::complex<double> type;
-#if 0
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcd half;
 #else
   typedef Packet2Xcd half;
@@ -483,6 +497,7 @@ struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
   };
 };
 
+#ifndef USE_LMUL2_ONLY
 template <>
 EIGEN_STRONG_INLINE Packet1Xcd pcast<Packet2Xd, Packet1Xcd>(const Packet2Xd& a) {
   return Packet1Xcd(a);
@@ -740,6 +755,7 @@ EIGEN_STRONG_INLINE Packet1Xcd pexp<Packet1Xcd>(const Packet1Xcd& a) {
 #endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcd, Packet2Xd)
+#endif
 
 }  // end namespace internal
 
