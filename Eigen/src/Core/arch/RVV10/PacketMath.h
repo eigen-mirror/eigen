@@ -639,8 +639,6 @@ typedef eigen_packet_wrapper<vfloat32m2_t __attribute__((riscv_rvv_vector_bits(E
     Packet2Xf;
 typedef eigen_packet_wrapper<vfloat32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 8>
     Packet4Xf;
-typedef eigen_packet_wrapper<vfloat32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 32>
-    Packet8Xf;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xf PacketXf;
@@ -1495,8 +1493,6 @@ typedef eigen_packet_wrapper<vfloat64m2_t __attribute__((riscv_rvv_vector_bits(E
     Packet2Xd;
 typedef eigen_packet_wrapper<vfloat64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 17>
     Packet4Xd;
-typedef eigen_packet_wrapper<vfloat64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 33>
-    Packet8Xd;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xd PacketXd;

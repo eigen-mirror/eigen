@@ -278,10 +278,6 @@ EIGEN_STRONG_INLINE
 
 /********************************* Packet4Xf ************************************/
 
-EIGEN_STRONG_INLINE Packet8Xf __riscv_vreinterpret_v_u64m8_f32m8(const Packet8Xul& a) {
-  return __riscv_vreinterpret_v_u32m8_f32m8(__riscv_vreinterpret_v_u64m8_u32m8(a));
-}
-
 template <>
 EIGEN_STRONG_INLINE Packet4Xf ptrue<Packet4Xf>(const Packet4Xf& /*a*/) {
   return __riscv_vreinterpret_f32m4(__riscv_vmv_v_x_u32m4(0xffffffffu, unpacket_traits<Packet4Xf>::size));
@@ -496,11 +492,6 @@ EIGEN_STRONG_INLINE Packet4Xf pload<Packet4Xf>(const float* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xf ploadu<Packet4Xf>(const float* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle32_v_f32m4(from, unpacket_traits<Packet4Xf>::size);
-}
-
-EIGEN_STRONG_INLINE Packet8Xf pdup(const Packet4Xf& a) {
-  return __riscv_vreinterpret_v_u64m8_f32m8(__riscv_vwcvtu_x_x_v_u64m8(__riscv_vreinterpret_v_f32m4_u32m4(a),
-    unpacket_traits<Packet4Xi>::size));
 }
 
 template <>
@@ -1115,12 +1106,6 @@ EIGEN_STRONG_INLINE Packet4Xd pload<Packet4Xd>(const double* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xd ploadu<Packet4Xd>(const double* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD return __riscv_vle64_v_f64m4(from, unpacket_traits<Packet4Xd>::size);
-}
-
-EIGEN_STRONG_INLINE Packet8Xd pdup(const Packet4Xd& a) {
-  Packet8Xul idx =
-      __riscv_vsrl_vx_u64m8(__riscv_vid_v_u64m8(unpacket_traits<Packet8Xd>::size), 1, unpacket_traits<Packet8Xd>::size);
-  return __riscv_vrgather_vv_f64m8(__riscv_vlmul_ext_v_f64m4_f64m8(a), idx, unpacket_traits<Packet8Xd>::size);
 }
 
 template <>
