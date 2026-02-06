@@ -378,14 +378,22 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     c = cj.pmadd(a, b, c);
   }
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
   template <typename Packet>
   DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
-      const DoublePacket<Packet>& a, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) {
+      const DoublePacket<Packet>& a, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) const {
     DoublePacket<typename unpacket_traits<Packet>::half> res;
     res.first = predux_half(a.first);
     res.second = predux_half(a.second);
     return res;
+  }
+
+//#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#if 0
+  EIGEN_STRONG_INLINE void acc(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
+#if 0
+    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
+    r = cj.pmadd(alpha, c, r);
+#endif
   }
 #endif
 

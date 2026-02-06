@@ -62,6 +62,8 @@ typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EI
 typedef eigen_packet_wrapper<vint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 28> Packet8Xi;
 typedef eigen_packet_wrapper<vuint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 29> Packet8Xu;
 
+typedef eigen_packet_wrapper<vint8m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 32> Packet1Xc;
+
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xi PacketXi;
 typedef Packet1Xu PacketXu;
@@ -199,6 +201,13 @@ template <>
 struct unpacket_traits<Packet8Xi> {
   enum {  // Only need size
     size = rvv_packet_size_selector<numext::int32_t, EIGEN_RISCV64_RVV_VL, 8>::size,
+  };
+};
+
+template <>
+struct unpacket_traits<Packet1Xc> {
+  enum {  // Only need size
+    size = rvv_packet_size_selector<numext::int8_t, EIGEN_RISCV64_RVV_VL, 1>::size,
   };
 };
 
@@ -871,7 +880,7 @@ EIGEN_STRONG_INLINE Packet1Xf plset<Packet1Xf>(const float& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xf>(const float* a, Packet1Xf& a0, Packet1Xf& a1, Packet1Xf& a2,
                                                 Packet1Xf& a3) {
-  vfloat32m1_t aa = __riscv_vle32_v_f32m1(a, 4);
+  Packet1Xf aa = __riscv_vle32_v_f32m1(a, 4);
   a0 = __riscv_vrgather_vx_f32m1(aa, 0, unpacket_traits<Packet1Xf>::size);
   a1 = __riscv_vrgather_vx_f32m1(aa, 1, unpacket_traits<Packet1Xf>::size);
   a2 = __riscv_vrgather_vx_f32m1(aa, 2, unpacket_traits<Packet1Xf>::size);
@@ -1705,14 +1714,15 @@ template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet1Xd>(const double* a, Packet1Xd& a0, Packet1Xd& a1, Packet1Xd& a2,
                                                 Packet1Xd& a3) {
   if (EIGEN_RISCV64_RVV_VL >= 256) {
-    vfloat64m1_t aa = __riscv_vle64_v_f64m1(a, 4);
+    Packet1Xd aa = __riscv_vle64_v_f64m1(a, 4);
     a0 = __riscv_vrgather_vx_f64m1(aa, 0, unpacket_traits<Packet1Xd>::size);
     a1 = __riscv_vrgather_vx_f64m1(aa, 1, unpacket_traits<Packet1Xd>::size);
     a2 = __riscv_vrgather_vx_f64m1(aa, 2, unpacket_traits<Packet1Xd>::size);
     a3 = __riscv_vrgather_vx_f64m1(aa, 3, unpacket_traits<Packet1Xd>::size);
   } else {
-    vfloat64m1_t aa0 = __riscv_vle64_v_f64m1(a + 0, 2);
-    vfloat64m1_t aa1 = __riscv_vle64_v_f64m1(a + 2, 2);
+    Packet2Xd aa = __riscv_vle64_v_f64m2(a, 4);
+    Packet1Xd aa0 = __riscv_vget_v_f64m2_f64m1(aa, 0);
+    Packet1Xd aa1 = __riscv_vget_v_f64m2_f64m1(aa, 1);
     a0 = __riscv_vrgather_vx_f64m1(aa0, 0, unpacket_traits<Packet1Xd>::size);
     a1 = __riscv_vrgather_vx_f64m1(aa0, 1, unpacket_traits<Packet1Xd>::size);
     a2 = __riscv_vrgather_vx_f64m1(aa1, 0, unpacket_traits<Packet1Xd>::size);

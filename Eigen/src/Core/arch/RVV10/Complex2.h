@@ -43,10 +43,12 @@ EIGEN_STRONG_INLINE Packet4Xf __riscv_vreinterpret_v_i64m4_f32m4(const Packet4Xl
 
 EIGEN_STRONG_INLINE void prealimag2(const Packet2Xcf& a, Packet4Xf& real, Packet4Xf& imag) {
   const PacketMask8 mask = __riscv_vreinterpret_v_i8m1_b8(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
-      unpacket_traits<Packet1Xs>::size * 2));
-  real = __riscv_vfslide1up_vf_f32m4_tumu(mask, a.v, a.v, 0.0f, unpacket_traits<Packet4Xf>::size);
-  imag = __riscv_vfslide1down_vf_f32m4_tumu(__riscv_vmnot_m_b8(mask, unpacket_traits<Packet1Xs>::size * 2),
-      a.v, a.v, 0.0f, unpacket_traits<Packet4Xf>::size);
+      unpacket_traits<Packet1Xc>::size));
+  Packet4Xu res = __riscv_vreinterpret_v_f32m4_u32m4(a.v);
+  real = __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vslide1up_vx_u32m4_tumu(mask, res, res, 0,
+      unpacket_traits<Packet4Xi>::size));
+  imag = __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vslide1down_vx_u32m4_tumu(__riscv_vmnot_m_b8(mask,
+      unpacket_traits<Packet1Xc>::size), res, res, 0, unpacket_traits<Packet4Xi>::size));
 }
 
 template <>
@@ -77,12 +79,15 @@ EIGEN_STRONG_INLINE Packet2Xcf pconj(const Packet2Xcf& a) {
       __riscv_vreinterpret_v_f32m4_u64m4(a.v), 0x8000000000000000ull, unpacket_traits<Packet4Xl>::size)));
 }
 
+// Can use __riscv_vror_vx_u64m4 if zvbb is present
 template <>
 EIGEN_STRONG_INLINE Packet2Xcf pcplxflip<Packet2Xcf>(const Packet2Xcf& a) {
-  Packet4Xul res = __riscv_vreinterpret_v_f32m4_u64m4(a.v);
-  Packet4Xf res2 = __riscv_vreinterpret_v_u64m4_f32m4(__riscv_vor_vv_u64m4(
-    __riscv_vsll_vx_u64m4(res, 32, unpacket_traits<Packet4Xl>::size),
-    __riscv_vsrl_vx_u64m4(res, 32, unpacket_traits<Packet4Xl>::size), unpacket_traits<Packet4Xl>::size));
+  Packet4Xu res = __riscv_vreinterpret_v_f32m4_u32m4(a.v);
+  const PacketMask8 mask = __riscv_vreinterpret_v_i8m1_b8(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet4Xu data = __riscv_vslide1down_vx_u32m4(res, 0, unpacket_traits<Packet4Xi>::size);
+  Packet4Xf res2 = __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vslide1up_vx_u32m4_tumu(mask, data, res, 0,
+      unpacket_traits<Packet4Xi>::size));
   return Packet2Xcf(res2);
 }
 
@@ -270,7 +275,7 @@ EIGEN_STRONG_INLINE Packet4Xd pcast<Packet2Xcd, Packet4Xd>(const Packet2Xcd& a) 
 
 EIGEN_STRONG_INLINE void prealimag2(const Packet2Xcd& a, Packet4Xd& real, Packet4Xd& imag) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   real = __riscv_vfslide1up_vf_f64m4_tumu(mask, a.v, a.v, 0.0, unpacket_traits<Packet4Xd>::size);
   imag = __riscv_vfslide1down_vf_f64m4_tumu(__riscv_vmnot_m_b16(mask, unpacket_traits<Packet1Xs>::size),
       a.v, a.v, 0.0, unpacket_traits<Packet4Xd>::size);
@@ -279,7 +284,7 @@ EIGEN_STRONG_INLINE void prealimag2(const Packet2Xcd& a, Packet4Xd& real, Packet
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd pset1<Packet2Xcd>(const std::complex<double>& from) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   Packet4Xd res = __riscv_vmerge_vvm_f64m4(pset1<Packet4Xd>(from.real()), pset1<Packet4Xd>(from.imag()),
       mask, unpacket_traits<Packet4Xd>::size);
   return Packet2Xcd(res);
@@ -303,16 +308,19 @@ EIGEN_STRONG_INLINE Packet2Xcd pnegate(const Packet2Xcd& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd pconj(const Packet2Xcd& a) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   return Packet2Xcd(__riscv_vfsgnjn_vv_f64m4_tumu(mask, a.v, a.v, a.v, unpacket_traits<Packet4Xd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd pcplxflip<Packet2Xcd>(const Packet2Xcd& a) {
-  Packet4Xul idx = __riscv_vxor_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xl>::size), 1,
-      unpacket_traits<Packet4Xl>::size);
-  Packet4Xd res = __riscv_vrgather_vv_f64m4(a.v, idx, unpacket_traits<Packet4Xd>::size);
-  return Packet2Xcd(res);
+  Packet4Xul res = __riscv_vreinterpret_v_f64m4_u64m4(a.v);
+  const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet4Xul data = __riscv_vslide1down_vx_u64m4(res, 0, unpacket_traits<Packet4Xl>::size);
+  Packet4Xd res2 = __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vslide1up_vx_u64m4_tumu(mask, data, res, 0,
+      unpacket_traits<Packet4Xl>::size));
+  return Packet2Xcd(res2);
 }
 
 template <>
@@ -389,7 +397,7 @@ EIGEN_STRONG_INLINE Packet2Xcd ploadu<Packet2Xcd>(const std::complex<double>* fr
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd ploaddup<Packet2Xcd>(const std::complex<double>* from) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0x66),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   Packet4Xul idx1 = __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size), 1,
       unpacket_traits<Packet4Xd>::size);
   Packet4Xul idx2 = __riscv_vxor_vx_u64m4_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet4Xl>::size);
@@ -400,7 +408,7 @@ EIGEN_STRONG_INLINE Packet2Xcd ploaddup<Packet2Xcd>(const std::complex<double>* 
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd ploadquad<Packet2Xcd>(const std::complex<double>* from) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0x5a),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   Packet4Xul idx1 = __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size), 2,
       unpacket_traits<Packet4Xd>::size);
   Packet4Xul idx2 = __riscv_vxor_vx_u64m4_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet4Xl>::size);
@@ -422,7 +430,7 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet2Xcd pgather<std::complex<double>, Packet2Xcd>(const std::complex<double>* from,
                                                                             Index stride) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   const double *from2 = reinterpret_cast<const double *>(from);
   Packet4Xd res = __riscv_vundefined_f64m4();
   res = __riscv_vlse64_v_f64m4_tumu(mask, res,
@@ -436,7 +444,7 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter<std::complex<double>, Packet2Xcd>(std::complex<double>* to, const Packet2Xcd& from,
                                                                         Index stride) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   double *to2 = reinterpret_cast<double *>(to);
   __riscv_vsse64_v_f64m4_m(mask, &to2[0 - (0 * stride)],
       stride * sizeof(double), from.v, unpacket_traits<Packet4Xd>::size);
@@ -462,7 +470,7 @@ EIGEN_STRONG_INLINE Packet2Xcd preverse(const Packet2Xcd& a) {
 template <>
 EIGEN_STRONG_INLINE std::complex<double> predux<Packet2Xcd>(const Packet2Xcd& a) {
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
   Packet4Xl res = __riscv_vreinterpret_v_f64m4_i64m4(a.v);
   Packet4Xd real = __riscv_vreinterpret_v_i64m4_f64m4(__riscv_vand_vx_i64m4_tumu(mask, res, res, 0,
       unpacket_traits<Packet4Xl>::size));
@@ -482,7 +490,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void ptranspose(PacketBlock<Packet2Xcd, N>
   int i = 0;
 
   const PacketMask16 mask = __riscv_vreinterpret_v_i8m1_b16(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
-      unpacket_traits<Packet1Xi>::size * 4));
+      unpacket_traits<Packet1Xc>::size));
 
   for (i = 0; i < N; i++) {
     __riscv_vsse64_v_f64m4_m(mask,

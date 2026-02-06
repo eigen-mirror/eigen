@@ -321,7 +321,7 @@ EIGEN_STRONG_INLINE Packet2Xf plset<Packet2Xf>(const float& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xf>(const float* a, Packet2Xf& a0, Packet2Xf& a1, Packet2Xf& a2,
                                                 Packet2Xf& a3) {
-  vfloat32m2_t aa = __riscv_vle32_v_f32m2(a, 4);
+  Packet2Xf aa = __riscv_vlmul_ext_f32m2(__riscv_vle32_v_f32m1(a, 4));
   a0 = __riscv_vrgather_vx_f32m2(aa, 0, unpacket_traits<Packet2Xf>::size);
   a1 = __riscv_vrgather_vx_f32m2(aa, 1, unpacket_traits<Packet2Xf>::size);
   a2 = __riscv_vrgather_vx_f32m2(aa, 2, unpacket_traits<Packet2Xf>::size);
@@ -934,7 +934,12 @@ EIGEN_STRONG_INLINE Packet2Xd plset<Packet2Xd>(const double& a) {
 template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet2Xd>(const double* a, Packet2Xd& a0, Packet2Xd& a1, Packet2Xd& a2,
                                                 Packet2Xd& a3) {
-  vfloat64m2_t aa = __riscv_vle64_v_f64m2(a, 4);
+  Packet2Xd aa;
+  if (EIGEN_RISCV64_RVV_VL >= 256) {
+    aa = __riscv_vlmul_ext_f64m2(__riscv_vle64_v_f64m1(a, 4));
+  } else {
+    aa = __riscv_vle64_v_f64m2(a, 4);
+  }
   a0 = __riscv_vrgather_vx_f64m2(aa, 0, unpacket_traits<Packet2Xd>::size);
   a1 = __riscv_vrgather_vx_f64m2(aa, 1, unpacket_traits<Packet2Xd>::size);
   a2 = __riscv_vrgather_vx_f64m2(aa, 2, unpacket_traits<Packet2Xd>::size);
