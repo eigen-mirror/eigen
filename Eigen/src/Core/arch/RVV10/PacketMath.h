@@ -59,10 +59,7 @@ typedef eigen_packet_wrapper<vuint32m2_t __attribute__((riscv_rvv_vector_bits(EI
 typedef eigen_packet_wrapper<vint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 4> Packet4Xi;
 typedef eigen_packet_wrapper<vuint32m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 5> Packet4Xu;
 
-typedef eigen_packet_wrapper<vint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 28> Packet8Xi;
-typedef eigen_packet_wrapper<vuint32m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 29> Packet8Xu;
-
-typedef eigen_packet_wrapper<vint8m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 32> Packet1Xc;
+typedef eigen_packet_wrapper<vint8m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 28> Packet1Xc;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xi PacketXi;
@@ -198,13 +195,6 @@ struct unpacket_traits<Packet4Xi> {
 };
 
 template <>
-struct unpacket_traits<Packet8Xi> {
-  enum {  // Only need size
-    size = rvv_packet_size_selector<numext::int32_t, EIGEN_RISCV64_RVV_VL, 8>::size,
-  };
-};
-
-template <>
 struct unpacket_traits<Packet1Xc> {
   enum {  // Only need size
     size = rvv_packet_size_selector<numext::int8_t, EIGEN_RISCV64_RVV_VL, 1>::size,
@@ -223,9 +213,6 @@ typedef eigen_packet_wrapper<vuint64m2_t __attribute__((riscv_rvv_vector_bits(EI
 typedef eigen_packet_wrapper<vint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 13> Packet4Xl;
 typedef eigen_packet_wrapper<vuint64m4_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 4))), 14>
     Packet4Xul;
-
-typedef eigen_packet_wrapper<vint64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 30> Packet8Xl;
-typedef eigen_packet_wrapper<vuint64m8_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 8))), 31> Packet8Xul;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xl PacketXl;
@@ -357,13 +344,6 @@ struct unpacket_traits<Packet4Xl> {
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
-  };
-};
-
-template <>
-struct unpacket_traits<Packet8Xl> {
-  enum {  // Only need size
-    size = rvv_packet_size_selector<numext::int64_t, EIGEN_RISCV64_RVV_VL, 8>::size,
   };
 };
 
@@ -533,10 +513,10 @@ EIGEN_STRONG_INLINE Packet1Xi ploadu<Packet1Xi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xi ploaddup<Packet1Xi>(const numext::int32_t* from) {
-  Packet2Xul data = __riscv_vwcvtu_x_x_v_u64m2(__riscv_vreinterpret_v_i32m1_u32m1(pload<Packet1Xi>(from)),
-      unpacket_traits<Packet1Xi>::size);
-  return __riscv_vreinterpret_v_u64m1_i32m1(__riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vadd_vv_u64m2(
-      __riscv_vsll_vx_u64m2(data, 32, unpacket_traits<Packet2Xl>::size), data, unpacket_traits<Packet2Xl>::size)));
+  Packet1Xul data = __riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vwcvtu_x_x_v_u64m2(
+      __riscv_vreinterpret_v_i32m1_u32m1(pload<Packet1Xi>(from)), unpacket_traits<Packet1Xi>::size));
+  return __riscv_vreinterpret_v_u64m1_i32m1(__riscv_vadd_vv_u64m1(__riscv_vsll_vx_u64m1(data, 32,
+      unpacket_traits<Packet1Xl>::size), data, unpacket_traits<Packet1Xl>::size));
 }
 
 template <>
@@ -1063,7 +1043,10 @@ EIGEN_STRONG_INLINE Packet2Xf pdup(const Packet1Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xf ploaddup<Packet1Xf>(const float* from) {
-  return __riscv_vlmul_trunc_v_f32m2_f32m1(pdup(pload<Packet1Xf>(from)));
+  Packet1Xul data = __riscv_vlmul_trunc_v_u64m2_u64m1(__riscv_vwcvtu_x_x_v_u64m2(
+    __riscv_vreinterpret_v_f32m1_u32m1(pload<Packet1Xf>(from)), unpacket_traits<Packet1Xi>::size));
+  return __riscv_vreinterpret_v_u64m1_f32m1(__riscv_vadd_vv_u64m1(__riscv_vsll_vx_u64m1(data, 32,
+    unpacket_traits<Packet1Xl>::size), data, unpacket_traits<Packet1Xl>::size));
 }
 
 template <>
@@ -2403,10 +2386,10 @@ EIGEN_STRONG_INLINE Packet1Xs ploadu<Packet1Xs>(const numext::int16_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xs ploaddup<Packet1Xs>(const numext::int16_t* from) {
-  Packet2Xu data = __riscv_vwcvtu_x_x_v_u32m2(__riscv_vreinterpret_v_i16m1_u16m1(pload<Packet1Xs>(from)),
-      unpacket_traits<Packet1Xs>::size);
-  return __riscv_vreinterpret_v_u32m1_i16m1(__riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vadd_vv_u32m2(
-      __riscv_vsll_vx_u32m2(data, 16, unpacket_traits<Packet2Xi>::size), data, unpacket_traits<Packet2Xi>::size)));
+  Packet1Xu data = __riscv_vlmul_trunc_v_u32m2_u32m1(__riscv_vwcvtu_x_x_v_u32m2(
+      __riscv_vreinterpret_v_i16m1_u16m1(pload<Packet1Xs>(from)), unpacket_traits<Packet1Xs>::size));
+  return __riscv_vreinterpret_v_u32m1_i16m1(__riscv_vadd_vv_u32m1(__riscv_vsll_vx_u32m1(data, 16,
+      unpacket_traits<Packet1Xi>::size), data, unpacket_traits<Packet1Xi>::size));
 }
 
 template <>

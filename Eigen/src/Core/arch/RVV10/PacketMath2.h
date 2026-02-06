@@ -176,10 +176,10 @@ EIGEN_STRONG_INLINE Packet2Xi ploadu<Packet2Xi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xi ploaddup<Packet2Xi>(const numext::int32_t* from) {
-  Packet4Xul data = __riscv_vwcvtu_x_x_v_u64m4(__riscv_vreinterpret_v_i32m2_u32m2(pload<Packet2Xi>(from)),
-      unpacket_traits<Packet2Xi>::size);
-  return __riscv_vreinterpret_v_u64m2_i32m2(__riscv_vlmul_trunc_v_u64m4_u64m2(__riscv_vadd_vv_u64m4(
-      __riscv_vsll_vx_u64m4(data, 32, unpacket_traits<Packet4Xl>::size), data, unpacket_traits<Packet4Xl>::size)));
+  Packet2Xul data = __riscv_vlmul_trunc_v_u64m4_u64m2(__riscv_vwcvtu_x_x_v_u64m4(
+      __riscv_vreinterpret_v_i32m2_u32m2(pload<Packet2Xi>(from)), unpacket_traits<Packet2Xi>::size));
+  return __riscv_vreinterpret_v_u64m2_i32m2(__riscv_vadd_vv_u64m2(__riscv_vsll_vx_u64m2(data, 32,
+      unpacket_traits<Packet2Xl>::size), data, unpacket_traits<Packet2Xl>::size));
 }
 
 template <>
@@ -514,7 +514,10 @@ EIGEN_STRONG_INLINE Packet4Xf pdup(const Packet2Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xf ploaddup<Packet2Xf>(const float* from) {
-  return __riscv_vlmul_trunc_v_f32m4_f32m2(pdup(pload<Packet2Xf>(from)));
+  Packet2Xul data = __riscv_vlmul_trunc_v_u64m4_u64m2(__riscv_vwcvtu_x_x_v_u64m4(
+    __riscv_vreinterpret_v_f32m2_u32m2(pload<Packet2Xf>(from)), unpacket_traits<Packet2Xi>::size));
+  return __riscv_vreinterpret_v_u64m2_f32m2(__riscv_vadd_vv_u64m2(
+      __riscv_vsll_vx_u64m2(data, 32, unpacket_traits<Packet2Xl>::size), data, unpacket_traits<Packet2Xl>::size));
 }
 
 template <>
@@ -1435,10 +1438,10 @@ EIGEN_STRONG_INLINE Packet2Xs ploadu<Packet2Xs>(const numext::int16_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xs ploaddup<Packet2Xs>(const numext::int16_t* from) {
-  Packet4Xu data = __riscv_vwcvtu_x_x_v_u32m4(__riscv_vreinterpret_v_i16m2_u16m2(pload<Packet2Xs>(from)),
-      unpacket_traits<Packet2Xs>::size);
-  return __riscv_vreinterpret_v_u32m2_i16m2(__riscv_vlmul_trunc_v_u32m4_u32m2(__riscv_vadd_vv_u32m4(
-      __riscv_vsll_vx_u32m4(data, 16, unpacket_traits<Packet4Xi>::size), data, unpacket_traits<Packet4Xi>::size)));
+  Packet2Xu data = __riscv_vlmul_trunc_v_u32m4_u32m2(__riscv_vwcvtu_x_x_v_u32m4(
+      __riscv_vreinterpret_v_i16m2_u16m2(pload<Packet2Xs>(from)), unpacket_traits<Packet2Xs>::size));
+  return __riscv_vreinterpret_v_u32m2_i16m2(__riscv_vadd_vv_u32m2(__riscv_vsll_vx_u32m2(data, 16,
+      unpacket_traits<Packet2Xi>::size), data, unpacket_traits<Packet2Xi>::size));
 }
 
 template <>
