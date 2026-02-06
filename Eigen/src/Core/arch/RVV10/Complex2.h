@@ -79,9 +79,9 @@ EIGEN_STRONG_INLINE Packet2Xcf pconj(const Packet2Xcf& a) {
       __riscv_vreinterpret_v_f32m4_u64m4(a.v), 0x8000000000000000ull, unpacket_traits<Packet4Xl>::size)));
 }
 
-// Can use __riscv_vror_vx_u64m4 if zvbb is present
 template <>
 EIGEN_STRONG_INLINE Packet2Xcf pcplxflip<Packet2Xcf>(const Packet2Xcf& a) {
+#ifndef __riscv_zvbb
   Packet4Xu res = __riscv_vreinterpret_v_f32m4_u32m4(a.v);
   const PacketMask8 mask = __riscv_vreinterpret_v_i8m1_b8(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
       unpacket_traits<Packet1Xc>::size));
@@ -89,6 +89,11 @@ EIGEN_STRONG_INLINE Packet2Xcf pcplxflip<Packet2Xcf>(const Packet2Xcf& a) {
   Packet4Xf res2 = __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vslide1up_vx_u32m4_tumu(mask, data, res, 0,
       unpacket_traits<Packet4Xi>::size));
   return Packet2Xcf(res2);
+#else
+  Packet4Xf res = __riscv_vreinterpret_v_u64m4_f32m4(__riscv_vror_vx_u64m4(__riscv_vreinterpret_v_f32m4_u64m4(a.v), 32,
+      unpacket_traits<Packet4Xl>::size));
+  return Packet2Xcf(res);
+#endif
 }
 
 template <>
