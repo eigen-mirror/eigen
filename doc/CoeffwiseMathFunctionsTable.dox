@@ -572,7 +572,7 @@ This also means that, unless specified, if the function \c std::foo is available
   \anchor cwisetable_betainc
   betainc(a,b,x);
   </td>
-  <td><a href="https://en.wikipedia.org/wiki/Beta_function#Incomplete_beta_function">Incomplete beta function</a></td>
+  <td><a href="https://en.wikipedia.org/wiki/Beta_function#Incomplete_beta_function">regularized incomplete beta function</a></td>
   <td>
   built-in for float and double,\n but requires \cpp11
   </td>

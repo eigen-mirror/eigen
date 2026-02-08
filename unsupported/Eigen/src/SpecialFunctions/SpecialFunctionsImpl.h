@@ -1844,14 +1844,15 @@ struct betainc_impl<float> {
     const float nan = NumTraits<float>::quiet_NaN();
     float ans, t;
 
-    if (a <= 0.0f) return nan;
-    if (b <= 0.0f) return nan;
-    if ((x <= 0.0f) || (x >= 1.0f)) {
-      if (x == 0.0f) return 0.0f;
-      if (x == 1.0f) return 1.0f;
-      // mtherr("betaincf", DOMAIN);
-      return nan;
-    }
+    if (a == 0.0f && b == 0.0f) return nan;
+    if (x < 0.0f || x > 1.0f) return nan;
+    if (a < 0.0f) return nan;
+    if (b < 0.0f) return nan;
+    if (a == 0.0f) return 1.0f;
+    if (b == 0.0f) return 0.0f;
+    if (x == 0.0f) return 0.0f;
+    if (x == 1.0f) return 1.0f;
+    // mtherr("betaincf", DOMAIN);
 
     /* transformation for small aa */
     if (a <= 1.0f) {
@@ -1914,16 +1915,15 @@ struct betainc_impl<double> {
     double a, b, t, x, xc, w, y;
     bool reversed_a_b = false;
 
-    if (aa <= 0.0 || bb <= 0.0) {
-      return nan;  // goto domerr;
-    }
-
-    if ((xx <= 0.0) || (xx >= 1.0)) {
-      if (xx == 0.0) return (0.0);
-      if (xx == 1.0) return (1.0);
-      // mtherr("incbet", DOMAIN);
-      return nan;
-    }
+    if (aa == 0.0 && bb == 0.0) return nan;
+    if (xx < 0.0 || xx > 1.0) return nan;
+    if (aa < 0.0) return nan;
+    if (bb < 0.0) return nan;
+    if (aa == 0.0) return 1.0;
+    if (bb == 0.0) return 0.0;
+    if (xx == 0.0) return 0.0;
+    if (xx == 1.0) return 1.0;
+    // mtherr("incbet", DOMAIN);
 
     if ((bb * xx) <= 1.0 && xx <= 0.95) {
       return betainc_helper<double>::incbps(aa, bb, xx);
