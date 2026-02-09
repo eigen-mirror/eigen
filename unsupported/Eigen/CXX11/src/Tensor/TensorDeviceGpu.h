@@ -45,9 +45,9 @@ class StreamInterface {
 class GpuDeviceProperties {
  public:
   static const GpuDeviceProperties& instance() {
-    static const GpuDeviceProperties& kInstance = *new GpuDeviceProperties();
+    static const GpuDeviceProperties* kInstance = new GpuDeviceProperties();
 
-    return kInstance;
+    return *kInstance;
   }
 
   EIGEN_STRONG_INLINE const gpuDeviceProp_t& get(int device) const { return device_properties_[device]; }
@@ -64,7 +64,7 @@ class GpuDeviceProperties {
     }
     std::vector<gpuDeviceProp_t> device_properties(num_devices);
     for (int i = 0; i < num_devices; ++i) {
-      status = gpuGetDeviceProperties(&device_properties_[i], i);
+      status = gpuGetDeviceProperties(&device_properties[i], i);
       if (status != gpuSuccess) {
         std::cerr << "Failed to initialize GPU device #" << i << ": " << gpuGetErrorString(status) << std::endl;
         gpu_assert(status == gpuSuccess);

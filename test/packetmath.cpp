@@ -86,6 +86,13 @@ inline T REF_ABS_DIFF(const T& a, const T& b) {
   return a > b ? a - b : b - a;
 }
 
+// MacOS apple-clang has an issue with pcmp_eq for half when inlined,
+// resulting in an ICE, but only in this specific test.
+template <typename Packet>
+EIGEN_DONT_INLINE Packet REF_PCMP_EQ(const Packet& a, const Packet& b) {
+  return internal::pcmp_eq(a, b);
+}
+
 // Specializations for bool.
 template <>
 inline bool REF_ADD(const bool& a, const bool& b) {
@@ -361,21 +368,21 @@ void packetmath_boolean_mask_ops() {
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
 
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 
   // Test (-0) == (0) for signed operations
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = Scalar(-0.0);
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 
   // Test NaN
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = NumTraits<Scalar>::quiet_NaN();
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 }
 
 template <typename Scalar, typename Packet>
@@ -1204,10 +1211,10 @@ Scalar propagate_number_min(const Scalar& a, const Scalar& b) {
   return (numext::mini)(a, b);
 }
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<!Cond, void> run_ieee_cases(const FunctorT&) {}
 
-template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = false, typename FunctorT>
+template <bool Cond, typename Scalar, typename Packet, bool SkipDenorms = EIGEN_ARCH_ARM, typename FunctorT>
 std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
@@ -1232,7 +1239,9 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   for (Scalar abs_value : values) {
     data1[0] = abs_value;
     data1[1] = -data1[0];
+    g_test_stack.push_back("IEEE cases: " + fun.name);
     CHECK_CWISE1_IF(Cond, fun.expected, fun.actual);
+    g_test_stack.pop_back();
   }
 }
 
@@ -1248,6 +1257,7 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
     T expected(const T& val) const {          \
       return EXPECTED(val);                   \
     }                                         \
+    const std::string name = #NAME;           \
   }
 
 CREATE_TESTER(sqrt_fun, internal::psqrt, numext::sqrt);

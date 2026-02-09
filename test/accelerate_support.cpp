@@ -1,11 +1,19 @@
-#define EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
-#include "sparse_solver.h"
-
 #if defined(DEBUG)
 #undef DEBUG
 #endif
 
+#define EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
+
+#pragma clang diagnostic push
+// The following "warning" causes a build failure on macOS with the latest
+// version of clang:
+// error: non-defining declaration of enumeration with a fixed underlying
+//        type is only permitted as a standalone declaration
+#pragma clang diagnostic ignored "-Welaborated-enum-base"
 #include <Eigen/AccelerateSupport>
+#pragma clang diagnostic pop
+
+#include "sparse_solver.h"
 
 template <typename MatrixType, typename DenseMat>
 int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows = 300, int maxCols = 300) {
