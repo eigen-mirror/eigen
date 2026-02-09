@@ -650,7 +650,9 @@ const DoublePacket<Packet>& predux_half(const DoublePacket<Packet>& a,
 
 template <typename Packet>
 DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
-    const DoublePacket<Packet>& a, std::enable_if_t<unpacket_traits<Packet>::size == 16>* = 0) {
+    const DoublePacket<Packet>& a,
+    std::enable_if_t<unpacket_traits<Packet>::size >= 16 &&
+                     !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) {
   // yes, that's pretty hackish :(
   DoublePacket<typename unpacket_traits<Packet>::half> res;
   typedef std::complex<typename unpacket_traits<Packet>::type> Cplx;

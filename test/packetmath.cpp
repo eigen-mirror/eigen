@@ -86,6 +86,13 @@ inline T REF_ABS_DIFF(const T& a, const T& b) {
   return a > b ? a - b : b - a;
 }
 
+// MacOS apple-clang has an issue with pcmp_eq for half when inlined,
+// resulting in an ICE, but only in this specific test.
+template <typename Packet>
+EIGEN_DONT_INLINE Packet REF_PCMP_EQ(const Packet& a, const Packet& b) {
+  return internal::pcmp_eq(a, b);
+}
+
 // Specializations for bool.
 template <>
 inline bool REF_ADD(const bool& a, const bool& b) {
@@ -361,21 +368,21 @@ void packetmath_boolean_mask_ops() {
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
 
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 
   // Test (-0) == (0) for signed operations
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = Scalar(-0.0);
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 
   // Test NaN
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = NumTraits<Scalar>::quiet_NaN();
     data1[i + PacketSize] = internal::random<bool>() ? data1[i] : Scalar(0);
   }
-  CHECK_CWISE2_MASK(internal::pcmp_eq, internal::pcmp_eq);
+  CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
 }
 
 template <typename Scalar, typename Packet>
