@@ -372,6 +372,53 @@ bool MatrixBase<Derived>::isDiagonal(const RealScalar& prec) const {
   return true;
 }
 
+/** \returns DiagonalWrapper.
+ *
+ * Example: \include MatrixBase_diagonalView.cpp
+ * Output: \verbinclude MatrixBase_diagonalView.out
+ *
+ * \sa diagonalView()
+ */
+
+/** This is the non-const version of diagonalView() with DiagIndex_ . */
+template <typename Derived>
+template <int DiagIndex_>
+EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<Derived, DiagIndex_>> MatrixBase<Derived>::diagonalView() {
+  typedef Diagonal<Derived, DiagIndex_> DiagType;
+  typedef DiagonalWrapper<DiagType> ReturnType;
+  DiagType diag(this->derived());
+  return ReturnType(diag);
+}
+
+/** This is the const version of diagonalView() with DiagIndex_ . */
+template <typename Derived>
+template <int DiagIndex_>
+EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<const Derived, DiagIndex_>> MatrixBase<Derived>::diagonalView() const {
+  typedef Diagonal<const Derived, DiagIndex_> DiagType;
+  typedef DiagonalWrapper<DiagType> ReturnType;
+  DiagType diag(this->derived());
+  return ReturnType(diag);
+}
+
+/** This is the non-const version of diagonalView() with dynamic index. */
+template <typename Derived>
+EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<Derived, DynamicIndex>> MatrixBase<Derived>::diagonalView(Index index) {
+  typedef Diagonal<Derived, DynamicIndex> DiagType;
+  typedef DiagonalWrapper<DiagType> ReturnType;
+  DiagType diag(this->derived(), index);
+  return ReturnType(diag);
+}
+
+/** This is the const version of diagonalView() with dynamic index. */
+template <typename Derived>
+EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<const Derived, DynamicIndex>> MatrixBase<Derived>::diagonalView(
+    Index index) const {
+  typedef Diagonal<const Derived, DynamicIndex> DiagType;
+  typedef DiagonalWrapper<DiagType> ReturnType;
+  DiagType diag(this->derived(), index);
+  return ReturnType(diag);
+}
+
 namespace internal {
 
 template <>
