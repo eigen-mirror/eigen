@@ -2102,6 +2102,57 @@ struct conj_impl<std::complex<T>, true> {
 };
 #endif
 
+// Complex multiply and division operators.
+// Note that these do not handle the case if inf+NaNi, which is considered an infinity.
+// This is for consistency with our standard pmul, pdiv implementations.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_multiply(const std::complex<T>& a,
+                                                                       const std::complex<T>& b) {
+  const T a_real = numext::real(a);
+  const T a_imag = numext::imag(a);
+  const T b_real = numext::real(b);
+  const T b_imag = numext::imag(b);
+  return std::complex<T>(a_real * b_real - a_imag * b_imag, a_imag * b_real + a_real * b_imag);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_fast(const std::complex<T>& a,
+                                                                          const std::complex<T>& b) {
+  const T a_real = numext::real(a);
+  const T a_imag = numext::imag(a);
+  const T b_real = numext::real(b);
+  const T b_imag = numext::imag(b);
+  const T norm = (b_real * b_real + b_imag * b_imag);
+  return std::complex<T>((a_real * b_real + a_imag * b_imag) / norm, (a_imag * b_real - a_real * b_imag) / norm);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_smith(const std::complex<T>& a,
+                                                                           const std::complex<T>& b) {
+  const T a_real = numext::real(a);
+  const T a_imag = numext::imag(a);
+  const T b_real = numext::real(b);
+  const T b_imag = numext::imag(b);
+  // Smith's complex division (https://arxiv.org/pdf/1210.4539.pdf),
+  // guards against over/under-flow.
+  const bool scale_imag = numext::abs(b_imag) <= numext::abs(b_real);
+  const T rscale = scale_imag ? T(1) : b_real / b_imag;
+  const T iscale = scale_imag ? b_imag / b_real : T(1);
+  const T denominator = b_real * rscale + b_imag * iscale;
+  return std::complex<T>((a_real * rscale + a_imag * iscale) / denominator,
+                         (a_imag * rscale - a_real * iscale) / denominator);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide(const std::complex<T>& a,
+                                                                     const std::complex<T>& b) {
+#if EIGEN_FAST_MATH
+  return complex_divide_fast(a, b);
+#else
+  return complex_divide_smith(a, b);
+#endif
+}
+
 }  // end namespace internal
 
 }  // end namespace Eigen

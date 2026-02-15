@@ -1607,6 +1607,28 @@ void packetmath_complex() {
     VERIFY(test::areApprox(ref, pval, PacketSize) && "pcplxflip");
   }
 
+  const RealScalar zero = RealScalar(0);
+  const RealScalar one = RealScalar(1);
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+
+  // Multiplication and Division.
+  {
+    std::array<RealScalar, 8> special_values = {zero, one, inf, nan, -zero, -one, -inf, -nan};
+    for (RealScalar a : special_values) {
+      for (RealScalar b : special_values) {
+        for (RealScalar c : special_values) {
+          for (RealScalar d : special_values) {
+            data1[0] = Scalar(a, b);
+            data2[0] = Scalar(c, d);
+            CHECK_CWISE2_IF(PacketTraits::HasMul, internal::complex_multiply, internal::pmul);
+            CHECK_CWISE2_IF(PacketTraits::HasDiv, internal::complex_divide, internal::pdiv);
+          }
+        }
+      }
+    }
+  }
+
   if (PacketTraits::HasSqrt) {
     for (int i = 0; i < size; ++i) {
       data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
@@ -1615,10 +1637,6 @@ void packetmath_complex() {
     CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
     // Test misc. corner cases.
-    const RealScalar zero = RealScalar(0);
-    const RealScalar one = RealScalar(1);
-    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
-    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
     data1[0] = Scalar(zero, zero);
     data1[1] = Scalar(-zero, zero);
     data1[2] = Scalar(one, zero);

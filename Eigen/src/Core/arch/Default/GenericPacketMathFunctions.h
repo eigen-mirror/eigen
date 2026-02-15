@@ -1553,21 +1553,20 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  typedef typename unpacket_traits<RealPacket>::type RealScalar;
   // In the following we annotate the code for the case where the inputs
   // are a pair length-2 SIMD vectors representing a single pair of complex
   // numbers x = a + i*b, y = c + i*d.
-  const RealPacket y_abs = pabs(y.v);                        // |c|, |d|
-  const RealPacket y_abs_flip = pcplxflip(Packet(y_abs)).v;  // |d|, |c|
-  const RealPacket y_max = pmax(y_abs, y_abs_flip);          // max(|c|, |d|), max(|c|, |d|)
-  const RealPacket y_scaled = pdiv(y.v, y_max);              // c / max(|c|, |d|), d / max(|c|, |d|)
-  // Compute scaled denominator.
-  const RealPacket y_scaled_sq = pmul(y_scaled, y_scaled);  // c'**2, d'**2
-  const RealPacket denom = padd(y_scaled_sq, pcplxflip(Packet(y_scaled_sq)).v);
-  Packet result_scaled = pmul(x, pconj(Packet(y_scaled)));  // a * c' + b * d', -a * d + b * c
-  // Divide elementwise by denom.
-  result_scaled = Packet(pdiv(result_scaled.v, denom));
-  // Rescale result
-  return Packet(pdiv(result_scaled.v, y_max));
+  static const RealPacket one = pset1<RealPacket>(RealScalar(1));
+  const RealPacket y_flip = pcplxflip(y).v;
+  // We need to avoid dividing by  Inf/Inf, so use a mask to carefully
+  // apply the scale.
+  const RealPacket mask = pcmp_lt(pabs(y.v), pabs(y_flip));  // |c| < |d|
+  const RealPacket y_scaled = pselect(mask, pdiv(y.v, y_flip), one);
+  RealPacket denom = pmul(y.v, y_scaled);
+  denom = padd(denom, pcplxflip(Packet(denom)).v);  // c * c' + d * d'
+  Packet num = pmul(x, pconj(Packet(y_scaled)));    // a * c' + b * d', -a * d + b * c
+  return Packet(pdiv(num.v, denom));
 }
 
 template <typename Packet>
