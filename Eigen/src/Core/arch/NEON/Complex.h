@@ -516,6 +516,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
     HasNegate = 1,
     HasSqrt = 1,
     HasLog = 1,
+    HasExp = 1,
     HasAbs = 0,
     HasAbs2 = 0,
     HasMin = 0,
@@ -721,6 +722,11 @@ EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a) {
 template <>
 EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a) {
   return plog_complex(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1cd pexp<Packet1cd>(const Packet1cd& a) {
+  return pexp_complex<Packet1cd>(a);
 }
 
 #endif  // EIGEN_ARCH_ARM64

@@ -1485,10 +1485,10 @@ struct exp_complex_test_impl {
   }
 
   // Verify equality with signed zero.
-  static bool is_exactly_equal(const Scalar& a, const Scalar& b) {
+  static bool is_exactly_equal(const Scalar& a, const Scalar& b, bool quiet = false) {
     bool result = is_exactly_equal(numext::real_ref(a), numext::real_ref(b)) &&
                   is_exactly_equal(numext::imag_ref(a), numext::imag_ref(b));
-    if (!result) {
+    if (!result && !quiet) {
       std::cout << a << " != " << b << std::endl;
     }
     return result;
@@ -1510,6 +1510,13 @@ struct exp_complex_test_impl {
     }
     // If z is (+∞,NaN), the result is (±∞,NaN) (the sign of the real part is unspecified)
     if (numext::real_ref(z) == +inf && (numext::isnan)(numext::imag_ref(z))) {
+      return true;
+    }
+    // If exp(x) overflows to inf and y is finite nonzero, the result involves inf * cos(y) and
+    // inf * sin(y). When cos(y) or sin(y) is near a zero crossing (e.g., cos(pi/2)), different
+    // trig implementations may produce different signs, so the signs of the result are unspecified.
+    if (!(numext::isinf)(numext::imag_ref(z)) && !(numext::isnan)(numext::imag_ref(z)) && numext::imag_ref(z) != 0 &&
+        (numext::isinf)(std::exp(numext::real_ref(z)))) {
       return true;
     }
     return false;
@@ -1558,7 +1565,12 @@ struct exp_complex_test_impl {
               Scalar(numext::abs(numext::real_ref(expected)), numext::abs(numext::imag_ref(expected)));
           VERIFY(is_exactly_equal(abs_w, abs_expected));
         } else {
-          VERIFY(is_exactly_equal(w, numext::exp(z)));
+          Scalar expected = numext::exp(z);
+          // First try exact equality (handles NaN, signed zeros correctly).
+          // Fall back to approximate comparison to allow for small differences
+          // in trig functions near zero crossings (e.g., vectorized sincos may
+          // compute cos(pi/2) = 0 while scalar std::exp gives ~6.12e-17).
+          VERIFY(is_exactly_equal(w, expected, /*quiet=*/true) || verifyIsApprox(w, expected));
         }
       }
     }

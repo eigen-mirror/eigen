@@ -81,7 +81,6 @@ struct packet_traits<std::complex<double>> : generic_complex_packet_traits {
   using half = Packet4cd;
   enum {
     size = 4,
-    HasExp = 0,  // FIXME(rmlarsen): pexp_complex is broken for double.
   };
 };
 

@@ -244,7 +244,8 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
     HasAbs2 = 0,
     HasMin = 0,
     HasMax = 0,
-    HasSetLinear = 0
+    HasSetLinear = 0,
+    HasExp = 1
   };
 };
 #endif
@@ -430,6 +431,11 @@ EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a) {
   return plog_complex<Packet2cf>(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1cd pexp<Packet1cd>(const Packet1cd& a) {
+  return pexp_complex<Packet1cd>(a);
 }
 
 template <>

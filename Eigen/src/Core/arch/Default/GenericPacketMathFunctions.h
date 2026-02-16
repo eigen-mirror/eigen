@@ -1117,8 +1117,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sFinalRes = pdiv(pselect(poly_mask, ssin, scos), pselect(poly_mask, scos, ssin));
   } else if (Func == TrigFunction::SinCos) {
     Packet peven = peven_mask(x);
-    sign_bit = pselect((s), sign_sin, sign_cos);
-    sFinalRes = pselect(pxor(peven, poly_mask), ssin, scos);
+    sign_bit = pselect(peven, sign_sin, sign_cos);
+    sFinalRes = pselect(pxor(peven, poly_mask), scos, ssin);
   }
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
   sFinalRes = pxor(sFinalRes, sign_bit);
@@ -1608,7 +1608,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
-  // FIXME(rmlarsen): This does not work correctly for Packets of std::complex<double>.
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
@@ -1642,6 +1641,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
   RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
   cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
+
+  // If exp(x) is +inf and y is finite, replace cisy with copysign(1, cisy) to
+  // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
+  // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
+  // The y=0 case is handled separately below.
+  RealPacket cisy_sign_one = por(pand(cisy, pset1<RealPacket>(RealScalar(-0.0))), pset1<RealPacket>(RealScalar(1)));
+  RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
+  cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
+
   Packet result = Packet(pmul(expx, cisy));
 
   // If y is +/- 0, the input is real, so take the real result for consistency.
