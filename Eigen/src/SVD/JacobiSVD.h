@@ -747,13 +747,16 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     finished = true;
 
     // do a sweep: for all index pairs (p,q), perform SVD of the corresponding 2x2 sub-matrix
+    // Threshold is hoisted before the double loop; it only needs updating when maxDiagEntry
+    // increases (which only happens inside the rotation block). Since maxDiagEntry is
+    // monotonically non-decreasing, a slightly stale threshold is conservative.
+    RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
 
     for (Index p = 1; p < diagSize(); ++p) {
       for (Index q = 0; q < p; ++q) {
         // if this 2x2 sub-matrix is not diagonal already...
         // notice that this comparison will evaluate to false if any NaN is involved, ensuring that NaN's don't
         // keep us iterating forever. Similarly, small denormal numbers are considered zero.
-        RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
         if (abs(m_workMatrix.coeff(p, q)) > threshold || abs(m_workMatrix.coeff(q, p)) > threshold) {
           finished = false;
           // perform SVD decomposition of 2x2 sub-matrix corresponding to indices p,q to make it diagonal
@@ -773,6 +776,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
             // keep track of the largest diagonal coefficient
             maxDiagEntry = numext::maxi<RealScalar>(
                 maxDiagEntry, numext::maxi<RealScalar>(abs(m_workMatrix.coeff(p, p)), abs(m_workMatrix.coeff(q, q))));
+            threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
           }
         }
       }
