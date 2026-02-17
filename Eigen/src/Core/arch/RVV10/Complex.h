@@ -418,11 +418,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
     HasNegate = 1,
     HasSqrt = 1,
     HasLog = 1,
-#if 0 // bug with pexp_complex for complex<double>
     HasExp = 1,
-#else
-    HasExp = 0,
-#endif
     HasSign = 0,
     HasAbs = 0,
     HasAbs2 = 0,
@@ -456,11 +452,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
     HasNegate = 1,
     HasSqrt = 1,
     HasLog = 1,
-#if 0 // bug with pexp_complex for complex<double>
     HasExp = 1,
-#else
-    HasExp = 0,
-#endif
     HasSign = 0,
     HasAbs = 0,
     HasAbs2 = 0,
@@ -760,12 +752,10 @@ EIGEN_STRONG_INLINE Packet1Xcd plog<Packet1Xcd>(const Packet1Xcd& a) {
   return plog_complex(a);
 }
 
-#if 0 // bug with pexp_complex for complex<double>
 template <>
 EIGEN_STRONG_INLINE Packet1Xcd pexp<Packet1Xcd>(const Packet1Xcd& a) {
   return pexp_complex(a);
 }
-#endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcd, Packet2Xd)
 #endif

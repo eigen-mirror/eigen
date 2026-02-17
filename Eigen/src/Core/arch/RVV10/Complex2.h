@@ -520,12 +520,10 @@ EIGEN_STRONG_INLINE Packet2Xcd plog<Packet2Xcd>(const Packet2Xcd& a) {
   return plog_complex(a);
 }
 
-#if 0 // bug with pexp_complex for complex<double>
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd pexp<Packet2Xcd>(const Packet2Xcd& a) {
   return pexp_complex(a);
 }
-#endif
 
 #ifndef USE_LMUL2_ONLY
 template <typename Packet = Packet2Xcd>
