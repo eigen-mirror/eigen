@@ -274,6 +274,17 @@ class MatrixBase : public DenseBase<Derived> {
                     const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
   bool isUnitary(const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
+  /* diagonalView */
+  template <int DiagIndex_ = 0>
+  EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<Derived, DiagIndex_>> diagonalView();
+
+  template <int DiagIndex_ = 0>
+  EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<const Derived, DiagIndex_>> diagonalView() const;
+
+  EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<Derived, DynamicIndex>> diagonalView(Index index);
+
+  EIGEN_DEVICE_FUNC DiagonalWrapper<Diagonal<const Derived, DynamicIndex>> diagonalView(Index index) const;
+
   /** \returns true if each coefficients of \c *this and \a other are all exactly equal.
    * \warning When using floating point scalar values you probably should rather use a
    *          fuzzy comparison such as isApprox()
