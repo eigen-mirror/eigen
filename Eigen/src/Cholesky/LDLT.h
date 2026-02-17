@@ -84,7 +84,13 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via LDLT::compute(const MatrixType&).
    */
-  LDLT() : m_matrix(), m_transpositions(), m_sign(internal::ZeroSign), m_isInitialized(false) {}
+  LDLT()
+      : m_matrix(),
+        m_l1_norm(0),
+        m_transpositions(),
+        m_sign(internal::ZeroSign),
+        m_isInitialized(false),
+        m_info(InvalidInput) {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -94,10 +100,12 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    */
   explicit LDLT(Index size)
       : m_matrix(size, size),
+        m_l1_norm(0),
         m_transpositions(size),
         m_temporary(size),
         m_sign(internal::ZeroSign),
-        m_isInitialized(false) {}
+        m_isInitialized(false),
+        m_info(InvalidInput) {}
 
   /** \brief Constructor with decomposition
    *
@@ -108,10 +116,12 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   template <typename InputType>
   explicit LDLT(const EigenBase<InputType>& matrix)
       : m_matrix(matrix.rows(), matrix.cols()),
+        m_l1_norm(0),
         m_transpositions(matrix.rows()),
         m_temporary(matrix.rows()),
         m_sign(internal::ZeroSign),
-        m_isInitialized(false) {
+        m_isInitialized(false),
+        m_info(InvalidInput) {
     compute(matrix.derived());
   }
 
@@ -125,10 +135,12 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   template <typename InputType>
   explicit LDLT(EigenBase<InputType>& matrix)
       : m_matrix(matrix.derived()),
+        m_l1_norm(0),
         m_transpositions(matrix.rows()),
         m_temporary(matrix.rows()),
         m_sign(internal::ZeroSign),
-        m_isInitialized(false) {
+        m_isInitialized(false),
+        m_info(InvalidInput) {
     compute(matrix.derived());
   }
 

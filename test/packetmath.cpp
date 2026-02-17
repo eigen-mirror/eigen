@@ -1687,10 +1687,6 @@ void packetmath_complex() {
     CHECK_CWISE1_N(std::log, internal::plog, size);
 
     // Test misc. corner cases.
-    const RealScalar zero = RealScalar(0);
-    const RealScalar one = RealScalar(1);
-    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
-    const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
     for (RealScalar x : {zero, one, inf}) {
       for (RealScalar y : {zero, one, inf}) {
         data1[0] = Scalar(x, y);
