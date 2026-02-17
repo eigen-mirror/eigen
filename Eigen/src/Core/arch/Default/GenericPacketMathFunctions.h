@@ -1117,8 +1117,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sFinalRes = pdiv(pselect(poly_mask, ssin, scos), pselect(poly_mask, scos, ssin));
   } else if (Func == TrigFunction::SinCos) {
     Packet peven = peven_mask(x);
-    sign_bit = pselect((s), sign_sin, sign_cos);
-    sFinalRes = pselect(pxor(peven, poly_mask), ssin, scos);
+    sign_bit = pselect(peven, sign_sin, sign_cos);
+    sFinalRes = pselect(pxor(peven, poly_mask), scos, ssin);
   }
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
   sFinalRes = pxor(sFinalRes, sign_bit);
@@ -1553,21 +1553,20 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  typedef typename unpacket_traits<RealPacket>::type RealScalar;
   // In the following we annotate the code for the case where the inputs
   // are a pair length-2 SIMD vectors representing a single pair of complex
   // numbers x = a + i*b, y = c + i*d.
-  const RealPacket y_abs = pabs(y.v);                        // |c|, |d|
-  const RealPacket y_abs_flip = pcplxflip(Packet(y_abs)).v;  // |d|, |c|
-  const RealPacket y_max = pmax(y_abs, y_abs_flip);          // max(|c|, |d|), max(|c|, |d|)
-  const RealPacket y_scaled = pdiv(y.v, y_max);              // c / max(|c|, |d|), d / max(|c|, |d|)
-  // Compute scaled denominator.
-  const RealPacket y_scaled_sq = pmul(y_scaled, y_scaled);  // c'**2, d'**2
-  const RealPacket denom = padd(y_scaled_sq, pcplxflip(Packet(y_scaled_sq)).v);
-  Packet result_scaled = pmul(x, pconj(Packet(y_scaled)));  // a * c' + b * d', -a * d + b * c
-  // Divide elementwise by denom.
-  result_scaled = Packet(pdiv(result_scaled.v, denom));
-  // Rescale result
-  return Packet(pdiv(result_scaled.v, y_max));
+  static const RealPacket one = pset1<RealPacket>(RealScalar(1));
+  const RealPacket y_flip = pcplxflip(y).v;
+  // We need to avoid dividing by  Inf/Inf, so use a mask to carefully
+  // apply the scale.
+  const RealPacket mask = pcmp_lt(pabs(y.v), pabs(y_flip));  // |c| < |d|
+  const RealPacket y_scaled = pselect(mask, pdiv(y.v, y_flip), one);
+  RealPacket denom = pmul(y.v, y_scaled);
+  denom = padd(denom, pcplxflip(Packet(denom)).v);  // c * c' + d * d'
+  Packet num = pmul(x, pconj(Packet(y_scaled)));    // a * c' + b * d', -a * d + b * c
+  return Packet(pdiv(num.v, denom));
 }
 
 template <typename Packet>
@@ -1609,7 +1608,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
-  // FIXME(rmlarsen): This does not work correctly for Packets of std::complex<double>.
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename Scalar::value_type RealScalar;
@@ -1643,6 +1641,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
   RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
   cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
+
+  // If exp(x) is +inf and y is finite, replace cisy with copysign(1, cisy) to
+  // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
+  // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
+  // The y=0 case is handled separately below.
+  RealPacket cisy_sign_one = por(pand(cisy, pset1<RealPacket>(RealScalar(-0.0))), pset1<RealPacket>(RealScalar(1)));
+  RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
+  cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
+
   Packet result = Packet(pmul(expx, cisy));
 
   // If y is +/- 0, the input is real, so take the real result for consistency.
