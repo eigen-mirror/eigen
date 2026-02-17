@@ -73,12 +73,12 @@ void array_for_matrix(const MatrixType& m) {
   VERIFY_IS_EQUAL(m1.block(0, 0, rows, 0).rowwise().prod(), ColVectorType::Ones(rows));
 
   // verify the const accessors exist
-  const Scalar& ref_m1 = m.matrix().array().coeffRef(0);
-  const Scalar& ref_m2 = m.matrix().array().coeffRef(0, 0);
-  const Scalar& ref_a1 = m.array().matrix().coeffRef(0);
-  const Scalar& ref_a2 = m.array().matrix().coeffRef(0, 0);
-  VERIFY(&ref_a1 == &ref_m1);
-  VERIFY(&ref_a2 == &ref_m2);
+  const Scalar* ptr_m1 = &m.matrix().array().coeffRef(0);
+  const Scalar* ptr_m2 = &m.matrix().array().coeffRef(0, 0);
+  const Scalar* ptr_a1 = &m.array().matrix().coeffRef(0);
+  const Scalar* ptr_a2 = &m.array().matrix().coeffRef(0, 0);
+  VERIFY(ptr_a1 == ptr_m1);
+  VERIFY(ptr_a2 == ptr_m2);
 
   // Check write accessors:
   m1.array().coeffRef(0, 0) = 1;
