@@ -181,7 +181,7 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
    * \sa TriangularView::solve(), inverse(), computeInverse()
    */
   template <typename Rhs>
-  inline const Solve<PartialPivLU, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<PartialPivLU, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   /** \returns an estimate of the reciprocal condition number of the matrix of which \c *this is
@@ -199,7 +199,7 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
    *
    * \sa MatrixBase::inverse(), LU::inverse()
    */
-  inline const Inverse<PartialPivLU> inverse() const {
+  inline Inverse<PartialPivLU> inverse() const {
     eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
     return Inverse<PartialPivLU>(*this);
   }
@@ -562,8 +562,8 @@ struct Assignment<
  */
 template <typename Derived>
 template <typename PermutationIndex>
-inline const PartialPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
-MatrixBase<Derived>::partialPivLu() const {
+inline PartialPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::partialPivLu()
+    const {
   return PartialPivLU<PlainObject, PermutationIndex>(eval());
 }
 
@@ -577,7 +577,7 @@ MatrixBase<Derived>::partialPivLu() const {
  */
 template <typename Derived>
 template <typename PermutationIndex>
-inline const PartialPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::lu() const {
+inline PartialPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::lu() const {
   return PartialPivLU<PlainObject, PermutationIndex>(eval());
 }
 

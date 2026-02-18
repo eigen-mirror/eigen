@@ -310,7 +310,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    * \sa compute()
    */
   template <typename Rhs>
-  inline const Solve<SparseLU, Rhs> solve(const MatrixBase<Rhs>& B) const;
+  inline Solve<SparseLU, Rhs> solve(const MatrixBase<Rhs>& B) const;
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
   /** \brief Reports whether previous computation was successful.

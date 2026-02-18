@@ -244,7 +244,7 @@ class TriangularView
   }
 
   template <typename Other>
-  EIGEN_DEVICE_FUNC inline const Solve<TriangularView, Other> solve(const MatrixBase<Other>& other) const {
+  EIGEN_DEVICE_FUNC inline Solve<TriangularView, Other> solve(const MatrixBase<Other>& other) const {
     return Solve<TriangularView, Other>(*this, other.derived());
   }
 

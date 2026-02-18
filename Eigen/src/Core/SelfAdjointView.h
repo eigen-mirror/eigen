@@ -219,8 +219,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Cholesky module ///////////
 
-  const LLT<PlainObject, UpLo> llt() const;
-  const LDLT<PlainObject, UpLo> ldlt() const;
+  LLT<PlainObject, UpLo> llt() const;
+  LDLT<PlainObject, UpLo> ldlt() const;
 
   /////////// Eigenvalue module ///////////
 

@@ -158,7 +158,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
    * Output: \verbinclude ColPivHouseholderQR_solve.out
    */
   template <typename Rhs>
-  inline const Solve<ColPivHouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<ColPivHouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   HouseholderSequenceType householderQ() const;
@@ -318,7 +318,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
    * \note If this matrix is not invertible, the returned matrix has undefined coefficients.
    *       Use isInvertible() to first determine whether this matrix is invertible.
    */
-  inline const Inverse<ColPivHouseholderQR> inverse() const {
+  inline Inverse<ColPivHouseholderQR> inverse() const {
     eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
     return Inverse<ColPivHouseholderQR>(*this);
   }
@@ -664,7 +664,7 @@ ColPivHouseholderQR<MatrixType, PermutationIndex>::householderQ() const {
  */
 template <typename Derived>
 template <typename PermutationIndexType>
-const ColPivHouseholderQR<typename MatrixBase<Derived>::PlainObject, PermutationIndexType>
+ColPivHouseholderQR<typename MatrixBase<Derived>::PlainObject, PermutationIndexType>
 MatrixBase<Derived>::colPivHouseholderQr() const {
   return ColPivHouseholderQR<PlainObject, PermutationIndexType>(eval());
 }

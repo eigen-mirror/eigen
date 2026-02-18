@@ -156,7 +156,7 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
    * Output: \verbinclude HouseholderQR_solve.out
    */
   template <typename Rhs>
-  inline const Solve<HouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<HouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   /** This method returns an expression of the unitary matrix Q as a sequence of Householder transformations.
@@ -534,7 +534,7 @@ void HouseholderQR<MatrixType>::computeInPlace() {
  * \sa class HouseholderQR
  */
 template <typename Derived>
-const HouseholderQR<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::householderQr() const {
+HouseholderQR<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::householderQr() const {
   return HouseholderQR<PlainObject>(eval());
 }
 

@@ -247,7 +247,7 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
    * \sa TriangularView::solve(), kernel(), inverse()
    */
   template <typename Rhs>
-  inline const Solve<FullPivLU, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<FullPivLU, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   /** \returns an estimate of the reciprocal condition number of the matrix of which \c *this is
@@ -394,7 +394,7 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
    *
    * \sa MatrixBase::inverse()
    */
-  inline const Inverse<FullPivLU> inverse() const {
+  inline Inverse<FullPivLU> inverse() const {
     eigen_assert(m_isInitialized && "LU is not initialized.");
     eigen_assert(m_lu.rows() == m_lu.cols() && "You can't take the inverse of a non-square matrix!");
     return Inverse<FullPivLU>(*this);
@@ -816,8 +816,7 @@ struct Assignment<
  */
 template <typename Derived>
 template <typename PermutationIndex>
-inline const FullPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::fullPivLu()
-    const {
+inline FullPivLU<typename MatrixBase<Derived>::PlainObject, PermutationIndex> MatrixBase<Derived>::fullPivLu() const {
   return FullPivLU<PlainObject, PermutationIndex>(eval());
 }
 

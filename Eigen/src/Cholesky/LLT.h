@@ -139,7 +139,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * \sa solveInPlace(), MatrixBase::llt(), SelfAdjointView::llt()
    */
   template <typename Rhs>
-  inline const Solve<LLT, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<LLT, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   template <typename Derived>
@@ -497,7 +497,7 @@ MatrixType LLT<MatrixType, UpLo_>::reconstructedMatrix() const {
  * \sa SelfAdjointView::llt()
  */
 template <typename Derived>
-inline const LLT<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::llt() const {
+inline LLT<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>::llt() const {
   return LLT<PlainObject>(derived());
 }
 
@@ -506,7 +506,7 @@ inline const LLT<typename MatrixBase<Derived>::PlainObject> MatrixBase<Derived>:
  * \sa SelfAdjointView::llt()
  */
 template <typename MatrixType, unsigned int UpLo>
-inline const LLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfAdjointView<MatrixType, UpLo>::llt()
+inline LLT<typename SelfAdjointView<MatrixType, UpLo>::PlainObject, UpLo> SelfAdjointView<MatrixType, UpLo>::llt()
     const {
   return LLT<PlainObject, UpLo>(m_matrix);
 }

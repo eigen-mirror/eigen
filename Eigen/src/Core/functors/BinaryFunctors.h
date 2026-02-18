@@ -305,7 +305,7 @@ struct scalar_cmp_op<LhsScalar, RhsScalar, cmp_NEQ, UseTypedComparators> : binar
  */
 template <typename Scalar>
 struct scalar_hypot_op<Scalar, Scalar> : binary_op_base<Scalar, Scalar> {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x, const Scalar& y) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& x, const Scalar& y) const {
     // This functor is used by hypotNorm only for which it is faster to first apply abs
     // on all coefficients prior to reduction through hypot.
     // This way we avoid calling abs on positive and real entries, and this also permits
@@ -342,7 +342,7 @@ struct scalar_pow_op : binary_op_base<Scalar, Exponent> {
   }
 
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     return generic_pow(a, b);
   }
 };
@@ -368,12 +368,12 @@ struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
     return a - b;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     return internal::psub(a, b);
   }
 };
@@ -417,12 +417,12 @@ struct scalar_quotient_op : binary_op_base<LhsScalar, RhsScalar> {
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
     return a / b;
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     return internal::pdiv(a, b);
   }
 };
@@ -646,12 +646,12 @@ struct scalar_absolute_difference_op : binary_op_base<LhsScalar, RhsScalar> {
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
     return numext::absdiff(a, b);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {
     return internal::pabsdiff(a, b);
   }
 };
@@ -704,12 +704,12 @@ struct bind1st_op : BinaryOp {
 
   EIGEN_DEVICE_FUNC explicit bind1st_op(const first_argument_type& val) : m_value(val) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type operator()(const second_argument_type& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const second_argument_type& b) const {
     return BinaryOp::operator()(m_value, b);
   }
 
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& b) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& b) const {
     return BinaryOp::packetOp(internal::pset1<Packet>(m_value), b);
   }
 
@@ -726,12 +726,12 @@ struct bind2nd_op : BinaryOp {
 
   EIGEN_DEVICE_FUNC explicit bind2nd_op(const second_argument_type& val) : m_value(val) {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const result_type operator()(const first_argument_type& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type operator()(const first_argument_type& a) const {
     return BinaryOp::operator()(a, m_value);
   }
 
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
     return BinaryOp::packetOp(a, internal::pset1<Packet>(m_value));
   }
 

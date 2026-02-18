@@ -186,7 +186,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
    * Output: \verbinclude FullPivHouseholderQR_solve.out
    */
   template <typename Rhs>
-  inline const Solve<FullPivHouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
+  inline Solve<FullPivHouseholderQR, Rhs> solve(const MatrixBase<Rhs>& b) const;
 #endif
 
   /** \returns Expression object representing the matrix Q
@@ -339,7 +339,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
    * \note If this matrix is not invertible, the returned matrix has undefined coefficients.
    *       Use isInvertible() to first determine whether this matrix is invertible.
    */
-  inline const Inverse<FullPivHouseholderQR> inverse() const {
+  inline Inverse<FullPivHouseholderQR> inverse() const {
     eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
     return Inverse<FullPivHouseholderQR>(*this);
   }
@@ -723,7 +723,7 @@ FullPivHouseholderQR<MatrixType, PermutationIndex>::matrixQ() const {
  */
 template <typename Derived>
 template <typename PermutationIndex>
-const FullPivHouseholderQR<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
+FullPivHouseholderQR<typename MatrixBase<Derived>::PlainObject, PermutationIndex>
 MatrixBase<Derived>::fullPivHouseholderQr() const {
   return FullPivHouseholderQR<PlainObject, PermutationIndex>(eval());
 }
