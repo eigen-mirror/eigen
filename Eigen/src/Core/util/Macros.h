@@ -804,6 +804,15 @@
 // NOTE: Intel C++ Compiler Classic (icc) Version 19.0 and later supports dynamic allocation
 //       for over-aligned data, but not in a manner that is compatible with Eigen.
 //       See https://gitlab.com/libeigen/eigen/-/issues/2575
+// Does the compiler support C++17 if constexpr?
+#ifndef EIGEN_HAS_CXX17_IFCONSTEXPR
+#if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17 &&                                                            \
+    ((EIGEN_COMP_MSVC >= 1911) || (EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0)) || (EIGEN_CLANG_STRICT_AT_LEAST(3, 9, 0)) || \
+     (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE >= 10000000))
+#define EIGEN_HAS_CXX17_IFCONSTEXPR 1
+#endif
+#endif
+
 #ifndef EIGEN_HAS_CXX17_OVERALIGN
 #if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17 &&                                                            \
     ((EIGEN_COMP_MSVC >= 1912) || (EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0)) || (EIGEN_CLANG_STRICT_AT_LEAST(5, 0, 0)) || \

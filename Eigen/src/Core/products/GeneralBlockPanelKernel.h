@@ -125,6 +125,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
   // at the register level. This small horizontal panel has to stay within L1 cache.
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  const std::ptrdiff_t phys_l1 = l1;
 #ifdef EIGEN_VECTORIZE_AVX512
   // We need to find a rationale for that, but without this adjustment,
   // performance with AVX512 is pretty bad, like -20% slower.
@@ -219,16 +220,31 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       eigen_internal_assert(((old_k / k) == (old_k / max_kc)) && "the number of sweeps has to remain the same");
     }
 
+#ifdef EIGEN_VECTORIZE_AVX512
+    // The l1 *= 4 inflation above allows larger kc for better accumulator reuse,
+    // but can overfill the physical L1. Recompute max_kc using 85% of actual L1
+    // to leave headroom for RHS streaming, prefetch buffers, and stack.
+    {
+      const Index phys_l1_eff = phys_l1 * 85 / 100;
+      const Index max_kc_phys = numext::maxi<Index>(((phys_l1_eff - k_sub) / k_div) & (~(k_peeling - 1)), k_peeling);
+      if (max_kc_phys < k) {
+        k = (old_k % max_kc_phys) == 0 ? max_kc_phys
+                                       : max_kc_phys - k_peeling * ((max_kc_phys - 1 - (old_k % max_kc_phys)) /
+                                                                    (k_peeling * (old_k / max_kc_phys + 1)));
+      }
+    }
+#endif
+
 // ---- 2nd level of blocking on max(L2,L3), yields nc ----
 
-// TODO find a reliable way to get the actual amount of cache per core to use for 2nd level blocking, that is:
-//      actual_l2 = max(l2, l3/nb_core_sharing_l3)
-// The number below is quite conservative: it is better to underestimate the cache size rather than overestimating it)
-// For instance, it corresponds to 6MB of L3 shared among 4 cores.
+// Estimate the effective per-core L2 capacity for 2nd-level blocking.
+// Use 1.5x the runtime-detected L2 size. The extra 50% accounts for data
+// that spills to L3 but remains accessible with low latency. This matches
+// the empirically-tuned constant (1.5MB) previously used when L2 was 1MB.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
     const Index actual_l2 = l3;
 #else
-    const Index actual_l2 = 1572864;  // == 1.5 MB
+    const Index actual_l2 = l2 * 3 / 2;
 #endif
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
@@ -682,7 +698,7 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
 }
 
 template <typename Packet>
-struct unpacket_traits<DoublePacket<Packet> > {
+struct unpacket_traits<DoublePacket<Packet>> {
   typedef DoublePacket<typename unpacket_traits<Packet>::half> half;
   enum { size = 2 * unpacket_traits<Packet>::size };
 };
@@ -1084,339 +1100,262 @@ struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   }
 };
 
-template <int nr, Index LhsProgress, Index RhsProgress, typename LhsScalar, typename RhsScalar, typename ResScalar,
-          typename AccPacket, typename LhsPacket, typename RhsPacket, typename ResPacket, typename GEBPTraits,
-          typename LinearMapper, typename DataMapper>
-struct lhs_process_one_packet {
-  typedef typename GEBPTraits::RhsPacketx4 RhsPacketx4;
+// Compile-time recursive helper: processes RHS columns J..NrCols-1 for gebp_micro_onestep.
+// For each column, loads/updates the RHS panel and does madd for all MrPackets LHS packets.
+// The bool partial specialization terminates the recursion without requiring if constexpr.
+template <int J, int MrPackets, int NrCols, bool Continue = (J < NrCols)>
+struct gebp_rhs_cols;
 
-  EIGEN_STRONG_INLINE void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB, GEBPTraits traits,
-                                             LhsPacket* A0, RhsPacketx4* rhs_panel, RhsPacket* T0, AccPacket* C0,
-                                             AccPacket* C1, AccPacket* C2, AccPacket* C3) {
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1X4");
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");
-    traits.loadLhs(&blA[(0 + 1 * K) * LhsProgress], *A0);
-    traits.loadRhs(&blB[(0 + 4 * K) * RhsProgress], *rhs_panel);
-    traits.madd(*A0, *rhs_panel, *C0, *T0, fix<0>);
-    traits.madd(*A0, *rhs_panel, *C1, *T0, fix<1>);
-    traits.madd(*A0, *rhs_panel, *C2, *T0, fix<2>);
-    traits.madd(*A0, *rhs_panel, *C3, *T0, fix<3>);
-#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0) && defined(EIGEN_VECTORIZE_SSE) && !(EIGEN_COMP_LCC)
-    __asm__("" : "+x,m"(*A0));
-#endif
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 1X4");
+// Base case: J >= NrCols, do nothing.
+template <int J, int MrPackets, int NrCols>
+struct gebp_rhs_cols<J, MrPackets, NrCols, false> {
+  template <typename GEBPTraits, typename LhsArray, typename RhsPanelType, typename RhsPacketType, typename AccArray,
+            typename RhsScalar>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits&, const RhsScalar*, Index, LhsArray&, RhsPanelType&, RhsPacketType&,
+                                      AccArray&) {}
+};
+
+// Active case: J < NrCols.
+template <int J, int MrPackets, int NrCols>
+struct gebp_rhs_cols<J, MrPackets, NrCols, true> {
+  template <typename GEBPTraits, typename LhsArray, typename RhsPanelType, typename RhsPacketType, typename AccArray,
+            typename RhsScalar>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const RhsScalar* blB, Index rhs_offset, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C) {
+    constexpr int lane = J % 4;
+    EIGEN_IF_CONSTEXPR(lane == 0)
+    traits.loadRhs(blB + (J + rhs_offset) * GEBPTraits::RhsProgress, rhs_panel);
+    else traits.updateRhs(blB + (J + rhs_offset) * GEBPTraits::RhsProgress, rhs_panel);
+
+    EIGEN_IF_CONSTEXPR(MrPackets >= 1) traits.madd(A[0], rhs_panel, C[J + 0 * NrCols], T0, fix<lane>);
+    EIGEN_IF_CONSTEXPR(MrPackets >= 2) traits.madd(A[1], rhs_panel, C[J + 1 * NrCols], T0, fix<lane>);
+    EIGEN_IF_CONSTEXPR(MrPackets >= 3) traits.madd(A[2], rhs_panel, C[J + 2 * NrCols], T0, fix<lane>);
+
+    gebp_rhs_cols<J + 1, MrPackets, NrCols>::run(traits, blB, rhs_offset, A, rhs_panel, T0, C);
   }
+};
 
-  EIGEN_ALWAYS_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB,
-                                      ResScalar alpha, Index peelStart, Index peelEnd, Index strideA, Index strideB,
-                                      Index offsetA, Index offsetB, int prefetch_res_offset, Index peeled_kc, Index pk,
-                                      Index cols, Index depth, Index packet_cols4) {
-    GEBPTraits traits;
-    Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
-    // loops on each largest micro horizontal panel of lhs
-    // (LhsProgress x depth)
-    for (Index i = peelStart; i < peelEnd; i += LhsProgress) {
-#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
-      EIGEN_IF_CONSTEXPR(nr >= 8) {
-        for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
-          const LhsScalar* blA = &blockA[i * strideA + offsetA * (LhsProgress)];
-          prefetch(&blA[0]);
+// One step of the micro-kernel: loads MrPackets LHS packets at step K,
+// then processes NrCols RHS columns via gebp_rhs_cols.
+template <int K, int MrPackets, int NrCols>
+struct gebp_micro_step {
+  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsArray, typename RhsPanelType,
+            typename RhsPacketType, typename AccArray>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C) {
+    constexpr int LhsProg = GEBPTraits::LhsProgress;
 
-          // gets res block as register
-          AccPacket C0, C1, C2, C3, C4, C5, C6, C7;
-          traits.initAcc(C0);
-          traits.initAcc(C1);
-          traits.initAcc(C2);
-          traits.initAcc(C3);
-          traits.initAcc(C4);
-          traits.initAcc(C5);
-          traits.initAcc(C6);
-          traits.initAcc(C7);
+    EIGEN_IF_CONSTEXPR(MrPackets >= 1) traits.loadLhs(&blA[(0 + MrPackets * K) * LhsProg], A[0]);
+    EIGEN_IF_CONSTEXPR(MrPackets >= 2) traits.loadLhs(&blA[(1 + MrPackets * K) * LhsProg], A[1]);
+    EIGEN_IF_CONSTEXPR(MrPackets >= 3) traits.loadLhs(&blA[(2 + MrPackets * K) * LhsProg], A[2]);
 
-          LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-          LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-          LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-          LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
-          LinearMapper r4 = res.getLinearMapper(i, j2 + 4);
-          LinearMapper r5 = res.getLinearMapper(i, j2 + 5);
-          LinearMapper r6 = res.getLinearMapper(i, j2 + 6);
-          LinearMapper r7 = res.getLinearMapper(i, j2 + 7);
-          r0.prefetch(prefetch_res_offset);
-          r1.prefetch(prefetch_res_offset);
-          r2.prefetch(prefetch_res_offset);
-          r3.prefetch(prefetch_res_offset);
-          r4.prefetch(prefetch_res_offset);
-          r5.prefetch(prefetch_res_offset);
-          r6.prefetch(prefetch_res_offset);
-          r7.prefetch(prefetch_res_offset);
-          const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 8];
-          prefetch(&blB[0]);
+    gebp_rhs_cols<0, MrPackets, NrCols>::run(traits, blB, Index(NrCols * K), A, rhs_panel, T0, C);
+  }
+};
+// Compiler workaround macros used inside gebp_peeled_loop.
+#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON) && EIGEN_GNUC_STRICT_LESS_THAN(9, 0, 0)
+#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)            \
+  EIGEN_IF_CONSTEXPR((MrPackets == 3 && std::is_same<LhsPacketType, FullLhsPacket>::value)) { \
+    __asm__("" : "+w,m"(A[0]), "+w,m"(A[1]), "+w,m"(A[2]));                                   \
+  }
+#else
+#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)
+#endif
 
-          LhsPacket A0;
-          for (Index k = 0; k < peeled_kc; k += pk) {
-            RhsPacketx4 rhs_panel;
-            RhsPacket T0;
-#define EIGEN_GEBGP_ONESTEP(K)                                    \
-  do {                                                            \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1pX8");    \
-    traits.loadLhs(&blA[(0 + 1 * K) * LhsProgress], A0);          \
-    traits.loadRhs(&blB[(0 + 8 * K) * RhsProgress], rhs_panel);   \
-    traits.madd(A0, rhs_panel, C0, T0, fix<0>);                   \
-    traits.updateRhs(&blB[(1 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C1, T0, fix<1>);                   \
-    traits.updateRhs(&blB[(2 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C2, T0, fix<2>);                   \
-    traits.updateRhs(&blB[(3 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C3, T0, fix<3>);                   \
-    traits.loadRhs(&blB[(4 + 8 * K) * RhsProgress], rhs_panel);   \
-    traits.madd(A0, rhs_panel, C4, T0, fix<0>);                   \
-    traits.updateRhs(&blB[(5 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C5, T0, fix<1>);                   \
-    traits.updateRhs(&blB[(6 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C6, T0, fix<2>);                   \
-    traits.updateRhs(&blB[(7 + 8 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C7, T0, fix<3>);                   \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 1pX8");      \
+// GCC's register allocator can fail to keep array-based accumulators in XMM
+// registers, causing excessive spilling to the stack. Pin accumulators using
+// inline asm "+x" constraints.  The ACC pinning only works for plain SSE
+// vector types (not DoublePacket used by complex), so it requires if constexpr
+// (C++17) to safely discard the dead branch for complex types.
+// See Eigen bugs 935 and 1637.
+#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0) && defined(EIGEN_VECTORIZE_SSE)
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+// C++17: pin accumulators when they're plain SSE vectors (sizeof matches FullLhsPacket).
+// For complex types, AccPacket is a struct (DoublePacket) and the asm is safely discarded.
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)               \
+  EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value &&       \
+                      sizeof(ACC[0]) == sizeof(FullLhsPacket))) {                                                 \
+    EIGEN_IF_CONSTEXPR(MrPackets == 2 && NrCols == 4) {                                                           \
+      __asm__(""                                                                                                  \
+              : "+x"(ACC[0]), "+x"(ACC[1]), "+x"(ACC[2]), "+x"(ACC[3]), "+x"(ACC[4]), "+x"(ACC[5]), "+x"(ACC[6]), \
+                "+x"(ACC[7]));                                                                                    \
+    }                                                                                                             \
+    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                       \
+  }
+#else
+// C++14: only pin LHS packets (A), not accumulators, to avoid asm errors with complex types.
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)          \
+  EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value)) { \
+    EIGEN_IF_CONSTEXPR(MrPackets == 2) { __asm__("" : "+x,m"(A[0]), "+x,m"(A[1])); }                         \
+    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                  \
+  }
+#endif
+#if !(EIGEN_COMP_LCC)
+#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC) \
+  EIGEN_IF_CONSTEXPR(MrPackets == 1 && NrCols == 1) { __asm__("" : "+x,m"(A[0])); }
+#else
+#define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)
+#endif
+#else
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)
+#endif
+
+// Unrolled peeled loop body: calls gebp_micro_step for K=0..7, handling
+// double-accumulation for 1pX4, prefetches, and compiler workarounds.
+template <int MrPackets, int NrCols>
+struct gebp_peeled_loop {
+  template <typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename LhsArray, typename RhsPanelType,
+            typename RhsPacketType, typename AccArray, typename AccArrayD, typename FullLhsPacket>
+  static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB, LhsArray& A,
+                                      RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C, AccArrayD& D) {
+    using LhsPacketType = std::remove_all_extents_t<std::remove_reference_t<LhsArray>>;
+    constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
+
+    // Prefetch for 4-col paths
+    EIGEN_IF_CONSTEXPR(NrCols == 4) { internal::prefetch(blB + (48 + 0)); }
+
+    // Helper to do one step with workarounds
+#define EIGEN_GEBP_DO_STEP(KVAL, ACC)                                                           \
+  do {                                                                                          \
+    gebp_micro_step<KVAL, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, ACC);     \
+    /* ARM64 NEON register alloc workaround for 3-packet paths */                               \
+    EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)                  \
+    /* GCC SSE spilling workaround: pin LHS packets and accumulators in registers */            \
+    EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket) \
+    /* LHS prefetch for 2pX4 and 3pX4 */                                                        \
+    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                     \
+      internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);              \
+      if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                                  \
+        internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);               \
+      }                                                                                         \
+    }                                                                                           \
   } while (false)
 
-            EIGEN_ASM_COMMENT("begin gebp micro kernel 1pX8");
+    EIGEN_IF_CONSTEXPR(use_double_accum) {
+      EIGEN_GEBP_DO_STEP(0, C);
+      EIGEN_GEBP_DO_STEP(1, D);
+      EIGEN_GEBP_DO_STEP(2, C);
+      EIGEN_GEBP_DO_STEP(3, D);
+      EIGEN_IF_CONSTEXPR(NrCols == 4) { internal::prefetch(blB + (48 + 16)); }
+      EIGEN_GEBP_DO_STEP(4, C);
+      EIGEN_GEBP_DO_STEP(5, D);
+      EIGEN_GEBP_DO_STEP(6, C);
+      EIGEN_GEBP_DO_STEP(7, D);
+    }
+    else {
+      EIGEN_GEBP_DO_STEP(0, C);
+      EIGEN_GEBP_DO_STEP(1, C);
+      EIGEN_GEBP_DO_STEP(2, C);
+      EIGEN_GEBP_DO_STEP(3, C);
+      EIGEN_IF_CONSTEXPR(NrCols == 4 && MrPackets == 2) { internal::prefetch(blB + (48 + 16)); }
+      EIGEN_GEBP_DO_STEP(4, C);
+      EIGEN_GEBP_DO_STEP(5, C);
+      EIGEN_GEBP_DO_STEP(6, C);
+      EIGEN_GEBP_DO_STEP(7, C);
+    }
 
-            EIGEN_GEBGP_ONESTEP(0);
-            EIGEN_GEBGP_ONESTEP(1);
-            EIGEN_GEBGP_ONESTEP(2);
-            EIGEN_GEBGP_ONESTEP(3);
-            EIGEN_GEBGP_ONESTEP(4);
-            EIGEN_GEBGP_ONESTEP(5);
-            EIGEN_GEBGP_ONESTEP(6);
-            EIGEN_GEBGP_ONESTEP(7);
+#undef EIGEN_GEBP_DO_STEP
+  }
+};
 
-            blB += pk * 8 * RhsProgress;
-            blA += pk * (1 * LhsProgress);
+// Unified micro-panel function: handles a MrPackets x NrCols register block.
+// GEBPTraits determines the packet types (supports full/half/quarter sizes).
+// Accumulator layout: C[j + p * NrCols] for column j, LHS packet p.
+template <int MrPackets, int NrCols, typename GEBPTraits, typename LhsScalar_, typename RhsScalar_, typename ResScalar_,
+          typename Index_, typename DataMapper_, typename LinearMapper_, typename FullLhsPacket>
+EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMapper_& res, const LhsScalar_* blockA,
+                                               const RhsScalar_* blockB, ResScalar_ alpha, Index_ i, Index_ j2,
+                                               Index_ depth, Index_ strideA, Index_ strideB, Index_ offsetA,
+                                               Index_ offsetB, int prefetch_res_offset, Index_ peeled_kc, int pk) {
+  using LhsPacketLocal = typename GEBPTraits::LhsPacket;
+  using RhsPacketLocal = typename GEBPTraits::RhsPacket;
+  using ResPacketLocal = typename GEBPTraits::ResPacket;
+  using AccPacketLocal = typename GEBPTraits::AccPacket;
+  using RhsPacketx4Local = typename GEBPTraits::RhsPacketx4;
+  constexpr int LhsProg = GEBPTraits::LhsProgress;
+  constexpr int RhsProg = GEBPTraits::RhsProgress;
+  constexpr int ResPacketSz = GEBPTraits::ResPacketSize;
 
-            EIGEN_ASM_COMMENT("end gebp micro kernel 1pX8");
-          }
-          // process remaining peeled loop
-          for (Index k = peeled_kc; k < depth; k++) {
-            RhsPacketx4 rhs_panel;
-            RhsPacket T0;
-            EIGEN_GEBGP_ONESTEP(0);
-            blB += 8 * RhsProgress;
-            blA += 1 * LhsProgress;
-          }
+  // Determine RhsPanel type based on register pressure
+  using RhsPanelType = std::conditional_t<
+      NrCols == 1, RhsPacketLocal,
+      typename RhsPanelHelper<RhsPacketLocal, RhsPacketx4Local, MrPackets * NrCols + MrPackets>::type>;
 
-#undef EIGEN_GEBGP_ONESTEP
+  const LhsScalar_* blA = &blockA[i * strideA + offsetA * (MrPackets * LhsProg)];
+  prefetch(&blA[0]);
 
-          ResPacket R0, R1;
-          ResPacket alphav = pset1<ResPacket>(alpha);
+  // Accumulators: C[j + p * NrCols] for column j, LHS packet p.
+  // With if constexpr (C++17) we use exact sizes; with plain if (C++14) we pad
+  // to 3*NrCols so dead-branch array accesses in gebp_rhs_cols remain valid.
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+  constexpr int CSize = MrPackets * NrCols;
+#else
+  constexpr int CSize = 3 * NrCols > MrPackets * NrCols ? 3 * NrCols : MrPackets * NrCols;
+#endif
+  AccPacketLocal C[CSize];
+  for (int n = 0; n < MrPackets * NrCols; ++n) traits.initAcc(C[n]);
 
-          R0 = r0.template loadPacket<ResPacket>(0);
-          R1 = r1.template loadPacket<ResPacket>(0);
-          traits.acc(C0, alphav, R0);
-          traits.acc(C1, alphav, R1);
-          r0.storePacket(0, R0);
-          r1.storePacket(0, R1);
+  // Double-accumulation trick for 1pX4 path to break FMA dependency chains
+  constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
+  AccPacketLocal D[use_double_accum ? NrCols : 1];
+  EIGEN_IF_CONSTEXPR(use_double_accum) {
+    for (int n = 0; n < NrCols; ++n) traits.initAcc(D[n]);
+  }
 
-          R0 = r2.template loadPacket<ResPacket>(0);
-          R1 = r3.template loadPacket<ResPacket>(0);
-          traits.acc(C2, alphav, R0);
-          traits.acc(C3, alphav, R1);
-          r2.storePacket(0, R0);
-          r3.storePacket(0, R1);
+  // Prefetch result memory
+  for (int j = 0; j < NrCols; ++j) res.getLinearMapper(i, j2 + j).prefetch(NrCols > 1 ? prefetch_res_offset : 0);
 
-          R0 = r4.template loadPacket<ResPacket>(0);
-          R1 = r5.template loadPacket<ResPacket>(0);
-          traits.acc(C4, alphav, R0);
-          traits.acc(C5, alphav, R1);
-          r4.storePacket(0, R0);
-          r5.storePacket(0, R1);
+  // RHS pointer
+  const RhsScalar_* blB = &blockB[j2 * strideB + offsetB * NrCols];
+  prefetch(&blB[0]);
 
-          R0 = r6.template loadPacket<ResPacket>(0);
-          R1 = r7.template loadPacket<ResPacket>(0);
-          traits.acc(C6, alphav, R0);
-          traits.acc(C7, alphav, R1);
-          r6.storePacket(0, R0);
-          r7.storePacket(0, R1);
-        }
-      }
+  // LHS packet staging area. With if constexpr (C++17) we use exact sizes.
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
+  LhsPacketLocal A[MrPackets];
+#else
+  LhsPacketLocal A[3];
 #endif
 
-      // loops on each largest micro vertical panel of rhs (depth * nr)
-      for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
-        // We select a LhsProgress x nr micro block of res
-        // which is entirely stored into 1 x nr registers.
+  // ---- Peeled k-loop (pk=8 unrolled) ----
+  for (Index_ k = 0; k < peeled_kc; k += pk) {
+    RhsPanelType rhs_panel;
+    RhsPacketLocal T0;
 
-        const LhsScalar* blA = &blockA[i * strideA + offsetA * (LhsProgress)];
-        prefetch(&blA[0]);
+    gebp_peeled_loop<MrPackets, NrCols>::template run<GEBPTraits, LhsScalar_, RhsScalar_, decltype(A), RhsPanelType,
+                                                      RhsPacketLocal, decltype(C), decltype(D), FullLhsPacket>(
+        traits, blA, blB, A, rhs_panel, T0, C, D);
 
-        // gets res block as register
-        AccPacket C0, C1, C2, C3;
-        traits.initAcc(C0);
-        traits.initAcc(C1);
-        traits.initAcc(C2);
-        traits.initAcc(C3);
-        // To improve instruction pipelining, let's double the accumulation registers:
-        //  even k will accumulate in C*, while odd k will accumulate in D*.
-        // This trick is crucial to get good performance with FMA, otherwise it is
-        // actually faster to perform separated MUL+ADD because of a naturally
-        // better instruction-level parallelism.
-        AccPacket D0, D1, D2, D3;
-        traits.initAcc(D0);
-        traits.initAcc(D1);
-        traits.initAcc(D2);
-        traits.initAcc(D3);
+    blB += pk * NrCols * RhsProg;
+    blA += pk * MrPackets * LhsProg;
+  }
 
-        LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-        LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-        LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-        LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
+  // Merge double accumulators
+  EIGEN_IF_CONSTEXPR(use_double_accum) {
+    for (int n = 0; n < NrCols; ++n) C[n] = padd(C[n], D[n]);
+  }
 
-        r0.prefetch(prefetch_res_offset);
-        r1.prefetch(prefetch_res_offset);
-        r2.prefetch(prefetch_res_offset);
-        r3.prefetch(prefetch_res_offset);
+  // ---- Remainder k-loop ----
+  for (Index_ k = peeled_kc; k < depth; k++) {
+    RhsPanelType rhs_panel;
+    RhsPacketLocal T0;
 
-        // performs "inner" products
-        const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 4];
-        prefetch(&blB[0]);
-        LhsPacket A0, A1;
+    gebp_micro_step<0, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, C);
 
-        for (Index k = 0; k < peeled_kc; k += pk) {
-          EIGEN_ASM_COMMENT("begin gebp micro kernel 1/half/quarterX4");
-          RhsPacketx4 rhs_panel;
-          RhsPacket T0;
+    blB += NrCols * RhsProg;
+    blA += MrPackets * LhsProg;
+  }
 
-          internal::prefetch(blB + (48 + 0));
-          peeled_kc_onestep(0, blA, blB, traits, &A0, &rhs_panel, &T0, &C0, &C1, &C2, &C3);
-          peeled_kc_onestep(1, blA, blB, traits, &A1, &rhs_panel, &T0, &D0, &D1, &D2, &D3);
-          peeled_kc_onestep(2, blA, blB, traits, &A0, &rhs_panel, &T0, &C0, &C1, &C2, &C3);
-          peeled_kc_onestep(3, blA, blB, traits, &A1, &rhs_panel, &T0, &D0, &D1, &D2, &D3);
-          internal::prefetch(blB + (48 + 16));
-          peeled_kc_onestep(4, blA, blB, traits, &A0, &rhs_panel, &T0, &C0, &C1, &C2, &C3);
-          peeled_kc_onestep(5, blA, blB, traits, &A1, &rhs_panel, &T0, &D0, &D1, &D2, &D3);
-          peeled_kc_onestep(6, blA, blB, traits, &A0, &rhs_panel, &T0, &C0, &C1, &C2, &C3);
-          peeled_kc_onestep(7, blA, blB, traits, &A1, &rhs_panel, &T0, &D0, &D1, &D2, &D3);
-
-          blB += pk * 4 * RhsProgress;
-          blA += pk * LhsProgress;
-
-          EIGEN_ASM_COMMENT("end gebp micro kernel 1/half/quarterX4");
-        }
-        C0 = padd(C0, D0);
-        C1 = padd(C1, D1);
-        C2 = padd(C2, D2);
-        C3 = padd(C3, D3);
-
-        // process remaining peeled loop
-        for (Index k = peeled_kc; k < depth; k++) {
-          RhsPacketx4 rhs_panel;
-          RhsPacket T0;
-          peeled_kc_onestep(0, blA, blB, traits, &A0, &rhs_panel, &T0, &C0, &C1, &C2, &C3);
-          blB += 4 * RhsProgress;
-          blA += LhsProgress;
-        }
-
-        ResPacket R0, R1;
-        ResPacket alphav = pset1<ResPacket>(alpha);
-
-        R0 = r0.template loadPacket<ResPacket>(0);
-        R1 = r1.template loadPacket<ResPacket>(0);
-        traits.acc(C0, alphav, R0);
-        traits.acc(C1, alphav, R1);
-        r0.storePacket(0, R0);
-        r1.storePacket(0, R1);
-
-        R0 = r2.template loadPacket<ResPacket>(0);
-        R1 = r3.template loadPacket<ResPacket>(0);
-        traits.acc(C2, alphav, R0);
-        traits.acc(C3, alphav, R1);
-        r2.storePacket(0, R0);
-        r3.storePacket(0, R1);
-      }
-
-      // Deal with remaining columns of the rhs
-      for (Index j2 = packet_cols4; j2 < cols; j2++) {
-        // One column at a time
-        const LhsScalar* blA = &blockA[i * strideA + offsetA * (LhsProgress)];
-        prefetch(&blA[0]);
-
-        // gets res block as register
-        AccPacket C0;
-        traits.initAcc(C0);
-
-        LinearMapper r0 = res.getLinearMapper(i, j2);
-
-        // performs "inner" products
-        const RhsScalar* blB = &blockB[j2 * strideB + offsetB];
-        LhsPacket A0;
-
-        for (Index k = 0; k < peeled_kc; k += pk) {
-          EIGEN_ASM_COMMENT("begin gebp micro kernel 1/half/quarterX1");
-          RhsPacket B_0;
-
-#define EIGEN_GEBGP_ONESTEP(K)                                             \
-  do {                                                                     \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1/half/quarterX1"); \
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");    \
-    /* FIXME: why unaligned???? */                                         \
-    traits.loadLhsUnaligned(&blA[(0 + 1 * K) * LhsProgress], A0);          \
-    traits.loadRhs(&blB[(0 + K) * RhsProgress], B_0);                      \
-    traits.madd(A0, B_0, C0, B_0, fix<0>);                                 \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 1/half/quarterX1");   \
-  } while (false);
-
-          EIGEN_GEBGP_ONESTEP(0);
-          EIGEN_GEBGP_ONESTEP(1);
-          EIGEN_GEBGP_ONESTEP(2);
-          EIGEN_GEBGP_ONESTEP(3);
-          EIGEN_GEBGP_ONESTEP(4);
-          EIGEN_GEBGP_ONESTEP(5);
-          EIGEN_GEBGP_ONESTEP(6);
-          EIGEN_GEBGP_ONESTEP(7);
-
-          blB += pk * RhsProgress;
-          blA += pk * LhsProgress;
-
-          EIGEN_ASM_COMMENT("end gebp micro kernel 1/half/quarterX1");
-        }
-
-        // process remaining peeled loop
-        for (Index k = peeled_kc; k < depth; k++) {
-          RhsPacket B_0;
-          EIGEN_GEBGP_ONESTEP(0);
-          blB += RhsProgress;
-          blA += LhsProgress;
-        }
-#undef EIGEN_GEBGP_ONESTEP
-        ResPacket R0;
-        ResPacket alphav = pset1<ResPacket>(alpha);
-        R0 = r0.template loadPacket<ResPacket>(0);
-        traits.acc(C0, alphav, R0);
-        r0.storePacket(0, R0);
-      }
+  // ---- Store results: C[j + p * NrCols] -> res(i + p*ResPacketSz, j2 + j) ----
+  ResPacketLocal alphav = pset1<ResPacketLocal>(alpha);
+  for (int j = 0; j < NrCols; ++j) {
+    LinearMapper_ r = res.getLinearMapper(i, j2 + j);
+    for (int p = 0; p < MrPackets; ++p) {
+      ResPacketLocal R = r.template loadPacket<ResPacketLocal>(p * ResPacketSz);
+      traits.acc(C[j + p * NrCols], alphav, R);
+      r.storePacket(p * ResPacketSz, R);
     }
   }
-};
-
-template <int nr, Index LhsProgress, Index RhsProgress, typename LhsScalar, typename RhsScalar, typename ResScalar,
-          typename AccPacket, typename LhsPacket, typename RhsPacket, typename ResPacket, typename GEBPTraits,
-          typename LinearMapper, typename DataMapper>
-struct lhs_process_fraction_of_packet
-    : lhs_process_one_packet<nr, LhsProgress, RhsProgress, LhsScalar, RhsScalar, ResScalar, AccPacket, LhsPacket,
-                             RhsPacket, ResPacket, GEBPTraits, LinearMapper, DataMapper> {
-  EIGEN_STRONG_INLINE void peeled_kc_onestep(Index K, const LhsScalar* blA, const RhsScalar* blB, GEBPTraits traits,
-                                             LhsPacket* A0, RhsPacket* B_0, RhsPacket* B1, RhsPacket* B2, RhsPacket* B3,
-                                             AccPacket* C0, AccPacket* C1, AccPacket* C2, AccPacket* C3) {
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 1X4");
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");
-    traits.loadLhsUnaligned(&blA[(0 + 1 * K) * (LhsProgress)], *A0);
-    traits.broadcastRhs(&blB[(0 + 4 * K) * RhsProgress], *B_0, *B1, *B2, *B3);
-    traits.madd(*A0, *B_0, *C0, *B_0);
-    traits.madd(*A0, *B1, *C1, *B1);
-    traits.madd(*A0, *B2, *C2, *B2);
-    traits.madd(*A0, *B3, *C3, *B3);
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 1X4");
-  }
-};
+}
 
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs, bool ConjugateRhs>
@@ -1447,20 +1386,26 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   enum { pk = 8 };  // NOTE Such a large peeling factor is important for large matrices (~ +5% when >1000 on Haswell)
   const Index peeled_kc = depth & ~(pk - 1);
   const int prefetch_res_offset = 32 / sizeof(ResScalar);
-  //     const Index depth2     = depth & ~1;
+
+  // Helper to invoke gebp_micro_panel_impl with the right types.
+  // The always_inline attribute is critical: without it GCC outlines each
+  // template instantiation of this generic lambda as a separate function,
+  // adding call overhead that causes 10-17 % regressions in LLT/TRSM
+  // for small-to-medium matrix sizes.
+  auto micro_panel = [&](auto mrp_tag, auto nrc_tag, auto& local_traits, Index i, Index j2)
+      __attribute__((always_inline)) {
+    constexpr int MrP = decltype(mrp_tag)::value;
+    constexpr int NrC = decltype(nrc_tag)::value;
+    using LTraits = std::remove_reference_t<decltype(local_traits)>;
+    gebp_micro_panel_impl<MrP, NrC, LTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                          LhsPacket>(local_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB, offsetA,
+                                     offsetB, prefetch_res_offset, peeled_kc, pk);
+  };
 
   //---------- Process 3 * LhsProgress rows at once ----------
-  // This corresponds to 3*LhsProgress x nr register blocks.
-  // Usually, make sense only with FMA
-  if (mr >= 3 * Traits::LhsProgress) {
-    // Here, the general idea is to loop on each largest micro horizontal panel of the lhs (3*Traits::LhsProgress x
-    // depth) and on each largest micro vertical panel of the rhs (depth * nr). Blocking sizes, i.e., 'depth' has been
-    // computed so that the micro horizontal panel of the lhs fit in L1. However, if depth is too small, we can extend
-    // the number of rows of these horizontal panels. This actual number of rows is computed as follow:
-    const Index l1 = defaultL1CacheSize;  // in Bytes, TODO, l1 should be passed to this function.
-    // The max(1, ...) here is needed because we may be using blocking params larger than what our known l1 cache size
-    // suggests we should be using: either because our known l1 cache size is inaccurate (e.g. on Android, we can only
-    // guess), or because we are testing specific blocking sizes.
+  EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
+    std::ptrdiff_t l1, l2, l3;
+    manage_caching_sizes(GetAction, &l1, &l2, &l3);
     const Index actual_panel_rows =
         (3 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
                                                 (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
@@ -1470,859 +1415,108 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           for (Index i = i1; i < actual_panel_end; i += 3 * LhsProgress) {
-            const LhsScalar* blA = &blockA[i * strideA + offsetA * (3 * LhsProgress)];
-            prefetch(&blA[0]);
-            // gets res block as register
-            AccPacket C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20,
-                C21, C22, C23;
-            traits.initAcc(C0);
-            traits.initAcc(C1);
-            traits.initAcc(C2);
-            traits.initAcc(C3);
-            traits.initAcc(C4);
-            traits.initAcc(C5);
-            traits.initAcc(C6);
-            traits.initAcc(C7);
-            traits.initAcc(C8);
-            traits.initAcc(C9);
-            traits.initAcc(C10);
-            traits.initAcc(C11);
-            traits.initAcc(C12);
-            traits.initAcc(C13);
-            traits.initAcc(C14);
-            traits.initAcc(C15);
-            traits.initAcc(C16);
-            traits.initAcc(C17);
-            traits.initAcc(C18);
-            traits.initAcc(C19);
-            traits.initAcc(C20);
-            traits.initAcc(C21);
-            traits.initAcc(C22);
-            traits.initAcc(C23);
-
-            LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-            LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-            LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-            LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
-            LinearMapper r4 = res.getLinearMapper(i, j2 + 4);
-            LinearMapper r5 = res.getLinearMapper(i, j2 + 5);
-            LinearMapper r6 = res.getLinearMapper(i, j2 + 6);
-            LinearMapper r7 = res.getLinearMapper(i, j2 + 7);
-
-            r0.prefetch(0);
-            r1.prefetch(0);
-            r2.prefetch(0);
-            r3.prefetch(0);
-            r4.prefetch(0);
-            r5.prefetch(0);
-            r6.prefetch(0);
-            r7.prefetch(0);
-
-            // performs "inner" products
-            const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 8];
-            prefetch(&blB[0]);
-            LhsPacket A0, A1;
-            for (Index k = 0; k < peeled_kc; k += pk) {
-              EIGEN_ASM_COMMENT("begin gebp micro kernel 3pX8");
-              // 27 registers are taken (24 for acc, 3 for lhs).
-              RhsPanel27 rhs_panel;
-              RhsPacket T0;
-              LhsPacket A2;
-#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON) && EIGEN_GNUC_STRICT_LESS_THAN(9, 0, 0)
-// see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1633
-// without this workaround A0, A1, and A2 are loaded in the same register,
-// which is not good for pipelining
-#define EIGEN_GEBP_3Px8_REGISTER_ALLOC_WORKAROUND __asm__("" : "+w,m"(A0), "+w,m"(A1), "+w,m"(A2));
-#else
-#define EIGEN_GEBP_3Px8_REGISTER_ALLOC_WORKAROUND
-#endif
-
-#define EIGEN_GEBP_ONESTEP(K)                                                                                     \
-  do {                                                                                                            \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 3pX8");                                                    \
-    traits.loadLhs(&blA[(0 + 3 * K) * LhsProgress], A0);                                                          \
-    traits.loadLhs(&blA[(1 + 3 * K) * LhsProgress], A1);                                                          \
-    traits.loadLhs(&blA[(2 + 3 * K) * LhsProgress], A2);                                                          \
-    EIGEN_GEBP_3Px8_REGISTER_ALLOC_WORKAROUND traits.loadRhs(blB + (0 + 8 * K) * Traits::RhsProgress, rhs_panel); \
-    traits.madd(A0, rhs_panel, C0, T0, fix<0>);                                                                   \
-    traits.madd(A1, rhs_panel, C8, T0, fix<0>);                                                                   \
-    traits.madd(A2, rhs_panel, C16, T0, fix<0>);                                                                  \
-    traits.updateRhs(blB + (1 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C1, T0, fix<1>);                                                                   \
-    traits.madd(A1, rhs_panel, C9, T0, fix<1>);                                                                   \
-    traits.madd(A2, rhs_panel, C17, T0, fix<1>);                                                                  \
-    traits.updateRhs(blB + (2 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C2, T0, fix<2>);                                                                   \
-    traits.madd(A1, rhs_panel, C10, T0, fix<2>);                                                                  \
-    traits.madd(A2, rhs_panel, C18, T0, fix<2>);                                                                  \
-    traits.updateRhs(blB + (3 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C3, T0, fix<3>);                                                                   \
-    traits.madd(A1, rhs_panel, C11, T0, fix<3>);                                                                  \
-    traits.madd(A2, rhs_panel, C19, T0, fix<3>);                                                                  \
-    traits.loadRhs(blB + (4 + 8 * K) * Traits::RhsProgress, rhs_panel);                                           \
-    traits.madd(A0, rhs_panel, C4, T0, fix<0>);                                                                   \
-    traits.madd(A1, rhs_panel, C12, T0, fix<0>);                                                                  \
-    traits.madd(A2, rhs_panel, C20, T0, fix<0>);                                                                  \
-    traits.updateRhs(blB + (5 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C5, T0, fix<1>);                                                                   \
-    traits.madd(A1, rhs_panel, C13, T0, fix<1>);                                                                  \
-    traits.madd(A2, rhs_panel, C21, T0, fix<1>);                                                                  \
-    traits.updateRhs(blB + (6 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C6, T0, fix<2>);                                                                   \
-    traits.madd(A1, rhs_panel, C14, T0, fix<2>);                                                                  \
-    traits.madd(A2, rhs_panel, C22, T0, fix<2>);                                                                  \
-    traits.updateRhs(blB + (7 + 8 * K) * Traits::RhsProgress, rhs_panel);                                         \
-    traits.madd(A0, rhs_panel, C7, T0, fix<3>);                                                                   \
-    traits.madd(A1, rhs_panel, C15, T0, fix<3>);                                                                  \
-    traits.madd(A2, rhs_panel, C23, T0, fix<3>);                                                                  \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 3pX8");                                                      \
-  } while (false)
-
-              EIGEN_GEBP_ONESTEP(0);
-              EIGEN_GEBP_ONESTEP(1);
-              EIGEN_GEBP_ONESTEP(2);
-              EIGEN_GEBP_ONESTEP(3);
-              EIGEN_GEBP_ONESTEP(4);
-              EIGEN_GEBP_ONESTEP(5);
-              EIGEN_GEBP_ONESTEP(6);
-              EIGEN_GEBP_ONESTEP(7);
-
-              blB += pk * 8 * RhsProgress;
-              blA += pk * 3 * Traits::LhsProgress;
-              EIGEN_ASM_COMMENT("end gebp micro kernel 3pX8");
-            }
-
-            // process remaining peeled loop
-            for (Index k = peeled_kc; k < depth; k++) {
-              RhsPanel27 rhs_panel;
-              RhsPacket T0;
-              LhsPacket A2;
-              EIGEN_GEBP_ONESTEP(0);
-              blB += 8 * RhsProgress;
-              blA += 3 * Traits::LhsProgress;
-            }
-
-#undef EIGEN_GEBP_ONESTEP
-
-            ResPacket R0, R1, R2;
-            ResPacket alphav = pset1<ResPacket>(alpha);
-
-            R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r0.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C0, alphav, R0);
-            traits.acc(C8, alphav, R1);
-            traits.acc(C16, alphav, R2);
-            r0.storePacket(0 * Traits::ResPacketSize, R0);
-            r0.storePacket(1 * Traits::ResPacketSize, R1);
-            r0.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r1.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r1.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r1.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C1, alphav, R0);
-            traits.acc(C9, alphav, R1);
-            traits.acc(C17, alphav, R2);
-            r1.storePacket(0 * Traits::ResPacketSize, R0);
-            r1.storePacket(1 * Traits::ResPacketSize, R1);
-            r1.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r2.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r2.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r2.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C2, alphav, R0);
-            traits.acc(C10, alphav, R1);
-            traits.acc(C18, alphav, R2);
-            r2.storePacket(0 * Traits::ResPacketSize, R0);
-            r2.storePacket(1 * Traits::ResPacketSize, R1);
-            r2.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r3.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r3.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r3.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C3, alphav, R0);
-            traits.acc(C11, alphav, R1);
-            traits.acc(C19, alphav, R2);
-            r3.storePacket(0 * Traits::ResPacketSize, R0);
-            r3.storePacket(1 * Traits::ResPacketSize, R1);
-            r3.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r4.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r4.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r4.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C4, alphav, R0);
-            traits.acc(C12, alphav, R1);
-            traits.acc(C20, alphav, R2);
-            r4.storePacket(0 * Traits::ResPacketSize, R0);
-            r4.storePacket(1 * Traits::ResPacketSize, R1);
-            r4.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r5.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r5.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r5.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C5, alphav, R0);
-            traits.acc(C13, alphav, R1);
-            traits.acc(C21, alphav, R2);
-            r5.storePacket(0 * Traits::ResPacketSize, R0);
-            r5.storePacket(1 * Traits::ResPacketSize, R1);
-            r5.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r6.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r6.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r6.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C6, alphav, R0);
-            traits.acc(C14, alphav, R1);
-            traits.acc(C22, alphav, R2);
-            r6.storePacket(0 * Traits::ResPacketSize, R0);
-            r6.storePacket(1 * Traits::ResPacketSize, R1);
-            r6.storePacket(2 * Traits::ResPacketSize, R2);
-
-            R0 = r7.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r7.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r7.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-            traits.acc(C7, alphav, R0);
-            traits.acc(C15, alphav, R1);
-            traits.acc(C23, alphav, R2);
-            r7.storePacket(0 * Traits::ResPacketSize, R0);
-            r7.storePacket(1 * Traits::ResPacketSize, R1);
-            r7.storePacket(2 * Traits::ResPacketSize, R2);
+            micro_panel(fix<3>, fix<8>, traits, i, j2);
           }
         }
       }
 #endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         for (Index i = i1; i < actual_panel_end; i += 3 * LhsProgress) {
-          // We selected a 3*Traits::LhsProgress x nr micro block of res which is entirely
-          // stored into 3 x nr registers.
-
-          const LhsScalar* blA = &blockA[i * strideA + offsetA * (3 * LhsProgress)];
-          prefetch(&blA[0]);
-
-          // gets res block as register
-          AccPacket C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11;
-          traits.initAcc(C0);
-          traits.initAcc(C1);
-          traits.initAcc(C2);
-          traits.initAcc(C3);
-          traits.initAcc(C4);
-          traits.initAcc(C5);
-          traits.initAcc(C6);
-          traits.initAcc(C7);
-          traits.initAcc(C8);
-          traits.initAcc(C9);
-          traits.initAcc(C10);
-          traits.initAcc(C11);
-
-          LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-          LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-          LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-          LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
-
-          r0.prefetch(0);
-          r1.prefetch(0);
-          r2.prefetch(0);
-          r3.prefetch(0);
-
-          // performs "inner" products
-          const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 4];
-          prefetch(&blB[0]);
-          LhsPacket A0, A1;
-
-          for (Index k = 0; k < peeled_kc; k += pk) {
-            EIGEN_ASM_COMMENT("begin gebp micro kernel 3pX4");
-            // 15 registers are taken (12 for acc, 3 for lhs).
-            RhsPanel15 rhs_panel;
-            RhsPacket T0;
-            LhsPacket A2;
-#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON) && EIGEN_GNUC_STRICT_LESS_THAN(9, 0, 0)
-// see http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1633
-// without this workaround A0, A1, and A2 are loaded in the same register,
-// which is not good for pipelining
-#define EIGEN_GEBP_3PX4_REGISTER_ALLOC_WORKAROUND __asm__("" : "+w,m"(A0), "+w,m"(A1), "+w,m"(A2));
-#else
-#define EIGEN_GEBP_3PX4_REGISTER_ALLOC_WORKAROUND
-#endif
-#define EIGEN_GEBP_ONESTEP(K)                                             \
-  do {                                                                    \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 3pX4");            \
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!");   \
-    internal::prefetch(blA + (3 * K + 16) * LhsProgress);                 \
-    if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                              \
-      internal::prefetch(blB + (4 * K + 16) * RhsProgress);               \
-    } /* Bug 953 */                                                       \
-    traits.loadLhs(&blA[(0 + 3 * K) * LhsProgress], A0);                  \
-    traits.loadLhs(&blA[(1 + 3 * K) * LhsProgress], A1);                  \
-    traits.loadLhs(&blA[(2 + 3 * K) * LhsProgress], A2);                  \
-    EIGEN_GEBP_3PX4_REGISTER_ALLOC_WORKAROUND                             \
-    traits.loadRhs(blB + (0 + 4 * K) * Traits::RhsProgress, rhs_panel);   \
-    traits.madd(A0, rhs_panel, C0, T0, fix<0>);                           \
-    traits.madd(A1, rhs_panel, C4, T0, fix<0>);                           \
-    traits.madd(A2, rhs_panel, C8, T0, fix<0>);                           \
-    traits.updateRhs(blB + (1 + 4 * K) * Traits::RhsProgress, rhs_panel); \
-    traits.madd(A0, rhs_panel, C1, T0, fix<1>);                           \
-    traits.madd(A1, rhs_panel, C5, T0, fix<1>);                           \
-    traits.madd(A2, rhs_panel, C9, T0, fix<1>);                           \
-    traits.updateRhs(blB + (2 + 4 * K) * Traits::RhsProgress, rhs_panel); \
-    traits.madd(A0, rhs_panel, C2, T0, fix<2>);                           \
-    traits.madd(A1, rhs_panel, C6, T0, fix<2>);                           \
-    traits.madd(A2, rhs_panel, C10, T0, fix<2>);                          \
-    traits.updateRhs(blB + (3 + 4 * K) * Traits::RhsProgress, rhs_panel); \
-    traits.madd(A0, rhs_panel, C3, T0, fix<3>);                           \
-    traits.madd(A1, rhs_panel, C7, T0, fix<3>);                           \
-    traits.madd(A2, rhs_panel, C11, T0, fix<3>);                          \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 3pX4");              \
-  } while (false)
-
-            internal::prefetch(blB);
-            EIGEN_GEBP_ONESTEP(0);
-            EIGEN_GEBP_ONESTEP(1);
-            EIGEN_GEBP_ONESTEP(2);
-            EIGEN_GEBP_ONESTEP(3);
-            EIGEN_GEBP_ONESTEP(4);
-            EIGEN_GEBP_ONESTEP(5);
-            EIGEN_GEBP_ONESTEP(6);
-            EIGEN_GEBP_ONESTEP(7);
-
-            blB += pk * 4 * RhsProgress;
-            blA += pk * 3 * Traits::LhsProgress;
-
-            EIGEN_ASM_COMMENT("end gebp micro kernel 3pX4");
-          }
-          // process remaining peeled loop
-          for (Index k = peeled_kc; k < depth; k++) {
-            RhsPanel15 rhs_panel;
-            RhsPacket T0;
-            LhsPacket A2;
-            EIGEN_GEBP_ONESTEP(0);
-            blB += 4 * RhsProgress;
-            blA += 3 * Traits::LhsProgress;
-          }
-
-#undef EIGEN_GEBP_ONESTEP
-
-          ResPacket R0, R1, R2;
-          ResPacket alphav = pset1<ResPacket>(alpha);
-
-          R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r0.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-          traits.acc(C0, alphav, R0);
-          traits.acc(C4, alphav, R1);
-          traits.acc(C8, alphav, R2);
-          r0.storePacket(0 * Traits::ResPacketSize, R0);
-          r0.storePacket(1 * Traits::ResPacketSize, R1);
-          r0.storePacket(2 * Traits::ResPacketSize, R2);
-
-          R0 = r1.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r1.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r1.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-          traits.acc(C1, alphav, R0);
-          traits.acc(C5, alphav, R1);
-          traits.acc(C9, alphav, R2);
-          r1.storePacket(0 * Traits::ResPacketSize, R0);
-          r1.storePacket(1 * Traits::ResPacketSize, R1);
-          r1.storePacket(2 * Traits::ResPacketSize, R2);
-
-          R0 = r2.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r2.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r2.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-          traits.acc(C2, alphav, R0);
-          traits.acc(C6, alphav, R1);
-          traits.acc(C10, alphav, R2);
-          r2.storePacket(0 * Traits::ResPacketSize, R0);
-          r2.storePacket(1 * Traits::ResPacketSize, R1);
-          r2.storePacket(2 * Traits::ResPacketSize, R2);
-
-          R0 = r3.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r3.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r3.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-          traits.acc(C3, alphav, R0);
-          traits.acc(C7, alphav, R1);
-          traits.acc(C11, alphav, R2);
-          r3.storePacket(0 * Traits::ResPacketSize, R0);
-          r3.storePacket(1 * Traits::ResPacketSize, R1);
-          r3.storePacket(2 * Traits::ResPacketSize, R2);
+          micro_panel(fix<3>, fix<4>, traits, i, j2);
         }
       }
-
-      // Deal with remaining columns of the rhs
       for (Index j2 = packet_cols4; j2 < cols; j2++) {
         for (Index i = i1; i < actual_panel_end; i += 3 * LhsProgress) {
-          // One column at a time
-          const LhsScalar* blA = &blockA[i * strideA + offsetA * (3 * Traits::LhsProgress)];
-          prefetch(&blA[0]);
-
-          // gets res block as register
-          AccPacket C0, C4, C8;
-          traits.initAcc(C0);
-          traits.initAcc(C4);
-          traits.initAcc(C8);
-
-          LinearMapper r0 = res.getLinearMapper(i, j2);
-          r0.prefetch(0);
-
-          // performs "inner" products
-          const RhsScalar* blB = &blockB[j2 * strideB + offsetB];
-          LhsPacket A0, A1, A2;
-
-          for (Index k = 0; k < peeled_kc; k += pk) {
-            EIGEN_ASM_COMMENT("begin gebp micro kernel 3pX1");
-            RhsPacket B_0;
-#define EIGEN_GEBGP_ONESTEP(K)                                          \
-  do {                                                                  \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 3pX1");          \
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!"); \
-    traits.loadLhs(&blA[(0 + 3 * K) * LhsProgress], A0);                \
-    traits.loadLhs(&blA[(1 + 3 * K) * LhsProgress], A1);                \
-    traits.loadLhs(&blA[(2 + 3 * K) * LhsProgress], A2);                \
-    traits.loadRhs(&blB[(0 + K) * RhsProgress], B_0);                   \
-    traits.madd(A0, B_0, C0, B_0, fix<0>);                              \
-    traits.madd(A1, B_0, C4, B_0, fix<0>);                              \
-    traits.madd(A2, B_0, C8, B_0, fix<0>);                              \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 3pX1");            \
-  } while (false)
-
-            EIGEN_GEBGP_ONESTEP(0);
-            EIGEN_GEBGP_ONESTEP(1);
-            EIGEN_GEBGP_ONESTEP(2);
-            EIGEN_GEBGP_ONESTEP(3);
-            EIGEN_GEBGP_ONESTEP(4);
-            EIGEN_GEBGP_ONESTEP(5);
-            EIGEN_GEBGP_ONESTEP(6);
-            EIGEN_GEBGP_ONESTEP(7);
-
-            blB += int(pk) * int(RhsProgress);
-            blA += int(pk) * 3 * int(Traits::LhsProgress);
-
-            EIGEN_ASM_COMMENT("end gebp micro kernel 3pX1");
-          }
-
-          // process remaining peeled loop
-          for (Index k = peeled_kc; k < depth; k++) {
-            RhsPacket B_0;
-            EIGEN_GEBGP_ONESTEP(0);
-            blB += RhsProgress;
-            blA += 3 * Traits::LhsProgress;
-          }
-#undef EIGEN_GEBGP_ONESTEP
-          ResPacket R0, R1, R2;
-          ResPacket alphav = pset1<ResPacket>(alpha);
-
-          R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r0.template loadPacket<ResPacket>(2 * Traits::ResPacketSize);
-          traits.acc(C0, alphav, R0);
-          traits.acc(C4, alphav, R1);
-          traits.acc(C8, alphav, R2);
-          r0.storePacket(0 * Traits::ResPacketSize, R0);
-          r0.storePacket(1 * Traits::ResPacketSize, R1);
-          r0.storePacket(2 * Traits::ResPacketSize, R2);
+          micro_panel(fix<3>, fix<1>, traits, i, j2);
         }
       }
     }
   }
 
   //---------- Process 2 * LhsProgress rows at once ----------
-  if (mr >= 2 * Traits::LhsProgress) {
-    const Index l1 = defaultL1CacheSize;  // in Bytes, TODO, l1 should be passed to this function.
-    // The max(1, ...) here is needed because we may be using blocking params larger than what our known l1 cache size
-    // suggests we should be using: either because our known l1 cache size is inaccurate (e.g. on Android, we can only
-    // guess), or because we are testing specific blocking sizes.
+  EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
+    std::ptrdiff_t l1, l2, l3;
+    manage_caching_sizes(GetAction, &l1, &l2, &l3);
     Index actual_panel_rows =
         (2 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
                                                 (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
-
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
       EIGEN_IF_CONSTEXPR(nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
           for (Index i = i1; i < actual_panel_end; i += 2 * LhsProgress) {
-            const LhsScalar* blA = &blockA[i * strideA + offsetA * (2 * Traits::LhsProgress)];
-            prefetch(&blA[0]);
-
-            AccPacket C0, C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15;
-            traits.initAcc(C0);
-            traits.initAcc(C1);
-            traits.initAcc(C2);
-            traits.initAcc(C3);
-            traits.initAcc(C4);
-            traits.initAcc(C5);
-            traits.initAcc(C6);
-            traits.initAcc(C7);
-            traits.initAcc(C8);
-            traits.initAcc(C9);
-            traits.initAcc(C10);
-            traits.initAcc(C11);
-            traits.initAcc(C12);
-            traits.initAcc(C13);
-            traits.initAcc(C14);
-            traits.initAcc(C15);
-
-            LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-            LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-            LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-            LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
-            LinearMapper r4 = res.getLinearMapper(i, j2 + 4);
-            LinearMapper r5 = res.getLinearMapper(i, j2 + 5);
-            LinearMapper r6 = res.getLinearMapper(i, j2 + 6);
-            LinearMapper r7 = res.getLinearMapper(i, j2 + 7);
-            r0.prefetch(prefetch_res_offset);
-            r1.prefetch(prefetch_res_offset);
-            r2.prefetch(prefetch_res_offset);
-            r3.prefetch(prefetch_res_offset);
-            r4.prefetch(prefetch_res_offset);
-            r5.prefetch(prefetch_res_offset);
-            r6.prefetch(prefetch_res_offset);
-            r7.prefetch(prefetch_res_offset);
-
-            const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 8];
-            prefetch(&blB[0]);
-            LhsPacket A0, A1;
-            for (Index k = 0; k < peeled_kc; k += pk) {
-              RhsPacketx4 rhs_panel;
-              RhsPacket T0;
-// NOTE: the begin/end asm comments below work around bug 935!
-// but they are not enough for gcc>=6 without FMA (bug 1637)
-#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0) && defined(EIGEN_VECTORIZE_SSE)
-#define EIGEN_GEBP_2Px8_SPILLING_WORKAROUND __asm__("" : [a0] "+x,m"(A0), [a1] "+x,m"(A1));
-#else
-#define EIGEN_GEBP_2Px8_SPILLING_WORKAROUND
-#endif
-#define EIGEN_GEBGP_ONESTEP(K)                                                                   \
-  do {                                                                                           \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 2pX8");                                   \
-    traits.loadLhs(&blA[(0 + 2 * K) * LhsProgress], A0);                                         \
-    traits.loadLhs(&blA[(1 + 2 * K) * LhsProgress], A1);                                         \
-    traits.loadRhs(&blB[(0 + 8 * K) * RhsProgress], rhs_panel);                                  \
-    traits.madd(A0, rhs_panel, C0, T0, fix<0>);                                                  \
-    traits.madd(A1, rhs_panel, C8, T0, fix<0>);                                                  \
-    traits.updateRhs(&blB[(1 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C1, T0, fix<1>);                                                  \
-    traits.madd(A1, rhs_panel, C9, T0, fix<1>);                                                  \
-    traits.updateRhs(&blB[(2 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C2, T0, fix<2>);                                                  \
-    traits.madd(A1, rhs_panel, C10, T0, fix<2>);                                                 \
-    traits.updateRhs(&blB[(3 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C3, T0, fix<3>);                                                  \
-    traits.madd(A1, rhs_panel, C11, T0, fix<3>);                                                 \
-    traits.loadRhs(&blB[(4 + 8 * K) * RhsProgress], rhs_panel);                                  \
-    traits.madd(A0, rhs_panel, C4, T0, fix<0>);                                                  \
-    traits.madd(A1, rhs_panel, C12, T0, fix<0>);                                                 \
-    traits.updateRhs(&blB[(5 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C5, T0, fix<1>);                                                  \
-    traits.madd(A1, rhs_panel, C13, T0, fix<1>);                                                 \
-    traits.updateRhs(&blB[(6 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C6, T0, fix<2>);                                                  \
-    traits.madd(A1, rhs_panel, C14, T0, fix<2>);                                                 \
-    traits.updateRhs(&blB[(7 + 8 * K) * RhsProgress], rhs_panel);                                \
-    traits.madd(A0, rhs_panel, C7, T0, fix<3>);                                                  \
-    traits.madd(A1, rhs_panel, C15, T0, fix<3>);                                                 \
-    EIGEN_GEBP_2Px8_SPILLING_WORKAROUND EIGEN_ASM_COMMENT("end step of gebp micro kernel 2pX8"); \
-  } while (false)
-
-              EIGEN_ASM_COMMENT("begin gebp micro kernel 2pX8");
-
-              EIGEN_GEBGP_ONESTEP(0);
-              EIGEN_GEBGP_ONESTEP(1);
-              EIGEN_GEBGP_ONESTEP(2);
-              EIGEN_GEBGP_ONESTEP(3);
-              EIGEN_GEBGP_ONESTEP(4);
-              EIGEN_GEBGP_ONESTEP(5);
-              EIGEN_GEBGP_ONESTEP(6);
-              EIGEN_GEBGP_ONESTEP(7);
-
-              blB += pk * 8 * RhsProgress;
-              blA += pk * (2 * Traits::LhsProgress);
-
-              EIGEN_ASM_COMMENT("end gebp micro kernel 2pX8");
-            }
-            // process remaining peeled loop
-            for (Index k = peeled_kc; k < depth; k++) {
-              RhsPacketx4 rhs_panel;
-              RhsPacket T0;
-              EIGEN_GEBGP_ONESTEP(0);
-              blB += 8 * RhsProgress;
-              blA += 2 * Traits::LhsProgress;
-            }
-
-#undef EIGEN_GEBGP_ONESTEP
-
-            ResPacket R0, R1, R2, R3;
-            ResPacket alphav = pset1<ResPacket>(alpha);
-
-            R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r1.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R3 = r1.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            traits.acc(C0, alphav, R0);
-            traits.acc(C8, alphav, R1);
-            traits.acc(C1, alphav, R2);
-            traits.acc(C9, alphav, R3);
-            r0.storePacket(0 * Traits::ResPacketSize, R0);
-            r0.storePacket(1 * Traits::ResPacketSize, R1);
-            r1.storePacket(0 * Traits::ResPacketSize, R2);
-            r1.storePacket(1 * Traits::ResPacketSize, R3);
-
-            R0 = r2.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r2.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r3.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R3 = r3.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            traits.acc(C2, alphav, R0);
-            traits.acc(C10, alphav, R1);
-            traits.acc(C3, alphav, R2);
-            traits.acc(C11, alphav, R3);
-            r2.storePacket(0 * Traits::ResPacketSize, R0);
-            r2.storePacket(1 * Traits::ResPacketSize, R1);
-            r3.storePacket(0 * Traits::ResPacketSize, R2);
-            r3.storePacket(1 * Traits::ResPacketSize, R3);
-
-            R0 = r4.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r4.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r5.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R3 = r5.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            traits.acc(C4, alphav, R0);
-            traits.acc(C12, alphav, R1);
-            traits.acc(C5, alphav, R2);
-            traits.acc(C13, alphav, R3);
-            r4.storePacket(0 * Traits::ResPacketSize, R0);
-            r4.storePacket(1 * Traits::ResPacketSize, R1);
-            r5.storePacket(0 * Traits::ResPacketSize, R2);
-            r5.storePacket(1 * Traits::ResPacketSize, R3);
-
-            R0 = r6.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R1 = r6.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            R2 = r7.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-            R3 = r7.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-            traits.acc(C6, alphav, R0);
-            traits.acc(C14, alphav, R1);
-            traits.acc(C7, alphav, R2);
-            traits.acc(C15, alphav, R3);
-            r6.storePacket(0 * Traits::ResPacketSize, R0);
-            r6.storePacket(1 * Traits::ResPacketSize, R1);
-            r7.storePacket(0 * Traits::ResPacketSize, R2);
-            r7.storePacket(1 * Traits::ResPacketSize, R3);
+            micro_panel(fix<2>, fix<8>, traits, i, j2);
           }
         }
       }
 #endif
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         for (Index i = i1; i < actual_panel_end; i += 2 * LhsProgress) {
-          // We selected a 2*Traits::LhsProgress x nr micro block of res which is entirely
-          // stored into 2 x nr registers.
-
-          const LhsScalar* blA = &blockA[i * strideA + offsetA * (2 * Traits::LhsProgress)];
-          prefetch(&blA[0]);
-
-          // gets res block as register
-          AccPacket C0, C1, C2, C3, C4, C5, C6, C7;
-          traits.initAcc(C0);
-          traits.initAcc(C1);
-          traits.initAcc(C2);
-          traits.initAcc(C3);
-          traits.initAcc(C4);
-          traits.initAcc(C5);
-          traits.initAcc(C6);
-          traits.initAcc(C7);
-
-          LinearMapper r0 = res.getLinearMapper(i, j2 + 0);
-          LinearMapper r1 = res.getLinearMapper(i, j2 + 1);
-          LinearMapper r2 = res.getLinearMapper(i, j2 + 2);
-          LinearMapper r3 = res.getLinearMapper(i, j2 + 3);
-
-          r0.prefetch(prefetch_res_offset);
-          r1.prefetch(prefetch_res_offset);
-          r2.prefetch(prefetch_res_offset);
-          r3.prefetch(prefetch_res_offset);
-
-          // performs "inner" products
-          const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 4];
-          prefetch(&blB[0]);
-          LhsPacket A0, A1;
-
-          for (Index k = 0; k < peeled_kc; k += pk) {
-            EIGEN_ASM_COMMENT("begin gebp micro kernel 2pX4");
-            RhsPacketx4 rhs_panel;
-            RhsPacket T0;
-
-// NOTE: the begin/end asm comments below work around bug 935!
-// but they are not enough for gcc>=6 without FMA (bug 1637)
-#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0) && defined(EIGEN_VECTORIZE_SSE) && !(EIGEN_COMP_LCC)
-#define EIGEN_GEBP_2PX4_SPILLING_WORKAROUND __asm__("" : [a0] "+x,m"(A0), [a1] "+x,m"(A1));
-#else
-#define EIGEN_GEBP_2PX4_SPILLING_WORKAROUND
-#endif
-#define EIGEN_GEBGP_ONESTEP(K)                                  \
-  do {                                                          \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 2pX4");  \
-    traits.loadLhs(&blA[(0 + 2 * K) * LhsProgress], A0);        \
-    traits.loadLhs(&blA[(1 + 2 * K) * LhsProgress], A1);        \
-    traits.loadRhs(&blB[(0 + 4 * K) * RhsProgress], rhs_panel); \
-    traits.madd(A0, rhs_panel, C0, T0, fix<0>);                 \
-    traits.madd(A1, rhs_panel, C4, T0, fix<0>);                 \
-    traits.madd(A0, rhs_panel, C1, T0, fix<1>);                 \
-    traits.madd(A1, rhs_panel, C5, T0, fix<1>);                 \
-    traits.madd(A0, rhs_panel, C2, T0, fix<2>);                 \
-    traits.madd(A1, rhs_panel, C6, T0, fix<2>);                 \
-    traits.madd(A0, rhs_panel, C3, T0, fix<3>);                 \
-    traits.madd(A1, rhs_panel, C7, T0, fix<3>);                 \
-    EIGEN_GEBP_2PX4_SPILLING_WORKAROUND                         \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 2pX4");    \
-  } while (false)
-
-            internal::prefetch(blB + (48 + 0));
-            EIGEN_GEBGP_ONESTEP(0);
-            EIGEN_GEBGP_ONESTEP(1);
-            EIGEN_GEBGP_ONESTEP(2);
-            EIGEN_GEBGP_ONESTEP(3);
-            internal::prefetch(blB + (48 + 16));
-            EIGEN_GEBGP_ONESTEP(4);
-            EIGEN_GEBGP_ONESTEP(5);
-            EIGEN_GEBGP_ONESTEP(6);
-            EIGEN_GEBGP_ONESTEP(7);
-
-            blB += pk * 4 * RhsProgress;
-            blA += pk * (2 * Traits::LhsProgress);
-
-            EIGEN_ASM_COMMENT("end gebp micro kernel 2pX4");
-          }
-          // process remaining peeled loop
-          for (Index k = peeled_kc; k < depth; k++) {
-            RhsPacketx4 rhs_panel;
-            RhsPacket T0;
-            EIGEN_GEBGP_ONESTEP(0);
-            blB += 4 * RhsProgress;
-            blA += 2 * Traits::LhsProgress;
-          }
-#undef EIGEN_GEBGP_ONESTEP
-
-          ResPacket R0, R1, R2, R3;
-          ResPacket alphav = pset1<ResPacket>(alpha);
-
-          R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r1.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R3 = r1.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          traits.acc(C0, alphav, R0);
-          traits.acc(C4, alphav, R1);
-          traits.acc(C1, alphav, R2);
-          traits.acc(C5, alphav, R3);
-          r0.storePacket(0 * Traits::ResPacketSize, R0);
-          r0.storePacket(1 * Traits::ResPacketSize, R1);
-          r1.storePacket(0 * Traits::ResPacketSize, R2);
-          r1.storePacket(1 * Traits::ResPacketSize, R3);
-
-          R0 = r2.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r2.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          R2 = r3.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R3 = r3.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          traits.acc(C2, alphav, R0);
-          traits.acc(C6, alphav, R1);
-          traits.acc(C3, alphav, R2);
-          traits.acc(C7, alphav, R3);
-          r2.storePacket(0 * Traits::ResPacketSize, R0);
-          r2.storePacket(1 * Traits::ResPacketSize, R1);
-          r3.storePacket(0 * Traits::ResPacketSize, R2);
-          r3.storePacket(1 * Traits::ResPacketSize, R3);
+          micro_panel(fix<2>, fix<4>, traits, i, j2);
         }
       }
-
-      // Deal with remaining columns of the rhs
       for (Index j2 = packet_cols4; j2 < cols; j2++) {
         for (Index i = i1; i < actual_panel_end; i += 2 * LhsProgress) {
-          // One column at a time
-          const LhsScalar* blA = &blockA[i * strideA + offsetA * (2 * Traits::LhsProgress)];
-          prefetch(&blA[0]);
-
-          // gets res block as register
-          AccPacket C0, C4;
-          traits.initAcc(C0);
-          traits.initAcc(C4);
-
-          LinearMapper r0 = res.getLinearMapper(i, j2);
-          r0.prefetch(prefetch_res_offset);
-
-          // performs "inner" products
-          const RhsScalar* blB = &blockB[j2 * strideB + offsetB];
-          LhsPacket A0, A1;
-
-          for (Index k = 0; k < peeled_kc; k += pk) {
-            EIGEN_ASM_COMMENT("begin gebp micro kernel 2pX1");
-            RhsPacket B_0, B1;
-
-#define EIGEN_GEBGP_ONESTEP(K)                                          \
-  do {                                                                  \
-    EIGEN_ASM_COMMENT("begin step of gebp micro kernel 2pX1");          \
-    EIGEN_ASM_COMMENT("Note: these asm comments work around bug 935!"); \
-    traits.loadLhs(&blA[(0 + 2 * K) * LhsProgress], A0);                \
-    traits.loadLhs(&blA[(1 + 2 * K) * LhsProgress], A1);                \
-    traits.loadRhs(&blB[(0 + K) * RhsProgress], B_0);                   \
-    traits.madd(A0, B_0, C0, B1, fix<0>);                               \
-    traits.madd(A1, B_0, C4, B_0, fix<0>);                              \
-    EIGEN_ASM_COMMENT("end step of gebp micro kernel 2pX1");            \
-  } while (false)
-
-            EIGEN_GEBGP_ONESTEP(0);
-            EIGEN_GEBGP_ONESTEP(1);
-            EIGEN_GEBGP_ONESTEP(2);
-            EIGEN_GEBGP_ONESTEP(3);
-            EIGEN_GEBGP_ONESTEP(4);
-            EIGEN_GEBGP_ONESTEP(5);
-            EIGEN_GEBGP_ONESTEP(6);
-            EIGEN_GEBGP_ONESTEP(7);
-
-            blB += int(pk) * int(RhsProgress);
-            blA += int(pk) * 2 * int(Traits::LhsProgress);
-
-            EIGEN_ASM_COMMENT("end gebp micro kernel 2pX1");
-          }
-
-          // process remaining peeled loop
-          for (Index k = peeled_kc; k < depth; k++) {
-            RhsPacket B_0, B1;
-            EIGEN_GEBGP_ONESTEP(0);
-            blB += RhsProgress;
-            blA += 2 * Traits::LhsProgress;
-          }
-#undef EIGEN_GEBGP_ONESTEP
-          ResPacket R0, R1;
-          ResPacket alphav = pset1<ResPacket>(alpha);
-
-          R0 = r0.template loadPacket<ResPacket>(0 * Traits::ResPacketSize);
-          R1 = r0.template loadPacket<ResPacket>(1 * Traits::ResPacketSize);
-          traits.acc(C0, alphav, R0);
-          traits.acc(C4, alphav, R1);
-          r0.storePacket(0 * Traits::ResPacketSize, R0);
-          r0.storePacket(1 * Traits::ResPacketSize, R1);
+          micro_panel(fix<2>, fix<1>, traits, i, j2);
         }
       }
     }
   }
+
   //---------- Process 1 * LhsProgress rows at once ----------
-  if (mr >= 1 * Traits::LhsProgress) {
-    lhs_process_one_packet<nr, LhsProgress, RhsProgress, LhsScalar, RhsScalar, ResScalar, AccPacket, LhsPacket,
-                           RhsPacket, ResPacket, Traits, LinearMapper, DataMapper>
-        p;
-    p(res, blockA, blockB, alpha, peeled_mc2, peeled_mc1, strideA, strideB, offsetA, offsetB, prefetch_res_offset,
-      peeled_kc, pk, cols, depth, packet_cols4);
+  EIGEN_IF_CONSTEXPR(mr >= 1 * Traits::LhsProgress) {
+    for (Index i = peeled_mc2; i < peeled_mc1; i += LhsProgress) {
+#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
+      EIGEN_IF_CONSTEXPR(nr >= 8) {
+        for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
+          micro_panel(fix<1>, fix<8>, traits, i, j2);
+        }
+      }
+#endif
+      for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
+        micro_panel(fix<1>, fix<4>, traits, i, j2);
+      }
+      for (Index j2 = packet_cols4; j2 < cols; j2++) {
+        micro_panel(fix<1>, fix<1>, traits, i, j2);
+      }
+    }
   }
+
   //---------- Process LhsProgressHalf rows at once ----------
-  if ((LhsProgressHalf < LhsProgress) && mr >= LhsProgressHalf) {
-    lhs_process_fraction_of_packet<nr, LhsProgressHalf, RhsProgressHalf, LhsScalar, RhsScalar, ResScalar, AccPacketHalf,
-                                   LhsPacketHalf, RhsPacketHalf, ResPacketHalf, HalfTraits, LinearMapper, DataMapper>
-        p;
-    p(res, blockA, blockB, alpha, peeled_mc1, peeled_mc_half, strideA, strideB, offsetA, offsetB, prefetch_res_offset,
-      peeled_kc, pk, cols, depth, packet_cols4);
+  EIGEN_IF_CONSTEXPR((LhsProgressHalf < LhsProgress) && mr >= LhsProgressHalf) {
+    HalfTraits half_traits;
+    for (Index i = peeled_mc1; i < peeled_mc_half; i += LhsProgressHalf) {
+      for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
+        gebp_micro_panel_impl<1, 4, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                              LhsPacket>(half_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                         offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+      }
+      for (Index j2 = packet_cols4; j2 < cols; j2++) {
+        gebp_micro_panel_impl<1, 1, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                              LhsPacket>(half_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                         offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+      }
+    }
   }
+
   //---------- Process LhsProgressQuarter rows at once ----------
-  if ((LhsProgressQuarter < LhsProgressHalf) && mr >= LhsProgressQuarter) {
-    lhs_process_fraction_of_packet<nr, LhsProgressQuarter, RhsProgressQuarter, LhsScalar, RhsScalar, ResScalar,
-                                   AccPacketQuarter, LhsPacketQuarter, RhsPacketQuarter, ResPacketQuarter,
-                                   QuarterTraits, LinearMapper, DataMapper>
-        p;
-    p(res, blockA, blockB, alpha, peeled_mc_half, peeled_mc_quarter, strideA, strideB, offsetA, offsetB,
-      prefetch_res_offset, peeled_kc, pk, cols, depth, packet_cols4);
+  EIGEN_IF_CONSTEXPR((LhsProgressQuarter < LhsProgressHalf) && mr >= LhsProgressQuarter) {
+    QuarterTraits quarter_traits;
+    for (Index i = peeled_mc_half; i < peeled_mc_quarter; i += LhsProgressQuarter) {
+      for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
+        gebp_micro_panel_impl<1, 4, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                              LhsPacket>(quarter_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                         offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+      }
+      for (Index j2 = packet_cols4; j2 < cols; j2++) {
+        gebp_micro_panel_impl<1, 1, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                              LhsPacket>(quarter_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                         offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+      }
+    }
   }
+
   //---------- Process remaining rows, 1 at once ----------
   if (peeled_mc_quarter < rows) {
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64

@@ -44,6 +44,7 @@ eigen_add_benchmark(bench_quatmul quatmul.cpp)
 eigen_add_benchmark(bench_sparse_dense_product sparse_dense_product.cpp)
 eigen_add_benchmark(bench_sparse_product sparse_product.cpp)
 eigen_add_benchmark(bench_sparse_transpose sparse_transpose.cpp)
+eigen_add_benchmark(bench_spmv spmv.cpp)
 
 # --- GEMM blocking parameter sweep ---
 eigen_add_benchmark(bench_blocking_sizes benchmark_blocking_sizes.cpp)
