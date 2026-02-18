@@ -397,6 +397,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet4cd, 2>&
   detail::ptranspose_impl(kernel);
 }
 
+EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet8cf, Packet16f)
+EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet4cd, Packet8d)
+
 }  // end namespace internal
 }  // end namespace Eigen
 
