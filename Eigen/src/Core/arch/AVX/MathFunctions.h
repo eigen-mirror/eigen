@@ -33,6 +33,24 @@ EIGEN_DOUBLE_PACKET_FUNCTION(cbrt, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(sin, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(cos, Packet4d)
 EIGEN_DOUBLE_PACKET_FUNCTION(tan, Packet4d)
+#else
+// Without AVX2, psincos_double<Packet4d> requires 256-bit integer operations (Packet4l)
+// that are not available. Process as two Packet2d halves using the SSE implementation.
+template <>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d psin<Packet4d>(const Packet4d& x) {
+  return _mm256_insertf128_pd(_mm256_castpd128_pd256(psin(_mm256_castpd256_pd128(x))),
+                              psin(_mm256_extractf128_pd(x, 1)), 1);
+}
+template <>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d pcos<Packet4d>(const Packet4d& x) {
+  return _mm256_insertf128_pd(_mm256_castpd128_pd256(pcos(_mm256_castpd256_pd128(x))),
+                              pcos(_mm256_extractf128_pd(x, 1)), 1);
+}
+template <>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d ptan<Packet4d>(const Packet4d& x) {
+  return _mm256_insertf128_pd(_mm256_castpd128_pd256(ptan(_mm256_castpd256_pd128(x))),
+                              ptan(_mm256_extractf128_pd(x, 1)), 1);
+}
 #endif
 EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet4d)
 EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet4d)
