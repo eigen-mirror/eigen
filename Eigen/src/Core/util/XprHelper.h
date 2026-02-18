@@ -20,11 +20,10 @@ namespace internal {
 
 // useful for unsigned / signed integer comparisons when idx is intended to be non-negative
 template <typename IndexType>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename make_unsigned<IndexType>::type returnUnsignedIndexValue(
-    const IndexType& idx) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::make_unsigned_t<IndexType> returnUnsignedIndexValue(const IndexType& idx) {
   EIGEN_STATIC_ASSERT((NumTraits<IndexType>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   eigen_internal_assert(idx >= 0 && "Index value is negative and target type is unsigned");
-  using UnsignedType = typename make_unsigned<IndexType>::type;
+  using UnsignedType = std::make_unsigned_t<IndexType>;
   return static_cast<UnsignedType>(idx);
 }
 

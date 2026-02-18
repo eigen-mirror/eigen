@@ -87,7 +87,7 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
 
     // !!! mc must be a multiple of nr
     if (mc > Traits::nr) {
-      using UnsignedIndex = typename make_unsigned<Index>::type;
+      using UnsignedIndex = std::make_unsigned_t<Index>;
       mc = (UnsignedIndex(mc) / Traits::nr) * Traits::nr;
     }
 

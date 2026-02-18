@@ -149,10 +149,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
     Index jend = numext::mini(j2 + block_cols, cols);
     Index i = 0;
     for (; i < n8; i += ResPacketSize * 8) {
-      ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0)),
-                c2 = pset1<ResPacket>(ResScalar(0)), c3 = pset1<ResPacket>(ResScalar(0)),
-                c4 = pset1<ResPacket>(ResScalar(0)), c5 = pset1<ResPacket>(ResScalar(0)),
-                c6 = pset1<ResPacket>(ResScalar(0)), c7 = pset1<ResPacket>(ResScalar(0));
+      ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{}),
+                c4 = pzero(ResPacket{}), c5 = pzero(ResPacket{}), c6 = pzero(ResPacket{}), c7 = pzero(ResPacket{});
 
       for (Index j = j2; j < jend; j += 1) {
         RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
@@ -175,8 +173,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       pstoreu(res + i + ResPacketSize * 7, pmadd(c7, palpha, ploadu<ResPacket>(res + i + ResPacketSize * 7)));
     }
     if (i < n4) {
-      ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0)),
-                c2 = pset1<ResPacket>(ResScalar(0)), c3 = pset1<ResPacket>(ResScalar(0));
+      ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
 
       for (Index j = j2; j < jend; j += 1) {
         RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
@@ -193,8 +190,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       i += ResPacketSize * 4;
     }
     if (i < n3) {
-      ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0)),
-                c2 = pset1<ResPacket>(ResScalar(0));
+      ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{});
 
       for (Index j = j2; j < jend; j += 1) {
         RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
@@ -209,7 +205,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       i += ResPacketSize * 3;
     }
     if (i < n2) {
-      ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0));
+      ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
 
       for (Index j = j2; j < jend; j += 1) {
         RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
@@ -221,7 +217,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       i += ResPacketSize * 2;
     }
     if (i < n1) {
-      ResPacket c0 = pset1<ResPacket>(ResScalar(0));
+      ResPacket c0 = pzero(ResPacket{});
       for (Index j = j2; j < jend; j += 1) {
         RhsPacket b0 = pset1<RhsPacket>(rhs(j, 0));
         c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, c0);
@@ -230,7 +226,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       i += ResPacketSize;
     }
     if (HasHalf && i < n_half) {
-      ResPacketHalf c0 = pset1<ResPacketHalf>(ResScalar(0));
+      ResPacketHalf c0 = pzero(ResPacketHalf{});
       for (Index j = j2; j < jend; j += 1) {
         RhsPacketHalf b0 = pset1<RhsPacketHalf>(rhs(j, 0));
         c0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 0, j), b0, c0);
@@ -240,7 +236,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       i += ResPacketSizeHalf;
     }
     if (HasQuarter && i < n_quarter) {
-      ResPacketQuarter c0 = pset1<ResPacketQuarter>(ResScalar(0));
+      ResPacketQuarter c0 = pzero(ResPacketQuarter{});
       for (Index j = j2; j < jend; j += 1) {
         RhsPacketQuarter b0 = pset1<RhsPacketQuarter>(rhs(j, 0));
         c0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 0, j), b0, c0);
@@ -328,17 +324,15 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf
   };
 
-  using UnsignedIndex = typename make_unsigned<Index>::type;
+  using UnsignedIndex = std::make_unsigned_t<Index>;
   const Index fullColBlockEnd = LhsPacketSize * (UnsignedIndex(cols) / LhsPacketSize);
   const Index halfColBlockEnd = LhsPacketSizeHalf * (UnsignedIndex(cols) / LhsPacketSizeHalf);
   const Index quarterColBlockEnd = LhsPacketSizeQuarter * (UnsignedIndex(cols) / LhsPacketSizeQuarter);
 
   Index i = 0;
   for (; i < n8; i += 8) {
-    ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0)),
-              c2 = pset1<ResPacket>(ResScalar(0)), c3 = pset1<ResPacket>(ResScalar(0)),
-              c4 = pset1<ResPacket>(ResScalar(0)), c5 = pset1<ResPacket>(ResScalar(0)),
-              c6 = pset1<ResPacket>(ResScalar(0)), c7 = pset1<ResPacket>(ResScalar(0));
+    ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{}),
+              c4 = pzero(ResPacket{}), c5 = pzero(ResPacket{}), c6 = pzero(ResPacket{}), c7 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
@@ -383,8 +377,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 7) * resIncr] += alpha * cc7;
   }
   for (; i < n4; i += 4) {
-    ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0)),
-              c2 = pset1<ResPacket>(ResScalar(0)), c3 = pset1<ResPacket>(ResScalar(0));
+    ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
@@ -413,7 +406,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 3) * resIncr] += alpha * cc3;
   }
   for (; i < n2; i += 2) {
-    ResPacket c0 = pset1<ResPacket>(ResScalar(0)), c1 = pset1<ResPacket>(ResScalar(0));
+    ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
@@ -434,9 +427,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 1) * resIncr] += alpha * cc1;
   }
   for (; i < rows; ++i) {
-    ResPacket c0 = pset1<ResPacket>(ResScalar(0));
-    ResPacketHalf c0_h = pset1<ResPacketHalf>(ResScalar(0));
-    ResPacketQuarter c0_q = pset1<ResPacketQuarter>(ResScalar(0));
+    ResPacket c0 = pzero(ResPacket{});
+    ResPacketHalf c0_h = pzero(ResPacketHalf{});
+    ResPacketQuarter c0_q = pzero(ResPacketQuarter{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);

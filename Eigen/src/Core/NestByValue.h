@@ -52,17 +52,11 @@ class NestByValue : public internal::dense_xpr_base<NestByValue<ExpressionType> 
 
   EIGEN_DEVICE_FUNC const ExpressionType& nestedExpression() const { return m_expression; }
 
-  EIGEN_DEVICE_FUNC typename std::enable_if<HasDirectAccess, const Scalar*>::type data() const {
-    return m_expression.data();
-  }
+  EIGEN_DEVICE_FUNC std::enable_if_t<HasDirectAccess, const Scalar*> data() const { return m_expression.data(); }
 
-  EIGEN_DEVICE_FUNC typename std::enable_if<HasDirectAccess, Index>::type innerStride() const {
-    return m_expression.innerStride();
-  }
+  EIGEN_DEVICE_FUNC std::enable_if_t<HasDirectAccess, Index> innerStride() const { return m_expression.innerStride(); }
 
-  EIGEN_DEVICE_FUNC typename std::enable_if<HasDirectAccess, Index>::type outerStride() const {
-    return m_expression.outerStride();
-  }
+  EIGEN_DEVICE_FUNC std::enable_if_t<HasDirectAccess, Index> outerStride() const { return m_expression.outerStride(); }
 
  protected:
   const ExpressionType m_expression;

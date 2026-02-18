@@ -129,7 +129,7 @@ struct serialize_impl;
 
 template <size_t N, typename T1, typename... Ts>
 struct serialize_impl<N, T1, Ts...> {
-  using Serializer = Eigen::Serializer<typename std::decay<T1>::type>;
+  using Serializer = Eigen::Serializer<std::decay_t<T1>>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE size_t serialize_size(const T1& value, const Ts&... args) {
     Serializer serializer;

@@ -1072,14 +1072,23 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   //    syms x;
   //    cosf = @(x) cos(x);
   //    pade_cosf = pade(cosf(x), x, 0, 'Order', 8)
-  Packet sc1_num = pmadd(ss, pset1<Packet>(80737373), pset1<Packet>(-13853547000));
-  Packet sc2_num = pmadd(sc1_num, ss, pset1<Packet>(727718024880));
-  Packet sc3_num = pmadd(sc2_num, ss, pset1<Packet>(-11275015752000));
-  Packet sc4_num = pmadd(sc3_num, ss, pset1<Packet>(23594700729600));
-  Packet sc1_denum = pmadd(ss, pset1<Packet>(147173), pset1<Packet>(39328920));
-  Packet sc2_denum = pmadd(sc1_denum, ss, pset1<Packet>(5772800880));
-  Packet sc3_denum = pmadd(sc2_denum, ss, pset1<Packet>(522334612800));
-  Packet sc4_denum = pmadd(sc3_denum, ss, pset1<Packet>(23594700729600));
+  const Packet cn4 = pset1<Packet>(80737373);
+  const Packet cn3 = pset1<Packet>(-13853547000);
+  const Packet cn2 = pset1<Packet>(727718024880);
+  const Packet cn1 = pset1<Packet>(-11275015752000);
+  const Packet cn0 = pset1<Packet>(23594700729600);  // shared with cd0
+  const Packet cd3 = pset1<Packet>(147173);
+  const Packet cd2 = pset1<Packet>(39328920);
+  const Packet cd1 = pset1<Packet>(5772800880);
+  const Packet cd0 = pset1<Packet>(522334612800);
+  Packet sc1_num = pmadd(ss, cn4, cn3);
+  Packet sc2_num = pmadd(sc1_num, ss, cn2);
+  Packet sc3_num = pmadd(sc2_num, ss, cn1);
+  Packet sc4_num = pmadd(sc3_num, ss, cn0);
+  Packet sc1_denum = pmadd(ss, cd3, cd2);
+  Packet sc2_denum = pmadd(sc1_denum, ss, cd1);
+  Packet sc3_denum = pmadd(sc2_denum, ss, cd0);
+  Packet sc4_denum = pmadd(sc3_denum, ss, cn0);
   Packet scos = pdiv(sc4_num, sc4_denum);
 
   // Padé approximant of sin(x)
@@ -1090,15 +1099,26 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   //    syms x;
   //    sinf = @(x) sin(x);
   //    pade_sinf = pade(sinf(x), x, 0, 'Order', 8, 'OrderMode', 'relative')
-  Packet ss1_num = pmadd(ss, pset1<Packet>(4585922449), pset1<Packet>(-1066023933480));
-  Packet ss2_num = pmadd(ss1_num, ss, pset1<Packet>(83284044283440));
-  Packet ss3_num = pmadd(ss2_num, ss, pset1<Packet>(-2303682236856000));
-  Packet ss4_num = pmadd(ss3_num, ss, pset1<Packet>(15605159573203200));
-  Packet ss1_denum = pmadd(ss, pset1<Packet>(1029037), pset1<Packet>(345207016));
-  Packet ss2_denum = pmadd(ss1_denum, ss, pset1<Packet>(61570292784));
-  Packet ss3_denum = pmadd(ss2_denum, ss, pset1<Packet>(6603948711360));
-  Packet ss4_denum = pmadd(ss3_denum, ss, pset1<Packet>(346781323848960));
-  Packet ssin = pdiv(pmul(s, ss4_num), pmul(pset1<Packet>(45), ss4_denum));
+  const Packet sn4 = pset1<Packet>(4585922449);
+  const Packet sn3 = pset1<Packet>(-1066023933480);
+  const Packet sn2 = pset1<Packet>(83284044283440);
+  const Packet sn1 = pset1<Packet>(-2303682236856000);
+  const Packet sn0 = pset1<Packet>(15605159573203200);
+  const Packet sd3 = pset1<Packet>(1029037);
+  const Packet sd2 = pset1<Packet>(345207016);
+  const Packet sd1 = pset1<Packet>(61570292784);
+  const Packet sd0_inner = pset1<Packet>(6603948711360);
+  const Packet sd0 = pset1<Packet>(346781323848960);
+  const Packet cst_45 = pset1<Packet>(45);
+  Packet ss1_num = pmadd(ss, sn4, sn3);
+  Packet ss2_num = pmadd(ss1_num, ss, sn2);
+  Packet ss3_num = pmadd(ss2_num, ss, sn1);
+  Packet ss4_num = pmadd(ss3_num, ss, sn0);
+  Packet ss1_denum = pmadd(ss, sd3, sd2);
+  Packet ss2_denum = pmadd(ss1_denum, ss, sd1);
+  Packet ss3_denum = pmadd(ss2_denum, ss, sd0_inner);
+  Packet ss4_denum = pmadd(ss3_denum, ss, sd0);
+  Packet ssin = pdiv(pmul(s, ss4_num), pmul(cst_45, ss4_denum));
 
   Packet poly_mask = preinterpret<Packet>(pcmp_eq(pand(q_int, cst_one), pzero(q_int)));
 

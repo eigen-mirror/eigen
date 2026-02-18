@@ -94,13 +94,7 @@ using std::false_type;
 using std::true_type;
 
 template <bool Condition>
-struct bool_constant;
-
-template <>
-struct bool_constant<true> : true_type {};
-
-template <>
-struct bool_constant<false> : false_type {};
+using bool_constant = std::integral_constant<bool, Condition>;
 
 // Third-party libraries rely on these.
 using std::conditional;
@@ -136,77 +130,24 @@ struct remove_all<T*> {
 template <typename T>
 using remove_all_t = typename remove_all<T>::type;
 
+// Eigen's is_arithmetic is similar to std::is_arithmetic but can be specialized
+// for SIMD packet types and other Eigen-specific types. The primary template
+// delegates to std::is_arithmetic for fundamental types.
 template <typename T>
 struct is_arithmetic {
-  enum { value = false };
-};
-template <>
-struct is_arithmetic<float> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<double> {
-  enum { value = true };
+  enum { value = std::is_arithmetic<T>::value };
 };
 // GPU devices treat `long double` as `double`.
-#ifndef EIGEN_GPU_COMPILE_PHASE
+#ifdef EIGEN_GPU_COMPILE_PHASE
 template <>
 struct is_arithmetic<long double> {
-  enum { value = true };
+  enum { value = false };
 };
 #endif
-template <>
-struct is_arithmetic<bool> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<char> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<signed char> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<unsigned char> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<signed short> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<unsigned short> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<signed int> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<unsigned int> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<signed long> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<unsigned long> {
-  enum { value = true };
-};
 
-template <typename T, typename U>
-struct is_same {
-  enum { value = 0 };
-};
-template <typename T>
-struct is_same<T, T> {
-  enum { value = 1 };
-};
+using std::is_same;
 
-template <class T>
-struct is_void : is_same<void, std::remove_const_t<T>> {};
+using std::is_void;
 
 /** \internal
  * Implementation of std::void_t for SFINAE.
@@ -223,26 +164,11 @@ template <typename...>
 using void_t = void;
 #endif
 
-template <>
-struct is_arithmetic<signed long long> {
-  enum { value = true };
-};
-template <>
-struct is_arithmetic<unsigned long long> {
-  enum { value = true };
-};
 using std::is_integral;
 
 using std::make_unsigned;
 
-template <typename T>
-struct is_const {
-  enum { value = 0 };
-};
-template <typename T>
-struct is_const<T const> {
-  enum { value = 1 };
-};
+using std::is_const;
 
 template <typename T>
 struct add_const_on_value_type {
