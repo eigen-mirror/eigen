@@ -123,7 +123,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
           pr = pmadd(a1.template loadPacket<Packet>(i), neg_pb1, pr);
           pr = pmadd(a2.template loadPacket<Packet>(i), neg_pb2, pr);
           pr = pmadd(a3.template loadPacket<Packet>(i), neg_pb3, pr);
-          r.template storePacket(i, pr);
+          r.template storePacket<Packet>(i, pr);
         }
         for (; i < otherSize; ++i) {
           r(i) -= a0(i) * b0 + a1(i) * b1 + a2(i) * b2 + a3(i) * b3;
@@ -138,7 +138,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
         for (; i + PS <= otherSize; i += PS) {
           Packet pr = r.template loadPacket<Packet>(i);
           pr = pmadd(a.template loadPacket<Packet>(i), neg_pb, pr);
-          r.template storePacket(i, pr);
+          r.template storePacket<Packet>(i, pr);
         }
         for (; i < otherSize; ++i) r(i) -= a(i) * b;
       }
@@ -148,7 +148,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
         Packet pinv = pset1<Packet>(inv_rjj);
         Index i = 0;
         for (; i + PS <= otherSize; i += PS) {
-          r.template storePacket(i, pmul(r.template loadPacket<Packet>(i), pinv));
+          r.template storePacket<Packet>(i, pmul(r.template loadPacket<Packet>(i), pinv));
         }
         for (; i < otherSize; ++i) r(i) *= inv_rjj;
       }
