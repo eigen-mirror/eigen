@@ -334,9 +334,10 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
         ((int)QuarterTraits::LhsPacketSize < (int)HalfTraits::LhsPacketSize)
             ? (int)QuarterTraits::LhsPacketSize
             : (((int)HalfTraits::LhsPacketSize < (int)Traits::LhsPacketSize) ? (int)HalfTraits::LhsPacketSize
-                                                                             : (int)Traits::LhsPacketSize)
+                                                                             : (int)Traits::LhsPacketSize),
+    HasSubPackets_ = (int)MinUsefulCols_ < (int)LhsPacketSize_
   };
-  if (cols >= MinUsefulCols_ && cols < LhsPacketSize_) {
+  if (HasSubPackets_ && cols >= MinUsefulCols_ && cols < LhsPacketSize_) {
     run_small_cols(rows, cols, alhs, rhs, res, resIncr, alpha);
     return;
   }
