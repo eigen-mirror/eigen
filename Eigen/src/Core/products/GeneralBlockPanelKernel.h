@@ -125,8 +125,8 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
   // at the register level. This small horizontal panel has to stay within L1 cache.
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
-  const std::ptrdiff_t phys_l1 = l1;
 #ifdef EIGEN_VECTORIZE_AVX512
+  const std::ptrdiff_t phys_l1 = l1;
   // We need to find a rationale for that, but without this adjustment,
   // performance with AVX512 is pretty bad, like -20% slower.
   // One reason is that with increasing packet-size, the blocking size k
