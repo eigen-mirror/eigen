@@ -817,28 +817,51 @@ struct triangular_assignment_loop<Kernel, Mode, 0, SetOpposite> {
 template <typename Kernel, unsigned int Mode, bool SetOpposite>
 struct triangular_assignment_loop<Kernel, Mode, Dynamic, SetOpposite> {
   typedef typename Kernel::Scalar Scalar;
+  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
+  typedef typename Kernel::AssignmentTraits AssignmentTraits;
+
+  enum {
+    IsRowMajor = (int(DstEvaluatorType::Flags) & RowMajorBit) != 0,
+    // In col-major: inner=row, outer=col. Upper means row<col i.e. inner<outer -> active before diagonal.
+    // In row-major: inner=col, outer=row. Upper means row<col i.e. inner>outer -> active after diagonal.
+    // So ActiveBeforeDiag = (Upper XOR IsRowMajor).
+    ActiveBeforeDiag = (bool(Mode & Upper) != bool(IsRowMajor))
+  };
+
+  // Compile-time outer/inner to row/col mapping. These constant-fold away entirely:
+  // ColMajor: row(outer,i) -> i, col(outer,i) -> outer
+  // RowMajor: row(outer,i) -> outer, col(outer,i) -> i
+  static constexpr Index row(Index outer, Index inner) { return IsRowMajor ? outer : inner; }
+  static constexpr Index col(Index outer, Index inner) { return IsRowMajor ? inner : outer; }
+
+  // Iterates in outer/inner order matching the storage layout for cache friendliness.
+  // Unlike the old code (which always iterated outer=col, inner=row), this gives
+  // contiguous memory access for both ColMajor and RowMajor storage.
+  // Simple scalar loops allow GCC to recognize memcpy/memset idioms and Clang to auto-vectorize.
+  // Uses a single running index 'i' per column (not separate loop variables) so the compiler
+  // can track the continuous progression and optimize register allocation.
   EIGEN_DEVICE_FUNC static inline void run(Kernel& kernel) {
-    for (Index j = 0; j < kernel.cols(); ++j) {
-      Index maxi = numext::mini(j, kernel.rows());
+    const Index outerSize = IsRowMajor ? kernel.rows() : kernel.cols();
+    const Index innerSize = IsRowMajor ? kernel.cols() : kernel.rows();
+
+    for (Index outer = 0; outer < outerSize; ++outer) {
+      const Index maxi = numext::mini(outer, innerSize);
       Index i = 0;
-      if (((Mode & Lower) && SetOpposite) || (Mode & Upper)) {
-        for (; i < maxi; ++i)
-          if (Mode & Upper)
-            kernel.assignCoeff(i, j);
-          else
-            kernel.assignOppositeCoeff(i, j);
-      } else
+
+      if (ActiveBeforeDiag) {
+        for (; i < maxi; ++i) kernel.assignCoeff(row(outer, i), col(outer, i));
+      } else if (SetOpposite) {
+        for (; i < maxi; ++i) kernel.assignOppositeCoeff(row(outer, i), col(outer, i));
+      } else {
         i = maxi;
+      }
 
-      if (i < kernel.rows())  // then i==j
-        kernel.assignDiagonalCoeff(i++);
+      if (i < innerSize) kernel.assignDiagonalCoeff(i++);
 
-      if (((Mode & Upper) && SetOpposite) || (Mode & Lower)) {
-        for (; i < kernel.rows(); ++i)
-          if (Mode & Lower)
-            kernel.assignCoeff(i, j);
-          else
-            kernel.assignOppositeCoeff(i, j);
+      if (!ActiveBeforeDiag) {
+        for (; i < innerSize; ++i) kernel.assignCoeff(row(outer, i), col(outer, i));
+      } else if (SetOpposite) {
+        for (; i < innerSize; ++i) kernel.assignOppositeCoeff(row(outer, i), col(outer, i));
       }
     }
   }
