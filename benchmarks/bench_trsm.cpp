@@ -64,36 +64,31 @@ static void BM_TRSM_Right(benchmark::State& state) {
 // ---------- Size configurations ----------
 
 static void TrsvSizes(::benchmark::Benchmark* b) {
-  for (int n : {32, 64, 128, 256, 512, 1024}) {
+  for (int n : {32, 128, 512}) {
     b->Args({n});
   }
 }
 
 static void TrsmSizes(::benchmark::Benchmark* b) {
-  for (int n : {32, 64, 128, 256, 512, 1024}) {
-    for (int nrhs : {1, 4, 16, 64, 256}) {
+  for (int n : {64, 256, 512}) {
+    for (int nrhs : {1, 16, 64}) {
       b->Args({n, nrhs});
     }
   }
 }
 
 // ---------- TRSV benchmarks ----------
+// Only Lower is benchmarked; Upper exercises the same kernel via transposed storage.
 
 BENCHMARK(BM_TRSV<float, Lower>)->Apply(TrsvSizes)->Name("TRSV_float_Lower");
-BENCHMARK(BM_TRSV<float, Upper>)->Apply(TrsvSizes)->Name("TRSV_float_Upper");
 BENCHMARK(BM_TRSV<double, Lower>)->Apply(TrsvSizes)->Name("TRSV_double_Lower");
-BENCHMARK(BM_TRSV<double, Upper>)->Apply(TrsvSizes)->Name("TRSV_double_Upper");
 
 // ---------- TRSM Left benchmarks ----------
 
 BENCHMARK(BM_TRSM_Left<float, Lower>)->Apply(TrsmSizes)->Name("TRSM_Left_float_Lower");
-BENCHMARK(BM_TRSM_Left<float, Upper>)->Apply(TrsmSizes)->Name("TRSM_Left_float_Upper");
 BENCHMARK(BM_TRSM_Left<double, Lower>)->Apply(TrsmSizes)->Name("TRSM_Left_double_Lower");
-BENCHMARK(BM_TRSM_Left<double, Upper>)->Apply(TrsmSizes)->Name("TRSM_Left_double_Upper");
 
 // ---------- TRSM Right benchmarks ----------
 
 BENCHMARK(BM_TRSM_Right<float, Lower>)->Apply(TrsmSizes)->Name("TRSM_Right_float_Lower");
-BENCHMARK(BM_TRSM_Right<float, Upper>)->Apply(TrsmSizes)->Name("TRSM_Right_float_Upper");
 BENCHMARK(BM_TRSM_Right<double, Lower>)->Apply(TrsmSizes)->Name("TRSM_Right_double_Lower");
-BENCHMARK(BM_TRSM_Right<double, Upper>)->Apply(TrsmSizes)->Name("TRSM_Right_double_Upper");
