@@ -1154,12 +1154,14 @@ struct gebp_micro_step {
 };
 // Compiler workaround macros used inside gebp_peeled_loop.
 #if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON) && EIGEN_GNUC_STRICT_LESS_THAN(9, 0, 0)
-#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)            \
-  EIGEN_IF_CONSTEXPR((MrPackets == 3 && std::is_same<LhsPacketType, FullLhsPacket>::value)) { \
-    __asm__("" : "+w,m"(A[0]), "+w,m"(A[1]), "+w,m"(A[2]));                                   \
+#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsArray, FullLhsPacket)                               \
+  EIGEN_IF_CONSTEXPR(                                                                                       \
+      (MrPackets == 3 &&                                                                                    \
+       std::is_same<std::remove_all_extents_t<std::remove_reference_t<LhsArray>>, FullLhsPacket>::value)) { \
+    __asm__("" : "+w,m"(A[0]), "+w,m"(A[1]), "+w,m"(A[2]));                                                 \
   }
 #else
-#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)
+#define EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsArray, FullLhsPacket)
 #endif
 
 // GCC's register allocator can fail to keep array-based accumulators in XMM
@@ -1172,9 +1174,11 @@ struct gebp_micro_step {
 #ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
 // C++17: pin accumulators when they're plain SSE vectors (sizeof matches FullLhsPacket).
 // For complex types, AccPacket is a struct (DoublePacket) and the asm is safely discarded.
-#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)               \
-  EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value &&       \
-                      sizeof(ACC[0]) == sizeof(FullLhsPacket))) {                                                 \
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsArray, FullLhsPacket)                    \
+  EIGEN_IF_CONSTEXPR(                                                                                             \
+      (MrPackets <= 2 && NrCols >= 4 &&                                                                           \
+       std::is_same<std::remove_all_extents_t<std::remove_reference_t<LhsArray>>, FullLhsPacket>::value &&        \
+       sizeof(ACC[0]) == sizeof(FullLhsPacket))) {                                                                \
     EIGEN_IF_CONSTEXPR(MrPackets == 2 && NrCols == 4) {                                                           \
       __asm__(""                                                                                                  \
               : "+x"(ACC[0]), "+x"(ACC[1]), "+x"(ACC[2]), "+x"(ACC[3]), "+x"(ACC[4]), "+x"(ACC[5]), "+x"(ACC[6]), \
@@ -1184,10 +1188,12 @@ struct gebp_micro_step {
   }
 #else
 // C++14: only pin LHS packets (A), not accumulators, to avoid asm errors with complex types.
-#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)          \
-  EIGEN_IF_CONSTEXPR((MrPackets <= 2 && NrCols >= 4 && std::is_same<LhsPacketType, FullLhsPacket>::value)) { \
-    EIGEN_IF_CONSTEXPR(MrPackets == 2) { __asm__("" : "+x,m"(A[0]), "+x,m"(A[1])); }                         \
-    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                  \
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsArray, FullLhsPacket)              \
+  EIGEN_IF_CONSTEXPR(                                                                                       \
+      (MrPackets <= 2 && NrCols >= 4 &&                                                                     \
+       std::is_same<std::remove_all_extents_t<std::remove_reference_t<LhsArray>>, FullLhsPacket>::value)) { \
+    EIGEN_IF_CONSTEXPR(MrPackets == 2) { __asm__("" : "+x,m"(A[0]), "+x,m"(A[1])); }                        \
+    EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)                                                 \
   }
 #endif
 #if !(EIGEN_COMP_LCC)
@@ -1197,7 +1203,7 @@ struct gebp_micro_step {
 #define EIGEN_GEBP_SSE_1P_WORKAROUND(MrPackets, NrCols, A, ACC)
 #endif
 #else
-#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket)
+#define EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsArray, FullLhsPacket)
 #endif
 
 // Unrolled peeled loop body: calls gebp_micro_step for K=0..7, handling
@@ -1208,27 +1214,26 @@ struct gebp_peeled_loop {
             typename RhsPacketType, typename AccArray, typename AccArrayD, typename FullLhsPacket>
   static EIGEN_ALWAYS_INLINE void run(GEBPTraits& traits, const LhsScalar_* blA, const RhsScalar_* blB, LhsArray& A,
                                       RhsPanelType& rhs_panel, RhsPacketType& T0, AccArray& C, AccArrayD& D) {
-    using LhsPacketType = std::remove_all_extents_t<std::remove_reference_t<LhsArray>>;
     constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
 
     // Prefetch for 4-col paths
     EIGEN_IF_CONSTEXPR(NrCols == 4) { internal::prefetch(blB + (48 + 0)); }
 
     // Helper to do one step with workarounds
-#define EIGEN_GEBP_DO_STEP(KVAL, ACC)                                                           \
-  do {                                                                                          \
-    gebp_micro_step<KVAL, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, ACC);     \
-    /* ARM64 NEON register alloc workaround for 3-packet paths */                               \
-    EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsPacketType, FullLhsPacket)                  \
-    /* GCC SSE spilling workaround: pin LHS packets and accumulators in registers */            \
-    EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsPacketType, FullLhsPacket) \
-    /* LHS prefetch for 2pX4 and 3pX4 */                                                        \
-    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                     \
-      internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);              \
-      if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                                  \
-        internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);               \
-      }                                                                                         \
-    }                                                                                           \
+#define EIGEN_GEBP_DO_STEP(KVAL, ACC)                                                       \
+  do {                                                                                      \
+    gebp_micro_step<KVAL, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, ACC); \
+    /* ARM64 NEON register alloc workaround for 3-packet paths */                           \
+    EIGEN_GEBP_ARM64_3P_WORKAROUND(MrPackets, A, LhsArray, FullLhsPacket)                   \
+    /* GCC SSE spilling workaround: pin LHS packets and accumulators in registers */        \
+    EIGEN_GEBP_SSE_SPILLING_WORKAROUND(MrPackets, NrCols, A, ACC, LhsArray, FullLhsPacket)  \
+    /* LHS prefetch for 2pX4 and 3pX4 */                                                    \
+    EIGEN_IF_CONSTEXPR((MrPackets == 2 || MrPackets == 3) && NrCols == 4) {                 \
+      internal::prefetch(blA + (MrPackets * KVAL + 16) * GEBPTraits::LhsProgress);          \
+      if (EIGEN_ARCH_ARM || EIGEN_ARCH_MIPS) {                                              \
+        internal::prefetch(blB + (NrCols * KVAL + 16) * GEBPTraits::RhsProgress);           \
+      }                                                                                     \
+    }                                                                                       \
   } while (false)
 
     EIGEN_IF_CONSTEXPR(use_double_accum) {
