@@ -1302,7 +1302,13 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 
   // Double-accumulation trick for 1pX4 path to break FMA dependency chains
   constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
+#ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
   AccPacketLocal D[use_double_accum ? NrCols : 1];
+#else
+  // Without if constexpr, we must allocate a larger array to satisfy the
+  // compiler that D[n] is always in bounds for the use_double_accum path.
+  AccPacketLocal D[CSize];
+#endif
   EIGEN_IF_CONSTEXPR(use_double_accum) {
     for (int n = 0; n < NrCols; ++n) traits.initAcc(D[n]);
   }

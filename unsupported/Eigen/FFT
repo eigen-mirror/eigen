@@ -382,7 +382,7 @@ class FFT {
     defined EIGEN_MKL_DEFAULT
   inline void inv2(Complex* dst, const Complex* src, int n0, int n1) {
     m_impl.inv2(dst, src, n0, n1);
-    if (HasFlag(Unscaled) == false) scale(dst, 1. / (n0 * n1), n0 * n1);
+    if (HasFlag(Unscaled) == false) scale(dst, Scalar(1) / (n0 * n1), n0 * n1);
   }
 #endif
 
