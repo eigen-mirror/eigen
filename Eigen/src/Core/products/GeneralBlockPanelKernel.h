@@ -1403,8 +1403,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   // template instantiation of this generic lambda as a separate function,
   // adding call overhead that causes 10-17 % regressions in LLT/TRSM
   // for small-to-medium matrix sizes.
-  auto micro_panel = [&](auto mrp_tag, auto nrc_tag, auto& local_traits, Index i, Index j2)
-      __attribute__((always_inline)) {
+  auto micro_panel = [&](auto mrp_tag, auto nrc_tag, auto& local_traits, Index i, Index j2) EIGEN_LAMBDA_ALWAYS_INLINE {
     constexpr int MrP = decltype(mrp_tag)::value;
     constexpr int NrC = decltype(nrc_tag)::value;
     using LTraits = std::remove_reference_t<decltype(local_traits)>;
