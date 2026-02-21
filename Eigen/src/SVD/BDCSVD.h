@@ -453,7 +453,7 @@ void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const
  *  A = [A1]
  *      [A2]
  * such that A1.rows()==n1, then we assume that at least half of the columns of A1 and A2 are zeros.
- * We can thus pack them prior to the the matrix product. However, this is only worth the effort if the matrix is large
+ * We can thus pack them prior to the matrix product. However, this is only worth the effort if the matrix is large
  * enough.
  */
 template <typename MatrixType, int Options>

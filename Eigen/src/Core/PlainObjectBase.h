@@ -461,7 +461,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * This constructor is for 1D array or vectors with more than 4 coefficients.
    *
    * \warning To construct a column (resp. row) vector of fixed length, the number of values passed to this
-   * constructor must match the the fixed number of rows (resp. columns) of \c *this.
+   * constructor must match the fixed number of rows (resp. columns) of \c *this.
    */
   template <typename... ArgTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const Scalar& a0, const Scalar& a1, const Scalar& a2,

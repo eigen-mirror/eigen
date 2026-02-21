@@ -112,7 +112,7 @@ class KLU : public SparseSolverBase<KLU<MatrixType_> > {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
     return m_info;
   }
-  /** Computes the sparse Cholesky decomposition of \a matrix
+  /** Computes the sparse LU factorization of \a matrix
    *  Note that the matrix should be column-major, and in compressed format for best performance.
    *  \sa SparseMatrix::makeCompressed().
    */
@@ -147,7 +147,7 @@ class KLU : public SparseSolverBase<KLU<MatrixType_> > {
    */
   inline const klu_common &kluCommon() const { return m_common; }
 
-  /** Provides access to the control settings array used by UmfPack.
+  /** Provides access to the control settings array used by KLU.
    *
    * If this array contains NaN's, the default values are used.
    *
@@ -157,7 +157,7 @@ class KLU : public SparseSolverBase<KLU<MatrixType_> > {
 
   /** Performs a numeric decomposition of \a matrix
    *
-   * The given matrix must have the same sparsity than the matrix on which the pattern anylysis has been performed.
+   * The given matrix must have the same sparsity as the matrix on which the pattern analysis has been performed.
    *
    * \sa analyzePattern(), compute()
    */

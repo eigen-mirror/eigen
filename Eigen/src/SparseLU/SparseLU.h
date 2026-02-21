@@ -360,7 +360,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   /** \brief Give the absolute value of the determinant.
    *
    * \returns the absolute value of the determinant of the matrix of which
-   * *this is the QR decomposition.
+   * *this is the LU factorization.
    *
    * \warning a determinant can be very big or small, so for matrices
    * of large enough dimension, there is a risk of overflow/underflow.
@@ -389,7 +389,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   /** \brief Give the natural log of the absolute determinant.
    *
    * \returns the natural log of the absolute value of the determinant of the matrix
-   * of which **this is the QR decomposition
+   * of which *this is the LU factorization
    *
    * \note This method is useful to work around the risk of overflow/underflow that's
    * inherent to the determinant computation.

@@ -62,7 +62,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   /**
    * Constructs a dense matrix from \c *this. Note, this directly returns a dense matrix type,
    * not an expression.
-   * \returns A dense matrix, with its entries set from the the derived object. */
+   * \returns A dense matrix, with its entries set from the derived object. */
   EIGEN_DEVICE_FUNC DenseMatrixType toDenseMatrix() const { return derived(); }
 
   /** Determinant vanishes */

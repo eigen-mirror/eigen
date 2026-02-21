@@ -610,7 +610,7 @@ EIGEN_DEVICE_FUNC inline bool pselect<bool>(const bool& cond, const bool& a, con
   return cond ? a : b;
 }
 
-/** \internal \returns the min or of \a a and \a b (coeff-wise)
+/** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If either \a a or \a b are NaN, the result is implementation defined. */
 template <int NaNPropagation, bool IsInteger>
 struct pminmax_impl {
@@ -648,7 +648,7 @@ struct pminmax_impl<PropagateNumbers, false> {
 #define EIGEN_BINARY_OP_NAN_PROPAGATION(Type, Func) [](const Type& aa, const Type& bb) { return Func(aa, bb); }
 
 /** \internal \returns the min of \a a and \a b  (coeff-wise).
-    If \a a or \b b is NaN, the return value is implementation defined. */
+    If \a a or \a b is NaN, the return value is implementation defined. */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
   return numext::mini(a, b);
@@ -663,7 +663,7 @@ EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
 }
 
 /** \internal \returns the max of \a a and \a b  (coeff-wise)
-    If \a a or \b b is NaN, the return value is implementation defined. */
+    If \a a or \a b is NaN, the return value is implementation defined. */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
   return numext::maxi(a, b);

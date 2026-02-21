@@ -157,7 +157,7 @@ class PardisoImpl : public SparseSolverBase<Derived> {
 
   /** Performs a numeric decomposition of \a matrix
    *
-   * The given matrix must have the same sparsity than the matrix on which the symbolic decomposition has been
+   * The given matrix must have the same sparsity as the matrix on which the symbolic decomposition has been
    * performed.
    *
    * \sa analyzePattern()

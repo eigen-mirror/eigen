@@ -61,7 +61,7 @@ class DiagonalBase : public EigenBase<Derived> {
   /**
    * Constructs a dense matrix from \c *this. Note, this directly returns a dense matrix type,
    * not an expression.
-   * \returns A dense matrix, with its diagonal entries set from the the derived object. */
+   * \returns A dense matrix, with its diagonal entries set from the derived object. */
   EIGEN_DEVICE_FUNC DenseMatrixType toDenseMatrix() const { return derived(); }
 
   /** \returns a reference to the derived object's vector of diagonal coefficients. */

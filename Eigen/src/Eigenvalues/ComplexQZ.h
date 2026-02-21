@@ -203,7 +203,7 @@ class ComplexQZ {
 
   inline Mat2 computeZk2(const Row2& b);
 
-  // This is basically taken from from Eigen3::RealQZ
+  // This is basically taken from Eigen3::RealQZ
   void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
 
   // This function can be called when m_Q and m_Z are initialized and m_S, m_T
@@ -243,7 +243,7 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
   reduceHessenbergTriangular();
 }
 
-// This is basically taken from from Eigen3::RealQZ
+// This is basically taken from Eigen3::RealQZ
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
   // Copy A and B, these will be the matrices on which we operate later

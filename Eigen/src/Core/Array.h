@@ -141,7 +141,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * This constructor is for 1D array or vectors with more than 4 coefficients.
    *
    * \warning To construct a column (resp. row) vector of fixed length, the number of values passed to this
-   * constructor must match the the fixed number of rows (resp. columns) of \c *this.
+   * constructor must match the fixed number of rows (resp. columns) of \c *this.
    *
    *
    * Example: \include Array_variadic_ctor_cxx11.cpp

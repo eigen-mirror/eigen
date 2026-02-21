@@ -595,7 +595,7 @@
 // without an explicit launch_bounds attribute is called with a threads_per_block value
 // greater than 256.
 //
-// This is a regression in functioanlity and is expected to be fixed within the next
+// This is a regression in functionality and is expected to be fixed within the next
 // couple of ROCm releases (compiler will go back to using 1024 value as the default)
 //
 // In the meantime, we will use a "only enabled for HIP" macro to set the launch_bounds

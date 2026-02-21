@@ -386,7 +386,7 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
     Barrier barrier(internal::convert_index<unsigned int>(numblocks));
     MaxSizeVector<typename Self::CoeffReturnType> shards(numblocks, reducer.initialize());
     for (Index i = 0; i < numblocks; ++i) {
-      auto run_shard = [i, blocksize, &self, &barrier, &shards, &reducer](){
+      auto run_shard = [i, blocksize, &self, &barrier, &shards, &reducer]() {
         shards[i] = InnerMostDimReducer<Self, Op, Vectorizable>::reduce(self, i * blocksize, blocksize, reducer);
         barrier.Notify();
       };
@@ -835,7 +835,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     } else if (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
       const int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
-      // TBD: extend this the the n innermost dimensions that we preserve.
+      // TBD: extend this to the n innermost dimensions that we preserve.
       if (((firstIndex % m_dimensions[innermost_dim]) + PacketSize - 1) < m_dimensions[innermost_dim]) {
         Op reducer(m_reducer);
         typename Self::PacketReturnType accum = reducer.template initializePacket<typename Self::PacketReturnType>();

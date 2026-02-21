@@ -1753,7 +1753,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   const RealPacket cst_imag_sign_mask = pset1<Packet>(Scalar(RealScalar(0.0), RealScalar(-0.0))).v;
   RealPacket imag_signs = pand(a.v, cst_imag_sign_mask);
   Packet negative_real_result;
-  // Notice that rho is positive, so taking it's absolute value is a noop.
+  // Notice that rho is positive, so taking its absolute value is a noop.
   negative_real_result.v = por(pabs(pcplxflip(positive_real_result).v), imag_signs);
 
   // Step 5. Select solution branch based on the sign of the real parts.
@@ -1877,7 +1877,7 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
   }
 };
 
-// \internal \returns the the sign of a complex number z, defined as z / abs(z).
+// \internal \returns the sign of a complex number z, defined as z / abs(z).
 template <typename Packet>
 struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&

@@ -239,7 +239,7 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 
 namespace internal {
 /** \jacobi_module
- * Applies the clock wise 2D rotation \a j to the set of 2D vectors of coordinates \a x and \a y:
+ * Applies the clockwise 2D rotation \a j to the set of 2D vectors of coordinates \a x and \a y:
  * \f$ \left ( \begin{array}{cc} x \\ y \end{array} \right )  =  J \left ( \begin{array}{cc} x \\ y \end{array} \right )
  * \f$
  *
