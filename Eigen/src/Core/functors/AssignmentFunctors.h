@@ -23,7 +23,7 @@ namespace internal {
  */
 template <typename DstScalar, typename SrcScalar>
 struct assign_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const { a = b; }
+  EIGEN_DEVICE_FUNC constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const { a = b; }
 
   template <int Alignment, typename Packet>
   EIGEN_STRONG_INLINE void assignPacket(DstScalar* a, const Packet& b) const {
@@ -56,7 +56,7 @@ struct functor_traits<assign_op<DstScalar, SrcScalar>> {
 template <typename DstScalar, typename SrcScalar, typename Func>
 struct compound_assign_op {
   using traits = functor_traits<compound_assign_op<DstScalar, SrcScalar, Func>>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const {
+  EIGEN_DEVICE_FUNC constexpr void assignCoeff(DstScalar& a, const SrcScalar& b) const {
     assign_op<DstScalar, DstScalar>().assignCoeff(a, Func().operator()(a, b));
   }
 

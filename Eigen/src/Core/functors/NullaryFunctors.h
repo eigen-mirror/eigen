@@ -38,7 +38,7 @@ struct functor_traits<scalar_constant_op<Scalar>> {
 
 template <typename Scalar>
 struct scalar_zero_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_zero_op() = default;
+  EIGEN_DEVICE_FUNC scalar_zero_op() = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()() const { return Scalar(0); }
   template <typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetOp() const {

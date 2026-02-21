@@ -19,7 +19,7 @@ namespace internal {
 template <typename RealScalar, int N>
 struct complex_packet_wrapper {
   using RealPacketT = detail::VectorType<RealScalar, 2 * N>;
-  EIGEN_STRONG_INLINE complex_packet_wrapper() = default;
+  complex_packet_wrapper() = default;
   EIGEN_STRONG_INLINE explicit complex_packet_wrapper(const RealPacketT& a) : v(a) {}
   EIGEN_STRONG_INLINE constexpr std::complex<RealScalar> operator[](Index i) const {
     return std::complex<RealScalar>(v[2 * i], v[2 * i + 1]);

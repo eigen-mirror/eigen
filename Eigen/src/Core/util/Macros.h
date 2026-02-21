@@ -1033,7 +1033,7 @@
 namespace Eigen {
 namespace internal {
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void ignore_unused_variable(const T&) {}
+EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 }  // namespace internal
 }  // namespace Eigen
 #define EIGEN_UNUSED_VARIABLE(var) Eigen::internal::ignore_unused_variable(var);

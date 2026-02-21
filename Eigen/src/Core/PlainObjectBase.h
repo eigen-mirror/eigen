@@ -162,14 +162,14 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC Base& base() { return *static_cast<Base*>(this); }
   EIGEN_DEVICE_FUNC const Base& base() const { return *static_cast<const Base*>(this); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index rows() const noexcept { return m_storage.rows(); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Index cols() const noexcept { return m_storage.cols(); }
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_storage.rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_storage.cols(); }
 
   /** This is an overloaded version of DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index,Index) const
    * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
    *
    * See DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index) const for details. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar& coeff(Index rowId, Index colId) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeff(Index rowId, Index colId) const {
     if (Flags & RowMajorBit)
       return m_storage.data()[colId + rowId * m_storage.cols()];
     else  // column-major
@@ -180,15 +180,13 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
    *
    * See DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index) const for details. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar& coeff(Index index) const {
-    return m_storage.data()[index];
-  }
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeff(Index index) const { return m_storage.data()[index]; }
 
   /** This is an overloaded version of DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index,Index) const
    * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
    *
    * See DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index,Index) const for details. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index rowId, Index colId) {
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index rowId, Index colId) {
     if (Flags & RowMajorBit)
       return m_storage.data()[colId + rowId * m_storage.cols()];
     else  // column-major
@@ -199,11 +197,11 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * provided to by-pass the creation of an evaluator of the expression, thus saving compilation efforts.
    *
    * See DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index) const for details. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Scalar& coeffRef(Index index) { return m_storage.data()[index]; }
+  EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index index) { return m_storage.data()[index]; }
 
   /** This is the const version of coeffRef(Index,Index) which is thus synonym of coeff(Index,Index).
    * It is provided for convenience. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
     if (Flags & RowMajorBit)
       return m_storage.data()[colId + rowId * m_storage.cols()];
     else  // column-major
@@ -212,9 +210,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** This is the const version of coeffRef(Index) which is thus synonym of coeff(Index).
    * It is provided for convenience. */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr const Scalar& coeffRef(Index index) const {
-    return m_storage.data()[index];
-  }
+  EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index index) const { return m_storage.data()[index]; }
 
   /** \internal */
   template <int LoadMode>
@@ -426,9 +422,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   /** This is a special case of the templated operator=. Its purpose is to
    * prevent a default operator= from hiding the templated operator=.
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& operator=(const PlainObjectBase& other) {
-    return _set(other);
-  }
+  EIGEN_DEVICE_FUNC constexpr Derived& operator=(const PlainObjectBase& other) { return _set(other); }
 
   /** \sa MatrixBase::lazyAssign() */
   template <typename OtherDerived>
@@ -446,9 +440,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // Prevent user from trying to instantiate PlainObjectBase objects
   // by making all its constructor protected. See bug 1074.
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase() = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase() = default;
   /** \brief Move constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(PlainObjectBase&&) = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase(PlainObjectBase&&) = default;
   /** \brief Move assignment operator */
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase& operator=(PlainObjectBase&& other) noexcept {
     m_storage = std::move(other.m_storage);
@@ -456,7 +450,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   /** Copy constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr PlainObjectBase(const PlainObjectBase&) = default;
+  EIGEN_DEVICE_FUNC constexpr PlainObjectBase(const PlainObjectBase&) = default;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {}
 
@@ -714,7 +708,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   // aliasing is dealt once in internal::call_assignment
   // so at this stage we have to assume aliasing... and resising has to be done later.
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& _set(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr Derived& _set(const DenseBase<OtherDerived>& other) {
     internal::call_assignment(this->derived(), other.derived());
     return this->derived();
   }
@@ -725,7 +719,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * \sa operator=(const MatrixBase<OtherDerived>&), _set()
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Derived& _set_noalias(const DenseBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC constexpr Derived& _set_noalias(const DenseBase<OtherDerived>& other) {
     // I don't think we need this resize call since the lazyAssign will anyways resize
     // and lazyAssign will be called by the assign selector.
     //_resize_to_match(other);

@@ -156,8 +156,8 @@ class variable_if_dynamic {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
   }
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T value() { return T(Value); }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr operator T() const { return T(Value); }
+  EIGEN_DEVICE_FUNC static constexpr T value() { return T(Value); }
+  EIGEN_DEVICE_FUNC constexpr operator T() const { return T(Value); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T v) const {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
@@ -184,7 +184,7 @@ class variable_if_dynamicindex {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
     eigen_assert(v == T(Value));
   }
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr T value() { return T(Value); }
+  EIGEN_DEVICE_FUNC static constexpr T value() { return T(Value); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void setValue(T) {}
 };
 

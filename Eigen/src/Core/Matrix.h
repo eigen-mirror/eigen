@@ -207,7 +207,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    *
    * \callgraph
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(const Matrix& other) { return Base::_set(other); }
+  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(const Matrix& other) { return Base::_set(other); }
 
   /** \internal
    * \brief Copies the value of the expression \a other into \c *this with automatic resizing.
@@ -249,16 +249,16 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * \sa resize(Index,Index)
    */
 #if defined(EIGEN_INITIALIZE_COEFFS)
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix() { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
+  EIGEN_DEVICE_FUNC constexpr Matrix() { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
 #else
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix() = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix() = default;
 #endif
   /** \brief Move constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(Matrix&&) = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix(Matrix&&) = default;
   /** \brief Moves the matrix into the other one.
    *
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix& operator=(Matrix&& other) noexcept(
+  EIGEN_DEVICE_FUNC constexpr Matrix& operator=(Matrix&& other) noexcept(
       std::is_nothrow_move_assignable<Scalar>::value) {
     Base::operator=(std::move(other));
     return *this;
@@ -385,7 +385,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   }
 
   /** \brief Copy constructor */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr Matrix(const Matrix&) = default;
+  EIGEN_DEVICE_FUNC constexpr Matrix(const Matrix&) = default;
 
   /** \brief Copy constructor for generic expressions.
    * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
