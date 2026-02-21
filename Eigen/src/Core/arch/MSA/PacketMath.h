@@ -35,18 +35,7 @@ namespace internal {
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
 
-#if 0
-#define EIGEN_MSA_DEBUG                                                             \
-  static bool firstTime = true;                                                     \
-  do {                                                                              \
-    if (firstTime) {                                                                \
-      std::cout << __FILE__ << ':' << __LINE__ << ':' << __FUNCTION__ << std::endl; \
-      firstTime = false;                                                            \
-    }                                                                               \
-  } while (0)
-#else
 #define EIGEN_MSA_DEBUG
-#endif
 
 #define EIGEN_MSA_SHF_I8(a, b, c, d) (((d) << 6) | ((c) << 4) | ((b) << 2) | (a))
 

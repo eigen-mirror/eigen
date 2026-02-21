@@ -28,9 +28,6 @@ struct traits<PartialPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType
 
 template <typename T, typename Derived>
 struct enable_if_ref;
-// {
-//   typedef Derived type;
-// };
 
 template <typename T, typename Derived>
 struct enable_if_ref<Ref<T>, Derived> {

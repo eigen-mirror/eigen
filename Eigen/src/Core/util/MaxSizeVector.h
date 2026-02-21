@@ -80,7 +80,6 @@ class MaxSizeVector {
     new (&m_data[m_size++]) T(t);
   }
 
-  // For C++03 compatibility this only takes one argument
   template <class X>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void emplace_back(const X& x) {
     eigen_assert(m_size < m_reserve);

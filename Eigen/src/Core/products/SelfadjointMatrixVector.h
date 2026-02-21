@@ -98,8 +98,6 @@ selfadjoint_matrix_vector_product<Scalar, Index, StorageOrder, UpLo, ConjugateLh
       t2 += cj1.pmul(A0[i], rhs[i]);
       t3 += cj1.pmul(A1[i], rhs[i]);
     }
-    // Yes this an optimization for gcc 4.3 and 4.4 (=> huge speed up)
-    // gcc 4.2 does this optimization automatically.
     const Scalar* EIGEN_RESTRICT a0It = A0 + alignedStart;
     const Scalar* EIGEN_RESTRICT a1It = A1 + alignedStart;
     const Scalar* EIGEN_RESTRICT rhsIt = rhs + alignedStart;

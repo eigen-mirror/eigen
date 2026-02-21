@@ -152,17 +152,6 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   }
 };
 
-// FIXME: what is the purpose of the following specialization? Is it for the BlockedSparse format?
-// -> let's disable it for now as it is conflicting with generic scalar*matrix and matrix*scalar operators
-// template<typename T1, typename T2/*, int Options_, typename StrideType_*/>
-// struct ScalarBinaryOpTraits<T1, Ref<T2/*, Options_, StrideType_*/> >
-// {
-//   enum {
-//     Defined = 1
-//   };
-//   typedef typename CwiseUnaryOp<scalar_multiple2_op<T1, typename T2::Scalar>, T2>::PlainObject ReturnType;
-// };
-
 // ColMajor, single column (ColPerCol=true): CSC SpMV
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType, typename AlphaType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, AlphaType, ColMajor, true> {

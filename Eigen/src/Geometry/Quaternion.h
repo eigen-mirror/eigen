@@ -115,13 +115,6 @@ class QuaternionBase : public RotationBase<Derived, 3> {
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other);
 
-  // disabled this copy operator as it is giving very strange compilation errors when compiling
-  // test_stdvector with GCC 4.4.2. This looks like a GCC bug though, so feel free to re-enable it if it's
-  // useful; however notice that we already have the templated operator= above and e.g. in MatrixBase
-  // we didn't have to add, in addition to templated operator=, such a non-templated copy operator.
-  //  Derived& operator=(const QuaternionBase& other)
-  //  { return operator=<Derived>(other); }
-
   EIGEN_DEVICE_FUNC Derived& operator=(const AngleAxisType& aa);
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC Derived& operator=(const MatrixBase<OtherDerived>& m);

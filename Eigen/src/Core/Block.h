@@ -196,8 +196,6 @@ class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows
   EIGEN_DENSE_PUBLIC_INTERFACE(BlockType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl_dense)
 
-  // class InnerIterator; // FIXME apparently never used
-
   /** Column or Row constructor
    */
   EIGEN_DEVICE_FUNC inline BlockImpl_dense(XprType& xpr, Index i)

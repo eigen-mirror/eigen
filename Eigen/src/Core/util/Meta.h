@@ -425,12 +425,6 @@ struct scalar_product_traits {
   enum { Defined = 0 };
 };
 
-// FIXME quick workaround around current limitation of result_of
-// template<typename Scalar, typename ArgType0, typename ArgType1>
-// struct result_of<scalar_product_op<Scalar>(ArgType0,ArgType1)> {
-// typedef typename scalar_product_traits<remove_all_t<ArgType0>, remove_all_t<ArgType1>>::ReturnType type;
-// };
-
 /** \internal Obtains a POD type suitable to use as storage for an object of a size
  * of at most Len bytes, aligned as specified by \c Align.
  */

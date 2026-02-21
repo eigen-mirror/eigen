@@ -301,26 +301,6 @@ friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Const
     const T &s, const StorageBaseType &a);
 #endif
 
-// NOTE disabled until we agree on argument order
-#if 0
-/** \cpp11 \returns an expression of the coefficient-wise polygamma function.
-  *
-  * \specialfunctions_module
-  *
-  * It returns the \a n -th derivative of the digamma(psi) evaluated at \c *this.
-  *
-  * \warning Be careful with the order of the parameters: x.polygamma(n) is equivalent to polygamma(n,x)
-  *
-  * \sa Eigen::polygamma()
-  */
-template<typename DerivedN>
-inline const CwiseBinaryOp<internal::scalar_polygamma_op<Scalar>, const DerivedN, const Derived>
-polygamma(const EIGEN_CURRENT_STORAGE_BASE_CLASS<DerivedN> &n) const
-{
-  return CwiseBinaryOp<internal::scalar_polygamma_op<Scalar>, const DerivedN, const Derived>(n.derived(), this->derived());
-}
-#endif
-
 /** \returns an expression of the coefficient-wise zeta function.
  *
  * \specialfunctions_module

@@ -236,14 +236,6 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   MatrixTypeNested m_matrix;
 };
 
-// template<typename OtherDerived, typename MatrixType, unsigned int UpLo>
-// internal::selfadjoint_matrix_product_returntype<OtherDerived,SelfAdjointView<MatrixType,UpLo> >
-// operator*(const MatrixBase<OtherDerived>& lhs, const SelfAdjointView<MatrixType,UpLo>& rhs)
-// {
-//   return internal::matrix_selfadjoint_product_returntype<OtherDerived,SelfAdjointView<MatrixType,UpLo>
-//   >(lhs.derived(),rhs);
-// }
-
 // selfadjoint to dense matrix
 
 namespace internal {

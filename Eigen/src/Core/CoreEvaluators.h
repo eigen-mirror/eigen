@@ -436,64 +436,6 @@ struct nullary_wrapper<Scalar, NullaryOp, false, true, false> {
 template <typename Scalar, typename NullaryOp>
 struct nullary_wrapper<Scalar, NullaryOp, false, false, false> {};
 
-#if 0 && EIGEN_COMP_MSVC > 0
-// Disable this ugly workaround. This is now handled in traits<Ref>::match,
-// but this piece of code might still become handly if some other weird compilation
-// errors pop up again.
-
-// MSVC exhibits a weird compilation error when
-// compiling:
-//    Eigen::MatrixXf A = MatrixXf::Random(3,3);
-//    Ref<const MatrixXf> R = 2.f*A;
-// and that has_*ary_operator<scalar_constant_op<float>> have not been instantiated yet.
-// The "problem" is that evaluator<2.f*A> is instantiated by traits<Ref>::match<2.f*A>
-// and at that time has_*ary_operator<T> returns true regardless of T.
-// Then nullary_wrapper is badly instantiated as nullary_wrapper<.,.,true,true,true>.
-// The trick is thus to defer the proper instantiation of nullary_wrapper when coeff(),
-// and packet() are really instantiated as implemented below:
-
-// This is a simple wrapper around Index to enforce the re-instantiation of
-// has_*ary_operator when needed.
-template<typename T> struct nullary_wrapper_workaround_msvc {
-  nullary_wrapper_workaround_msvc(const T&);
-  operator T()const;
-};
-
-template<typename Scalar,typename NullaryOp>
-struct nullary_wrapper<Scalar,NullaryOp,true,true,true>
-{
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const NullaryOp& op, IndexType i, IndexType j) const {
-    return nullary_wrapper<Scalar,NullaryOp,
-    has_nullary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_unary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_binary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value>().operator()(op,i,j);
-  }
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const NullaryOp& op, IndexType i) const {
-    return nullary_wrapper<Scalar,NullaryOp,
-    has_nullary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_unary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_binary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value>().operator()(op,i);
-  }
-
-  template <typename T, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T packetOp(const NullaryOp& op, IndexType i, IndexType j) const {
-    return nullary_wrapper<Scalar,NullaryOp,
-    has_nullary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_unary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_binary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value>().template packetOp<T>(op,i,j);
-  }
-  template <typename T, typename IndexType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T packetOp(const NullaryOp& op, IndexType i) const {
-    return nullary_wrapper<Scalar,NullaryOp,
-    has_nullary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_unary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value,
-    has_binary_operator<NullaryOp,nullary_wrapper_workaround_msvc<IndexType> >::value>().template packetOp<T>(op,i);
-  }
-};
-#endif  // MSVC workaround
-
 template <typename NullaryOp, typename PlainObjectType>
 struct evaluator<CwiseNullaryOp<NullaryOp, PlainObjectType>>
     : evaluator_base<CwiseNullaryOp<NullaryOp, PlainObjectType>> {

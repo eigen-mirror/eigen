@@ -359,19 +359,6 @@ UpperBidiagonalization<MatrixType_>& UpperBidiagonalization<MatrixType_>::comput
   return *this;
 }
 
-#if 0
-/** \return the Householder QR decomposition of \c *this.
-  *
-  * \sa class Bidiagonalization
-  */
-template<typename Derived>
-const UpperBidiagonalization<typename MatrixBase<Derived>::PlainObject>
-MatrixBase<Derived>::bidiagonalization() const
-{
-  return UpperBidiagonalization<PlainObject>(eval());
-}
-#endif
-
 }  // end namespace internal
 
 }  // end namespace Eigen

@@ -103,25 +103,6 @@ inline ForceAlignedAccess<Derived> MatrixBase<Derived>::forceAlignedAccess() {
   return ForceAlignedAccess<Derived>(derived());
 }
 
-/** \returns an expression of *this with forced aligned access if \a Enable is true.
- * \sa forceAlignedAccess(), class ForceAlignedAccess
- */
-template <typename Derived>
-template <bool Enable>
-inline add_const_on_value_type_t<std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&>>
-MatrixBase<Derived>::forceAlignedAccessIf() const {
-  return derived();  // FIXME This should not work but apparently is never used
-}
-
-/** \returns an expression of *this with forced aligned access if \a Enable is true.
- * \sa forceAlignedAccess(), class ForceAlignedAccess
- */
-template <typename Derived>
-template <bool Enable>
-inline std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&> MatrixBase<Derived>::forceAlignedAccessIf() {
-  return derived();  // FIXME This should not work but apparently is never used
-}
-
 }  // end namespace Eigen
 
 #endif  // EIGEN_FORCEALIGNEDACCESS_H

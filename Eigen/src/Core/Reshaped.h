@@ -333,43 +333,7 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     const RowCol row_col = index_remap(Rows == 1 ? 0 : index, Rows == 1 ? index : 0);
     return m_argImpl.coeff(row_col.first, row_col.second);
   }
-#if 0
-  EIGEN_DEVICE_FUNC
-  template<int LoadMode>
-  inline PacketScalar packet(Index rowId, Index colId) const
-  {
-    const RowCol row_col = index_remap(rowId, colId);
-    return m_argImpl.template packet<Unaligned>(row_col.first, row_col.second);
 
-  }
-
-  template<int LoadMode>
-  EIGEN_DEVICE_FUNC
-  inline void writePacket(Index rowId, Index colId, const PacketScalar& val)
-  {
-    const RowCol row_col = index_remap(rowId, colId);
-    m_argImpl.const_cast_derived().template writePacket<Unaligned>
-            (row_col.first, row_col.second, val);
-  }
-
-  template<int LoadMode>
-  EIGEN_DEVICE_FUNC
-  inline PacketScalar packet(Index index) const
-  {
-    const RowCol row_col = index_remap(RowsAtCompileTime == 1 ? 0 : index,
-                                        RowsAtCompileTime == 1 ? index : 0);
-    return m_argImpl.template packet<Unaligned>(row_col.first, row_col.second);
-  }
-
-  template<int LoadMode>
-  EIGEN_DEVICE_FUNC
-  inline void writePacket(Index index, const PacketScalar& val)
-  {
-    const RowCol row_col = index_remap(RowsAtCompileTime == 1 ? 0 : index,
-                                        RowsAtCompileTime == 1 ? index : 0);
-    return m_argImpl.template packet<Unaligned>(row_col.first, row_col.second, val);
-  }
-#endif
  protected:
   evaluator<ArgType> m_argImpl;
   const XprType& m_xpr;

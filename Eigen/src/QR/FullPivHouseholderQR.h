@@ -703,11 +703,6 @@ struct FullPivHouseholderQRMatrixQReturnType
   typename IntDiagSizeVectorType::Nested m_rowsTranspositions;
 };
 
-// template<typename MatrixType>
-// struct evaluator<FullPivHouseholderQRMatrixQReturnType<MatrixType> >
-//  : public evaluator<ReturnByValue<FullPivHouseholderQRMatrixQReturnType<MatrixType> > >
-// {};
-
 }  // end namespace internal
 
 template <typename MatrixType, typename PermutationIndex>
