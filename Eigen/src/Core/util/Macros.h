@@ -908,12 +908,11 @@
 
 // EIGEN_LAMBDA_ALWAYS_INLINE forces inlining of lambda functions.
 // On GCC/Clang, __attribute__((always_inline)) works on lambdas.
-// On MSVC, __forceinline cannot be applied to lambdas, but the
-// [[msvc::forceinline]] attribute (available since VS 2022 17.1) can.
+// On MSVC, [[msvc::forceinline]] cannot be applied to generic lambdas
+// (those with auto parameters), so we leave it empty and rely on the
+// optimizer to inline small lambda bodies at /O2.
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
-#elif EIGEN_COMP_MSVC >= 1931
-#define EIGEN_LAMBDA_ALWAYS_INLINE [[msvc::forceinline]]
 #else
 #define EIGEN_LAMBDA_ALWAYS_INLINE
 #endif
