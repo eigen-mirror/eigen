@@ -24,7 +24,7 @@ namespace Eigen {
 
 namespace internal {
 
-// Note: cannot re-use tuple_impl, since that will cause havoc for
+// Note: cannot reuse tuple_impl, since that will cause havoc for
 // tuple_test.
 namespace test_detail {
 // Use std::tuple on CPU, otherwise use the GPU-specific versions.

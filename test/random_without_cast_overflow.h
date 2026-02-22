@@ -138,7 +138,7 @@ struct random_without_cast_overflow<
   }
 };
 
-// Integer to floating-point, re-use above logic.
+// Integer to floating-point, reuse above logic.
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar,

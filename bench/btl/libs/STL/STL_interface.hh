@@ -63,50 +63,50 @@ class STL_interface {
   }
 
   static inline void ata_product(const gene_matrix& A, gene_matrix& X, int N) {
-    real somme;
+    real sum;
     for (int j = 0; j < N; j++) {
       for (int i = 0; i < N; i++) {
-        somme = 0.0;
+        sum = 0.0;
         if (i >= j) {
-          for (int k = 0; k < N; k++) somme += A[i][k] * A[j][k];
-          X[j][i] = somme;
+          for (int k = 0; k < N; k++) sum += A[i][k] * A[j][k];
+          X[j][i] = sum;
         }
       }
     }
   }
 
   static inline void aat_product(const gene_matrix& A, gene_matrix& X, int N) {
-    real somme;
+    real sum;
     for (int j = 0; j < N; j++) {
       for (int i = 0; i < N; i++) {
-        somme = 0.0;
+        sum = 0.0;
         if (i >= j) {
           for (int k = 0; k < N; k++) {
-            somme += A[k][i] * A[k][j];
+            sum += A[k][i] * A[k][j];
           }
-          X[j][i] = somme;
+          X[j][i] = sum;
         }
       }
     }
   }
 
   static inline void matrix_matrix_product(const gene_matrix& A, const gene_matrix& B, gene_matrix& X, int N) {
-    real somme;
+    real sum;
     for (int j = 0; j < N; j++) {
       for (int i = 0; i < N; i++) {
-        somme = 0.0;
-        for (int k = 0; k < N; k++) somme += A[k][i] * B[j][k];
-        X[j][i] = somme;
+        sum = 0.0;
+        for (int k = 0; k < N; k++) sum += A[k][i] * B[j][k];
+        X[j][i] = sum;
       }
     }
   }
 
   static inline void matrix_vector_product(gene_matrix& A, gene_vector& B, gene_vector& X, int N) {
-    real somme;
+    real sum;
     for (int i = 0; i < N; i++) {
-      somme = 0.0;
-      for (int j = 0; j < N; j++) somme += A[j][i] * B[j];
-      X[i] = somme;
+      sum = 0.0;
+      for (int j = 0; j < N; j++) sum += A[j][i] * B[j];
+      X[i] = sum;
     }
   }
 
@@ -137,11 +137,11 @@ class STL_interface {
   }
 
   static inline void atv_product(gene_matrix& A, gene_vector& B, gene_vector& X, int N) {
-    real somme;
+    real sum;
     for (int i = 0; i < N; i++) {
-      somme = 0.0;
-      for (int j = 0; j < N; j++) somme += A[i][j] * B[j];
-      X[i] = somme;
+      sum = 0.0;
+      for (int j = 0; j < N; j++) sum += A[i][j] * B[j];
+      X[i] = sum;
     }
   }
 
@@ -164,31 +164,31 @@ class STL_interface {
 
   static inline real norm_diff(const stl_vector& A, const stl_vector& B) {
     int N = A.size();
-    real somme = 0.0;
-    real somme2 = 0.0;
+    real sum = 0.0;
+    real sum2 = 0.0;
 
     for (int i = 0; i < N; i++) {
       real diff = A[i] - B[i];
-      somme += diff * diff;
-      somme2 += A[i] * A[i];
+      sum += diff * diff;
+      sum2 += A[i] * A[i];
     }
-    return somme / somme2;
+    return sum / sum2;
   }
 
   static inline real norm_diff(const stl_matrix& A, const stl_matrix& B) {
     int N = A[0].size();
-    real somme = 0.0;
-    real somme2 = 0.0;
+    real sum = 0.0;
+    real sum2 = 0.0;
 
     for (int i = 0; i < N; i++) {
       for (int j = 0; j < N; j++) {
         real diff = A[i][j] - B[i][j];
-        somme += diff * diff;
-        somme2 += A[i][j] * A[i][j];
+        sum += diff * diff;
+        sum2 += A[i][j] * A[i][j];
       }
     }
 
-    return somme / somme2;
+    return sum / sum2;
   }
 
   static inline void display_vector(const stl_vector& A) {

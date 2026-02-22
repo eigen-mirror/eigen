@@ -83,7 +83,7 @@ different compiler flags without reconfiguring CMake:
 
 ```
 cd bench && make       # builds with -O3 -march=znver5 by default
-make clean && make CXX="clang++" ## For differnt compiler apart from g++
+make clean && make CXX="clang++" ## For different compiler apart from g++
 make clean && make MARCH="" CXXFLAGS="-O2"  # example of custom flags
 make AOCL_ROOT=/opt/aocl            # use AOCL from a custom location
 

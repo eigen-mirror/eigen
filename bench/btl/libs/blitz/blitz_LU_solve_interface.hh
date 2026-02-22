@@ -39,24 +39,24 @@ class blitz_LU_solve_interface : public blitz_interface<real> {
 
   static inline real matrix_vector_product_sliced(const gene_matrix &A, gene_vector B, int row, int col_start,
                                                   int col_end) {
-    real somme = 0.;
+    real sum = 0.;
 
     for (int j = col_start; j < col_end + 1; j++) {
-      somme += A(row, j) * B(j);
+      sum += A(row, j) * B(j);
     }
 
-    return somme;
+    return sum;
   }
 
   static inline real matrix_matrix_product_sliced(gene_matrix &A, int row, int col_start, int col_end, gene_matrix &B,
                                                   int row_shift, int col) {
-    real somme = 0.;
+    real sum = 0.;
 
     for (int j = col_start; j < col_end + 1; j++) {
-      somme += A(row, j) * B(j + row_shift, col);
+      sum += A(row, j) * B(j + row_shift, col);
     }
 
-    return somme;
+    return sum;
   }
 
   inline static void LU_factor(gene_matrix &LU, Pivot_Vector &pivot, int N) {
@@ -120,7 +120,7 @@ class blitz_LU_solve_interface : public blitz_interface<real> {
   }
 
   inline static void LU_solve(const gene_matrix &LU, const Pivot_Vector pivot, gene_vector &B, gene_vector X, int N) {
-    // Pour conserver le meme header, on travaille sur X, copie du second-membre B
+    // To keep the same header, we work on X, a copy of the right-hand side B
     X = B.copy();
     ASSERT(LU.rows() == LU.cols());
     firstIndex indI;

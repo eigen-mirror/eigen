@@ -222,7 +222,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     Index nn = numext::div_ceil(nn0, gn);
 
     // If there is enough concurrency in the sharding dimension, we choose not
-    // to paralellize by the other dimension, and execute all kernels in sync
+    // to parallelize by the other dimension, and execute all kernels in sync
     // mode. This reduces parallelism from the nm x nn down to nn
     // (shard_by_col==true) or nm (shard_by_col==false).
     const Index sharding_dim_tasks = shard_by_col ? nn : nm;

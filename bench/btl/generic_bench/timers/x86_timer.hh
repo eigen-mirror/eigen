@@ -33,7 +33,7 @@
 #include <string>
 #include <iostream>
 
-// frequence de la becanne en Hz
+// CPU frequency in Hz
 // #define FREQUENCY 648000000
 // #define FREQUENCY 1400000000
 #define FREQUENCY 1695000000
@@ -63,7 +63,7 @@ class X86_Timer {
     do {
       dummy += 2;
     } while (time(0) == initial);
-    // On est au debut d'un cycle d'une seconde !!!
+    // We are at the start of a one-second cycle
     initial = time(0);
     start();
     do {
