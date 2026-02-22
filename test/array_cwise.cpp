@@ -773,6 +773,7 @@ void comparisons(const ArrayType& m) {
 
   // test bug2966: select did not support some scalar types that forbade implicit conversions from bool
   ArrayX<scalar_wrapper> m5(10);
+  m5.setConstant(scalar_wrapper(0));
   m5 = (m5 == scalar_wrapper(0)).select(m5, m5);
 }
 

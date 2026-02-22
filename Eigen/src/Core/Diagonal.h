@@ -91,8 +91,12 @@ class Diagonal : public internal::dense_xpr_base<Diagonal<MatrixType, DiagIndex_
 
   typedef std::conditional_t<internal::is_lvalue<MatrixType>::value, Scalar, const Scalar> ScalarWithConstIfNotLvalue;
 
-  EIGEN_DEVICE_FUNC inline ScalarWithConstIfNotLvalue* data() { return &(m_matrix.coeffRef(rowOffset(), colOffset())); }
-  EIGEN_DEVICE_FUNC inline const Scalar* data() const { return &(m_matrix.coeffRef(rowOffset(), colOffset())); }
+  EIGEN_DEVICE_FUNC inline ScalarWithConstIfNotLvalue* data() {
+    return rows() > 0 ? &(m_matrix.coeffRef(rowOffset(), colOffset())) : nullptr;
+  }
+  EIGEN_DEVICE_FUNC inline const Scalar* data() const {
+    return rows() > 0 ? &(m_matrix.coeffRef(rowOffset(), colOffset())) : nullptr;
+  }
 
   EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index) {
     EIGEN_STATIC_ASSERT_LVALUE(MatrixType)
