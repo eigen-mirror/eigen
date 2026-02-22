@@ -170,9 +170,9 @@ class ComplexQZ {
   template <typename SparseMatrixType_>
   void computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ = true);
 
-  /** \brief Reports whether the last computation was successfull.
+  /** \brief Reports whether the last computation was successful.
    *
-   * \returns \c Success if computation was successfull, \c NoConvergence otherwise.
+   * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
   ComputationInfo info() const { return m_info; }
 

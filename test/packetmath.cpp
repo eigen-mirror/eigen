@@ -1022,7 +1022,7 @@ void packetmath_real() {
   }
 
   if (PacketTraits::HasTanh) {
-    // NOTE this test migh fail with GCC prior to 6.3, see MathFunctionsImpl.h for details.
+    // NOTE this test might fail with GCC prior to 6.3, see MathFunctionsImpl.h for details.
     data1[0] = NumTraits<Scalar>::quiet_NaN();
     test::packet_helper<internal::packet_traits<Scalar>::HasTanh, Packet> h;
     h.store(data2, internal::ptanh(h.load(data1)));
@@ -1580,7 +1580,7 @@ struct exp_complex_test_impl {
 template <typename Scalar, typename Packet>
 struct exp_complex_test_impl<Scalar, Packet, false> {
   typedef typename Scalar::value_type RealScalar;
-  static void run(Scalar*, Scalar*, Scalar*, int) {};
+  static void run(Scalar*, Scalar*, Scalar*, int){};
 };
 
 template <typename Scalar, typename Packet>

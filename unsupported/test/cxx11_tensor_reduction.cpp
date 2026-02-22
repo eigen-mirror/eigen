@@ -471,7 +471,7 @@ void test_sum_accuracy() {
     Tensor<ScalarType, 0> sum;
     sum = tensor.sum();
 
-    // Compute the reference value in double precsion.
+    // Compute the reference value in double precision.
     double expected_sum = 0.0;
     double abs_sum = 0.0;
     for (int i = 0; i < num_elements; ++i) {

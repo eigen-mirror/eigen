@@ -88,7 +88,7 @@ class NNLS {
   /** */
   NNLS();
 
-  /** \brief Constructs a NNLS sovler and initializes it with the given system matrix @c A.
+  /** \brief Constructs a NNLS solver and initializes it with the given system matrix @c A.
    * \param A Specifies the system matrix.
    * \param max_iter Specifies the maximum number of iterations to solve the system.
    * \param tol Specifies the precision of the optimum.

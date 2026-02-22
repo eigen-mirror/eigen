@@ -422,7 +422,7 @@ void check_indexed_view() {
   A(last, last) = 1;
   // check weird non-const, non-lvalue scenarios
   {
-    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const
+    // in these scenarios, the objects are not declared 'const', and the compiler will attempt to use the non-const
     // overloads without intervention
 
     // non-const map to a const object

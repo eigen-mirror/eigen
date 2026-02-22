@@ -40,7 +40,7 @@ EIGEN_DECLARE_TEST(constexpr) {
   VERIFY_IS_EQUAL(vec.size(), 3);
   static_assert(vec.coeff(0, 1) == 2);
 
-  // Check assignment. A wrapper struct is used to avoid copy ellision.
+  // Check assignment. A wrapper struct is used to avoid copy elision.
   constexpr ConstexprTest<double, 2> obj1(Matrix2d({{1, 2}, {3, 4}}));
   VERIFY_IS_EQUAL(obj1.A.size(), 4);
   static_assert(obj1.A(0, 0) == 1);

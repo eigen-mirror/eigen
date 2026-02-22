@@ -632,7 +632,7 @@ class TensorContractionKernel {
     (thread_properties.is_internal) ? compute_panel<true>(itemID, thread_properties, out_ptr)
                                     : compute_panel<false>(itemID, thread_properties, out_ptr);
   }
-  // The compute block computes the contraction operation private block for each thread and store the resutl in the
+  // The compute block computes the contraction operation private block for each thread and store the result in the
   // privateRes memory of Each computation the compute block function is independent of local and no local concepts as
   // it only compute the block on each thread's private memory space
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void compute_block_per_tile(OutScalar *lhs_block_ptr, OutScalar *rhs_block_ptr,

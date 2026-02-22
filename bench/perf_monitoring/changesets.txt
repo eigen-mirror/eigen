@@ -73,7 +73,7 @@ Load hg-to-git hash maps from ./eigen_git/.git/
 9946a5fe86098   # Complete rewrite of column-major-matrix * vector product<br/> to deliver higher performance of modern CPU.
 99591003f3b86   # Improve performance of row-major-dense-matrix * vector products<br/> for recent CPUs.
 997eb621413c1   # Revert vec/y to vec*(1/y) in row-major TRSM
-10444bbc320468  # Bug 1435: fix aliasing issue in exressions like: A = C - B*A;
+10444bbc320468  # Bug 1435: fix aliasing issue in expressions like: A = C - B*A;
 1073624df50945  # Adds missing EIGEN_STRONG_INLINE to support MSVC<br/> properly inlining small vector calculations
 1094d428a199ab  # Bug 1562: optimize evaluation of small products<br/> of the form s*A*B by rewriting them as: s*(A.lazyProduct(B))<br/> to save a costly temporary.<br/> Measured speedup from 2x to 5x.
 1096de9e31a06d  # Introduce the macro ei_declare_local_nested_eval to<br/> help allocating on the stack local temporaries via alloca,<br/> and let outer-products makes a good use of it.

@@ -70,7 +70,7 @@ class KroneckerProductBase : public ReturnByValue<Derived> {
  *
  * This class is the return value of kroneckerProduct(MatrixBase,
  * MatrixBase). Use the function rather than construct this class
- * directly to avoid specifying template prarameters.
+ * directly to avoid specifying template parameters.
  *
  * \tparam Lhs  Type of the left-hand side, a matrix expression.
  * \tparam Rhs  Type of the rignt-hand side, a matrix expression.
@@ -101,7 +101,7 @@ class KroneckerProduct : public KroneckerProductBase<KroneckerProduct<Lhs, Rhs> 
  *
  * This class is the return value of kroneckerProduct(EigenBase,
  * EigenBase). Use the function rather than construct this class
- * directly to avoid specifying template prarameters.
+ * directly to avoid specifying template parameters.
  *
  * \tparam Lhs  Type of the left-hand side, a matrix expression.
  * \tparam Rhs  Type of the rignt-hand side, a matrix expression.

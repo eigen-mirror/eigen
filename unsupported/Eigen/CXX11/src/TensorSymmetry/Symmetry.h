@@ -74,7 +74,7 @@ struct AntiHermiticity {
  * \brief Dynamic symmetry group
  *
  * The %DynamicSGroup class represents a symmetry group that need not be known at
- * compile time. It is useful if one wants to support arbitrary run-time defineable
+ * compile time. It is useful if one wants to support arbitrary run-time definable
  * symmetries for tensors, but it is also instantiated if a symmetry group is defined
  * at compile time that would be either too large for the compiler to reasonably
  * generate (using templates to calculate this at compile time is very inefficient)

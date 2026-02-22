@@ -1189,7 +1189,7 @@ containing the coefficient wise maximums of the inputs.
 ### (Operation) cwiseMin(const OtherDerived& other)
 
 Returns a tensor of the same type and dimensions as the input tensors
-containing the coefficient wise mimimums of the inputs.
+containing the coefficient wise minimums of the inputs.
 
 ### (Operation) Logical operators
 

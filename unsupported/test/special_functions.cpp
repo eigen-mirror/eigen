@@ -65,7 +65,7 @@ void array_special_functions() {
       ArrayType m1 = ArrayType::Random(rows, cols);
       ArrayType m2 = ArrayType::Random(rows, cols);
 
-      // Test various propreties of igamma & igammac.  These are normalized
+      // Test various properties of igamma & igammac.  These are normalized
       // gamma integrals where
       //   igammac(a, x) = Gamma(a, x) / Gamma(a)
       //   igamma(a, x) = gamma(a, x) / Gamma(a)

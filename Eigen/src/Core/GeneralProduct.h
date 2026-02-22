@@ -208,7 +208,7 @@ struct product_type_selector<Large, Large, Small> {
  *  Implementation of General Matrix Vector Product
  ***********************************************************************/
 
-/*  According to the shape/flags of the matrix we have to distinghish 3 different cases:
+/*  According to the shape/flags of the matrix we have to distinguish 3 different cases:
  *   1 - the matrix is col-major, BLAS compatible and M is large => call fast BLAS-like colmajor routine
  *   2 - the matrix is row-major, BLAS compatible and N is large => call fast BLAS-like rowmajor routine
  *   3 - all other cases are handled using a simple loop along the outer-storage direction.

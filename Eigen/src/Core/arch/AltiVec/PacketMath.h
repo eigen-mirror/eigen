@@ -1163,7 +1163,7 @@ EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& a, const Packet4i& b
 #endif
 }
 
-// for some weird raisons, it has to be overloaded for packet of integers
+// for some weird reasons, it has to be overloaded for packet of integers
 template <>
 EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_madd(a, b, c);
@@ -3274,7 +3274,7 @@ EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b
   return vec_div(a, b);
 }
 
-// for some weird raisons, it has to be overloaded for packet of integers
+// for some weird reasons, it has to be overloaded for packet of integers
 template <>
 EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
   return vec_madd(a, b, c);

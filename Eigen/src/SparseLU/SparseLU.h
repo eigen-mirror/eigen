@@ -507,7 +507,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   SparseLU(const SparseLU&);
 };  // End class SparseLU
 
-// Functions needed by the anaysis phase
+// Functions needed by the analysis phase
 /** \brief Compute the column permutation.
  *
  * Compute the column permutation to minimize the fill-in

@@ -397,7 +397,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Pac
 // Generic implementation of cbrt(x) for double.
 //
 // The algorithm is identical to the one for float except that a different initial
-// approximation is used for y^(1/3) and two Halley iteration steps are peformed.
+// approximation is used for y^(1/3) and two Halley iteration steps are performed.
 //
 // This is accurate to 1 ULP.
 template <typename Packet>
@@ -1406,7 +1406,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise).
     On the domain [-1.25:1.25] we use an approximation of the form
     tanh(x) ~= x^3 * (P(x) / Q(x)) + x, where P and Q are polynomials in x^2.
-    For |x| > 1.25, tanh is implememented as tanh(x) = 1 - (2 / (1 + exp(2*x))).
+    For |x| > 1.25, tanh is implemented as tanh(x) = 1 - (2 / (1 + exp(2*x))).
 
     This implementation has a maximum error of 1 ULP (measured with AVX2+FMA).
 

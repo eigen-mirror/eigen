@@ -9,7 +9,7 @@
       <!ELEMENT SIZE (#PCDATA)>
       <!ELEMENT ENTRIES (#PCDATA)> <!-- The number of nonzeros elements -->
       <!ELEMENT PATTERN (#PCDATA)>  <!-- Is structural pattern symmetric or not -->
-      <!ELEMENT SYMMETRY (#PCDATA)> <!-- symmmetry with numerical values -->
+      <!ELEMENT SYMMETRY (#PCDATA)> <!-- symmetry with numerical values -->
       <!ELEMENT POSDEF (#PCDATA)> <!-- Is the matrix positive definite or not -->
       <!ELEMENT ARITHMETIC (#PCDATA)> 
       <!ELEMENT RHS (SOURCE)>  <!-- A matrix can have one or more right hand side associated. -->
