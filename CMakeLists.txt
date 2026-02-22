@@ -427,6 +427,17 @@ if (EIGEN_BUILD_TESTING)
       ei_add_cxx_compiler_flag("-fno-check-new")
     endif()
 
+    # GCC 12+ emits false-positive -Warray-bounds, -Wmaybe-uninitialized,
+    # -Wstringop-overread, and -Wnonnull warnings at -O2/-O3 in heavily
+    # templated code with mixed static/dynamic sizes.  These are well-known
+    # compiler bugs (see GCC PR 109394, 106247, 105329, 98610, among others).
+    if (CMAKE_COMPILER_IS_GNUCXX)
+      ei_add_cxx_compiler_flag("-Wno-array-bounds")
+      ei_add_cxx_compiler_flag("-Wno-maybe-uninitialized")
+      ei_add_cxx_compiler_flag("-Wno-stringop-overread")
+      ei_add_cxx_compiler_flag("-Wno-nonnull")
+    endif()
+
 
     if(ANDROID_NDK)
       ei_add_cxx_compiler_flag("-pie")
