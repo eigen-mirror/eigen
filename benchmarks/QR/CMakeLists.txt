@@ -1,1 +1,1 @@
-# QR benchmarks will be added here.
+eigen_add_benchmark(bench_qr bench_qr.cpp)
