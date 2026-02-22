@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include "../test/MovableScalar.h"
+#include "../../test/MovableScalar.h"
 #include <utility>
 
 template <typename MatrixType>

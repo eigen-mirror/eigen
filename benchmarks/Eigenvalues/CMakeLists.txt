@@ -1,0 +1,2 @@
+eigen_add_benchmark(bench_eigensolver bench_eigensolver.cpp)
+eigen_add_benchmark(bench_eig33 bench_eig33.cpp)

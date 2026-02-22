@@ -1,0 +1,7 @@
+eigen_add_benchmark(bench_gemm bench_gemm.cpp)
+eigen_add_benchmark(bench_gemm_double bench_gemm.cpp DEFINITIONS SCALAR=double)
+eigen_add_benchmark(bench_gemv bench_gemv.cpp)
+eigen_add_benchmark(bench_vecadd bench_vecadd.cpp)
+eigen_add_benchmark(bench_trsm bench_trsm.cpp)
+eigen_add_benchmark(bench_reverse bench_reverse.cpp)
+eigen_add_benchmark(bench_move_semantics bench_move_semantics.cpp)

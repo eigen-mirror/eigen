@@ -1,0 +1,3 @@
+eigen_add_benchmark(bench_spmv bench_spmv.cpp)
+eigen_add_benchmark(bench_spmm bench_spmm.cpp)
+eigen_add_benchmark(bench_sparse_transpose bench_sparse_transpose.cpp)

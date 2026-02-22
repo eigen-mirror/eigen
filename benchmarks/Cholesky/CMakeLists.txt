@@ -1,0 +1,1 @@
+eigen_add_benchmark(bench_cholesky bench_cholesky.cpp)
