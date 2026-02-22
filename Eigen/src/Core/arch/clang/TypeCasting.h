@@ -10,6 +10,9 @@
 #ifndef EIGEN_TYPE_CASTING_CLANG_H
 #define EIGEN_TYPE_CASTING_CLANG_H
 
+// IWYU pragma: private
+#include "../../InternalHeaderCheck.h"
+
 namespace Eigen {
 namespace internal {
 
@@ -54,6 +57,40 @@ EIGEN_STRONG_INLINE Packet8l pcast<Packet8d, Packet8l>(const Packet8d& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8d pcast<Packet8l, Packet8d>(const Packet8l& a) {
   return __builtin_convertvector(a, Packet8d);
+}
+
+// float -> double: converts lower 8 floats to 8 doubles
+template <>
+EIGEN_STRONG_INLINE Packet8d pcast<Packet16f, Packet8d>(const Packet16f& a) {
+  using HalfFloat = detail::VectorType<float, 8>;
+  HalfFloat lo = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7);
+  return __builtin_convertvector(lo, Packet8d);
+}
+
+// double -> float: converts two Packet8d to one Packet16f
+template <>
+EIGEN_STRONG_INLINE Packet16f pcast<Packet8d, Packet16f>(const Packet8d& a, const Packet8d& b) {
+  using HalfFloat = detail::VectorType<float, 8>;
+  HalfFloat lo = __builtin_convertvector(a, HalfFloat);
+  HalfFloat hi = __builtin_convertvector(b, HalfFloat);
+  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+}
+
+// int32 -> int64: converts lower 8 int32s to 8 int64s
+template <>
+EIGEN_STRONG_INLINE Packet8l pcast<Packet16i, Packet8l>(const Packet16i& a) {
+  using HalfInt = detail::VectorType<int32_t, 8>;
+  HalfInt lo = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7);
+  return __builtin_convertvector(lo, Packet8l);
+}
+
+// int64 -> int32: converts two Packet8l to one Packet16i
+template <>
+EIGEN_STRONG_INLINE Packet16i pcast<Packet8l, Packet16i>(const Packet8l& a, const Packet8l& b) {
+  using HalfInt = detail::VectorType<int32_t, 8>;
+  HalfInt lo = __builtin_convertvector(a, HalfInt);
+  HalfInt hi = __builtin_convertvector(b, HalfInt);
+  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 }
 #endif
 

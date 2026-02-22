@@ -10,6 +10,9 @@
 #ifndef EIGEN_PACKET_MATH_CLANG_H
 #define EIGEN_PACKET_MATH_CLANG_H
 
+// IWYU pragma: private
+#include "../../InternalHeaderCheck.h"
+
 namespace Eigen {
 namespace internal {
 
@@ -90,6 +93,8 @@ template <>
 struct packet_traits<double> : generic_float_packet_traits {
   using type = Packet8d;
   using half = Packet8d;
+  // Generic double-precision acos/asin are not yet implemented in
+  // GenericPacketMathFunctions.h (only float versions exist).
   enum { size = 8, HasACos = 0, HasASin = 0 };
 };
 
@@ -196,7 +201,7 @@ template <typename VectorT>
 using scalar_type_of_vector_t = typename ScalarTypeOfVector<VectorT>::type;
 
 template <typename VectorType>
-struct UnsignedVectorHelpter {
+struct UnsignedVectorHelper {
   static VectorType v;
   static constexpr int n = __builtin_vectorelements(v);
   using UnsignedScalar = std::make_unsigned_t<scalar_type_of_vector_t<VectorType>>;
@@ -204,7 +209,7 @@ struct UnsignedVectorHelpter {
 };
 
 template <typename VectorT>
-using unsigned_vector_t = typename UnsignedVectorHelpter<VectorT>::type;
+using unsigned_vector_t = typename UnsignedVectorHelper<VectorT>::type;
 
 template <typename VectorT>
 using HalfPacket = VectorType<typename unpacket_traits<VectorT>::type, unpacket_traits<VectorT>::size / 2>;
@@ -216,10 +221,7 @@ using QuarterPacket = VectorType<typename unpacket_traits<VectorT>::type, unpack
 template <typename VectorT>
 EIGEN_STRONG_INLINE VectorT load_vector_unaligned(const scalar_type_of_vector_t<VectorT>* from) {
   VectorT to;
-  constexpr int n = __builtin_vectorelements(to);
-  for (int i = 0; i < n; ++i) {
-    to[i] = from[i];
-  }
+  __builtin_memcpy(&to, from, sizeof(VectorT));
   return to;
 }
 
@@ -230,10 +232,7 @@ EIGEN_STRONG_INLINE VectorT load_vector_aligned(const scalar_type_of_vector_t<Ve
 
 template <typename VectorT>
 EIGEN_STRONG_INLINE void store_vector_unaligned(scalar_type_of_vector_t<VectorT>* to, const VectorT& from) {
-  constexpr int n = __builtin_vectorelements(from);
-  for (int i = 0; i < n; ++i) {
-    *to++ = from[i];
-  }
+  __builtin_memcpy(to, &from, sizeof(VectorT));
 }
 
 template <typename VectorT>
@@ -320,13 +319,12 @@ EIGEN_CLANG_PACKET_ARITHMETIC(Packet8l)
 
 namespace detail {
 
-// Note: pcast functions are not template specializations, just helpers
-// identical to preinterpret. We duplicate them here to avoid a circular
-// dependence with TypeCasting.h.
-EIGEN_STRONG_INLINE Packet16i pcast_float_to_int(const Packet16f& a) { return reinterpret_cast<Packet16i>(a); }
-EIGEN_STRONG_INLINE Packet16f pcast_int_to_float(const Packet16i& a) { return reinterpret_cast<Packet16f>(a); }
-EIGEN_STRONG_INLINE Packet8l pcast_double_to_long(const Packet8d& a) { return reinterpret_cast<Packet8l>(a); }
-EIGEN_STRONG_INLINE Packet8d pcast_long_to_double(const Packet8l& a) { return reinterpret_cast<Packet8d>(a); }
+// Reinterpret-cast helpers, equivalent to preinterpret<> but defined here
+// because PacketMath.h is included before TypeCasting.h.
+EIGEN_STRONG_INLINE Packet16i preinterpret_float_to_int(const Packet16f& a) { return reinterpret_cast<Packet16i>(a); }
+EIGEN_STRONG_INLINE Packet16f preinterpret_int_to_float(const Packet16i& a) { return reinterpret_cast<Packet16f>(a); }
+EIGEN_STRONG_INLINE Packet8l preinterpret_double_to_long(const Packet8d& a) { return reinterpret_cast<Packet8l>(a); }
+EIGEN_STRONG_INLINE Packet8d preinterpret_long_to_double(const Packet8l& a) { return reinterpret_cast<Packet8d>(a); }
 
 }  // namespace detail
 
@@ -377,6 +375,11 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
 // Bitwise ops for floating point packets
 #define EIGEN_CLANG_PACKET_BITWISE_FLOAT(PACKET_TYPE, CAST_TO_INT, CAST_FROM_INT)                    \
   template <>                                                                                        \
+  constexpr EIGEN_STRONG_INLINE PACKET_TYPE pzero<PACKET_TYPE>(const PACKET_TYPE& /*unused*/) {      \
+    using Scalar = detail::scalar_type_of_vector_t<PACKET_TYPE>;                                     \
+    return PACKET_TYPE(Scalar(0));                                                                   \
+  }                                                                                                  \
+  template <>                                                                                        \
   constexpr EIGEN_STRONG_INLINE PACKET_TYPE ptrue<PACKET_TYPE>(const PACKET_TYPE& /* unused */) {    \
     using Scalar = detail::scalar_type_of_vector_t<PACKET_TYPE>;                                     \
     return numext::bit_cast<PACKET_TYPE>(PACKET_TYPE(Scalar(0)) == PACKET_TYPE(Scalar(0)));          \
@@ -398,9 +401,36 @@ EIGEN_CLANG_PACKET_BITWISE_INT(Packet8l)
     return CAST_FROM_INT(CAST_TO_INT(a) & ~CAST_TO_INT(b));                                          \
   }
 
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::pcast_float_to_int, detail::pcast_int_to_float)
-EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::pcast_double_to_long, detail::pcast_long_to_double)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet16f, detail::preinterpret_float_to_int, detail::preinterpret_int_to_float)
+EIGEN_CLANG_PACKET_BITWISE_FLOAT(Packet8d, detail::preinterpret_double_to_long, detail::preinterpret_long_to_double)
 #undef EIGEN_CLANG_PACKET_BITWISE_FLOAT
+
+// --- Comparison operations ---
+// Clang vector extensions perform comparisons in the original type (float/double),
+// returning an int vector with all-ones (-1) for true and all-zeros for false.
+// The bit_cast reinterprets those int bitmasks as float packets, which is the
+// format expected by pselect and other Eigen packet operations.
+#define EIGEN_CLANG_PACKET_CMP(PACKET_TYPE, INT_PACKET_TYPE)                                                \
+  template <>                                                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pcmp_eq<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {        \
+    return numext::bit_cast<PACKET_TYPE>(INT_PACKET_TYPE(a == b));                                          \
+  }                                                                                                         \
+  template <>                                                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pcmp_lt<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {        \
+    return numext::bit_cast<PACKET_TYPE>(INT_PACKET_TYPE(a < b));                                           \
+  }                                                                                                         \
+  template <>                                                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pcmp_le<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {        \
+    return numext::bit_cast<PACKET_TYPE>(INT_PACKET_TYPE(a <= b));                                          \
+  }                                                                                                         \
+  template <>                                                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pcmp_lt_or_nan<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
+    return numext::bit_cast<PACKET_TYPE>(INT_PACKET_TYPE(!(a >= b)));                                       \
+  }
+
+EIGEN_CLANG_PACKET_CMP(Packet16f, Packet16i)
+EIGEN_CLANG_PACKET_CMP(Packet8d, Packet8l)
+#undef EIGEN_CLANG_PACKET_CMP
 
 // --- Min/Max operations ---
 #if EIGEN_HAS_BUILTIN(__builtin_elementwise_min) && EIGEN_HAS_BUILTIN(__builtin_elementwise_max) && \
@@ -510,11 +540,26 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(Packet8d)
   }
 #else
 // Fallback if FMA builtin is not available
-#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                     \
-  template <>                                                                                    \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
-                                                     const PACKET_TYPE& c) {                     \
-    return (a * b) + c;                                                                          \
+#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
+                                                     const PACKET_TYPE& c) {                      \
+    return (a * b) + c;                                                                           \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
+                                                     const PACKET_TYPE& c) {                      \
+    return (a * b) - c;                                                                           \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
+                                                      const PACKET_TYPE& c) {                     \
+    return c - (a * b);                                                                           \
+  }                                                                                               \
+  template <>                                                                                     \
+  EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
+                                                      const PACKET_TYPE& c) {                     \
+    return -((a * b) + c);                                                                        \
   }
 #endif
 

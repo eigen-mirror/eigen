@@ -10,6 +10,9 @@
 #ifndef EIGEN_REDUCTIONS_CLANG_H
 #define EIGEN_REDUCTIONS_CLANG_H
 
+// IWYU pragma: private
+#include "../../InternalHeaderCheck.h"
+
 namespace Eigen {
 namespace internal {
 
