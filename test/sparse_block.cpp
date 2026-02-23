@@ -279,6 +279,22 @@ void sparse_block(const SparseMatrixType& ref) {
       ++block_iterator;
       ++matrix_iterator;
     }
+
+    // Test direct access methods
+    if (m2.isCompressed()) {
+      VERIFY(v.isCompressed());
+      VERIFY_IS_EQUAL(v.innerNonZeroPtr(), (const StorageIndex*)0);
+    } else {
+      VERIFY(!v.isCompressed());
+      if (SparseMatrixType::IsRowMajor) {
+        VERIFY_IS_EQUAL(v.innerNonZeroPtr(), m2.innerNonZeroPtr() + j0);
+      } else {
+        VERIFY_IS_EQUAL(v.innerNonZeroPtr(), m2.innerNonZeroPtr() + j0);
+      }
+    }
+    VERIFY_IS_EQUAL(v.valuePtr(), m2.valuePtr());
+    VERIFY_IS_EQUAL(v.innerIndexPtr(), m2.innerIndexPtr());
+    VERIFY_IS_EQUAL(v.outerIndexPtr(), m2.outerIndexPtr() + j0);
   }
 }
 
