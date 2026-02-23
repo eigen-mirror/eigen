@@ -19,276 +19,16 @@
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
+#include "GenericPacketMathPolynomials.h"
+#include "GenericPacketMathFrexpLdexp.h"
+#include "GenericPacketMathDoubleWord.h"
 
 namespace Eigen {
 namespace internal {
 
-// Creates a Scalar integer type with same bit-width.
-template <typename T>
-struct make_integer;
-template <>
-struct make_integer<float> {
-  typedef numext::int32_t type;
-};
-template <>
-struct make_integer<double> {
-  typedef numext::int64_t type;
-};
-template <>
-struct make_integer<half> {
-  typedef numext::int16_t type;
-};
-template <>
-struct make_integer<bfloat16> {
-  typedef numext::int16_t type;
-};
-
-/* polevl (modified for Eigen)
- *
- *      Evaluate polynomial
- *
- *
- *
- * SYNOPSIS:
- *
- * int N;
- * Scalar x, y, coef[N+1];
- *
- * y = polevl<decltype(x), N>( x, coef);
- *
- *
- *
- * DESCRIPTION:
- *
- * Evaluates polynomial of degree N:
- *
- *                     2          N
- * y  =  C  + C x + C x  +...+ C x
- *        0    1     2          N
- *
- * Coefficients are stored in reverse order:
- *
- * coef[0] = C  , ..., coef[N] = C  .
- *            N                   0
- *
- *  The function p1evl() assumes that coef[N] = 1.0 and is
- * omitted from the array.  Its calling arguments are
- * otherwise the same as polevl().
- *
- *
- * The Eigen implementation is templatized.  For best speed, store
- * coef as a const array (constexpr), e.g.
- *
- * const double coef[] = {1.0, 2.0, 3.0, ...};
- *
- */
-template <typename Packet, int N>
-struct ppolevl {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x,
-                                                          const typename unpacket_traits<Packet>::type coeff[]) {
-    EIGEN_STATIC_ASSERT((N > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
-    return pmadd(ppolevl<Packet, N - 1>::run(x, coeff), x, pset1<Packet>(coeff[N]));
-  }
-};
-
-template <typename Packet>
-struct ppolevl<Packet, 0> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x,
-                                                          const typename unpacket_traits<Packet>::type coeff[]) {
-    EIGEN_UNUSED_VARIABLE(x);
-    return pset1<Packet>(coeff[0]);
-  }
-};
-
-/* chbevl (modified for Eigen)
- *
- *     Evaluate Chebyshev series
- *
- *
- *
- * SYNOPSIS:
- *
- * int N;
- * Scalar x, y, coef[N], chebevl();
- *
- * y = chbevl( x, coef, N );
- *
- *
- *
- * DESCRIPTION:
- *
- * Evaluates the series
- *
- *        N-1
- *         - '
- *  y  =   >   coef[i] T (x/2)
- *         -            i
- *        i=0
- *
- * of Chebyshev polynomials Ti at argument x/2.
- *
- * Coefficients are stored in reverse order, i.e. the zero
- * order term is last in the array.  Note N is the number of
- * coefficients, not the order.
- *
- * If coefficients are for the interval a to b, x must
- * have been transformed to x -> 2(2x - b - a)/(b-a) before
- * entering the routine.  This maps x from (a, b) to (-1, 1),
- * over which the Chebyshev polynomials are defined.
- *
- * If the coefficients are for the inverted interval, in
- * which (a, b) is mapped to (1/b, 1/a), the transformation
- * required is x -> 2(2ab/x - b - a)/(b-a).  If b is infinity,
- * this becomes x -> 4a/x - 1.
- *
- *
- *
- * SPEED:
- *
- * Taking advantage of the recurrence properties of the
- * Chebyshev polynomials, the routine requires one more
- * addition per loop than evaluating a nested polynomial of
- * the same degree.
- *
- */
-
-template <typename Packet, int N>
-struct pchebevl {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(Packet x,
-                                                          const typename unpacket_traits<Packet>::type coef[]) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
-    Packet b0 = pset1<Packet>(coef[0]);
-    Packet b1 = pset1<Packet>(static_cast<Scalar>(0.f));
-    Packet b2;
-
-    for (int i = 1; i < N; i++) {
-      b2 = b1;
-      b1 = b0;
-      b0 = psub(pmadd(x, b1, pset1<Packet>(coef[i])), b2);
-    }
-
-    return pmul(pset1<Packet>(static_cast<Scalar>(0.5f)), psub(b0, b2));
-  }
-};
-
-template <typename Packet>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  static constexpr int mantissa_bits = numext::numeric_limits<Scalar>::digits - 1;
-  return pcast<PacketI, Packet>(plogical_shift_right<mantissa_bits>(preinterpret<PacketI>(pabs(a))));
-}
-
-// Safely applies frexp, correctly handles denormals.
-// Assumes IEEE floating point format.
-template <typename Packet>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Packet& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename make_unsigned<typename make_integer<Scalar>::type>::type ScalarUI;
-  static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-                       ExponentBits = TotalBits - MantissaBits - 1;
-
-  constexpr ScalarUI scalar_sign_mantissa_mask =
-      ~(((ScalarUI(1) << ExponentBits) - ScalarUI(1)) << MantissaBits);  // ~0x7f800000
-  const Packet sign_mantissa_mask = pset1frombits<Packet>(static_cast<ScalarUI>(scalar_sign_mantissa_mask));
-  const Packet half = pset1<Packet>(Scalar(0.5));
-  const Packet zero = pzero(a);
-  const Packet normal_min = pset1<Packet>((numext::numeric_limits<Scalar>::min)());  // Minimum normal value, 2^-126
-
-  // To handle denormals, normalize by multiplying by 2^(int(MantissaBits)+1).
-  const Packet is_denormal = pcmp_lt(pabs(a), normal_min);
-  constexpr ScalarUI scalar_normalization_offset = ScalarUI(MantissaBits + 1);  // 24
-  // The following cannot be constexpr because bfloat16(uint16_t) is not constexpr.
-  const Scalar scalar_normalization_factor = Scalar(ScalarUI(1) << int(scalar_normalization_offset));  // 2^24
-  const Packet normalization_factor = pset1<Packet>(scalar_normalization_factor);
-  const Packet normalized_a = pselect(is_denormal, pmul(a, normalization_factor), a);
-
-  // Determine exponent offset: -126 if normal, -126-24 if denormal
-  const Scalar scalar_exponent_offset = -Scalar((ScalarUI(1) << (ExponentBits - 1)) - ScalarUI(2));  // -126
-  Packet exponent_offset = pset1<Packet>(scalar_exponent_offset);
-  const Packet normalization_offset = pset1<Packet>(-Scalar(scalar_normalization_offset));  // -24
-  exponent_offset = pselect(is_denormal, padd(exponent_offset, normalization_offset), exponent_offset);
-
-  // Determine exponent and mantissa from normalized_a.
-  exponent = pfrexp_generic_get_biased_exponent(normalized_a);
-  // Zero, Inf and NaN return 'a' unmodified, exponent is zero
-  // (technically the exponent is unspecified for inf/NaN, but GCC/Clang set it to zero)
-  const Scalar scalar_non_finite_exponent = Scalar((ScalarUI(1) << ExponentBits) - ScalarUI(1));  // 255
-  const Packet non_finite_exponent = pset1<Packet>(scalar_non_finite_exponent);
-  const Packet is_zero_or_not_finite = por(pcmp_eq(a, zero), pcmp_eq(exponent, non_finite_exponent));
-  const Packet m = pselect(is_zero_or_not_finite, a, por(pand(normalized_a, sign_mantissa_mask), half));
-  exponent = pselect(is_zero_or_not_finite, zero, padd(exponent, exponent_offset));
-  return m;
-}
-
-// Safely applies ldexp, correctly handles overflows, underflows and denormals.
-// Assumes IEEE floating point format.
-template <typename Packet>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, const Packet& exponent) {
-  // We want to return a * 2^exponent, allowing for all possible integer
-  // exponents without overflowing or underflowing in intermediate
-  // computations.
-  //
-  // Since 'a' and the output can be denormal, the maximum range of 'exponent'
-  // to consider for a float is:
-  //   -255-23 -> 255+23
-  // Below -278 any finite float 'a' will become zero, and above +278 any
-  // finite float will become inf, including when 'a' is the smallest possible
-  // denormal.
-  //
-  // Unfortunately, 2^(278) cannot be represented using either one or two
-  // finite normal floats, so we must split the scale factor into at least
-  // three parts. It turns out to be faster to split 'exponent' into four
-  // factors, since [exponent>>2] is much faster to compute that [exponent/3].
-  //
-  // Set e = min(max(exponent, -278), 278);
-  //     b = floor(e/4);
-  //   out = ((((a * 2^(b)) * 2^(b)) * 2^(b)) * 2^(e-3*b))
-  //
-  // This will avoid any intermediate overflows and correctly handle 0, inf,
-  // NaN cases.
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
-  static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-                       ExponentBits = TotalBits - MantissaBits - 1;
-
-  const Packet max_exponent = pset1<Packet>(Scalar((ScalarI(1) << ExponentBits) + ScalarI(MantissaBits - 1)));  // 278
-  const PacketI bias = pset1<PacketI>((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1));                         // 127
-  const PacketI e = pcast<Packet, PacketI>(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
-  PacketI b = parithmetic_shift_right<2>(e);                                          // floor(e/4);
-  Packet c = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));  // 2^b
-  Packet out = pmul(pmul(pmul(a, c), c), c);                                          // a * 2^(3b)
-  b = pnmadd(pset1<PacketI>(3), b, e);                                                // e - 3b
-  c = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));         // 2^(e-3*b)
-  out = pmul(out, c);
-  return out;
-}
-
-// Explicitly multiplies
-//    a * (2^e)
-// clamping e to the range
-// [NumTraits<Scalar>::min_exponent()-2, NumTraits<Scalar>::max_exponent()]
-//
-// This is approx 7x faster than pldexp_impl, but will prematurely over/underflow
-// if 2^e doesn't fit into a normal floating-point Scalar.
-//
-// Assumes IEEE floating point format
-template <typename Packet>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_fast(const Packet& a, const Packet& exponent) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
-  static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
-                       ExponentBits = TotalBits - MantissaBits - 1;
-
-  const Packet bias = pset1<Packet>(Scalar((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1)));  // 127
-  const Packet limit = pset1<Packet>(Scalar((ScalarI(1) << ExponentBits) - ScalarI(1)));       // 255
-  // restrict biased exponent between 0 and 255 for float.
-  const PacketI e = pcast<Packet, PacketI>(pmin(pmax(padd(exponent, bias), pzero(limit)), limit));  // exponent + 127
-  // return a * (2^e)
-  return pmul(a, preinterpret<Packet>(plogical_shift_left<MantissaBits>(e)));
-}
+//----------------------------------------------------------------------
+// Cubic Root Functions
+//----------------------------------------------------------------------
 
 // This function implements a single step of Halley's iteration for
 // computing x = y^(1/3):
@@ -425,6 +165,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Pa
   r = pldexp_fast(r, e_div3);
   return cbrt_special_cases_and_sign(x, r);
 }
+
+//----------------------------------------------------------------------
+// Exponential and Logarithmic Functions
+//----------------------------------------------------------------------
 
 // Natural or base 2 logarithm.
 // Computes log(x) as log(2^e * m) = C*e + log(m), where the constant C =log(2)
@@ -772,6 +516,36 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   }
   return pselect(zero_mask, cst_zero, pmax(pldexp(x, fx), _x));
 }
+
+// This function computes exp2(x) = exp(ln(2) * x).
+// To improve accuracy, the product ln(2)*x is computed using the twoprod
+// algorithm, such that ln(2) * x = p_hi + p_lo holds exactly. Then exp2(x) is
+// computed as exp2(x) = exp(p_hi) * exp(p_lo) ~= exp(p_hi) * (1 + p_lo). This
+// correction step this reduces the maximum absolute error as follows:
+//
+// type   | max error (simple product) | max error (twoprod) |
+// -----------------------------------------------------------
+// float  |       35 ulps              |       4 ulps        |
+// double |      363 ulps              |     110 ulps        |
+//
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+  constexpr int digits = std::numeric_limits<Scalar>::digits;
+  constexpr Scalar max_cap = Scalar(max_exponent + 1);
+  constexpr Scalar min_cap = -Scalar(max_exponent + digits - 1);
+  Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
+  Packet p_hi, p_lo;
+  twoprod(pset1<Packet>(Scalar(EIGEN_LN2)), x, p_hi, p_lo);
+  Packet exp2_hi = pexp(p_hi);
+  Packet exp2_lo = padd(pset1<Packet>(Scalar(1)), p_lo);
+  return pmul(exp2_hi, exp2_lo);
+}
+
+//----------------------------------------------------------------------
+// Trigonometric Functions
+//----------------------------------------------------------------------
 
 // Enum for selecting which function to compute. SinCos is intended to compute
 // pairs of Sin and Cos of the even entries in the packet, e.g.
@@ -1200,6 +974,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   return psincos_double<TrigFunction::SinCos, Packet>(x);
 }
 
+//----------------------------------------------------------------------
+// Inverse Trigonometric Functions
+//----------------------------------------------------------------------
+
 // Generic implementation of acos(x).
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacos_float(const Packet& x_in) {
@@ -1347,6 +1125,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
   // Return correct sign
   return pxor(result, x_signmask);
 }
+
+//----------------------------------------------------------------------
+// Hyperbolic Functions
+//----------------------------------------------------------------------
 
 #ifdef EIGEN_FAST_MATH
 
@@ -1570,6 +1352,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
   return por(x_gt_one, pselect(x_eq_one, por(x_sign, inf), pselect(x_gt_half, y_large, y_small)));
 }
 
+//----------------------------------------------------------------------
+// Complex Arithmetic and Functions
+//----------------------------------------------------------------------
+
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
@@ -1577,7 +1363,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Pa
   // In the following we annotate the code for the case where the inputs
   // are a pair length-2 SIMD vectors representing a single pair of complex
   // numbers x = a + i*b, y = c + i*d.
-  static const RealPacket one = pset1<RealPacket>(RealScalar(1));
+  const RealPacket one = pset1<RealPacket>(RealScalar(1));
   const RealPacket y_flip = pcplxflip(y).v;
   // We need to avoid dividing by  Inf/Inf, so use a mask to carefully
   // apply the scale.
@@ -1825,6 +1611,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   return Packet(h);        // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
 }
 
+//----------------------------------------------------------------------
+// Sign Function
+//----------------------------------------------------------------------
+
 template <typename Packet>
 struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
                                            !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
@@ -1912,196 +1702,9 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
   }
 };
 
-// TODO(rmlarsen): The following set of utilities for double word arithmetic
-// should perhaps be refactored as a separate file, since it would be generally
-// useful for special function implementation etc. Writing the algorithms in
-// terms if a double word type would also make the code more readable.
-
-// This function splits x into the nearest integer n and fractional part r,
-// such that x = n + r holds exactly.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void absolute_split(const Packet& x, Packet& n, Packet& r) {
-  n = pround(x);
-  r = psub(x, n);
-}
-
-// This function computes the sum {s, r}, such that x + y = s_hi + s_lo
-// holds exactly, and s_hi = fl(x+y), if |x| >= |y|.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y, Packet& s_hi, Packet& s_lo) {
-  s_hi = padd(x, y);
-  const Packet t = psub(s_hi, x);
-  s_lo = psub(y, t);
-}
-
-#ifdef EIGEN_VECTORIZE_FMA
-// This function implements the extended precision product of
-// a pair of floating point numbers. Given {x, y}, it computes the pair
-// {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
-// p_hi = fl(x * y).
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
-  p_hi = pmul(x, y);
-  p_lo = pmsub(x, y, p_hi);
-}
-
-// A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
-// x * y = xy + p_lo holds exactly.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
-  return pmsub(x, y, xy);
-}
-
-#else
-
-// This function implements the Veltkamp splitting. Given a floating point
-// number x it returns the pair {x_hi, x_lo} such that x_hi + x_lo = x holds
-// exactly and that half of the significant of x fits in x_hi.
-// This is Algorithm 3 from Jean-Michel Muller, "Elementary Functions",
-// 3rd edition, Birkh\"auser, 2016.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, Packet& x_hi, Packet& x_lo) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  constexpr int shift = (NumTraits<Scalar>::digits() + 1) / 2;
-  const Scalar shift_scale = Scalar(uint64_t(1) << shift);  // Scalar constructor not necessarily constexpr.
-  const Packet gamma = pmul(pset1<Packet>(shift_scale + Scalar(1)), x);
-  Packet rho = psub(x, gamma);
-  x_hi = padd(rho, gamma);
-  x_lo = psub(x, x_hi);
-}
-
-// This function implements Dekker's algorithm for products x * y.
-// Given floating point numbers {x, y} computes the pair
-// {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
-// p_hi = fl(x * y).
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
-  Packet x_hi, x_lo, y_hi, y_lo;
-  veltkamp_splitting(x, x_hi, x_lo);
-  veltkamp_splitting(y, y_hi, y_lo);
-
-  p_hi = pmul(x, y);
-  p_lo = pmadd(x_hi, y_hi, pnegate(p_hi));
-  p_lo = pmadd(x_hi, y_lo, p_lo);
-  p_lo = pmadd(x_lo, y_hi, p_lo);
-  p_lo = pmadd(x_lo, y_lo, p_lo);
-}
-
-// A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
-// x * y = xy + p_lo holds exactly.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
-  Packet x_hi, x_lo, y_hi, y_lo;
-  veltkamp_splitting(x, x_hi, x_lo);
-  veltkamp_splitting(y, y_hi, y_lo);
-
-  Packet p_lo = pmadd(x_hi, y_hi, pnegate(xy));
-  p_lo = pmadd(x_hi, y_lo, p_lo);
-  p_lo = pmadd(x_lo, y_hi, p_lo);
-  p_lo = pmadd(x_lo, y_lo, p_lo);
-  return p_lo;
-}
-
-#endif  // EIGEN_VECTORIZE_FMA
-
-// This function implements Dekker's algorithm for the addition
-// of two double word numbers represented by {x_hi, x_lo} and {y_hi, y_lo}.
-// It returns the result as a pair {s_hi, s_lo} such that
-// x_hi + x_lo + y_hi + y_lo = s_hi + s_lo holds exactly.
-// This is Algorithm 5 from Jean-Michel Muller, "Elementary Functions",
-// 3rd edition, Birkh\"auser, 2016.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
-                                                  const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
-  const Packet x_greater_mask = pcmp_lt(pabs(y_hi), pabs(x_hi));
-  Packet r_hi_1, r_lo_1;
-  fast_twosum(x_hi, y_hi, r_hi_1, r_lo_1);
-  Packet r_hi_2, r_lo_2;
-  fast_twosum(y_hi, x_hi, r_hi_2, r_lo_2);
-  const Packet r_hi = pselect(x_greater_mask, r_hi_1, r_hi_2);
-
-  const Packet s1 = padd(padd(y_lo, r_lo_1), x_lo);
-  const Packet s2 = padd(padd(x_lo, r_lo_2), y_lo);
-  const Packet s = pselect(x_greater_mask, s1, s2);
-
-  fast_twosum(r_hi, s, s_hi, s_lo);
-}
-
-// This is a version of twosum for double word numbers,
-// which assumes that |x_hi| >= |y_hi|.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
-                                                       const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
-  Packet r_hi, r_lo;
-  fast_twosum(x_hi, y_hi, r_hi, r_lo);
-  const Packet s = padd(padd(y_lo, r_lo), x_lo);
-  fast_twosum(r_hi, s, s_hi, s_lo);
-}
-
-// This is a version of twosum for adding a floating point number x to
-// double word number {y_hi, y_lo} number, with the assumption
-// that |x| >= |y_hi|.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Packet& y_hi, const Packet& y_lo,
-                                                       Packet& s_hi, Packet& s_lo) {
-  Packet r_hi, r_lo;
-  fast_twosum(x, y_hi, r_hi, r_lo);
-  const Packet s = padd(y_lo, r_lo);
-  fast_twosum(r_hi, s, s_hi, s_lo);
-}
-
-// This function implements the multiplication of a double word
-// number represented by {x_hi, x_lo} by a floating point number y.
-// It returns the result as a pair {p_hi, p_lo} such that
-// (x_hi + x_lo) * y = p_hi + p_lo hold with a relative error
-// of less than 2*2^{-2p}, where p is the number of significand bit
-// in the floating point type.
-// This is Algorithm 7 from Jean-Michel Muller, "Elementary Functions",
-// 3rd edition, Birkh\"auser, 2016.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y,
-                                                   Packet& p_hi, Packet& p_lo) {
-  Packet c_hi, c_lo1;
-  twoprod(x_hi, y, c_hi, c_lo1);
-  const Packet c_lo2 = pmul(x_lo, y);
-  Packet t_hi, t_lo1;
-  fast_twosum(c_hi, c_lo2, t_hi, t_lo1);
-  const Packet t_lo2 = padd(t_lo1, c_lo1);
-  fast_twosum(t_hi, t_lo2, p_hi, p_lo);
-}
-
-// This function implements the multiplication of two double word
-// numbers represented by {x_hi, x_lo} and {y_hi, y_lo}.
-// It returns the result as a pair {p_hi, p_lo} such that
-// (x_hi + x_lo) * (y_hi + y_lo) = p_hi + p_lo holds with a relative error
-// of less than 2*2^{-2p}, where p is the number of significand bit
-// in the floating point type.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
-                                                   const Packet& y_lo, Packet& p_hi, Packet& p_lo) {
-  Packet p_hi_hi, p_hi_lo;
-  twoprod(x_hi, x_lo, y_hi, p_hi_hi, p_hi_lo);
-  Packet p_lo_hi, p_lo_lo;
-  twoprod(x_hi, x_lo, y_lo, p_lo_hi, p_lo_lo);
-  fast_twosum(p_hi_hi, p_hi_lo, p_lo_hi, p_lo_lo, p_hi, p_lo);
-}
-
-// This function implements the division of double word {x_hi, x_lo}
-// by float y. This is Algorithm 15 from "Tight and rigorous error bounds
-// for basic building blocks of double-word arithmetic", Joldes, Muller, & Popescu,
-// 2017. https://hal.archives-ouvertes.fr/hal-01351529
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void doubleword_div_fp(const Packet& x_hi, const Packet& x_lo, const Packet& y,
-                                                             Packet& z_hi, Packet& z_lo) {
-  const Packet t_hi = pdiv(x_hi, y);
-  Packet pi_hi, pi_lo;
-  twoprod(t_hi, y, pi_hi, pi_lo);
-  const Packet delta_hi = psub(x_hi, pi_hi);
-  const Packet delta_t = psub(delta_hi, pi_lo);
-  const Packet delta = padd(delta_t, x_lo);
-  const Packet t_lo = pdiv(delta, y);
-  fast_twosum(t_hi, t_lo, z_hi, z_lo);
-}
+//----------------------------------------------------------------------
+// Power Functions (accurate_log2, generic_pow, unary_pow)
+//----------------------------------------------------------------------
 
 // This function computes log2(x) and returns the result as a double word.
 template <typename Scalar>
@@ -2647,31 +2250,9 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
   }
 };
 
-// This function computes exp2(x) = exp(ln(2) * x).
-// To improve accuracy, the product ln(2)*x is computed using the twoprod
-// algorithm, such that ln(2) * x = p_hi + p_lo holds exactly. Then exp2(x) is
-// computed as exp2(x) = exp(p_hi) * exp(p_lo) ~= exp(p_hi) * (1 + p_lo). This
-// correction step this reduces the maximum absolute error as follows:
-//
-// type   | max error (simple product) | max error (twoprod) |
-// -----------------------------------------------------------
-// float  |       35 ulps              |       4 ulps        |
-// double |      363 ulps              |     110 ulps        |
-//
-template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
-  constexpr int digits = std::numeric_limits<Scalar>::digits;
-  constexpr Scalar max_cap = Scalar(max_exponent + 1);
-  constexpr Scalar min_cap = -Scalar(max_exponent + digits - 1);
-  Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
-  Packet p_hi, p_lo;
-  twoprod(pset1<Packet>(Scalar(EIGEN_LN2)), x, p_hi, p_lo);
-  Packet exp2_hi = pexp(p_hi);
-  Packet exp2_lo = padd(pset1<Packet>(Scalar(1)), p_lo);
-  return pmul(exp2_hi, exp2_lo);
-}
+//----------------------------------------------------------------------
+// Rounding Functions
+//----------------------------------------------------------------------
 
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
