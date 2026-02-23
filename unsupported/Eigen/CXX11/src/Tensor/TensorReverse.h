@@ -214,10 +214,6 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     // TODO(ezhulenev): If underlying tensor expression supports and prefers
     // block evaluation we must use it. Currently we use coeff and packet
     // access into the underlying tensor expression.
-    // static const bool useBlockAccessForArgType =
-    //     TensorEvaluator<ArgType, Device>::BlockAccess &&
-    //     TensorEvaluator<ArgType, Device>::PreferBlockAccess;
-
     static const bool isColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     static const Index inner_dim_idx = isColMajor ? 0 : NumDims - 1;
@@ -395,7 +391,7 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    // This code is pilfered from TensorMorphing.h
+    // This code is adapted from TensorMorphing.h
     EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP

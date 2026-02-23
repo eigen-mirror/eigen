@@ -23,7 +23,7 @@ class TensorBlockIO;
 // Helper function to compute strides for densely stored buffer of given
 // dimensions.
 
-// TODO(ezhulenev): We compute strides 1000 times in different evaluators, use
+// TODO(ezhulenev): We compute strides many times in different evaluators, use
 // this function instead everywhere.
 template <int Layout, typename IndexType, int NumDims>
 EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, NumDims>& dimensions) {
@@ -176,7 +176,7 @@ class TensorBlockDescriptor {
   // a memory buffer, then we might do performance optimization, and evaluate
   // the root expression directly into the final output memory. Some time it's
   // possible to reuse it for materializing subexpressions inside an expression
-  // tree, to to avoid dynamic memory allocation.
+  // tree, to avoid dynamic memory allocation.
   //
   // The pointer type of the underlying storage is erased, because passing
   // Scalar type through all the expression evaluation layers is way too many
@@ -409,7 +409,7 @@ class TensorBlockMapper {
           std::pow(static_cast<float>(target_block_size), 1.0f / static_cast<float>(m_block_dimensions.rank())));
 
       for (int i = 0; i < NumDims; ++i) {
-        // TODO(andydavis) Adjust the inner most 'block_dim_size' to make it
+        // TODO(andydavis): Adjust the inner most 'block_dim_size' to make it
         // a multiple of the packet size. Note that reducing
         // 'block_dim_size' in this manner can increase the number of
         // blocks, and so will amplify any per-block overhead.
@@ -486,7 +486,7 @@ class TensorBlockScratchAllocator {
     // TODO(ezhulenev): Remove when replaced with inlined vector.
     if (m_allocations.capacity() == 0) m_allocations.reserve(8);
 
-    // Check if we already have an existing allocation att current index.
+    // Check if we already have an existing allocation at current index.
     const int num_allocations = static_cast<int>(m_allocations.size());
     const bool has_allocation = m_allocation_index < num_allocations;
 
@@ -504,7 +504,7 @@ class TensorBlockScratchAllocator {
       m_allocations[m_allocation_index].size = size;
     }
 
-    // Make a new allocation if we don't have and existing one.
+    // Make a new allocation if we don't have an existing one.
     if (!has_allocation) {
       Allocation allocation;
       allocation.ptr = m_device.allocate(size);
@@ -560,7 +560,7 @@ enum TensorBlockKind {
 };
 
 // -------------------------------------------------------------------------- //
-// TensorBlockNotImplemented should be used to defined TensorBlock typedef in
+// TensorBlockNotImplemented should be used to define TensorBlock typedef in
 // TensorEvaluators that do not support block evaluation.
 
 class TensorBlockNotImplemented {
@@ -789,7 +789,7 @@ class TensorCwiseUnaryBlock {
 };
 
 // -------------------------------------------------------------------------- //
-// TensorCwiseUnaryBlock is a lazy tensor expression block that applies BinaryOp
+// TensorCwiseBinaryBlock is a lazy tensor expression block that applies BinaryOp
 // functor to the blocks produced by the underlying Tensor expression.
 
 template <typename BinaryOp, typename LhsTensorBlock, typename RhsTensorBlock>

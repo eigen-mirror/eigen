@@ -24,7 +24,7 @@ namespace Eigen {
  * Example:
  *    C.device(EIGEN_GPU) = A + B;
  *
- * Todo: operator *= and /=.
+ * TODO: operator *= and /=.
  */
 template <typename ExpressionType, typename DeviceType>
 class TensorDevice {

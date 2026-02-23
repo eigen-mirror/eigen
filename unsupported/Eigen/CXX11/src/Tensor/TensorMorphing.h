@@ -160,8 +160,6 @@ struct TensorEvaluator<const TensorReshapingOp<NewDimensions, ArgType>, Device> 
     return internal::TensorBlockResourceRequirements::any();
   }
 
-  // required in block(OutputTensorBlock* output_block) const
-  // For C++03 compatibility this must be defined outside the method
   struct BlockIteratorState {
     Index stride;
     Index span;
@@ -312,7 +310,7 @@ class TensorSlicingOp : public TensorBase<TensorSlicingOp<StartIndices, Sizes, X
 
 namespace internal {
 
-// Fixme: figure out the exact threshold
+// FIXME: Figure out the exact threshold.
 template <typename Index, typename Device, bool BlockAccess>
 struct MemcpyTriggerForSlicing {
   EIGEN_DEVICE_FUNC MemcpyTriggerForSlicing(const Device& device) : threshold_(2 * device.numThreads()) {}

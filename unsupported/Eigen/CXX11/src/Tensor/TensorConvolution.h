@@ -890,10 +890,6 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
         dim3 num_blocks(num_x_blocks, numext::mini<int>(num_y_blocks, ceil(numP, block_size.y)));
 
-        // cout << "launching 1D kernel with block_size.x: " << block_size.x << " block_size.y: " << block_size.y << "
-        // num_blocks.x: " << num_blocks.x << " num_blocks.y: " << num_blocks.y << " maxX: " << maxX << " shared_mem: "
-        // << shared_mem << " in stream " << m_device.stream() << endl;
-
         const array<Index, 1> indices{m_indices[0]};
         const array<Index, 1> kernel_dims{m_kernelImpl.dimensions()[0]};
         internal::IndexMapper<Index, InputDims, 1, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
@@ -955,11 +951,6 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const int num_z_blocks = ceil(numMultiProcessors * blocksPerProcessor, num_x_blocks * num_y_blocks);
 
         dim3 num_blocks(num_x_blocks, num_y_blocks, numext::mini<int>(num_z_blocks, ceil(numP, block_size.z)));
-
-        // cout << "launching 2D kernel with block_size.x: " << block_size.x << " block_size.y: " << block_size.y  << "
-        // block_size.z: " << block_size.z << " num_blocks.x: " << num_blocks.x << " num_blocks.y: " << num_blocks.y <<
-        // " num_blocks.z: " << num_blocks.z << " maxX: " << maxX << " maxY: " << maxY << " maxP: " << maxP << "
-        // shared_mem: " << shared_mem << " in stream " << m_device.stream() << endl;
 
         const array<Index, 2> indices{m_indices[idxX], m_indices[idxY]};
         const array<Index, 2> kernel_dims{m_kernelImpl.dimensions()[idxX], m_kernelImpl.dimensions()[idxY]};
@@ -1051,10 +1042,6 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
             (maxX + kernel_size_x - 1) * (maxY + kernel_size_y - 1) * (maxZ + kernel_size_z - 1) * sizeof(Scalar);
         gpu_assert(shared_mem <= maxSharedMem);
 
-        // cout << "launching 3D kernel with block_size.x: " << block_size.x << " block_size.y: " << block_size.y  << "
-        // block_size.z: " << block_size.z << " num_blocks.x: " << num_blocks.x << " num_blocks.y: " << num_blocks.y <<
-        // " num_blocks.z: " << num_blocks.z  << " shared_mem: " << shared_mem << " in stream " << m_device.stream() <<
-        // endl;
         const array<Index, 3> indices{m_indices[idxX], m_indices[idxY], m_indices[idxZ]};
         const array<Index, 3> kernel_dims{m_kernelImpl.dimensions()[idxX], m_kernelImpl.dimensions()[idxY],
                                           m_kernelImpl.dimensions()[idxZ]};
@@ -1087,7 +1074,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    // TODO(rmlarsen): FIXME: For now, this is just a copy of the CPU cost
+    // TODO(rmlarsen): For now, this is just a copy of the CPU cost
     // model.
     const double kernel_size = m_kernelImpl.dimensions().TotalSize();
     // We ignore the use of fused multiply-add.

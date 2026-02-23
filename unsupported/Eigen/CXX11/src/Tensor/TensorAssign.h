@@ -48,7 +48,7 @@ struct nested<TensorAssignOp<LhsXprType, RhsXprType>, 1, typename eval<TensorAss
 /** The tensor assignment class.
  * \ingroup CXX11_Tensor_Module
  *
- * This class is represents the assignment of the values resulting from the evaluation of
+ * This class represents the assignment of the values resulting from the evaluation of
  * the rhs expression to the memory locations denoted by the lhs expression.
  */
 template <typename LhsXprType, typename RhsXprType>

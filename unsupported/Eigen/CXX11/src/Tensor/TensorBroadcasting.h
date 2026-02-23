@@ -486,7 +486,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     }
     inputIndex += innermostLoc;
 
-    // Todo: this could be extended to the second dimension if we're not
+    // TODO: This could be extended to the second dimension if we're not
     // broadcasting alongside the first dimension, and so on.
     if (innermostLoc + PacketSize <= m_impl.dimensions()[0]) {
       return m_impl.template packet<Unaligned>(inputIndex);
@@ -542,7 +542,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     }
     inputIndex += innermostLoc;
 
-    // Todo: this could be extended to the second dimension if we're not
+    // TODO: This could be extended to the second dimension if we're not
     // broadcasting alongside the first dimension, and so on.
     if (innermostLoc + PacketSize <= m_impl.dimensions()[NumDims - 1]) {
       return m_impl.template packet<Unaligned>(inputIndex);

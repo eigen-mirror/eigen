@@ -45,7 +45,6 @@ template <typename Dimensions, typename Expr, typename Device>
 class TensorLazyEvaluatorReadOnly
     : public TensorLazyBaseEvaluator<Dimensions, typename TensorEvaluator<Expr, Device>::Scalar> {
  public:
-  //  typedef typename TensorEvaluator<Expr, Device>::Dimensions Dimensions;
   typedef typename TensorEvaluator<Expr, Device>::Scalar Scalar;
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;

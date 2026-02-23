@@ -205,10 +205,6 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
     using internal::logical_and_op;
 
     return true;
-    // check whether the indices are all >= 0
-    /*       array_apply_and_reduce<logical_and_op, greater_equal_zero_op>(indices) &&
-  // check whether the indices fit in the dimensions
-  array_zip_and_reduce<logical_and_op, lesser_op>(indices, m_storage.dimensions());*/
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index linearizedIndex(const array<Index, NumIndices>& indices) const {

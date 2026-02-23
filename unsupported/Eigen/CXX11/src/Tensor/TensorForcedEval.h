@@ -20,7 +20,6 @@ namespace Eigen {
 namespace internal {
 template <typename XprType>
 struct traits<TensorForcedEvalOp<XprType>> {
-  // Type promotion to handle the case where the types of the lhs and the rhs are different.
   typedef typename XprType::Scalar Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename traits<XprType>::StorageKind StorageKind;
@@ -49,7 +48,7 @@ struct nested<TensorForcedEvalOp<XprType>, 1, typename eval<TensorForcedEvalOp<X
 /**
  * \ingroup CXX11_Tensor_Module
  *
- * \brief Tensor reshaping class.
+ * \brief Tensor forced evaluation class.
  */
 template <typename XprType>
 class TensorForcedEvalOp : public TensorBase<TensorForcedEvalOp<XprType>, ReadOnlyAccessors> {

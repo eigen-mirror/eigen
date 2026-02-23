@@ -253,7 +253,7 @@ class GenericNondeterministicReducer {
 };
 
 enum class reduction_dim { inner_most, outer_most };
-// default is preserver
+// Default partial reduction (preserve dimensions).
 template <typename Evaluator, typename OpType, typename PannelParameters, reduction_dim rt>
 struct PartialReductionKernel {
   typedef typename Evaluator::CoeffReturnType CoeffReturnType;
@@ -398,7 +398,7 @@ struct SecondStepPartialReduction {
     }
     output_accessor[globalId] = op.finalize(accumulator);
   }
-};  // namespace internal
+};
 
 template <typename Index, Index LTP, Index LTR, bool BC_>
 struct ReductionPannel {
@@ -497,13 +497,9 @@ struct FullReducer<Self, Op, Eigen::SyclDevice, Vectorizable> {
     // Our empirical research shows that if each thread reduces at least 512
     // elements individually, we get better performance.
     const Index reductionPerThread = 2048;
-    // const Index num_work_group =
     Index reductionGroup = dev.getPowerOfTwo(
         (inputSize + (reductionPerThread * local_range - 1)) / (reductionPerThread * local_range), true);
     const Index num_work_group = std::min(reductionGroup, local_range);
-    // 1
-    // ? local_range
-    // : 1);
     const Index global_range = num_work_group * local_range;
 
     auto thread_range = cl::sycl::nd_range<1>(cl::sycl::range<1>(global_range), cl::sycl::range<1>(local_range));
@@ -561,8 +557,8 @@ struct InnerReducer<Self, Op, Eigen::SyclDevice> {
   }
 };
 
-// ArmgMax uses this kernel for partial reduction//
-// TODO(@mehdi.goli) come up with a better kernel
+// ArgMax uses this kernel for partial reduction.
+// TODO(@mehdi.goli): Come up with a better kernel.
 // generic partial reduction
 template <typename Self, typename Op>
 struct GenericReducer<Self, Op, Eigen::SyclDevice> {

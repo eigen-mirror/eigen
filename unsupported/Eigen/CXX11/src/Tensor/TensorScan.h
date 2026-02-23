@@ -304,7 +304,7 @@ struct ScanLauncher<Self, Reducer, ThreadPoolDevice, Vectorize> {
 #if defined(EIGEN_USE_GPU) && (defined(EIGEN_GPUCC))
 
 // GPU implementation of scan
-// TODO(ibab) This placeholder implementation performs multiple scans in
+// TODO(ibab): This placeholder implementation performs multiple scans in
 // parallel, but it would be better to use a parallel scan algorithm and
 // optimize memory access.
 template <typename Self, typename Reducer>
@@ -396,8 +396,8 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
       }
     } else {
       // dims can only be indexed through unsigned integers,
-      // so let's use an unsigned type to let the compiler knows.
-      // This prevents stupid warnings: ""'*((void*)(& evaluator)+64)[18446744073709551615]' may be used uninitialized
+      // so use an unsigned type to let the compiler know.
+      // This prevents spurious warnings: "'*((void*)(& evaluator)+64)[18446744073709551615]' may be used uninitialized
       // in this function"
       unsigned int axis = internal::convert_index<unsigned int>(op.axis());
       for (unsigned int i = NumDims - 1; i > axis; --i) {

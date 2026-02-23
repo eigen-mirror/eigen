@@ -26,7 +26,7 @@ namespace Eigen {
   * making it possible to use either class interchangeably in expressions.
   */
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-// FIXME Doxygen does not like the inheritance with different template parameters
+// FIXME: Doxygen does not like the inheritance with different template parameters
 // Since there is no doxygen documentation inside, we disable it for now
 template<typename Derived>
 class TensorBase<Derived, ReadOnlyAccessors>

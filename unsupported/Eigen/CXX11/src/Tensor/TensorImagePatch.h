@@ -316,8 +316,8 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
           break;
         default:
           eigen_assert(false && "unexpected padding");
-          m_outputCols = 0;  // silence the uninitialised warning;
-          m_outputRows = 0;  //// silence the uninitialised warning;
+          m_outputCols = 0;  // Silence the uninitialized warning.
+          m_outputRows = 0;  // Silence the uninitialized warning.
       }
     }
     eigen_assert(m_outputRows > 0);
@@ -482,7 +482,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
       const Index rowOffsets[2] = {patchOffsets[0] - colOffsets[0] * m_colStride,
                                    patchOffsets[1] - colOffsets[1] * m_colStride};
       eigen_assert(rowOffsets[0] <= rowOffsets[1]);
-      // Calculate col indices in the original input tensor.
+      // Calculate row indices in the original input tensor.
       const Index inputRows[2] = {rowIndex * m_row_strides + rowOffsets[0] - m_rowPaddingTop,
                                   rowIndex * m_row_strides + rowOffsets[1] - m_rowPaddingTop};
 

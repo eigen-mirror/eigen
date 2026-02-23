@@ -56,7 +56,7 @@ struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, Inp
   void operator()(cl::sycl::nd_item<2> itemID) const {
     auto buffer_ptr = buffer_acc;
     auto kernel_ptr = kernel_filter;
-    // the required row to be calculated for the for each plane in shered memory
+    // the required row to be calculated for each plane in shared memory
     const size_t num_input = (itemID.get_local_range()[0] + kernelSize - 1);
     const size_t plane_kernel_offset = itemID.get_local_id(1) * num_input;
     const size_t input_offset = itemID.get_group(0) * itemID.get_local_range()[0];
@@ -123,7 +123,7 @@ struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, Inp
   void operator()(cl::sycl::nd_item<3> itemID) const {
     auto buffer_ptr = buffer_acc;
     auto kernel_ptr = kernel_filter;
-    // the required row to be calculated for the for each plane in shered memory
+    // the required row to be calculated for each plane in shared memory
     const auto num_input = cl::sycl::range<2>{
         (cl::sycl::range<2>(itemID.get_local_range()[0], itemID.get_local_range()[1]) + kernel_size - 1)};
 
@@ -506,7 +506,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    // TODO(rmlarsen): FIXME: For now, this is just a copy of the CPU cost
+    // TODO(rmlarsen): For now, this is just a copy of the CPU cost
     // model.
     const double kernel_size = m_kernelImpl.dimensions().TotalSize();
     // We ignore the use of fused multiply-add.

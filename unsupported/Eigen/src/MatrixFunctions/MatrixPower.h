@@ -31,7 +31,7 @@ class MatrixPower;
  * MatrixPower::operator() and related functions and most of the
  * time this is the only way it is used.
  */
-/* TODO This class is only used by MatrixPower, so it should be nested
+/* TODO: This class is only used by MatrixPower, so it should be nested
  * into MatrixPower, like MatrixPower::ReturnValue. However, my
  * compiler complained about unused template parameter in the
  * following declaration in namespace internal.

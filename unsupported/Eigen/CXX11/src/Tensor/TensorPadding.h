@@ -260,7 +260,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     Index output_offset = 0;
     const DSizes<Index, NumDims> output_strides = internal::strides<Layout>(desc.dimensions());
 
-    // NOTE(ezhulenev): We initialize bock iteration state for `NumDims - 1`
+    // NOTE(ezhulenev): We initialize block iteration state for `NumDims - 1`
     // dimensions, skipping innermost dimension. In theory it should be possible
     // to squeeze matching innermost dimensions, however in practice that did
     // not show any improvements in benchmarks. Also in practice first outer

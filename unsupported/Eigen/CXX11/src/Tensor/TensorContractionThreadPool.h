@@ -258,7 +258,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // optimization.
     if (parallelize_by_sharding_dim_only) parallel_pack = false;
 
-    // TODO(ezhulnev): With if contexpr we don't need SyncEvalParallelContext.
+    // TODO(ezhulnev): With if constexpr we don't need SyncEvalParallelContext.
     if (IsEvalInSyncMode) {
 #define CONTEXT_ARGS                                                                                          \
   (this, num_threads, buffer, m, n, k, bm, bn, bk, nm, nn, nk, gm, gn, nm0, nn0, shard_by_col, parallel_pack, \
@@ -541,7 +541,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // output block, so they must not run in parallel.
     //
     // This gives us the following dependency graph.
-    // On each k slice we have m x n kernel tasks, m lhs paking tasks and n rhs
+    // On each k slice we have m x n kernel tasks, m lhs packing tasks and n rhs
     // packing tasks.
     // Kernel (m, n, k) can start when:
     //  - kernel (m, n, k-1) has finished
@@ -568,7 +568,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     std::vector<RhsBlock> packed_rhs_[P - 1];
 
     // If we choose to parallelize only by the sharding dimension, each thread
-    // will have it's own "thead local" (not a c++ thread local storage) memory
+    // will have its own "thread local" (not a C++ thread local storage) memory
     // for packed_lhs or packed_rhs (shard_by_col = false of true). This memory
     // can't be passed to a kernel that might execute on a different thread.
     //
@@ -763,7 +763,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
         Index grain_index = m1 - m * gm_;
         return blocks.block(
-            internal::convert_index<int>(grain_index));  // FIXME better make ThreadLocalBlocks use Eigen::Index?
+            internal::convert_index<int>(grain_index));  // FIXME: Consider making ThreadLocalBlocks use Eigen::Index.
       } else {
         return packed_lhs_[k % (P - 1)][m1];
       }
@@ -776,7 +776,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
         Index grain_index = n1 - n * gn_;
         return blocks.block(
-            internal::convert_index<int>(grain_index));  // FIXME better make ThreadLocalBlocks use Eigen::Index?
+            internal::convert_index<int>(grain_index));  // FIXME: Consider making ThreadLocalBlocks use Eigen::Index.
       } else {
         return packed_rhs_[k % (P - 1)][n1];
       }
@@ -1335,7 +1335,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   // ------------------------------------------------------------------------ //
 
   // Below are the function used by evalProductImpl heuristics, trying to select
-  // optimcal parameters for parallelization algorithm.
+  // optimal parameters for parallelization algorithm.
 
   // Decide whether we want to shard m x n contraction by columns or by rows.
   static bool shardByCol(Index m, Index n, Index num_threads) {

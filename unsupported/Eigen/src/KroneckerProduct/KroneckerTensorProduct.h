@@ -153,7 +153,7 @@ void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
 
   // compute number of non-zeros per innervectors of dst
   {
-    // TODO VectorXi is not necessarily big enough!
+    // TODO: VectorXi is not necessarily big enough!
     VectorXi nnzA = VectorXi::Zero(Dest::IsRowMajor ? m_A.rows() : m_A.cols());
     for (Index kA = 0; kA < m_A.outerSize(); ++kA)
       for (LhsInnerIterator itA(lhs1, kA); itA; ++itA) nnzA(Dest::IsRowMajor ? itA.row() : itA.col())++;

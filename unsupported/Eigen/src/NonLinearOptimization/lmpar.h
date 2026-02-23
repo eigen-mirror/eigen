@@ -169,7 +169,6 @@ void lmpar2(const ColPivHouseholderQR<Matrix<Scalar, Dynamic, Dynamic> > &qr, co
   /* compute and store in x the gauss-newton direction. if the */
   /* jacobian is rank-deficient, obtain a least squares solution. */
 
-  //    const Index rank = qr.nonzeroPivots(); // exactly double(0.)
   const Index rank = qr.rank();  // use a threshold
   wa1 = qtb;
   wa1.tail(n - rank).setZero();

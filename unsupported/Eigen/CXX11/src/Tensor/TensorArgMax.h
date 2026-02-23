@@ -78,8 +78,8 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
   typedef typename Storage::Type EvaluatorPointerType;
 
   enum {
-    IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
-    PacketAccess = /*TensorEvaluator<ArgType, Device>::PacketAccess*/ false,
+    IsAligned = false,
+    PacketAccess = false,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     CoordAccess = false,  // to be implemented
@@ -195,8 +195,8 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
   typedef StorageMemory<PairType, Device> PairStorageMem;
 
   enum {
-    IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
-    PacketAccess = /*TensorEvaluator<ArgType, Device>::PacketAccess*/ false,
+    IsAligned = false,
+    PacketAccess = false,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     CoordAccess = false,  // to be implemented

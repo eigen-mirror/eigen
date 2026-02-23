@@ -92,7 +92,7 @@ struct ThreadPoolDevice {
 
   EIGEN_STRONG_INLINE int numThreads() const { return num_threads_; }
 
-  // Number of theads available in the underlying thread pool. This number can
+  // Number of threads available in the underlying thread pool. This number can
   // be different from the value returned by numThreads().
   EIGEN_STRONG_INLINE int numThreadsInPool() const { return pool_->NumThreads(); }
 

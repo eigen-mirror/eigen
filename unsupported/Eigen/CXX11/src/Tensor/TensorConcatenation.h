@@ -169,7 +169,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
-  // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear?
+  // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear.
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_leftImpl.evalSubExprsIfNeeded(NULL);
     m_rightImpl.evalSubExprsIfNeeded(NULL);
@@ -181,8 +181,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     m_rightImpl.cleanup();
   }
 
-  // TODO(phli): attempt to speed this up. The integer divisions and modulo are slow.
-  // See CL/76180724 comments for more ideas.
+  // TODO(phli): Attempt to speed this up. The integer divisions and modulo are slow.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // Collect dimension-wise indices (subs).
     array<Index, NumDims> subs;

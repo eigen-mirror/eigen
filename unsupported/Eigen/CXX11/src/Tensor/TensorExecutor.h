@@ -61,7 +61,7 @@ struct ExpressionHasTensorBroadcastingOp<const TensorBroadcastingOp<Broadcast, X
  *
  * \brief The tensor executor class.
  *
- * This class is responsible for launch the evaluation of the expression on
+ * This class is responsible for launching the evaluation of the expression on
  * the specified computing device.
  *
  * Default strategy: the expression is evaluated sequentially with a single cpu
@@ -584,7 +584,7 @@ EIGEN_STRONG_INLINE void TensorExecutor<Expression, GpuDevice, Vectorizable, Til
                               NumTraits<StorageIndex>::highest()) /
         block_size);
     const StorageIndex size = array_prod(evaluator.dimensions());
-    // Create a least one block to ensure we won't crash when tensorflow calls with tensors of size 0.
+    // Create at least one block to ensure we don't crash with tensors of size 0.
     const int num_blocks = numext::maxi<int>(
         numext::mini<int>(max_blocks, static_cast<int>(numext::div_ceil<StorageIndex>(size, block_size))), 1);
 

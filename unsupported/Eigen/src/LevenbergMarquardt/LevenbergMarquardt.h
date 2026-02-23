@@ -265,7 +265,6 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimize(FVecto
     return status;
   }
   do {
-    //       std::cout << " uv " << x.transpose() << "\n";
     status = minimizeOneStep(x);
   } while (status == LevenbergMarquardtSpace::Running);
   m_isInitialized = true;
@@ -282,9 +281,8 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeInit(FV
   m_wa3.resize(n);
   m_wa4.resize(m);
   m_fvec.resize(m);
-  // FIXME Sparse Case : Allocate space for the jacobian
+  // FIXME: Sparse case: allocate space for the Jacobian.
   m_fjac.resize(m, n);
-  //     m_fjac.reserve(VectorXi::Constant(n,5)); // FIXME Find a better alternative
   if (!m_useExternalScaling) m_diag.resize(n);
   eigen_assert((!m_useExternalScaling || m_diag.size() == n) &&
                "When m_useExternalScaling is set, the caller must provide a valid 'm_diag'");

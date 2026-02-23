@@ -126,7 +126,7 @@ class TensorOpCost {
   double compute_cycles_;
 };
 
-// TODO(rmlarsen): Implement a policy that chooses an "optimal" number of theads
+// TODO(rmlarsen): Implement a policy that chooses an "optimal" number of threads
 // in [1:max_threads] instead of just switching multi-threading off for small
 // work units.
 /**

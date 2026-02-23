@@ -268,7 +268,7 @@ struct ScanKernelFunctor {
         }
       });
       next_elements = 0;
-      // right the first set of private param
+      // Write the first set of private params.
       EIGEN_UNROLL_LOOP
       for (Index i = 0; i < ScanParameters<Index>::ScanPerThread; i++) {
         Index global_id = global_offset + next_elements;

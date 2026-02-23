@@ -181,7 +181,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernel(Reducer reducer
   for (int offset = warpSize / 2; offset > 0; offset /= 2) {
 #if defined(EIGEN_HIPCC)
     // use std::is_floating_point to determine the type of reduced_val
-    // This is needed because when Type == double, hipcc will give a "call to __shfl_down is ambguous" error
+    // This is needed because when Type == double, hipcc will give a "call to __shfl_down is ambiguous" error
     // and list the float and int versions of __shfl_down as the candidate functions.
     if (std::is_floating_point<typename Self::CoeffReturnType>::value) {
       reducer.reduce(__shfl_down(static_cast<float>(accum), offset, warpSize), &accum);
@@ -429,7 +429,7 @@ struct FullReductionLauncher<Self, Op, Eigen::half, true> {
     half* scratch = static_cast<half*>(device.scratchpad());
 
     if (num_blocks > 1) {
-      // We initialize the output and the scrathpad outside the reduction kernel when we can't be sure that there
+      // We initialize the output and the scratchpad outside the reduction kernel when we can't be sure that there
       // won't be a race conditions between multiple thread blocks.
       LAUNCH_GPU_KERNEL((ReductionInitFullReduxKernelHalfFloat<Self, Op, Index>), 1, 1, 0, device, reducer, self,
                         num_coeffs, scratch);
@@ -536,7 +536,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernel(Reducer reduce
       for (int offset = warpSize / 2; offset > 0; offset /= 2) {
 #if defined(EIGEN_HIPCC)
         // use std::is_floating_point to determine the type of reduced_val
-        // This is needed because when Type == double, hipcc will give a "call to __shfl_down is ambguous" error
+        // This is needed because when Type == double, hipcc will give a "call to __shfl_down is ambiguous" error
         // and list the float and int versions of __shfl_down as the candidate functions.
         if (std::is_floating_point<Type>::value) {
           reducer.reduce(__shfl_down(static_cast<float>(reduced_val), offset), &reduced_val);
@@ -802,8 +802,8 @@ struct InnerReductionLauncher<Self, Op, Eigen::half, true> {
     }
 
     const Index num_coeffs = num_coeffs_to_reduce * num_preserved_vals;
-    const int block_size = /*256*/ 128;
-    const int num_per_thread = /*128*/ 64;
+    const int block_size = 128;
+    const int num_per_thread = 64;
     const int dyn_blocks = numext::div_ceil<int>(num_coeffs, block_size * num_per_thread);
     const int max_blocks = device.getNumGpuMultiProcessors() * device.maxGpuThreadsPerMultiProcessor() / block_size;
     const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);

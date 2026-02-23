@@ -185,7 +185,6 @@ template <Index Idx, typename ValueT>
 struct tuple_coeff {
   template <typename... T>
   EIGEN_DEVICE_FUNC static constexpr ValueT get(const Index i, const IndexTuple<T...>& t) {
-    //    return array_get<Idx>(t) * (i == Idx) + tuple_coeff<Idx-1>::get(i, t) * (i != Idx);
     return (i == Idx ? array_get<Idx>(t) : tuple_coeff<Idx - 1, ValueT>::get(i, t));
   }
   template <typename... T>
@@ -222,8 +221,7 @@ template <typename ValueT>
 struct tuple_coeff<0, ValueT> {
   template <typename... T>
   EIGEN_DEVICE_FUNC static constexpr ValueT get(const Index /*i*/, const IndexTuple<T...>& t) {
-    //  eigen_assert (i == 0);  // gcc fails to compile assertions in constexpr
-    return array_get<0>(t) /* * (i == 0)*/;
+    return array_get<0>(t);
   }
   template <typename... T>
   EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT value) {

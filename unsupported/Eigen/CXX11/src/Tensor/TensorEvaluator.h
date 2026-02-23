@@ -78,7 +78,7 @@ struct TensorEvaluator {
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType dest, EvalSubExprsCallback done) {
-    // TODO(ezhulenev): ThreadPoolDevice memcpy is blockign operation.
+    // TODO(ezhulenev): ThreadPoolDevice memcpy is a blocking operation.
     done(evalSubExprsIfNeeded(dest));
   }
 #endif  // EIGEN_USE_THREADS
@@ -245,7 +245,7 @@ struct TensorEvaluator<const Derived, Device> {
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType dest, EvalSubExprsCallback done) {
-    // TODO(ezhulenev): ThreadPoolDevice memcpy is a blockign operation.
+    // TODO(ezhulenev): ThreadPoolDevice memcpy is a blocking operation.
     done(evalSubExprsIfNeeded(dest));
   }
 #endif  // EIGEN_USE_THREADS

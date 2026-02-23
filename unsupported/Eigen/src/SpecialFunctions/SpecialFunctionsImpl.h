@@ -1910,8 +1910,6 @@ struct betainc_impl<double> {
   EIGEN_DEVICE_FUNC static double run(double aa, double bb, double xx) {
     const double nan = NumTraits<double>::quiet_NaN();
     const double machep = cephes_helper<double>::machep();
-    // const double maxgam = 171.624376956302725;
-
     double a, b, t, x, xc, w, y;
     bool reversed_a_b = false;
 

@@ -141,12 +141,12 @@ struct TensorContractionBlockMemAllocator {
 // blocks of Lhs and Rhs tensor expressions, and how we invoke matrix
 // multiplication for these blocks. Default tensor contraction uses
 // gemm_pack_rhs, gemm_pack_lhs and gebp_kernel from Eigen Core (see
-// GeneralBlocPanelKernel.h for details).
+// GeneralBlockPanelKernel.h for details).
 //
 // By specializing contraction kernels we can use other low level libraries to
 // perform matrix multiplication, and still rely on Eigen contraction evaluator.
 // This also includes full support in TensorContractionThreadPool, assuming that
-// underlying gemm do not use it's own threading.
+// underlying gemm does not use its own threading.
 //
 // - ResScalar/LhsScalar/RhsScalar - scalar type for the result of
 //   multiplication, lhs tensor and rhs tensor respectively.

@@ -285,7 +285,7 @@ __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapp
 
   for (Index base_k = 0; base_k < k_size; base_k += 64) {
     // wait for previous iteration to finish with shmem. Despite common sense,
-    // the code is a bit faster with this here then at bottom of loop
+    // the code is a bit faster with this here than at bottom of loop
     __syncthreads();
 
     prefetchIntoRegisters(base_k);
@@ -471,7 +471,7 @@ __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapp
 
   if (threadIdx.x < max_i_write) {
     if (max_j_write == 8) {
-      // TODO: can i trade bank conflicts for coalesced writes?
+      // TODO: Can we trade bank conflicts for coalesced writes?
       Scalar val0 = lhs_shmem[threadIdx.x + 8 * threadIdx.y + 64 * threadIdx.z + 512 * 0];
       Scalar val1 = lhs_shmem[threadIdx.x + 8 * threadIdx.y + 64 * threadIdx.z + 512 * 1];
       Scalar val2 = lhs_shmem[threadIdx.x + 8 * threadIdx.y + 64 * threadIdx.z + 512 * 2];
@@ -609,7 +609,7 @@ __device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const L
       }
     }
     float x1, x2;
-    // the following can be a bitwise operation..... some day.
+    // TODO: The following can be a bitwise operation.
     if ((threadIdx.x % 8) < 4) {
       x1 = rhs_pf0.y;
       x2 = rhs_pf0.w;

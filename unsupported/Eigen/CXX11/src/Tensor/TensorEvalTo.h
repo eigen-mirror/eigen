@@ -18,7 +18,6 @@ namespace Eigen {
 namespace internal {
 template <typename XprType, template <class> class MakePointer_>
 struct traits<TensorEvalToOp<XprType, MakePointer_> > {
-  // Type promotion to handle the case where the types of the lhs and the rhs are different.
   typedef typename XprType::Scalar Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;

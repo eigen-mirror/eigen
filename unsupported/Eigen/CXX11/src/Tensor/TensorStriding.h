@@ -87,7 +87,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
-    IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
+    IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
@@ -237,13 +237,11 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
     : public TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   typedef TensorStridingOp<Strides, ArgType> XprType;
   typedef TensorEvaluator<const XprType, Device> Base;
-  //  typedef typename XprType::Index Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  //  typedef DSizes<Index, NumDims> Dimensions;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
-    IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/ false,
+    IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented

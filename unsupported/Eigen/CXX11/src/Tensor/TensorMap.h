@@ -15,7 +15,7 @@
 
 namespace Eigen {
 
-// FIXME use proper doxygen documentation (e.g. \tparam MakePointer_)
+// FIXME: Use proper doxygen documentation (e.g. \tparam MakePointer_).
 
 /**
  * \ingroup CXX11_Tensor_Module
@@ -104,7 +104,6 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StoragePointerType data() const { return m_data; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices) const {
-    //      eigen_assert(checkIndexRange(indices));
     if (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(indices);
       return m_data[index];
@@ -141,7 +140,6 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE StorageRefType operator()(const array<Index, NumIndices>& indices) {
-    //      eigen_assert(checkIndexRange(indices));
     if (PlainObjectType::Options & RowMajor) {
       const Index index = m_dimensions.IndexOfRowMajor(indices);
       return m_data[index];

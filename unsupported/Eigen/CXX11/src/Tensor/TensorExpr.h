@@ -35,7 +35,7 @@ struct traits<TensorCwiseNullaryOp<NullaryOp, XprType> > : traits<XprType> {
  *
  * \brief Tensor nullary expression.
  *
- * The TensorCwiseNullaryOp class applies a nullary operators to an expression.
+ * The TensorCwiseNullaryOp class applies a nullary operator to an expression.
  * This is typically used to generate constants.
  */
 template <typename NullaryOp, typename XprType>

@@ -57,7 +57,7 @@ struct PartOf<ImagPart> {
 
 namespace internal {
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
-struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir> > : public traits<XprType> {
+struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>> : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -81,7 +81,7 @@ struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense
 
 template <typename FFT, typename XprType, int FFTResultType, int FFTDirection>
 struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
-              typename eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection> >::type> {
+              typename eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>>::type> {
   typedef TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection> type;
 };
 
@@ -248,23 +248,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
         // The recurrence is correct in exact arithmetic, but causes
         // numerical issues for large transforms, especially in
-        // single-precision floating point.
-        //
-        // pos_j_base_powered[0] = ComplexScalar(1, 0);
-        // if (line_len > 1) {
-        //   const ComplexScalar pos_j_base = ComplexScalar(
-        //       numext::cos(EIGEN_PI / line_len), numext::sin(EIGEN_PI / line_len));
-        //   pos_j_base_powered[1] = pos_j_base;
-        //   if (line_len > 2) {
-        //     const ComplexScalar pos_j_base_sq = pos_j_base * pos_j_base;
-        //     for (int i = 2; i < line_len + 1; ++i) {
-        //       pos_j_base_powered[i] = pos_j_base_powered[i - 1] *
-        //           pos_j_base_powered[i - 1] /
-        //           pos_j_base_powered[i - 2] *
-        //           pos_j_base_sq;
-        //     }
-        //   }
-        // }
+        // single-precision floating point. Use direct computation instead.
         // TODO(rmlarsen): Find a way to use Eigen's vectorized sin
         // and cosine functions here.
         for (int j = 0; j < line_len + 1; ++j) {

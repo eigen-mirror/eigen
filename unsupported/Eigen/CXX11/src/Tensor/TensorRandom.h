@@ -61,7 +61,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half RandomToTypeUniform<Eigen::hal
   unsigned rnd = PCG_XSH_RS_generator(state, stream);
   const uint16_t half_bits = static_cast<uint16_t>(rnd & 0x3ffu) | (static_cast<uint16_t>(15) << 10);
   Eigen::half result = Eigen::numext::bit_cast<Eigen::half>(half_bits);
-  // Return the final result
   return result - Eigen::half(1.0f);
 }
 
@@ -72,7 +71,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::bfloat16 RandomToTypeUniform<Eigen:
   unsigned rnd = PCG_XSH_RS_generator(state, stream);
   const uint16_t half_bits = static_cast<uint16_t>(rnd & 0x7fu) | (static_cast<uint16_t>(127) << 7);
   Eigen::bfloat16 result = Eigen::numext::bit_cast<Eigen::bfloat16>(half_bits);
-  // Return the final result
   return result - Eigen::bfloat16(1.0f);
 }
 
@@ -83,12 +81,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float RandomToTypeUniform<float>(uint64_t*
     float fp;
   } internal;
   internal result;
-  // Generate 23 random bits for the mantissa mantissa
+  // Generate 23 random bits for the mantissa.
   const unsigned rnd = PCG_XSH_RS_generator(state, stream);
   result.raw = rnd & 0x7fffffu;
-  // Set the exponent
+  // Set the exponent.
   result.raw |= (static_cast<uint32_t>(127) << 23);
-  // Return the final result
   return result.fp - 1.0f;
 }
 
@@ -103,7 +100,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double RandomToTypeUniform<double>(uint64_
   // Generate 52 random bits for the mantissa
   // First generate the upper 20 bits
   unsigned rnd1 = PCG_XSH_RS_generator(state, stream) & 0xfffffu;
-  // The generate the lower 32 bits
+  // Then generate the lower 32 bits.
   unsigned rnd2 = PCG_XSH_RS_generator(state, stream);
   result.raw = (static_cast<uint64_t>(rnd1) << 32) | rnd2;
   // Set the exponent
@@ -132,19 +129,10 @@ class UniformRandomGenerator {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UniformRandomGenerator(uint64_t seed = 0) {
     m_state = PCG_XSH_RS_state(seed);
 #ifdef EIGEN_USE_SYCL
-    // In SYCL it is not possible to build PCG_XSH_RS_state in one step.
-    // Therefore, we need two steps to initialize the m_state.
-    // IN SYCL, the constructor of the functor is s called on the CPU
-    // and we get the clock seed here from the CPU. However, This seed is
-    // the same for all the thread. As unlike CUDA, the thread.ID, BlockID, etc is not a global function.
-    // and only  available on the Operator() function (which is called on the GPU).
-    // Thus for CUDA (((CLOCK  + global_thread_id)* 6364136223846793005ULL) + 0xda3e39cb94b95bdbULL) is passed to each
-    // thread but for SYCL ((CLOCK * 6364136223846793005ULL) + 0xda3e39cb94b95bdbULL) is passed to each thread and each
-    // thread adds the  (global_thread_id* 6364136223846793005ULL) for itself only once, in order to complete the
-    // construction similar to CUDA Therefore, the thread Id injection is not available at this stage.
-    // However when the operator() is called the thread ID will be available. So inside the operator,
-    // we add the thrreadID, BlockId,... (which is equivalent of i)
-    // to the seed and construct the unique m_state per thead similar to cuda.
+    // In SYCL, the constructor runs on the CPU where thread IDs are unavailable.
+    // We initialize m_state here with just the clock seed; the per-thread
+    // component (i * 6364136223846793005ULL) is added in operator() when
+    // the thread ID becomes available, completing the PCG state setup.
     m_exec_once = false;
 #endif
   }
@@ -240,16 +228,10 @@ class NormalRandomGenerator {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NormalRandomGenerator(uint64_t seed = 0) {
     m_state = PCG_XSH_RS_state(seed);
 #ifdef EIGEN_USE_SYCL
-    // In SYCL it is not possible to build PCG_XSH_RS_state in one step.
-    // Therefore, we need two steps to initialize the m_state.
-    // IN SYCL, the constructor of the functor is s called on the CPU
-    // and we get the clock seed here from the CPU. However, This seed is
-    // the same for all the thread. As unlike CUDA, the thread.ID, BlockID, etc is not a global function.
-    // and only  available on the Operator() function (which is called on the GPU).
-    // Therefore, the thread Id injection is not available at this stage. However when the operator()
-    // is called the thread ID will be available. So inside the operator,
-    // we add the thrreadID, BlockId,... (which is equivalent of i)
-    // to the seed and construct the unique m_state per thead similar to cuda.
+    // In SYCL, the constructor runs on the CPU where thread IDs are unavailable.
+    // We initialize m_state here with just the clock seed; the per-thread
+    // component (i * 6364136223846793005ULL) is added in operator() when
+    // the thread ID becomes available, completing the PCG state setup.
     m_exec_once = false;
 #endif
   }

@@ -706,7 +706,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
           }
         }
         Op reducer(m_reducer);
-        // For SYCL this if always return false
+        // For SYCL, this always returns false.
         if (internal::InnerReducer<Self, Op, Device>::run(*this, reducer, m_device, data, num_values_to_reduce,
                                                           num_coeffs_to_preserve)) {
           if (m_result) {
@@ -742,7 +742,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
           }
         }
         Op reducer(m_reducer);
-        // For SYCL this if always return false
+        // For SYCL, this always returns false.
         if (internal::OuterReducer<Self, Op, Device>::run(*this, reducer, m_device, data, num_values_to_reduce,
                                                           num_coeffs_to_preserve)) {
           if (m_result) {
@@ -903,7 +903,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 #if defined(EIGEN_USE_SYCL)
   template <typename Evaluator_, typename Op__>
   friend class TensorSycl::internal::GenericNondeterministicReducer;
-  // SYCL need the Generic reducer for the case the reduction algorithm is neither inner, outer, and full reducer
+  // SYCL needs the generic reducer when the reduction is neither inner, outer, nor full.
   template <typename, typename, typename>
   friend struct internal::GenericReducer;
 #endif
@@ -1005,15 +1005,13 @@ struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>,
       Base;
   EIGEN_STRONG_INLINE TensorEvaluator(const typename Base::XprType& op, const Eigen::SyclDevice& device)
       : Base(op, device) {}
-  // The coeff function in the base the recursive method which is not an standard layout and cannot be used in the SYCL
-  // kernel
-  // Therefore the coeff function should be overridden by for SYCL kernel
+  // The base coeff function uses a recursive method that is not standard layout and cannot be used in
+  // SYCL kernels, so it must be overridden.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Base::CoeffReturnType coeff(typename Base::Index index) const {
     return *(this->data() + index);
   }
-  // The packet function in the base the recursive method which is not an standard layout and cannot be used in the SYCL
-  // kernel
-  // Therefore the packet function should be overridden by for SYCL kernel
+  // The base packet function uses a recursive method that is not standard layout and cannot be used in
+  // SYCL kernels, so it must be overridden.
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Base::PacketReturnType packet(typename Base::Index index) const {
     return internal::pload<typename Base::PacketReturnType>(this->data() + index);

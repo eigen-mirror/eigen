@@ -273,12 +273,12 @@ struct GpuDevice {
   }
 
   EIGEN_STRONG_INLINE size_t numThreads() const {
-    // FIXME
+    // FIXME: Return a more accurate thread count.
     return 32;
   }
 
   EIGEN_STRONG_INLINE size_t firstLevelCacheSize() const {
-    // FIXME
+    // FIXME: Return a more accurate cache size.
     return 48 * 1024;
   }
 

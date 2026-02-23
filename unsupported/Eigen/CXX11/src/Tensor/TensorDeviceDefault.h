@@ -68,7 +68,7 @@ struct DefaultDevice {
     return l1CacheSize();
 #elif defined(EIGEN_HIP_DEVICE_COMPILE)
     // Running on a HIP device
-    return 48 * 1024;  // FIXME : update this number for HIP
+    return 48 * 1024;  // FIXME: Update this number for HIP.
 #else
     // Running on a CUDA device, return the amount of shared memory available.
     return 48 * 1024;
@@ -81,7 +81,7 @@ struct DefaultDevice {
     return l3CacheSize();
 #elif defined(EIGEN_HIP_DEVICE_COMPILE)
     // Running on a HIP device
-    return firstLevelCacheSize();  // FIXME : update this number for HIP
+    return firstLevelCacheSize();  // FIXME: Update this number for HIP.
 #else
     // Running on a CUDA device
     return firstLevelCacheSize();
