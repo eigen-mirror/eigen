@@ -57,6 +57,40 @@
     return float2half(METHOD<PACKET_F>(half2float(_x)));                                                   \
   }
 
+#define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_F16(PACKET_F, PACKET_F16) \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pcos)                      \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, psin)                      \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexp)                      \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexp2)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexpm1)                    \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog)                      \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog1p)                    \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog2)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, preciprocal)               \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, prsqrt)                    \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pcbrt)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, psqrt)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, ptanh)
+
+// F16 wrappers for unsupported/SpecialFunctions.
+#define EIGEN_INSTANTIATE_SPECIAL_FUNCS_F16(PACKET_F, PACKET_F16) \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, perf)                 \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pndtri)
+
+#define EIGEN_INSTANTIATE_BESSEL_FUNCS_F16(PACKET_F, PACKET_F16) \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_i0)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_i0e)         \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_i1)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_i1e)         \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_j0)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_j1)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_k0)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_k0e)         \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_k1)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_k1e)         \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_y0)          \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pbessel_y1)
+
 namespace Eigen {
 
 struct half;
