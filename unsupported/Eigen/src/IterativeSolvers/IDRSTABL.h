@@ -208,7 +208,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   // Pre-allocate sigma.
   DenseMatrixType sigma(S, S);
 
-  bool reset_while = false;  // Should the while loop be reset for some reason?
+  bool reset_while = false;  // Should the while loop be reset?
 
   while (k < maxIters) {
     for (Index j = 1; j <= L; ++j) {

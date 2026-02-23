@@ -30,7 +30,7 @@ struct traits<Replicate<MatrixType, RowFactor, ColFactor> > : traits<MatrixType>
     ColsAtCompileTime = ColFactor == Dynamic || int(MatrixType::ColsAtCompileTime) == Dynamic
                             ? Dynamic
                             : ColFactor * MatrixType::ColsAtCompileTime,
-    // FIXME we don't propagate the max sizes !!!
+    // FIXME: propagate MaxRowsAtCompileTime and MaxColsAtCompileTime.
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
     IsRowMajor = MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1   ? 1
@@ -38,7 +38,7 @@ struct traits<Replicate<MatrixType, RowFactor, ColFactor> > : traits<MatrixType>
                  : (MatrixType::Flags & RowMajorBit)                      ? 1
                                                                           : 0,
 
-    // FIXME enable DirectAccess with negative strides?
+    // FIXME: consider enabling DirectAccess with negative strides.
     Flags = IsRowMajor ? RowMajorBit : 0
   };
 };

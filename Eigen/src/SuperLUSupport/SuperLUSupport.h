@@ -208,7 +208,7 @@ struct SluMatrix : SuperMatrix {
 
     res.setScalarType<typename MatrixType::Scalar>();
 
-    // FIXME the following is not very accurate
+    // FIXME: the following type mapping is approximate.
     if (int(MatrixType::Flags) & int(Upper)) res.Mtype = SLU_TRU;
     if (int(MatrixType::Flags) & int(Lower)) res.Mtype = SLU_TRL;
 
@@ -259,7 +259,7 @@ struct SluMatrixMapHelper<SparseMatrixBase<Derived> > {
 
     res.setScalarType<typename MatrixType::Scalar>();
 
-    // FIXME the following is not very accurate
+    // FIXME: the following type mapping is approximate.
     if (MatrixType::Flags & Upper) res.Mtype = SLU_TRU;
     if (MatrixType::Flags & Lower) res.Mtype = SLU_TRL;
 

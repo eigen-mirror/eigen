@@ -851,7 +851,7 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
 
     // apply the givens rotation to the unit matrix Q = Q * G
     if (matrixQ) {
-      // FIXME if StorageOrder == RowMajor this operation is not very efficient
+      // FIXME: this operation is inefficient for RowMajor storage order.
       Map<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > q(matrixQ, n, n);
       q.applyOnTheRight(k, k + 1, rot);
     }

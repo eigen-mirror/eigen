@@ -168,7 +168,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
     Index startId = 0;
     Index p = Index(m_data.size()) - 1;
-    // TODO smart realloc
+    // TODO: implement smart reallocation.
     m_data.resize(p + 2, 1);
 
     while ((p >= startId) && (m_data.index(p) > i)) {

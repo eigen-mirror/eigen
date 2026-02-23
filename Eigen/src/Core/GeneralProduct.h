@@ -292,7 +292,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     typedef std::conditional_t<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr> ActualDest;
 
     enum {
-      // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
+      // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
       // on, the other hand it is good for the cache to pack the vector anyways...
       EvalToDestAtCompileTime = (ActualDest::InnerStrideAtCompileTime == 1),
       ComplexByReal = (NumTraits<LhsScalar>::IsComplex) && (!NumTraits<RhsScalar>::IsComplex),
@@ -375,7 +375,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
     ResScalar actualAlpha = combine_scalar_factors(alpha, lhs, rhs);
 
     enum {
-      // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
+      // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
       // on, the other hand it is good for the cache to pack the vector anyways...
       DirectlyUseRhs =
           ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1 || ActualRhsTypeCleaned::MaxSizeAtCompileTime == 0
@@ -416,7 +416,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, false> {
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
     EIGEN_STATIC_ASSERT((!nested_eval<Lhs, 1>::Evaluate),
                         EIGEN_INTERNAL_COMPILATION_ERROR_OR_YOU_MADE_A_PROGRAMMING_MISTAKE);
-    // TODO if rhs is large enough it might be beneficial to make sure that dest is sequentially stored in memory,
+    // TODO: if rhs is large enough it might be beneficial to make sure that dest is sequentially stored in memory,
     // otherwise use a temp
     typename nested_eval<Rhs, 1>::type actual_rhs(rhs);
     const Index size = rhs.rows();

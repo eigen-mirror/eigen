@@ -130,7 +130,8 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
         if (!numext::is_exactly_zero(tmp))  // optimization when other is actually sparse
         {
           if (!(Mode & UnitDiag)) {
-            // TODO replace this by a binary search. make sure the binary search is safe for partially sorted elements
+            // TODO: replace this with a binary search. make sure the binary search is safe for partially sorted
+            // elements
             LhsIterator it(lhsEval, i);
             while (it && it.index() != i) ++it;
             eigen_assert(it && it.index() == i);

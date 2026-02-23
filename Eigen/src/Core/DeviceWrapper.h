@@ -104,7 +104,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(De
   using ActualDstType = std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&>;
   ActualDstType actualDst(dst.derived());
 
-  // TODO check whether this is the right place to perform these checks:
+  // TODO: check whether this is the right place to perform these checks:
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(ActualDstTypeCleaned, Src)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename ActualDstTypeCleaned::Scalar, typename Src::Scalar);

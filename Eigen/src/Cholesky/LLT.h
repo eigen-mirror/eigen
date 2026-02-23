@@ -406,7 +406,7 @@ LLT<MatrixType, UpLo_>& LLT<MatrixType, UpLo_>::compute(const EigenBase<InputTyp
 
   // Compute matrix L1 norm = max abs column sum.
   m_l1_norm = RealScalar(0);
-  // TODO move this code to SelfAdjointView
+  // TODO: move this code to SelfAdjointView
   for (Index col = 0; col < size; ++col) {
     RealScalar abs_col_sum;
     if (UpLo_ == Lower)

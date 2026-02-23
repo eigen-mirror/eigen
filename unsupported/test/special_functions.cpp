@@ -11,7 +11,7 @@
 #include "main.h"
 #include "../Eigen/SpecialFunctions"
 
-// Hack to allow "implicit" conversions from double to Scalar via comma-initialization.
+// Workaround to allow "implicit" conversions from double to Scalar via comma-initialization.
 template <typename Derived>
 Eigen::CommaInitializer<Derived> operator<<(Eigen::DenseBase<Derived>& dense, double v) {
   return (dense << static_cast<typename Derived::Scalar>(v));

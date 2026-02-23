@@ -52,7 +52,7 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
 
   // tr solve
   for (Index k = 0; k < size; ++k) {
-    // TODO write a small kernel handling this (can be shared with trsv)
+    // TODO: write a small kernel handling this (can be shared with trsv)
     Index i = IsLower ? k : -k - 1;
     Index rs = size - k - 1;  // remaining size
     Index s = TriStorageOrder == RowMajor ? (IsLower ? 0 : i + 1) : IsLower ? i + 1 : i - rs;

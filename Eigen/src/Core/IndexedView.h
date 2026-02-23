@@ -59,7 +59,7 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices>> : traits<XprType> {
     ReturnAsBlock = (!ReturnAsScalar) && IsBlockAlike,
     ReturnAsIndexedView = (!ReturnAsScalar) && (!ReturnAsBlock),
 
-    // FIXME we deal with compile-time strides if and only if we have DirectAccessBit flag,
+    // FIXME: we deal with compile-time strides if and only if we have DirectAccessBit flag,
     // but this is too strict regarding negative strides...
     DirectAccessMask = (int(InnerIncr) != Undefined && int(OuterIncr) != Undefined && InnerIncr >= 0 && OuterIncr >= 0)
                            ? DirectAccessBit

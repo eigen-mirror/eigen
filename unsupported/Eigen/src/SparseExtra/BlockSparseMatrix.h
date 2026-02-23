@@ -65,7 +65,7 @@ template <typename Scalar_, int _BlockAtCompileTime, int Options_, typename Inde
 struct traits<BlockSparseMatrix<Scalar_, _BlockAtCompileTime, Options_, Index_> > {
   typedef Scalar_ Scalar;
   typedef Index_ Index;
-  typedef Sparse StorageKind;  // FIXME Where is it used ??
+  typedef Sparse StorageKind;  // FIXME: determine where StorageKind is used.
   typedef MatrixXpr XprKind;
   enum {
     RowsAtCompileTime = Dynamic,
@@ -315,7 +315,7 @@ class BlockSparseMatrix
         m_nonzeros(other.m_nonzeros),
         m_blockPtr(0),
         m_blockSize(other.m_blockSize) {
-    // should we allow copying between variable-size blocks and fixed-size blocks ??
+    // TODO: decide whether to allow copying between variable-size and fixed-size blocks.
     eigen_assert(m_blockSize == BlockSize && " CAN NOT COPY BETWEEN FIXED-SIZE AND VARIABLE-SIZE BLOCKS");
 
     std::copy(other.m_innerOffset, other.m_innerOffset + m_innerBSize + 1, m_innerOffset);
@@ -486,7 +486,7 @@ class BlockSparseMatrix
         m_indices[offset] = nzBlockIdx[idx];
         if (m_blockSize == Dynamic)
           m_blockPtr[offset] = m_blockPtr[offset - 1] + blockInnerSize(nzBlockIdx[idx]) * blockOuterSize(bj);
-        // There is no blockPtr for fixed-size blocks... not needed !???
+        // There is no blockPtr for fixed-size blocks; not needed.
       }
       // Save the pointer to the next outer block
       m_outerIndex[bj + 1] = m_outerIndex[bj] + nzBlockIdx.size();
@@ -810,7 +810,7 @@ class BlockSparseMatrix
     return (m_blockSize == Dynamic) ? m_innerOffset[bi] : (bi * m_blockSize);
   }
 
-  // Not needed ???
+  // Not needed.
   inline Index blockInnerSize(Index bi) const {
     return (m_blockSize == Dynamic) ? (m_innerOffset[bi + 1] - m_innerOffset[bi]) : m_blockSize;
   }

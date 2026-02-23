@@ -398,8 +398,8 @@ class redux_evaluator : public internal::evaluator<XprType_> {
   enum {
     MaxRowsAtCompileTime = XprType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = XprType::MaxColsAtCompileTime,
-    // TODO we should not remove DirectAccessBit and rather find an elegant way to query the alignment offset at runtime
-    // from the evaluator
+    // TODO: we should not remove DirectAccessBit and rather find an elegant way to query the alignment offset at
+    // runtime from the evaluator
     Flags = Base::Flags & ~DirectAccessBit,
     IsRowMajor = XprType::IsRowMajor,
     SizeAtCompileTime = XprType::SizeAtCompileTime,

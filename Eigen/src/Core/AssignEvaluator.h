@@ -762,7 +762,7 @@ class generic_dense_assignment_kernel {
   DstEvaluatorType& m_dst;
   const SrcEvaluatorType& m_src;
   const Functor& m_functor;
-  // TODO find a way to avoid the needs of the original expression
+  // TODO: find a way to avoid the needs of the original expression
   DstXprType& m_dstExpr;
 };
 
@@ -921,7 +921,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
   typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
   ActualDstType actualDst(dst);
 
-  // TODO check whether this is the right place to perform these checks:
+  // TODO: check whether this is the right place to perform these checks:
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(ActualDstTypeCleaned, Src)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename ActualDstTypeCleaned::Scalar, typename Src::Scalar);
@@ -956,7 +956,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
 template <typename Dst, typename Src, typename Func>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias_no_transpose(Dst& dst, const Src& src,
                                                                                            const Func& func) {
-  // TODO check whether this is the right place to perform these checks:
+  // TODO: check whether this is the right place to perform these checks:
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Dst, Src)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename Dst::Scalar, typename Src::Scalar);

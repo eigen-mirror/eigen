@@ -367,7 +367,7 @@ template <typename Scalar>
 struct functor_traits<scalar_exp2_op<Scalar>> {
   enum {
     PacketAccess = packet_traits<Scalar>::HasExp,
-    Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO measure cost of exp2
+    Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO: measure cost of exp2
   };
 };
 
@@ -389,7 +389,7 @@ template <typename Scalar>
 struct functor_traits<scalar_expm1_op<Scalar>> {
   enum {
     PacketAccess = packet_traits<Scalar>::HasExpm1,
-    Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO measure cost of expm1
+    Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO: measure cost of expm1
   };
 };
 
@@ -443,7 +443,7 @@ template <typename Scalar>
 struct functor_traits<scalar_log1p_op<Scalar>> {
   enum {
     PacketAccess = packet_traits<Scalar>::HasLog1p,
-    Cost = functor_traits<scalar_log_op<Scalar>>::Cost  // TODO measure cost of log1p
+    Cost = functor_traits<scalar_log_op<Scalar>>::Cost  // TODO: measure cost of log1p
   };
 };
 

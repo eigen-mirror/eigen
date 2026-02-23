@@ -36,7 +36,7 @@ struct evaluator<Product<Lhs, Rhs, Options>> : public product_evaluator<Product<
 };
 
 // Catch "scalar * ( A * B )" and transform it to "(A*scalar) * B"
-// TODO we should apply that rule only if that's really helpful
+// TODO: we should apply that rule only if that's really helpful
 template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typename Plain1>
 struct evaluator_assume_aliasing<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
@@ -161,7 +161,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::sub_assign_o
 };
 
 // Dense ?= scalar * Product
-// TODO we should apply that rule if that's really helpful
+// TODO: we should apply that rule if that's really helpful
 // for instance, this is not good for inner products
 template <typename DstXprType, typename Lhs, typename Rhs, typename AssignFunc, typename Scalar, typename ScalarBis,
           typename Plain>
@@ -286,7 +286,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   typedef typename Product<Lhs, Rhs>::Scalar Scalar;
 
-  // TODO it would be nice to be able to exploit our *_assign_op functors for that purpose
+  // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
     template <typename Dst, typename Src>
     EIGEN_DEVICE_FUNC void operator()(const Dst& dst, const Src& src) const {
@@ -563,7 +563,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 
     Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
             (EvalToRowMajor ? RowMajorBit : 0)
-            // TODO enable vectorization for mixed types
+            // TODO: enable vectorization for mixed types
             | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
             (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0),
 

@@ -14,7 +14,7 @@
 // SafeScalar<T> is used to simulate custom Scalar types, which use a more generalized approach to generate random
 // numbers
 
-// For GCC-6, if this function is inlined then there seems to be an optimization
+// For GCC-6, if this function is inlined then there is an optimization
 // bug that triggers a failure.  This failure goes away if you access `r` in
 // in any way, and for any other compiler.
 template <typename Scalar>

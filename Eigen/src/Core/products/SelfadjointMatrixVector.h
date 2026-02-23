@@ -108,7 +108,7 @@ selfadjoint_matrix_vector_product<Scalar, Index, StorageOrder, UpLo, ConjugateLh
       Packet A1i = ploadu<Packet>(a1It);
       a1It += PacketSize;
       Packet Bi = ploadu<Packet>(rhsIt);
-      rhsIt += PacketSize;  // FIXME should be aligned in most cases
+      rhsIt += PacketSize;  // FIXME: should be aligned in most cases.
       Packet Xi = pload<Packet>(resIt);
 
       Xi = pcj0.pmadd(A0i, ptmp0, pcj0.pmadd(A1i, ptmp1, Xi));

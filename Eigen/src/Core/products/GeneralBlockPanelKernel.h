@@ -189,7 +189,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 #endif
 
     // Early return for small problems because the computation below are time consuming for small problems.
-    // Perhaps it would make more sense to consider k*n*m??
+    // Perhaps it would make more sense to consider k*n*m?
     // Note that for very tiny problem, this function should be bypassed anyway
     // because we use the coefficient-based implementation for them.
     if ((numext::maxi)(k, (numext::maxi)(m, n)) < 48) return;
@@ -2173,7 +2173,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
       const LinearMapper dm3 = rhs.getLinearMapper(0, j2 + 3);
 
       Index k = 0;
-      if ((PacketSize % 4) == 0)  // TODO enable vectorized transposition for PacketSize==2 ??
+      if ((PacketSize % 4) == 0)  // TODO: enable vectorized transposition for PacketSize==2.
       {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, (PacketSize % 4) == 0 ? 4 : PacketSize> kernel;

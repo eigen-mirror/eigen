@@ -364,7 +364,7 @@ EIGEN_STRONG_INLINE Packet1cd pandnot<Packet1cd>(const Packet1cd& a, const Packe
   return res;
 }
 
-// FIXME force unaligned load, this is a temporary fix
+// FIXME: force unaligned load, this is a temporary fix
 template <>
 EIGEN_STRONG_INLINE Packet1cd pload<Packet1cd>(const std::complex<double>* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return Packet1cd(pload<Packet2d>((const double*)from));
@@ -384,7 +384,7 @@ EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* fr
   return pset1<Packet1cd>(*from);
 }
 
-// FIXME force unaligned store, this is a temporary fix
+// FIXME: force unaligned store, this is a temporary fix
 template <>
 EIGEN_STRONG_INLINE void pstore<std::complex<double> >(std::complex<double>* to, const Packet1cd& from) {
   EIGEN_DEBUG_ALIGNED_STORE pstore((double*)to, Packet2d(from.v));

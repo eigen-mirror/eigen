@@ -449,7 +449,7 @@ class generic_randaccess_stl_iterator
   using Base::m_index;
   using Base::mp_xpr;
 
-  // TODO currently const Transpose/Reshape expressions never returns const references,
+  // TODO: currently const Transpose/Reshape expressions never returns const references,
   // so lets return by value too.
   // typedef std::conditional_t<bool(has_direct_access), const value_type&, const value_type> read_only_ref_t;
   typedef const value_type read_only_ref_t;

@@ -101,7 +101,7 @@ void eigen33(const Matrix& mat, Matrix& evecs, Vector& evals) {
   // compute the eigen vectors
   // **here we assume 3 different eigenvalues**
 
-  // "optimized version" which appears to be slower with gcc!
+  // "optimized version" which is slower with GCC!
   //     Vector base;
   //     Scalar alpha, beta;
   //     base <<   scaledMat(1,0) * scaledMat(2,1),

@@ -55,7 +55,7 @@ struct functor_traits<scalar_sum_op<LhsScalar, RhsScalar>> {
     Cost = (int(NumTraits<LhsScalar>::AddCost) + int(NumTraits<RhsScalar>::AddCost)) / 2,  // rough estimate!
     PacketAccess =
         is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasAdd && packet_traits<RhsScalar>::HasAdd
-    // TODO vectorize mixed sum
+    // TODO: vectorize mixed sum
   };
 };
 
@@ -94,7 +94,7 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
     Cost = (int(NumTraits<LhsScalar>::MulCost) + int(NumTraits<RhsScalar>::MulCost)) / 2,  // rough estimate!
     PacketAccess =
         is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasMul && packet_traits<RhsScalar>::HasMul
-    // TODO vectorize mixed product
+    // TODO: vectorize mixed product
   };
 };
 

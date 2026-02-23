@@ -11,7 +11,7 @@
 #define EIGEN_UMFPACKSUPPORT_H
 
 // for compatibility with super old version of umfpack,
-// not sure this is really needed, but this is harmless.
+// This may not be strictly needed, but it is harmless.
 #ifndef SuiteSparse_long
 #ifdef UF_long
 #define SuiteSparse_long UF_long

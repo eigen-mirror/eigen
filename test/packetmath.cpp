@@ -127,7 +127,7 @@ inline T REF_FREXP(const T& x, T& exp) {
   exp = static_cast<T>(iexp);
 
   // The exponent value is unspecified if the input is inf or NaN, but MSVC
-  // seems to set it to 1.  We need to set it back to zero for consistency.
+  // sets it to 1.  We need to set it back to zero for consistency.
   if (!(numext::isfinite)(x)) {
     exp = T(0);
   }

@@ -381,7 +381,7 @@ void try_run_some_benchmarks(vector<benchmark_t>& benchmarks, double time_start,
         // Clock speed is now higher than we previously measured.
         // Either our initial measurement was inaccurate, which won't happen
         // too many times as we are keeping the best clock speed value and
-        // and allowing some tolerance; or something really weird happened,
+        // and allowing some tolerance; or an unexpected condition occurred,
         // which invalidates all benchmark results collected so far.
         // Either way, we better restart all over again now.
         if (benchmark_index) {

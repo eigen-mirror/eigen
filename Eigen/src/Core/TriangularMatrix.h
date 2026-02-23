@@ -633,7 +633,7 @@ bool MatrixBase<Derived>::isLowerTriangular(const RealScalar& prec) const {
 
 namespace internal {
 
-// TODO currently a triangular expression has the form TriangularView<.,.>
+// TODO: currently a triangular expression has the form TriangularView<.,.>
 //      in the future triangular-ness should be defined by the expression traits
 //      such that Transpose<TriangularView<.,.> > is valid. (currently TriangularBase::transpose() is overloaded to make
 //      it work)
