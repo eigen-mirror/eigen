@@ -89,7 +89,8 @@ void eigensolver(const MatrixType& m) {
     EigenSolver<MatrixType> ei3(a);
     VERIFY_IS_EQUAL(ei3.info(), Success);
     VERIFY_IS_MUCH_SMALLER_THAN(ei3.eigenvalues().norm(), RealScalar(1));
-    VERIFY((ei3.eigenvectors().transpose() * ei3.eigenvectors().transpose()).eval().isIdentity());
+    RealScalar tol = 2 * a.cols() * NumTraits<RealScalar>::epsilon();
+    VERIFY((ei3.eigenvectors().adjoint() * ei3.eigenvectors()).eval().isIdentity(tol));
   }
 }
 

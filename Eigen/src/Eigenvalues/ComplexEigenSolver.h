@@ -265,8 +265,6 @@ template <typename MatrixType>
 void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm) {
   const Index n = m_eivalues.size();
 
-  matrixnorm = numext::maxi(matrixnorm, (std::numeric_limits<RealScalar>::min)());
-
   // Compute X such that T = X D X^(-1), where D is the diagonal of T.
   // The matrix X is unit triangular.
   m_matX = EigenvectorType::Zero(n, n);
@@ -282,7 +280,8 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
       if (z == ComplexScalar(0)) {
         // If the i-th and k-th eigenvalue are equal, then z equals 0.
         // Use a small value instead, to prevent division by zero.
-        numext::real_ref(z) = NumTraits<RealScalar>::epsilon() * matrixnorm;
+        numext::real_ref(z) = numext::maxi(std::numeric_limits<RealScalar>::epsilon() * matrixnorm,
+                                           (std::numeric_limits<RealScalar>::min)());
       }
       m_matX.coeffRef(i, k) = m_matX.coeff(i, k) / z;
     }
