@@ -431,8 +431,7 @@ class DenseBase
 
   // By default, the fastest version with undefined NaN propagation semantics is
   // used.
-  // TODO(rmlarsen): Replace with default template argument when we move to
-  // c++11 or beyond.
+  // TODO(rmlarsen): Replace with default template argument (C++14 is now the minimum standard).
   EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar minCoeff() const {
     return minCoeff<PropagateFast>();
   }
@@ -449,7 +448,7 @@ class DenseBase
   template <int NaNPropagation, typename IndexType>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar maxCoeff(IndexType* index) const;
 
-  // TODO(rmlarsen): Replace these methods with a default template argument.
+  // TODO(rmlarsen): Replace these methods with a default template argument (C++14 is now the minimum standard).
   template <typename IndexType>
   EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar minCoeff(IndexType* row, IndexType* col) const {
     return minCoeff<PropagateFast>(row, col);
@@ -580,12 +579,12 @@ class DenseBase
 #else
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<Derived>,
-                             internal::generic_randaccess_stl_iterator<Derived> >
+                             internal::generic_randaccess_stl_iterator<Derived>>
       iterator_type;
 
   typedef std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit,
                              internal::pointer_based_stl_iterator<const Derived>,
-                             internal::generic_randaccess_stl_iterator<const Derived> >
+                             internal::generic_randaccess_stl_iterator<const Derived>>
       const_iterator_type;
 
   // Stl-style iterators are supported only for vectors.

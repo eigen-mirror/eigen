@@ -1329,9 +1329,7 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(const
 /** \internal \returns true if all coeffs of \a a means "true"
  * It is supposed to be called on values returned by pcmp_*.
  */
-// not needed yet
-// template<typename Packet> EIGEN_DEVICE_FUNC inline bool predux_all(const Packet& a)
-// { return bool(a); }
+// TODO: implement predux_all when needed.
 
 /** \internal \returns true if any coeffs of \a a means "true"
  * It is supposed to be called on values returned by pcmp_*.

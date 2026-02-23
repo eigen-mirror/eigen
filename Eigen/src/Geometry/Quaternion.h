@@ -790,7 +790,7 @@ EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromT
 template <class Derived>
 EIGEN_DEVICE_FUNC inline Quaternion<typename internal::traits<Derived>::Scalar> QuaternionBase<Derived>::inverse()
     const {
-  // FIXME should this function be called multiplicativeInverse and conjugate() be called inverse() or opposite()  ??
+  // FIXME: consider renaming to multiplicativeInverse() and renaming conjugate() to inverse() or opposite().
   Scalar n2 = this->squaredNorm();
   if (n2 > Scalar(0))
     return Quaternion<Scalar>(conjugate().coeffs() / n2);

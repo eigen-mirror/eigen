@@ -1548,7 +1548,7 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     Eigen::Map<IndexVector>(dest.m_outerIndex, dest.outerSize()).setZero();
 
     // pass 1
-    // FIXME the above copy could be merged with that pass
+    // FIXME: merge the above copy into this pass to avoid iterating twice.
     for (Index j = 0; j < otherCopy.outerSize(); ++j)
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) ++dest.m_outerIndex[it.index()];
 

@@ -384,7 +384,7 @@ void householder_qr_inplace_unblocked(MatrixQR& mat, HCoeffs& hCoeffs, typename 
   }
 }
 
-// TODO: add a corresponding public API for updating a QR factorization
+// TODO: expose a public API for rank-1 QR update.
 /** \internal
  * Basically a modified copy of @c Eigen::internal::householder_qr_inplace_unblocked that
  * performs a rank-1 update of the QR matrix in compact storage. This function assumes, that

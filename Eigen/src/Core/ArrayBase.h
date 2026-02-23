@@ -178,9 +178,6 @@ class ArrayBase : public DenseBase<Derived> {
     return MatrixWrapper<const Derived>(derived());
   }
 
-  //     template<typename Dest>
-  //     inline void evalTo(Dest& dst) const { dst = matrix(); }
-
  protected:
   EIGEN_DEFAULT_COPY_CONSTRUCTOR(ArrayBase)
   EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(ArrayBase)

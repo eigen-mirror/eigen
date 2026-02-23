@@ -89,7 +89,7 @@ struct product_type {
 /* The following allows to select the kind of product at compile time
  * based on the three dimensions of the product.
  * This is a compile time mapping from {1,Small,Large}^3 -> {product types} */
-// FIXME I'm not sure the current mapping is the ideal one.
+// FIXME: the current compile-time product-type mapping may not be optimal.
 template <int M, int N>
 struct product_type_selector<M, N, 1> {
   enum { ret = OuterProduct };
@@ -193,12 +193,11 @@ struct product_type_selector<Large, Large, Small> {
  *  Implementation of Inner Vector Vector Product
  ***********************************************************************/
 
-// FIXME : maybe the "inner product" could return a Scalar
-// instead of a 1x1 matrix ??
-// Pro: more natural for the user
-// Cons: this could be a problem if in a meta unrolled algorithm a matrix-matrix
-// product ends up to a row-vector times col-vector product... To tackle this use
-// case, we could have a specialization for Block<MatrixType,1,1> with: operator=(Scalar x);
+// FIXME: consider returning a Scalar instead of a 1x1 matrix for inner products.
+// Pro: more natural for the user.
+// Con: in a meta-unrolled algorithm a matrix-matrix product may reduce to a
+// row-vector times column-vector product. To handle this, we could specialize
+// Block<MatrixType,1,1> with operator=(Scalar x).
 
 /***********************************************************************
  *  Implementation of Outer Vector Vector Product

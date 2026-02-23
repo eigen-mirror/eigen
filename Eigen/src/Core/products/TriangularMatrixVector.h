@@ -212,7 +212,7 @@ struct trmv_selector<Mode, ColMajor> {
     ResScalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
 
     // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
-    // on, the other hand it is good for the cache to pack the vector anyways...
+    // On the other hand, it is good for the cache to pack the vector anyways...
     constexpr bool EvalToDestAtCompileTime = Dest::InnerStrideAtCompileTime == 1;
     constexpr bool ComplexByReal = (NumTraits<LhsScalar>::IsComplex) && (!NumTraits<RhsScalar>::IsComplex);
     constexpr bool MightCannotUseDest = (Dest::InnerStrideAtCompileTime != 1) || ComplexByReal;

@@ -271,7 +271,7 @@ void nullary_internal_logic() {
   VERIFY((!internal::has_binary_operator<internal::linspaced_op<float> >::value));
   VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::ret));
 
-  // Regression unit test for a weird MSVC bug.
+  // Regression unit test for an MSVC bug.
   // Search "nullary_wrapper_workaround_msvc" in CoreEvaluators.h for the details.
   // See also traits<Ref>::match.
   {

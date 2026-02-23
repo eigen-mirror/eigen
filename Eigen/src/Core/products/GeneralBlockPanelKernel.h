@@ -249,8 +249,8 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
     // The second half is implicitly reserved to access the result and lhs coefficients.
-    // When k<max_kc, then nc can arbitrarily growth. In practice, it seems to be fruitful
-    // to limit this growth: we bound nc to growth by a factor x1.5.
+    // When k<max_kc, then nc can grow without bound. In practice, it seems to be fruitful
+    // to limit this growth: we bound nc growth to a factor of 1.5x.
     // However, if the entire lhs block fit within L1, then we are not going to block on the rows at all,
     // and it becomes fruitful to keep the packed rhs blocks in L1 if there is enough remaining space.
     Index max_nc;
@@ -587,8 +587,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
   }
 
   EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const true_type&) const {
-    // FIXME we can do better!
-    // what we want here is a ploadheight
+    // FIXME: replace with a dedicated ploadheight operation for more efficient quad loading.
     RhsScalar tmp[4] = {b[0], b[0], b[1], b[1]};
     dest = ploadquad<RhsPacket>(tmp);
   }
@@ -669,7 +668,7 @@ DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
     const DoublePacket<Packet>& a,
     std::enable_if_t<unpacket_traits<Packet>::size >= 16 &&
                      !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) {
-  // yes, that's pretty hackish :(
+  // Workaround: reduce real packets to half size by reinterpreting as complex.
   DoublePacket<typename unpacket_traits<Packet>::half> res;
   typedef std::complex<typename unpacket_traits<Packet>::type> Cplx;
   typedef typename packet_traits<Cplx>::type CplxPacket;
@@ -689,7 +688,7 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
 template <typename Scalar, typename RealPacket>
 void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
                             std::enable_if_t<unpacket_traits<RealPacket>::size == 16>* = 0) {
-  // yes, that's pretty hackish too :(
+  // Workaround: load quad elements by reinterpreting real packets as complex.
   typedef typename NumTraits<Scalar>::Real RealScalar;
   RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};
   RealScalar i[4] = {numext::imag(b[0]), numext::imag(b[0]), numext::imag(b[1]), numext::imag(b[1])};

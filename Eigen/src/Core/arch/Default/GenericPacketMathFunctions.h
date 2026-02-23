@@ -294,7 +294,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(cons
   Packet x2 = pmul(x, x);
   Packet x3 = pmul(x2, x);
 
-  // Evaluate the polynomial approximant , probably to improve instruction-level parallelism.
+  // Evaluate the polynomial in factored form for better instruction-level parallelism.
   // y = x - 0.5*x^2 + x^3 * polevl( x, P, 5 ) / p1evl( x, Q, 5 ) );
   Packet y, y1, y_;
   y = pmadd(cst_cephes_log_p0, x, cst_cephes_log_p1);
@@ -1861,8 +1861,8 @@ struct accurate_log2<double> {
 // This function implements the non-trivial case of pow(x,y) where x is
 // positive and y is (possibly) non-integer.
 // Formally, pow(x,y) = exp2(y * log2(x)), where exp2(x) is shorthand for 2^x.
-// TODO(rmlarsen): We should probably add this as a packet up 'ppow', to make it
-// easier to specialize or turn off for specific types and/or backends.x
+// TODO(rmlarsen): We should probably add this as a packet op 'ppow', to make it
+// easier to specialize or turn off for specific types and/or backends.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::type Scalar;

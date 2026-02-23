@@ -583,7 +583,7 @@ void SuperLU<MatrixType>::factorize(const MatrixType &a) {
 
   m_extractedDataAreDirty = true;
 
-  // FIXME how to better check for errors ???
+  // FIXME: implement more detailed error checking based on SuperLU info codes.
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }
@@ -872,7 +872,7 @@ void SuperILU<MatrixType>::factorize(const MatrixType &a) {
                 &info, Scalar());
   StatFree(&m_sluStat);
 
-  // FIXME how to better check for errors ???
+  // FIXME: implement more detailed error checking based on SuperLU info codes.
   m_info = info == 0 ? Success : NumericalIssue;
   m_factorizationIsOk = true;
 }

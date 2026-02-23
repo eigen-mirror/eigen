@@ -22,7 +22,7 @@ namespace internal {
  * \ingroup OrderingMethods_Module
  * \param[in] A the input non-symmetric matrix
  * \param[out] symmat the symmetric pattern A^T+A from the input matrix \a A.
- * FIXME: The values should not be considered here
+ * FIXME: only the sparsity pattern should be used here; values should be ignored.
  */
 template <typename MatrixType>
 void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {

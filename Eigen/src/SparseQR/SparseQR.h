@@ -338,8 +338,7 @@ void SparseQR<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
   m_Q.resize(m, diagSize);
 
   // Allocate space for nonzero elements: rough estimation
-  m_R.reserve(2 * mat.nonZeros());  // FIXME Get a more accurate estimation through symbolic factorization with the
-                                    // etree
+  m_R.reserve(2 * mat.nonZeros());  // FIXME: get a tighter bound via symbolic factorization using the etree.
   m_Q.reserve(2 * mat.nonZeros());
   m_hcoeffs.resize(diagSize);
   m_analysisIsok = true;
@@ -502,7 +501,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
 
     if (nonzeroCol < diagSize) {
       // Compute the Householder reflection that eliminate the current column
-      // FIXME this step should call the Householder module.
+      // FIXME: refactor to use the Householder module's reflector computation.
       Scalar c0 = nzcolQ ? tval(Qidx(0)) : Scalar(0);
 
       // First, the squared norm of Q((col+1):m, col)
@@ -627,7 +626,7 @@ struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived
 
   const SparseQRType& m_qr;
   const Derived& m_other;
-  bool m_transpose;  // TODO this actually means adjoint
+  bool m_transpose;  // TODO: rename to m_adjoint; this flag controls adjoint application.
 };
 
 template <typename SparseQRType>
@@ -646,14 +645,14 @@ struct SparseQRMatrixQReturnType : public EigenBase<SparseQRMatrixQReturnType<Sp
   }
   inline Index rows() const { return m_qr.rows(); }
   inline Index cols() const { return m_qr.rows(); }
-  // To use for operations with the transpose of Q FIXME this is the same as adjoint at the moment
+  // To use for operations with the transpose of Q. FIXME: currently identical to adjoint(); specialize for complex.
   SparseQRMatrixQTransposeReturnType<SparseQRType> transpose() const {
     return SparseQRMatrixQTransposeReturnType<SparseQRType>(m_qr);
   }
   const SparseQRType& m_qr;
 };
 
-// TODO this actually represents the adjoint of Q
+// TODO: rename to SparseQRMatrixQAdjointReturnType; this represents the adjoint of Q.
 template <typename SparseQRType>
 struct SparseQRMatrixQTransposeReturnType {
   explicit SparseQRMatrixQTransposeReturnType(const SparseQRType& qr) : m_qr(qr) {}

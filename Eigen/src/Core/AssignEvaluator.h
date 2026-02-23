@@ -63,7 +63,7 @@ struct copy_using_evaluator_traits {
   static constexpr int RestrictedLinearSize = min_size_prefer_fixed(MaxSizeAtCompileTime, MaxPacketSize);
   static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::ret;
 
-  // TODO distinguish between linear traversal and inner-traversals
+  // TODO: distinguish between linear traversal and inner-traversal packet types.
   using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;
   using InnerPacketType = typename find_best_packet<DstScalar, RestrictedInnerSize>::type;
 
@@ -1016,7 +1016,7 @@ struct Assignment<DstXprType, CwiseNullaryOp<scalar_zero_op<typename DstXprType:
 };
 
 // Generic assignment through evalTo.
-// TODO: not sure we have to keep that one, but it helps porting current code to new evaluator mechanism.
+// TODO: evaluate whether this generic evalTo-based assignment path is still needed.
 // Note that the last template argument "Weak" is needed to make it possible to perform
 // both partial specialization+SFINAE without ambiguous specialization
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Weak>

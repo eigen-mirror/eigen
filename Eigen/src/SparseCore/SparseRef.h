@@ -117,7 +117,8 @@ class Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>
 #else
 template <typename SparseMatrixType, int Options>
 class Ref<SparseMatrixType, Options>
-    : public SparseMapBase<Derived, WriteAccessors>  // yes, that's weird to use Derived here, but that works!
+    : public SparseMapBase<Derived, WriteAccessors>  // Note: 'Derived' is used here intentionally; it resolves
+                                                     // correctly via CRTP.
 #endif
 {
   typedef SparseMatrix<MatScalar, MatOptions, MatIndex> PlainObjectType;

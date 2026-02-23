@@ -98,7 +98,7 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
   typedef std::remove_reference_t<RhsNested> RhsNested_;
 
 #if EIGEN_COMP_MSVC
-  // Required for Visual Studio or the Copy constructor will probably not get inlined!
+  // Required for Visual Studio, which may fail to inline the copy constructor otherwise.
   EIGEN_STRONG_INLINE CwiseBinaryOp(const CwiseBinaryOp<BinaryOp, LhsType, RhsType>&) = default;
 #endif
 

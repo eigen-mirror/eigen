@@ -356,7 +356,7 @@ void check_indexed_view() {
     VERIFY_IS_CWISE_EQUAL(R_ref(eigen_matrix_rows, eigen_matrix_cols), R_ref(c_array_rows, c_array_cols));
   }
 
-  // check mat(i,j) with weird types for i and j
+  // check mat(i,j) with unusual types for i and j
   {
     VERIFY_IS_APPROX(A(B.RowsAtCompileTime - 1, 1), A(3, 1));
     VERIFY_IS_APPROX(A(B.RowsAtCompileTime, 1), A(4, 1));
@@ -420,7 +420,7 @@ void check_indexed_view() {
   // check symbolic indices
   a(last) = 1.0;
   A(last, last) = 1;
-  // check weird non-const, non-lvalue scenarios
+  // check unusual non-const, non-lvalue scenarios
   {
     // in these scenarios, the objects are not declared 'const', and the compiler will attempt to use the non-const
     // overloads without intervention

@@ -225,7 +225,7 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
 
   /** \returns the internal LDLT decomposition matrix
    *
-   * TODO: document the storage layout
+   * TODO: document the storage layout.
    */
   inline const MatrixType& matrixLDLT() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");

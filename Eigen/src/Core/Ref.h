@@ -43,7 +43,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       OuterStrideMatch = IsVectorAtCompileTime || int(OuterStrideAtCompileTime) == int(Dynamic) ||
                          int(OuterStrideAtCompileTime) == int(Derived::OuterStrideAtCompileTime),
       // NOTE, this indirection of evaluator<Derived>::Alignment is needed
-      // to workaround a very strange bug in MSVC related to the instantiation
+      // to work around an MSVC bug related to the instantiation
       // of has_*ary_operator in evaluator<CwiseNullaryOp>.
       // This line is surprisingly very sensitive. For instance, simply adding parenthesis
       // as "DerivedAlignment = (int(evaluator<Derived>::Alignment))," will make MSVC fail...

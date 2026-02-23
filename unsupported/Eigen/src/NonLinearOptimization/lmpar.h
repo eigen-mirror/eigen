@@ -67,8 +67,7 @@ void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matr
       l = ipvt[j];
       wa1[j] = diag[l] * (wa2[l] / dxnorm);
     }
-    // it's actually a triangularView.solveInplace(), though in a weird
-    // way:
+    // Triangular solve (forward substitution):
     for (j = 0; j < n; ++j) {
       Scalar sum = 0.;
       for (i = 0; i < j; ++i) sum += r(i, j) * wa1[i];

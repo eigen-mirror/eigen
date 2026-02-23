@@ -548,8 +548,7 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
     info = NoConvergence;
 
   // Sort eigenvalues and corresponding vectors.
-  // TODO make the sort optional ?
-  // TODO use a better sort algorithm !!
+  // TODO: make the sort optional and use a more efficient sorting algorithm.
   if (info == Success) {
     for (Index i = 0; i < n - 1; ++i) {
       Index k;
@@ -653,12 +652,12 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 
     // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
     Scalar shift = mat.trace() / Scalar(3);
-    // TODO Avoid this copy. Currently it is necessary to suppress bogus values when determining maxCoeff and for
-    // computing the eigenvectors later
+    // TODO: avoid this copy. Currently necessary to suppress bogus values when determining maxCoeff and for
+    // computing the eigenvectors later.
     MatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
     Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > 0) scaledMat /= scale;  // TODO for scale==0 we could save the remaining operations
+    if (scale > 0) scaledMat /= scale;  // TODO: skip remaining operations when scale==0.
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);

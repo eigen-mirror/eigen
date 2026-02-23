@@ -435,9 +435,8 @@ struct greater_equal_zero_op {
 
 /* reductions for lists */
 
-// using auto -> return value spec makes ICC 13.0 and 13.1 crash here, so we have to hack it
-// together in front... (13.0 doesn't work with array_prod/array_reduce/... anyway, but 13.1
-// does...
+// Using auto -> return value spec makes ICC 13.0 and 13.1 crash here,
+// so the return type is specified explicitly using decltype.
 template <typename... Ts>
 EIGEN_DEVICE_FUNC constexpr decltype(reduce<product_op, Ts...>::run((*((Ts*)0))...)) arg_prod(Ts... ts) {
   return reduce<product_op, Ts...>::run(ts...);

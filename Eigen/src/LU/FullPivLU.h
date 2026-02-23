@@ -571,7 +571,7 @@ MatrixType FullPivLU<MatrixType, PermutationIndex>::reconstructedMatrix() const 
   const Index smalldim = (std::min)(m_lu.rows(), m_lu.cols());
   // LU
   MatrixType res(m_lu.rows(), m_lu.cols());
-  // FIXME the .toDenseMatrix() should not be needed...
+  // FIXME: the .toDenseMatrix() calls should not be needed.
   res = m_lu.leftCols(smalldim).template triangularView<UnitLower>().toDenseMatrix() *
         m_lu.topRows(smalldim).template triangularView<Upper>().toDenseMatrix();
 
@@ -632,10 +632,10 @@ struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_> >
       if (abs(dec().matrixLU().coeff(i, i)) > premultiplied_threshold) pivots.coeffRef(p++) = i;
     eigen_internal_assert(p == rank());
 
-    // we construct a temporaty trapezoid matrix m, by taking the U matrix and
-    // permuting the rows and cols to bring the nonnegligible pivots to the top of
-    // the main diagonal. We need that to be able to apply our triangular solvers.
-    // FIXME when we get triangularView-for-rectangular-matrices, this can be simplified
+    // Construct a temporary trapezoid matrix m by taking the U matrix and permuting
+    // the rows and cols to bring the nonnegligible pivots to the top of the main diagonal.
+    // This is needed to apply our triangular solvers.
+    // FIXME: simplify once triangularView supports rectangular matrices.
     Matrix<typename MatrixType::Scalar, Dynamic, Dynamic, traits<MatrixType>::Options, MaxSmallDimAtCompileTime,
            MatrixType::MaxColsAtCompileTime>
         m(dec().matrixLU().block(0, 0, rank(), cols));

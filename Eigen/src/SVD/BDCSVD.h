@@ -379,7 +379,7 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
   //**** step 2 - Divide & Conquer
   m_naiveU.setZero();
   m_naiveV.setZero();
-  // FIXME this line involves a temporary matrix
+  // FIXME: this line involves a temporary matrix.
   m_computed.topRows(diagSize()) = bid.bidiagonal().toDenseMatrix().transpose();
   m_computed.template bottomRows<1>().setZero();
   divide(0, diagSize() - 1, 0, 0, 0);
@@ -429,7 +429,7 @@ void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const
     m_matrixU = MatrixX::Identity(rows(), Ucols);
     m_matrixU.topLeftCorner(diagSize(), diagSize()) =
         naiveV.template cast<Scalar>().topLeftCorner(diagSize(), diagSize());
-    // FIXME the following conditionals involve temporary buffers
+    // FIXME: the following conditionals involve temporary buffers.
     if (m_useQrDecomp)
       m_matrixU.topLeftCorner(householderU.cols(), diagSize()).applyOnTheLeft(householderU);
     else
@@ -440,7 +440,7 @@ void BDCSVD<MatrixType, Options>::copyUV(const HouseholderU& householderU, const
     m_matrixV = MatrixX::Identity(cols(), Vcols);
     m_matrixV.topLeftCorner(diagSize(), diagSize()) =
         naiveU.template cast<Scalar>().topLeftCorner(diagSize(), diagSize());
-    // FIXME the following conditionals involve temporary buffers
+    // FIXME: the following conditionals involve temporary buffers.
     if (m_useQrDecomp)
       m_matrixV.topLeftCorner(householderV.cols(), diagSize()).applyOnTheLeft(householderV);
     else
@@ -538,7 +538,7 @@ void BDCSVD<MatrixType, Options>::divide(Index firstCol, Index lastCol, Index fi
   // We use the other algorithm which is more efficient for small
   // matrices.
   if (n < m_algoswap) {
-    // FIXME this block involves temporaries
+    // FIXME: this block involves temporaries.
     if (m_compV) {
       JacobiSVD<MatrixXr, ComputeFullU | ComputeFullV> baseSvd;
       computeBaseCase(baseSvd, n, firstCol, firstRowW, firstColW, shift);
@@ -681,8 +681,8 @@ void BDCSVD<MatrixType, Options>::divide(Index firstCol, Index lastCol, Index fi
 // order except for possibly the (0,0) entry. The computed SVD is stored U, singVals and V, except
 // that if m_compV is false, then V is not computed. Singular values are sorted in decreasing order.
 //
-// TODO Opportunities for optimization: better root finding algo, better stopping criterion, better
-// handling of round-off errors, be consistent in ordering
+// TODO: opportunities for optimization: better root-finding algorithm, better stopping criterion,
+// better handling of round-off errors, and consistent ordering.
 // For instance, to solve the secular equation using FMM, see
 // http://www.stat.uchicago.edu/~lekheng/courses/302/classics/greengard-rokhlin.pdf
 template <typename MatrixType, int Options>

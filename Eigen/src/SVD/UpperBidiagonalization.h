@@ -17,8 +17,8 @@
 namespace Eigen {
 
 namespace internal {
-// UpperBidiagonalization will probably be replaced by a Bidiagonalization class, don't want to make it stable API.
-// At the same time, it's useful to keep for now as it's about the only thing that is testing the BandMatrix class.
+// UpperBidiagonalization may be replaced by a Bidiagonalization class; not part of stable API.
+// Kept for now as it is one of the few tests exercising the BandMatrix class.
 
 template <typename MatrixType_>
 class UpperBidiagonalization {

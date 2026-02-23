@@ -575,8 +575,7 @@ template <typename RhsType, typename DstType>
 void FullPivHouseholderQR<MatrixType_, PermutationIndex_>::_solve_impl(const RhsType& rhs, DstType& dst) const {
   const Index l_rank = rank();
 
-  // FIXME introduce nonzeroPivots() and use it here. and more generally,
-  // make the same improvements in this dec as in FullPivLU.
+  // FIXME: introduce nonzeroPivots() and apply the same improvements as in FullPivLU.
   if (l_rank == 0) {
     dst.setZero();
     return;

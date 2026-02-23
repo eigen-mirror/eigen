@@ -182,7 +182,7 @@ struct Assignment<DstXprType,
 
 //----------------------------------------
 // Catch "Dense ?= xpr + Product<>" expression to save one temporary
-// FIXME we could probably enable these rules for any product, i.e., not only Dense and DefaultProduct
+// FIXME: consider enabling these rules for all product types, not only Dense and DefaultProduct.
 
 template <typename OtherXpr, typename Lhs, typename Rhs>
 struct evaluator_assume_aliasing<
@@ -1158,7 +1158,7 @@ struct generic_product_impl<Lhs, Inverse<Rhs>, MatrixShape, PermutationShape, Pr
  * Products with transpositions matrices
  ***************************************************************************/
 
-// FIXME could we unify Transpositions and Permutation into a single "shape"??
+// FIXME: consider unifying Transpositions and Permutation into a single shape.
 
 /** \internal
  * \class transposition_matrix_product

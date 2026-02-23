@@ -36,7 +36,7 @@ void make_block_householder_triangular_factor(TriangularFactorType& triFactor, c
       triFactor.row(i).tail(rt).noalias() = -hCoeffs(i) * vectors.col(i).tail(rs).adjoint() *
                                             vectors.bottomRightCorner(rs, rt).template triangularView<UnitLower>();
 
-      // FIXME use the following line with .noalias() once the triangular product can work inplace
+      // FIXME: use the following line with .noalias() once triangular product supports in-place operation.
       // triFactor.row(i).tail(rt) = triFactor.row(i).tail(rt) * triFactor.bottomRightCorner(rt,rt).template
       // triangularView<Upper>();
       for (Index j = nbVecs - 1; j > i; --j) {
@@ -71,7 +71,7 @@ void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vec
          (VectorsType::MaxColsAtCompileTime == 1 && MatrixType::MaxColsAtCompileTime != 1) ? RowMajor : ColMajor,
          VectorsType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime>
       tmp = V.adjoint() * mat;
-  // FIXME add .noalias() once the triangular product can work inplace
+  // FIXME: add .noalias() once triangular product supports in-place operation.
   if (forward)
     tmp = T.template triangularView<Upper>() * tmp;
   else

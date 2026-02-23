@@ -1407,12 +1407,12 @@ EIGEN_STRONG_INLINE Packet8l preverse(const Packet8l& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pabs(const Packet16f& a) {
-  // _mm512_abs_ps intrinsic not found, so hack around it
+  // _mm512_abs_ps intrinsic not found, so implement via bitwise AND with sign-bit mask.
   return _mm512_castsi512_ps(_mm512_and_si512(_mm512_castps_si512(a), _mm512_set1_epi32(0x7fffffff)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d pabs(const Packet8d& a) {
-  // _mm512_abs_ps intrinsic not found, so hack around it
+  // _mm512_abs_pd intrinsic not found, so implement via bitwise AND with sign-bit mask.
   return _mm512_castsi512_pd(_mm512_and_si512(_mm512_castpd_si512(a), _mm512_set1_epi64(0x7fffffffffffffff)));
 }
 template <>

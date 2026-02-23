@@ -150,9 +150,9 @@ class BenchTimer {
 #define BENCH(TIMER, TRIES, REP, CODE)                                 \
   {                                                                    \
     TIMER.reset();                                                     \
-    for (int uglyvarname1 = 0; uglyvarname1 < TRIES; ++uglyvarname1) { \
+    for (int bench_tries_ = 0; bench_tries_ < TRIES; ++bench_tries_) { \
       TIMER.start();                                                   \
-      for (int uglyvarname2 = 0; uglyvarname2 < REP; ++uglyvarname2) { \
+      for (int bench_reps_ = 0; bench_reps_ < REP; ++bench_reps_) {    \
         CODE;                                                          \
       }                                                                \
       TIMER.stop();                                                    \
