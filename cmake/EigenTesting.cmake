@@ -458,7 +458,7 @@ macro(ei_get_compilerver VAR)
     endif()
     if(MSVC)
       set(${VAR} "${CMAKE_CXX_COMPILER_VERSION}")
-    elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "PGI")
+    elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "PGI" OR ${CMAKE_CXX_COMPILER_ID} MATCHES "NVHPC")
       set(${VAR} "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}")
     else()
     # on all other system we rely on ${CMAKE_CXX_COMPILER}

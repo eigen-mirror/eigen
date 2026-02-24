@@ -34,7 +34,9 @@
 
 /* --- To print date and time of compilation of current source on stdout --- */
 
-#if defined(__GNUC__)
+#if defined(__NVCOMPILER)
+#define COMPILER "nvc++";
+#elif defined(__GNUC__)
 #define COMPILER "g++";
 #elif defined(__sun)
 #define COMPILER "CC";

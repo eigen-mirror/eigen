@@ -220,6 +220,25 @@ test:linux:x86-64:clang-19:generic:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+##### NVHPC ####################################################################
+
+.test:linux:x86-64:nvhpc-25.1:default:
+  extends: .test:linux:x86-64
+  image: nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu22.04
+  needs: [ build:linux:x86-64:nvhpc-25.1:default ]
+  variables:
+    EIGEN_CI_INSTALL: ""
+
+test:linux:x86-64:nvhpc-25.1:default:official:
+  extends: .test:linux:x86-64:nvhpc-25.1:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:x86-64:nvhpc-25.1:default:unsupported:
+  extends: .test:linux:x86-64:nvhpc-25.1:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+
 ##### CUDA #####################################################################
 .test:linux:cuda:
   extends: .test:linux
@@ -420,3 +439,4 @@ test:linux:x86-64:clang-12:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-medium-amd64
+

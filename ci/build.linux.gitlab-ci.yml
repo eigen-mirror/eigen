@@ -140,6 +140,20 @@ build:linux:docs:
 #       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-fsanitize=memory
 #       -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-fsanitize=memory
 
+######## NVHPC #################################################################
+
+# NVHPC (nvc++) uses NVIDIA's HPC SDK container image with the compilers
+# pre-installed. We override EIGEN_CI_INSTALL to avoid trying to apt-get
+# install the compiler.
+build:linux:x86-64:nvhpc-25.1:default:
+  extends: .build:linux:cross:x86-64
+  image: nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu22.04
+  variables:
+    EIGEN_CI_C_COMPILER: nvc
+    EIGEN_CI_CXX_COMPILER: nvc++
+    EIGEN_CI_INSTALL: ""
+    EIGEN_CI_CROSS_INSTALL: ""
+
 ######## CUDA ##################################################################
 
 .build:linux:cuda:
@@ -312,3 +326,4 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-medium-amd64
+
