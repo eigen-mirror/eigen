@@ -158,6 +158,11 @@ void sparse_product() {
     VERIFY_IS_APPROX(dm4 = m2t.transpose() * (refMat3 + refMat5) * 0.5,
                      refMat4 = refMat2t.transpose() * (refMat3 + refMat5) * 0.5);
 
+    // sparse * dense expression without DirectAccessBit (e.g. CwiseNullaryOp)
+    VERIFY_IS_APPROX(dm4 = m2 * DenseMatrix::Constant(depth, cols, s1),
+                     refMat4 = refMat2 * DenseMatrix::Constant(depth, cols, s1));
+    VERIFY_IS_APPROX(dm4 = m2 * DenseMatrix::Zero(depth, cols), refMat4 = refMat2 * DenseMatrix::Zero(depth, cols));
+
     // sparse * dense vector
     VERIFY_IS_APPROX(dm4.col(0) = m2 * refMat3.col(0), refMat4.col(0) = refMat2 * refMat3.col(0));
     VERIFY_IS_APPROX(dm4.col(0) = m2 * refMat3t.transpose().col(0),

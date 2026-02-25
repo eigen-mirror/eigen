@@ -61,6 +61,12 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   // Direct pointer path: works for both compressed and non-compressed storage.
   static void runCol(const LhsEval& /*lhsEval*/, const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                      const ResScalar& alpha, Index n, Index c, std::true_type /* has_compressed_storage */) {
+    runColImpl(lhs, rhs, res, alpha, n, c, std::integral_constant<bool, bool(DenseRhsType::Flags & DirectAccessBit)>());
+  }
+
+  template <typename RhsT>
+  static void runColImpl(const SparseLhsType& lhs, const RhsT& rhs, DenseResType& res, const ResScalar& alpha, Index n,
+                         Index c, std::true_type) {
     const Lhs& mat = lhs;
     const auto* vals = mat.valuePtr();
     const auto* inds = mat.innerIndexPtr();
@@ -105,20 +111,32 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         }
       }
     } else {
-      // Non-unit rhs stride: use direct pointers for sparse side, coeff() for rhs
-      for (Index i = 0; i < n; ++i) {
-        Index k = outer[i];
-        const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
-        ResScalar sum0(0), sum1(0);
-        for (; k < end; ++k) {
-          sum0 += vals[k] * rhs.coeff(inds[k], c);
-          ++k;
-          if (k < end) {
-            sum1 += vals[k] * rhs.coeff(inds[k], c);
-          }
+      runColImpl(lhs, rhs, res, alpha, n, c, std::false_type());
+    }
+  }
+
+  // Use fall-back path without direct access to rhs.
+  template <typename RhsT>
+  static void runColImpl(const SparseLhsType& lhs, const RhsT& rhs, DenseResType& res, const ResScalar& alpha, Index n,
+                         Index c, std::false_type) {
+    const Lhs& mat = lhs;
+    const auto* vals = mat.valuePtr();
+    const auto* inds = mat.innerIndexPtr();
+    const auto* outer = mat.outerIndexPtr();
+    const auto* innerNnz = mat.innerNonZeroPtr();
+    // Non-unit rhs stride (or no direct access): use direct pointers for sparse side, coeff() for rhs
+    for (Index i = 0; i < n; ++i) {
+      Index k = outer[i];
+      const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
+      ResScalar sum0(0), sum1(0);
+      for (; k < end; ++k) {
+        sum0 += vals[k] * rhs.coeff(inds[k], c);
+        ++k;
+        if (k < end) {
+          sum1 += vals[k] * rhs.coeff(inds[k], c);
         }
-        res.coeffRef(i, c) += alpha * (sum0 + sum1);
       }
+      res.coeffRef(i, c) += alpha * (sum0 + sum1);
     }
   }
 
