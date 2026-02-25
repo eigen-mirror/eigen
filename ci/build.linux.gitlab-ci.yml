@@ -144,9 +144,9 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:
 # NVHPC (nvc++) uses NVIDIA's HPC SDK container image with the compilers
 # pre-installed. We override EIGEN_CI_INSTALL to avoid trying to apt-get
 # install the compiler.
-build:linux:x86-64:nvhpc-25.1:default:
+build:linux:x86-64:nvhpc-26.1:default:
   extends: .build:linux:cross:x86-64
-  image: nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu22.04
+  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
   variables:
     EIGEN_CI_C_COMPILER: nvc
     EIGEN_CI_CXX_COMPILER: nvc++
@@ -164,11 +164,13 @@ build:linux:x86-64:nvhpc-25.1:default:
     EIGEN_CI_CUDA_COMPUTE_ARCH: "50;75"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
+    EIGEN_CI_TEST_CUDA_NVC: "off"
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
       -DEIGEN_CUDA_CXX_FLAGS=${EIGEN_CI_CUDA_CXX_FLAGS}
       -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
       -DEIGEN_TEST_CUDA_CLANG=${EIGEN_CI_TEST_CUDA_CLANG}
+      -DEIGEN_TEST_CUDA_NVC=${EIGEN_CI_TEST_CUDA_NVC}
   tags:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
@@ -188,6 +190,17 @@ build:linux:cuda-12.2:clang-12:
     EIGEN_CI_C_COMPILER: clang-12
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+
+# NVHPC (nvc++), CUDA-13.1 — nvc++ as both host and device compiler
+build:linux:cuda-13.1:nvhpc-26.1:
+  extends: .build:linux:cuda
+  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
+  variables:
+    EIGEN_CI_C_COMPILER: nvc
+    EIGEN_CI_CXX_COMPILER: nvc++
+    EIGEN_CI_INSTALL: ""
+    EIGEN_CI_CROSS_INSTALL: ""
+    EIGEN_CI_TEST_CUDA_NVC: "on"
 
 ######### HIP ##################################################################
 # Note: these are currently build-only, until we get an AMD-supported runner.

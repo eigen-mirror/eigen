@@ -245,20 +245,20 @@ test:linux:x86-64:clang-19:default:asan-ubsan:unsupported:
 
 ##### NVHPC ####################################################################
 
-.test:linux:x86-64:nvhpc-25.1:default:
+.test:linux:x86-64:nvhpc-26.1:default:
   extends: .test:linux:x86-64
-  image: nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu22.04
-  needs: [ build:linux:x86-64:nvhpc-25.1:default ]
+  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
+  needs: [ build:linux:x86-64:nvhpc-26.1:default ]
   variables:
     EIGEN_CI_INSTALL: ""
 
-test:linux:x86-64:nvhpc-25.1:default:official:
-  extends: .test:linux:x86-64:nvhpc-25.1:default
+test:linux:x86-64:nvhpc-26.1:default:official:
+  extends: .test:linux:x86-64:nvhpc-26.1:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:nvhpc-25.1:default:unsupported:
-  extends: .test:linux:x86-64:nvhpc-25.1:default
+test:linux:x86-64:nvhpc-26.1:default:unsupported:
+  extends: .test:linux:x86-64:nvhpc-26.1:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
@@ -288,6 +288,16 @@ test:linux:cuda-12.2:clang-12:
   variables:
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_CC_COMPILER: clang-12
+
+# NVHPC (nvc++), CUDA-13.1
+test:linux:cuda-13.1:nvhpc-26.1:
+  extends: .test:linux:cuda
+  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
+  needs: [ build:linux:cuda-13.1:nvhpc-26.1 ]
+  variables:
+    EIGEN_CI_CXX_COMPILER: nvc++
+    EIGEN_CI_CC_COMPILER: nvc
+    EIGEN_CI_INSTALL: ""
 
 ##### arm ######################################################################
 
