@@ -12,6 +12,18 @@
 #include "main.h"
 #include "Eigen/ThreadPool"
 
+// Spin-wait with yielding until the condition is met, or fail after a timeout.
+// Returns true if the condition was met before the deadline.
+template <typename Cond>
+static bool spin_wait(Cond cond, int timeout_seconds = 60) {
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
+  while (!cond()) {
+    if (std::chrono::steady_clock::now() > deadline) return false;
+    std::this_thread::yield();
+  }
+  return true;
+}
+
 static void test_create_destroy_empty_pool() {
   // Just create and destroy the pool. This will wind up and tear down worker
   // threads. Ensure there are no issues in that logic.
@@ -38,12 +50,12 @@ static void test_parallelism(bool allow_spinning) {
         VERIFY_LE(thread_id, kThreads - 1);
         running++;
         while (phase < 1) {
+          std::this_thread::yield();
         }
         done++;
       });
     }
-    while (running != kThreads) {
-    }
+    VERIFY(spin_wait([&] { return running == kThreads; }));
     running = 0;
     phase = 1;
     // Now, while the previous tasks exit, schedule another kThreads tasks and
@@ -52,6 +64,7 @@ static void test_parallelism(bool allow_spinning) {
       tp.Schedule([&, i]() {
         running++;
         while (phase < 2) {
+          std::this_thread::yield();
         }
         // When all tasks are running, half of tasks exit, quarter of tasks
         // continue running and quarter of tasks schedule another 2 tasks each.
@@ -62,6 +75,7 @@ static void test_parallelism(bool allow_spinning) {
         } else if (i < 3 * kThreads / 4) {
           running++;
           while (phase < 3) {
+            std::this_thread::yield();
           }
           done++;
         } else {
@@ -69,6 +83,7 @@ static void test_parallelism(bool allow_spinning) {
             tp.Schedule([&]() {
               running++;
               while (phase < 3) {
+                std::this_thread::yield();
               }
               done++;
             });
@@ -77,23 +92,21 @@ static void test_parallelism(bool allow_spinning) {
         done++;
       });
     }
-    while (running != kThreads) {
-    }
+    VERIFY(spin_wait([&] { return running == kThreads; }));
     running = 0;
     phase = 2;
     for (int i = 0; i < kThreads / 4; ++i) {
       tp.Schedule([&]() {
         running++;
         while (phase < 3) {
+          std::this_thread::yield();
         }
         done++;
       });
     }
-    while (running != kThreads) {
-    }
+    VERIFY(spin_wait([&] { return running == kThreads; }));
     phase = 3;
-    while (done != 3 * kThreads) {
-    }
+    VERIFY(spin_wait([&] { return done == 3 * kThreads; }));
   }
 }
 
@@ -136,12 +149,12 @@ static void test_pool_partitions() {
         VERIFY_LE(thread_id, kThreads - 1);
         ++running;
         while (phase < 1) {
+          std::this_thread::yield();
         }
         ++done;
       });
     }
-    while (running != kThreads) {
-    }
+    VERIFY(spin_wait([&] { return running == kThreads; }));
     // Schedule each closure to only run on thread 'i' and verify that it does.
     for (int i = 0; i < kThreads; ++i) {
       tp.ScheduleWithHint(
@@ -150,6 +163,7 @@ static void test_pool_partitions() {
             const int thread_id = tp.CurrentThreadId();
             VERIFY_IS_EQUAL(thread_id, i);
             while (phase < 2) {
+              std::this_thread::yield();
             }
             ++done;
           },
@@ -157,8 +171,7 @@ static void test_pool_partitions() {
     }
     running = 0;
     phase = 1;
-    while (running != kThreads) {
-    }
+    VERIFY(spin_wait([&] { return running == kThreads; }));
     running = 0;
     phase = 2;
   }

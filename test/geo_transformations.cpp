@@ -224,10 +224,14 @@ void transformations() {
   t4 *= aa3;
   VERIFY_IS_APPROX(t3.matrix(), t4.matrix());
 
-  do {
-    v3 = Vector3::Random();
-    dont_over_optimize(v3);
-  } while (v3.cwiseAbs().minCoeff() < NumTraits<Scalar>::epsilon());
+  {
+    int guard = 0;
+    do {
+      v3 = Vector3::Random();
+      dont_over_optimize(v3);
+    } while (v3.cwiseAbs().minCoeff() < NumTraits<Scalar>::epsilon() && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
   Translation3 tv3(v3);
   Transform3 t5(tv3);
   t4 = tv3;
@@ -381,9 +385,13 @@ void transformations() {
   // test transform inversion
   t0.setIdentity();
   t0.translate(v0);
-  do {
-    t0.linear().setRandom();
-  } while (t0.linear().jacobiSvd().singularValues()(2) < test_precision<Scalar>());
+  {
+    int guard = 0;
+    do {
+      t0.linear().setRandom();
+    } while (t0.linear().jacobiSvd().singularValues()(2) < test_precision<Scalar>() && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
   Matrix4 t044 = Matrix4::Zero();
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();

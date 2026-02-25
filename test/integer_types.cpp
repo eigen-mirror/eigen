@@ -26,16 +26,24 @@ void signed_integer_type_tests(const MatrixType& m) {
 
   MatrixType m1(rows, cols), m2 = MatrixType::Random(rows, cols), mzero = MatrixType::Zero(rows, cols);
 
-  do {
-    m1 = MatrixType::Random(rows, cols);
-  } while (m1 == mzero || m1 == m2);
+  {
+    int guard = 0;
+    do {
+      m1 = MatrixType::Random(rows, cols);
+    } while ((m1 == mzero || m1 == m2) && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
 
   // check linear structure
 
   Scalar s1;
-  do {
-    s1 = internal::random<Scalar>();
-  } while (s1 == 0);
+  {
+    int guard = 0;
+    do {
+      s1 = internal::random<Scalar>();
+    } while (s1 == 0 && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
 
   VERIFY_IS_EQUAL(-(-m1), m1);
   VERIFY_IS_EQUAL(-m2 + m1 + m2, m1);
@@ -63,13 +71,21 @@ void integer_type_tests(const MatrixType& m) {
   SquareMatrixType identity = SquareMatrixType::Identity(rows, rows), square = SquareMatrixType::Random(rows, rows);
   VectorType v1(rows), v2 = VectorType::Random(rows), vzero = VectorType::Zero(rows);
 
-  do {
-    m1 = MatrixType::Random(rows, cols);
-  } while (m1 == mzero || m1 == m2);
+  {
+    int guard = 0;
+    do {
+      m1 = MatrixType::Random(rows, cols);
+    } while ((m1 == mzero || m1 == m2) && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
 
-  do {
-    v1 = VectorType::Random(rows);
-  } while (v1 == vzero || v1 == v2);
+  {
+    int guard = 0;
+    do {
+      v1 = VectorType::Random(rows);
+    } while ((v1 == vzero || v1 == v2) && (++guard) < 100);
+    VERIFY(guard < 100);
+  }
 
   VERIFY_IS_APPROX(v1, v1);
   VERIFY_IS_NOT_APPROX(v1, 2 * v1);

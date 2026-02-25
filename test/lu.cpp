@@ -106,10 +106,10 @@ void lu_invertible() {
   MatrixType m1(size, size), m2(size, size), m3(size, size);
   FullPivLU<MatrixType> lu;
   lu.setThreshold(RealScalar(0.01));
-  do {
-    m1 = MatrixType::Random(size, size);
-    lu.compute(m1);
-  } while (!lu.isInvertible());
+  // Create a random diagonally dominant (thus invertible) matrix.
+  m1 = MatrixType::Random(size, size);
+  m1.diagonal().array() += RealScalar(2 * size);
+  lu.compute(m1);
 
   VERIFY_IS_APPROX(m1, lu.reconstructedMatrix());
   VERIFY(0 == lu.dimensionOfKernel());
