@@ -685,8 +685,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
     eigen_assert((this->size() == 0 || (IsVectorAtCompileTime ? (this->size() == other.size())
                                                               : (rows() == other.rows() && cols() == other.cols()))) &&
                  "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
-    // Allow resizing of default-constructed (empty) destinations.
-    if (this->size() == 0) resizeLike(other);
+    EIGEN_ONLY_USED_FOR_DEBUG(other);
 #else
     resizeLike(other);
 #endif

@@ -20,140 +20,56 @@ namespace internal {
 // preinterpret
 //==============================================================================
 template <>
-EIGEN_STRONG_INLINE PacketXf preinterpret<PacketXf, PacketXi>(const PacketXi& a) {
-  return reinterpret_cast<PacketXf>(a);
+EIGEN_STRONG_INLINE Packet16f preinterpret<Packet16f, Packet16i>(const Packet16i& a) {
+  return reinterpret_cast<Packet16f>(a);
 }
 template <>
-EIGEN_STRONG_INLINE PacketXi preinterpret<PacketXi, PacketXf>(const PacketXf& a) {
-  return reinterpret_cast<PacketXi>(a);
+EIGEN_STRONG_INLINE Packet16i preinterpret<Packet16i, Packet16f>(const Packet16f& a) {
+  return reinterpret_cast<Packet16i>(a);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXd preinterpret<PacketXd, PacketXl>(const PacketXl& a) {
-  return reinterpret_cast<PacketXd>(a);
+EIGEN_STRONG_INLINE Packet8d preinterpret<Packet8d, Packet8l>(const Packet8l& a) {
+  return reinterpret_cast<Packet8d>(a);
 }
 template <>
-EIGEN_STRONG_INLINE PacketXl preinterpret<PacketXl, PacketXd>(const PacketXd& a) {
-  return reinterpret_cast<PacketXl>(a);
+EIGEN_STRONG_INLINE Packet8l preinterpret<Packet8l, Packet8d>(const Packet8d& a) {
+  return reinterpret_cast<Packet8l>(a);
 }
 
 //==============================================================================
 // pcast
 //==============================================================================
 #if EIGEN_HAS_BUILTIN(__builtin_convertvector)
-// Float-to-int conversions: __builtin_convertvector has UB for NaN/inf/
-// out-of-range inputs. Replace NaN with 0 before converting so that
-// pldexp_fast (which may pass NaN exponents) doesn't trigger UB.
 template <>
-EIGEN_STRONG_INLINE PacketXi pcast<PacketXf, PacketXi>(const PacketXf& a) {
-  const PacketXf safe = a == a ? a : PacketXf(0);
-  return __builtin_convertvector(safe, PacketXi);
+EIGEN_STRONG_INLINE Packet16i pcast<Packet16f, Packet16i>(const Packet16f& a) {
+  return __builtin_convertvector(a, Packet16i);
 }
 template <>
-EIGEN_STRONG_INLINE PacketXf pcast<PacketXi, PacketXf>(const PacketXi& a) {
-  return __builtin_convertvector(a, PacketXf);
+EIGEN_STRONG_INLINE Packet16f pcast<Packet16i, Packet16f>(const Packet16i& a) {
+  return __builtin_convertvector(a, Packet16f);
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXl pcast<PacketXd, PacketXl>(const PacketXd& a) {
-  const PacketXd safe = a == a ? a : PacketXd(0);
-  return __builtin_convertvector(safe, PacketXl);
+EIGEN_STRONG_INLINE Packet8l pcast<Packet8d, Packet8l>(const Packet8d& a) {
+  return __builtin_convertvector(a, Packet8l);
 }
 template <>
-EIGEN_STRONG_INLINE PacketXd pcast<PacketXl, PacketXd>(const PacketXl& a) {
-  return __builtin_convertvector(a, PacketXd);
+EIGEN_STRONG_INLINE Packet8d pcast<Packet8l, Packet8d>(const Packet8l& a) {
+  return __builtin_convertvector(a, Packet8d);
 }
-
-// float -> double: converts lower half of floats to doubles
-// double -> float: converts two PacketXd to one PacketXf
-// int32 -> int64: converts lower half of int32s to int64s
-// int64 -> int32: converts two PacketXl to one PacketXi
-
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-// float -> double: converts lower 2 floats to 2 doubles
-template <>
-EIGEN_STRONG_INLINE PacketXd pcast<PacketXf, PacketXd>(const PacketXf& a) {
-  using HalfFloat = detail::VectorType<float, 2>;
-  HalfFloat lo = __builtin_shufflevector(a, a, 0, 1);
-  return __builtin_convertvector(lo, PacketXd);
-}
-
-// double -> float: converts two PacketXd (2 doubles each) to one PacketXf (4 floats)
-template <>
-EIGEN_STRONG_INLINE PacketXf pcast<PacketXd, PacketXf>(const PacketXd& a, const PacketXd& b) {
-  using HalfFloat = detail::VectorType<float, 2>;
-  HalfFloat lo = __builtin_convertvector(a, HalfFloat);
-  HalfFloat hi = __builtin_convertvector(b, HalfFloat);
-  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3);
-}
-
-// int32 -> int64: converts lower 2 int32s to 2 int64s
-template <>
-EIGEN_STRONG_INLINE PacketXl pcast<PacketXi, PacketXl>(const PacketXi& a) {
-  using HalfInt = detail::VectorType<int32_t, 2>;
-  HalfInt lo = __builtin_shufflevector(a, a, 0, 1);
-  return __builtin_convertvector(lo, PacketXl);
-}
-
-// int64 -> int32: converts two PacketXl (2 int64s each) to one PacketXi (4 int32s)
-template <>
-EIGEN_STRONG_INLINE PacketXi pcast<PacketXl, PacketXi>(const PacketXl& a, const PacketXl& b) {
-  using HalfInt = detail::VectorType<int32_t, 2>;
-  HalfInt lo = __builtin_convertvector(a, HalfInt);
-  HalfInt hi = __builtin_convertvector(b, HalfInt);
-  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3);
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-// float -> double: converts lower 4 floats to 4 doubles
-template <>
-EIGEN_STRONG_INLINE PacketXd pcast<PacketXf, PacketXd>(const PacketXf& a) {
-  using HalfFloat = detail::VectorType<float, 4>;
-  HalfFloat lo = __builtin_shufflevector(a, a, 0, 1, 2, 3);
-  return __builtin_convertvector(lo, PacketXd);
-}
-
-// double -> float: converts two PacketXd (4 doubles each) to one PacketXf (8 floats)
-template <>
-EIGEN_STRONG_INLINE PacketXf pcast<PacketXd, PacketXf>(const PacketXd& a, const PacketXd& b) {
-  using HalfFloat = detail::VectorType<float, 4>;
-  HalfFloat lo = __builtin_convertvector(a, HalfFloat);
-  HalfFloat hi = __builtin_convertvector(b, HalfFloat);
-  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3, 4, 5, 6, 7);
-}
-
-// int32 -> int64: converts lower 4 int32s to 4 int64s
-template <>
-EIGEN_STRONG_INLINE PacketXl pcast<PacketXi, PacketXl>(const PacketXi& a) {
-  using HalfInt = detail::VectorType<int32_t, 4>;
-  HalfInt lo = __builtin_shufflevector(a, a, 0, 1, 2, 3);
-  return __builtin_convertvector(lo, PacketXl);
-}
-
-// int64 -> int32: converts two PacketXl (4 int64s each) to one PacketXi (8 int32s)
-template <>
-EIGEN_STRONG_INLINE PacketXi pcast<PacketXl, PacketXi>(const PacketXl& a, const PacketXl& b) {
-  using HalfInt = detail::VectorType<int32_t, 4>;
-  HalfInt lo = __builtin_convertvector(a, HalfInt);
-  HalfInt hi = __builtin_convertvector(b, HalfInt);
-  return __builtin_shufflevector(lo, hi, 0, 1, 2, 3, 4, 5, 6, 7);
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
 
 // float -> double: converts lower 8 floats to 8 doubles
 template <>
-EIGEN_STRONG_INLINE PacketXd pcast<PacketXf, PacketXd>(const PacketXf& a) {
+EIGEN_STRONG_INLINE Packet8d pcast<Packet16f, Packet8d>(const Packet16f& a) {
   using HalfFloat = detail::VectorType<float, 8>;
   HalfFloat lo = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7);
-  return __builtin_convertvector(lo, PacketXd);
+  return __builtin_convertvector(lo, Packet8d);
 }
 
-// double -> float: converts two PacketXd to one PacketXf
+// double -> float: converts two Packet8d to one Packet16f
 template <>
-EIGEN_STRONG_INLINE PacketXf pcast<PacketXd, PacketXf>(const PacketXd& a, const PacketXd& b) {
+EIGEN_STRONG_INLINE Packet16f pcast<Packet8d, Packet16f>(const Packet8d& a, const Packet8d& b) {
   using HalfFloat = detail::VectorType<float, 8>;
   HalfFloat lo = __builtin_convertvector(a, HalfFloat);
   HalfFloat hi = __builtin_convertvector(b, HalfFloat);
@@ -162,22 +78,20 @@ EIGEN_STRONG_INLINE PacketXf pcast<PacketXd, PacketXf>(const PacketXd& a, const 
 
 // int32 -> int64: converts lower 8 int32s to 8 int64s
 template <>
-EIGEN_STRONG_INLINE PacketXl pcast<PacketXi, PacketXl>(const PacketXi& a) {
+EIGEN_STRONG_INLINE Packet8l pcast<Packet16i, Packet8l>(const Packet16i& a) {
   using HalfInt = detail::VectorType<int32_t, 8>;
   HalfInt lo = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7);
-  return __builtin_convertvector(lo, PacketXl);
+  return __builtin_convertvector(lo, Packet8l);
 }
 
-// int64 -> int32: converts two PacketXl to one PacketXi
+// int64 -> int32: converts two Packet8l to one Packet16i
 template <>
-EIGEN_STRONG_INLINE PacketXi pcast<PacketXl, PacketXi>(const PacketXl& a, const PacketXl& b) {
+EIGEN_STRONG_INLINE Packet16i pcast<Packet8l, Packet16i>(const Packet8l& a, const Packet8l& b) {
   using HalfInt = detail::VectorType<int32_t, 8>;
   HalfInt lo = __builtin_convertvector(a, HalfInt);
   HalfInt hi = __builtin_convertvector(b, HalfInt);
   return __builtin_shufflevector(lo, hi, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 }
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
 #endif
 
 }  // end namespace internal

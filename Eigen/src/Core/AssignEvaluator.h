@@ -810,12 +810,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprTyp
         (dst.size() == 0 || (DstXprType::IsVectorAtCompileTime ? (dst.size() == src.size())
                                                                : (dst.rows() == dstRows && dst.cols() == dstCols))) &&
         "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
-    // Allow resizing of default-constructed (empty) destinations.
-    if (dst.size() == 0) dst.resize(dstRows, dstCols);
 #else
     dst.resize(dstRows, dstCols);
-#endif
     eigen_assert(dst.rows() == dstRows && dst.cols() == dstCols);
+#endif
   }
 }
 
