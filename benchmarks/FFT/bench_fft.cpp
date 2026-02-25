@@ -33,11 +33,20 @@ static void BM_FFT(benchmark::State& state) {
       benchmark::Counter(mflops_per_iter, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-BENCHMARK(BM_FFT<std::complex<float>, true>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<std::complex<float>, false>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<float, true>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<float, false>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<std::complex<double>, true>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<std::complex<double>, false>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<double, true>)->Arg(1024)->Arg(4096);
-BENCHMARK(BM_FFT<double, false>)->Arg(1024)->Arg(4096);
+static void FFTSizes(::benchmark::Benchmark* b) {
+  for (int n : {64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 65536}) {
+    b->Arg(n);
+  }
+  // Non-power-of-2 sizes.
+  b->Arg(1000);
+  b->Arg(5000);
+}
+
+BENCHMARK(BM_FFT<std::complex<float>, true>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<std::complex<float>, false>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<float, true>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<float, false>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<std::complex<double>, true>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<std::complex<double>, false>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<double, true>)->Apply(FFTSizes);
+BENCHMARK(BM_FFT<double, false>)->Apply(FFTSizes);

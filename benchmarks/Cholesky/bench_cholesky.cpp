@@ -4,7 +4,11 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+#ifndef SCALAR
+#define SCALAR float
+#endif
+
+typedef SCALAR Scalar;
 
 static void BM_LDLT(benchmark::State& state) {
   int n = state.range(0);
