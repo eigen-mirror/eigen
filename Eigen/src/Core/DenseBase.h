@@ -260,21 +260,21 @@ class DenseBase
 
   /** Copies \a other into *this. \returns a reference to *this. */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other);
 
   /** Special case of the template operator=, in order to prevent the compiler
    * from generating a default operator= (issue hit with g++ 4.1)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator=(const DenseBase& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC Derived& operator=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr Derived& operator=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC Derived& operator+=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr Derived& operator+=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC Derived& operator-=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC constexpr Derived& operator-=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC Derived& operator=(const ReturnByValue<OtherDerived>& func);
@@ -283,7 +283,7 @@ class DenseBase
    * Copies \a other into *this without evaluating other. \returns a reference to *this. */
   template <typename OtherDerived>
   /** \deprecated */
-  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC Derived& lazyAssign(const DenseBase<OtherDerived>& other);
+  EIGEN_DEPRECATED EIGEN_DEVICE_FUNC constexpr Derived& lazyAssign(const DenseBase<OtherDerived>& other);
 
   EIGEN_DEVICE_FUNC CommaInitializer<Derived> operator<<(const Scalar& s);
 
@@ -348,13 +348,13 @@ class DenseBase
   EIGEN_DEVICE_FUNC Derived& setRandom();
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC bool isApprox(const DenseBase<OtherDerived>& other,
-                                  const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
-  EIGEN_DEVICE_FUNC bool isMuchSmallerThan(const RealScalar& other,
-                                           const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  EIGEN_DEVICE_FUNC constexpr bool isApprox(const DenseBase<OtherDerived>& other,
+                                            const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  EIGEN_DEVICE_FUNC constexpr bool isMuchSmallerThan(
+      const RealScalar& other, const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC bool isMuchSmallerThan(const DenseBase<OtherDerived>& other,
-                                           const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
+  EIGEN_DEVICE_FUNC constexpr bool isMuchSmallerThan(
+      const DenseBase<OtherDerived>& other, const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
 
   EIGEN_DEVICE_FUNC bool isApproxToConstant(const Scalar& value,
                                             const RealScalar& prec = NumTraits<Scalar>::dummy_precision()) const;
@@ -366,13 +366,13 @@ class DenseBase
   EIGEN_DEVICE_FUNC inline bool hasNaN() const;
   EIGEN_DEVICE_FUNC inline bool allFinite() const;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const Scalar& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator*=(const Scalar& other);
   template <bool Enable = internal::complex_array_access<Scalar>::value, typename = std::enable_if_t<Enable>>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator*=(const RealScalar& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator*=(const RealScalar& other);
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
   template <bool Enable = internal::complex_array_access<Scalar>::value, typename = std::enable_if_t<Enable>>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const RealScalar& other);
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator/=(const RealScalar& other);
 
   typedef internal::add_const_on_value_type_t<typename internal::eval<Derived>::type> EvalReturnType;
   /** \returns the matrix or vector obtained by evaluating this expression.
@@ -409,7 +409,7 @@ class DenseBase
     call_assignment(derived(), other.derived(), internal::swap_assign_op<Scalar>());
   }
 
-  EIGEN_DEVICE_FUNC inline const NestByValue<Derived> nestByValue() const;
+  EIGEN_DEVICE_FUNC constexpr inline const NestByValue<Derived> nestByValue() const;
   EIGEN_DEVICE_FUNC inline const ForceAlignedAccess<Derived> forceAlignedAccess() const;
   EIGEN_DEVICE_FUNC inline ForceAlignedAccess<Derived> forceAlignedAccess();
   template <bool Enable>
@@ -523,25 +523,25 @@ class DenseBase
   static const RandomReturnType Random();
 
   template <typename ThenDerived, typename ElseDerived>
-  inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                        typename DenseBase<ElseDerived>::Scalar, Scalar>,
-                     ThenDerived, ElseDerived, Derived>
-      select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const;
+  inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
+      internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
+                                         typename DenseBase<ElseDerived>::Scalar, Scalar>,
+      ThenDerived, ElseDerived, Derived>
+  select(const DenseBase<ThenDerived>& thenMatrix, const DenseBase<ElseDerived>& elseMatrix) const;
 
   template <typename ThenDerived>
-  inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
-                                                        typename DenseBase<ThenDerived>::Scalar, Scalar>,
-                     ThenDerived, typename DenseBase<ThenDerived>::ConstantReturnType, Derived>
-      select(const DenseBase<ThenDerived>& thenMatrix, const typename DenseBase<ThenDerived>::Scalar& elseScalar) const;
+  inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
+      internal::scalar_boolean_select_op<typename DenseBase<ThenDerived>::Scalar,
+                                         typename DenseBase<ThenDerived>::Scalar, Scalar>,
+      ThenDerived, typename DenseBase<ThenDerived>::ConstantReturnType, Derived>
+  select(const DenseBase<ThenDerived>& thenMatrix, const typename DenseBase<ThenDerived>::Scalar& elseScalar) const;
 
   template <typename ElseDerived>
-  inline EIGEN_DEVICE_FUNC
-      CwiseTernaryOp<internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar,
-                                                        typename DenseBase<ElseDerived>::Scalar, Scalar>,
-                     typename DenseBase<ElseDerived>::ConstantReturnType, ElseDerived, Derived>
-      select(const typename DenseBase<ElseDerived>::Scalar& thenScalar, const DenseBase<ElseDerived>& elseMatrix) const;
+  inline EIGEN_DEVICE_FUNC constexpr CwiseTernaryOp<
+      internal::scalar_boolean_select_op<typename DenseBase<ElseDerived>::Scalar,
+                                         typename DenseBase<ElseDerived>::Scalar, Scalar>,
+      typename DenseBase<ElseDerived>::ConstantReturnType, ElseDerived, Derived>
+  select(const typename DenseBase<ElseDerived>::Scalar& thenScalar, const DenseBase<ElseDerived>& elseMatrix) const;
 
   template <int p>
   RealScalar lpNorm() const;

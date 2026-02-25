@@ -245,7 +245,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
  public:
   /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array(
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
       std::enable_if_t<internal::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> =
           PrivateType())

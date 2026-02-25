@@ -138,7 +138,7 @@ struct functor_traits<div_assign_op<DstScalar, SrcScalar>> : div_assign_op<DstSc
  */
 template <typename Scalar>
 struct swap_assign_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignCoeff(Scalar& a, const Scalar& b) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void assignCoeff(Scalar& a, const Scalar& b) const {
 #ifdef EIGEN_GPUCC
     // FIXME: check whether cuda::swap exists.
     Scalar t = b;

@@ -101,7 +101,7 @@ struct redux_novec_unroller {
 
   typedef typename Evaluator::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func) {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func) {
     return func(redux_novec_unroller<Func, Evaluator, Start, HalfLength>::run(eval, func),
                 redux_novec_unroller<Func, Evaluator, Start + HalfLength, Length - HalfLength>::run(eval, func));
   }
@@ -114,7 +114,7 @@ struct redux_novec_unroller<Func, Evaluator, Start, 1> {
 
   typedef typename Evaluator::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func&) {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func&) {
     return eval.coeffByOuterInner(outer, inner);
   }
 };
@@ -125,7 +125,7 @@ struct redux_novec_unroller<Func, Evaluator, Start, 1> {
 template <typename Func, typename Evaluator, Index Start>
 struct redux_novec_unroller<Func, Evaluator, Start, 0> {
   typedef typename Evaluator::Scalar Scalar;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator&, const Func&) { return Scalar(); }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator&, const Func&) { return Scalar(); }
 };
 
 template <typename Func, typename Evaluator, Index Start, Index Length>
@@ -134,7 +134,7 @@ struct redux_novec_linear_unroller {
 
   typedef typename Evaluator::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func) {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func) {
     return func(redux_novec_linear_unroller<Func, Evaluator, Start, HalfLength>::run(eval, func),
                 redux_novec_linear_unroller<Func, Evaluator, Start + HalfLength, Length - HalfLength>::run(eval, func));
   }
@@ -144,7 +144,7 @@ template <typename Func, typename Evaluator, Index Start>
 struct redux_novec_linear_unroller<Func, Evaluator, Start, 1> {
   typedef typename Evaluator::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func&) {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func&) {
     return eval.coeff(Start);
   }
 };
@@ -155,7 +155,7 @@ struct redux_novec_linear_unroller<Func, Evaluator, Start, 1> {
 template <typename Func, typename Evaluator, Index Start>
 struct redux_novec_linear_unroller<Func, Evaluator, Start, 0> {
   typedef typename Evaluator::Scalar Scalar;
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator&, const Func&) { return Scalar(); }
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Scalar run(const Evaluator&, const Func&) { return Scalar(); }
 };
 
 /*** vectorization ***/

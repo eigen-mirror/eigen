@@ -444,14 +444,14 @@ namespace numext {
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename T>
-EIGEN_DEVICE_FUNC void swap(T& a, T& b) {
+EIGEN_DEVICE_FUNC constexpr void swap(T& a, T& b) {
   T tmp = b;
   b = a;
   a = tmp;
 }
 #else
 template <typename T>
-EIGEN_STRONG_INLINE void swap(T& a, T& b) {
+constexpr EIGEN_STRONG_INLINE void swap(T& a, T& b) {
   std::swap(a, b);
 }
 #endif
@@ -462,7 +462,7 @@ using std::numeric_limits;
 template <typename X, typename Y, bool XIsInteger = NumTraits<X>::IsInteger, bool XIsSigned = NumTraits<X>::IsSigned,
           bool YIsInteger = NumTraits<Y>::IsInteger, bool YIsSigned = NumTraits<Y>::IsSigned>
 struct equal_strict_impl {
-  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) { return x == y; }
+  static constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) { return x == y; }
 };
 template <typename X, typename Y>
 struct equal_strict_impl<X, Y, true, false, true, true> {
@@ -470,7 +470,7 @@ struct equal_strict_impl<X, Y, true, false, true, true> {
   // Y is a signed integer
   // if Y is non-negative, it may be represented exactly as its unsigned counterpart.
   using UnsignedY = typename internal::make_unsigned<Y>::type;
-  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
+  static constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
     return y < Y(0) ? false : (x == static_cast<UnsignedY>(y));
   }
 };
@@ -478,7 +478,7 @@ template <typename X, typename Y>
 struct equal_strict_impl<X, Y, true, true, true, false> {
   // X is a signed integer
   // Y is an unsigned integer
-  static EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
+  static constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
     return equal_strict_impl<Y, X>::run(y, x);
   }
 };
@@ -486,18 +486,18 @@ struct equal_strict_impl<X, Y, true, true, true, false> {
 // The aim of the following functions is to bypass -Wfloat-equal warnings
 // when we really want a strict equality comparison on floating points.
 template <typename X, typename Y>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const X& x, const Y& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const X& x, const Y& y) {
   return equal_strict_impl<X, Y>::run(x, y);
 }
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE) || (!defined(EIGEN_CUDA_ARCH) && defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const float& x, const float& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const float& x, const float& y) {
   return std::equal_to<float>()(x, y);
 }
 
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const double& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const double& y) {
   return std::equal_to<double>()(x, y);
 }
 #endif
@@ -507,7 +507,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const d
  * Use this to to bypass -Wfloat-equal warnings when exact zero is what needs to be tested.
  */
 template <typename X>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x) {
   return equal_strict(x, typename NumTraits<X>::Literal{0});
 }
 
@@ -516,23 +516,23 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x) {
  * Use this to to bypass -Wfloat-equal warnings when exact one is what needs to be tested.
  */
 template <typename X>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_one(const X& x) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_one(const X& x) {
   return equal_strict(x, typename NumTraits<X>::Literal{1});
 }
 
 template <typename X, typename Y>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const X& x, const Y& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const X& x, const Y& y) {
   return !equal_strict_impl<X, Y>::run(x, y);
 }
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE) || (!defined(EIGEN_CUDA_ARCH) && defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const float& x, const float& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const float& x, const float& y) {
   return std::not_equal_to<float>()(x, y);
 }
 
 template <>
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const double& x, const double& y) {
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const double& x, const double& y) {
   return std::not_equal_to<double>()(x, y);
 }
 #endif
@@ -543,11 +543,11 @@ namespace internal {
 
 template <typename Scalar>
 struct is_identically_zero_impl {
-  static inline bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
+  static constexpr bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
 };
 
 template <typename Scalar>
-EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
+constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
   return is_identically_zero_impl<Scalar>::run(s);
 }
 

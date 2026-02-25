@@ -302,7 +302,7 @@ class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEval
 /** This is the const version of MatrixBase::selfadjointView() */
 template <typename Derived>
 template <unsigned int UpLo>
-EIGEN_DEVICE_FUNC typename MatrixBase<Derived>::template ConstSelfAdjointViewReturnType<UpLo>::Type
+EIGEN_DEVICE_FUNC constexpr typename MatrixBase<Derived>::template ConstSelfAdjointViewReturnType<UpLo>::Type
 MatrixBase<Derived>::selfadjointView() const {
   return typename ConstSelfAdjointViewReturnType<UpLo>::Type(derived());
 }
@@ -319,7 +319,7 @@ MatrixBase<Derived>::selfadjointView() const {
  */
 template <typename Derived>
 template <unsigned int UpLo>
-EIGEN_DEVICE_FUNC typename MatrixBase<Derived>::template SelfAdjointViewReturnType<UpLo>::Type
+EIGEN_DEVICE_FUNC constexpr typename MatrixBase<Derived>::template SelfAdjointViewReturnType<UpLo>::Type
 MatrixBase<Derived>::selfadjointView() {
   return typename SelfAdjointViewReturnType<UpLo>::Type(derived());
 }

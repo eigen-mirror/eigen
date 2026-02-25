@@ -64,6 +64,27 @@ EIGEN_DECLARE_TEST(constexpr) {
   static_assert(dyn_arr(0) == 1);
   VERIFY_IS_EQUAL(dyn_arr.size(), 9);
   static_assert(dyn_arr.coeff(0, 1) == 2);
+
+  // Test matrix addition.
+  constexpr Matrix3i mat_a({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}});
+  constexpr Matrix3i mat_b({{9, 8, 7}, {6, 5, 4}, {3, 2, 1}});
+  constexpr Matrix3i mat_sum = mat_a + mat_b;
+  static_assert(mat_sum(0, 0) == 10);
+  static_assert(mat_sum(1, 1) == 10);
+  static_assert(mat_sum(2, 2) == 10);
+
+  // Test matrix subtraction.
+  constexpr Matrix3i mat_diff = mat_a - mat_b;
+  static_assert(mat_diff(0, 0) == -8);
+  static_assert(mat_diff(1, 1) == 0);
+  static_assert(mat_diff(2, 2) == 8);
+
+  // Test scalar multiplication.
+  constexpr Matrix3i mat_scaled = mat_a * 2;
+  static_assert(mat_scaled(0, 0) == 2);
+  static_assert(mat_scaled(1, 1) == 10);
+  static_assert(mat_scaled(2, 2) == 18);
+
 #endif  // __cpp_constexpr >= 201907L
 }
 

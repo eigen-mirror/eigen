@@ -102,8 +102,8 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
   EIGEN_STRONG_INLINE CwiseBinaryOp(const CwiseBinaryOp<BinaryOp, LhsType, RhsType>&) = default;
 #endif
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CwiseBinaryOp(const Lhs& aLhs, const Rhs& aRhs,
-                                                      const BinaryOp& func = BinaryOp())
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CwiseBinaryOp(const Lhs& aLhs, const Rhs& aRhs,
+                                                                const BinaryOp& func = BinaryOp())
       : m_lhs(aLhs), m_rhs(aRhs), m_functor(func) {
     eigen_assert(aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols());
   }
@@ -120,11 +120,11 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
   }
 
   /** \returns the left hand side nested expression */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const LhsNested_& lhs() const { return m_lhs; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const LhsNested_& lhs() const { return m_lhs; }
   /** \returns the right hand side nested expression */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const RhsNested_& rhs() const { return m_rhs; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const RhsNested_& rhs() const { return m_rhs; }
   /** \returns the functor representing the binary operation */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const BinaryOp& functor() const { return m_functor; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const BinaryOp& functor() const { return m_functor; }
 
  protected:
   LhsNested m_lhs;

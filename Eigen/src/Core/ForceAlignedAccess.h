@@ -39,7 +39,7 @@ class ForceAlignedAccess : public internal::dense_xpr_base<ForceAlignedAccess<Ex
   typedef typename internal::dense_xpr_base<ForceAlignedAccess>::type Base;
   EIGEN_DENSE_PUBLIC_INTERFACE(ForceAlignedAccess)
 
-  EIGEN_DEVICE_FUNC explicit inline ForceAlignedAccess(const ExpressionType& matrix) : m_expression(matrix) {}
+  EIGEN_DEVICE_FUNC explicit constexpr ForceAlignedAccess(const ExpressionType& matrix) : m_expression(matrix) {}
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_expression.rows(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return m_expression.cols(); }

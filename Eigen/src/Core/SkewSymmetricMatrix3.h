@@ -308,7 +308,7 @@ class SkewSymmetricWrapper : public SkewSymmetricBase<SkewSymmetricWrapper<SkewS
  * \sa class SkewSymmetricWrapper, class SkewSymmetricMatrix3, vector(), isSkewSymmetric()
  **/
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline const SkewSymmetricWrapper<const Derived> MatrixBase<Derived>::asSkewSymmetric() const {
+EIGEN_DEVICE_FUNC constexpr const SkewSymmetricWrapper<const Derived> MatrixBase<Derived>::asSkewSymmetric() const {
   return SkewSymmetricWrapper<const Derived>(derived());
 }
 

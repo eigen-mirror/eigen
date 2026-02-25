@@ -568,7 +568,7 @@ EIGEN_DEVICE_FUNC void TriangularBase<Derived>::evalTo(MatrixBase<DenseDerived>&
  */
 template <typename Derived>
 template <unsigned int Mode>
-EIGEN_DEVICE_FUNC typename MatrixBase<Derived>::template TriangularViewReturnType<Mode>::Type
+EIGEN_DEVICE_FUNC constexpr typename MatrixBase<Derived>::template TriangularViewReturnType<Mode>::Type
 MatrixBase<Derived>::triangularView() {
   return typename TriangularViewReturnType<Mode>::Type(derived());
 }
@@ -576,7 +576,7 @@ MatrixBase<Derived>::triangularView() {
 /** This is the const version of MatrixBase::triangularView() */
 template <typename Derived>
 template <unsigned int Mode>
-EIGEN_DEVICE_FUNC typename MatrixBase<Derived>::template ConstTriangularViewReturnType<Mode>::Type
+EIGEN_DEVICE_FUNC constexpr typename MatrixBase<Derived>::template ConstTriangularViewReturnType<Mode>::Type
 MatrixBase<Derived>::triangularView() const {
   return typename ConstTriangularViewReturnType<Mode>::Type(derived());
 }

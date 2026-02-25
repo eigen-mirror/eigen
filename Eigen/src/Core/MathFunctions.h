@@ -74,7 +74,7 @@ struct global_math_functions_filtering_base<
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct real_default_impl {
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return x; }
+  EIGEN_DEVICE_FUNC static constexpr RealScalar run(const Scalar& x) { return x; }
 };
 
 template <typename Scalar>
@@ -222,7 +222,7 @@ namespace internal {
 
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct conj_default_impl {
-  EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& x) { return x; }
+  EIGEN_DEVICE_FUNC static constexpr Scalar run(const Scalar& x) { return x; }
 };
 
 template <typename Scalar>
@@ -287,7 +287,7 @@ struct sqrt_impl {
 
 // Complex sqrt defined in MathFunctionsImpl.h.
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_sqrt(const ComplexT& a_x);
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_sqrt(const ComplexT& a_x);
 
 // Custom implementation is faster than `std::sqrt`, works on
 // GPU, and correctly handles special cases (unlike MSVC).
@@ -307,7 +307,7 @@ struct rsqrt_impl;
 
 // Complex rsqrt defined in MathFunctionsImpl.h.
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_rsqrt(const ComplexT& a_x);
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_rsqrt(const ComplexT& a_x);
 
 template <typename T>
 struct rsqrt_impl<std::complex<T>> {
@@ -504,7 +504,7 @@ struct expm1_retval {
 
 // Complex log defined in MathFunctionsImpl.h.
 template <typename ComplexT>
-EIGEN_DEVICE_FUNC ComplexT complex_log(const ComplexT& z);
+EIGEN_DEVICE_FUNC constexpr ComplexT complex_log(const ComplexT& z);
 
 template <typename Scalar>
 struct log_impl {
@@ -1023,13 +1023,13 @@ namespace numext {
 
 #if (!defined(EIGEN_GPUCC) || defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
   EIGEN_USING_STD(min)
   return min EIGEN_NOT_A_MACRO(x, y);
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y) {
   EIGEN_USING_STD(max)
   return max EIGEN_NOT_A_MACRO(x, y);
 }

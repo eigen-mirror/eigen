@@ -31,7 +31,7 @@ template <typename XprType>
 struct CommaInitializer {
   typedef typename XprType::Scalar Scalar;
 
-  EIGEN_DEVICE_FUNC inline CommaInitializer(XprType& xpr, const Scalar& s)
+  EIGEN_DEVICE_FUNC constexpr CommaInitializer(XprType& xpr, const Scalar& s)
       : m_xpr(xpr), m_row(0), m_col(1), m_currentBlockRows(1) {
     eigen_assert(m_xpr.rows() > 0 && m_xpr.cols() > 0 && "Cannot comma-initialize a 0x0 matrix (operator<<)");
     m_xpr.coeffRef(0, 0) = s;

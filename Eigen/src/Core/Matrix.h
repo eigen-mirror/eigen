@@ -316,12 +316,12 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
 
   // This constructor is for both 1x1 matrices and dynamic vectors
   template <typename T>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit Matrix(const T& x) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit Matrix(const T& x) {
     Base::template _init1<T>(x);
   }
 
   template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const T0& x, const T1& y) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const T0& x, const T1& y) {
     Base::template _init2<T0, T1>(x, y);
   }
 
@@ -367,7 +367,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   /** \brief Constructs an initialized 3D vector with given coefficients
    * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Matrix, 3)
     m_storage.data()[0] = x;
     m_storage.data()[1] = y;
@@ -376,7 +376,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   /** \brief Constructs an initialized 4D vector with given coefficients
    * \sa Matrix(const Scalar&, const Scalar&, const Scalar&,  const Scalar&, const ArgTypes&...)
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z, const Scalar& w) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z,
+                                                         const Scalar& w) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Matrix, 4)
     m_storage.data()[0] = x;
     m_storage.data()[1] = y;
@@ -391,7 +392,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
    */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const EigenBase<OtherDerived>& other) : Base(other.derived()) {}
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const EigenBase<OtherDerived>& other)
+      : Base(other.derived()) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return this->innerSize(); }

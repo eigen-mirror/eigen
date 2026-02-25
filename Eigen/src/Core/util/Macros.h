@@ -1276,7 +1276,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 
 #define EIGEN_MAKE_CWISE_BINARY_OP(METHOD, OPNAME)                                                                \
   template <typename OtherDerived>                                                                                \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(                                     \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(                           \
       Derived, OtherDerived, OPNAME)(METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const { \
     return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, OPNAME)(derived(), other.derived());             \
   }
@@ -1297,7 +1297,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, OPNAME)                                                       \
   template <typename T>                                                                                              \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                                \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                      \
       Derived,                                                                                                       \
       typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(          \
           OPNAME, Scalar, T)>::type,                                                                                 \
@@ -1311,7 +1311,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, OPNAME)                                                        \
   template <typename T>                                                                                              \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(                         \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(               \
       typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(          \
           OPNAME, T, Scalar)>::type,                                                                                 \
       Derived, OPNAME)(METHOD)(const T& scalar, const StorageBaseType& matrix) {                                     \
@@ -1356,10 +1356,10 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 namespace Eigen {
 namespace internal {
 
-EIGEN_DEVICE_FUNC inline bool all() { return true; }
+EIGEN_DEVICE_FUNC constexpr bool all() { return true; }
 
 template <typename T, typename... Ts>
-EIGEN_DEVICE_FUNC bool all(T t, Ts... ts) {
+EIGEN_DEVICE_FUNC constexpr bool all(T t, Ts... ts) {
   return t && all(ts...);
 }
 

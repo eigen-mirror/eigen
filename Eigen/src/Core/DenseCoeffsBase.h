@@ -67,14 +67,14 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   using Base::rows;
   using Base::size;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index rowIndexByOuterInner(Index outer, Index inner) const {
     return int(Derived::RowsAtCompileTime) == 1   ? 0
            : int(Derived::ColsAtCompileTime) == 1 ? inner
            : int(Derived::Flags) & RowMajorBit    ? outer
                                                   : inner;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner) const {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index colIndexByOuterInner(Index outer, Index inner) const {
     return int(Derived::ColsAtCompileTime) == 1   ? 0
            : int(Derived::RowsAtCompileTime) == 1 ? inner
            : int(Derived::Flags) & RowMajorBit    ? inner
@@ -316,7 +316,7 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
     return internal::evaluator<Derived>(derived()).coeffRef(row, col);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRefByOuterInner(Index outer, Index inner) {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRefByOuterInner(Index outer, Index inner) {
     return coeffRef(rowIndexByOuterInner(outer, inner), colIndexByOuterInner(outer, inner));
   }
 
