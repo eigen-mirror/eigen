@@ -237,6 +237,33 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_GENERIC_PACKET_FUNCTION(log1p, PACKET)              \
   EIGEN_GENERIC_PACKET_FUNCTION(atan, PACKET)
 
+// Macro to instantiate complex math function specializations (psqrt, plog, pexp)
+// that delegate to the generic implementations. Use in arch-specific Complex.h files.
+#define EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(PacketType)                  \
+  template <>                                                             \
+  EIGEN_STRONG_INLINE PacketType psqrt<PacketType>(const PacketType& a) { \
+    return psqrt_complex<PacketType>(a);                                  \
+  }                                                                       \
+  template <>                                                             \
+  EIGEN_STRONG_INLINE PacketType plog<PacketType>(const PacketType& a) {  \
+    return plog_complex<PacketType>(a);                                   \
+  }                                                                       \
+  template <>                                                             \
+  EIGEN_STRONG_INLINE PacketType pexp<PacketType>(const PacketType& a) {  \
+    return pexp_complex<PacketType>(a);                                   \
+  }
+
+// Variant without pexp, for backends where pexp needs special handling for a given packet type.
+#define EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(PacketType)           \
+  template <>                                                             \
+  EIGEN_STRONG_INLINE PacketType psqrt<PacketType>(const PacketType& a) { \
+    return psqrt_complex<PacketType>(a);                                  \
+  }                                                                       \
+  template <>                                                             \
+  EIGEN_STRONG_INLINE PacketType plog<PacketType>(const PacketType& a) {  \
+    return plog_complex<PacketType>(a);                                   \
+  }
+
 }  // end namespace internal
 }  // end namespace Eigen
 

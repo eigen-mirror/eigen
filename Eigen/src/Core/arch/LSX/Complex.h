@@ -227,11 +227,6 @@ EIGEN_STRONG_INLINE Packet2cf pdiv<Packet2cf>(const Packet2cf& a, const Packet2c
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a) {
-  return plog_complex(a);
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2cf pzero(const Packet2cf& /* a */) {
   __m128 v = {0.0f, 0.0f, 0.0f, 0.0f};
   return (Packet2cf)v;
@@ -249,11 +244,6 @@ EIGEN_STRONG_INLINE Packet2cf pmadd<Packet2cf>(const Packet2cf& a, const Packet2
   t2.v = (__m128)__lsx_vshuf4i_w((__m128i)b.v, 0xb1);
   result.v = __lsx_vfmadd_s(t1.v, t2.v, result.v);
   return result;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pexp<Packet2cf>(const Packet2cf& a) {
-  return pexp_complex(a);
 }
 
 //---------- double ----------
@@ -458,20 +448,8 @@ EIGEN_DEVICE_FUNC inline Packet2cf pselect(const Packet2cf& mask, const Packet2c
   return res;
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a) {
-  return psqrt_complex<Packet1cd>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a) {
-  return psqrt_complex<Packet2cf>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a) {
-  return plog_complex(a);
-}
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet2cf)
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(Packet1cd)
 
 template <>
 EIGEN_STRONG_INLINE Packet1cd pzero<Packet1cd>(const Packet1cd& /* a */) {
