@@ -231,7 +231,7 @@ ei_add_test(cxx11_tensor_thread_local "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(cxx11_tensor_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(cxx11_tensor_trace)
 ei_add_test(cxx11_tensor_volume_patch)
-#  ei_add_test(cxx11_tensor_symmetry)
+ei_add_test(cxx11_tensor_symmetry)
 if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # This test requires __uint128_t which is only available on 64bit systems
   ei_add_test(cxx11_tensor_uint128)

@@ -132,8 +132,8 @@ struct strip_identities<Equality, id, type_list<t, ts...>> {
       Equality<id, t>::global_flags | strip_identities<Equality, id, type_list<ts...>>::global_flags;
 };
 
-template <template <typename, typename> class Equality, typename id EIGEN_TPL_PP_SPEC_HACK_DEFC(typename, ts)>
-struct strip_identities<Equality, id, type_list<EIGEN_TPL_PP_SPEC_HACK_USE(ts)>> {
+template <template <typename, typename> class Equality, typename id>
+struct strip_identities<Equality, id, type_list<>> {
   typedef type_list<> type;
   constexpr static int global_flags = 0;
 };
@@ -278,10 +278,9 @@ struct dimino_add_cosets_for_rep<Multiply, Equality, id, sub_group_elements, ele
 };
 
 template <template <typename, typename> class Multiply, template <typename, typename> class Equality, typename id,
-          typename sub_group_elements, typename elements EIGEN_TPL_PP_SPEC_HACK_DEFC(typename, empty),
-          typename rep_element, int sub_group_size>
-struct dimino_add_cosets_for_rep<Multiply, Equality, id, sub_group_elements, elements,
-                                 type_list<EIGEN_TPL_PP_SPEC_HACK_USE(empty)>, rep_element, sub_group_size> {
+          typename sub_group_elements, typename elements, typename rep_element, int sub_group_size>
+struct dimino_add_cosets_for_rep<Multiply, Equality, id, sub_group_elements, elements, type_list<>, rep_element,
+                                 sub_group_size> {
   typedef elements type;
   constexpr static int global_flags = 0;
 };

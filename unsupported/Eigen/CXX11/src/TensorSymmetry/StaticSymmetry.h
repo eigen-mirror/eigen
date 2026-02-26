@@ -150,8 +150,8 @@ struct tensor_static_symgroup_do_apply<internal::type_list<first, next...>> {
   }
 };
 
-template <EIGEN_TPL_PP_SPEC_HACK_DEF(typename, empty)>
-struct tensor_static_symgroup_do_apply<internal::type_list<EIGEN_TPL_PP_SPEC_HACK_USE(empty)>> {
+template <>
+struct tensor_static_symgroup_do_apply<internal::type_list<>> {
   template <typename Op, typename RV, std::size_t SGNumIndices, typename Index, std::size_t NumIndices,
             typename... Args>
   static inline RV run(const std::array<Index, NumIndices>&, RV initial, Args&&...) {
