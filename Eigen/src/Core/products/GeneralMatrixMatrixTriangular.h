@@ -154,7 +154,7 @@ struct tribb_kernel {
 
   enum { BlockSize = meta_least_common_multiple<plain_enum_max(mr, nr), plain_enum_min(mr, nr)>::ret };
   void operator()(ResScalar* res_, Index resIncr, Index resStride, const LhsScalar* blockA, const RhsScalar* blockB,
-                  Index size, Index depth, const ResScalar& alpha) {
+                  Index size, Index depth, const ResScalar& alpha) const {
     typedef blas_data_mapper<ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
     typedef blas_data_mapper<ResScalar, Index, ColMajor, Unaligned> BufferMapper;
     ResMapper res(res_, resStride, resIncr);
