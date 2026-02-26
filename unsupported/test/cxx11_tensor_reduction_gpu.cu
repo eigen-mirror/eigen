@@ -13,7 +13,7 @@
 #define EIGEN_USE_GPU
 
 #include "main.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 template <typename Type, int DataLayout>
 static void test_full_reductions() {

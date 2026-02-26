@@ -228,6 +228,7 @@ struct TensorContractionKernel {
                                                   const StorageIndex depth, const StorageIndex cols,
                                                   const ResScalar alpha, const ResScalar beta) {
     // Default GEBP kernel does not support beta.
+    EIGEN_ONLY_USED_FOR_DEBUG(beta);
     eigen_assert(beta == ResScalar(1));
     static const int kComputeStrideFromBlockDimensions = -1;
     GebpKernel()(output_mapper, lhsBlock, rhsBlock, rows, depth, cols, alpha,

@@ -11,7 +11,7 @@
 
 #include "main.h"
 #include <iostream>
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::Tensor;
 

@@ -13,7 +13,7 @@
 
 #include <stdlib.h>
 #include "main.h"
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 static void test_notification_single() {
   ThreadPool thread_pool(1);

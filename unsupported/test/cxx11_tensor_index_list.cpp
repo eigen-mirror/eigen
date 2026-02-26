@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 static void test_static_index_list() {
   Tensor<float, 4> tensor(2, 3, 5, 7);

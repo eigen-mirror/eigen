@@ -9,7 +9,7 @@
 #include "main.h"
 
 #include <sstream>
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 template <typename Scalar, int rank, int Layout>
 struct test_tensor_ostream_impl {};

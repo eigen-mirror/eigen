@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 #if EIGEN_COMP_MSVC || !defined(__SIZEOF_INT128__)
 #define EIGEN_NO_INT128

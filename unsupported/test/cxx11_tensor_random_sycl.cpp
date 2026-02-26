@@ -17,7 +17,7 @@
 #define EIGEN_USE_SYCL
 
 #include "main.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_sycl_random_uniform(const Eigen::SyclDevice& sycl_device) {

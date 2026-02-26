@@ -19,7 +19,7 @@
 
 #include "main.h"
 #include "OffByOneScalar.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 #include <stdint.h>
 #include <iostream>
 

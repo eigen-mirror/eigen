@@ -77,7 +77,7 @@ class TensorExecutor {
  public:
   typedef typename Expression::Index StorageIndex;
 
-  // Including `unsupported/Eigen/CXX11/Tensor` in different translation units
+  // Including `unsupported/Eigen/Tensor` in different translation units
   // with/without `EIGEN_USE_THREADS` or `EIGEN_USE_GPU` is a potential ODR
   // violation. If this template is instantiated with a non-default device, it
   // means that this header file was included without defining

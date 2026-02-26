@@ -19,7 +19,10 @@ template <Index n>
 struct type2index {
   static constexpr Index value = n;
   EIGEN_DEVICE_FUNC constexpr operator Index() const { return n; }
-  EIGEN_DEVICE_FUNC void set(Index val) { eigen_assert(val == n); }
+  EIGEN_DEVICE_FUNC void set(Index val) {
+    EIGEN_ONLY_USED_FOR_DEBUG(val);
+    eigen_assert(val == n);
+  }
 };
 
 // This can be used with IndexPairList to get compile-time constant pairs,
@@ -32,6 +35,7 @@ struct type2indexpair {
   constexpr EIGEN_DEVICE_FUNC operator IndexPair<Index>() const { return IndexPair<Index>(f, s); }
 
   EIGEN_DEVICE_FUNC void set(const IndexPair<Index>& val) {
+    EIGEN_ONLY_USED_FOR_DEBUG(val);
     eigen_assert(val.first == f);
     eigen_assert(val.second == s);
   }
@@ -225,6 +229,7 @@ struct tuple_coeff<0, ValueT> {
   }
   template <typename... T>
   EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT value) {
+    EIGEN_ONLY_USED_FOR_DEBUG(i);
     eigen_assert(i == 0);
     update_value(array_get<0>(t), value);
   }

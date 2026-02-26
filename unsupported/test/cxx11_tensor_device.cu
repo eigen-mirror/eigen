@@ -15,7 +15,7 @@
 
 #include "main.h"
 #include "OffByOneScalar.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 using Eigen::RowMajor;
 using Eigen::Tensor;

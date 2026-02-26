@@ -22,8 +22,9 @@ if [ ! -f "${BUILD_DIR}/compile_commands.json" ]; then
   exit 1
 fi
 
-# External-dependency modules that require third-party headers we don't have.
-SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
+# External-dependency modules that require third-party headers we don't have,
+# and utility-only directories with no standalone module header.
+SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport|TensorUtil"
 
 # Get changed files (Added, Modified, Renamed).
 CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "${BASE_SHA}" HEAD)
@@ -44,23 +45,23 @@ module_include_for_header() {
   local header="$1"
   local module
 
-  # Handle Eigen/src/<Module>/... -> Eigen/<Module>
+  # Handle Eigen/src/<Module>/... and unsupported/Eigen/src/<Module>/...
+  # Extract just the bare module name first.
   if [[ "${header}" =~ ^Eigen/src/([^/]+)/ ]]; then
     module="${BASH_REMATCH[1]}"
-  # Handle unsupported/Eigen/src/<Module>/... -> unsupported/Eigen/<Module>
   elif [[ "${header}" =~ ^unsupported/Eigen/src/([^/]+)/ ]]; then
-    module="unsupported/Eigen/${BASH_REMATCH[1]}"
+    module="${BASH_REMATCH[1]}"
   else
     return 1
   fi
 
-  # Skip external-dependency modules.
+  # Skip external-dependency modules and utility-only directories.
   if [[ "${module}" =~ ^(${SKIP_MODULES})$ ]]; then
     return 1
   fi
 
   if [[ "${header}" =~ ^unsupported/ ]]; then
-    echo "${module}"
+    echo "unsupported/Eigen/${module}"
   else
     echo "Eigen/${module}"
   fi

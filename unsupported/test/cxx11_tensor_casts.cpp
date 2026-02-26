@@ -10,7 +10,7 @@
 #include "main.h"
 #include "random_without_cast_overflow.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::array;
 using Eigen::Tensor;

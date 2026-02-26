@@ -10,7 +10,7 @@
 #include "main.h"
 #include <limits>
 #include <numeric>
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::Tensor;
 

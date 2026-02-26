@@ -18,7 +18,7 @@
 #define EIGEN_SYCL_HALF_SUPPORT
 
 #include "main.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 using Eigen::SyclDevice;
 using Eigen::Tensor;

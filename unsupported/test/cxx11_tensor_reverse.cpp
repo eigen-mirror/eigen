@@ -10,7 +10,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::array;
 using Eigen::Tensor;

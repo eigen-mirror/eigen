@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 struct Generator1D {
   Generator1D() {}

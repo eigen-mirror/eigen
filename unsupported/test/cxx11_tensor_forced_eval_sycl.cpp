@@ -18,7 +18,7 @@
 #define EIGEN_USE_SYCL
 
 #include "main.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 using Eigen::Tensor;
 template <typename DataType, int DataLayout, typename IndexType>

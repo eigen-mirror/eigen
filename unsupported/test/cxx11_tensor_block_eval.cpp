@@ -7,7 +7,7 @@
 
 // clang-format off
 #include "main.h"
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 // clang-format on
 
 using Eigen::internal::TensorBlockDescriptor;

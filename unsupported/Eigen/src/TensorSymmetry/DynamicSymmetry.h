@@ -211,7 +211,7 @@ inline void DynamicSGroup::add(int one, int two, int flags) {
     std::size_t newNumIndices = (one > two) ? one : two + 1;
     for (auto& gelem : m_elements) {
       gelem.representation.reserve(newNumIndices);
-      for (std::size_t i = m_numIndices; i < newNumIndices; i++) gelem.representation.push_back(i);
+      for (std::size_t i = m_numIndices; i < newNumIndices; i++) gelem.representation.push_back(static_cast<int>(i));
     }
     m_numIndices = newNumIndices;
   }
@@ -246,8 +246,8 @@ inline void DynamicSGroup::add(int one, int two, int flags) {
 
   std::size_t coset_rep = coset_order;
   do {
-    for (auto g : m_generators) {
-      e = mul(m_elements[coset_rep], g);
+    for (auto gen : m_generators) {
+      e = mul(m_elements[coset_rep], gen);
       p = findElement(e);
       if (p < 0) {
         // element not yet in group

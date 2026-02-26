@@ -22,7 +22,7 @@
 #include <ctime>
 
 #include "main.h"
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 using Eigen::array;
 using Eigen::SyclDevice;

@@ -11,7 +11,7 @@
 #define EIGEN_CXX11META_H
 
 #include <vector>
-#include "../../../../../Eigen/src/Core/util/EmulateArray.h"
+#include "../../../../Eigen/src/Core/util/EmulateArray.h"
 
 #include "CXX11Workarounds.h"
 

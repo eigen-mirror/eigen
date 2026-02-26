@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 void test_signed_32bit() {
   // Divide by one

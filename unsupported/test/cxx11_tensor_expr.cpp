@@ -11,7 +11,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::RowMajor;
 using Eigen::Tensor;

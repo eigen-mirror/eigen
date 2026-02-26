@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 static void test_float_rounding() {
   Tensor<float, 2> ftensor(20, 30);

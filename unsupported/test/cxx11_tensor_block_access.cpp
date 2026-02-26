@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <set>
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 using Eigen::ColMajor;
 using Eigen::Index;

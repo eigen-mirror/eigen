@@ -9,7 +9,7 @@
 
 #include "main.h"
 
-#include <Eigen/CXX11/Tensor>
+#include <Eigen/Tensor>
 
 static void test_simple() {
   Tensor<float, 1, ColMajor> vec1(6);

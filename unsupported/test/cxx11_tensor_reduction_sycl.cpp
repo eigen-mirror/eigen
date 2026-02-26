@@ -19,7 +19,7 @@
 
 #include "main.h"
 
-#include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/Tensor>
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_full_reductions_sum_sycl(const Eigen::SyclDevice& sycl_device) {
