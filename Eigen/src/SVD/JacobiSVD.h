@@ -774,7 +774,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
       const Index blockingThreshold = EIGEN_JACOBI_SVD_BLOCKING_THRESHOLD;
 #else
       const Index blockingThreshold =
-          static_cast<Index>(numext::sqrt(static_cast<RealScalar>(l2CacheSize() / sizeof(float))));
+          static_cast<Index>(std::sqrt(static_cast<double>(l2CacheSize() / sizeof(float))));
 #endif
 
       if (n >= blockingThreshold) {
