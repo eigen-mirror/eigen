@@ -1,7 +1,7 @@
 // Benchmark: Eigen GEMM vs CBLAS GEMM
 // Requires CBLAS: compile with -DHAVE_BLAS and link -lcblas
 //
-// Based on bench/benchBlasGemm.cpp
+// Based on the old bench/benchBlasGemm.cpp (removed)
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
