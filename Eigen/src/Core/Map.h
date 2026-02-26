@@ -100,7 +100,7 @@ class Map : public MapBase<Map<PlainObjectType, MapOptions, StrideType> > {
 
   typedef typename Base::PointerType PointerType;
   typedef PointerType PointerArgType;
-  EIGEN_DEVICE_FUNC constexpr inline PointerType cast_to_pointer_type(PointerArgType ptr) { return ptr; }
+  EIGEN_DEVICE_FUNC constexpr inline PointerType cast_to_pointer_type(PointerArgType ptr) const { return ptr; }
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const {
     return StrideType::InnerStrideAtCompileTime != 0 ? m_stride.inner() : 1;
