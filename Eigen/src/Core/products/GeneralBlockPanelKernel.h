@@ -1496,7 +1496,16 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR((LhsProgressHalf < LhsProgress) && mr >= LhsProgressHalf) {
     HalfTraits half_traits;
     for (Index i = peeled_mc1; i < peeled_mc_half; i += LhsProgressHalf) {
-      for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
+#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
+      EIGEN_IF_CONSTEXPR(nr >= 8) {
+        for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
+          gebp_micro_panel_impl<1, 8, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                                LhsPacket>(half_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                           offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+        }
+      }
+#endif
+      for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         gebp_micro_panel_impl<1, 4, HalfTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
                               LhsPacket>(half_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
                                          offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
@@ -1513,7 +1522,16 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR((LhsProgressQuarter < LhsProgressHalf) && mr >= LhsProgressQuarter) {
     QuarterTraits quarter_traits;
     for (Index i = peeled_mc_half; i < peeled_mc_quarter; i += LhsProgressQuarter) {
-      for (Index j2 = 0; j2 < packet_cols4; j2 += 4) {
+#if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
+      EIGEN_IF_CONSTEXPR(nr >= 8) {
+        for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
+          gebp_micro_panel_impl<1, 8, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
+                                LhsPacket>(quarter_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
+                                           offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
+        }
+      }
+#endif
+      for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         gebp_micro_panel_impl<1, 4, QuarterTraits, LhsScalar, RhsScalar, ResScalar, Index, DataMapper, LinearMapper,
                               LhsPacket>(quarter_traits, res, blockA, blockB, alpha, i, j2, depth, strideA, strideB,
                                          offsetA, offsetB, prefetch_res_offset, peeled_kc, pk);
