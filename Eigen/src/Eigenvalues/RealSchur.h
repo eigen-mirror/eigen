@@ -207,7 +207,7 @@ class RealSchur {
   }
 
   /** \brief Returns the maximum number of iterations. */
-  Index getMaxIterations() { return m_maxIters; }
+  Index getMaxIterations() const { return m_maxIters; }
 
   /** \brief Maximum number of iterations per row.
    *

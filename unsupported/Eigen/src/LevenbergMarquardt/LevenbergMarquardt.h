@@ -185,22 +185,22 @@ class LevenbergMarquardt : internal::no_assignment_operator {
   FVectorType &diag() { return m_diag; }
 
   /** \returns the number of iterations performed */
-  Index iterations() { return m_iter; }
+  Index iterations() const { return m_iter; }
 
   /** \returns the number of functions evaluation */
-  Index nfev() { return m_nfev; }
+  Index nfev() const { return m_nfev; }
 
   /** \returns the number of jacobian evaluation */
-  Index njev() { return m_njev; }
+  Index njev() const { return m_njev; }
 
   /** \returns the norm of current vector function */
-  RealScalar fnorm() { return m_fnorm; }
+  RealScalar fnorm() const { return m_fnorm; }
 
   /** \returns the norm of the gradient of the error */
-  RealScalar gnorm() { return m_gnorm; }
+  RealScalar gnorm() const { return m_gnorm; }
 
   /** \returns the LevenbergMarquardt parameter */
-  RealScalar lm_param(void) { return m_par; }
+  RealScalar lm_param(void) const { return m_par; }
 
   /** \returns a reference to the  current vector function
    */
@@ -217,7 +217,7 @@ class LevenbergMarquardt : internal::no_assignment_operator {
 
   /** the permutation used in the QR factorization
    */
-  PermutationType permutation() { return m_permutation; }
+  PermutationType permutation() const { return m_permutation; }
 
   /**
    * \brief Reports whether the minimization was successful

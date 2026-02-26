@@ -143,7 +143,7 @@ EIGEN_STRONG_INLINE void ReducePacket(Self& self, Index offset, typename Self::C
 
 template <typename Self, bool Vectorize, bool Parallel>
 struct ReduceBlock {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) {
+  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     for (Index idx2 = 0; idx2 < self.stride(); idx2++) {
       // Calculate the starting offset for the scan
       Index offset = idx1 + idx2;
@@ -155,7 +155,7 @@ struct ReduceBlock {
 // Specialization for vectorized reduction.
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/false> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) {
+  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     Index idx2 = 0;
@@ -204,7 +204,7 @@ EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
 
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/true> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) {
+  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
@@ -243,7 +243,7 @@ struct ReduceBlock<Self, /*Vectorize=*/true, /*Parallel=*/true> {
 
 template <typename Self>
 struct ReduceBlock<Self, /*Vectorize=*/false, /*Parallel=*/true> {
-  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) {
+  EIGEN_STRONG_INLINE void operator()(Self& self, Index idx1, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     self.device().parallelFor(
         self.stride(), TensorOpCost(self.size(), self.size(), 16 * self.size()),
@@ -261,7 +261,7 @@ struct ReduceBlock<Self, /*Vectorize=*/false, /*Parallel=*/true> {
 // Specialization for multi-threaded execution.
 template <typename Self, typename Reducer, bool Vectorize>
 struct ScanLauncher<Self, Reducer, ThreadPoolDevice, Vectorize> {
-  void operator()(Self& self, typename Self::CoeffReturnType* data) {
+  void operator()(Self& self, typename Self::CoeffReturnType* data) const {
     using Scalar = typename Self::CoeffReturnType;
     using Packet = typename Self::PacketReturnType;
     const int PacketSize = internal::unpacket_traits<Packet>::size;
@@ -333,7 +333,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ScanKernel(Self self, Index total_s
 
 template <typename Self, typename Reducer, bool Vectorize>
 struct ScanLauncher<Self, Reducer, GpuDevice, Vectorize> {
-  void operator()(const Self& self, typename Self::CoeffReturnType* data) {
+  void operator()(const Self& self, typename Self::CoeffReturnType* data) const {
     Index total_size = internal::array_prod(self.dimensions());
     Index num_blocks = (total_size / self.size() + 63) / 64;
     Index block_size = 64;

@@ -459,7 +459,7 @@ class gebp_traits {
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
@@ -564,7 +564,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
 
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
@@ -752,9 +752,9 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
   // this actually holds 8 packets!
   typedef QuadPacket<RhsPacket> RhsPacketx4;
 
-  EIGEN_STRONG_INLINE void initAcc(Scalar& p) { p = Scalar(0); }
+  EIGEN_STRONG_INLINE void initAcc(Scalar& p) const { p = Scalar(0); }
 
-  EIGEN_STRONG_INLINE void initAcc(DoublePacketType& p) {
+  EIGEN_STRONG_INLINE void initAcc(DoublePacketType& p) const {
     p.first = pset1<RealPacket>(RealScalar(0));
     p.second = pset1<RealPacket>(RealScalar(0));
   }
@@ -896,7 +896,7 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
 
-  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
+  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
   template <typename RhsPacketType>
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
@@ -1021,7 +1021,7 @@ struct gebp_kernel {
 
   EIGEN_DONT_INLINE void operator()(const DataMapper& res, const LhsScalar* blockA, const RhsScalar* blockB, Index rows,
                                     Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
-                                    Index offsetA = 0, Index offsetB = 0);
+                                    Index offsetA = 0, Index offsetB = 0) const;
 };
 
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
@@ -1040,7 +1040,7 @@ struct last_row_process_16_packets {
 
   EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
-                                      ResScalar alpha, SAccPacket& C0) {
+                                      ResScalar alpha, SAccPacket& C0) const {
     EIGEN_UNUSED_VARIABLE(res);
     EIGEN_UNUSED_VARIABLE(straits);
     EIGEN_UNUSED_VARIABLE(blA);
@@ -1068,7 +1068,7 @@ struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 
   EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
-                                      ResScalar alpha, SAccPacket& C0) {
+                                      ResScalar alpha, SAccPacket& C0) const {
     typedef typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half SResPacketQuarter;
     typedef typename unpacket_traits<typename unpacket_traits<SLhsPacket>::half>::half SLhsPacketQuarter;
     typedef typename unpacket_traits<typename unpacket_traits<SRhsPacket>::half>::half SRhsPacketQuarter;
@@ -1373,7 +1373,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
                                    ConjugateRhs>::operator()(const DataMapper& res, const LhsScalar* blockA,
                                                              const RhsScalar* blockB, Index rows, Index depth,
                                                              Index cols, ResScalar alpha, Index strideA, Index strideB,
-                                                             Index offsetA, Index offsetB) {
+                                                             Index offsetA, Index offsetB) const {
   Traits traits;
   SwappedTraits straits;
 
@@ -1781,14 +1781,14 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
   typedef typename DataMapper::LinearMapper LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0);
+                                    Index offset = 0) const;
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate,
                                      PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
-                                                            Index rows, Index stride, Index offset) {
+                                                            Index rows, Index stride, Index offset) const {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
   typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
   enum {
@@ -1931,14 +1931,14 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
   typedef typename DataMapper::LinearMapper LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
-                                    Index offset = 0);
+                                    Index offset = 0) const;
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate,
                                      PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
-                                                            Index rows, Index stride, Index offset) {
+                                                            Index rows, Index stride, Index offset) const {
   typedef typename unpacket_traits<Packet>::half HalfPacket;
   typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
   enum {
@@ -2057,12 +2057,12 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMo
   typedef typename DataMapper::LinearMapper LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size };
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0);
+                                    Index offset = 0) const;
 };
 
 template <typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode>::operator()(
-    Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset) {
+    Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset) const {
   EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS COLMAJOR");
   EIGEN_UNUSED_VARIABLE(stride);
   EIGEN_UNUSED_VARIABLE(offset);
@@ -2244,7 +2244,7 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
     QuarterPacketSize = unpacket_traits<QuarterPacket>::size
   };
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
-                                    Index offset = 0) {
+                                    Index offset = 0) const {
     EIGEN_ASM_COMMENT("EIGEN PRODUCT PACK RHS ROWMAJOR");
     EIGEN_UNUSED_VARIABLE(stride);
     EIGEN_UNUSED_VARIABLE(offset);

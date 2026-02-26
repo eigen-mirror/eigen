@@ -368,7 +368,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    *
    * \sa logAbsDeterminant(), signDeterminant()
    */
-  Scalar absDeterminant() {
+  Scalar absDeterminant() const {
     using std::abs;
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
     // Initialize with the determinant of the row matrix
@@ -420,7 +420,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    *
    * \sa absDeterminant(), logAbsDeterminant()
    */
-  Scalar signDeterminant() {
+  Scalar signDeterminant() const {
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
     // Initialize with the determinant of the row matrix
     Index det = 1;
@@ -446,7 +446,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    *
    * \sa absDeterminant(), logAbsDeterminant()
    */
-  Scalar determinant() {
+  Scalar determinant() const {
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
     // Initialize with the determinant of the row matrix
     Scalar det = Scalar(1.);

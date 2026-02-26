@@ -281,7 +281,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   // Dummy struct to represent an empty DoneCallback.
 
   struct NoCallback {
-    void operator()() { eigen_assert(false && "NoCallback should never be called"); }
+    void operator()() const { eigen_assert(false && "NoCallback should never be called"); }
   };
 
   // ------------------------------------------------------------------------ //

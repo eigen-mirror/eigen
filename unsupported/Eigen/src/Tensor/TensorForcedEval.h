@@ -72,7 +72,7 @@ namespace internal {
 template <typename Device, typename CoeffReturnType>
 struct non_integral_type_placement_new {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index numValues, StorageType m_buffer) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index numValues, StorageType m_buffer) const {
     // Initialize non-trivially constructible types.
     if (!internal::is_arithmetic<CoeffReturnType>::value) {
       for (Index i = 0; i < numValues; ++i) new (m_buffer + i) CoeffReturnType();
@@ -86,7 +86,7 @@ struct non_integral_type_placement_new {
 template <typename CoeffReturnType>
 struct non_integral_type_placement_new<Eigen::SyclDevice, CoeffReturnType> {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index, StorageType) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index, StorageType) const {}
 };
 }  // end namespace internal
 

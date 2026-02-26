@@ -222,7 +222,7 @@ class ComplexEigenSolver {
   }
 
   /** \brief Returns the maximum number of iterations. */
-  Index getMaxIterations() { return m_schur.getMaxIterations(); }
+  Index getMaxIterations() const { return m_schur.getMaxIterations(); }
 
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)

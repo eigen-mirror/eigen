@@ -105,7 +105,7 @@ class LevenbergMarquardt {
   Scalar fnorm, gnorm;
   bool useExternalScaling;
 
-  Scalar lm_param(void) { return par; }
+  Scalar lm_param(void) const { return par; }
 
  private:
   FunctorType &functor;

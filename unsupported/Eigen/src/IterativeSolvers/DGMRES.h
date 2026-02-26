@@ -160,7 +160,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
   /**
    * Get the restart value
    */
-  Index restart() { return m_restart; }
+  Index restart() const { return m_restart; }
 
   /**
    * Set the restart value (default is 30)
@@ -178,7 +178,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
   /**
    * Get the size of the deflation subspace size
    */
-  Index deflSize() { return m_r; }
+  Index deflSize() const { return m_r; }
 
   /**
    * Set the maximum size of the deflation subspace
