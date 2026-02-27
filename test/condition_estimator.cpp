@@ -29,8 +29,8 @@ void rcond_partial_piv_lu() {
   MatrixType m_inverse = lu.inverse();
   RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
   RealScalar rcond_est = lu.rcond();
-  // Verify the estimate is within a factor of 10 of the truth.
-  VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+  // Verify the estimate is within a factor of 3 of the truth.
+  VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
 }
 
 template <typename MatrixType>
@@ -47,7 +47,7 @@ void rcond_full_piv_lu() {
   MatrixType m_inverse = lu.inverse();
   RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
   RealScalar rcond_est = lu.rcond();
-  VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+  VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
 }
 
 template <typename MatrixType>
@@ -65,7 +65,7 @@ void rcond_llt() {
   MatrixType m_inverse = llt.solve(MatrixType::Identity(size, size));
   RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
   RealScalar rcond_est = llt.rcond();
-  VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+  VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
 }
 
 template <typename MatrixType>
@@ -83,7 +83,7 @@ void rcond_ldlt() {
   MatrixType m_inverse = ldlt.solve(MatrixType::Identity(size, size));
   RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
   RealScalar rcond_est = ldlt.rcond();
-  VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+  VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
 }
 
 template <typename MatrixType>
@@ -195,21 +195,21 @@ void rcond_2x2() {
     Mat2 m_inverse = lu.inverse();
     RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
     RealScalar rcond_est = lu.rcond();
-    VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+    VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
   }
   {
     FullPivLU<Mat2> lu(m);
     Mat2 m_inverse = lu.inverse();
     RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
     RealScalar rcond_est = lu.rcond();
-    VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+    VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
   }
   {
     LLT<Mat2> llt(m);
     Mat2 m_inverse = llt.solve(Mat2::Identity());
     RealScalar rcond = (RealScalar(1) / matrix_l1_norm(m)) / matrix_l1_norm(m_inverse);
     RealScalar rcond_est = llt.rcond();
-    VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
+    VERIFY(rcond_est > rcond / 3 && rcond_est < rcond * 3);
   }
 }
 
