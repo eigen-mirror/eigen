@@ -540,8 +540,6 @@ void sparse_basic(const SparseMatrixType& ref) {
 
     triplets.reserve(ntriplets);
     DenseMatrix refMat_sum = DenseMatrix::Zero(rows, cols);
-    DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
-    DenseMatrix refMat_last = DenseMatrix::Zero(rows, cols);
 
     for (Index i = 0; i < ntriplets; ++i) {
       StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
@@ -549,18 +547,11 @@ void sparse_basic(const SparseMatrixType& ref) {
       Scalar v = internal::random<Scalar>();
       triplets.push_back(TripletType(r, c, v));
       refMat_sum(r, c) += v;
-      if (std::abs(refMat_prod(r, c)) == 0)
-        refMat_prod(r, c) = v;
-      else
-        refMat_prod(r, c) *= v;
-      refMat_last(r, c) = v;
     }
 
     std::vector<TripletType> moreTriplets;
     moreTriplets.reserve(ntriplets);
     DenseMatrix refMat_sum_more = refMat_sum;
-    DenseMatrix refMat_prod_more = refMat_prod;
-    DenseMatrix refMat_last_more = refMat_last;
 
     for (Index i = 0; i < ntriplets; ++i) {
       StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
@@ -568,11 +559,44 @@ void sparse_basic(const SparseMatrixType& ref) {
       Scalar v = internal::random<Scalar>();
       moreTriplets.push_back(TripletType(r, c, v));
       refMat_sum_more(r, c) += v;
-      if (std::abs(refMat_prod_more(r, c)) == 0)
-        refMat_prod_more(r, c) = v;
-      else
-        refMat_prod_more(r, c) *= v;
-      refMat_last_more(r, c) = v;
+    }
+
+    // setFromTriplets sorts internally by (outer, inner), so non-commutative
+    // reductions (std::multiplies, "last wins") depend on sorted order.
+    // Compute these references from sorted triplets to match.
+    struct triplet_comp {
+      inline bool operator()(const TripletType& a, const TripletType& b) {
+        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
+                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
+      }
+    };
+
+    DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
+    DenseMatrix refMat_last = DenseMatrix::Zero(rows, cols);
+    {
+      auto sorted = triplets;
+      std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
+      for (const auto& t : sorted) {
+        if (std::abs(refMat_prod(t.row(), t.col())) == 0)
+          refMat_prod(t.row(), t.col()) = t.value();
+        else
+          refMat_prod(t.row(), t.col()) *= t.value();
+        refMat_last(t.row(), t.col()) = t.value();
+      }
+    }
+
+    DenseMatrix refMat_prod_more = refMat_prod;
+    DenseMatrix refMat_last_more = refMat_last;
+    {
+      auto sorted = moreTriplets;
+      std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
+      for (const auto& t : sorted) {
+        if (std::abs(refMat_prod_more(t.row(), t.col())) == 0)
+          refMat_prod_more(t.row(), t.col()) = t.value();
+        else
+          refMat_prod_more(t.row(), t.col()) *= t.value();
+        refMat_last_more(t.row(), t.col()) = t.value();
+      }
     }
 
     SparseMatrixType m(rows, cols);
@@ -631,13 +655,6 @@ void sparse_basic(const SparseMatrixType& ref) {
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     // test setFromSortedTriplets / insertFromSortedTriplets
-
-    struct triplet_comp {
-      inline bool operator()(const TripletType& a, const TripletType& b) {
-        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
-                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
-      }
-    };
 
     // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
     // this is the case with refMat_last

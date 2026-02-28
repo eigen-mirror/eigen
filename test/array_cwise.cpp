@@ -941,8 +941,11 @@ void array_complex(const ArrayType& m) {
 
   ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols), m4 = m1;
 
-  m4.real() = (m4.real().abs() == RealScalar(0)).select(RealScalar(1), m4.real());
-  m4.imag() = (m4.imag().abs() == RealScalar(0)).select(RealScalar(1), m4.imag());
+  // Clamp m4 so that |m4| >= min_normal, avoiding overflow in inverse(m4).
+  // For complex z = a+bi, 1/z = (a-bi)/(a²+b²); if a²+b² underflows to zero
+  // (both |a| and |b| below sqrt(min_normal)), the inverse overflows to inf/nan.
+  const RealScalar min = (std::numeric_limits<RealScalar>::min)();
+  m4 = (m4.abs() < min).select(Scalar(1), m4);
 
   Array<RealScalar, -1, -1> m3(rows, cols);
 
