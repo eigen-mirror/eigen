@@ -425,7 +425,7 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
 };
 
 template <typename MatrixType_, int Options>
-struct traits<JacobiSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> {
+struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options> {
   typedef MatrixType_ MatrixType;
 };
 
@@ -497,7 +497,7 @@ struct traits<JacobiSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Option
  * \sa MatrixBase::jacobiSvd()
  */
 template <typename MatrixType_, int Options_>
-class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
+class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_>> {
   typedef SVDBase<JacobiSVD> Base;
 
  public:
@@ -695,11 +695,13 @@ class JacobiSVD : public SVDBase<JacobiSVD<MatrixType_, Options_> > {
 
   // Blocking parameters for the Jacobi SVD sweep.
 #ifdef EIGEN_JACOBI_SVD_BLOCK_SIZE
-  static constexpr Index kBlockSize = EIGEN_JACOBI_SVD_BLOCK_SIZE;
+  static constexpr Index kDefaultBlockSize = EIGEN_JACOBI_SVD_BLOCK_SIZE;
 #else
-  static constexpr Index kBlockSize = 32;
+  static constexpr Index kDefaultBlockSize = 32;
 #endif
-  Matrix<Scalar, kBlockSize + 1, kBlockSize + 1> m_blockBuffer;
+
+  // Use the lower of the default block size and static maximum matrix dimensions.
+  static constexpr Index kBlockSize = internal::min_size_prefer_fixed(kDefaultBlockSize, MaxDiagSizeAtCompileTime);
 };
 
 template <typename MatrixType, int Options>
@@ -900,6 +902,14 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
   const Index n = diagSize();
   RealScalar threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
   bool notFinished = false;
+  static constexpr Index kBlockBufferSize = (kBlockSize + 1) * (kBlockSize + 1);
+  ei_declare_aligned_stack_constructed_variable(Scalar, blockBufferPtr, kBlockBufferSize, 0);
+  Map<Matrix<Scalar, kBlockSize + 1, kBlockSize + 1, MatrixOptions>, AlignedMax> blockBuffer(
+      blockBufferPtr, kBlockSize + 1, kBlockSize + 1);
+
+  ei_declare_aligned_stack_constructed_variable(Scalar, accumPtr, kBlockBufferSize, 0);
+  Map<Matrix<Scalar, kBlockSize + 1, kBlockSize + 1, MatrixOptions>, AlignedMax> accum(accumPtr, kBlockSize + 1,
+                                                                                       kBlockSize + 1);
 
   for (Index p = 1; p < n; ++p) {
     Index q = 0;
@@ -911,23 +921,21 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
     for (; q + kBlockSize <= p; q += kBlockSize) {
       // Buffer = [ W(q:q+k, q:q+k)  W(q:q+k, p) ]
       //          [ W(p, q:q+k)       W(p, p)      ]
-      m_blockBuffer.template topLeftCorner<kBlockSize, kBlockSize>() =
+      blockBuffer.template topLeftCorner<kBlockSize, kBlockSize>() =
           m_workMatrix.template block<kBlockSize, kBlockSize>(q, q);
-      m_blockBuffer.col(kBlockSize).template head<kBlockSize>() = m_workMatrix.col(p).template segment<kBlockSize>(q);
-      m_blockBuffer.row(kBlockSize).template head<kBlockSize>() = m_workMatrix.row(p).template segment<kBlockSize>(q);
-      m_blockBuffer(kBlockSize, kBlockSize) = m_workMatrix(p, p);
+      blockBuffer.col(kBlockSize).template head<kBlockSize>() = m_workMatrix.col(p).template segment<kBlockSize>(q);
+      blockBuffer.row(kBlockSize).template head<kBlockSize>() = m_workMatrix.row(p).template segment<kBlockSize>(q);
+      blockBuffer(kBlockSize, kBlockSize) = m_workMatrix(p, p);
 
       // Accumulator for left transformations: W <- accum * W.
       // After processing qq pairs, accum's top-left kBlockSize x kBlockSize
       // block is lower-triangular (each rotation only mixes row qq with row
       // kBlockSize, so rows 0..qq-1 are unchanged).
-      Matrix<Scalar, kBlockSize + 1, kBlockSize + 1> accum;
       accum.setIdentity(kBlockSize + 1, kBlockSize + 1);
       bool blockDirty = false;
 
       for (Index qq = 0; qq < kBlockSize; ++qq) {
-        if (abs(m_blockBuffer.coeff(kBlockSize, qq)) > threshold ||
-            abs(m_blockBuffer.coeff(qq, kBlockSize)) > threshold) {
+        if (abs(blockBuffer.coeff(kBlockSize, qq)) > threshold || abs(blockBuffer.coeff(qq, kBlockSize)) > threshold) {
           notFinished = true;
           blockDirty = true;
 
@@ -945,24 +953,24 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
           EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::IsComplex) {
             Scalar z;
             // nn = ||(w_pp, w_qp)||_2, the norm of the first column of the 2x2 block.
-            RealScalar nn = sqrt(numext::abs2(m_blockBuffer.coeff(kBlockSize, kBlockSize)) +
-                                 numext::abs2(m_blockBuffer.coeff(qq, kBlockSize)));
+            RealScalar nn = sqrt(numext::abs2(blockBuffer.coeff(kBlockSize, kBlockSize)) +
+                                 numext::abs2(blockBuffer.coeff(qq, kBlockSize)));
 
             if (numext::is_exactly_zero(nn)) {
               // First column is zero => block is already upper triangular.
-              m_blockBuffer.coeffRef(kBlockSize, kBlockSize) = Scalar(0);
-              m_blockBuffer.coeffRef(qq, kBlockSize) = Scalar(0);
+              blockBuffer.coeffRef(kBlockSize, kBlockSize) = Scalar(0);
+              blockBuffer.coeffRef(qq, kBlockSize) = Scalar(0);
 
               // Scale rows by z = e^{-i*arg(w)} to make remaining entries real.
-              if (abs(numext::imag(m_blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
-                z = abs(m_blockBuffer.coeff(kBlockSize, qq)) / m_blockBuffer.coeff(kBlockSize, qq);
-                m_blockBuffer.row(kBlockSize) *= z;
+              if (abs(numext::imag(blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
+                z = abs(blockBuffer.coeff(kBlockSize, qq)) / blockBuffer.coeff(kBlockSize, qq);
+                blockBuffer.row(kBlockSize) *= z;
                 accum.row(kBlockSize) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(p) *= numext::conj(z);
               }
-              if (abs(numext::imag(m_blockBuffer.coeff(qq, qq))) > considerAsZero) {
-                z = abs(m_blockBuffer.coeff(qq, qq)) / m_blockBuffer.coeff(qq, qq);
-                m_blockBuffer.row(qq) *= z;
+              if (abs(numext::imag(blockBuffer.coeff(qq, qq))) > considerAsZero) {
+                z = abs(blockBuffer.coeff(qq, qq)) / blockBuffer.coeff(qq, qq);
+                blockBuffer.row(qq) *= z;
                 accum.row(qq) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(q + qq) *= numext::conj(z);
               }
@@ -972,43 +980,43 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
               //   [-s c] [w_qp] = [0 ]  c = ----------,  s = ------
               //                                 nn              nn
               JacobiRotation<Scalar> rot;
-              rot.c() = numext::conj(m_blockBuffer.coeff(kBlockSize, kBlockSize)) / nn;
-              rot.s() = m_blockBuffer.coeff(qq, kBlockSize) / nn;
-              m_blockBuffer.applyOnTheLeft(kBlockSize, qq, rot);
+              rot.c() = numext::conj(blockBuffer.coeff(kBlockSize, kBlockSize)) / nn;
+              rot.s() = blockBuffer.coeff(qq, kBlockSize) / nn;
+              blockBuffer.applyOnTheLeft(kBlockSize, qq, rot);
               accum.applyOnTheLeft(kBlockSize, qq, rot);  // accumulate left op
               if (computeU()) m_matrixU.applyOnTheRight(p, q + qq, rot.adjoint());
 
               // Scale column qq by z = e^{-i*arg(w_pq)} to make w_pq real.
-              if (abs(numext::imag(m_blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
-                z = abs(m_blockBuffer.coeff(kBlockSize, qq)) / m_blockBuffer.coeff(kBlockSize, qq);
-                m_blockBuffer.col(qq) *= z;
+              if (abs(numext::imag(blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
+                z = abs(blockBuffer.coeff(kBlockSize, qq)) / blockBuffer.coeff(kBlockSize, qq);
+                blockBuffer.col(qq) *= z;
                 m_workMatrix.col(q + qq) *= z;  // right op: apply directly
                 if (computeV()) m_matrixV.col(q + qq) *= z;
               }
               // Scale row qq by z = e^{-i*arg(w_qq)} to make w_qq real.
-              if (abs(numext::imag(m_blockBuffer.coeff(qq, qq))) > considerAsZero) {
-                z = abs(m_blockBuffer.coeff(qq, qq)) / m_blockBuffer.coeff(qq, qq);
-                m_blockBuffer.row(qq) *= z;
+              if (abs(numext::imag(blockBuffer.coeff(qq, qq))) > considerAsZero) {
+                z = abs(blockBuffer.coeff(qq, qq)) / blockBuffer.coeff(qq, qq);
+                blockBuffer.row(qq) *= z;
                 accum.row(qq) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(q + qq) *= numext::conj(z);
               }
             }
             // Update maxDiagEntry from preconditioning.
             maxDiagEntry = numext::maxi<RealScalar>(
-                maxDiagEntry, numext::maxi<RealScalar>(abs(m_blockBuffer.coeff(kBlockSize, kBlockSize)),
-                                                       abs(m_blockBuffer.coeff(qq, qq))));
+                maxDiagEntry, numext::maxi<RealScalar>(abs(blockBuffer.coeff(kBlockSize, kBlockSize)),
+                                                       abs(blockBuffer.coeff(qq, qq))));
             // Check if 2x2 block still needs diagonalizing.
             RealScalar precondThreshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
-            doRealSvd = abs(m_blockBuffer.coeff(kBlockSize, qq)) > precondThreshold ||
-                        abs(m_blockBuffer.coeff(qq, kBlockSize)) > precondThreshold;
+            doRealSvd = abs(blockBuffer.coeff(kBlockSize, qq)) > precondThreshold ||
+                        abs(blockBuffer.coeff(qq, kBlockSize)) > precondThreshold;
           }
 
           if (doRealSvd) {
             // Compute real 2x2 SVD: buffer_2x2 = j_left * diag * j_right^T.
             JacobiRotation<RealScalar> j_left, j_right;
-            internal::real_2x2_jacobi_svd(m_blockBuffer, kBlockSize, qq, &j_left, &j_right);
-            m_blockBuffer.applyOnTheLeft(kBlockSize, qq, j_left);
-            m_blockBuffer.applyOnTheRight(kBlockSize, qq, j_right);
+            internal::real_2x2_jacobi_svd(blockBuffer, kBlockSize, qq, &j_left, &j_right);
+            blockBuffer.applyOnTheLeft(kBlockSize, qq, j_left);
+            blockBuffer.applyOnTheRight(kBlockSize, qq, j_right);
 
             // Accumulate left rotation for deferred GEMM.
             accum.applyOnTheLeft(kBlockSize, qq, j_left);
@@ -1019,8 +1027,8 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
             if (computeV()) m_matrixV.applyOnTheRight(p, q + qq, j_right);
 
             maxDiagEntry = numext::maxi<RealScalar>(
-                maxDiagEntry, numext::maxi<RealScalar>(abs(m_blockBuffer.coeff(kBlockSize, kBlockSize)),
-                                                       abs(m_blockBuffer.coeff(qq, qq))));
+                maxDiagEntry, numext::maxi<RealScalar>(abs(blockBuffer.coeff(kBlockSize, kBlockSize)),
+                                                       abs(blockBuffer.coeff(qq, qq))));
           }
           threshold = numext::maxi<RealScalar>(considerAsZero, precision * maxDiagEntry);
         }
