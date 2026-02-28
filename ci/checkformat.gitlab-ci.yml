@@ -34,7 +34,7 @@ checkformat:clangtidy:
   before_script:
     - apt-get update -y > /dev/null
     - apt-get install -y --no-install-recommends
-        git cmake ninja-build clang-tidy clang python3 > /dev/null
+        git cmake ninja-build clang-tidy clang python3 ca-certificates > /dev/null
   script:
     - mkdir -p .tidy-build
     - cmake -G Ninja -B .tidy-build
