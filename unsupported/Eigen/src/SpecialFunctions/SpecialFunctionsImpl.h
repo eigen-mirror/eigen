@@ -1103,7 +1103,9 @@ struct igammac_impl {
     }
 
     if ((x < one) || (x < a)) {
-      return (one - igamma_series_impl<Scalar, VALUE>::run(a, x));
+      // Clamp to [0,1] since 1-igamma can produce tiny negative values
+      // due to floating-point cancellation for extreme arguments.
+      return numext::mini(one, numext::maxi(zero, one - igamma_series_impl<Scalar, VALUE>::run(a, x)));
     }
 
     return igammac_cf_impl<Scalar, VALUE>::run(a, x);
@@ -1155,7 +1157,9 @@ struct igamma_generic_impl {
     if ((x > one) && (x > a)) {
       Scalar ret = igammac_cf_impl<Scalar, mode>::run(a, x);
       if (mode == VALUE) {
-        return one - ret;
+        // Clamp to [0,1] since 1-igammac can produce tiny negative values
+        // due to floating-point cancellation for extreme arguments.
+        return numext::mini(one, numext::maxi(zero, one - ret));
       } else {
         return -ret;
       }
