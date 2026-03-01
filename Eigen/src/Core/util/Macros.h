@@ -1018,6 +1018,10 @@
 #define EIGEN_DEPRECATED_WITH_REASON(message)
 #endif
 
+// Deprecated no-op macro. Was a workaround for GCC 4.3 empty struct issues, removed in Eigen 5.0.
+// Defined here for backward compatibility with downstream code that still references it.
+#define EIGEN_EMPTY_STRUCT_CTOR(X)
+
 #if EIGEN_COMP_GNUC
 #define EIGEN_UNUSED __attribute__((unused))
 #else
