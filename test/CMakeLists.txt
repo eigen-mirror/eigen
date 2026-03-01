@@ -532,6 +532,18 @@ if(EIGEN_TEST_BUILD_DOCUMENTATION)
   add_dependencies(buildtests doc)
 endif()
 
+# ULP accuracy measurement tool (see test/ulp_accuracy/README.md)
+find_package(MPFR)
+find_package(GMP)
+add_executable(ulp_accuracy ulp_accuracy/ulp_accuracy.cpp)
+target_compile_options(ulp_accuracy PRIVATE -pthread)
+target_link_libraries(ulp_accuracy Eigen3::Eigen ${CMAKE_THREAD_LIBS_INIT} pthread)
+if(MPFR_FOUND AND GMP_FOUND)
+  target_include_directories(ulp_accuracy PRIVATE ${MPFR_INCLUDES} ${GMP_INCLUDES})
+  target_link_libraries(ulp_accuracy ${MPFR_LIBRARIES} ${GMP_LIBRARIES})
+  target_compile_definitions(ulp_accuracy PRIVATE EIGEN_HAS_MPFR)
+endif()
+
 # Register all smoke tests
 include("EigenSmokeTestList")
 ei_add_smoke_tests("${ei_smoke_test_list}")
