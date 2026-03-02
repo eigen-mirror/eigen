@@ -94,6 +94,42 @@ void product_large_regressions() {
   }
 }
 
+// Regression test: row-major GEMV with stride*sizeof > 32000 disables the
+// 8-row main loop (n8=0). The cleanup must use `for` loops (not `if`) to
+// process all remaining rows. Without the fix, only 7 out of `rows` results
+// are computed. This manifests as loss of orthogonality in QR of tall-skinny
+// matrices, since the Householder application uses row-major GEMV internally.
+template <int>
+void bug_gemv_rowmajor_large_stride() {
+  // Direct GEMV test: row-major A with stride (= cols) triggering n8=0.
+  // The threshold is stride * sizeof(Scalar) > 32000.
+  // For double: cols > 4000. For float: cols > 8000.
+  {
+    const int rows = 100;
+    const int cols = 5000;  // cols * sizeof(double) = 40000 > 32000
+    Matrix<double, Dynamic, Dynamic, RowMajor> A(rows, cols);
+    A.setRandom();
+    VectorXd x = VectorXd::Random(cols);
+    VectorXd y = A * x;
+    VectorXd y_ref = VectorXd::Zero(rows);
+    for (int i = 0; i < rows; ++i)
+      for (int j = 0; j < cols; ++j) y_ref(i) += A(i, j) * x(j);
+    VERIFY_IS_APPROX(y, y_ref);
+  }
+
+  // QR orthogonality test: this is the high-level symptom.
+  // HouseholderQR of a col-major (m x n) matrix with m > 4000
+  // uses row-major GEMV internally during Householder application.
+  {
+    const int m = 5000;
+    const int n = 50;
+    MatrixXd A = MatrixXd::Random(m, n);
+    MatrixXd Q = A.householderQr().householderQ() * MatrixXd::Identity(m, n);
+    MatrixXd QtQ = Q.adjoint() * Q;
+    VERIFY_IS_APPROX(QtQ, MatrixXd::Identity(n, n));
+  }
+}
+
 template <int>
 void bug_1622() {
   typedef Matrix<double, 2, -1, 0, 2, -1> Mat2X;
@@ -138,6 +174,7 @@ EIGEN_DECLARE_TEST(product_large) {
   }
 
   CALL_SUBTEST_6(product_large_regressions<0>());
+  CALL_SUBTEST_6(bug_gemv_rowmajor_large_stride<0>());
 
   // Regression test for bug 714:
 #if defined EIGEN_HAS_OPENMP

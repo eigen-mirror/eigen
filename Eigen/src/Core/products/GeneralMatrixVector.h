@@ -423,7 +423,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 6) * resIncr] += alpha * cc6;
     res[(i + 7) * resIncr] += alpha * cc7;
   }
-  if (i < n4) {
+  for (; i < n4; i += 4) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
@@ -451,9 +451,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     res[(i + 1) * resIncr] += alpha * cc1;
     res[(i + 2) * resIncr] += alpha * cc2;
     res[(i + 3) * resIncr] += alpha * cc3;
-    i += 4;
   }
-  if (i < n2) {
+  for (; i < n2; i += 2) {
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
@@ -473,9 +472,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     }
     res[(i + 0) * resIncr] += alpha * cc0;
     res[(i + 1) * resIncr] += alpha * cc1;
-    i += 2;
   }
-  if (i < rows) {
+  for (; i < rows; ++i) {
     ResPacket c0 = pzero(ResPacket{});
     ResPacketHalf c0_h = pzero(ResPacketHalf{});
     ResPacketQuarter c0_q = pzero(ResPacketQuarter{});
