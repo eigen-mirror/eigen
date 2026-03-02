@@ -13,7 +13,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
-#include "../../../../../Eigen/src/Core/util/GpuHipCudaDefines.inc"
+#include "../../../../Eigen/src/Core/util/GpuHipCudaDefines.inc"
 
 namespace Eigen {
 
@@ -359,6 +359,6 @@ static EIGEN_DEVICE_FUNC inline void setGpuSharedMemConfig(gpuSharedMemConfig co
 }  // end namespace Eigen
 
 // undefine all the gpu* macros we defined at the beginning of the file
-#include "../../../../../Eigen/src/Core/util/GpuHipCudaUndefines.inc"
+#include "../../../../Eigen/src/Core/util/GpuHipCudaUndefines.inc"
 
 #endif  // EIGEN_CXX11_TENSOR_TENSOR_DEVICE_GPU_H
