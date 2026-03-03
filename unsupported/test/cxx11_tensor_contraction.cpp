@@ -139,7 +139,7 @@ static void test_multidims() {
 
   Tensor<float, 1, DataLayout> mat6(2);
   mat6.setZero();
-  Eigen::array<DimPair, 2> dims2({{DimPair(0, 1), DimPair(1, 0)}});
+  Eigen::array<DimPair, 2> dims2{{DimPair(0, 1), DimPair(1, 0)}};
   typedef TensorEvaluator<decltype(mat4.contract(mat5, dims2)), DefaultDevice> Evaluator2;
   Evaluator2 eval2(mat4.contract(mat5, dims2), DefaultDevice());
   eval2.evalTo(mat6.data());
@@ -515,7 +515,7 @@ static void test_large_contraction_with_output_kernel() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 2> dims({{DimPair(2, 0), DimPair(3, 1)}});
+  Eigen::array<DimPair, 2> dims{{DimPair(2, 0), DimPair(3, 1)}};
 
   // compute results by separate methods
   t_result = t_left.contract(t_right, dims, SqrtOutputKernel());

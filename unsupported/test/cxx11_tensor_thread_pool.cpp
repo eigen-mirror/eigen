@@ -193,7 +193,7 @@ void test_multithread_contraction() {
 
   // this contraction should be equivalent to a single matrix multiplication
   typedef Tensor<float, 1>::DimensionPair DimPair;
-  Eigen::array<DimPair, 2> dims({{DimPair(2, 0), DimPair(3, 1)}});
+  Eigen::array<DimPair, 2> dims{{DimPair(2, 0), DimPair(3, 1)}};
 
   typedef Map<Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
   MapXf m_left(t_left.data(), 1500, 1147);
@@ -324,7 +324,7 @@ void test_multithread_contraction_agrees_with_singlethread() {
   right += right.constant(1.5f);
 
   typedef Tensor<float, 1>::DimensionPair DimPair;
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 2)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
   Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(2, 11));
@@ -386,7 +386,7 @@ static void test_multithread_contraction_with_output_kernel() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 2> dims({{DimPair(2, 0), DimPair(3, 1)}});
+  Eigen::array<DimPair, 2> dims{{DimPair(2, 0), DimPair(3, 1)}};
 
   // compute results by separate methods
   t_result.device(device) = t_left.contract(t_right, dims, SqrtOutputKernel());
@@ -416,7 +416,7 @@ void test_async_multithread_contraction_agrees_with_singlethread() {
   right += right.constant(1.5f);
 
   typedef Tensor<float, 1>::DimensionPair DimPair;
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 2)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
   Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(8, 32));
@@ -468,7 +468,7 @@ static void test_sharded_by_inner_dim_contraction() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 0)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // compute results by separate methods
   t_result.device(device) = t_left.contract(t_right, dims);
@@ -507,7 +507,7 @@ static void test_sharded_by_inner_dim_contraction_with_output_kernel() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 0)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // compute results by separate methods
   t_result.device(device) = t_left.contract(t_right, dims, SqrtOutputKernel());
@@ -546,7 +546,7 @@ static void test_async_sharded_by_inner_dim_contraction() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 0)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // compute results by separate methods
   Eigen::Barrier barrier(1);
@@ -588,7 +588,7 @@ static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims({{DimPair(1, 0)}});
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // compute results by separate methods
   Eigen::Barrier barrier(1);
@@ -616,7 +616,7 @@ void test_full_contraction() {
   right += right.constant(1.5f);
 
   typedef Tensor<float, 2>::DimensionPair DimPair;
-  Eigen::array<DimPair, 2> dims({{DimPair(0, 0), DimPair(1, 1)}});
+  Eigen::array<DimPair, 2> dims{{DimPair(0, 0), DimPair(1, 1)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
   Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(2, 11));

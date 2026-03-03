@@ -1297,7 +1297,7 @@ Example: Reduction along one dimension.
 Eigen::Tensor<int, 2> a(2, 3);
 a.setValues({{1, 2, 3}, {6, 5, 4}});
 // Reduce it along the second dimension (1)...
-Eigen::array<int, 1> dims({1 /* dimension to reduce */});
+Eigen::array<int, 1> dims{1 /* dimension to reduce */};
 // ...using the "maximum" operator.
 // The result is a tensor with one dimension.  The size of
 // that dimension is the same as the first (non-reduced) dimension of a.
@@ -1328,7 +1328,7 @@ a.setValues({{{0.0f, 1.0f, 2.0f, 3.0f},
 // Note that we pass the array of reduction dimensions
 // directly to the maximum() call.
 Eigen::Tensor<float, 1, Eigen::ColMajor> b =
-    a.maximum(Eigen::array<int, 2>({0, 1}));
+    a.maximum(Eigen::array<int, 2>{0, 1});
 std::cout << "b" << endl << b << endl << endl;
 
 // b
@@ -1475,7 +1475,7 @@ a.setValues({{{1, 2, 3}, {4, 5, 6}}, {{7, 8, 9}, {10, 11, 12}}});
 // Specify the dimensions along which the trace will be computed.
 // In this example, the trace can only be computed along the dimensions
 // with indices 0 and 1
-Eigen::array<int, 2> dims({0, 1});
+Eigen::array<int, 2> dims{0, 1};
 // The output tensor contains all but the trace dimensions.
 Tensor<int, 1> a_trace = a.trace(dims);
 std::cout << "a_trace:" << endl;
@@ -1572,7 +1572,7 @@ Tensor<float, 4, DataLayout> output(3, 2, 6, 11);
 input.setRandom();
 kernel.setRandom();
 
-Eigen::array<ptrdiff_t, 2> dims({1, 2});  // Specify second and third dimension for convolution.
+Eigen::array<ptrdiff_t, 2> dims{1, 2};  // Specify second and third dimension for convolution.
 output = input.convolve(kernel, dims);
 
 for (int i = 0; i < 3; ++i) {
@@ -1630,7 +1630,7 @@ to one dimension:
 ```cpp
 Eigen::Tensor<float, 2, Eigen::ColMajor> a(2, 3);
 a.setValues({{0.0f, 100.0f, 200.0f}, {300.0f, 400.0f, 500.0f}});
-Eigen::array<Eigen::DenseIndex, 1> one_dim({3 * 2});
+Eigen::array<Eigen::DenseIndex, 1> one_dim{3 * 2};
 Eigen::Tensor<float, 1, Eigen::ColMajor> b = a.reshape(one_dim);
 std::cout << "b" << endl << b << endl;
 
@@ -1648,7 +1648,7 @@ This is what happens when the 2D `Tensor` is `RowMajor`:
 ```cpp
 Eigen::Tensor<float, 2, Eigen::RowMajor> a(2, 3);
 a.setValues({{0.0f, 100.0f, 200.0f}, {300.0f, 400.0f, 500.0f}});
-Eigen::array<Eigen::DenseIndex, 1> one_dim({3 * 2});
+Eigen::array<Eigen::DenseIndex, 1> one_dim{3 * 2};
 Eigen::Tensor<float, 1, Eigen::RowMajor> b = a.reshape(one_dim);
 std::cout << "b" << endl << b << endl;
 
@@ -1669,7 +1669,7 @@ The previous example can be rewritten as follow:
 ```cpp
 Eigen::Tensor<float, 2, Eigen::ColMajor> a(2, 3);
 a.setValues({{0.0f, 100.0f, 200.0f}, {300.0f, 400.0f, 500.0f}});
-Eigen::array<Eigen::DenseIndex, 2> two_dim({2, 3});
+Eigen::array<Eigen::DenseIndex, 2> two_dim{2, 3};
 Eigen::Tensor<float, 1, Eigen::ColMajor> b(6);
 b.reshape(two_dim) = a;
 std::cout << "b" << endl << b << endl;
@@ -1747,7 +1747,7 @@ a.setValues({{0, 100, 200},
              {300, 400, 500},
              {600, 700, 800},
              {900, 1000, 1100}});
-Eigen::array<Eigen::DenseIndex, 2> strides({3, 2});
+Eigen::array<Eigen::DenseIndex, 2> strides{3, 2};
 Eigen::Tensor<int, 2> b = a.stride(strides);
 std::cout << "b" << endl << b << endl;
 // b
@@ -1934,7 +1934,7 @@ of a 2D tensor:
 Eigen::Tensor<int, 2> a(4, 3);
 a.setValues({{0, 100, 200}, {300, 400, 500},
             {600, 700, 800}, {900, 1000, 1100}});
-Eigen::array<bool, 2> reverse({true, false});
+Eigen::array<bool, 2> reverse{true, false};
 Eigen::Tensor<int, 2> b = a.reverse(reverse);
 std::cout << "a\n" << a << "\n";
 std::cout << "b\n" << b << "\n";
@@ -1994,7 +1994,7 @@ made in each of the dimensions.
 ```cpp
 Eigen::Tensor<int, 2> a(2, 3);
 a.setValues({{0, 100, 200}, {300, 400, 500}});
-Eigen::array<int, 2> bcast({3, 2});
+Eigen::array<int, 2> bcast{3, 2};
 Eigen::Tensor<int, 2> b = a.broadcast(bcast);
 std::cout << "a" << endl << a << endl << "b" << endl << b << endl;
 // a
