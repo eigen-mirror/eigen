@@ -176,7 +176,7 @@ void test_3d_convolution(Context* context) {
 
 // Helper method to synchronize device.
 template <typename Device>
-void synchronize(Device& device) { /*nothing*/
+void synchronize(Device& /*device*/) { /*nothing*/
 }
 template <>
 void synchronize(Eigen::GpuDevice& device) {
@@ -197,7 +197,7 @@ void test_device_memory(const TensorDevice& device) {
   device.memcpyDeviceToHost(host.data(), device_data, count * sizeof(DataType));
   synchronize(device);
   memset(expected.data(), byte_value, count * sizeof(DataType));
-  for (size_t i = 0; i < count; i++) {
+  for (Index i = 0; i < count; i++) {
     VERIFY_IS_EQUAL(host(i), expected(i));
   }
 

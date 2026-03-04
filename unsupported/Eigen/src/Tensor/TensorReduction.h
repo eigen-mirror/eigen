@@ -693,7 +693,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       if (internal::InnerReducer<Self, Op, Device>::HasOptimizedImplementation &&
           (reducing_inner_dims || ReducingInnerMostDims)) {
         const Index num_values_to_reduce = internal::array_prod(m_reducedDims);
-        const Index num_coeffs_to_preserve = internal::array_prod(m_dimensions);
+        const Index num_coeffs_to_preserve = static_cast<Index>(internal::array_prod(m_dimensions));
         if (!data) {
           if ((num_coeffs_to_preserve < 1024 && num_values_to_reduce > num_coeffs_to_preserve &&
                num_values_to_reduce > 128) ||
@@ -729,7 +729,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       }
       if (internal::OuterReducer<Self, Op, Device>::HasOptimizedImplementation && preserving_inner_dims) {
         const Index num_values_to_reduce = internal::array_prod(m_reducedDims);
-        const Index num_coeffs_to_preserve = internal::array_prod(m_dimensions);
+        const Index num_coeffs_to_preserve = static_cast<Index>(internal::array_prod(m_dimensions));
         if (!data) {
           if ((num_coeffs_to_preserve < 1024 && num_values_to_reduce > num_coeffs_to_preserve &&
                num_values_to_reduce > 32) ||
@@ -759,7 +759,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       // must break into two subexpression and use the SYCL generic Reducer on the device.
       if (RunningOnSycl) {
         const Index num_values_to_reduce = internal::array_prod(m_reducedDims);
-        const Index num_coeffs_to_preserve = internal::array_prod(m_dimensions);
+        const Index num_coeffs_to_preserve = static_cast<Index>(internal::array_prod(m_dimensions));
         if (!data) {
           data = static_cast<EvaluatorPointerType>(
               m_device.get((CoeffReturnType*)m_device.allocate_temp(sizeof(CoeffReturnType) * num_coeffs_to_preserve)));

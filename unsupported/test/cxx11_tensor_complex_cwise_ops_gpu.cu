@@ -35,8 +35,8 @@ void test_cuda_complex_cwise_ops() {
   Eigen::TensorMap<Eigen::Tensor<std::complex<T>, 1, 0, int>, Eigen::Aligned> gpu_in2(d_in2, kNumItems);
   Eigen::TensorMap<Eigen::Tensor<std::complex<T>, 1, 0, int>, Eigen::Aligned> gpu_out(d_out, kNumItems);
 
-  const std::complex<T> a(3.14f, 2.7f);
-  const std::complex<T> b(-10.6f, 1.4f);
+  const std::complex<T> a(static_cast<T>(3.14), static_cast<T>(2.7));
+  const std::complex<T> b(static_cast<T>(-10.6), static_cast<T>(1.4));
 
   gpu_in1.device(gpu_device) = gpu_in1.constant(a);
   gpu_in2.device(gpu_device) = gpu_in2.constant(b);

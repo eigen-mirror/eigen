@@ -151,13 +151,13 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     // increasing the value of k, so we'll cap it at 320 (value determined
     // experimentally).
     // To avoid that k vanishes, we make k_cache at least as big as kr
-    const Index k_cache = numext::maxi<Index>(kr, (numext::mini<Index>)((l1 - ksub) / kdiv, 320));
+    const Index k_cache = numext::maxi<Index>(kr, (numext::mini<Index>)(static_cast<Index>((l1 - ksub) / kdiv), 320));
     if (k_cache < k) {
       k = k_cache - (k_cache % kr);
       eigen_internal_assert(k > 0);
     }
 
-    const Index n_cache = (l2 - l1) / (nr * sizeof(RhsScalar) * k);
+    const Index n_cache = static_cast<Index>((l2 - l1) / (nr * sizeof(RhsScalar) * k));
     const Index n_per_thread = numext::div_ceil(n, num_threads);
     if (n_cache <= n_per_thread) {
       // Don't exceed the capacity of the l2 cache.
@@ -170,7 +170,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 
     if (l3 > l2) {
       // l3 is shared between all cores, so we'll give each thread its own chunk of l3.
-      const Index m_cache = (l3 - l2) / (sizeof(LhsScalar) * k * num_threads);
+      const Index m_cache = static_cast<Index>((l3 - l2) / (sizeof(LhsScalar) * k * num_threads));
       const Index m_per_thread = numext::div_ceil(m, num_threads);
       if (m_cache < m_per_thread && m_cache >= static_cast<Index>(mr)) {
         m = m_cache - (m_cache % mr);
@@ -208,7 +208,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     // We also include a register-level block of the result (mx x nr).
     // (In an ideal world only the lhs panel would stay in L1)
     // Moreover, kc has to be a multiple of 8 to be compatible with loop peeling, leading to a maximum blocking size of:
-    const Index max_kc = numext::maxi<Index>(((l1 - k_sub) / k_div) & (~(k_peeling - 1)), 1);
+    const Index max_kc = numext::maxi<Index>(static_cast<Index>(((l1 - k_sub) / k_div) & (~(k_peeling - 1))), 1);
     const Index old_k = k;
     if (k > max_kc) {
       // We are really blocking on the third dimension:
@@ -242,9 +242,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 // that spills to L3 but remains accessible with low latency. This matches
 // the empirically-tuned constant (1.5MB) previously used when L2 was 1MB.
 #ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
-    const Index actual_l2 = l3;
+    const Index actual_l2 = static_cast<Index>(l3);
 #else
-    const Index actual_l2 = l2 * 3 / 2;
+    const Index actual_l2 = static_cast<Index>(l2 * 3 / 2);
 #endif
 
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
@@ -255,7 +255,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     // and it becomes fruitful to keep the packed rhs blocks in L1 if there is enough remaining space.
     Index max_nc;
     const Index lhs_bytes = m * k * sizeof(LhsScalar);
-    const Index remaining_l1 = l1 - k_sub - lhs_bytes;
+    const Index remaining_l1 = static_cast<Index>(l1 - k_sub - lhs_bytes);
     if (remaining_l1 >= Index(Traits::nr * sizeof(RhsScalar)) * k) {
       // L1 blocking
       max_nc = remaining_l1 / (k * sizeof(RhsScalar));
@@ -282,11 +282,11 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       if (problem_size <= 1024) {
         // problem is small enough to keep in L1
         // Let's choose m such that lhs's block fit in 1/3 of L1
-        actual_lm = l1;
+        actual_lm = static_cast<Index>(l1);
       } else if (l3 != 0 && problem_size <= 32768) {
         // we have both L2 and L3, and problem is small enough to be kept in L2
         // Let's choose m such that lhs's block fit in 1/3 of L2
-        actual_lm = l2;
+        actual_lm = static_cast<Index>(l2);
         max_mc = (numext::mini<Index>)(576, max_mc);
       }
       Index mc = (numext::mini<Index>)(actual_lm / (3 * k * sizeof(LhsScalar)), max_mc);

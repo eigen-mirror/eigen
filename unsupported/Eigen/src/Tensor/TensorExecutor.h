@@ -91,7 +91,7 @@ class TensorExecutor {
     TensorEvaluator<Expression, Device> evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
     if (needs_assign) {
-      const StorageIndex size = array_prod(evaluator.dimensions());
+      const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
       for (StorageIndex i = 0; i < size; ++i) {
         evaluator.evalScalar(i);
       }
@@ -120,7 +120,7 @@ class TensorExecutor<Expression, DefaultDevice, /*Vectorizable=*/true,
     TensorEvaluator<Expression, DefaultDevice> evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
     if (needs_assign) {
-      const StorageIndex size = array_prod(evaluator.dimensions());
+      const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
       const int PacketSize =
           unpacket_traits<typename TensorEvaluator<Expression, DefaultDevice>::PacketReturnType>::size;
 
@@ -302,7 +302,7 @@ class TensorExecutor<Expression, ThreadPoolDevice, Vectorizable, Tiling> {
     Evaluator evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
     if (needs_assign) {
-      const StorageIndex size = array_prod(evaluator.dimensions());
+      const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
       device.parallelFor(
           size, evaluator.costPerCoeff(Vectorizable), EvalRange::alignBlockSize,
           [&evaluator](StorageIndex firstIdx, StorageIndex lastIdx) { EvalRange::run(&evaluator, firstIdx, lastIdx); });
@@ -375,7 +375,7 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
       }
 
       typedef EvalRange<Evaluator, StorageIndex, Vectorizable> EvalRange;
-      const StorageIndex size = array_prod(ctx->evaluator.dimensions());
+      const StorageIndex size = static_cast<StorageIndex>(array_prod(ctx->evaluator.dimensions()));
       device.parallelForAsync(
           size, ctx->evaluator.costPerCoeff(Vectorizable), EvalRange::alignBlockSize,
           [ctx](StorageIndex firstIdx, StorageIndex lastIdx) { EvalRange::run(&ctx->evaluator, firstIdx, lastIdx); },
@@ -583,7 +583,7 @@ EIGEN_STRONG_INLINE void TensorExecutor<Expression, GpuDevice, Vectorizable, Til
         numext::mini<int64_t>(device.getNumGpuMultiProcessors() * device.maxGpuThreadsPerMultiProcessor(),
                               NumTraits<StorageIndex>::highest()) /
         block_size);
-    const StorageIndex size = array_prod(evaluator.dimensions());
+    const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
     // Create at least one block to ensure we don't crash with tensors of size 0.
     const int num_blocks = numext::maxi<int>(
         numext::mini<int>(max_blocks, static_cast<int>(numext::div_ceil<StorageIndex>(size, block_size))), 1);

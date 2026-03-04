@@ -666,8 +666,8 @@ template <typename InputEvaluator, typename Index, typename InputDims>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 3, InputEvaluator::Layout> indexMapper,
     const float* __restrict kernel, const size_t numPlanes, const size_t numX, const size_t maxX, const size_t numY,
-    const size_t maxY, const size_t numZ, const size_t maxZ, const size_t kernelSizeX, const size_t kernelSizeY,
-    const size_t kernelSizeZ, float* buffer) {
+    const size_t maxY, const size_t numZ, const size_t maxZ, const int kernelSizeX, const int kernelSizeY,
+    const int kernelSizeZ, float* buffer) {
 #if defined(EIGEN_HIPCC)
   HIP_DYNAMIC_SHARED(float, s)
 #else
@@ -675,19 +675,25 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
 #endif
 
   // Load inputs to shared memory
-  const int first_x = blockIdx.x * maxX;
-  const int last_x = (first_x + maxX < numX ? first_x + maxX : numX) - 1;
+  const int first_x = blockIdx.x * static_cast<int>(maxX);
+  const int last_x = (first_x + static_cast<int>(maxX) < static_cast<int>(numX) ? first_x + static_cast<int>(maxX)
+                                                                                : static_cast<int>(numX)) -
+                     1;
   const int num_x_input = last_x - first_x + kernelSizeX;
 
-  const int first_y = blockIdx.y * maxY;
-  const int last_y = (first_y + maxY < numY ? first_y + maxY : numY) - 1;
+  const int first_y = blockIdx.y * static_cast<int>(maxY);
+  const int last_y = (first_y + static_cast<int>(maxY) < static_cast<int>(numY) ? first_y + static_cast<int>(maxY)
+                                                                                : static_cast<int>(numY)) -
+                     1;
   const int num_y_input = last_y - first_y + kernelSizeY;
 
-  const int first_z = blockIdx.z * maxZ;
-  const int last_z = (first_z + maxZ < numZ ? first_z + maxZ : numZ) - 1;
+  const int first_z = blockIdx.z * static_cast<int>(maxZ);
+  const int last_z = (first_z + static_cast<int>(maxZ) < static_cast<int>(numZ) ? first_z + static_cast<int>(maxZ)
+                                                                                : static_cast<int>(numZ)) -
+                     1;
   const int num_z_input = last_z - first_z + kernelSizeZ;
 
-  for (int p = 0; p < numPlanes; ++p) {
+  for (int p = 0; p < static_cast<int>(numPlanes); ++p) {
     const int plane_input_offset = indexMapper.mapGpuInputPlaneToTensorInputOffset(p);
     const int plane_kernel_offset = 0;
 

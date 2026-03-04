@@ -313,7 +313,8 @@ namespace internal {
 // FIXME: Figure out the exact threshold.
 template <typename Index, typename Device, bool BlockAccess>
 struct MemcpyTriggerForSlicing {
-  EIGEN_DEVICE_FUNC MemcpyTriggerForSlicing(const Device& device) : threshold_(2 * device.numThreads()) {}
+  EIGEN_DEVICE_FUNC MemcpyTriggerForSlicing(const Device& device)
+      : threshold_(static_cast<Index>(2 * device.numThreads())) {}
   EIGEN_DEVICE_FUNC bool operator()(Index total, Index contiguous) const {
     const bool prefer_block_evaluation = BlockAccess && total > 32 * 1024;
     return !prefer_block_evaluation && contiguous > threshold_;

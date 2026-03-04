@@ -556,6 +556,11 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernel(Reducer reduce
     }
   }
 #else   // EIGEN_CUDA_ARCH >= 300
+  EIGEN_UNUSED_VARIABLE(reducer);
+  EIGEN_UNUSED_VARIABLE(input);
+  EIGEN_UNUSED_VARIABLE(num_coeffs_to_reduce);
+  EIGEN_UNUSED_VARIABLE(num_preserved_coeffs);
+  EIGEN_UNUSED_VARIABLE(output);
   gpu_assert(0 && "Shouldn't be called on unsupported device");
 #endif  // EIGEN_CUDA_ARCH >= 300
 }
