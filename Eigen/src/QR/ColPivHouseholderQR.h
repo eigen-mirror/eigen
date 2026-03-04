@@ -375,9 +375,10 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
   RealScalar threshold() const {
     eigen_assert(m_isInitialized || m_usePrescribedThreshold);
     return m_usePrescribedThreshold ? m_prescribedThreshold
-                                    // this formula comes from experimenting (see "LU precision tuning" thread on the
-                                    // list) and turns out to be identical to Higham's formula used already in LDLt.
-                                    : NumTraits<Scalar>::epsilon() * RealScalar(m_qr.diagonalSize());
+                                    // Higham's backward error bound for Householder QR (Theorem 19.4) is
+                                    // ||ΔA||₂ ≤ c·min(m,n)·u·||A||₂. The factor of 4 covers the
+                                    // constant c (typically 3–6 worst-case, ~1 probabilistically).
+                                    : NumTraits<Scalar>::epsilon() * RealScalar(4 * m_qr.diagonalSize());
   }
 
   /** \returns the number of nonzero pivots in the QR decomposition.

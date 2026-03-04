@@ -328,6 +328,101 @@ void cod_verify_assert() {
   VERIFY_RAISES_ASSERT(cod.signDeterminant())
 }
 
+// Stress test: verify rank detection on partial isometries (SVs = 0 or 1) across
+// many random trials and various aspect ratios (square, tall, wide).
+// This tests ROBUSTNESS: the threshold must be large enough that roundoff noise
+// in the null-space R diagonal elements does not cause rank overestimation.
+template <typename MatrixType>
+void qr_rank_detection_stress() {
+  // Test a range of matrix sizes and aspect ratios.
+  const Index sizes[][2] = {{10, 10}, {20, 20}, {50, 50}, {100, 100}, {40, 10}, {100, 10}, {10, 40}, {10, 100}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    // Test several rank values: 1, half, and min_dim - 1.
+    for (Index rank : {Index(1), (std::max)(Index(1), min_dim / 2), min_dim - 1}) {
+      if (rank >= min_dim) continue;
+      for (int trial = 0; trial < 20; ++trial) {
+        MatrixType m1;
+        createRandomPIMatrixOfRank(rank, rows, cols, m1);
+        ColPivHouseholderQR<MatrixType> qr(m1);
+        VERIFY_IS_EQUAL(rank, qr.rank());
+      }
+    }
+  }
+}
+
+// Efficiency test: verify the threshold is not so large that it causes false
+// rank deficiency. Creates matrices with smallest singular value well above
+// the backward error bound, and verifies they are detected as full rank.
+template <typename MatrixType>
+void qr_threshold_efficiency() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  const Index sizes[][2] = {{10, 10}, {50, 50}, {100, 100}, {40, 10}, {10, 40}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    // Create a matrix with prescribed singular values: smallest SV = 100 * threshold.
+    // The threshold is 4*min(m,n)*eps, so we set sigma_min = 400*min(m,n)*eps.
+    // This must be detected as full rank.
+    RealScalar sigma_min = RealScalar(400) * RealScalar(min_dim) * NumTraits<RealScalar>::epsilon();
+    RealVectorType svs = setupRangeSvs<RealVectorType>(min_dim, sigma_min, RealScalar(1));
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, rows, cols, m1);
+    ColPivHouseholderQR<MatrixType> qr(m1);
+    // sigma_min is 100x the threshold — must be detected as full rank.
+    VERIFY_IS_EQUAL(min_dim, qr.rank());
+
+    // Also check with FullPivHouseholderQR.
+    FullPivHouseholderQR<MatrixType> fpqr(m1);
+    VERIFY_IS_EQUAL(min_dim, fpqr.rank());
+  }
+}
+
+// Test rank detection on matrices with geometrically distributed singular values
+// and a clear gap at the desired rank. This mimics real-world matrices better
+// than partial isometries and stresses the threshold from both sides.
+template <typename MatrixType>
+void qr_rank_gap_test() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  const Index sizes[][2] = {{20, 20}, {50, 50}, {100, 100}, {50, 20}, {20, 50}};
+  for (const auto& sz : sizes) {
+    const Index rows = sz[0], cols = sz[1];
+    const Index min_dim = (std::min)(rows, cols);
+    const Index rank = (std::max)(Index(1), min_dim / 2);
+
+    // Singular values: [1, ..., sigma_rank] for the "signal" part,
+    // then [eps_level, ..., eps_level] for the "noise" part.
+    // The gap ratio is sigma_rank / eps_level >> 1.
+    RealScalar sigma_rank = RealScalar(0.1);
+    RealScalar eps_level = NumTraits<RealScalar>::epsilon();
+
+    RealVectorType svs(min_dim);
+    // Signal part: geometrically spaced from 1 to sigma_rank.
+    for (Index i = 0; i < rank; ++i) {
+      RealScalar t = (rank > 1) ? RealScalar(i) / RealScalar(rank - 1) : RealScalar(0);
+      svs(i) = std::pow(sigma_rank, t);  // svs(0) = 1, svs(rank-1) = sigma_rank
+    }
+    // Noise part: near machine epsilon (well below any reasonable threshold).
+    for (Index i = rank; i < min_dim; ++i) {
+      svs(i) = eps_level * RealScalar(min_dim - i);
+    }
+
+    MatrixType m1;
+    generateRandomMatrixSvs(svs, rows, cols, m1);
+
+    ColPivHouseholderQR<MatrixType> qr(m1);
+    VERIFY_IS_EQUAL(rank, qr.rank());
+
+    FullPivHouseholderQR<MatrixType> fpqr(m1);
+    VERIFY_IS_EQUAL(rank, fpqr.rank());
+  }
+}
+
 EIGEN_DECLARE_TEST(qr_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(qr<MatrixXf>());
@@ -373,4 +468,12 @@ EIGEN_DECLARE_TEST(qr_colpivoting) {
 
   CALL_SUBTEST_1(qr_kahan_matrix<MatrixXf>());
   CALL_SUBTEST_2(qr_kahan_matrix<MatrixXd>());
+
+  // Stress tests for rank detection threshold robustness and efficiency.
+  CALL_SUBTEST_1(qr_rank_detection_stress<MatrixXf>());
+  CALL_SUBTEST_2(qr_rank_detection_stress<MatrixXd>());
+  CALL_SUBTEST_1(qr_threshold_efficiency<MatrixXf>());
+  CALL_SUBTEST_2(qr_threshold_efficiency<MatrixXd>());
+  CALL_SUBTEST_1(qr_rank_gap_test<MatrixXf>());
+  CALL_SUBTEST_2(qr_rank_gap_test<MatrixXd>());
 }

@@ -321,9 +321,10 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
   RealScalar threshold() const {
     eigen_assert(m_isInitialized || m_usePrescribedThreshold);
     return m_usePrescribedThreshold ? m_prescribedThreshold
-                                    // this formula comes from experimenting (see "LU precision tuning" thread on the
-                                    // list) and turns out to be identical to Higham's formula used already in LDLt.
-                                    : NumTraits<Scalar>::epsilon() * RealScalar(m_lu.diagonalSize());
+                                    // Higham's backward error bound for Gaussian elimination with
+                                    // complete pivoting (Theorem 9.4) is ||ΔA||₂ ≤ c·min(m,n)·u·||A||₂.
+                                    // The factor of 4 covers the constant c.
+                                    : NumTraits<Scalar>::epsilon() * RealScalar(4 * m_lu.diagonalSize());
   }
 
   /** \returns the rank of the matrix of which *this is the LU decomposition.
