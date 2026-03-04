@@ -155,10 +155,9 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
 
   EIGEN_USING_STD(sqrt);
-  RealScalar p, qp;
-  p = numext::maxi(x, y);
+  RealScalar p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
-  qp = numext::mini(y, x) / p;
+  RealScalar qp = numext::mini(y, x) / p;
   return p * sqrt(RealScalar(1) + qp * qp);
 }
 
