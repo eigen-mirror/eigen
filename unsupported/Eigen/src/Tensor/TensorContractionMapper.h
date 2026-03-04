@@ -82,7 +82,7 @@ struct CoeffLoader<Tensor, true, MakePointer_> {
   }
 
  private:
-  typedef typename Tensor::Scalar Scalar;
+  using Scalar = typename Tensor::Scalar;
 
   typename MakePointer_<const Scalar>::Type m_data;
 };
@@ -243,9 +243,8 @@ class BaseTensorContractionMapper
     : public SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
                                            inner_dim_contiguous, Alignment, MakePointer_> {
  public:
-  typedef SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
-                                        inner_dim_contiguous, Alignment, MakePointer_>
-      ParentMapper;
+  using ParentMapper = SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
+                                                     inner_dim_contiguous, Alignment, MakePointer_>;
 
   EIGEN_DEVICE_FUNC BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
                                                 const nocontract_t& ij_strides, const contract_t& contract_strides,
@@ -330,9 +329,8 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
     : public SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, 1,
                                            inner_dim_contiguous, Alignment, MakePointer_> {
  public:
-  typedef SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, 1, inner_dim_contiguous,
-                                        Alignment, MakePointer_>
-      ParentMapper;
+  using ParentMapper = SimpleTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, 1,
+                                                     inner_dim_contiguous, Alignment, MakePointer_>;
 
   EIGEN_DEVICE_FUNC BaseTensorContractionMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
                                                 const nocontract_t& ij_strides, const contract_t& contract_strides,
@@ -358,14 +356,12 @@ template <typename Scalar, typename Index, int side, typename Tensor, typename n
           template <class> class MakePointer_ = MakePointer>
 class TensorContractionSubMapper {
  public:
-  typedef BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
-                                      inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>
-      ParentMapper;
-  typedef TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
-                                     inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>
-      Self;
-  typedef Self LinearMapper;
-  typedef Self SubMapper;
+  using ParentMapper = BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
+                                                   inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>;
+  using Self = TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
+                                          inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>;
+  using LinearMapper = Self;
+  using SubMapper = Self;
 
   enum {
     // We can use direct offsets iff the parent mapper supports then and we can compute the strides.
@@ -485,15 +481,13 @@ class TensorContractionInputMapper
     : public BaseTensorContractionMapper<Scalar_, Index, side, Tensor, nocontract_t, contract_t, packet_size,
                                          inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_> {
  public:
-  typedef Scalar_ Scalar;
-  typedef BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
-                                      inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>
-      Base;
-  typedef TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
-                                     inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>
-      SubMapper;
-  typedef SubMapper VectorMapper;
-  typedef SubMapper LinearMapper;
+  using Scalar = Scalar_;
+  using Base = BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
+                                           inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>;
+  using SubMapper = TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size,
+                                               inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_>;
+  using VectorMapper = SubMapper;
+  using LinearMapper = SubMapper;
 
   EIGEN_DEVICE_FUNC TensorContractionInputMapper(const Tensor& tensor, const nocontract_t& nocontract_strides,
                                                  const nocontract_t& ij_strides, const contract_t& contract_strides,
@@ -526,7 +520,7 @@ template <typename Scalar_, typename Index_, int side_, typename Tensor_, typena
 struct TensorContractionInputMapperTrait<
     TensorContractionInputMapper<Scalar_, Index_, side_, Tensor_, nocontract_t_, contract_t_, packet_size_,
                                  inner_dim_contiguous_, inner_dim_reordered_, Alignment_, MakePointer_> > {
-  typedef Tensor_ XprType;
+  using XprType = Tensor_;
   static const bool inner_dim_contiguous = inner_dim_contiguous_;
   static const bool inner_dim_reordered = inner_dim_reordered_;
 };
