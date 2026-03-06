@@ -1624,6 +1624,22 @@ void packetmath_complex() {
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
   const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
 
+  // Test division by a denominator with equal real and imaginary magnitudes
+  // to ensure pdiv scaling avoids division by zero (e.g. 1.0 - 1.0i).
+  if (PacketTraits::HasDiv) {
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = Scalar(one, zero);
+      RealScalar sign_re = (i & 1) ? -one : one;
+      RealScalar sign_im = (i & 2) ? -one : one;
+      data2[i] = Scalar(sign_re, sign_im);
+    }
+    internal::pstore(pval, internal::pdiv(internal::pload<Packet>(data1), internal::pload<Packet>(data2)));
+    for (int i = 0; i < PacketSize; ++i) {
+      Scalar expected = data1[i] / data2[i];
+      VERIFY_IS_APPROX(pval[i], expected);
+    }
+  }
+
   // Multiplication and Division.
   {
     std::array<RealScalar, 8> special_values = {zero, one, inf, nan, -zero, -one, -inf, -nan};

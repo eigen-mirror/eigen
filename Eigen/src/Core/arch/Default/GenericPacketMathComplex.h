@@ -29,11 +29,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Pa
   // are a pair length-2 SIMD vectors representing a single pair of complex
   // numbers x = a + i*b, y = c + i*d.
   const RealPacket one = pset1<RealPacket>(RealScalar(1));
-  const RealPacket y_flip = pcplxflip(y).v;
-  // We need to avoid dividing by  Inf/Inf, so use a mask to carefully
-  // apply the scale.
-  const RealPacket mask = pcmp_lt(pabs(y.v), pabs(y_flip));  // |c| < |d|
-  const RealPacket y_scaled = pselect(mask, pdiv(y.v, y_flip), one);
+  const RealPacket abs_y = pabs(y.v);
+  const RealPacket abs_y_flip = pcplxflip(Packet(abs_y)).v;
+
+  const RealPacket mask = pcmp_lt(abs_y, abs_y_flip);  // |c| < |d|
+  RealPacket y_scaled = pselect(mask, pdiv(abs_y, abs_y_flip), one);
+  y_scaled = por(y_scaled, pandnot(y.v, abs_y));    // copy signs in case |c| == |d|
   RealPacket denom = pmul(y.v, y_scaled);
   denom = padd(denom, pcplxflip(Packet(denom)).v);  // c * c' + d * d'
   Packet num = pmul(x, pconj(Packet(y_scaled)));    // a * c' + b * d', -a * d + b * c
