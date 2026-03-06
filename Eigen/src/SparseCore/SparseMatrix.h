@@ -1008,7 +1008,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
     const bool overwrite = internal::is_same<Func, internal::assign_op<Scalar, Scalar>>::value;
     if (overwrite) {
-      if ((m_outerSize != n) || (m_innerSize != n)) resize(n, n);
+      if ((m_outerSize != n) || (m_innerSize != n) || (n == 0)) resize(n, n);
     }
 
     if (m_data.size() == 0 || overwrite) {

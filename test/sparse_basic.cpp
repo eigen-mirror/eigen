@@ -871,6 +871,10 @@ void sparse_basic(const SparseMatrixType& ref) {
     m2 -= d.asDiagonal();
     refMat2 -= d.asDiagonal();
     VERIFY_IS_APPROX(m2, refMat2);
+
+    // zero-length diagonal
+    d = DenseVector(0);
+    SparseMatrixType m4(d.asDiagonal());
   }
 
   // test conservative resize
