@@ -70,6 +70,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const Lhs& mat = lhs;
     const auto* vals = mat.valuePtr();
     const auto* inds = mat.innerIndexPtr();
+    // Sparse vectors don't store outer indices.
     const auto* outer = mat.outerIndexPtr();
     const auto* innerNnz = mat.innerNonZeroPtr();
     // The fast rhs pointer path requires unit inner stride (common case: VectorXd, contiguous matrix column).
@@ -80,8 +81,9 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       if (threads > 1 && mat.nonZeros() > 20000) {
 #pragma omp parallel for schedule(dynamic, (n + threads * 4 - 1) / (threads * 4)) num_threads(threads)
         for (Index i = 0; i < n; ++i) {
-          Index k = outer[i];
-          const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
+          Index k = outer ? outer[i] : 0;
+          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
+                                     : (outer ? outer[i + 1] : mat.nonZeros());
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
             sum0 += vals[k] * x[inds[k]];
@@ -96,8 +98,9 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 #endif
       {
         for (Index i = 0; i < n; ++i) {
-          Index k = outer[i];
-          const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
+          Index k = outer ? outer[i] : 0;
+          const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
+                                     : (outer ? outer[i + 1] : mat.nonZeros());
           // Two independent accumulators to break the dependency chain
           ResScalar sum0(0), sum1(0);
           for (; k < end; ++k) {
@@ -126,8 +129,9 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const auto* innerNnz = mat.innerNonZeroPtr();
     // Non-unit rhs stride (or no direct access): use direct pointers for sparse side, coeff() for rhs
     for (Index i = 0; i < n; ++i) {
-      Index k = outer[i];
-      const Index end = innerNnz ? outer[i] + innerNnz[i] : outer[i + 1];
+      Index k = outer ? outer[i] : 0;
+      const Index end = innerNnz ? (outer ? outer[i] : 0) + innerNnz[i]
+                                 : (outer ? outer[i + 1] : mat.nonZeros());
       ResScalar sum0(0), sum1(0);
       for (; k < end; ++k) {
         sum0 += vals[k] * rhs.coeff(inds[k], c);
@@ -191,6 +195,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
+    // Sparse vectors don't store outer indices.
     const auto* outer = mat.outerIndexPtr();
     const auto* innerNnz = mat.innerNonZeroPtr();
     // The fast result pointer path requires contiguous ColMajor result layout.
@@ -200,8 +205,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         typename Res::Scalar* y = res.data() + c * res.outerStride();
         for (Index j = 0; j < lhs.outerSize(); ++j) {
           typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-          const Index start = outer[j];
-          const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
+          const Index start = outer ? outer[j] : 0;
+          const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
           Index k = start;
           // 4-way unrolled scatter-add (no SIMD: writes are scattered)
           for (; k + 3 < end; k += 4) {
@@ -218,8 +223,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       for (Index c = 0; c < rhs.cols(); ++c) {
         for (Index j = 0; j < lhs.outerSize(); ++j) {
           typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-          const Index start = outer[j];
-          const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
+          const Index start = outer ? outer[j] : 0;
+          const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
           for (Index k = start; k < end; ++k) res.coeffRef(inds[k], c) += vals[k] * rhs_j;
         }
       }
@@ -280,9 +285,13 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
-    const Index start = mat.outerIndexPtr()[i];
+    // Sparse vectors don't store outer indices.
+    const Index start = mat.outerIndexPtr() ? mat.outerIndexPtr()[i] : 0;
     const auto* innerNnz = mat.innerNonZeroPtr();
-    const Index end = innerNnz ? start + innerNnz[i] : mat.outerIndexPtr()[i + 1];
+    const Index end = innerNnz
+                          ? start + innerNnz[i]
+                          : (mat.outerIndexPtr() ? mat.outerIndexPtr()[i + 1]
+                                                 : mat.nonZeros());
     typename Res::RowXpr res_i(res.row(i));
     for (Index k = start; k < end; ++k) res_i += (alpha * vals[k]) * rhs.row(inds[k]);
   }
@@ -316,12 +325,13 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
+    // Sparse vectors don't store outer indices.
     const auto* outer = mat.outerIndexPtr();
     const auto* innerNnz = mat.innerNonZeroPtr();
     for (Index j = 0; j < lhs.outerSize(); ++j) {
       typename Rhs::ConstRowXpr rhs_j(rhs.row(j));
-      const Index start = outer[j];
-      const Index end = innerNnz ? outer[j] + innerNnz[j] : outer[j + 1];
+      const Index start = outer ? outer[j] : 0;
+      const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
       for (Index k = start; k < end; ++k) res.row(inds[k]) += (alpha * vals[k]) * rhs_j;
     }
   }

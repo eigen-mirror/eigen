@@ -540,8 +540,20 @@ void test_mixed_storage() {
   test_mixed_storage_imp<ColMajor, ColMajor, ColMajor>();
 }
 
+void test_sparse_vector_dense_product() {
+  SparseVector<double> sv(3);
+  sv.insert(0) = 1.0;
+  sv.insert(2) = 2.0;
+
+  MatrixXd dm = MatrixXd::Random(3, 2);
+  MatrixXd res = sv.transpose() * dm;
+  MatrixXd ref = MatrixXd(sv).transpose() * dm;
+  VERIFY_IS_APPROX(res, ref);
+}
+
 EIGEN_DECLARE_TEST(sparse_product) {
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1((test_sparse_vector_dense_product()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor> >()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor> >()));
     CALL_SUBTEST_1((bug_942<double>()));
