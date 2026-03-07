@@ -347,6 +347,178 @@ void bug_1308() {
   VERIFY_IS_APPROX(r44.noalias() += Vector4d::Ones() * m44.col(0).transpose(), ones44);
 }
 
+// Regression test for issue #3059: GEBP asm register constraints fail
+// for custom (non-vectorizable) scalar types. Type T has a non-trivial
+// destructor (making sizeof(T) > sizeof(double)), while type U is a
+// simple wrapper. Both must compile and produce correct products.
+namespace issue_3059 {
+
+class Ptr {
+ public:
+  ~Ptr() {}
+  double* m_ptr = nullptr;
+};
+
+class T {
+ public:
+  T() = default;
+  T(double v) : m_value(v) {}
+
+  friend T operator*(const T& a, const T& b) { return T(a.m_value * b.m_value); }
+  T& operator*=(const T& o) {
+    m_value *= o.m_value;
+    return *this;
+  }
+  friend T operator/(const T& a, const T& b) { return T(a.m_value / b.m_value); }
+  T& operator/=(const T& o) {
+    m_value /= o.m_value;
+    return *this;
+  }
+  friend T operator+(const T& a, const T& b) { return T(a.m_value + b.m_value); }
+  T& operator+=(const T& o) {
+    m_value += o.m_value;
+    return *this;
+  }
+  friend T operator-(const T& a, const T& b) { return T(a.m_value - b.m_value); }
+  T& operator-=(const T& o) {
+    m_value -= o.m_value;
+    return *this;
+  }
+  friend T operator-(const T& a) { return T(-a.m_value); }
+
+  bool operator==(const T& o) const { return m_value == o.m_value; }
+  bool operator<(const T& o) const { return m_value < o.m_value; }
+  bool operator<=(const T& o) const { return m_value <= o.m_value; }
+  bool operator>(const T& o) const { return m_value > o.m_value; }
+  bool operator>=(const T& o) const { return m_value >= o.m_value; }
+  bool operator!=(const T& o) const { return m_value != o.m_value; }
+
+  double value() const { return m_value; }
+
+ private:
+  double m_value = 0.0;
+  Ptr m_ptr;  // Makes sizeof(T) > sizeof(double)
+};
+
+T sqrt(const T& x) { return T(std::sqrt(x.value())); }
+T abs(const T& x) { return T(std::abs(x.value())); }
+T abs2(const T& x) { return T(x.value() * x.value()); }
+
+class U {
+ public:
+  U() = default;
+  U(double v) : m_value(v) {}
+
+  friend U operator*(const U& a, const U& b) { return U(a.m_value * b.m_value); }
+  U& operator*=(const U& o) {
+    m_value *= o.m_value;
+    return *this;
+  }
+  friend U operator/(const U& a, const U& b) { return U(a.m_value / b.m_value); }
+  U& operator/=(const U& o) {
+    m_value /= o.m_value;
+    return *this;
+  }
+  friend U operator+(const U& a, const U& b) { return U(a.m_value + b.m_value); }
+  U& operator+=(const U& o) {
+    m_value += o.m_value;
+    return *this;
+  }
+  friend U operator-(const U& a, const U& b) { return U(a.m_value - b.m_value); }
+  U& operator-=(const U& o) {
+    m_value -= o.m_value;
+    return *this;
+  }
+  friend U operator-(const U& a) { return U(-a.m_value); }
+
+  bool operator==(const U& o) const { return m_value == o.m_value; }
+  bool operator<(const U& o) const { return m_value < o.m_value; }
+  bool operator<=(const U& o) const { return m_value <= o.m_value; }
+  bool operator>(const U& o) const { return m_value > o.m_value; }
+  bool operator>=(const U& o) const { return m_value >= o.m_value; }
+  bool operator!=(const U& o) const { return m_value != o.m_value; }
+
+  double value() const { return m_value; }
+
+ private:
+  double m_value = 0.0;
+};
+
+U sqrt(const U& x) { return U(std::sqrt(x.value())); }
+U abs(const U& x) { return U(std::abs(x.value())); }
+U abs2(const U& x) { return U(x.value() * x.value()); }
+
+}  // namespace issue_3059
+
+namespace Eigen {
+
+template <>
+struct NumTraits<issue_3059::T> : NumTraits<double> {
+  using Real = issue_3059::T;
+  using NonInteger = issue_3059::T;
+  using Nested = issue_3059::T;
+  enum { IsComplex = 0, RequireInitialization = 1 };
+};
+
+template <>
+struct NumTraits<issue_3059::U> : NumTraits<double> {
+  using Real = issue_3059::U;
+  using NonInteger = issue_3059::U;
+  using Nested = issue_3059::U;
+  enum { IsComplex = 0, RequireInitialization = 0 };
+};
+
+}  // namespace Eigen
+
+template <int>
+void product_custom_scalar_types() {
+  using namespace issue_3059;
+  // Type T: has non-trivial destructor, sizeof(T) > sizeof(double)
+  {
+    Matrix<T, Dynamic, Dynamic> A(4, 4), B(4, 4), C(4, 4);
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) {
+        A(i, j) = T(static_cast<double>(i + 1));
+        B(i, j) = T(static_cast<double>(j + 1));
+      }
+    C.noalias() = A * B;
+    // A*B: C(i,j) = sum_k (i+1)*(k+1) * ... no, A(i,k)=(i+1), B(k,j)=(j+1)
+    // so C(i,j) = sum_k (i+1)*(j+1) = 4*(i+1)*(j+1)
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) VERIFY(C(i, j) == T(4.0 * (i + 1) * (j + 1)));
+  }
+  // Type U: simple wrapper, sizeof(U) == sizeof(double)
+  {
+    Matrix<U, Dynamic, Dynamic> A(4, 4), B(4, 4), C(4, 4);
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) {
+        A(i, j) = U(static_cast<double>(i + 1));
+        B(i, j) = U(static_cast<double>(j + 1));
+      }
+    C.noalias() = A * B;
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) VERIFY(C(i, j) == U(4.0 * (i + 1) * (j + 1)));
+  }
+  // Larger matrices to exercise GEBP blocking.
+  {
+    const int n = 33;
+    Matrix<U, Dynamic, Dynamic> A(n, n), B(n, n), C(n, n);
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) {
+        A(i, j) = U(static_cast<double>((i * 7 + j * 3) % 13));
+        B(i, j) = U(static_cast<double>((i * 5 + j * 11) % 17));
+      }
+    C.noalias() = A * B;
+    // Verify against explicit triple loop.
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) {
+        double sum = 0;
+        for (int k = 0; k < n; ++k) sum += A(i, k).value() * B(k, j).value();
+        VERIFY(C(i, j) == U(sum));
+      }
+  }
+}
+
 EIGEN_DECLARE_TEST(product_extra) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product_extra(
@@ -369,4 +541,5 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_7(compute_block_size<double>());
   CALL_SUBTEST_7(compute_block_size<std::complex<double> >());
   CALL_SUBTEST_8(aliasing_with_resize<void>());
+  CALL_SUBTEST_9(product_custom_scalar_types<0>());
 }
