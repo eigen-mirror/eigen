@@ -209,10 +209,7 @@ void testMatrixType(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
 
-  Scalar s1;
-  do {
-    s1 = internal::random<Scalar>();
-  } while (abs(s1) < RealScalar(1e-5) && (!NumTraits<Scalar>::IsInteger));
+  Scalar s1 = internal::random<Scalar>();
 
   MatrixType A;
   A.setIdentity(rows, cols);

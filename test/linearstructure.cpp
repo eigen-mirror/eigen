@@ -31,7 +31,7 @@ void linearStructure(const MatrixType& m) {
   MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols), m3(rows, cols);
 
   Scalar s1 = internal::random<Scalar>();
-  while (abs(s1) < RealScalar(1e-3)) s1 = internal::random<Scalar>();
+  if (s1 == Scalar(0)) s1 = Scalar(1);
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 

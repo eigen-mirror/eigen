@@ -38,8 +38,8 @@ void basicStuff(const MatrixType& m) {
   VectorType v1 = VectorType::Random(rows), vzero = VectorType::Zero(rows);
   SquareMatrixType sm1 = SquareMatrixType::Random(rows, rows), sm2(rows, rows);
 
-  Scalar x = 0;
-  while (x == Scalar(0)) x = internal::random<Scalar>();
+  Scalar x = internal::random<Scalar>();
+  if (x == Scalar(0)) x = Scalar(1);
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
