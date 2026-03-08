@@ -162,9 +162,8 @@ void transformations() {
 
   // Transform
   // TODO complete the tests !
-  a = 0;
-  while (abs(a) < Scalar(0.1))
-    a = internal::random<Scalar>(-Scalar(0.4) * Scalar(EIGEN_PI), Scalar(0.4) * Scalar(EIGEN_PI));
+  a = internal::random<Scalar>(-Scalar(0.4) * Scalar(EIGEN_PI), Scalar(0.4) * Scalar(EIGEN_PI));
+  if (abs(a) < Scalar(0.1)) a = Scalar(0.1);
   q1 = AngleAxisx(a, v0.normalized());
   Transform3 t0, t1, t2;
 

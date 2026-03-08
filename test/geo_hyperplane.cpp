@@ -96,9 +96,9 @@ void lines() {
     Vector u = Vector::Random();
     Vector v = Vector::Random();
     Scalar a = internal::random<Scalar>();
-    while (abs(a - 1) < Scalar(1e-4)) a = internal::random<Scalar>();
-    while (u.norm() < Scalar(1e-4)) u = Vector::Random();
-    while (v.norm() < Scalar(1e-4)) v = Vector::Random();
+    if (abs(a - 1) < Scalar(1e-4)) a = Scalar(0);
+    if (u.norm() < Scalar(1e-4)) u = Vector::Unit(0);
+    if (v.norm() < Scalar(1e-4)) v = Vector::Unit(1);
 
     HLine line_u = HLine::Through(center + u, center + a * u);
     HLine line_v = HLine::Through(center + v, center + a * v);

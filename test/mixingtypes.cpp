@@ -77,10 +77,10 @@ void mixingtypes(int size = SizeAtCompileType) {
   float epsf = std::sqrt(std::numeric_limits<float>::min EIGEN_EMPTY());
   double epsd = std::sqrt(std::numeric_limits<double>::min EIGEN_EMPTY());
 
-  while (std::abs(sf) < epsf) sf = internal::random<float>();
-  while (std::abs(sd) < epsd) sd = internal::random<double>();
-  while (std::abs(scf) < epsf) scf = internal::random<CF>();
-  while (std::abs(scd) < epsd) scd = internal::random<CD>();
+  if (std::abs(sf) < epsf) sf = 1.0f;
+  if (std::abs(sd) < epsd) sd = 1.0;
+  if (std::abs(scf) < epsf) scf = CF(1);
+  if (std::abs(scd) < epsd) scd = CD(1);
 
   // check scalar products
   VERIFY_MIX_SCALAR(vcf * sf, vcf * complex<float>(sf));
