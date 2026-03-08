@@ -35,35 +35,35 @@ void linearStructure(const MatrixType& m) {
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
-  VERIFY_IS_APPROX(-(-m1), m1);
-  VERIFY_IS_APPROX(m1 + m1, 2 * m1);
+  VERIFY_IS_EQUAL(-(-m1), m1);
+  VERIFY_IS_EQUAL(m1 + m1, 2 * m1);
   VERIFY_IS_APPROX(m1 + m2 - m1, m2);
   VERIFY_IS_APPROX(-m2 + m1 + m2, m1);
-  VERIFY_IS_APPROX(m1 * s1, s1 * m1);
+  VERIFY_IS_EQUAL(m1 * s1, s1 * m1);
   VERIFY_IS_APPROX((m1 + m2) * s1, s1 * m1 + s1 * m2);
   VERIFY_IS_APPROX((-m1 + m2) * s1, -s1 * m1 + s1 * m2);
   m3 = m2;
   m3 += m1;
-  VERIFY_IS_APPROX(m3, m1 + m2);
+  VERIFY_IS_EQUAL(m3, m1 + m2);
   m3 = m2;
   m3 -= m1;
-  VERIFY_IS_APPROX(m3, m2 - m1);
+  VERIFY_IS_EQUAL(m3, m2 - m1);
   m3 = m2;
   m3 *= s1;
-  VERIFY_IS_APPROX(m3, s1 * m2);
+  VERIFY_IS_EQUAL(m3, s1 * m2);
   if (!NumTraits<Scalar>::IsInteger) {
     m3 = m2;
     m3 /= s1;
-    VERIFY_IS_APPROX(m3, m2 / s1);
+    VERIFY_IS_EQUAL(m3, m2 / s1);
   }
 
   // again, test operator() to check const-qualification
-  VERIFY_IS_APPROX((-m1)(r, c), -(m1(r, c)));
-  VERIFY_IS_APPROX((m1 - m2)(r, c), (m1(r, c)) - (m2(r, c)));
-  VERIFY_IS_APPROX((m1 + m2)(r, c), (m1(r, c)) + (m2(r, c)));
-  VERIFY_IS_APPROX((s1 * m1)(r, c), s1 * (m1(r, c)));
-  VERIFY_IS_APPROX((m1 * s1)(r, c), (m1(r, c)) * s1);
-  if (!NumTraits<Scalar>::IsInteger) VERIFY_IS_APPROX((m1 / s1)(r, c), (m1(r, c)) / s1);
+  VERIFY_IS_EQUAL((-m1)(r, c), -(m1(r, c)));
+  VERIFY_IS_EQUAL((m1 - m2)(r, c), (m1(r, c)) - (m2(r, c)));
+  VERIFY_IS_EQUAL((m1 + m2)(r, c), (m1(r, c)) + (m2(r, c)));
+  VERIFY_IS_EQUAL((s1 * m1)(r, c), s1 * (m1(r, c)));
+  VERIFY_IS_EQUAL((m1 * s1)(r, c), (m1(r, c)) * s1);
+  if (!NumTraits<Scalar>::IsInteger) VERIFY_IS_EQUAL((m1 / s1)(r, c), (m1(r, c)) / s1);
 
   // use .block to disable vectorization and compare to the vectorized version
   VERIFY_IS_APPROX(m1 + m1.block(0, 0, rows, cols), m1 + m1);

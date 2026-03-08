@@ -219,9 +219,9 @@ void testMatrixType(const MatrixType& m) {
   A = MatrixType::Constant(rows, cols, s1);
   Index i = internal::random<Index>(0, rows - 1);
   Index j = internal::random<Index>(0, cols - 1);
-  VERIFY_IS_APPROX(MatrixType::Constant(rows, cols, s1)(i, j), s1);
-  VERIFY_IS_APPROX(MatrixType::Constant(rows, cols, s1).coeff(i, j), s1);
-  VERIFY_IS_APPROX(A(i, j), s1);
+  VERIFY_IS_EQUAL(MatrixType::Constant(rows, cols, s1)(i, j), s1);
+  VERIFY_IS_EQUAL(MatrixType::Constant(rows, cols, s1).coeff(i, j), s1);
+  VERIFY_IS_EQUAL(A(i, j), s1);
 }
 
 template <int>

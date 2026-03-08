@@ -27,10 +27,8 @@ void determinant(const MatrixType& m) {
   VERIFY_IS_APPROX((m1 * m2).eval().determinant(), m1.determinant() * m2.determinant());
   if (size == 1) return;
   Index i = internal::random<Index>(0, size - 1);
-  Index j;
-  do {
-    j = internal::random<Index>(0, size - 1);
-  } while (j == i);
+  Index j = internal::random<Index>(0, size - 2);
+  if (j >= i) ++j;
   m2 = m1;
   m2.row(i).swap(m2.row(j));
   VERIFY_IS_APPROX(m2.determinant(), -m1.determinant());

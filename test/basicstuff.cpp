@@ -44,15 +44,15 @@ void basicStuff(const MatrixType& m) {
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
   m1.coeffRef(r, c) = x;
-  VERIFY_IS_APPROX(x, m1.coeff(r, c));
+  VERIFY_IS_EQUAL(x, m1.coeff(r, c));
   m1(r, c) = x;
-  VERIFY_IS_APPROX(x, m1(r, c));
+  VERIFY_IS_EQUAL(x, m1(r, c));
   v1.coeffRef(r) = x;
-  VERIFY_IS_APPROX(x, v1.coeff(r));
+  VERIFY_IS_EQUAL(x, v1.coeff(r));
   v1(r) = x;
-  VERIFY_IS_APPROX(x, v1(r));
+  VERIFY_IS_EQUAL(x, v1(r));
   v1[r] = x;
-  VERIFY_IS_APPROX(x, v1[r]);
+  VERIFY_IS_EQUAL(x, v1[r]);
 
   // test fetching with various index types.
   Index r1 = internal::random<Index>(0, numext::mini(Index(127), rows - 1));
@@ -68,13 +68,13 @@ void basicStuff(const MatrixType& m) {
   if (sizeof(Index) >= sizeof(long long int)) x = v1(static_cast<long long int>(r1));
   if (sizeof(Index) >= sizeof(unsigned long long int)) x = v1(static_cast<unsigned long long int>(r1));
 
-  VERIFY_IS_APPROX(v1, v1);
+  VERIFY_IS_EQUAL(v1, v1);
   VERIFY_IS_NOT_APPROX(v1, 2 * v1);
   VERIFY_IS_MUCH_SMALLER_THAN(vzero, v1);
   VERIFY_IS_MUCH_SMALLER_THAN(vzero, v1.squaredNorm());
   VERIFY_IS_NOT_MUCH_SMALLER_THAN(v1, v1);
   VERIFY_IS_APPROX(vzero, v1 - v1);
-  VERIFY_IS_APPROX(m1, m1);
+  VERIFY_IS_EQUAL(m1, m1);
   VERIFY_IS_NOT_APPROX(m1, 2 * m1);
   VERIFY_IS_MUCH_SMALLER_THAN(mzero, m1);
   VERIFY_IS_NOT_MUCH_SMALLER_THAN(m1, m1);
@@ -95,7 +95,7 @@ void basicStuff(const MatrixType& m) {
   rv = square.row(r);
   cv = square.col(r);
 
-  VERIFY_IS_APPROX(rv, cv.transpose());
+  VERIFY_IS_EQUAL(rv, cv.transpose());
 
   if (cols != 1 && rows != 1 && MatrixType::SizeAtCompileTime != Dynamic) {
     VERIFY_RAISES_ASSERT(m1 = (m2.block(0, 0, rows - 1, cols - 1)));
@@ -105,13 +105,13 @@ void basicStuff(const MatrixType& m) {
     check_index(m1);
   }
 
-  VERIFY_IS_APPROX(m3 = m1, m1);
+  VERIFY_IS_EQUAL(m3 = m1, m1);
   MatrixType m4;
-  VERIFY_IS_APPROX(m4 = m1, m1);
+  VERIFY_IS_EQUAL(m4 = m1, m1);
 
   m3.real() = m1.real();
-  VERIFY_IS_APPROX(static_cast<const MatrixType&>(m3).real(), static_cast<const MatrixType&>(m1).real());
-  VERIFY_IS_APPROX(static_cast<const MatrixType&>(m3).real(), m1.real());
+  VERIFY_IS_EQUAL(static_cast<const MatrixType&>(m3).real(), static_cast<const MatrixType&>(m1).real());
+  VERIFY_IS_EQUAL(static_cast<const MatrixType&>(m3).real(), m1.real());
 
   // check == / != operators
   VERIFY(m1 == m1);
@@ -125,38 +125,38 @@ void basicStuff(const MatrixType& m) {
   // check automatic transposition
   sm2.setZero();
   for (Index i = 0; i < rows; ++i) sm2.col(i) = sm1.row(i);
-  VERIFY_IS_APPROX(sm2, sm1.transpose());
+  VERIFY_IS_EQUAL(sm2, sm1.transpose());
 
   sm2.setZero();
   for (Index i = 0; i < rows; ++i) sm2.col(i).noalias() = sm1.row(i);
-  VERIFY_IS_APPROX(sm2, sm1.transpose());
+  VERIFY_IS_EQUAL(sm2, sm1.transpose());
 
   sm2.setZero();
   for (Index i = 0; i < rows; ++i) sm2.col(i).noalias() += sm1.row(i);
-  VERIFY_IS_APPROX(sm2, sm1.transpose());
+  VERIFY_IS_EQUAL(sm2, sm1.transpose());
 
   sm2.setZero();
   for (Index i = 0; i < rows; ++i) sm2.col(i).noalias() -= sm1.row(i);
-  VERIFY_IS_APPROX(sm2, -sm1.transpose());
+  VERIFY_IS_EQUAL(sm2, -sm1.transpose());
 
   // check ternary usage
   {
     bool b = internal::random<int>(0, 10) > 5;
     m3 = b ? m1 : m2;
     if (b)
-      VERIFY_IS_APPROX(m3, m1);
+      VERIFY_IS_EQUAL(m3, m1);
     else
-      VERIFY_IS_APPROX(m3, m2);
+      VERIFY_IS_EQUAL(m3, m2);
     m3 = b ? -m1 : m2;
     if (b)
-      VERIFY_IS_APPROX(m3, -m1);
+      VERIFY_IS_EQUAL(m3, -m1);
     else
-      VERIFY_IS_APPROX(m3, m2);
+      VERIFY_IS_EQUAL(m3, m2);
     m3 = b ? m1 : -m2;
     if (b)
-      VERIFY_IS_APPROX(m3, m1);
+      VERIFY_IS_EQUAL(m3, m1);
     else
-      VERIFY_IS_APPROX(m3, -m2);
+      VERIFY_IS_EQUAL(m3, -m2);
   }
 }
 

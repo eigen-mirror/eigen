@@ -28,10 +28,8 @@ void jacobi(const MatrixType& m = MatrixType()) {
 
   {
     Index p = internal::random<Index>(0, rows - 1);
-    Index q;
-    do {
-      q = internal::random<Index>(0, rows - 1);
-    } while (q == p);
+    Index q = internal::random<Index>(0, rows - 2);
+    if (q >= p) ++q;
 
     MatrixType b = a;
     b.applyOnTheLeft(p, q, rot);
@@ -41,10 +39,8 @@ void jacobi(const MatrixType& m = MatrixType()) {
 
   {
     Index p = internal::random<Index>(0, cols - 1);
-    Index q;
-    do {
-      q = internal::random<Index>(0, cols - 1);
-    } while (q == p);
+    Index q = internal::random<Index>(0, cols - 2);
+    if (q >= p) ++q;
 
     MatrixType b = a;
     b.applyOnTheRight(p, q, rot);
