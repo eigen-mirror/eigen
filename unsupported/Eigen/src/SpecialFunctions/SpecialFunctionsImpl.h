@@ -1165,7 +1165,13 @@ struct igamma_generic_impl {
       }
     }
 
-    return igamma_series_impl<Scalar, mode>::run(a, x);
+    Scalar ret = igamma_series_impl<Scalar, mode>::run(a, x);
+    if (mode == VALUE) {
+      // Clamp to [0,1] since accumulated series terms can slightly exceed 1.0
+      // due to floating-point rounding for extreme arguments.
+      return numext::mini(one, numext::maxi(zero, ret));
+    }
+    return ret;
   }
 };
 

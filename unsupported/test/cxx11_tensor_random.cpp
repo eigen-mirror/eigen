@@ -18,8 +18,19 @@ static void test_default() {
 
   // Fixme: we should check that the generated numbers follow a uniform
   // distribution instead.
-  for (int i = 1; i < 6; ++i) {
-    VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+  // For low-precision types (half, bfloat16), the RNG has limited distinct
+  // values (e.g. 128 for bfloat16), so adjacent collisions are statistically
+  // inevitable. Only verify that not all values are identical.
+  if (sizeof(Scalar) <= 2) {
+    bool has_distinct = false;
+    for (int i = 1; i < 6 && !has_distinct; ++i) {
+      if (vec(i) != vec(i - 1)) has_distinct = true;
+    }
+    VERIFY(has_distinct);
+  } else {
+    for (int i = 1; i < 6; ++i) {
+      VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+    }
   }
 }
 
@@ -30,8 +41,16 @@ static void test_normal() {
 
   // Fixme: we should check that the generated numbers follow a gaussian
   // distribution instead.
-  for (int i = 1; i < 6; ++i) {
-    VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+  if (sizeof(Scalar) <= 2) {
+    bool has_distinct = false;
+    for (int i = 1; i < 6 && !has_distinct; ++i) {
+      if (vec(i) != vec(i - 1)) has_distinct = true;
+    }
+    VERIFY(has_distinct);
+  } else {
+    for (int i = 1; i < 6; ++i) {
+      VERIFY_IS_NOT_EQUAL(vec(i), vec(i - 1));
+    }
   }
 }
 
