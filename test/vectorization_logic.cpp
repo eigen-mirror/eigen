@@ -212,9 +212,8 @@ struct vectorization_logic {
 
       VERIFY(test_assign(Matrix3(), Matrix3().cwiseProduct(Matrix3()), LinearVectorizedTraversal, CompleteUnrolling));
 
-      // Vectorization depends on too many factors - ignore.
-      VERIFY(
-          test_assign(Matrix<Scalar, 17, 17>(), Matrix<Scalar, 17, 17>() + Matrix<Scalar, 17, 17>(), -1, NoUnrolling));
+      // Vectorization and unrolling depend on too many factors (packet size, etc.) - ignore both.
+      VERIFY(test_assign(Matrix<Scalar, 17, 17>(), Matrix<Scalar, 17, 17>() + Matrix<Scalar, 17, 17>(), -1, -1));
 
       VERIFY(test_assign(Matrix11(), Matrix11() + Matrix11(), InnerVectorizedTraversal, CompleteUnrolling));
 
