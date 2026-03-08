@@ -384,7 +384,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   const Packet cst_nan = pset1<Packet>(NumTraits<Scalar>::quiet_NaN());
 
   const Packet x_abs = pabs(x);
-  Packet pow = generic_pow_impl(x_abs, y);
+  Packet result = generic_pow_impl(x_abs, y);
 
   // In the following we enforce the special case handling prescribed in
   // https://en.cppreference.com/w/cpp/numeric/math/pow.
@@ -415,7 +415,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
 
   // *  pow(base, exp) returns NaN if base is finite and negative
   //    and exp is finite and non-integer.
-  pow = pselect(pandnot(x_is_negative, y_is_int), cst_nan, pow);
+  result = pselect(pandnot(x_is_negative, y_is_int), cst_nan, result);
 
   // * pow(±0, exp), where exp is negative, finite, and is an even integer or
   // a non-integer, returns +∞
@@ -426,11 +426,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   // * pow(+0, exp), where exp is a positive odd integer, returns +0
   // * pow(-0, exp), where exp is a positive odd integer, returns -0
   // Sign is flipped by the rule below.
-  pow = pselect(x_is_zero, pselect(y_is_negative, cst_inf, cst_zero), pow);
+  result = pselect(x_is_zero, pselect(y_is_negative, cst_inf, cst_zero), result);
 
   // pow(base, exp) returns -pow(abs(base), exp) if base has the sign bit set,
   // and exp is an odd integer exponent.
-  pow = pselect(pand(x_has_signbit, y_is_odd_int), pnegate(pow), pow);
+  result = pselect(pand(x_has_signbit, y_is_odd_int), pnegate(result), result);
 
   // * pow(base, -∞) returns +∞ for any |base|<1
   // * pow(base, -∞) returns +0 for any |base|>1
@@ -438,9 +438,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   // * pow(base, +∞) returns +∞ for any |base|>1
   // * pow(±0, -∞) returns +∞
   // * pow(-1, +-∞) = 1
-  Packet inf_y_val = pselect(por(pand(y_is_negative, x_is_zero), pxor(y_is_negative, x_abs_gt_one)), cst_inf, cst_zero);
+  Packet inf_y_val = pselect(pxor(y_is_negative, x_abs_gt_one), cst_inf, cst_zero);
   inf_y_val = pselect(pcmp_eq(x, pset1<Packet>(Scalar(-1.0))), cst_one, inf_y_val);
-  pow = pselect(y_abs_is_huge, inf_y_val, pow);
+  result = pselect(y_abs_is_huge, inf_y_val, result);
 
   // * pow(+∞, exp) returns +0 for any negative exp
   // * pow(+∞, exp) returns +∞ for any positive exp
@@ -452,17 +452,17 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   //     even integer.
   auto x_pos_inf_value = pselect(y_is_negative, cst_zero, cst_inf);
   auto x_neg_inf_value = pselect(y_is_odd_int, pnegate(x_pos_inf_value), x_pos_inf_value);
-  pow = pselect(x_abs_is_inf, pselect(x_is_negative, x_neg_inf_value, x_pos_inf_value), pow);
+  result = pselect(x_abs_is_inf, pselect(x_is_negative, x_neg_inf_value, x_pos_inf_value), result);
 
   // All cases of NaN inputs return NaN, except the two below.
-  pow = pselect(por(pisnan(x), pisnan(y)), cst_nan, pow);
+  result = pselect(por(pisnan(x), pisnan(y)), cst_nan, result);
 
   // * pow(base, 1) returns base.
   // * pow(base, +/-0) returns 1, regardless of base, even NaN.
   // * pow(+1, exp) returns 1, regardless of exponent, even NaN.
-  pow = pselect(y_is_one, x, pselect(por(x_is_one, y_is_zero), cst_one, pow));
+  result = pselect(y_is_one, x, pselect(por(x_is_one, y_is_zero), cst_one, result));
 
-  return pow;
+  return result;
 }
 
 template <typename Scalar>
@@ -555,7 +555,8 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<!is_scalar<Packet>::value, Packet> gen_pow(
     const Packet& x, const typename unpacket_traits<Packet>::type& exponent) {
   const Packet exponent_packet = pset1<Packet>(exponent);
-  return generic_pow_impl(x, exponent_packet);
+  // generic_pow_impl requires positive x; sign/error handling is done by the caller.
+  return generic_pow_impl(pabs(x), exponent_packet);
 }
 
 template <typename Scalar>
@@ -564,47 +565,60 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<is_scalar<Scalar>::value,
   return numext::pow(x, exponent);
 }
 
+// Handle special cases for pow(x, exponent) where both base and exponent are
+// floating point and the exponent is a non-integer scalar (uniform across all
+// SIMD lanes). This allows us to use scalar branches on exponent properties.
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const Packet& x, const Packet& powx,
                                                                          const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;
-
-  // non-integer base and exponent case
-  const Packet cst_pos_zero = pzero(x);
-  const Packet cst_pos_one = pset1<Packet>(Scalar(1));
-  const Packet cst_pos_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
-  const Packet cst_true = ptrue<Packet>(x);
-
-  const bool exponent_is_not_fin = !(numext::isfinite)(exponent);
-  const bool exponent_is_neg = exponent < ScalarExponent(0);
-  const bool exponent_is_pos = exponent > ScalarExponent(0);
-
-  const Packet exp_is_not_fin = exponent_is_not_fin ? cst_true : cst_pos_zero;
-  const Packet exp_is_neg = exponent_is_neg ? cst_true : cst_pos_zero;
-  const Packet exp_is_pos = exponent_is_pos ? cst_true : cst_pos_zero;
-  const Packet exp_is_inf = pand(exp_is_not_fin, por(exp_is_neg, exp_is_pos));
-  const Packet exp_is_nan = pandnot(exp_is_not_fin, por(exp_is_neg, exp_is_pos));
-
-  const Packet x_is_le_zero = pcmp_le(x, cst_pos_zero);
-  const Packet x_is_ge_zero = pcmp_le(cst_pos_zero, x);
-  const Packet x_is_zero = pand(x_is_le_zero, x_is_ge_zero);
+  const Packet cst_zero = pzero(x);
+  const Packet cst_one = pset1<Packet>(Scalar(1));
+  const Packet cst_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
+  const Packet cst_nan = pset1<Packet>(NumTraits<Scalar>::quiet_NaN());
 
   const Packet abs_x = pabs(x);
-  const Packet abs_x_is_le_one = pcmp_le(abs_x, cst_pos_one);
-  const Packet abs_x_is_ge_one = pcmp_le(cst_pos_one, abs_x);
-  const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_pos_inf);
-  const Packet abs_x_is_one = pand(abs_x_is_le_one, abs_x_is_ge_one);
 
-  Packet pow_is_inf_if_exp_is_neg = por(x_is_zero, pand(abs_x_is_le_one, exp_is_inf));
-  Packet pow_is_inf_if_exp_is_pos = por(abs_x_is_inf, pand(abs_x_is_ge_one, exp_is_inf));
-  Packet pow_is_one = pand(abs_x_is_one, por(exp_is_inf, x_is_ge_zero));
+  // x < 0 with non-integer exponent -> NaN.
+  Packet result = pselect(pcmp_lt(x, cst_zero), cst_nan, powx);
 
-  Packet result = powx;
-  result = por(x_is_le_zero, result);
-  result = pselect(pow_is_inf_if_exp_is_neg, pand(cst_pos_inf, exp_is_neg), result);
-  result = pselect(pow_is_inf_if_exp_is_pos, pand(cst_pos_inf, exp_is_pos), result);
-  result = por(exp_is_nan, result);
-  result = pselect(pow_is_one, cst_pos_one, result);
+  if (!(numext::isfinite)(exponent)) {
+    if (exponent != exponent) {
+      // pow(x, NaN) = NaN, except pow(+1, NaN) = 1.
+      result = pselect(pcmp_eq(x, cst_one), cst_one, cst_nan);
+    } else {
+      // Exponent is +inf or -inf.
+      const Packet abs_x_is_one = pcmp_eq(abs_x, cst_one);
+      if (exponent > ScalarExponent(0)) {
+        // pow(x, +inf): |x| > 1 -> +inf, |x| < 1 -> 0, |x| == 1 -> 1.
+        result = pselect(pcmp_lt(cst_one, abs_x), cst_inf, cst_zero);
+      } else {
+        // pow(x, -inf): |x| < 1 -> +inf, |x| > 1 -> 0, |x| == 1 -> 1.
+        result = pselect(pcmp_lt(abs_x, cst_one), cst_inf, cst_zero);
+      }
+      // pow(+-1, +-inf) = 1.
+      result = pselect(abs_x_is_one, cst_one, result);
+    }
+  } else {
+    // Finite non-integer exponent.
+    const Packet x_is_zero = pcmp_eq(x, cst_zero);
+    const Packet abs_x_is_inf = pcmp_eq(abs_x, cst_inf);
+    if (exponent < ScalarExponent(0)) {
+      // pow(+-0, negative non-integer) = +inf. pow(+-inf, negative) = +0.
+      result = pselect(x_is_zero, cst_inf, result);
+      result = pselect(abs_x_is_inf, cst_zero, result);
+    } else {
+      // pow(+-0, positive non-integer) = +0. pow(+-inf, positive) = +inf.
+      result = pselect(x_is_zero, cst_zero, result);
+      result = pselect(abs_x_is_inf, cst_inf, result);
+    }
+  }
+
+  // NaN base produces NaN. This overrides all cases above, but pow(NaN, 0) = 1
+  // and pow(NaN, integer) are handled by the integer exponent path and never
+  // reach this function.
+  result = pselect(pisnan(x), cst_nan, result);
+
   return result;
 }
 
