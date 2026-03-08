@@ -1221,7 +1221,17 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   const Scalar norm_max = (std::numeric_limits<Scalar>::max)();
   const Scalar inf = (std::numeric_limits<Scalar>::infinity)();
   const Scalar nan = (std::numeric_limits<Scalar>::quiet_NaN)();
-  std::vector<Scalar> values{norm_min, Scalar(0), Scalar(1), norm_max, inf, nan};
+  std::vector<Scalar> values{Scalar(0), Scalar(1), norm_max, inf, nan};
+  // On ARM, NEON flush-to-zero mode can flush intermediate subnormal results to zero,
+  // causing functions like sin(norm_min) to return 0 instead of norm_min. Skip norm_min
+  // in that case, along with truly subnormal values.
+  if (!SkipDenorms) {
+    values.push_back(norm_min);
+    if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+      values.push_back(std::numeric_limits<Scalar>::denorm_min());
+      values.push_back(norm_min / Scalar(2));
+    }
+  }
 
   constexpr int size = PacketSize * 2;
   EIGEN_ALIGN_MAX Scalar data1[size];
@@ -1229,11 +1239,6 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   EIGEN_ALIGN_MAX Scalar ref[size];
   for (int i = 0; i < size; ++i) {
     data1[i] = data2[i] = ref[i] = Scalar(0);
-  }
-
-  if (Cond && !SkipDenorms && std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
-    values.push_back(std::numeric_limits<Scalar>::denorm_min());
-    values.push_back(norm_min / Scalar(2));
   }
 
   for (Scalar abs_value : values) {

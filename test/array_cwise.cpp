@@ -1006,21 +1006,10 @@ void array_complex(const ArrayType& m) {
 
   std::complex<RealScalar> zero(0.0, 0.0);
   VERIFY((Eigen::isnan)(m1 * zero / zero).all());
-#if EIGEN_COMP_MSVC
-  // msvc complex division is not robust
-  VERIFY((Eigen::isinf)(m4 / RealScalar(0)).all());
-#else
-#if EIGEN_COMP_CLANG
-  // clang's complex division is notoriously broken too
-  if ((numext::isinf)(m4(0, 0) / RealScalar(0))) {
-#endif
-    VERIFY((Eigen::isinf)(m4 / zero).all());
-#if EIGEN_COMP_CLANG
-  } else {
-    VERIFY((Eigen::isinf)(m4.real() / zero.real()).all());
-  }
-#endif
-#endif  // MSVC
+  // Complex division by zero may produce inf or NaN depending on the std::complex
+  // implementation (algebraic formula gives 0/0=NaN for some components). Only require
+  // the result to be non-finite.
+  VERIFY((!(Eigen::isfinite)(m4 / zero)).all());
 
   VERIFY(((Eigen::isfinite)(m1) && (!(Eigen::isfinite)(m1 * zero / zero)) && (!(Eigen::isfinite)(m1 / zero))).all());
 
