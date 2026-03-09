@@ -13,6 +13,7 @@
 #include <Eigen/Geometry>
 
 #include <Eigen/LU>   // required for MatrixBase::determinant
+#include <Eigen/QR>   // required for HouseholderQR
 #include <Eigen/SVD>  // required for SVD
 
 using namespace Eigen;
@@ -23,43 +24,9 @@ Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixUnitary(int size) {
   typedef T Scalar;
   typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixType;
 
-  MatrixType Q;
-
-  int max_tries = 40;
-  bool is_unitary = false;
-
-  while (!is_unitary && max_tries > 0) {
-    // initialize random matrix
-    Q = MatrixType::Random(size, size);
-
-    // orthogonalize columns using the Gram-Schmidt algorithm
-    for (int col = 0; col < size; ++col) {
-      typename MatrixType::ColXpr colVec = Q.col(col);
-      for (int prevCol = 0; prevCol < col; ++prevCol) {
-        typename MatrixType::ColXpr prevColVec = Q.col(prevCol);
-        colVec -= colVec.dot(prevColVec) * prevColVec;
-      }
-      Q.col(col) = colVec.normalized();
-    }
-
-    // this additional orthogonalization is not necessary in theory but should enhance
-    // the numerical orthogonality of the matrix
-    for (int row = 0; row < size; ++row) {
-      typename MatrixType::RowXpr rowVec = Q.row(row);
-      for (int prevRow = 0; prevRow < row; ++prevRow) {
-        typename MatrixType::RowXpr prevRowVec = Q.row(prevRow);
-        rowVec -= rowVec.dot(prevRowVec) * prevRowVec;
-      }
-      Q.row(row) = rowVec.normalized();
-    }
-
-    // final check
-    is_unitary = Q.isUnitary();
-    --max_tries;
-  }
-
-  if (max_tries == 0) eigen_assert(false && "randMatrixUnitary: Could not construct unitary matrix!");
-
+  // The Q factor of the QR decomposition of a random matrix is a random unitary matrix.
+  // HouseholderQR is numerically stable and always succeeds, unlike Gram-Schmidt.
+  MatrixType Q = MatrixType::Random(size, size).householderQr().householderQ();
   return Q;
 }
 

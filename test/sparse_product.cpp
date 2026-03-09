@@ -301,9 +301,11 @@ void sparse_product() {
     SparseMatrixType mS(rows, rows);
     SparseMatrixType mA(rows, rows);
     initSparse<Scalar>(density, refA, mA);
-    do {
-      initSparse<Scalar>(density, refUp, mUp, ForceRealDiag | /*ForceNonZeroDiag|*/ MakeUpperTriangular);
-    } while (refUp.isZero());
+    initSparse<Scalar>(density, refUp, mUp, ForceRealDiag | /*ForceNonZeroDiag|*/ MakeUpperTriangular);
+    if (refUp.isZero()) {
+      refUp(0, 0) = Scalar(1);
+      mUp.coeffRef(0, 0) = Scalar(1);
+    }
     refLo = refUp.adjoint();
     mLo = mUp.adjoint();
     refS = refUp + refLo;
