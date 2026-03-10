@@ -652,17 +652,20 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   const Index n2 = rows - 1;
 
   Index i = 0;
-  for (; i < n8; i += 8)
+  for (; i < n8; i += 8) {
     process_rows_small_cols<8>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
-  if (i < n4) {
+  }
+  // Process remaining groups of 4 rows in case n8 was 0.
+  for (; i < n4; i += 4) {
     process_rows_small_cols<4>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
-    i += 4;
   }
   if (i < n2) {
     process_rows_small_cols<2>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
     i += 2;
   }
-  if (i < rows) process_rows_small_cols<1>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
+  if (i < rows) {
+    process_rows_small_cols<1>(i, cols, lhs, rhs, res, resIncr, alpha, halfColBlockEnd, quarterColBlockEnd);
+  }
 }
 
 }  // end namespace internal

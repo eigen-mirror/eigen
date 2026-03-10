@@ -130,6 +130,28 @@ void bug_gemv_rowmajor_large_stride() {
   }
 }
 
+// Regression test for row-major GEMV run_small_cols bug.
+// When cols is small (e.g., 2), and loop variables (like n8) are 0 due
+// to row or stride limits, the remainder loops previously used `if` checks
+// like `if (i < n4)`. This incorrectly skips rows if multiple remainder
+// blocks are needed (e.g., 9 rows).
+template <int>
+void bug_gemv_run_small_cols() {
+  const int rows = 9;       // > 8, covers 8-row loop step but tests remainder cleanup
+  const int cols = 2;       // triggers run_small_cols (cols < PacketSize)
+  const int stride = 5000;  // 5000 * sizeof(double) > 32000, forces n8 = 0
+
+  Matrix<double, Dynamic, Dynamic, RowMajor> A_full(rows, stride);
+  A_full.setRandom();
+  auto A = A_full.leftCols(cols);
+
+  VectorXd x = VectorXd::Random(cols);
+  VectorXd y = A * x;
+  VectorXd y_ref = A.eval() * x;  // No stride.
+
+  VERIFY_IS_APPROX(y, y_ref);
+}
+
 template <int>
 void bug_1622() {
   typedef Matrix<double, 2, -1, 0, 2, -1> Mat2X;
@@ -175,6 +197,7 @@ EIGEN_DECLARE_TEST(product_large) {
 
   CALL_SUBTEST_6(product_large_regressions<0>());
   CALL_SUBTEST_6(bug_gemv_rowmajor_large_stride<0>());
+  CALL_SUBTEST_6(bug_gemv_run_small_cols<0>());
 
   // Regression test for bug 714:
 #if defined EIGEN_HAS_OPENMP
