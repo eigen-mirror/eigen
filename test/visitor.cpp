@@ -239,7 +239,7 @@ namespace internal {
 
 template <typename T, bool Vectorizable>
 struct functor_traits<TrackedVisitor<T, Vectorizable>> {
-  enum { PacketAccess = Vectorizable, LinearAccess = false, Cost = 1 };
+  enum { PacketAccess = Vectorizable, Cost = 1 };
 };
 
 }  // namespace internal
