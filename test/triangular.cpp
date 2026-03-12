@@ -258,6 +258,71 @@ void triangular_rect(const MatrixType& m) {
   VERIFY_IS_APPROX(m2, m3);
 }
 
+// Test triangular solve and product at sizes that exercise GEBP blocking.
+// The standard test caps at maxsize=20, which never triggers the blocked code paths
+// in TriangularSolverMatrix.h (requires size >= 48 with EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS).
+template <int>
+void triangular_at_blocking_boundaries() {
+  typedef double Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  const int sizes[] = {47, 48, 49, 64, 96, 128};
+  for (int si = 0; si < 6; ++si) {
+    int n = sizes[si];
+    Mat m1 = Mat::Random(n, n);
+    // Make well-conditioned: dominant diagonal
+    for (int i = 0; i < n; ++i) m1(i, i) += Scalar(n);
+
+    Vec v = Vec::Random(n);
+    Mat rhs = Mat::Random(n, 5);
+
+    // Upper triangular solve with vector
+    Mat U = m1.triangularView<Upper>();
+    Vec x = m1.triangularView<Upper>().solve(v);
+    VERIFY_IS_APPROX(U * x, v);
+
+    // Lower triangular solve with vector
+    Mat L = m1.triangularView<Lower>();
+    x = m1.triangularView<Lower>().solve(v);
+    VERIFY_IS_APPROX(L * x, v);
+
+    // Upper triangular solve with matrix rhs
+    Mat X = m1.triangularView<Upper>().solve(rhs);
+    VERIFY_IS_APPROX(U * X, rhs);
+
+    // Lower triangular solve with matrix rhs
+    X = m1.triangularView<Lower>().solve(rhs);
+    VERIFY_IS_APPROX(L * X, rhs);
+
+    // Triangular product
+    Mat prod = m1.triangularView<Upper>() * rhs;
+    VERIFY_IS_APPROX(prod, U * rhs);
+    prod = rhs.transpose() * m1.triangularView<Upper>();
+    VERIFY_IS_APPROX(prod, rhs.transpose() * U);
+  }
+
+  // Also test with float and RowMajor
+  {
+    typedef Matrix<float, Dynamic, Dynamic, RowMajor> RMat;
+    typedef Matrix<float, Dynamic, 1> FVec;
+    for (int si = 0; si < 6; ++si) {
+      int n = sizes[si];
+      RMat m1 = RMat::Random(n, n);
+      for (int i = 0; i < n; ++i) m1(i, i) += float(n);
+
+      FVec v = FVec::Random(n);
+      RMat U = m1.triangularView<Upper>();
+      FVec x = m1.triangularView<Upper>().solve(v);
+      VERIFY_IS_APPROX(U * x, v);
+
+      RMat L = m1.triangularView<Lower>();
+      x = m1.triangularView<Lower>().solve(v);
+      VERIFY_IS_APPROX(L * x, v);
+    }
+  }
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().triangularView<Lower>();
   EIGEN_UNUSED_VARIABLE(m)
@@ -289,4 +354,7 @@ EIGEN_DECLARE_TEST(triangular) {
   }
 
   CALL_SUBTEST_1(bug_159());
+
+  // Triangular solve/product at blocking boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_11(triangular_at_blocking_boundaries<0>());
 }
