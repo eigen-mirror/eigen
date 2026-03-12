@@ -152,6 +152,47 @@ void vectorRedux(const VectorType& w) {
   VERIFY_RAISES_ASSERT(v.head(0).maxCoeff());
 }
 
+void boolRedux(Index rows, Index cols) {
+  // Test boolean reductions: all(), any(), count()
+  typedef Array<bool, Dynamic, Dynamic> BoolArray;
+
+  // All-true
+  BoolArray all_true = BoolArray::Constant(rows, cols, true);
+  VERIFY(all_true.all());
+  VERIFY(all_true.any());
+  VERIFY_IS_EQUAL(all_true.count(), rows * cols);
+
+  // All-false
+  BoolArray all_false = BoolArray::Constant(rows, cols, false);
+  if (rows > 0 && cols > 0) {
+    VERIFY(!all_false.all());
+    VERIFY(!all_false.any());
+  }
+  VERIFY_IS_EQUAL(all_false.count(), Index(0));
+
+  // Mixed: set a checkerboard pattern
+  BoolArray mixed(rows, cols);
+  Index expected_count = 0;
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      mixed(i, j) = ((i + j) % 2 == 0);
+      if (mixed(i, j)) expected_count++;
+    }
+  VERIFY_IS_EQUAL(mixed.count(), expected_count);
+  if (rows > 0 && cols > 0) {
+    VERIFY(mixed.any());
+    VERIFY(mixed.all() == (expected_count == rows * cols));
+  }
+
+  // Partial reductions
+  if (rows > 0 && cols > 0) {
+    auto col_counts = mixed.colwise().count();
+    for (Index k = 0; k < cols; ++k) VERIFY_IS_EQUAL(col_counts(k), mixed.col(k).count());
+    auto row_counts = mixed.rowwise().count();
+    for (Index k = 0; k < rows; ++k) VERIFY_IS_EQUAL(row_counts(k), mixed.row(k).count());
+  }
+}
+
 EIGEN_DECLARE_TEST(redux) {
   // the max size cannot be too large, otherwise reduxion operations obviously generate large errors.
   int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
@@ -202,4 +243,9 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_10(vectorRedux(VectorX<int64_t>(size)));
     CALL_SUBTEST_10(vectorRedux(ArrayX<int64_t>(size)));
   }
+  // Bool reductions (deterministic, outside g_repeat)
+  CALL_SUBTEST_11(boolRedux(1, 1));
+  CALL_SUBTEST_11(boolRedux(4, 4));
+  CALL_SUBTEST_11(boolRedux(7, 13));
+  CALL_SUBTEST_11(boolRedux(63, 63));
 }

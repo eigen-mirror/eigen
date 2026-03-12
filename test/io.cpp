@@ -48,7 +48,7 @@ static void check_ostream() {
   check_ostream_impl<Scalar>::run();
 }
 
-EIGEN_DECLARE_TEST(rand) {
+EIGEN_DECLARE_TEST(io) {
   CALL_SUBTEST(check_ostream<bool>());
   CALL_SUBTEST(check_ostream<float>());
   CALL_SUBTEST(check_ostream<double>());
