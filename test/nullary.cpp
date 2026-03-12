@@ -207,7 +207,6 @@ void testMatrixType(const MatrixType& m) {
   const Index rows = m.rows();
   const Index cols = m.cols();
   typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
 
   Scalar s1 = internal::random<Scalar>();
 

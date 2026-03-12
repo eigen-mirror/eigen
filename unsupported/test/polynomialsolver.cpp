@@ -115,7 +115,7 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
 
     for (size_t i = 0; i < calc_realRoots.size(); ++i) {
       bool found = false;
-      for (size_t j = 0; j < real_roots.size() && !found; ++j) {
+      for (Index j = 0; j < real_roots.size() && !found; ++j) {
         if (internal::isApprox(calc_realRoots[i], real_roots[j], psPrec)) {
           found = true;
         }

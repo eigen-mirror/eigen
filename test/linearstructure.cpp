@@ -21,7 +21,6 @@ void linearStructure(const MatrixType& m) {
      CwiseUnaryOp.h, CwiseBinaryOp.h, SelfCwiseBinaryOp.h
   */
   typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
