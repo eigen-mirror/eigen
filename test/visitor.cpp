@@ -315,6 +315,56 @@ void checkOptimalTraversal() {
   VERIFY(j == 0);
 }
 
+// Test minCoeff/maxCoeff at vectorization boundary sizes.
+// Visitor uses LinearVectorizedTraversal with packet-based min/max,
+// so we test at sizes around packet multiples.
+template <typename Scalar>
+void visitor_vec_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {1, 2, 3, PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1};
+  for (int si = 0; si < 11; ++si) {
+    const Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    Vec v = Vec::Random(n);
+    // Ensure all elements are distinct.
+    for (Index i = 0; i < n; ++i)
+      for (Index j = 0; j < i; ++j)
+        while (numext::equal_strict(v(i), v(j))) v(i) = internal::random<Scalar>();
+    // Reference
+    Scalar ref_min = v(0), ref_max = v(0);
+    Index ref_minidx = 0, ref_maxidx = 0;
+    for (Index k = 0; k < n; ++k) {
+      if (v(k) < ref_min) {
+        ref_min = v(k);
+        ref_minidx = k;
+      }
+      if (v(k) > ref_max) {
+        ref_max = v(k);
+        ref_maxidx = k;
+      }
+    }
+    Index eigen_minidx, eigen_maxidx;
+    VERIFY_IS_APPROX(v.minCoeff(&eigen_minidx), ref_min);
+    VERIFY_IS_APPROX(v.maxCoeff(&eigen_maxidx), ref_max);
+    VERIFY(eigen_minidx == ref_minidx);
+    VERIFY(eigen_maxidx == ref_maxidx);
+
+    // Also test matrix form at this size (exercises different inner/outer sizes).
+    if (n >= 2) {
+      typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+      // Test as n×1 and 1×n (different inner sizes for visitor traversal).
+      Mat mc = v;
+      Mat mr = v.transpose();
+      Index ri, ci;
+      VERIFY_IS_APPROX(mc.minCoeff(&ri, &ci), ref_min);
+      VERIFY(ri == ref_minidx && ci == 0);
+      VERIFY_IS_APPROX(mr.minCoeff(&ri, &ci), ref_min);
+      VERIFY(ri == 0 && ci == ref_minidx);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(visitor) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(matrixVisitor(Matrix<float, 1, 1>()));
@@ -332,4 +382,9 @@ EIGEN_DECLARE_TEST(visitor) {
     CALL_SUBTEST_10(vectorVisitor(VectorXf(33)));
   }
   CALL_SUBTEST_11(checkOptimalTraversal());
+
+  // Vectorization boundary sizes — deterministic, run once.
+  CALL_SUBTEST_12(visitor_vec_boundary<float>());
+  CALL_SUBTEST_12(visitor_vec_boundary<double>());
+  CALL_SUBTEST_12(visitor_vec_boundary<int>());
 }
