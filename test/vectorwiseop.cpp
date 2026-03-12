@@ -321,6 +321,58 @@ void vectorwiseop_mixedscalar() {
   VERIFY_IS_CWISE_EQUAL(c, d);
 }
 
+// Test partial reductions on RowMajor matrices.
+// The existing tests only use ColMajor matrices.
+template <typename Scalar>
+void vectorwiseop_rowmajor() {
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMajorMatrix;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<RealScalar, 1, Dynamic> RealRowVectorType;
+  typedef Matrix<RealScalar, Dynamic, 1> RealColVectorType;
+
+  const Index rows = 7;
+  const Index cols = 11;
+  ColMajorMatrix mc = ColMajorMatrix::Random(rows, cols);
+  RowMajorMatrix mr = mc;  // same data, different storage
+
+  // Partial reductions should give the same result regardless of storage order.
+  VERIFY_IS_APPROX(mc.colwise().sum(), mr.colwise().sum());
+  VERIFY_IS_APPROX(mc.rowwise().sum(), mr.rowwise().sum());
+  VERIFY_IS_APPROX(mc.colwise().prod(), mr.colwise().prod());
+  VERIFY_IS_APPROX(mc.rowwise().prod(), mr.rowwise().prod());
+  VERIFY_IS_APPROX(mc.colwise().squaredNorm(), mr.colwise().squaredNorm());
+  VERIFY_IS_APPROX(mc.rowwise().squaredNorm(), mr.rowwise().squaredNorm());
+  VERIFY_IS_APPROX(mc.colwise().norm(), mr.colwise().norm());
+  VERIFY_IS_APPROX(mc.rowwise().norm(), mr.rowwise().norm());
+
+  RealRowVectorType rr_c, rr_r;
+  RealColVectorType rc_c, rc_r;
+  rr_c = mc.real().colwise().minCoeff();
+  rr_r = mr.real().colwise().minCoeff();
+  VERIFY_IS_APPROX(rr_c, rr_r);
+  rr_c = mc.real().colwise().maxCoeff();
+  rr_r = mr.real().colwise().maxCoeff();
+  VERIFY_IS_APPROX(rr_c, rr_r);
+  rc_c = mc.real().rowwise().minCoeff();
+  rc_r = mr.real().rowwise().minCoeff();
+  VERIFY_IS_APPROX(rc_c, rc_r);
+  rc_c = mc.real().rowwise().maxCoeff();
+  rc_r = mr.real().rowwise().maxCoeff();
+  VERIFY_IS_APPROX(rc_c, rc_r);
+
+  // Broadcast operations
+  typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
+  typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
+  ColVectorType cv = ColVectorType::Random(rows);
+  RowVectorType rv = RowVectorType::Random(cols);
+
+  VERIFY_IS_APPROX(ColMajorMatrix(mc.colwise() + cv), ColMajorMatrix(mr.colwise() + cv));
+  VERIFY_IS_APPROX(ColMajorMatrix(mc.rowwise() + rv), ColMajorMatrix(mr.rowwise() + rv));
+  VERIFY_IS_APPROX(ColMajorMatrix(mc.colwise() - cv), ColMajorMatrix(mr.colwise() - cv));
+  VERIFY_IS_APPROX(ColMajorMatrix(mc.rowwise() - rv), ColMajorMatrix(mr.rowwise() - rv));
+}
+
 EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_1(vectorwiseop_array(Array22cd()));
   CALL_SUBTEST_2(vectorwiseop_array(Array<double, 3, 2>()));
@@ -336,4 +388,9 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_8(vectorwiseop_mixedscalar());
   CALL_SUBTEST_9(vectorwiseop_array_integer(
       ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+
+  // RowMajor partial reductions (deterministic, outside g_repeat).
+  CALL_SUBTEST_10(vectorwiseop_rowmajor<float>());
+  CALL_SUBTEST_10(vectorwiseop_rowmajor<double>());
+  CALL_SUBTEST_10(vectorwiseop_rowmajor<std::complex<float>>());
 }

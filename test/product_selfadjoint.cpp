@@ -63,6 +63,70 @@ void product_selfadjoint(const MatrixType& m) {
   VERIFY_IS_APPROX(m1 * m4, m2.template selfadjointView<Lower>() * m4);
 }
 
+// Test selfadjoint products at blocking boundary sizes.
+// The existing test uses random sizes; this tests deterministic sizes
+// at transitions (especially around the GEBP early-return threshold of 48).
+template <int>
+void product_selfadjoint_boundary() {
+  typedef double Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  const int sizes[] = {1, 2, 3, 4, 8, 16, 47, 48, 49, 64, 96, 128};
+  for (int si = 0; si < 12; ++si) {
+    int n = sizes[si];
+    Mat m1 = Mat::Random(n, n);
+    m1 = (m1 + m1.transpose()).eval();  // make symmetric
+
+    Vec v1 = Vec::Random(n);
+    Mat rhs = Mat::Random(n, 5);
+
+    // Lower selfadjointView * vector
+    Mat m2 = m1.triangularView<Lower>();
+    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * v1, m1 * v1);
+
+    // Upper selfadjointView * vector
+    m2 = m1.triangularView<Upper>();
+    VERIFY_IS_APPROX(m2.selfadjointView<Upper>() * v1, m1 * v1);
+
+    // selfadjointView * matrix
+    m2 = m1.triangularView<Lower>();
+    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * rhs, m1 * rhs);
+
+    // rankUpdate
+    Vec v2 = Vec::Random(n);
+    m2 = m1.triangularView<Lower>();
+    m2.selfadjointView<Lower>().rankUpdate(v1, v2);
+    VERIFY_IS_APPROX(m2, (m1 + v1 * v2.transpose() + v2 * v1.transpose()).triangularView<Lower>().toDenseMatrix());
+  }
+}
+
+// Same test for complex type (tests conjugation logic).
+template <int>
+void product_selfadjoint_boundary_complex() {
+  typedef std::complex<float> Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  const int sizes[] = {1, 8, 47, 48, 49, 64};
+  for (int si = 0; si < 6; ++si) {
+    int n = sizes[si];
+    Mat m1 = Mat::Random(n, n);
+    m1 = (m1 + m1.adjoint()).eval();                               // make Hermitian
+    m1.diagonal() = m1.diagonal().real().template cast<Scalar>();  // real diagonal
+
+    Vec v1 = Vec::Random(n);
+    Mat rhs = Mat::Random(n, 3);
+
+    Mat m2 = m1.triangularView<Lower>();
+    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * v1, m1 * v1);
+    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * rhs, m1 * rhs);
+
+    m2 = m1.triangularView<Upper>();
+    VERIFY_IS_APPROX(m2.selfadjointView<Upper>() * v1, m1 * v1);
+  }
+}
+
 EIGEN_DECLARE_TEST(product_selfadjoint) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -86,4 +150,8 @@ EIGEN_DECLARE_TEST(product_selfadjoint) {
     CALL_SUBTEST_7(product_selfadjoint(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s)
   }
+
+  // Deterministic blocking boundary tests (outside g_repeat).
+  CALL_SUBTEST_8(product_selfadjoint_boundary<0>());
+  CALL_SUBTEST_9(product_selfadjoint_boundary_complex<0>());
 }
