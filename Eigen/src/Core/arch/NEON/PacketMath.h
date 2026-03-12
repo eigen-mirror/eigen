@@ -3988,8 +3988,16 @@ EIGEN_STRONG_INLINE uint64_t predux_max<Packet2ul>(const Packet2ul& a) {
 
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
-  uint32x2_t tmp = vorr_u32(vget_low_u32(vreinterpretq_u32_f32(x)), vget_high_u32(vreinterpretq_u32_f32(x)));
-  return vget_lane_u32(vpmax_u32(tmp, tmp), 0);
+  uint32x4_t u = vreinterpretq_u32_f32(x);
+#if EIGEN_ARCH_ARM64
+  return vget_lane_u64(vreinterpret_u64_u16(vmovn_u32(u)), 0);
+#else
+  uint32x2_t tmp = vorr_u32(vget_low_u32(u), vget_high_u32(u));
+  uint32_t a, b;
+  // GCC and Clang refuse to emit this instruction.
+  asm("vmov %0, %1, %P2" : "=r"(a), "=r"(b) : "w"(tmp));
+  return a | b;
+#endif
 }
 
 // Helpers for ptranspose.
