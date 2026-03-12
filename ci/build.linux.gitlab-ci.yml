@@ -339,6 +339,15 @@ build:linux:cross:x86-64:clang-12:default:smoketest:
   tags:
     - saas-linux-medium-amd64
 
+build:linux:aarch64:gcc-10:default:smoketest:
+  extends: build:linux:cross:aarch64:gcc-10:default
+  variables:
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-medium-arm64
+
 ######## Sanitizer Smoke Tests #################################################
 
 build:linux:cross:x86-64:clang-12:sanitizer:smoketest:
