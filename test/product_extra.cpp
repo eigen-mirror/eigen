@@ -252,6 +252,7 @@ EIGEN_DONT_INLINE Index test_compute_block_size(Index m, Index n, Index k) {
 template <typename T>
 Index compute_block_size() {
   Index ret = 0;
+  // Zero-sized inputs: verify they compile and don't crash.
   ret += test_compute_block_size<T>(0, 1, 1);
   ret += test_compute_block_size<T>(1, 0, 1);
   ret += test_compute_block_size<T>(1, 1, 0);
@@ -259,7 +260,56 @@ Index compute_block_size() {
   ret += test_compute_block_size<T>(0, 1, 0);
   ret += test_compute_block_size<T>(1, 0, 0);
   ret += test_compute_block_size<T>(0, 0, 0);
+
+  // Sanity checks: blocking sizes must be positive and not exceed the original.
+  {
+    Index m = 200, n = 200, k = 200;
+    Index mc = m, nc = n, kc = k;
+    internal::computeProductBlockingSizes<T, T>(kc, mc, nc);
+    VERIFY(kc > 0 && kc <= k);
+    VERIFY(mc > 0 && mc <= m);
+    VERIFY(nc > 0 && nc <= n);
+  }
+  // With EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS (l1=9KB, l2=32KB, l3=512KB),
+  // large sizes must be actually blocked (not returned as-is).
+  {
+    Index m = 500, n = 500, k = 500;
+    Index mc = m, nc = n, kc = k;
+    internal::computeProductBlockingSizes<T, T>(kc, mc, nc);
+    VERIFY(kc < k);
+  }
+
   return ret;
+}
+
+// Verify correctness of GEMM at sizes that require multiple blocking passes
+// under EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS (l1=9KB, l2=32KB, l3=512KB).
+// The blocking early-return threshold is max(k,m,n) < 48, so sizes >= 48
+// trigger actual multi-pass blocking with these tiny cache sizes.
+// Verifies GEMM against column-by-column GEMV (a different code path).
+template <int>
+void test_small_block_correctness() {
+  const int sizes[] = {48, 64, 96, 128, 200};
+  for (int si = 0; si < 5; ++si) {
+    int n = sizes[si];
+    MatrixXd A = MatrixXd::Random(n, n);
+    MatrixXd B = MatrixXd::Random(n, n);
+    MatrixXd C(n, n);
+    C.noalias() = A * B;
+    MatrixXd Cref(n, n);
+    for (int j = 0; j < n; ++j) Cref.col(j) = A * B.col(j);
+    VERIFY_IS_APPROX(C, Cref);
+  }
+  // Non-square: exercise different blocking in m, n, k dimensions.
+  {
+    MatrixXd A = MatrixXd::Random(200, 64);
+    MatrixXd B = MatrixXd::Random(64, 300);
+    MatrixXd C(200, 300);
+    C.noalias() = A * B;
+    MatrixXd Cref(200, 300);
+    for (int j = 0; j < 300; ++j) Cref.col(j) = A * B.col(j);
+    VERIFY_IS_APPROX(C, Cref);
+  }
 }
 
 template <typename>
@@ -542,4 +592,5 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_7(compute_block_size<std::complex<double> >());
   CALL_SUBTEST_8(aliasing_with_resize<void>());
   CALL_SUBTEST_9(product_custom_scalar_types<0>());
+  CALL_SUBTEST_10(test_small_block_correctness<0>());
 }

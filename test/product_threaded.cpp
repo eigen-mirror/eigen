@@ -24,6 +24,54 @@ void test_parallelize_gemm() {
   c_threaded.noalias() = a * b;
 
   VERIFY_IS_APPROX(c, c_threaded);
+  Eigen::setGemmThreadPool(nullptr);
 }
 
-EIGEN_DECLARE_TEST(product_threaded) { CALL_SUBTEST(test_parallelize_gemm()); }
+void test_parallelize_gemm_varied() {
+  constexpr int num_threads = 4;
+  ThreadPool pool(num_threads);
+
+  // Non-square float
+  {
+    MatrixXf a = MatrixXf::Random(512, 2048);
+    MatrixXf b = MatrixXf::Random(2048, 256);
+    MatrixXf c_serial(512, 256);
+    c_serial.noalias() = a * b;
+    Eigen::setGemmThreadPool(&pool);
+    MatrixXf c_threaded(512, 256);
+    c_threaded.noalias() = a * b;
+    Eigen::setGemmThreadPool(nullptr);
+    VERIFY_IS_APPROX(c_serial, c_threaded);
+  }
+
+  // Double
+  {
+    MatrixXd a = MatrixXd::Random(512, 512);
+    MatrixXd b = MatrixXd::Random(512, 512);
+    MatrixXd c_serial(512, 512);
+    c_serial.noalias() = a * b;
+    Eigen::setGemmThreadPool(&pool);
+    MatrixXd c_threaded(512, 512);
+    c_threaded.noalias() = a * b;
+    Eigen::setGemmThreadPool(nullptr);
+    VERIFY_IS_APPROX(c_serial, c_threaded);
+  }
+
+  // Complex double
+  {
+    MatrixXcd a = MatrixXcd::Random(256, 256);
+    MatrixXcd b = MatrixXcd::Random(256, 256);
+    MatrixXcd c_serial(256, 256);
+    c_serial.noalias() = a * b;
+    Eigen::setGemmThreadPool(&pool);
+    MatrixXcd c_threaded(256, 256);
+    c_threaded.noalias() = a * b;
+    Eigen::setGemmThreadPool(nullptr);
+    VERIFY_IS_APPROX(c_serial, c_threaded);
+  }
+}
+
+EIGEN_DECLARE_TEST(product_threaded) {
+  CALL_SUBTEST_1(test_parallelize_gemm());
+  CALL_SUBTEST_2(test_parallelize_gemm_varied());
+}
