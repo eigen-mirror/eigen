@@ -977,6 +977,10 @@ class aligned_allocator {
 
 //---------- Cache sizes ----------
 
+#if EIGEN_OS_MAC
+#include <sys/sysctl.h>
+#endif
+
 #if !defined(EIGEN_NO_CPUID)
 #if EIGEN_COMP_GNUC && EIGEN_ARCH_i386_OR_x86_64
 #if defined(__PIC__) && EIGEN_ARCH_i386
@@ -1305,6 +1309,37 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
     //   ||cpuid_is_vendor(abcd,"SiS SiS SiS ")
     //   ||cpuid_is_vendor(abcd,"UMC UMC UMC ")
     //   ||cpuid_is_vendor(abcd,"NexGenDriven")
+#elif EIGEN_OS_MAC
+  // On macOS (including Apple Silicon), use sysctlbyname to query cache sizes.
+  // The sysctl values are 64-bit, so read into int64_t and convert.
+  // For L1, prefer P-core (perflevel0) size since compute-heavy work like GEMM
+  // is typically scheduled on performance cores. L1 is per-core so always safe.
+  // For L2, use the generic hw.l2cachesize which is more conservative (reports
+  // the smaller E-core cluster L2 on heterogeneous chips). The P-core L2 is
+  // shared among all P-cores and would overestimate per-core capacity.
+  {
+    int64_t val = 0;
+    std::size_t val_size = sizeof(val);
+    l1 = -1;
+    val_size = sizeof(val);
+    if (sysctlbyname("hw.perflevel0.l1dcachesize", &val, &val_size, NULL, 0) == 0 && val > 0)
+      l1 = static_cast<int>(val);
+    else {
+      val_size = sizeof(val);
+      if (sysctlbyname("hw.l1dcachesize", &val, &val_size, NULL, 0) == 0) l1 = static_cast<int>(val);
+    }
+    l2 = -1;
+    val_size = sizeof(val);
+    if (sysctlbyname("hw.l2cachesize", &val, &val_size, NULL, 0) == 0) l2 = static_cast<int>(val);
+    l3 = -1;
+    val_size = sizeof(val);
+    if (sysctlbyname("hw.l3cachesize", &val, &val_size, NULL, 0) == 0 && val > 0) l3 = static_cast<int>(val);
+  }
+#elif defined(_SC_LEVEL1_DCACHE_SIZE)
+  // On Linux and other POSIX systems, use sysconf to query cache sizes.
+  l1 = sysconf(_SC_LEVEL1_DCACHE_SIZE);
+  l2 = sysconf(_SC_LEVEL2_CACHE_SIZE);
+  l3 = sysconf(_SC_LEVEL3_CACHE_SIZE);
 #else
   l1 = l2 = l3 = -1;
 #endif

@@ -35,7 +35,7 @@ static void BM_EigenGemm(benchmark::State& state) {
 }
 
 static void GemmSizes(::benchmark::Benchmark* b) {
-  for (int size : {8, 16, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 384, 448, 512, 768, 1024, 1536, 2048}) {
+  for (int size : {8, 16, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 384, 448, 512, 768, 1024, 1536, 2048, 4096}) {
     b->Args({size, size, size});
   }
   // Non-square sizes

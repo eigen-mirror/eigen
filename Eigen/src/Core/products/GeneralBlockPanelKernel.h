@@ -57,6 +57,10 @@ const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(8 * 10
 const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
 const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(4 * 1024 * 1024);
 #endif
+#elif EIGEN_ARCH_ARM_OR_ARM64
+const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(64 * 1024);
+const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(1024 * 1024);
+const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(4 * 1024 * 1024);
 #else
 const std::ptrdiff_t defaultL1CacheSize = EIGEN_SET_DEFAULT_L1_CACHE_SIZE(16 * 1024);
 const std::ptrdiff_t defaultL2CacheSize = EIGEN_SET_DEFAULT_L2_CACHE_SIZE(512 * 1024);
@@ -260,8 +264,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       // L1 blocking
       max_nc = remaining_l1 / (k * sizeof(RhsScalar));
     } else {
-      // L2 blocking
-      max_nc = (3 * actual_l2) / (2 * 2 * max_kc * sizeof(RhsScalar));
+      // L2 blocking: use actual kc (k) rather than max_kc so that nc is not
+      // unnecessarily squeezed when k < max_kc (e.g. on CPUs with large L1).
+      max_nc = (3 * actual_l2) / (2 * 2 * k * sizeof(RhsScalar));
     }
     // WARNING Below, we assume that Traits::nr is a power of two.
     Index nc = numext::mini<Index>(actual_l2 / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
