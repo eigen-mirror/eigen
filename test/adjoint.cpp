@@ -249,6 +249,45 @@ void inner_product_boundary_sizes() {
   }
 }
 
+// Test transposeInPlace at vectorization boundary sizes.
+// BlockedInPlaceTranspose uses PacketSize-blocked loops with a scalar remainder (line 273),
+// exercising off-by-one-prone transitions.
+template <typename Scalar>
+void transposeInPlace_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  // Sizes around packet boundaries where the blocked path's remainder handling is exercised.
+  const Index sizes[] = {1,      2,          3,      PS - 1,     PS,     PS + 1,    2 * PS - 1,
+                         2 * PS, 2 * PS + 1, 3 * PS, 3 * PS + 1, 4 * PS, 4 * PS + 1};
+  for (int si = 0; si < 13; ++si) {
+    Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+    // Square transposeInPlace
+    Mat m1 = Mat::Random(n, n);
+    Mat m2 = m1;
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, m1.transpose());
+    // Double transpose should return to original
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, m1);
+  }
+
+  // Non-square transposeInPlace (resizable dynamic matrices)
+  const Index rect_sizes[][2] = {{2, 5}, {PS, 2 * PS + 1}, {3, 1}, {1, 7}, {2 * PS, PS + 1}};
+  for (int si = 0; si < 5; ++si) {
+    Index r = rect_sizes[si][0], c = rect_sizes[si][1];
+    if (r <= 0 || c <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+    Mat m1 = Mat::Random(r, c);
+    Mat expected = m1.transpose();
+    Mat m2 = m1;
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, expected);
+    VERIFY(m2.rows() == c && m2.cols() == r);
+  }
+}
+
 EIGEN_DECLARE_TEST(adjoint) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(adjoint(Matrix<float, 1, 1>()));
@@ -281,4 +320,9 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_15(inner_product_boundary_sizes<double>());
   CALL_SUBTEST_16(inner_product_boundary_sizes<std::complex<float>>());
   CALL_SUBTEST_17(inner_product_boundary_sizes<std::complex<double>>());
+
+  // transposeInPlace at vectorization boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_18(transposeInPlace_boundary<float>());
+  CALL_SUBTEST_18(transposeInPlace_boundary<double>());
+  CALL_SUBTEST_18(transposeInPlace_boundary<std::complex<float>>());
 }

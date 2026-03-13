@@ -312,6 +312,19 @@ EIGEN_DECLARE_TEST(redux) {
   CALL_SUBTEST_11(boolRedux(7, 13));
   CALL_SUBTEST_11(boolRedux(63, 63));
 
+  // Bool reductions at vectorization boundary sizes.
+  // all()/any()/count() use packet-level visitors with remainder handling.
+  {
+    // bool packets are typically 16 bytes (SSE) or 32 bytes (AVX).
+    // Test sizes around common packet sizes to catch off-by-one in remainder loops.
+    const Index bsizes[] = {1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129};
+    for (int si = 0; si < 18; ++si) {
+      CALL_SUBTEST_11(boolRedux(bsizes[si], 1));  // column vector
+      CALL_SUBTEST_11(boolRedux(1, bsizes[si]));  // row vector
+      CALL_SUBTEST_11(boolRedux(bsizes[si], 3));  // thin matrix
+    }
+  }
+
   // Vectorization boundary sizes — deterministic, run once.
   // Integer types are excluded: full-range random ints overflow in sum/prod (UB).
   // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.

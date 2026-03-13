@@ -178,6 +178,47 @@ void bug1684() {
   // VERIFY_IS_APPROX(m2, m1.rowwise().reverse().eval());
 }
 
+// Test reverseInPlace at vectorization boundary sizes.
+// Vectorized swap used by reverseInPlace has remainder handling
+// that could fail at packet boundaries.
+template <typename Scalar>
+void reverseInPlace_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {1,      2,          3,      PS - 1,     PS,     PS + 1,    2 * PS - 1,
+                         2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1, 8 * PS, 8 * PS + 1};
+  for (int si = 0; si < 13; ++si) {
+    Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+    // Vector reverseInPlace
+    Vec v1 = Vec::Random(n);
+    Vec v2 = v1;
+    v2.reverseInPlace();
+    for (Index k = 0; k < n; ++k) VERIFY_IS_APPROX(v2(k), v1(n - 1 - k));
+
+    // Matrix reverseInPlace (full)
+    Mat m1 = Mat::Random(n, n);
+    Mat m2 = m1;
+    m2.reverseInPlace();
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i) VERIFY_IS_APPROX(m2(i, j), m1(n - 1 - i, n - 1 - j));
+
+    // colwise reverseInPlace
+    m2 = m1;
+    m2.colwise().reverseInPlace();
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i) VERIFY_IS_APPROX(m2(i, j), m1(n - 1 - i, j));
+
+    // rowwise reverseInPlace
+    m2 = m1;
+    m2.rowwise().reverseInPlace();
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i) VERIFY_IS_APPROX(m2(i, j), m1(i, n - 1 - j));
+  }
+}
+
 EIGEN_DECLARE_TEST(array_reverse) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(reverse(Matrix<float, 1, 1>()));
@@ -196,4 +237,9 @@ EIGEN_DECLARE_TEST(array_reverse) {
     CALL_SUBTEST_3(bug1684<0>());
   }
   CALL_SUBTEST_3(array_reverse_extra<0>());
+
+  // reverseInPlace at vectorization boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_10(reverseInPlace_boundary<float>());
+  CALL_SUBTEST_10(reverseInPlace_boundary<double>());
+  CALL_SUBTEST_10(reverseInPlace_boundary<int>());
 }
