@@ -236,6 +236,71 @@ void test_hypot() {
   VERIFY((numext::isnan)(numext::hypot(a, nan)));
 }
 
+// Test stableNorm at the 4096-element block boundary.
+// stable_norm_impl_inner_step processes vectors in blocks of 4096.
+// Sizes near this boundary exercise the transition between full blocks
+// and the remainder tail, including scale propagation across blocks.
+template <typename Scalar>
+void stable_norm_block_boundary() {
+  using std::abs;
+  using std::sqrt;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> VecType;
+
+  // Test sizes around the 4096 block boundary.
+  const Index sizes[] = {4095, 4096, 4097, 8191, 8192, 8193, 12288};
+  for (int si = 0; si < 7; ++si) {
+    Index n = sizes[si];
+    VecType v = VecType::Random(n);
+    VERIFY_IS_APPROX(v.stableNorm(), v.norm());
+    VERIFY_IS_APPROX(v.blueNorm(), v.norm());
+  }
+
+  // Test scale transitions across blocks: first block has tiny values,
+  // second block has huge values. This exercises the scale/invScale
+  // update logic when maxCoeff > scale in stable_norm_kernel.
+  {
+    RealScalar tiny = (std::numeric_limits<RealScalar>::min)() * RealScalar(1e4);
+    RealScalar huge_val = (std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4);
+    Index n = 8192;
+    VecType v(n);
+    // First 4096 elements: tiny. Second 4096 elements: huge.
+    v.head(4096).setConstant(Scalar(tiny));
+    v.tail(4096).setConstant(Scalar(huge_val));
+    // The huge part dominates, so the expected norm is sqrt(4096)*huge_val.
+    RealScalar expected = sqrt(RealScalar(4096)) * abs(huge_val);
+    VERIFY_IS_APPROX(v.stableNorm(), expected);
+    VERIFY_IS_APPROX(v.blueNorm(), expected);
+  }
+
+  // Reverse: first block huge, second block tiny.
+  {
+    RealScalar tiny = (std::numeric_limits<RealScalar>::min)() * RealScalar(1e4);
+    RealScalar huge_val = (std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4);
+    Index n = 8192;
+    VecType v(n);
+    v.head(4096).setConstant(Scalar(huge_val));
+    v.tail(4096).setConstant(Scalar(tiny));
+    RealScalar expected = sqrt(RealScalar(4096)) * abs(huge_val);
+    VERIFY_IS_APPROX(v.stableNorm(), expected);
+    VERIFY_IS_APPROX(v.blueNorm(), expected);
+  }
+
+  // Matrix version: columns with different magnitudes.
+  // Scale must propagate correctly across columns.
+  {
+    RealScalar tiny = (std::numeric_limits<RealScalar>::min)() * RealScalar(1e4);
+    RealScalar huge_val = (std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4);
+    typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
+    MatType m(100, 2);
+    m.col(0).setConstant(Scalar(tiny));
+    m.col(1).setConstant(Scalar(huge_val));
+    RealScalar expected = sqrt(RealScalar(100)) * abs(huge_val);
+    VERIFY_IS_APPROX(m.stableNorm(), expected);
+    VERIFY_IS_APPROX(m.blueNorm(), expected);
+  }
+}
+
 EIGEN_DECLARE_TEST(stable_norm) {
   CALL_SUBTEST_1(test_empty());
 
@@ -253,4 +318,8 @@ EIGEN_DECLARE_TEST(stable_norm) {
     CALL_SUBTEST_5(stable_norm(VectorXcd(internal::random<int>(10, 2000))));
     CALL_SUBTEST_6(stable_norm(VectorXcf(internal::random<int>(10, 2000))));
   }
+
+  // Block boundary and scale transition tests (deterministic, outside g_repeat).
+  CALL_SUBTEST_7(stable_norm_block_boundary<float>());
+  CALL_SUBTEST_7(stable_norm_block_boundary<double>());
 }
