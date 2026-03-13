@@ -129,6 +129,11 @@
 #include <intrin.h>
 #endif
 
+// Required for querying cache sizes on macOS.
+#if EIGEN_OS_MAC
+#include <sys/sysctl.h>
+#endif
+
 #if defined(EIGEN_USE_SYCL)
 #undef min
 #undef max

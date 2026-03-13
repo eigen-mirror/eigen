@@ -977,10 +977,6 @@ class aligned_allocator {
 
 //---------- Cache sizes ----------
 
-#if EIGEN_OS_MAC
-#include <sys/sysctl.h>
-#endif
-
 #if !defined(EIGEN_NO_CPUID)
 #if EIGEN_COMP_GNUC && EIGEN_ARCH_i386_OR_x86_64
 #if defined(__PIC__) && EIGEN_ARCH_i386
