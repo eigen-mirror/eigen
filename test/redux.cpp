@@ -14,8 +14,8 @@
 
 #include "main.h"
 
-    template <typename MatrixType>
-    void matrixRedux(const MatrixType& m) {
+template <typename MatrixType>
+void matrixRedux(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
 
