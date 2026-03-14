@@ -129,8 +129,11 @@
 #include <intrin.h>
 #endif
 
-// Required for querying cache sizes on macOS.
-#if EIGEN_OS_MAC
+// Required for querying cache sizes on Linux and macOS.
+#if EIGEN_OS_LINUX
+#include <unistd.h>
+#elif EIGEN_OS_MAC
+#include <sys/types.h>
 #include <sys/sysctl.h>
 #endif
 

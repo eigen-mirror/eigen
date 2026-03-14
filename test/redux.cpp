@@ -14,8 +14,8 @@
 
 #include "main.h"
 
-template <typename MatrixType>
-void matrixRedux(const MatrixType& m) {
+    template <typename MatrixType>
+    void matrixRedux(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
 
@@ -318,6 +318,7 @@ EIGEN_DECLARE_TEST(redux) {
     // bool packets are typically 16 bytes (SSE) or 32 bytes (AVX).
     // Test sizes around common packet sizes to catch off-by-one in remainder loops.
     const Index bsizes[] = {1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129};
+    EIGEN_UNUSED_VARIABLE(bsizes);
     for (int si = 0; si < 18; ++si) {
       CALL_SUBTEST_11(boolRedux(bsizes[si], 1));  // column vector
       CALL_SUBTEST_11(boolRedux(1, bsizes[si]));  // row vector
