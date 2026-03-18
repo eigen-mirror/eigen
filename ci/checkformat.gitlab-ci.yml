@@ -44,3 +44,9 @@ checkformat:clangtidy:
         -DEIGEN_BUILD_TESTING=ON
     - chmod +x ci/scripts/run-clang-tidy.sh
     - ci/scripts/run-clang-tidy.sh ${CI_MERGE_REQUEST_DIFF_BASE_SHA} .tidy-build
+  cache:
+    key: clang-tidy-config
+    paths:
+      - .tidy-build/compile_commands.json
+      - .tidy-build/CMakeCache.txt
+      - .tidy-build/CMakeFiles/

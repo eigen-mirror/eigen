@@ -307,6 +307,7 @@ test:linux:cuda-13.1:nvhpc-26.1:
     EIGEN_CI_TARGET_ARCH: arm
     EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_CTEST_ARGS: --timeout 2000
+    EIGEN_CI_CTEST_PARALLEL: "4"
 
 .test:linux:arm:gcc-10:default:
   extends: .test:linux:arm
@@ -391,6 +392,7 @@ test:linux:aarch64:clang-12:default:unsupported:
     EIGEN_CI_TARGET_ARCH: ppc64le
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
     EIGEN_CI_CTEST_ARGS: --timeout 2000
+    EIGEN_CI_CTEST_PARALLEL: "4"
 
 .test:linux:ppc64le:gcc-14:default:
   extends: .test:linux:ppc64le
@@ -434,6 +436,7 @@ test:linux:ppc64le:clang-16:default:unsupported:
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
     EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
     EIGEN_CI_CTEST_ARGS: --timeout 2000
+    EIGEN_CI_CTEST_PARALLEL: "4"
 
 # GCC-14 (Ubuntu 24)
 .test:linux:loongarch64:gcc-14:default:
