@@ -301,6 +301,8 @@ struct numeric_limits_half_impl {
   static _EIGEN_MAYBE_CONSTEXPR Eigen::half denorm_min() { return Eigen::half_impl::raw_uint16_to_half(0x0001); }
 };
 
+// Redundant out-of-class definitions are required pre-C++17 but deprecated since.
+#if EIGEN_COMP_CXXVER < 17
 template <typename T>
 constexpr const bool numeric_limits_half_impl<T>::is_specialized;
 template <typename T>
@@ -350,6 +352,7 @@ template <typename T>
 constexpr const bool numeric_limits_half_impl<T>::traps;
 template <typename T>
 constexpr const bool numeric_limits_half_impl<T>::tinyness_before;
+#endif
 }  // end namespace half_impl
 }  // end namespace Eigen
 
