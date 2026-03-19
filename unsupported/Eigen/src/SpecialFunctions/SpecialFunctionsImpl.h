@@ -506,7 +506,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<float>::run(const T& x)
 
 template <>
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x_in) {
+  // Clamp x to [-28:28] beyond which erf(x) is ±1 within double precision.
+  // This avoids NaN from twoprod and exp operations for infinite inputs.
+  constexpr double kClamp = 28.0;
+  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
   T x2 = pmul(x, x);
   T erf_small = pmul(x, erf_over_x_double_small(x2));
 
