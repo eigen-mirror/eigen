@@ -200,14 +200,13 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorUInt128<uint64_t, uint64_t> o
     // calculate the biggest power of 2 times rhs that's less than or equal to lhs
     TensorUInt128<uint64_t, uint64_t> power2(1);
     TensorUInt128<uint64_t, uint64_t> d(rhs);
-    TensorUInt128<uint64_t, uint64_t> tmp(lhs - d);
     while (lhs >= d) {
-      tmp = tmp - d;
+      if (d.high >> 63) break;  // next doubling would overflow 128 bits
       d = d + d;
       power2 = power2 + power2;
     }
 
-    tmp = TensorUInt128<uint64_t, uint64_t>(lhs.high, lhs.low);
+    TensorUInt128<uint64_t, uint64_t> tmp(lhs.high, lhs.low);
     TensorUInt128<uint64_t, uint64_t> result(0);
     while (power2 != TensorUInt128<static_val<0>, static_val<0>>(0)) {
       if (tmp >= d) {

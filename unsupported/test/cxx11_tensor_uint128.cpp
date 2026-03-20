@@ -124,6 +124,26 @@ void test_misc1() {
   }
 }
 
+void test_div_overflow() {
+  // Regression test for infinite loop when lhs > 2^127 (issue #3012).
+  // Division would overflow d during doubling, causing an infinite loop.
+  TensorUInt128<uint64_t, uint64_t> a(1ULL << 63, 1);
+  TensorUInt128<uint64_t, uint64_t> b(2);
+  uint128_t expected = ((static_cast<uint128_t>(1ULL << 63) << 64) + 1) / 2;
+  VERIFY_EQUAL(a / b, expected);
+
+  // Also test with high bits in both operands
+  TensorUInt128<uint64_t, uint64_t> c(UINT64_MAX, UINT64_MAX);
+  TensorUInt128<uint64_t, uint64_t> d(1);
+  uint128_t c128 = (static_cast<uint128_t>(UINT64_MAX) << 64) | UINT64_MAX;
+  VERIFY_EQUAL(c / d, c128);
+
+  TensorUInt128<uint64_t, uint64_t> e(UINT64_MAX, UINT64_MAX);
+  TensorUInt128<uint64_t, uint64_t> f(0, 3);
+  uint128_t e128 = (static_cast<uint128_t>(UINT64_MAX) << 64) | UINT64_MAX;
+  VERIFY_EQUAL(e / f, e128 / 3);
+}
+
 void test_misc2() {
   int64_t incr = internal::random<int64_t>(1, 100);
   for (int64_t log_div = 0; log_div < 63; ++log_div) {
@@ -153,5 +173,6 @@ EIGEN_DECLARE_TEST(cxx11_tensor_uint128) {
   CALL_SUBTEST_4(test_div());
   CALL_SUBTEST_5(test_misc1());
   CALL_SUBTEST_6(test_misc2());
+  CALL_SUBTEST_7(test_div_overflow());
 #endif
 }
