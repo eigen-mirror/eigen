@@ -1411,9 +1411,16 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR(mr >= 3 * Traits::LhsProgress) {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
+    const Index rhs_block = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
+#if EIGEN_ARCH_ARM64
     const Index actual_panel_rows =
-        (3 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
-                                                (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
+        (rhs_block <= l1) ? peeled_mc3
+                          : (3 * LhsProgress) *
+                                std::max<Index>(1, ((l1 - rhs_block) / (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
+#else
+    const Index actual_panel_rows =
+        (3 * LhsProgress) * std::max<Index>(1, ((l1 - rhs_block) / (depth * sizeof(LhsScalar) * 3 * LhsProgress)));
+#endif
     for (Index i1 = 0; i1 < peeled_mc3; i1 += actual_panel_rows) {
       const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc3);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
@@ -1442,9 +1449,17 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   EIGEN_IF_CONSTEXPR(mr >= 2 * Traits::LhsProgress) {
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);
+    const Index rhs_block2 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
+#if EIGEN_ARCH_ARM64
     Index actual_panel_rows =
-        (2 * LhsProgress) * std::max<Index>(1, ((l1 - sizeof(ResScalar) * mr * nr - depth * nr * sizeof(RhsScalar)) /
-                                                (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
+        (rhs_block2 <= l1)
+            ? peeled_mc2 - peeled_mc3
+            : (2 * LhsProgress) *
+                  std::max<Index>(1, ((l1 - rhs_block2) / (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
+#else
+    Index actual_panel_rows =
+        (2 * LhsProgress) * std::max<Index>(1, ((l1 - rhs_block2) / (depth * sizeof(LhsScalar) * 2 * LhsProgress)));
+#endif
     for (Index i1 = peeled_mc3; i1 < peeled_mc2; i1 += actual_panel_rows) {
       Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc2);
 #if EIGEN_ARCH_ARM64 || EIGEN_ARCH_LOONGARCH64
