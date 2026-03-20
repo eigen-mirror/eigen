@@ -97,8 +97,12 @@ void product(const MatrixType& m) {
   // begin testing Product.h: only associativity for now
   // (we use Transpose.h but this doesn't count as a test for it)
   {
-    // Increase tolerance, since coefficients here can get relatively large.
-    RealScalar tol = RealScalar(2) * get_test_precision(m1);
+    // Associativity: (m1 * m1^T) * m2 vs m1 * (m1^T * m2).
+    // Two chained products with inner dims cols and rows. Intermediate entries
+    // of m1*m1^T are O(sqrt(cols)), amplifying the second product's error.
+    // Probabilistic bound (Higham & Mary 2019): ~lambda * sqrt(k) * epsilon
+    // per inner product, times sqrt(cols) amplification from chained product.
+    RealScalar tol = product_tolerance<Scalar>((std::max)(rows, cols), 3);
     VERIFY(verifyIsApprox((m1 * m1.transpose()) * m2, m1 * (m1.transpose() * m2), tol));
   }
   m3 = m1;
@@ -289,8 +293,10 @@ void product(const MatrixType& m) {
 
   // regression for blas_trais
   {
-    // Increase test tolerance, since coefficients can get relatively large.
-    RealScalar tol = RealScalar(2) * get_test_precision(square);
+    // Triple products of rows x rows matrices. Each side computes 2-3
+    // products with inner dim = rows. Probabilistic bound with amplification
+    // from chained products with O(sqrt(rows)) intermediate entries.
+    RealScalar tol = product_tolerance<Scalar>(rows, 4);
     VERIFY(
         verifyIsApprox(square * (square * square).transpose(), square * square.transpose() * square.transpose(), tol));
     VERIFY(verifyIsApprox(square * (-(square * square)), -square * square * square, tol));
