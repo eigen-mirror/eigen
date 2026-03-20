@@ -461,6 +461,69 @@ void cholesky_verify_assert() {
   VERIFY_RAISES_ASSERT(ldlt.solveInPlace(tmp))
 }
 
+// Test Cholesky decomposition at blocking and vectorization boundaries.
+// LLT uses blocks of size max(8, min(size/8 rounded to 16, 128)).
+// Sizes near these boundaries exercise the transition between full
+// blocked and unblocked paths, including triangular solve boundaries.
+template <typename Scalar>
+void cholesky_blocking_boundary() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+
+  const Index PS = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {1, 2, 3,  PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1, 7,
+                         8, 9, 15, 16,     17, 31,     32,         33,     63,         64,     65};
+  for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {
+    Index n = sizes[si];
+    if (n < 1) continue;
+
+    // Create a symmetric positive definite matrix: A = R'*R + n*I
+    MatrixType R = MatrixType::Random(n, n);
+    MatrixType m = R.adjoint() * R;
+    m.diagonal().array() += RealScalar(n);
+
+    // LLT
+    LLT<MatrixType> llt(m);
+    VERIFY(llt.info() == Success);
+    VERIFY_IS_APPROX(m, llt.reconstructedMatrix());
+    VectorType rhs = VectorType::Random(n);
+    VectorType x = llt.solve(rhs);
+    VERIFY_IS_APPROX(m * x, rhs);
+
+    // LDLT
+    LDLT<MatrixType> ldlt(m);
+    VERIFY(ldlt.info() == Success);
+    VERIFY_IS_APPROX(m, ldlt.reconstructedMatrix());
+    x = ldlt.solve(rhs);
+    VERIFY_IS_APPROX(m * x, rhs);
+  }
+}
+
+// Test Cholesky with RowMajor storage at blocking boundaries.
+template <typename Scalar>
+void cholesky_rowmajor_boundary() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+
+  const Index sizes[] = {7, 8, 9, 15, 16, 17, 31, 32, 33};
+  for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {
+    Index n = sizes[si];
+    RowMatrixType R = RowMatrixType::Random(n, n);
+    RowMatrixType m = R.adjoint() * R;
+    m.diagonal().array() += RealScalar(n);
+
+    LLT<RowMatrixType> llt(m);
+    VERIFY(llt.info() == Success);
+    VERIFY_IS_APPROX(m, llt.reconstructedMatrix());
+
+    LDLT<RowMatrixType> ldlt(m);
+    VERIFY(ldlt.info() == Success);
+    VERIFY_IS_APPROX(m, ldlt.reconstructedMatrix());
+  }
+}
+
 EIGEN_DECLARE_TEST(cholesky) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -495,6 +558,13 @@ EIGEN_DECLARE_TEST(cholesky) {
   CALL_SUBTEST_9(LDLT<MatrixXf>(10));
 
   CALL_SUBTEST_2(cholesky_faillure_cases<void>());
+
+  // Blocking and vectorization boundary tests (deterministic, outside g_repeat).
+  CALL_SUBTEST_2(cholesky_blocking_boundary<double>());
+  CALL_SUBTEST_8(cholesky_blocking_boundary<float>());
+  CALL_SUBTEST_6(cholesky_blocking_boundary<std::complex<double> >());
+  CALL_SUBTEST_2(cholesky_rowmajor_boundary<double>());
+  CALL_SUBTEST_8(cholesky_rowmajor_boundary<float>());
 
   TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries)
 }
