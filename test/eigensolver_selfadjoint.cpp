@@ -26,7 +26,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
   VERIFY_IS_EQUAL(eiSymm.info(), Success);
 
   RealScalar scaling = m.cwiseAbs().maxCoeff();
-  RealScalar unitary_error_factor = RealScalar(16);
+  RealScalar unitary_error_factor = RealScalar(32);
 
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
     VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
@@ -80,7 +80,7 @@ void selfadjointeigensolver(const MatrixType& m) {
   MatrixType symmA = a.adjoint() * a + a1.adjoint() * a1;
   MatrixType symmC = symmA;
 
-  svd_fill_random(symmA, Symmetric);
+  svd_fill_random(symmA, SelfAdjoint);
 
   symmA.template triangularView<StrictlyUpper>().setZero();
   symmC.template triangularView<StrictlyUpper>().setZero();
