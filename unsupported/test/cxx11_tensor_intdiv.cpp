@@ -81,11 +81,15 @@ void test_unsigned_64bit() {
 }
 
 void test_powers_32bit() {
+  const int32_t int32_max = (std::numeric_limits<int32_t>::max)();
   for (int expon = 1; expon < 31; expon++) {
     int32_t div = (1 << expon);
     for (int num_expon = 0; num_expon < 32; num_expon++) {
-      int32_t start_num = (1 << num_expon) - 100;
-      int32_t end_num = (1 << num_expon) + 100;
+      const int64_t pivot = int64_t(1) << num_expon;
+      int32_t start_num = pivot > int32_max ? int32_max : static_cast<int32_t>(pivot);
+      int32_t end_num = start_num;
+      start_num = (std::max)(int32_t(0), start_num - 100);
+      end_num = static_cast<int32_t>((std::min)(int64_t(int32_max), int64_t(end_num) + 100));
       if (start_num < 0) start_num = 0;
       for (int32_t num = start_num; num < end_num; num++) {
         Eigen::internal::TensorIntDivisor<int32_t> divider = Eigen::internal::TensorIntDivisor<int32_t>(div);

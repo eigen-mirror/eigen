@@ -45,9 +45,9 @@ static void test_simple_lvalue_ref() {
 
 static void test_simple_rvalue_ref() {
   Tensor<int, 1> input1(6);
-  input1.setRandom();
+  setRandomDataInRange(input1, -1000, 1000);
   Tensor<int, 1> input2(6);
-  input2.setRandom();
+  setRandomDataInRange(input2, -1000, 1000);
 
   TensorRef<const Tensor<int, 1>> ref3(input1 + input2);
   TensorRef<const Tensor<int, 1>> ref4 = input1 + input2;
@@ -110,7 +110,7 @@ static void test_slice() {
 
 static void test_ref_of_trace() {
   Tensor<int, 2> input(6, 6);
-  input.setRandom();
+  setRandomDataInRange(input, -1000, 1000);
   int trace = 0;
   for (int i = 0; i < 6; ++i) {
     trace += input(i, i);

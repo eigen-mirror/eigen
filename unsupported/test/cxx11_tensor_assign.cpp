@@ -250,8 +250,13 @@ static void test_auto_resize() {
 static void test_compound_assign() {
   Tensor<int, 1> start_tensor(10);
   Tensor<int, 1> offset_tensor(10);
-  start_tensor.setRandom();
-  offset_tensor.setRandom();
+  setRandomDataInRange(start_tensor, -1000, 1000);
+  setRandomDataInRange(offset_tensor, -1000, 1000);
+
+  // Avoid division by zero in the final compound assignment check.
+  for (int i = 0; i < 10; ++i) {
+    if (offset_tensor(i) == 0) offset_tensor(i) = 1;
+  }
 
   Tensor<int, 1> tensor = start_tensor;
   tensor += offset_tensor;

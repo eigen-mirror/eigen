@@ -892,6 +892,14 @@ std::string type_name() {
   return type_name(T());
 }
 
+template <typename DataContainer>
+void setRandomDataInRange(DataContainer& data_container, typename DataContainer::Scalar min_value,
+                          typename DataContainer::Scalar max_value) {
+  for (Eigen::Index i = 0; i < data_container.size(); ++i) {
+    data_container.data()[i] = Eigen::internal::random<typename DataContainer::Scalar>(min_value, max_value);
+  }
+}
+
 using namespace Eigen;
 
 /**
