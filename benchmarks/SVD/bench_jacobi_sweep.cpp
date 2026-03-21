@@ -40,23 +40,23 @@ static void BM_JacobiSVD(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations());
 }
 
-static void Sizes(::benchmark::Benchmark* b) {
-  for (int s : {32, 64, 128, 192, 256, 384, 512}) b->Args({s});
-}
-
+// clang-format off
+#define JACOBI_SWEEP_SIZES ->Arg(32)->Arg(64)->Arg(128)->Arg(192)->Arg(256)->Arg(384)->Arg(512)
 // float ValuesOnly
-BENCHMARK(BM_JacobiSVD<float, 0>)->Apply(Sizes)->Name("Jacobi_float_VO");
+BENCHMARK(BM_JacobiSVD<float, 0>) JACOBI_SWEEP_SIZES ->Name("Jacobi_float_VO");
 // float ThinUV
-BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>)->Apply(Sizes)->Name("Jacobi_float_UV");
+BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>) JACOBI_SWEEP_SIZES ->Name("Jacobi_float_UV");
 // double ValuesOnly
-BENCHMARK(BM_JacobiSVD<double, 0>)->Apply(Sizes)->Name("Jacobi_double_VO");
+BENCHMARK(BM_JacobiSVD<double, 0>) JACOBI_SWEEP_SIZES ->Name("Jacobi_double_VO");
 // double ThinUV
-BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>)->Apply(Sizes)->Name("Jacobi_double_UV");
+BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>) JACOBI_SWEEP_SIZES ->Name("Jacobi_double_UV");
 // complex<float> ValuesOnly
-BENCHMARK(BM_JacobiSVD<std::complex<float>, 0>)->Apply(Sizes)->Name("Jacobi_cfloat_VO");
+BENCHMARK(BM_JacobiSVD<std::complex<float>, 0>) JACOBI_SWEEP_SIZES ->Name("Jacobi_cfloat_VO");
 // complex<float> ThinUV
-BENCHMARK((BM_JacobiSVD<std::complex<float>, ComputeThinU | ComputeThinV>))->Apply(Sizes)->Name("Jacobi_cfloat_UV");
+BENCHMARK((BM_JacobiSVD<std::complex<float>, ComputeThinU | ComputeThinV>)) JACOBI_SWEEP_SIZES ->Name("Jacobi_cfloat_UV");
 // complex<double> ValuesOnly
-BENCHMARK(BM_JacobiSVD<std::complex<double>, 0>)->Apply(Sizes)->Name("Jacobi_cdouble_VO");
+BENCHMARK(BM_JacobiSVD<std::complex<double>, 0>) JACOBI_SWEEP_SIZES ->Name("Jacobi_cdouble_VO");
 // complex<double> ThinUV
-BENCHMARK((BM_JacobiSVD<std::complex<double>, ComputeThinU | ComputeThinV>))->Apply(Sizes)->Name("Jacobi_cdouble_UV");
+BENCHMARK((BM_JacobiSVD<std::complex<double>, ComputeThinU | ComputeThinV>)) JACOBI_SWEEP_SIZES ->Name("Jacobi_cdouble_UV");
+#undef JACOBI_SWEEP_SIZES
+// clang-format on

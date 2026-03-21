@@ -138,36 +138,36 @@ static void BM_MatrixNorm(benchmark::State& state) {
 
 // --- Size configurations ---
 
-static void VectorSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 256, 1024, 4096, 16384, 65536, 262144, 1048576}) b->Arg(n);
-}
-
-static void MatrixSizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 32, 64, 128, 256, 512, 1024}) b->Arg(n);
-}
+// clang-format off
+#define VECTOR_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
+#define MATRIX_SIZES ->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 
 // --- Register: float ---
-BENCHMARK(BM_VectorSum<float>)->Apply(VectorSizes)->Name("VectorSum_float");
-BENCHMARK(BM_VectorProd<float>)->Apply(VectorSizes)->Name("VectorProd_float");
-BENCHMARK(BM_VectorMinCoeff<float>)->Apply(VectorSizes)->Name("VectorMinCoeff_float");
-BENCHMARK(BM_VectorMaxCoeff<float>)->Apply(VectorSizes)->Name("VectorMaxCoeff_float");
-BENCHMARK(BM_VectorMean<float>)->Apply(VectorSizes)->Name("VectorMean_float");
-BENCHMARK(BM_VectorSquaredNorm<float>)->Apply(VectorSizes)->Name("VectorSquaredNorm_float");
-BENCHMARK(BM_VectorNorm<float>)->Apply(VectorSizes)->Name("VectorNorm_float");
-BENCHMARK(BM_VectorLpNorm1<float>)->Apply(VectorSizes)->Name("VectorLpNorm1_float");
-BENCHMARK(BM_VectorLpNormInf<float>)->Apply(VectorSizes)->Name("VectorLpNormInf_float");
-BENCHMARK(BM_MatrixSum<float>)->Apply(MatrixSizes)->Name("MatrixSum_float");
-BENCHMARK(BM_MatrixNorm<float>)->Apply(MatrixSizes)->Name("MatrixNorm_float");
+BENCHMARK(BM_VectorSum<float>) VECTOR_SIZES ->Name("VectorSum_float");
+BENCHMARK(BM_VectorProd<float>) VECTOR_SIZES ->Name("VectorProd_float");
+BENCHMARK(BM_VectorMinCoeff<float>) VECTOR_SIZES ->Name("VectorMinCoeff_float");
+BENCHMARK(BM_VectorMaxCoeff<float>) VECTOR_SIZES ->Name("VectorMaxCoeff_float");
+BENCHMARK(BM_VectorMean<float>) VECTOR_SIZES ->Name("VectorMean_float");
+BENCHMARK(BM_VectorSquaredNorm<float>) VECTOR_SIZES ->Name("VectorSquaredNorm_float");
+BENCHMARK(BM_VectorNorm<float>) VECTOR_SIZES ->Name("VectorNorm_float");
+BENCHMARK(BM_VectorLpNorm1<float>) VECTOR_SIZES ->Name("VectorLpNorm1_float");
+BENCHMARK(BM_VectorLpNormInf<float>) VECTOR_SIZES ->Name("VectorLpNormInf_float");
+BENCHMARK(BM_MatrixSum<float>) MATRIX_SIZES ->Name("MatrixSum_float");
+BENCHMARK(BM_MatrixNorm<float>) MATRIX_SIZES ->Name("MatrixNorm_float");
 
 // --- Register: double ---
-BENCHMARK(BM_VectorSum<double>)->Apply(VectorSizes)->Name("VectorSum_double");
-BENCHMARK(BM_VectorProd<double>)->Apply(VectorSizes)->Name("VectorProd_double");
-BENCHMARK(BM_VectorMinCoeff<double>)->Apply(VectorSizes)->Name("VectorMinCoeff_double");
-BENCHMARK(BM_VectorMaxCoeff<double>)->Apply(VectorSizes)->Name("VectorMaxCoeff_double");
-BENCHMARK(BM_VectorMean<double>)->Apply(VectorSizes)->Name("VectorMean_double");
-BENCHMARK(BM_VectorSquaredNorm<double>)->Apply(VectorSizes)->Name("VectorSquaredNorm_double");
-BENCHMARK(BM_VectorNorm<double>)->Apply(VectorSizes)->Name("VectorNorm_double");
-BENCHMARK(BM_VectorLpNorm1<double>)->Apply(VectorSizes)->Name("VectorLpNorm1_double");
-BENCHMARK(BM_VectorLpNormInf<double>)->Apply(VectorSizes)->Name("VectorLpNormInf_double");
-BENCHMARK(BM_MatrixSum<double>)->Apply(MatrixSizes)->Name("MatrixSum_double");
-BENCHMARK(BM_MatrixNorm<double>)->Apply(MatrixSizes)->Name("MatrixNorm_double");
+BENCHMARK(BM_VectorSum<double>) VECTOR_SIZES ->Name("VectorSum_double");
+BENCHMARK(BM_VectorProd<double>) VECTOR_SIZES ->Name("VectorProd_double");
+BENCHMARK(BM_VectorMinCoeff<double>) VECTOR_SIZES ->Name("VectorMinCoeff_double");
+BENCHMARK(BM_VectorMaxCoeff<double>) VECTOR_SIZES ->Name("VectorMaxCoeff_double");
+BENCHMARK(BM_VectorMean<double>) VECTOR_SIZES ->Name("VectorMean_double");
+BENCHMARK(BM_VectorSquaredNorm<double>) VECTOR_SIZES ->Name("VectorSquaredNorm_double");
+BENCHMARK(BM_VectorNorm<double>) VECTOR_SIZES ->Name("VectorNorm_double");
+BENCHMARK(BM_VectorLpNorm1<double>) VECTOR_SIZES ->Name("VectorLpNorm1_double");
+BENCHMARK(BM_VectorLpNormInf<double>) VECTOR_SIZES ->Name("VectorLpNormInf_double");
+BENCHMARK(BM_MatrixSum<double>) MATRIX_SIZES ->Name("MatrixSum_double");
+BENCHMARK(BM_MatrixNorm<double>) MATRIX_SIZES ->Name("MatrixNorm_double");
+
+#undef VECTOR_SIZES
+#undef MATRIX_SIZES
+// clang-format on

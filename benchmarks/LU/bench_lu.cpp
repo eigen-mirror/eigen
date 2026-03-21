@@ -113,27 +113,17 @@ static void BM_FullPivLU_Solve(benchmark::State& state) {
 
 // --- Size configurations ---
 
-static void SquareSizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 32, 64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
-static void SolveSizes(::benchmark::Benchmark* b) {
-  for (int n : {32, 128, 512, 1024}) {
-    for (int nrhs : {1, 16, 64}) {
-      b->Args({n, nrhs});
-    }
-  }
-}
-
-BENCHMARK(BM_PartialPivLU_Compute<float>)->Apply(SquareSizes)->Name("PartialPivLU_Compute_float");
-BENCHMARK(BM_PartialPivLU_Compute<double>)->Apply(SquareSizes)->Name("PartialPivLU_Compute_double");
-BENCHMARK(BM_PartialPivLU_Solve<float>)->Apply(SolveSizes)->Name("PartialPivLU_Solve_float");
-BENCHMARK(BM_PartialPivLU_Solve<double>)->Apply(SolveSizes)->Name("PartialPivLU_Solve_double");
-BENCHMARK(BM_PartialPivLU_Inverse<float>)->Apply(SquareSizes)->Name("PartialPivLU_Inverse_float");
-BENCHMARK(BM_PartialPivLU_Inverse<double>)->Apply(SquareSizes)->Name("PartialPivLU_Inverse_double");
-BENCHMARK(BM_PartialPivLU_Determinant<float>)->Apply(SquareSizes)->Name("PartialPivLU_Determinant_float");
-BENCHMARK(BM_PartialPivLU_Determinant<double>)->Apply(SquareSizes)->Name("PartialPivLU_Determinant_double");
-BENCHMARK(BM_FullPivLU_Compute<float>)->Apply(SquareSizes)->Name("FullPivLU_Compute_float");
-BENCHMARK(BM_FullPivLU_Compute<double>)->Apply(SquareSizes)->Name("FullPivLU_Compute_double");
-BENCHMARK(BM_FullPivLU_Solve<float>)->Apply(SolveSizes)->Name("FullPivLU_Solve_float");
-BENCHMARK(BM_FullPivLU_Solve<double>)->Apply(SolveSizes)->Name("FullPivLU_Solve_double");
+// clang-format off
+BENCHMARK(BM_PartialPivLU_Compute<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Compute_float");
+BENCHMARK(BM_PartialPivLU_Compute<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Compute_double");
+BENCHMARK(BM_PartialPivLU_Solve<float>)->ArgsProduct({{32, 128, 512, 1024}, {1, 16, 64}})->Name("PartialPivLU_Solve_float");
+BENCHMARK(BM_PartialPivLU_Solve<double>)->ArgsProduct({{32, 128, 512, 1024}, {1, 16, 64}})->Name("PartialPivLU_Solve_double");
+BENCHMARK(BM_PartialPivLU_Inverse<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Inverse_float");
+BENCHMARK(BM_PartialPivLU_Inverse<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Inverse_double");
+BENCHMARK(BM_PartialPivLU_Determinant<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Determinant_float");
+BENCHMARK(BM_PartialPivLU_Determinant<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Determinant_double");
+BENCHMARK(BM_FullPivLU_Compute<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("FullPivLU_Compute_float");
+BENCHMARK(BM_FullPivLU_Compute<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("FullPivLU_Compute_double");
+BENCHMARK(BM_FullPivLU_Solve<float>)->ArgsProduct({{32, 128, 512, 1024}, {1, 16, 64}})->Name("FullPivLU_Solve_float");
+BENCHMARK(BM_FullPivLU_Solve<double>)->ArgsProduct({{32, 128, 512, 1024}, {1, 16, 64}})->Name("FullPivLU_Solve_double");
+// clang-format on

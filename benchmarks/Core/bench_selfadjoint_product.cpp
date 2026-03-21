@@ -58,21 +58,11 @@ static void BM_RankUpdate(benchmark::State& state) {
       benchmark::Counter(1.0 * n * n * k, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void SymmSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
-static void RankUpdateSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 128, 256, 512}) {
-    for (int k : {16, 64, 256}) {
-      b->Args({n, k});
-    }
-  }
-}
-
-BENCHMARK(BM_SYMM_Left<float>)->Apply(SymmSizes)->Name("SYMM_Left_float");
-BENCHMARK(BM_SYMM_Left<double>)->Apply(SymmSizes)->Name("SYMM_Left_double");
-BENCHMARK(BM_SYMM_Right<float>)->Apply(SymmSizes)->Name("SYMM_Right_float");
-BENCHMARK(BM_SYMM_Right<double>)->Apply(SymmSizes)->Name("SYMM_Right_double");
-BENCHMARK(BM_RankUpdate<float>)->Apply(RankUpdateSizes)->Name("RankUpdate_float");
-BENCHMARK(BM_RankUpdate<double>)->Apply(RankUpdateSizes)->Name("RankUpdate_double");
+// clang-format off
+BENCHMARK(BM_SYMM_Left<float>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Left_float");
+BENCHMARK(BM_SYMM_Left<double>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Left_double");
+BENCHMARK(BM_SYMM_Right<float>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Right_float");
+BENCHMARK(BM_SYMM_Right<double>)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("SYMM_Right_double");
+BENCHMARK(BM_RankUpdate<float>)->ArgsProduct({{64, 128, 256, 512}, {16, 64, 256}})->Name("RankUpdate_float");
+BENCHMARK(BM_RankUpdate<double>)->ArgsProduct({{64, 128, 256, 512}, {16, 64, 256}})->Name("RankUpdate_double");
+// clang-format on

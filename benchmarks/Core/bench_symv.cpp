@@ -52,11 +52,11 @@ static void BM_SYMV_Upper(benchmark::State& state) {
                                                 benchmark::Counter::kIs1000);
 }
 
-static void SymvSizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 16, 32, 64, 128, 256, 512, 1024, 2048}) b->Arg(n);
-}
-
-BENCHMARK(BM_SYMV_Lower<float>)->Apply(SymvSizes)->Name("SYMV_Lower_float");
-BENCHMARK(BM_SYMV_Lower<double>)->Apply(SymvSizes)->Name("SYMV_Lower_double");
-BENCHMARK(BM_SYMV_Upper<float>)->Apply(SymvSizes)->Name("SYMV_Upper_float");
-BENCHMARK(BM_SYMV_Upper<double>)->Apply(SymvSizes)->Name("SYMV_Upper_double");
+// clang-format off
+#define SYMV_SIZES ->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)
+BENCHMARK(BM_SYMV_Lower<float>) SYMV_SIZES ->Name("SYMV_Lower_float");
+BENCHMARK(BM_SYMV_Lower<double>) SYMV_SIZES ->Name("SYMV_Lower_double");
+BENCHMARK(BM_SYMV_Upper<float>) SYMV_SIZES ->Name("SYMV_Upper_float");
+BENCHMARK(BM_SYMV_Upper<double>) SYMV_SIZES ->Name("SYMV_Upper_double");
+#undef SYMV_SIZES
+// clang-format on

@@ -58,16 +58,14 @@ static void BM_CblasGemm(benchmark::State& state) {
 }
 #endif
 
-static void GemmSizes(::benchmark::Benchmark* b) {
-  for (int s : {32, 64, 128, 256, 512, 1024, 2048}) {
-    b->Args({s, s, s});
-  }
-  // Rectangular
-  b->Args({1000, 100, 1000});
-  b->Args({100, 1000, 100});
-}
-
-BENCHMARK(BM_EigenGemm)->Apply(GemmSizes);
+// clang-format off
+#define GEMM_SIZES \
+    ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128}) \
+    ->Args({256, 256, 256})->Args({512, 512, 512})->Args({1024, 1024, 1024})->Args({2048, 2048, 2048}) \
+    ->Args({1000, 100, 1000})->Args({100, 1000, 100})
+BENCHMARK(BM_EigenGemm) GEMM_SIZES;
 #ifdef HAVE_BLAS
-BENCHMARK(BM_CblasGemm)->Apply(GemmSizes);
+BENCHMARK(BM_CblasGemm) GEMM_SIZES;
 #endif
+#undef GEMM_SIZES
+// clang-format on

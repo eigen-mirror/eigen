@@ -34,19 +34,19 @@ static void BM_EigenGemm(benchmark::State& state) {
       benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void GemmSizes(::benchmark::Benchmark* b) {
-  for (int size : {8, 16, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 384, 448, 512, 768, 1024, 1536, 2048, 4096}) {
-    b->Args({size, size, size});
-  }
-  // Non-square sizes
-  b->Args({64, 64, 1024});
-  b->Args({1024, 64, 64});
-  b->Args({64, 1024, 64});
-  b->Args({256, 256, 1024});
-  b->Args({1024, 256, 256});
-}
-
-BENCHMARK(BM_EigenGemm)->Apply(GemmSizes);
+// clang-format off
+BENCHMARK(BM_EigenGemm)
+    ->Args({8, 8, 8})->Args({16, 16, 16})->Args({32, 32, 32})
+    ->Args({64, 64, 64})->Args({96, 96, 96})->Args({128, 128, 128})
+    ->Args({160, 160, 160})->Args({192, 192, 192})->Args({224, 224, 224})
+    ->Args({256, 256, 256})->Args({288, 288, 288})->Args({320, 320, 320})
+    ->Args({384, 384, 384})->Args({448, 448, 448})->Args({512, 512, 512})
+    ->Args({768, 768, 768})->Args({1024, 1024, 1024})->Args({1536, 1536, 1536})
+    ->Args({2048, 2048, 2048})->Args({4096, 4096, 4096})
+    // Non-square sizes
+    ->Args({64, 64, 1024})->Args({1024, 64, 64})->Args({64, 1024, 64})
+    ->Args({256, 256, 1024})->Args({1024, 256, 256});
+// clang-format on
 
 #ifdef HAVE_BLAS
 extern "C" {
@@ -77,5 +77,17 @@ static void BM_BlasGemm(benchmark::State& state) {
   state.counters["GFLOPS"] =
       benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
-BENCHMARK(BM_BlasGemm)->Apply(GemmSizes);
+// clang-format off
+BENCHMARK(BM_BlasGemm)
+    ->Args({8, 8, 8})->Args({16, 16, 16})->Args({32, 32, 32})
+    ->Args({64, 64, 64})->Args({96, 96, 96})->Args({128, 128, 128})
+    ->Args({160, 160, 160})->Args({192, 192, 192})->Args({224, 224, 224})
+    ->Args({256, 256, 256})->Args({288, 288, 288})->Args({320, 320, 320})
+    ->Args({384, 384, 384})->Args({448, 448, 448})->Args({512, 512, 512})
+    ->Args({768, 768, 768})->Args({1024, 1024, 1024})->Args({1536, 1536, 1536})
+    ->Args({2048, 2048, 2048})->Args({4096, 4096, 4096})
+    // Non-square sizes
+    ->Args({64, 64, 1024})->Args({1024, 64, 64})->Args({64, 1024, 64})
+    ->Args({256, 256, 1024})->Args({1024, 256, 256});
+// clang-format on
 #endif

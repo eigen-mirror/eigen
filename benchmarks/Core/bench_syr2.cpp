@@ -51,11 +51,11 @@ static void BM_SYR2_Upper(benchmark::State& state) {
                                                 benchmark::Counter::kIs1000);
 }
 
-static void Syr2Sizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 16, 32, 64, 128, 256, 512, 1024, 2048}) b->Arg(n);
-}
-
-BENCHMARK(BM_SYR2_Lower<float>)->Apply(Syr2Sizes)->Name("SYR2_Lower_float");
-BENCHMARK(BM_SYR2_Lower<double>)->Apply(Syr2Sizes)->Name("SYR2_Lower_double");
-BENCHMARK(BM_SYR2_Upper<float>)->Apply(Syr2Sizes)->Name("SYR2_Upper_float");
-BENCHMARK(BM_SYR2_Upper<double>)->Apply(Syr2Sizes)->Name("SYR2_Upper_double");
+// clang-format off
+#define SYR2_SIZES ->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)
+BENCHMARK(BM_SYR2_Lower<float>) SYR2_SIZES ->Name("SYR2_Lower_float");
+BENCHMARK(BM_SYR2_Lower<double>) SYR2_SIZES ->Name("SYR2_Lower_double");
+BENCHMARK(BM_SYR2_Upper<float>) SYR2_SIZES ->Name("SYR2_Upper_float");
+BENCHMARK(BM_SYR2_Upper<double>) SYR2_SIZES ->Name("SYR2_Upper_double");
+#undef SYR2_SIZES
+// clang-format on

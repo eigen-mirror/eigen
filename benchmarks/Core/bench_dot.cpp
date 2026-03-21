@@ -39,13 +39,13 @@ static void BM_SquaredNorm(benchmark::State& state) {
                                                 benchmark::Counter::kIs1000);
 }
 
-static void DotSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 256, 1024, 4096, 16384, 65536, 262144, 1048576}) b->Arg(n);
-}
-
-BENCHMARK(BM_Dot<float>)->Apply(DotSizes)->Name("Dot_float");
-BENCHMARK(BM_Dot<double>)->Apply(DotSizes)->Name("Dot_double");
-BENCHMARK(BM_Dot<std::complex<float>>)->Apply(DotSizes)->Name("Dot_cfloat");
-BENCHMARK(BM_Dot<std::complex<double>>)->Apply(DotSizes)->Name("Dot_cdouble");
-BENCHMARK(BM_SquaredNorm<float>)->Apply(DotSizes)->Name("SquaredNorm_float");
-BENCHMARK(BM_SquaredNorm<double>)->Apply(DotSizes)->Name("SquaredNorm_double");
+// clang-format off
+#define DOT_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
+BENCHMARK(BM_Dot<float>) DOT_SIZES ->Name("Dot_float");
+BENCHMARK(BM_Dot<double>) DOT_SIZES ->Name("Dot_double");
+BENCHMARK(BM_Dot<std::complex<float>>) DOT_SIZES ->Name("Dot_cfloat");
+BENCHMARK(BM_Dot<std::complex<double>>) DOT_SIZES ->Name("Dot_cdouble");
+BENCHMARK(BM_SquaredNorm<float>) DOT_SIZES ->Name("SquaredNorm_float");
+BENCHMARK(BM_SquaredNorm<double>) DOT_SIZES ->Name("SquaredNorm_double");
+#undef DOT_SIZES
+// clang-format on

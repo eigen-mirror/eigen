@@ -71,18 +71,16 @@ static void BM_VectorTanh(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(double));
 }
 
-static void VectorSizes(::benchmark::Benchmark* b) {
-  for (int n : {10000, 100000, 1000000, 5000000}) {
-    b->Arg(n);
-  }
-}
-
-BENCHMARK(BM_VectorExp)->Apply(VectorSizes);
-BENCHMARK(BM_VectorSin)->Apply(VectorSizes);
-BENCHMARK(BM_VectorCos)->Apply(VectorSizes);
-BENCHMARK(BM_VectorSqrt)->Apply(VectorSizes);
-BENCHMARK(BM_VectorLog)->Apply(VectorSizes);
-BENCHMARK(BM_VectorTanh)->Apply(VectorSizes);
+// clang-format off
+#define VECTOR_SIZES ->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(5000000)
+BENCHMARK(BM_VectorExp) VECTOR_SIZES;
+BENCHMARK(BM_VectorSin) VECTOR_SIZES;
+BENCHMARK(BM_VectorCos) VECTOR_SIZES;
+BENCHMARK(BM_VectorSqrt) VECTOR_SIZES;
+BENCHMARK(BM_VectorLog) VECTOR_SIZES;
+BENCHMARK(BM_VectorTanh) VECTOR_SIZES;
+#undef VECTOR_SIZES
+// clang-format on
 
 static void BM_DGEMM(benchmark::State& state) {
   int n = state.range(0);

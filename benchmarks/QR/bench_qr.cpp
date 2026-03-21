@@ -98,26 +98,25 @@ static void BM_HouseholderQR_Solve(benchmark::State& state) {
 
 // --- Size configurations ---
 
-static void QrSizes(::benchmark::Benchmark* b) {
-  // Square
-  for (int n : {32, 64, 128, 256, 512, 1024}) b->Args({n, n});
-  // Tall-thin
-  b->Args({1000, 32});
-  b->Args({1000, 100});
-  b->Args({10000, 32});
-  b->Args({10000, 100});
-}
+// clang-format off
+// Square sizes + tall-thin sizes.
+#define QR_SIZES \
+    ->Args({32, 32})->Args({64, 64})->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \
+    ->Args({1000, 32})->Args({1000, 100})->Args({10000, 32})->Args({10000, 100})
 
 // Register: float
-BENCHMARK(BM_HouseholderQR<float>)->Apply(QrSizes)->Name("HouseholderQR_float");
-BENCHMARK(BM_ColPivHouseholderQR<float>)->Apply(QrSizes)->Name("ColPivHouseholderQR_float");
-BENCHMARK(BM_FullPivHouseholderQR<float>)->Apply(QrSizes)->Name("FullPivHouseholderQR_float");
-BENCHMARK(BM_COD<float>)->Apply(QrSizes)->Name("COD_float");
-BENCHMARK(BM_HouseholderQR_Solve<float>)->Apply(QrSizes)->Name("HouseholderQR_Solve_float");
+BENCHMARK(BM_HouseholderQR<float>) QR_SIZES ->Name("HouseholderQR_float");
+BENCHMARK(BM_ColPivHouseholderQR<float>) QR_SIZES ->Name("ColPivHouseholderQR_float");
+BENCHMARK(BM_FullPivHouseholderQR<float>) QR_SIZES ->Name("FullPivHouseholderQR_float");
+BENCHMARK(BM_COD<float>) QR_SIZES ->Name("COD_float");
+BENCHMARK(BM_HouseholderQR_Solve<float>) QR_SIZES ->Name("HouseholderQR_Solve_float");
 
 // Register: double
-BENCHMARK(BM_HouseholderQR<double>)->Apply(QrSizes)->Name("HouseholderQR_double");
-BENCHMARK(BM_ColPivHouseholderQR<double>)->Apply(QrSizes)->Name("ColPivHouseholderQR_double");
-BENCHMARK(BM_FullPivHouseholderQR<double>)->Apply(QrSizes)->Name("FullPivHouseholderQR_double");
-BENCHMARK(BM_COD<double>)->Apply(QrSizes)->Name("COD_double");
-BENCHMARK(BM_HouseholderQR_Solve<double>)->Apply(QrSizes)->Name("HouseholderQR_Solve_double");
+BENCHMARK(BM_HouseholderQR<double>) QR_SIZES ->Name("HouseholderQR_double");
+BENCHMARK(BM_ColPivHouseholderQR<double>) QR_SIZES ->Name("ColPivHouseholderQR_double");
+BENCHMARK(BM_FullPivHouseholderQR<double>) QR_SIZES ->Name("FullPivHouseholderQR_double");
+BENCHMARK(BM_COD<double>) QR_SIZES ->Name("COD_double");
+BENCHMARK(BM_HouseholderQR_Solve<double>) QR_SIZES ->Name("HouseholderQR_Solve_double");
+
+#undef QR_SIZES
+// clang-format on

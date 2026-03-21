@@ -33,13 +33,5 @@ static void BM_SparseTranspose(benchmark::State& state) {
   state.counters["density%"] = density * 100;
 }
 
-static void TransposeSizes(::benchmark::Benchmark* b) {
-  // Args: {size, density*10000}
-  for (int n : {1000, 10000}) {
-    for (int d : {100, 50, 10, 4}) {  // 1%, 0.5%, 0.1%, 0.04%
-      b->Args({n, d});
-    }
-  }
-}
-
-BENCHMARK(BM_SparseTranspose)->Apply(TransposeSizes);
+// Args: {size, density*10000}: 1%, 0.5%, 0.1%, 0.04%
+BENCHMARK(BM_SparseTranspose)->ArgsProduct({{1000, 10000}, {100, 50, 10, 4}});

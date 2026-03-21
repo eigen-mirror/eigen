@@ -99,27 +99,26 @@ static void BM_FixedSetIdentity(benchmark::State& state) {
 
 // --- Size configurations ---
 
-static void DynamicSizes(::benchmark::Benchmark* b) {
-  for (int n : {4, 8, 16, 32, 64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
-static void VectorSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 256, 1024, 4096, 16384, 65536}) b->Arg(n);
-}
+// clang-format off
+#define DYNAMIC_SIZES ->Arg(4)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
+#define VECTOR_SIZES  ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)
 
 // --- Register: dynamic float ---
-BENCHMARK(BM_SetZero<float>)->Apply(DynamicSizes)->Name("SetZero_float");
-BENCHMARK(BM_SetRandom<float>)->Apply(DynamicSizes)->Name("SetRandom_float");
-BENCHMARK(BM_SetIdentity<float>)->Apply(DynamicSizes)->Name("SetIdentity_float");
-BENCHMARK(BM_SetConstant<float>)->Apply(DynamicSizes)->Name("SetConstant_float");
-BENCHMARK(BM_LinSpaced<float>)->Apply(VectorSizes)->Name("LinSpaced_float");
+BENCHMARK(BM_SetZero<float>) DYNAMIC_SIZES ->Name("SetZero_float");
+BENCHMARK(BM_SetRandom<float>) DYNAMIC_SIZES ->Name("SetRandom_float");
+BENCHMARK(BM_SetIdentity<float>) DYNAMIC_SIZES ->Name("SetIdentity_float");
+BENCHMARK(BM_SetConstant<float>) DYNAMIC_SIZES ->Name("SetConstant_float");
+BENCHMARK(BM_LinSpaced<float>) VECTOR_SIZES ->Name("LinSpaced_float");
 
 // --- Register: dynamic double ---
-BENCHMARK(BM_SetZero<double>)->Apply(DynamicSizes)->Name("SetZero_double");
-BENCHMARK(BM_SetRandom<double>)->Apply(DynamicSizes)->Name("SetRandom_double");
-BENCHMARK(BM_SetIdentity<double>)->Apply(DynamicSizes)->Name("SetIdentity_double");
-BENCHMARK(BM_SetConstant<double>)->Apply(DynamicSizes)->Name("SetConstant_double");
-BENCHMARK(BM_LinSpaced<double>)->Apply(VectorSizes)->Name("LinSpaced_double");
+BENCHMARK(BM_SetZero<double>) DYNAMIC_SIZES ->Name("SetZero_double");
+BENCHMARK(BM_SetRandom<double>) DYNAMIC_SIZES ->Name("SetRandom_double");
+BENCHMARK(BM_SetIdentity<double>) DYNAMIC_SIZES ->Name("SetIdentity_double");
+BENCHMARK(BM_SetConstant<double>) DYNAMIC_SIZES ->Name("SetConstant_double");
+BENCHMARK(BM_LinSpaced<double>) VECTOR_SIZES ->Name("LinSpaced_double");
+
+#undef DYNAMIC_SIZES
+#undef VECTOR_SIZES
 
 // --- Register: fixed-size float ---
 BENCHMARK(BM_FixedSetZero<float, 2>)->Name("FixedSetZero_float_2x2");

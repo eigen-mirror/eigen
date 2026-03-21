@@ -38,12 +38,4 @@ static void BM_SparseMM(benchmark::State& state) {
   state.counters["nnz_B"] = sm2.nonZeros();
 }
 
-static void SpMMSizes(::benchmark::Benchmark* b) {
-  for (int n : {1000, 10000}) {
-    for (int nnz : {4, 6, 10}) {
-      b->Args({n, nnz});
-    }
-  }
-}
-
-BENCHMARK(BM_SparseMM)->Apply(SpMMSizes);
+BENCHMARK(BM_SparseMM)->ArgsProduct({{1000, 10000}, {4, 6, 10}});

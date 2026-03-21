@@ -32,15 +32,15 @@ static void BM_TRMV(benchmark::State& state) {
                                                 benchmark::Counter::kIs1000);
 }
 
-static void TrmvSizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 16, 32, 64, 128, 256, 512, 1024, 2048}) b->Arg(n);
-}
-
-BENCHMARK(BM_TRMV<float, Lower>)->Apply(TrmvSizes)->Name("TRMV_float_Lower");
-BENCHMARK(BM_TRMV<float, Upper>)->Apply(TrmvSizes)->Name("TRMV_float_Upper");
-BENCHMARK(BM_TRMV<float, UnitLower>)->Apply(TrmvSizes)->Name("TRMV_float_UnitLower");
-BENCHMARK(BM_TRMV<float, UnitUpper>)->Apply(TrmvSizes)->Name("TRMV_float_UnitUpper");
-BENCHMARK(BM_TRMV<double, Lower>)->Apply(TrmvSizes)->Name("TRMV_double_Lower");
-BENCHMARK(BM_TRMV<double, Upper>)->Apply(TrmvSizes)->Name("TRMV_double_Upper");
-BENCHMARK(BM_TRMV<double, UnitLower>)->Apply(TrmvSizes)->Name("TRMV_double_UnitLower");
-BENCHMARK(BM_TRMV<double, UnitUpper>)->Apply(TrmvSizes)->Name("TRMV_double_UnitUpper");
+// clang-format off
+#define TRMV_SIZES ->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Arg(2048)
+BENCHMARK(BM_TRMV<float, Lower>) TRMV_SIZES ->Name("TRMV_float_Lower");
+BENCHMARK(BM_TRMV<float, Upper>) TRMV_SIZES ->Name("TRMV_float_Upper");
+BENCHMARK(BM_TRMV<float, UnitLower>) TRMV_SIZES ->Name("TRMV_float_UnitLower");
+BENCHMARK(BM_TRMV<float, UnitUpper>) TRMV_SIZES ->Name("TRMV_float_UnitUpper");
+BENCHMARK(BM_TRMV<double, Lower>) TRMV_SIZES ->Name("TRMV_double_Lower");
+BENCHMARK(BM_TRMV<double, Upper>) TRMV_SIZES ->Name("TRMV_double_Upper");
+BENCHMARK(BM_TRMV<double, UnitLower>) TRMV_SIZES ->Name("TRMV_double_UnitLower");
+BENCHMARK(BM_TRMV<double, UnitUpper>) TRMV_SIZES ->Name("TRMV_double_UnitUpper");
+#undef TRMV_SIZES
+// clang-format on

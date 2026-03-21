@@ -158,25 +158,9 @@ static void BM_BiCGSTAB(benchmark::State& state) {
   state.counters["iterations"] = solver.iterations();
 }
 
-static void DirectSolverSizes(::benchmark::Benchmark* b) {
-  for (int n : {1000, 5000, 10000, 50000}) {
-    for (int bw : {5, 20}) {
-      b->Args({n, bw});
-    }
-  }
-}
-
-static void IterativeSolverSizes(::benchmark::Benchmark* b) {
-  for (int n : {1000, 10000, 50000}) {
-    for (int bw : {5, 20}) {
-      b->Args({n, bw});
-    }
-  }
-}
-
-BENCHMARK(BM_SimplicialLLT)->Apply(DirectSolverSizes);
-BENCHMARK(BM_SimplicialLDLT)->Apply(DirectSolverSizes);
-BENCHMARK(BM_SparseLU)->Apply(DirectSolverSizes);
-BENCHMARK(BM_SparseQR)->Apply(DirectSolverSizes);
-BENCHMARK(BM_CG)->Apply(IterativeSolverSizes);
-BENCHMARK(BM_BiCGSTAB)->Apply(IterativeSolverSizes);
+BENCHMARK(BM_SimplicialLLT)->ArgsProduct({{1000, 5000, 10000, 50000}, {5, 20}});
+BENCHMARK(BM_SimplicialLDLT)->ArgsProduct({{1000, 5000, 10000, 50000}, {5, 20}});
+BENCHMARK(BM_SparseLU)->ArgsProduct({{1000, 5000, 10000, 50000}, {5, 20}});
+BENCHMARK(BM_SparseQR)->ArgsProduct({{1000, 5000, 10000, 50000}, {5, 20}});
+BENCHMARK(BM_CG)->ArgsProduct({{1000, 10000, 50000}, {5, 20}});
+BENCHMARK(BM_BiCGSTAB)->ArgsProduct({{1000, 10000, 50000}, {5, 20}});

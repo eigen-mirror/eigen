@@ -48,46 +48,41 @@ static void BM_BDCSVD(benchmark::State& state) {
 
 // ---------- Size configurations ----------
 
-// Sizes suitable for JacobiSVD (O(n^2 p), expensive for large n).
-static void JacobiSizes(::benchmark::Benchmark* b) {
-  // Square
-  for (int s : {4, 8, 16, 32, 64, 128, 256, 512}) b->Args({s, s});
-  // Tall-skinny
-  b->Args({100, 4});
-  b->Args({1000, 4});
-  b->Args({1000, 10});
-}
-
-// Sizes suitable for BDCSVD (divide-and-conquer, faster for large matrices).
-static void BDCSizes(::benchmark::Benchmark* b) {
-  // Square
-  for (int s : {4, 8, 16, 32, 64, 128, 256, 512, 1024}) b->Args({s, s});
-  // Tall-skinny (triggers R-bidiagonalization when aspect ratio > 4)
-  b->Args({100, 4});
-  b->Args({1000, 4});
-  b->Args({1000, 10});
-  b->Args({1000, 100});
-  b->Args({10000, 10});
-  b->Args({10000, 100});
-}
-
 // ---------- Register benchmarks ----------
 
+// clang-format off
+// JacobiSVD sizes: square + tall-skinny (expensive for large n).
+#define JACOBI_SIZES \
+    ->Args({4, 4})->Args({8, 8})->Args({16, 16})->Args({32, 32})->Args({64, 64}) \
+    ->Args({128, 128})->Args({256, 256})->Args({512, 512}) \
+    ->Args({100, 4})->Args({1000, 4})->Args({1000, 10})
+
+// BDCSVD sizes: square + tall-skinny (triggers R-bidiagonalization when aspect ratio > 4).
+#define BDC_SIZES \
+    ->Args({4, 4})->Args({8, 8})->Args({16, 16})->Args({32, 32})->Args({64, 64}) \
+    ->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \
+    ->Args({100, 4})->Args({1000, 4})->Args({1000, 10})->Args({1000, 100}) \
+    ->Args({10000, 10})->Args({10000, 100})
+
 // JacobiSVD — float
-BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>)->Apply(JacobiSizes)->Name("JacobiSVD_float_ThinUV");
-BENCHMARK(BM_JacobiSVD<float, 0>)->Apply(JacobiSizes)->Name("JacobiSVD_float_ValuesOnly");
+BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_float_ThinUV");
+BENCHMARK(BM_JacobiSVD<float, 0>) JACOBI_SIZES ->Name("JacobiSVD_float_ValuesOnly");
 
 // JacobiSVD — double
-BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>)->Apply(JacobiSizes)->Name("JacobiSVD_double_ThinUV");
-BENCHMARK(BM_JacobiSVD<double, 0>)->Apply(JacobiSizes)->Name("JacobiSVD_double_ValuesOnly");
+BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_double_ThinUV");
+BENCHMARK(BM_JacobiSVD<double, 0>) JACOBI_SIZES ->Name("JacobiSVD_double_ValuesOnly");
 
 // BDCSVD — float
-BENCHMARK(BM_BDCSVD<float, ComputeThinU | ComputeThinV>)->Apply(BDCSizes)->Name("BDCSVD_float_ThinUV");
-BENCHMARK(BM_BDCSVD<float, 0>)->Apply(BDCSizes)->Name("BDCSVD_float_ValuesOnly");
+BENCHMARK(BM_BDCSVD<float, ComputeThinU | ComputeThinV>) BDC_SIZES ->Name("BDCSVD_float_ThinUV");
+BENCHMARK(BM_BDCSVD<float, 0>) BDC_SIZES ->Name("BDCSVD_float_ValuesOnly");
 
 // BDCSVD — double
-BENCHMARK(BM_BDCSVD<double, ComputeThinU | ComputeThinV>)->Apply(BDCSizes)->Name("BDCSVD_double_ThinUV");
-BENCHMARK(BM_BDCSVD<double, 0>)->Apply(BDCSizes)->Name("BDCSVD_double_ValuesOnly");
+BENCHMARK(BM_BDCSVD<double, ComputeThinU | ComputeThinV>) BDC_SIZES ->Name("BDCSVD_double_ThinUV");
+BENCHMARK(BM_BDCSVD<double, 0>) BDC_SIZES ->Name("BDCSVD_double_ValuesOnly");
+
+#undef JACOBI_SIZES
+#undef BDC_SIZES
+// clang-format on
 
 // JacobiSVD — QR preconditioner comparison (double, 64x64, ThinUV)
 BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV | ColPivHouseholderQRPreconditioner>)

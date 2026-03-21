@@ -52,13 +52,5 @@ static void BM_SpMV_Transpose(benchmark::State& state) {
   state.counters["nnz"] = sm.nonZeros();
 }
 
-static void SpMVSizes(::benchmark::Benchmark* b) {
-  for (int n : {1000, 10000, 100000}) {
-    for (int nnz : {7, 20, 50}) {
-      b->Args({n, nnz});
-    }
-  }
-}
-
-BENCHMARK(BM_SpMV)->Apply(SpMVSizes);
-BENCHMARK(BM_SpMV_Transpose)->Apply(SpMVSizes);
+BENCHMARK(BM_SpMV)->ArgsProduct({{1000, 10000, 100000}, {7, 20, 50}});
+BENCHMARK(BM_SpMV_Transpose)->ArgsProduct({{1000, 10000, 100000}, {7, 20, 50}});

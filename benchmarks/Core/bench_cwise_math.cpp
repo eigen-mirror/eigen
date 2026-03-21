@@ -130,82 +130,84 @@ BENCH_CWISE_UNARY_COMPLEX(Square, a.square(), -10, 10)
 BENCH_CWISE_BINARY_COMPLEX(Mul, a* b, -10, 10)
 BENCH_CWISE_BINARY_COMPLEX(Div, a / b, -10, 10)
 
-static void CwiseSizes(::benchmark::Benchmark* b) {
-  for (int n : {1024, 4096, 16384, 65536, 262144, 1048576}) b->Arg(n);
-}
+// clang-format off
+#define CWISE_SIZES ->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
 
 // --- Register float ---
-BENCHMARK(BM_Exp<float>)->Apply(CwiseSizes)->Name("Exp_float");
-BENCHMARK(BM_Log<float>)->Apply(CwiseSizes)->Name("Log_float");
-BENCHMARK(BM_Log1p<float>)->Apply(CwiseSizes)->Name("Log1p_float");
-BENCHMARK(BM_Log2<float>)->Apply(CwiseSizes)->Name("Log2_float");
-BENCHMARK(BM_Sqrt<float>)->Apply(CwiseSizes)->Name("Sqrt_float");
-BENCHMARK(BM_Rsqrt<float>)->Apply(CwiseSizes)->Name("Rsqrt_float");
-BENCHMARK(BM_Exp2<float>)->Apply(CwiseSizes)->Name("Exp2_float");
-BENCHMARK(BM_Expm1<float>)->Apply(CwiseSizes)->Name("Expm1_float");
-BENCHMARK(BM_Cbrt<float>)->Apply(CwiseSizes)->Name("Cbrt_float");
-BENCHMARK(BM_Sin<float>)->Apply(CwiseSizes)->Name("Sin_float");
-BENCHMARK(BM_Cos<float>)->Apply(CwiseSizes)->Name("Cos_float");
-BENCHMARK(BM_Tan<float>)->Apply(CwiseSizes)->Name("Tan_float");
-BENCHMARK(BM_Asin<float>)->Apply(CwiseSizes)->Name("Asin_float");
-BENCHMARK(BM_Acos<float>)->Apply(CwiseSizes)->Name("Acos_float");
-BENCHMARK(BM_Atan<float>)->Apply(CwiseSizes)->Name("Atan_float");
-BENCHMARK(BM_Tanh<float>)->Apply(CwiseSizes)->Name("Tanh_float");
-BENCHMARK(BM_Atanh<float>)->Apply(CwiseSizes)->Name("Atanh_float");
-BENCHMARK(BM_Erf<float>)->Apply(CwiseSizes)->Name("Erf_float");
-BENCHMARK(BM_Abs<float>)->Apply(CwiseSizes)->Name("Abs_float");
-BENCHMARK(BM_Square<float>)->Apply(CwiseSizes)->Name("Square_float");
-BENCHMARK(BM_Cube<float>)->Apply(CwiseSizes)->Name("Cube_float");
-BENCHMARK(BM_Ceil<float>)->Apply(CwiseSizes)->Name("Ceil_float");
-BENCHMARK(BM_Floor<float>)->Apply(CwiseSizes)->Name("Floor_float");
-BENCHMARK(BM_Round<float>)->Apply(CwiseSizes)->Name("Round_float");
-BENCHMARK(BM_Rint<float>)->Apply(CwiseSizes)->Name("Rint_float");
-BENCHMARK(BM_Trunc<float>)->Apply(CwiseSizes)->Name("Trunc_float");
-BENCHMARK(BM_Sigmoid<float>)->Apply(CwiseSizes)->Name("Sigmoid_float");
-BENCHMARK(BM_Pow<float>)->Apply(CwiseSizes)->Name("Pow_float");
+BENCHMARK(BM_Exp<float>) CWISE_SIZES ->Name("Exp_float");
+BENCHMARK(BM_Log<float>) CWISE_SIZES ->Name("Log_float");
+BENCHMARK(BM_Log1p<float>) CWISE_SIZES ->Name("Log1p_float");
+BENCHMARK(BM_Log2<float>) CWISE_SIZES ->Name("Log2_float");
+BENCHMARK(BM_Sqrt<float>) CWISE_SIZES ->Name("Sqrt_float");
+BENCHMARK(BM_Rsqrt<float>) CWISE_SIZES ->Name("Rsqrt_float");
+BENCHMARK(BM_Exp2<float>) CWISE_SIZES ->Name("Exp2_float");
+BENCHMARK(BM_Expm1<float>) CWISE_SIZES ->Name("Expm1_float");
+BENCHMARK(BM_Cbrt<float>) CWISE_SIZES ->Name("Cbrt_float");
+BENCHMARK(BM_Sin<float>) CWISE_SIZES ->Name("Sin_float");
+BENCHMARK(BM_Cos<float>) CWISE_SIZES ->Name("Cos_float");
+BENCHMARK(BM_Tan<float>) CWISE_SIZES ->Name("Tan_float");
+BENCHMARK(BM_Asin<float>) CWISE_SIZES ->Name("Asin_float");
+BENCHMARK(BM_Acos<float>) CWISE_SIZES ->Name("Acos_float");
+BENCHMARK(BM_Atan<float>) CWISE_SIZES ->Name("Atan_float");
+BENCHMARK(BM_Tanh<float>) CWISE_SIZES ->Name("Tanh_float");
+BENCHMARK(BM_Atanh<float>) CWISE_SIZES ->Name("Atanh_float");
+BENCHMARK(BM_Erf<float>) CWISE_SIZES ->Name("Erf_float");
+BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
+BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
+BENCHMARK(BM_Cube<float>) CWISE_SIZES ->Name("Cube_float");
+BENCHMARK(BM_Ceil<float>) CWISE_SIZES ->Name("Ceil_float");
+BENCHMARK(BM_Floor<float>) CWISE_SIZES ->Name("Floor_float");
+BENCHMARK(BM_Round<float>) CWISE_SIZES ->Name("Round_float");
+BENCHMARK(BM_Rint<float>) CWISE_SIZES ->Name("Rint_float");
+BENCHMARK(BM_Trunc<float>) CWISE_SIZES ->Name("Trunc_float");
+BENCHMARK(BM_Sigmoid<float>) CWISE_SIZES ->Name("Sigmoid_float");
+BENCHMARK(BM_Pow<float>) CWISE_SIZES ->Name("Pow_float");
 
 // --- Register double ---
-BENCHMARK(BM_Exp<double>)->Apply(CwiseSizes)->Name("Exp_double");
-BENCHMARK(BM_Log<double>)->Apply(CwiseSizes)->Name("Log_double");
-BENCHMARK(BM_Log1p<double>)->Apply(CwiseSizes)->Name("Log1p_double");
-BENCHMARK(BM_Log2<double>)->Apply(CwiseSizes)->Name("Log2_double");
-BENCHMARK(BM_Sqrt<double>)->Apply(CwiseSizes)->Name("Sqrt_double");
-BENCHMARK(BM_Rsqrt<double>)->Apply(CwiseSizes)->Name("Rsqrt_double");
-BENCHMARK(BM_Exp2<double>)->Apply(CwiseSizes)->Name("Exp2_double");
-BENCHMARK(BM_Expm1<double>)->Apply(CwiseSizes)->Name("Expm1_double");
-BENCHMARK(BM_Cbrt<double>)->Apply(CwiseSizes)->Name("Cbrt_double");
-BENCHMARK(BM_Sin<double>)->Apply(CwiseSizes)->Name("Sin_double");
-BENCHMARK(BM_Cos<double>)->Apply(CwiseSizes)->Name("Cos_double");
-BENCHMARK(BM_Tan<double>)->Apply(CwiseSizes)->Name("Tan_double");
-BENCHMARK(BM_Asin<double>)->Apply(CwiseSizes)->Name("Asin_double");
-BENCHMARK(BM_Acos<double>)->Apply(CwiseSizes)->Name("Acos_double");
-BENCHMARK(BM_Atan<double>)->Apply(CwiseSizes)->Name("Atan_double");
-BENCHMARK(BM_Tanh<double>)->Apply(CwiseSizes)->Name("Tanh_double");
-BENCHMARK(BM_Atanh<double>)->Apply(CwiseSizes)->Name("Atanh_double");
-BENCHMARK(BM_Erf<double>)->Apply(CwiseSizes)->Name("Erf_double");
-BENCHMARK(BM_Abs<double>)->Apply(CwiseSizes)->Name("Abs_double");
-BENCHMARK(BM_Square<double>)->Apply(CwiseSizes)->Name("Square_double");
-BENCHMARK(BM_Cube<double>)->Apply(CwiseSizes)->Name("Cube_double");
-BENCHMARK(BM_Ceil<double>)->Apply(CwiseSizes)->Name("Ceil_double");
-BENCHMARK(BM_Floor<double>)->Apply(CwiseSizes)->Name("Floor_double");
-BENCHMARK(BM_Round<double>)->Apply(CwiseSizes)->Name("Round_double");
-BENCHMARK(BM_Rint<double>)->Apply(CwiseSizes)->Name("Rint_double");
-BENCHMARK(BM_Trunc<double>)->Apply(CwiseSizes)->Name("Trunc_double");
-BENCHMARK(BM_Sigmoid<double>)->Apply(CwiseSizes)->Name("Sigmoid_double");
-BENCHMARK(BM_Pow<double>)->Apply(CwiseSizes)->Name("Pow_double");
+BENCHMARK(BM_Exp<double>) CWISE_SIZES ->Name("Exp_double");
+BENCHMARK(BM_Log<double>) CWISE_SIZES ->Name("Log_double");
+BENCHMARK(BM_Log1p<double>) CWISE_SIZES ->Name("Log1p_double");
+BENCHMARK(BM_Log2<double>) CWISE_SIZES ->Name("Log2_double");
+BENCHMARK(BM_Sqrt<double>) CWISE_SIZES ->Name("Sqrt_double");
+BENCHMARK(BM_Rsqrt<double>) CWISE_SIZES ->Name("Rsqrt_double");
+BENCHMARK(BM_Exp2<double>) CWISE_SIZES ->Name("Exp2_double");
+BENCHMARK(BM_Expm1<double>) CWISE_SIZES ->Name("Expm1_double");
+BENCHMARK(BM_Cbrt<double>) CWISE_SIZES ->Name("Cbrt_double");
+BENCHMARK(BM_Sin<double>) CWISE_SIZES ->Name("Sin_double");
+BENCHMARK(BM_Cos<double>) CWISE_SIZES ->Name("Cos_double");
+BENCHMARK(BM_Tan<double>) CWISE_SIZES ->Name("Tan_double");
+BENCHMARK(BM_Asin<double>) CWISE_SIZES ->Name("Asin_double");
+BENCHMARK(BM_Acos<double>) CWISE_SIZES ->Name("Acos_double");
+BENCHMARK(BM_Atan<double>) CWISE_SIZES ->Name("Atan_double");
+BENCHMARK(BM_Tanh<double>) CWISE_SIZES ->Name("Tanh_double");
+BENCHMARK(BM_Atanh<double>) CWISE_SIZES ->Name("Atanh_double");
+BENCHMARK(BM_Erf<double>) CWISE_SIZES ->Name("Erf_double");
+BENCHMARK(BM_Abs<double>) CWISE_SIZES ->Name("Abs_double");
+BENCHMARK(BM_Square<double>) CWISE_SIZES ->Name("Square_double");
+BENCHMARK(BM_Cube<double>) CWISE_SIZES ->Name("Cube_double");
+BENCHMARK(BM_Ceil<double>) CWISE_SIZES ->Name("Ceil_double");
+BENCHMARK(BM_Floor<double>) CWISE_SIZES ->Name("Floor_double");
+BENCHMARK(BM_Round<double>) CWISE_SIZES ->Name("Round_double");
+BENCHMARK(BM_Rint<double>) CWISE_SIZES ->Name("Rint_double");
+BENCHMARK(BM_Trunc<double>) CWISE_SIZES ->Name("Trunc_double");
+BENCHMARK(BM_Sigmoid<double>) CWISE_SIZES ->Name("Sigmoid_double");
+BENCHMARK(BM_Pow<double>) CWISE_SIZES ->Name("Pow_double");
 
 // --- Register complex<float> ---
-BENCHMARK(BM_Exp_complex<float>)->Apply(CwiseSizes)->Name("Exp_complexf");
-BENCHMARK(BM_Log_complex<float>)->Apply(CwiseSizes)->Name("Log_complexf");
-BENCHMARK(BM_Sqrt_complex<float>)->Apply(CwiseSizes)->Name("Sqrt_complexf");
-BENCHMARK(BM_Square_complex<float>)->Apply(CwiseSizes)->Name("Square_complexf");
-BENCHMARK(BM_Mul_complex<float>)->Apply(CwiseSizes)->Name("Mul_complexf");
-BENCHMARK(BM_Div_complex<float>)->Apply(CwiseSizes)->Name("Div_complexf");
+BENCHMARK(BM_Exp_complex<float>) CWISE_SIZES ->Name("Exp_complexf");
+BENCHMARK(BM_Log_complex<float>) CWISE_SIZES ->Name("Log_complexf");
+BENCHMARK(BM_Sqrt_complex<float>) CWISE_SIZES ->Name("Sqrt_complexf");
+BENCHMARK(BM_Square_complex<float>) CWISE_SIZES ->Name("Square_complexf");
+BENCHMARK(BM_Mul_complex<float>) CWISE_SIZES ->Name("Mul_complexf");
+BENCHMARK(BM_Div_complex<float>) CWISE_SIZES ->Name("Div_complexf");
 
 // --- Register complex<double> ---
-BENCHMARK(BM_Exp_complex<double>)->Apply(CwiseSizes)->Name("Exp_complexd");
-BENCHMARK(BM_Log_complex<double>)->Apply(CwiseSizes)->Name("Log_complexd");
-BENCHMARK(BM_Sqrt_complex<double>)->Apply(CwiseSizes)->Name("Sqrt_complexd");
-BENCHMARK(BM_Square_complex<double>)->Apply(CwiseSizes)->Name("Square_complexd");
-BENCHMARK(BM_Mul_complex<double>)->Apply(CwiseSizes)->Name("Mul_complexd");
-BENCHMARK(BM_Div_complex<double>)->Apply(CwiseSizes)->Name("Div_complexd");
+BENCHMARK(BM_Exp_complex<double>) CWISE_SIZES ->Name("Exp_complexd");
+BENCHMARK(BM_Log_complex<double>) CWISE_SIZES ->Name("Log_complexd");
+BENCHMARK(BM_Sqrt_complex<double>) CWISE_SIZES ->Name("Sqrt_complexd");
+BENCHMARK(BM_Square_complex<double>) CWISE_SIZES ->Name("Square_complexd");
+BENCHMARK(BM_Mul_complex<double>) CWISE_SIZES ->Name("Mul_complexd");
+BENCHMARK(BM_Div_complex<double>) CWISE_SIZES ->Name("Div_complexd");
+
+#undef CWISE_SIZES
+// clang-format on

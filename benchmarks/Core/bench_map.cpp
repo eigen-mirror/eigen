@@ -83,21 +83,17 @@ static void BM_OwnedGemv(benchmark::State& state) {
       benchmark::Counter(2.0 * n * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void SumSizes(::benchmark::Benchmark* b) {
-  for (int n : {256, 1024, 4096, 16384, 65536, 262144, 1048576}) b->Arg(n);
-}
-
-static void GemvSizes(::benchmark::Benchmark* b) {
-  for (int n : {32, 128, 512, 1024}) b->Arg(n);
-}
-
-BENCHMARK(BM_MapContiguousSum<float>)->Apply(SumSizes)->Name("MapContiguousSum_float");
-BENCHMARK(BM_MapStridedSum<float>)->Apply(SumSizes)->Name("MapStridedSum_float");
-BENCHMARK(BM_OwnedSum<float>)->Apply(SumSizes)->Name("OwnedSum_float");
-BENCHMARK(BM_MapContiguousSum<double>)->Apply(SumSizes)->Name("MapContiguousSum_double");
-BENCHMARK(BM_MapStridedSum<double>)->Apply(SumSizes)->Name("MapStridedSum_double");
-BENCHMARK(BM_OwnedSum<double>)->Apply(SumSizes)->Name("OwnedSum_double");
-BENCHMARK(BM_MapGemv<float>)->Apply(GemvSizes)->Name("MapGemv_float");
-BENCHMARK(BM_OwnedGemv<float>)->Apply(GemvSizes)->Name("OwnedGemv_float");
-BENCHMARK(BM_MapGemv<double>)->Apply(GemvSizes)->Name("MapGemv_double");
-BENCHMARK(BM_OwnedGemv<double>)->Apply(GemvSizes)->Name("OwnedGemv_double");
+// clang-format off
+#define SUM_SIZES ->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(262144)->Arg(1048576)
+BENCHMARK(BM_MapContiguousSum<float>) SUM_SIZES ->Name("MapContiguousSum_float");
+BENCHMARK(BM_MapStridedSum<float>) SUM_SIZES ->Name("MapStridedSum_float");
+BENCHMARK(BM_OwnedSum<float>) SUM_SIZES ->Name("OwnedSum_float");
+BENCHMARK(BM_MapContiguousSum<double>) SUM_SIZES ->Name("MapContiguousSum_double");
+BENCHMARK(BM_MapStridedSum<double>) SUM_SIZES ->Name("MapStridedSum_double");
+BENCHMARK(BM_OwnedSum<double>) SUM_SIZES ->Name("OwnedSum_double");
+#undef SUM_SIZES
+BENCHMARK(BM_MapGemv<float>)->Arg(32)->Arg(128)->Arg(512)->Arg(1024)->Name("MapGemv_float");
+BENCHMARK(BM_OwnedGemv<float>)->Arg(32)->Arg(128)->Arg(512)->Arg(1024)->Name("OwnedGemv_float");
+BENCHMARK(BM_MapGemv<double>)->Arg(32)->Arg(128)->Arg(512)->Arg(1024)->Name("MapGemv_double");
+BENCHMARK(BM_OwnedGemv<double>)->Arg(32)->Arg(128)->Arg(512)->Arg(1024)->Name("OwnedGemv_double");
+// clang-format on

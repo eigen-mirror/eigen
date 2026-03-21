@@ -67,15 +67,15 @@ static void BM_MatrixTimesDiagonal(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * 2 * n * n * sizeof(Scalar));
 }
 
-static void Sizes(::benchmark::Benchmark* b) {
-  for (int n : {32, 64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
-BENCHMARK(BM_DiagonalExtract<float>)->Apply(Sizes)->Name("DiagonalExtract_float");
-BENCHMARK(BM_DiagonalExtract<double>)->Apply(Sizes)->Name("DiagonalExtract_double");
-BENCHMARK(BM_DiagonalTimesVector<float>)->Apply(Sizes)->Name("DiagonalTimesVector_float");
-BENCHMARK(BM_DiagonalTimesVector<double>)->Apply(Sizes)->Name("DiagonalTimesVector_double");
-BENCHMARK(BM_DiagonalTimesMatrix<float>)->Apply(Sizes)->Name("DiagonalTimesMatrix_float");
-BENCHMARK(BM_DiagonalTimesMatrix<double>)->Apply(Sizes)->Name("DiagonalTimesMatrix_double");
-BENCHMARK(BM_MatrixTimesDiagonal<float>)->Apply(Sizes)->Name("MatrixTimesDiagonal_float");
-BENCHMARK(BM_MatrixTimesDiagonal<double>)->Apply(Sizes)->Name("MatrixTimesDiagonal_double");
+// clang-format off
+#define DIAG_SIZES ->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
+BENCHMARK(BM_DiagonalExtract<float>) DIAG_SIZES ->Name("DiagonalExtract_float");
+BENCHMARK(BM_DiagonalExtract<double>) DIAG_SIZES ->Name("DiagonalExtract_double");
+BENCHMARK(BM_DiagonalTimesVector<float>) DIAG_SIZES ->Name("DiagonalTimesVector_float");
+BENCHMARK(BM_DiagonalTimesVector<double>) DIAG_SIZES ->Name("DiagonalTimesVector_double");
+BENCHMARK(BM_DiagonalTimesMatrix<float>) DIAG_SIZES ->Name("DiagonalTimesMatrix_float");
+BENCHMARK(BM_DiagonalTimesMatrix<double>) DIAG_SIZES ->Name("DiagonalTimesMatrix_double");
+BENCHMARK(BM_MatrixTimesDiagonal<float>) DIAG_SIZES ->Name("MatrixTimesDiagonal_float");
+BENCHMARK(BM_MatrixTimesDiagonal<double>) DIAG_SIZES ->Name("MatrixTimesDiagonal_double");
+#undef DIAG_SIZES
+// clang-format on

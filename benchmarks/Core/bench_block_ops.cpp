@@ -70,20 +70,16 @@ static void BM_LeftCols(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * k * sizeof(Scalar));
 }
 
-static void BlockSizes(::benchmark::Benchmark* b) {
-  // (matrix_size, block_size)
-  for (int n : {256, 512, 1024}) {
-    for (int bs : {16, 64, 128}) {
-      if (bs <= n) b->Args({n, bs});
-    }
-  }
-}
-
-BENCHMARK(BM_BlockRead<float>)->Apply(BlockSizes)->Name("BlockRead_float");
-BENCHMARK(BM_BlockRead<double>)->Apply(BlockSizes)->Name("BlockRead_double");
-BENCHMARK(BM_BlockWrite<float>)->Apply(BlockSizes)->Name("BlockWrite_float");
-BENCHMARK(BM_BlockWrite<double>)->Apply(BlockSizes)->Name("BlockWrite_double");
-BENCHMARK(BM_TopRows<float>)->Apply(BlockSizes)->Name("TopRows_float");
-BENCHMARK(BM_TopRows<double>)->Apply(BlockSizes)->Name("TopRows_double");
-BENCHMARK(BM_LeftCols<float>)->Apply(BlockSizes)->Name("LeftCols_float");
-BENCHMARK(BM_LeftCols<double>)->Apply(BlockSizes)->Name("LeftCols_double");
+// (matrix_size, block_size)
+// clang-format off
+#define BLOCK_SIZES ->ArgsProduct({{256, 512, 1024}, {16, 64, 128}})
+BENCHMARK(BM_BlockRead<float>) BLOCK_SIZES ->Name("BlockRead_float");
+BENCHMARK(BM_BlockRead<double>) BLOCK_SIZES ->Name("BlockRead_double");
+BENCHMARK(BM_BlockWrite<float>) BLOCK_SIZES ->Name("BlockWrite_float");
+BENCHMARK(BM_BlockWrite<double>) BLOCK_SIZES ->Name("BlockWrite_double");
+BENCHMARK(BM_TopRows<float>) BLOCK_SIZES ->Name("TopRows_float");
+BENCHMARK(BM_TopRows<double>) BLOCK_SIZES ->Name("TopRows_double");
+BENCHMARK(BM_LeftCols<float>) BLOCK_SIZES ->Name("LeftCols_float");
+BENCHMARK(BM_LeftCols<double>) BLOCK_SIZES ->Name("LeftCols_double");
+#undef BLOCK_SIZES
+// clang-format on

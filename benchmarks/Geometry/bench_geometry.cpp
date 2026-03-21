@@ -14,18 +14,27 @@ struct TransformDim<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> {
   static constexpr int value = Rows;
 };
 
+// Initialize a Transform from a random affine matrix.
+template <typename T>
+static void initTransformation(T& t) {
+  constexpr int Dim = TransformDim<T>::value;
+  Matrix<typename T::Scalar, Dim, Dim + 1> mat;
+  mat.setRandom();
+  t = T(mat);
+}
+
+// Specialization for plain matrices: just call setRandom().
+template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
+static void initTransformation(Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>& t) {
+  t.setRandom();
+}
+
 template <typename Transformation, int N>
 static void BM_TransformData(benchmark::State& state) {
   typedef typename Transformation::Scalar Scalar;
   constexpr int Dim = TransformDim<Transformation>::value;
   Transformation t;
-  if constexpr (std::is_same_v<Transformation, Matrix<Scalar, Dim, Dim>>) {
-    t.setRandom();
-  } else {
-    Matrix<Scalar, Dim, Dim + 1> mat;
-    mat.setRandom();
-    t = Transformation(mat);
-  }
+  initTransformation(t);
   Matrix<Scalar, Dim, N> data;
   data.setRandom();
   for (auto _ : state) {

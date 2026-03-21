@@ -67,13 +67,11 @@ static void BM_LLT_Rcond(benchmark::State& state) {
 
 // --- Size configurations ---
 
-static void SquareSizes(::benchmark::Benchmark* b) {
-  for (int n : {8, 32, 64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
-BENCHMARK(BM_PartialPivLU_Rcond<float>)->Apply(SquareSizes)->Name("PartialPivLU_Rcond_float");
-BENCHMARK(BM_PartialPivLU_Rcond<double>)->Apply(SquareSizes)->Name("PartialPivLU_Rcond_double");
-BENCHMARK(BM_FullPivLU_Rcond<float>)->Apply(SquareSizes)->Name("FullPivLU_Rcond_float");
-BENCHMARK(BM_FullPivLU_Rcond<double>)->Apply(SquareSizes)->Name("FullPivLU_Rcond_double");
-BENCHMARK(BM_LLT_Rcond<float>)->Apply(SquareSizes)->Name("LLT_Rcond_float");
-BENCHMARK(BM_LLT_Rcond<double>)->Apply(SquareSizes)->Name("LLT_Rcond_double");
+// clang-format off
+BENCHMARK(BM_PartialPivLU_Rcond<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Rcond_float");
+BENCHMARK(BM_PartialPivLU_Rcond<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("PartialPivLU_Rcond_double");
+BENCHMARK(BM_FullPivLU_Rcond<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("FullPivLU_Rcond_float");
+BENCHMARK(BM_FullPivLU_Rcond<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("FullPivLU_Rcond_double");
+BENCHMARK(BM_LLT_Rcond<float>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("LLT_Rcond_float");
+BENCHMARK(BM_LLT_Rcond<double>)->Arg(8)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)->Name("LLT_Rcond_double");
+// clang-format on

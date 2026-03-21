@@ -39,18 +39,17 @@ static void BM_TRMM_Right(benchmark::State& state) {
       benchmark::Counter(1.0 * n * n * n, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void TrmmSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 128, 256, 512, 1024}) b->Arg(n);
-}
-
+// clang-format off
+#define TRMM_SIZES ->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 // Left product
-BENCHMARK(BM_TRMM_Left<float, Lower>)->Apply(TrmmSizes)->Name("TRMM_Left_float_Lower");
-BENCHMARK(BM_TRMM_Left<float, Upper>)->Apply(TrmmSizes)->Name("TRMM_Left_float_Upper");
-BENCHMARK(BM_TRMM_Left<double, Lower>)->Apply(TrmmSizes)->Name("TRMM_Left_double_Lower");
-BENCHMARK(BM_TRMM_Left<double, Upper>)->Apply(TrmmSizes)->Name("TRMM_Left_double_Upper");
-
+BENCHMARK(BM_TRMM_Left<float, Lower>) TRMM_SIZES ->Name("TRMM_Left_float_Lower");
+BENCHMARK(BM_TRMM_Left<float, Upper>) TRMM_SIZES ->Name("TRMM_Left_float_Upper");
+BENCHMARK(BM_TRMM_Left<double, Lower>) TRMM_SIZES ->Name("TRMM_Left_double_Lower");
+BENCHMARK(BM_TRMM_Left<double, Upper>) TRMM_SIZES ->Name("TRMM_Left_double_Upper");
 // Right product
-BENCHMARK(BM_TRMM_Right<float, Lower>)->Apply(TrmmSizes)->Name("TRMM_Right_float_Lower");
-BENCHMARK(BM_TRMM_Right<float, Upper>)->Apply(TrmmSizes)->Name("TRMM_Right_float_Upper");
-BENCHMARK(BM_TRMM_Right<double, Lower>)->Apply(TrmmSizes)->Name("TRMM_Right_double_Lower");
-BENCHMARK(BM_TRMM_Right<double, Upper>)->Apply(TrmmSizes)->Name("TRMM_Right_double_Upper");
+BENCHMARK(BM_TRMM_Right<float, Lower>) TRMM_SIZES ->Name("TRMM_Right_float_Lower");
+BENCHMARK(BM_TRMM_Right<float, Upper>) TRMM_SIZES ->Name("TRMM_Right_float_Upper");
+BENCHMARK(BM_TRMM_Right<double, Lower>) TRMM_SIZES ->Name("TRMM_Right_double_Lower");
+BENCHMARK(BM_TRMM_Right<double, Upper>) TRMM_SIZES ->Name("TRMM_Right_double_Upper");
+#undef TRMM_SIZES
+// clang-format on

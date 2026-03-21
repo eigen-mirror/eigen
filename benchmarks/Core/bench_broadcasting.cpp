@@ -157,36 +157,35 @@ static void BM_RowwiseBroadcastMul(benchmark::State& state) {
 }
 
 // --- Size configurations ---
-
-static void BroadcastSizes(::benchmark::Benchmark* b) {
-  // Square matrices
-  for (int n : {64, 128, 256, 512, 1024}) b->Args({n, n});
-  // Tall-thin (many rows, few cols)
-  b->Args({10000, 32});
-  // Short-wide (few rows, many cols)
-  b->Args({32, 10000});
-}
+// clang-format off
+// Square matrices; tall-thin (many rows, few cols); short-wide (few rows, many cols).
+#define BROADCAST_SIZES \
+    ->Args({64, 64})->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \
+    ->Args({10000, 32})->Args({32, 10000})
 
 // --- Register: float ---
-BENCHMARK(BM_ColwiseSum<float>)->Apply(BroadcastSizes)->Name("ColwiseSum_float");
-BENCHMARK(BM_ColwiseMean<float>)->Apply(BroadcastSizes)->Name("ColwiseMean_float");
-BENCHMARK(BM_ColwiseNorm<float>)->Apply(BroadcastSizes)->Name("ColwiseNorm_float");
-BENCHMARK(BM_ColwiseMinCoeff<float>)->Apply(BroadcastSizes)->Name("ColwiseMinCoeff_float");
-BENCHMARK(BM_ColwiseMaxCoeff<float>)->Apply(BroadcastSizes)->Name("ColwiseMaxCoeff_float");
-BENCHMARK(BM_RowwiseSum<float>)->Apply(BroadcastSizes)->Name("RowwiseSum_float");
-BENCHMARK(BM_RowwiseNorm<float>)->Apply(BroadcastSizes)->Name("RowwiseNorm_float");
-BENCHMARK(BM_RowwiseBroadcastAdd<float>)->Apply(BroadcastSizes)->Name("RowwiseBroadcastAdd_float");
-BENCHMARK(BM_ColwiseBroadcastAdd<float>)->Apply(BroadcastSizes)->Name("ColwiseBroadcastAdd_float");
-BENCHMARK(BM_RowwiseBroadcastMul<float>)->Apply(BroadcastSizes)->Name("RowwiseBroadcastMul_float");
+BENCHMARK(BM_ColwiseSum<float>) BROADCAST_SIZES ->Name("ColwiseSum_float");
+BENCHMARK(BM_ColwiseMean<float>) BROADCAST_SIZES ->Name("ColwiseMean_float");
+BENCHMARK(BM_ColwiseNorm<float>) BROADCAST_SIZES ->Name("ColwiseNorm_float");
+BENCHMARK(BM_ColwiseMinCoeff<float>) BROADCAST_SIZES ->Name("ColwiseMinCoeff_float");
+BENCHMARK(BM_ColwiseMaxCoeff<float>) BROADCAST_SIZES ->Name("ColwiseMaxCoeff_float");
+BENCHMARK(BM_RowwiseSum<float>) BROADCAST_SIZES ->Name("RowwiseSum_float");
+BENCHMARK(BM_RowwiseNorm<float>) BROADCAST_SIZES ->Name("RowwiseNorm_float");
+BENCHMARK(BM_RowwiseBroadcastAdd<float>) BROADCAST_SIZES ->Name("RowwiseBroadcastAdd_float");
+BENCHMARK(BM_ColwiseBroadcastAdd<float>) BROADCAST_SIZES ->Name("ColwiseBroadcastAdd_float");
+BENCHMARK(BM_RowwiseBroadcastMul<float>) BROADCAST_SIZES ->Name("RowwiseBroadcastMul_float");
 
 // --- Register: double ---
-BENCHMARK(BM_ColwiseSum<double>)->Apply(BroadcastSizes)->Name("ColwiseSum_double");
-BENCHMARK(BM_ColwiseMean<double>)->Apply(BroadcastSizes)->Name("ColwiseMean_double");
-BENCHMARK(BM_ColwiseNorm<double>)->Apply(BroadcastSizes)->Name("ColwiseNorm_double");
-BENCHMARK(BM_ColwiseMinCoeff<double>)->Apply(BroadcastSizes)->Name("ColwiseMinCoeff_double");
-BENCHMARK(BM_ColwiseMaxCoeff<double>)->Apply(BroadcastSizes)->Name("ColwiseMaxCoeff_double");
-BENCHMARK(BM_RowwiseSum<double>)->Apply(BroadcastSizes)->Name("RowwiseSum_double");
-BENCHMARK(BM_RowwiseNorm<double>)->Apply(BroadcastSizes)->Name("RowwiseNorm_double");
-BENCHMARK(BM_RowwiseBroadcastAdd<double>)->Apply(BroadcastSizes)->Name("RowwiseBroadcastAdd_double");
-BENCHMARK(BM_ColwiseBroadcastAdd<double>)->Apply(BroadcastSizes)->Name("ColwiseBroadcastAdd_double");
-BENCHMARK(BM_RowwiseBroadcastMul<double>)->Apply(BroadcastSizes)->Name("RowwiseBroadcastMul_double");
+BENCHMARK(BM_ColwiseSum<double>) BROADCAST_SIZES ->Name("ColwiseSum_double");
+BENCHMARK(BM_ColwiseMean<double>) BROADCAST_SIZES ->Name("ColwiseMean_double");
+BENCHMARK(BM_ColwiseNorm<double>) BROADCAST_SIZES ->Name("ColwiseNorm_double");
+BENCHMARK(BM_ColwiseMinCoeff<double>) BROADCAST_SIZES ->Name("ColwiseMinCoeff_double");
+BENCHMARK(BM_ColwiseMaxCoeff<double>) BROADCAST_SIZES ->Name("ColwiseMaxCoeff_double");
+BENCHMARK(BM_RowwiseSum<double>) BROADCAST_SIZES ->Name("RowwiseSum_double");
+BENCHMARK(BM_RowwiseNorm<double>) BROADCAST_SIZES ->Name("RowwiseNorm_double");
+BENCHMARK(BM_RowwiseBroadcastAdd<double>) BROADCAST_SIZES ->Name("RowwiseBroadcastAdd_double");
+BENCHMARK(BM_ColwiseBroadcastAdd<double>) BROADCAST_SIZES ->Name("ColwiseBroadcastAdd_double");
+BENCHMARK(BM_RowwiseBroadcastMul<double>) BROADCAST_SIZES ->Name("RowwiseBroadcastMul_double");
+
+#undef BROADCAST_SIZES
+// clang-format on

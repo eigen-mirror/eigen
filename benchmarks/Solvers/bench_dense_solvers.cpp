@@ -141,27 +141,16 @@ static void BM_BDCSVD(benchmark::State& state) {
   }
 }
 
-static void DenseSolverSizes(::benchmark::Benchmark* b) {
-  // Square sizes
-  for (int s : {8, 100, 1000}) {
-    b->Args({s, s});
-  }
-  // Tall-skinny sizes
-  b->Args({10000, 8});
-  b->Args({10000, 100});
-}
-
-BENCHMARK(BM_LLT)->Apply(DenseSolverSizes);
-BENCHMARK(BM_LDLT)->Apply(DenseSolverSizes);
-BENCHMARK(BM_PartialPivLU)->Apply(DenseSolverSizes);
-BENCHMARK(BM_FullPivLU)->Apply(DenseSolverSizes);
-BENCHMARK(BM_HouseholderQR)->Apply(DenseSolverSizes);
-BENCHMARK(BM_ColPivHouseholderQR)->Apply(DenseSolverSizes);
-BENCHMARK(BM_COD)->Apply(DenseSolverSizes);
-BENCHMARK(BM_FullPivHouseholderQR)->Apply(DenseSolverSizes);
-BENCHMARK(BM_JacobiSVD)->Apply([](::benchmark::Benchmark* b) {
-  // JacobiSVD is very slow for large matrices
-  for (int s : {8, 100}) b->Args({s, s});
-  b->Args({10000, 8});
-});
-BENCHMARK(BM_BDCSVD)->Apply(DenseSolverSizes);
+// clang-format off
+BENCHMARK(BM_LLT)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_LDLT)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_PartialPivLU)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_FullPivLU)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_HouseholderQR)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_ColPivHouseholderQR)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_COD)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+BENCHMARK(BM_FullPivHouseholderQR)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+// JacobiSVD is very slow for large matrices
+BENCHMARK(BM_JacobiSVD)->Args({8, 8})->Args({100, 100})->Args({10000, 8});
+BENCHMARK(BM_BDCSVD)->Args({8, 8})->Args({100, 100})->Args({1000, 1000})->Args({10000, 8})->Args({10000, 100});
+// clang-format on
