@@ -472,6 +472,86 @@ This also means that, unless specified, if the function \c std::foo is available
   <td></td>
 </tr>
 <tr>
+  <td class="code">
+  \anchor cwisetable_less
+  a \link ArrayBase::operator<  operator< \endlink(b); \n
+  a \link ArrayBase::operator<  operator< \endlink(s);
+  </td>
+  <td>coefficient-wise less than comparison (\f$ a_i \lt b_i \f$). \n
+  \c a and \c b can be either an array or scalar.</td>
+  <td class="code">
+  a[i] < b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
+  <td class="code">
+  \anchor cwisetable_less_equal
+  a \link ArrayBase::operator<=  operator<= \endlink(b); \n
+  a \link ArrayBase::operator<=  operator<= \endlink(s);
+  </td>
+  <td>coefficient-wise less than or equal comparison (\f$ a_i \le b_i \f$). \n
+  \c a and \c b can be either an array or scalar.</td>
+  <td class="code">
+  a[i] <= b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
+  <td class="code">
+  \anchor cwisetable_greater
+  a \link ArrayBase::operator>  operator> \endlink(b); \n
+  a \link ArrayBase::operator>  operator> \endlink(s);
+  </td>
+  <td>coefficient-wise greater than comparison (\f$ a_i \gt b_i \f$). \n
+  \c a and \c b can be either an array or scalar.</td>
+  <td class="code">
+  a[i] > b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
+  <td class="code">
+  \anchor cwisetable_greater_equal
+  a \link ArrayBase::operator>=  operator>= \endlink(b); \n
+  a \link ArrayBase::operator>=  operator>= \endlink(s);
+  </td>
+  <td>coefficient-wise greater than or equal comparison (\f$ a_i \ge b_i \f$). \n
+  \c a and \c b can be either an array or scalar.</td>
+  <td class="code">
+  a[i] >= b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
+  <td class="code">
+  \anchor cwisetable_equal
+  a \link ArrayBase::operator==  operator== \endlink(b); \n
+  a \link ArrayBase::operator==  operator== \endlink(s);
+  </td>
+  <td>coefficient-wise equality comparison (\f$ a_i = b_i \f$). \n
+  \c a and \c b can be either an array or scalar. \n
+  \warning Performs exact comparison; prefer \c isApprox() for floating-point types.</td>
+  <td class="code">
+  a[i] == b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
+  <td class="code">
+  \anchor cwisetable_not_equal
+  a \link ArrayBase::operator!=  operator!= \endlink(b); \n
+  a \link ArrayBase::operator!=  operator!= \endlink(s);
+  </td>
+  <td>coefficient-wise not-equal comparison (\f$ a_i \ne b_i \f$). \n
+  \c a and \c b can be either an array or scalar. \n
+  \warning Performs exact comparison; prefer \c isApprox() for floating-point types.</td>
+  <td class="code">
+  a[i] != b[i];
+  </td>
+  <td></td>
+</tr>
+<tr>
 <th colspan="4">Error and gamma functions</th>
 </tr>
 <tr> <td colspan="4">  Require \c \#include \c <unsupported/Eigen/SpecialFunctions> </td></tr>
