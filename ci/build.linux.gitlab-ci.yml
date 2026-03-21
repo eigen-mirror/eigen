@@ -26,17 +26,6 @@
     EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
 
-# GCC-6 (minimum on Ubuntu 18.04)
-build:linux:cross:x86-64:gcc-6:default:
-  extends: .build:linux:cross:x86-64
-  image: ubuntu:18.04
-  variables:
-    EIGEN_CI_C_COMPILER: gcc-6
-    EIGEN_CI_CXX_COMPILER: g++-6
-    EIGEN_CI_CROSS_INSTALL: g++-6-x86-64-linux-gnu
-    EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-6
-    EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-6
-
 # GCC-10 (stable recent version)
 build:linux:cross:x86-64:gcc-10:default:
   extends: .build:linux:cross:x86-64
