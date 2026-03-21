@@ -58,6 +58,32 @@ void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::S
     VERIFY_IS_APPROX((m5.template topLeftCorner<MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>()),
                      m2.inverse());
   }
+
+  // check that computeInverseAndDetWithCheck resizes dynamic result matrix (issue #2917)
+  {
+    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    DynamicMatrix m_dyn_inv;
+    Scalar det_dyn;
+    bool inv_dyn;
+    m1.computeInverseAndDetWithCheck(m_dyn_inv, det_dyn, inv_dyn);
+    VERIFY(inv_dyn);
+    VERIFY_IS_EQUAL(m_dyn_inv.rows(), m1.rows());
+    VERIFY_IS_EQUAL(m_dyn_inv.cols(), m1.cols());
+    VERIFY_IS_APPROX(identity, m1 * m_dyn_inv);
+    VERIFY_IS_APPROX(det_dyn, m1.determinant());
+  }
+
+  // check that computeInverseWithCheck resizes dynamic result matrix
+  {
+    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    DynamicMatrix m_dyn_inv;
+    bool inv_dyn;
+    m1.computeInverseWithCheck(m_dyn_inv, inv_dyn);
+    VERIFY(inv_dyn);
+    VERIFY_IS_EQUAL(m_dyn_inv.rows(), m1.rows());
+    VERIFY_IS_EQUAL(m_dyn_inv.cols(), m1.cols());
+    VERIFY_IS_APPROX(identity, m1 * m_dyn_inv);
+  }
 }
 
 template <typename MatrixType>
