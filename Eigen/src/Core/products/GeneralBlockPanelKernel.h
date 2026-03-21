@@ -1292,17 +1292,17 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 #else
   constexpr int CSize = 3 * NrCols > MrPackets * NrCols ? 3 * NrCols : MrPackets * NrCols;
 #endif
-  AccPacketLocal C[CSize];
+  alignas(AccPacketLocal) AccPacketLocal C[CSize];
   for (int n = 0; n < MrPackets * NrCols; ++n) traits.initAcc(C[n]);
 
   // Double-accumulation trick for 1pX4 path to break FMA dependency chains
   constexpr bool use_double_accum = (MrPackets == 1 && NrCols == 4);
 #ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
-  AccPacketLocal D[use_double_accum ? NrCols : 1];
+  alignas(AccPacketLocal) AccPacketLocal D[use_double_accum ? NrCols : 1];
 #else
   // Without if constexpr, we must allocate a larger array to satisfy the
   // compiler that D[n] is always in bounds for the use_double_accum path.
-  AccPacketLocal D[CSize];
+  alignas(AccPacketLocal) AccPacketLocal D[CSize];
 #endif
   EIGEN_IF_CONSTEXPR(use_double_accum) {
     for (int n = 0; n < NrCols; ++n) traits.initAcc(D[n]);
@@ -1317,15 +1317,15 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 
   // LHS packet staging area. With if constexpr (C++17) we use exact sizes.
 #ifdef EIGEN_HAS_CXX17_IFCONSTEXPR
-  LhsPacketLocal A[MrPackets];
+  alignas(LhsPacketLocal) LhsPacketLocal A[MrPackets];
 #else
-  LhsPacketLocal A[3];
+  alignas(LhsPacketLocal) LhsPacketLocal A[3];
 #endif
 
   // ---- Peeled k-loop (pk=8 unrolled) ----
   for (Index_ k = 0; k < peeled_kc; k += pk) {
-    RhsPanelType rhs_panel;
-    RhsPacketLocal T0;
+    alignas(RhsPanelType) RhsPanelType rhs_panel;
+    alignas(RhsPacketLocal) RhsPacketLocal T0;
 
     gebp_peeled_loop<MrPackets, NrCols>::template run<GEBPTraits, LhsScalar_, RhsScalar_, decltype(A), RhsPanelType,
                                                       RhsPacketLocal, decltype(C), decltype(D), FullLhsPacket>(
@@ -1342,8 +1342,8 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
 
   // ---- Remainder k-loop ----
   for (Index_ k = peeled_kc; k < depth; k++) {
-    RhsPanelType rhs_panel;
-    RhsPacketLocal T0;
+    alignas(RhsPanelType) RhsPanelType rhs_panel;
+    alignas(RhsPacketLocal) RhsPacketLocal T0;
 
     gebp_micro_step<0, MrPackets, NrCols>::run(traits, blA, blB, A, rhs_panel, T0, C);
 
@@ -1352,11 +1352,11 @@ EIGEN_ALWAYS_INLINE void gebp_micro_panel_impl(GEBPTraits& traits, const DataMap
   }
 
   // ---- Store results: C[j + p * NrCols] -> res(i + p*ResPacketSz, j2 + j) ----
-  ResPacketLocal alphav = pset1<ResPacketLocal>(alpha);
+  alignas(ResPacketLocal) ResPacketLocal alphav = pset1<ResPacketLocal>(alpha);
   for (int j = 0; j < NrCols; ++j) {
     LinearMapper_ r = res.getLinearMapper(i, j2 + j);
     for (int p = 0; p < MrPackets; ++p) {
-      ResPacketLocal R = r.template loadPacket<ResPacketLocal>(p * ResPacketSz);
+      alignas(ResPacketLocal) ResPacketLocal R = r.template loadPacket<ResPacketLocal>(p * ResPacketSz);
       traits.acc(C[j + p * NrCols], alphav, R);
       r.storePacket(p * ResPacketSz, R);
     }
@@ -1918,14 +1918,23 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
   // address both real & imaginary parts on the rhs. This portion will
   // pack those half ones until they match the number expected on the
   // last peeling loop at this point (for the rhs).
+  //
+  // When there are no half/quarter packet types (HasHalf and HasQuarter
+  // are both false), last_lhs_progress can exceed Pack2, producing
+  // interleaved groups that the GEBP micro-kernel cannot consume.  In
+  // that case we use exactly Pack2 rows per group so the kernel's main
+  // loop (which reads Pack2 = LhsProgress values via ploaddup) can
+  // handle them; remaining rows fall through to the scalar loop below.
   if (Pack2 < PacketSize && Pack2 > 1) {
-    for (; i < peeled_mc0; i += last_lhs_progress) {
-      if (PanelMode) count += last_lhs_progress * offset;
+    const Index pack2_progress = (HasHalf || HasQuarter) ? last_lhs_progress : Pack2;
+    const Index peeled = (HasHalf || HasQuarter) ? peeled_mc0 : (rows / Pack2) * Pack2;
+    for (; i < peeled; i += pack2_progress) {
+      if (PanelMode) count += pack2_progress * offset;
 
       for (Index k = 0; k < depth; k++)
-        for (Index w = 0; w < last_lhs_progress; w++) blockA[count++] = cj(lhs(i + w, k));
+        for (Index w = 0; w < pack2_progress; w++) blockA[count++] = cj(lhs(i + w, k));
 
-      if (PanelMode) count += last_lhs_progress * (stride - offset - depth);
+      if (PanelMode) count += pack2_progress * (stride - offset - depth);
     }
   }
   // Pack scalars
@@ -2040,7 +2049,11 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
       // address both real & imaginary parts on the rhs. This portion will
       // pack those half ones until they match the number expected on the
       // last peeling loop at this point (for the rhs).
-      if (Pack2 < PacketSize && !gone_last) {
+      //
+      // When there are no half/quarter packet types, the interleaved
+      // groups cannot be consumed by the GEBP micro-kernel's half/quarter
+      // loops.  Fall through to the scalar loop instead.
+      if (Pack2 < PacketSize && !gone_last && (HasHalf || HasQuarter)) {
         gone_last = true;
         psize = pack = left & ~1;
       }
