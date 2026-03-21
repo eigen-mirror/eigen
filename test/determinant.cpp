@@ -60,6 +60,6 @@ EIGEN_DECLARE_TEST(determinant) {
     CALL_SUBTEST_5(determinant(Matrix<std::complex<double>, 10, 10>()));
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
     CALL_SUBTEST_6(determinant(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }

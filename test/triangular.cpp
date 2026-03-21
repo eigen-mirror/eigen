@@ -325,16 +325,16 @@ void triangular_at_blocking_boundaries() {
 
 void bug_159() {
   Matrix3d m = Matrix3d::Random().triangularView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
+  EIGEN_UNUSED_VARIABLE(m);
 }
 
 EIGEN_DECLARE_TEST(triangular) {
   int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(r)
+    TEST_SET_BUT_UNUSED_VARIABLE(r);
     int c = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(c)
+    TEST_SET_BUT_UNUSED_VARIABLE(c);
 
     CALL_SUBTEST_1(triangular_square(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(triangular_square(Matrix<float, 2, 2>()));

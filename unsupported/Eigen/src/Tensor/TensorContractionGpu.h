@@ -1348,8 +1348,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   void evalTyped(Scalar* buffer) const {
     // columns in left side, rows in right side
     const Index k = this->m_k_size;
-    EIGEN_UNUSED_VARIABLE(k)
-
+    EIGEN_UNUSED_VARIABLE(k);
     // rows in left side
     const Index m = this->m_i_size;
 

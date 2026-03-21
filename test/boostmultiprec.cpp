@@ -194,7 +194,7 @@ EIGEN_DECLARE_TEST(boostmultiprec) {
 
     CALL_SUBTEST_8(generalized_eigensolver_real(Mat(s, s)));
 
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 
   CALL_SUBTEST_9(

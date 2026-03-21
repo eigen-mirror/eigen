@@ -262,7 +262,7 @@ EIGEN_DECLARE_TEST(rand) {
 
   CALL_SUBTEST_11(check_histogram<int32_t>(-5, 5, 11));
   int bins = 100;
-  EIGEN_UNUSED_VARIABLE(bins)
+  EIGEN_UNUSED_VARIABLE(bins);
   CALL_SUBTEST_11(check_histogram<int32_t>(-3333, -3333 + bins * (3333 / bins) - 1, bins));
   bins = 1000;
   CALL_SUBTEST_11(check_histogram<int32_t>(-RAND_MAX + 10, -RAND_MAX + 10 + bins * (RAND_MAX / bins) - 1, bins));

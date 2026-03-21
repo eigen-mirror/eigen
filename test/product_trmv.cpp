@@ -88,10 +88,10 @@ EIGEN_DECLARE_TEST(product_trmv) {
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     CALL_SUBTEST_4(trmv(MatrixXcf(s, s)));
     CALL_SUBTEST_5(trmv(MatrixXcd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_6(trmv(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }

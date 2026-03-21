@@ -100,8 +100,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2), c = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
 
-    TEST_SET_BUT_UNUSED_VARIABLE(r)
-    TEST_SET_BUT_UNUSED_VARIABLE(c)
+    TEST_SET_BUT_UNUSED_VARIABLE(r);
+    TEST_SET_BUT_UNUSED_VARIABLE(c);
 
     CALL_SUBTEST_10((compare_bdc_jacobi<MatrixXf>(MatrixXf(r, c))));
     CALL_SUBTEST_11((compare_bdc_jacobi<MatrixXd>(MatrixXd(r, c))));

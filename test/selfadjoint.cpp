@@ -46,7 +46,7 @@ void selfadjoint(const MatrixType& m) {
 
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
+  EIGEN_UNUSED_VARIABLE(m);
 }
 
 EIGEN_DECLARE_TEST(selfadjoint) {
@@ -59,7 +59,7 @@ EIGEN_DECLARE_TEST(selfadjoint) {
     CALL_SUBTEST_4(selfadjoint(MatrixXcd(s, s)));
     CALL_SUBTEST_5(selfadjoint(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
 
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 
   CALL_SUBTEST_1(bug_159());

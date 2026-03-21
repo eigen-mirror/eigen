@@ -257,7 +257,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(s, s)));
     CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(s, s)));
     CALL_SUBTEST_9(selfadjointeigensolver(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     // some trivial but implementation-wise tricky cases
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(1, 1)));
@@ -278,5 +278,5 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_8(SelfAdjointEigenSolver<MatrixXf> tmp1(s));
   CALL_SUBTEST_8(Tridiagonalization<MatrixXf> tmp2(s));
 
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

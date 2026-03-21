@@ -97,5 +97,5 @@ EIGEN_DECLARE_TEST(nesting_ops) {
   CALL_SUBTEST_2(run_nesting_ops_2(MatrixXcd(s, s)));
   CALL_SUBTEST_3(run_nesting_ops_2(Matrix4f()));
   CALL_SUBTEST_4(run_nesting_ops_2(Matrix2d()));
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

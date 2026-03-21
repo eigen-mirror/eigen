@@ -112,7 +112,7 @@ class GpuStreamDevice : public StreamInterface {
     } else {
       int num_devices;
       gpuError_t err = gpuGetDeviceCount(&num_devices);
-      EIGEN_UNUSED_VARIABLE(err)
+      EIGEN_UNUSED_VARIABLE(err);
       gpu_assert(err == gpuSuccess);
       gpu_assert(device < num_devices);
       device_ = device;
@@ -129,7 +129,7 @@ class GpuStreamDevice : public StreamInterface {
   const gpuDeviceProp_t& deviceProperties() const { return GetGpuDeviceProperties(device_); }
   virtual void* allocate(size_t num_bytes) const {
     gpuError_t err = gpuSetDevice(device_);
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
     void* result;
     err = gpuMalloc(&result, num_bytes);
@@ -139,7 +139,7 @@ class GpuStreamDevice : public StreamInterface {
   }
   virtual void deallocate(void* buffer) const {
     gpuError_t err = gpuSetDevice(device_);
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
     gpu_assert(buffer != NULL);
     err = gpuFree(buffer);
@@ -158,7 +158,7 @@ class GpuStreamDevice : public StreamInterface {
       char* scratch = static_cast<char*>(scratchpad()) + kGpuScratchSize;
       semaphore_ = reinterpret_cast<unsigned int*>(scratch);
       gpuError_t err = gpuMemsetAsync(semaphore_, 0, sizeof(unsigned int), *stream_);
-      EIGEN_UNUSED_VARIABLE(err)
+      EIGEN_UNUSED_VARIABLE(err);
       gpu_assert(err == gpuSuccess);
     }
     return semaphore_;
@@ -201,7 +201,7 @@ struct GpuDevice {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpy(void* dst, const void* src, size_t n) const {
 #ifndef EIGEN_GPU_COMPILE_PHASE
     gpuError_t err = gpuMemcpyAsync(dst, src, n, gpuMemcpyDeviceToDevice, stream_->stream());
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
 #else
     EIGEN_UNUSED_VARIABLE(dst);
@@ -213,25 +213,25 @@ struct GpuDevice {
 
   EIGEN_STRONG_INLINE void memcpyHostToDevice(void* dst, const void* src, size_t n) const {
     gpuError_t err = gpuMemcpyAsync(dst, src, n, gpuMemcpyHostToDevice, stream_->stream());
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
   }
 
   EIGEN_STRONG_INLINE void memcpyDeviceToHost(void* dst, const void* src, size_t n) const {
     gpuError_t err = gpuMemcpyAsync(dst, src, n, gpuMemcpyDeviceToHost, stream_->stream());
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memset(void* buffer, int c, size_t n) const {
 #ifndef EIGEN_GPU_COMPILE_PHASE
     gpuError_t err = gpuMemsetAsync(buffer, c, n, stream_->stream());
-    EIGEN_UNUSED_VARIABLE(err)
+    EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
 #else
-    EIGEN_UNUSED_VARIABLE(buffer)
-    EIGEN_UNUSED_VARIABLE(c)
-    EIGEN_UNUSED_VARIABLE(n)
+    EIGEN_UNUSED_VARIABLE(buffer);
+    EIGEN_UNUSED_VARIABLE(c);
+    EIGEN_UNUSED_VARIABLE(n);
     eigen_assert(false && "The default device should be used instead to generate kernel code");
 #endif
   }
@@ -245,8 +245,7 @@ struct GpuDevice {
     char* buffer = (char*)begin;
     char* value_bytes = (char*)(&value);
     gpuError_t err;
-    EIGEN_UNUSED_VARIABLE(err)
-
+    EIGEN_UNUSED_VARIABLE(err);
     // If all value bytes are equal, then a single memset can be much faster.
     bool use_single_memset = true;
     for (int i = 1; i < value_size; ++i) {
@@ -265,9 +264,9 @@ struct GpuDevice {
       }
     }
 #else
-    EIGEN_UNUSED_VARIABLE(begin)
-    EIGEN_UNUSED_VARIABLE(end)
-    EIGEN_UNUSED_VARIABLE(value)
+    EIGEN_UNUSED_VARIABLE(begin);
+    EIGEN_UNUSED_VARIABLE(end);
+    EIGEN_UNUSED_VARIABLE(value);
     eigen_assert(false && "The default device should be used instead to generate kernel code");
 #endif
   }
@@ -348,10 +347,10 @@ struct GpuDevice {
 static EIGEN_DEVICE_FUNC inline void setGpuSharedMemConfig(gpuSharedMemConfig config) {
 #ifndef EIGEN_GPU_COMPILE_PHASE
   gpuError_t status = gpuDeviceSetSharedMemConfig(config);
-  EIGEN_UNUSED_VARIABLE(status)
+  EIGEN_UNUSED_VARIABLE(status);
   gpu_assert(status == gpuSuccess);
 #else
-  EIGEN_UNUSED_VARIABLE(config)
+  EIGEN_UNUSED_VARIABLE(config);
 #endif
 }
 #endif

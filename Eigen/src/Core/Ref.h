@@ -281,7 +281,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     EIGEN_STATIC_ASSERT(bool(Traits::template match<Derived>::MatchAtCompileTime), STORAGE_LAYOUT_DOES_NOT_MATCH);
     // Construction must pass since we will not create temporary storage in the non-const case.
     const bool success = Base::construct(expr.derived());
-    EIGEN_UNUSED_VARIABLE(success)
+    EIGEN_UNUSED_VARIABLE(success);
     eigen_assert(success);
   }
   template <typename Derived>
@@ -299,7 +299,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     EIGEN_STATIC_ASSERT(!Derived::IsPlainObjectBase, THIS_EXPRESSION_IS_NOT_A_LVALUE__IT_IS_READ_ONLY);
     // Construction must pass since we will not create temporary storage in the non-const case.
     const bool success = Base::construct(expr.const_cast_derived());
-    EIGEN_UNUSED_VARIABLE(success)
+    EIGEN_UNUSED_VARIABLE(success);
     eigen_assert(success);
   }
 
@@ -371,7 +371,7 @@ class Ref<const TPlainObjectType, Options, StrideType>
   EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type) {
     internal::call_assignment_no_alias(m_object, expr, internal::assign_op<Scalar, Scalar>());
     const bool success = Base::construct(m_object);
-    EIGEN_ONLY_USED_FOR_DEBUG(success)
+    EIGEN_ONLY_USED_FOR_DEBUG(success);
     eigen_assert(success);
   }
 

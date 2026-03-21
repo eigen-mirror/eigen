@@ -202,7 +202,7 @@ EIGEN_DECLARE_TEST(eigensolver_generic) {
     CALL_SUBTEST_1(eigensolver(Matrix4f()));
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
     CALL_SUBTEST_2(eigensolver(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     // some trivial but implementation-wise tricky cases
     CALL_SUBTEST_2(eigensolver(MatrixXd(1, 1)));
@@ -230,5 +230,5 @@ EIGEN_DECLARE_TEST(eigensolver_generic) {
 
   CALL_SUBTEST_2(eigensolver_generic_extra<0>());
 
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

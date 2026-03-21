@@ -90,5 +90,5 @@ EIGEN_DECLARE_TEST(real_qz) {
     CALL_SUBTEST_4(real_qz(Matrix2d()));
   }
 
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

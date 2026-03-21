@@ -328,7 +328,7 @@ void test_matrix_inverse(size_t num_elements, const Input& in, Output& out) {
 template <typename DataType, typename Input, typename Output>
 void test_numeric_limits(const Input& in, Output& out) {
   auto operation = [](const typename DataType::Scalar* in, typename DataType::Scalar* out) {
-    EIGEN_UNUSED_VARIABLE(in)
+    EIGEN_UNUSED_VARIABLE(in);
     out[0] = numext::numeric_limits<float>::epsilon();
     out[1] = (numext::numeric_limits<float>::max)();
     out[2] = (numext::numeric_limits<float>::min)();

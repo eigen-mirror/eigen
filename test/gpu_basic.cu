@@ -335,7 +335,7 @@ struct matrix_inverse {
 template <typename T>
 struct numeric_limits_test {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
-    EIGEN_UNUSED_VARIABLE(in)
+    EIGEN_UNUSED_VARIABLE(in);
     int out_idx = i * 5;
     out[out_idx++] = numext::numeric_limits<float>::epsilon();
     out[out_idx++] = (numext::numeric_limits<float>::max)();

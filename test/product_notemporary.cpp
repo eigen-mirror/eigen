@@ -214,11 +214,11 @@ EIGEN_DECLARE_TEST(product_notemporary) {
     s = internal::random<int>(16, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_1(product_notemporary(MatrixXf(s, s)));
     CALL_SUBTEST_2(product_notemporary(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     s = internal::random<int>(16, EIGEN_TEST_MAX_SIZE / 2);
     CALL_SUBTEST_3(product_notemporary(MatrixXcf(s, s)));
     CALL_SUBTEST_4(product_notemporary(MatrixXcd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }

@@ -314,9 +314,9 @@ inline bool useSpecificBlockingSizes(Index& k, Index& m, Index& n) {
     return true;
   }
 #else
-  EIGEN_UNUSED_VARIABLE(k)
-  EIGEN_UNUSED_VARIABLE(m)
-  EIGEN_UNUSED_VARIABLE(n)
+  EIGEN_UNUSED_VARIABLE(k);
+  EIGEN_UNUSED_VARIABLE(m);
+  EIGEN_UNUSED_VARIABLE(n);
 #endif
   return false;
 }

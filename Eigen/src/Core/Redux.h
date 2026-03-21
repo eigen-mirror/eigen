@@ -367,7 +367,7 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
 
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
-    EIGEN_ONLY_USED_FOR_DEBUG(xpr)
+    EIGEN_ONLY_USED_FOR_DEBUG(xpr);
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
     if (VectorizedSize > 0) {
       Scalar res = func.predux(

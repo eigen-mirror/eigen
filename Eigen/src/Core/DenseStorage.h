@@ -131,7 +131,7 @@ class DenseStorage_impl<T, Size, Dynamic, Cols, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index rows, Index /*cols*/)
       : m_rows(rows) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
-    EIGEN_UNUSED_VARIABLE(size)
+    EIGEN_UNUSED_VARIABLE(size);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl& operator=(const DenseStorage_impl& other) {
     smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
@@ -165,7 +165,7 @@ class DenseStorage_impl<T, Size, Rows, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index /*rows*/, Index cols)
       : m_cols(cols) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
-    EIGEN_UNUSED_VARIABLE(size)
+    EIGEN_UNUSED_VARIABLE(size);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl& operator=(const DenseStorage_impl& other) {
     smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);
@@ -200,7 +200,7 @@ class DenseStorage_impl<T, Size, Dynamic, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index rows, Index cols)
       : m_rows(rows), m_cols(cols) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
-    EIGEN_UNUSED_VARIABLE(size)
+    EIGEN_UNUSED_VARIABLE(size);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl& operator=(const DenseStorage_impl& other) {
     smart_copy(other.m_data.array, other.m_data.array + other.size(), m_data.array);

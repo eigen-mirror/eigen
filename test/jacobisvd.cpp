@@ -122,7 +122,7 @@ void msvc_workaround() {
   const Foo::Bar a;
   const Foo::Bar b;
   const Foo::Bar c = std::max EIGEN_NOT_A_MACRO(a, b);
-  EIGEN_UNUSED_VARIABLE(c)
+  EIGEN_UNUSED_VARIABLE(c);
 }
 
 EIGEN_DECLARE_TEST(jacobisvd) {
@@ -143,8 +143,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(1, 30), c = internal::random<int>(1, 30);
 
-    TEST_SET_BUT_UNUSED_VARIABLE(r)
-    TEST_SET_BUT_UNUSED_VARIABLE(c)
+    TEST_SET_BUT_UNUSED_VARIABLE(r);
+    TEST_SET_BUT_UNUSED_VARIABLE(c);
 
     CALL_SUBTEST_12((jacobisvd_thin_options<Matrix3f>()));
     CALL_SUBTEST_13((jacobisvd_full_options<Matrix3f>()));
