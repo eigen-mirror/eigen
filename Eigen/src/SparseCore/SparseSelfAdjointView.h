@@ -161,8 +161,7 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
 
  protected:
   MatrixTypeNested m_matrix;
-  // mutable VectorI m_countPerRow;
-  // mutable VectorI m_countPerCol;
+
  private:
   template <typename Dest>
   void evalTo(Dest&) const;

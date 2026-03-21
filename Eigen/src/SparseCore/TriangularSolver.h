@@ -251,17 +251,8 @@ void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrix
   eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
-  //   enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
-
-  //   typedef std::conditional_t<copy,
-  //     typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&> OtherCopy;
-  //   OtherCopy otherCopy(other.derived());
-
   internal::sparse_solve_triangular_sparse_selector<ExpressionType, OtherDerived, Mode>::run(
       derived().nestedExpression(), other.derived());
-
-  //   if (copy)
-  //     other = otherCopy;
 }
 #endif
 

@@ -33,7 +33,7 @@ static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& r
   ei_declare_aligned_stack_constructed_variable(ResScalar, values, rows, 0);
   ei_declare_aligned_stack_constructed_variable(Index, indices, rows, 0);
 
-  std::memset(mask, 0, sizeof(bool) * rows);
+  std::fill_n(mask, rows, false);
 
   evaluator<Lhs> lhsEval(lhs);
   evaluator<Rhs> rhsEval(rhs);
@@ -105,10 +105,6 @@ static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& r
   }
   res.finalize();
 }
-
-}  // end namespace internal
-
-namespace internal {
 
 // Helper template to generate new sparse matrix types
 template <class Source, int Order>
@@ -231,10 +227,6 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
     res = resCol;
   }
 };
-
-}  // end namespace internal
-
-namespace internal {
 
 template <typename Lhs, typename Rhs, typename ResultType>
 static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res) {

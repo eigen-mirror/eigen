@@ -858,7 +858,7 @@ Derived& SparseMatrixBase<Derived>::operator+=(const EigenBase<OtherDerived>& ot
 template <typename Derived>
 template <typename OtherDerived>
 Derived& SparseMatrixBase<Derived>::operator-=(const EigenBase<OtherDerived>& other) {
-  call_assignment(derived(), other.derived(), internal::assign_op<Scalar, typename OtherDerived::Scalar>());
+  call_assignment(derived(), other.derived(), internal::sub_assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
 }
 
