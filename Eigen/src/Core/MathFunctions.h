@@ -1923,7 +1923,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double fmod(const double& a, const double&
 
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar logical_shift_left(const Scalar& a, int n) {
-  return a << n;
+  using UnsignedScalar = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  return bit_cast<Scalar, UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) << n);
 }
 
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>

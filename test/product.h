@@ -81,15 +81,24 @@ void product(const MatrixType& m) {
 
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(8);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
+    square.array() = square.array() - kMaxVal * (square.array() / kMaxVal);
+    res.array() = res.array() - kMaxVal * (res.array() / kMaxVal);
+    square2.array() = square2.array() - kMaxVal * (square2.array() / kMaxVal);
+    res2.array() = res2.array() - kMaxVal * (res2.array() / kMaxVal);
     v1.array() = v1.array() - kMaxVal * (v1.array() / kMaxVal);
+    vc2.array() = vc2.array() - kMaxVal * (vc2.array() / kMaxVal);
   }
 
   OtherMajorMatrixType tm1 = m1;
 
   Scalar s1 = internal::random<Scalar>();
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(8);
+    s1 = s1 - kMaxVal * (s1 / kMaxVal);
+  }
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1),
         c2 = internal::random<Index>(0, cols - 1);

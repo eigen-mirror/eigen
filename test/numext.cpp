@@ -45,6 +45,19 @@ void check_negate() {
 }
 
 template <typename T>
+std::enable_if_t<NumTraits<T>::IsInteger, T> random_abs2_input() {
+  const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
+  return NumTraits<T>::IsSigned ? internal::random<T>(-safeAbs2Input, safeAbs2Input)
+                                : internal::random<T>(T(0), safeAbs2Input);
+}
+
+template <typename T>
+std::enable_if_t<!NumTraits<T>::IsInteger, T> random_abs2_input() {
+  typedef typename NumTraits<T>::Real Real;
+  return internal::random<T>() / Real(2);
+}
+
+template <typename T>
 void check_abs() {
   typedef typename NumTraits<T>::Real Real;
   Real zero(0);
@@ -54,8 +67,7 @@ void check_abs() {
   VERIFY_IS_EQUAL(numext::abs(T(1)), T(1));
 
   for (int k = 0; k < 100; ++k) {
-    T x = internal::random<T>();
-    x = x / Real(2);
+    T x = random_abs2_input<T>();
     if (NumTraits<T>::IsSigned) {
       VERIFY_IS_EQUAL(numext::abs(x), numext::abs(numext::negate(x)));
       VERIFY(numext::abs(numext::negate(x)) >= zero);
@@ -301,7 +313,7 @@ void check_shift() {
     const T a = internal::random<T>();
     for (int s = 1; s < kNumBits; s++) {
       T a_bsll = numext::logical_shift_left(a, s);
-      T a_bsll_ref = a << s;
+      T a_bsll_ref = numext::bit_cast<T, UnsignedT>(numext::bit_cast<UnsignedT, T>(a) << s);
       VERIFY_IS_EQUAL(a_bsll, a_bsll_ref);
       T a_bsrl = numext::logical_shift_right(a, s);
       T a_bsrl_ref = numext::bit_cast<T, UnsignedT>(numext::bit_cast<UnsignedT, T>(a) >> s);

@@ -32,7 +32,7 @@ void matrixRedux(const MatrixType& m) {
   m2.setRandom();
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(8);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
   }
@@ -98,6 +98,11 @@ void vectorRedux(const VectorType& w) {
 
   VectorType v = VectorType::Random(size);
   VectorType v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;  // see comment above declaration of m1_for_prod
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(8);
+    v.array() = v.array() - kMaxVal * (v.array() / kMaxVal);
+    v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;
+  }
 
   for (int i = 1; i < size; i++) {
     Scalar s(0), p(1);
