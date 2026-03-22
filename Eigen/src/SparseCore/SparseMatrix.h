@@ -1846,26 +1846,34 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
       // Inner non-zero counts.
       std::size_t data_bytes = sizeof(StorageIndex) * header.outer_size;
       if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-      memcpy(value.innerNonZeroPtr(), src, data_bytes);
+      if (data_bytes != 0) {
+        memcpy(value.innerNonZeroPtr(), src, data_bytes);
+      }
       src += data_bytes;
     }
 
     // Outer indices.
     std::size_t data_bytes = sizeof(StorageIndex) * (header.outer_size + 1);
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.outerIndexPtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.outerIndexPtr(), src, data_bytes);
+    }
     src += data_bytes;
 
     // Inner indices.
     data_bytes = sizeof(StorageIndex) * header.inner_buffer_size;
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.innerIndexPtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.innerIndexPtr(), src, data_bytes);
+    }
     src += data_bytes;
 
     // Values.
     data_bytes = sizeof(Scalar) * header.inner_buffer_size;
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.valuePtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.valuePtr(), src, data_bytes);
+    }
     src += data_bytes;
     return src;
   }

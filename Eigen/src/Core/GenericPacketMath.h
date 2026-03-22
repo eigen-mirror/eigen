@@ -821,10 +821,24 @@ EIGEN_DEVICE_FUNC inline Packet pset1(const typename unpacket_traits<Packet>::ty
 template <typename Packet, typename BitsType>
 EIGEN_DEVICE_FUNC inline Packet pset1frombits(BitsType a);
 
+template <typename Scalar, std::enable_if_t<std::is_trivially_copyable<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC inline Scalar pload1_scalar(const Scalar* a) {
+  Scalar scalar;
+  EIGEN_USING_STD(memcpy)
+  memcpy(&scalar, a, sizeof(Scalar));
+  return scalar;
+}
+
+template <typename Scalar, std::enable_if_t<!std::is_trivially_copyable<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC inline Scalar pload1_scalar(const Scalar* a) {
+  return Scalar(*a);
+}
+
 /** \internal \returns a packet with constant coefficients \a a[0], e.g.: (a[0],a[0],a[0],a[0]) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pload1(const typename unpacket_traits<Packet>::type* a) {
-  return pset1<Packet>(*a);
+  using Scalar = typename unpacket_traits<Packet>::type;
+  return pset1<Packet>(pload1_scalar<Scalar>(a));
 }
 
 /** \internal \returns a packet with elements of \a *from duplicated.
@@ -834,7 +848,7 @@ EIGEN_DEVICE_FUNC inline Packet pload1(const typename unpacket_traits<Packet>::t
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet ploaddup(const typename unpacket_traits<Packet>::type* from) {
-  return *from;
+  return pload1<Packet>(from);
 }
 
 /** \internal \returns a packet with elements of \a *from quadrupled.

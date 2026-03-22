@@ -12,13 +12,21 @@
 #include "random_without_cast_overflow.h"
 
 // suppress annoying unsigned integer warnings
-template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned>
+template <typename Scalar, bool IsSignedInteger = NumTraits<Scalar>::IsSigned && NumTraits<Scalar>::IsInteger,
+          bool IsSigned = NumTraits<Scalar>::IsSigned>
 struct negative_or_zero_impl {
+  static Scalar run(const Scalar& a) {
+    using UnsignedScalar = std::make_unsigned_t<Scalar>;
+    return static_cast<Scalar>(UnsignedScalar(0) - static_cast<UnsignedScalar>(a));
+  }
+};
+template <typename Scalar>
+struct negative_or_zero_impl<Scalar, false, true> {
   static Scalar run(const Scalar& a) { return -a; }
 };
 template <typename Scalar>
-struct negative_or_zero_impl<Scalar, false> {
-  static Scalar run(const Scalar&) { return 0; }
+struct negative_or_zero_impl<Scalar, false, false> {
+  static Scalar run(const Scalar&) { return Scalar(0); }
 };
 template <typename Scalar>
 Scalar negative_or_zero(const Scalar& a) {
