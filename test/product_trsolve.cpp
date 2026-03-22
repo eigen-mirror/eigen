@@ -221,6 +221,37 @@ void trsolve_strided_boundary() {
   }
 }
 
+void trsolve_indexed_view() {
+  typedef Matrix<double, Dynamic, Dynamic> MatrixX;
+  typedef Matrix<double, Dynamic, 1> VectorX;
+
+  MatrixX lhs = MatrixX::Random(8, 8);
+  lhs *= 0.1;
+  lhs.diagonal().array() += 1.0;
+
+  VectorX rhs = VectorX::Random(8);
+  std::vector<int> indices{0, 1, 2, 7};
+
+  MatrixX lhs_slice = lhs(indices, indices);
+  VectorX rhs_slice = rhs(indices);
+  VectorX expected = lhs_slice.triangularView<Upper>().solve(rhs_slice);
+
+  VectorX actual = lhs(indices, indices).triangularView<Upper>().solve(rhs(indices));
+  VERIFY_IS_APPROX(actual, expected);
+
+  VectorX assigned = VectorX::Random(8);
+  VectorX assigned_ref = assigned;
+  assigned(indices) = lhs_slice.triangularView<Upper>().solve(rhs_slice);
+  assigned_ref(indices) = expected;
+  VERIFY_IS_APPROX(assigned, assigned_ref);
+
+  VectorX inplace = rhs;
+  VectorX inplace_ref = rhs;
+  lhs_slice.triangularView<Upper>().solveInPlace(inplace(indices));
+  inplace_ref(indices) = expected;
+  VERIFY_IS_APPROX(inplace, inplace_ref);
+}
+
 EIGEN_DECLARE_TEST(product_trsolve) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
@@ -250,4 +281,5 @@ EIGEN_DECLARE_TEST(product_trsolve) {
 
   // Strided solve at blocking boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_15(trsolve_strided_boundary<0>());
+  CALL_SUBTEST_16(trsolve_indexed_view());
 }
