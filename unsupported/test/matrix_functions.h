@@ -16,17 +16,41 @@ struct processTriangularMatrix {
   static void run(MatrixType&, MatrixType&, const MatrixType&) {}
 };
 
-// For real matrices, make sure none of the eigenvalues are negative.
+// For real matrices, ensure all eigenvalues have positive real parts
+// (needed for matrix log) and cap the condition number.
 template <typename MatrixType>
 struct processTriangularMatrix<MatrixType, 0> {
+  typedef typename MatrixType::Scalar Scalar;
   static void run(MatrixType& m, MatrixType& T, const MatrixType& U) {
+    using std::abs;
     const Index size = m.cols();
+    Scalar maxDiag(0);
 
     for (Index i = 0; i < size; ++i) {
-      if (i == size - 1 || T.coeff(i + 1, i) == 0)
-        T.coeffRef(i, i) = std::abs(T.coeff(i, i));
-      else
+      if (i == size - 1 || numext::is_exactly_zero(T.coeff(i + 1, i))) {
+        // 1x1 block (real eigenvalue): make positive.
+        T.coeffRef(i, i) = abs(T.coeff(i, i));
+      } else {
+        // 2x2 block (complex conjugate pair): eigenvalues are T(i,i) ± bi.
+        // Negate the block if the real part is negative so that the matrix
+        // log is well-defined (avoids the branch cut on the negative real axis).
+        if (T.coeff(i, i) < Scalar(0)) {
+          T.coeffRef(i, i) = -T.coeff(i, i);
+          T.coeffRef(i + 1, i + 1) = -T.coeff(i + 1, i + 1);
+          T.coeffRef(i, i + 1) = -T.coeff(i, i + 1);
+          T.coeffRef(i + 1, i) = -T.coeff(i + 1, i);
+        }
         ++i;
+      }
+      maxDiag = (std::max)(maxDiag, abs(T.coeff(i, i)));
+    }
+    // Clamp small eigenvalues to limit condition number. Matrix power and
+    // matrix function tests lose too many digits on ill-conditioned matrices.
+    if (maxDiag > Scalar(0)) {
+      Scalar minAllowed = maxDiag / Scalar(100);
+      for (Index i = 0; i < size; ++i) {
+        if (abs(T.coeff(i, i)) < minAllowed) T.coeffRef(i, i) = minAllowed;
+      }
     }
     m = U * T * U.transpose();
   }

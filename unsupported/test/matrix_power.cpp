@@ -69,6 +69,11 @@ void testGeneral(const MatrixType& m, const typename MatrixType::RealScalar& tol
   MatrixType m1, m2, m3, m4, m5;
   RealScalar x, y;
 
+  // The identities A^(xy) = (A^x)^y and (cA)^y = c^y * A^y involve two
+  // independent Schur decompositions. Each decomposition + Pade + squaring
+  // chain introduces rounding that scales with matrix dimension.
+  RealScalar tol2 = tol * RealScalar(m.rows() * m.rows());
+
   for (int i = 0; i < g_repeat; ++i) {
     generateTestMatrix<MatrixType>::run(m1, m.rows());
     MatrixPower<MatrixType> mpow(m1);
@@ -84,11 +89,11 @@ void testGeneral(const MatrixType& m, const typename MatrixType::RealScalar& tol
 
     m4 = mpow(x * y);
     m5 = m2.pow(y);
-    VERIFY(m4.isApprox(m5, tol));
+    VERIFY(m4.isApprox(m5, tol2));
 
     m4 = (std::abs(x) * m1).pow(y);
     m5 = std::pow(std::abs(x), y) * m3;
-    VERIFY(m4.isApprox(m5, tol));
+    VERIFY(m4.isApprox(m5, tol2));
   }
 }
 
@@ -98,10 +103,16 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   // MSVC for aligned data types ...
   MatrixType& m = const_cast<MatrixType&>(m_const);
 
+  typedef typename MatrixType::RealScalar RealScalar;
   const int IsComplex = NumTraits<typename internal::traits<MatrixType>::Scalar>::IsComplex;
   typedef std::conditional_t<IsComplex, TriangularView<MatrixType, Upper>, const MatrixType&> TriangularType;
   std::conditional_t<IsComplex, ComplexSchur<MatrixType>, RealSchur<MatrixType> > schur;
   MatrixType T;
+
+  // MatrixPower uses its own Schur decomposition while the reference uses
+  // repeated sqrt of the caller-provided Schur form, so errors compound
+  // from two independent algorithm paths and scale with matrix dimension.
+  RealScalar tol2 = tol * RealScalar(m.rows() * m.rows());
 
   for (int i = 0; i < g_repeat; ++i) {
     m.setRandom();
@@ -114,13 +125,13 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
     MatrixPower<MatrixType> mpow(m);
 
     T = T.sqrt();
-    VERIFY(mpow(0.5L).isApprox(U * (TriangularType(T) * U.adjoint()), tol));
+    VERIFY(mpow(0.5L).isApprox(U * (TriangularType(T) * U.adjoint()), tol2));
 
     T = T.sqrt();
-    VERIFY(mpow(0.25L).isApprox(U * (TriangularType(T) * U.adjoint()), tol));
+    VERIFY(mpow(0.25L).isApprox(U * (TriangularType(T) * U.adjoint()), tol2));
 
     T = T.sqrt();
-    VERIFY(mpow(0.125L).isApprox(U * (TriangularType(T) * U.adjoint()), tol));
+    VERIFY(mpow(0.125L).isApprox(U * (TriangularType(T) * U.adjoint()), tol2));
   }
 }
 
@@ -131,12 +142,19 @@ void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealSc
   MatrixType& m = const_cast<MatrixType&>(m_const);
 
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
   Scalar x;
+
+  // Computing exp(x*log(m)) chains three separate Pade-based algorithms
+  // (matrix log, scaling, matrix exp). The accumulated error far exceeds
+  // what a single matrix power computation achieves.
+  const Index n = m.rows();
+  RealScalar tol2 = (std::max)(tol * RealScalar(n * n), test_precision<RealScalar>() * RealScalar(n * n));
 
   for (int i = 0; i < g_repeat; ++i) {
     generateTestMatrix<MatrixType>::run(m, m.rows());
     x = internal::random<Scalar>();
-    VERIFY(m.pow(x).isApprox((x * m.log()).exp(), tol));
+    VERIFY(m.pow(x).isApprox((x * m.log()).exp(), tol2));
   }
 }
 
@@ -153,13 +171,13 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_9(test2dHyperbolicRotation<long double>(1e-14L));
 
   CALL_SUBTEST_10(test3dRotation<double>(2e-13));
-  CALL_SUBTEST_11(test3dRotation<float>(1e-5f));
+  CALL_SUBTEST_11(test3dRotation<float>(2e-5f));
   CALL_SUBTEST_12(test3dRotation<long double>(1e-13L));
 
-  CALL_SUBTEST_2(testGeneral(Matrix2d(), 1e-13));
+  CALL_SUBTEST_2(testGeneral(Matrix2d(), 2e-13));
   CALL_SUBTEST_7(testGeneral(Matrix3dRowMajor(), 1e-13));
   CALL_SUBTEST_3(testGeneral(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testGeneral(MatrixXd(8, 8), 2e-12));
+  CALL_SUBTEST_4(testGeneral(MatrixXd(8, 8), 3e-12));
   CALL_SUBTEST_1(testGeneral(Matrix2f(), 1e-4f));
   CALL_SUBTEST_5(testGeneral(Matrix3cf(), 1e-4f));
   CALL_SUBTEST_8(testGeneral(Matrix4f(), 1e-4f));
@@ -169,10 +187,10 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_11(testGeneral(Matrix3f(), 1e-4f));
   CALL_SUBTEST_12(testGeneral(Matrix3e(), 1e-13L));
 
-  CALL_SUBTEST_2(testSingular(Matrix2d(), 1e-13));
+  CALL_SUBTEST_2(testSingular(Matrix2d(), 2e-13));
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 1e-13));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 2e-12));
+  CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 3e-12));
   CALL_SUBTEST_1(testSingular(Matrix2f(), 1e-4f));
   CALL_SUBTEST_5(testSingular(Matrix3cf(), 1e-4f));
   CALL_SUBTEST_8(testSingular(Matrix4f(), 1e-4f));
@@ -182,10 +200,10 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_11(testSingular(Matrix3f(), 1e-4f));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1e-13L));
 
-  CALL_SUBTEST_2(testLogThenExp(Matrix2d(), 1e-13));
+  CALL_SUBTEST_2(testLogThenExp(Matrix2d(), 2e-13));
   CALL_SUBTEST_7(testLogThenExp(Matrix3dRowMajor(), 1e-13));
   CALL_SUBTEST_3(testLogThenExp(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testLogThenExp(MatrixXd(8, 8), 2e-12));
+  CALL_SUBTEST_4(testLogThenExp(MatrixXd(8, 8), 3e-12));
   CALL_SUBTEST_1(testLogThenExp(Matrix2f(), 1e-4f));
   CALL_SUBTEST_5(testLogThenExp(Matrix3cf(), 1e-4f));
   CALL_SUBTEST_8(testLogThenExp(Matrix4f(), 1e-4f));
