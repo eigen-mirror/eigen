@@ -298,7 +298,7 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true
     }
 
     for (int i = 0; i < DataSize; ++i) {
-      ref[i] = static_cast<const TgtScalar>(data1[i]);
+      ref[i] = static_cast<TgtScalar>(data1[i]);
     }
 
     pcast_array<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio>::cast(data1, DataSize, data2);

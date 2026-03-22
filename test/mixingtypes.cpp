@@ -293,7 +293,8 @@ void mixingtypes(int size = SizeAtCompileType) {
 }
 
 EIGEN_DECLARE_TEST(mixingtypes) {
-  g_called = false;  // Silence -Wunneeded-internal-declaration.
+  g_called = false;  // Silence -Wunneeded-internal-declaration and set_but_not_used.
+  VERIFY(true || g_called);
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(mixingtypes<3>());
     CALL_SUBTEST_2(mixingtypes<4>());

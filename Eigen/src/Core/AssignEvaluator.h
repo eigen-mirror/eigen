@@ -474,8 +474,8 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
   static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, alignof(Scalar));
   static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
-  static constexpr bool Alignable =
-      (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
+  static constexpr bool Alignable = (DstAlignment >= RequestedAlignment) ||
+                                    (static_cast<std::size_t>(RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
   static constexpr int Alignment = Alignable ? RequestedAlignment : DstAlignment;
   static constexpr bool DstIsAligned = DstAlignment >= Alignment;
   static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
@@ -587,8 +587,8 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
   static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, alignof(Scalar));
   static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
-  static constexpr bool Alignable =
-      (DstAlignment >= RequestedAlignment) || ((RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
+  static constexpr bool Alignable = (DstAlignment >= RequestedAlignment) ||
+                                    (static_cast<std::size_t>(RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
   static constexpr int Alignment = Alignable ? RequestedAlignment : DstAlignment;
   static constexpr bool DstIsAligned = DstAlignment >= Alignment;
   static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;

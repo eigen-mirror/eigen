@@ -2178,7 +2178,7 @@ EIGEN_STRONG_INLINE Packet16h ptrue(const Packet16h& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16h pabs(const Packet16h& a) {
-  const __m256i sign_mask = _mm256_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  const __m256i sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_andnot_si256(sign_mask, a);
 }
 
@@ -2275,7 +2275,7 @@ EIGEN_STRONG_INLINE Packet16h pconj(const Packet16h& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16h pnegate(const Packet16h& a) {
-  Packet16h sign_mask = _mm256_set1_epi16(static_cast<unsigned short>(0x8000));
+  Packet16h sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_xor_si256(a, sign_mask);
 }
 
@@ -2766,7 +2766,7 @@ EIGEN_STRONG_INLINE Packet16bf pcmp_lt_or_nan(const Packet16bf& a, const Packet1
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pnegate(const Packet16bf& a) {
-  Packet16bf sign_mask = _mm256_set1_epi16(static_cast<unsigned short>(0x8000));
+  Packet16bf sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_xor_si256(a, sign_mask);
 }
 
@@ -2777,7 +2777,7 @@ EIGEN_STRONG_INLINE Packet16bf pconj(const Packet16bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pabs(const Packet16bf& a) {
-  const __m256i sign_mask = _mm256_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  const __m256i sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_andnot_si256(sign_mask, a);
 }
 

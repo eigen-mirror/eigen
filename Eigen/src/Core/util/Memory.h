@@ -420,7 +420,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC inline T* aligned_new(std::size_t size) {
   check_size_for_overflow<T>(size);
   T* result = static_cast<T*>(aligned_malloc(sizeof(T) * size));
-  EIGEN_TRY { return default_construct_elements_of_array(result, size); }
+  EIGEN_TRY { default_construct_elements_of_array(result, size); }
   EIGEN_CATCH(...) {
     aligned_free(result);
     EIGEN_THROW;
@@ -432,7 +432,7 @@ template <typename T, bool Align>
 EIGEN_DEVICE_FUNC inline T* conditional_aligned_new(std::size_t size) {
   check_size_for_overflow<T>(size);
   T* result = static_cast<T*>(conditional_aligned_malloc<Align>(sizeof(T) * size));
-  EIGEN_TRY { return default_construct_elements_of_array(result, size); }
+  EIGEN_TRY { default_construct_elements_of_array(result, size); }
   EIGEN_CATCH(...) {
     conditional_aligned_free<Align>(result);
     EIGEN_THROW;

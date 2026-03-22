@@ -2127,7 +2127,7 @@ EIGEN_STRONG_INLINE Packet8h ptrue(const Packet8h& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pabs(const Packet8h& a) {
-  const __m128i sign_mask = _mm_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  const __m128i sign_mask = _mm_set1_epi16(static_cast<short>(0x8000u));
   return _mm_andnot_si128(sign_mask, a);
 }
 
@@ -2282,7 +2282,7 @@ EIGEN_STRONG_INLINE Packet8h pconj(const Packet8h& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8h pnegate(const Packet8h& a) {
-  Packet8h sign_mask = _mm_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  Packet8h sign_mask = _mm_set1_epi16(static_cast<short>(0x8000u));
   return _mm_xor_si128(a, sign_mask);
 }
 
@@ -2561,7 +2561,7 @@ EIGEN_STRONG_INLINE Packet8bf ptrue(const Packet8bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pabs(const Packet8bf& a) {
-  const __m128i sign_mask = _mm_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  const __m128i sign_mask = _mm_set1_epi16(static_cast<short>(0x8000u));
   return _mm_andnot_si128(sign_mask, a);
 }
 
@@ -2654,7 +2654,7 @@ EIGEN_STRONG_INLINE Packet8bf pconj(const Packet8bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pnegate(const Packet8bf& a) {
-  Packet8bf sign_mask = _mm_set1_epi16(static_cast<numext::uint16_t>(0x8000));
+  Packet8bf sign_mask = _mm_set1_epi16(static_cast<short>(0x8000u));
   return _mm_xor_si128(a, sign_mask);
 }
 
