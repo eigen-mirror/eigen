@@ -470,31 +470,31 @@ EIGEN_DECLARE_TEST(vectorization_logic) {
   CALL_SUBTEST(vectorization_logic_half<std::complex<float> >::run());
   CALL_SUBTEST(vectorization_logic_half<std::complex<double> >::run());
 
+  // For backends without sub-packet types (e.g. the generic clang backend),
+  // find_best_packet may return a packet larger than the matrix, making
+  // MayLinearVectorize false in the assignment path (which requires
+  // SizeAtCompileTime >= PacketSize). The redux path has no such constraint.
   if (internal::packet_traits<float>::Vectorizable) {
-    VERIFY(test_assign(Matrix<float, 3, 3>(), Matrix<float, 3, 3>() + Matrix<float, 3, 3>(),
-                       internal::packet_traits<float>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                           ? LinearVectorizedTraversal
-                           : LinearTraversal,
-                       CompleteUnrolling));
+    constexpr int kFloatBestPacketSize3x3 =
+        internal::unpacket_traits<typename internal::find_best_packet<float, 9>::type>::size;
+    VERIFY(test_assign(
+        Matrix<float, 3, 3>(), Matrix<float, 3, 3>() + Matrix<float, 3, 3>(),
+        EIGEN_UNALIGNED_VECTORIZE && kFloatBestPacketSize3x3 <= 9 ? LinearVectorizedTraversal : LinearTraversal,
+        CompleteUnrolling));
 
-    VERIFY(test_redux(Matrix<float, 5, 2>(),
-                      internal::packet_traits<float>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                          ? LinearVectorizedTraversal
-                          : LinearTraversal,
+    VERIFY(test_redux(Matrix<float, 5, 2>(), EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,
                       CompleteUnrolling));
   }
 
   if (internal::packet_traits<double>::Vectorizable) {
-    VERIFY(test_assign(Matrix<double, 3, 3>(), Matrix<double, 3, 3>() + Matrix<double, 3, 3>(),
-                       internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                           ? LinearVectorizedTraversal
-                           : LinearTraversal,
-                       CompleteUnrolling));
+    constexpr int kDoubleBestPacketSize3x3 =
+        internal::unpacket_traits<typename internal::find_best_packet<double, 9>::type>::size;
+    VERIFY(test_assign(
+        Matrix<double, 3, 3>(), Matrix<double, 3, 3>() + Matrix<double, 3, 3>(),
+        EIGEN_UNALIGNED_VECTORIZE && kDoubleBestPacketSize3x3 <= 9 ? LinearVectorizedTraversal : LinearTraversal,
+        CompleteUnrolling));
 
-    VERIFY(test_redux(Matrix<double, 7, 3>(),
-                      internal::packet_traits<double>::Vectorizable && EIGEN_UNALIGNED_VECTORIZE
-                          ? LinearVectorizedTraversal
-                          : LinearTraversal,
+    VERIFY(test_redux(Matrix<double, 7, 3>(), EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal,
                       CompleteUnrolling));
   }
 #endif  // EIGEN_VECTORIZE
