@@ -2050,12 +2050,15 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
       // pack those half ones until they match the number expected on the
       // last peeling loop at this point (for the rhs).
       //
-      // When there are no half/quarter packet types, the interleaved
-      // groups cannot be consumed by the GEBP micro-kernel's half/quarter
-      // loops.  Fall through to the scalar loop instead.
-      if (Pack2 < PacketSize && !gone_last && (HasHalf || HasQuarter)) {
+      // When there are no half/quarter packet types (HasHalf and HasQuarter
+      // are both false), last_lhs_progress can exceed Pack2, producing
+      // interleaved groups that the GEBP micro-kernel cannot consume.  In
+      // that case we use exactly Pack2 rows per group so the kernel's main
+      // loop (which reads Pack2 = LhsProgress values via ploaddup) can
+      // handle them; remaining rows fall through to the scalar loop below.
+      if (Pack2 < PacketSize && !gone_last) {
         gone_last = true;
-        psize = pack = left & ~1;
+        psize = pack = (HasHalf || HasQuarter) ? (left & ~1) : Pack2;
       }
     }
   }
