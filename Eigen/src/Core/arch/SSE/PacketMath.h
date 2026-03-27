@@ -1398,7 +1398,7 @@ template <typename Packet>
 EIGEN_STRONG_INLINE Packet ploadl(const typename unpacket_traits<Packet>::type* from);
 template <>
 EIGEN_STRONG_INLINE Packet4f ploadl<Packet4f>(const float* from) {
-  EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castpd_ps(_mm_load_sd(reinterpret_cast<const double*>(from)));
+  EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castsi128_ps(_mm_loadu_si64(reinterpret_cast<const void*>(from)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ploadl<Packet2d>(const double* from) {
@@ -1419,7 +1419,7 @@ EIGEN_STRONG_INLINE Packet2d ploads<Packet2d>(const double* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
-  return vec4f_swizzle1(_mm_castpd_ps(_mm_load_sd(reinterpret_cast<const double*>(from))), 0, 0, 1, 1);
+  return vec4f_swizzle1(_mm_castsi128_ps(_mm_loadu_si64(reinterpret_cast<const void*>(from))), 0, 0, 1, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
@@ -1446,7 +1446,7 @@ EIGEN_STRONG_INLINE Packet4ui ploaddup<Packet4ui>(const uint32_t* from) {
 // {b0, b0, b1, b1, b2, b2, b3, b3, b4, b4, b5, b5, b6, b6, b7, b7}
 template <>
 EIGEN_STRONG_INLINE Packet16b ploaddup<Packet16b>(const bool* from) {
-  __m128i tmp = _mm_castpd_si128(pload1<Packet2d>(reinterpret_cast<const double*>(from)));
+  __m128i tmp = _mm_loadu_si64(reinterpret_cast<const void*>(from));
   return _mm_unpacklo_epi8(tmp, tmp);
 }
 
@@ -1454,7 +1454,10 @@ EIGEN_STRONG_INLINE Packet16b ploaddup<Packet16b>(const bool* from) {
 // {b0, b0  b0, b0, b1, b1, b1, b1, b2, b2, b2, b2, b3, b3, b3, b3}
 template <>
 EIGEN_STRONG_INLINE Packet16b ploadquad<Packet16b>(const bool* from) {
-  __m128i tmp = _mm_castps_si128(pload1<Packet4f>(reinterpret_cast<const float*>(from)));
+  EIGEN_USING_STD(memcpy);
+  int val;
+  memcpy(&val, from, sizeof(int));
+  __m128i tmp = _mm_cvtsi32_si128(val);
   tmp = _mm_unpacklo_epi8(tmp, tmp);
   return _mm_unpacklo_epi16(tmp, tmp);
 }
