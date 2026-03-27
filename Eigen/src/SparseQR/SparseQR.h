@@ -401,10 +401,10 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
    */
   RealScalar pivotThreshold;
   if (m_useDefaultThreshold) {
-    RealScalar max2Norm = 0.0;
+    RealScalar max2Norm = RealScalar(0.0);
     for (int j = 0; j < n; j++) max2Norm = numext::maxi(max2Norm, m_pmat.col(j).norm());
     if (max2Norm == RealScalar(0)) max2Norm = RealScalar(1);
-    pivotThreshold = 20 * (m + n) * max2Norm * NumTraits<RealScalar>::epsilon();
+    pivotThreshold = RealScalar(20 * (m + n)) * max2Norm * NumTraits<RealScalar>::epsilon();
   } else {
     pivotThreshold = m_threshold;
   }
@@ -497,7 +497,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     }  // End update current column
 
     Scalar tau = RealScalar(0);
-    RealScalar beta = 0;
+    RealScalar beta = RealScalar(0);
 
     if (nonzeroCol < diagSize) {
       // Compute the Householder reflection that eliminate the current column
@@ -505,16 +505,16 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
       Scalar c0 = nzcolQ ? tval(Qidx(0)) : Scalar(0);
 
       // First, the squared norm of Q((col+1):m, col)
-      RealScalar sqrNorm = 0.;
+      RealScalar sqrNorm = RealScalar(0.);
       for (Index itq = 1; itq < nzcolQ; ++itq) sqrNorm += numext::abs2(tval(Qidx(itq)));
       if (sqrNorm == RealScalar(0) && numext::imag(c0) == RealScalar(0)) {
         beta = numext::real(c0);
-        tval(Qidx(0)) = 1;
+        tval(Qidx(0)) = Scalar(1);
       } else {
         using std::sqrt;
         beta = sqrt(numext::abs2(c0) + sqrNorm);
         if (numext::real(c0) >= RealScalar(0)) beta = -beta;
-        tval(Qidx(0)) = 1;
+        tval(Qidx(0)) = Scalar(1);
         for (Index itq = 1; itq < nzcolQ; ++itq) tval(Qidx(itq)) /= (c0 - beta);
         tau = numext::conj((beta - c0) / beta);
       }
