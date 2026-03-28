@@ -168,7 +168,7 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     Alignment = 0  // FIXME this will need to be improved once PartialReduxExpr is vectorized
   };
 
-  EIGEN_DEVICE_FUNC explicit evaluator(const XprType xpr) : m_arg(xpr.nestedExpression()), m_functor(xpr.functor()) {
+  EIGEN_DEVICE_FUNC explicit evaluator(const XprType& xpr) : m_arg(xpr.nestedExpression()), m_functor(xpr.functor()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(TraversalSize == Dynamic ? HugeCost
                                                              : (TraversalSize == 0 ? 1 : int(CostOpType::value)));
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);

@@ -920,8 +920,9 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
-          LoadMode,
-          ((InnerSize % 16) == 0) ? int(Aligned16) : int(evaluator<DiagonalType>::Alignment))  // FIXME hardcoded 16!!
+          LoadMode, ((InnerSize * int(sizeof(Scalar))) % int(unpacket_traits<PacketType>::alignment) == 0)
+                        ? int(unpacket_traits<PacketType>::alignment)
+                        : int(evaluator<DiagonalType>::Alignment))
     };
     return internal::pmul(m_matImpl.template packet<LoadMode, PacketType>(row, col),
                           m_diagImpl.template packet<DiagonalPacketLoadMode, PacketType>(id));
@@ -940,8 +941,9 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
-          LoadMode,
-          ((InnerSize % 16) == 0) ? int(Aligned16) : int(evaluator<DiagonalType>::Alignment))  // FIXME hardcoded 16!!
+          LoadMode, ((InnerSize * int(sizeof(Scalar))) % int(unpacket_traits<PacketType>::alignment) == 0)
+                        ? int(unpacket_traits<PacketType>::alignment)
+                        : int(evaluator<DiagonalType>::Alignment))
     };
     return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           m_diagImpl.template packetSegment<DiagonalPacketLoadMode, PacketType>(id, begin, count));

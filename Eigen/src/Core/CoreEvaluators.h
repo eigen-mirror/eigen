@@ -1181,7 +1181,7 @@ struct mapbase_evaluator : evaluator_base<Derived> {
   typedef typename XprType::CoeffReturnType CoeffReturnType;
 
   enum {
-    IsRowMajor = XprType::RowsAtCompileTime,
+    IsRowMajor = XprType::IsRowMajor,
     ColsAtCompileTime = XprType::ColsAtCompileTime,
     CoeffReadCost = NumTraits<Scalar>::ReadCost
   };
