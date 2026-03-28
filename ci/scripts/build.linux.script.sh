@@ -23,7 +23,13 @@ fi
 # out of resources.  In that case, keep trying to build the remaining
 # targets (k0), then try to build again with a single thread (j1) to minimize
 # resource use.
-cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
+# EIGEN_CI_BUILD_JOBS can be set to limit parallelism for memory-hungry
+# compilers (e.g. NVHPC).
+jobs=""
+if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
+  jobs="-j${EIGEN_CI_BUILD_JOBS}"
+fi
+cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 -j1
 
 # Return to root directory.
 cd ${rootdir}

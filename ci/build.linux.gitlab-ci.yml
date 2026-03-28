@@ -172,6 +172,9 @@ build:linux:x86-64:nvhpc-26.1:default:
     EIGEN_CI_CXX_COMPILER: nvc++
     EIGEN_CI_INSTALL: ""
     EIGEN_CI_CROSS_INSTALL: ""
+    # NVHPC's compiler frontend is very memory-hungry with template-heavy code.
+    # Limit parallelism to avoid OOM kills from the kernel.
+    EIGEN_CI_BUILD_JOBS: "8"
 
 ######## CUDA ##################################################################
 
