@@ -72,6 +72,9 @@
 #else
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 0
 #endif
+#elif defined(EIGEN_VECTORIZE_GENERIC)
+// Generic clang backend overrides native SIMD; align to the generic vector size.
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES EIGEN_GENERIC_VECTOR_SIZE_BYTES
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
