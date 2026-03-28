@@ -24,7 +24,7 @@ fi
 
 # External-dependency modules that require third-party headers we don't have,
 # and utility-only directories with no standalone module header.
-SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport|TensorUtil"
+SKIP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport|TensorUtil|misc"
 
 # Get changed files (Added, Modified, Renamed).
 CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "${BASE_SHA}" HEAD)
