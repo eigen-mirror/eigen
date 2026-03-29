@@ -17,9 +17,9 @@ struct TestComplex : public std::complex<float> {
   TestComplex(float x) : std::complex<float>(x){};
 };
 template <>
-struct NumTraits<TestComplex> : NumTraits<std::complex<float>> {};
+struct Eigen::NumTraits<TestComplex> : Eigen::NumTraits<std::complex<float>> {};
 template <>
-struct internal::random_impl<TestComplex> : internal::random_impl<std::complex<float>> {};
+struct Eigen::internal::random_impl<TestComplex> : Eigen::internal::random_impl<std::complex<float>> {};
 
 template <typename T>
 void test_realview_readonly(const T&) {
