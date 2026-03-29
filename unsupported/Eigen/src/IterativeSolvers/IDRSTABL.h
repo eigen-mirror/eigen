@@ -410,6 +410,7 @@ struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
 
 template <typename MatrixType_, typename Preconditioner_>
 class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner_>> {
+ protected:
   typedef IterativeSolverBase<IDRSTABL> Base;
   using Base::m_error;
   using Base::m_info;

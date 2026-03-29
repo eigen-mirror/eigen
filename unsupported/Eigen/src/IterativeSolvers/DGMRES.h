@@ -96,6 +96,7 @@ void sortWithPermutation(VectorType& vec, IndexType& perm, typename IndexType::S
  */
 template <typename MatrixType_, typename Preconditioner_>
 class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> > {
+ protected:
   typedef IterativeSolverBase<DGMRES> Base;
   using Base::m_error;
   using Base::m_info;

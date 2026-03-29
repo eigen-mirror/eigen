@@ -253,6 +253,7 @@ struct traits<GMRES<MatrixType_, Preconditioner_> > {
  */
 template <typename MatrixType_, typename Preconditioner_>
 class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
+ protected:
   typedef IterativeSolverBase<GMRES> Base;
   using Base::m_error;
   using Base::m_info;
