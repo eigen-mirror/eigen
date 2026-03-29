@@ -58,9 +58,9 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
- * You can control the switching size with the setSwitchSize() method, default is 16.
- * For small matrice (<16), it is thus preferable to directly use JacobiSVD. For larger ones, BDCSVD is highly
- * recommended and can several order of magnitude faster.
+ * You can control the switching size with the setSwitchSize() method, default is 8.
+ * For small matrices (<8), it is thus preferable to directly use JacobiSVD. For larger ones, BDCSVD is highly
+ * recommended and can be several orders of magnitude faster.
  *
  * \warning this algorithm is unlikely to provide accurate result when compiled with unsafe math optimizations.
  * For instance, this concerns Intel's compiler (ICC), which performs such optimization by default unless

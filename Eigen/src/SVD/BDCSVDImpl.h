@@ -47,7 +47,7 @@ class bdcsvd_impl {
   typedef Ref<ArrayXr> ArrayRef;
   typedef Ref<ArrayXi> IndicesRef;
 
-  bdcsvd_impl() : m_algoswap(16), m_compU(false), m_compV(false), m_numIters(0), m_info(Success) {}
+  bdcsvd_impl() : m_algoswap(8), m_compU(false), m_compV(false), m_numIters(0), m_info(Success) {}
 
   void allocate(Index diagSize, bool compU, bool compV);
 
