@@ -125,11 +125,29 @@ struct SymbolicExpressionEvaluator<FixedInt<N>, SizeAtCompileTime, void> {
 // Handling of generic indices (e.g. array)
 //--------------------------------------------------------------------------------
 
+// Detect Eigen expression types that are not plain objects (Matrix/Array).
+// These types may hold internal references to temporaries and must be evaluated before storing.
+template <typename T, typename = void>
+struct is_eigen_index_expression : std::false_type {};
+
+template <typename T>
+struct is_eigen_index_expression<T, std::enable_if_t<!std::is_same<T, typename T::PlainObject>::value>>
+    : std::true_type {};
+
 // Potentially wrap indices in a type that is better-suited for IndexedView evaluation.
 template <typename Indices, int NestedSizeAtCompileTime, typename EnableIf = void>
 struct IndexedViewHelperIndicesWrapper {
   using type = Indices;
   static const type& CreateIndexSequence(const Indices& indices, Index /*nested_size*/) { return indices; }
+};
+
+// Specialization for Eigen expression types (Reshaped, Block, CwiseOp, etc.) used as indices.
+// These may hold dangling references to temporaries if not evaluated.
+template <typename Indices, int NestedSizeAtCompileTime>
+struct IndexedViewHelperIndicesWrapper<Indices, NestedSizeAtCompileTime,
+                                       std::enable_if_t<is_eigen_index_expression<Indices>::value>> {
+  using type = typename Indices::PlainObject;
+  static type CreateIndexSequence(const Indices& indices, Index /*nested_size*/) { return indices.eval(); }
 };
 
 // Extract compile-time and runtime first, size, increments.

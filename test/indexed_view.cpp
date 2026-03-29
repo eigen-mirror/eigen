@@ -840,6 +840,61 @@ void check_tutorial_examples() {
   }
 }
 
+// Regression test for bug #1943: IndexedView with temporary expression indices.
+void check_expression_indices() {
+  MatrixXd m(3, 4);
+  m << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12;
+
+  // Reshaped temporary as column index (was segfault before fix).
+  {
+    auto view = m(all, Array<int, 1, 1>{0}.reshaped());
+    VectorXd result = view;
+    VERIFY_IS_APPROX(result, m.col(0));
+  }
+
+  // Block expression as index.
+  {
+    ArrayXi idx(3);
+    idx << 0, 1, 2;
+    auto view = m(all, idx.head(2));
+    MatrixXd result = view;
+    VERIFY_IS_APPROX(result, m.leftCols(2));
+  }
+
+  // CwiseBinaryOp expression as index.
+  {
+    Array<int, 2, 1> base;
+    base << 0, 1;
+    auto view = m(all, base + 0);
+    MatrixXd result = view;
+    VERIFY_IS_APPROX(result, m.leftCols(2));
+  }
+
+  // Reverse expression as index.
+  {
+    Array<int, 3, 1> idx;
+    idx << 2, 1, 0;
+    auto view = m(all, idx.reverse());
+    MatrixXd result = view;
+    MatrixXd expected(3, 3);
+    expected << m.col(0), m.col(1), m.col(2);
+    VERIFY_IS_APPROX(result, expected);
+  }
+
+  // 1D vector indexed view (VectorIndexedViewSelector path).
+  {
+    VectorXd v(5);
+    v << 10, 20, 30, 40, 50;
+    ArrayXi idx(3);
+    idx << 4, 2, 0;
+    auto view = v(idx.reverse());
+    VectorXd result = view;
+    VectorXd expected(3);
+    expected << 10, 30, 50;
+    VERIFY_IS_APPROX(result, expected);
+  }
+}
+
 void check_aliasing() {
   Eigen::Vector<float, 5> z = {0.0f, 1.1f, 2.2f, 3.3f, 4.4f};
   std::vector<int> left_indices = {0, 1, 3, 4};
@@ -854,6 +909,7 @@ EIGEN_DECLARE_TEST(indexed_view) {
     CALL_SUBTEST_1(check_indexed_view());
   }
   CALL_SUBTEST_1(check_tutorial_examples());
+  CALL_SUBTEST_1(check_expression_indices());
   CALL_SUBTEST_1(check_aliasing());
 
   // static checks of some internals:
