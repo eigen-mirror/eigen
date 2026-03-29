@@ -1,2 +1,1 @@
 eigen_add_benchmark(bench_svd bench_svd.cpp)
-eigen_add_benchmark(bench_bdcsvd_crossover bench_bdcsvd_crossover.cpp)
