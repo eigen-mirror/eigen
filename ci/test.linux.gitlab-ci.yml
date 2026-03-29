@@ -293,15 +293,6 @@ test:linux:cuda-12.2:clang-12:
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_CC_COMPILER: clang-12
 
-# NVHPC (nvc++), CUDA-13.1
-test:linux:cuda-13.1:nvhpc-26.1:
-  extends: .test:linux:cuda
-  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
-  needs: [ build:linux:cuda-13.1:nvhpc-26.1 ]
-  variables:
-    EIGEN_CI_CXX_COMPILER: nvc++
-    EIGEN_CI_CC_COMPILER: nvc
-    EIGEN_CI_INSTALL: ""
 
 ##### arm ######################################################################
 

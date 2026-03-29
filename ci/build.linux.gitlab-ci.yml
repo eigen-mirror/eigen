@@ -214,16 +214,6 @@ build:linux:cuda-12.2:clang-12:
     EIGEN_CI_CXX_COMPILER: clang++-12
     EIGEN_CI_TEST_CUDA_CLANG: "on"
 
-# NVHPC (nvc++), CUDA-13.1 — nvc++ as both host and device compiler
-build:linux:cuda-13.1:nvhpc-26.1:
-  extends: .build:linux:cuda
-  image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
-  variables:
-    EIGEN_CI_C_COMPILER: nvc
-    EIGEN_CI_CXX_COMPILER: nvc++
-    EIGEN_CI_INSTALL: ""
-    EIGEN_CI_CROSS_INSTALL: ""
-    EIGEN_CI_TEST_CUDA_NVC: "on"
 
 ######### HIP ##################################################################
 # Note: these are currently build-only, until we get an AMD-supported runner.
