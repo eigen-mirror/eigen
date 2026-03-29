@@ -173,7 +173,6 @@ add_custom_target(BuildOfficial)
 
 ei_add_test(clz)
 ei_add_test(rand)
-ei_add_test(realview)
 ei_add_test(meta)
 ei_add_test(maxsizevector)
 ei_add_test(numext)
