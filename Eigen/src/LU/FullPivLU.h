@@ -60,11 +60,23 @@ struct traits<FullPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType_> 
  * \sa MatrixBase::fullPivLu(), MatrixBase::determinant(), MatrixBase::inverse()
  */
 template <typename MatrixType_, typename PermutationIndex_>
-class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > {
+class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
+                  public RankRevealingBase<FullPivLU<MatrixType_, PermutationIndex_> > {
  public:
   typedef MatrixType_ MatrixType;
   typedef SolverBase<FullPivLU> Base;
+  typedef RankRevealingBase<FullPivLU> RankRevealingBase_;
   friend class SolverBase<FullPivLU>;
+  friend class RankRevealingBase<FullPivLU>;
+  using RankRevealingBase_::dimensionOfKernel;
+  using RankRevealingBase_::isInjective;
+  using RankRevealingBase_::isInvertible;
+  using RankRevealingBase_::isSurjective;
+  using RankRevealingBase_::maxPivot;
+  using RankRevealingBase_::nonzeroPivots;
+  using RankRevealingBase_::rank;
+  using RankRevealingBase_::setThreshold;
+  using RankRevealingBase_::threshold;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(FullPivLU)
   enum {
@@ -147,23 +159,6 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
     eigen_assert(m_isInitialized && "LU is not initialized.");
     return m_lu;
   }
-
-  /** \returns the number of nonzero pivots in the LU decomposition.
-   * Here nonzero is meant in the exact sense, not in a fuzzy sense.
-   * So that notion isn't really intrinsically interesting, but it is
-   * still useful when implementing algorithms.
-   *
-   * \sa rank()
-   */
-  inline Index nonzeroPivots() const {
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    return m_nonzero_pivots;
-  }
-
-  /** \returns the absolute value of the biggest pivot, i.e. the biggest
-   *          diagonal coefficient of U.
-   */
-  RealScalar maxPivot() const { return m_maxpivot; }
 
   /** \returns the permutation matrix P
    *
@@ -278,114 +273,10 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
    */
   typename internal::traits<MatrixType>::Scalar determinant() const;
 
-  /** Allows to prescribe a threshold to be used by certain methods, such as rank(),
-   * who need to determine when pivots are to be considered nonzero. This is not used for the
-   * LU decomposition itself.
-   *
-   * When it needs to get the threshold value, Eigen calls threshold(). By default, this
-   * uses a formula to automatically determine a reasonable threshold.
-   * Once you have called the present method setThreshold(const RealScalar&),
-   * your value is used instead.
-   *
-   * \param threshold The new value to use as the threshold.
-   *
-   * A pivot will be considered nonzero if its absolute value is strictly greater than
-   *  \f$ \vert pivot \vert \leqslant threshold \times \vert maxpivot \vert \f$
-   * where maxpivot is the biggest pivot.
-   *
-   * If you want to come back to the default behavior, call setThreshold(Default_t)
-   */
-  FullPivLU& setThreshold(const RealScalar& threshold) {
-    m_usePrescribedThreshold = true;
-    m_prescribedThreshold = threshold;
-    return *this;
-  }
-
-  /** Allows to come back to the default behavior, letting Eigen use its default formula for
-   * determining the threshold.
-   *
-   * You should pass the special object Eigen::Default as parameter here.
-   * \code lu.setThreshold(Eigen::Default); \endcode
-   *
-   * See the documentation of setThreshold(const RealScalar&).
-   */
-  FullPivLU& setThreshold(Default_t) {
-    m_usePrescribedThreshold = false;
-    return *this;
-  }
-
-  /** Returns the threshold that will be used by certain methods such as rank().
-   *
-   * See the documentation of setThreshold(const RealScalar&).
-   */
-  RealScalar threshold() const {
-    eigen_assert(m_isInitialized || m_usePrescribedThreshold);
-    return m_usePrescribedThreshold ? m_prescribedThreshold
-                                    // Higham's backward error bound for Gaussian elimination with
-                                    // complete pivoting (Theorem 9.4) is ||ΔA||₂ ≤ c·min(m,n)·u·||A||₂.
-                                    // The factor of 4 covers the constant c.
-                                    : NumTraits<Scalar>::epsilon() * RealScalar(4 * m_lu.diagonalSize());
-  }
-
-  /** \returns the rank of the matrix of which *this is the LU decomposition.
-   *
-   * \note This method has to determine which pivots should be considered nonzero.
-   *       For that, it uses the threshold value that you can control by calling
-   *       setThreshold(const RealScalar&).
-   */
-  inline Index rank() const {
+  /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
+  RealScalar pivotCoeff(Index i) const {
     using std::abs;
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
-    Index result = 0;
-    for (Index i = 0; i < m_nonzero_pivots; ++i) result += (abs(m_lu.coeff(i, i)) > premultiplied_threshold);
-    return result;
-  }
-
-  /** \returns the dimension of the kernel of the matrix of which *this is the LU decomposition.
-   *
-   * \note This method has to determine which pivots should be considered nonzero.
-   *       For that, it uses the threshold value that you can control by calling
-   *       setThreshold(const RealScalar&).
-   */
-  inline Index dimensionOfKernel() const {
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    return cols() - rank();
-  }
-
-  /** \returns true if the matrix of which *this is the LU decomposition represents an injective
-   *          linear map, i.e. has trivial kernel; false otherwise.
-   *
-   * \note This method has to determine which pivots should be considered nonzero.
-   *       For that, it uses the threshold value that you can control by calling
-   *       setThreshold(const RealScalar&).
-   */
-  inline bool isInjective() const {
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    return rank() == cols();
-  }
-
-  /** \returns true if the matrix of which *this is the LU decomposition represents a surjective
-   *          linear map; false otherwise.
-   *
-   * \note This method has to determine which pivots should be considered nonzero.
-   *       For that, it uses the threshold value that you can control by calling
-   *       setThreshold(const RealScalar&).
-   */
-  inline bool isSurjective() const {
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    return rank() == rows();
-  }
-
-  /** \returns true if the matrix of which *this is the LU decomposition is invertible.
-   *
-   * \note This method has to determine which pivots should be considered nonzero.
-   *       For that, it uses the threshold value that you can control by calling
-   *       setThreshold(const RealScalar&).
-   */
-  inline bool isInvertible() const {
-    eigen_assert(m_isInitialized && "LU is not initialized.");
-    return isInjective() && (m_lu.rows() == m_lu.cols());
+    return abs(m_lu.coeff(i, i));
   }
 
   /** \returns the inverse of the matrix of which *this is the LU decomposition.
@@ -424,15 +315,13 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> > 
   PermutationQType m_q;
   IntColVectorType m_rowsTranspositions;
   IntRowVectorType m_colsTranspositions;
-  Index m_nonzero_pivots;
   RealScalar m_l1_norm;
-  RealScalar m_maxpivot, m_prescribedThreshold;
   signed char m_det_pq;
-  bool m_isInitialized, m_usePrescribedThreshold;
+  bool m_isInitialized;
 };
 
 template <typename MatrixType, typename PermutationIndex>
-FullPivLU<MatrixType, PermutationIndex>::FullPivLU() : m_isInitialized(false), m_usePrescribedThreshold(false) {}
+FullPivLU<MatrixType, PermutationIndex>::FullPivLU() : m_isInitialized(false) {}
 
 template <typename MatrixType, typename PermutationIndex>
 FullPivLU<MatrixType, PermutationIndex>::FullPivLU(Index rows, Index cols)
@@ -441,8 +330,7 @@ FullPivLU<MatrixType, PermutationIndex>::FullPivLU(Index rows, Index cols)
       m_q(cols),
       m_rowsTranspositions(rows),
       m_colsTranspositions(cols),
-      m_isInitialized(false),
-      m_usePrescribedThreshold(false) {}
+      m_isInitialized(false) {}
 
 template <typename MatrixType, typename PermutationIndex>
 template <typename InputType>
@@ -452,8 +340,7 @@ FullPivLU<MatrixType, PermutationIndex>::FullPivLU(const EigenBase<InputType>& m
       m_q(matrix.cols()),
       m_rowsTranspositions(matrix.rows()),
       m_colsTranspositions(matrix.cols()),
-      m_isInitialized(false),
-      m_usePrescribedThreshold(false) {
+      m_isInitialized(false) {
   compute(matrix.derived());
 }
 
@@ -465,8 +352,7 @@ FullPivLU<MatrixType, PermutationIndex>::FullPivLU(EigenBase<InputType>& matrix)
       m_q(matrix.cols()),
       m_rowsTranspositions(matrix.rows()),
       m_colsTranspositions(matrix.cols()),
-      m_isInitialized(false),
-      m_usePrescribedThreshold(false) {
+      m_isInitialized(false) {
   computeInPlace();
 }
 
@@ -487,8 +373,8 @@ void FullPivLU<MatrixType, PermutationIndex>::computeInPlace() {
   m_colsTranspositions.resize(m_lu.cols());
   Index number_of_transpositions = 0;  // number of NONTRIVIAL transpositions, i.e. m_rowsTranspositions[i]!=i
 
-  m_nonzero_pivots = size;  // the generic case is that in which all pivots are nonzero (invertible case)
-  m_maxpivot = RealScalar(0);
+  this->m_nonzero_pivots = size;  // the generic case is that in which all pivots are nonzero (invertible case)
+  this->m_maxpivot = RealScalar(0);
 
   for (Index k = 0; k < size; ++k) {
     // First, we need to find the pivot.
@@ -507,7 +393,7 @@ void FullPivLU<MatrixType, PermutationIndex>::computeInPlace() {
     if (numext::is_exactly_zero(biggest_in_corner)) {
       // before exiting, make sure to initialize the still uninitialized transpositions
       // in a sane state without destroying what we already have.
-      m_nonzero_pivots = k;
+      this->m_nonzero_pivots = k;
       for (Index i = k; i < size; ++i) {
         m_rowsTranspositions.coeffRef(i) = internal::convert_index<StorageIndex>(i);
         m_colsTranspositions.coeffRef(i) = internal::convert_index<StorageIndex>(i);
@@ -517,7 +403,7 @@ void FullPivLU<MatrixType, PermutationIndex>::computeInPlace() {
 
     RealScalar abs_pivot = internal::abs_knowing_score<Scalar>()(
         m_lu(row_of_biggest_in_corner, col_of_biggest_in_corner), biggest_in_corner);
-    if (abs_pivot > m_maxpivot) m_maxpivot = abs_pivot;
+    if (abs_pivot > this->m_maxpivot) this->m_maxpivot = abs_pivot;
 
     // Now that we've found the pivot, we need to apply the row/col swaps to
     // bring it to the location (k,k).

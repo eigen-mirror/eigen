@@ -25,6 +25,7 @@
 
 #include "src/misc/Kernel.h"
 #include "src/misc/Image.h"
+#include "src/misc/RankRevealingBase.h"
 
 // IWYU pragma: begin_exports
 #include "src/LU/FullPivLU.h"

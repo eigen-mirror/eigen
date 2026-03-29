@@ -31,6 +31,8 @@
  * \endcode
  */
 
+#include "src/misc/RankRevealingBase.h"
+
 // IWYU pragma: begin_exports
 #include "src/QR/HouseholderQR.h"
 #include "src/QR/FullPivHouseholderQR.h"
