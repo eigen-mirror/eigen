@@ -13,6 +13,13 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
+// C4804: unsafe use of type 'bool' in operation. Unavoidable in generic code
+// instantiated with bool scalars (e.g. += and * on bool).
+#if EIGEN_COMP_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4804)
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -671,5 +678,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
 }  // end namespace internal
 
 }  // end namespace Eigen
+
+#if EIGEN_COMP_MSVC
+#pragma warning(pop)
+#endif
 
 #endif  // EIGEN_GENERAL_MATRIX_VECTOR_H

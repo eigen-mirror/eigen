@@ -13,6 +13,13 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
+// C4804: unsafe use of type 'bool' in operation. Unavoidable in generic code
+// instantiated with bool scalars (e.g. += and * on bool).
+#if EIGEN_COMP_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4804)
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -2395,5 +2402,9 @@ inline void setCpuCacheSizes(std::ptrdiff_t l1, std::ptrdiff_t l2, std::ptrdiff_
 }
 
 }  // end namespace Eigen
+
+#if EIGEN_COMP_MSVC
+#pragma warning(pop)
+#endif
 
 #endif  // EIGEN_GENERAL_BLOCK_PANEL_H
