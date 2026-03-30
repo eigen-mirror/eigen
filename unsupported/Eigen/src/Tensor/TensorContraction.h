@@ -40,7 +40,7 @@ struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKern
       std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                          typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>;
 
-  enum { Flags = 0 };
+  static constexpr int Flags = 0;
 };
 
 template <typename Dimensions, typename LhsXprType, typename RhsXprType, typename OutputKernelType>
@@ -168,7 +168,7 @@ template <typename ResScalar, typename LhsScalar, typename RhsScalar, typename S
 struct TensorContractionKernel {
   // True if `invoke()` supports `beta` in `C <- alpha * A * B + beta * C`
   // (otherwise beta should be always equal to 1).
-  enum { HasBeta = false };
+  static constexpr bool HasBeta = false;
 
   EIGEN_DEVICE_FUNC TensorContractionKernel(StorageIndex m_, StorageIndex k_, StorageIndex n_, StorageIndex bm_,
                                             StorageIndex bk_, StorageIndex bn_)
@@ -247,7 +247,58 @@ struct TensorContractionKernel {
   const StorageIndex bn;
 };
 
+// Dispatches a contraction operation over all 8 combinations of the three
+// runtime boolean parameters (lhs_inner_dim_contiguous, rhs_inner_dim_contiguous,
+// rhs_inner_dim_reordered), passing them as compile-time bool_constant
+// tags to the callable `fn`.
+template <typename Func>
+EIGEN_STRONG_INLINE void tensor_contraction_dispatch(Func&& fn, bool lhs_inner_dim_contiguous,
+                                                     bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered) {
+  if (lhs_inner_dim_contiguous) {
+    if (rhs_inner_dim_contiguous) {
+      if (rhs_inner_dim_reordered)
+        fn(bool_constant<true>{}, bool_constant<true>{}, bool_constant<true>{});
+      else
+        fn(bool_constant<true>{}, bool_constant<true>{}, bool_constant<false>{});
+    } else {
+      if (rhs_inner_dim_reordered)
+        fn(bool_constant<true>{}, bool_constant<false>{}, bool_constant<true>{});
+      else
+        fn(bool_constant<true>{}, bool_constant<false>{}, bool_constant<false>{});
+    }
+  } else {
+    if (rhs_inner_dim_contiguous) {
+      if (rhs_inner_dim_reordered)
+        fn(bool_constant<false>{}, bool_constant<true>{}, bool_constant<true>{});
+      else
+        fn(bool_constant<false>{}, bool_constant<true>{}, bool_constant<false>{});
+    } else {
+      if (rhs_inner_dim_reordered)
+        fn(bool_constant<false>{}, bool_constant<false>{}, bool_constant<true>{});
+      else
+        fn(bool_constant<false>{}, bool_constant<false>{}, bool_constant<false>{});
+    }
+  }
+}
+
 }  // end namespace internal
+
+// Legacy macros kept for backward compatibility with code that overrides them
+// (e.g. TensorFlow Lite restricts template instantiations for binary size).
+// New Eigen code should use internal::tensor_contraction_dispatch() instead.
+#ifndef TENSOR_CONTRACTION_DISPATCH
+#define TENSOR_CONTRACTION_DISPATCH(METHOD, ALIGNMENT, ARGS)                                          \
+  ::Eigen::internal::tensor_contraction_dispatch(                                                     \
+      [&](auto lhs_c, auto rhs_c, auto rhs_r) { METHOD<lhs_c(), rhs_c(), rhs_r(), ALIGNMENT> ARGS; }, \
+      this->m_lhs_inner_dim_contiguous, this->m_rhs_inner_dim_contiguous, this->m_rhs_inner_dim_reordered)
+#endif
+
+#ifndef TENSOR_CONTRACTION_ASYNC_DISPATCH
+#define TENSOR_CONTRACTION_ASYNC_DISPATCH(METHOD, DONE, ALIGNMENT, ARGS, FN)                                          \
+  ::Eigen::internal::tensor_contraction_dispatch(                                                                     \
+      [&](auto lhs_c, auto rhs_c, auto rhs_r) { (new METHOD<DONE, lhs_c(), rhs_c(), rhs_r(), ALIGNMENT> ARGS)->FN; }, \
+      this->m_lhs_inner_dim_contiguous, this->m_rhs_inner_dim_contiguous, this->m_rhs_inner_dim_reordered)
+#endif
 
 // Tensor contraction params that should enable to get from output matrix
 // 2-dimensional coordinates to the output tensor dimensions.
@@ -281,16 +332,8 @@ struct NoOpOutputKernel {
    * \param[in] num_cols Number of available columns
    */
   template <typename Index, typename Scalar>
-  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<Scalar, Index, ColMajor>& output_mapper,
-                                      const TensorContractionParams& params, Index i, Index j, Index num_rows,
-                                      Index num_cols) const {
-    EIGEN_UNUSED_VARIABLE(output_mapper);
-    EIGEN_UNUSED_VARIABLE(params);
-    EIGEN_UNUSED_VARIABLE(i);
-    EIGEN_UNUSED_VARIABLE(j);
-    EIGEN_UNUSED_VARIABLE(num_rows);
-    EIGEN_UNUSED_VARIABLE(num_cols);
-  }
+  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<Scalar, Index, ColMajor>&,
+                                      const TensorContractionParams&, Index, Index, Index, Index) const {}
 };
 
 /** Tensor contraction class.
@@ -350,14 +393,12 @@ struct TensorContractionEvaluatorBase {
   using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
-  enum {
-    IsAligned = true,
-    PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
-    BlockAccess = false,
-    PreferBlockAccess = false,
-    CoordAccess = false,  // to be implemented
-    RawAccess = true
-  };
+  static constexpr bool IsAligned = true;
+  static constexpr bool PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1);
+  static constexpr bool BlockAccess = false;
+  static constexpr bool PreferBlockAccess = false;
+  static constexpr bool CoordAccess = false;  // to be implemented
+  static constexpr bool RawAccess = true;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   using TensorBlock = internal::TensorBlockNotImplemented;
@@ -397,7 +438,7 @@ struct TensorContractionEvaluatorBase {
                     device),
         m_device(device),
         m_output_kernel(op.outputKernel()),
-        m_result(NULL) {
+        m_result(nullptr) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<LeftArgType, Device>::Layout) ==
                          static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout)),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -581,8 +622,8 @@ struct TensorContractionEvaluatorBase {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
-    m_leftImpl.evalSubExprsIfNeeded(NULL);
-    m_rightImpl.evalSubExprsIfNeeded(NULL);
+    m_leftImpl.evalSubExprsIfNeeded(nullptr);
+    m_rightImpl.evalSubExprsIfNeeded(nullptr);
     if (data) {
       evalTo(data);
       return false;
@@ -608,72 +649,6 @@ struct TensorContractionEvaluatorBase {
     });
   }
 #endif  // EIGEN_USE_THREADS
-
-#ifndef TENSOR_CONTRACTION_DISPATCH
-#define TENSOR_CONTRACTION_DISPATCH(METHOD, ALIGNMENT, ARGS) \
-  if (this->m_lhs_inner_dim_contiguous) {                    \
-    if (this->m_rhs_inner_dim_contiguous) {                  \
-      if (this->m_rhs_inner_dim_reordered) {                 \
-        METHOD<true, true, true, ALIGNMENT> ARGS;            \
-      } else {                                               \
-        METHOD<true, true, false, ALIGNMENT> ARGS;           \
-      }                                                      \
-    } else {                                                 \
-      if (this->m_rhs_inner_dim_reordered) {                 \
-        METHOD<true, false, true, ALIGNMENT> ARGS;           \
-      } else {                                               \
-        METHOD<true, false, false, ALIGNMENT> ARGS;          \
-      }                                                      \
-    }                                                        \
-  } else {                                                   \
-    if (this->m_rhs_inner_dim_contiguous) {                  \
-      if (this->m_rhs_inner_dim_reordered) {                 \
-        METHOD<false, true, true, ALIGNMENT> ARGS;           \
-      } else {                                               \
-        METHOD<false, true, false, ALIGNMENT> ARGS;          \
-      }                                                      \
-    } else {                                                 \
-      if (this->m_rhs_inner_dim_reordered) {                 \
-        METHOD<false, false, true, ALIGNMENT> ARGS;          \
-      } else {                                               \
-        METHOD<false, false, false, ALIGNMENT> ARGS;         \
-      }                                                      \
-    }                                                        \
-  }
-#endif
-
-#ifndef TENSOR_CONTRACTION_ASYNC_DISPATCH
-#define TENSOR_CONTRACTION_ASYNC_DISPATCH(METHOD, DONE, ALIGNMENT, ARGS, FN) \
-  if (this->m_lhs_inner_dim_contiguous) {                                    \
-    if (this->m_rhs_inner_dim_contiguous) {                                  \
-      if (this->m_rhs_inner_dim_reordered) {                                 \
-        (new METHOD<DONE, true, true, true, ALIGNMENT> ARGS)->FN;            \
-      } else {                                                               \
-        (new METHOD<DONE, true, true, false, ALIGNMENT> ARGS)->FN;           \
-      }                                                                      \
-    } else {                                                                 \
-      if (this->m_rhs_inner_dim_reordered) {                                 \
-        (new METHOD<DONE, true, false, true, ALIGNMENT> ARGS)->FN;           \
-      } else {                                                               \
-        (new METHOD<DONE, true, false, false, ALIGNMENT> ARGS)->FN;          \
-      }                                                                      \
-    }                                                                        \
-  } else {                                                                   \
-    if (this->m_rhs_inner_dim_contiguous) {                                  \
-      if (this->m_rhs_inner_dim_reordered) {                                 \
-        (new METHOD<DONE, false, true, true, ALIGNMENT> ARGS)->FN;           \
-      } else {                                                               \
-        (new METHOD<DONE, false, true, false, ALIGNMENT> ARGS)->FN;          \
-      }                                                                      \
-    } else {                                                                 \
-      if (this->m_rhs_inner_dim_reordered) {                                 \
-        (new METHOD<DONE, false, false, true, ALIGNMENT> ARGS)->FN;          \
-      } else {                                                               \
-        (new METHOD<DONE, false, false, false, ALIGNMENT> ARGS)->FN;         \
-      }                                                                      \
-    }                                                                        \
-  }
-#endif
 
   EIGEN_DEVICE_FUNC void evalTo(Scalar* buffer) const {
     static_cast<const Derived*>(this)->template evalProduct<Unaligned>(buffer);
@@ -867,9 +842,9 @@ struct TensorContractionEvaluatorBase {
     m_leftImpl.cleanup();
     m_rightImpl.cleanup();
 
-    if (m_result != NULL) {
+    if (m_result != nullptr) {
       m_device.deallocate(m_result);
-      m_result = NULL;
+      m_result = nullptr;
     }
   }
 
@@ -957,7 +932,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
   template <int Alignment>
   void evalProduct(Scalar* buffer) const {
-    TENSOR_CONTRACTION_DISPATCH(this->template evalProductSequential, Alignment, (buffer));
+    internal::tensor_contraction_dispatch(
+        [&](auto lhs_c, auto rhs_c, auto rhs_r) {
+          this->template evalProductSequential<lhs_c(), rhs_c(), rhs_r(), Alignment>(buffer);
+        },
+        this->m_lhs_inner_dim_contiguous, this->m_rhs_inner_dim_contiguous, this->m_rhs_inner_dim_reordered);
   }
 };
 

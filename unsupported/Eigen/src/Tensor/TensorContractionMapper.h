@@ -17,7 +17,8 @@ namespace Eigen {
 
 namespace internal {
 
-enum { Rhs = 0, Lhs = 1 };
+constexpr int Rhs = 0;
+constexpr int Lhs = 1;
 
 /*
  * Implementation of the Eigen blas_data_mapper class for tensors.
@@ -34,7 +35,7 @@ class BaseTensorContractionMapper;
 
 template <typename Tensor, bool HasRawAccess, template <class> class MakePointer_>
 struct CoeffLoader {
-  enum { DirectOffsets = false };
+  static constexpr bool DirectOffsets = false;
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffLoader(const Tensor& tensor) : m_tensor(tensor) {}
 
@@ -44,7 +45,7 @@ struct CoeffLoader {
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const typename MakePointer_<const typename Tensor::Scalar>::Type data() const {
     eigen_assert(false && "unsupported");
-    return NULL;
+    return nullptr;
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Tensor::Scalar coeff(typename Tensor::Index index) const {
@@ -62,7 +63,7 @@ struct CoeffLoader {
 
 template <typename Tensor, template <class> class MakePointer_>
 struct CoeffLoader<Tensor, true, MakePointer_> {
-  enum { DirectOffsets = true };
+  static constexpr bool DirectOffsets = true;
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE CoeffLoader(const Tensor& tensor) : m_data(tensor.data()) {}
 
@@ -100,7 +101,7 @@ class SimpleTensorContractionMapper {
         m_contract_strides(contract_strides),
         m_k_strides(k_strides) {}
 
-  enum { DirectOffsets = CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>::DirectOffsets };
+  static constexpr bool DirectOffsets = CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>::DirectOffsets;
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void offsetBuffer(typename Tensor::Index offset) {
     m_tensor.offsetBuffer(offset);
@@ -123,7 +124,6 @@ class SimpleTensorContractionMapper {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index computeIndex(Index row, Index col) const {
     const bool left = (side == Lhs);
-    EIGEN_UNUSED_VARIABLE(left);  // annoying bug in g++8.1: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85963
     Index nocontract_val = left ? row : col;
     Index linidx = 0;
     EIGEN_UNROLL_LOOP
@@ -164,7 +164,6 @@ class SimpleTensorContractionMapper {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IndexPair<Index> computeIndexPair(Index row, Index col,
                                                                           const Index distance) const {
     const bool left = (side == Lhs);
-    EIGEN_UNUSED_VARIABLE(left);  // annoying bug in g++8.1: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85963
     Index nocontract_val[2] = {left ? row : col, left ? row + distance : col};
     Index linidx[2] = {0, 0};
     if (array_size<typename Tensor::Dimensions>::value > array_size<contract_t>::value) {
@@ -363,12 +362,10 @@ class TensorContractionSubMapper {
   using LinearMapper = Self;
   using SubMapper = Self;
 
-  enum {
-    // We can use direct offsets iff the parent mapper supports then and we can compute the strides.
-    // TODO: we should also enable direct offsets for the Rhs case.
-    UseDirectOffsets =
-        ParentMapper::DirectOffsets && (side == Lhs) && inner_dim_contiguous && (array_size<contract_t>::value > 0)
-  };
+  // We can use direct offsets iff the parent mapper supports then and we can compute the strides.
+  // TODO: we should also enable direct offsets for the Rhs case.
+  static constexpr bool UseDirectOffsets =
+      ParentMapper::DirectOffsets && (side == Lhs) && inner_dim_contiguous && (array_size<contract_t>::value > 0);
 
   EIGEN_DEVICE_FUNC TensorContractionSubMapper(const ParentMapper& base_mapper, Index vert_offset, Index horiz_offset)
       : m_base_mapper(base_mapper), m_vert_offset(vert_offset), m_horiz_offset(horiz_offset) {
@@ -429,8 +426,9 @@ class TensorContractionSubMapper {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void storePacket(Index i, const PacketT& p) const {
     if (UseDirectOffsets) {
       m_base_mapper.storePacket(i, 0, p);
+    } else {
+      m_base_mapper.storePacket(i + m_vert_offset, m_horiz_offset, p);
     }
-    m_base_mapper.storePacket(i + m_vert_offset, m_horiz_offset, p);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
@@ -451,7 +449,7 @@ class TensorContractionSubMapper {
 
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i) const {
-    EIGEN_STATIC_ASSERT((internal::is_same<PacketT, PacketT>::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
+    static_assert(std::is_same<PacketT, PacketT>::value, "YOU_MADE_A_PROGRAMMING_MISTAKE");
     const int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
     if (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i, 0);

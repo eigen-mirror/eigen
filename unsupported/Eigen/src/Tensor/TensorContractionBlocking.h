@@ -16,7 +16,8 @@
 namespace Eigen {
 namespace internal {
 
-enum { ShardByRow = 0, ShardByCol = 1 };
+constexpr int ShardByRow = 0;
+constexpr int ShardByCol = 1;
 
 // Default Blocking Strategy
 template <typename ResScalar, typename LhsScalar, typename RhsScalar, typename StorageIndex,

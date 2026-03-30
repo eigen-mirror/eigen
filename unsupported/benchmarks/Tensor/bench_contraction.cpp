@@ -131,7 +131,7 @@ static void ContractionSizes(::benchmark::Benchmark* b) {
 
 static void ThreadPoolSizes(::benchmark::Benchmark* b) {
   for (int size : {64, 256, 512, 1024}) {
-    for (int threads : {2, 4, 8}) {
+    for (int threads : {1, 2, 4, 8, 16}) {
       b->Args({size, size, size, threads});
     }
   }
