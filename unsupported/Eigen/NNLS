@@ -26,13 +26,15 @@
  *
  */
 
-#ifndef EIGEN_NNLS_H
-#define EIGEN_NNLS_H
+#ifndef EIGEN_NNLS_MODULE_H
+#define EIGEN_NNLS_MODULE_H
 
 #include "../../Eigen/Core"
 #include "../../Eigen/QR"
 
 #include <limits>
+
+#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
 
 namespace Eigen {
 
@@ -385,4 +387,6 @@ void NNLS<MatrixType>::solveInactiveSet_(const RhsVectorType &b) {
 
 }  // namespace Eigen
 
-#endif  // EIGEN_NNLS_H
+#include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
+
+#endif  // EIGEN_NNLS_MODULE_H
