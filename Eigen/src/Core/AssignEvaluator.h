@@ -654,15 +654,15 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
 template <typename DstEvaluatorTypeT, typename SrcEvaluatorTypeT, typename Functor, int Version = Specialized>
 class generic_dense_assignment_kernel {
  protected:
-  typedef typename DstEvaluatorTypeT::XprType DstXprType;
-  typedef typename SrcEvaluatorTypeT::XprType SrcXprType;
+  using DstXprType = typename DstEvaluatorTypeT::XprType;
+  using SrcXprType = typename SrcEvaluatorTypeT::XprType;
 
  public:
-  typedef DstEvaluatorTypeT DstEvaluatorType;
-  typedef SrcEvaluatorTypeT SrcEvaluatorType;
-  typedef typename DstEvaluatorType::Scalar Scalar;
-  typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor> AssignmentTraits;
-  typedef typename AssignmentTraits::PacketType PacketType;
+  using DstEvaluatorType = DstEvaluatorTypeT;
+  using SrcEvaluatorType = SrcEvaluatorTypeT;
+  using Scalar = typename DstEvaluatorType::Scalar;
+  using AssignmentTraits = copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor>;
+  using PacketType = typename AssignmentTraits::PacketType;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr generic_dense_assignment_kernel(DstEvaluatorType& dst,
                                                                                   const SrcEvaluatorType& src,
@@ -741,7 +741,7 @@ class generic_dense_assignment_kernel {
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Index rowIndexByOuterInner(Index outer, Index inner) {
-    typedef typename DstEvaluatorType::ExpressionTraits Traits;
+    using Traits = typename DstEvaluatorType::ExpressionTraits;
     return int(Traits::RowsAtCompileTime) == 1          ? 0
            : int(Traits::ColsAtCompileTime) == 1        ? inner
            : int(DstEvaluatorType::Flags) & RowMajorBit ? outer
@@ -749,7 +749,7 @@ class generic_dense_assignment_kernel {
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr Index colIndexByOuterInner(Index outer, Index inner) {
-    typedef typename DstEvaluatorType::ExpressionTraits Traits;
+    using Traits = typename DstEvaluatorType::ExpressionTraits;
     return int(Traits::ColsAtCompileTime) == 1          ? 0
            : int(Traits::RowsAtCompileTime) == 1        ? inner
            : int(DstEvaluatorType::Flags) & RowMajorBit ? inner
@@ -774,13 +774,13 @@ template <typename DstEvaluatorTypeT, typename SrcEvaluatorTypeT, typename Funct
 class restricted_packet_dense_assignment_kernel
     : public generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, BuiltIn> {
  protected:
-  typedef generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, BuiltIn> Base;
+  using Base = generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, BuiltIn>;
 
  public:
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::DstXprType DstXprType;
-  typedef copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, 4> AssignmentTraits;
-  typedef typename AssignmentTraits::PacketType PacketType;
+  using Scalar = typename Base::Scalar;
+  using DstXprType = typename Base::DstXprType;
+  using AssignmentTraits = copy_using_evaluator_traits<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, 4>;
+  using PacketType = typename AssignmentTraits::PacketType;
 
   EIGEN_DEVICE_FUNC restricted_packet_dense_assignment_kernel(DstEvaluatorTypeT& dst, const SrcEvaluatorTypeT& src,
                                                               const Functor& func, DstXprType& dstExpr)
@@ -823,8 +823,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprTyp
 template <typename DstXprType, typename SrcXprType, typename Functor>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src,
                                                                                 const Functor& func) {
-  typedef evaluator<DstXprType> DstEvaluatorType;
-  typedef evaluator<SrcXprType> SrcEvaluatorType;
+  using DstEvaluatorType = evaluator<DstXprType>;
+  using SrcEvaluatorType = evaluator<SrcXprType>;
 
   SrcEvaluatorType srcEvaluator(src);
 
@@ -834,7 +834,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_dense_assignment_loop(
 
   DstEvaluatorType dstEvaluator(dst);
 
-  typedef generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor> Kernel;
+  using Kernel = generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor>;
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
   dense_assignment_loop<Kernel>::run(kernel);
@@ -861,11 +861,11 @@ struct EigenBase2EigenBase {};
 
 template <typename, typename>
 struct AssignmentKind {
-  typedef EigenBase2EigenBase Kind;
+  using Kind = EigenBase2EigenBase;
 };
 template <>
 struct AssignmentKind<DenseShape, DenseShape> {
-  typedef Dense2Dense Kind;
+  using Kind = Dense2Dense;
 };
 
 // This is the main assignment class
@@ -920,8 +920,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
                       int(Dst::SizeAtCompileTime) != 1
   };
 
-  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst> ActualDstTypeCleaned;
-  typedef std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&> ActualDstType;
+  using ActualDstTypeCleaned = std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst>;
+  using ActualDstType = std::conditional_t<NeedToTranspose, Transpose<Dst>, Dst&>;
   ActualDstType actualDst(dst);
 
   // TODO: check whether this is the right place to perform these checks:
@@ -935,9 +935,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
 template <typename Dst, typename Src, typename Func>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_restricted_packet_assignment_no_alias(Dst& dst, const Src& src,
                                                                                       const Func& func) {
-  typedef evaluator<Dst> DstEvaluatorType;
-  typedef evaluator<Src> SrcEvaluatorType;
-  typedef restricted_packet_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Func> Kernel;
+  using DstEvaluatorType = evaluator<Dst>;
+  using SrcEvaluatorType = evaluator<Src>;
+  using Kernel = restricted_packet_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Func>;
 
   EIGEN_STATIC_ASSERT_LVALUE(Dst)
   EIGEN_CHECK_BINARY_COMPATIBILIY(Func, typename Dst::Scalar, typename Src::Scalar);

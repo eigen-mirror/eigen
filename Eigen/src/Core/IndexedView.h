@@ -311,9 +311,7 @@ struct unary_evaluator<IndexedView<ArgType, RowIndices, ColIndices>, IndexBased>
 
 // Catch assignments to an IndexedView.
 template <typename ArgType, typename RowIndices, typename ColIndices>
-struct evaluator_assume_aliasing<IndexedView<ArgType, RowIndices, ColIndices>> {
-  static const bool value = true;
-};
+struct evaluator_assume_aliasing<IndexedView<ArgType, RowIndices, ColIndices>> : std::true_type {};
 
 }  // end namespace internal
 
