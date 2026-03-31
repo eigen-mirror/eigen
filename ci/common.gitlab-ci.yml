@@ -1,6 +1,6 @@
 # Base configuration for linux builds and tests.
 .common:linux:cross:
-  image: ubuntu:20.04
+  image: ubuntu:24.04
   variables:
     EIGEN_CI_TARGET_ARCH: ""
     EIGEN_CI_ADDITIONAL_ARGS: ""
