@@ -447,7 +447,7 @@ test:linux:x86-64:clang-14:sanitizer:smoketest:
   extends: .test:linux:x86-64:clang-14:default
   needs: [ build:linux:cross:x86-64:clang-14:sanitizer:smoketest ]
   variables:
-    EIGEN_CI_INSTALL: clang-14 llvm-14
+    EIGEN_CI_INSTALL: clang-14 llvm-14 libclang-rt-14-dev
     EIGEN_CI_CTEST_LABEL: smoketest
     EIGEN_CI_CTEST_PARALLEL: "2"
     EIGEN_CI_CTEST_ARGS: --timeout 120
