@@ -497,6 +497,22 @@ template <>
 EIGEN_STRONG_INLINE PacketXf pfloor<PacketXf>(const PacketXf& a) {
   return svrintm_f32_x(svptrue_b32(), a);
 }
+template <>
+EIGEN_STRONG_INLINE PacketXf pceil<PacketXf>(const PacketXf& a) {
+  return svrintp_f32_x(svptrue_b32(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXf print<PacketXf>(const PacketXf& a) {
+  return svrintn_f32_x(svptrue_b32(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXf ptrunc<PacketXf>(const PacketXf& a) {
+  return svrintz_f32_x(svptrue_b32(), a);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXf pround<PacketXf>(const PacketXf& a) {
+  return svrinta_f32_x(svptrue_b32(), a);
+}
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ptrue<PacketXf>(const PacketXf& /*a*/) {

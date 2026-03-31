@@ -789,6 +789,39 @@ EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
   return v;
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
+  // frint.w uses the current rounding mode (default: round to nearest, ties to even).
+  Packet4f v = a;
+  asm volatile("frint.w %w[v], %w[v]\n" : [v] "+f"(v));
+  return v;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
+  Packet4f v = a;
+  int32_t old_mode, new_mode;
+  asm volatile(
+      "cfcmsa  %[old_mode], $1\n"
+      "ori     %[new_mode], %[old_mode], 3\n"
+      "xori    %[new_mode], %[new_mode], 2\n"  // 1 = round toward zero.
+      "ctcmsa  $1, %[new_mode]\n"
+      "frint.w %w[v], %w[v]\n"
+      "ctcmsa  $1, %[old_mode]\n"
+      :  // outputs
+      [old_mode] "=r"(old_mode), [new_mode] "=r"(new_mode),
+      [v] "+f"(v)
+      :  // inputs
+      :  // clobbers
+  );
+  return v;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const Packet4f& b) {
+  return (Packet4f)__builtin_msa_fcult_w(a, b);
+}
+
 //---------- double ----------
 
 typedef v2f64 Packet2d;
@@ -1190,6 +1223,39 @@ EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
       :  // clobbers
   );
   return v;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2d print<Packet2d>(const Packet2d& a) {
+  // frint.d uses the current rounding mode (default: round to nearest, ties to even).
+  Packet2d v = a;
+  asm volatile("frint.d %w[v], %w[v]\n" : [v] "+f"(v));
+  return v;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
+  Packet2d v = a;
+  int32_t old_mode, new_mode;
+  asm volatile(
+      "cfcmsa  %[old_mode], $1\n"
+      "ori     %[new_mode], %[old_mode], 3\n"
+      "xori    %[new_mode], %[new_mode], 2\n"  // 1 = round toward zero.
+      "ctcmsa  $1, %[new_mode]\n"
+      "frint.d %w[v], %w[v]\n"
+      "ctcmsa  $1, %[old_mode]\n"
+      :  // outputs
+      [old_mode] "=r"(old_mode), [new_mode] "=r"(new_mode),
+      [v] "+f"(v)
+      :  // inputs
+      :  // clobbers
+  );
+  return v;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan<Packet2d>(const Packet2d& a, const Packet2d& b) {
+  return (Packet2d)__builtin_msa_fcult_d(a, b);
 }
 
 }  // end namespace internal
