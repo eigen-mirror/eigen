@@ -412,7 +412,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
     RealScalar left = diag(k);
     RealScalar right;  // was: = (k != actual_n-1) ? diag(k+1) : (diag(actual_n-1) + col0.matrix().norm());
     if (k == actual_n - 1)
-      right = (diag(actual_n - 1) + col0.matrix().norm());
+      right = (diag(actual_n - 1) + col0.matrix().stableNorm());
     else {
       // Skip deflated singular values,
       // recall that at this stage we assume that z[j]!=0 and all entries for which z[j]==0 have been put aside.
@@ -804,9 +804,7 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
     while (i > 0 && (diag(i) < considerZero || abs(col0(i)) < considerZero)) --i;
 
     for (; i > 1; --i)
-      if ((diag(i) - diag(i - 1)) < epsilon_strict) {
-        eigen_internal_assert(abs(diag(i) - diag(i - 1)) < epsilon_coarse &&
-                              " diagonal entries are not properly sorted");
+      if ((diag(i) - diag(i - 1)) < epsilon_coarse) {
         deflation44(firstCol, firstCol + shift, firstRowW, firstColW, i, i - 1, length);
       }
   }
