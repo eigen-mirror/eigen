@@ -893,12 +893,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 #endif
 
 #define EIGEN_MAKE_ALIGNED_OPERATOR_NEW EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(true)
-#define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar, Size)                                 \
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(                                                                            \
-      bool(((Size) != Eigen::Dynamic) &&                                                                         \
-           (((EIGEN_MAX_ALIGN_BYTES >= 16) && ((sizeof(Scalar) * (Size)) % (EIGEN_MAX_ALIGN_BYTES) == 0)) ||     \
-            ((EIGEN_MAX_ALIGN_BYTES >= 32) && ((sizeof(Scalar) * (Size)) % (EIGEN_MAX_ALIGN_BYTES / 2) == 0)) || \
-            ((EIGEN_MAX_ALIGN_BYTES >= 64) && ((sizeof(Scalar) * (Size)) % (EIGEN_MAX_ALIGN_BYTES / 4) == 0)))))
+#define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar, Size)                                       \
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(                                                                                  \
+      bool(((Size) != Eigen::Dynamic) &&                                                                               \
+           (((EIGEN_MAX_ALIGN_BYTES >= 16) && ((sizeof(Scalar) * size_t(Size)) % (EIGEN_MAX_ALIGN_BYTES) == 0)) ||     \
+            ((EIGEN_MAX_ALIGN_BYTES >= 32) && ((sizeof(Scalar) * size_t(Size)) % (EIGEN_MAX_ALIGN_BYTES / 2) == 0)) || \
+            ((EIGEN_MAX_ALIGN_BYTES >= 64) && ((sizeof(Scalar) * size_t(Size)) % (EIGEN_MAX_ALIGN_BYTES / 4) == 0)))))
 
 #endif
 

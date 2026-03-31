@@ -46,9 +46,8 @@ struct visitor_impl<Visitor, Derived, UnrollCount, Vectorize, false, ShortCircui
 
   static constexpr bool CanVectorize(int K) {
     constexpr int InnerSizeAtCompileTime = RowMajor ? ColsAtCompileTime : RowsAtCompileTime;
-    if (InnerSizeAtCompileTime <= 0) return false;
-    if (InnerSizeAtCompileTime < PacketSize) return false;
-    return Vectorize && (InnerSizeAtCompileTime - (K % InnerSizeAtCompileTime) >= PacketSize);
+    return Vectorize && InnerSizeAtCompileTime >= PacketSize &&
+           (InnerSizeAtCompileTime - (K % (InnerSizeAtCompileTime > 0 ? InnerSizeAtCompileTime : 1)) >= PacketSize);
   }
 
   template <int K = 0, bool Empty = (K == UnrollCount), std::enable_if_t<Empty, bool> = true>
