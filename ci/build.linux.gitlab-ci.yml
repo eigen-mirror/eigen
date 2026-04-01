@@ -104,6 +104,8 @@ build:linux:docs:
     EIGEN_CI_C_COMPILER: clang
     EIGEN_CI_CXX_COMPILER: clang++
     EIGEN_CI_BEFORE_SCRIPT: ". ci/scripts/build_and_install_doxygen.sh Release_1_13_2"
+  tags:
+    - saas-linux-medium-amd64
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
@@ -154,8 +156,10 @@ build:linux:x86-64:nvhpc-26.1:default:
     EIGEN_CI_INSTALL: ""
     EIGEN_CI_CROSS_INSTALL: ""
     # NVHPC's compiler frontend is very memory-hungry with template-heavy code.
-    # Limit parallelism to avoid OOM kills from the kernel.
-    EIGEN_CI_BUILD_JOBS: "8"
+    # The 2xlarge runner has 128 GB, so 16 jobs gives ~8 GB per process.
+    # The shuffled-batch build strategy spreads memory-hungry targets across
+    # batches, preventing simultaneous OOM-prone compilations.
+    EIGEN_CI_BUILD_JOBS: "16"
 
 ######## CUDA ##################################################################
 
