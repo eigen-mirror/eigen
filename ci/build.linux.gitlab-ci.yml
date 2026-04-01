@@ -147,7 +147,9 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
 # NVHPC (nvc++) uses NVIDIA's HPC SDK container image with the compilers
 # pre-installed. We override EIGEN_CI_INSTALL to avoid trying to apt-get
 # install the compiler.
-build:linux:x86-64:nvhpc-26.1:default:
+# Split into official/unsupported because nvc++ is so slow that the full
+# build exceeds the 3-hour GitLab SaaS shared-runner timeout.
+.build:linux:x86-64:nvhpc-26.1:
   extends: .build:linux:cross:x86-64
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
   variables:
@@ -160,6 +162,17 @@ build:linux:x86-64:nvhpc-26.1:default:
     # The shuffled-batch build strategy spreads memory-hungry targets across
     # batches, preventing simultaneous OOM-prone compilations.
     EIGEN_CI_BUILD_JOBS: "16"
+    EIGEN_CI_FALLBACK_JOBS: "4"
+
+build:linux:x86-64:nvhpc-26.1:default:official:
+  extends: .build:linux:x86-64:nvhpc-26.1
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildOfficial
+
+build:linux:x86-64:nvhpc-26.1:default:unsupported:
+  extends: .build:linux:x86-64:nvhpc-26.1
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildUnsupported
 
 ######## CUDA ##################################################################
 

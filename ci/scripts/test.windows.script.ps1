@@ -13,7 +13,7 @@ if (${EIGEN_CI_CTEST_REGEX}) {
   $target = "-L","${EIGEN_CI_CTEST_LABEL}"
 }
 
-$ctest_cmd = { ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --no-tests=error --build-noclean ${target} }
+$ctest_cmd = { ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-failure --no-compress-output --build-noclean ${target} }
 
 Write-Host "Running initial tests..."
 

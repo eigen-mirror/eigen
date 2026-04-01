@@ -21,14 +21,16 @@ fi
 
 # Builds (particularly gcc) sometimes get killed, potentially when running
 # out of resources.  In that case, keep trying to build the remaining
-# targets (k0), then try to build again with a single thread (j1) to minimize
-# resource use.
+# targets (k0), then retry with reduced parallelism to minimize resource use.
 # EIGEN_CI_BUILD_JOBS can be set to limit parallelism for memory-hungry
 # compilers (e.g. NVHPC).
 jobs=""
 if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
   jobs="-j${EIGEN_CI_BUILD_JOBS}"
 fi
+
+# Fallback parallelism for retry builds after a failure (default: 2).
+fallback_jobs="-j${EIGEN_CI_FALLBACK_JOBS:-2}"
 
 # For phony meta-targets (e.g. buildtests), shuffle the dependency list and
 # build in batches so that memory-hungry compilations (like bdcsvd with
@@ -45,6 +47,16 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   { set +x; } 2>/dev/null
   deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
          | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+  # CMake custom targets like BuildOfficial have an intermediate phony
+  # (e.g. test/BuildOfficial) that holds the real dependencies.  If we
+  # got exactly one dep, resolve it one more level.
+  if [[ $(echo "$deps" | wc -l) -eq 1 ]] && [[ -n "$deps" ]]; then
+    inner=$(ninja -t query "$deps" 2>/dev/null \
+            | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+    if [[ -n "$inner" ]]; then
+      deps="$inner"
+    fi
+  fi
   # Deterministic shuffle: hash each target name and sort by hash.
   # Stable across runs (helps ninja's .ninja_log and build caches),
   # portable (no shuf dependency), and spreads same-family targets apart.
@@ -72,7 +84,7 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
     while IFS= read -r batch; do
       batch_num=$((batch_num + 1))
       echo "=== Batch ${batch_num} ==="
-      ninja -k0 ${jobs} ${batch} || ninja -k0 -j1 ${batch} || build_failed=true
+      ninja -k0 ${jobs} ${batch} || ninja -k0 ${fallback_jobs} ${batch} || build_failed=true
     done < <(echo "$shuffled_deps" | xargs -n "${batch_size}")
     if [[ "$build_failed" == "true" ]]; then
       echo "Some batches failed."
@@ -83,7 +95,7 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
 fi
 
 if [[ "$shuffled" != "true" ]]; then
-  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 -j1
+  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs}
 fi
 
 # Return to root directory.
