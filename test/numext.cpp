@@ -45,10 +45,17 @@ void check_negate() {
 }
 
 template <typename T>
-std::enable_if_t<NumTraits<T>::IsInteger, T> random_abs2_input() {
+std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, T> random_abs2_input() {
   const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
-  return NumTraits<T>::IsSigned ? internal::random<T>(-safeAbs2Input, safeAbs2Input)
-                                : internal::random<T>(T(0), safeAbs2Input);
+  return internal::random<T>(-safeAbs2Input, safeAbs2Input);
+}
+
+// Note: bool resolves here (IsInteger && !IsSigned), but check_abs<bool> is fully
+// specialized and never calls random_abs2_input<bool>().
+template <typename T>
+std::enable_if_t<NumTraits<T>::IsInteger && !NumTraits<T>::IsSigned, T> random_abs2_input() {
+  const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
+  return internal::random<T>(T(0), safeAbs2Input);
 }
 
 template <typename T>

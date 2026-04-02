@@ -89,9 +89,9 @@ void mixingtypes(int size = SizeAtCompileType) {
   VERIFY_MIX_SCALAR(scd * vd, scd * vd.template cast<complex<double> >());
 
   VERIFY_MIX_SCALAR(vcf * 2, vcf * complex<float>(2));
-  VERIFY_MIX_SCALAR(vcf * 2.1, vcf * complex<float>(2.1));
+  VERIFY_MIX_SCALAR(vcf * 2.1, vcf * complex<float>(2.1f));
   VERIFY_MIX_SCALAR(2 * vcf, vcf * complex<float>(2));
-  VERIFY_MIX_SCALAR(2.1 * vcf, vcf * complex<float>(2.1));
+  VERIFY_MIX_SCALAR(2.1 * vcf, vcf * complex<float>(2.1f));
 
   // check scalar quotients
   VERIFY_MIX_SCALAR(vcf / sf, vcf / complex<float>(sf));

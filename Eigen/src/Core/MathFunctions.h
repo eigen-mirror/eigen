@@ -2097,7 +2097,15 @@ struct expm1_impl<std::complex<RealScalar>> {
 
 template <typename T>
 struct rsqrt_impl {
+// C4804: unsafe use of type 'bool' in operation. Unavoidable when instantiated with T=bool.
+#if EIGEN_COMP_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4804)
+#endif
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x) { return T(1) / numext::sqrt(x); }
+#if EIGEN_COMP_MSVC
+#pragma warning(pop)
+#endif
 };
 
 #if defined(EIGEN_GPU_COMPILE_PHASE)

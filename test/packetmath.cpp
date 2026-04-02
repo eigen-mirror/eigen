@@ -721,6 +721,11 @@ void packetmath() {
     }
   }
 
+// C4804: unsafe use of type 'bool' in operation. Unavoidable when Scalar=bool.
+#if EIGEN_COMP_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4804)
+#endif
   ref[0] = Scalar(0);
   for (int i = 0; i < PacketSize; ++i) ref[0] += data1[i];
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
@@ -732,6 +737,9 @@ void packetmath() {
     internal::pstore(data2, internal::predux_half(internal::pload<Packet>(data1)));
     VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half");
   }
+#if EIGEN_COMP_MSVC
+#pragma warning(pop)
+#endif
 
   // Avoid overflows.
   if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned &&

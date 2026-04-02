@@ -155,11 +155,11 @@ void testVectorType(const VectorType& base) {
     VERIFY(m.size() == n0);
 
     if (VectorType::SizeAtCompileTime == Dynamic) {
-      VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, 0, Scalar(n0 - 1)).sum(), Scalar(0));
+      VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, 0, Scalar(RealScalar(n0 - 1))).sum(), Scalar(0));
       VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, low, low - RealScalar(1)).sum(), Scalar(0));
     }
 
-    m.setLinSpaced(n0, 0, Scalar(n0 - 1));
+    m.setLinSpaced(n0, 0, Scalar(RealScalar(n0 - 1)));
     VERIFY(m.size() == n0);
     m.setLinSpaced(n0, low, low - RealScalar(1));
     VERIFY(m.size() == n0);
@@ -170,18 +170,18 @@ void testVectorType(const VectorType& base) {
     VERIFY_IS_APPROX(m, VectorType::Constant(size, low));
 
     if (NumTraits<Scalar>::IsInteger) {
-      VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(size - 1)),
-                       VectorType::LinSpaced(size, low + Scalar(size - 1), low).reverse());
+      VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(RealScalar(size - 1))),
+                       VectorType::LinSpaced(size, low + Scalar(RealScalar(size - 1)), low).reverse());
 
       if (VectorType::SizeAtCompileTime == Dynamic) {
         // Check negative multiplicator path:
         for (Index k = 1; k < 5; ++k)
-          VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar((size - 1) * k)),
-                           VectorType::LinSpaced(size, low + Scalar((size - 1) * k), low).reverse());
+          VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(RealScalar((size - 1) * k))),
+                           VectorType::LinSpaced(size, low + Scalar(RealScalar((size - 1) * k)), low).reverse());
         // Check negative divisor path:
         for (Index k = 1; k < 5; ++k)
-          VERIFY_IS_APPROX(VectorType::LinSpaced(size * k, low, low + Scalar(size - 1)),
-                           VectorType::LinSpaced(size * k, low + Scalar(size - 1), low).reverse());
+          VERIFY_IS_APPROX(VectorType::LinSpaced(size * k, low, low + Scalar(RealScalar(size - 1))),
+                           VectorType::LinSpaced(size * k, low + Scalar(RealScalar(size - 1)), low).reverse());
       }
     }
   }
