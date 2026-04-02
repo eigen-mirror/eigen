@@ -82,6 +82,26 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const Packet& x);
 
+/** \internal \returns log(1+x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(const Packet& x);
+
+/** \internal \returns log(1+x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(const Packet& x);
+
+/** \internal \returns log(1+x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog1p_float(const Packet& x) {
+  return generic_log1p_float(x);
+}
+
+/** \internal \returns log(1+x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog1p_double(const Packet& x) {
+  return generic_log1p_double(x);
+}
+
 /** \internal \returns exp(x)-1 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& x);
@@ -264,7 +284,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_FLOAT_PACKET_FUNCTION(cbrt, PACKET)                \
   EIGEN_GENERIC_PACKET_FUNCTION(expm1, PACKET)             \
   EIGEN_GENERIC_PACKET_FUNCTION(exp2, PACKET)              \
-  EIGEN_GENERIC_PACKET_FUNCTION(log1p, PACKET)             \
+  EIGEN_FLOAT_PACKET_FUNCTION(log1p, PACKET)               \
   EIGEN_GENERIC_PACKET_FUNCTION(atan, PACKET)
 
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PACKET) \
@@ -284,7 +304,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_DOUBLE_PACKET_FUNCTION(cbrt, PACKET)                \
   EIGEN_GENERIC_PACKET_FUNCTION(expm1, PACKET)              \
   EIGEN_GENERIC_PACKET_FUNCTION(exp2, PACKET)               \
-  EIGEN_GENERIC_PACKET_FUNCTION(log1p, PACKET)              \
+  EIGEN_DOUBLE_PACKET_FUNCTION(log1p, PACKET)               \
   EIGEN_GENERIC_PACKET_FUNCTION(atan, PACKET)
 
 // Macro to instantiate complex math function specializations (psqrt, plog, pexp)

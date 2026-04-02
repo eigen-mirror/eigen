@@ -60,7 +60,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d ptan<Packet4d>(cons
 EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet4d)
 EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet4d)
 EIGEN_GENERIC_PACKET_FUNCTION(expm1, Packet4d)
-EIGEN_GENERIC_PACKET_FUNCTION(log1p, Packet4d)
+EIGEN_DOUBLE_PACKET_FUNCTION(log1p, Packet4d)
 
 // Notice that for newer processors, it is counterproductive to use Newton
 // iteration for square root. In particular, Skylake and Zen2 processors
