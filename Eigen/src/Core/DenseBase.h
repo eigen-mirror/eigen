@@ -614,6 +614,7 @@ class DenseBase
 #define EIGEN_DOC_UNARY_ADDONS(X, Y)
 #include "../plugins/CommonCwiseUnaryOps.inc"
 #include "../plugins/BlockMethods.inc"
+// Defines operator()(const RowIndices&, const ColIndices&) and other indexed view methods.
 #include "../plugins/IndexedViewMethods.inc"
 #include "../plugins/ReshapedMethods.inc"
 #ifdef EIGEN_DENSEBASE_PLUGIN
