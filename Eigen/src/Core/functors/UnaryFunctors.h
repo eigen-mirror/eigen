@@ -765,11 +765,15 @@ struct functor_traits<scalar_sinh_op<Scalar>> {
 template <typename Scalar>
 struct scalar_asinh_op {
   EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const { return numext::asinh(a); }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
+    return internal::pasinh(a);
+  }
 };
 
 template <typename Scalar>
 struct functor_traits<scalar_asinh_op<Scalar>> {
-  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
+  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasASinh };
 };
 
 /** \internal
@@ -796,11 +800,15 @@ struct functor_traits<scalar_cosh_op<Scalar>> {
 template <typename Scalar>
 struct scalar_acosh_op {
   EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const { return numext::acosh(a); }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
+    return internal::pacosh(a);
+  }
 };
 
 template <typename Scalar>
 struct functor_traits<scalar_acosh_op<Scalar>> {
-  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = false };
+  enum { Cost = 5 * NumTraits<Scalar>::MulCost, PacketAccess = packet_traits<Scalar>::HasACosh };
 };
 
 /** \internal

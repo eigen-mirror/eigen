@@ -204,6 +204,8 @@ struct packet_traits<float> : default_packet_traits {
     HasATanh = 1,
     HasSinh = 1,
     HasCosh = 1,
+    HasASinh = 1,
+    HasACosh = 1,
     HasLog = 1,
     HasLog10 = 1,
     HasExp = 1,
@@ -5051,6 +5053,8 @@ struct packet_traits<double> : default_packet_traits {
     HasATanh = 1,
     HasSinh = 1,
     HasCosh = 1,
+    HasASinh = 1,
+    HasACosh = 1,
 #endif
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,

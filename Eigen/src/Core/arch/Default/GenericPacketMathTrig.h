@@ -977,9 +977,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Pa
 //----------------------------------------------------------------------
 
 /** \internal \returns the inverse hyperbolic sine of \a x (coeff-wise).
-    For small |x|: asinh(x) = sign(x) * log1p(|x| + x^2/(1 + sqrt(1 + x^2)))
-    For large |x|: asinh(x) = sign(x) * (log(|x|) + ln(2))
-    Otherwise:     asinh(x) = sign(x) * log(|x| + sqrt(x^2 + 1))
+    Uses a single log1p call by selecting the argument before the transcendental:
+    For moderate |x|: log1p(|x| + x^2 / (1 + sqrt(1 + x^2)))
+    For large |x|:    log1p(|x| - 1) + ln2  (avoids x^2 overflow)
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_float(const Packet& x) {
@@ -988,21 +988,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_float(const Pa
   const Packet x_sign = pand(x, sign_mask);
   const Packet one = pset1<Packet>(1.0f);
 
-  // For |x| < 0.5, use log1p formulation to avoid cancellation:
-  // asinh(x) = log1p(|x| + x^2 / (1 + sqrt(1 + x^2)))
-  const Packet x2 = pmul(abs_x, abs_x);
-  Packet p_small = generic_log1p(padd(abs_x, pdiv(x2, padd(one, psqrt(padd(one, x2))))));
-
-  // For 0.5 <= |x| < 1e10, use log(|x| + sqrt(x^2 + 1)).
-  Packet p_med = plog(padd(abs_x, psqrt(padd(x2, one))));
-
-  // For |x| >= 1e10, use log(2*|x|) = log(|x|) + ln(2) to avoid x^2 overflow.
-  const Packet ln2 = pset1<Packet>(0.6931471805599453f);
-  Packet p_large = padd(plog(abs_x), ln2);
-
-  const Packet small_mask = pcmp_lt(abs_x, pset1<Packet>(0.5f));
+  // For |x| >= 1e10, use log(2|x|) = log1p(|x| - 1) + ln2 to avoid x^2 overflow.
   const Packet large_mask = pcmp_lt(pset1<Packet>(1e10f), abs_x);
-  Packet result = pselect(large_mask, p_large, pselect(small_mask, p_small, p_med));
+  // Guard x^2 against overflow in the large case.
+  const Packet x2 = pmul(abs_x, pselect(large_mask, pzero(abs_x), abs_x));
+  // For |x| < 1e10: log1p(|x| + x^2 / (1 + sqrt(1 + x^2))).
+  // Algebraically equivalent to log(|x| + sqrt(x^2 + 1))
+  // but avoids cancellation for small |x|.
+  Packet normal_arg = padd(abs_x, pdiv(x2, padd(one, psqrt(padd(one, x2)))));
+  // For |x| >= 1e10: log1p(|x| - 1), then add ln2 after.
+  Packet large_arg = psub(abs_x, one);
+  // Select argument, then call log1p once.
+  Packet result = generic_log1p(pselect(large_mask, large_arg, normal_arg));
+  // Add ln2 for the large path: log(2|x|) = log(|x|) + ln2 = log1p(|x|-1) + ln2.
+  const Packet ln2 = pset1<Packet>(0.6931471805599453f);
+  result = pselect(large_mask, padd(result, ln2), result);
   return por(x_sign, result);
 }
 
@@ -1013,49 +1013,37 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_double(const P
   const Packet x_sign = pand(x, sign_mask);
   const Packet one = pset1<Packet>(1.0);
 
-  const Packet x2 = pmul(abs_x, abs_x);
-  Packet p_small = generic_log1p(padd(abs_x, pdiv(x2, padd(one, psqrt(padd(one, x2))))));
-
-  Packet p_med = plog(padd(abs_x, psqrt(padd(x2, one))));
-
-  const Packet ln2 = pset1<Packet>(0.6931471805599453);
-  Packet p_large = padd(plog(abs_x), ln2);
-
-  const Packet small_mask = pcmp_lt(abs_x, pset1<Packet>(0.5));
   const Packet large_mask = pcmp_lt(pset1<Packet>(1e150), abs_x);
-  Packet result = pselect(large_mask, p_large, pselect(small_mask, p_small, p_med));
+  const Packet x2 = pmul(abs_x, pselect(large_mask, pzero(abs_x), abs_x));
+  Packet normal_arg = padd(abs_x, pdiv(x2, padd(one, psqrt(padd(one, x2)))));
+  Packet large_arg = psub(abs_x, one);
+  Packet result = generic_log1p(pselect(large_mask, large_arg, normal_arg));
+  const Packet ln2 = pset1<Packet>(0.6931471805599453);
+  result = pselect(large_mask, padd(result, ln2), result);
   return por(x_sign, result);
 }
 
 /** \internal \returns the inverse hyperbolic cosine of \a x (coeff-wise).
-    Uses acosh(x) = log(x + sqrt(x^2 - 1)) for x >= 1.
+    Uses a single log1p call by selecting the argument before the transcendental:
+    For moderate x: log1p(t + sqrt(t*(t+2))) where t = x - 1
+    For huge x:     log1p(t) + ln2  (avoids t*(t+2) overflow)
     Returns NaN for x < 1.
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_float(const Packet& x) {
   const Packet one = pset1<Packet>(1.0f);
-  // For x near 1, use log1p to avoid cancellation:
-  // acosh(x) = log(x + sqrt(x^2-1)) = log(x + sqrt((x-1)(x+1)))
-  // For x close to 1, let t = x-1, then:
-  // acosh(x) = log1p(t + sqrt(t*(t+2)))
-  const Packet t = psub(x, one);
-  const Packet small_mask = pcmp_lt(t, pset1<Packet>(0.5f));
-
-  // Small path: acosh(x) = log1p(t + sqrt(t*(t+2)))
   const Packet two = pset1<Packet>(2.0f);
-  Packet p_small = generic_log1p(padd(t, psqrt(pmul(t, padd(t, two)))));
-
-  // Large path: acosh(x) = log(x + sqrt(x^2-1))
-  // For very large x, use log(2*x) to avoid overflow in x^2.
-  const Packet large_threshold = pset1<Packet>(1e10f);
-  const Packet huge_mask = pcmp_lt(large_threshold, x);
-  const Packet x2_safe = pselect(huge_mask, one, pmul(x, x));
-  Packet p_large = plog(padd(x, psqrt(psub(x2_safe, one))));
-  const Packet log2 = pset1<Packet>(0.6931471805599453f);
-  p_large = pselect(huge_mask, padd(plog(x), log2), p_large);
-
-  Packet result = pselect(small_mask, p_small, p_large);
-
+  const Packet t = psub(x, one);
+  const Packet huge_mask = pcmp_lt(pset1<Packet>(1e10f), x);
+  // Guard t*(t+2) against overflow in the huge case.
+  const Packet t_tp2 = pmul(pselect(huge_mask, pzero(t), t), padd(t, two));
+  Packet normal_arg = padd(t, psqrt(t_tp2));
+  // For huge x: acosh(x) = log(2x) = log1p(x - 1) + ln2.
+  Packet huge_arg = t;
+  // Select argument, then call log1p once.
+  Packet result = generic_log1p(pselect(huge_mask, huge_arg, normal_arg));
+  const Packet ln2 = pset1<Packet>(0.6931471805599453f);
+  result = pselect(huge_mask, padd(result, ln2), result);
   // Return NaN for x < 1.
   const Packet invalid_mask = pcmp_lt(x, one);
   return por(invalid_mask, result);
@@ -1064,23 +1052,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_float(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_double(const Packet& x) {
   const Packet one = pset1<Packet>(1.0);
-  const Packet t = psub(x, one);
-  const Packet small_mask = pcmp_lt(t, pset1<Packet>(0.5));
-
-  // Small path: acosh(x) = log1p(t + sqrt(t*(t+2)))
   const Packet two = pset1<Packet>(2.0);
-  Packet p_small = generic_log1p(padd(t, psqrt(pmul(t, padd(t, two)))));
-
-  // Large path: acosh(x) = log(x + sqrt(x^2-1))
-  const Packet large_threshold = pset1<Packet>(1e150);
-  const Packet huge_mask = pcmp_lt(large_threshold, x);
-  const Packet x2_safe = pselect(huge_mask, one, pmul(x, x));
-  Packet p_large = plog(padd(x, psqrt(psub(x2_safe, one))));
-  const Packet log2 = pset1<Packet>(0.6931471805599453);
-  p_large = pselect(huge_mask, padd(plog(x), log2), p_large);
-
-  Packet result = pselect(small_mask, p_small, p_large);
-
+  const Packet t = psub(x, one);
+  const Packet huge_mask = pcmp_lt(pset1<Packet>(1e150), x);
+  const Packet t_tp2 = pmul(pselect(huge_mask, pzero(t), t), padd(t, two));
+  Packet normal_arg = padd(t, psqrt(t_tp2));
+  Packet huge_arg = t;
+  Packet result = generic_log1p(pselect(huge_mask, huge_arg, normal_arg));
+  const Packet ln2 = pset1<Packet>(0.6931471805599453);
+  result = pselect(huge_mask, padd(result, ln2), result);
   const Packet invalid_mask = pcmp_lt(x, one);
   return por(invalid_mask, result);
 }
