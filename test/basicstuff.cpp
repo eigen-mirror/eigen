@@ -207,7 +207,12 @@ struct casting_test {
     Matrix<TgtScalar, 4, 4> n = m.template cast<TgtScalar>();
     for (int i = 0; i < m.rows(); ++i) {
       for (int j = 0; j < m.cols(); ++j) {
-        VERIFY_IS_APPROX(n(i, j), (internal::cast<SrcScalar, TgtScalar>(m(i, j))));
+        // Materialize both values to avoid GCC miscompilation at -O3 on some targets
+        // (e.g., loongarch64) where the compiler may keep intermediate results in wider
+        // FP registers, causing the comparison to see different precision than intended.
+        TgtScalar actual = n(i, j);
+        TgtScalar expected = internal::cast<SrcScalar, TgtScalar>(m(i, j));
+        VERIFY_IS_APPROX(actual, expected);
       }
     }
   }
