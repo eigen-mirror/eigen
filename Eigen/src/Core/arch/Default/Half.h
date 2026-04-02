@@ -60,12 +60,17 @@
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_F16(PACKET_F, PACKET_F16) \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pcos)                      \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, psin)                      \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, psinh)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pcosh)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pasinh)                    \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pacosh)                    \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexp)                      \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexp2)                     \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pexpm1)                    \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog)                      \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog1p)                    \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog2)                     \
+  F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, plog10)                    \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, preciprocal)               \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, prsqrt)                    \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pcbrt)                     \

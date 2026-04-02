@@ -150,6 +150,46 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const Packet& x);
 
+/** \internal \returns sinh(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Packet& x);
+
+/** \internal \returns sinh(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Packet& x);
+
+/** \internal \returns cosh(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Packet& x);
+
+/** \internal \returns cosh(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Packet& x);
+
+/** \internal \returns asinh(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_float(const Packet& x);
+
+/** \internal \returns asinh(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_double(const Packet& x);
+
+/** \internal \returns acosh(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_float(const Packet& x);
+
+/** \internal \returns acosh(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_double(const Packet& x);
+
+/** \internal \returns log10(x) for single precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_float(const Packet& x);
+
+/** \internal \returns log10(x) for double precision float */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_double(const Packet& x);
+
 /** \internal \returns sqrt(x) for complex types */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& a);
@@ -211,10 +251,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_FLOAT_PACKET_FUNCTION(tan, PACKET)                 \
   EIGEN_FLOAT_PACKET_FUNCTION(asin, PACKET)                \
   EIGEN_FLOAT_PACKET_FUNCTION(acos, PACKET)                \
+  EIGEN_FLOAT_PACKET_FUNCTION(sinh, PACKET)                \
+  EIGEN_FLOAT_PACKET_FUNCTION(cosh, PACKET)                \
   EIGEN_FLOAT_PACKET_FUNCTION(tanh, PACKET)                \
+  EIGEN_FLOAT_PACKET_FUNCTION(asinh, PACKET)               \
+  EIGEN_FLOAT_PACKET_FUNCTION(acosh, PACKET)               \
   EIGEN_FLOAT_PACKET_FUNCTION(atanh, PACKET)               \
   EIGEN_FLOAT_PACKET_FUNCTION(log, PACKET)                 \
   EIGEN_FLOAT_PACKET_FUNCTION(log2, PACKET)                \
+  EIGEN_FLOAT_PACKET_FUNCTION(log10, PACKET)               \
   EIGEN_FLOAT_PACKET_FUNCTION(exp, PACKET)                 \
   EIGEN_FLOAT_PACKET_FUNCTION(cbrt, PACKET)                \
   EIGEN_GENERIC_PACKET_FUNCTION(expm1, PACKET)             \
@@ -226,11 +271,16 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_round(const Packet& a);
   EIGEN_DOUBLE_PACKET_FUNCTION(sin, PACKET)                 \
   EIGEN_DOUBLE_PACKET_FUNCTION(cos, PACKET)                 \
   EIGEN_DOUBLE_PACKET_FUNCTION(tan, PACKET)                 \
+  EIGEN_DOUBLE_PACKET_FUNCTION(sinh, PACKET)                \
+  EIGEN_DOUBLE_PACKET_FUNCTION(cosh, PACKET)                \
+  EIGEN_DOUBLE_PACKET_FUNCTION(tanh, PACKET)                \
+  EIGEN_DOUBLE_PACKET_FUNCTION(asinh, PACKET)               \
+  EIGEN_DOUBLE_PACKET_FUNCTION(acosh, PACKET)               \
+  EIGEN_DOUBLE_PACKET_FUNCTION(atanh, PACKET)               \
   EIGEN_DOUBLE_PACKET_FUNCTION(log, PACKET)                 \
   EIGEN_DOUBLE_PACKET_FUNCTION(log2, PACKET)                \
+  EIGEN_DOUBLE_PACKET_FUNCTION(log10, PACKET)               \
   EIGEN_DOUBLE_PACKET_FUNCTION(exp, PACKET)                 \
-  EIGEN_DOUBLE_PACKET_FUNCTION(tanh, PACKET)                \
-  EIGEN_DOUBLE_PACKET_FUNCTION(atanh, PACKET)               \
   EIGEN_DOUBLE_PACKET_FUNCTION(cbrt, PACKET)                \
   EIGEN_GENERIC_PACKET_FUNCTION(expm1, PACKET)              \
   EIGEN_GENERIC_PACKET_FUNCTION(exp2, PACKET)               \

@@ -49,8 +49,11 @@ BENCH_CWISE_UNARY(Acos, a.acos(), -0.99, 0.99)
 BENCH_CWISE_UNARY(Atan, a.atan(), -10, 10)
 
 // Hyperbolic / special
+BENCH_CWISE_UNARY(Sinh, a.sinh(), -5, 5)
+BENCH_CWISE_UNARY(Cosh, a.cosh(), -5, 5)
 BENCH_CWISE_UNARY(Tanh, a.tanh(), -5, 5)
 BENCH_CWISE_UNARY(Atanh, a.atanh(), -0.99, 0.99)
+BENCH_CWISE_UNARY(Log10, a.log10(), 0.01, 100)
 BENCH_CWISE_UNARY(Erf, Eigen::erf(a), -4, 4)
 
 // Simple operations (should be very fast / memory-bound)
@@ -149,8 +152,11 @@ BENCHMARK(BM_Tan<float>) CWISE_SIZES ->Name("Tan_float");
 BENCHMARK(BM_Asin<float>) CWISE_SIZES ->Name("Asin_float");
 BENCHMARK(BM_Acos<float>) CWISE_SIZES ->Name("Acos_float");
 BENCHMARK(BM_Atan<float>) CWISE_SIZES ->Name("Atan_float");
+BENCHMARK(BM_Sinh<float>) CWISE_SIZES ->Name("Sinh_float");
+BENCHMARK(BM_Cosh<float>) CWISE_SIZES ->Name("Cosh_float");
 BENCHMARK(BM_Tanh<float>) CWISE_SIZES ->Name("Tanh_float");
 BENCHMARK(BM_Atanh<float>) CWISE_SIZES ->Name("Atanh_float");
+BENCHMARK(BM_Log10<float>) CWISE_SIZES ->Name("Log10_float");
 BENCHMARK(BM_Erf<float>) CWISE_SIZES ->Name("Erf_float");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
 BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
@@ -179,8 +185,11 @@ BENCHMARK(BM_Tan<double>) CWISE_SIZES ->Name("Tan_double");
 BENCHMARK(BM_Asin<double>) CWISE_SIZES ->Name("Asin_double");
 BENCHMARK(BM_Acos<double>) CWISE_SIZES ->Name("Acos_double");
 BENCHMARK(BM_Atan<double>) CWISE_SIZES ->Name("Atan_double");
+BENCHMARK(BM_Sinh<double>) CWISE_SIZES ->Name("Sinh_double");
+BENCHMARK(BM_Cosh<double>) CWISE_SIZES ->Name("Cosh_double");
 BENCHMARK(BM_Tanh<double>) CWISE_SIZES ->Name("Tanh_double");
 BENCHMARK(BM_Atanh<double>) CWISE_SIZES ->Name("Atanh_double");
+BENCHMARK(BM_Log10<double>) CWISE_SIZES ->Name("Log10_double");
 BENCHMARK(BM_Erf<double>) CWISE_SIZES ->Name("Erf_double");
 BENCHMARK(BM_Abs<double>) CWISE_SIZES ->Name("Abs_double");
 BENCHMARK(BM_Square<double>) CWISE_SIZES ->Name("Square_double");

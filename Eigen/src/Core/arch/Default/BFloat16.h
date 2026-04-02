@@ -41,12 +41,17 @@ limitations under the License.
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_BF16(PACKET_F, PACKET_BF16) \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcos)                      \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psin)                      \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psinh)                     \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcosh)                     \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pasinh)                    \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pacosh)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexp)                      \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexp2)                     \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexpm1)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog)                      \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog1p)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog2)                     \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog10)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, preciprocal)               \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, prsqrt)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcbrt)                     \

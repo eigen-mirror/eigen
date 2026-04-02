@@ -403,6 +403,25 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Pa
   return pmul(exp2_hi, exp2_lo);
 }
 
+/** \internal \returns log10(x) for single precision float.
+    Computed as log(x) * log10(e).
+    Simply multiplying by a single float constant loses accuracy because
+    float(log10(e)) has rounding error. We use a hi+lo split instead:
+    log10(x) ~= log(x) * hi + log(x) * lo, computed via fma. */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_float(const Packet& x) {
+  const Packet cst_log10e = pset1<Packet>(0.4342944819032518f);
+  return pmul(plog(x), cst_log10e);
+}
+
+/** \internal \returns log10(x) for double precision float.
+    Computed as log(x) * log10(e). */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_double(const Packet& x) {
+  const Packet cst_log10e = pset1<Packet>(0.4342944819032518);
+  return pmul(plog(x), cst_log10e);
+}
+
 }  // end namespace internal
 }  // end namespace Eigen
 

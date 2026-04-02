@@ -87,6 +87,8 @@ struct default_packet_traits {
     HasATanh = 0,
     HasSinh = 0,
     HasCosh = 0,
+    HasASinh = 0,
+    HasACosh = 0,
     HasTanh = 0,
     HasLGamma = 0,
     HasDiGamma = 0,
@@ -1130,6 +1132,20 @@ template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh(const Packet& a) {
   EIGEN_USING_STD(atanh);
   return atanh(a);
+}
+
+/** \internal \returns the inverse hyperbolic sine of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh(const Packet& a) {
+  EIGEN_USING_STD(asinh);
+  return asinh(a);
+}
+
+/** \internal \returns the inverse hyperbolic cosine of \a a (coeff-wise) */
+template <typename Packet>
+EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh(const Packet& a) {
+  EIGEN_USING_STD(acosh);
+  return acosh(a);
 }
 
 /** \internal \returns the exp of \a a (coeff-wise) */
