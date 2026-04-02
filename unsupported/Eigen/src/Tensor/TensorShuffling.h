@@ -206,7 +206,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
-    static const int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+    static constexpr int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
 
     const size_t target_size = m_device.firstLevelCacheSize();
     const bool inner_dim_shuffled = m_shuffle[inner_dim] != inner_dim;

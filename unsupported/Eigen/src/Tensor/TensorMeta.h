@@ -19,22 +19,22 @@ template <bool cond>
 struct Cond {};
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T1& choose(Cond<true>, const T1& first, const T2&) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T1& choose(Cond<true>, const T1& first, const T2&) {
   return first;
 }
 
 template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T2& choose(Cond<false>, const T1&, const T2& second) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const T2& choose(Cond<false>, const T1&, const T2& second) {
   return second;
 }
 
 template <size_t n>
 struct max_n_1 {
-  static const size_t size = n;
+  static constexpr size_t size = n;
 };
 template <>
 struct max_n_1<0> {
-  static const size_t size = 1;
+  static constexpr size_t size = 1;
 };
 
 template <typename T>
@@ -55,7 +55,7 @@ typedef ulonglong2 Packet4h2;
 template <>
 struct PacketType<half, GpuDevice> {
   typedef Packet4h2 type;
-  static const int size = 8;
+  static constexpr int size = 8;
   enum {
     HasAdd = 1,
     HasSub = 1,
@@ -132,7 +132,7 @@ static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index roundUp(Index x, Index y) { r
 template <>
 struct PacketType<half, SyclDevice> {
   typedef half type;
-  static const int size = 1;
+  static constexpr int size = 1;
   enum {
     HasAdd = 0,
     HasSub = 0,
@@ -281,7 +281,7 @@ struct is_base_of {
   static yes check(D*, T);
   static no check(B*, int);
 
-  static const bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
+  static constexpr bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
 };
 
 }  // namespace internal

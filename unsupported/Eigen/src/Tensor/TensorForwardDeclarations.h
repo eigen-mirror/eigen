@@ -44,11 +44,11 @@ struct StorageMemory : MakePointer<T> {};
 namespace internal {
 template <typename A, typename B>
 struct Pointer_type_promotion {
-  static const bool val = false;
+  static constexpr bool val = false;
 };
 template <typename A>
 struct Pointer_type_promotion<A, A> {
-  static const bool val = true;
+  static constexpr bool val = true;
 };
 template <typename A, typename B>
 struct TypeConversion {
@@ -173,12 +173,12 @@ namespace internal {
 
 template <typename Device, typename Expression>
 struct IsVectorizable {
-  static const bool value = TensorEvaluator<Expression, Device>::PacketAccess;
+  static constexpr bool value = TensorEvaluator<Expression, Device>::PacketAccess;
 };
 
 template <typename Expression>
 struct IsVectorizable<GpuDevice, Expression> {
-  static const bool value =
+  static constexpr bool value =
       TensorEvaluator<Expression, GpuDevice>::PacketAccess && TensorEvaluator<Expression, GpuDevice>::IsAligned;
 };
 
@@ -196,7 +196,7 @@ struct IsTileable {
   static constexpr bool BlockAccess =
       TensorEvaluator<Expression, Device>::BlockAccess && TensorEvaluator<Expression, Device>::PreferBlockAccess;
 
-  static const TiledEvaluation value = BlockAccess ? TiledEvaluation::On : TiledEvaluation::Off;
+  static constexpr TiledEvaluation value = BlockAccess ? TiledEvaluation::On : TiledEvaluation::Off;
 };
 
 template <typename Expression, typename Device, bool Vectorizable = IsVectorizable<Device, Expression>::value,

@@ -333,7 +333,7 @@ class TensorBlockMapper {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockDescriptor blockDescriptor(IndexType block_index) const {
-    static const bool isColMajor = Layout == static_cast<int>(ColMajor);
+    static constexpr bool isColMajor = Layout == static_cast<int>(ColMajor);
 
     IndexType offset = 0;
     DSizes<IndexType, NumDims> dimensions;
@@ -388,7 +388,7 @@ class TensorBlockMapper {
       return;
     }
 
-    static const bool isColMajor = Layout == static_cast<int>(ColMajor);
+    static constexpr bool isColMajor = Layout == static_cast<int>(ColMajor);
 
     // Block shape skewed towards inner dimension.
     if (shape_type == TensorBlockShapeType::kSkewedInnerDims) {
@@ -710,7 +710,7 @@ class TensorMaterializedBlock {
     //
     // In this case we can construct a TensorBlock starting at
     // `data + desc.offset()`, with a `desc.dimensions()` block sizes.
-    static const bool is_col_major = Layout == ColMajor;
+    static constexpr bool is_col_major = Layout == ColMajor;
 
     // Find out how many inner dimensions have a matching size.
     int num_matching_inner_dims = 0;
@@ -1389,8 +1389,8 @@ class TensorBlockAssignment {
     // Tensor block expression dimension should match destination dimensions.
     eigen_assert(dimensions_match(target.dims, eval.dimensions()));
 
-    static const int Layout = TensorBlockEvaluator::Layout;
-    static const bool is_col_major = Layout == ColMajor;
+    static constexpr int Layout = TensorBlockEvaluator::Layout;
+    static constexpr bool is_col_major = Layout == ColMajor;
 
     // Initialize output inner dimension size based on a layout.
     const IndexType output_size = NumDims == 0 ? 1 : target.dims.TotalSize();

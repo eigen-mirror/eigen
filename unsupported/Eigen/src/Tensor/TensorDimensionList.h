@@ -25,26 +25,22 @@ namespace Eigen {
  */
 template <typename Index, std::size_t Rank>
 struct DimensionList {
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index operator[](const Index i) const { return i; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index operator[](const Index i) const { return i; }
 };
 
 namespace internal {
 
 template <typename Index, std::size_t Rank>
 struct array_size<DimensionList<Index, Rank> > {
-  static const size_t value = Rank;
+  static constexpr size_t value = Rank;
 };
 template <typename Index, std::size_t Rank>
 struct array_size<const DimensionList<Index, Rank> > {
-  static const size_t value = Rank;
+  static constexpr size_t value = Rank;
 };
 
 template <DenseIndex n, typename Index, std::size_t Rank>
-const Index array_get(DimensionList<Index, Rank>&) {
-  return n;
-}
-template <DenseIndex n, typename Index, std::size_t Rank>
-const Index array_get(const DimensionList<Index, Rank>&) {
+constexpr Index array_get(const DimensionList<Index, Rank>&) {
   return n;
 }
 

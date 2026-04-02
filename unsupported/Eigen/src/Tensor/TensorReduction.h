@@ -92,39 +92,39 @@ struct DimInitializer<Sizes<> > {
 
 template <typename ReducedDims, int NumTensorDims, int Layout>
 struct are_inner_most_dims {
-  static const bool value = false;
+  static constexpr bool value = false;
 };
 template <typename ReducedDims, int NumTensorDims, int Layout>
 struct preserve_inner_most_dims {
-  static const bool value = false;
+  static constexpr bool value = false;
 };
 
 template <typename ReducedDims, int NumTensorDims>
 struct are_inner_most_dims<ReducedDims, NumTensorDims, ColMajor> {
-  static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
-  static const bool tmp2 = index_statically_eq<ReducedDims>(0, 0);
-  static const bool tmp3 =
+  static constexpr bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
+  static constexpr bool tmp2 = index_statically_eq<ReducedDims>(0, 0);
+  static constexpr bool tmp3 =
       index_statically_eq<ReducedDims>(array_size<ReducedDims>::value - 1, array_size<ReducedDims>::value - 1);
-  static const bool value = tmp1 & tmp2 & tmp3;
+  static constexpr bool value = tmp1 & tmp2 & tmp3;
 };
 template <typename ReducedDims, int NumTensorDims>
 struct are_inner_most_dims<ReducedDims, NumTensorDims, RowMajor> {
-  static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
-  static const bool tmp2 = index_statically_eq<ReducedDims>(0, NumTensorDims - array_size<ReducedDims>::value);
-  static const bool tmp3 = index_statically_eq<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
-  static const bool value = tmp1 & tmp2 & tmp3;
+  static constexpr bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
+  static constexpr bool tmp2 = index_statically_eq<ReducedDims>(0, NumTensorDims - array_size<ReducedDims>::value);
+  static constexpr bool tmp3 = index_statically_eq<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
+  static constexpr bool value = tmp1 & tmp2 & tmp3;
 };
 template <typename ReducedDims, int NumTensorDims>
 struct preserve_inner_most_dims<ReducedDims, NumTensorDims, ColMajor> {
-  static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
-  static const bool tmp2 = index_statically_gt<ReducedDims>(0, 0);
-  static const bool value = tmp1 & tmp2;
+  static constexpr bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
+  static constexpr bool tmp2 = index_statically_gt<ReducedDims>(0, 0);
+  static constexpr bool value = tmp1 & tmp2;
 };
 template <typename ReducedDims, int NumTensorDims>
 struct preserve_inner_most_dims<ReducedDims, NumTensorDims, RowMajor> {
-  static const bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
-  static const bool tmp2 = index_statically_lt<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
-  static const bool value = tmp1 & tmp2;
+  static constexpr bool tmp1 = indices_statically_known_to_increase<ReducedDims>();
+  static constexpr bool tmp2 = index_statically_lt<ReducedDims>(array_size<ReducedDims>::value - 1, NumTensorDims - 1);
+  static constexpr bool value = tmp1 & tmp2;
 };
 
 template <int DimIndex, typename Self, typename Op>

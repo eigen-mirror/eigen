@@ -223,7 +223,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
       return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
     }
 
-    static const bool IsColMajor = Layout == static_cast<int>(ColMajor);
+    static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
     const int inner_dim_idx = IsColMajor ? 0 : NumDims - 1;
 
     Index offset = desc.offset();

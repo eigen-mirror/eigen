@@ -519,8 +519,8 @@ struct TensorContractionInputMapperTrait<
     TensorContractionInputMapper<Scalar_, Index_, side_, Tensor_, nocontract_t_, contract_t_, packet_size_,
                                  inner_dim_contiguous_, inner_dim_reordered_, Alignment_, MakePointer_> > {
   using XprType = Tensor_;
-  static const bool inner_dim_contiguous = inner_dim_contiguous_;
-  static const bool inner_dim_reordered = inner_dim_reordered_;
+  static constexpr bool inner_dim_contiguous = inner_dim_contiguous_;
+  static constexpr bool inner_dim_reordered = inner_dim_reordered_;
 };
 
 }  // end namespace internal

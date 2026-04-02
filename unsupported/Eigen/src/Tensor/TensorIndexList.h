@@ -358,20 +358,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index array_prod(const IndexList<FirstType
 
 template <typename FirstType, typename... OtherTypes>
 struct array_size<IndexList<FirstType, OtherTypes...>> {
-  static const size_t value = array_size<IndexTuple<FirstType, OtherTypes...>>::value;
+  static constexpr size_t value = array_size<IndexTuple<FirstType, OtherTypes...>>::value;
 };
 template <typename FirstType, typename... OtherTypes>
 struct array_size<const IndexList<FirstType, OtherTypes...>> {
-  static const size_t value = array_size<IndexTuple<FirstType, OtherTypes...>>::value;
+  static constexpr size_t value = array_size<IndexTuple<FirstType, OtherTypes...>>::value;
 };
 
 template <typename FirstType, typename... OtherTypes>
 struct array_size<IndexPairList<FirstType, OtherTypes...>> {
-  static const size_t value = 1 + sizeof...(OtherTypes);
+  static constexpr size_t value = 1 + sizeof...(OtherTypes);
 };
 template <typename FirstType, typename... OtherTypes>
 struct array_size<const IndexPairList<FirstType, OtherTypes...>> {
-  static const size_t value = 1 + sizeof...(OtherTypes);
+  static constexpr size_t value = 1 + sizeof...(OtherTypes);
 };
 
 template <Index N, typename FirstType, typename... OtherTypes>

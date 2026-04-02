@@ -160,7 +160,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    static const bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+    static constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
 
     // Compute spatial coordinates for the first block element.
     array<Index, NumDims> coords;
@@ -187,9 +187,9 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
 
     CoeffReturnType* block_buffer = block_storage.data();
 
-    static const int packet_size = PacketType<CoeffReturnType, Device>::size;
+    static constexpr int packet_size = PacketType<CoeffReturnType, Device>::size;
 
-    static const int inner_dim = is_col_major ? 0 : NumDims - 1;
+    static constexpr int inner_dim = is_col_major ? 0 : NumDims - 1;
     const Index inner_dim_size = it[0].size;
     const Index inner_dim_vectorized = inner_dim_size - packet_size;
 

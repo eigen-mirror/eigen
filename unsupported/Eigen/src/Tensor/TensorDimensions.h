@@ -20,14 +20,14 @@ namespace internal {
 
 template <std::ptrdiff_t n, typename Dimension>
 struct dget {
-  static const std::ptrdiff_t value = get<n, Dimension>::value;
+  static constexpr std::ptrdiff_t value = get<n, Dimension>::value;
 };
 
 template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowMajor>
 struct fixed_size_tensor_index_linearization_helper {
   template <typename Dimensions>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
-                                                         const Dimensions& dimensions) {
+  constexpr EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
+                                                                   const Dimensions& dimensions) {
     return array_get < RowMajor                             ? n - 1
            : (NumIndices - n) > (indices) + dget < RowMajor ? n - 1
                                                             : (NumIndices - n),
@@ -39,7 +39,7 @@ struct fixed_size_tensor_index_linearization_helper {
 template <typename Index, std::ptrdiff_t NumIndices, bool RowMajor>
 struct fixed_size_tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
   template <typename Dimensions>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const&, const Dimensions&) {
+  constexpr EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const&, const Dimensions&) {
     return 0;
   }
 };
@@ -47,7 +47,7 @@ struct fixed_size_tensor_index_linearization_helper<Index, NumIndices, 0, RowMaj
 template <typename Index, std::ptrdiff_t n>
 struct fixed_size_tensor_index_extraction_helper {
   template <typename Dimensions>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Index index, const Dimensions& dimensions) {
+  constexpr EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Index index, const Dimensions& dimensions) {
     const Index mult = (index == n - 1) ? 1 : 0;
     return array_get<n - 1>(dimensions) * mult +
            fixed_size_tensor_index_extraction_helper<Index, n - 1>::run(index, dimensions);
@@ -57,7 +57,7 @@ struct fixed_size_tensor_index_extraction_helper {
 template <typename Index>
 struct fixed_size_tensor_index_extraction_helper<Index, 0> {
   template <typename Dimensions>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Index, const Dimensions&) {
+  constexpr EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Index, const Dimensions&) {
     return 0;
   }
 };
@@ -80,20 +80,22 @@ template <typename std::ptrdiff_t... Indices>
 struct Sizes {
   typedef internal::numeric_list<std::ptrdiff_t, Indices...> Base;
   const Base t = Base();
-  static const std::ptrdiff_t total_size = internal::arg_prod(Indices...);
-  static const ptrdiff_t count = Base::count;
+  static constexpr std::ptrdiff_t total_size = internal::arg_prod(Indices...);
+  static constexpr ptrdiff_t count = Base::count;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t rank() const { return Base::count; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t rank() const { return Base::count; }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t TotalSize() { return internal::arg_prod(Indices...); }
+  static constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t TotalSize() {
+    return internal::arg_prod(Indices...);
+  }
 
-  EIGEN_DEVICE_FUNC Sizes() {}
+  constexpr EIGEN_DEVICE_FUNC Sizes() {}
   template <typename DenseIndex>
-  explicit EIGEN_DEVICE_FUNC Sizes(const array<DenseIndex, Base::count>& /*indices*/) {
+  explicit constexpr EIGEN_DEVICE_FUNC Sizes(const array<DenseIndex, Base::count>& /*indices*/) {
     // TODO: Add assertion.
   }
   template <typename... DenseIndex>
-  EIGEN_DEVICE_FUNC Sizes(DenseIndex...) {}
+  constexpr EIGEN_DEVICE_FUNC Sizes(DenseIndex...) {}
   explicit EIGEN_DEVICE_FUNC Sizes(std::initializer_list<std::ptrdiff_t> /*l*/) {
     // TODO: Add assertion.
   }
@@ -104,17 +106,19 @@ struct Sizes {
     return *this;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t operator[](const std::ptrdiff_t index) const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t operator[](const std::ptrdiff_t index) const {
     return internal::fixed_size_tensor_index_extraction_helper<std::ptrdiff_t, Base::count>::run(index, t);
   }
 
   template <typename DenseIndex>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t IndexOfColMajor(const array<DenseIndex, Base::count>& indices) const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t
+  IndexOfColMajor(const array<DenseIndex, Base::count>& indices) const {
     return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, Base::count, Base::count, false>::run(
         indices, t);
   }
   template <typename DenseIndex>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t IndexOfRowMajor(const array<DenseIndex, Base::count>& indices) const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ptrdiff_t
+  IndexOfRowMajor(const array<DenseIndex, Base::count>& indices) const {
     return internal::fixed_size_tensor_index_linearization_helper<DenseIndex, Base::count, Base::count, true>::run(
         indices, t);
   }
@@ -122,7 +126,7 @@ struct Sizes {
 
 namespace internal {
 template <typename std::ptrdiff_t... Indices>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_prod(const Sizes<Indices...>&) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_prod(const Sizes<Indices...>&) {
   return Sizes<Indices...>::total_size;
 }
 }  // namespace internal
@@ -131,8 +135,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_prod(const Sizes<Indi
 namespace internal {
 template <typename Index, std::ptrdiff_t NumIndices, std::ptrdiff_t n, bool RowMajor>
 struct tensor_index_linearization_helper {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
-                                                         array<Index, NumIndices> const& dimensions) {
+  static constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
+                                                                   array<Index, NumIndices> const& dimensions) {
     return array_get < RowMajor ? n
            : (NumIndices - n - 1) > (indices) + array_get < RowMajor
                ? n
@@ -144,8 +148,8 @@ struct tensor_index_linearization_helper {
 
 template <typename Index, std::ptrdiff_t NumIndices, bool RowMajor>
 struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
-                                                         array<Index, NumIndices> const&) {
+  static constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index run(array<Index, NumIndices> const& indices,
+                                                                   array<Index, NumIndices> const&) {
     return array_get < RowMajor ? 0 : NumIndices - 1 > (indices);
   }
 };
@@ -165,11 +169,11 @@ struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
 template <typename DenseIndex, int NumDims>
 struct DSizes : array<DenseIndex, NumDims> {
   typedef array<DenseIndex, NumDims> Base;
-  static const int count = NumDims;
+  static constexpr int count = NumDims;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumDims; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumDims; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseIndex TotalSize() const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseIndex TotalSize() const {
     return (NumDims == 0) ? 1 : internal::array_prod(*static_cast<const Base*>(this));
   }
 
@@ -281,22 +285,22 @@ namespace internal {
 
 template <typename DenseIndex, int NumDims>
 struct array_size<const DSizes<DenseIndex, NumDims> > {
-  static const ptrdiff_t value = NumDims;
+  static constexpr ptrdiff_t value = NumDims;
 };
 template <typename DenseIndex, int NumDims>
 struct array_size<DSizes<DenseIndex, NumDims> > {
-  static const ptrdiff_t value = NumDims;
+  static constexpr ptrdiff_t value = NumDims;
 };
 template <typename std::ptrdiff_t... Indices>
 struct array_size<const Sizes<Indices...> > {
-  static const std::ptrdiff_t value = Sizes<Indices...>::count;
+  static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <typename std::ptrdiff_t... Indices>
 struct array_size<Sizes<Indices...> > {
-  static const std::ptrdiff_t value = Sizes<Indices...>::count;
+  static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
 template <std::ptrdiff_t n, typename std::ptrdiff_t... Indices>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<Indices...>&) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<Indices...>&) {
   return get<n, internal::numeric_list<std::ptrdiff_t, Indices...> >::value;
 }
 template <std::ptrdiff_t n>
@@ -307,24 +311,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<>&) {
 
 template <typename Dims1, typename Dims2, ptrdiff_t n, ptrdiff_t m>
 struct sizes_match_below_dim {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1&, Dims2&) { return false; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1&, const Dims2&) { return false; }
 };
 template <typename Dims1, typename Dims2, ptrdiff_t n>
 struct sizes_match_below_dim<Dims1, Dims2, n, n> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1& dims1, Dims2& dims2) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1& dims1, const Dims2& dims2) {
     return numext::equal_strict(array_get<n - 1>(dims1), array_get<n - 1>(dims2)) &&
            sizes_match_below_dim<Dims1, Dims2, n - 1, n - 1>::run(dims1, dims2);
   }
 };
 template <typename Dims1, typename Dims2>
 struct sizes_match_below_dim<Dims1, Dims2, 0, 0> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(Dims1&, Dims2&) { return true; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1&, const Dims2&) { return true; }
 };
 
 }  // end namespace internal
 
 template <typename Dims1, typename Dims2>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(Dims1 dims1, Dims2 dims2) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(const Dims1& dims1, const Dims2& dims2) {
   return internal::sizes_match_below_dim<Dims1, Dims2, internal::array_size<Dims1>::value,
                                          internal::array_size<Dims2>::value>::run(dims1, dims2);
 }

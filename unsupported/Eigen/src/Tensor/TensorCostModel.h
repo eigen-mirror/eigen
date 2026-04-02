@@ -43,8 +43,8 @@ class TensorOpCost {
     return internal::functor_traits<internal::scalar_cast_op<SrcType, TargetType> >::Cost;
   }
 
-  EIGEN_DEVICE_FUNC TensorOpCost() : bytes_loaded_(0), bytes_stored_(0), compute_cycles_(0) {}
-  EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
+  constexpr EIGEN_DEVICE_FUNC TensorOpCost() : bytes_loaded_(0), bytes_stored_(0), compute_cycles_(0) {}
+  constexpr EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
       : bytes_loaded_(bytes_loaded), bytes_stored_(bytes_stored), compute_cycles_(compute_cycles) {}
 
   EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles, bool vectorized,
@@ -57,11 +57,11 @@ class TensorOpCost {
     eigen_assert(compute_cycles >= 0 && (numext::isfinite)(compute_cycles));
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_loaded() const { return bytes_loaded_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_stored() const { return bytes_stored_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double compute_cycles() const { return compute_cycles_; }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double total_cost(double load_cost, double store_cost,
-                                                          double compute_cost) const {
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_loaded() const { return bytes_loaded_; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double bytes_stored() const { return bytes_stored_; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double compute_cycles() const { return compute_cycles_; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double total_cost(double load_cost, double store_cost,
+                                                                    double compute_cost) const {
     return load_cost * bytes_loaded_ + store_cost * bytes_stored_ + compute_cost * compute_cycles_;
   }
 
@@ -140,12 +140,12 @@ template <typename Device>
 class TensorCostModel {
  public:
   // Scaling from Eigen compute cost to device cycles.
-  static const int kDeviceCyclesPerComputeCycle = 1;
+  static constexpr int kDeviceCyclesPerComputeCycle = 1;
 
   // Costs in device cycles.
-  static const int kStartupCycles = 100000;
-  static const int kPerThreadCycles = 100000;
-  static const int kTaskSize = 40000;
+  static constexpr int kStartupCycles = 100000;
+  static constexpr int kPerThreadCycles = 100000;
+  static constexpr int kTaskSize = 40000;
 
   // Returns the number of threads in [1:max_threads] to use for
   // evaluating an expression with the given output size and cost per

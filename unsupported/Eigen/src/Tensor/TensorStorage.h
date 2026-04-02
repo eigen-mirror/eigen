@@ -52,9 +52,9 @@ class TensorStorage {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* data() { return m_data; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const T* data() const { return m_data; }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const FixedDimensions dimensions() const { return FixedDimensions(); }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const FixedDimensions dimensions() const { return FixedDimensions(); }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseIndex size() const { return Size; }
+  constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE DenseIndex size() const { return Size; }
 };
 
 // pure dynamic

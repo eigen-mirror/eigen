@@ -46,11 +46,11 @@ struct nested<TensorBroadcastingOp<Broadcast, XprType>, 1,
 
 template <typename Dims>
 struct is_input_scalar {
-  static const bool value = false;
+  static constexpr bool value = false;
 };
 template <>
 struct is_input_scalar<Sizes<>> {
-  static const bool value = true;
+  static constexpr bool value = true;
 };
 template <typename std::ptrdiff_t... Indices>
 struct is_input_scalar<Sizes<Indices...>> {
