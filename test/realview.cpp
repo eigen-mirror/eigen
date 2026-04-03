@@ -12,7 +12,6 @@
 // wrapper that disables array-oriented access to real and imaginary components
 struct TestComplex : public std::complex<float> {
   TestComplex() = default;
-  TestComplex(const TestComplex&) = default;
   TestComplex(std::complex<float> x) : std::complex<float>(x){};
   TestComplex(float x) : std::complex<float>(x){};
 };

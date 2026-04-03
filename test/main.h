@@ -902,6 +902,17 @@ void setRandomDataInRange(DataContainer& data_container, typename DataContainer:
 
 using namespace Eigen;
 
+template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
+MatrixType RandomMatrix(Index rows, Index cols, Scalar min, Scalar max) {
+  MatrixType M = MatrixType(rows, cols);
+  for (Index i = 0; i < rows; ++i) {
+    for (Index j = 0; j < cols; ++j) {
+      M(i, j) = Eigen::internal::random<Scalar>(min, max);
+    }
+  }
+  return M;
+}
+
 /**
  * Set number of repetitions for unit test from input string.
  *

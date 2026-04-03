@@ -70,17 +70,6 @@ struct adjoint_specific<false> {
   }
 };
 
-template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
-MatrixType RandomMatrix(Index rows, Index cols, Scalar min, Scalar max) {
-  MatrixType M = MatrixType(rows, cols);
-  for (Index i = 0; i < rows; ++i) {
-    for (Index j = 0; j < cols; ++j) {
-      M(i, j) = Eigen::internal::random<Scalar>(min, max);
-    }
-  }
-  return M;
-}
-
 template <typename MatrixType>
 void adjoint(const MatrixType& m) {
   /* this test covers the following files:

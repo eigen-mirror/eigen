@@ -505,7 +505,6 @@ template <typename Scalar>
 void cholesky_rowmajor_boundary() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
 
   const Index sizes[] = {7, 8, 9, 15, 16, 17, 31, 32, 33};
   for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {
