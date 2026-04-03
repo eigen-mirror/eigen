@@ -84,7 +84,7 @@ static inline int64_t signed_ulp_error(Scalar eigen_val, Scalar ref_val) {
 // ============================================================================
 
 template <typename Scalar>
-struct alignas(128) ThreadResult {
+struct ThreadResult {
   int64_t max_abs_ulp = 0;
   Scalar max_ulp_at = Scalar(0);
   Scalar max_ulp_eigen = Scalar(0);
@@ -343,11 +343,11 @@ static void worker(const FuncEntry<Scalar>& func, Scalar lo, Scalar hi, int batc
     x = (next > hi) ? hi : next;
   }
 
-  // Process remaining partial batch.
+  // Process remaining partial batch.  Pad unused slots with the last valid
+  // input so the full-size vectorized eval doesn't read uninitialized memory.
   if (idx > 0) {
-    auto partial_in = input.head(idx);
-    auto partial_eigen = eigen_out.head(idx);
-    func.eigen_eval(partial_eigen, partial_in);
+    for (int i = idx; i < batch_size; i++) input[i] = input[idx - 1];
+    func.eigen_eval(eigen_out, input);
     process_batch(idx, input, eigen_out);
   }
 
