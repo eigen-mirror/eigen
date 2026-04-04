@@ -8,8 +8,20 @@
 # with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 default:
-# automatically cancels a job when a new pipeline for the same branch is triggered
   interruptible: true
+
+# For MR pipelines, auto-cancel running jobs when new commits are pushed.
+# For scheduled (nightly) pipelines, never auto-cancel so all jobs run to
+# completion and all failures are visible for debugging.
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+    on_job_failure: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      auto_cancel:
+        on_new_commit: none
+    - when: always
 
 stages:
   - checkformat
