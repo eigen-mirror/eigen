@@ -292,9 +292,9 @@ BENCHMARK(BM_JacobiSVD_Compute<float, 4, 4>);
 BENCHMARK(BM_JacobiSVD_Compute<double, 2, 2>);
 BENCHMARK(BM_JacobiSVD_Compute<double, 3, 3>);
 BENCHMARK(BM_JacobiSVD_Compute<double, 4, 4>);
-BENCHMARK(BM_JacobiSVD_Compute<double, 3, 4>);   // projection matrix
-BENCHMARK(BM_JacobiSVD_Compute<double, 6, 6>);   // manipulator Jacobian
-BENCHMARK(BM_JacobiSVD_Compute<double, 8, 9>);   // fundamental matrix (8-point)
+BENCHMARK(BM_JacobiSVD_Compute<double, 3, 4>);  // projection matrix
+BENCHMARK(BM_JacobiSVD_Compute<double, 6, 6>);  // manipulator Jacobian
+BENCHMARK(BM_JacobiSVD_Compute<double, 8, 9>);  // fundamental matrix (8-point)
 BENCHMARK(BM_JacobiSVD_Solve<double, 3, 3>);
 BENCHMARK(BM_JacobiSVD_Solve<double, 6, 6>);
 
