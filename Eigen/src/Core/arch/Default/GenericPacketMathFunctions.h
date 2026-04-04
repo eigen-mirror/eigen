@@ -466,7 +466,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   const Packet cst_zero = pset1<Packet>(0.0);
   const Packet cst_1 = pset1<Packet>(1.0);
   const Packet cst_2 = pset1<Packet>(2.0);
-  const Packet cst_half = pset1<Packet>(0.5);
 
   const Packet cst_exp_hi = pset1<Packet>(709.784);
   const Packet cst_exp_lo = pset1<Packet>(-745.519);
@@ -482,25 +481,19 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   const Packet cst_cephes_exp_C1 = pset1<Packet>(0.693145751953125);
   const Packet cst_cephes_exp_C2 = pset1<Packet>(1.42860682030941723212e-6);
 
-  Packet tmp, fx;
-
-  // clamp x
+  // Clamp x.
   Packet zero_mask = pcmp_lt(_x, cst_exp_lo);
   Packet x = pmin(_x, cst_exp_hi);
 
   // Express exp(x) as exp(g + n*log(2)).
-  fx = pmadd(cst_cephes_LOG2EF, x, cst_half);
-
-  // Get the integer modulus of log(2), i.e. the "n" described above.
-  fx = pfloor(fx);
+  // n = rint(x / ln(2)).
+  Packet fx = print(pmul(x, cst_cephes_LOG2EF));
 
   // Get the remainder modulo log(2), i.e. the "g" described above. Subtract
   // n*log(2) out in two steps, i.e. n*C1 + n*C2, C1+C2=log2 to get the last
   // digits right.
-  tmp = pmul(fx, cst_cephes_exp_C1);
-  Packet z = pmul(fx, cst_cephes_exp_C2);
-  x = psub(x, tmp);
-  x = psub(x, z);
+  x = pnmadd(fx, cst_cephes_exp_C1, x);
+  x = pnmadd(fx, cst_cephes_exp_C2, x);
 
   Packet x2 = pmul(x, x);
 
@@ -516,9 +509,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   qx = pmadd(qx, x2, cst_cephes_exp_q2);
   qx = pmadd(qx, x2, cst_cephes_exp_q3);
 
-  // I don't really get this bit, copied from the SSE2 routines, so...
-  // TODO(gonnet): Figure out what is going on here, perhaps find a better
-  // rational interpolant?
+  // exp(g) = 1 + 2*px/(qx - px).
   x = pdiv(px, psub(qx, px));
   x = pmadd(cst_2, x, cst_1);
 
