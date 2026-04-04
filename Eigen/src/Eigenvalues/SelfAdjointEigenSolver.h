@@ -691,7 +691,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
         if (d0 <= 2 * Eigen::NumTraits<Scalar>::epsilon() * d1) {
           // If d0 is too small, then the two other eigenvalues are numerically the same,
           // and thus we only have to ortho-normalize the near orthogonal vector we saved above.
-          eivecs.col(l) -= eivecs.col(k).dot(eivecs.col(l)) * eivecs.col(l);
+          eivecs.col(l) -= eivecs.col(k).dot(eivecs.col(l)) * eivecs.col(k);
           eivecs.col(l).normalize();
         } else {
           tmp = scaledMat;
