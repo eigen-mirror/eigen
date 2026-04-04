@@ -91,6 +91,32 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+# GCC-13 (strict support for _Float16)
+.test:linux:x86-64:gcc-13:default:
+  extends: .test:linux:x86-64
+  needs: [ build:linux:cross:x86-64:gcc-13:default ]
+  variables:
+    EIGEN_CI_INSTALL: g++-13
+
+.test:linux:x86-64:gcc-13:avx512fp16:
+  extends: .test:linux:x86-64:gcc-13:default
+  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16 ]
+  tags:
+    - eigen-runner
+    - linux
+    - x86-64
+    - avx512
+
+test:linux:x86-64:gcc-13:avx512fp16:official:
+  extends: .test:linux:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_TEST_LABEL: Official
+
+test:linux:x86-64:gcc-13:avx512fp16:unsupported:
+  extends: .test:linux:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_TEST_LABEL: Unsupported
+
 # Clang-14 (modern stable)
 .test:linux:x86-64:clang-14:default:
   extends: .test:linux:x86-64
