@@ -451,6 +451,13 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   // map the matrix coefficients to [-1:1] to avoid over- and underflow.
   mat = matrix.template triangularView<Lower>();
   RealScalar scale = mat.cwiseAbs().maxCoeff();
+  if (!(numext::isfinite)(scale)) {
+    // Input contains Inf or NaN.
+    m_info = NoConvergence;
+    m_isInitialized = true;
+    m_eigenvectorsOk = false;
+    return *this;
+  }
   if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
   mat.template triangularView<Lower>() /= scale;
   m_subdiag.resize(n - 1);
@@ -470,15 +477,35 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 template <typename MatrixType>
 SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeFromTridiagonal(
     const RealVectorType& diag, const SubDiagonalType& subdiag, int options) {
-  // TODO : Add an option to scale the values beforehand
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
 
   m_eivalues = diag;
   m_subdiag = subdiag;
+
+  // Scale the tridiagonal matrix to [-1:1] to avoid over- and underflow,
+  // just like compute() does for the full matrix.
+  RealScalar scale = m_eivalues.cwiseAbs().maxCoeff();
+  if (m_subdiag.size() > 0) scale = numext::maxi(scale, m_subdiag.cwiseAbs().maxCoeff());
+  if (!(numext::isfinite)(scale)) {
+    m_info = NoConvergence;
+    m_isInitialized = true;
+    m_eigenvectorsOk = false;
+    return *this;
+  }
+  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+  const bool needsScaling = scale != RealScalar(1);
+  if (needsScaling) {
+    m_eivalues /= scale;
+    m_subdiag /= scale;
+  }
+
   if (computeEigenvectors) {
     m_eivec.setIdentity(diag.size(), diag.size());
   }
   m_info = internal::computeFromTridiagonal_impl(m_eivalues, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
+
+  // Scale back the eigenvalues.
+  if (needsScaling) m_eivalues *= scale;
 
   m_isInitialized = true;
   m_eigenvectorsOk = computeEigenvectors;
@@ -661,6 +688,28 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
+
+    // computeRoots produces theoretically sorted roots, but floating-point
+    // rounding in the trigonometric formulas can break the ordering.
+    // Enforce sorting with a branchless min/max network (3 elements).
+    {
+      Scalar tmp;
+      if (eivals(0) > eivals(1)) {
+        tmp = eivals(0);
+        eivals(0) = eivals(1);
+        eivals(1) = tmp;
+      }
+      if (eivals(1) > eivals(2)) {
+        tmp = eivals(1);
+        eivals(1) = eivals(2);
+        eivals(2) = tmp;
+      }
+      if (eivals(0) > eivals(1)) {
+        tmp = eivals(0);
+        eivals(0) = eivals(1);
+        eivals(1) = tmp;
+      }
+    }
 
     // compute the eigenvectors
     if (computeEigenvectors) {
