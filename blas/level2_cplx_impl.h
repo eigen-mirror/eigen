@@ -72,31 +72,186 @@ EIGEN_BLAS_FUNC(hemv)
   if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
 }
 
-/**  ZHBMV  performs the matrix-vector  operation
+/**  HBMV  performs the matrix-vector operation
  *
  *     y := alpha*A*x + beta*y,
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n hermitian band matrix, with k super-diagonals.
+ *  Diagonal elements are real; off-diagonal contributions use conjugation.
  */
-// EIGEN_BLAS_FUNC(hbmv)(char *uplo, int *n, int *k, RealScalar *alpha, RealScalar *a, int *lda,
-//                           RealScalar *x, int *incx, RealScalar *beta, RealScalar *y, int *incy)
-// {
-//   return 1;
-// }
+EIGEN_BLAS_FUNC(hbmv)
+(char *uplo, int *n, int *k, RealScalar *palpha, RealScalar *pa, int *lda, RealScalar *px, int *incx, RealScalar *pbeta,
+ RealScalar *py, int *incy) {
+  const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
+  const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
+  const Scalar *a = reinterpret_cast<const Scalar *>(pa);
+  const Scalar *x = reinterpret_cast<const Scalar *>(px);
+  Scalar *y = reinterpret_cast<Scalar *>(py);
 
-/**  ZHPMV  performs the matrix-vector operation
+  int info = 0;
+  if (UPLO(*uplo) == INVALID)
+    info = 1;
+  else if (*n < 0)
+    info = 2;
+  else if (*k < 0)
+    info = 3;
+  else if (*lda < *k + 1)
+    info = 6;
+  else if (*incx == 0)
+    info = 8;
+  else if (*incy == 0)
+    info = 11;
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HBMV ", &info);
+
+  if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
+
+  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
+  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+
+  // First form y := beta*y.
+  if (beta != Scalar(1)) {
+    int iy = ky;
+    for (int i = 0; i < *n; ++i) {
+      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
+      iy += *incy;
+    }
+  }
+
+  if (alpha == Scalar(0)) return;
+
+  if (UPLO(*uplo) == UP) {
+    // Upper triangle: A[i,j] at a[(k+i-j) + j*lda], diagonal at row k.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      int ix = kx, iy = ky;
+      for (int i = std::max(0, j - *k); i < j; ++i) {
+        Scalar aij = a[(*k + i - j) + j * *lda];
+        y[iy] += temp1 * aij;
+        temp2 += Eigen::numext::conj(aij) * x[ix];
+        ix += *incx;
+        iy += *incy;
+      }
+      // Diagonal is real.
+      y[jy] += Scalar(Eigen::numext::real(a[*k + j * *lda])) * temp1 + alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      if (j >= *k) {
+        kx += *incx;
+        ky += *incy;
+      }
+    }
+  } else {
+    // Lower triangle: A[i,j] at a[(i-j) + j*lda], diagonal at row 0.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      // Diagonal is real.
+      y[jy] += Scalar(Eigen::numext::real(a[j * *lda])) * temp1;
+      int ix = jx, iy = jy;
+      for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
+        ix += *incx;
+        iy += *incy;
+        Scalar aij = a[(i - j) + j * *lda];
+        y[iy] += temp1 * aij;
+        temp2 += Eigen::numext::conj(aij) * x[ix];
+      }
+      y[jy] += alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+    }
+  }
+}
+
+/**  HPMV  performs the matrix-vector operation
  *
  *     y := alpha*A*x + beta*y,
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n hermitian matrix, supplied in packed form.
+ *  Diagonal elements are real; off-diagonal contributions use conjugation.
  */
-// EIGEN_BLAS_FUNC(hpmv)(char *uplo, int *n, RealScalar *alpha, RealScalar *ap, RealScalar *x, int *incx, RealScalar
-// *beta, RealScalar *y, int *incy)
-// {
-//   return 1;
-// }
+EIGEN_BLAS_FUNC(hpmv)
+(char *uplo, int *n, RealScalar *palpha, RealScalar *pap, RealScalar *px, int *incx, RealScalar *pbeta, RealScalar *py,
+ int *incy) {
+  const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
+  const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
+  const Scalar *ap = reinterpret_cast<const Scalar *>(pap);
+  const Scalar *x = reinterpret_cast<const Scalar *>(px);
+  Scalar *y = reinterpret_cast<Scalar *>(py);
+
+  int info = 0;
+  if (UPLO(*uplo) == INVALID)
+    info = 1;
+  else if (*n < 0)
+    info = 2;
+  else if (*incx == 0)
+    info = 6;
+  else if (*incy == 0)
+    info = 9;
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPMV ", &info);
+
+  if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
+
+  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
+  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+
+  // First form y := beta*y.
+  if (beta != Scalar(1)) {
+    int iy = ky;
+    for (int i = 0; i < *n; ++i) {
+      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
+      iy += *incy;
+    }
+  }
+
+  if (alpha == Scalar(0)) return;
+
+  int kk = 0;
+  if (UPLO(*uplo) == UP) {
+    // Upper triangle packed.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      int ix = kx, iy = ky;
+      for (int i = 0; i < j; ++i) {
+        y[iy] += temp1 * ap[kk + i];
+        temp2 += Eigen::numext::conj(ap[kk + i]) * x[ix];
+        ix += *incx;
+        iy += *incy;
+      }
+      // Diagonal is real.
+      y[jy] += Scalar(Eigen::numext::real(ap[kk + j])) * temp1 + alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      kk += j + 1;
+    }
+  } else {
+    // Lower triangle packed.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      // Diagonal is real.
+      y[jy] += Scalar(Eigen::numext::real(ap[kk])) * temp1;
+      int ix = jx, iy = jy;
+      for (int i = 1; i < *n - j; ++i) {
+        ix += *incx;
+        iy += *incy;
+        y[iy] += temp1 * ap[kk + i];
+        temp2 += Eigen::numext::conj(ap[kk + i]) * x[ix];
+      }
+      y[jy] += alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      kk += *n - j;
+    }
+  }
+}
 
 /**  ZHPR    performs the hermitian rank 1 operation
  *

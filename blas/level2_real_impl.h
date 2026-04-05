@@ -158,32 +158,187 @@ EIGEN_BLAS_FUNC(syr2)
   //   func[code](*n, a, *inca, b, *incb, c, *ldc, alpha);
 }
 
-/**  DSBMV  performs the matrix-vector  operation
+/**  SBMV  performs the matrix-vector operation
  *
  *     y := alpha*A*x + beta*y,
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n symmetric band matrix, with k super-diagonals.
+ *
+ *  Band storage: upper triangle stores A[i,j] at a[(k+i-j) + j*lda],
+ *  lower triangle stores A[i,j] at a[(i-j) + j*lda].
  */
-// EIGEN_BLAS_FUNC(sbmv)( char *uplo, int *n, int *k, RealScalar *alpha, RealScalar *a, int *lda,
-//                            RealScalar *x, int *incx, RealScalar *beta, RealScalar *y, int *incy)
-// {
-//   return 1;
-// }
+EIGEN_BLAS_FUNC(sbmv)
+(char *uplo, int *n, int *k, RealScalar *palpha, RealScalar *pa, int *lda, RealScalar *px, int *incx, RealScalar *pbeta,
+ RealScalar *py, int *incy) {
+  const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
+  const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
+  const Scalar *a = reinterpret_cast<const Scalar *>(pa);
+  const Scalar *x = reinterpret_cast<const Scalar *>(px);
+  Scalar *y = reinterpret_cast<Scalar *>(py);
 
-/**  DSPMV  performs the matrix-vector operation
+  int info = 0;
+  if (UPLO(*uplo) == INVALID)
+    info = 1;
+  else if (*n < 0)
+    info = 2;
+  else if (*k < 0)
+    info = 3;
+  else if (*lda < *k + 1)
+    info = 6;
+  else if (*incx == 0)
+    info = 8;
+  else if (*incy == 0)
+    info = 11;
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "SBMV ", &info);
+
+  if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
+
+  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
+  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+
+  // First form y := beta*y.
+  if (beta != Scalar(1)) {
+    int iy = ky;
+    for (int i = 0; i < *n; ++i) {
+      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
+      iy += *incy;
+    }
+  }
+
+  if (alpha == Scalar(0)) return;
+
+  if (UPLO(*uplo) == UP) {
+    // Upper triangle: A[i,j] at a[(k+i-j) + j*lda], diagonal at row k.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      int ix = kx, iy = ky;
+      for (int i = std::max(0, j - *k); i < j; ++i) {
+        Scalar aij = a[(*k + i - j) + j * *lda];
+        y[iy] += temp1 * aij;
+        temp2 += aij * x[ix];
+        ix += *incx;
+        iy += *incy;
+      }
+      y[jy] += temp1 * a[*k + j * *lda] + alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      if (j >= *k) {
+        kx += *incx;
+        ky += *incy;
+      }
+    }
+  } else {
+    // Lower triangle: A[i,j] at a[(i-j) + j*lda], diagonal at row 0.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      y[jy] += temp1 * a[j * *lda];
+      int ix = jx, iy = jy;
+      for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
+        ix += *incx;
+        iy += *incy;
+        Scalar aij = a[(i - j) + j * *lda];
+        y[iy] += temp1 * aij;
+        temp2 += aij * x[ix];
+      }
+      y[jy] += alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+    }
+  }
+}
+
+/**  SPMV  performs the matrix-vector operation
  *
  *     y := alpha*A*x + beta*y,
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n symmetric matrix, supplied in packed form.
  *
+ *  Packed storage: upper triangle stores columns sequentially so that
+ *  column j occupies positions kk..kk+j (where kk = j*(j+1)/2),
+ *  lower triangle stores column j at positions kk..kk+(n-j-1).
  */
-// EIGEN_BLAS_FUNC(spmv)(char *uplo, int *n, RealScalar *alpha, RealScalar *ap, RealScalar *x, int *incx, RealScalar
-// *beta, RealScalar *y, int *incy)
-// {
-//   return 1;
-// }
+EIGEN_BLAS_FUNC(spmv)
+(char *uplo, int *n, RealScalar *palpha, RealScalar *pap, RealScalar *px, int *incx, RealScalar *pbeta, RealScalar *py,
+ int *incy) {
+  const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
+  const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
+  const Scalar *ap = reinterpret_cast<const Scalar *>(pap);
+  const Scalar *x = reinterpret_cast<const Scalar *>(px);
+  Scalar *y = reinterpret_cast<Scalar *>(py);
+
+  int info = 0;
+  if (UPLO(*uplo) == INVALID)
+    info = 1;
+  else if (*n < 0)
+    info = 2;
+  else if (*incx == 0)
+    info = 6;
+  else if (*incy == 0)
+    info = 9;
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "SPMV ", &info);
+
+  if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
+
+  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
+  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+
+  // First form y := beta*y.
+  if (beta != Scalar(1)) {
+    int iy = ky;
+    for (int i = 0; i < *n; ++i) {
+      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
+      iy += *incy;
+    }
+  }
+
+  if (alpha == Scalar(0)) return;
+
+  int kk = 0;
+  if (UPLO(*uplo) == UP) {
+    // Upper triangle packed.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      int ix = kx, iy = ky;
+      for (int i = 0; i < j; ++i) {
+        y[iy] += temp1 * ap[kk + i];
+        temp2 += ap[kk + i] * x[ix];
+        ix += *incx;
+        iy += *incy;
+      }
+      y[jy] += temp1 * ap[kk + j] + alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      kk += j + 1;
+    }
+  } else {
+    // Lower triangle packed.
+    int jx = kx, jy = ky;
+    for (int j = 0; j < *n; ++j) {
+      Scalar temp1 = alpha * x[jx];
+      Scalar temp2 = Scalar(0);
+      y[jy] += temp1 * ap[kk];
+      int ix = jx, iy = jy;
+      for (int i = 1; i < *n - j; ++i) {
+        ix += *incx;
+        iy += *incy;
+        y[iy] += temp1 * ap[kk + i];
+        temp2 += ap[kk + i] * x[ix];
+      }
+      y[jy] += alpha * temp2;
+      jx += *incx;
+      jy += *incy;
+      kk += *n - j;
+    }
+  }
+}
 
 /**  DSPR    performs the symmetric rank 1 operation
  *
