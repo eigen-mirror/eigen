@@ -266,6 +266,247 @@ EIGEN_STRONG_INLINE Packet1Xcf predux_half(const Packet2Xcf& a) {
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcf, Packet4Xf)
 
+#if !defined(USE_LMUL2_ONLY) && !defined(USE_LMUL1_ONLY)
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pcast<Packet1Xf, Packet1Xcfh>(const Packet1Xf& a) {
+  return Packet1Xcfh(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xf pcast<Packet1Xcfh, Packet1Xf>(const Packet1Xcfh& a) {
+  return a.v;
+}
+
+EIGEN_STRONG_INLINE Packet1Xul __riscv_vreinterpret_v_f32m1_u64m1(const Packet1Xf& a) {
+  return __riscv_vreinterpret_v_u32m1_u64m1(__riscv_vreinterpret_v_f32m1_u32m1(a));
+}
+
+EIGEN_STRONG_INLINE Packet1Xl __riscv_vreinterpret_v_f32m1_i64m1(const Packet1Xf& a) {
+  return __riscv_vreinterpret_v_u64m1_i64m1(__riscv_vreinterpret_v_u32m1_u64m1(__riscv_vreinterpret_v_f32m1_u32m1(a)));
+}
+
+EIGEN_STRONG_INLINE Packet1Xf __riscv_vreinterpret_v_i64m1_f32m1(const Packet1Xl& a) {
+  return __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vreinterpret_v_u64m1_u32m1(__riscv_vreinterpret_v_i64m1_u64m1(a)));
+}
+
+EIGEN_STRONG_INLINE void prealimag2(const Packet1Xcfh& a, Packet1Xf& real, Packet1Xf& imag) {
+  const PacketMask32 mask = __riscv_vreinterpret_v_i8m1_b32(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xu res = __riscv_vreinterpret_v_f32m1_u32m1(a.v);
+  real = __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vslide1up_vx_u32m1_tumu(mask, res, res, 0,
+      unpacket_traits<Packet1Xi>::size));
+  imag = __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vslide1down_vx_u32m1_tumu(__riscv_vmnot_m_b32(mask,
+      unpacket_traits<Packet1Xi>::size), res, res, 0, unpacket_traits<Packet1Xi>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pset1<Packet1Xcfh>(const std::complex<float>& from) {
+  const numext::int64_t from2 = *reinterpret_cast<const numext::int64_t *>(reinterpret_cast<const void *>(&from));
+  Packet1Xf res = __riscv_vreinterpret_v_i64m1_f32m1(pset1<Packet1Xl>(from2));
+  return Packet1Xcfh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh padd<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(padd<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh psub<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(psub<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pnegate(const Packet1Xcfh& a) {
+  return Packet1Xcfh(pnegate<Packet1Xf>(a.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pconj(const Packet1Xcfh& a) {
+  return Packet1Xcfh(__riscv_vreinterpret_v_u64m1_f32m1(__riscv_vxor_vx_u64m1(
+      __riscv_vreinterpret_v_f32m1_u64m1(a.v), 0x8000000000000000ull, unpacket_traits<Packet1Xl>::size)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pcplxflip<Packet1Xcfh>(const Packet1Xcfh& a) {
+#ifndef __riscv_zvbb
+  Packet1Xu res = __riscv_vreinterpret_v_f32m1_u32m1(a.v);
+  const PacketMask32 mask = __riscv_vreinterpret_v_i8m1_b32(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xu data = __riscv_vslide1down_vx_u32m1(res, 0, unpacket_traits<Packet1Xi>::size);
+  Packet1Xf res2 = __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vslide1up_vx_u32m1_tumu(mask, data, res, 0,
+      unpacket_traits<Packet1Xf>::size));
+  return Packet1Xcfh(res2);
+#else
+  Packet1Xf res = __riscv_vreinterpret_v_u64m1_f32m1(__riscv_vror_vx_u64m1(__riscv_vreinterpret_v_f32m1_u64m1(a.v), 32,
+      unpacket_traits<Packet1Xl>::size));
+  return Packet1Xcfh(res);
+#endif
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pmul<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  Packet1Xf real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcfh(pmadd<Packet1Xf>(imag, pcplxflip<Packet1Xcfh>(pconj<Packet1Xcfh>(b)).v,
+     pmul<Packet1Xf>(real, b.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pmadd<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b, const Packet1Xcfh& c) {
+  Packet1Xf real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcfh(pmadd<Packet1Xf>(imag, pcplxflip<Packet1Xcfh>(pconj<Packet1Xcfh>(b)).v,
+     pmadd<Packet1Xf>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pmsub<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b, const Packet1Xcfh& c) {
+  Packet1Xf real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcfh(pmadd<Packet1Xf>(imag, pcplxflip<Packet1Xcfh>(pconj<Packet1Xcfh>(b)).v,
+     pmsub<Packet1Xf>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pcmp_eq(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  Packet1Xi c = __riscv_vundefined_i32m1();
+  PacketMask32 mask = __riscv_vmfeq_vv_f32m1_b32(a.v, b.v, unpacket_traits<Packet1Xf>::size);
+  Packet1Xl res = __riscv_vreinterpret_v_i32m1_i64m1(__riscv_vmerge_vvm_i32m1(
+      pzero<Packet1Xi>(c), ptrue<Packet1Xi>(c), mask, unpacket_traits<Packet1Xi>::size));
+  Packet1Xf res2 = __riscv_vreinterpret_v_i64m1_f32m1(__riscv_vsra_vx_i64m1(__riscv_vand_vv_i64m1(
+    __riscv_vsll_vx_i64m1(res, 32, unpacket_traits<Packet1Xl>::size), res, unpacket_traits<Packet1Xl>::size), 32,
+    unpacket_traits<Packet1Xl>::size));
+  return Packet1Xcfh(res2);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pand<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(pand<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh por<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(por<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pxor<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(pxor<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pandnot<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return Packet1Xcfh(pandnot<Packet1Xf>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pload<Packet1Xcfh>(const std::complex<float>* from) {
+  Packet1Xf res = pload<Packet1Xf>(reinterpret_cast<const float *>(from));
+  EIGEN_DEBUG_ALIGNED_LOAD return Packet1Xcfh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh ploadu<Packet1Xcfh>(const std::complex<float>* from) {
+  Packet1Xf res = ploadu<Packet1Xf>(reinterpret_cast<const float *>(from));
+  EIGEN_DEBUG_UNALIGNED_LOAD return Packet1Xcfh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh ploaddup<Packet1Xcfh>(const std::complex<float>* from) {
+  Packet1Xl res = ploaddup<Packet1Xl>(reinterpret_cast<const numext::int64_t *>(reinterpret_cast<const void *>(from)));
+  return Packet1Xcfh(__riscv_vreinterpret_v_i64m1_f32m1(res));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh ploadquad<Packet1Xcfh>(const std::complex<float>* from) {
+  Packet1Xl res = ploadquad<Packet1Xl>(reinterpret_cast<const numext::int64_t *>(reinterpret_cast<const void *>(from)));
+  return Packet1Xcfh(__riscv_vreinterpret_v_i64m1_f32m1(res));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore<std::complex<float> >(std::complex<float>* to, const Packet1Xcfh& from) {
+  EIGEN_DEBUG_ALIGNED_STORE pstore<float>(reinterpret_cast<float *>(to), from.v);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu<std::complex<float> >(std::complex<float>* to, const Packet1Xcfh& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE pstoreu<float>(reinterpret_cast<float *>(to), from.v);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet1Xcfh pgather<std::complex<float>, Packet1Xcfh>(const std::complex<float>* from,
+                                                                           Index stride) {
+  return Packet1Xcfh(__riscv_vreinterpret_v_i64m1_f32m1(pgather<int64_t, Packet1Xl>(
+      reinterpret_cast<const numext::int64_t *>(reinterpret_cast<const void *>(from)), stride)));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter<std::complex<float>, Packet1Xcfh>(std::complex<float>* to, const Packet1Xcfh& from,
+                                                                       Index stride) {
+  pscatter<int64_t, Packet1Xl>(reinterpret_cast<numext::int64_t *>(reinterpret_cast<void *>(to)), __riscv_vreinterpret_v_f32m1_i64m1(from.v),
+       stride);
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<float> pfirst<Packet1Xcfh>(const Packet1Xcfh& a) {
+  numext::int64_t res = pfirst<Packet1Xl>(__riscv_vreinterpret_v_f32m1_i64m1(a.v));
+  return numext::bit_cast<std::complex<float>>(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh preverse(const Packet1Xcfh& a) {
+  return Packet1Xcfh(__riscv_vreinterpret_v_i64m1_f32m1(preverse<Packet1Xl>(__riscv_vreinterpret_v_f32m1_i64m1(a.v))));
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<float> predux<Packet1Xcfh>(const Packet1Xcfh& a) {
+  Packet1Xl res = __riscv_vreinterpret_v_f32m1_i64m1(a.v);
+  Packet1Xf real = __riscv_vreinterpret_v_i64m1_f32m1(__riscv_vand_vx_i64m1(res, 0x00000000ffffffffull,
+      unpacket_traits<Packet1Xl>::size));
+  Packet1Xf imag = __riscv_vreinterpret_v_i64m1_f32m1(__riscv_vand_vx_i64m1(res, 0xffffffff00000000ull,
+      unpacket_traits<Packet1Xl>::size));
+  return std::complex<float>(predux<Packet1Xf>(real), predux<Packet1Xf>(imag));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pdiv<Packet1Xcfh>(const Packet1Xcfh& a, const Packet1Xcfh& b) {
+  return pdiv_complex(a, b);
+}
+
+template <int N>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void ptranspose(PacketBlock<Packet1Xcfh, N>& kernel) {
+  numext::int64_t buffer[unpacket_traits<Packet1Xl>::size * N] = {0};
+  int i = 0;
+
+  for (i = 0; i < N; i++) {
+    __riscv_vsse64(&buffer[i], N * sizeof(numext::int64_t), __riscv_vreinterpret_v_f32m1_i64m1(kernel.packet[i].v),
+        unpacket_traits<Packet1Xl>::size);
+  }
+  for (i = 0; i < N; i++) {
+    kernel.packet[i] = Packet1Xcfh(__riscv_vreinterpret_v_i64m1_f32m1(
+        __riscv_vle64_v_i64m1(&buffer[i * unpacket_traits<Packet1Xl>::size], unpacket_traits<Packet1Xl>::size)));
+  }
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh psqrt<Packet1Xcfh>(const Packet1Xcfh& a) {
+  return psqrt_complex(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh plog<Packet1Xcfh>(const Packet1Xcfh& a) {
+  return plog_complex(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pexp<Packet1Xcfh>(const Packet1Xcfh& a) {
+  return pexp_complex(a);
+}
+
+EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcfh, Packet1Xf)
+#endif
+
 /********************************* double ************************************/
 
 template <>
@@ -534,6 +775,267 @@ EIGEN_STRONG_INLINE Packet1Xcd predux_half(const Packet2Xcd& a) {
 #endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcd, Packet4Xd)
+
+#if !defined(USE_LMUL2_ONLY) && !defined(USE_LMUL1_ONLY)
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pcast<Packet1Xd, Packet1Xcdh>(const Packet1Xd& a) {
+  return Packet1Xcdh(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xd pcast<Packet1Xcdh, Packet1Xd>(const Packet1Xcdh& a) {
+  return a.v;
+}
+
+EIGEN_STRONG_INLINE void prealimag2(const Packet1Xcdh& a, Packet1Xd& real, Packet1Xd& imag) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  real = __riscv_vfslide1up_vf_f64m1_tumu(mask, a.v, a.v, 0.0, unpacket_traits<Packet1Xd>::size);
+  imag = __riscv_vfslide1down_vf_f64m1_tumu(__riscv_vmnot_m_b64(mask, unpacket_traits<Packet1Xl>::size),
+      a.v, a.v, 0.0, unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pset1<Packet1Xcdh>(const std::complex<double>& from) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xd res = __riscv_vmerge_vvm_f64m1(pset1<Packet1Xd>(from.real()), pset1<Packet1Xd>(from.imag()),
+      mask, unpacket_traits<Packet1Xd>::size);
+  return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh padd<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(padd<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh psub<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(psub<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pnegate(const Packet1Xcdh& a) {
+  return Packet1Xcdh(pnegate<Packet1Xd>(a.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pconj(const Packet1Xcdh& a) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  return Packet1Xcdh(__riscv_vfsgnjn_vv_f64m1_tumu(mask, a.v, a.v, a.v, unpacket_traits<Packet1Xd>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pcplxflip<Packet1Xcdh>(const Packet1Xcdh& a) {
+  Packet1Xul res = __riscv_vreinterpret_v_f64m1_u64m1(a.v);
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xul data = __riscv_vslide1down_vx_u64m1(res, 0, unpacket_traits<Packet1Xl>::size);
+  Packet1Xd res2 = __riscv_vreinterpret_v_u64m1_f64m1(__riscv_vslide1up_vx_u64m1_tumu(mask, data, res, 0,
+      unpacket_traits<Packet1Xl>::size));
+  return Packet1Xcdh(res2);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pmul<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  Packet1Xd real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcdh(pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcdh>(pconj<Packet1Xcdh>(b)).v,
+     pmul<Packet1Xd>(real, b.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pmadd<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b, const Packet1Xcdh& c) {
+  Packet1Xd real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcdh(pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcdh>(pconj<Packet1Xcdh>(b)).v,
+     pmadd<Packet1Xd>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pmsub<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b, const Packet1Xcdh& c) {
+  Packet1Xd real, imag;
+  prealimag2(a, real, imag);
+  return Packet1Xcdh(pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcdh>(pconj<Packet1Xcdh>(b)).v,
+     pmsub<Packet1Xd>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pcmp_eq(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  Packet1Xl c = __riscv_vundefined_i64m1();
+  Packet1Xul mask = __riscv_vreinterpret_v_b64_u64m1(__riscv_vmfeq_vv_f64m1_b64(a.v, b.v,
+    unpacket_traits<Packet1Xd>::size));
+  Packet1Xul mask_r = __riscv_vsrl_vx_u64m1(__riscv_vand_vx_u64m1(mask, 0xaaaaaaaaaaaaaaaa,
+    unpacket_traits<Packet1Xl>::size), 1, unpacket_traits<Packet1Xl>::size);
+  mask = __riscv_vand_vv_u64m1(mask, mask_r, unpacket_traits<Packet1Xl>::size);
+  mask = __riscv_vor_vv_u64m1(__riscv_vsll_vx_u64m1(mask, 1, unpacket_traits<Packet1Xl>::size),
+    mask, unpacket_traits<Packet1Xl>::size);
+  Packet1Xd res = __riscv_vreinterpret_v_i64m1_f64m1(__riscv_vmerge_vvm_i64m1(pzero<Packet1Xl>(c),
+    ptrue<Packet1Xl>(c), __riscv_vreinterpret_v_u64m1_b64(mask), unpacket_traits<Packet1Xl>::size));
+  return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pand<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(pand<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh por<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(por<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pxor<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(pxor<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pandnot<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return Packet1Xcdh(pandnot<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pload<Packet1Xcdh>(const std::complex<double>* from) {
+  Packet1Xd res = pload<Packet1Xd>(reinterpret_cast<const double *>(from));
+  EIGEN_DEBUG_ALIGNED_LOAD return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh ploadu<Packet1Xcdh>(const std::complex<double>* from) {
+  Packet1Xd res = ploadu<Packet1Xd>(reinterpret_cast<const double *>(from));
+  EIGEN_DEBUG_UNALIGNED_LOAD return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh ploaddup<Packet1Xcdh>(const std::complex<double>* from) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x66),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xul idx1 = __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 1,
+      unpacket_traits<Packet1Xd>::size);
+  Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
+  return Packet1Xcdh(__riscv_vrgather_vv_f64m1(
+       pload<Packet1Xd>(reinterpret_cast<const double *>(from)), idx2, unpacket_traits<Packet1Xd>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh ploadquad<Packet1Xcdh>(const std::complex<double>* from) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x5a),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xul idx1 = __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 2,
+      unpacket_traits<Packet1Xd>::size);
+  Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
+  return Packet1Xcdh(__riscv_vrgather_vv_f64m1(
+       pload<Packet1Xd>(reinterpret_cast<const double *>(from)), idx2, unpacket_traits<Packet1Xd>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore<std::complex<double> >(std::complex<double>* to, const Packet1Xcdh& from) {
+  EIGEN_DEBUG_ALIGNED_STORE pstore<double>(reinterpret_cast<double *>(to), from.v);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu<std::complex<double> >(std::complex<double>* to, const Packet1Xcdh& from) {
+  EIGEN_DEBUG_UNALIGNED_STORE pstoreu<double>(reinterpret_cast<double *>(to), from.v);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet1Xcdh pgather<std::complex<double>, Packet1Xcdh>(const std::complex<double>* from,
+                                                                            Index stride) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
+      unpacket_traits<Packet1Xc>::size));
+  const double *from2 = reinterpret_cast<const double *>(from);
+  Packet1Xd res = __riscv_vundefined_f64m1();
+  res = __riscv_vlse64_v_f64m1_tumu(mask, res,
+      &from2[0 - (0 * stride)], stride * sizeof(double), unpacket_traits<Packet1Xd>::size);
+  res = __riscv_vlse64_v_f64m1_tumu(__riscv_vmnot_m_b64(mask, unpacket_traits<Packet1Xl>::size), res,
+      &from2[1 - (1 * stride)], stride * sizeof(double), unpacket_traits<Packet1Xd>::size);
+  return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter<std::complex<double>, Packet1Xcdh>(std::complex<double>* to, const Packet1Xcdh& from,
+                                                                        Index stride) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
+      unpacket_traits<Packet1Xc>::size));
+  double *to2 = reinterpret_cast<double *>(to);
+  __riscv_vsse64_v_f64m1_m(mask, &to2[0 - (0 * stride)],
+      stride * sizeof(double), from.v, unpacket_traits<Packet1Xd>::size);
+  __riscv_vsse64_v_f64m1_m(__riscv_vmnot_m_b64(mask, unpacket_traits<Packet1Xl>::size), &to2[1 - (1 * stride)],
+      stride * sizeof(double), from.v, unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1Xcdh>(const Packet1Xcdh& a) {
+  double real = pfirst<Packet1Xd>(a.v);
+  double imag = pfirst<Packet1Xd>(__riscv_vfslide1down_vf_f64m1(a.v, 0.0, unpacket_traits<Packet1Xd>::size));
+  return std::complex<double>(real, imag);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh preverse(const Packet1Xcdh& a) {
+  Packet1Xul idx = __riscv_vxor_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xl>::size),
+      unpacket_traits<Packet1Xl>::size - 2, unpacket_traits<Packet1Xl>::size);
+  Packet1Xd res = __riscv_vrgather_vv_f64m1(a.v, idx, unpacket_traits<Packet1Xd>::size);
+  return Packet1Xcdh(res);
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<double> predux<Packet1Xcdh>(const Packet1Xcdh& a) {
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0xaa),
+      unpacket_traits<Packet1Xc>::size));
+  Packet1Xl res = __riscv_vreinterpret_v_f64m1_i64m1(a.v);
+  Packet1Xd real = __riscv_vreinterpret_v_i64m1_f64m1(__riscv_vand_vx_i64m1_tumu(mask, res, res, 0,
+      unpacket_traits<Packet1Xl>::size));
+  Packet1Xd imag = __riscv_vreinterpret_v_i64m1_f64m1(__riscv_vand_vx_i64m1_tumu(
+      __riscv_vmnot_m_b64(mask, unpacket_traits<Packet1Xl>::size), res, res, 0, unpacket_traits<Packet1Xl>::size));
+  return std::complex<double>(predux<Packet1Xd>(real), predux<Packet1Xd>(imag));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pdiv<Packet1Xcdh>(const Packet1Xcdh& a, const Packet1Xcdh& b) {
+  return pdiv_complex(a, b);
+}
+
+template <int N>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void ptranspose(PacketBlock<Packet1Xcdh, N>& kernel) {
+  double buffer[unpacket_traits<Packet1Xd>::size * N];
+  int i = 0;
+
+  const PacketMask64 mask = __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55),
+      unpacket_traits<Packet1Xc>::size));
+
+  for (i = 0; i < N; i++) {
+    __riscv_vsse64_v_f64m1_m(mask,
+      &buffer[(i * 2) - (0 * N) + 0], N * sizeof(double), kernel.packet[i].v, unpacket_traits<Packet1Xd>::size);
+    __riscv_vsse64_v_f64m1_m(__riscv_vmnot_m_b64(mask, unpacket_traits<Packet1Xl>::size),
+      &buffer[(i * 2) - (1 * N) + 1], N * sizeof(double), kernel.packet[i].v, unpacket_traits<Packet1Xd>::size);
+  }
+
+  for (i = 0; i < N; i++) {
+    kernel.packet[i] = Packet1Xcdh(__riscv_vle64_v_f64m1(&buffer[i * unpacket_traits<Packet1Xd>::size],
+        unpacket_traits<Packet1Xd>::size));
+  }
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh psqrt<Packet1Xcdh>(const Packet1Xcdh& a) {
+  return psqrt_complex(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh plog<Packet1Xcdh>(const Packet1Xcdh& a) {
+  return plog_complex(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pexp<Packet1Xcdh>(const Packet1Xcdh& a) {
+  return pexp_complex(a);
+}
+
+EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcdh, Packet1Xd)
+#endif
 
 }  // end namespace internal
 
