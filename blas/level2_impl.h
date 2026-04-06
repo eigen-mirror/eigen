@@ -343,46 +343,112 @@ EIGEN_BLAS_FUNC(tbmv)
   int op = OP(*opa);
   bool unit = (DIAG(*diag) == UNIT);
 
-  if (op == NOTR) {
-    if (upper) {
-      // x := A*x, upper band. Process columns left to right.
-      for (int j = 0; j < *n; ++j) {
-        if (actual_x[j] != Scalar(0)) {
+  if (*k >= 8) {
+    // Vectorized path: use Eigen Map segments for the inner band operations.
+    ConstMatrixType band(a, *k + 1, *n, *lda);
+    if (op == NOTR) {
+      if (upper) {
+        for (int j = 0; j < *n; ++j) {
+          if (actual_x[j] != Scalar(0)) {
+            int start = std::max(0, j - *k);
+            int len = j - start;
+            int offset = *k - (j - start);
+            Scalar temp = actual_x[j];
+            if (len > 0) make_vector(actual_x + start, len) += temp * band.col(j).segment(offset, len);
+            if (!unit) actual_x[j] = temp * band(*k, j);
+          }
+        }
+      } else {
+        for (int j = *n - 1; j >= 0; --j) {
+          if (actual_x[j] != Scalar(0)) {
+            int len = std::min(*n - 1, j + *k) - j;
+            Scalar temp = actual_x[j];
+            if (len > 0) make_vector(actual_x + j + 1, len) += temp * band.col(j).segment(1, len);
+            if (!unit) actual_x[j] = temp * band(0, j);
+          }
+        }
+      }
+    } else if (op == TR) {
+      if (upper) {
+        for (int j = *n - 1; j >= 0; --j) {
+          int start = std::max(0, j - *k);
+          int len = j - start;
+          int offset = *k - (j - start);
           Scalar temp = actual_x[j];
-          for (int i = std::max(0, j - *k); i < j; ++i) actual_x[i] += temp * a[(*k + i - j) + j * *lda];
-          if (!unit) actual_x[j] = temp * a[*k + j * *lda];
+          if (!unit) temp *= band(*k, j);
+          if (len > 0)
+            temp += (band.col(j).segment(offset, len).cwiseProduct(make_vector(actual_x + start, len))).sum();
+          actual_x[j] = temp;
+        }
+      } else {
+        for (int j = 0; j < *n; ++j) {
+          int len = std::min(*n - 1, j + *k) - j;
+          Scalar temp = actual_x[j];
+          if (!unit) temp *= band(0, j);
+          if (len > 0) temp += (band.col(j).segment(1, len).cwiseProduct(make_vector(actual_x + j + 1, len))).sum();
+          actual_x[j] = temp;
         }
       }
     } else {
-      // x := A*x, lower band. Process columns right to left.
-      for (int j = *n - 1; j >= 0; --j) {
-        if (actual_x[j] != Scalar(0)) {
+      // Conjugate transpose: .dot() computes conj(lhs) . rhs.
+      if (upper) {
+        for (int j = *n - 1; j >= 0; --j) {
+          int start = std::max(0, j - *k);
+          int len = j - start;
+          int offset = *k - (j - start);
           Scalar temp = actual_x[j];
-          for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) actual_x[i] += temp * a[(i - j) + j * *lda];
-          if (!unit) actual_x[j] = temp * a[j * *lda];
+          if (!unit) temp *= Eigen::numext::conj(band(*k, j));
+          if (len > 0) temp += band.col(j).segment(offset, len).dot(make_vector(actual_x + start, len));
+          actual_x[j] = temp;
+        }
+      } else {
+        for (int j = 0; j < *n; ++j) {
+          int len = std::min(*n - 1, j + *k) - j;
+          Scalar temp = actual_x[j];
+          if (!unit) temp *= Eigen::numext::conj(band(0, j));
+          if (len > 0) temp += band.col(j).segment(1, len).dot(make_vector(actual_x + j + 1, len));
+          actual_x[j] = temp;
         }
       }
     }
   } else {
-    // Transpose or conjugate transpose.
-    bool do_conj = (op == ADJ);
-    auto maybe_conj = [do_conj](Scalar val) -> Scalar { return do_conj ? Eigen::numext::conj(val) : val; };
-
-    if (upper) {
-      // x := op(A)*x, upper band. Process columns right to left.
-      for (int j = *n - 1; j >= 0; --j) {
-        Scalar temp = actual_x[j];
-        if (!unit) temp *= maybe_conj(a[*k + j * *lda]);
-        for (int i = std::max(0, j - *k); i < j; ++i) temp += maybe_conj(a[(*k + i - j) + j * *lda]) * actual_x[i];
-        actual_x[j] = temp;
+    // Scalar path: for narrow bandwidth, avoid Map overhead.
+    if (op == NOTR) {
+      if (upper) {
+        for (int j = 0; j < *n; ++j) {
+          if (actual_x[j] != Scalar(0)) {
+            Scalar temp = actual_x[j];
+            for (int i = std::max(0, j - *k); i < j; ++i) actual_x[i] += temp * a[(*k + i - j) + j * *lda];
+            if (!unit) actual_x[j] = temp * a[*k + j * *lda];
+          }
+        }
+      } else {
+        for (int j = *n - 1; j >= 0; --j) {
+          if (actual_x[j] != Scalar(0)) {
+            Scalar temp = actual_x[j];
+            for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) actual_x[i] += temp * a[(i - j) + j * *lda];
+            if (!unit) actual_x[j] = temp * a[j * *lda];
+          }
+        }
       }
     } else {
-      // x := op(A)*x, lower band. Process columns left to right.
-      for (int j = 0; j < *n; ++j) {
-        Scalar temp = actual_x[j];
-        if (!unit) temp *= maybe_conj(a[j * *lda]);
-        for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) temp += maybe_conj(a[(i - j) + j * *lda]) * actual_x[i];
-        actual_x[j] = temp;
+      // Transpose or conjugate transpose.
+      auto maybe_conj = [op](Scalar val) -> Scalar { return op == ADJ ? Eigen::numext::conj(val) : val; };
+      if (upper) {
+        for (int j = *n - 1; j >= 0; --j) {
+          Scalar temp = actual_x[j];
+          if (!unit) temp *= maybe_conj(a[*k + j * *lda]);
+          for (int i = std::max(0, j - *k); i < j; ++i) temp += maybe_conj(a[(*k + i - j) + j * *lda]) * actual_x[i];
+          actual_x[j] = temp;
+        }
+      } else {
+        for (int j = 0; j < *n; ++j) {
+          Scalar temp = actual_x[j];
+          if (!unit) temp *= maybe_conj(a[j * *lda]);
+          for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i)
+            temp += maybe_conj(a[(i - j) + j * *lda]) * actual_x[i];
+          actual_x[j] = temp;
+        }
       }
     }
   }

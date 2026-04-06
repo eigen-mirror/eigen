@@ -106,64 +106,79 @@ EIGEN_BLAS_FUNC(hbmv)
 
   if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
-  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+  const Scalar *actual_x = get_compact_vector(x, *n, *incx);
+  Scalar *actual_y = get_compact_vector(y, *n, *incy);
 
   // First form y := beta*y.
   if (beta != Scalar(1)) {
-    int iy = ky;
-    for (int i = 0; i < *n; ++i) {
-      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
-      iy += *incy;
-    }
+    if (beta == Scalar(0))
+      make_vector(actual_y, *n).setZero();
+    else
+      make_vector(actual_y, *n) *= beta;
   }
 
-  if (alpha == Scalar(0)) return;
+  if (alpha == Scalar(0)) {
+    if (actual_x != x) delete[] actual_x;
+    if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
+    return;
+  }
 
-  if (UPLO(*uplo) == UP) {
-    // Upper triangle: A[i,j] at a[(k+i-j) + j*lda], diagonal at row k.
-    int jx = kx, jy = ky;
-    for (int j = 0; j < *n; ++j) {
-      Scalar temp1 = alpha * x[jx];
-      Scalar temp2 = Scalar(0);
-      int ix = kx, iy = ky;
-      for (int i = std::max(0, j - *k); i < j; ++i) {
-        Scalar aij = a[(*k + i - j) + j * *lda];
-        y[iy] += temp1 * aij;
-        temp2 += Eigen::numext::conj(aij) * x[ix];
-        ix += *incx;
-        iy += *incy;
+  if (*k >= 8) {
+    // Vectorized path: use Eigen Map segments for the inner band operations.
+    ConstMatrixType band(a, *k + 1, *n, *lda);
+    if (UPLO(*uplo) == UP) {
+      for (int j = 0; j < *n; ++j) {
+        int start = std::max(0, j - *k);
+        int len = j - start;
+        int offset = *k - (j - start);
+        Scalar temp1 = alpha * actual_x[j];
+        actual_y[j] += Scalar(Eigen::numext::real(band(*k, j))) * temp1;
+        if (len > 0) {
+          make_vector(actual_y + start, len) += temp1 * band.col(j).segment(offset, len);
+          actual_y[j] += alpha * band.col(j).segment(offset, len).dot(make_vector(actual_x + start, len));
+        }
       }
-      // Diagonal is real.
-      y[jy] += Scalar(Eigen::numext::real(a[*k + j * *lda])) * temp1 + alpha * temp2;
-      jx += *incx;
-      jy += *incy;
-      if (j >= *k) {
-        kx += *incx;
-        ky += *incy;
+    } else {
+      for (int j = 0; j < *n; ++j) {
+        int len = std::min(*n - 1, j + *k) - j;
+        Scalar temp1 = alpha * actual_x[j];
+        actual_y[j] += Scalar(Eigen::numext::real(band(0, j))) * temp1;
+        if (len > 0) {
+          make_vector(actual_y + j + 1, len) += temp1 * band.col(j).segment(1, len);
+          actual_y[j] += alpha * band.col(j).segment(1, len).dot(make_vector(actual_x + j + 1, len));
+        }
       }
     }
   } else {
-    // Lower triangle: A[i,j] at a[(i-j) + j*lda], diagonal at row 0.
-    int jx = kx, jy = ky;
-    for (int j = 0; j < *n; ++j) {
-      Scalar temp1 = alpha * x[jx];
-      Scalar temp2 = Scalar(0);
-      // Diagonal is real.
-      y[jy] += Scalar(Eigen::numext::real(a[j * *lda])) * temp1;
-      int ix = jx, iy = jy;
-      for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
-        ix += *incx;
-        iy += *incy;
-        Scalar aij = a[(i - j) + j * *lda];
-        y[iy] += temp1 * aij;
-        temp2 += Eigen::numext::conj(aij) * x[ix];
+    // Scalar path: for narrow bandwidth, avoid Map overhead.
+    if (UPLO(*uplo) == UP) {
+      for (int j = 0; j < *n; ++j) {
+        Scalar temp1 = alpha * actual_x[j];
+        Scalar temp2 = Scalar(0);
+        for (int i = std::max(0, j - *k); i < j; ++i) {
+          Scalar aij = a[(*k + i - j) + j * *lda];
+          actual_y[i] += temp1 * aij;
+          temp2 += Eigen::numext::conj(aij) * actual_x[i];
+        }
+        actual_y[j] += Scalar(Eigen::numext::real(a[*k + j * *lda])) * temp1 + alpha * temp2;
       }
-      y[jy] += alpha * temp2;
-      jx += *incx;
-      jy += *incy;
+    } else {
+      for (int j = 0; j < *n; ++j) {
+        Scalar temp1 = alpha * actual_x[j];
+        Scalar temp2 = Scalar(0);
+        actual_y[j] += Scalar(Eigen::numext::real(a[j * *lda])) * temp1;
+        for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
+          Scalar aij = a[(i - j) + j * *lda];
+          actual_y[i] += temp1 * aij;
+          temp2 += Eigen::numext::conj(aij) * actual_x[i];
+        }
+        actual_y[j] += alpha * temp2;
+      }
     }
   }
+
+  if (actual_x != x) delete[] actual_x;
+  if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
 }
 
 /**  HPMV  performs the matrix-vector operation
@@ -196,61 +211,53 @@ EIGEN_BLAS_FUNC(hpmv)
 
   if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
-  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+  const Scalar *actual_x = get_compact_vector(x, *n, *incx);
+  Scalar *actual_y = get_compact_vector(y, *n, *incy);
 
   // First form y := beta*y.
   if (beta != Scalar(1)) {
-    int iy = ky;
-    for (int i = 0; i < *n; ++i) {
-      y[iy] = (beta == Scalar(0)) ? Scalar(0) : beta * y[iy];
-      iy += *incy;
-    }
+    if (beta == Scalar(0))
+      make_vector(actual_y, *n).setZero();
+    else
+      make_vector(actual_y, *n) *= beta;
   }
 
-  if (alpha == Scalar(0)) return;
+  if (alpha == Scalar(0)) {
+    if (actual_x != x) delete[] actual_x;
+    if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
+    return;
+  }
 
   int kk = 0;
   if (UPLO(*uplo) == UP) {
-    // Upper triangle packed.
-    int jx = kx, jy = ky;
+    // Upper triangle packed: column j occupies ap[kk..kk+j].
     for (int j = 0; j < *n; ++j) {
-      Scalar temp1 = alpha * x[jx];
-      Scalar temp2 = Scalar(0);
-      int ix = kx, iy = ky;
-      for (int i = 0; i < j; ++i) {
-        y[iy] += temp1 * ap[kk + i];
-        temp2 += Eigen::numext::conj(ap[kk + i]) * x[ix];
-        ix += *incx;
-        iy += *incy;
-      }
+      Scalar temp1 = alpha * actual_x[j];
       // Diagonal is real.
-      y[jy] += Scalar(Eigen::numext::real(ap[kk + j])) * temp1 + alpha * temp2;
-      jx += *incx;
-      jy += *incy;
+      actual_y[j] += Scalar(Eigen::numext::real(ap[kk + j])) * temp1;
+      if (j > 0) {
+        make_vector(actual_y, j) += temp1 * make_vector(ap + kk, j);
+        actual_y[j] += alpha * make_vector(ap + kk, j).dot(make_vector(actual_x, j));
+      }
       kk += j + 1;
     }
   } else {
-    // Lower triangle packed.
-    int jx = kx, jy = ky;
+    // Lower triangle packed: column j occupies ap[kk..kk+(n-j-1)].
     for (int j = 0; j < *n; ++j) {
-      Scalar temp1 = alpha * x[jx];
-      Scalar temp2 = Scalar(0);
+      int len = *n - j - 1;
+      Scalar temp1 = alpha * actual_x[j];
       // Diagonal is real.
-      y[jy] += Scalar(Eigen::numext::real(ap[kk])) * temp1;
-      int ix = jx, iy = jy;
-      for (int i = 1; i < *n - j; ++i) {
-        ix += *incx;
-        iy += *incy;
-        y[iy] += temp1 * ap[kk + i];
-        temp2 += Eigen::numext::conj(ap[kk + i]) * x[ix];
+      actual_y[j] += Scalar(Eigen::numext::real(ap[kk])) * temp1;
+      if (len > 0) {
+        make_vector(actual_y + j + 1, len) += temp1 * make_vector(ap + kk + 1, len);
+        actual_y[j] += alpha * make_vector(ap + kk + 1, len).dot(make_vector(actual_x + j + 1, len));
       }
-      y[jy] += alpha * temp2;
-      jx += *incx;
-      jy += *incy;
       kk += *n - j;
     }
   }
+
+  if (actual_x != x) delete[] actual_x;
+  if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
 }
 
 /**  ZHPR    performs the hermitian rank 1 operation
