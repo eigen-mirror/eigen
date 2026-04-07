@@ -121,6 +121,16 @@ EIGEN_STRONG_INLINE Packet2Xcf pmsub<Packet2Xcf>(const Packet2Xcf& a, const Pack
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xcf pnmadd(const Packet2Xcf& a, const Packet2Xcf& b, const Packet2Xcf& c) {
+  return pnegate(pmsub(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xcf pnmsub(const Packet2Xcf& a, const Packet2Xcf& b, const Packet2Xcf& c) {
+  return pnegate(pmadd(a, b, c));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xcf pcmp_eq(const Packet2Xcf& a, const Packet2Xcf& b) {
   Packet4Xi c = __riscv_vundefined_i32m4();
   PacketMask8 mask = __riscv_vmfeq_vv_f32m4_b8(a.v, b.v, unpacket_traits<Packet4Xf>::size);
@@ -369,6 +379,16 @@ EIGEN_STRONG_INLINE Packet1Xcfh pmsub<Packet1Xcfh>(const Packet1Xcfh& a, const P
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pnmadd(const Packet1Xcfh& a, const Packet1Xcfh& b, const Packet1Xcfh& c) {
+  return pnegate(pmsub(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcfh pnmsub(const Packet1Xcfh& a, const Packet1Xcfh& b, const Packet1Xcfh& c) {
+  return pnegate(pmadd(a, b, c));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xcfh pcmp_eq(const Packet1Xcfh& a, const Packet1Xcfh& b) {
   Packet1Xi c = __riscv_vundefined_i32m1();
   PacketMask32 mask = __riscv_vmfeq_vv_f32m1_b32(a.v, b.v, unpacket_traits<Packet1Xf>::size);
@@ -591,6 +611,16 @@ EIGEN_STRONG_INLINE Packet2Xcd pmsub<Packet2Xcd>(const Packet2Xcd& a, const Pack
   prealimag2(a, real, imag);
   return Packet2Xcd(pmadd<Packet4Xd>(imag, pcplxflip<Packet2Xcd>(pconj<Packet2Xcd>(b)).v,
      pmsub<Packet4Xd>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xcd pnmadd(const Packet2Xcd& a, const Packet2Xcd& b, const Packet2Xcd& c) {
+  return pnegate(pmsub(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xcd pnmsub(const Packet2Xcd& a, const Packet2Xcd& b, const Packet2Xcd& c) {
+  return pnegate(pmadd(a, b, c));
 }
 
 template <>
@@ -859,6 +889,16 @@ EIGEN_STRONG_INLINE Packet1Xcdh pmsub<Packet1Xcdh>(const Packet1Xcdh& a, const P
   prealimag2(a, real, imag);
   return Packet1Xcdh(pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcdh>(pconj<Packet1Xcdh>(b)).v,
      pmsub<Packet1Xd>(real, b.v, c.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pnmadd(const Packet1Xcdh& a, const Packet1Xcdh& b, const Packet1Xcdh& c) {
+  return pnegate(pmsub(a, b, c));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcdh pnmsub(const Packet1Xcdh& a, const Packet1Xcdh& b, const Packet1Xcdh& c) {
+  return pnegate(pmadd(a, b, c));
 }
 
 template <>

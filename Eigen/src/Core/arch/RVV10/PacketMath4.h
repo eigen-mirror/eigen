@@ -619,6 +619,12 @@ EIGEN_STRONG_INLINE float predux_max<Packet4Xf>(const Packet4Xf& a) {
       -(std::numeric_limits<float>::max)());
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet2Xf predux_half(const Packet4Xf& a) {
+  return Packet2Xf(__riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
+                                unpacket_traits<Packet2Xf>::size));
+}
+
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xf, N>& kernel) {
   float buffer[unpacket_traits<Packet4Xf>::size * N];
@@ -1249,6 +1255,12 @@ EIGEN_STRONG_INLINE double predux_max<Packet4Xd>(const Packet4Xd& a) {
           a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet4Xd>::size / 4),
           unpacket_traits<Packet4Xd>::size)),
       -(std::numeric_limits<double>::max)());
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xd predux_half(const Packet4Xd& a) {
+  return Packet2Xd(__riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
+                                unpacket_traits<Packet2Xd>::size));
 }
 
 template <int N>

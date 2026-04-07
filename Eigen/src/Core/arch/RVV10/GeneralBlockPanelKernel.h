@@ -389,32 +389,70 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   }
 
   template <typename Packet>
-  DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
-      const DoublePacket<Packet>& a, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) const {
+  DoublePacket<typename unpacket_traits<Packet>::half> predux_half(const DoublePacket<Packet>& a) const {
     DoublePacket<typename unpacket_traits<Packet>::half> res;
     res.first = predux_half(a.first);
     res.second = predux_half(a.second);
     return res;
   }
 
-//#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-#if 0
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
-#if 0
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
-    r = cj.pmadd(alpha, c, r);
+  template <typename ResPacketType, typename AccPacketType>
+  EIGEN_STRONG_INLINE void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const;
+
+  template <typename RealPacketType, typename ResPacketType>
+  EIGEN_STRONG_INLINE void acc(const DoublePacket<RealPacketType>& /*c*/, const ResPacketType& /*alpha*/,
+                               ResPacketType& /*r*/) const {
+#if 0  // TODO: is this needed?
+    // assemble c
+    ResPacketType tmp;
+    if ((!ConjLhs) && (!ConjRhs)) {
+      tmp = pcplxflip(pconj(ResPacketType(c.second)));
+      tmp = padd(ResPacketType(c.first), tmp);
+    } else if ((!ConjLhs) && (ConjRhs)) {
+      tmp = pconj(pcplxflip(ResPacketType(c.second)));
+      tmp = padd(ResPacketType(c.first), tmp);
+    } else if ((ConjLhs) && (!ConjRhs)) {
+      tmp = pcplxflip(ResPacketType(c.second));
+      tmp = padd(pconj(ResPacketType(c.first)), tmp);
+    } else if ((ConjLhs) && (ConjRhs)) {
+      tmp = pcplxflip(ResPacketType(c.second));
+      tmp = psub(pconj(ResPacketType(c.first)), tmp);
+    }
+
+    r = pmadd(tmp, alpha, r);
 #endif
   }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#ifndef USE_LMUL2_ONLY
+  template <>
+  EIGEN_STRONG_INLINE void acc<Packet2Xcf, Packet1Xcf>(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
+//    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
+    r = cj.pmadd(alpha, c, r);
+  }
+
+  template <>
+  EIGEN_STRONG_INLINE void acc<Packet2Xcd, Packet1Xcd>(const Packet1Xcd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
+//    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
+    r = cj.pmadd(alpha, c, r);
+  }
+#endif
 #endif
 
-//#if EIGEN_RISCV64_DEFAULT_LMUL == 1
-#if 0
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcfh& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
-#if 0
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1
+#ifndef USE_LMUL1_ONLY
+  template <>
+  EIGEN_STRONG_INLINE void acc<Packet1Xcf, Packet1Xcfh>(const Packet1Xcfh& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
+//    conj_helper<Packet1Xcf, Packet1Xcf, false, ConjRhs> cj;
     r = cj.pmadd(alpha, c, r);
-#endif
   }
+
+  template <>
+  EIGEN_STRONG_INLINE void acc<Packet1Xcd, Packet1Xcdh>(const Packet1Xcdh& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
+//    conj_helper<Packet1Xcf, Packet1Xcf, false, ConjRhs> cj;
+    r = cj.pmadd(alpha, c, r);
+  }
+#endif
 #endif
 
  protected:
