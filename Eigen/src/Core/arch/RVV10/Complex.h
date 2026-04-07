@@ -20,12 +20,10 @@ namespace internal {
 
 /********************************* float32 ************************************/
 
-#if 0
 #if EIGEN_RISCV64_DEFAULT_LMUL >= 2
 #define USE_LMUL2_ONLY
 #else
 #define USE_LMUL1_ONLY
-#endif
 #endif
 
 #ifndef USE_LMUL2_ONLY
@@ -277,16 +275,6 @@ EIGEN_STRONG_INLINE Packet1Xcf pmsub<Packet1Xcf>(const Packet1Xcf& a, const Pack
   prealimag2(a, real, imag);
   return Packet1Xcf(pmadd<Packet2Xf>(imag, pcplxflip<Packet1Xcf>(pconj<Packet1Xcf>(b)).v,
      pmsub<Packet2Xf>(real, b.v, c.v)));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xcf pnmadd(const Packet1Xcf& a, const Packet1Xcf& b, const Packet1Xcf& c) {
-  return pnegate(pmsub(a, b, c));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xcf pnmsub(const Packet1Xcf& a, const Packet1Xcf& b, const Packet1Xcf& c) {
-  return pnegate(pmadd(a, b, c));
 }
 
 template <>
@@ -557,7 +545,11 @@ struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
 template <>
 struct unpacket_traits<Packet1Xcdh> : default_unpacket_traits {
   typedef std::complex<double> type;
+#ifndef USE_LMUL1_ONLY
   typedef Packet1Xcdh half;
+#else
+  typedef Packet1Xcd half;
+#endif
   typedef Packet1Xd as_real;
   enum {
     size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
@@ -670,16 +662,6 @@ EIGEN_STRONG_INLINE Packet1Xcd pmsub<Packet1Xcd>(const Packet1Xcd& a, const Pack
   prealimag2(a, real, imag);
   return Packet1Xcd(pmadd<Packet2Xd>(imag, pcplxflip<Packet1Xcd>(pconj<Packet1Xcd>(b)).v,
      pmsub<Packet2Xd>(real, b.v, c.v)));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xcd pnmadd(const Packet1Xcd& a, const Packet1Xcd& b, const Packet1Xcd& c) {
-  return pnegate(pmsub(a, b, c));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1Xcd pnmsub(const Packet1Xcd& a, const Packet1Xcd& b, const Packet1Xcd& c) {
-  return pnegate(pmadd(a, b, c));
 }
 
 template <>
