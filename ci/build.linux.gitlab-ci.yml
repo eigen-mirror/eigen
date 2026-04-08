@@ -386,6 +386,6 @@ build:linux:cross:x86-64:clang-14:sanitizer:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
   allow_failure: true
   timeout: 30m
