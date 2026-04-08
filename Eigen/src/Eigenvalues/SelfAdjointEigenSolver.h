@@ -25,7 +25,7 @@ namespace internal {
 template <typename SolverType, int Size, bool IsComplex>
 struct direct_selfadjoint_eigenvalues;
 
-template <typename MatrixType, typename DiagType, typename SubDiagType>
+template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
                                                               const Index maxIterations, bool computeEigenvectors,
                                                               MatrixType& eivec);
@@ -438,7 +438,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
     m_eivec = matrix;
     m_eivalues.coeffRef(0, 0) = numext::real(m_eivec.coeff(0, 0));
     if (computeEigenvectors) m_eivec.setOnes(n, n);
-    m_info = Success;
+    m_info = (numext::isfinite)(m_eivalues.coeffRef(0, 0)) ? Success : NoConvergence;
     m_isInitialized = true;
     m_eigenvectorsOk = computeEigenvectors;
     return *this;
@@ -448,18 +448,29 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   RealVectorType& diag = m_eivalues;
   EigenvectorsType& mat = m_eivec;
 
-  // map the matrix coefficients to [-1:1] to avoid over- and underflow.
+  // Scale the matrix to [-1:1] to avoid overflow/underflow during tridiagonalization
+  // and subsequent QR iteration. This uniform scaling ensures the tridiagonal output is
+  // well-conditioned. Note: for block-diagonal matrices with widely separated scales, this
+  // can underflow small blocks. Users with such matrices should tridiagonalize separately
+  // and call computeFromTridiagonal(), which uses per-block scaling.
   mat = matrix.template triangularView<Lower>();
   RealScalar scale = mat.cwiseAbs().maxCoeff();
+  if (!(numext::isfinite)(scale)) {
+    // Input contains Inf or NaN.
+    m_info = NoConvergence;
+    m_isInitialized = true;
+    m_eigenvectorsOk = false;
+    return *this;
+  }
   if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
   mat.template triangularView<Lower>() /= scale;
   m_subdiag.resize(n - 1);
   m_hcoeffs.resize(n - 1);
   internal::tridiagonalization_inplace(mat, diag, m_subdiag, m_hcoeffs, m_workspace, computeEigenvectors);
 
-  m_info = internal::computeFromTridiagonal_impl(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
+  m_info = internal::computeFromTridiagonal_impl<false>(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
 
-  // scale back the eigen values
+  // Scale back the eigenvalues.
   m_eivalues *= scale;
 
   m_isInitialized = true;
@@ -470,15 +481,31 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 template <typename MatrixType>
 SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeFromTridiagonal(
     const RealVectorType& diag, const SubDiagonalType& subdiag, int options) {
-  // TODO : Add an option to scale the values beforehand
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
 
   m_eivalues = diag;
   m_subdiag = subdiag;
+
+  // Check for Inf/NaN in the input.
+  {
+    RealScalar scale = RealScalar(0);
+    if (m_eivalues.size() > 0) scale = m_eivalues.cwiseAbs().maxCoeff();
+    if (m_subdiag.size() > 0) scale = numext::maxi(scale, m_subdiag.cwiseAbs().maxCoeff());
+    if (!(numext::isfinite)(scale)) {
+      m_info = NoConvergence;
+      m_isInitialized = true;
+      m_eigenvectorsOk = false;
+      return *this;
+    }
+  }
+
   if (computeEigenvectors) {
     m_eivec.setIdentity(diag.size(), diag.size());
   }
-  m_info = internal::computeFromTridiagonal_impl(m_eivalues, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
+  // Use per-deflation-block scaling (like LAPACK's DSTERF) to avoid losing
+  // precision when the tridiagonal entries span a wide range of magnitudes.
+  m_info =
+      internal::computeFromTridiagonal_impl<true>(m_eivalues, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
 
   m_isInitialized = true;
   m_eigenvectorsOk = computeEigenvectors;
@@ -490,6 +517,10 @@ namespace internal {
  * \internal
  * \brief Compute the eigendecomposition from a tridiagonal matrix
  *
+ * \tparam PerBlockScaling If true, each deflation block is independently scaled to [-1,1] before
+ *         QR iteration, following LAPACK's DSTERF approach. This prevents precision loss when entries
+ *         span a wide range of magnitudes. When false, the caller is responsible for ensuring the
+ *         entries are in a safe range (e.g. by pre-scaling the dense matrix before tridiagonalization).
  * \param[in,out] diag : On input, the diagonal of the matrix, on output the eigenvalues
  * \param[in,out] subdiag : The subdiagonal part of the matrix (entries are modified during the decomposition)
  * \param[in] maxIterations : the maximum number of iterations
@@ -497,7 +528,7 @@ namespace internal {
  * \param[out] eivec : The matrix to store the eigenvectors if computeEigenvectors==true. Must be allocated on input.
  * \returns \c Success or \c NoConvergence
  */
-template <typename MatrixType, typename DiagType, typename SubDiagType>
+template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
                                                               const Index maxIterations, bool computeEigenvectors,
                                                               MatrixType& eivec) {
@@ -512,21 +543,32 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   typedef typename DiagType::RealScalar RealScalar;
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
   const RealScalar precision_inv = RealScalar(1) / NumTraits<RealScalar>::epsilon();
-  while (end > 0) {
-    for (Index i = start; i < end; ++i) {
+
+  // Helper lambda for the deflation test.
+  auto deflate = [&](Index lo, Index hi) {
+    for (Index i = lo; i < hi; ++i) {
       if (numext::abs(subdiag[i]) < considerAsZero) {
         subdiag[i] = RealScalar(0);
       } else {
-        // abs(subdiag[i]) <= epsilon * sqrt(abs(diag[i]) + abs(diag[i+1]))
-        // Scaled to prevent underflows.
         const RealScalar scaled_subdiag = precision_inv * subdiag[i];
         if (scaled_subdiag * scaled_subdiag <= (numext::abs(diag[i]) + numext::abs(diag[i + 1]))) {
           subdiag[i] = RealScalar(0);
         }
       }
     }
+  };
 
-    // find the largest unreduced block at the end of the matrix.
+  // For per-block scaling, track the currently scaled block and its scale factor.
+  // When the outer loop identifies a block outside the scaled region, unscale the old
+  // block and scale the new one. This keeps the same outer loop structure (one QR step
+  // per iteration) while ensuring each block is processed in scaled coordinates.
+  Index scaled_start = -1, scaled_end = -1;
+  RealScalar block_scale = RealScalar(1);
+
+  while (end > 0) {
+    deflate(start, end);
+
+    // Find the largest unreduced block at the end of the matrix.
     while (end > 0 && numext::is_exactly_zero(subdiag[end - 1])) {
       end--;
     }
@@ -539,8 +581,41 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
     start = end - 1;
     while (start > 0 && !numext::is_exactly_zero(subdiag[start - 1])) start--;
 
+    if (PerBlockScaling) {
+      // Check if we've moved to a different block than the one currently scaled.
+      if (start != scaled_start || end != scaled_end) {
+        // Unscale the previous block if it was scaled.
+        if (block_scale != RealScalar(1)) {
+          for (Index i = scaled_start; i <= scaled_end; ++i) diag[i] /= block_scale;
+          for (Index i = scaled_start; i < scaled_end; ++i) {
+            if (!numext::is_exactly_zero(subdiag[i])) subdiag[i] /= block_scale;
+          }
+          block_scale = RealScalar(1);
+        }
+        // Compute the norm and scale the new block to [-1:1].
+        RealScalar block_norm = RealScalar(0);
+        for (Index i = start; i <= end; ++i) block_norm = numext::maxi(block_norm, numext::abs(diag[i]));
+        for (Index i = start; i < end; ++i) block_norm = numext::maxi(block_norm, numext::abs(subdiag[i]));
+        if (block_norm > RealScalar(0) && block_norm != RealScalar(1)) {
+          block_scale = RealScalar(1) / block_norm;
+          for (Index i = start; i <= end; ++i) diag[i] *= block_scale;
+          for (Index i = start; i < end; ++i) subdiag[i] *= block_scale;
+        }
+        scaled_start = start;
+        scaled_end = end;
+      }
+    }
+
     internal::tridiagonal_qr_step<MatrixType::Flags & RowMajorBit ? RowMajor : ColMajor>(
         diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+  }
+
+  // Unscale any remaining scaled block.
+  if (PerBlockScaling && block_scale != RealScalar(1)) {
+    for (Index i = scaled_start; i <= scaled_end; ++i) diag[i] /= block_scale;
+    for (Index i = scaled_start; i < scaled_end; ++i) {
+      if (!numext::is_exactly_zero(subdiag[i])) subdiag[i] /= block_scale;
+    }
   }
   if (iter <= maxIterations * n)
     info = Success;
@@ -662,6 +737,28 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
 
+    // computeRoots produces theoretically sorted roots, but floating-point
+    // rounding in the trigonometric formulas can break the ordering.
+    // Enforce sorting with a branchless min/max network (3 elements).
+    {
+      Scalar tmp;
+      if (eivals(0) > eivals(1)) {
+        tmp = eivals(0);
+        eivals(0) = eivals(1);
+        eivals(1) = tmp;
+      }
+      if (eivals(1) > eivals(2)) {
+        tmp = eivals(1);
+        eivals(1) = eivals(2);
+        eivals(2) = tmp;
+      }
+      if (eivals(0) > eivals(1)) {
+        tmp = eivals(0);
+        eivals(0) = eivals(1);
+        eivals(1) = tmp;
+      }
+    }
+
     // compute the eigenvectors
     if (computeEigenvectors) {
       if ((eivals(2) - eivals(0)) <= Eigen::NumTraits<Scalar>::epsilon()) {
@@ -691,7 +788,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
         if (d0 <= 2 * Eigen::NumTraits<Scalar>::epsilon() * d1) {
           // If d0 is too small, then the two other eigenvalues are numerically the same,
           // and thus we only have to ortho-normalize the near orthogonal vector we saved above.
-          eivecs.col(l) -= eivecs.col(k).dot(eivecs.col(l)) * eivecs.col(l);
+          eivecs.col(l) -= eivecs.col(k).dot(eivecs.col(l)) * eivecs.col(k);
           eivecs.col(l).normalize();
         } else {
           tmp = scaledMat;
