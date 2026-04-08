@@ -233,15 +233,17 @@ static std::vector<FuncEntry<Scalar>> build_func_table() {
 // Range iteration helpers
 // ============================================================================
 
-// Advances x toward +inf by at least 1 ULP. When step_eps > 0, additionally
-// jumps by a relative factor of (1 + step_eps) to sample the range sparsely.
+// Advances a non-negative value toward +inf by at least 1 ULP. When step_eps > 0,
+// additionally jumps by max(|x|, min_normal) * step_eps. For normals this is
+// equivalent to x * (1 + eps). For denormals where x * eps < smallest_denormal,
+// the min_normal floor ensures we still skip through the denormal region at a
+// rate matching the smallest normals rather than stalling at 1 ULP per step.
 template <typename Scalar>
-static inline Scalar advance_by_step(Scalar x, double step_eps) {
+static inline Scalar advance_positive(Scalar x, double step_eps) {
   Scalar next = std::nextafter(x, std::numeric_limits<Scalar>::infinity());
   if (step_eps > 0.0 && std::isfinite(next)) {
-    // Try to jump further by a relative amount.
-    Scalar jumped = next > 0 ? next * static_cast<Scalar>(1.0 + step_eps) : next / static_cast<Scalar>(1.0 + step_eps);
-    // Use the jump only if it actually advances further (handles denormal stalling).
+    Scalar base = std::max(next, std::numeric_limits<Scalar>::min());
+    Scalar jumped = next + base * static_cast<Scalar>(step_eps);
     if (jumped > next) next = jumped;
   }
   return next;
@@ -281,26 +283,60 @@ static double linear_to_scalar(int64_t lin, double /*tag*/) {
 // Dynamic work queue: threads atomically claim chunks for load balancing
 // ============================================================================
 
+// Work queue that distributes chunks in positive absolute-value linear space.
+// Iteration goes outward from 0: the worker tests both +|x| and -|x| for
+// each sampled magnitude, so the multiplicative step (1 + eps) always works
+// cleanly — no special handling for negative values needed.
 template <typename Scalar>
 struct WorkQueue {
   int64_t range_hi_lin;
   int64_t chunk_size;
   double step_eps;
   std::atomic<int64_t> next_lin;
+  Scalar orig_lo;  // original range for sign filtering
+  Scalar orig_hi;
+  bool test_pos;  // whether any positive values are in [lo, hi]
+  bool test_neg;  // whether any negative values are in [lo, hi]
 
-  void init(Scalar lo, Scalar hi, int64_t csz, double step) {
-    range_hi_lin = scalar_to_linear(hi);
-    chunk_size = csz;
+  void init(Scalar lo, Scalar hi, int num_threads, double step) {
+    orig_lo = lo;
+    orig_hi = hi;
+    test_pos = (hi >= Scalar(0));
+    test_neg = (lo < Scalar(0));
+
+    // Compute absolute-value iteration range.
+    Scalar abs_lo, abs_hi;
+    if (lo <= Scalar(0) && hi >= Scalar(0)) {
+      abs_lo = Scalar(0);
+      abs_hi = std::max(std::abs(lo), hi);
+    } else {
+      abs_lo = std::min(std::abs(lo), std::abs(hi));
+      abs_hi = std::max(std::abs(lo), std::abs(hi));
+    }
+
+    range_hi_lin = scalar_to_linear(abs_hi);
     step_eps = step;
-    next_lin.store(scalar_to_linear(lo), std::memory_order_relaxed);
+    next_lin.store(scalar_to_linear(abs_lo), std::memory_order_relaxed);
+
+    uint64_t total_abs = count_scalars_in_range(abs_lo, abs_hi);
+    chunk_size = std::max(int64_t(1), static_cast<int64_t>(total_abs / (num_threads * 16)));
+    if (step > 0.0) {
+      // Ensure chunks are large enough that advance_positive's min_normal floor
+      // can actually skip the denormal region.  The denormal region contains
+      // count_scalars_in_range(0, min_normal) ULPs; any chunk must span at
+      // least that many so the min_normal-based jump lands past chunk_hi.
+      int64_t denorm_span = static_cast<int64_t>(count_scalars_in_range(Scalar(0), std::numeric_limits<Scalar>::min()));
+      chunk_size = std::max(chunk_size, denorm_span);
+    }
   }
 
-  // Claim the next chunk. Returns false when no work remains.
+  // Claim the next chunk of absolute values. Returns false when no work remains.
   bool claim(Scalar& chunk_lo, Scalar& chunk_hi) {
     int64_t lo_lin = next_lin.fetch_add(chunk_size, std::memory_order_relaxed);
-    if (lo_lin > range_hi_lin) return false;
-    int64_t hi_lin = lo_lin + chunk_size - 1;
-    if (hi_lin > range_hi_lin) hi_lin = range_hi_lin;
+    if (lo_lin > range_hi_lin || lo_lin < 0) return false;
+    // Compute hi_lin carefully to avoid int64_t overflow.
+    int64_t remaining = range_hi_lin - lo_lin;
+    int64_t hi_lin = (remaining < chunk_size - 1) ? range_hi_lin : lo_lin + chunk_size - 1;
     chunk_lo = linear_to_scalar(lo_lin, Scalar(0));
     chunk_hi = linear_to_scalar(hi_lin, Scalar(0));
     return true;
@@ -322,8 +358,12 @@ static void worker(const FuncEntry<Scalar>& func, WorkQueue<Scalar>& queue, int 
 #ifdef EIGEN_HAS_MPFR
   mpfr_t mp_in, mp_out;
   if (use_mpfr) {
-    mpfr_init2(mp_in, 128);
-    mpfr_init2(mp_out, 128);
+    // Use 2x the mantissa bits of Scalar for the reference: 48 for float (24-bit
+    // mantissa), 106 for double (53-bit mantissa). This is sufficient for correctly-
+    // rounded results while keeping MPFR evaluation fast.
+    constexpr int kMpfrBits = std::is_same<Scalar, float>::value ? 48 : 106;
+    mpfr_init2(mp_in, kMpfrBits);
+    mpfr_init2(mp_out, kMpfrBits);
   }
 #else
   (void)use_mpfr;
@@ -348,32 +388,42 @@ static void worker(const FuncEntry<Scalar>& func, WorkQueue<Scalar>& queue, int 
     }
   };
 
+  auto flush_batch = [&](int& idx) {
+    if (idx == 0) return;
+    for (int i = idx; i < batch_size; i++) input[i] = input[idx - 1];
+    func.eigen_eval(eigen_out, input);
+    process_batch(idx, input, eigen_out);
+    idx = 0;
+  };
+
+  auto push_value = [&](Scalar v, int& idx) {
+    input[idx++] = v;
+    if (idx == batch_size) flush_batch(idx);
+  };
+
   Scalar chunk_lo, chunk_hi;
   while (queue.claim(chunk_lo, chunk_hi)) {
     int idx = 0;
-    Scalar x = chunk_lo;
+    Scalar abs_x = chunk_lo;
     for (;;) {
-      input[idx] = x;
-      idx++;
-
-      if (idx == batch_size) {
-        func.eigen_eval(eigen_out, input);
-        process_batch(batch_size, input, eigen_out);
-        idx = 0;
+      // Test +|x| if positive values are in range.
+      if (queue.test_pos && abs_x >= queue.orig_lo && abs_x <= queue.orig_hi) {
+        push_value(abs_x, idx);
+      }
+      // Test -|x| if negative values are in range (skip -0 to avoid testing 0 twice).
+      if (queue.test_neg && abs_x != Scalar(0)) {
+        Scalar neg_x = -abs_x;
+        if (neg_x >= queue.orig_lo && neg_x <= queue.orig_hi) {
+          push_value(neg_x, idx);
+        }
       }
 
-      if (x >= chunk_hi) break;
-      Scalar next = advance_by_step(x, queue.step_eps);
-      x = (next > chunk_hi) ? chunk_hi : next;
+      if (abs_x >= chunk_hi) break;
+      Scalar next = advance_positive(abs_x, queue.step_eps);
+      abs_x = (next > chunk_hi) ? chunk_hi : next;
     }
 
-    // Process remaining partial batch.  Pad unused slots with the last valid
-    // input so the full-size vectorized eval doesn't read uninitialized memory.
-    if (idx > 0) {
-      for (int i = idx; i < batch_size; i++) input[i] = input[idx - 1];
-      func.eigen_eval(eigen_out, input);
-      process_batch(idx, input, eigen_out);
-    }
+    flush_batch(idx);
   }
 
 #ifdef EIGEN_HAS_MPFR
@@ -439,11 +489,12 @@ static int run_test(const Options& opts) {
   std::printf("Function: %s (%s)\n", opts.func_name.c_str(), kTypeName);
   std::printf("Range: [%.*g, %.*g]\n", kDigits, double(lo), kDigits, double(hi));
   if (opts.step_eps > 0.0) {
-    std::printf("Sampling step: (1 + %g) * nextafter(x)\n", opts.step_eps);
+    std::printf("Sampling step: |x| * (1 + %g)\n", opts.step_eps);
   } else {
     std::printf("Representable values in range: %lu\n", static_cast<unsigned long>(total_scalars));
   }
-  std::printf("Reference: %s\n", opts.use_mpfr ? "MPFR (128-bit)" : "std C++ math");
+  std::printf("Reference: %s\n",
+              opts.use_mpfr ? (opts.use_double ? "MPFR (106-bit)" : "MPFR (48-bit)") : "std C++ math");
   std::printf("Threads: %d\n", num_threads);
   std::printf("Batch size: %d\n", opts.batch_size);
   std::printf("\n");
@@ -459,13 +510,8 @@ static int run_test(const Options& opts) {
     results.back()->init(opts.hist_width);
   }
 
-  // Use dynamic work distribution: threads claim small chunks from a shared
-  // queue.  This ensures even load balancing regardless of how per-value
-  // work varies across the range (e.g. log on negatives is trivial).
-  // Choose chunk_size so we get ~16 chunks per thread for good balancing.
-  int64_t chunk_size = std::max(int64_t(1), static_cast<int64_t>(total_scalars / (num_threads * 16)));
   WorkQueue<Scalar> queue;
-  queue.init(lo, hi, chunk_size, opts.step_eps);
+  queue.init(lo, hi, num_threads, opts.step_eps);
 
   std::vector<std::thread> threads;
   auto start_time = std::chrono::steady_clock::now();

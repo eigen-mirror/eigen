@@ -141,98 +141,83 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_float(const Pac
   return plog_impl_float<Packet, /* base2 */ true>(_x);
 }
 
-/* Returns the base e (2.718...) or base 2 logarithm of x.
- * The argument is separated into its exponent and fractional parts.
- * The logarithm of the fraction in the interval [sqrt(1/2), sqrt(2)],
- * is approximated by
- *
- *     log(1+x) = x - 0.5 x**2 + x**3 P(x)/Q(x).
- *
- * for more detail see: http://www.netlib.org/cephes/
- */
-template <typename Packet, bool base2>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(const Packet _x) {
-  Packet x = _x;
+// Core range reduction and polynomial evaluation for double logarithm.
+//
+// Same structure as plog_core_float but for double precision.
+// Given a positive double v (may be denormal), decomposes it as
+// v = 2^e * (1+f) with f in [sqrt(0.5)-1, sqrt(2)-1], then evaluates
+// log(1+f) ≈ f - 0.5*f^2 + f^3 * P(f)/Q(f) using the Cephes [5/5]
+// rational approximation.
+template <typename Packet>
+EIGEN_STRONG_INLINE void plog_core_double(const Packet v, Packet& log_mantissa, Packet& e) {
+  typedef typename unpacket_traits<Packet>::integer_packet PacketL;
 
-  const Packet cst_1 = pset1<Packet>(1.0);
-  const Packet cst_neg_half = pset1<Packet>(-0.5);
-  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<uint64_t>(0xfff0000000000000ull));
-  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<uint64_t>(0x7ff0000000000000ull));
+  const PacketL cst_min_normal = pset1<PacketL>(int64_t(0x0010000000000000LL));
+  const PacketL cst_mant_mask = pset1<PacketL>(int64_t(0x000fffffffffffffLL));
+  const PacketL cst_sqrt_half_offset = pset1<PacketL>(int64_t(0x00095f619980c433LL));
+  const PacketL cst_exp_bias = pset1<PacketL>(int64_t(0x3ff));                  // 1023
+  const PacketL cst_half_mant = pset1<PacketL>(int64_t(0x3fe6a09e667f3bcdLL));  // sqrt(0.5)
 
-  // Polynomial Coefficients for log(1+x) = x - x**2/2 + x**3 P(x)/Q(x)
-  //                             1/sqrt(2) <= x < sqrt(2)
-  const Packet cst_cephes_SQRTHF = pset1<Packet>(0.70710678118654752440E0);
-  const Packet cst_cephes_log_p0 = pset1<Packet>(1.01875663804580931796E-4);
-  const Packet cst_cephes_log_p1 = pset1<Packet>(4.97494994976747001425E-1);
-  const Packet cst_cephes_log_p2 = pset1<Packet>(4.70579119878881725854E0);
-  const Packet cst_cephes_log_p3 = pset1<Packet>(1.44989225341610930846E1);
-  const Packet cst_cephes_log_p4 = pset1<Packet>(1.79368678507819816313E1);
-  const Packet cst_cephes_log_p5 = pset1<Packet>(7.70838733755885391666E0);
+  // Normalize denormals by multiplying by 2^52.
+  PacketL vi = preinterpret<PacketL>(v);
+  PacketL is_denormal = pcmp_lt(vi, cst_min_normal);
+  Packet v_normalized = pmul(v, pset1<Packet>(4503599627370496.0));  // 2^52
+  vi = pselect(is_denormal, preinterpret<PacketL>(v_normalized), vi);
+  PacketL denorm_adj = pand(is_denormal, pset1<PacketL>(int64_t(52)));
 
-  const Packet cst_cephes_log_q0 = pset1<Packet>(1.0);
-  const Packet cst_cephes_log_q1 = pset1<Packet>(1.12873587189167450590E1);
-  const Packet cst_cephes_log_q2 = pset1<Packet>(4.52279145837532221105E1);
-  const Packet cst_cephes_log_q3 = pset1<Packet>(8.29875266912776603211E1);
-  const Packet cst_cephes_log_q4 = pset1<Packet>(7.11544750618563894466E1);
-  const Packet cst_cephes_log_q5 = pset1<Packet>(2.31251620126765340583E1);
+  // Combined range reduction via integer bias (same trick as float version).
+  PacketL vi_biased = padd(vi, cst_sqrt_half_offset);
+  PacketL e_int = psub(psub(plogical_shift_right<52>(vi_biased), cst_exp_bias), denorm_adj);
+  e = pcast<PacketL, Packet>(e_int);
+  Packet f = psub(preinterpret<Packet>(padd(pand(vi_biased, cst_mant_mask), cst_half_mant)), pset1<Packet>(1.0));
 
-  Packet e;
-  // extract significant in the range [0.5,1) and exponent
-  x = pfrexp(x, e);
+  // Rational approximation log(1+f) = f - 0.5*f^2 + f^3 * P(f)/Q(f)
+  // from Cephes, [5/5] rational on [sqrt(0.5)-1, sqrt(2)-1].
+  Packet f2 = pmul(f, f);
+  Packet f3 = pmul(f2, f);
 
-  // Shift the inputs from the range [0.5,1) to [sqrt(1/2),sqrt(2))
-  // and shift by -1. The values are then centered around 0, which improves
-  // the stability of the polynomial evaluation.
-  //   if( x < SQRTHF ) {
-  //     e -= 1;
-  //     x = x + x - 1.0;
-  //   } else { x = x - 1.0; }
-  Packet mask = pcmp_lt(x, cst_cephes_SQRTHF);
-  Packet tmp = pand(x, mask);
-  x = psub(x, cst_1);
-  e = psub(e, pand(cst_1, mask));
-  x = padd(x, tmp);
-
-  Packet x2 = pmul(x, x);
-  Packet x3 = pmul(x2, x);
-
-  // Evaluate the polynomial in factored form for better instruction-level parallelism.
-  // y = x - 0.5*x^2 + x^3 * polevl( x, P, 5 ) / p1evl( x, Q, 5 ) );
+  // Evaluate P and Q in factored form for instruction-level parallelism.
   Packet y, y1, y_;
-  y = pmadd(cst_cephes_log_p0, x, cst_cephes_log_p1);
-  y1 = pmadd(cst_cephes_log_p3, x, cst_cephes_log_p4);
-  y = pmadd(y, x, cst_cephes_log_p2);
-  y1 = pmadd(y1, x, cst_cephes_log_p5);
-  y_ = pmadd(y, x3, y1);
+  y = pmadd(pset1<Packet>(1.01875663804580931796E-4), f, pset1<Packet>(4.97494994976747001425E-1));
+  y1 = pmadd(pset1<Packet>(1.44989225341610930846E1), f, pset1<Packet>(1.79368678507819816313E1));
+  y = pmadd(y, f, pset1<Packet>(4.70579119878881725854E0));
+  y1 = pmadd(y1, f, pset1<Packet>(7.70838733755885391666E0));
+  y_ = pmadd(y, f3, y1);
 
-  y = pmadd(cst_cephes_log_q0, x, cst_cephes_log_q1);
-  y1 = pmadd(cst_cephes_log_q3, x, cst_cephes_log_q4);
-  y = pmadd(y, x, cst_cephes_log_q2);
-  y1 = pmadd(y1, x, cst_cephes_log_q5);
-  y = pmadd(y, x3, y1);
+  y = pmadd(pset1<Packet>(1.0), f, pset1<Packet>(1.12873587189167450590E1));
+  y1 = pmadd(pset1<Packet>(8.29875266912776603211E1), f, pset1<Packet>(7.11544750618563894466E1));
+  y = pmadd(y, f, pset1<Packet>(4.52279145837532221105E1));
+  y1 = pmadd(y1, f, pset1<Packet>(2.31251620126765340583E1));
+  y = pmadd(y, f3, y1);
 
-  y_ = pmul(y_, x3);
+  y_ = pmul(y_, f3);
   y = pdiv(y_, y);
 
-  y = pmadd(cst_neg_half, x2, y);
-  x = padd(x, y);
+  y = pmadd(pset1<Packet>(-0.5), f2, y);
+  log_mantissa = padd(f, y);
+}
 
-  // Add the logarithm of the exponent back to the result of the interpolation.
+// Natural or base-2 logarithm for double packets.
+template <typename Packet, bool base2>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(const Packet _x) {
+  Packet log_mantissa, e;
+  plog_core_double(_x, log_mantissa, e);
+
+  // Add the logarithm of the exponent back to the result.
+  Packet x;
   if (base2) {
     const Packet cst_log2e = pset1<Packet>(static_cast<double>(EIGEN_LOG2E));
-    x = pmadd(x, cst_log2e, e);
+    x = pmadd(log_mantissa, cst_log2e, e);
   } else {
     const Packet cst_ln2 = pset1<Packet>(static_cast<double>(EIGEN_LN2));
-    x = pmadd(e, cst_ln2, x);
+    x = pmadd(e, cst_ln2, log_mantissa);
   }
 
+  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<uint64_t>(0xfff0000000000000ull));
+  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<uint64_t>(0x7ff0000000000000ull));
   Packet invalid_mask = pcmp_lt_or_nan(_x, pzero(_x));
   Packet iszero_mask = pcmp_eq(_x, pzero(_x));
   Packet pos_inf_mask = pcmp_eq(_x, cst_pos_inf);
-  // Filter out invalid inputs, i.e.:
-  //  - negative arg will be NAN
-  //  - 0 will be -INF
-  //  - +INF will be +INF
   return pselect(iszero_mask, cst_minus_inf, por(pselect(pos_inf_mask, cst_pos_inf, x), invalid_mask));
 }
 
@@ -287,7 +272,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(c
 }
 
 /** \internal \returns log(1 + x) for double precision float.
-    Same direct approach as the float version.
+    Computes log(1+x) using plog_core_double for the core range reduction
+    and polynomial evaluation. The rounding error from forming u = fl(1+x)
+    is recovered as dx = x - (u - 1), and folded in as a first-order
+    correction dx/u after the polynomial evaluation.
  */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(const Packet& x) {
@@ -295,61 +283,25 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(
   const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<uint64_t>(0xfff0000000000000ull));
   const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<uint64_t>(0x7ff0000000000000ull));
 
+  // u = 1 + x, with rounding. Recover the lost low bits: dx = x - (u - 1).
   Packet u = padd(one, x);
   Packet dx = psub(x, psub(u, one));
 
+  // For |x| tiny enough that u rounds to 1, return x directly.
   Packet small_mask = pcmp_eq(u, one);
+  // For u = +inf (x very large), return +inf.
   Packet inf_mask = pcmp_eq(u, cst_pos_inf);
 
-  const Packet cst_cephes_SQRTHF = pset1<Packet>(0.70710678118654752440E0);
-  Packet e;
-  Packet m = pfrexp(u, e);
-  Packet mask = pcmp_lt(m, cst_cephes_SQRTHF);
-  Packet tmp = pand(m, mask);
-  m = psub(m, one);
-  e = psub(e, pand(one, mask));
-  m = padd(m, tmp);
+  // Core range reduction and polynomial on u.
+  Packet log_u, e;
+  plog_core_double(u, log_u, e);
 
-  // Same polynomial as plog_double.
-  const Packet cst_neg_half = pset1<Packet>(-0.5);
-  const Packet cst_cephes_log_p0 = pset1<Packet>(1.01875663804580931796E-4);
-  const Packet cst_cephes_log_p1 = pset1<Packet>(4.97494994976747001425E-1);
-  const Packet cst_cephes_log_p2 = pset1<Packet>(4.70579119878881725854E0);
-  const Packet cst_cephes_log_p3 = pset1<Packet>(1.44989225341610930846E1);
-  const Packet cst_cephes_log_p4 = pset1<Packet>(1.79368678507819816313E1);
-  const Packet cst_cephes_log_p5 = pset1<Packet>(7.70838733755885391666E0);
-  const Packet cst_cephes_log_q0 = pset1<Packet>(1.0);
-  const Packet cst_cephes_log_q1 = pset1<Packet>(1.12873587189167450590E1);
-  const Packet cst_cephes_log_q2 = pset1<Packet>(4.52279145837532221105E1);
-  const Packet cst_cephes_log_q3 = pset1<Packet>(8.29875266912776603211E1);
-  const Packet cst_cephes_log_q4 = pset1<Packet>(7.11544750618563894466E1);
-  const Packet cst_cephes_log_q5 = pset1<Packet>(2.31251620126765340583E1);
-
-  Packet m2 = pmul(m, m);
-  Packet m3 = pmul(m2, m);
-
-  Packet y, y1, y_;
-  y = pmadd(cst_cephes_log_p0, m, cst_cephes_log_p1);
-  y1 = pmadd(cst_cephes_log_p3, m, cst_cephes_log_p4);
-  y = pmadd(y, m, cst_cephes_log_p2);
-  y1 = pmadd(y1, m, cst_cephes_log_p5);
-  y_ = pmadd(y, m3, y1);
-
-  y = pmadd(cst_cephes_log_q0, m, cst_cephes_log_q1);
-  y1 = pmadd(cst_cephes_log_q3, m, cst_cephes_log_q4);
-  y = pmadd(y, m, cst_cephes_log_q2);
-  y1 = pmadd(y1, m, cst_cephes_log_q5);
-  y = pmadd(y, m3, y1);
-
-  y_ = pmul(y_, m3);
-  Packet log_m = pdiv(y_, y);
-  log_m = pmadd(cst_neg_half, m2, log_m);
-  log_m = padd(m, log_m);
-
-  // result = e * ln2 + log(m) + dx/u.
+  // result = e * ln2 + log(u) + dx/u.
+  // The dx/u term corrects for the rounding error in u = fl(1+x).
   const Packet cst_ln2 = pset1<Packet>(static_cast<double>(EIGEN_LN2));
-  Packet result = pmadd(e, cst_ln2, padd(log_m, pdiv(dx, u)));
+  Packet result = pmadd(e, cst_ln2, padd(log_u, pdiv(dx, u)));
 
+  // Handle special cases.
   Packet neg_mask = pcmp_lt(u, pzero(u));
   Packet zero_mask = pcmp_eq(x, pset1<Packet>(-1.0));
   result = pselect(small_mask, x, result);
