@@ -858,16 +858,8 @@ struct hash<Eigen::bfloat16> {
 }  // namespace std
 #endif
 
-// Add the missing shfl* intrinsics.
-// The __shfl* functions are only valid on HIP or _CUDA_ARCH_ >= 300.
-//   CUDA defines them for (__CUDA_ARCH__ >= 300 || !defined(__CUDA_ARCH__))
-//
-// HIP and CUDA prior to SDK 9.0 define
-//    __shfl, __shfl_up, __shfl_down, __shfl_xor for int and float
-// CUDA since 9.0 deprecates those and instead defines
-//    __shfl_sync, __shfl_up_sync, __shfl_down_sync, __shfl_xor_sync,
-//    with native support for __half and __nv_bfloat16
-//
+// Warp shuffle overloads for Eigen::bfloat16.
+// HIP uses non-sync __shfl variants; CUDA has native __nv_bfloat16 support in __shfl_sync.
 // Note that the following are __device__ - only functions.
 #if defined(EIGEN_HIPCC)
 

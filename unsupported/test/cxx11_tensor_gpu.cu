@@ -850,6 +850,7 @@ void test_gpu_igamma() {
   Tensor<Scalar, 2> a(6, 6);
   Tensor<Scalar, 2> x(6, 6);
   Tensor<Scalar, 2> out(6, 6);
+  Tensor<Scalar, 2> expected_out(6, 6);
   out.setZero();
 
   Scalar a_s[] = {Scalar(0), Scalar(1), Scalar(1.5), Scalar(4), Scalar(0.0001), Scalar(1000.5)};
@@ -862,14 +863,11 @@ void test_gpu_igamma() {
     }
   }
 
-  Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
-  Scalar igamma_s[][6] = {
-      {0.0, nan, nan, nan, nan, nan},
-      {0.0, 0.6321205588285578, 0.7768698398515702, 0.9816843611112658, 9.999500016666262e-05, 1.0},
-      {0.0, 0.4275932955291202, 0.608374823728911, 0.9539882943107686, 7.522076445089201e-07, 1.0},
-      {0.0, 0.01898815687615381, 0.06564245437845008, 0.5665298796332909, 4.166333347221828e-18, 1.0},
-      {0.0, 0.9999780593618628, 0.9999899967080838, 0.9999996219837988, 0.9991370418689945, 1.0},
-      {0.0, 0.0, 0.0, 0.0, 0.0, 0.5042041932513908}};
+  for (int i = 0; i < 6; ++i) {
+    for (int j = 0; j < 6; ++j) {
+      expected_out(i, j) = numext::igamma(a(i, j), x(i, j));
+    }
+  }
 
   std::size_t bytes = a.size() * sizeof(Scalar);
 
@@ -897,10 +895,10 @@ void test_gpu_igamma() {
 
   for (int i = 0; i < 6; ++i) {
     for (int j = 0; j < 6; ++j) {
-      if ((std::isnan)(igamma_s[i][j])) {
+      if ((std::isnan)(expected_out(i, j))) {
         VERIFY((std::isnan)(out(i, j)));
       } else {
-        VERIFY_IS_APPROX(out(i, j), igamma_s[i][j]);
+        VERIFY_IS_APPROX(out(i, j), expected_out(i, j));
       }
     }
   }
@@ -915,6 +913,7 @@ void test_gpu_igammac() {
   Tensor<Scalar, 2> a(6, 6);
   Tensor<Scalar, 2> x(6, 6);
   Tensor<Scalar, 2> out(6, 6);
+  Tensor<Scalar, 2> expected_out(6, 6);
   out.setZero();
 
   Scalar a_s[] = {Scalar(0), Scalar(1), Scalar(1.5), Scalar(4), Scalar(0.0001), Scalar(1000.5)};
@@ -927,14 +926,11 @@ void test_gpu_igammac() {
     }
   }
 
-  Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
-  Scalar igammac_s[][6] = {
-      {nan, nan, nan, nan, nan, nan},
-      {1.0, 0.36787944117144233, 0.22313016014842982, 0.018315638888734182, 0.9999000049998333, 0.0},
-      {1.0, 0.5724067044708798, 0.3916251762710878, 0.04601170568923136, 0.9999992477923555, 0.0},
-      {1.0, 0.9810118431238462, 0.9343575456215499, 0.4334701203667089, 1.0, 0.0},
-      {1.0, 2.1940638138146658e-05, 1.0003291916285e-05, 3.7801620118431334e-07, 0.0008629581310054535, 0.0},
-      {1.0, 1.0, 1.0, 1.0, 1.0, 0.49579580674813944}};
+  for (int i = 0; i < 6; ++i) {
+    for (int j = 0; j < 6; ++j) {
+      expected_out(i, j) = numext::igammac(a(i, j), x(i, j));
+    }
+  }
 
   std::size_t bytes = a.size() * sizeof(Scalar);
 
@@ -962,10 +958,10 @@ void test_gpu_igammac() {
 
   for (int i = 0; i < 6; ++i) {
     for (int j = 0; j < 6; ++j) {
-      if ((std::isnan)(igammac_s[i][j])) {
+      if ((std::isnan)(expected_out(i, j))) {
         VERIFY((std::isnan)(out(i, j)));
       } else {
-        VERIFY_IS_APPROX(out(i, j), igammac_s[i][j]);
+        VERIFY_IS_APPROX(out(i, j), expected_out(i, j));
       }
     }
   }
@@ -1068,15 +1064,9 @@ void test_gpu_ndtri() {
   in_x(7) = Scalar(0.99);
   in_x(8) = Scalar(0.01);
 
-  expected_out(0) = std::numeric_limits<Scalar>::infinity();
-  expected_out(1) = -std::numeric_limits<Scalar>::infinity();
-  expected_out(2) = Scalar(0.0);
-  expected_out(3) = Scalar(-0.8416212335729142);
-  expected_out(4) = Scalar(0.8416212335729142);
-  expected_out(5) = Scalar(1.2815515655446004);
-  expected_out(6) = Scalar(-1.2815515655446004);
-  expected_out(7) = Scalar(2.3263478740408408);
-  expected_out(8) = Scalar(-2.3263478740408408);
+  for (int i = 0; i < 9; ++i) {
+    expected_out(i) = numext::ndtri(in_x(i));
+  }
 
   std::size_t bytes = in_x.size() * sizeof(Scalar);
 
@@ -1090,15 +1080,15 @@ void test_gpu_ndtri() {
   Eigen::GpuStreamDevice stream;
   Eigen::GpuDevice gpu_device(&stream);
 
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_in_x(d_in_x, 6);
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_out(d_out, 6);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_in_x(d_in_x, 9);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_out(d_out, 9);
 
   gpu_out.device(gpu_device) = gpu_in_x.ndtri();
 
   assert(gpuMemcpyAsync(out.data(), d_out, bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
   assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
 
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 9; ++i) {
     VERIFY_IS_CWISE_APPROX(out(i), expected_out(i));
   }
 
@@ -1115,12 +1105,9 @@ void test_gpu_betainc() {
   Tensor<Scalar, 1> expected_out(125);
   out.setZero();
 
-  Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
-
   Array<Scalar, 1, Dynamic> x(125);
   Array<Scalar, 1, Dynamic> a(125);
   Array<Scalar, 1, Dynamic> b(125);
-  Array<Scalar, 1, Dynamic> v(125);
 
   a << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
       0.0, 0.0, 0.0, 0.03062277660168379, 0.03062277660168379, 0.03062277660168379, 0.03062277660168379,
@@ -1160,25 +1147,11 @@ void test_gpu_betainc() {
       0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8,
       1.1, -0.1, 0.2, 0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8, 1.1, -0.1, 0.2, 0.5, 0.8, 1.1;
 
-  v << nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan,
-      nan, nan, nan, nan, nan, nan, nan, nan, nan, 0.47972119876364683, 0.5, 0.5202788012363533, nan, nan,
-      0.9518683957740043, 0.9789663010413743, 0.9931729188073435, nan, nan, 0.999995949033062, 0.9999999999993698,
-      0.9999999999999999, nan, nan, 0.9999999999999999, 0.9999999999999999, 0.9999999999999999, nan, nan, nan, nan, nan,
-      nan, nan, 0.006827081192655869, 0.0210336989586256, 0.04813160422599567, nan, nan, 0.20014344256217678,
-      0.5000000000000001, 0.7998565574378232, nan, nan, 0.9991401428435834, 0.999999999698403, 0.9999999999999999, nan,
-      nan, 0.9999999999999999, 0.9999999999999999, 0.9999999999999999, nan, nan, nan, nan, nan, nan, nan,
-      1.0646600232370887e-25, 6.301722877826246e-13, 4.050966937974938e-06, nan, nan, 7.864342668429763e-23,
-      3.015969667594166e-10, 0.0008598571564165444, nan, nan, 6.031987710123844e-08, 0.5000000000000007,
-      0.9999999396801229, nan, nan, 0.9999999999999999, 0.9999999999999999, 0.9999999999999999, nan, nan, nan, nan, nan,
-      nan, nan, 0.0, 7.029920380986636e-306, 2.2450728208591345e-101, nan, nan, 0.0, 9.275871147869727e-302,
-      1.2232913026152827e-97, nan, nan, 0.0, 3.0891393081932924e-252, 2.9303043666183996e-60, nan, nan,
-      2.248913486879199e-196, 0.5000000000004947, 0.9999999999999999, nan;
-
   for (int i = 0; i < 125; ++i) {
     in_x(i) = x(i);
     in_a(i) = a(i);
     in_b(i) = b(i);
-    expected_out(i) = v(i);
+    expected_out(i) = numext::betainc(a(i), b(i), x(i));
   }
 
   std::size_t bytes = in_x.size() * sizeof(Scalar);

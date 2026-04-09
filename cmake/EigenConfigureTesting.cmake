@@ -20,7 +20,8 @@ add_dependencies(check buildtests)
 
 # Convenience target for only building GPU tests.
 add_custom_target(buildtests_gpu)
-add_custom_target(check_gpu COMMAND "ctest" "--output-on-failure"
+add_custom_target(check_gpu COMMAND "ctest" ${EIGEN_CTEST_ARGS}
+                                            "--output-on-failure"
                                             "--no-compress-output"
                                             "--build-no-clean"
                                             "-T" "test"
@@ -70,5 +71,4 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 elseif(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
 endif()
-
 
