@@ -71,7 +71,7 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
     - x86-64
     - cuda
 
-# MSVC 14.29 + CUDA 11.4
-test:windows:x86-64:cuda-11.4:msvc-14.29:
+# MSVC 14.29 + CUDA 12.2
+test:windows:x86-64:cuda-12.2:msvc-14.29:
   extends: .test:windows:cuda
-  needs: [ build:windows:x86-64:cuda-11.4:msvc-14.29 ]
+  needs: [ build:windows:x86-64:cuda-12.2:msvc-14.29 ]

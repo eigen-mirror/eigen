@@ -433,7 +433,7 @@ if(EIGEN_TEST_CUDA_NVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
   message(WARNING "EIGEN_TEST_CUDA_NVC is set, but CMAKE_CXX_COMPILER does not appear to be nvc++.")
 endif()
 
-find_package(CUDA 9.0)
+find_package(CUDA 11.4)
 if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
   # and -fno-check-new flags since they trigger thousands of compilation warnings
@@ -502,6 +502,9 @@ if (EIGEN_TEST_HIP)
   endif()
 
   find_package(HIP REQUIRED)
+  if (HIP_FOUND AND HIP_VERSION VERSION_LESS "5.6")
+    message(FATAL_ERROR "Eigen requires ROCm/HIP >= 5.6, found ${HIP_VERSION}")
+  endif()
   if (HIP_FOUND)
     execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM)
 

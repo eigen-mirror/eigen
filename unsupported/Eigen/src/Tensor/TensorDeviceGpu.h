@@ -342,19 +342,6 @@ struct GpuDevice {
 
 #endif
 
-// FIXME: Should be device and kernel specific.
-#ifdef EIGEN_GPUCC
-static EIGEN_DEVICE_FUNC inline void setGpuSharedMemConfig(gpuSharedMemConfig config) {
-#ifndef EIGEN_GPU_COMPILE_PHASE
-  gpuError_t status = gpuDeviceSetSharedMemConfig(config);
-  EIGEN_UNUSED_VARIABLE(status);
-  gpu_assert(status == gpuSuccess);
-#else
-  EIGEN_UNUSED_VARIABLE(config);
-#endif
-}
-#endif
-
 }  // end namespace Eigen
 
 // undefine all the gpu* macros we defined at the beginning of the file

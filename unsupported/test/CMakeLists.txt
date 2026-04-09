@@ -237,7 +237,7 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
   ei_add_test(cxx11_tensor_uint128)
 endif()
 
-find_package(CUDA 9.0)
+find_package(CUDA 11.4)
 if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
   # and -fno-check-new flags since they trigger thousands of compilation warnings
@@ -281,26 +281,11 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   ei_add_test(cxx11_tensor_argmax_gpu)
   ei_add_test(cxx11_tensor_cast_float16_gpu)
   ei_add_test(cxx11_tensor_scan_gpu)
-
-  set(EIGEN_CUDA_OLDEST_COMPUTE_ARCH 9999)
-  foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-    if(${ARCH} LESS ${EIGEN_CUDA_OLDEST_COMPUTE_ARCH})
-      set(EIGEN_CUDA_OLDEST_COMPUTE_ARCH ${ARCH})
-    endif()
-  endforeach()
-
-  # Contractions require arch 3.0 or higher
-  if (${EIGEN_CUDA_OLDEST_COMPUTE_ARCH} GREATER 29)
-    ei_add_test(cxx11_tensor_device)
-    ei_add_test(cxx11_tensor_gpu)
-    ei_add_test(cxx11_tensor_contract_gpu)
-    ei_add_test(cxx11_tensor_of_float16_gpu)
-  endif()
-
-  # The random number generation code requires arch 3.5 or greater.
-  if (${EIGEN_CUDA_OLDEST_COMPUTE_ARCH} GREATER 34)
-    ei_add_test(cxx11_tensor_random_gpu)
-  endif()
+  ei_add_test(cxx11_tensor_device)
+  ei_add_test(cxx11_tensor_gpu)
+  ei_add_test(cxx11_tensor_contract_gpu)
+  ei_add_test(cxx11_tensor_of_float16_gpu)
+  ei_add_test(cxx11_tensor_random_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 endif()
@@ -341,7 +326,6 @@ if (EIGEN_TEST_HIP)
       ei_add_test(cxx11_tensor_cast_float16_gpu)
       ei_add_test(cxx11_tensor_scan_gpu)
       ei_add_test(cxx11_tensor_device)
-
       ei_add_test(cxx11_tensor_gpu)
       ei_add_test(cxx11_tensor_contract_gpu)
       ei_add_test(cxx11_tensor_of_float16_gpu)

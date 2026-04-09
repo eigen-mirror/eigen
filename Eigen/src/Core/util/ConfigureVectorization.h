@@ -541,12 +541,6 @@ extern "C" {
 #if defined EIGEN_CUDACC
 #define EIGEN_VECTORIZE_GPU
 #include <vector_types.h>
-#if EIGEN_CUDA_SDK_VER >= 70500
-#define EIGEN_HAS_CUDA_FP16
-#endif
-#endif
-
-#if defined(EIGEN_HAS_CUDA_FP16)
 #include <cuda_runtime_api.h>
 #include <cuda_fp16.h>
 #endif
@@ -554,7 +548,6 @@ extern "C" {
 #if defined(EIGEN_HIPCC)
 #define EIGEN_VECTORIZE_GPU
 #include <hip/hip_vector_types.h>
-#define EIGEN_HAS_HIP_FP16
 #include <hip/hip_fp16.h>
 #define EIGEN_HAS_HIP_BF16
 #include <hip/hip_bfloat16.h>

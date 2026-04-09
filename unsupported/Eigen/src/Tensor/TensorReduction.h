@@ -453,7 +453,7 @@ template <int B, int N, typename S, typename R, typename I_>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernel(R, const S, I_, typename S::CoeffReturnType*,
                                                                  unsigned int*);
 
-#if defined(EIGEN_HAS_GPU_FP16)
+#if defined(EIGEN_GPUCC)
 template <typename S, typename R, typename I_>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitFullReduxKernelHalfFloat(
     R, const S, I_, internal::packet_traits<half>::type*);
@@ -883,7 +883,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 #if defined(EIGEN_USE_GPU) && (defined(EIGEN_GPUCC))
   template <int B, int N, typename S, typename R, typename I_>
   KERNEL_FRIEND void internal::FullReductionKernel(R, const S, I_, typename S::CoeffReturnType*, unsigned int*);
-#if defined(EIGEN_HAS_GPU_FP16)
+#if defined(EIGEN_GPUCC)
   template <typename S, typename R, typename I_>
   KERNEL_FRIEND void internal::ReductionInitFullReduxKernelHalfFloat(R, const S, I_,
                                                                      internal::packet_traits<Eigen::half>::type*);
