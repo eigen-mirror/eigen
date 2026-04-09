@@ -79,38 +79,22 @@ EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR auto reduction_shuffle_mask() {
 
 template <typename T>
 __device__ EIGEN_ALWAYS_INLINE T reduction_shuffle_down(T value, int offset) {
-#if defined(EIGEN_HIPCC)
-  return __shfl_down(value, offset, warpSize);
-#else
   return __shfl_down_sync(reduction_shuffle_mask<T>(), value, offset, warpSize);
-#endif
 }
 
 template <>
 __device__ EIGEN_ALWAYS_INLINE int reduction_shuffle_down<int>(int value, int offset) {
-#if defined(EIGEN_HIPCC)
-  return __shfl_down(value, offset, warpSize);
-#else
   return __shfl_down_sync(reduction_shuffle_mask<int>(), value, offset, warpSize);
-#endif
 }
 
 template <>
 __device__ EIGEN_ALWAYS_INLINE float reduction_shuffle_down<float>(float value, int offset) {
-#if defined(EIGEN_HIPCC)
-  return __shfl_down(value, offset, warpSize);
-#else
   return __shfl_down_sync(reduction_shuffle_mask<float>(), value, offset, warpSize);
-#endif
 }
 
 template <>
 __device__ EIGEN_ALWAYS_INLINE double reduction_shuffle_down<double>(double value, int offset) {
-#if defined(EIGEN_HIPCC)
-  return __shfl_down(value, offset, warpSize);
-#else
   return __shfl_down_sync(reduction_shuffle_mask<double>(), value, offset, warpSize);
-#endif
 }
 
 template <>
