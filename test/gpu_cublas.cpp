@@ -16,6 +16,32 @@
 
 using namespace Eigen;
 
+// Unit roundoff for GPU GEMM compute precision.
+// TF32 (opt-in via EIGEN_CUDA_TF32) has eps ~ 2^{-10}.
+template <typename Scalar>
+typename NumTraits<Scalar>::Real gpu_unit_roundoff() {
+#if defined(EIGEN_CUDA_TF32) && !defined(EIGEN_NO_CUDA_TENSOR_OPS)
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  if (std::is_same<RealScalar, float>::value) return RealScalar(9.8e-4);
+#endif
+  return NumTraits<Scalar>::epsilon();
+}
+
+// Higham-Mary probabilistic error bound for GEMM:
+//   ||C - fl(C)||_F <= lambda * sqrt(k) * u * ||A||_F * ||B||_F
+// where k is the inner dimension, u is the unit roundoff, and
+// lambda = sqrt(2 * ln(2/delta)) with delta = failure probability.
+// lambda = 5 corresponds to delta ~ 10^{-6}.
+// Reference: Higham & Mary, "Probabilistic Error Analysis for Inner Products",
+// SIAM J. Matrix Anal. Appl., 2019.
+template <typename Scalar>
+typename NumTraits<Scalar>::Real gemm_error_bound(Index k, typename NumTraits<Scalar>::Real normA,
+                                                  typename NumTraits<Scalar>::Real normB) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  constexpr RealScalar lambda = 5;
+  return lambda * std::sqrt(static_cast<RealScalar>(k)) * gpu_unit_roundoff<Scalar>() * normA * normB;
+}
+
 // ---- Basic GEMM: C = A * B -------------------------------------------------
 
 template <typename Scalar>
@@ -36,7 +62,7 @@ void test_gemm_basic(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -59,7 +85,7 @@ void test_gemm_adjoint_lhs(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A.adjoint() * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -82,7 +108,7 @@ void test_gemm_transpose_rhs(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B.transpose();
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -106,7 +132,7 @@ void test_gemm_scaled(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = alpha * A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -130,7 +156,7 @@ void test_gemm_accumulate(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = C_init + A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -153,7 +179,7 @@ void test_gemm_accumulate_empty(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -178,7 +204,7 @@ void test_gemm_subtract(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = C_init - A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -202,7 +228,7 @@ void test_gemm_subtract_empty(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = -(A * B);
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -226,7 +252,7 @@ void test_gemm_scaled_rhs(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A * (alpha * B);
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -266,7 +292,7 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B;
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -296,7 +322,7 @@ void test_gemm_cross_context_reuse(Index n) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B + D * E;
 
-  RealScalar tol = RealScalar(2) * RealScalar(n) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(n, A.norm(), B.norm()) + gemm_error_bound<Scalar>(n, D.norm(), E.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -326,7 +352,7 @@ void test_gemm_cross_context_resize() {
   Mat C = d_C.toHost();
   Mat C_ref = D * E;
 
-  RealScalar tol = RealScalar(16) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(16, D.norm(), E.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -353,7 +379,9 @@ void test_gemm_chain(Index n) {
   Mat D = d_D.toHost();
   Mat D_ref = (A * B) * E;
 
-  RealScalar tol = RealScalar(2) * RealScalar(n) * NumTraits<Scalar>::epsilon() * D_ref.norm();
+  Mat C_ref = A * B;
+  RealScalar tol =
+      gemm_error_bound<Scalar>(n, A.norm(), B.norm()) * E.norm() + gemm_error_bound<Scalar>(n, C_ref.norm(), E.norm());
   VERIFY((D - D_ref).norm() < tol);
 }
 
@@ -401,7 +429,7 @@ void test_llt_solve_expr(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / B.norm();
-  VERIFY(residual < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- LLT solve with explicit context ----------------------------------------
@@ -423,7 +451,7 @@ void test_llt_solve_expr_context(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / B.norm();
-  VERIFY(residual < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- LU solve expression: d_X = d_A.lu().solve(d_B) ------------------------
@@ -444,7 +472,7 @@ void test_lu_solve_expr(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
-  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- GEMM + solver chain: C = A * B, X = C.llt().solve(D) ------------------
@@ -474,7 +502,7 @@ void test_gemm_then_solve(Index n) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (C * X - D).norm() / D.norm();
-  VERIFY(residual < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- LLT solve with Upper triangle -----------------------------------------
@@ -495,7 +523,7 @@ void test_llt_solve_upper(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / B.norm();
-  VERIFY(residual < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- LU solve with explicit context -----------------------------------------
@@ -517,7 +545,7 @@ void test_lu_solve_expr_context(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
-  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- Zero-nrhs solver expressions ------------------------------------------
@@ -581,7 +609,7 @@ void test_trsm(Index n, Index nrhs) {
 
   Mat X = d_X.toHost();
   RealScalar residual = (A * X - B).norm() / B.norm();
-  VERIFY(residual < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(residual < RealScalar(n) * gpu_unit_roundoff<Scalar>());
 }
 
 // ---- SYMM/HEMM: selfadjointView<UpLo>() * B --------------------------------
@@ -603,7 +631,7 @@ void test_symm(Index n, Index nrhs) {
   Mat C = d_C.toHost();
   Mat C_ref = A * B;  // A is symmetric, so full multiply == symm
 
-  RealScalar tol = RealScalar(n) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(n, A.norm(), B.norm());
   VERIFY((C - C_ref).norm() < tol);
 }
 
@@ -629,7 +657,7 @@ void test_syrk(Index n, Index k) {
   Mat C_lower = C.template triangularView<Lower>();
   Mat C_ref_lower = C_ref.template triangularView<Lower>();
 
-  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  RealScalar tol = gemm_error_bound<Scalar>(k, A.norm(), A.norm());
   VERIFY((C_lower - C_ref_lower).norm() < tol);
 }
 

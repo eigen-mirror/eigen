@@ -58,8 +58,8 @@ void dispatch_gemm(
 
   eigen_assert(k == rhs_k && "DeviceMatrix GEMM dimension mismatch");
 
-  const int64_t lda = A.outerStride();
-  const int64_t ldb = B.outerStride();
+  const int64_t lda = A.rows();
+  const int64_t ldb = B.rows();
 
   // Serialize all accesses to the destination buffer on this stream.
   if (!dst.empty()) {
@@ -71,9 +71,13 @@ void dispatch_gemm(
   if (resized) {
     dst.resize(m, n);
   }
-  const int64_t ldc = dst.outerStride();
+  const int64_t ldc = dst.rows();
 
-  Scalar alpha_val = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());
+  // cuBLAS requires alpha/beta as float for half/bfloat16 inputs.
+  using GemmScalar = typename cuda_gemm_scalar<Scalar>::type;
+  GemmScalar alpha_gval =
+      static_cast<GemmScalar>(alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs()));
+  GemmScalar beta_gval = static_cast<GemmScalar>(beta_val);
 
   // Wait for operands to be ready on this stream.
   A.waitReady(ctx.stream());
@@ -81,7 +85,7 @@ void dispatch_gemm(
 
   // If there is no existing valid destination to accumulate into, treat it as
   // zero rather than reading uninitialized memory.
-  if (resized && beta_val != Scalar(0) && dst.sizeInBytes() > 0) {
+  if (resized && beta_gval != GemmScalar(0) && dst.sizeInBytes() > 0) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
@@ -89,9 +93,9 @@ void dispatch_gemm(
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
 
   EIGEN_CUBLAS_CHECK(cublasGemmEx(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
-                                  static_cast<int>(k), &alpha_val, A.data(), dtype, static_cast<int>(lda), B.data(),
-                                  dtype, static_cast<int>(ldb), &beta_val, dst.data(), dtype, static_cast<int>(ldc),
-                                  compute, CUBLAS_GEMM_DEFAULT));
+                                  static_cast<int>(k), &alpha_gval, A.data(), dtype, static_cast<int>(lda), B.data(),
+                                  dtype, static_cast<int>(ldb), &beta_gval, dst.data(), dtype, static_cast<int>(ldc),
+                                  compute, cuda_gemm_algo()));
 
   dst.recordReady(ctx.stream());
 }
@@ -125,9 +129,9 @@ void dispatch_llt_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LltSol
 
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasFillMode_t uplo = cusolver_fill_mode<UpLo, ColMajor>::value;
-  const int64_t lda = static_cast<int64_t>(A.outerStride());
-  const int64_t ldb = static_cast<int64_t>(B.outerStride());
-  eigen_assert(ldb == static_cast<int64_t>(B.rows()) && "DeviceMatrix must be densely packed");
+  const int64_t lda = static_cast<int64_t>(A.rows());
+  const int64_t ldb = static_cast<int64_t>(B.rows());
+
   const size_t mat_bytes = static_cast<size_t>(lda) * static_cast<size_t>(n) * sizeof(Scalar);
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
@@ -163,7 +167,7 @@ void dispatch_llt_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LltSol
   // Solve.
   DeviceBuffer d_solve_info(sizeof(int));
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), nrhs, dtype,
-                                        d_factor.ptr, lda, dtype, dst.data(), static_cast<int64_t>(dst.outerStride()),
+                                        d_factor.ptr, lda, dtype, dst.data(), static_cast<int64_t>(dst.rows()),
                                         static_cast<int*>(d_solve_info.ptr)));
 
   // Sync to ensure workspace locals can be freed safely.
@@ -201,9 +205,9 @@ void dispatch_lu_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LuSolve
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-  const int64_t lda = static_cast<int64_t>(A.outerStride());
-  const int64_t ldb = static_cast<int64_t>(B.outerStride());
-  eigen_assert(ldb == static_cast<int64_t>(B.rows()) && "DeviceMatrix must be densely packed");
+  const int64_t lda = static_cast<int64_t>(A.rows());
+  const int64_t ldb = static_cast<int64_t>(B.rows());
+
   const size_t mat_bytes = static_cast<size_t>(lda) * static_cast<size_t>(n) * sizeof(Scalar);
   const size_t rhs_bytes = static_cast<size_t>(ldb) * static_cast<size_t>(nrhs) * sizeof(Scalar);
   const size_t ipiv_bytes = static_cast<size_t>(n) * sizeof(int64_t);
@@ -245,7 +249,7 @@ void dispatch_lu_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LuSolve
   DeviceBuffer d_solve_info(sizeof(int));
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, static_cast<int64_t>(n), nrhs,
                                         dtype, d_lu.ptr, lda, static_cast<const int64_t*>(d_ipiv.ptr), dtype,
-                                        dst.data(), static_cast<int64_t>(dst.outerStride()),
+                                        dst.data(), static_cast<int64_t>(dst.rows()),
                                         static_cast<int*>(d_solve_info.ptr)));
 
   // Sync to ensure workspace locals can be freed safely.
@@ -285,15 +289,15 @@ void dispatch_trsm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Sc
 
   // D2D copy B → dst (trsm is in-place on the RHS).
   dst.resize(n, B.cols());
-  const size_t rhs_bytes = static_cast<size_t>(dst.outerStride()) * static_cast<size_t>(nrhs) * sizeof(Scalar);
+  const size_t rhs_bytes = static_cast<size_t>(dst.rows()) * static_cast<size_t>(nrhs) * sizeof(Scalar);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
   Scalar alpha(1);
 
   EIGEN_CUBLAS_CHECK(cublasXtrsm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, n, nrhs,
-                                 &alpha, A.data(), static_cast<int>(A.outerStride()), dst.data(),
-                                 static_cast<int>(dst.outerStride())));
+                                 &alpha, A.data(), static_cast<int>(A.rows()), dst.data(),
+                                 static_cast<int>(dst.rows())));
 
   dst.recordReady(ctx.stream());
 }
@@ -329,8 +333,8 @@ void dispatch_symm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Sc
   Scalar alpha(1), beta(0);
 
   EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &alpha, A.data(),
-                                 static_cast<int>(A.outerStride()), B.data(), static_cast<int>(B.outerStride()), &beta,
-                                 dst.data(), static_cast<int>(dst.outerStride())));
+                                 static_cast<int>(A.rows()), B.data(), static_cast<int>(B.rows()), &beta, dst.data(),
+                                 static_cast<int>(dst.rows())));
 
   dst.recordReady(ctx.stream());
 }
@@ -367,8 +371,7 @@ void dispatch_syrk(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Sc
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
 
   EIGEN_CUBLAS_CHECK(cublasXsyrk(ctx.cublasHandle(), uplo, CUBLAS_OP_N, n, k, &alpha_val, A.data(),
-                                 static_cast<int>(A.outerStride()), &beta_val, dst.data(),
-                                 static_cast<int>(dst.outerStride())));
+                                 static_cast<int>(A.rows()), &beta_val, dst.data(), static_cast<int>(dst.rows())));
 
   dst.recordReady(ctx.stream());
 }

@@ -47,6 +47,9 @@
 #include "src/GPU/DeviceDispatch.h"
 #include "src/GPU/GpuLLT.h"
 #include "src/GPU/GpuLU.h"
+#include "src/GPU/GpuQR.h"
+#include "src/GPU/GpuSVD.h"
+#include "src/GPU/GpuEigenSolver.h"
 // IWYU pragma: end_exports
 #endif
 

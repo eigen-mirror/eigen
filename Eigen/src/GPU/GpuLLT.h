@@ -149,7 +149,7 @@ class GpuLLT {
 
     // Evaluate A into a contiguous ColMajor matrix (handles arbitrary expressions).
     const PlainMatrix mat(A.derived());
-    lda_ = static_cast<int64_t>(mat.outerStride());
+    lda_ = static_cast<int64_t>(mat.rows());
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_factor_.ptr, mat.data(), factorBytes(), cudaMemcpyHostToDevice, stream_));
@@ -163,7 +163,7 @@ class GpuLLT {
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
-    lda_ = static_cast<int64_t>(d_A.outerStride());
+    lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(stream_);
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
@@ -178,7 +178,7 @@ class GpuLLT {
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
-    lda_ = static_cast<int64_t>(d_A.outerStride());
+    lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(stream_);
     d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
 
@@ -205,7 +205,7 @@ class GpuLLT {
 
     const PlainMatrix rhs(B);
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
-    const int64_t ldb = static_cast<int64_t>(rhs.outerStride());
+    const int64_t ldb = static_cast<int64_t>(rhs.rows());
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, [&](Scalar* d_x_ptr) {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_x_ptr, rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
@@ -234,7 +234,7 @@ class GpuLLT {
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
-    const int64_t ldb = static_cast<int64_t>(d_B.outerStride());
+    const int64_t ldb = static_cast<int64_t>(d_B.rows());
     return solve_impl(nrhs, ldb, [&](Scalar* d_x_ptr) {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_x_ptr, d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
@@ -332,7 +332,7 @@ class GpuLLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, static_cast<int64_t>(n_), nrhs, dtype,
                                           d_factor_.ptr, lda_, dtype, d_x_ptr, ldb, scratch_info()));
 
-    DeviceMatrix<Scalar> result(d_x_ptr, n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
+    DeviceMatrix<Scalar> result(d_x_ptr, n_, static_cast<Index>(nrhs));
     result.recordReady(stream_);
     return result;
   }

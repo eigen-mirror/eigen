@@ -140,7 +140,7 @@ class GpuLU {
     if (!begin_compute(A.rows())) return *this;
 
     const PlainMatrix mat(A.derived());
-    lda_ = static_cast<int64_t>(mat.outerStride());
+    lda_ = static_cast<int64_t>(mat.rows());
     allocate_lu_storage();
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu_.ptr, mat.data(), matrixBytes(), cudaMemcpyHostToDevice, stream_));
 
@@ -153,7 +153,7 @@ class GpuLU {
     eigen_assert(d_A.rows() == d_A.cols() && "GpuLU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
-    lda_ = static_cast<int64_t>(d_A.outerStride());
+    lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(stream_);
     allocate_lu_storage();
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_lu_.ptr, d_A.data(), matrixBytes(), cudaMemcpyDeviceToDevice, stream_));
@@ -167,7 +167,7 @@ class GpuLU {
     eigen_assert(d_A.rows() == d_A.cols() && "GpuLU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
-    lda_ = static_cast<int64_t>(d_A.outerStride());
+    lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(stream_);
     d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
 
@@ -190,7 +190,7 @@ class GpuLU {
 
     const PlainMatrix rhs(B);
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
-    const int64_t ldb = static_cast<int64_t>(rhs.outerStride());
+    const int64_t ldb = static_cast<int64_t>(rhs.rows());
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, mode, [&](Scalar* d_x_ptr) {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_x_ptr, rhs.data(), matrixBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
@@ -213,7 +213,7 @@ class GpuLU {
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
-    const int64_t ldb = static_cast<int64_t>(d_B.outerStride());
+    const int64_t ldb = static_cast<int64_t>(d_B.rows());
     return solve_impl(nrhs, ldb, mode, [&](Scalar* d_x_ptr) {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_x_ptr, d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
@@ -305,7 +305,7 @@ class GpuLU {
                                           lda_, static_cast<const int64_t*>(d_ipiv_.ptr), dtype, d_x_ptr, ldb,
                                           scratch_info()));
 
-    DeviceMatrix<Scalar> result(d_x_ptr, n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
+    DeviceMatrix<Scalar> result(d_x_ptr, n_, static_cast<Index>(nrhs));
     result.recordReady(stream_);
     return result;
   }
