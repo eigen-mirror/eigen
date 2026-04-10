@@ -161,6 +161,38 @@ inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cubla
                      reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
+// GEAM wrappers: C = alpha * op(A) + beta * op(B)
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const float* alpha, const float* A, int lda, const float* beta, const float* B,
+                                  int ldb, float* C, int ldc) {
+  return cublasSgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const double* alpha, const double* A, int lda, const double* beta, const double* B,
+                                  int ldb, double* C, int ldc) {
+  return cublasDgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  const std::complex<float>* beta, const std::complex<float>* B, int ldb,
+                                  std::complex<float>* C, int ldc) {
+  cuComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasCgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda, &b,
+                     reinterpret_cast<const cuComplex*>(B), ldb, reinterpret_cast<cuComplex*>(C), ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  const std::complex<double>* beta, const std::complex<double>* B, int ldb,
+                                  std::complex<double>* C, int ldc) {
+  cuDoubleComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasZgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda, &b,
+                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
 // SYRK wrappers (real → syrk, complex → herk)
 inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
                                   const float* alpha, const float* A, int lda, const float* beta, float* C, int ldc) {

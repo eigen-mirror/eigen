@@ -529,7 +529,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     # compiler and linked against CUDA runtime + cuSOLVER. This avoids NVCC
     # instantiating Eigen's CPU packet operations for CUDA vector types.
     unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-    foreach(_cusolver_test IN ITEMS gpu_cusolver_llt gpu_cusolver_lu)
+    foreach(_cusolver_test IN ITEMS gpu_cusolver_llt gpu_cusolver_lu gpu_cusolver_qr gpu_cusolver_svd gpu_cusolver_eigen)
       add_executable(${_cusolver_test} ${_cusolver_test}.cpp)
       target_include_directories(${_cusolver_test} PRIVATE
         "${CUDA_TOOLKIT_ROOT_DIR}/include"
