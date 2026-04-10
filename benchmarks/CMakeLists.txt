@@ -43,3 +43,10 @@ add_subdirectory(Householder)
 add_subdirectory(Solvers)
 add_subdirectory(Tuning)
 add_subdirectory(BLAS)
+
+# GPU benchmarks have their own CMake project (needs CUDAToolkit).
+# They can also be built standalone: cmake -B build -S benchmarks/GPU
+find_package(CUDAToolkit QUIET)
+if(CUDAToolkit_FOUND)
+  add_subdirectory(GPU)
+endif()

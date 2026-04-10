@@ -479,6 +479,78 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
+  ei_add_test(gpu_library_example "" "CUDA::cusolver")
+
+  # DeviceMatrix tests: only CUDA runtime, no NVIDIA libraries.
+  unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+  add_executable(gpu_device_matrix gpu_device_matrix.cpp)
+  target_include_directories(gpu_device_matrix PRIVATE
+    "${CUDA_TOOLKIT_ROOT_DIR}/include"
+    "${CMAKE_CURRENT_BINARY_DIR}")
+  target_link_libraries(gpu_device_matrix Eigen3::Eigen CUDA::cudart)
+  target_compile_definitions(gpu_device_matrix PRIVATE
+    EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+    EIGEN_TEST_PART_ALL=1)
+  add_test(NAME gpu_device_matrix COMMAND gpu_device_matrix)
+  add_dependencies(buildtests gpu_device_matrix)
+  add_dependencies(buildtests_gpu gpu_device_matrix)
+  set_property(TEST gpu_device_matrix APPEND PROPERTY LABELS "Official;gpu")
+  set_property(TEST gpu_device_matrix PROPERTY SKIP_RETURN_CODE 77)
+  set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+
+  # Library-specific GPU tests (activated by later phases, OFF by default).
+  # CUDAToolkit imported targets (CUDA::cublas, etc.) are available from
+  # find_package(CUDAToolkit) above.
+  option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
+  if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
+    # cuBLAS tests are plain .cpp files (no device code), like cuSOLVER tests.
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    add_executable(gpu_cublas gpu_cublas.cpp)
+    target_include_directories(gpu_cublas PRIVATE
+      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(gpu_cublas
+      Eigen3::Eigen CUDA::cudart CUDA::cublas CUDA::cusolver)
+    target_compile_definitions(gpu_cublas PRIVATE
+      EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+      EIGEN_TEST_PART_ALL=1)
+    add_test(NAME gpu_cublas COMMAND gpu_cublas)
+    add_dependencies(buildtests gpu_cublas)
+    add_dependencies(buildtests_gpu gpu_cublas)
+    set_property(TEST gpu_cublas APPEND PROPERTY LABELS "Official;gpu")
+    set_property(TEST gpu_cublas PROPERTY SKIP_RETURN_CODE 77)
+    set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+  endif()
+
+  option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
+  if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
+    # cuSOLVER tests are plain .cpp files: no device code, compiled by the host
+    # compiler and linked against CUDA runtime + cuSOLVER. This avoids NVCC
+    # instantiating Eigen's CPU packet operations for CUDA vector types.
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    foreach(_cusolver_test IN ITEMS gpu_cusolver_llt gpu_cusolver_lu)
+      add_executable(${_cusolver_test} ${_cusolver_test}.cpp)
+      target_include_directories(${_cusolver_test} PRIVATE
+        "${CUDA_TOOLKIT_ROOT_DIR}/include"
+        "${CMAKE_CURRENT_BINARY_DIR}")
+      target_link_libraries(${_cusolver_test}
+        Eigen3::Eigen CUDA::cudart CUDA::cusolver CUDA::cublas)
+      target_compile_definitions(${_cusolver_test} PRIVATE
+        EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+        EIGEN_TEST_PART_ALL=1)
+      add_test(NAME ${_cusolver_test} COMMAND "${_cusolver_test}")
+      add_dependencies(buildtests ${_cusolver_test})
+      add_dependencies(buildtests_gpu ${_cusolver_test})
+      set_property(TEST ${_cusolver_test} APPEND PROPERTY LABELS "Official;gpu")
+      set_property(TEST ${_cusolver_test} PROPERTY SKIP_RETURN_CODE 77)
+    endforeach()
+    set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+  endif()
+
+  option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
+  if(EIGEN_TEST_CUSPARSE AND TARGET CUDA::cusparse)
+    ei_add_test(gpu_cusparse "" "CUDA::cusparse")
+  endif()
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
