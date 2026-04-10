@@ -1,0 +1,206 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// Copyright (C) 2026 Eigen Authors
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+// Tests for GpuLU: GPU partial-pivoting LU decomposition via cuSOLVER.
+// Covers cusolverDnXgetrf (factorization) and cusolverDnXgetrs (solve)
+// for float, double, complex<float>, complex<double>.
+//
+#define EIGEN_USE_GPU
+#include "main.h"
+#include <Eigen/LU>
+#include <Eigen/GPU>
+
+using namespace Eigen;
+
+// ---- Test factorization + NoTrans solve: residual ||A*X - B|| / ||B|| -------
+
+template <typename Scalar>
+void test_getrf(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 4);
+
+  GpuLU<Scalar> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+
+  MatrixType X = lu.solve(B);
+  // Backward error bound for LU: ||A*X - B|| <= O(n*u) * ||A|| * ||X||.
+  // Normalize by ||A||*||X|| rather than ||B|| to be condition-number agnostic.
+  RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+}
+
+// ---- Test solve: A^T*X = B and A^H*X = B ------------------------------------
+
+template <typename Scalar>
+void test_getrs_trans(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 3);
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  GpuLU<Scalar> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+
+  MatrixType Xt = lu.solve(B, GpuLU<Scalar>::Transpose);
+  VERIFY((A.transpose() * Xt - B).norm() / (A.norm() * Xt.norm()) < tol);
+
+  MatrixType Xc = lu.solve(B, GpuLU<Scalar>::ConjugateTranspose);
+  VERIFY((A.adjoint() * Xc - B).norm() / (A.norm() * Xc.norm()) < tol);
+}
+
+// ---- Test multiple solves reuse the device-resident LU ----------------------
+
+template <typename Scalar>
+void test_multiple_solves(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  GpuLU<Scalar> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  for (int k = 0; k < 5; ++k) {
+    MatrixType B = MatrixType::Random(n, 3);
+    MatrixType X = lu.solve(B);
+    VERIFY((A * X - B).norm() / (A.norm() * X.norm()) < tol);
+  }
+}
+
+// ---- Agreement with CPU PartialPivLU ----------------------------------------
+
+template <typename Scalar>
+void test_vs_cpu(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 5);
+
+  GpuLU<Scalar> gpu_lu(A);
+  VERIFY_IS_EQUAL(gpu_lu.info(), Success);
+
+  MatrixType X_gpu = gpu_lu.solve(B);
+  MatrixType X_cpu = PartialPivLU<MatrixType>(A).solve(B);
+
+  RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((X_gpu - X_cpu).norm() / X_cpu.norm() < tol);
+}
+
+// ---- Singular matrix detection ----------------------------------------------
+
+void test_singular() {
+  MatrixXd A = MatrixXd::Zero(8, 8);
+  GpuLU<double> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
+}
+
+// ---- DeviceMatrix integration tests -----------------------------------------
+
+template <typename Scalar>
+void test_device_matrix_solve(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 4);
+
+  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+
+  GpuLU<Scalar> lu;
+  lu.compute(d_A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+
+  DeviceMatrix<Scalar> d_X = lu.solve(d_B);
+  MatrixType X = d_X.toHost();
+
+  RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+}
+
+template <typename Scalar>
+void test_device_matrix_move_compute(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 1);
+
+  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
+  GpuLU<Scalar> lu;
+  lu.compute(std::move(d_A));
+  VERIFY_IS_EQUAL(lu.info(), Success);
+  VERIFY(d_A.empty());
+
+  MatrixType X = lu.solve(B);
+  RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+}
+
+template <typename Scalar>
+void test_chaining(Index n) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  MatrixType A = MatrixType::Random(n, n);
+  MatrixType B = MatrixType::Random(n, 3);
+
+  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+
+  GpuLU<Scalar> lu;
+  lu.compute(d_A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+
+  // Chain: solve → use result as RHS
+  DeviceMatrix<Scalar> d_X = lu.solve(d_B);
+  DeviceMatrix<Scalar> d_Y = lu.solve(d_X);
+  MatrixType Y = d_Y.toHost();
+
+  MatrixType X_ref = PartialPivLU<MatrixType>(A).solve(B);
+  MatrixType Y_ref = PartialPivLU<MatrixType>(A).solve(X_ref);
+
+  RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon() * Y_ref.norm();
+  VERIFY((Y - Y_ref).norm() < tol);
+}
+
+// ---- Per-scalar driver -------------------------------------------------------
+
+template <typename Scalar>
+void test_scalar() {
+  CALL_SUBTEST(test_getrf<Scalar>(1));
+  CALL_SUBTEST(test_getrf<Scalar>(64));
+  CALL_SUBTEST(test_getrf<Scalar>(256));
+
+  CALL_SUBTEST(test_getrs_trans<Scalar>(64));
+  CALL_SUBTEST(test_getrs_trans<Scalar>(128));
+
+  CALL_SUBTEST(test_multiple_solves<Scalar>(128));
+
+  CALL_SUBTEST(test_vs_cpu<Scalar>(64));
+  CALL_SUBTEST(test_vs_cpu<Scalar>(256));
+
+  CALL_SUBTEST(test_device_matrix_solve<Scalar>(64));
+  CALL_SUBTEST(test_device_matrix_move_compute<Scalar>(64));
+  CALL_SUBTEST(test_chaining<Scalar>(64));
+}
+
+EIGEN_DECLARE_TEST(gpu_cusolver_lu) {
+  CALL_SUBTEST(test_scalar<float>());
+  CALL_SUBTEST(test_scalar<double>());
+  CALL_SUBTEST(test_scalar<std::complex<float>>());
+  CALL_SUBTEST(test_scalar<std::complex<double>>());
+  CALL_SUBTEST(test_singular());
+}
