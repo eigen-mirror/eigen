@@ -265,23 +265,23 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
-# GCC-10, CUDA-12.2
-test:linux:cuda-12.2:gcc-10:
+# GCC-11, CUDA-12.2
+test:linux:cuda-12.2:gcc-11:
   extends: .test:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
-  needs: [ build:linux:cuda-12.2:gcc-10 ]
+  image: nvidia/cuda:12.2.0-devel-ubuntu22.04
+  needs: [ build:linux:cuda-12.2:gcc-11 ]
   variables:
-    EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_CC_COMPILER: gcc-10
+    EIGEN_CI_CXX_COMPILER: g++-11
+    EIGEN_CI_CC_COMPILER: gcc-11
 
-# Clang-12, CUDA-12.2
-test:linux:cuda-12.2:clang-12:
+# Clang-14, CUDA-12.2
+test:linux:cuda-12.2:clang-14:
   extends: .test:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
-  needs: [ build:linux:cuda-12.2:clang-12 ]
+  image: nvidia/cuda:12.2.0-devel-ubuntu22.04
+  needs: [ build:linux:cuda-12.2:clang-14 ]
   variables:
-    EIGEN_CI_CXX_COMPILER: clang++-12
-    EIGEN_CI_CC_COMPILER: clang-12
+    EIGEN_CI_CXX_COMPILER: clang++-14
+    EIGEN_CI_CC_COMPILER: clang-14
 
 
 ##### arm ######################################################################

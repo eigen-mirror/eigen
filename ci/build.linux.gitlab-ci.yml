@@ -211,20 +211,20 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# GCC-10, CUDA-12.2
-build:linux:cuda-12.2:gcc-10:
+# GCC-11, CUDA-12.2
+build:linux:cuda-12.2:gcc-11:
   extends: .build:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
+  image: nvidia/cuda:12.2.0-devel-ubuntu22.04
   variables:
-    EIGEN_CI_C_COMPILER: gcc-10
-    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_C_COMPILER: gcc-11
+    EIGEN_CI_CXX_COMPILER: g++-11
 
-# Clang-12, CUDA-12.2
-build:linux:cuda-12.2:clang-12:
-  extends: build:linux:cuda-12.2:gcc-10
+# Clang-14, CUDA-12.2
+build:linux:cuda-12.2:clang-14:
+  extends: build:linux:cuda-12.2:gcc-11
   variables:
-    EIGEN_CI_C_COMPILER: clang-12
-    EIGEN_CI_CXX_COMPILER: clang++-12
+    EIGEN_CI_C_COMPILER: clang-14
+    EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
 
 
