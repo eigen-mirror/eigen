@@ -53,6 +53,16 @@ template <typename>
 class DeviceAssignment;
 template <typename, typename>
 class GemmExpr;
+template <typename>
+class DeviceScaled;
+template <typename>
+class SpMVExpr;
+template <typename>
+class DeviceAddExpr;
+template <typename>
+class DeviceScaledDevice;
+template <typename>
+class DeviceScalar;
 template <typename, int>
 class LltSolveExpr;
 template <typename>
@@ -170,12 +180,24 @@ template <typename Scalar_>
 class DeviceMatrix {
  public:
   using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using PlainObject = DeviceMatrix;  // owning type (for CG template compatibility)
   using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   // ---- Construction / destruction ------------------------------------------
 
   /** Default: empty (0x0, no allocation). */
   DeviceMatrix() = default;
+
+  /** Allocate uninitialized column vector of given size.
+   * Matches Matrix<Scalar,Dynamic,1>(n) for CG template compatibility. */
+  explicit DeviceMatrix(Index n) : rows_(n), cols_(1) {
+    eigen_assert(n >= 0);
+    size_t bytes = sizeInBytes();
+    if (bytes > 0) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_), bytes));
+    }
+  }
 
   /** Allocate uninitialized device memory for a rows x cols matrix. */
   DeviceMatrix(Index rows, Index cols) : rows_(rows), cols_(cols) {
@@ -445,6 +467,104 @@ class DeviceMatrix {
   /** Assign from a SYMM expression (thread-local default context). */
   template <int UpLo>
   DeviceMatrix& operator=(const SymmExpr<Scalar, UpLo>& expr);
+
+  // ---- BLAS Level-1 operations ----------------------------------------------
+  // DeviceMatrix is always dense (lda == rows), so a vector is simply a
+  // DeviceMatrix with cols == 1. These BLAS-1 methods operate on the flat
+  // rows*cols element array, making them work for both vectors and matrices.
+  //
+  // All methods take an explicit GpuContext& for stream/handle control.
+  // When everything uses the same context, event waits are skipped (same-stream).
+  // Defined out-of-line in DeviceDispatch.h (needs GpuContext).
+
+  /** Dot product: this^H * other. Returns DeviceScalar — the result stays
+   * on device until read via implicit conversion to Scalar (which syncs).
+   * When used with `auto`, no sync occurs until the value is needed. */
+  DeviceScalar<Scalar> dot(GpuContext& ctx, const DeviceMatrix& other) const;
+
+  /** Squared L2 norm via dot(x, x). Returns DeviceScalar (no sync until read).
+   * For real types, the result stays on device. For complex types, falls back
+   * to host sync (DeviceScalar arithmetic is real-only). */
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(GpuContext& ctx) const;
+
+  /** L2 norm. Returns DeviceScalar (no host sync). */
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm(GpuContext& ctx) const;
+
+  /** Set all elements to zero. */
+  void setZero(GpuContext& ctx);
+
+  /** this += alpha * x (cuBLAS axpy). Requires same total size. */
+  void addScaled(GpuContext& ctx, Scalar alpha, const DeviceMatrix& x);
+
+  /** this *= alpha (cuBLAS scal). */
+  void scale(GpuContext& ctx, Scalar alpha);
+
+  /** Deep copy: this = other (cuBLAS copy). Resizes if needed. */
+  void copyFrom(GpuContext& ctx, const DeviceMatrix& other);
+
+  // Convenience overloads using the thread-local default GpuContext.
+  DeviceScalar<Scalar> dot(const DeviceMatrix& other) const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm() const;
+  DeviceScalar<typename NumTraits<Scalar>::Real> norm() const;
+  void setZero();
+
+  // ---- BLAS-1 operator overloads for CG/iterative solver compatibility ------
+  // These allow CG code like `x += alpha * p` to work with DeviceMatrix.
+  // `alpha * DeviceMatrix` already returns `DeviceScaled<DeviceMatrix<Scalar>>`
+  // (defined in DeviceExpr.h). These operators dispatch to cuBLAS axpy/scal.
+  // Defined out-of-line in DeviceDispatch.h.
+
+  /** this += alpha * x (cuBLAS axpy). For `x += alpha * p`. */
+  DeviceMatrix& operator+=(const DeviceScaled<DeviceMatrix>& expr);
+
+  /** this -= alpha * x (cuBLAS axpy with negated alpha). For `r -= alpha * tmp`. */
+  DeviceMatrix& operator-=(const DeviceScaled<DeviceMatrix>& expr);
+
+  /** this += x (cuBLAS axpy with alpha=1). */
+  DeviceMatrix& operator+=(const DeviceMatrix& other);
+
+  /** this -= x (cuBLAS axpy with alpha=-1). */
+  DeviceMatrix& operator-=(const DeviceMatrix& other);
+
+  /** this *= alpha (cuBLAS scal, host pointer mode). For `p *= beta`. */
+  DeviceMatrix& operator*=(Scalar alpha);
+
+  /** this *= alpha (cuBLAS scal, device pointer mode). Avoids host sync. */
+  DeviceMatrix& operator*=(const DeviceScalar<Scalar>& alpha);
+
+  /** Element-wise product: result[i] = this[i] * other[i] (NPP nppsMul).
+   * Returns a new DeviceMatrix. Defined out-of-line in DeviceDispatch.h. */
+  DeviceMatrix cwiseProduct(GpuContext& ctx, const DeviceMatrix& other) const;
+
+  /** In-place element-wise product: this[i] = a[i] * b[i] (NPP nppsMul).
+   * Reuses this matrix's buffer when sizes match, avoiding cudaMalloc. */
+  void cwiseProduct(GpuContext& ctx, const DeviceMatrix& a, const DeviceMatrix& b);
+
+  /** this += DeviceScalar * x (cuBLAS axpy with POINTER_MODE_DEVICE). */
+  DeviceMatrix& operator+=(const DeviceScaledDevice<Scalar>& expr);
+
+  /** this -= DeviceScalar * x (cuBLAS axpy with negated device scalar). */
+  DeviceMatrix& operator-=(const DeviceScaledDevice<Scalar>& expr);
+
+  /** Assign from an SpMV expression: d_y = d_A * d_x. */
+  DeviceMatrix& operator=(const SpMVExpr<Scalar>& expr);
+
+  /** Assign from an add expression: d_C = alpha * d_A + beta * d_B (cuBLAS geam). */
+  DeviceMatrix& operator=(const DeviceAddExpr<Scalar>& expr);
+
+  /** No-op — all DeviceMatrix operations are implicitly noalias.
+   *
+   * Unlike Eigen's Matrix, where omitting .noalias() triggers a copy to a
+   * temporary for safety, DeviceMatrix dispatches directly to NVIDIA library
+   * calls which have no built-in aliasing protection. Every assignment
+   * (`d_C = d_A * d_B`, `d_y = d_A * d_x`, etc.) behaves as if .noalias()
+   * were specified. The caller must ensure operands don't alias the
+   * destination for GEMM and SpMV. geam (`d_C = d_A + alpha * d_B`) is
+   * safe with aliasing. Debug asserts catch violations.
+   *
+   * This method exists so that `tmp.noalias() = mat * p` compiles for both
+   * Matrix and DeviceMatrix. */
+  DeviceMatrix& noalias() { return *this; }
 
  private:
   // ---- Private: adopt a raw device pointer (used by friend solvers) --------

@@ -18,6 +18,7 @@
 //   GpuSVD<double> svd(A, ComputeThinU | ComputeThinV);
 //   VectorXd S = svd.singularValues();
 //   MatrixXd U = svd.matrixU();       // m×k or m×m
+//   MatrixXd V = svd.matrixV();         // n×k or n×n (matches JacobiSVD)
 //   MatrixXd VT = svd.matrixVT();      // k×n or n×n (this is V^T)
 //   MatrixXd X = svd.solve(B);        // pseudoinverse
 //   MatrixXd X = svd.solve(B, k);     // truncated (top k triplets)
@@ -53,6 +54,7 @@ class GpuSVD {
 
   ~GpuSVD() {
     if (handle_) (void)cusolverDnDestroy(handle_);
+    if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -185,6 +187,10 @@ class GpuSVD {
     }
   }
 
+  /** Right singular vectors V. Returns n_orig × k or n_orig × n_orig.
+   * Equivalent to matrixVT().adjoint(). Matches Eigen's JacobiSVD::matrixV() API. */
+  PlainMatrix matrixV() const { return matrixVT().adjoint(); }
+
   /** Right singular vectors transposed V^T. Returns k × n_orig or n_orig × n_orig.
    * For transposed case, VT comes from cuSOLVER's U. */
   PlainMatrix matrixVT() const {
@@ -254,6 +260,8 @@ class GpuSVD {
   cudaStream_t stream_ = nullptr;
   cusolverDnHandle_t handle_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
+  cublasLtHandle_t cublas_lt_ = nullptr;
+  mutable internal::DeviceBuffer gemm_workspace_;
   internal::CusolverParams params_;
   internal::DeviceBuffer d_A_;        // working copy of A (overwritten by gesvd)
   internal::DeviceBuffer d_U_;        // left singular vectors
@@ -277,6 +285,7 @@ class GpuSVD {
     EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(handle_, stream_));
     EIGEN_CUBLAS_CHECK(cublasCreate(&cublas_));
     EIGEN_CUBLAS_CHECK(cublasSetStream(cublas_, stream_));
+    EIGEN_CUBLASLT_CHECK(cublasLtCreate(&cublas_lt_));
     ensure_scratch(0);
   }
 
@@ -410,23 +419,21 @@ class GpuSVD {
     internal::DeviceBuffer d_tmp(static_cast<size_t>(kk) * static_cast<size_t>(nrhs) * sizeof(Scalar));
     {
       Scalar alpha_one(1), beta_zero(0);
-      constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
-      constexpr cublasComputeType_t compute = internal::cuda_compute_type<Scalar>::value;
 
       if (!transposed_) {
         // U_stored^H * B: (m_×kk)^H × (m_×nrhs) → kk×nrhs.
-        EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(kk), static_cast<int>(nrhs),
-                                        static_cast<int>(m_), &alpha_one, d_U_.ptr, dtype, static_cast<int>(m_),
-                                        d_B.ptr, dtype, static_cast<int>(m_orig), &beta_zero, d_tmp.ptr, dtype,
-                                        static_cast<int>(kk), compute, internal::cuda_gemm_algo()));
+        internal::cublaslt_gemm<Scalar>(cublas_lt_, cublas_, CUBLAS_OP_C, CUBLAS_OP_N, kk, nrhs, m_, &alpha_one,
+                                        static_cast<const Scalar*>(d_U_.ptr), m_,
+                                        static_cast<const Scalar*>(d_B.ptr), m_orig, &beta_zero,
+                                        static_cast<Scalar*>(d_tmp.ptr), kk, &gemm_workspace_, stream_);
       } else {
         // VT_stored * B: VT_stored is vtrows×n_ = kk×m_orig (thin), NoTrans.
         // vtrows×m_orig times m_orig×nrhs → vtrows×nrhs. Use first kk rows.
         const Index vtrows_stored = (swap_uv_options(options_) & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(cublasGemmEx(
-            cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(kk), static_cast<int>(nrhs), static_cast<int>(m_orig),
-            &alpha_one, d_VT_.ptr, dtype, static_cast<int>(vtrows_stored), d_B.ptr, dtype, static_cast<int>(m_orig),
-            &beta_zero, d_tmp.ptr, dtype, static_cast<int>(kk), compute, internal::cuda_gemm_algo()));
+        internal::cublaslt_gemm<Scalar>(cublas_lt_, cublas_, CUBLAS_OP_N, CUBLAS_OP_N, kk, nrhs, m_orig, &alpha_one,
+                                        static_cast<const Scalar*>(d_VT_.ptr), vtrows_stored,
+                                        static_cast<const Scalar*>(d_B.ptr), m_orig, &beta_zero,
+                                        static_cast<Scalar*>(d_tmp.ptr), kk, &gemm_workspace_, stream_);
       }
     }
 
@@ -458,21 +465,19 @@ class GpuSVD {
     {
       internal::DeviceBuffer d_X(static_cast<size_t>(n_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
       Scalar alpha_one(1), beta_zero(0);
-      constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
-      constexpr cublasComputeType_t compute = internal::cuda_compute_type<Scalar>::value;
 
       if (!transposed_) {
         const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                        static_cast<int>(nrhs), static_cast<int>(kk), &alpha_one, d_VT_.ptr, dtype,
-                                        static_cast<int>(vtrows), d_tmp.ptr, dtype, static_cast<int>(kk), &beta_zero,
-                                        d_X.ptr, dtype, static_cast<int>(n_orig), compute, internal::cuda_gemm_algo()));
+        internal::cublaslt_gemm<Scalar>(cublas_lt_, cublas_, CUBLAS_OP_C, CUBLAS_OP_N, n_orig, nrhs, kk, &alpha_one,
+                                        static_cast<const Scalar*>(d_VT_.ptr), vtrows,
+                                        static_cast<const Scalar*>(d_tmp.ptr), kk, &beta_zero,
+                                        static_cast<Scalar*>(d_X.ptr), n_orig, &gemm_workspace_, stream_);
       } else {
         // U_stored is m_×ucols. V_orig = U_stored[:,:kk]. NoTrans × tmp.
-        EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                        static_cast<int>(nrhs), static_cast<int>(kk), &alpha_one, d_U_.ptr, dtype,
-                                        static_cast<int>(m_), d_tmp.ptr, dtype, static_cast<int>(kk), &beta_zero,
-                                        d_X.ptr, dtype, static_cast<int>(n_orig), compute, internal::cuda_gemm_algo()));
+        internal::cublaslt_gemm<Scalar>(cublas_lt_, cublas_, CUBLAS_OP_N, CUBLAS_OP_N, n_orig, nrhs, kk, &alpha_one,
+                                        static_cast<const Scalar*>(d_U_.ptr), m_,
+                                        static_cast<const Scalar*>(d_tmp.ptr), kk, &beta_zero,
+                                        static_cast<Scalar*>(d_X.ptr), n_orig, &gemm_workspace_, stream_);
       }
 
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.ptr,

@@ -481,13 +481,13 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   ei_add_test(gpu_basic)
   ei_add_test(gpu_library_example "" "CUDA::cusolver")
 
-  # DeviceMatrix tests: only CUDA runtime, no NVIDIA libraries.
+  # DeviceMatrix tests: CUDA runtime + cuBLAS + cuSOLVER (for BLAS-1 ops via GpuContext).
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
   add_executable(gpu_device_matrix gpu_device_matrix.cpp)
   target_include_directories(gpu_device_matrix PRIVATE
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
     "${CMAKE_CURRENT_BINARY_DIR}")
-  target_link_libraries(gpu_device_matrix Eigen3::Eigen CUDA::cudart)
+  target_link_libraries(gpu_device_matrix Eigen3::Eigen CUDA::cudart CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
   target_compile_definitions(gpu_device_matrix PRIVATE
     EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
     EIGEN_TEST_PART_ALL=1)
@@ -575,7 +575,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
       "${CUDA_TOOLKIT_ROOT_DIR}/include"
       "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(gpu_cusparse_spmv
-      Eigen3::Eigen CUDA::cudart CUDA::cusparse)
+      Eigen3::Eigen CUDA::cudart CUDA::cusparse CUDA::cublas CUDA::cusolver)
     target_compile_definitions(gpu_cusparse_spmv PRIVATE
       EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
       EIGEN_TEST_PART_ALL=1)
@@ -584,6 +584,23 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     add_dependencies(buildtests_gpu gpu_cusparse_spmv)
     set_property(TEST gpu_cusparse_spmv APPEND PROPERTY LABELS "Official;gpu")
     set_property(TEST gpu_cusparse_spmv PROPERTY SKIP_RETURN_CODE 77)
+
+    # End-to-end GPU CG test: Eigen's ConjugateGradient with DeviceMatrix.
+    add_executable(gpu_cg gpu_cg.cpp)
+    target_include_directories(gpu_cg PRIVATE
+      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(gpu_cg
+      Eigen3::Eigen CUDA::cudart CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+    target_compile_definitions(gpu_cg PRIVATE
+      EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+      EIGEN_TEST_PART_ALL=1)
+    add_test(NAME gpu_cg COMMAND gpu_cg)
+    add_dependencies(buildtests gpu_cg)
+    add_dependencies(buildtests_gpu gpu_cg)
+    set_property(TEST gpu_cg APPEND PROPERTY LABELS "Official;gpu")
+    set_property(TEST gpu_cg PROPERTY SKIP_RETURN_CODE 77)
+
     set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
   endif()
 

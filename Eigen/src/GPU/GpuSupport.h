@@ -21,6 +21,7 @@
 #include "./InternalHeaderCheck.h"
 
 #include <cuda_runtime.h>
+#include <vector>
 
 namespace Eigen {
 namespace internal {
@@ -36,26 +37,99 @@ namespace internal {
 
 // ---- RAII: device buffer ----------------------------------------------------
 
+// Thread-local pool of small device buffers to avoid cudaMalloc/cudaFree
+// overhead for tiny allocations (e.g., DeviceScalar). Buffers up to
+// kSmallBufferThreshold bytes are recycled; larger allocations bypass the pool.
+template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
+struct DeviceBufferPool {
+  static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
+  static constexpr size_t kMaxPoolSize = MaxPoolSize;
+
+  struct Entry {
+    void* ptr;
+    size_t bytes;
+  };
+
+  ~DeviceBufferPool() {
+    for (auto& e : free_list_) (void)cudaFree(e.ptr);
+  }
+
+  void* allocate(size_t bytes) {
+    // Search for a buffer of sufficient size.
+    for (size_t i = 0; i < free_list_.size(); ++i) {
+      if (free_list_[i].bytes >= bytes) {
+        void* p = free_list_[i].ptr;
+        free_list_[i] = free_list_.back();
+        free_list_.pop_back();
+        return p;
+      }
+    }
+    // No suitable buffer found — allocate new.
+    void* p = nullptr;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+    return p;
+  }
+
+  void deallocate(void* p, size_t bytes) {
+    if (free_list_.size() < kMaxPoolSize) {
+      free_list_.push_back({p, bytes});
+    } else {
+      (void)cudaFree(p);
+    }
+  }
+
+  static DeviceBufferPool& threadLocal() {
+    thread_local DeviceBufferPool pool;
+    return pool;
+  }
+
+ private:
+  std::vector<Entry> free_list_;
+};
+
 struct DeviceBuffer {
   void* ptr = nullptr;
 
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) {
-    if (bytes > 0) EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&ptr, bytes));
+  explicit DeviceBuffer(size_t bytes) : size_(bytes) {
+    if (bytes > 0) {
+      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold) {
+        ptr = DeviceBufferPool<>::threadLocal().allocate(bytes);
+      } else {
+        EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&ptr, bytes));
+      }
+    }
   }
 
   ~DeviceBuffer() {
-    if (ptr) (void)cudaFree(ptr);  // destructor: ignore errors
+    if (ptr) {
+      if (size_ <= DeviceBufferPool<>::kSmallBufferThreshold) {
+        DeviceBufferPool<>::threadLocal().deallocate(ptr, size_);
+      } else {
+        (void)cudaFree(ptr);
+      }
+    }
   }
 
   // Move-only.
-  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr(o.ptr) { o.ptr = nullptr; }
+  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr(o.ptr), size_(o.size_) {
+    o.ptr = nullptr;
+    o.size_ = 0;
+  }
   DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
     if (this != &o) {
-      if (ptr) (void)cudaFree(ptr);
+      if (ptr) {
+        if (size_ <= DeviceBufferPool<>::kSmallBufferThreshold) {
+          DeviceBufferPool<>::threadLocal().deallocate(ptr, size_);
+        } else {
+          (void)cudaFree(ptr);
+        }
+      }
       ptr = o.ptr;
+      size_ = o.size_;
       o.ptr = nullptr;
+      o.size_ = 0;
     }
     return *this;
   }
@@ -63,12 +137,19 @@ struct DeviceBuffer {
   DeviceBuffer(const DeviceBuffer&) = delete;
   DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
+  size_t size() const { return size_; }
+
   // Adopt an existing device pointer. Caller relinquishes ownership.
+  // Adopted buffers bypass the pool on destruction.
   static DeviceBuffer adopt(void* p) {
     DeviceBuffer b;
     b.ptr = p;
+    b.size_ = DeviceBufferPool<>::kSmallBufferThreshold + 1;  // force cudaFree
     return b;
   }
+
+ private:
+  size_t size_ = 0;
 };
 
 // ---- Scalar → cudaDataType_t ------------------------------------------------

@@ -180,6 +180,105 @@ void test_empty() {
   VERIFY_IS_EQUAL(y.size(), 0);
 }
 
+// ---- DeviceMatrix SpMV (no host roundtrip) ----------------------------------
+
+template <typename Scalar>
+void test_spmv_device(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Vec x = Vec::Random(n);
+
+  // Use shared GpuContext for same-stream execution.
+  GpuContext gpu_ctx;
+  GpuSparseContext<Scalar> ctx(gpu_ctx);
+
+  auto d_x = DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  DeviceMatrix<Scalar> d_y;
+
+  ctx.multiply(A, d_x, d_y);
+
+  Vec y_gpu = d_y.toHost(gpu_ctx.stream());
+  Vec y_cpu = A * x;
+
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((y_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
+}
+
+// ---- Expression syntax: d_y = d_A * d_x ------------------------------------
+
+template <typename Scalar>
+void test_spmv_expr(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Vec x = Vec::Random(n);
+
+  GpuContext gpu_ctx;
+  GpuSparseContext<Scalar> ctx(gpu_ctx);
+
+  // Upload sparse matrix and create device view.
+  auto d_A = ctx.deviceView(A);
+
+  // Upload x.
+  auto d_x = DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+
+  // Expression syntax: d_y = d_A * d_x
+  DeviceMatrix<Scalar> d_y;
+  d_y = d_A * d_x;
+
+  // Also test with noalias():
+  DeviceMatrix<Scalar> d_tmp;
+  d_tmp.noalias() = d_A * d_x;
+
+  Vec y_gpu = d_y.toHost(gpu_ctx.stream());
+  Vec tmp_gpu = d_tmp.toHost(gpu_ctx.stream());
+  Vec y_cpu = A * x;
+
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((y_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
+  VERIFY((tmp_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
+}
+
+// ---- deviceView overwrite: second view replaces first -----------------------
+
+template <typename Scalar>
+void test_deviceview_overwrite(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A1 = make_sparse<Scalar>(n, n);
+  SpMat A2 = make_sparse<Scalar>(n, n);  // different random matrix
+
+  Vec x = Vec::Random(n);
+
+  GpuContext gpu_ctx;
+  GpuSparseContext<Scalar> ctx(gpu_ctx);
+
+  // First view: A1.
+  auto d_A1 = ctx.deviceView(A1);
+  auto d_x = DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  DeviceMatrix<Scalar> d_y1;
+  d_y1 = d_A1 * d_x;
+  Vec y1_gpu = d_y1.toHost(gpu_ctx.stream());
+  Vec y1_cpu = A1 * x;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((y1_gpu - y1_cpu).norm() / (y1_cpu.norm() + RealScalar(1)) < tol);
+
+  // Second view overwrites first: now uses A2.
+  auto d_A2 = ctx.deviceView(A2);
+  DeviceMatrix<Scalar> d_y2;
+  d_y2 = d_A2 * d_x;
+  Vec y2_gpu = d_y2.toHost(gpu_ctx.stream());
+  Vec y2_cpu = A2 * x;
+  VERIFY((y2_gpu - y2_cpu).norm() / (y2_cpu.norm() + RealScalar(1)) < tol);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
@@ -193,6 +292,9 @@ void test_scalar() {
   CALL_SUBTEST(test_identity<Scalar>(64));
   CALL_SUBTEST(test_reuse<Scalar>(64));
   CALL_SUBTEST(test_empty<Scalar>());
+  CALL_SUBTEST(test_spmv_device<Scalar>(64));
+  CALL_SUBTEST(test_spmv_expr<Scalar>(64));
+  CALL_SUBTEST(test_deviceview_overwrite<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusparse_spmv) {
