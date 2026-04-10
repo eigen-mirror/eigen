@@ -547,9 +547,84 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
   endif()
 
+  # cuFFT test (cuFFT is part of the CUDA toolkit — no separate option needed).
+  if(TARGET CUDA::cufft)
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    add_executable(gpu_cufft gpu_cufft.cpp)
+    target_include_directories(gpu_cufft PRIVATE
+      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(gpu_cufft
+      Eigen3::Eigen CUDA::cudart CUDA::cufft CUDA::cublas)
+    target_compile_definitions(gpu_cufft PRIVATE
+      EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+      EIGEN_TEST_PART_ALL=1)
+    add_test(NAME gpu_cufft COMMAND gpu_cufft)
+    add_dependencies(buildtests gpu_cufft)
+    add_dependencies(buildtests_gpu gpu_cufft)
+    set_property(TEST gpu_cufft APPEND PROPERTY LABELS "Official;gpu")
+    set_property(TEST gpu_cufft PROPERTY SKIP_RETURN_CODE 77)
+    set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+  endif()
+
+  # cuSPARSE SpMV test (cuSPARSE is part of the CUDA toolkit).
+  if(TARGET CUDA::cusparse)
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    add_executable(gpu_cusparse_spmv gpu_cusparse_spmv.cpp)
+    target_include_directories(gpu_cusparse_spmv PRIVATE
+      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(gpu_cusparse_spmv
+      Eigen3::Eigen CUDA::cudart CUDA::cusparse)
+    target_compile_definitions(gpu_cusparse_spmv PRIVATE
+      EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+      EIGEN_TEST_PART_ALL=1)
+    add_test(NAME gpu_cusparse_spmv COMMAND gpu_cusparse_spmv)
+    add_dependencies(buildtests gpu_cusparse_spmv)
+    add_dependencies(buildtests_gpu gpu_cusparse_spmv)
+    set_property(TEST gpu_cusparse_spmv APPEND PROPERTY LABELS "Official;gpu")
+    set_property(TEST gpu_cusparse_spmv PROPERTY SKIP_RETURN_CODE 77)
+    set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+  endif()
+
   option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
   if(EIGEN_TEST_CUSPARSE AND TARGET CUDA::cusparse)
     ei_add_test(gpu_cusparse "" "CUDA::cusparse")
+  endif()
+
+  # cuDSS sparse direct solver tests.
+  # cuDSS is distributed separately from the CUDA Toolkit.
+  option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
+  if(EIGEN_TEST_CUDSS)
+    find_path(CUDSS_INCLUDE_DIR cudss.h
+      HINTS ${CUDSS_DIR}/include ${CUDA_TOOLKIT_ROOT_DIR}/include /usr/include)
+    find_library(CUDSS_LIBRARY cudss
+      HINTS ${CUDSS_DIR}/lib ${CUDSS_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib64 /usr/lib/x86_64-linux-gnu)
+    if(CUDSS_INCLUDE_DIR AND CUDSS_LIBRARY)
+      message(STATUS "cuDSS found: ${CUDSS_LIBRARY}")
+      unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+      foreach(_cudss_test IN ITEMS gpu_cudss_llt gpu_cudss_ldlt gpu_cudss_lu)
+        add_executable(${_cudss_test} ${_cudss_test}.cpp)
+        target_include_directories(${_cudss_test} PRIVATE
+          "${CUDA_TOOLKIT_ROOT_DIR}/include"
+          "${CUDSS_INCLUDE_DIR}"
+          "${CMAKE_CURRENT_BINARY_DIR}")
+        target_link_libraries(${_cudss_test}
+          Eigen3::Eigen CUDA::cudart CUDA::cusolver CUDA::cublas ${CUDSS_LIBRARY})
+        target_compile_definitions(${_cudss_test} PRIVATE
+          EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
+          EIGEN_TEST_PART_ALL=1
+          EIGEN_CUDSS=1)
+        add_test(NAME ${_cudss_test} COMMAND "${_cudss_test}")
+        add_dependencies(buildtests ${_cudss_test})
+        add_dependencies(buildtests_gpu ${_cudss_test})
+        set_property(TEST ${_cudss_test} APPEND PROPERTY LABELS "Official;gpu")
+        set_property(TEST ${_cudss_test} PROPERTY SKIP_RETURN_CODE 77)
+      endforeach()
+      set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
+    else()
+      message(WARNING "EIGEN_TEST_CUDSS=ON but cuDSS not found. Set CUDSS_DIR.")
+    endif()
   endif()
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)

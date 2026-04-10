@@ -50,6 +50,17 @@
 #include "src/GPU/GpuQR.h"
 #include "src/GPU/GpuSVD.h"
 #include "src/GPU/GpuEigenSolver.h"
+#include "src/GPU/CuFftSupport.h"
+#include "src/GPU/GpuFFT.h"
+#include "src/GPU/CuSparseSupport.h"
+#include "src/GPU/GpuSparseContext.h"
+#ifdef EIGEN_CUDSS
+#include "src/GPU/CuDssSupport.h"
+#include "src/GPU/GpuSparseSolverBase.h"
+#include "src/GPU/GpuSparseLLT.h"
+#include "src/GPU/GpuSparseLDLT.h"
+#include "src/GPU/GpuSparseLU.h"
+#endif
 // IWYU pragma: end_exports
 #endif
 
