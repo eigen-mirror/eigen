@@ -148,13 +148,8 @@
 #endif
 
 #if defined(__NVCC__)
-#if defined(__CUDACC_VER_MAJOR__) && (__CUDACC_VER_MAJOR__ >= 9)
+// CUDA 11.4+ always defines __CUDACC_VER_MAJOR__.
 #define EIGEN_COMP_NVCC ((__CUDACC_VER_MAJOR__ * 10000) + (__CUDACC_VER_MINOR__ * 100))
-#elif defined(__CUDACC_VER__)
-#define EIGEN_COMP_NVCC __CUDACC_VER__
-#else
-#error "NVCC did not define compiler version."
-#endif
 #else
 #define EIGEN_COMP_NVCC 0
 #endif
@@ -575,6 +570,10 @@
 #define EIGEN_CUDA_SDK_VER 0
 #endif
 
+#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER > 0 && EIGEN_CUDA_SDK_VER < 110400
+#error "Eigen requires CUDA 11.4 or later."
+#endif
+
 #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP) && !defined(__SYCL_DEVICE_ONLY__)
 // Means the compiler is HIPCC (analogous to EIGEN_CUDACC, but for HIP)
 #define EIGEN_HIPCC __HIPCC__
@@ -584,22 +583,20 @@
 // ++ host_defines.h which contains the defines for the __host__ and __device__ macros
 #include <hip/hip_runtime.h>
 
+// Eigen requires ROCm/HIP >= 5.6 (GFX906 minimum architecture).
+// This floor exists to allow simplifying shared CUDA/HIP preprocessor guards —
+// all __HIP_ARCH_HAS_WARP_SHUFFLE__, __HIP_ARCH_HAS_FP16__, etc. are always true on GFX906+.
+#if defined(HIP_VERSION_MAJOR) && (HIP_VERSION_MAJOR < 5 || (HIP_VERSION_MAJOR == 5 && HIP_VERSION_MINOR < 6))
+#error "Eigen requires ROCm/HIP >= 5.6."
+#endif
+
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(__SYCL_DEVICE_ONLY__)
 // analogous to EIGEN_CUDA_ARCH, but for HIP
 #define EIGEN_HIP_DEVICE_COMPILE __HIP_DEVICE_COMPILE__
 #endif
 
-// For HIP (ROCm 3.5 and higher), we need to explicitly set the launch_bounds attribute
-// value to 1024. The compiler assigns a default value of 256 when the attribute is not
-// specified. This results in failures on the HIP platform, for cases when a GPU kernel
-// without an explicit launch_bounds attribute is called with a threads_per_block value
-// greater than 256.
-//
-// This is a regression in functionality and is expected to be fixed within the next
-// couple of ROCm releases (compiler will go back to using 1024 value as the default)
-//
-// In the meantime, we will use a "only enabled for HIP" macro to set the launch_bounds
-// attribute.
+// HIP compilers default to launch_bounds(256), which causes failures when kernels
+// are called with more than 256 threads per block. Explicitly set to 1024 for HIP.
 
 #define EIGEN_HIP_LAUNCH_BOUNDS_1024 __launch_bounds__(1024)
 

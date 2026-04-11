@@ -294,7 +294,7 @@ namespace bfloat16_impl {
 // of the functions, while the latter can only deal with one of them.
 #if !defined(EIGEN_HAS_NATIVE_BF16) || (EIGEN_COMP_CLANG && !EIGEN_COMP_NVCC)  // Emulate support for bfloat16 floats
 
-#if EIGEN_COMP_CLANG && defined(EIGEN_CUDACC)
+#if EIGEN_COMP_CLANG && defined(EIGEN_GPUCC)
 // We need to provide emulated *host-side* BF16 operators for clang.
 #pragma push_macro("EIGEN_DEVICE_FUNC")
 #undef EIGEN_DEVICE_FUNC
@@ -858,16 +858,8 @@ struct hash<Eigen::bfloat16> {
 }  // namespace std
 #endif
 
-// Add the missing shfl* intrinsics.
-// The __shfl* functions are only valid on HIP or _CUDA_ARCH_ >= 300.
-//   CUDA defines them for (__CUDA_ARCH__ >= 300 || !defined(__CUDA_ARCH__))
-//
-// HIP and CUDA prior to SDK 9.0 define
-//    __shfl, __shfl_up, __shfl_down, __shfl_xor for int and float
-// CUDA since 9.0 deprecates those and instead defines
-//    __shfl_sync, __shfl_up_sync, __shfl_down_sync, __shfl_xor_sync,
-//    with native support for __half and __nv_bfloat16
-//
+// Warp shuffle overloads for Eigen::bfloat16.
+// HIP uses non-sync __shfl variants; CUDA has native __nv_bfloat16 support in __shfl_sync.
 // Note that the following are __device__ - only functions.
 #if defined(EIGEN_HIPCC)
 

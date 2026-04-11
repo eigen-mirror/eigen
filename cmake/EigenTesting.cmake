@@ -8,6 +8,12 @@ macro(ei_add_property prop value)
   endif()
 endmacro()
 
+if(EIGEN_TEST_HIP AND NOT DEFINED EIGEN_HIP_ARCHITECTURES)
+  set(EIGEN_HIP_ARCHITECTURES
+      gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151
+      CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
+endif()
+
 #internal. See documentation of ei_add_test for details.
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
@@ -30,7 +36,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
       hip_reset_flags()
       hip_add_executable(${targetname} ${filename} HIPCC_OPTIONS -std=c++14)
       target_compile_definitions(${targetname} PRIVATE -DEIGEN_USE_HIP)
-      set_property(TARGET ${targetname} PROPERTY HIP_ARCHITECTURES gfx900 gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030)
+      set_property(TARGET ${targetname} PROPERTY HIP_ARCHITECTURES "${EIGEN_HIP_ARCHITECTURES}")
     elseif(EIGEN_TEST_CUDA_CLANG)
       set_source_files_properties(${filename} PROPERTIES LANGUAGE CXX)
 
@@ -134,6 +140,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
   if (is_gpu_test)
     # Add gpu tag for testing only GPU tests.
     set_property(TEST ${testname_with_suffix} APPEND PROPERTY LABELS "gpu")
+    set_property(TEST ${testname_with_suffix} PROPERTY SKIP_RETURN_CODE 77)
   endif()
 
   if(EIGEN_SYCL)

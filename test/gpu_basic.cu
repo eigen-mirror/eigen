@@ -7,12 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// workaround issue between gcc >= 4.7 and cuda 5.5
-#if (defined __GNUC__) && (__GNUC__ > 4 || __GNUC_MINOR__ >= 7)
-#undef _GLIBCXX_ATOMIC_BUILTINS
-#undef _GLIBCXX_USE_INT128
-#endif
-
 #define EIGEN_TEST_NO_LONGDOUBLE
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 

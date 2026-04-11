@@ -76,9 +76,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#if CUDA_VERSION >= 7050
 #include <cuda_fp16.h>
-#endif
 #endif
 
 #if defined(EIGEN_CUDACC) || defined(EIGEN_HIPCC)
@@ -949,6 +947,37 @@ inline void set_seed_from_time() {
   g_seed = static_cast<decltype(g_seed)>(ns);
 }
 
+#if defined(EIGEN_USE_GPU)
+inline int maybe_skip_gpu_tests() {
+#if defined(EIGEN_USE_HIP)
+  int device_count = 0;
+  hipError_t status = hipGetDeviceCount(&device_count);
+  if (status != hipSuccess) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device. hipGetDeviceCount failed with: "
+              << hipGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device." << std::endl;
+    return 77;
+  }
+#elif defined(EIGEN_CUDACC)
+  int device_count = 0;
+  cudaError_t status = cudaGetDeviceCount(&device_count);
+  if (status != cudaSuccess) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device. cudaGetDeviceCount failed with: "
+              << cudaGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device." << std::endl;
+    return 77;
+  }
+#endif
+  return 0;
+}
+#endif
+
 int main(int argc, char* argv[]) {
   g_has_set_repeat = false;
   g_has_set_seed = false;
@@ -996,6 +1025,13 @@ int main(int argc, char* argv[]) {
   g_test_stack.push_back(ss.str());
   srand(g_seed);
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
+
+#if defined(EIGEN_USE_GPU)
+  {
+    const int skip_code = maybe_skip_gpu_tests();
+    if (skip_code != 0) return skip_code;
+  }
+#endif
 
   VERIFY(EigenTest::all().size() > 0);
 

@@ -672,7 +672,7 @@ if (EIGEN_BUILD_TESTING)
   endif()
 
   set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-  set(EIGEN_CUDA_COMPUTE_ARCH 30 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+  set(EIGEN_CUDA_COMPUTE_ARCH 70 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
   if(EIGEN_TEST_SYCL)
@@ -817,4 +817,3 @@ endif()
 message(STATUS "")
 message(STATUS "Configured Eigen ${EIGEN_VERSION_STRING}")
 message(STATUS "")
-

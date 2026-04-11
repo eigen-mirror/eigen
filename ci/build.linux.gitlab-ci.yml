@@ -215,7 +215,7 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "50;75"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;75"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
@@ -250,12 +250,12 @@ build:linux:cuda-12.2:clang-12:
 # Note: these are currently build-only, until we get an AMD-supported runner.
 
 # ROCm HIP
-build:linux:rocm-latest:gcc-10:
+build:linux:rocm-latest:gcc-11:
   extends: .build:linux:cross
-  image: rocm/dev-ubuntu-24.04:latest
+  image: rocm/dev-ubuntu-24.04:6.3.1
   variables:
-    EIGEN_CI_C_COMPILER: gcc-10
-    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_C_COMPILER: gcc-11
+    EIGEN_CI_CXX_COMPILER: g++-11
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
   cache: [] # Disable cache for ROCm, since it fails whenever the image updates.

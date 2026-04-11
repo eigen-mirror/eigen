@@ -393,7 +393,8 @@ __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapp
   // the sum across all big k blocks of the product of little k block of index (x, y)
   // with block of index (y, z). To compute the final output, we need to reduce
   // the 8 threads over y by summation.
-#if defined(EIGEN_HIPCC) || (defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000)
+  // HIP uses non-sync warp shuffles; CUDA requires the _sync variants.
+#if defined(EIGEN_HIPCC)
 #define shuffleInc(i, j, mask) res(i, j) += __shfl_xor(res(i, j), mask)
 #else
 #define shuffleInc(i, j, mask) res(i, j) += __shfl_xor_sync(0xFFFFFFFF, res(i, j), mask)
@@ -622,7 +623,7 @@ __device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const L
       x1 = rhs_pf0.x;
       x2 = rhs_pf0.z;
     }
-#if defined(EIGEN_HIPCC) || (defined(EIGEN_CUDA_SDK_VER) && EIGEN_CUDA_SDK_VER < 90000)
+#if defined(EIGEN_HIPCC)
     x1 = __shfl_xor(x1, 4);
     x2 = __shfl_xor(x2, 4);
 #else
@@ -1377,13 +1378,6 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                   this->m_right_contracting_strides, this->m_k_strides);
 
     OutputMapper output(buffer, m);
-
-#if defined(EIGEN_USE_HIP)
-    setGpuSharedMemConfig(hipSharedMemBankSizeEightByte);
-#else
-    setGpuSharedMemConfig(cudaSharedMemBankSizeEightByte);
-#endif
-
     LaunchKernels<LhsScalar, RhsScalar, Index, LhsMapper, RhsMapper, OutputMapper>::Run(lhs, rhs, output, m, n, k,
                                                                                         this->m_device);
   }

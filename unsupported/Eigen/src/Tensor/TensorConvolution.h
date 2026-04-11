@@ -89,7 +89,7 @@ class IndexMapper {
       }
     } else {
       for (int i = NumDims - 1; i >= 0; --i) {
-        if (static_cast<size_t>(i + 1) < offset) {
+        if (i + 1 < static_cast<int>(offset)) {
           m_gpuInputStrides[i] = m_gpuInputStrides[i + 1] * gpuInputDimensions[i + 1];
           m_gpuOutputStrides[i] = m_gpuOutputStrides[i + 1] * gpuOutputDimensions[i + 1];
         } else {
