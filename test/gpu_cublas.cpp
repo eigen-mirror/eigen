@@ -697,25 +697,22 @@ void test_scalar() {
 }
 
 // ---- Solver failure mode tests (not templated on Scalar) --------------------
+// Use the cached GpuLLT/GpuLU API which reports failure via info() rather than
+// the expression API which asserts inside dispatch (incompatible with
+// VERIFY_RAISES_ASSERT due to longjmp skipping RAII destructors).
 
 void test_llt_not_spd() {
   // Negative definite matrix — LLT factorization must fail.
   MatrixXd A = -MatrixXd::Identity(8, 8);
-  MatrixXd B = MatrixXd::Random(8, 1);
-  auto d_A = DeviceMatrix<double>::fromHost(A);
-  auto d_B = DeviceMatrix<double>::fromHost(B);
-  DeviceMatrix<double> d_X;
-  VERIFY_RAISES_ASSERT(d_X = d_A.llt().solve(d_B));
+  GpuLLT<double> llt(A);
+  VERIFY_IS_EQUAL(llt.info(), NumericalIssue);
 }
 
 void test_lu_singular() {
   // Zero matrix — LU factorization must detect singularity.
   MatrixXd A = MatrixXd::Zero(8, 8);
-  MatrixXd B = MatrixXd::Random(8, 1);
-  auto d_A = DeviceMatrix<double>::fromHost(A);
-  auto d_B = DeviceMatrix<double>::fromHost(B);
-  DeviceMatrix<double> d_X;
-  VERIFY_RAISES_ASSERT(d_X = d_A.lu().solve(d_B));
+  GpuLU<double> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
 }
 
 EIGEN_DECLARE_TEST(gpu_cublas) {
