@@ -260,13 +260,14 @@ build:linux:cuda-11.8:clang-14:
 # ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
 # sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
 
-# GCC-14, CUDA-12.6 (nvcc)
-build:linux:cuda-12.6:gcc-14:
+# GCC-13, CUDA-12.6 (nvcc)
+# CUDA 12.6 nvcc only supports gcc up to 13.
+build:linux:cuda-12.6:gcc-13:
   extends: .build:linux:cuda
   image: nvidia/cuda:12.6.3-devel-ubuntu24.04
   variables:
-    EIGEN_CI_C_COMPILER: gcc-14
-    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_C_COMPILER: gcc-13
+    EIGEN_CI_CXX_COMPILER: g++-13
     EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
 
 # Clang-19, CUDA-12.6 (clang as CUDA compiler)

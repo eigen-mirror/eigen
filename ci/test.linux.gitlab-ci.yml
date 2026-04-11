@@ -294,14 +294,14 @@ test:linux:cuda-11.8:clang-14:
 
 # ---- New: latest CUDA -------------------------------------------------------
 
-# GCC-14, CUDA-12.6
-test:linux:cuda-12.6:gcc-14:
+# GCC-13, CUDA-12.6
+test:linux:cuda-12.6:gcc-13:
   extends: .test:linux:cuda
   image: nvidia/cuda:12.6.3-devel-ubuntu24.04
-  needs: [ build:linux:cuda-12.6:gcc-14 ]
+  needs: [ build:linux:cuda-12.6:gcc-13 ]
   variables:
-    EIGEN_CI_CXX_COMPILER: g++-14
-    EIGEN_CI_CC_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_CC_COMPILER: gcc-13
 
 # Clang-19, CUDA-12.6
 test:linux:cuda-12.6:clang-19:
