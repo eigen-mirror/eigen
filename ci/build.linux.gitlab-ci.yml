@@ -235,22 +235,22 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# ---- Old: CUDA 11.5 + oldest compilers ---------------------------------------
-# clang-14 supports up to CUDA 11.5.
+# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
+# clang-14 fully supports up to CUDA 11.5.  CUDA 11.5 images are Ubuntu 20.04
+# only, which lacks clang-14 and cmake >= 3.17.  EIGEN_CI_BEFORE_SCRIPT adds
+# the LLVM apt repo (for clang-14) and installs cmake via pip.
 
-# GCC-10, CUDA-11.5 (nvcc)
-# Ubuntu 20.04 ships CMake 3.16, but Eigen requires 3.17+.
-# Install a recent cmake via pip before the build.
 build:linux:cuda-11.5:gcc-10:
   extends: .build:linux:cuda
   image: nvidia/cuda:11.5.2-devel-ubuntu20.04
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
-    EIGEN_CI_BEFORE_SCRIPT: "apt-get install -y --no-install-recommends python3-pip > /dev/null && pip3 install cmake && hash -r"
+    EIGEN_CI_BEFORE_SCRIPT: >-
+      apt-get install -y --no-install-recommends python3-pip > /dev/null
+      && pip3 install cmake
+      && hash -r
 
-# Clang-14, CUDA-11.5 (clang as CUDA compiler)
 build:linux:cuda-11.5:clang-14:
   extends: build:linux:cuda-11.5:gcc-10
   variables:
@@ -258,6 +258,13 @@ build:linux:cuda-11.5:clang-14:
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+    EIGEN_CI_BEFORE_SCRIPT: >-
+      apt-get install -y --no-install-recommends python3-pip software-properties-common wget gnupg > /dev/null
+      && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+      && add-apt-repository -y 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
+      && apt-get update -y > /dev/null
+      && pip3 install cmake
+      && hash -r
 
 # ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
 # sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
