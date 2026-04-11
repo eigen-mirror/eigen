@@ -37,11 +37,11 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
 # GCC-13 for AVX512-FP16 (_Float16 support).
-# Ubuntu 24.10 is required: masked vmovsh needs binutils >= 2.43
+# Ubuntu 26.04 is required: masked vmovsh needs binutils >= 2.43
 # (Ubuntu 24.04 ships 2.42 which rejects this encoding).
 build:linux:cross:x86-64:gcc-13:default:
   extends: .build:linux:cross:x86-64
-  image: ubuntu:24.10
+  image: ubuntu:26.04
   variables:
     EIGEN_CI_C_COMPILER: gcc-13
     EIGEN_CI_CXX_COMPILER: g++-13
