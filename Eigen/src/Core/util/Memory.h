@@ -1013,7 +1013,7 @@ inline bool cpuid_is_vendor(int abcd[4], const int vendor[3]) {
   return abcd[1] == vendor[0] && abcd[3] == vendor[1] && abcd[2] == vendor[2];
 }
 
-inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3) {
+inline void queryCacheSizes_intel_direct(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
   int abcd[4];
   l1 = l2 = l3 = 0;
   int cache_id = 0;
@@ -1030,7 +1030,8 @@ inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3) {
       int line_size = (abcd[1] & 0x00000FFF) >> 0;    // B[11:0]
       int sets = (abcd[2]);                           // C[31:0]
 
-      int cache_size = (ways + 1) * (partitions + 1) * (line_size + 1) * (sets + 1);
+      std::ptrdiff_t cache_size =
+          static_cast<std::ptrdiff_t>(ways + 1) * (partitions + 1) * (line_size + 1) * (sets + 1);
 
       switch (cache_level) {
         case 1:
@@ -1050,7 +1051,7 @@ inline void queryCacheSizes_intel_direct(int& l1, int& l2, int& l3) {
   } while (cache_type > 0 && cache_id < 16);
 }
 
-inline void queryCacheSizes_intel_codes(int& l1, int& l2, int& l3) {
+inline void queryCacheSizes_intel_codes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
   int abcd[4];
   abcd[0] = abcd[1] = abcd[2] = abcd[3] = 0;
   l1 = l2 = l3 = 0;
@@ -1246,7 +1247,7 @@ inline void queryCacheSizes_intel_codes(int& l1, int& l2, int& l3) {
   l3 *= 1024;
 }
 
-inline void queryCacheSizes_intel(int& l1, int& l2, int& l3, int max_std_funcs) {
+inline void queryCacheSizes_intel(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3, int max_std_funcs) {
   if (max_std_funcs >= 4)
     queryCacheSizes_intel_direct(l1, l2, l3);
   else if (max_std_funcs >= 2)
@@ -1255,7 +1256,7 @@ inline void queryCacheSizes_intel(int& l1, int& l2, int& l3, int max_std_funcs) 
     l1 = l2 = l3 = 0;
 }
 
-inline void queryCacheSizes_amd(int& l1, int& l2, int& l3) {
+inline void queryCacheSizes_amd(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
   int abcd[4];
   abcd[0] = abcd[1] = abcd[2] = abcd[3] = 0;
 
@@ -1266,8 +1267,8 @@ inline void queryCacheSizes_amd(int& l1, int& l2, int& l3) {
     l1 = (abcd[2] >> 24) * 1024;  // C[31:24] = L1 size in KB
     abcd[0] = abcd[1] = abcd[2] = abcd[3] = 0;
     EIGEN_CPUID(abcd, 0x80000006, 0);
-    l2 = (abcd[2] >> 16) * 1024;                      // C[31;16] = l2 cache size in KB
-    l3 = ((abcd[3] & 0xFFFC000) >> 18) * 512 * 1024;  // D[31;18] = l3 cache size in 512KB
+    l2 = (abcd[2] >> 16) * 1024;                                                 // C[31;16] = l2 cache size in KB
+    l3 = static_cast<std::ptrdiff_t>((abcd[3] & 0xFFFC000) >> 18) * 512 * 1024;  // D[31;18] = l3 cache size in 512KB
   } else {
     l1 = l2 = l3 = 0;
   }
@@ -1276,7 +1277,7 @@ inline void queryCacheSizes_amd(int& l1, int& l2, int& l3) {
 
 /** \internal
  * Queries and returns the cache sizes in Bytes of the L1, L2, and L3 data caches respectively */
-inline void queryCacheSizes(int& l1, int& l2, int& l3) {
+inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff_t& l3) {
 #ifdef EIGEN_CPUID
   int abcd[4];
   const int GenuineIntel[] = {0x756e6547, 0x49656e69, 0x6c65746e};
@@ -1319,17 +1320,17 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
     l1 = -1;
     val_size = sizeof(val);
     if (sysctlbyname("hw.perflevel0.l1dcachesize", &val, &val_size, NULL, 0) == 0 && val > 0)
-      l1 = static_cast<int>(val);
+      l1 = val;
     else {
       val_size = sizeof(val);
-      if (sysctlbyname("hw.l1dcachesize", &val, &val_size, NULL, 0) == 0) l1 = static_cast<int>(val);
+      if (sysctlbyname("hw.l1dcachesize", &val, &val_size, NULL, 0) == 0) l1 = val;
     }
     l2 = -1;
     val_size = sizeof(val);
-    if (sysctlbyname("hw.l2cachesize", &val, &val_size, NULL, 0) == 0) l2 = static_cast<int>(val);
+    if (sysctlbyname("hw.l2cachesize", &val, &val_size, NULL, 0) == 0) l2 = val;
     l3 = -1;
     val_size = sizeof(val);
-    if (sysctlbyname("hw.l3cachesize", &val, &val_size, NULL, 0) == 0 && val > 0) l3 = static_cast<int>(val);
+    if (sysctlbyname("hw.l3cachesize", &val, &val_size, NULL, 0) == 0 && val > 0) l3 = val;
   }
 #elif EIGEN_OS_UNIX && defined(_SC_LEVEL1_DCACHE_SIZE)
   // On Linux and other POSIX systems, use sysconf to query cache sizes.
@@ -1343,16 +1344,16 @@ inline void queryCacheSizes(int& l1, int& l2, int& l3) {
 
 /** \internal
  * \returns the size in Bytes of the L1 data cache */
-inline int queryL1CacheSize() {
-  int l1(-1), l2, l3;
+inline std::ptrdiff_t queryL1CacheSize() {
+  std::ptrdiff_t l1(-1), l2, l3;
   queryCacheSizes(l1, l2, l3);
   return l1;
 }
 
 /** \internal
  * \returns the size in Bytes of the L2 or L3 cache if this later is present */
-inline int queryTopLevelCacheSize() {
-  int l1, l2(-1), l3(-1);
+inline std::ptrdiff_t queryTopLevelCacheSize() {
+  std::ptrdiff_t l1, l2(-1), l3(-1);
   queryCacheSizes(l1, l2, l3);
   return (std::max)(l2, l3);
 }
