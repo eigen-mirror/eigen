@@ -308,8 +308,7 @@ class GpuLU {
                                           lda_, static_cast<const int64_t*>(d_ipiv_.ptr), dtype, d_x_ptr, ldb,
                                           scratch_info()));
 
-    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs),
-                                static_cast<Index>(ldb));
+    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
     d_x.ptr = nullptr;  // transfer ownership to result
     result.recordReady(stream_);
     return result;
