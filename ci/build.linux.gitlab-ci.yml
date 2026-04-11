@@ -234,24 +234,49 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# GCC-11, CUDA-12.2
-build:linux:cuda-12.2:gcc-11:
-  extends: .build:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu22.04
-  variables:
-    EIGEN_CI_C_COMPILER: gcc-11
-    EIGEN_CI_CXX_COMPILER: g++-11
+# ---- Old: CUDA 11.4 (minimum supported) + oldest compilers, sm_70 ----------
 
-# Clang-19, CUDA-12.2
-# Clang-14 only supports up to CUDA 11.5; CUDA 12.x removed the 'texture'
-# template, breaking clang-14's __clang_cuda_texture_intrinsics.h.
-build:linux:cuda-12.2:clang-19:
-  extends: build:linux:cuda-12.2:gcc-11
+# GCC-10, CUDA-11.4
+build:linux:cuda-11.4:gcc-10:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:11.4.3-devel-ubuntu20.04
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-10
+    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "70"
+
+# Clang-12, CUDA-11.4 (clang as CUDA compiler)
+build:linux:cuda-11.4:clang-12:
+  extends: build:linux:cuda-11.4:gcc-10
+  variables:
+    EIGEN_CI_INSTALL: clang-12
+    EIGEN_CI_C_COMPILER: clang-12
+    EIGEN_CI_CXX_COMPILER: clang++-12
+    EIGEN_CI_TEST_CUDA_CLANG: "on"
+
+# ---- New: latest CUDA + newest compilers, sm_80;sm_90 ----------------------
+# sm_70 coverage comes from the 11.4 jobs above.
+
+# GCC-14, CUDA-13.2 (nvcc)
+build:linux:cuda-13.2:gcc-14:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:13.2.0-devel-ubuntu24.04
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "80;90"
+
+# Clang-19, CUDA-12.6 (clang as CUDA compiler)
+# Clang CUDA support lags behind nvcc; clang-19 supports up to CUDA 12.x.
+build:linux:cuda-12.6:clang-19:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
   variables:
     EIGEN_CI_INSTALL: clang-19
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "80;90"
 
 
 ######### HIP ##################################################################
