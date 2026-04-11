@@ -7,11 +7,24 @@ rootdir=`pwd`
 mkdir -p ${EIGEN_CI_BUILDDIR}
 cd ${EIGEN_CI_BUILDDIR}
 
+# On a cache hit (CMakeCache.txt already exists), tell cmake not to
+# re-probe the compiler.  Linux CI runs in ephemeral Docker containers
+# where apt-get installs a compiler binary with a different inode/mtime
+# each time.  Without this, cmake detects a "changed" compiler, re-probes
+# it, and regenerates build rules — invalidating all cached .o files.
+# CMAKE_<LANG>_COMPILER_FORCED skips the probe while still letting cmake
+# process CMakeLists.txt changes normally.
+compiler_forced=""
+if [[ -f CMakeCache.txt ]]; then
+  compiler_forced="-DCMAKE_C_COMPILER_FORCED=TRUE -DCMAKE_CXX_COMPILER_FORCED=TRUE"
+fi
+
 # Configure build.
 cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
   -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
   -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET}    \
+  ${compiler_forced}                                              \
   ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
 
 target=""
