@@ -442,17 +442,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 }
 
 // Exponential function. Works by writing "x = m*log(2) + r" where
-// "m = floor(x/log(2)+1/2)" and "r" is the remainder. The result is then
+// "m = rint(x/log(2))" and "r" is the remainder. The result is then
 // "exp(x) = 2^m*exp(r)" where exp(r) is in the range [-1,1).
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
-  const Packet cst_zero = pset1<Packet>(0.0f);
+  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+
   const Packet cst_one = pset1<Packet>(1.0f);
-  const Packet cst_half = pset1<Packet>(0.5f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
   const Packet cst_exp_lo = pset1<Packet>(-104.f);
-  const Packet cst_pldexp_threshold = pset1<Packet>(87.0);
 
   const Packet cst_cephes_LOG2EF = pset1<Packet>(1.44269504088896341f);
   const Packet cst_p2 = pset1<Packet>(0.49999988079071044921875f);
@@ -460,23 +459,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet cst_p4 = pset1<Packet>(4.166965186595916748046875e-2f);
   const Packet cst_p5 = pset1<Packet>(8.36894474923610687255859375e-3f);
   const Packet cst_p6 = pset1<Packet>(1.37449637986719608306884765625e-3f);
-  Packet zero_mask;
-  Packet x;
-  if (!IsFinite) {
-    // Clamp x.
-    zero_mask = pcmp_lt(_x, cst_exp_lo);
-    x = pmin(_x, cst_exp_hi);
-  } else {
-    x = _x;
-  }
+
+  // Clamp x to prevent overflow/underflow.
+  Packet x = pmin(pmax(_x, cst_exp_lo), cst_exp_hi);
 
   // Express exp(x) as exp(m*ln(2) + r), start by extracting
-  // m = floor(x/ln(2) + 0.5).
-  Packet m = pfloor(pmadd(x, cst_cephes_LOG2EF, cst_half));
+  // m = rint(x/ln(2)).
+  Packet m = print(pmul(x, cst_cephes_LOG2EF));
 
-  // Get r = x - m*ln(2). If no FMA instructions are available, m*ln(2) is
-  // subtracted out in two parts, m*C1+m*C2 = m*ln(2), to avoid accumulating
-  // truncation errors.
+  // Get r = x - m*ln(2). m*ln(2) is subtracted out in two parts,
+  // m*C1+m*C2 = m*ln(2), to avoid accumulating truncation errors.
   const Packet cst_cephes_exp_C1 = pset1<Packet>(-0.693359375f);
   const Packet cst_cephes_exp_C2 = pset1<Packet>(2.12194440e-4f);
   Packet r = pmadd(m, cst_cephes_exp_C1, x);
@@ -491,17 +483,21 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet p_low = padd(r, cst_one);
   Packet y = pmadd(r, p_odd, p_even);
   y = pmadd(r2, y, p_low);
-  if (IsFinite) {
-    return pldexp_fast(y, m);
+
+  // Construct 2^m by directly manipulating the exponent bits.
+  // After clamping, m is in [-150, 128], so biased exponent m+127 is in [-23, 255].
+  // We only need the lower clamp to 0 (the upper bound 255 is exact).
+  const PacketI cst_bias = pset1<PacketI>(127);
+  PacketI mi = pcast<Packet, PacketI>(m);
+  mi = pmax(padd(mi, cst_bias), pzero(mi));
+  const Packet pow2m = preinterpret<Packet>(plogical_shift_left<23>(mi));
+  y = pmul(y, pow2m);
+
+  if (!IsFinite) {
+    // Handle NaN: exp(nan) = nan. Use pmax to propagate NaN from input.
+    y = pmax(y, _x);
   }
-  // Return 2^m * exp(r).
-  const Packet fast_pldexp_unsafe = pcmp_lt(cst_pldexp_threshold, pabs(x));
-  if (!predux_any(fast_pldexp_unsafe)) {
-    // For |x| <= 87, we know the result is not zero or inf, and we can safely use
-    // the fast version of pldexp.
-    return pmax(pldexp_fast(y, m), _x);
-  }
-  return pselect(zero_mask, cst_zero, pmax(pldexp(y, m), _x));
+  return y;
 }
 
 template <typename Packet>
