@@ -36,15 +36,15 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
-# GCC-13 (strict support for _Float16)
-build:linux:cross:x86-64:gcc-13:default:
+# GCC-14 (strict support for _Float16, fixes vmovsh assembler bug in gcc-13)
+build:linux:cross:x86-64:gcc-14:default:
   extends: .build:linux:cross:x86-64
   variables:
-    EIGEN_CI_C_COMPILER: gcc-13
-    EIGEN_CI_CXX_COMPILER: g++-13
-    EIGEN_CI_CROSS_INSTALL: g++-13-x86-64-linux-gnu
-    EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-13
-    EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-13
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_INSTALL: g++-14-x86-64-linux-gnu
+    EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-14
 
 build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
@@ -61,8 +61,8 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:
-  extends: build:linux:cross:x86-64:gcc-13:default
+build:linux:cross:x86-64:gcc-14:avx512fp16:
+  extends: build:linux:cross:x86-64:gcc-14:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on"
 
