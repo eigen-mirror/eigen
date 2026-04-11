@@ -61,13 +61,28 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:
+# AVX512-FP16 builds are split into official/unsupported because building all
+# tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
+.build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
+  # Disable cache: uploading the build directory takes ~35 minutes and the
+  # savings from cache hits do not compensate for the upload cost.
+  cache: []
   variables:
-    # Use -O2: GCC bug generates invalid masked vmovsh with {z} on memory
-    # stores at -O3 for _Float16 operations (zero-masking on memory
-    # destinations is architecturally illegal in AVX-512).
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_CXX_FLAGS_RELEASE='-O2 -DNDEBUG'"
+    # Use RelWithDebInfo (-O2): GCC bug generates invalid masked vmovsh
+    # with {z} on memory stores at -O3 for _Float16 operations (zero-masking
+    # on memory destinations is architecturally illegal in AVX-512).
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+
+build:linux:cross:x86-64:gcc-13:avx512fp16:official:
+  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildOfficial
+
+build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:
+  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildUnsupported
 
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:

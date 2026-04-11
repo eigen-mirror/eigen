@@ -23,7 +23,8 @@ fi
 # out of resources.  In that case, keep trying to build the remaining
 # targets (k0), then retry with reduced parallelism to minimize resource use.
 # EIGEN_CI_BUILD_JOBS can be set to limit parallelism for memory-hungry
-# compilers (e.g. NVHPC).
+# compilers (e.g. NVHPC).  When unset, ninja uses all available CPUs.
+njobs=${EIGEN_CI_BUILD_JOBS:-${NPROC}}
 jobs=""
 if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
   jobs="-j${EIGEN_CI_BUILD_JOBS}"
@@ -37,9 +38,13 @@ fallback_jobs="-j${EIGEN_CI_FALLBACK_JOBS:-2}"
 # nvc++) are spread out instead of all running at once.  Ninja ignores the
 # command-line target order and schedules by its dependency graph, so we
 # must feed it small batches to actually influence scheduling.
-# Falls back to the normal build if the target is not a phony or if
-# ninja/shuf are not available.
-batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-48}
+#
+# Batch size defaults to 2 * njobs (enough work to keep all cores busy
+# without scheduling too many memory-hungry targets simultaneously).
+# Override with EIGEN_CI_BUILD_BATCH_SIZE for fine-grained control.
+default_batch=$((njobs * 2))
+default_batch=$((default_batch > 48 ? default_batch : 48))
+batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-${default_batch}}
 shuffled=false
 if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
   # Suppress xtrace while extracting and shuffling the target list
@@ -70,7 +75,7 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" ]] && command -v ninja >/dev/null 2>&1; then
       printf "%010d %s\n",h,$0 }' | sort | sed 's/^[^ ]* //')
   if [[ -n "$shuffled_deps" ]]; then
     ndeps=$(echo "$shuffled_deps" | wc -l)
-    echo "Building ${ndeps} targets in batches of ${batch_size}"
+    echo "Building ${ndeps} targets in batches of ${batch_size} (njobs=${njobs})"
     shuffled=true
     # Build in batches: ninja parallelises within each batch, but batches
     # run sequentially so memory-hungry targets from different families
