@@ -335,8 +335,7 @@ class GpuLLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, static_cast<int64_t>(n_), nrhs, dtype,
                                           d_factor_.ptr, lda_, dtype, d_x_ptr, ldb, scratch_info()));
 
-    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs),
-                                static_cast<Index>(ldb));
+    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
     d_x.ptr = nullptr;  // transfer ownership to result
     result.recordReady(stream_);
     return result;
