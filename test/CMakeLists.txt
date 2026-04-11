@@ -488,7 +488,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   target_include_directories(gpu_device_matrix PRIVATE
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
     "${CMAKE_CURRENT_BINARY_DIR}")
-  target_link_libraries(gpu_device_matrix Eigen3::Eigen CUDA::cudart)
+  target_link_libraries(gpu_device_matrix Eigen3::Eigen CUDA::cudart_static)
   target_compile_definitions(gpu_device_matrix PRIVATE
     EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
     EIGEN_TEST_PART_ALL=1)
@@ -511,7 +511,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
       "${CUDA_TOOLKIT_ROOT_DIR}/include"
       "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(gpu_cublas
-      Eigen3::Eigen CUDA::cudart CUDA::cublas CUDA::cusolver)
+      Eigen3::Eigen CUDA::cudart_static CUDA::cublas CUDA::cusolver)
     target_compile_definitions(gpu_cublas PRIVATE
       EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
       EIGEN_TEST_PART_ALL=1)
@@ -535,7 +535,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
         "${CUDA_TOOLKIT_ROOT_DIR}/include"
         "${CMAKE_CURRENT_BINARY_DIR}")
       target_link_libraries(${_cusolver_test}
-        Eigen3::Eigen CUDA::cudart CUDA::cusolver CUDA::cublas)
+        Eigen3::Eigen CUDA::cudart_static CUDA::cusolver CUDA::cublas)
       target_compile_definitions(${_cusolver_test} PRIVATE
         EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE}
         EIGEN_TEST_PART_ALL=1)
