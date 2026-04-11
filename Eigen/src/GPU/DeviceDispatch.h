@@ -315,8 +315,8 @@ void dispatch_symm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Sc
 
   eigen_assert(A.rows() == A.cols() && "SYMM requires a square matrix");
   eigen_assert(B.rows() == A.rows() && "SYMM: RHS rows must match matrix size");
-  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX &&
-               B.outerStride() <= INT_MAX && "cublasXsymm dimensions exceed int range");
+  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX && B.outerStride() <= INT_MAX &&
+               "cublasXsymm dimensions exceed int range");
 
   const int m = static_cast<int>(A.rows());
   const int n = static_cast<int>(B.cols());

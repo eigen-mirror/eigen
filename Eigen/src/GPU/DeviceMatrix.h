@@ -125,10 +125,7 @@ class HostTransfer {
   }
 
   HostTransfer(HostTransfer&& o) noexcept
-      : host_buf_(std::move(o.host_buf_)),
-        pinned_buf_(std::move(o.pinned_buf_)),
-        event_(o.event_),
-        synced_(o.synced_) {
+      : host_buf_(std::move(o.host_buf_)), pinned_buf_(std::move(o.pinned_buf_)), event_(o.event_), synced_(o.synced_) {
     o.event_ = nullptr;
     o.synced_ = true;
   }
@@ -156,8 +153,8 @@ class HostTransfer {
   HostTransfer(PlainMatrix&& buf, internal::PinnedHostBuffer&& pinned, cudaEvent_t event)
       : host_buf_(std::move(buf)), pinned_buf_(std::move(pinned)), event_(event), synced_(false) {}
 
-  PlainMatrix host_buf_;                  // final destination (pageable)
-  internal::PinnedHostBuffer pinned_buf_; // staging buffer for async DMA
+  PlainMatrix host_buf_;                   // final destination (pageable)
+  internal::PinnedHostBuffer pinned_buf_;  // staging buffer for async DMA
   cudaEvent_t event_ = nullptr;
   bool synced_ = false;
 };
@@ -335,8 +332,7 @@ class DeviceMatrix {
     if (sizeInBytes() > 0) {
       waitReady(stream);
       // DMA into pinned staging buffer for truly async transfer.
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(pinned_buf.ptr, data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(pinned_buf.ptr, data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
     // Record a transfer-complete event.
     cudaEvent_t transfer_event;
