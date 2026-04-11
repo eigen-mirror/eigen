@@ -62,7 +62,15 @@ class GpuContext {
   GpuContext(const GpuContext&) = delete;
   GpuContext& operator=(const GpuContext&) = delete;
 
-  /** Lazily-created thread-local default context. */
+  /** Lazily-created thread-local default context.
+   *
+   * \note The thread-local instance is destroyed when the thread exits (or at
+   * static destruction time for the main thread). On some CUDA driver
+   * configurations this may print "CUDA_ERROR_DEINITIALIZED" to stderr if the
+   * CUDA context has already been torn down. These errors are harmless and are
+   * suppressed in the destructor, but they can produce noise in test output.
+   * To avoid this, call cudaDeviceReset() only after all GpuContext instances
+   * (including thread-local ones) have been destroyed. */
   static GpuContext& threadLocal() {
     thread_local GpuContext ctx;
     return ctx;
