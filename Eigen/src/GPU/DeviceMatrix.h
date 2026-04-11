@@ -36,6 +36,8 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <cstring>
+
 #include "./GpuSupport.h"
 
 namespace Eigen {
@@ -94,10 +96,16 @@ class HostTransfer {
   using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Block until the transfer completes and return the host matrix.
-   * Idempotent: subsequent calls return the same matrix without re-syncing. */
+   * Idempotent: subsequent calls return the same matrix without re-syncing.
+   * On first call, copies from pinned staging buffer into a regular matrix. */
   PlainMatrix& get() {
     if (!synced_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
+      // Copy from pinned staging buffer into the regular (pageable) host matrix.
+      if (pinned_buf_.ptr && host_buf_.size() > 0) {
+        std::memcpy(host_buf_.data(), pinned_buf_.ptr, static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
+      }
+      pinned_buf_ = internal::PinnedHostBuffer();  // free pinned memory early
       synced_ = true;
     }
     return host_buf_;
@@ -116,7 +124,11 @@ class HostTransfer {
     if (event_) (void)cudaEventDestroy(event_);
   }
 
-  HostTransfer(HostTransfer&& o) noexcept : host_buf_(std::move(o.host_buf_)), event_(o.event_), synced_(o.synced_) {
+  HostTransfer(HostTransfer&& o) noexcept
+      : host_buf_(std::move(o.host_buf_)),
+        pinned_buf_(std::move(o.pinned_buf_)),
+        event_(o.event_),
+        synced_(o.synced_) {
     o.event_ = nullptr;
     o.synced_ = true;
   }
@@ -125,6 +137,7 @@ class HostTransfer {
     if (this != &o) {
       if (event_) (void)cudaEventDestroy(event_);
       host_buf_ = std::move(o.host_buf_);
+      pinned_buf_ = std::move(o.pinned_buf_);
       event_ = o.event_;
       synced_ = o.synced_;
       o.event_ = nullptr;
@@ -140,9 +153,11 @@ class HostTransfer {
   template <typename>
   friend class DeviceMatrix;
 
-  HostTransfer(PlainMatrix&& buf, cudaEvent_t event) : host_buf_(std::move(buf)), event_(event), synced_(false) {}
+  HostTransfer(PlainMatrix&& buf, internal::PinnedHostBuffer&& pinned, cudaEvent_t event)
+      : host_buf_(std::move(buf)), pinned_buf_(std::move(pinned)), event_(event), synced_(false) {}
 
-  PlainMatrix host_buf_;
+  PlainMatrix host_buf_;                  // final destination (pageable)
+  internal::PinnedHostBuffer pinned_buf_; // staging buffer for async DMA
   cudaEvent_t event_ = nullptr;
   bool synced_ = false;
 };
@@ -316,15 +331,18 @@ class DeviceMatrix {
    */
   HostTransfer<Scalar> toHostAsync(cudaStream_t stream = nullptr) const {
     PlainMatrix host_buf(rows_, cols_);
+    internal::PinnedHostBuffer pinned_buf(sizeInBytes());
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(host_buf.data(), data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
+      // DMA into pinned staging buffer for truly async transfer.
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(pinned_buf.ptr, data_, sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
     // Record a transfer-complete event.
     cudaEvent_t transfer_event;
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(transfer_event, stream));
-    return HostTransfer<Scalar>(std::move(host_buf), transfer_event);
+    return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), transfer_event);
   }
 
   // ---- Device-to-device copy -----------------------------------------------

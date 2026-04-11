@@ -140,9 +140,13 @@ void dispatch_llt_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LltSol
   DeviceBuffer d_factor(mat_bytes);
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_factor.ptr, A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
+  // Pinned host memory for async info download (avoids compute-sanitizer warnings).
+  PinnedHostBuffer h_info(sizeof(int));
+  int& info_word = *static_cast<int*>(h_info.ptr);
+
   // Query workspace and factorize.
   CusolverParams params;
-  DeviceBuffer d_factorize_info(sizeof(int));
+  DeviceBuffer d_info(sizeof(int));
   size_t dev_ws = 0, host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), dtype,
                                                    d_factor.ptr, lda, dtype, &dev_ws, &host_ws));
@@ -152,31 +156,26 @@ void dispatch_llt_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LltSol
 
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(
       ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), dtype, d_factor.ptr, lda, dtype, d_workspace.ptr,
-      dev_ws, host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_factorize_info.ptr)));
+      dev_ws, host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.ptr)));
 
-  // Check factorization info before proceeding to solve.
-  int factorize_info = 0;
-  EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(&factorize_info, d_factorize_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  // Async download to pinned memory, then sync and check.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
-  eigen_assert(factorize_info == 0 && "cuSOLVER LLT factorization failed (matrix not positive definite)");
+  eigen_assert(info_word == 0 && "cuSOLVER LLT factorization failed (matrix not positive definite)");
 
   // D2D copy B → dst (potrs is in-place on the RHS).
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   // Solve.
-  DeviceBuffer d_solve_info(sizeof(int));
   EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(ctx.cusolverHandle(), params.p, uplo, static_cast<int64_t>(n), nrhs, dtype,
                                         d_factor.ptr, lda, dtype, dst.data(), static_cast<int64_t>(dst.outerStride()),
-                                        static_cast<int*>(d_solve_info.ptr)));
+                                        static_cast<int*>(d_info.ptr)));
 
-  // Sync to ensure workspace locals can be freed safely.
-  int solve_info = 0;
-  EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(&solve_info, d_solve_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  // Async download to pinned memory, sync, check. Workspace locals must outlive async kernels.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
-  eigen_assert(solve_info == 0 && "cuSOLVER LLT solve failed");
+  eigen_assert(info_word == 0 && "cuSOLVER LLT solve failed");
 
   dst.recordReady(ctx.stream());
 }
@@ -219,9 +218,13 @@ void dispatch_lu_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LuSolve
 
   DeviceBuffer d_ipiv(ipiv_bytes);
 
+  // Pinned host memory for async info download.
+  PinnedHostBuffer h_info(sizeof(int));
+  int& info_word = *static_cast<int*>(h_info.ptr);
+
   // Query workspace and factorize.
   CusolverParams params;
-  DeviceBuffer d_factorize_info(sizeof(int));
+  DeviceBuffer d_info(sizeof(int));
   size_t dev_ws = 0, host_ws = 0;
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(ctx.cusolverHandle(), params.p, static_cast<int64_t>(n),
                                                    static_cast<int64_t>(n), dtype, d_lu.ptr, lda, dtype, &dev_ws,
@@ -233,32 +236,27 @@ void dispatch_lu_solve(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const LuSolve
   EIGEN_CUSOLVER_CHECK(
       cusolverDnXgetrf(ctx.cusolverHandle(), params.p, static_cast<int64_t>(n), static_cast<int64_t>(n), dtype,
                        d_lu.ptr, lda, static_cast<int64_t*>(d_ipiv.ptr), dtype, d_workspace.ptr, dev_ws,
-                       host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_factorize_info.ptr)));
+                       host_ws > 0 ? h_workspace.data() : nullptr, host_ws, static_cast<int*>(d_info.ptr)));
 
-  // Check factorization info before proceeding to solve.
-  int factorize_info = 0;
-  EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(&factorize_info, d_factorize_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  // Async download to pinned memory, then sync and check.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
-  eigen_assert(factorize_info == 0 && "cuSOLVER LU factorization failed (singular matrix)");
+  eigen_assert(info_word == 0 && "cuSOLVER LU factorization failed (singular matrix)");
 
   // D2D copy B → dst (getrs is in-place on the RHS).
   dst.resize(n, B.cols());
   EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(dst.data(), B.data(), rhs_bytes, cudaMemcpyDeviceToDevice, ctx.stream()));
 
   // Solve (NoTranspose).
-  DeviceBuffer d_solve_info(sizeof(int));
   EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(ctx.cusolverHandle(), params.p, CUBLAS_OP_N, static_cast<int64_t>(n), nrhs,
                                         dtype, d_lu.ptr, lda, static_cast<const int64_t*>(d_ipiv.ptr), dtype,
                                         dst.data(), static_cast<int64_t>(dst.outerStride()),
-                                        static_cast<int*>(d_solve_info.ptr)));
+                                        static_cast<int*>(d_info.ptr)));
 
-  // Sync to ensure workspace locals can be freed safely.
-  int solve_info = 0;
-  EIGEN_CUDA_RUNTIME_CHECK(
-      cudaMemcpyAsync(&solve_info, d_solve_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
+  // Async download to pinned memory, sync, check. Workspace locals must outlive async kernels.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&info_word, d_info.ptr, sizeof(int), cudaMemcpyDeviceToHost, ctx.stream()));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
-  eigen_assert(solve_info == 0 && "cuSOLVER LU solve failed");
+  eigen_assert(info_word == 0 && "cuSOLVER LU solve failed");
 
   dst.recordReady(ctx.stream());
 }
@@ -274,6 +272,9 @@ void dispatch_trsm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Sc
 
   eigen_assert(A.rows() == A.cols() && "TRSM requires a square triangular matrix");
   eigen_assert(B.rows() == A.rows() && "TRSM: RHS rows must match matrix size");
+
+  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX &&
+               "cublasXtrsm dimensions exceed int range");
 
   const int n = static_cast<int>(A.rows());
   const int nrhs = static_cast<int>(B.cols());
@@ -314,6 +315,8 @@ void dispatch_symm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Sc
 
   eigen_assert(A.rows() == A.cols() && "SYMM requires a square matrix");
   eigen_assert(B.rows() == A.rows() && "SYMM: RHS rows must match matrix size");
+  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX &&
+               B.outerStride() <= INT_MAX && "cublasXsymm dimensions exceed int range");
 
   const int m = static_cast<int>(A.rows());
   const int n = static_cast<int>(B.cols());
@@ -349,6 +352,9 @@ void dispatch_syrk(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Sc
                    typename NumTraits<Scalar>::Real alpha_val, typename NumTraits<Scalar>::Real beta_val) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   const DeviceMatrix<Scalar>& A = expr.matrix();
+
+  eigen_assert(A.rows() <= INT_MAX && A.cols() <= INT_MAX && A.outerStride() <= INT_MAX &&
+               "cublasXsyrk dimensions exceed int range");
 
   const int n = static_cast<int>(A.rows());
   const int k = static_cast<int>(A.cols());
