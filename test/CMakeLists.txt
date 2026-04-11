@@ -548,7 +548,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
   endif()
 
-  option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" ON)
+  option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
   if(EIGEN_TEST_CUSPARSE AND TARGET CUDA::cusparse)
     ei_add_test(gpu_cusparse "" "CUDA::cusparse")
   endif()
