@@ -235,22 +235,24 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# ---- Old: CUDA 11.8 + oldest compilers, sm_70 -------------------------------
-# CUDA 11.4 is the minimum supported, but Ubuntu 20.04's CMake 3.16 is too
-# old (Eigen requires 3.17). CUDA 11.8 on Ubuntu 22.04 (CMake 3.22) works.
+# ---- Old: CUDA 11.5 + oldest compilers ---------------------------------------
+# clang-14 supports up to CUDA 11.5.
 
-# GCC-10, CUDA-11.4
-build:linux:cuda-11.8:gcc-10:
+# GCC-10, CUDA-11.5 (nvcc)
+# Ubuntu 20.04 ships CMake 3.16, but Eigen requires 3.17+.
+# Install a recent cmake via pip before the build.
+build:linux:cuda-11.5:gcc-10:
   extends: .build:linux:cuda
-  image: nvidia/cuda:11.8.0-devel-ubuntu22.04
+  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
+    EIGEN_CI_BEFORE_SCRIPT: "apt-get install -y --no-install-recommends python3-pip > /dev/null && pip3 install cmake && hash -r"
 
-# Clang-14, CUDA-11.8 (clang as CUDA compiler)
-build:linux:cuda-11.8:clang-14:
-  extends: build:linux:cuda-11.8:gcc-10
+# Clang-14, CUDA-11.5 (clang as CUDA compiler)
+build:linux:cuda-11.5:clang-14:
+  extends: build:linux:cuda-11.5:gcc-10
   variables:
     EIGEN_CI_INSTALL: clang-14
     EIGEN_CI_C_COMPILER: clang-14
