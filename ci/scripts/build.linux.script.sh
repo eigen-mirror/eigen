@@ -27,6 +27,11 @@ config_hash=$(echo "${cmake_args}" | sha256sum | cut -d' ' -f1)
 if [[ -s build.ninja && -f .cmake_config_hash && \
       "$(cat .cmake_config_hash)" == "${config_hash}" ]]; then
   echo "Cached build directory is valid (cmake args unchanged), skipping configure."
+  # Touch build.ninja so ninja does not re-run cmake.  The fresh git checkout
+  # gives all source files the current timestamp, which is newer than the
+  # cached build.ninja.  Ninja's built-in cmake re-run rule triggers on that
+  # timestamp comparison, defeating the cache skip above.
+  touch build.ninja
 else
   cmake ${cmake_args} ${rootdir}
   echo "${config_hash}" > .cmake_config_hash
