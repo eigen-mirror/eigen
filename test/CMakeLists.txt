@@ -508,6 +508,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     # segfaults when cuBLAS dispatch code is compiled as plain .cpp).
     set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
     add_executable(gpu_cublas gpu_cublas.cu)
+    set_target_properties(gpu_cublas PROPERTIES LINKER_LANGUAGE CUDA)
     target_include_directories(gpu_cublas PRIVATE
       "${CUDA_TOOLKIT_ROOT_DIR}/include"
       "${CMAKE_CURRENT_BINARY_DIR}")
