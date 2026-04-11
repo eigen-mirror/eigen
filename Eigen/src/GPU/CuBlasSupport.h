@@ -49,33 +49,38 @@ constexpr cublasOperation_t to_cublas_op(GpuOp op) {
   }
 }
 
-// ---- Scalar → cublasComputeType_t -------------------------------------------
-// cublasGemmEx requires a compute type (separate from the data type).
-
-template <typename Scalar>
-struct cuda_compute_type;
-
-template <>
-struct cuda_compute_type<float> {
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F;
-};
-template <>
-struct cuda_compute_type<double> {
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F;
-};
-template <>
-struct cuda_compute_type<std::complex<float>> {
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_32F;
-};
-template <>
-struct cuda_compute_type<std::complex<double>> {
-  static constexpr cublasComputeType_t value = CUBLAS_COMPUTE_64F;
-};
-
 // ---- Type-specific cuBLAS wrappers ------------------------------------------
-// cuBLAS uses separate functions per type (Strsm, Dtrsm, etc.).
-// These overloaded wrappers allow calling cublasXtrsm/cublasXsymm/cublasXsyrk
+// cuBLAS uses separate functions per type (Sgemm, Dgemm, etc.).
+// These overloaded wrappers allow calling cublasXgemm/cublasXtrsm/etc.
 // with any supported scalar type.
+
+// GEMM wrappers
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const float* alpha, const float* A, int lda, const float* B, int ldb,
+                                  const float* beta, float* C, int ldc) {
+  return cublasSgemm(h, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+}
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const double* alpha, const double* A, int lda, const double* B, int ldb,
+                                  const double* beta, double* C, int ldc) {
+  return cublasDgemm(h, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+}
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  const std::complex<float>* B, int ldb, const std::complex<float>* beta,
+                                  std::complex<float>* C, int ldc) {
+  return cublasCgemm(h, transA, transB, m, n, k, reinterpret_cast<const cuComplex*>(alpha),
+                     reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(B), ldb,
+                     reinterpret_cast<const cuComplex*>(beta), reinterpret_cast<cuComplex*>(C), ldc);
+}
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  const std::complex<double>* B, int ldb, const std::complex<double>* beta,
+                                  std::complex<double>* C, int ldc) {
+  return cublasZgemm(h, transA, transB, m, n, k, reinterpret_cast<const cuDoubleComplex*>(alpha),
+                     reinterpret_cast<const cuDoubleComplex*>(A), lda, reinterpret_cast<const cuDoubleComplex*>(B), ldb,
+                     reinterpret_cast<const cuDoubleComplex*>(beta), reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
 
 // TRSM wrappers
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,

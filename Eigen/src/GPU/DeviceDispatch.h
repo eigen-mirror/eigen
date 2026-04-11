@@ -31,10 +31,7 @@ namespace Eigen {
 namespace internal {
 
 // ---- GEMM dispatch ----------------------------------------------------------
-// GemmExpr<Lhs, Rhs> → cublasGemmEx(transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
-//
-// The generic API cublasGemmEx handles all scalar types (float, double,
-// complex<float>, complex<double>) via cudaDataType_t.
+// GemmExpr<Lhs, Rhs> → cublasXgemm (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
 
 template <typename Lhs, typename Rhs>
 void dispatch_gemm(
@@ -87,16 +84,12 @@ void dispatch_gemm(
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
-  constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-  constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
-
   eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
-               "cublasGemmEx dimensions exceed int range");
+               "cublasXgemm dimensions exceed int range");
 
-  EIGEN_CUBLAS_CHECK(cublasGemmEx(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
-                                  static_cast<int>(k), &alpha_val, A.data(), dtype, static_cast<int>(lda), B.data(),
-                                  dtype, static_cast<int>(ldb), &beta_val, dst.data(), dtype, static_cast<int>(ldc),
-                                  compute, CUBLAS_GEMM_DEFAULT));
+  EIGEN_CUBLAS_CHECK(cublasXgemm(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
+                                 static_cast<int>(k), &alpha_val, A.data(), static_cast<int>(lda), B.data(),
+                                 static_cast<int>(ldb), &beta_val, dst.data(), static_cast<int>(ldc)));
 
   dst.recordReady(ctx.stream());
 }
