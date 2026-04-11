@@ -243,28 +243,33 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
 build:linux:cuda-11.5:gcc-10:
   extends: .build:linux:cuda
   image: nvidia/cuda:11.5.2-devel-ubuntu20.04
+  before_script:
+    # Ubuntu 20.04 has cmake 3.16, Eigen requires 3.17+.
+    - apt-get update -y > /dev/null
+    - apt-get install -y --no-install-recommends python3-pip > /dev/null
+    - pip3 install cmake && hash -r
+    - . ci/scripts/common.linux.before_script.sh
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_BEFORE_SCRIPT: >-
-      apt-get install -y --no-install-recommends python3-pip > /dev/null
-      && pip3 install cmake
-      && hash -r
 
 build:linux:cuda-11.5:clang-14:
   extends: build:linux:cuda-11.5:gcc-10
+  before_script:
+    # Ubuntu 20.04 lacks clang-14 and cmake >= 3.17.  Add the LLVM apt
+    # repo for clang-14 and install cmake via pip.
+    - apt-get update -y > /dev/null
+    - apt-get install -y --no-install-recommends python3-pip software-properties-common wget gnupg > /dev/null
+    - wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+    - add-apt-repository -y 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
+    - apt-get update -y > /dev/null
+    - pip3 install cmake && hash -r
+    - . ci/scripts/common.linux.before_script.sh
   variables:
     EIGEN_CI_INSTALL: clang-14
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
-    EIGEN_CI_BEFORE_SCRIPT: >-
-      apt-get install -y --no-install-recommends python3-pip software-properties-common wget gnupg > /dev/null
-      && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-      && add-apt-repository -y 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
-      && apt-get update -y > /dev/null
-      && pip3 install cmake
-      && hash -r
 
 # ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
 # sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
