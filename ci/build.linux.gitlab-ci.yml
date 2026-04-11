@@ -215,7 +215,8 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
+    # SaaS GPU runners have Tesla T4 (sm_75).
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
@@ -245,7 +246,7 @@ build:linux:cuda-11.8:gcc-10:
   variables:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "70"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
 
 # Clang-14, CUDA-11.8 (clang as CUDA compiler)
 build:linux:cuda-11.8:clang-14:
@@ -256,8 +257,8 @@ build:linux:cuda-11.8:clang-14:
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
 
-# ---- New: latest CUDA + newest compilers, sm_80;sm_90 ----------------------
-# sm_70 coverage comes from the 11.4 jobs above.
+# ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
+# sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
 
 # GCC-14, CUDA-13.2 (nvcc)
 build:linux:cuda-13.2:gcc-14:
@@ -266,7 +267,7 @@ build:linux:cuda-13.2:gcc-14:
   variables:
     EIGEN_CI_C_COMPILER: gcc-14
     EIGEN_CI_CXX_COMPILER: g++-14
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "80;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
 
 # Clang-19, CUDA-12.6 (clang as CUDA compiler)
 # Clang CUDA support lags behind nvcc; clang-19 supports up to CUDA 12.x.
@@ -278,7 +279,7 @@ build:linux:cuda-12.6:clang-19:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "80;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
 
 
 ######### HIP ##################################################################
