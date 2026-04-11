@@ -291,9 +291,9 @@ test:linux:cuda-11.5:clang-14:
     # Ubuntu 20.04 lacks clang-14.  Add the LLVM apt repo before
     # the common before_script installs EIGEN_CI_INSTALL packages.
     - apt-get update -y > /dev/null
-    - apt-get install -y --no-install-recommends software-properties-common wget gnupg > /dev/null
+    - apt-get install -y --no-install-recommends wget gnupg > /dev/null
     - wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-    - add-apt-repository -y 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
+    - echo 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main' > /etc/apt/sources.list.d/llvm-14.list
     - apt-get update -y > /dev/null
     - . ci/scripts/common.linux.before_script.sh
   variables:

@@ -257,11 +257,13 @@ build:linux:cuda-11.5:clang-14:
   extends: build:linux:cuda-11.5:gcc-10
   before_script:
     # Ubuntu 20.04 lacks clang-14 and cmake >= 3.17.  Add the LLVM apt
-    # repo for clang-14 and install cmake via pip.
+    # repo for clang-14 and install cmake via pip.  Avoid
+    # software-properties-common (huge dependency tree) by writing the
+    # sources list directly.
     - apt-get update -y > /dev/null
-    - apt-get install -y --no-install-recommends python3-pip software-properties-common wget gnupg > /dev/null
+    - apt-get install -y --no-install-recommends python3-pip wget gnupg > /dev/null
     - wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-    - add-apt-repository -y 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
+    - echo 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main' > /etc/apt/sources.list.d/llvm-14.list
     - apt-get update -y > /dev/null
     - pip3 install cmake && hash -r
     - . ci/scripts/common.linux.before_script.sh
