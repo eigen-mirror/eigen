@@ -246,16 +246,42 @@ Packet cst_pio2_3() {
   return pset1<Packet>(1.4973849048591698329435081771059920083527504761695190e-33);  //  0x1.f1976b7ed8fbcp-110
 }
 
-// Trigonometric argument reduction for double, small inputs (|x| < small_th).
-// Reduces x to t such that x = q * pi/2 + t, where |t| <= pi/4.
-// Uses a triple-double split of pi/2 with FMA for high accuracy.
+// Trigonometric argument reduction for double.
+// Reduces x to t such that x + q * pi/2 = t, where |t| <= pi/4.
+// Uses a triple-double split of pi/2 (cst_pio2_{1,2,3}).
 template <typename Packet>
 Packet trig_reduce_small_double(const Packet& x, const Packet& q) {
+#ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
+  // With FMA, pmadd(a, b, c) = fl(a*b + c) in a single rounding,
+  // so Cody-Waite reduction is accurate even under catastrophic cancellation.
   Packet t;
   t = pmadd(cst_pio2_1<Packet>(), q, x);
   t = pmadd(cst_pio2_2<Packet>(), q, t);
   t = pmadd(cst_pio2_3<Packet>(), q, t);
   return t;
+#else
+  // Without FMA, pmadd is mul + add (two roundings). For large q,
+  // pmul(pio2_1, q) rounds before the cancellation with x, losing
+  // catastrophic amounts of precision (observed: ~10 digits lost).
+  // Use error-free transformations to preserve accuracy.
+
+  // Compute q * pio2_1 exactly as a double-word using Dekker's algorithm.
+  Packet qp_hi, qp_lo;
+  twoprod(cst_pio2_1<Packet>(), q, qp_hi, qp_lo);
+
+  // Error-free addition of x and qp_hi using Knuth's 2sum.
+  // Returns t_hi + t_lo = x + qp_hi exactly, with t_hi = fl(x + qp_hi).
+  Packet t_hi = padd(x, qp_hi);
+  Packet v = psub(t_hi, x);
+  Packet t_lo = padd(psub(x, psub(t_hi, v)), psub(qp_hi, v));
+
+  // Accumulate the low part of the product and the remaining pi/2 terms.
+  t_lo = padd(t_lo, qp_lo);
+  t_lo = pmadd(cst_pio2_2<Packet>(), q, t_lo);
+  t_lo = pmadd(cst_pio2_3<Packet>(), q, t_lo);
+
+  return padd(t_hi, t_lo);
+#endif
 }
 
 template <TrigFunction Func, typename Packet>
