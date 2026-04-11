@@ -280,14 +280,15 @@ test:linux:cuda-12.2:gcc-11:
     EIGEN_CI_CXX_COMPILER: g++-11
     EIGEN_CI_CC_COMPILER: gcc-11
 
-# Clang-14, CUDA-12.2
-test:linux:cuda-12.2:clang-14:
+# Clang-19, CUDA-12.2
+test:linux:cuda-12.2:clang-19:
   extends: .test:linux:cuda
   image: nvidia/cuda:12.2.0-devel-ubuntu22.04
-  needs: [ build:linux:cuda-12.2:clang-14 ]
+  needs: [ build:linux:cuda-12.2:clang-19 ]
   variables:
-    EIGEN_CI_CXX_COMPILER: clang++-14
-    EIGEN_CI_CC_COMPILER: clang-14
+    EIGEN_CI_INSTALL: clang-19
+    EIGEN_CI_CXX_COMPILER: clang++-19
+    EIGEN_CI_CC_COMPILER: clang-19
 
 
 ##### arm ######################################################################
