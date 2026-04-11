@@ -800,6 +800,407 @@ void test_imagenet_patches() {
   }
 }
 
+// Tests inflate strides (row_inflate_strides, col_inflate_strides).
+// Inflate inserts zeros between input elements before patch extraction.
+void test_patch_inflate_strides() {
+  // ColMajor: 2 channels, 3 rows, 4 cols, 1 batch
+  const int depth = 2;
+  const int rows = 3;
+  const int cols = 4;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int row_inflate = 2;
+  const int col_inflate = 3;
+  const int patch_rows = 3;
+  const int patch_cols = 4;
+
+  // Effective input size after inflation:
+  //   eff_rows = (3-1)*2 + 1 = 5
+  //   eff_cols = (4-1)*3 + 1 = 10
+  // With explicit padding=0, VALID-like extraction:
+  //   outputRows = ceil((5 + 0 + 0 - 3 + 1) / 1) = 3
+  //   outputCols = ceil((10 + 0 + 0 - 4 + 1) / 1) = 7
+  Tensor<float, 5> result =
+      tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, row_inflate, col_inflate, 0, 0, 0, 0, 0.0f);
+  const int outputRows = 3;
+  const int outputCols = 7;
+  VERIFY_IS_EQUAL(result.dimension(0), depth);
+  VERIFY_IS_EQUAL(result.dimension(1), patch_rows);
+  VERIFY_IS_EQUAL(result.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result.dimension(3), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result.dimension(4), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              // Position in effective (inflated) input
+              int effRow = oi + pr;
+              int effCol = oj + pc;
+              float expected = 0.0f;
+              // Check if this maps to an actual input element
+              if (effRow % row_inflate == 0 && effCol % col_inflate == 0) {
+                int origRow = effRow / row_inflate;
+                int origCol = effCol / col_inflate;
+                if (origRow >= 0 && origRow < rows && origCol >= 0 && origCol < cols) {
+                  expected = tensor(d, origRow, origCol, b);
+                }
+              }
+              VERIFY_IS_EQUAL(result(d, pr, pc, patchId, b), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // RowMajor
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, row_inflate, col_inflate, 0, 0, 0, 0, 0.0f);
+  VERIFY_IS_EQUAL(result_rm.dimension(4), depth);
+  VERIFY_IS_EQUAL(result_rm.dimension(3), patch_rows);
+  VERIFY_IS_EQUAL(result_rm.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result_rm.dimension(1), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result_rm.dimension(0), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int effRow = oi + pr;
+              int effCol = oj + pc;
+              float expected = 0.0f;
+              if (effRow % row_inflate == 0 && effCol % col_inflate == 0) {
+                int origRow = effRow / row_inflate;
+                int origCol = effCol / col_inflate;
+                if (origRow >= 0 && origRow < rows && origCol >= 0 && origCol < cols) {
+                  expected = tensor_rm(b, origCol, origRow, d);
+                }
+              }
+              VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, d), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Tests dilation (in_row_strides, in_col_strides).
+// Dilation samples every Nth element within each patch.
+void test_patch_dilation() {
+  const int depth = 3;
+  const int rows = 5;
+  const int cols = 5;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int patch_rows = 2;
+  const int patch_cols = 2;
+  const int in_row_strides = 2;  // dilation
+  const int in_col_strides = 2;
+
+  // Effective patch size: patch + (patch-1)*(dilation-1)
+  //   eff_patch_rows = 2 + (2-1)*(2-1) = 3
+  //   eff_patch_cols = 2 + (2-1)*(2-1) = 3
+  // With PADDING_VALID:
+  //   outputRows = ceil((5 - 3 + 1) / 1) = 3
+  //   outputCols = ceil((5 - 3 + 1) / 1) = 3
+  Tensor<float, 5> result =
+      tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, in_row_strides, in_col_strides, PADDING_VALID);
+  const int outputRows = 3;
+  const int outputCols = 3;
+  VERIFY_IS_EQUAL(result.dimension(0), depth);
+  VERIFY_IS_EQUAL(result.dimension(1), patch_rows);
+  VERIFY_IS_EQUAL(result.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result.dimension(3), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result.dimension(4), batch);
+
+  // row_padding and col_padding are 0 for VALID.
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              // Within-patch dilation: sample at stride in_row_strides
+              int inputRow = oi + pr * in_row_strides;
+              int inputCol = oj + pc * in_col_strides;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor(d, inputRow, inputCol, b);
+              }
+              VERIFY_IS_EQUAL(result(d, pr, pc, patchId, b), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // RowMajor
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, in_row_strides, in_col_strides, PADDING_VALID);
+  VERIFY_IS_EQUAL(result_rm.dimension(4), depth);
+  VERIFY_IS_EQUAL(result_rm.dimension(3), patch_rows);
+  VERIFY_IS_EQUAL(result_rm.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result_rm.dimension(1), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result_rm.dimension(0), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int inputRow = oi + pr * in_row_strides;
+              int inputCol = oj + pc * in_col_strides;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor_rm(b, inputCol, inputRow, d);
+              }
+              VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, d), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Tests explicit padding with asymmetric top/bottom/left/right values.
+void test_patch_explicit_padding() {
+  const int depth = 3;
+  const int rows = 4;
+  const int cols = 4;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int patch_rows = 3;
+  const int patch_cols = 3;
+  const int padding_top = 1;
+  const int padding_bottom = 2;
+  const int padding_left = 1;
+  const int padding_right = 2;
+
+  // outputRows = ceil((4 + 1 + 2 - 3 + 1) / 1) = 5
+  // outputCols = ceil((4 + 1 + 2 - 3 + 1) / 1) = 5
+  Tensor<float, 5> result = tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, 1, 1, padding_top,
+                                                         padding_bottom, padding_left, padding_right, 0.0f);
+  const int outputRows = 5;
+  const int outputCols = 5;
+  VERIFY_IS_EQUAL(result.dimension(0), depth);
+  VERIFY_IS_EQUAL(result.dimension(1), patch_rows);
+  VERIFY_IS_EQUAL(result.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result.dimension(3), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result.dimension(4), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int inputRow = oi + pr - padding_top;
+              int inputCol = oj + pc - padding_left;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor(d, inputRow, inputCol, b);
+              }
+              VERIFY_IS_EQUAL(result(d, pr, pc, patchId, b), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // RowMajor
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm = tensor_rm.extract_image_patches(
+      patch_rows, patch_cols, 1, 1, 1, 1, 1, 1, padding_top, padding_bottom, padding_left, padding_right, 0.0f);
+  VERIFY_IS_EQUAL(result_rm.dimension(4), depth);
+  VERIFY_IS_EQUAL(result_rm.dimension(3), patch_rows);
+  VERIFY_IS_EQUAL(result_rm.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result_rm.dimension(1), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result_rm.dimension(0), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int inputRow = oi + pr - padding_top;
+              int inputCol = oj + pc - padding_left;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor_rm(b, inputCol, inputRow, d);
+              }
+              VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, d), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Tests rectangular input with non-square patches and different row/col strides.
+void test_patch_asymmetric() {
+  const int depth = 3;
+  const int rows = 3;
+  const int cols = 7;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int patch_rows = 2;
+  const int patch_cols = 3;
+  const int row_stride = 1;
+  const int col_stride = 2;
+
+  // PADDING_VALID:
+  //   outputRows = ceil((3 - 2 + 1) / 1) = 2
+  //   outputCols = ceil((7 - 3 + 1) / 2) = 3
+  Tensor<float, 5> result =
+      tensor.extract_image_patches(patch_rows, patch_cols, row_stride, col_stride, 1, 1, PADDING_VALID);
+  const int outputRows = 2;
+  const int outputCols = 3;
+  VERIFY_IS_EQUAL(result.dimension(0), depth);
+  VERIFY_IS_EQUAL(result.dimension(1), patch_rows);
+  VERIFY_IS_EQUAL(result.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result.dimension(3), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result.dimension(4), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int inputRow = oi * row_stride + pr;
+              int inputCol = oj * col_stride + pc;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor(d, inputRow, inputCol, b);
+              }
+              VERIFY_IS_EQUAL(result(d, pr, pc, patchId, b), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // RowMajor
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, row_stride, col_stride, 1, 1, PADDING_VALID);
+  VERIFY_IS_EQUAL(result_rm.dimension(4), depth);
+  VERIFY_IS_EQUAL(result_rm.dimension(3), patch_rows);
+  VERIFY_IS_EQUAL(result_rm.dimension(2), patch_cols);
+  VERIFY_IS_EQUAL(result_rm.dimension(1), outputRows * outputCols);
+  VERIFY_IS_EQUAL(result_rm.dimension(0), batch);
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            for (int d = 0; d < depth; ++d) {
+              int inputRow = oi * row_stride + pr;
+              int inputCol = oj * col_stride + pc;
+              float expected = 0.0f;
+              if (inputRow >= 0 && inputRow < rows && inputCol >= 0 && inputCol < cols) {
+                expected = tensor_rm(b, inputCol, inputRow, d);
+              }
+              VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, d), expected);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Exercises packet loads that span multiple rows/columns within the patch.
+void test_patch_contiguous_packet_span() {
+  const int depth = 1;
+  const int rows = 5;
+  const int cols = 5;
+  const int batch = 1;
+  Tensor<float, 4> tensor(depth, rows, cols, batch);
+  for (int i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<float>(i + 1);
+  }
+
+  const int patch_rows = 3;
+  const int patch_cols = 3;
+  Tensor<float, 5> result = tensor.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, PADDING_VALID);
+  const int outputRows = 3;
+  const int outputCols = 3;
+
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        const int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            const int inputRow = oi + pr;
+            const int inputCol = oj + pc;
+            VERIFY_IS_EQUAL(result(0, pr, pc, patchId, b), tensor(0, inputRow, inputCol, b));
+          }
+        }
+      }
+    }
+  }
+
+  Tensor<float, 4, RowMajor> tensor_rm = tensor.swap_layout();
+  Tensor<float, 5, RowMajor> result_rm =
+      tensor_rm.extract_image_patches(patch_rows, patch_cols, 1, 1, 1, 1, PADDING_VALID);
+  for (int b = 0; b < batch; ++b) {
+    for (int oi = 0; oi < outputRows; ++oi) {
+      for (int oj = 0; oj < outputCols; ++oj) {
+        const int patchId = oi + outputRows * oj;
+        for (int pr = 0; pr < patch_rows; ++pr) {
+          for (int pc = 0; pc < patch_cols; ++pc) {
+            const int inputRow = oi + pr;
+            const int inputCol = oj + pc;
+            VERIFY_IS_EQUAL(result_rm(b, patchId, pc, pr, 0), tensor_rm(b, inputCol, inputRow, 0));
+          }
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
   CALL_SUBTEST_1(test_simple_patch());
   CALL_SUBTEST_2(test_patch_no_extra_dim());
@@ -808,4 +1209,9 @@ EIGEN_DECLARE_TEST(cxx11_tensor_image_patch) {
   CALL_SUBTEST_5(test_patch_padding_same());
   CALL_SUBTEST_6(test_imagenet_patches());
   CALL_SUBTEST_7(test_patch_padding_same_negative_padding_clip_to_zero());
+  CALL_SUBTEST_8(test_patch_inflate_strides());
+  CALL_SUBTEST_9(test_patch_dilation());
+  CALL_SUBTEST_10(test_patch_explicit_padding());
+  CALL_SUBTEST_11(test_patch_asymmetric());
+  CALL_SUBTEST_12(test_patch_contiguous_packet_span());
 }
