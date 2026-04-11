@@ -299,7 +299,7 @@ The caller must ensure operands don't alias the destination for GEMM and TRSM
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `PinnedHostBuffer`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `DeviceMatrix<>`, `HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
@@ -316,10 +316,11 @@ The caller must ensure operands don't alias the destination for GEMM and TRSM
 ```bash
 cmake -G Ninja -B build -S . \
   -DEIGEN_TEST_CUDA=ON \
-  -DEIGEN_CUDA_COMPUTE_ARCH="70" \
-  -DEIGEN_TEST_CUBLAS=ON \
-  -DEIGEN_TEST_CUSOLVER=ON
+  -DEIGEN_CUDA_COMPUTE_ARCH="70"
 
 cmake --build build --target gpu_cublas gpu_cusolver_llt gpu_cusolver_lu gpu_device_matrix
 ctest --test-dir build -R "gpu_cublas|gpu_cusolver|gpu_device" --output-on-failure
 ```
+
+`EIGEN_TEST_CUBLAS` and `EIGEN_TEST_CUSOLVER` default to ON when CUDA is enabled
+(cuBLAS and cuSOLVER are part of the CUDA toolkit).
