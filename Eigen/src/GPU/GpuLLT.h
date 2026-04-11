@@ -94,15 +94,15 @@ class GpuLLT {
         n_(o.n_),
         lda_(o.lda_),
         info_(o.info_),
-        info_word_(o.info_word_),
+        pinned_info_(std::move(o.pinned_info_)),
         info_synced_(o.info_synced_) {
     o.stream_ = nullptr;
     o.handle_ = nullptr;
     o.factor_alloc_size_ = 0;
     o.scratch_size_ = 0;
     o.n_ = 0;
+    o.lda_ = 0;
     o.info_ = InvalidInput;
-    o.info_word_ = 0;
     o.info_synced_ = true;
   }
 
@@ -121,15 +121,15 @@ class GpuLLT {
       n_ = o.n_;
       lda_ = o.lda_;
       info_ = o.info_;
-      info_word_ = o.info_word_;
+      pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;
       o.stream_ = nullptr;
       o.handle_ = nullptr;
       o.factor_alloc_size_ = 0;
       o.scratch_size_ = 0;
       o.n_ = 0;
+      o.lda_ = 0;
       o.info_ = InvalidInput;
-      o.info_word_ = 0;
       o.info_synced_ = true;
     }
     return *this;
@@ -270,8 +270,11 @@ class GpuLLT {
   Index n_ = 0;
   int64_t lda_ = 0;
   ComputationInfo info_ = InvalidInput;
-  int info_word_ = 0;        // host-side target for async info download
-  bool info_synced_ = true;  // has the stream been synced for info?
+  internal::PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H
+  bool info_synced_ = true;                              // has the stream been synced for info?
+
+  int& info_word() { return *static_cast<int*>(pinned_info_.ptr); }
+  int info_word() const { return *static_cast<const int*>(pinned_info_.ptr); }
 
   bool begin_compute(Index rows) {
     n_ = rows;
@@ -325,14 +328,16 @@ class GpuLLT {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_, ColMajor>::value;
 
-    Scalar* d_x_ptr = nullptr;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_x_ptr), rhsBytes(nrhs, ldb)));
+    internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
+    Scalar* d_x_ptr = static_cast<Scalar*>(d_x.ptr);
     copy_rhs(d_x_ptr);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, static_cast<int64_t>(n_), nrhs, dtype,
                                           d_factor_.ptr, lda_, dtype, d_x_ptr, ldb, scratch_info()));
 
-    DeviceMatrix<Scalar> result(d_x_ptr, n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
+    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs),
+                                static_cast<Index>(ldb));
+    d_x.ptr = nullptr;  // transfer ownership to result
     result.recordReady(stream_);
     return result;
   }
@@ -348,7 +353,7 @@ class GpuLLT {
   void sync_info() {
     if (!info_synced_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      info_ = (info_word_ == 0) ? Success : NumericalIssue;
+      info_ = (info_word() == 0) ? Success : NumericalIssue;
       info_synced_ = true;
     }
   }
@@ -376,7 +381,7 @@ class GpuLLT {
 
     // Enqueue async download of info word — sync deferred to info() or solve().
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(&info_word_, scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, stream_));
+        cudaMemcpyAsync(&info_word(), scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, stream_));
   }
 };
 

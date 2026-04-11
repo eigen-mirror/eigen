@@ -150,9 +150,9 @@ class GemmExpr {
   const Rhs& rhs() const { return rhs_; }
 
  private:
-  // Stored by reference. Expression objects must not outlive their operands.
-  // This is safe for the one-liner pattern (d_C = d_A * d_B) since all
-  // temporaries live until the semicolon.
+  // Stored by reference — like Eigen's CPU expression templates, these must
+  // not be captured with auto (the references will dangle). Use .eval() or
+  // assign to a DeviceMatrix immediately.
   const Lhs& lhs_;
   const Rhs& rhs_;
 };

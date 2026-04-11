@@ -71,6 +71,37 @@ struct DeviceBuffer {
   }
 };
 
+// ---- RAII: pinned host buffer -----------------------------------------------
+// For async D2H copies (cudaMemcpyAsync requires pinned host memory for true
+// asynchrony and to avoid compute-sanitizer warnings).
+
+struct PinnedHostBuffer {
+  void* ptr = nullptr;
+
+  PinnedHostBuffer() = default;
+
+  explicit PinnedHostBuffer(size_t bytes) {
+    if (bytes > 0) EIGEN_CUDA_RUNTIME_CHECK(cudaMallocHost(&ptr, bytes));
+  }
+
+  ~PinnedHostBuffer() {
+    if (ptr) (void)cudaFreeHost(ptr);
+  }
+
+  PinnedHostBuffer(PinnedHostBuffer&& o) noexcept : ptr(o.ptr) { o.ptr = nullptr; }
+  PinnedHostBuffer& operator=(PinnedHostBuffer&& o) noexcept {
+    if (this != &o) {
+      if (ptr) (void)cudaFreeHost(ptr);
+      ptr = o.ptr;
+      o.ptr = nullptr;
+    }
+    return *this;
+  }
+
+  PinnedHostBuffer(const PinnedHostBuffer&) = delete;
+  PinnedHostBuffer& operator=(const PinnedHostBuffer&) = delete;
+};
+
 // ---- Scalar → cudaDataType_t ------------------------------------------------
 // Shared by cuBLAS and cuSOLVER. cudaDataType_t is defined in library_types.h
 // which is included transitively by cuda_runtime.h.

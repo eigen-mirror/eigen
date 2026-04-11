@@ -19,6 +19,8 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <climits>
+
 #include "./DeviceExpr.h"
 #include "./DeviceBlasExpr.h"
 #include "./DeviceSolverExpr.h"
@@ -87,6 +89,9 @@ void dispatch_gemm(
 
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
+
+  eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
+               "cublasGemmEx dimensions exceed int range");
 
   EIGEN_CUBLAS_CHECK(cublasGemmEx(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
                                   static_cast<int>(k), &alpha_val, A.data(), dtype, static_cast<int>(lda), B.data(),
