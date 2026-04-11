@@ -92,10 +92,8 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
 # GCC-13 for AVX512-FP16 (_Float16 support).
-# Ubuntu 26.04 for binutils >= 2.43 (masked vmovsh support).
 .test:linux:x86-64:gcc-13:default:
   extends: .test:linux:x86-64
-  image: ubuntu:26.04
   needs: [ build:linux:cross:x86-64:gcc-13:default ]
   variables:
     EIGEN_CI_INSTALL: g++-13

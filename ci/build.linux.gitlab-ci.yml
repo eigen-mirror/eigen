@@ -37,11 +37,8 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
 # GCC-13 for AVX512-FP16 (_Float16 support).
-# Ubuntu 26.04 is required: masked vmovsh needs binutils >= 2.43
-# (Ubuntu 24.04 ships 2.42 which rejects this encoding).
 build:linux:cross:x86-64:gcc-13:default:
   extends: .build:linux:cross:x86-64
-  image: ubuntu:26.04
   variables:
     EIGEN_CI_C_COMPILER: gcc-13
     EIGEN_CI_CXX_COMPILER: g++-13
@@ -67,7 +64,10 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
 build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
   variables:
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on"
+    # Use -O2: GCC bug generates invalid masked vmovsh with {z} on memory
+    # stores at -O3 for _Float16 operations (zero-masking on memory
+    # destinations is architecturally illegal in AVX-512).
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_CXX_FLAGS_RELEASE='-O2 -DNDEBUG'"
 
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
