@@ -231,20 +231,9 @@ void test_gemm_scaled_rhs(Index m, Index n, Index k) {
 }
 
 // ---- GEMM dimension mismatch must assert ------------------------------------
-
-template <typename Scalar>
-void test_gemm_dimension_mismatch() {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-
-  Mat A = Mat::Random(8, 5);
-  Mat B = Mat::Random(6, 7);  // inner dimension mismatch
-
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  DeviceMatrix<Scalar> d_C;
-
-  VERIFY_RAISES_ASSERT(d_C = d_A * d_B);
-}
+// Note: we do NOT use VERIFY_RAISES_ASSERT here because it relies on
+// setjmp/longjmp which skips RAII destructors for DeviceMatrix (GPU memory)
+// and cuBLAS/cuSOLVER handles, corrupting state for subsequent tests.
 
 // ---- GEMM with explicit GpuContext ------------------------------------------
 
@@ -654,7 +643,6 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_accumulate_empty<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_subtract<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_subtract_empty<Scalar>(64, 64, 64));
-  CALL_SUBTEST(test_gemm_dimension_mismatch<Scalar>());
   CALL_SUBTEST(test_gemm_explicit_context<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
