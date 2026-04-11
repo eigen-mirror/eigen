@@ -7,35 +7,12 @@ rootdir=`pwd`
 mkdir -p ${EIGEN_CI_BUILDDIR}
 cd ${EIGEN_CI_BUILDDIR}
 
-# Build the cmake configure command.
-cmake_args="-G Ninja \
-  -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER} \
-  -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER} \
-  -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET} \
-  ${EIGEN_CI_ADDITIONAL_ARGS}"
-
-# Skip cmake configure when the cached build directory already has a valid
-# build.ninja and the cmake arguments have not changed.  This avoids a full
-# reconfigure on Linux CI where compilers are installed via apt-get into
-# ephemeral containers — the fresh compiler binary has a different inode/mtime,
-# causing CMake to re-probe and regenerate everything, which invalidates
-# ninja's dependency tracking and forces a full rebuild.
-#
-# Ninja itself re-runs cmake automatically when CMakeLists.txt files change,
-# so skipping the explicit configure is safe.
-config_hash=$(echo "${cmake_args}" | sha256sum | cut -d' ' -f1)
-if [[ -s build.ninja && -f .cmake_config_hash && \
-      "$(cat .cmake_config_hash)" == "${config_hash}" ]]; then
-  echo "Cached build directory is valid (cmake args unchanged), skipping configure."
-  # Touch build.ninja so ninja does not re-run cmake.  The fresh git checkout
-  # gives all source files the current timestamp, which is newer than the
-  # cached build.ninja.  Ninja's built-in cmake re-run rule triggers on that
-  # timestamp comparison, defeating the cache skip above.
-  touch build.ninja
-else
-  cmake ${cmake_args} ${rootdir}
-  echo "${config_hash}" > .cmake_config_hash
-fi
+# Configure build.
+cmake -G Ninja                                                   \
+  -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
+  -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
+  -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET}    \
+  ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
 
 target=""
 if [[ ${EIGEN_CI_BUILD_TARGET} ]]; then
