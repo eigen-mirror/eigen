@@ -499,10 +499,10 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   set_property(TEST gpu_device_matrix PROPERTY SKIP_RETURN_CODE 77)
   set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
 
-  # Library-specific GPU tests (activated by later phases, OFF by default).
+  # Library-specific GPU tests.
   # CUDAToolkit imported targets (CUDA::cublas, etc.) are available from
   # find_package(CUDAToolkit) above.
-  option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
+  option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" ON)
   if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
     # cuBLAS tests are plain .cpp files (no device code), like cuSOLVER tests.
     unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
@@ -523,7 +523,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
   endif()
 
-  option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
+  option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" ON)
   if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
     # cuSOLVER tests are plain .cpp files: no device code, compiled by the host
     # compiler and linked against CUDA runtime + cuSOLVER. This avoids NVCC
