@@ -308,8 +308,8 @@ The caller must ensure operands don't alias the destination for GEMM and TRSM
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `gpu::LLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `gpu::LU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
+| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
+| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
 
 ## Building and testing
 
