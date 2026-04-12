@@ -72,7 +72,7 @@ void dispatch_gemm(
   }
   const int64_t ldc = dst.outerStride();
 
-  Scalar alpha_val = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());
+  Scalar alpha_local = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());
 
   // Wait for operands to be ready on this stream.
   A.waitReady(ctx.stream());
@@ -87,9 +87,14 @@ void dispatch_gemm(
   eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
                "cublasXgemm dimensions exceed int range");
 
+  // cuBLAS reads alpha and beta through host pointers.  Store them in an
+  // array to prevent the compiler from eliding their stack slots — clang
+  // and MSVC at -O1+ otherwise optimise away the stores for complex types,
+  // leaving cuBLAS with a dangling pointer.
+  Scalar scalars[2] = {alpha_local, beta_val};
   EIGEN_CUBLAS_CHECK(cublasXgemm(ctx.cublasHandle(), transA, transB, static_cast<int>(m), static_cast<int>(n),
-                                 static_cast<int>(k), &alpha_val, A.data(), static_cast<int>(lda), B.data(),
-                                 static_cast<int>(ldb), &beta_val, dst.data(), static_cast<int>(ldc)));
+                                 static_cast<int>(k), &scalars[0], A.data(), static_cast<int>(lda), B.data(),
+                                 static_cast<int>(ldb), &scalars[1], dst.data(), static_cast<int>(ldc)));
 
   dst.recordReady(ctx.stream());
 }
@@ -327,11 +332,12 @@ void dispatch_symm(GpuContext& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Sc
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  Scalar alpha(1), beta(0);
+  // Array prevents the compiler from eliding stack slots (see dispatch_gemm).
+  Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
-  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &alpha, A.data(),
-                                 static_cast<int>(A.outerStride()), B.data(), static_cast<int>(B.outerStride()), &beta,
-                                 dst.data(), static_cast<int>(dst.outerStride())));
+  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(),
+                                 static_cast<int>(A.outerStride()), B.data(), static_cast<int>(B.outerStride()),
+                                 &scalars[1], dst.data(), static_cast<int>(dst.outerStride())));
 
   dst.recordReady(ctx.stream());
 }
