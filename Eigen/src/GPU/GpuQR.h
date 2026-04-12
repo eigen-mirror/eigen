@@ -136,7 +136,10 @@ class QR {
 
   /** Solve A * X = B via QR: X = R^{-1} * Q^H * B (least-squares for m >= n).
    * Uses ormqr (apply Q^H) + trsm (solve R), without forming Q explicitly.
-   * Requires m >= n (overdetermined or square). Underdetermined not supported. */
+   * Requires m >= n (overdetermined or square). Underdetermined not supported.
+   *
+   * TODO: Add device-side accessor for the R factor (and Q application) as
+   * DeviceMatrix, so users can chain GPU operations without host round-trips. */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B) const {
     ctx_.sync_info();

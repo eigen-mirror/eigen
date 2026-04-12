@@ -51,3 +51,7 @@ eigen_add_gpu_benchmark(bench_gpu_chaining_float bench_gpu_chaining.cpp DEFINITI
 # Batching benchmarks: multi-stream concurrency for many small systems.
 eigen_add_gpu_benchmark(bench_gpu_batching bench_gpu_batching.cpp)
 eigen_add_gpu_benchmark(bench_gpu_batching_float bench_gpu_batching.cpp DEFINITIONS SCALAR=float)
+
+# FFT benchmarks: 1D/2D C2C, R2C, C2R throughput and plan reuse.
+eigen_add_gpu_benchmark(bench_gpu_fft bench_gpu_fft.cpp LIBRARIES CUDA::cufft)
+eigen_add_gpu_benchmark(bench_gpu_fft_double bench_gpu_fft.cpp LIBRARIES CUDA::cufft DEFINITIONS SCALAR=double)
