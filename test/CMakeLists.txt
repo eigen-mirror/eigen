@@ -504,11 +504,9 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   # find_package(CUDAToolkit) above.
   option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" ON)
   if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
-    # Compile as .cu so clang CUDA mode handles it correctly (clang-14
-    # segfaults when cuBLAS dispatch code is compiled as plain .cpp).
-    set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
-    add_executable(gpu_cublas gpu_cublas.cu)
-    set_target_properties(gpu_cublas PROPERTIES LINKER_LANGUAGE CUDA)
+    # Plain .cpp: no device code, compiled by the host compiler.
+    unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+    add_executable(gpu_cublas gpu_cublas.cpp)
     target_include_directories(gpu_cublas PRIVATE
       "${CUDA_TOOLKIT_ROOT_DIR}/include"
       "${CMAKE_CURRENT_BINARY_DIR}")
