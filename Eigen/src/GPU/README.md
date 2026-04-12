@@ -38,11 +38,11 @@ Eigen. Here is a side-by-side comparison:
 #include <Eigen/Dense>                  #define EIGEN_USE_GPU
                                         #include <Eigen/GPU>
 
-MatrixXd A = ...;                       auto d_A = DeviceMatrix<double>::fromHost(A);
-MatrixXd B = ...;                       auto d_B = DeviceMatrix<double>::fromHost(B);
+MatrixXd A = ...;                       auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
+MatrixXd B = ...;                       auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
 
-MatrixXd C = A * B;                     DeviceMatrix<double> d_C = d_A * d_B;
-MatrixXd X = A.llt().solve(B);          DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
+MatrixXd C = A * B;                     gpu::DeviceMatrix<double> d_C = d_A * d_B;
+MatrixXd X = A.llt().solve(B);          gpu::DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
 
                                         MatrixXd X = d_X.toHost();
 ```
@@ -73,10 +73,10 @@ a `DeviceMatrix` with one column.
 
 ```cpp
 // Upload from host
-auto d_A = DeviceMatrix<double>::fromHost(A);
+auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
 
 // Allocate uninitialized
-DeviceMatrix<double> d_C(m, n);
+gpu::DeviceMatrix<double> d_C(m, n);
 
 // Download to host
 MatrixXd C = d_C.toHost();
@@ -119,11 +119,11 @@ d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ### Matrix operations (cuBLAS)
 
 ```cpp
-auto d_A = DeviceMatrix<double>::fromHost(A);
-auto d_B = DeviceMatrix<double>::fromHost(B);
+auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
+auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
 
 // GEMM: C = A * B, C = A^H * B, C = A * B^T, ...
-DeviceMatrix<double> d_C = d_A * d_B;
+gpu::DeviceMatrix<double> d_C = d_A * d_B;
 d_C = d_A.adjoint() * d_B;
 d_C = d_A * d_B.transpose();
 
@@ -190,16 +190,11 @@ host-device transfers and re-factorizations.
 
 ### Precision control
 
-GEMM dispatch enables tensor core algorithms by default, allowing cuBLAS to
-choose the fastest algorithm for the given precision and architecture. For
-double precision on sm_80+ (Ampere), this allows Ozaki emulation -- full FP64
-results computed faster via tensor cores.
-
-| Macro | Effect |
-|---|---|
-| *(default)* | Tensor core algorithms enabled. Float uses full FP32. Double may use Ozaki on sm_80+. |
-| `EIGEN_CUDA_TF32` | Opt-in: Float uses TF32 (~2x faster, 10-bit mantissa). Double unaffected. |
-| `EIGEN_NO_CUDA_TENSOR_OPS` | Opt-out: Pedantic compute types, no tensor cores. For bit-exact reproducibility. |
+GEMM dispatch uses `cublasXgemm` (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
+cuBLAS may internally use tensor cores depending on the GPU architecture,
+matrix dimensions, and CUDA math mode settings. No Eigen-specific macros
+control this; use the standard `CUDA_MATH_MODE` environment variable or
+`cublasSetMathMode()` to configure tensor core behavior if needed.
 
 ### Stream control and async execution
 
@@ -392,13 +387,13 @@ The caller must ensure operands don't alias the destination for GEMM and TRSM
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
 | `DeviceDispatch.h` | all above | All dispatch functions + `Assignment` |
-| `gpu::Context.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
+| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `gpu::LLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `gpu::LU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
-| `gpu::QR.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense QR decomposition |
-| `gpu::SVD.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense SVD decomposition |
+| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
+| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
+| `GpuQR.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense QR decomposition |
+| `GpuSVD.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense SVD decomposition |
 | `GpuEigenSolver.h` | `CuSolverSupport.h` | Self-adjoint eigenvalue decomposition |
 
 ## Building and testing
