@@ -213,9 +213,7 @@ struct device_expr_traits<Scaled<Inner>> {
   static const DeviceMatrix<scalar_type>& matrix(const Scaled<Inner>& x) {
     return device_expr_traits<Inner>::matrix(x.inner());
   }
-  static scalar_type alpha(const Scaled<Inner>& x) {
-    return x.scalar() * device_expr_traits<Inner>::alpha(x.inner());
-  }
+  static scalar_type alpha(const Scaled<Inner>& x) { return x.scalar() * device_expr_traits<Inner>::alpha(x.inner()); }
 };
 
 }  // namespace internal

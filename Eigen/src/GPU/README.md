@@ -26,7 +26,7 @@ code changes and without learning CUDA library APIs directly.
 
 **CPU and GPU coexist.** There is no global compile-time switch that replaces
 CPU implementations (unlike `EIGEN_USE_LAPACKE`). Users choose GPU solvers
-explicitly -- `GpuLLT<double>` vs `LLT<MatrixXd>` -- and both coexist in
+explicitly -- `gpu::LLT<double>` vs `Eigen::LLT<MatrixXd>` -- and both coexist in
 the same binary. This also lets users keep the factored matrix on device across
 multiple solves, something impossible with compile-time replacement.
 
@@ -38,11 +38,11 @@ Eigen. Here is a side-by-side comparison:
 #include <Eigen/Dense>                  #define EIGEN_USE_GPU
                                         #include <Eigen/GPU>
 
-MatrixXd A = ...;                       auto d_A = DeviceMatrix<double>::fromHost(A);
-MatrixXd B = ...;                       auto d_B = DeviceMatrix<double>::fromHost(B);
+MatrixXd A = ...;                       auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
+MatrixXd B = ...;                       auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
 
-MatrixXd C = A * B;                     DeviceMatrix<double> d_C = d_A * d_B;
-MatrixXd X = A.llt().solve(B);          DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
+MatrixXd C = A * B;                     gpu::DeviceMatrix<double> d_C = d_A * d_B;
+MatrixXd X = A.llt().solve(B);          gpu::DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
 
                                         MatrixXd X = d_X.toHost();
 ```
@@ -73,10 +73,10 @@ a `DeviceMatrix` with one column.
 
 ```cpp
 // Upload from host
-auto d_A = DeviceMatrix<double>::fromHost(A);
+auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
 
 // Allocate uninitialized
-DeviceMatrix<double> d_C(m, n);
+gpu::DeviceMatrix<double> d_C(m, n);
 
 // Download to host
 MatrixXd C = d_C.toHost();
@@ -92,10 +92,10 @@ MatrixXd C = transfer.get();
 `selfadjointView<UpLo>()`, `llt()`, `lu()`. These return lightweight
 expression objects that are evaluated when assigned.
 
-### `GpuContext`
+### `gpu::Context`
 
 Every GPU operation needs a CUDA stream and library handles (cuBLAS,
-cuSOLVER). `GpuContext` bundles these together.
+cuSOLVER). `gpu::Context` bundles these together.
 
 For simple usage, you don't need to create one -- a per-thread default context
 is created lazily on first use:
@@ -109,7 +109,7 @@ d_X = d_A.llt().solve(d_B);
 For concurrent multi-stream execution, create explicit contexts:
 
 ```cpp
-GpuContext ctx1, ctx2;
+gpu::Context ctx1, ctx2;
 d_C1.device(ctx1) = d_A1 * d_B1;   // runs on stream 1
 d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ```
@@ -119,11 +119,11 @@ d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ### Matrix operations (cuBLAS)
 
 ```cpp
-auto d_A = DeviceMatrix<double>::fromHost(A);
-auto d_B = DeviceMatrix<double>::fromHost(B);
+auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
+auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
 
 // GEMM: C = A * B, C = A^H * B, C = A * B^T, ...
-DeviceMatrix<double> d_C = d_A * d_B;
+gpu::DeviceMatrix<double> d_C = d_A * d_B;
 d_C = d_A.adjoint() * d_B;
 d_C = d_A * d_B.transpose();
 
@@ -156,7 +156,7 @@ d_Y = d_A.lu().solve(d_B);
 **Cached factorization** -- Factor once, solve many times:
 
 ```cpp
-GpuLLT<double> llt;
+gpu::LLT<double> llt;
 llt.compute(d_A);                    // factorize (async)
 if (llt.info() != Success) { ... }   // lazy sync on first info() call
 auto d_X1 = llt.solve(d_B1);        // reuses factor (async)
@@ -164,9 +164,9 @@ auto d_X2 = llt.solve(d_B2);        // reuses factor (async)
 MatrixXd X2 = d_X2.toHost();
 
 // LU with transpose solve
-GpuLU<double> lu;
+gpu::LU<double> lu;
 lu.compute(d_A);
-auto d_Y = lu.solve(d_B, GpuLU<double>::Transpose);  // A^T Y = B
+auto d_Y = lu.solve(d_B, gpu::LU<double>::Transpose);  // A^T Y = B
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
@@ -243,13 +243,13 @@ skip the wait (CUDA guarantees in-order execution within a stream).
 | `selfadjointView<UpLo>()` | -- | Self-adjoint view (SYMM, rankUpdate) |
 | `device(ctx)` | -- | Assignment proxy bound to context |
 
-### `GpuContext`
+### `gpu::Context`
 
 Unified GPU execution context owning a CUDA stream and library handles.
 
 ```cpp
-GpuContext()                                             // Creates dedicated stream + handles
-static GpuContext& threadLocal()                         // Per-thread default (lazy-created)
+gpu::Context()                                             // Creates dedicated stream + handles
+static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
 
 cudaStream_t       stream()
 cublasHandle_t     cublasHandle()
@@ -258,13 +258,13 @@ cusolverDnHandle_t cusolverHandle()
 
 Non-copyable, non-movable (owns library handles).
 
-### `GpuLLT<Scalar, UpLo>` API
+### `gpu::LLT<Scalar, UpLo>` API
 
 GPU dense Cholesky (LL^T) via cuSOLVER. Caches factor on device.
 
 | Method | Sync? | Description |
 |--------|-------|-------------|
-| `GpuLLT(A)` | deferred | Construct and factorize from host matrix |
+| `gpu::LLT(A)` | deferred | Construct and factorize from host matrix |
 | `compute(host_matrix)` | deferred | Upload and factorize |
 | `compute(DeviceMatrix)` | deferred | D2D copy and factorize |
 | `compute(DeviceMatrix&&)` | deferred | Move-adopt and factorize (no copy) |
@@ -272,9 +272,9 @@ GPU dense Cholesky (LL^T) via cuSOLVER. Caches factor on device.
 | `solve(DeviceMatrix)` | no | Solve, return `DeviceMatrix` (async) |
 | `info()` | lazy | Syncs stream on first call, returns `Success` or `NumericalIssue` |
 
-### `GpuLU<Scalar>` API
+### `gpu::LU<Scalar>` API
 
-GPU dense partial-pivoting LU via cuSOLVER. Same pattern as `GpuLLT`, plus
+GPU dense partial-pivoting LU via cuSOLVER. Same pattern as `gpu::LLT`, plus
 `TransposeMode` parameter on `solve()` (`NoTranspose`, `Transpose`,
 `ConjugateTranspose`).
 
@@ -304,12 +304,12 @@ The caller must ensure operands don't alias the destination for GEMM and TRSM
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
-| `DeviceDispatch.h` | all above | All dispatch functions + `DeviceAssignment` |
-| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `GpuContext` |
+| `DeviceDispatch.h` | all above | All dispatch functions + `Assignment` |
+| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
+| `gpu::LLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
+| `gpu::LU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
 
 ## Building and testing
 

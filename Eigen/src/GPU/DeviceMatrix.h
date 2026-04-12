@@ -279,7 +279,7 @@ class DeviceMatrix {
    * \param stream       CUDA stream for the transfer.
    */
   static DeviceMatrix fromHostAsync(const Scalar* host_data, Index rows, Index cols, Index outerStride,
-                              cudaStream_t stream) {
+                                    cudaStream_t stream) {
     eigen_assert(rows >= 0 && cols >= 0 && outerStride >= rows);
     eigen_assert(host_data != nullptr || (rows == 0 || cols == 0));
     DeviceMatrix dm(rows, cols);

@@ -36,8 +36,8 @@ namespace internal {
 
 template <typename Lhs, typename Rhs>
 void dispatch_gemm(
-    Context& ctx, DeviceMatrix<typename device_expr_traits<Lhs>::scalar_type>& dst,
-    const GemmExpr<Lhs, Rhs>& expr, typename device_expr_traits<Lhs>::scalar_type beta_val,
+    Context& ctx, DeviceMatrix<typename device_expr_traits<Lhs>::scalar_type>& dst, const GemmExpr<Lhs, Rhs>& expr,
+    typename device_expr_traits<Lhs>::scalar_type beta_val,
     typename device_expr_traits<Lhs>::scalar_type alpha_scale = typename device_expr_traits<Lhs>::scalar_type(1)) {
   using Scalar = typename device_expr_traits<Lhs>::scalar_type;
   using traits_lhs = device_expr_traits<Lhs>;
@@ -262,8 +262,8 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
   Scalar alpha(1);
 
-  EIGEN_CUBLAS_CHECK(cublasXtrsm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, n,
-                                 nrhs, &alpha, A.data(), static_cast<int>(A.outerStride()), dst.data(),
+  EIGEN_CUBLAS_CHECK(cublasXtrsm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, n, nrhs,
+                                 &alpha, A.data(), static_cast<int>(A.outerStride()), dst.data(),
                                  static_cast<int>(dst.outerStride())));
 
   dst.recordReady(ctx.stream());
@@ -278,8 +278,8 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 
   eigen_assert(A.rows() == A.cols() && "SYMM requires a square matrix");
   eigen_assert(B.rows() == A.rows() && "SYMM: RHS rows must match matrix size");
-  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX &&
-               B.outerStride() <= INT_MAX && "cublasXsymm dimensions exceed int range");
+  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && A.outerStride() <= INT_MAX && B.outerStride() <= INT_MAX &&
+               "cublasXsymm dimensions exceed int range");
 
   const int m = static_cast<int>(A.rows());
   const int n = static_cast<int>(B.cols());

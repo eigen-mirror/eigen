@@ -336,7 +336,8 @@ class LLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, static_cast<int64_t>(n_), nrhs, dtype,
                                           d_factor_.ptr, lda_, dtype, d_x_ptr, ldb, scratch_info()));
 
-    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result =
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
     d_x.ptr = nullptr;  // ownership transferred to result
     result.recordReady(stream_);
     return result;

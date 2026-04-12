@@ -309,7 +309,8 @@ class LU {
                                           lda_, static_cast<const int64_t*>(d_ipiv_.ptr), dtype, d_x_ptr, ldb,
                                           scratch_info()));
 
-    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
+    DeviceMatrix<Scalar> result =
+        DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
     d_x.ptr = nullptr;  // ownership transferred to result
     result.recordReady(stream_);
     return result;

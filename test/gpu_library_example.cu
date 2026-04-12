@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Smoke test for GPU library test infrastructure.
-// Verifies gpu::Context, GpuBuffer, and host<->device matrix transfers
+// Verifies GpuContext, GpuBuffer, and host<->device matrix transfers
 // without requiring any NVIDIA library (cuBLAS, cuSOLVER, etc.).
 
 #define EIGEN_USE_GPU
@@ -19,9 +19,9 @@
 using namespace Eigen;
 using namespace Eigen::test;
 
-// Test that gpu::Context initializes, reports valid device info, and owns a cuSOLVER handle.
+// Test that GpuContext initializes, reports valid device info, and owns a cuSOLVER handle.
 void test_gpu_context() {
-  gpu::Context ctx;
+  GpuContext ctx;
   VERIFY(ctx.device() >= 0);
   VERIFY(ctx.deviceProperties().major >= 7);  // sm_70 minimum
   VERIFY(ctx.stream != nullptr);
@@ -33,7 +33,7 @@ void test_gpu_context() {
 // Test dense matrix roundtrip: host -> device -> host.
 template <typename MatrixType>
 void test_dense_roundtrip() {
-  gpu::Context ctx;
+  GpuContext ctx;
   const Index rows = 64;
   const Index cols = 32;
 
@@ -52,7 +52,7 @@ void test_dense_roundtrip() {
 
 // Test GpuBuffer RAII: move semantics, async zero-init.
 void test_gpu_buffer() {
-  gpu::Context ctx;
+  GpuContext ctx;
 
   GpuBuffer<float> a(128);
   VERIFY(a.data != nullptr);
@@ -84,7 +84,7 @@ void test_gpu_buffer() {
 // Test with vectors (1D).
 template <typename Scalar>
 void test_vector_roundtrip() {
-  gpu::Context ctx;
+  GpuContext ctx;
   const Index n = 256;
   Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
   auto buf = gpu_copy_to_device(ctx.stream, v);
