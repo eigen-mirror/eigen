@@ -30,8 +30,8 @@
  * Eigen::LLT<Eigen::MatrixXd> llt_cpu(A);
  *
  * // GPU path (explicit)
- * Eigen::GpuLLT<double> llt_gpu(A);   // L stays on device
- * auto X = llt_gpu.solve(B);          // only B transferred per solve
+ * Eigen::gpu::LLT<double> llt_gpu(A);   // L stays on device
+ * auto X = llt_gpu.solve(B);            // only B transferred per solve
  * \endcode
  *
  * Requires CUDA 11.4+. See CLAUDE.md.

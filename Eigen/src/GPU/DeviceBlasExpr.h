@@ -7,12 +7,12 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// BLAS Level 3 expression types for DeviceMatrix (beyond GEMM):
-//   TrsmExpr           → cublasXtrsm   (triangular solve)
-//   SymmExpr           → cublasXsymm   (symmetric multiply, real)
-//                      → cublasXhemm   (Hermitian multiply, complex)
-//   SyrkExpr           → cublasXsyrk   (symmetric rank-k update, real)
-//                      → cublasXherk   (Hermitian rank-k update, complex)
+// BLAS Level 3 expression types for gpu::DeviceMatrix (beyond GEMM):
+//   TrsmExpr           -> cublasXtrsm   (triangular solve)
+//   SymmExpr           -> cublasXsymm   (symmetric multiply, real)
+//                      -> cublasXhemm   (Hermitian multiply, complex)
+//   SyrkExpr           -> cublasXsyrk   (symmetric rank-k update, real)
+//                      -> cublasXherk   (Hermitian rank-k update, complex)
 
 #ifndef EIGEN_GPU_DEVICE_BLAS_EXPR_H
 #define EIGEN_GPU_DEVICE_BLAS_EXPR_H
@@ -21,20 +21,21 @@
 #include "./InternalHeaderCheck.h"
 
 namespace Eigen {
+namespace gpu {
 
 template <typename Scalar_>
 class DeviceMatrix;
 
-// ---- DeviceTriangularView ---------------------------------------------------
-// d_A.triangularView<Lower>() → view with .solve(d_B)
+// ---- TriangularView --------------------------------------------------------
+// d_A.triangularView<Lower>() -> view with .solve(d_B)
 
 template <typename Scalar_, int UpLo_>
-class DeviceTriangularView {
+class TriangularView {
  public:
   using Scalar = Scalar_;
   enum { UpLo = UpLo_ };
 
-  explicit DeviceTriangularView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit TriangularView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
   /** Build a TRSM solve expression. */
@@ -44,7 +45,7 @@ class DeviceTriangularView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// ---- TrsmExpr: triangularView<UpLo>().solve(B) → cublasXtrsm ---------------
+// ---- TrsmExpr: triangularView<UpLo>().solve(B) -> cublasXtrsm --------------
 
 template <typename Scalar_, int UpLo_>
 class TrsmExpr {
@@ -61,17 +62,17 @@ class TrsmExpr {
   const DeviceMatrix<Scalar>& B_;
 };
 
-// ---- DeviceSelfAdjointView --------------------------------------------------
-// d_A.selfadjointView<Lower>() → view that can multiply: view * d_B
+// ---- SelfAdjointView -------------------------------------------------------
+// d_A.selfadjointView<Lower>() -> view that can multiply: view * d_B
 
 template <typename Scalar_, int UpLo_>
-class DeviceSelfAdjointView {
+class SelfAdjointView {
  public:
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
   enum { UpLo = UpLo_ };
 
-  explicit DeviceSelfAdjointView(DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit SelfAdjointView(DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
   DeviceMatrix<Scalar>& matrix() { return mat_; }
 
@@ -86,19 +87,19 @@ class DeviceSelfAdjointView {
 
 // Const variant for multiplication only (no rankUpdate).
 template <typename Scalar_, int UpLo_>
-class ConstDeviceSelfAdjointView {
+class ConstSelfAdjointView {
  public:
   using Scalar = Scalar_;
   enum { UpLo = UpLo_ };
 
-  explicit ConstDeviceSelfAdjointView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit ConstSelfAdjointView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
  private:
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// ---- SymmExpr: selfadjointView<UpLo>() * B → cublasXsymm/Xhemm ------------
+// ---- SymmExpr: selfadjointView<UpLo>() * B -> cublasXsymm/Xhemm -----------
 
 template <typename Scalar_, int UpLo_>
 class SymmExpr {
@@ -115,17 +116,17 @@ class SymmExpr {
   const DeviceMatrix<Scalar>& B_;
 };
 
-// operator*: DeviceSelfAdjointView * DeviceMatrix → SymmExpr (mutable and const variants)
+// operator*: SelfAdjointView * Matrix -> SymmExpr (mutable and const variants)
 template <typename S, int UpLo>
-SymmExpr<S, UpLo> operator*(const DeviceSelfAdjointView<S, UpLo>& a, const DeviceMatrix<S>& b) {
+SymmExpr<S, UpLo> operator*(const SelfAdjointView<S, UpLo>& a, const DeviceMatrix<S>& b) {
   return {a.matrix(), b};
 }
 template <typename S, int UpLo>
-SymmExpr<S, UpLo> operator*(const ConstDeviceSelfAdjointView<S, UpLo>& a, const DeviceMatrix<S>& b) {
+SymmExpr<S, UpLo> operator*(const ConstSelfAdjointView<S, UpLo>& a, const DeviceMatrix<S>& b) {
   return {a.matrix(), b};
 }
 
-// ---- SyrkExpr: rankUpdate(A) → cublasXsyrk/Xherk ---------------------------
+// ---- SyrkExpr: rankUpdate(A) -> cublasXsyrk/Xherk --------------------------
 // C.rankUpdate(A) computes C += A * A^H (or A^H * A depending on convention).
 
 template <typename Scalar_, int UpLo_>
@@ -141,6 +142,7 @@ class SyrkExpr {
   const DeviceMatrix<Scalar>& A_;
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_DEVICE_BLAS_EXPR_H

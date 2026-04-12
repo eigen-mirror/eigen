@@ -23,6 +23,7 @@
 #include <cuda_runtime.h>
 
 namespace Eigen {
+namespace gpu {
 namespace internal {
 
 // ---- Error-checking macros --------------------------------------------------
@@ -127,6 +128,7 @@ struct cuda_data_type<std::complex<double>> {
 };
 
 }  // namespace internal
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_SUPPORT_H

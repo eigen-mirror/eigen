@@ -19,7 +19,7 @@ using namespace Eigen;
 // ---- Default construction ---------------------------------------------------
 
 void test_default_construct() {
-  DeviceMatrix<double> dm;
+  gpu::DeviceMatrix<double> dm;
   VERIFY(dm.empty());
   VERIFY_IS_EQUAL(dm.rows(), 0);
   VERIFY_IS_EQUAL(dm.cols(), 0);
@@ -31,7 +31,7 @@ void test_default_construct() {
 
 template <typename Scalar>
 void test_allocate(Index rows, Index cols) {
-  DeviceMatrix<Scalar> dm(rows, cols);
+  gpu::DeviceMatrix<Scalar> dm(rows, cols);
   VERIFY(!dm.empty());
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
@@ -44,10 +44,10 @@ void test_allocate(Index rows, Index cols) {
 
 template <typename Scalar>
 void test_roundtrip(Index rows, Index cols) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  auto dm = DeviceMatrix<Scalar>::fromHost(host);
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHost(host);
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
   VERIFY(!dm.empty());
@@ -62,14 +62,14 @@ void test_roundtrip(Index rows, Index cols) {
 
 template <typename Scalar>
 void test_roundtrip_async(Index rows, Index cols) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
   cudaStream_t stream;
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
 
   // Async upload from raw pointer.
-  auto dm = DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, stream);
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, stream);
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
 
@@ -86,10 +86,10 @@ void test_roundtrip_async(Index rows, Index cols) {
 // ---- HostTransfer::ready() and idempotent get() -----------------------------
 
 void test_host_transfer_ready() {
-  using MatrixType = Matrix<double, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(100, 100);
 
-  auto dm = DeviceMatrix<double>::fromHost(host);
+  auto dm = gpu::DeviceMatrix<double>::fromHost(host);
   auto transfer = dm.toHostAsync();
 
   // After get(), ready() must return true.
@@ -105,13 +105,13 @@ void test_host_transfer_ready() {
 // ---- HostTransfer move ------------------------------------------------------
 
 void test_host_transfer_move() {
-  using MatrixType = Matrix<double, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(50, 50);
 
-  auto dm = DeviceMatrix<double>::fromHost(host);
+  auto dm = gpu::DeviceMatrix<double>::fromHost(host);
   auto transfer = dm.toHostAsync();
 
-  HostTransfer<double> moved(std::move(transfer));
+  gpu::HostTransfer<double> moved(std::move(transfer));
   MatrixType result = moved.get();
   VERIFY_IS_APPROX(result, host);
 }
@@ -120,15 +120,15 @@ void test_host_transfer_move() {
 
 template <typename Scalar>
 void test_clone(Index rows, Index cols) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  auto dm = DeviceMatrix<Scalar>::fromHost(host);
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHost(host);
   auto cloned = dm.clone();
 
   // Overwrite original with different data.
   MatrixType other = MatrixType::Random(rows, cols);
-  dm = DeviceMatrix<Scalar>::fromHost(other);
+  dm = gpu::DeviceMatrix<Scalar>::fromHost(other);
 
   // Clone still holds the original data.
   MatrixType clone_result = cloned.toHost();
@@ -143,11 +143,11 @@ void test_clone(Index rows, Index cols) {
 
 template <typename Scalar>
 void test_move_construct(Index rows, Index cols) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  auto dm = DeviceMatrix<Scalar>::fromHost(host);
-  DeviceMatrix<Scalar> moved(std::move(dm));
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHost(host);
+  gpu::DeviceMatrix<Scalar> moved(std::move(dm));
 
   VERIFY(dm.empty());
   VERIFY(dm.data() == nullptr);
@@ -162,11 +162,11 @@ void test_move_construct(Index rows, Index cols) {
 
 template <typename Scalar>
 void test_move_assign(Index rows, Index cols) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType host = MatrixType::Random(rows, cols);
 
-  auto dm = DeviceMatrix<Scalar>::fromHost(host);
-  DeviceMatrix<Scalar> dest;
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHost(host);
+  gpu::DeviceMatrix<Scalar> dest;
   dest = std::move(dm);
 
   VERIFY(dm.empty());
@@ -178,7 +178,7 @@ void test_move_assign(Index rows, Index cols) {
 // ---- resize() ---------------------------------------------------------------
 
 void test_resize() {
-  DeviceMatrix<double> dm(10, 20);
+  gpu::DeviceMatrix<double> dm(10, 20);
   VERIFY_IS_EQUAL(dm.rows(), 10);
   VERIFY_IS_EQUAL(dm.cols(), 20);
 
@@ -197,10 +197,10 @@ void test_resize() {
 // ---- Empty / 0x0 matrix -----------------------------------------------------
 
 void test_empty() {
-  using MatrixType = Matrix<double, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
   MatrixType empty_mat(0, 0);
 
-  auto dm = DeviceMatrix<double>::fromHost(empty_mat);
+  auto dm = gpu::DeviceMatrix<double>::fromHost(empty_mat);
   VERIFY(dm.empty());
   VERIFY_IS_EQUAL(dm.rows(), 0);
   VERIFY_IS_EQUAL(dm.cols(), 0);

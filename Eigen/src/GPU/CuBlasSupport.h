@@ -24,6 +24,7 @@
 #include <cstring>
 
 namespace Eigen {
+namespace gpu {
 namespace internal {
 
 // ---- Error-checking macro ---------------------------------------------------
@@ -184,6 +185,7 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
 }
 
 }  // namespace internal
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_CUBLAS_SUPPORT_H

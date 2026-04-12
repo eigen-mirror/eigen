@@ -9,7 +9,7 @@
 
 // GPU Cholesky (LLT) decomposition using cuSOLVER.
 //
-// Unlike Eigen's CPU LLT<MatrixType>, GpuLLT keeps the factored Cholesky
+// Unlike Eigen's CPU LLT<MatrixType>, gpu::LLT keeps the factored Cholesky
 // factor in device memory for the lifetime of the object. Multiple solves
 // against the same factor therefore only transfer the RHS and solution
 // vectors, not the factor itself.
@@ -18,7 +18,7 @@
 // Requires CUDA 11.4+ (cusolverDnX generic API + cudaMallocAsync).
 //
 // Usage:
-//   GpuLLT<double> llt(A);              // upload A, potrf, L stays on device
+//   gpu::LLT<double> llt(A);            // upload A, potrf, L stays on device
 //   if (llt.info() != Success) { ... }
 //   MatrixXd x1 = llt.solve(b1);        // potrs, only b1 transferred
 //   MatrixXd x2 = llt.solve(b2);        // L already on device
@@ -33,9 +33,10 @@
 #include <vector>
 
 namespace Eigen {
+namespace gpu {
 
 /** \ingroup GPU_Module
- * \class GpuLLT
+ * \class LLT
  * \brief GPU Cholesky (LL^T) decomposition via cuSOLVER
  *
  * \tparam Scalar_  Element type: float, double, complex<float>, complex<double>
@@ -46,43 +47,43 @@ namespace Eigen {
  * B, calls cusolverDnXpotrs, and downloads the result — the factor is not
  * re-transferred.
  *
- * Each GpuLLT object owns a dedicated CUDA stream and cuSOLVER handle,
+ * Each LLT object owns a dedicated CUDA stream and cuSOLVER handle,
  * enabling concurrent factorizations from multiple objects on the same host
  * thread.
  */
 template <typename Scalar_, int UpLo_ = Lower>
-class GpuLLT {
+class LLT {
  public:
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   enum { UpLo = UpLo_ };
 
   // ---- Construction / destruction ------------------------------------------
 
   /** Default constructor. Does not factorize; call compute() before solve(). */
-  GpuLLT() { init_context(); }
+  LLT() { init_context(); }
 
-  /** Factor A immediately. Equivalent to GpuLLT llt; llt.compute(A). */
+  /** Factor A immediately. Equivalent to LLT llt; llt.compute(A). */
   template <typename InputType>
-  explicit GpuLLT(const EigenBase<InputType>& A) {
+  explicit LLT(const EigenBase<InputType>& A) {
     init_context();
     compute(A);
   }
 
-  ~GpuLLT() {
+  ~LLT() {
     // Ignore errors in destructors — cannot propagate.
     if (handle_) (void)cusolverDnDestroy(handle_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
 
   // Non-copyable (owns device memory and library handles).
-  GpuLLT(const GpuLLT&) = delete;
-  GpuLLT& operator=(const GpuLLT&) = delete;
+  LLT(const LLT&) = delete;
+  LLT& operator=(const LLT&) = delete;
 
   // Movable.
-  GpuLLT(GpuLLT&& o) noexcept
+  LLT(LLT&& o) noexcept
       : stream_(o.stream_),
         handle_(o.handle_),
         params_(std::move(o.params_)),
@@ -106,7 +107,7 @@ class GpuLLT {
     o.info_synced_ = true;
   }
 
-  GpuLLT& operator=(GpuLLT&& o) noexcept {
+  LLT& operator=(LLT&& o) noexcept {
     if (this != &o) {
       if (handle_) (void)cusolverDnDestroy(handle_);
       if (stream_) (void)cudaStreamDestroy(stream_);
@@ -143,7 +144,7 @@ class GpuLLT {
    * factored matrix on device. Any previous factorization is overwritten.
    */
   template <typename InputType>
-  GpuLLT& compute(const EigenBase<InputType>& A) {
+  LLT& compute(const EigenBase<InputType>& A) {
     eigen_assert(A.rows() == A.cols());
     if (!begin_compute(A.rows())) return *this;
 
@@ -159,7 +160,7 @@ class GpuLLT {
   }
 
   /** Compute the Cholesky factorization from a device-resident matrix (D2D copy). */
-  GpuLLT& compute(const DeviceMatrix<Scalar>& d_A) {
+  LLT& compute(const DeviceMatrix<Scalar>& d_A) {
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -174,7 +175,7 @@ class GpuLLT {
   }
 
   /** Compute the Cholesky factorization from a device matrix (move, no copy). */
-  GpuLLT& compute(DeviceMatrix<Scalar>&& d_A) {
+  LLT& compute(DeviceMatrix<Scalar>&& d_A) {
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -199,8 +200,8 @@ class GpuLLT {
    */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B) const {
-    const_cast<GpuLLT*>(this)->sync_info();
-    eigen_assert(info_ == Success && "GpuLLT::solve called on a failed or uninitialized factorization");
+    const_cast<LLT*>(this)->sync_info();
+    eigen_assert(info_ == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
 
     const PlainMatrix rhs(B);
@@ -225,7 +226,7 @@ class GpuLLT {
 
   /** Solve A * X = B with device-resident RHS. Fully async.
    *
-   * All work is enqueued on this solver's stream. Returns a DeviceMatrix
+   * All work is enqueued on this solver's stream. Returns a Matrix
    * with a recorded ready event — no host synchronization occurs.
    * The caller should check info() after compute() to verify the
    * factorization succeeded; this method does not check.
@@ -246,7 +247,7 @@ class GpuLLT {
   /** Returns Success if the last compute() succeeded, NumericalIssue otherwise.
    * Lazily synchronizes the stream on first call after compute(). */
   ComputationInfo info() const {
-    const_cast<GpuLLT*>(this)->sync_info();
+    const_cast<LLT*>(this)->sync_info();
     return info_;
   }
 
@@ -255,7 +256,7 @@ class GpuLLT {
 
   /** Returns the CUDA stream owned by this object.
    *  Advanced users may submit additional GPU work on this stream
-   *  to overlap with or chain after GpuLLT operations. */
+   *  to overlap with or chain after LLT operations. */
   cudaStream_t stream() const { return stream_; }
 
  private:
@@ -335,8 +336,8 @@ class GpuLLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, static_cast<int64_t>(n_), nrhs, dtype,
                                           d_factor_.ptr, lda_, dtype, d_x_ptr, ldb, scratch_info()));
 
-    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
-    d_x.ptr = nullptr;  // transfer ownership to result
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
+    d_x.ptr = nullptr;  // ownership transferred to result
     result.recordReady(stream_);
     return result;
   }
@@ -384,6 +385,7 @@ class GpuLLT {
   }
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_LLT_H

@@ -16,10 +16,10 @@
 // Requires CUDA 11.0+ (cusolverDnX generic API).
 //
 // Usage:
-//   GpuLU<double> lu(A);              // upload A, getrf, LU+ipiv on device
+//   gpu::LU<double> lu(A);            // upload A, getrf, LU+ipiv on device
 //   if (lu.info() != Success) { ... }
 //   MatrixXd x = lu.solve(b);         // getrs NoTrans, only b transferred
-//   MatrixXd xt = lu.solve(b, GpuLU<double>::Transpose);   // A^T x = b
+//   MatrixXd xt = lu.solve(b, gpu::LU<double>::Transpose);   // A^T x = b
 
 #ifndef EIGEN_GPU_LU_H
 #define EIGEN_GPU_LU_H
@@ -31,9 +31,10 @@
 #include <vector>
 
 namespace Eigen {
+namespace gpu {
 
 /** \ingroup GPU_Module
- * \class GpuLU
+ * \class LU
  * \brief GPU LU decomposition with partial pivoting via cuSOLVER
  *
  * \tparam Scalar_  Element type: float, double, complex<float>, complex<double>
@@ -42,14 +43,14 @@ namespace Eigen {
  * matrix and pivot array in device memory. Solves A*X=B, A^T*X=B, or
  * A^H*X=B by passing the appropriate TransposeMode.
  *
- * Each GpuLU object owns a dedicated CUDA stream and cuSOLVER handle.
+ * Each LU object owns a dedicated CUDA stream and cuSOLVER handle.
  */
 template <typename Scalar_>
-class GpuLU {
+class LU {
  public:
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Controls which system is solved in solve(). */
   enum TransposeMode {
@@ -60,23 +61,23 @@ class GpuLU {
 
   // ---- Construction / destruction ------------------------------------------
 
-  GpuLU() { init_context(); }
+  LU() { init_context(); }
 
   template <typename InputType>
-  explicit GpuLU(const EigenBase<InputType>& A) {
+  explicit LU(const EigenBase<InputType>& A) {
     init_context();
     compute(A);
   }
 
-  ~GpuLU() {
+  ~LU() {
     if (handle_) (void)cusolverDnDestroy(handle_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
 
-  GpuLU(const GpuLU&) = delete;
-  GpuLU& operator=(const GpuLU&) = delete;
+  LU(const LU&) = delete;
+  LU& operator=(const LU&) = delete;
 
-  GpuLU(GpuLU&& o) noexcept
+  LU(LU&& o) noexcept
       : stream_(o.stream_),
         handle_(o.handle_),
         params_(std::move(o.params_)),
@@ -101,7 +102,7 @@ class GpuLU {
     o.info_synced_ = true;
   }
 
-  GpuLU& operator=(GpuLU&& o) noexcept {
+  LU& operator=(LU&& o) noexcept {
     if (this != &o) {
       if (handle_) (void)cusolverDnDestroy(handle_);
       if (stream_) (void)cudaStreamDestroy(stream_);
@@ -135,8 +136,8 @@ class GpuLU {
 
   /** Compute the LU factorization of A (host matrix, must be square). */
   template <typename InputType>
-  GpuLU& compute(const EigenBase<InputType>& A) {
-    eigen_assert(A.rows() == A.cols() && "GpuLU requires a square matrix");
+  LU& compute(const EigenBase<InputType>& A) {
+    eigen_assert(A.rows() == A.cols() && "LU requires a square matrix");
     if (!begin_compute(A.rows())) return *this;
 
     const PlainMatrix mat(A.derived());
@@ -149,8 +150,8 @@ class GpuLU {
   }
 
   /** Compute the LU factorization from a device-resident matrix (D2D copy). */
-  GpuLU& compute(const DeviceMatrix<Scalar>& d_A) {
-    eigen_assert(d_A.rows() == d_A.cols() && "GpuLU requires a square matrix");
+  LU& compute(const DeviceMatrix<Scalar>& d_A) {
+    eigen_assert(d_A.rows() == d_A.cols() && "LU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.outerStride());
@@ -163,8 +164,8 @@ class GpuLU {
   }
 
   /** Compute the LU factorization from a device matrix (move, no copy). */
-  GpuLU& compute(DeviceMatrix<Scalar>&& d_A) {
-    eigen_assert(d_A.rows() == d_A.cols() && "GpuLU requires a square matrix");
+  LU& compute(DeviceMatrix<Scalar>&& d_A) {
+    eigen_assert(d_A.rows() == d_A.cols() && "LU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.outerStride());
@@ -184,8 +185,8 @@ class GpuLU {
    */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B, TransposeMode mode = NoTranspose) const {
-    const_cast<GpuLU*>(this)->sync_info();
-    eigen_assert(info_ == Success && "GpuLU::solve called on a failed or uninitialized factorization");
+    const_cast<LU*>(this)->sync_info();
+    eigen_assert(info_ == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
 
     const PlainMatrix rhs(B);
@@ -224,7 +225,7 @@ class GpuLU {
 
   /** Lazily synchronizes the stream on first call after compute(). */
   ComputationInfo info() const {
-    const_cast<GpuLU*>(this)->sync_info();
+    const_cast<LU*>(this)->sync_info();
     return info_;
   }
   Index rows() const { return n_; }
@@ -308,8 +309,8 @@ class GpuLU {
                                           lda_, static_cast<const int64_t*>(d_ipiv_.ptr), dtype, d_x_ptr, ldb,
                                           scratch_info()));
 
-    DeviceMatrix<Scalar> result(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs), static_cast<Index>(ldb));
-    d_x.ptr = nullptr;  // transfer ownership to result
+    DeviceMatrix<Scalar> result = DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.ptr), n_, static_cast<Index>(nrhs));
+    d_x.ptr = nullptr;  // ownership transferred to result
     result.recordReady(stream_);
     return result;
   }
@@ -370,6 +371,7 @@ class GpuLU {
   }
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_LU_H

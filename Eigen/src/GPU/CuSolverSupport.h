@@ -26,6 +26,7 @@
 #include <cusolverDn.h>
 
 namespace Eigen {
+namespace gpu {
 namespace internal {
 
 // ---- Error-checking macros --------------------------------------------------
@@ -92,6 +93,7 @@ struct cusolver_fill_mode<Upper, RowMajor> {
 };
 
 }  // namespace internal
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_CUSOLVER_SUPPORT_H

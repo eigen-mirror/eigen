@@ -20,17 +20,17 @@ using namespace Eigen;
 
 template <typename Scalar>
 void test_gemm_basic(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   // Expression: d_C = d_A * d_B
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A * d_B;
 
   Mat C = d_C.toHost();
@@ -44,16 +44,16 @@ void test_gemm_basic(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_adjoint_lhs(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(k, m);  // A is k×m, A^H is m×k
   Mat B = Mat::Random(k, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A.adjoint() * d_B;
 
   Mat C = d_C.toHost();
@@ -67,16 +67,16 @@ void test_gemm_adjoint_lhs(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_transpose_rhs(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(n, k);  // B is n×k, B^T is k×n
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A * d_B.transpose();
 
   Mat C = d_C.toHost();
@@ -90,17 +90,17 @@ void test_gemm_transpose_rhs(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_scaled(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
   Scalar alpha = Scalar(2.5);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = alpha * d_A * d_B;
 
   Mat C = d_C.toHost();
@@ -114,16 +114,16 @@ void test_gemm_scaled(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_accumulate(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
   Mat C_init = Mat::Random(m, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  auto d_C = DeviceMatrix<Scalar>::fromHost(C_init);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
 
   d_C += d_A * d_B;
 
@@ -138,15 +138,15 @@ void test_gemm_accumulate(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_accumulate_empty(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  DeviceMatrix<Scalar> d_C;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  gpu::DeviceMatrix<Scalar> d_C;
 
   d_C += d_A * d_B;
 
@@ -161,18 +161,18 @@ void test_gemm_accumulate_empty(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_subtract(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
   Mat C_init = Mat::Random(m, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  auto d_C = DeviceMatrix<Scalar>::fromHost(C_init);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
 
-  GpuContext ctx;
+  gpu::Context ctx;
   d_C.device(ctx) -= d_A * d_B;
 
   Mat C = d_C.toHost();
@@ -186,17 +186,17 @@ void test_gemm_subtract(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_subtract_empty(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuContext ctx;
-  DeviceMatrix<Scalar> d_C;
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C.device(ctx) -= d_A * d_B;
 
   Mat C = d_C.toHost();
@@ -210,17 +210,17 @@ void test_gemm_subtract_empty(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_scaled_rhs(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
   Scalar alpha = Scalar(3.0);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A * (alpha * d_B);
 
   Mat C = d_C.toHost();
@@ -235,21 +235,21 @@ void test_gemm_scaled_rhs(Index m, Index n, Index k) {
 // setjmp/longjmp which skips RAII destructors for DeviceMatrix (GPU memory)
 // and cuBLAS/cuSOLVER handles, corrupting state for subsequent tests.
 
-// ---- GEMM with explicit GpuContext ------------------------------------------
+// ---- GEMM with explicit gpu::Context ------------------------------------------
 
 template <typename Scalar>
 void test_gemm_explicit_context(Index m, Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(m, k);
   Mat B = Mat::Random(k, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuContext ctx;
-  DeviceMatrix<Scalar> d_C;
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C.device(ctx) = d_A * d_B;
 
   Mat C = d_C.toHost();
@@ -263,7 +263,7 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
 
 template <typename Scalar>
 void test_gemm_cross_context_reuse(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, n);
@@ -271,14 +271,14 @@ void test_gemm_cross_context_reuse(Index n) {
   Mat D = Mat::Random(n, n);
   Mat E = Mat::Random(n, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  auto d_D = DeviceMatrix<Scalar>::fromHost(D);
-  auto d_E = DeviceMatrix<Scalar>::fromHost(E);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_D = gpu::DeviceMatrix<Scalar>::fromHost(D);
+  auto d_E = gpu::DeviceMatrix<Scalar>::fromHost(E);
 
-  GpuContext ctx1;
-  GpuContext ctx2;
-  DeviceMatrix<Scalar> d_C;
+  gpu::Context ctx1;
+  gpu::Context ctx2;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C.device(ctx1) = d_A * d_B;
   d_C.device(ctx2) += d_D * d_E;
 
@@ -293,7 +293,7 @@ void test_gemm_cross_context_reuse(Index n) {
 
 template <typename Scalar>
 void test_gemm_cross_context_resize() {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(64, 64);
@@ -301,14 +301,14 @@ void test_gemm_cross_context_resize() {
   Mat D = Mat::Random(32, 16);
   Mat E = Mat::Random(16, 8);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  auto d_D = DeviceMatrix<Scalar>::fromHost(D);
-  auto d_E = DeviceMatrix<Scalar>::fromHost(E);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_D = gpu::DeviceMatrix<Scalar>::fromHost(D);
+  auto d_E = gpu::DeviceMatrix<Scalar>::fromHost(E);
 
-  GpuContext ctx1;
-  GpuContext ctx2;
-  DeviceMatrix<Scalar> d_C;
+  gpu::Context ctx1;
+  gpu::Context ctx2;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C.device(ctx1) = d_A * d_B;
   d_C.device(ctx2) = d_D * d_E;
 
@@ -323,20 +323,20 @@ void test_gemm_cross_context_resize() {
 
 template <typename Scalar>
 void test_gemm_chain(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, n);
   Mat E = Mat::Random(n, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-  auto d_E = DeviceMatrix<Scalar>::fromHost(E);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_E = gpu::DeviceMatrix<Scalar>::fromHost(E);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A * d_B;
-  DeviceMatrix<Scalar> d_D;
+  gpu::DeviceMatrix<Scalar> d_D;
   d_D = d_C * d_E;
 
   Mat D = d_D.toHost();
@@ -350,15 +350,15 @@ void test_gemm_chain(Index n) {
 
 template <typename Scalar>
 void test_gemm_identity(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(n, n);
   Mat eye = Mat::Identity(n, n);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_I = DeviceMatrix<Scalar>::fromHost(eye);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_I = gpu::DeviceMatrix<Scalar>::fromHost(eye);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A * d_I;
 
   Mat C = d_C.toHost();
@@ -376,16 +376,16 @@ MatrixType make_spd(Index n) {
 
 template <typename Scalar>
 void test_llt_solve_expr(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = make_spd<Mat>(n);
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.llt().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -397,17 +397,17 @@ void test_llt_solve_expr(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_llt_solve_expr_context(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = make_spd<Mat>(n);
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuContext ctx;
-  DeviceMatrix<Scalar> d_X;
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X.device(ctx) = d_A.llt().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -419,16 +419,16 @@ void test_llt_solve_expr_context(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_lu_solve_expr(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.lu().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -440,25 +440,25 @@ void test_lu_solve_expr(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_gemm_then_solve(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, n);
   Mat D = Mat::Random(n, 1);
 
   // Make SPD: C = A^H * A + n*I
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  DeviceMatrix<Scalar> d_C;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A.adjoint() * d_A;
 
   // Add n*I on host (no element-wise ops on DeviceMatrix yet).
   Mat C = d_C.toHost();
   C += Mat::Identity(n, n) * static_cast<Scalar>(n);
-  d_C = DeviceMatrix<Scalar>::fromHost(C);
+  d_C = gpu::DeviceMatrix<Scalar>::fromHost(C);
 
-  auto d_D = DeviceMatrix<Scalar>::fromHost(D);
+  auto d_D = gpu::DeviceMatrix<Scalar>::fromHost(D);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_C.llt().solve(d_D);
 
   Mat X = d_X.toHost();
@@ -470,16 +470,16 @@ void test_gemm_then_solve(Index n) {
 
 template <typename Scalar>
 void test_llt_solve_upper(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = make_spd<Mat>(n);
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.template llt<Upper>().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -491,17 +491,17 @@ void test_llt_solve_upper(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_lu_solve_expr_context(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuContext ctx;
-  DeviceMatrix<Scalar> d_X;
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X.device(ctx) = d_A.lu().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -513,15 +513,15 @@ void test_lu_solve_expr_context(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_llt_solve_zero_nrhs(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = make_spd<Mat>(n);
   Mat B = Mat::Random(n, 0);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.llt().solve(d_B);
 
   VERIFY_IS_EQUAL(d_X.rows(), n);
@@ -530,15 +530,15 @@ void test_llt_solve_zero_nrhs(Index n) {
 
 template <typename Scalar>
 void test_lu_solve_zero_nrhs(Index n) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, 0);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.lu().solve(d_B);
 
   VERIFY_IS_EQUAL(d_X.rows(), n);
@@ -549,7 +549,7 @@ void test_lu_solve_zero_nrhs(Index n) {
 
 template <typename Scalar, int UpLo>
 void test_trsm(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   // Build a well-conditioned triangular matrix.
@@ -562,10 +562,10 @@ void test_trsm(Index n, Index nrhs) {
 
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_X;
+  gpu::DeviceMatrix<Scalar> d_X;
   d_X = d_A.template triangularView<UpLo>().solve(d_B);
 
   Mat X = d_X.toHost();
@@ -577,16 +577,16 @@ void test_trsm(Index n, Index nrhs) {
 
 template <typename Scalar, int UpLo>
 void test_symm(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = make_spd<Mat>(n);  // SPD is also self-adjoint
   Mat B = Mat::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C = d_A.template selfadjointView<UpLo>() * d_B;
 
   Mat C = d_C.toHost();
@@ -600,14 +600,14 @@ void test_symm(Index n, Index nrhs) {
 
 template <typename Scalar>
 void test_syrk(Index n, Index k) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Mat A = Mat::Random(n, k);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
 
-  DeviceMatrix<Scalar> d_C;
+  gpu::DeviceMatrix<Scalar> d_C;
   d_C.template selfadjointView<Lower>().rankUpdate(d_A);
 
   Mat C = d_C.toHost();
@@ -692,14 +692,14 @@ void test_scalar() {
 void test_llt_not_spd() {
   // Negative definite matrix — LLT factorization must fail.
   MatrixXd A = -MatrixXd::Identity(8, 8);
-  GpuLLT<double> llt(A);
+  gpu::LLT<double> llt(A);
   VERIFY_IS_EQUAL(llt.info(), NumericalIssue);
 }
 
 void test_lu_singular() {
   // Zero matrix — LU factorization must detect singularity.
   MatrixXd A = MatrixXd::Zero(8, 8);
-  GpuLU<double> lu(A);
+  gpu::LU<double> lu(A);
   VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
 }
 

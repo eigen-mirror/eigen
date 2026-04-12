@@ -29,12 +29,12 @@ MatrixType make_spd(Index n) {
 // Test factorization: L*L^H must reconstruct A to within floating-point tolerance.
 template <typename Scalar, int UpLo>
 void test_potrf(Index n) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
 
-  GpuLLT<Scalar, UpLo> llt(A);
+  gpu::LLT<Scalar, UpLo> llt(A);
   VERIFY_IS_EQUAL(llt.info(), Success);
 
   // Reconstruct L*L^H and compare to original A.
@@ -58,13 +58,13 @@ void test_potrf(Index n) {
 // Test solve: residual ||A*X - B|| / ||B|| must be small.
 template <typename Scalar, int UpLo>
 void test_potrs(Index n, Index nrhs) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
   MatrixType B = MatrixType::Random(n, nrhs);
 
-  GpuLLT<Scalar, UpLo> llt(A);
+  gpu::LLT<Scalar, UpLo> llt(A);
   VERIFY_IS_EQUAL(llt.info(), Success);
 
   MatrixType X = llt.solve(B);
@@ -78,11 +78,11 @@ void test_potrs(Index n, Index nrhs) {
 // This exercises the key design property: L stays on device across calls.
 template <typename Scalar>
 void test_multiple_solves(Index n) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
-  GpuLLT<Scalar, Lower> llt(A);
+  gpu::LLT<Scalar, Lower> llt(A);
   VERIFY_IS_EQUAL(llt.info(), Success);
 
   RealScalar tol = RealScalar(n) * NumTraits<Scalar>::epsilon();
@@ -97,7 +97,7 @@ void test_multiple_solves(Index n) {
 // Test that GpuLLT correctly detects a non-SPD matrix.
 void test_not_spd() {
   MatrixXd A = -MatrixXd::Identity(8, 8);  // negative definite
-  GpuLLT<double> llt(A);
+  gpu::LLT<double> llt(A);
   VERIFY_IS_EQUAL(llt.info(), NumericalIssue);
 }
 
@@ -106,20 +106,20 @@ void test_not_spd() {
 // compute(DeviceMatrix) + solve(DeviceMatrix) → toHost
 template <typename Scalar, int UpLo>
 void test_device_matrix_solve(Index n, Index nrhs) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
   MatrixType B = MatrixType::Random(n, nrhs);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuLLT<Scalar, UpLo> llt;
+  gpu::LLT<Scalar, UpLo> llt;
   llt.compute(d_A);
   VERIFY_IS_EQUAL(llt.info(), Success);
 
-  DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+  gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
   MatrixType X = d_X.toHost();
 
   RealScalar residual = (A * X - B).norm() / B.norm();
@@ -129,14 +129,14 @@ void test_device_matrix_solve(Index n, Index nrhs) {
 // compute(DeviceMatrix&&) — move path
 template <typename Scalar>
 void test_device_matrix_move_compute(Index n) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
   MatrixType B = MatrixType::Random(n, 1);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  GpuLLT<Scalar, Lower> llt;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  gpu::LLT<Scalar, Lower> llt;
   llt.compute(std::move(d_A));
   VERIFY_IS_EQUAL(llt.info(), Success);
 
@@ -151,22 +151,22 @@ void test_device_matrix_move_compute(Index n) {
 // Full async chain: compute → solve → solve again with result as RHS → toHost
 template <typename Scalar>
 void test_chaining(Index n) {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType A = make_spd<MatrixType>(n);
   MatrixType B = MatrixType::Random(n, 3);
 
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  GpuLLT<Scalar, Lower> llt;
+  gpu::LLT<Scalar, Lower> llt;
   llt.compute(d_A);
   VERIFY_IS_EQUAL(llt.info(), Success);
 
   // Chain: solve → use result as RHS for another solve
-  DeviceMatrix<Scalar> d_X = llt.solve(d_B);
-  DeviceMatrix<Scalar> d_Y = llt.solve(d_X);
+  gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+  gpu::DeviceMatrix<Scalar> d_Y = llt.solve(d_X);
 
   // Only sync at the very end.
   MatrixType Y = d_Y.toHost();

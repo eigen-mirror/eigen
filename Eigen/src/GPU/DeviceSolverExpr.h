@@ -7,11 +7,11 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Solver expression types for DeviceMatrix.
+// Solver expression types for gpu::DeviceMatrix.
 //
 // Each expression maps 1:1 to cuSOLVER library calls:
-//   LltSolveExpr  → cusolverDnXpotrf + cusolverDnXpotrs
-//   LuSolveExpr   → cusolverDnXgetrf + cusolverDnXgetrs
+//   LltSolveExpr  -> cusolverDnXpotrf + cusolverDnXpotrs
+//   LuSolveExpr   -> cusolverDnXgetrf + cusolverDnXgetrs
 //
 // Usage:
 //   d_X = d_A.llt().solve(d_B);              // Cholesky solve
@@ -24,14 +24,15 @@
 #include "./InternalHeaderCheck.h"
 
 namespace Eigen {
+namespace gpu {
 
 // Forward declarations.
 template <typename Scalar_>
 class DeviceMatrix;
-class GpuContext;
+class Context;
 
 // ---- LLT solve expression ---------------------------------------------------
-// d_A.llt().solve(d_B) → LltSolveExpr → cusolverDnXpotrf + cusolverDnXpotrs
+// d_A.llt().solve(d_B) -> LltSolveExpr -> cusolverDnXpotrf + cusolverDnXpotrs
 
 template <typename Scalar_, int UpLo_ = Lower>
 class LltSolveExpr {
@@ -49,7 +50,7 @@ class LltSolveExpr {
 };
 
 // ---- LU solve expression ----------------------------------------------------
-// d_A.lu().solve(d_B) → LuSolveExpr → cusolverDnXgetrf + cusolverDnXgetrs
+// d_A.lu().solve(d_B) -> LuSolveExpr -> cusolverDnXgetrf + cusolverDnXgetrs
 
 template <typename Scalar_>
 class LuSolveExpr {
@@ -65,17 +66,17 @@ class LuSolveExpr {
   const DeviceMatrix<Scalar>& B_;
 };
 
-// ---- DeviceLLTView: d_A.llt() → view with .solve() and .device() -----------
+// ---- LLTView: d_A.llt() -> view with .solve() and .device() ----------------
 
 template <typename Scalar_, int UpLo_ = Lower>
-class DeviceLLTView {
+class LLTView {
  public:
   using Scalar = Scalar_;
 
-  explicit DeviceLLTView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit LLTView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
 
   /** Build a solve expression: d_A.llt().solve(d_B).
-   * The expression is evaluated when assigned to a DeviceMatrix. */
+   * The expression is evaluated when assigned to a gpu::DeviceMatrix. */
   LltSolveExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
   // For cached factorizations, use the explicit GpuLLT API directly:
@@ -88,14 +89,14 @@ class DeviceLLTView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// ---- DeviceLUView: d_A.lu() → view with .solve() and .device() -------------
+// ---- LUView: d_A.lu() -> view with .solve() and .device() ------------------
 
 template <typename Scalar_>
-class DeviceLUView {
+class LUView {
  public:
   using Scalar = Scalar_;
 
-  explicit DeviceLUView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit LUView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
 
   /** Build a solve expression: d_A.lu().solve(d_B). */
   LuSolveExpr<Scalar> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
@@ -110,6 +111,7 @@ class DeviceLUView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_DEVICE_SOLVER_EXPR_H

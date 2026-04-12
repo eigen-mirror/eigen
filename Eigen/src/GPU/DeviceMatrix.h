@@ -9,23 +9,23 @@
 
 // Typed RAII wrapper for a dense matrix in GPU device memory.
 //
-// DeviceMatrix<Scalar> holds a column-major matrix on the GPU with tracked
+// gpu::DeviceMatrix<Scalar> holds a column-major matrix on the GPU with tracked
 // dimensions and leading dimension. It can be passed to GPU solvers
-// (GpuLLT, GpuLU, future cuBLAS/cuDSS) without host round-trips.
+// (gpu::LLT, gpu::LU, future cuBLAS/cuDSS) without host round-trips.
 //
 // Cross-stream safety is automatic: an internal CUDA event tracks when the
 // last write completed. Consumers on a different stream wait on that event
 // before reading.
 //
 // Usage:
-//   auto d_A = DeviceMatrix<double>::fromHost(A);   // upload (sync)
-//   GpuLLT<double> llt;
+//   auto d_A = gpu::DeviceMatrix<double>::fromHost(A);     // upload (sync)
+//   gpu::LLT<double> llt;
 //   llt.compute(d_A);                                // factor on device
 //   auto d_X = llt.solve(d_B);                       // async, no sync
 //   MatrixXd X = d_X.toHost();                       // download + block
 //
 // Async variants:
-//   auto d_A = DeviceMatrix<double>::fromHostAsync(A.data(), n, n, n, stream);
+//   auto d_A = gpu::DeviceMatrix<double>::fromHostAsync(A.data(), n, n, n, stream);
 //   auto transfer = d_X.toHostAsync(stream);         // enqueue D2H
 //   // ... overlap with other work ...
 //   MatrixXd X = transfer.get();                     // block + retrieve
@@ -41,18 +41,19 @@
 #include "./GpuSupport.h"
 
 namespace Eigen {
+namespace gpu {
 
 // Forward declarations.
 template <typename, int>
-class GpuLLT;
+class LLT;
 template <typename>
-class GpuLU;
+class LU;
 template <typename>
-class DeviceAdjointView;
+class AdjointView;
 template <typename>
-class DeviceTransposeView;
+class TransposeView;
 template <typename>
-class DeviceAssignment;
+class Assignment;
 template <typename, typename>
 class GemmExpr;
 template <typename, int>
@@ -60,22 +61,22 @@ class LltSolveExpr;
 template <typename>
 class LuSolveExpr;
 template <typename, int>
-class DeviceLLTView;
+class LLTView;
 template <typename>
-class DeviceLUView;
+class LUView;
 template <typename, int>
-class DeviceTriangularView;
+class TriangularView;
 template <typename, int>
-class DeviceSelfAdjointView;
+class SelfAdjointView;
 template <typename, int>
-class ConstDeviceSelfAdjointView;
+class ConstSelfAdjointView;
 template <typename, int>
 class TrsmExpr;
 template <typename, int>
 class SymmExpr;
 template <typename, int>
 class SyrkExpr;
-class GpuContext;
+class Context;
 
 // --------------------------------------------------------------------------
 // HostTransfer — future-like wrapper for an async device-to-host transfer.
@@ -85,7 +86,7 @@ class GpuContext;
  * \class HostTransfer
  * \brief Future for an asynchronous device-to-host matrix transfer.
  *
- * Returned by DeviceMatrix::toHostAsync(). The transfer runs asynchronously
+ * Returned by gpu::DeviceMatrix::toHostAsync(). The transfer runs asynchronously
  * on the given CUDA stream. Call get() to block until complete and retrieve
  * the host matrix, or ready() to poll without blocking.
  */
@@ -93,7 +94,7 @@ template <typename Scalar_>
 class HostTransfer {
  public:
   using Scalar = Scalar_;
-  using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Block until the transfer completes and return the host matrix.
    * Idempotent: subsequent calls return the same matrix without re-syncing.
@@ -160,7 +161,7 @@ class HostTransfer {
 };
 
 // --------------------------------------------------------------------------
-// DeviceMatrix — typed RAII wrapper for a dense matrix in device memory.
+// Matrix — typed RAII wrapper for a dense matrix in device memory.
 // --------------------------------------------------------------------------
 
 /** \ingroup GPU_Module
@@ -181,7 +182,7 @@ template <typename Scalar_>
 class DeviceMatrix {
  public:
   using Scalar = Scalar_;
-  using PlainMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   // ---- Construction / destruction ------------------------------------------
 
@@ -278,7 +279,7 @@ class DeviceMatrix {
    * \param stream       CUDA stream for the transfer.
    */
   static DeviceMatrix fromHostAsync(const Scalar* host_data, Index rows, Index cols, Index outerStride,
-                                    cudaStream_t stream) {
+                              cudaStream_t stream) {
     eigen_assert(rows >= 0 && cols >= 0 && outerStride >= rows);
     eigen_assert(host_data != nullptr || (rows == 0 || cols == 0));
     DeviceMatrix dm(rows, cols);
@@ -414,35 +415,35 @@ class DeviceMatrix {
   // ---- Expression methods (dispatch to cuBLAS/cuSOLVER) --------------------
 
   /** Adjoint view for GEMM dispatch. Maps to cublasXgemm with ConjTrans. */
-  DeviceAdjointView<Scalar> adjoint() const { return DeviceAdjointView<Scalar>(*this); }
+  AdjointView<Scalar> adjoint() const { return AdjointView<Scalar>(*this); }
 
   /** Transpose view for GEMM dispatch. Maps to cublasXgemm with Trans. */
-  DeviceTransposeView<Scalar> transpose() const { return DeviceTransposeView<Scalar>(*this); }
+  TransposeView<Scalar> transpose() const { return TransposeView<Scalar>(*this); }
 
-  /** Bind this matrix to a GpuContext for expression assignment.
-   * Returns a DeviceAssignment proxy: `d_C.device(ctx) = d_A * d_B;` */
-  DeviceAssignment<Scalar> device(GpuContext& ctx) { return DeviceAssignment<Scalar>(*this, ctx); }
+  /** Bind this matrix to a Context for expression assignment.
+   * Returns an Assignment proxy: `d_C.device(ctx) = d_A * d_B;` */
+  Assignment<Scalar> device(Context& ctx) { return Assignment<Scalar>(*this, ctx); }
 
-  /** Assign from a GEMM expression using the thread-local default GpuContext.
-   * Defined out-of-line after GpuContext is fully declared (see DeviceDispatch.h). */
+  /** Assign from a GEMM expression using the thread-local default Context.
+   * Defined out-of-line after Context is fully declared (see DeviceDispatch.h). */
   template <typename Lhs, typename Rhs>
   DeviceMatrix& operator=(const GemmExpr<Lhs, Rhs>& expr);
 
-  /** Accumulate from a GEMM expression using the thread-local default GpuContext. */
+  /** Accumulate from a GEMM expression using the thread-local default Context. */
   template <typename Lhs, typename Rhs>
   DeviceMatrix& operator+=(const GemmExpr<Lhs, Rhs>& expr);
 
   /** Cholesky view: d_A.llt().solve(d_B) → LltSolveExpr. */
-  DeviceLLTView<Scalar, Lower> llt() const { return DeviceLLTView<Scalar, Lower>(*this); }
+  LLTView<Scalar, Lower> llt() const { return LLTView<Scalar, Lower>(*this); }
 
   /** Cholesky view with explicit triangle: d_A.llt<Upper>().solve(d_B). */
   template <int UpLo>
-  DeviceLLTView<Scalar, UpLo> llt() const {
-    return DeviceLLTView<Scalar, UpLo>(*this);
+  LLTView<Scalar, UpLo> llt() const {
+    return LLTView<Scalar, UpLo>(*this);
   }
 
   /** LU view: d_A.lu().solve(d_B) → LuSolveExpr. */
-  DeviceLUView<Scalar> lu() const { return DeviceLUView<Scalar>(*this); }
+  LUView<Scalar> lu() const { return LUView<Scalar>(*this); }
 
   /** Assign from an LLT solve expression (thread-local default context). */
   template <int UpLo>
@@ -453,20 +454,20 @@ class DeviceMatrix {
 
   /** Triangular view: d_A.triangularView<Lower>().solve(d_B) → TrsmExpr. */
   template <int UpLo>
-  DeviceTriangularView<Scalar, UpLo> triangularView() const {
-    return DeviceTriangularView<Scalar, UpLo>(*this);
+  TriangularView<Scalar, UpLo> triangularView() const {
+    return TriangularView<Scalar, UpLo>(*this);
   }
 
   /** Self-adjoint view (mutable): d_C.selfadjointView<Lower>().rankUpdate(d_A). */
   template <int UpLo>
-  DeviceSelfAdjointView<Scalar, UpLo> selfadjointView() {
-    return DeviceSelfAdjointView<Scalar, UpLo>(*this);
+  SelfAdjointView<Scalar, UpLo> selfadjointView() {
+    return SelfAdjointView<Scalar, UpLo>(*this);
   }
 
   /** Self-adjoint view (const): d_A.selfadjointView<Lower>() * d_B → SymmExpr. */
   template <int UpLo>
-  ConstDeviceSelfAdjointView<Scalar, UpLo> selfadjointView() const {
-    return ConstDeviceSelfAdjointView<Scalar, UpLo>(*this);
+  ConstSelfAdjointView<Scalar, UpLo> selfadjointView() const {
+    return ConstSelfAdjointView<Scalar, UpLo>(*this);
   }
 
   /** Assign from a TRSM expression (thread-local default context). */
@@ -477,11 +478,17 @@ class DeviceMatrix {
   template <int UpLo>
   DeviceMatrix& operator=(const SymmExpr<Scalar, UpLo>& expr);
 
- private:
-  // ---- Private: adopt a raw device pointer (used by friend solvers) --------
+  // ---- Ownership transfer ---------------------------------------------------
 
-  DeviceMatrix(Scalar* device_ptr, Index rows, Index cols, Index outerStride)
-      : data_(device_ptr), rows_(rows), cols_(cols), outerStride_(outerStride) {}
+  /** Adopt an existing device pointer. Caller relinquishes ownership. */
+  static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
+    DeviceMatrix dm;
+    dm.data_ = device_ptr;
+    dm.rows_ = rows;
+    dm.cols_ = cols;
+    dm.outerStride_ = rows;
+    return dm;
+  }
 
   /** Transfer ownership of the device pointer out. Zeros internal state. */
   Scalar* release() {
@@ -498,6 +505,7 @@ class DeviceMatrix {
     return p;
   }
 
+ private:
   // ---- Private helpers -------------------------------------------------------
 
   void ensureEvent() {
@@ -507,13 +515,6 @@ class DeviceMatrix {
   }
 
   void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }
-
-  // ---- Friend declarations ------------------------------------------------
-
-  template <typename, int>
-  friend class GpuLLT;
-  template <typename>
-  friend class GpuLU;
 
   // ---- Data members --------------------------------------------------------
 
@@ -526,6 +527,7 @@ class DeviceMatrix {
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_DEVICE_MATRIX_H

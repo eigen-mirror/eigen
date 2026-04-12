@@ -9,16 +9,16 @@
 
 // Unified GPU execution context.
 //
-// GpuContext owns a CUDA stream and all NVIDIA library handles (cuBLAS,
+// gpu::Context owns a CUDA stream and all NVIDIA library handles (cuBLAS,
 // cuSOLVER, future cuDSS/cuSPARSE). It is the entry point for all GPU
-// operations on DeviceMatrix.
+// operations on gpu::DeviceMatrix.
 //
 // Usage:
-//   GpuContext ctx;                        // explicit context
-//   d_C.device(ctx) = d_A * d_B;          // GEMM on ctx's stream
+//   gpu::Context ctx;                        // explicit context
+//   d_C.device(ctx) = d_A * d_B;            // GEMM on ctx's stream
 //
-//   d_C = d_A * d_B;                      // thread-local default context
-//   GpuContext& ctx = GpuContext::threadLocal();
+//   d_C = d_A * d_B;                        // thread-local default context
+//   gpu::Context& ctx = gpu::Context::threadLocal();
 
 #ifndef EIGEN_GPU_CONTEXT_H
 #define EIGEN_GPU_CONTEXT_H
@@ -30,21 +30,22 @@
 #include "./CuSolverSupport.h"
 
 namespace Eigen {
+namespace gpu {
 
 /** \ingroup GPU_Module
- * \class GpuContext
+ * \class Context
  * \brief Unified GPU execution context owning a CUDA stream and library handles.
  *
- * Each GpuContext instance creates a dedicated CUDA stream, a cuBLAS handle,
+ * Each Context instance creates a dedicated CUDA stream, a cuBLAS handle,
  * and a cuSOLVER handle, all bound to that stream. Multiple contexts enable
  * concurrent execution on independent streams.
  *
  * A lazily-created thread-local default is available via threadLocal() for
  * simple single-stream usage.
  */
-class GpuContext {
+class Context {
  public:
-  GpuContext() {
+  Context() {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
     EIGEN_CUBLAS_CHECK(cublasCreate(&cublas_));
     EIGEN_CUBLAS_CHECK(cublasSetStream(cublas_, stream_));
@@ -52,15 +53,15 @@ class GpuContext {
     EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(cusolver_, stream_));
   }
 
-  ~GpuContext() {
+  ~Context() {
     if (cusolver_) (void)cusolverDnDestroy(cusolver_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
 
   // Non-copyable, non-movable (owns library handles).
-  GpuContext(const GpuContext&) = delete;
-  GpuContext& operator=(const GpuContext&) = delete;
+  Context(const Context&) = delete;
+  Context& operator=(const Context&) = delete;
 
   /** Lazily-created thread-local default context.
    *
@@ -69,10 +70,10 @@ class GpuContext {
    * configurations this may print "CUDA_ERROR_DEINITIALIZED" to stderr if the
    * CUDA context has already been torn down. These errors are harmless and are
    * suppressed in the destructor, but they can produce noise in test output.
-   * To avoid this, call cudaDeviceReset() only after all GpuContext instances
+   * To avoid this, call cudaDeviceReset() only after all Context instances
    * (including thread-local ones) have been destroyed. */
-  static GpuContext& threadLocal() {
-    thread_local GpuContext ctx;
+  static Context& threadLocal() {
+    thread_local Context ctx;
     return ctx;
   }
 
@@ -86,6 +87,7 @@ class GpuContext {
   cusolverDnHandle_t cusolver_ = nullptr;
 };
 
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_CONTEXT_H

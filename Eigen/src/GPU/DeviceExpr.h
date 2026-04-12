@@ -14,10 +14,10 @@
 // evaluation, no lazy fusion, no packet operations.
 //
 // Expression types:
-//   DeviceAdjointView<S>  — d_A.adjoint()  → marks ConjTrans for GEMM
-//   DeviceTransposeView<S> — d_A.transpose() → marks Trans for GEMM
-//   DeviceScaled<Expr>    — alpha * expr    → carries scalar factor
-//   GemmExpr<Lhs, Rhs>   — lhs * rhs       → dispatches to cublasXgemm
+//   AdjointView<S>   — d_A.adjoint()  → marks ConjTrans for GEMM
+//   TransposeView<S> — d_A.transpose() → marks Trans for GEMM
+//   Scaled<Expr>     — alpha * expr    → carries scalar factor
+//   gpu::GemmExpr<Lhs, Rhs> — lhs * rhs    → dispatches to cublasXgemm
 
 #ifndef EIGEN_GPU_DEVICE_EXPR_H
 #define EIGEN_GPU_DEVICE_EXPR_H
@@ -28,90 +28,54 @@
 #include "./CuBlasSupport.h"
 
 namespace Eigen {
+namespace gpu {
+
+namespace internal {
+// Forward declaration — specializations follow below, after the class definitions.
+template <typename Expr>
+struct device_expr_traits;
+}  // namespace internal
 
 // Forward declaration.
 template <typename Scalar_>
 class DeviceMatrix;
 
-namespace internal {
-
-// ---- Traits: extract operation info from expression types -------------------
-
-// Default: a DeviceMatrix is NoTrans.
-template <typename T>
-struct device_expr_traits {
-  static constexpr bool is_device_expr = false;
-};
-
-template <typename Scalar>
-struct device_expr_traits<DeviceMatrix<Scalar>> {
-  using scalar_type = Scalar;
-  static constexpr GpuOp op = GpuOp::NoTrans;
-  static constexpr bool is_device_expr = true;
-  static const DeviceMatrix<Scalar>& matrix(const DeviceMatrix<Scalar>& x) { return x; }
-  static Scalar alpha(const DeviceMatrix<Scalar>&) { return Scalar(1); }
-};
-
-}  // namespace internal
-
-// ---- DeviceAdjointView: marks ConjTrans ------------------------------------
+// ---- AdjointView: marks ConjTrans -------------------------------------------
 // Returned by DeviceMatrix::adjoint(). Maps to cublasXgemm transA/B = C.
 
 template <typename Scalar_>
-class DeviceAdjointView {
+class AdjointView {
  public:
   using Scalar = Scalar_;
-  explicit DeviceAdjointView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit AdjointView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
  private:
   const DeviceMatrix<Scalar>& mat_;
 };
 
-namespace internal {
-template <typename Scalar>
-struct device_expr_traits<DeviceAdjointView<Scalar>> {
-  using scalar_type = Scalar;
-  static constexpr GpuOp op = GpuOp::ConjTrans;
-  static constexpr bool is_device_expr = true;
-  static const DeviceMatrix<Scalar>& matrix(const DeviceAdjointView<Scalar>& x) { return x.matrix(); }
-  static Scalar alpha(const DeviceAdjointView<Scalar>&) { return Scalar(1); }
-};
-}  // namespace internal
-
-// ---- DeviceTransposeView: marks Trans --------------------------------------
+// ---- TransposeView: marks Trans ---------------------------------------------
 // Returned by DeviceMatrix::transpose(). Maps to cublasXgemm transA/B = T.
 
 template <typename Scalar_>
-class DeviceTransposeView {
+class TransposeView {
  public:
   using Scalar = Scalar_;
-  explicit DeviceTransposeView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
+  explicit TransposeView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
  private:
   const DeviceMatrix<Scalar>& mat_;
 };
 
-namespace internal {
-template <typename Scalar>
-struct device_expr_traits<DeviceTransposeView<Scalar>> {
-  using scalar_type = Scalar;
-  static constexpr GpuOp op = GpuOp::Trans;
-  static constexpr bool is_device_expr = true;
-  static const DeviceMatrix<Scalar>& matrix(const DeviceTransposeView<Scalar>& x) { return x.matrix(); }
-  static Scalar alpha(const DeviceTransposeView<Scalar>&) { return Scalar(1); }
-};
-}  // namespace internal
-
-// ---- DeviceScaled: alpha * expr --------------------------------------------
+// ---- Scaled: alpha * expr ---------------------------------------------------
 // Returned by operator*(Scalar, DeviceMatrix/View). Carries the scalar factor.
 
 template <typename Inner>
-class DeviceScaled {
+class Scaled {
  public:
   using Scalar = typename internal::device_expr_traits<Inner>::scalar_type;
-  DeviceScaled(Scalar alpha, const Inner& inner) : alpha_(alpha), inner_(inner) {}
+  Scaled(Scalar alpha, const Inner& inner) : alpha_(alpha), inner_(inner) {}
   Scalar scalar() const { return alpha_; }
   const Inner& inner() const { return inner_; }
 
@@ -120,22 +84,7 @@ class DeviceScaled {
   const Inner& inner_;
 };
 
-namespace internal {
-template <typename Inner>
-struct device_expr_traits<DeviceScaled<Inner>> {
-  using scalar_type = typename device_expr_traits<Inner>::scalar_type;
-  static constexpr GpuOp op = device_expr_traits<Inner>::op;
-  static constexpr bool is_device_expr = true;
-  static const DeviceMatrix<scalar_type>& matrix(const DeviceScaled<Inner>& x) {
-    return device_expr_traits<Inner>::matrix(x.inner());
-  }
-  static scalar_type alpha(const DeviceScaled<Inner>& x) {
-    return x.scalar() * device_expr_traits<Inner>::alpha(x.inner());
-  }
-};
-}  // namespace internal
-
-// ---- GemmExpr: lhs * rhs → cublasXgemm ------------------------------------
+// ---- GemmExpr: lhs * rhs -> cublasXgemm ------------------------------------
 // Returned by operator*(lhs_expr, rhs_expr). Dispatches to cuBLAS GEMM.
 
 template <typename Lhs, typename Rhs>
@@ -157,68 +106,120 @@ class GemmExpr {
   const Rhs& rhs_;
 };
 
-// ---- Free operator* overloads that produce GemmExpr ------------------------
+// ---- Free operator* overloads that produce GemmExpr -------------------------
 // These cover: DM*DM, Adj*DM, DM*Adj, Trans*DM, DM*Trans, Scaled*DM, etc.
 
-// DeviceMatrix * DeviceMatrix
+// Matrix * Matrix
 template <typename S>
 GemmExpr<DeviceMatrix<S>, DeviceMatrix<S>> operator*(const DeviceMatrix<S>& a, const DeviceMatrix<S>& b) {
   return {a, b};
 }
 
-// AdjointView * DeviceMatrix
+// AdjointView * Matrix
 template <typename S>
-GemmExpr<DeviceAdjointView<S>, DeviceMatrix<S>> operator*(const DeviceAdjointView<S>& a, const DeviceMatrix<S>& b) {
+GemmExpr<AdjointView<S>, DeviceMatrix<S>> operator*(const AdjointView<S>& a, const DeviceMatrix<S>& b) {
   return {a, b};
 }
 
-// DeviceMatrix * AdjointView
+// Matrix * AdjointView
 template <typename S>
-GemmExpr<DeviceMatrix<S>, DeviceAdjointView<S>> operator*(const DeviceMatrix<S>& a, const DeviceAdjointView<S>& b) {
+GemmExpr<DeviceMatrix<S>, AdjointView<S>> operator*(const DeviceMatrix<S>& a, const AdjointView<S>& b) {
   return {a, b};
 }
 
-// TransposeView * DeviceMatrix
+// TransposeView * Matrix
 template <typename S>
-GemmExpr<DeviceTransposeView<S>, DeviceMatrix<S>> operator*(const DeviceTransposeView<S>& a, const DeviceMatrix<S>& b) {
+GemmExpr<TransposeView<S>, DeviceMatrix<S>> operator*(const TransposeView<S>& a, const DeviceMatrix<S>& b) {
   return {a, b};
 }
 
-// DeviceMatrix * TransposeView
+// Matrix * TransposeView
 template <typename S>
-GemmExpr<DeviceMatrix<S>, DeviceTransposeView<S>> operator*(const DeviceMatrix<S>& a, const DeviceTransposeView<S>& b) {
+GemmExpr<DeviceMatrix<S>, TransposeView<S>> operator*(const DeviceMatrix<S>& a, const TransposeView<S>& b) {
   return {a, b};
 }
 
-// Scaled * DeviceMatrix
+// Scaled * Matrix
 template <typename Inner, typename S>
-GemmExpr<DeviceScaled<Inner>, DeviceMatrix<S>> operator*(const DeviceScaled<Inner>& a, const DeviceMatrix<S>& b) {
+GemmExpr<Scaled<Inner>, DeviceMatrix<S>> operator*(const Scaled<Inner>& a, const DeviceMatrix<S>& b) {
   return {a, b};
 }
 
-// DeviceMatrix * Scaled
+// Matrix * Scaled
 template <typename S, typename Inner>
-GemmExpr<DeviceMatrix<S>, DeviceScaled<Inner>> operator*(const DeviceMatrix<S>& a, const DeviceScaled<Inner>& b) {
+GemmExpr<DeviceMatrix<S>, Scaled<Inner>> operator*(const DeviceMatrix<S>& a, const Scaled<Inner>& b) {
   return {a, b};
 }
 
-// ---- Scalar * DeviceMatrix / View → DeviceScaled ---------------------------
+// ---- Scalar * Matrix / View -> Scaled ---------------------------------------
 
 template <typename S>
-DeviceScaled<DeviceMatrix<S>> operator*(S alpha, const DeviceMatrix<S>& m) {
+Scaled<DeviceMatrix<S>> operator*(S alpha, const DeviceMatrix<S>& m) {
   return {alpha, m};
 }
 
 template <typename S>
-DeviceScaled<DeviceAdjointView<S>> operator*(S alpha, const DeviceAdjointView<S>& m) {
+Scaled<AdjointView<S>> operator*(S alpha, const AdjointView<S>& m) {
   return {alpha, m};
 }
 
 template <typename S>
-DeviceScaled<DeviceTransposeView<S>> operator*(S alpha, const DeviceTransposeView<S>& m) {
+Scaled<TransposeView<S>> operator*(S alpha, const TransposeView<S>& m) {
   return {alpha, m};
 }
 
+namespace internal {
+
+// ---- Traits: extract operation info from expression types -------------------
+
+// Default: a DeviceMatrix is NoTrans.
+template <typename T>
+struct device_expr_traits {
+  static constexpr bool is_device_expr = false;
+};
+
+template <typename Scalar>
+struct device_expr_traits<DeviceMatrix<Scalar>> {
+  using scalar_type = Scalar;
+  static constexpr GpuOp op = GpuOp::NoTrans;
+  static constexpr bool is_device_expr = true;
+  static const DeviceMatrix<Scalar>& matrix(const DeviceMatrix<Scalar>& x) { return x; }
+  static Scalar alpha(const DeviceMatrix<Scalar>&) { return Scalar(1); }
+};
+
+template <typename Scalar>
+struct device_expr_traits<AdjointView<Scalar>> {
+  using scalar_type = Scalar;
+  static constexpr GpuOp op = GpuOp::ConjTrans;
+  static constexpr bool is_device_expr = true;
+  static const DeviceMatrix<Scalar>& matrix(const AdjointView<Scalar>& x) { return x.matrix(); }
+  static Scalar alpha(const AdjointView<Scalar>&) { return Scalar(1); }
+};
+
+template <typename Scalar>
+struct device_expr_traits<TransposeView<Scalar>> {
+  using scalar_type = Scalar;
+  static constexpr GpuOp op = GpuOp::Trans;
+  static constexpr bool is_device_expr = true;
+  static const DeviceMatrix<Scalar>& matrix(const TransposeView<Scalar>& x) { return x.matrix(); }
+  static Scalar alpha(const TransposeView<Scalar>&) { return Scalar(1); }
+};
+
+template <typename Inner>
+struct device_expr_traits<Scaled<Inner>> {
+  using scalar_type = typename device_expr_traits<Inner>::scalar_type;
+  static constexpr GpuOp op = device_expr_traits<Inner>::op;
+  static constexpr bool is_device_expr = true;
+  static const DeviceMatrix<scalar_type>& matrix(const Scaled<Inner>& x) {
+    return device_expr_traits<Inner>::matrix(x.inner());
+  }
+  static scalar_type alpha(const Scaled<Inner>& x) {
+    return x.scalar() * device_expr_traits<Inner>::alpha(x.inner());
+  }
+};
+
+}  // namespace internal
+}  // namespace gpu
 }  // namespace Eigen
 
 #endif  // EIGEN_GPU_DEVICE_EXPR_H
