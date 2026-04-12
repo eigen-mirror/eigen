@@ -21,6 +21,7 @@
 
 #include "./GpuSupport.h"
 #include <cublas_v2.h>
+#include <cstring>
 
 namespace Eigen {
 namespace internal {
@@ -65,29 +66,36 @@ inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cu
                                   const double* beta, double* C, int ldc) {
   return cublasDgemm(h, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 }
-// Complex wrappers must not be inlined: the reinterpret_cast from
-// std::complex<T>* to cuComplex*/cuDoubleComplex* is a type-pun that
-// causes clang/MSVC optimizers to elide the source memory when the
-// wrapper is inlined into the caller (the compiler no longer sees a
-// read through the original type).  Keeping these out-of-line ensures
-// the caller materialises the scalars before the call.
-EIGEN_DONT_INLINE cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB,
-                                             int m, int n, int k, const std::complex<float>* alpha,
-                                             const std::complex<float>* A, int lda, const std::complex<float>* B,
-                                             int ldb, const std::complex<float>* beta, std::complex<float>* C,
-                                             int ldc) {
-  return cublasCgemm(h, transA, transB, m, n, k, reinterpret_cast<const cuComplex*>(alpha),
-                     reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(B), ldb,
-                     reinterpret_cast<const cuComplex*>(beta), reinterpret_cast<cuComplex*>(C), ldc);
+static_assert(sizeof(cuComplex) == sizeof(std::complex<float>), "cuComplex and std::complex<float> layout mismatch");
+static_assert(sizeof(cuDoubleComplex) == sizeof(std::complex<double>),
+              "cuDoubleComplex and std::complex<double> layout mismatch");
+
+// Complex scalar args (alpha, beta) are type-punned from std::complex<T>*
+// to cuComplex*/cuDoubleComplex*.  A reinterpret_cast violates strict
+// aliasing: when inlined, clang/MSVC can elide the caller's store (the
+// compiler no longer sees a read through the original type), causing
+// segfaults.  We use memcpy — the standard-blessed type-pun — for scalars.
+// Device array pointers (A, B, C) are opaque to the host compiler, so
+// reinterpret_cast is safe there.
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  const std::complex<float>* B, int ldb, const std::complex<float>* beta,
+                                  std::complex<float>* C, int ldc) {
+  cuComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasCgemm(h, transA, transB, m, n, k, &a, reinterpret_cast<const cuComplex*>(A), lda,
+                     reinterpret_cast<const cuComplex*>(B), ldb, &b, reinterpret_cast<cuComplex*>(C), ldc);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB,
-                                             int m, int n, int k, const std::complex<double>* alpha,
-                                             const std::complex<double>* A, int lda, const std::complex<double>* B,
-                                             int ldb, const std::complex<double>* beta, std::complex<double>* C,
-                                             int ldc) {
-  return cublasZgemm(h, transA, transB, m, n, k, reinterpret_cast<const cuDoubleComplex*>(alpha),
-                     reinterpret_cast<const cuDoubleComplex*>(A), lda, reinterpret_cast<const cuDoubleComplex*>(B), ldb,
-                     reinterpret_cast<const cuDoubleComplex*>(beta), reinterpret_cast<cuDoubleComplex*>(C), ldc);
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  int k, const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  const std::complex<double>* B, int ldb, const std::complex<double>* beta,
+                                  std::complex<double>* C, int ldc) {
+  cuDoubleComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasZgemm(h, transA, transB, m, n, k, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
 // TRSM wrappers
@@ -101,19 +109,23 @@ inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cubla
                                   const double* A, int lda, double* B, int ldb) {
   return cublasDtrsm(h, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                             cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
-                                             const std::complex<float>* alpha, const std::complex<float>* A, int lda,
-                                             std::complex<float>* B, int ldb) {
-  return cublasCtrsm(h, side, uplo, trans, diag, m, n, reinterpret_cast<const cuComplex*>(alpha),
-                     reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<cuComplex*>(B), ldb);
+inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
+                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  std::complex<float>* B, int ldb) {
+  cuComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasCtrsm(h, side, uplo, trans, diag, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda,
+                     reinterpret_cast<cuComplex*>(B), ldb);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                             cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
-                                             const std::complex<double>* alpha, const std::complex<double>* A, int lda,
-                                             std::complex<double>* B, int ldb) {
-  return cublasZtrsm(h, side, uplo, trans, diag, m, n, reinterpret_cast<const cuDoubleComplex*>(alpha),
-                     reinterpret_cast<const cuDoubleComplex*>(A), lda, reinterpret_cast<cuDoubleComplex*>(B), ldb);
+inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
+                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  std::complex<double>* B, int ldb) {
+  cuDoubleComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasZtrsm(h, side, uplo, trans, diag, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                     reinterpret_cast<cuDoubleComplex*>(B), ldb);
 }
 
 // SYMM wrappers (real → symm, complex → hemm)
@@ -127,21 +139,25 @@ inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cubla
                                   const double* beta, double* C, int ldc) {
   return cublasDsymm(h, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m,
-                                             int n, const std::complex<float>* alpha, const std::complex<float>* A,
-                                             int lda, const std::complex<float>* B, int ldb,
-                                             const std::complex<float>* beta, std::complex<float>* C, int ldc) {
-  return cublasChemm(h, side, uplo, m, n, reinterpret_cast<const cuComplex*>(alpha),
-                     reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(B), ldb,
-                     reinterpret_cast<const cuComplex*>(beta), reinterpret_cast<cuComplex*>(C), ldc);
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  const std::complex<float>* B, int ldb, const std::complex<float>* beta,
+                                  std::complex<float>* C, int ldc) {
+  cuComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasChemm(h, side, uplo, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda,
+                     reinterpret_cast<const cuComplex*>(B), ldb, &b, reinterpret_cast<cuComplex*>(C), ldc);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m,
-                                             int n, const std::complex<double>* alpha, const std::complex<double>* A,
-                                             int lda, const std::complex<double>* B, int ldb,
-                                             const std::complex<double>* beta, std::complex<double>* C, int ldc) {
-  return cublasZhemm(h, side, uplo, m, n, reinterpret_cast<const cuDoubleComplex*>(alpha),
-                     reinterpret_cast<const cuDoubleComplex*>(A), lda, reinterpret_cast<const cuDoubleComplex*>(B), ldb,
-                     reinterpret_cast<const cuDoubleComplex*>(beta), reinterpret_cast<cuDoubleComplex*>(C), ldc);
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  const std::complex<double>* B, int ldb, const std::complex<double>* beta,
+                                  std::complex<double>* C, int ldc) {
+  cuDoubleComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasZhemm(h, side, uplo, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
 // SYRK wrappers (real → syrk, complex → herk)
@@ -154,15 +170,15 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
                                   int ldc) {
   return cublasDsyrk(h, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n,
-                                             int k, const float* alpha, const std::complex<float>* A, int lda,
-                                             const float* beta, std::complex<float>* C, int ldc) {
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
+                                  const float* alpha, const std::complex<float>* A, int lda, const float* beta,
+                                  std::complex<float>* C, int ldc) {
   return cublasCherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuComplex*>(A), lda, beta,
                      reinterpret_cast<cuComplex*>(C), ldc);
 }
-EIGEN_DONT_INLINE cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n,
-                                             int k, const double* alpha, const std::complex<double>* A, int lda,
-                                             const double* beta, std::complex<double>* C, int ldc) {
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
+                                  const double* alpha, const std::complex<double>* A, int lda, const double* beta,
+                                  std::complex<double>* C, int ldc) {
   return cublasZherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuDoubleComplex*>(A), lda, beta,
                      reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
