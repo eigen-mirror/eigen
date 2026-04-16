@@ -596,14 +596,21 @@
 #endif
 
 // HIP compilers default to launch_bounds(256), which causes failures when kernels
-// are called with more than 256 threads per block. Explicitly set to 1024 for HIP.
+// are called with more than 256 threads per block. On CUDA, without explicit
+// launch_bounds the compiler may over-allocate registers per thread, causing
+// cudaErrorLaunchOutOfResources for kernels launched with 1024 threads (e.g. 3D
+// convolution). Set to 1024 for all GPU compilers.
 
 #define EIGEN_HIP_LAUNCH_BOUNDS_1024 __launch_bounds__(1024)
 
 #endif
 
 #if !defined(EIGEN_HIP_LAUNCH_BOUNDS_1024)
+#if defined(EIGEN_CUDACC)
+#define EIGEN_HIP_LAUNCH_BOUNDS_1024 __launch_bounds__(1024)
+#else
 #define EIGEN_HIP_LAUNCH_BOUNDS_1024
+#endif
 #endif  // !defined(EIGEN_HIP_LAUNCH_BOUNDS_1024)
 
 // Unify CUDA/HIPCC
