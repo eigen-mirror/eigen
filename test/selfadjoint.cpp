@@ -42,6 +42,18 @@ void selfadjoint(const MatrixType& m) {
   m4 = m2;
   m4 -= m1.template selfadjointView<Lower>();
   VERIFY_IS_APPROX(m4, m2 - m3);
+
+  Scalar s = internal::random<Scalar>();
+
+  m4 = s * m1.template selfadjointView<Upper>();
+  VERIFY_IS_APPROX(m4, MatrixType((s * m1).template selfadjointView<Upper>()));
+  m4 = m1.template selfadjointView<Upper>() * s;
+  VERIFY_IS_APPROX(m4, MatrixType((m1 * s).template selfadjointView<Upper>()));
+
+  m4 = s * m1.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(m4, MatrixType((s * m1).template selfadjointView<Lower>()));
+  m4 = m1.template selfadjointView<Lower>() * s;
+  VERIFY_IS_APPROX(m4, MatrixType((m1 * s).template selfadjointView<Lower>()));
 }
 
 void bug_159() {

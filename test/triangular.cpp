@@ -13,6 +13,55 @@
 
 #include "main.h"
 
+template <typename ViewType, typename = void>
+struct has_left_scalar_multiply : std::false_type {};
+
+template <typename ViewType>
+struct has_left_scalar_multiply<
+    ViewType, internal::void_t<decltype(std::declval<typename ViewType::Scalar>() * std::declval<const ViewType&>())>>
+    : std::true_type {};
+
+template <typename ViewType, typename = void>
+struct has_right_scalar_multiply : std::false_type {};
+
+template <typename ViewType>
+struct has_right_scalar_multiply<
+    ViewType, internal::void_t<decltype(std::declval<const ViewType&>() * std::declval<typename ViewType::Scalar>())>>
+    : std::true_type {};
+
+template <unsigned int Mode, typename MatrixType>
+void triangular_scalar_multiply(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+
+  const Index rows = m.rows();
+  const Index cols = m.cols();
+
+  const Scalar s = internal::random<Scalar>();
+  const MatrixType triangular = MatrixType::Random(rows, cols);
+
+  VERIFY_IS_APPROX((s * triangular.template triangularView<Mode>()).toDenseMatrix(),
+                   (s * triangular).template triangularView<Mode>().toDenseMatrix());
+  VERIFY_IS_APPROX((triangular.template triangularView<Mode>() * s).toDenseMatrix(),
+                   (triangular * s).template triangularView<Mode>().toDenseMatrix());
+}
+
+template <typename MatrixType>
+void triangular_scalar_multiply_sfinae() {
+  typedef decltype(std::declval<MatrixType&>().template triangularView<Lower>()) LowerView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyLower>()) StrictlyLowerView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyUpper>()) StrictlyUpperView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<UnitLower>()) UnitLowerView;
+
+  STATIC_CHECK((has_left_scalar_multiply<LowerView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<LowerView>::value));
+  STATIC_CHECK((has_left_scalar_multiply<StrictlyLowerView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<StrictlyLowerView>::value));
+  STATIC_CHECK((has_left_scalar_multiply<StrictlyUpperView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<StrictlyUpperView>::value));
+  STATIC_CHECK((!has_left_scalar_multiply<UnitLowerView>::value));
+  STATIC_CHECK((!has_right_scalar_multiply<UnitLowerView>::value));
+}
+
 template <typename MatrixType>
 void triangular_deprecated(const MatrixType& m) {
   Index rows = m.rows();
@@ -41,6 +90,8 @@ void triangular_square(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+
+  triangular_scalar_multiply_sfinae<MatrixType>();
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();
 
@@ -151,6 +202,10 @@ void triangular_square(const MatrixType& m) {
   m6.setRandom();
   VERIFY_IS_APPROX(m1.template triangularView<Upper>() * m5, m3 * m5);
   VERIFY_IS_APPROX(m6 * m1.template triangularView<Upper>(), m6 * m3);
+  triangular_scalar_multiply<Upper>(m1);
+  triangular_scalar_multiply<Lower>(m1);
+  triangular_scalar_multiply<StrictlyUpper>(m1);
+  triangular_scalar_multiply<StrictlyLower>(m1);
 
   m1up = m1.template triangularView<Upper>();
   VERIFY_IS_APPROX(m1.template selfadjointView<Upper>().template triangularView<Upper>().toDenseMatrix(), m1up);
@@ -228,6 +283,10 @@ void triangular_rect(const MatrixType& m) {
   m1.setZero();
   m1.template triangularView<StrictlyLower>() = 3 * m2;
   VERIFY_IS_APPROX(m3.template triangularView<StrictlyLower>().toDenseMatrix(), m1);
+  triangular_scalar_multiply<Upper>(m1);
+  triangular_scalar_multiply<Lower>(m1);
+  triangular_scalar_multiply<StrictlyUpper>(m1);
+  triangular_scalar_multiply<StrictlyLower>(m1);
   m1.setRandom();
   m2 = m1.template triangularView<Upper>();
   VERIFY(m2.isUpperTriangular());
