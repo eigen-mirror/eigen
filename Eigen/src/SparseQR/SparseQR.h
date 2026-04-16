@@ -374,16 +374,18 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     m_isEtreeOk = true;
   }
 
-  m_pmat.uncompress();  // To have the innerNonZeroPtr allocated
+  // Switch to uncompressed mode so innerNonZeroPtr() exists and can be
+  // permuted consistently with outerIndexPtr().
+  m_pmat.uncompress();
 
   // Apply the fill-in reducing permutation lazily:
   {
-    // If the input is row major, copy the original column indices,
-    // otherwise directly use the input matrix
-    //
+    // A compressed column-major input already exposes valid column pointers.
+    // Otherwise snapshot the internal column-major structure before permuting in place.
     IndexVector originalOuterIndicesCpy;
-    const StorageIndex* originalOuterIndices = mat.outerIndexPtr();
-    if (MatrixType::IsRowMajor) {
+    const bool useInputOuterIndices = !MatrixType::IsRowMajor && mat.isCompressed();
+    const StorageIndex* originalOuterIndices = useInputOuterIndices ? mat.outerIndexPtr() : nullptr;
+    if (!useInputOuterIndices) {
       originalOuterIndicesCpy = IndexVector::Map(m_pmat.outerIndexPtr(), n + 1);
       originalOuterIndices = originalOuterIndicesCpy.data();
     }
