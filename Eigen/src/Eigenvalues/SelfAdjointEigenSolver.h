@@ -484,7 +484,8 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
 
   // Scale the tridiagonal matrix to [-1:1] to avoid over- and underflow,
   // just like compute() does for the full matrix.
-  RealScalar scale = m_eivalues.cwiseAbs().maxCoeff();
+  RealScalar scale = RealScalar(0);
+  if (m_eivalues.size() > 0) scale = m_eivalues.cwiseAbs().maxCoeff();
   if (m_subdiag.size() > 0) scale = numext::maxi(scale, m_subdiag.cwiseAbs().maxCoeff());
   if (!(numext::isfinite)(scale)) {
     m_info = NoConvergence;

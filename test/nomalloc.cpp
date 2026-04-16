@@ -156,6 +156,17 @@ void ctms_decompositions() {
   jSVD.compute(A);
 }
 
+template <typename Scalar>
+void selfadjoint_eigensolver_large_fixed_no_malloc() {
+  typedef Eigen::Matrix<Scalar, 96, 96> Matrix;
+  Matrix A = Matrix::Random();
+  Matrix saA = A.adjoint() * A;
+
+  Eigen::SelfAdjointEigenSolver<Matrix> solver;
+  solver.compute(saA);
+  VERIFY_IS_EQUAL(solver.info(), Eigen::Success);
+}
+
 void test_zerosized() {
   // default constructors:
   Eigen::MatrixXd A;
@@ -219,6 +230,8 @@ EIGEN_DECLARE_TEST(nomalloc) {
 
   // Check decomposition modules with dynamic matrices that have a known compile-time max size (ctms)
   CALL_SUBTEST_4(ctms_decompositions<float>());
+  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<float>());
+  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
 
   CALL_SUBTEST_5(test_zerosized());
 
