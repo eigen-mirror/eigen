@@ -254,7 +254,6 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
     endforeach()
     string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
   else()
-    set(CUDA_PROPAGATE_HOST_FLAGS OFF)
     set(NVCC_ARCH_FLAGS)
     # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
     # those in the arch list for -gencode, the kernels will fail to run with
