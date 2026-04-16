@@ -37,7 +37,7 @@ void check_slerp(const QuatType& q0, const QuatType& q1) {
     Scalar theta = AA(q * q0.inverse()).angle();
     VERIFY(abs(q.norm() - 1) < largeEps);
     if (theta_tot == 0)
-      VERIFY(theta_tot == 0);
+      VERIFY(theta < largeEps);
     else
       VERIFY(abs(theta - t * theta_tot) < largeEps);
   }
@@ -55,7 +55,6 @@ void quaternion(void) {
   typedef AngleAxis<Scalar> AngleAxisx;
 
   Scalar largeEps = test_precision<Scalar>();
-  if (internal::is_same<Scalar, float>::value) largeEps = Scalar(1e-3);
 
   Scalar eps = internal::random<Scalar>() * Scalar(1e-2);
 

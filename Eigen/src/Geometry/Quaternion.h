@@ -854,6 +854,7 @@ EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> Quatern
   Scalar scale1;
 
   if (absD >= one) {
+    // Near-parallel quaternions: use lerp to avoid division by ~zero sinTheta.
     scale0 = Scalar(1) - t;
     scale1 = t;
   } else {
@@ -883,7 +884,7 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
     // Ken Shoemake, 1987 SIGGRAPH course notes
     Scalar t = mat.trace();
     if (t > Scalar(0)) {
-      t = sqrt(t + Scalar(1.0));
+      t = sqrt(numext::maxi(t + Scalar(1.0), Scalar(0)));
       q.w() = Scalar(0.5) * t;
       t = Scalar(0.5) / t;
       q.x() = (mat.coeff(2, 1) - mat.coeff(1, 2)) * t;
@@ -896,7 +897,8 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
       Index j = (i + 1) % 3;
       Index k = (j + 1) % 3;
 
-      t = sqrt(mat.coeff(i, i) - mat.coeff(j, j) - mat.coeff(k, k) + Scalar(1.0));
+      // Guard against slightly negative argument from non-orthogonal matrices.
+      t = sqrt(numext::maxi(mat.coeff(i, i) - mat.coeff(j, j) - mat.coeff(k, k) + Scalar(1.0), Scalar(0)));
       q.coeffs().coeffRef(i) = Scalar(0.5) * t;
       t = Scalar(0.5) / t;
       q.w() = (mat.coeff(k, j) - mat.coeff(j, k)) * t;
