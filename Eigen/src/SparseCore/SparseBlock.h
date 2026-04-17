@@ -18,7 +18,7 @@ namespace Eigen {
 // Subset of columns or rows
 template <typename XprType, int BlockRows, int BlockCols>
 class BlockImpl<XprType, BlockRows, BlockCols, true, Sparse>
-    : public SparseMatrixBase<Block<XprType, BlockRows, BlockCols, true> > {
+    : public SparseCompressedBase<Block<XprType, BlockRows, BlockCols, true> > {
   typedef internal::remove_all_t<typename XprType::Nested> MatrixTypeNested_;
   typedef Block<XprType, BlockRows, BlockCols, true> BlockType;
 
@@ -27,7 +27,7 @@ class BlockImpl<XprType, BlockRows, BlockCols, true, Sparse>
 
  protected:
   enum { OuterSize = IsRowMajor ? BlockRows : BlockCols };
-  typedef SparseMatrixBase<BlockType> Base;
+  typedef SparseCompressedBase<BlockType> Base;
   using Base::convert_index;
 
  public:

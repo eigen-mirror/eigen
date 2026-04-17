@@ -20,6 +20,152 @@ std::enable_if_t<(T::Flags & RowMajorBit) == 0, typename T::ColXpr> innervec(T& 
   return A.col(i);
 }
 
+template <typename T>
+typename T::Map make_map(T& A) {
+  return typename T::Map(A.rows(), A.cols(), A.nonZeros(), A.outerIndexPtr(), A.innerIndexPtr(), A.valuePtr(),
+                         A.innerNonZeroPtr());
+}
+
+template <typename T>
+auto innerpanel(T& A, Index start, Index size)
+    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(A.middleRows(start, size))> {
+  return A.middleRows(start, size);
+}
+
+template <typename T>
+auto innerpanel(T& A, Index start, Index size)
+    -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(A.middleCols(start, size))> {
+  return A.middleCols(start, size);
+}
+
+template <int Options>
+void init_inner_panel_diag(SparseMatrix<double, Options>& m) {
+  m.resize(4, 4);
+  m.insert(0, 0) = 10.0;
+  m.insert(1, 1) = 20.0;
+  m.insert(2, 2) = 30.0;
+  m.insert(3, 3) = 40.0;
+  m.makeCompressed();
+}
+
+template <typename MatrixType>
+std::enable_if_t<(MatrixType::Flags & RowMajorBit) == 0> init_inner_panel_offset(MatrixType& m) {
+  m.resize(4, 4);
+  m.insert(3, 0) = 13.0;
+  m.insert(1, 1) = 11.0;
+  m.insert(0, 2) = 20.0;
+  m.insert(2, 2) = 30.0;
+  m.insert(3, 3) = 40.0;
+  m.makeCompressed();
+}
+
+template <typename MatrixType>
+std::enable_if_t<(MatrixType::Flags & RowMajorBit) == RowMajorBit> init_inner_panel_offset(MatrixType& m) {
+  m.resize(4, 4);
+  m.insert(0, 3) = 13.0;
+  m.insert(1, 1) = 11.0;
+  m.insert(2, 0) = 20.0;
+  m.insert(2, 2) = 30.0;
+  m.insert(3, 3) = 40.0;
+  m.makeCompressed();
+}
+
+template <typename MatrixType, typename Init, typename Verify>
+void verify_plain_ref_map(const Init& init, const Verify& verify) {
+  {
+    MatrixType matrix;
+    init(matrix);
+    verify(matrix, matrix, 0);
+  }
+
+  {
+    MatrixType matrix;
+    init(matrix);
+    Ref<MatrixType> ref(matrix);
+    verify(ref, matrix, 1);
+  }
+
+  {
+    MatrixType matrix;
+    init(matrix);
+    auto map = make_map(matrix);
+    verify(map, matrix, 2);
+  }
+}
+
+template <typename XprType, typename MatrixType>
+void verify_inner_panel_coeffs(XprType& xpr, MatrixType& storage, int variant) {
+  auto middle = innerpanel(xpr, 1, 2);
+  auto coeffs = middle.coeffs();
+  const double updated0 = 200.0 + 10.0 * variant;
+  const double updated1 = 300.0 + 10.0 * variant;
+  VERIFY_IS_EQUAL(coeffs.size(), 2);
+  VERIFY_IS_EQUAL(coeffs[0], 20.0);
+  VERIFY_IS_EQUAL(coeffs[1], 30.0);
+
+  coeffs[0] = updated0;
+  coeffs[1] = updated1;
+  VERIFY_IS_EQUAL(storage.coeff(0, 0), 10.0);
+  VERIFY_IS_EQUAL(storage.coeff(1, 1), updated0);
+  VERIFY_IS_EQUAL(storage.coeff(2, 2), updated1);
+}
+
+template <typename XprType, typename MatrixType>
+void verify_inner_vector_reverse_and_sortedness(XprType& xpr, MatrixType& storage, int) {
+  auto inner = innervec(xpr, 2);
+  VERIFY_IS_EQUAL(inner.innerIndicesAreSorted(), 1);
+
+  typedef decltype(inner) InnerType;
+  typename InnerType::ReverseInnerIterator rit(inner);
+  VERIFY(rit);
+  VERIFY_IS_EQUAL(rit.index(), 2);
+  VERIFY_IS_EQUAL(rit.value(), 30.0);
+  --rit;
+  VERIFY(rit);
+  VERIFY_IS_EQUAL(rit.index(), 0);
+  VERIFY_IS_EQUAL(rit.value(), 20.0);
+  --rit;
+  VERIFY(!rit);
+
+  const Index offset = storage.outerIndexPtr()[2];
+  typename MatrixType::StorageIndex tmp_inner = storage.innerIndexPtr()[offset];
+  storage.innerIndexPtr()[offset] = storage.innerIndexPtr()[offset + 1];
+  storage.innerIndexPtr()[offset + 1] = tmp_inner;
+  double tmp_value = storage.valuePtr()[offset];
+  storage.valuePtr()[offset] = storage.valuePtr()[offset + 1];
+  storage.valuePtr()[offset + 1] = tmp_value;
+
+  VERIFY_IS_EQUAL(inner.innerIndicesAreSorted(), 0);
+  inner.sortInnerIndices();
+  VERIFY_IS_EQUAL(inner.innerIndicesAreSorted(), 1);
+
+  typename InnerType::InnerIterator it(inner);
+  VERIFY(it);
+  VERIFY_IS_EQUAL(it.index(), 0);
+  VERIFY_IS_EQUAL(it.value(), 20.0);
+  ++it;
+  VERIFY(it);
+  VERIFY_IS_EQUAL(it.index(), 2);
+  VERIFY_IS_EQUAL(it.value(), 30.0);
+  ++it;
+  VERIFY(!it);
+}
+
+void check_inner_panel_compressed_api() {
+  verify_plain_ref_map<SparseMatrix<double>>(
+      [](SparseMatrix<double>& matrix) { init_inner_panel_diag(matrix); },
+      [](auto& xpr, auto& matrix, int variant) { verify_inner_panel_coeffs(xpr, matrix, variant); });
+  verify_plain_ref_map<SparseMatrix<double, RowMajor>>(
+      [](SparseMatrix<double, RowMajor>& matrix) { init_inner_panel_diag(matrix); },
+      [](auto& xpr, auto& matrix, int variant) { verify_inner_panel_coeffs(xpr, matrix, variant); });
+  verify_plain_ref_map<SparseMatrix<double>>(
+      [](SparseMatrix<double>& matrix) { init_inner_panel_offset(matrix); },
+      [](auto& xpr, auto& matrix, int variant) { verify_inner_vector_reverse_and_sortedness(xpr, matrix, variant); });
+  verify_plain_ref_map<SparseMatrix<double, RowMajor>>(
+      [](SparseMatrix<double, RowMajor>& matrix) { init_inner_panel_offset(matrix); },
+      [](auto& xpr, auto& matrix, int variant) { verify_inner_vector_reverse_and_sortedness(xpr, matrix, variant); });
+}
+
 template <typename SparseMatrixType>
 void sparse_block(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
@@ -326,5 +472,6 @@ EIGEN_DECLARE_TEST(sparse_block) {
     AnnoyingScalar::dont_throw = true;
 #endif
     CALL_SUBTEST_5((sparse_block(SparseMatrix<AnnoyingScalar>(r, c))));
+    CALL_SUBTEST_6(check_inner_panel_compressed_api());
   }
 }
