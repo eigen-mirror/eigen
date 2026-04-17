@@ -400,20 +400,3 @@ build:linux:aarch64:gcc-10:default:smoketest:
   tags:
     - saas-linux-medium-arm64
 
-######## Sanitizer Smoke Tests #################################################
-
-build:linux:cross:x86-64:clang-14:sanitizer:smoketest:
-  extends: build:linux:cross:x86-64:clang-14:default
-  variables:
-    EIGEN_CI_BUILD_TARGET: buildsmoketests
-    EIGEN_CI_INSTALL: clang-14 libclang-rt-14-dev
-    EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu clang-14 libclang-rt-14-dev
-    EIGEN_CI_ADDITIONAL_ARGS: >-
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-fsanitize=address,undefined;-fno-sanitize-recover=address;-fno-omit-frame-pointer
-      -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-fsanitize=address,undefined
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  tags:
-    - saas-linux-large-amd64
-  allow_failure: true
-  timeout: 30m

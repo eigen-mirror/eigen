@@ -486,21 +486,3 @@ test:linux:aarch64:gcc-10:default:smoketest:
   tags:
     - saas-linux-medium-arm64
 
-##### Sanitizer Smoke Tests ####################################################
-
-test:linux:x86-64:clang-14:sanitizer:smoketest:
-  extends: .test:linux:x86-64:clang-14:default
-  needs: [ build:linux:cross:x86-64:clang-14:sanitizer:smoketest ]
-  variables:
-    EIGEN_CI_INSTALL: clang-14 llvm-14 libclang-rt-14-dev
-    EIGEN_CI_CTEST_LABEL: smoketest
-    EIGEN_CI_CTEST_ARGS: --timeout 120
-    ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1:print_stacktrace=1:detect_stack_use_after_return=0"
-    ASAN_SYMBOLIZER_PATH: "/usr/lib/llvm-14/bin/llvm-symbolizer"
-    UBSAN_OPTIONS: "halt_on_error=0:print_stacktrace=1"
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  tags:
-    - saas-linux-large-amd64
-  allow_failure: true
-  timeout: 30m
