@@ -49,6 +49,21 @@ std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> check_left_top(
 }
 
 template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) == 0), void> checkInnerVector(const MatrixType& m, Index /*r*/,
+                                                                                  Index c, Index /*rows*/, Index cols) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(c), m.col(c));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(c, cols), m.middleCols(c, cols));
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> checkInnerVector(const MatrixType& m, Index r,
+                                                                                  Index /*c*/, Index rows,
+                                                                                  Index /*cols*/) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(r), m.row(r));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(r, rows), m.middleRows(r, rows));
+}
+
+template <typename MatrixType>
 void block(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
@@ -72,6 +87,7 @@ void block(const MatrixType& m) {
   Index c2 = internal::random<Index>(c1, cols - 1);
 
   block_real_only(m1, r1, r2, c1, c1, s1);
+  checkInnerVector(m1, r1, c1, r2 - r1, c2 - c1);
 
   // test fill logic with innerpanel and non-innerpanel blocks
   m1.row(r1).setConstant(s1);
