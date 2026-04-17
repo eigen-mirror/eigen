@@ -901,6 +901,37 @@ struct sign_retval {
   typedef Scalar type;
 };
 
+template <typename Scalar, bool IsComplex = (NumTraits<Scalar>::IsComplex != 0),
+          bool IsInteger = (NumTraits<Scalar>::IsInteger != 0)>
+struct copysign_impl {
+  EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
+    EIGEN_USING_STD(copysign);
+    return Scalar(copysign(a, b));
+  }
+};
+
+template <typename Scalar, bool IsInteger>
+struct copysign_impl<Scalar, true, IsInteger> {
+  EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
+    EIGEN_USING_STD(copysign);
+    return Scalar(copysign(numext::real(a), numext::real(b)), copysign(numext::imag(a), numext::imag(b)));
+  }
+};
+
+template <typename Scalar>
+struct copysign_impl<Scalar, false, true> {
+  EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
+    EIGEN_IF_CONSTEXPR(!NumTraits<Scalar>::IsSigned) return a;
+    const Scalar abs_a = a < Scalar(0) ? -a : a;
+    return b < Scalar(0) ? -abs_a : abs_a;
+  }
+};
+
+template <typename Scalar>
+struct copysign_retval {
+  typedef Scalar type;
+};
+
 // suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
 // note: `0 - a` is distinct from `-a` when Scalar is a floating point type and `a` is zero
 
@@ -1178,6 +1209,11 @@ EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& 
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(copysign, Scalar) copysign(const Scalar& x, const Scalar& y) {
+  return EIGEN_MATHFUNC_IMPL(copysign, Scalar)::run(x, y);
 }
 
 template <typename Scalar>
