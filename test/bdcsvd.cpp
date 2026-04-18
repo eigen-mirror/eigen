@@ -16,7 +16,11 @@
 
 #include "main.h"
 #include "tridiag_test_matrices.h"
+#include <complex>
+#include <sstream>
+#define private public
 #include <Eigen/SVD>
+#undef private
 
 #define SVD_DEFAULT(M) BDCSVD<M>
 #define SVD_FOR_MIN_NORM(M) BDCSVD<M>
@@ -170,6 +174,28 @@ void bdcsvd_bidiagonal_hard_cases() {
   }
 }
 
+void bdcsvd_perturbcol0_missing_predecessor() {
+  typedef Eigen::internal::bdcsvd_impl<double> Impl;
+
+  Impl impl;
+  Impl::ArrayXr col0(2), diag(2), shifts(2), mus(2), zhat(2);
+  Impl::ArrayXi perm(1);
+  Impl::VectorType singVals(2);
+
+  col0 << 1.0, 0.0;
+  diag << 1.0, 3.0;
+  singVals << 2.0, 4.0;
+  shifts << 0.0, 0.0;
+  mus << 1.0, 5.0;
+  perm << 1;
+
+  impl.perturbCol0(col0, diag, perm, singVals, shifts, mus, zhat);
+
+  VERIFY(impl.info() == NumericalIssue);
+  VERIFY_IS_APPROX(zhat(0), 0.0);
+  VERIFY_IS_APPROX(zhat(1), 0.0);
+}
+
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_1((bdcsvd_verify_assert<Matrix3f>()));
   CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix4d>()));
@@ -263,4 +289,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // Bidiagonal SVD hard test cases
   CALL_SUBTEST_50((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<double>()));
+  CALL_SUBTEST_52((bdcsvd_perturbcol0_missing_predecessor()));
 }

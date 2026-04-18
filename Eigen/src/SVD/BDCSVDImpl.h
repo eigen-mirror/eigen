@@ -580,7 +580,14 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
       for (Index l = 0; l < m; ++l) {
         Index i = perm(l);
         if (i != k) {
-          Index j = i < k ? i : l > 0 ? perm(l - 1) : i;
+          // There is no valid predecessor when the first active index is already on the
+          // right of k. Treat this as a numerical issue and zero the product.
+          if (i >= k && l == 0) {
+            m_info = NumericalIssue;
+            prod = Literal(0);
+            break;
+          }
+          Index j = i < k ? i : perm(l - 1);
           prod *= ((singVals(j) + dk) / ((diag(i) + dk))) * ((mus(j) + (shifts(j) - dk)) / ((diag(i) - dk)));
         }
       }
