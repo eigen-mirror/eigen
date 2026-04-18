@@ -7,9 +7,20 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Include <ranges> before main.h because main.h redefines min/max as
+// error macros, which conflicts with std::ranges internals.
+#if __cplusplus >= 202002L
+#include <ranges>
+#include <concepts>
+#endif
+
 #include "main.h"
 #include <iterator>
 #include <numeric>
+
+#if __cplusplus >= 202002L && defined(__cpp_lib_ranges) && __cpp_lib_ranges >= 201911L
+#define EIGEN_TEST_CXX20_RANGES 1
+#endif
 
 template <class Iterator>
 std::reverse_iterator<Iterator> make_reverse_iterator(Iterator i) {
@@ -579,6 +590,46 @@ void test_stl_container_detection(int rows = Rows, int cols = Cols) {
   VERIFY_IS_EQUAL(IsContainerType<RowMatrixType>(0), rows == 1 || cols == 1);
 }
 
+#ifdef EIGEN_TEST_CXX20_RANGES
+template <typename Scalar, int Rows, int Cols>
+void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
+  typedef Matrix<Scalar, Rows, 1> VectorType;
+  typedef Matrix<Scalar, Dynamic, 1> DynVectorType;
+  typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMatrixType;
+
+  // Vectors with unit stride satisfy contiguous_range.
+  static_assert(std::contiguous_iterator<typename VectorType::iterator>);
+  static_assert(std::contiguous_iterator<typename VectorType::const_iterator>);
+  static_assert(std::ranges::contiguous_range<VectorType>);
+  static_assert(std::ranges::contiguous_range<const VectorType>);
+
+  // Dynamic vectors too.
+  static_assert(std::contiguous_iterator<typename DynVectorType::iterator>);
+  static_assert(std::ranges::contiguous_range<DynVectorType>);
+  static_assert(std::ranges::contiguous_range<const DynVectorType>);
+
+  // Sized range.
+  static_assert(std::ranges::sized_range<VectorType>);
+  static_assert(std::ranges::sized_range<DynVectorType>);
+
+  // Runtime checks with std::ranges algorithms.
+  VectorType v = VectorType::Random(rows);
+  auto it = std::ranges::find(v, v(0));
+  VERIFY(it == v.begin());
+
+  // ranges::data returns the same pointer as data().
+  VERIFY(std::ranges::data(v) == v.data());
+  VERIFY(static_cast<Index>(std::ranges::size(v)) == v.size());
+
+  // Column expression of a column-major matrix is contiguous.
+  ColMatrixType A = ColMatrixType::Random(rows, cols);
+  auto col = A.col(0);
+  VERIFY(std::ranges::data(col) == col.data());
+  auto col_it = std::ranges::find(col, col(0));
+  VERIFY(col_it == col.begin());
+}
+#endif
+
 EIGEN_DECLARE_TEST(stl_iterators) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_stl_iterators<double, 2, 3>()));
@@ -591,4 +642,10 @@ EIGEN_DECLARE_TEST(stl_iterators) {
 
   CALL_SUBTEST_1((test_stl_container_detection<float, 1, 1>()));
   CALL_SUBTEST_1((test_stl_container_detection<float, 5, 5>()));
+
+#ifdef EIGEN_TEST_CXX20_RANGES
+  CALL_SUBTEST_1((test_cxx20_ranges<double, 4, 3>()));
+  CALL_SUBTEST_1(
+      (test_cxx20_ranges<float, Dynamic, Dynamic>(internal::random<int>(5, 10), internal::random<int>(5, 10))));
+#endif
 }
