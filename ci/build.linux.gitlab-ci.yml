@@ -114,7 +114,7 @@ build:linux:cross:x86-64:clang-19:generic:avx512dq:
     EIGEN_CI_ADDITIONAL_ARGS: >
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-mfma;-mavx512dq;-DEIGEN_VECTORIZE_GENERIC=1
 
-# Nightly full test suite in C++20 mode.
+# Nightly and all-tests full test suite in C++20 mode.
 build:linux:cross:x86-64:clang-19:cxx20:nightly:
   extends: .build:linux:cross:x86-64
   variables:
@@ -122,7 +122,8 @@ build:linux:cross:x86-64:clang-19:cxx20:nightly:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_CROSS_INSTALL: g++-14-x86-64-linux-gnu clang-19
-    EIGEN_CI_ADDITIONAL_ARGS: -DCMAKE_CXX_STANDARD=20
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_CXX_STANDARD=20
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"

@@ -87,8 +87,8 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   typedef typename Base::Index Index;
   enum {
     Options = Options_,
-    QRDecomposition = Options & internal::QRPreconditionerBits,
-    ComputationOptions = Options & internal::ComputationOptionsBits,
+    QRDecomposition = internal::get_qr_preconditioner(Options),
+    ComputationOptions = internal::get_computation_options(Options),
     RowsAtCompileTime = Base::RowsAtCompileTime,
     ColsAtCompileTime = Base::ColsAtCompileTime,
     DiagSizeAtCompileTime = Base::DiagSizeAtCompileTime,

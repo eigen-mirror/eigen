@@ -429,6 +429,15 @@ enum QRPreconditioners {
   DisableQRDecomposition = NoQRPreconditioner
 };
 
+// JacobiSVD and BDCSVD combine QR preconditioner flags with decomposition flags in a single template bitmask.
+constexpr int operator|(QRPreconditioners qr_preconditioner, DecompositionOptions decomposition_option) {
+  return static_cast<int>(qr_preconditioner) | static_cast<int>(decomposition_option);
+}
+
+constexpr int operator|(DecompositionOptions decomposition_option, QRPreconditioners qr_preconditioner) {
+  return static_cast<int>(decomposition_option) | static_cast<int>(qr_preconditioner);
+}
+
 #ifdef Success
 #error The preprocessor symbol 'Success' is defined, possibly by the X11 header file X.h
 #endif

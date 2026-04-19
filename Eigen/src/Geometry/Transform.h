@@ -198,7 +198,7 @@ class Transform {
     Options = Options_,
     Dim = Dim_,       ///< space dimension in which the transformation holds
     HDim = Dim_ + 1,  ///< size of a respective homogeneous vector
-    Rows = int(Mode) == (AffineCompact) ? Dim : HDim
+    Rows = int(Mode) == int(AffineCompact) ? Dim : HDim
   };
   /** the scalar type of the coefficients */
   typedef Scalar_ Scalar;
