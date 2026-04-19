@@ -51,7 +51,7 @@ struct functor_traits<scalar_random_op<Scalar> > {
  * a temporary matrix whenever it is nested in a larger expression. This prevents unexpected
  * behavior with expressions involving random matrices.
  *
- * See DenseBase::NullaryExpr(Index, const CustomNullaryOp&) for an example using C++11 random generators.
+ * See DenseBase::NullaryExpr(Index, const CustomNullaryOp&) for an example using std random generators.
  *
  * \sa DenseBase::setRandom(), DenseBase::Random(Index), DenseBase::Random()
  */

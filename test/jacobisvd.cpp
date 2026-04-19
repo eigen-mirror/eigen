@@ -108,8 +108,6 @@ void svd_triangular_matrix(const MatrixType& input = MatrixType()) {
 }
 
 namespace Foo {
-// older compiler require a default constructor for Bar
-// cf: https://stackoverflow.com/questions/7411515/
 class Bar {
  public:
   Bar() {}

@@ -217,7 +217,7 @@ class noncopyable {
  * It currently supports:
  *  - any types T defining T::SizeAtCompileTime
  *  - plain C arrays as T[N]
- *  - std::array (c++11)
+ *  - std::array
  *  - some internal types such as SingleRange and AllRange
  *
  * The second template parameter eases SFINAE-based specializations.

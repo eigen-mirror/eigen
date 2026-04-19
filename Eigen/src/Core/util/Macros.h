@@ -782,8 +782,8 @@
 
 // Does the compiler support std::hash?
 #ifndef EIGEN_HAS_STD_HASH
-// The std::hash struct is defined in C++11 but is not labelled as a __device__
-// function and is not constexpr, so cannot be used on device.
+// The std::hash struct is not labelled as a __device__ function and is not
+// constexpr, so cannot be used on device.
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
 #define EIGEN_HAS_STD_HASH 1
 #else
@@ -829,7 +829,7 @@
 #endif
 
 #if defined(EIGEN_CUDACC)
-// While available already with c++11, this is useful mostly starting with c++14 and relaxed constexpr rules
+// Enable device-side constexpr when the toolchain supports relaxed constexpr rules.
 #if defined(__NVCC__)
 // nvcc considers constexpr functions as __host__ __device__ with the option --expt-relaxed-constexpr
 #ifdef __CUDACC_RELAXED_CONSTEXPR__
@@ -1214,7 +1214,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 /** \internal
  * \brief Macro to manually inherit assignment operators.
  * This is necessary, because the implicitly defined assignment operator gets deleted when a custom operator= is
- * defined. With C++11 or later this also default-implements the copy-constructor
+ * defined. This also default-implements the copy-constructor.
  */
 #define EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Derived) \
   EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \
@@ -1224,8 +1224,6 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
  * \brief Macro to manually define default constructors and destructors.
  * This is necessary when the copy constructor is re-defined.
  * For empty helper classes this should usually be protected, to avoid accidentally creating empty objects.
- *
- * Hiding the default destructor lead to problems in C++03 mode together with boost::multiprecision
  */
 #define EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(Derived) \
   EIGEN_DEVICE_FUNC Derived() = default;                        \

@@ -167,7 +167,6 @@ struct tensor_symmetry_num_indices<Symmetry<One_, Two_>, Sym...> {
   constexpr static std::size_t Two = static_cast<std::size_t>(Two_);
   constexpr static std::size_t Three = tensor_symmetry_num_indices<Sym...>::value;
 
-  // don't use std::max, since it's not constexpr until C++14...
   constexpr static std::size_t maxOneTwoPlusOne = ((One > Two) ? One : Two) + 1;
 
  public:

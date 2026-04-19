@@ -1337,7 +1337,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.setFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1366,7 +1366,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.setFromSortedTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1430,7 +1430,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const Inp
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.insertFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1459,7 +1459,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(con
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.insertFromSortedTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode

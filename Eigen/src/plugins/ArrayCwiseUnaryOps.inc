@@ -456,13 +456,12 @@ typedef CwiseUnaryOp<internal::scalar_erf_op<Scalar>, const Derived> ErfReturnTy
 typedef CwiseUnaryOp<internal::scalar_erfc_op<Scalar>, const Derived> ErfcReturnType;
 typedef CwiseUnaryOp<internal::scalar_ndtri_op<Scalar>, const Derived> NdtriReturnType;
 
-/** \cpp11 \returns an expression of the coefficient-wise ln(|gamma(*this)|).
+/** \returns an expression of the coefficient-wise ln(|gamma(*this)|).
  *
  * \specialfunctions_module
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of lgamma(T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of lgamma(T) for any scalar type T to be supported.
  *
  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_lgamma">Math functions</a>, digamma()
  */
@@ -481,27 +480,25 @@ EIGEN_DEVICE_FUNC constexpr inline const LgammaReturnType lgamma() const { retur
  */
 EIGEN_DEVICE_FUNC constexpr inline const DigammaReturnType digamma() const { return DigammaReturnType(derived()); }
 
-/** \cpp11 \returns an expression of the coefficient-wise Gauss error
+/** \returns an expression of the coefficient-wise Gauss error
  * function of *this.
  *
  * \specialfunctions_module
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of erf(T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of erf(T) for any scalar type T to be supported.
  *
  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_erf">Math functions</a>, erfc()
  */
 EIGEN_DEVICE_FUNC constexpr inline const ErfReturnType erf() const { return ErfReturnType(derived()); }
 
-/** \cpp11 \returns an expression of the coefficient-wise Complementary error
+/** \returns an expression of the coefficient-wise Complementary error
  * function of *this.
  *
  * \specialfunctions_module
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of erfc(T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of erfc(T) for any scalar type T to be supported.
  *
  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_erfc">Math functions</a>, erf()
  */

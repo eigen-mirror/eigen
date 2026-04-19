@@ -694,9 +694,7 @@ struct functor_traits<scalar_atan2_op<LhsScalar, RhsScalar>> {
 //---------- binary functors bound to a constant, thus appearing as a unary functor ----------
 
 // The following two classes permits to turn any binary functor into a unary one with one argument bound to a constant
-// value. They are analogues to std::binder1st/binder2nd but with the following differences:
-//  - they are compatible with packetOp
-//  - they are portable across C++ versions (the std::binder* are deprecated in C++11)
+// value. They are analogues to the removed std::binder1st/binder2nd and are also compatible with packetOp.
 template <typename BinaryOp>
 struct bind1st_op : BinaryOp {
   typedef typename BinaryOp::first_argument_type first_argument_type;

@@ -856,7 +856,7 @@ struct OuterReducer<Self, Op, GpuDevice> {
   static
 #if !defined(EIGEN_HIPCC)
       // FIXME :  leaving this EIGEN_DEVICE_FUNC in, results in the following runtime error
-      //          (in the cxx11_tensor_reduction_gpu test)
+      //          (in the tensor_reduction_gpu test)
       //
       // terminate called after throwing an instance of 'std::runtime_error'
       //   what():  No device code available for function: _ZN5Eigen8internal20OuterReductionKernelIL...

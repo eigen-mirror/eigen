@@ -432,7 +432,7 @@ class redux_evaluator : public internal::evaluator<XprType_> {
 /** \returns the result of a full redux operation on the whole matrix or vector using \a func
  *
  * The template parameter \a BinaryOp is the type of the functor \a func which must be
- * an associative operator. Both current C++98 and C++11 functor styles are handled.
+ * an associative operator.
  *
  * \warning the matrix must be not empty, otherwise an assertion is triggered.
  *

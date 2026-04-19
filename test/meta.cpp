@@ -91,8 +91,8 @@ EIGEN_DECLARE_TEST(meta) {
 #if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
     (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
   // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // basically, a fix in the c++ standard breaks our c++98 implementation
-  // of is_convertible for abstract classes.
+  // a fix in the c++ standard breaks our is_convertible implementation
+  // for abstract classes.
   // So the following tests are expected to fail with recent compilers.
 
   STATIC_CHECK((!internal::is_convertible<MyInterface, MyImpl>::value));

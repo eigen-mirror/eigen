@@ -75,8 +75,8 @@
 /** \internal
  * \brief Macro to manually inherit assignment operators.
  * This is necessary, because the implicitly defined assignment operator gets deleted when a custom operator= is
- * defined. This also inherits template<OtherDerived> operator=(const OtherDerived&) assignments. With C++11 or later
- * this also default-implements the copy-constructor
+ * defined. This also inherits template<OtherDerived> operator=(const OtherDerived&) assignments, and
+ * default-implements the copy-constructor.
  */
 #define EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(Derived) \
   EIGEN_TENSOR_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)  \

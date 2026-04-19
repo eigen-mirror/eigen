@@ -59,7 +59,6 @@ std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_seq_type(const 
 
 #define VERIFY_EQ_INT(A, B) VERIFY_IS_APPROX(int(A), int(B))
 
-// C++03 does not allow local or unnamed enums as index
 enum DummyEnum { XX = 0, YY = 1 };
 
 void check_indexed_view() {
@@ -411,7 +410,6 @@ void check_indexed_view() {
   // Check compilation of enums as index type:
   a(XX) = 1;
   A(XX, YY) = 1;
-  // Anonymous enums only work with C++11
   enum { X = 0, Y = 1 };
   a(X) = 1;
   A(X, Y) = 1;

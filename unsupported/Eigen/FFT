@@ -39,7 +39,7 @@
  * incompatible with Eigen in GPL form.
  * - PocketFFT/DUCC (https://gitlab.mpcdf.mpg.de/mtr/pocketfft, https://gitlab.mpcdf.mpg.de/mtr/ducc) : faster than
  *   kissfft, BSD 3-clause. A heavily modified implementation of FFTPack with the following advantages:
- *   -# strictly C++11 compliant
+ *   -# strictly C++14 compliant
  *   -# more accurate twiddle factor computation
  *   -# very fast plan generation
  *   -# worst case complexity for transform sizes with large prime factors is N*log(N),

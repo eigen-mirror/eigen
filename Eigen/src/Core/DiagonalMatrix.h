@@ -215,7 +215,7 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
       : m_diagonal(a0, a1, a2, args...) {}
 
   /** \brief Constructs a DiagonalMatrix and initializes it by elements given by an initializer list of initializer
-   * lists \cpp11
+   * lists
    */
   EIGEN_DEVICE_FUNC explicit EIGEN_STRONG_INLINE DiagonalMatrix(
       const std::initializer_list<std::initializer_list<Scalar>>& list)

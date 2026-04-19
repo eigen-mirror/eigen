@@ -40,7 +40,7 @@ namespace internal {
 //    Steve
 
 /****************************************************************************
- * Implementation of lgamma, requires C++11/C99                             *
+ * Implementation of lgamma, requires C99                                   *
  ****************************************************************************/
 
 template <typename Scalar>
@@ -755,7 +755,7 @@ struct ndtri_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /**************************************************************************************************************
- * Implementation of igammac (complemented incomplete gamma integral), based on Cephes but requires C++11/C99 *
+ * Implementation of igammac (complemented incomplete gamma integral), based on Cephes but requires C99       *
  **************************************************************************************************************/
 
 template <typename Scalar>
@@ -1119,7 +1119,7 @@ struct igammac_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /************************************************************************************************
- * Implementation of igamma (incomplete gamma integral), based on Cephes but requires C++11/C99 *
+ * Implementation of igamma (incomplete gamma integral), based on Cephes but requires C99        *
  ************************************************************************************************/
 
 #if !EIGEN_HAS_C99_MATH
@@ -1525,7 +1525,7 @@ struct zeta_impl {
 };
 
 /****************************************************************************
- * Implementation of polygamma function, requires C++11/C99                 *
+ * Implementation of polygamma function, requires C99                       *
  ****************************************************************************/
 
 template <typename Scalar>
@@ -1570,7 +1570,7 @@ struct polygamma_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /************************************************************************************************
- * Implementation of betainc (incomplete beta integral), based on Cephes but requires C++11/C99 *
+ * Implementation of betainc (incomplete beta integral), based on Cephes but requires C99        *
  ************************************************************************************************/
 
 template <typename Scalar>
