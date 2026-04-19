@@ -92,6 +92,17 @@ static void BM_QuatSetFromTwoVectors(benchmark::State& state) {
   }
 }
 
+template <typename Scalar>
+static void BM_QuatSetFromTwoVectorsAntiparallel(benchmark::State& state) {
+  Matrix<Scalar, 3, 1> v0 = Matrix<Scalar, 3, 1>::Random().normalized();
+  Matrix<Scalar, 3, 1> v1 = -v0;  // exactly antiparallel
+  Quaternion<Scalar> q;
+  for (auto _ : state) {
+    q.setFromTwoVectors(v0, v1);
+    benchmark::DoNotOptimize(q.coeffs().data());
+  }
+}
+
 // ============================================================================
 // AngleAxis operations
 // ============================================================================
@@ -325,6 +336,8 @@ BENCHMARK(BM_QuatAngularDistance<float>);
 BENCHMARK(BM_QuatAngularDistance<double>);
 BENCHMARK(BM_QuatSetFromTwoVectors<float>);
 BENCHMARK(BM_QuatSetFromTwoVectors<double>);
+BENCHMARK(BM_QuatSetFromTwoVectorsAntiparallel<float>);
+BENCHMARK(BM_QuatSetFromTwoVectorsAntiparallel<double>);
 
 // AngleAxis
 BENCHMARK(BM_AngleAxisToRotationMatrix<float>);
