@@ -69,10 +69,12 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   # savings from cache hits do not compensate for the upload cost.
   cache: []
   variables:
-    # Use RelWithDebInfo (-O2): GCC bug generates invalid masked vmovsh
-    # with {z} on memory stores at -O3 for _Float16 operations (zero-masking
-    # on memory destinations is architecturally illegal in AVX-512).
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+    # Force -O2 via EIGEN_TEST_CUSTOM_CXX_FLAGS (appended after the default
+    # Release -O3 -DNDEBUG; last -O wins). GCC bug at -O3 generates invalid
+    # masked vmovsh with {z} on memory stores for _Float16 operations
+    # (zero-masking on memory destinations is architecturally illegal in
+    # AVX-512).
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-O2"
 
 build:linux:cross:x86-64:gcc-13:avx512fp16:official:
   extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
