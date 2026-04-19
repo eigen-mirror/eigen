@@ -424,47 +424,20 @@ class DenseBase
 
   EIGEN_DEVICE_FUNC Scalar prod() const;
 
-  template <int NaNPropagation>
+  // The default PropagateFast gives undefined behavior on NaN inputs but the fastest code.
+  template <int NaNPropagation = PropagateFast>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar minCoeff() const;
-  template <int NaNPropagation>
+  template <int NaNPropagation = PropagateFast>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar maxCoeff() const;
 
-  // By default, the fastest version with undefined NaN propagation semantics is
-  // used.
-  // TODO(rmlarsen): Replace with default template argument (C++14 is now the minimum standard).
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar minCoeff() const {
-    return minCoeff<PropagateFast>();
-  }
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar maxCoeff() const {
-    return maxCoeff<PropagateFast>();
-  }
-
-  template <int NaNPropagation, typename IndexType>
+  template <int NaNPropagation = PropagateFast, typename IndexType>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar minCoeff(IndexType* row, IndexType* col) const;
-  template <int NaNPropagation, typename IndexType>
+  template <int NaNPropagation = PropagateFast, typename IndexType>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar maxCoeff(IndexType* row, IndexType* col) const;
-  template <int NaNPropagation, typename IndexType>
+  template <int NaNPropagation = PropagateFast, typename IndexType>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar minCoeff(IndexType* index) const;
-  template <int NaNPropagation, typename IndexType>
+  template <int NaNPropagation = PropagateFast, typename IndexType>
   EIGEN_DEVICE_FUNC typename internal::traits<Derived>::Scalar maxCoeff(IndexType* index) const;
-
-  // TODO(rmlarsen): Replace these methods with a default template argument (C++14 is now the minimum standard).
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar minCoeff(IndexType* row, IndexType* col) const {
-    return minCoeff<PropagateFast>(row, col);
-  }
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar maxCoeff(IndexType* row, IndexType* col) const {
-    return maxCoeff<PropagateFast>(row, col);
-  }
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar minCoeff(IndexType* index) const {
-    return minCoeff<PropagateFast>(index);
-  }
-  template <typename IndexType>
-  EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar maxCoeff(IndexType* index) const {
-    return maxCoeff<PropagateFast>(index);
-  }
 
   template <typename BinaryOp>
   EIGEN_DEVICE_FUNC Scalar redux(const BinaryOp& func) const;
