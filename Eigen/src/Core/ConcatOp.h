@@ -223,6 +223,34 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
     return m_lhsImpl.template packet<LoadMode, PacketType>(index);
   }
 
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    if (Direction == Vertical) {
+      const Index boundary = m_lhsRows.value();
+      if (row >= boundary)
+        return m_rhsImpl.template packetSegment<LoadMode, PacketType>(row - boundary, col, begin, count);
+      if (!IsRowMajor && row + begin + count > boundary)
+        return packetSegmentBoundary<LoadMode, PacketType>(row, col, begin, count);
+      return m_lhsImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count);
+    } else {
+      const Index boundary = m_lhsCols.value();
+      if (col >= boundary)
+        return m_rhsImpl.template packetSegment<LoadMode, PacketType>(row, col - boundary, begin, count);
+      if (IsRowMajor && col + begin + count > boundary)
+        return packetSegmentBoundary<LoadMode, PacketType>(row, col, begin, count);
+      return m_lhsImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count);
+    }
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    if (index >= boundary)
+      return m_rhsImpl.template packetSegment<LoadMode, PacketType>(index - boundary, begin, count);
+    if (index + begin + count > boundary) return packetSegmentBoundaryLinear<LoadMode, PacketType>(index, begin, count);
+    return m_lhsImpl.template packetSegment<LoadMode, PacketType>(index, begin, count);
+  }
+
  protected:
   typedef typename XprType::Scalar Scalar;
 
@@ -241,6 +269,25 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
     EIGEN_ALIGN_MAX Scalar tmp[packetSize];
     for (int i = 0; i < packetSize; ++i) tmp[i] = coeff(index + i);
     return pload<PacketType>(tmp);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegmentBoundary(Index row, Index col, Index begin,
+                                                                         Index count) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    for (Index i = begin; i < begin + count; ++i)
+      tmp[i] = coeff(row + (Direction == Vertical ? i : 0), col + (Direction == Horizontal ? i : 0));
+    return ploadSegment<PacketType>(tmp, begin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegmentBoundaryLinear(Index index, Index begin,
+                                                                               Index count) const {
+    constexpr int packetSize = unpacket_traits<PacketType>::size;
+    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    for (Index i = begin; i < begin + count; ++i) tmp[i] = coeff(index + i);
+    return ploadSegment<PacketType>(tmp, begin, count);
   }
 
   const LhsNested m_lhs;

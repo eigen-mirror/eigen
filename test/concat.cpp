@@ -790,6 +790,95 @@ void test_concat_mismatched_dimensions() {
   VERIFY_RAISES_ASSERT(hcat(c, d));  // rows don't match
 }
 
+// ============================================================================
+// Test 15: packetSegment path — covers tail of linear vectorized assignment.
+//
+// Regression: evaluator<Concat> originally provided packet() but not
+// packetSegment(), so AssignEvaluator's tail loop failed to compile on AVX/
+// AVX-512 (where has_packet_segment<PacketN> is true). This test exercises:
+//   - sizes that are NOT a multiple of the packet width (forces tail loop)
+//   - col-major vertical concat with lhs.rows not a multiple of packetSize
+//     (forces boundary straddle on the main packet loop)
+//   - row-major horizontal concat with lhs.cols not a multiple of packetSize
+//     (same, along inner=cols)
+//   - chained concat where the inner Concat itself serves as lhs/rhs
+// ============================================================================
+template <typename Scalar>
+void test_concat_packet_segment() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
+  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+
+  // Sweep sizes chosen to exercise: inside-lhs, straddle-boundary, inside-rhs
+  // for every packet-width scenario (float: 4/8/16, double: 2/4/8).
+  for (int lhsInner : {1, 2, 3, 5, 7, 9, 11, 13, 15, 17}) {
+    for (int rhsInner : {1, 2, 3, 5, 7, 9, 11}) {
+      const int outer = 3;
+
+      // Vertical, col-major: inner=rows, packet extends along rows —
+      // may straddle the row boundary at m_lhsRows.
+      {
+        MatrixX a = MatrixX::Random(lhsInner, outer);
+        MatrixX b = MatrixX::Random(rhsInner, outer);
+        MatrixX result = vcat(a, b);
+        VERIFY_IS_EQUAL(result.rows(), lhsInner + rhsInner);
+        VERIFY_IS_EQUAL(result.cols(), outer);
+        VERIFY_IS_APPROX(result.topRows(lhsInner), a);
+        VERIFY_IS_APPROX(result.bottomRows(rhsInner), b);
+      }
+
+      // Horizontal, col-major: inner=rows — packet extends along rows —
+      // never crosses col boundary. Verifies non-straddle path still works.
+      {
+        MatrixX a = MatrixX::Random(lhsInner, 3);
+        MatrixX b = MatrixX::Random(lhsInner, 5);
+        MatrixX result = hcat(a, b);
+        VERIFY_IS_EQUAL(result.rows(), lhsInner);
+        VERIFY_IS_EQUAL(result.cols(), 8);
+        VERIFY_IS_APPROX(result.leftCols(3), a);
+        VERIFY_IS_APPROX(result.rightCols(5), b);
+      }
+
+      // Horizontal, row-major: inner=cols, packet extends along cols —
+      // may straddle the col boundary at m_lhsCols.
+      {
+        RowMajorMatrix a = RowMajorMatrix::Random(outer, lhsInner);
+        RowMajorMatrix b = RowMajorMatrix::Random(outer, rhsInner);
+        RowMajorMatrix result = hcat(a, b);
+        VERIFY_IS_EQUAL(result.rows(), outer);
+        VERIFY_IS_EQUAL(result.cols(), lhsInner + rhsInner);
+        VERIFY_IS_APPROX(result.leftCols(lhsInner), a);
+        VERIFY_IS_APPROX(result.rightCols(rhsInner), b);
+      }
+    }
+  }
+
+  // Linear-access path: vcat of column vectors exposes LinearAccessBit,
+  // so assignment goes through packetSegment(index, begin, count).
+  for (int lhsLen : {1, 3, 5, 7, 9, 15, 17, 31, 33}) {
+    for (int rhsLen : {1, 2, 4, 8, 11}) {
+      VectorX a = VectorX::Random(lhsLen);
+      VectorX b = VectorX::Random(rhsLen);
+      VectorX result = vcat(a, b);
+      VERIFY_IS_EQUAL(result.size(), lhsLen + rhsLen);
+      VERIFY_IS_APPROX(result.head(lhsLen), a);
+      VERIFY_IS_APPROX(result.tail(rhsLen), b);
+    }
+  }
+
+  // Chained concat — packetSegment delegated through multiple Concat layers.
+  {
+    VectorX a = VectorX::Random(5);
+    VectorX b = VectorX::Random(7);
+    VectorX c = VectorX::Random(3);
+    VectorX result = vcat(vcat(a, b), c);
+    VERIFY_IS_EQUAL(result.size(), 15);
+    VERIFY_IS_APPROX(result.segment(0, 5), a);
+    VERIFY_IS_APPROX(result.segment(5, 7), b);
+    VERIFY_IS_APPROX(result.segment(12, 3), c);
+  }
+}
+
 EIGEN_DECLARE_TEST(concat) {
   for (int i = 0; i < g_repeat; i++) {
     // Dynamic-size matrix concat
@@ -850,5 +939,9 @@ EIGEN_DECLARE_TEST(concat) {
     // Runtime assertion for mismatched dimensions
     CALL_SUBTEST_14(test_concat_mismatched_dimensions<float>());
     CALL_SUBTEST_14(test_concat_mismatched_dimensions<double>());
+
+    // Packet segment tail path (AVX/AVX-512 has_packet_segment)
+    CALL_SUBTEST_15(test_concat_packet_segment<float>());
+    CALL_SUBTEST_15(test_concat_packet_segment<double>());
   }
 }
