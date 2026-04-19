@@ -349,8 +349,6 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ true
 
   EIGEN_DEVICE_FUNC constexpr explicit reshaped_evaluator(const XprType& xpr)
       : mapbase_evaluator<XprType, typename XprType::PlainObject>(xpr) {
-    // TODO: for the 3.4 release, this should be turned to an internal assertion, but let's keep it as is for the beta
-    // lifetime
     eigen_assert(((std::uintptr_t(xpr.data()) % plain_enum_max(1, evaluator<XprType>::Alignment)) == 0) &&
                  "data is not aligned");
   }

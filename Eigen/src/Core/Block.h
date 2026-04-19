@@ -392,8 +392,7 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   EIGEN_DEVICE_FUNC constexpr StorageIndex startCol() const noexcept { return m_startCol.value(); }
 
 #ifndef __SUNPRO_CC
-  // FIXME sunstudio is not friendly with the above friend...
-  // META-FIXME there is no 'friend' keyword around here. Is this obsolete?
+  // Historical workaround for SunStudio's handling of the access specifier here.
  protected:
 #endif
 
