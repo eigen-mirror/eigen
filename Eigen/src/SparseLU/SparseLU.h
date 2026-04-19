@@ -777,11 +777,6 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
         return;
       }
 
-      // Update the determinant of the row permutation matrix
-      // FIXME: the following test is not correct; it should account for iperm_c, and pivrow is not
-      // directly the row pivot.
-      if (pivrow != jj) m_detPermR = -m_detPermR;
-
       // Prune columns (0:jj-1) using column jj
       Base::pruneL(jj, m_perm_r.indices(), pivrow, nseg, segrep, repfnz_k, xprune, m_glu);
 
