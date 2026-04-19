@@ -102,9 +102,7 @@ class SolverBase : public EigenBase<Derived> {
   };
 
   /** Default constructor */
-  SolverBase() {}
-
-  ~SolverBase() {}
+  SolverBase() = default;
 
   using Base::derived;
 
