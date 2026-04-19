@@ -392,7 +392,6 @@ struct generic_product_impl<Lhs, Homogeneous<RhsArg, Vertical>, DenseShape, Homo
   }
 };
 
-// TODO: this specialization addresses a performance regression from 3.2 to 3.3; optimize this path.
 template <typename Lhs, typename RhsArg, int ProductTag>
 struct generic_product_impl<Lhs, Homogeneous<RhsArg, Vertical>, TriangularShape, HomogeneousShape, ProductTag> {
   template <typename Dest>
