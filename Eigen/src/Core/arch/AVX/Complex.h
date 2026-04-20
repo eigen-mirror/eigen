@@ -141,9 +141,13 @@ EIGEN_STRONG_INLINE Packet4cf pset1<Packet4cf>(const std::complex<float>& from) 
 
 template <>
 EIGEN_STRONG_INLINE Packet4cf ploaddup<Packet4cf>(const std::complex<float>* from) {
-  // Reinterpret each std::complex<float> as a double and delegate to
-  // ploaddup<Packet4d>, which does vbroadcastf128 + vpermilpd in two uops.
-  return Packet4cf(_mm256_castpd_ps(ploaddup<Packet4d>(reinterpret_cast<const double*>(from))));
+  // vbroadcastf128 + vpermilpd, 2 uops: broadcast the 16 bytes holding two
+  // complex<float> into both 128-bit lanes, then duplicate each complex so
+  // the result is {c0, c0, c1, c1}. The load has no alignment requirement;
+  // we cast the source pointer through void* rather than through double*
+  // because alignof(std::complex<float>) == 4 < alignof(double).
+  __m256 bcast = _mm256_broadcast_ps(reinterpret_cast<const __m128*>(static_cast<const void*>(from)));
+  return Packet4cf(_mm256_castpd_ps(_mm256_permute_pd(_mm256_castps_pd(bcast), 3 << 2)));
 }
 
 template <>
