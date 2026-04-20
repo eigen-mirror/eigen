@@ -237,13 +237,87 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     }
   }
 
-  // TODO(phli): Add a real vectorization.
+  // When the packet sits entirely on one side of the concat boundary, delegate
+  // to that operand's packet<>() rather than assembling PacketSize coeff()
+  // calls. The packet can straddle the boundary when either (a) the concat
+  // axis is the innermost dim and subs[axis] crosses left_dims[axis] within
+  // the packet, or (b) the innermost dim has fewer elements than PacketSize
+  // and the packet spills into a higher dim that happens to be the concat
+  // axis. Check the first and last linear index explicitly to cover both.
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
     EIGEN_STATIC_ASSERT((packetSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(index + packetSize - 1 < dimensions().TotalSize());
 
+    array<Index, NumDims> subs;
+    array<Index, NumDims> subs_end;
+    Index remaining = index;
+    Index remaining_end = index + packetSize - 1;
+    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        subs[i] = remaining / m_outputStrides[i];
+        remaining -= subs[i] * m_outputStrides[i];
+        subs_end[i] = remaining_end / m_outputStrides[i];
+        remaining_end -= subs_end[i] * m_outputStrides[i];
+      }
+      subs[0] = remaining;
+      subs_end[0] = remaining_end;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        subs[i] = remaining / m_outputStrides[i];
+        remaining -= subs[i] * m_outputStrides[i];
+        subs_end[i] = remaining_end / m_outputStrides[i];
+        remaining_end -= subs_end[i] * m_outputStrides[i];
+      }
+      subs[NumDims - 1] = remaining;
+      subs_end[NumDims - 1] = remaining_end;
+    }
+
+    const Dimensions& left_dims = m_leftImpl.dimensions();
+    const Index left_axis_size = left_dims[m_axis];
+
+    const bool on_left = subs[m_axis] < left_axis_size && subs_end[m_axis] < left_axis_size;
+    const bool on_right = subs[m_axis] >= left_axis_size && subs_end[m_axis] >= left_axis_size;
+
+    if (on_left) {
+      Index left_index;
+      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        left_index = subs[0];
+        EIGEN_UNROLL_LOOP
+        for (int i = 1; i < NumDims; ++i) {
+          left_index += subs[i] * m_leftStrides[i];
+        }
+      } else {
+        left_index = subs[NumDims - 1];
+        EIGEN_UNROLL_LOOP
+        for (int i = NumDims - 2; i >= 0; --i) {
+          left_index += subs[i] * m_leftStrides[i];
+        }
+      }
+      return m_leftImpl.template packet<LoadMode>(left_index);
+    }
+    if (on_right) {
+      subs[m_axis] -= left_axis_size;
+      Index right_index;
+      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        right_index = subs[0];
+        EIGEN_UNROLL_LOOP
+        for (int i = 1; i < NumDims; ++i) {
+          right_index += subs[i] * m_rightStrides[i];
+        }
+      } else {
+        right_index = subs[NumDims - 1];
+        EIGEN_UNROLL_LOOP
+        for (int i = NumDims - 2; i >= 0; --i) {
+          right_index += subs[i] * m_rightStrides[i];
+        }
+      }
+      return m_rightImpl.template packet<LoadMode>(right_index);
+    }
+
+    // Straddling case (m_axis == innermost and the packet crosses the boundary):
+    // fall back to assembling scalars.
     EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < packetSize; ++i) {
