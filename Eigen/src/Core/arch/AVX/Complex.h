@@ -141,10 +141,9 @@ EIGEN_STRONG_INLINE Packet4cf pset1<Packet4cf>(const std::complex<float>& from) 
 
 template <>
 EIGEN_STRONG_INLINE Packet4cf ploaddup<Packet4cf>(const std::complex<float>* from) {
-  // FIXME The following might be optimized using _mm256_movedup_pd
-  Packet2cf a = ploaddup<Packet2cf>(from);
-  Packet2cf b = ploaddup<Packet2cf>(from + 1);
-  return Packet4cf(_mm256_insertf128_ps(_mm256_castps128_ps256(a.v), b.v, 1));
+  // Reinterpret each std::complex<float> as a double and delegate to
+  // ploaddup<Packet4d>, which does vbroadcastf128 + vpermilpd in two uops.
+  return Packet4cf(_mm256_castpd_ps(ploaddup<Packet4d>(reinterpret_cast<const double*>(from))));
 }
 
 template <>
