@@ -100,6 +100,7 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, true>
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
+  using Base::coeffRef;
   using Base::data;
   EIGEN_DEVICE_FUNC inline Scalar* data() { return &(this->coeffRef(0)); }
 
