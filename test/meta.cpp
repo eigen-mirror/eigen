@@ -151,7 +151,9 @@ using Eigen::internal::gen_numeric_list;
 using Eigen::internal::gen_numeric_list_repeated;
 using Eigen::internal::gen_numeric_list_reversed;
 using Eigen::internal::gen_numeric_list_swapped_pair;
-using Eigen::internal::get;
+// Eigen::internal::get is intentionally left fully-qualified below: test/main.h
+// does `using namespace Eigen;`, and Eigen/src/Core/StructuredBindings.h defines
+// free functions `Eigen::get` that would otherwise clash with this metafunction.
 using Eigen::internal::id_numeric;
 using Eigen::internal::id_type;
 using Eigen::internal::instantiate_by_c_array;
@@ -390,19 +392,19 @@ static void test_get() {
   typedef type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c> tl;
   typedef numeric_list<int, 4, 8, 15, 16, 23, 42> il;
 
-  VERIFY((is_same<typename get<0, tl>::type, dummy_a>::value));
-  VERIFY((is_same<typename get<1, tl>::type, dummy_a>::value));
-  VERIFY((is_same<typename get<2, tl>::type, dummy_b>::value));
-  VERIFY((is_same<typename get<3, tl>::type, dummy_b>::value));
-  VERIFY((is_same<typename get<4, tl>::type, dummy_c>::value));
-  VERIFY((is_same<typename get<5, tl>::type, dummy_c>::value));
+  VERIFY((is_same<typename Eigen::internal::get<0, tl>::type, dummy_a>::value));
+  VERIFY((is_same<typename Eigen::internal::get<1, tl>::type, dummy_a>::value));
+  VERIFY((is_same<typename Eigen::internal::get<2, tl>::type, dummy_b>::value));
+  VERIFY((is_same<typename Eigen::internal::get<3, tl>::type, dummy_b>::value));
+  VERIFY((is_same<typename Eigen::internal::get<4, tl>::type, dummy_c>::value));
+  VERIFY((is_same<typename Eigen::internal::get<5, tl>::type, dummy_c>::value));
 
-  VERIFY_IS_EQUAL(((int)get<0, il>::value), 4);
-  VERIFY_IS_EQUAL(((int)get<1, il>::value), 8);
-  VERIFY_IS_EQUAL(((int)get<2, il>::value), 15);
-  VERIFY_IS_EQUAL(((int)get<3, il>::value), 16);
-  VERIFY_IS_EQUAL(((int)get<4, il>::value), 23);
-  VERIFY_IS_EQUAL(((int)get<5, il>::value), 42);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<0, il>::value), 4);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<1, il>::value), 8);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<2, il>::value), 15);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<3, il>::value), 16);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<4, il>::value), 23);
+  VERIFY_IS_EQUAL(((int)Eigen::internal::get<5, il>::value), 42);
 }
 
 static void test_id_helper(dummy_a a, dummy_a b, dummy_a c) {
