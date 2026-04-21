@@ -223,6 +223,28 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     return typename MatrixType::ConstDiagonalReturnType(m_matrix);
   }
 
+  /** \returns the matrix 1-norm (maximum absolute column sum) of the implicit
+   * full self-adjoint matrix, reading only the stored triangle. For Hermitian
+   * (complex) scalars the unstored entries are conjugates of stored ones, and
+   * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
+   */
+  EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
+    typedef typename NumTraits<Scalar>::Real RealScalar_;
+    RealScalar_ norm = RealScalar_(0);
+    const Index n = m_matrix.rows();
+    for (Index col = 0; col < n; ++col) {
+      RealScalar_ abs_col_sum;
+      if (UpLo == Lower)
+        abs_col_sum =
+            m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
+      else
+        abs_col_sum =
+            m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
+      if (abs_col_sum > norm) norm = abs_col_sum;
+    }
+    return norm;
+  }
+
   /////////// Cholesky module ///////////
 
   LLT<PlainObject, UpLo> llt() const;
