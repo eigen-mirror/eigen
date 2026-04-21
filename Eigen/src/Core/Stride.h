@@ -59,8 +59,6 @@ class Stride {
 
   /** Default constructor, for use when strides are fixed at compile time */
   EIGEN_DEVICE_FUNC constexpr Stride() : m_outer(OuterStrideAtCompileTime), m_inner(InnerStrideAtCompileTime) {
-    // FIXME: for Eigen 4 we should use DynamicIndex instead of Dynamic.
-    // FIXME: for Eigen 4 we should also unify this API with fix<>
     eigen_assert(InnerStrideAtCompileTime != Dynamic && OuterStrideAtCompileTime != Dynamic);
   }
 

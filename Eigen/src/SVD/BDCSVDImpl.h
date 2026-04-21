@@ -307,11 +307,6 @@ void bdcsvd_impl<RealScalar_>::divide(Index firstCol, Index lastCol, Index first
 // the first column and on the diagonal and has undergone deflation, so diagonal is in increasing
 // order except for possibly the (0,0) entry. The computed SVD is stored U, singVals and V, except
 // that if m_compV is false, then V is not computed. Singular values are sorted in decreasing order.
-//
-// TODO: opportunities for optimization: better root-finding algorithm, better stopping criterion,
-// better handling of round-off errors, and consistent ordering.
-// For instance, to solve the secular equation using FMM, see
-// http://www.stat.uchicago.edu/~lekheng/courses/302/classics/greengard-rokhlin.pdf
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& U, VectorType& singVals, MatrixXr& V) {
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();

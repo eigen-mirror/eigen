@@ -284,10 +284,15 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
       //    Here we allow one more sweep if this gives us a perfect match, thus the commented "-1"
       n = (n % nc) == 0 ? nc : (nc - Traits::nr * ((nc /*-1*/ - (n % nc)) / (Traits::nr * (n / nc + 1))));
     } else if (old_k == k) {
-      // So far, no blocking at all, i.e., kc==k, and nc==n.
-      // In this case, let's perform a blocking over the rows such that the packed lhs data is kept in cache L1/L2
-      // TODO: part of this blocking strategy is now implemented within the kernel itself, so the L1-based heuristic
-      // here should be obsolete.
+      // No k- or n-blocking happened yet (kc==depth, nc>=n). gebp already
+      // strip-chunks the packed lhs via its own `actual_panel_rows` budget,
+      // so cache residency is honored whatever mc we pick here. What this
+      // branch actually governs is the size of the `mc * kc` packing buffer
+      // (blockA) that the caller allocates — capping mc keeps it bounded for
+      // tall-m / small-k shapes, where leaving mc=m would allocate up to
+      // `rows * depth * sizeof(LhsScalar)`. A budget-based alternative
+      // (e.g. cap blockA at ~L3/4) is no faster in benchmarks and increases
+      // heap use, so the original L1/L2-residency tuning is kept.
       Index problem_size = k * n * sizeof(LhsScalar);
       Index actual_lm = actual_l2;
       Index max_mc = m;

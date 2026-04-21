@@ -22,7 +22,11 @@ template <typename MatrixType>
 struct TridiagonalizationMatrixTReturnType;
 template <typename MatrixType>
 struct traits<TridiagonalizationMatrixTReturnType<MatrixType>> : public traits<typename MatrixType::PlainObject> {
-  typedef typename MatrixType::PlainObject ReturnType;  // FIXME: consider using BandMatrix as ReturnType.
+  // matrixT() returns a dense n x n matrix. A band-stored alternative (e.g. a
+  // future matrixTBand() returning BandMatrix<Scalar, Dynamic, Dynamic, 1, 1>)
+  // would be ~3n storage instead of n^2, but changing this ReturnType in place
+  // would be API-breaking for callers that assume a dense matrix.
+  typedef typename MatrixType::PlainObject ReturnType;
   enum { Flags = 0 };
 };
 

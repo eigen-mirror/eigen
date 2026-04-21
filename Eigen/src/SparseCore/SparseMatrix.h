@@ -1277,7 +1277,8 @@ void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator
   using SrcXprType =
       CwiseBinaryOp<scalar_disjunction_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
 
-  // TODO: process triplets without making a copy
+  // Saving the trips temporary would need a direct mat+triplets merge with
+  // on-the-fly duplicate collapsing (non-trivial).
   SparseMatrixType trips(mat.rows(), mat.cols());
   set_from_triplets_sorted(begin, end, trips, dup_func);
 

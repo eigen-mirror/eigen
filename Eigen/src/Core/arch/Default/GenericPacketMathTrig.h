@@ -198,7 +198,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
 
   if ((Func == TrigFunction::SinCos) || (Func == TrigFunction::Tan)) {
-    // TODO(rmlarsen): Add single polynomial for tan(x) instead of paying for sin+cos+div.
     Packet peven = peven_mask(x);
     Packet ysin = pselect(poly_mask, y2, y1);
     Packet ycos = pselect(poly_mask, y1, y2);
@@ -315,7 +314,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   PacketI q_int;
   Packet s;
 
-  // TODO Implement huge angle argument reduction
   if (EIGEN_PREDICT_FALSE(predux_any(pcmp_le(pset1<Packet>(small_th), x_abs)))) {
     // Medium path: use double-word product x * (2/pi) for precise quadrant computation.
     Packet prod_hi, prod_lo;
@@ -380,7 +378,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     sign_bit = sign_cos;
     sFinalRes = pselect(poly_mask, scos, ssin);
   } else if (Func == TrigFunction::Tan) {
-    // TODO(rmlarsen): Add single polynomial for tan(x) instead of paying for sin+cos+div.
     sign_bit = pxor(sign_sin, sign_cos);
     sFinalRes = pdiv(pselect(poly_mask, ssin, scos), pselect(poly_mask, scos, ssin));
   } else if (Func == TrigFunction::SinCos) {
@@ -391,9 +388,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   sign_bit = pand(sign_bit, cst_sign_mask);  // clear all but left most bit
   sFinalRes = pxor(sFinalRes, sign_bit);
 
-  // If the inputs values are higher than that a value that the argument reduction can currently address, compute them
-  // using the C++ standard library.
-  // TODO Remove it when huge angle argument reduction is implemented
+  // For inputs above huge_th the medium-path reduction loses too much precision. A vectorized
+  // Payne-Hanek reduction was investigated and judged not worthwhile (high implementation cost
+  // for what is in practice a rare path), so these inputs fall back to the scalar libm.
   if (EIGEN_PREDICT_FALSE(predux_any(pcmp_le(pset1<Packet>(huge_th), x_abs)))) {
     const int PacketSize = unpacket_traits<Packet>::size;
     EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) double sincos_vals[PacketSize];

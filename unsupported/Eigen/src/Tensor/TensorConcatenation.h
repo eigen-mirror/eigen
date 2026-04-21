@@ -181,7 +181,11 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     m_rightImpl.cleanup();
   }
 
-  // TODO(phli): Attempt to speed this up. The integer divisions and modulo are slow.
+  // The per-dim integer div/mod in this loop are the obvious "slow" candidates,
+  // but the same TensorIntDivisor substitution was measured net-negative on
+  // Intel Raptor Lake when prototyped for TensorBroadcasting (see the comment
+  // on TensorBroadcasting::indexColMajor). Modern x86 hardware div (~20
+  // cycles) amortizes well and the mul+shifts don't win back the added state.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // Collect dimension-wise indices (subs).
     array<Index, NumDims> subs;
