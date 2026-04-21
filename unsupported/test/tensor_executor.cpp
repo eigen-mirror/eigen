@@ -372,6 +372,45 @@ void test_execute_slice_rvalue(Device d) {
   }
 }
 
+// Regression test for BlockAccess=true on bool slice rvalue expressions.
+// Sweeps sizes spanning Packet16b (16-lane bool packet) boundaries so the
+// tiled executor is forced to cross packet boundaries inside a single slice.
+template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
+void test_execute_slice_rvalue_bool_boundaries(Device d) {
+  static_assert(std::is_same<T, bool>::value, "Only bool is supported.");
+  static_assert(NumDims >= 2, "NumDims must be greater or equal than 2");
+  static constexpr int Options = 0 | Layout;
+
+  const Index boundary_sizes[] = {15, 16, 17, 31, 32, 33, 47, 48, 49, 63, 64, 65};
+  for (Index sz : boundary_sizes) {
+    array<Index, NumDims> src_dims;
+    for (int i = 0; i < NumDims; ++i) src_dims[i] = sz;
+
+    Tensor<bool, NumDims, Options, Index> src(src_dims);
+    src.setRandom();
+
+    DSizes<Index, NumDims> slice_start;
+    DSizes<Index, NumDims> slice_size;
+    for (int i = 0; i < NumDims; ++i) {
+      slice_start[i] = sz >= 2 ? 1 : 0;
+      slice_size[i] = sz - slice_start[i];
+    }
+
+    Tensor<bool, NumDims, Options, Index> golden = src.slice(slice_start, slice_size);
+
+    Tensor<bool, NumDims, Options, Index> dst(golden.dimensions());
+    auto expr = src.slice(slice_start, slice_size);
+
+    using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+    using Executor = internal::TensorExecutor<const Assign, Device, Vectorizable, Tiling>;
+    Executor::run(Assign(dst, expr), d);
+
+    for (Index i = 0; i < dst.dimensions().TotalSize(); ++i) {
+      VERIFY_IS_EQUAL(dst.coeff(i), golden.coeff(i));
+    }
+  }
+}
+
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
 void test_execute_slice_lvalue(Device d) {
   static_assert(NumDims >= 2, "NumDims must be greater or equal than 2");
@@ -669,6 +708,13 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, float, 3);
   CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, float, 4);
   CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, float, 5);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, bool, 2);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, bool, 3);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, bool, 4);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue, bool, 5);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue_bool_boundaries, bool, 2);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue_bool_boundaries, bool, 3);
+  CALL_SUBTEST_COMBINATIONS(10, test_execute_slice_rvalue_bool_boundaries, bool, 4);
 
   CALL_SUBTEST_COMBINATIONS(11, test_execute_slice_lvalue, float, 2);
   CALL_SUBTEST_COMBINATIONS(11, test_execute_slice_lvalue, float, 3);

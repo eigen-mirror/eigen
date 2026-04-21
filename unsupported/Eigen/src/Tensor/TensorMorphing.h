@@ -367,9 +367,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
     // slice offsets and sizes.
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess &&
-                  // FIXME: Temporary workaround for bug in slicing of bool tensors.
-                  !internal::is_same<std::remove_const_t<Scalar>, bool>::value,
+    BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess,
     PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false

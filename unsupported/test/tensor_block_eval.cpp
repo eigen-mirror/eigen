@@ -459,6 +459,40 @@ static void test_eval_tensor_slice() {
                                            [&slice_size]() { return RandomBlock<Layout>(slice_size, 1, 10); });
 }
 
+// Exercise the block evaluator for bool slices as a sub-expression of a
+// block-aware parent op at sizes spanning Packet16b (16-lane bool packet)
+// boundaries. Before the BlockAccess fix for bool slicing, the parent op's
+// BlockAccess would be forced to false and this composition would never
+// dispatch through the block path.
+template <int NumDims, int Layout>
+static void test_eval_tensor_slice_bool_composite() {
+  const Index boundary_sizes[] = {15, 16, 17, 31, 32, 33, 47, 48, 49};
+  for (Index sz : boundary_sizes) {
+    DSizes<Index, NumDims> dims;
+    for (int i = 0; i < NumDims; ++i) dims[i] = sz;
+
+    Tensor<bool, NumDims, Layout> lhs(dims);
+    Tensor<bool, NumDims, Layout> rhs(dims);
+    lhs.setRandom();
+    rhs.setRandom();
+
+    // Slice skewed off the boundary so the block layout straddles packet
+    // boundaries of the underlying tensor.
+    DSizes<Index, NumDims> slice_start;
+    DSizes<Index, NumDims> slice_size;
+    for (int i = 0; i < NumDims; ++i) {
+      slice_start[i] = sz >= 2 ? 1 : 0;
+      slice_size[i] = sz - slice_start[i];
+    }
+
+    auto expr = lhs.slice(slice_start, slice_size) && rhs.slice(slice_start, slice_size);
+
+    VerifyBlockEvaluator<bool, NumDims, Layout>(expr, [&slice_size]() { return FixedSizeBlock(slice_size); });
+    VerifyBlockEvaluator<bool, NumDims, Layout>(expr,
+                                                [&slice_size, sz]() { return RandomBlock<Layout>(slice_size, 1, sz); });
+  }
+}
+
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_shuffle() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
@@ -788,6 +822,12 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_generator);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_reverse);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(5, test_eval_tensor_slice);
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<1, RowMajor>()));
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<2, RowMajor>()));
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<3, RowMajor>()));
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<1, ColMajor>()));
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<2, ColMajor>()));
+  CALL_SUBTEST_PART(5)((test_eval_tensor_slice_bool_composite<3, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(5, test_eval_tensor_shuffle);
 
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_reshape_with_bcast);
