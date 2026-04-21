@@ -2222,19 +2222,37 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
       const LinearMapper dm3 = rhs.getLinearMapper(0, j2 + 3);
 
       Index k = 0;
-      if ((PacketSize % 4) == 0)  // TODO: enable vectorized transposition for PacketSize==2.
-      {
+      EIGEN_IF_CONSTEXPR((PacketSize % 4) == 0 || PacketSize == 2) {
         for (; k < peeled_k; k += PacketSize) {
-          PacketBlock<Packet, (PacketSize % 4) == 0 ? 4 : PacketSize> kernel;
+          PacketBlock<Packet, 4> kernel;
           kernel.packet[0] = dm0.template loadPacket<Packet>(k);
-          kernel.packet[1 % PacketSize] = dm1.template loadPacket<Packet>(k);
-          kernel.packet[2 % PacketSize] = dm2.template loadPacket<Packet>(k);
-          kernel.packet[3 % PacketSize] = dm3.template loadPacket<Packet>(k);
-          ptranspose(kernel);
+          kernel.packet[1] = dm1.template loadPacket<Packet>(k);
+          kernel.packet[2] = dm2.template loadPacket<Packet>(k);
+          kernel.packet[3] = dm3.template loadPacket<Packet>(k);
+          EIGEN_IF_CONSTEXPR(PacketSize == 2) {
+            // For PacketSize==2 we cannot ptranspose 4 packets directly; compose two
+            // 2-packet transposes and re-interleave so the 4 stores produce the
+            // packed-rhs layout (each store writing one half-row of the panel).
+            PacketBlock<Packet, 2> tmp01;
+            tmp01.packet[0] = kernel.packet[0];
+            tmp01.packet[1] = kernel.packet[1];
+            ptranspose(tmp01);
+            PacketBlock<Packet, 2> tmp23;
+            tmp23.packet[0] = kernel.packet[2];
+            tmp23.packet[1] = kernel.packet[3];
+            ptranspose(tmp23);
+            kernel.packet[0] = tmp01.packet[0];
+            kernel.packet[1] = tmp23.packet[0];
+            kernel.packet[2] = tmp01.packet[1];
+            kernel.packet[3] = tmp23.packet[1];
+          }
+          else {
+            ptranspose(kernel);
+          }
           pstoreu(blockB + count + 0 * PacketSize, cj.pconj(kernel.packet[0]));
-          pstoreu(blockB + count + 1 * PacketSize, cj.pconj(kernel.packet[1 % PacketSize]));
-          pstoreu(blockB + count + 2 * PacketSize, cj.pconj(kernel.packet[2 % PacketSize]));
-          pstoreu(blockB + count + 3 * PacketSize, cj.pconj(kernel.packet[3 % PacketSize]));
+          pstoreu(blockB + count + 1 * PacketSize, cj.pconj(kernel.packet[1]));
+          pstoreu(blockB + count + 2 * PacketSize, cj.pconj(kernel.packet[2]));
+          pstoreu(blockB + count + 3 * PacketSize, cj.pconj(kernel.packet[3]));
           count += 4 * PacketSize;
         }
       }
