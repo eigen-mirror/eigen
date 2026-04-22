@@ -20,44 +20,63 @@ namespace internal {
 
 /********************************* float32 ************************************/
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
+#define USE_LMUL4_ONLY
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 2
 #define USE_LMUL2_ONLY
 #else
 #define USE_LMUL1_ONLY
 #endif
 
-#ifndef USE_LMUL2_ONLY
-struct Packet1Xcf {
-  EIGEN_STRONG_INLINE Packet1Xcf() {}
-  EIGEN_STRONG_INLINE explicit Packet1Xcf(const Packet2Xf& a) : v(a) {}
+template <typename RealPacketT, int N>
+struct complex_packet_wrapper {
+  complex_packet_wrapper() = default;
+  EIGEN_STRONG_INLINE explicit complex_packet_wrapper(const RealPacketT& a) : v(a) {}
 
-  Packet2Xf v;
+  RealPacketT v;
 };
-#endif
 
-#ifndef USE_LMUL1_ONLY
-struct Packet1Xcfh {  // Half size
-  EIGEN_STRONG_INLINE Packet1Xcfh() {}
-  EIGEN_STRONG_INLINE explicit Packet1Xcfh(const Packet1Xf& a) : v(a) {}
-
-  Packet1Xf v;
-};
-#endif
-
-struct Packet2Xcf {
-  EIGEN_STRONG_INLINE Packet2Xcf() {}
-  EIGEN_STRONG_INLINE explicit Packet2Xcf(const Packet4Xf& a) : v(a) {}
-
-  Packet4Xf v;
-};
+typedef complex_packet_wrapper<Packet2Xf, 28> Packet1Xcf;
+typedef complex_packet_wrapper<Packet4Xf, 29> Packet2Xcf;
+typedef complex_packet_wrapper<Packet1Xf, 30> Packet1Xcfh;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
+typedef Packet1Xcfh PacketXcf;
+
+template <>
+struct packet_traits<std::complex<float>> : default_packet_traits {
+  typedef Packet1Xcfh type;
+  typedef Packet1Xcfh half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 0,
+    size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasMul = 1,
+    HasDiv = 1,
+    HasNegate = 1,
+    HasSqrt = 1,
+    HasLog = 1,
+    HasExp = 1,
+    HasSign = 0,
+    HasAbs = 0,
+    HasAbs2 = 0,
+    HasMin = 0,
+    HasMax = 0,
+    HasConj = 1,
+    HasArg = 0,
+    HasSetLinear = 0
+  };
+};
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 2
 typedef Packet1Xcf PacketXcf;
 
 template <>
 struct packet_traits<std::complex<float>> : default_packet_traits {
   typedef Packet1Xcf type;
-#if !defined(USE_LMUL2_ONLY) && !defined(USE_LMUL1_ONLY)
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcfh half;
 #else
   typedef Packet1Xcf half;
@@ -85,13 +104,13 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
     HasSetLinear = 0
   };
 };
-#elif EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 4
 typedef Packet2Xcf PacketXcf;
 
 template <>
 struct packet_traits<std::complex<float>> : default_packet_traits {
   typedef Packet2Xcf type;
-#ifndef USE_LMUL2_ONLY
+#ifndef USE_LMUL4_ONLY
   typedef Packet1Xcf half;
 #else
   typedef Packet2Xcf half;
@@ -121,7 +140,6 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 };
 #endif
 
-#ifndef USE_LMUL2_ONLY
 template <>
 struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
   typedef std::complex<float> type;
@@ -139,23 +157,6 @@ struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
     masked_store_available = false
   };
 };
-#endif
-
-#ifndef USE_LMUL1_ONLY
-template <>
-struct unpacket_traits<Packet1Xcfh> : default_unpacket_traits {
-  typedef std::complex<float> type;
-  typedef Packet1Xcfh half;
-  typedef Packet1Xf as_real;
-  enum {
-    size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
-#endif
 
 template <>
 struct unpacket_traits<Packet2Xcf> : default_unpacket_traits {
@@ -175,7 +176,20 @@ struct unpacket_traits<Packet2Xcf> : default_unpacket_traits {
   };
 };
 
-#ifndef USE_LMUL2_ONLY
+template <>
+struct unpacket_traits<Packet1Xcfh> : default_unpacket_traits {
+  typedef std::complex<float> type;
+  typedef Packet1Xcfh half;
+  typedef Packet1Xf as_real;
+  enum {
+    size = rvv_packet_size_selector<float, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
 template <>
 EIGEN_STRONG_INLINE Packet1Xcf pcast<Packet2Xf, Packet1Xcf>(const Packet2Xf& a) {
   return Packet1Xcf(a);
@@ -413,7 +427,7 @@ EIGEN_STRONG_INLINE Packet1Xcf pexp<Packet1Xcf>(const Packet1Xcf& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL1_ONLY
+#ifndef USE_LMUL2_ONLY
 template <typename Packet = Packet1Xcf>
 EIGEN_STRONG_INLINE Packet1Xcfh predux_half(const Packet1Xcf& a) {
   return Packet1Xcfh(__riscv_vfadd_vv_f32m1(__riscv_vget_v_f32m2_f32m1(a.v, 0), __riscv_vget_v_f32m2_f32m1(a.v, 1),
@@ -422,42 +436,50 @@ EIGEN_STRONG_INLINE Packet1Xcfh predux_half(const Packet1Xcf& a) {
 #endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcf, Packet2Xf)
-#endif
 
 /********************************* double ************************************/
 
-#ifndef USE_LMUL2_ONLY
-struct Packet1Xcd {
-  EIGEN_STRONG_INLINE Packet1Xcd() {}
-  EIGEN_STRONG_INLINE explicit Packet1Xcd(const Packet2Xd& a) : v(a) {}
-
-  Packet2Xd v;
-};
-#endif
-
-#ifndef USE_LMUL1_ONLY
-struct Packet1Xcdh {  // Half size
-  EIGEN_STRONG_INLINE Packet1Xcdh() {}
-  EIGEN_STRONG_INLINE explicit Packet1Xcdh(const Packet1Xd& a) : v(a) {}
-
-  Packet1Xd v;
-};
-#endif
-
-struct Packet2Xcd {
-  EIGEN_STRONG_INLINE Packet2Xcd() {}
-  EIGEN_STRONG_INLINE explicit Packet2Xcd(const Packet4Xd& a) : v(a) {}
-
-  Packet4Xd v;
-};
+typedef complex_packet_wrapper<Packet2Xd, 31> Packet1Xcd;
+typedef complex_packet_wrapper<Packet4Xd, 32> Packet2Xcd;
+typedef complex_packet_wrapper<Packet1Xd, 33> Packet1Xcdh;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xcd PacketXcd;
 
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
+  typedef Packet1Xcdh type;
+  typedef Packet1Xcdh half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 0,
+    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasMul = 1,
+    HasDiv = 1,
+    HasNegate = 1,
+    HasSqrt = 1,
+    HasLog = 1,
+    HasExp = 1,
+    HasSign = 0,
+    HasAbs = 0,
+    HasAbs2 = 0,
+    HasMin = 0,
+    HasMax = 0,
+    HasConj = 1,
+    HasArg = 0,
+    HasSetLinear = 0
+  };
+};
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 2
+typedef Packet1Xcd PacketXcd;
+
+template <>
+struct packet_traits<std::complex<double>> : default_packet_traits {
   typedef Packet1Xcd type;
-#if !defined(USE_LMUL2_ONLY) && !defined(USE_LMUL1_ONLY)
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcdh half;
 #else
   typedef Packet1Xcd half;
@@ -485,13 +507,13 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
     HasSetLinear = 0
   };
 };
-#elif EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#elif EIGEN_RISCV64_DEFAULT_LMUL == 4
 typedef Packet2Xcd PacketXcd;
 
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
   typedef Packet2Xcd type;
-#ifndef USE_LMUL2_ONLY
+#ifndef USE_LMUL4_ONLY
   typedef Packet1Xcd half;
 #else
   typedef Packet2Xcd half;
@@ -521,7 +543,6 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
 };
 #endif
 
-#ifndef USE_LMUL2_ONLY
 template <>
 struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
   typedef std::complex<double> type;
@@ -539,27 +560,6 @@ struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
     masked_store_available = false
   };
 };
-#endif
-
-#ifndef USE_LMUL1_ONLY
-template <>
-struct unpacket_traits<Packet1Xcdh> : default_unpacket_traits {
-  typedef std::complex<double> type;
-#ifndef USE_LMUL1_ONLY
-  typedef Packet1Xcdh half;
-#else
-  typedef Packet1Xcd half;
-#endif
-  typedef Packet1Xd as_real;
-  enum {
-    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
-    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
-    vectorizable = true,
-    masked_load_available = false,
-    masked_store_available = false
-  };
-};
-#endif
 
 template <>
 struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
@@ -579,7 +579,20 @@ struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
   };
 };
 
-#ifndef USE_LMUL2_ONLY
+template <>
+struct unpacket_traits<Packet1Xcdh> : default_unpacket_traits {
+  typedef std::complex<double> type;
+  typedef Packet1Xcdh half;
+  typedef Packet1Xd as_real;
+  enum {
+    size = rvv_packet_size_selector<double, EIGEN_RISCV64_RVV_VL, 1>::size / 2,
+    alignment = rvv_packet_alignment_selector<EIGEN_RISCV64_RVV_VL, 1>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
 template <>
 EIGEN_STRONG_INLINE Packet1Xcd pcast<Packet2Xd, Packet1Xcd>(const Packet2Xd& a) {
   return Packet1Xcd(a);
@@ -837,7 +850,7 @@ EIGEN_STRONG_INLINE Packet1Xcd pexp<Packet1Xcd>(const Packet1Xcd& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL1_ONLY
+#ifndef USE_LMUL2_ONLY
 template <typename Packet = Packet1Xcd>
 EIGEN_STRONG_INLINE Packet1Xcdh predux_half(const Packet1Xcd& a) {
   return Packet1Xcdh(__riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a.v, 0), __riscv_vget_v_f64m2_f64m1(a.v, 1),
@@ -846,7 +859,6 @@ EIGEN_STRONG_INLINE Packet1Xcdh predux_half(const Packet1Xcd& a) {
 #endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcd, Packet2Xd)
-#endif
 
 }  // end namespace internal
 

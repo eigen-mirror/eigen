@@ -230,9 +230,9 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
 
 #endif
 
-#if 1
 /********************************* complex ************************************/
 
+#if 1
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
   typedef typename packet_conditional<                                                                     \
       packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
@@ -335,7 +335,6 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     dest = ploadu<LhsPacketType>((const typename unpacket_traits<LhsPacketType>::type*)(a));
   }
 
-#ifndef USE_LMUL1_ONLY
   EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xcfh& a, float b, const Packet1Xcfh& c) const {
     return Packet1Xcfh(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
   }
@@ -343,9 +342,7 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   EIGEN_STRONG_INLINE Packet1Xcdh pmadd_scalar(const Packet1Xcdh& a, double b, const Packet1Xcdh& c) const {
     return Packet1Xcdh(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
   }
-#endif
 
-#ifndef USE_LMUL2_ONLY
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xcf& a, float b, const Packet1Xcf& c) const {
     return Packet1Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
   }
@@ -353,9 +350,8 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet1Xcd& a, double b, const Packet1Xcd& c) const {
     return Packet1Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
   }
-#endif
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
   EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
     return Packet2Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
   }
@@ -388,41 +384,54 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     c = cj.pmadd(a, b, c);
   }
 
-  template <typename Packet>
-  DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
-      const DoublePacket<Packet>& a, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) const {
-    DoublePacket<typename unpacket_traits<Packet>::half> res;
-    res.first = predux_half(a.first);
-    res.second = predux_half(a.second);
-    return res;
+  template <typename RealPacketType, typename ResPacketType>
+  EIGEN_STRONG_INLINE void acc(const DoublePacket<RealPacketType>& c, const ResPacketType& alpha,
+                               ResPacketType& r) const {
+    // assemble c
+    ResPacketType tmp;
+    if ((!ConjLhs) && (!ConjRhs)) {
+      tmp = pcplxflip(pconj(ResPacketType(c.second)));
+      tmp = padd(ResPacketType(c.first), tmp);
+    } else if ((!ConjLhs) && (ConjRhs)) {
+      tmp = pconj(pcplxflip(ResPacketType(c.second)));
+      tmp = padd(ResPacketType(c.first), tmp);
+    } else if ((ConjLhs) && (!ConjRhs)) {
+      tmp = pcplxflip(ResPacketType(c.second));
+      tmp = padd(pconj(ResPacketType(c.first)), tmp);
+    } else if ((ConjLhs) && (ConjRhs)) {
+      tmp = pcplxflip(ResPacketType(c.second));
+      tmp = psub(pconj(ResPacketType(c.first)), tmp);
+    }
+
+    r = pmadd(tmp, alpha, r);
   }
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-#ifndef USE_LMUL2_ONLY
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
   EIGEN_STRONG_INLINE void acc(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj2;
-    r = cj2.pmadd(alpha, c, r);
+    conj_helper<Packet2Xcf, Packet2Xcf, false, ConjRhs> cj2;
+    Packet2Xcf cp = pdup(c);
+    r = cj2.pmadd(alpha, cp, r);
   }
 
   EIGEN_STRONG_INLINE void acc(const Packet1Xcd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj2;
-    r = cj2.pmadd(alpha, c, r);
+    conj_helper<Packet2Xcd, Packet2Xcd, false, ConjRhs> cj2;
+    Packet2Xcd cp = pdup(c);
+    r = cj2.pmadd(alpha, cp, r);
   }
-#endif
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
-#ifndef USE_LMUL1_ONLY
   EIGEN_STRONG_INLINE void acc(const Packet1Xcfh& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj2;
-    r = cj2.pmadd(alpha, c, r);
+    conj_helper<Packet1Xcf, Packet1Xcf, false, ConjRhs> cj2;
+    Packet1Xcf cp = pdup(c);
+    r = cj2.pmadd(alpha, cp, r);
   }
 
   EIGEN_STRONG_INLINE void acc(const Packet1Xcdh& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
-    conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj2;
-    r = cj2.pmadd(alpha, c, r);
+    conj_helper<Packet1Xcd, Packet1Xcd, false, ConjRhs> cj2;
+    Packet1Xcd cp = pdup(c);
+    r = cj2.pmadd(alpha, cp, r);
   }
-#endif
 #endif
 
  protected:
@@ -504,7 +513,6 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
-#ifndef USE_LMUL1_ONLY
   EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xf& a, std::complex<float> b, const Packet1Xcfh& c) const {
     Packet1Xcfh bp = pset1<Packet1Xcfh>(b);
     return Packet1Xcfh(__riscv_vfmadd_vv_f32m1(a, bp.v, c.v, unpacket_traits<Packet1Xf>::size));
@@ -514,9 +522,7 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
     Packet1Xcdh bp = pset1<Packet1Xcdh>(b);
     return Packet1Xcdh(__riscv_vfmadd_vv_f64m1(a, bp.v, c.v, unpacket_traits<Packet1Xd>::size));
   }
-#endif
 
-#ifndef USE_LMUL2_ONLY
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xf& a, std::complex<float> b, const Packet1Xcf& c) const {
     Packet1Xcf bp = pset1<Packet1Xcf>(b);
     Packet2Xf ap = pdup(a);
@@ -528,9 +534,8 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
     Packet2Xd ap = pdup(a);
     return Packet1Xcd(__riscv_vfmadd_vv_f64m2(ap, bp.v, c.v, unpacket_traits<Packet2Xd>::size));
   }
-#endif
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
   EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xf& a, std::complex<float> b, const Packet2Xcf& c) const {
     Packet2Xcf bp = pset1<Packet2Xcf>(b);
     Packet4Xf ap = pdup(a);
@@ -653,7 +658,6 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
-#ifndef USE_LMUL1_ONLY
   EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xcfh& a, float b, const Packet1Xcfh& c) const {
     return Packet1Xcfh(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
   }
@@ -661,9 +665,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
   EIGEN_STRONG_INLINE Packet1Xcdh pmadd_scalar(const Packet1Xcdh& a, double b, const Packet1Xcdh& c) const {
     return Packet1Xcdh(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
   }
-#endif
 
-#ifndef USE_LMUL2_ONLY
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xcf& a, float b, const Packet1Xcf& c) const {
     return Packet1Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
   }
@@ -671,9 +673,8 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
   EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet1Xcd& a, double b, const Packet1Xcd& c) const {
     return Packet1Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
   }
-#endif
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
   EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
     return Packet2Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
   }
