@@ -33,7 +33,7 @@ int ref_ctz(T val) {
 
 template <typename T>
 void test_clz_ctz() {
-  T step = sizeof(T) <= 2 ? 1 : (Eigen::NumTraits<T>::highest() / (T(1) << 16));
+  T step = sizeof(T) <= 2 ? T(1) : (Eigen::NumTraits<T>::highest() / (T(1) << 16));
   T iters = Eigen::NumTraits<T>::highest() / step;
   for (T i = 0; i < iters; ++i) {
     T val = i * step;

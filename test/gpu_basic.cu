@@ -7,12 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// workaround issue between gcc >= 4.7 and cuda 5.5
-#if (defined __GNUC__) && (__GNUC__ > 4 || __GNUC_MINOR__ >= 7)
-#undef _GLIBCXX_ATOMIC_BUILTINS
-#undef _GLIBCXX_USE_INT128
-#endif
-
 #define EIGEN_TEST_NO_LONGDOUBLE
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 
@@ -335,7 +329,7 @@ struct matrix_inverse {
 template <typename T>
 struct numeric_limits_test {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
-    EIGEN_UNUSED_VARIABLE(in)
+    EIGEN_UNUSED_VARIABLE(in);
     int out_idx = i * 5;
     out[out_idx++] = numext::numeric_limits<float>::epsilon();
     out[out_idx++] = (numext::numeric_limits<float>::max)();
@@ -438,7 +432,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   // numeric_limits
   CALL_SUBTEST(test_with_infs_nans(numeric_limits_test<Vector3f>(), 1, in, out));
 
-  // These tests require dynamic-sized matrix multiplcation, which isn't currently
+  // These tests require dynamic-sized matrix multiplication, which isn't currently
   // supported on GPU.
 
   // CALL_SUBTEST( run_and_compare_to_gpu(eigenvalues<Matrix4f>(), nthreads, in, out) );

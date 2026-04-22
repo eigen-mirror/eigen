@@ -12,13 +12,21 @@
 #include "random_without_cast_overflow.h"
 
 // suppress annoying unsigned integer warnings
-template <typename Scalar, bool IsSigned = NumTraits<Scalar>::IsSigned>
+template <typename Scalar, bool IsSignedInteger = NumTraits<Scalar>::IsSigned && NumTraits<Scalar>::IsInteger,
+          bool IsSigned = NumTraits<Scalar>::IsSigned>
 struct negative_or_zero_impl {
+  static Scalar run(const Scalar& a) {
+    using UnsignedScalar = std::make_unsigned_t<Scalar>;
+    return static_cast<Scalar>(UnsignedScalar(0) - static_cast<UnsignedScalar>(a));
+  }
+};
+template <typename Scalar>
+struct negative_or_zero_impl<Scalar, false, true> {
   static Scalar run(const Scalar& a) { return -a; }
 };
 template <typename Scalar>
-struct negative_or_zero_impl<Scalar, false> {
-  static Scalar run(const Scalar&) { return 0; }
+struct negative_or_zero_impl<Scalar, false, false> {
+  static Scalar run(const Scalar&) { return Scalar(0); }
 };
 template <typename Scalar>
 Scalar negative_or_zero(const Scalar& a) {
@@ -773,6 +781,7 @@ void comparisons(const ArrayType& m) {
 
   // test bug2966: select did not support some scalar types that forbade implicit conversions from bool
   ArrayX<scalar_wrapper> m5(10);
+  m5.setConstant(scalar_wrapper(0));
   m5 = (m5 == scalar_wrapper(0)).select(m5, m5);
 }
 
@@ -940,8 +949,11 @@ void array_complex(const ArrayType& m) {
 
   ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols), m4 = m1;
 
-  m4.real() = (m4.real().abs() == RealScalar(0)).select(RealScalar(1), m4.real());
-  m4.imag() = (m4.imag().abs() == RealScalar(0)).select(RealScalar(1), m4.imag());
+  // Clamp m4 so that |m4| >= min_normal, avoiding overflow in inverse(m4).
+  // For complex z = a+bi, 1/z = (a-bi)/(a²+b²); if a²+b² underflows to zero
+  // (both |a| and |b| below sqrt(min_normal)), the inverse overflows to inf/nan.
+  const RealScalar min = (std::numeric_limits<RealScalar>::min)();
+  m4 = (m4.abs() < min).select(Scalar(1), m4);
 
   Array<RealScalar, -1, -1> m3(rows, cols);
 
@@ -1002,21 +1014,10 @@ void array_complex(const ArrayType& m) {
 
   std::complex<RealScalar> zero(0.0, 0.0);
   VERIFY((Eigen::isnan)(m1 * zero / zero).all());
-#if EIGEN_COMP_MSVC
-  // msvc complex division is not robust
-  VERIFY((Eigen::isinf)(m4 / RealScalar(0)).all());
-#else
-#if EIGEN_COMP_CLANG
-  // clang's complex division is notoriously broken too
-  if ((numext::isinf)(m4(0, 0) / RealScalar(0))) {
-#endif
-    VERIFY((Eigen::isinf)(m4 / zero).all());
-#if EIGEN_COMP_CLANG
-  } else {
-    VERIFY((Eigen::isinf)(m4.real() / zero.real()).all());
-  }
-#endif
-#endif  // MSVC
+  // Complex division by zero may produce inf or NaN depending on the std::complex
+  // implementation (algebraic formula gives 0/0=NaN for some components). Only require
+  // the result to be non-finite.
+  VERIFY((!(Eigen::isfinite)(m4 / zero)).all());
 
   VERIFY(((Eigen::isfinite)(m1) && (!(Eigen::isfinite)(m1 * zero / zero)) && (!(Eigen::isfinite)(m1 / zero))).all());
 

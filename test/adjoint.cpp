@@ -70,17 +70,6 @@ struct adjoint_specific<false> {
   }
 };
 
-template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
-MatrixType RandomMatrix(Index rows, Index cols, Scalar min, Scalar max) {
-  MatrixType M = MatrixType(rows, cols);
-  for (Index i = 0; i < rows; ++i) {
-    for (Index j = 0; j < cols; ++j) {
-      M(i, j) = Eigen::internal::random<Scalar>(min, max);
-    }
-  }
-  return M;
-}
-
 template <typename MatrixType>
 void adjoint(const MatrixType& m) {
   /* this test covers the following files:
@@ -207,6 +196,87 @@ void adjoint_extra() {
   a = a.transpose();
 }
 
+template <typename Scalar>
+void inner_product_boundary_sizes() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  // Sizes that exercise every branch in the 4-way unrolled vectorized inner product:
+  // scalar fallback (< PS), 1-3 packets, quad loop entry/exit, remainder packets, scalar cleanup
+  const Index sizes[] = {0,
+                         1,
+                         PS - 1,
+                         PS,
+                         PS + 1,
+                         2 * PS - 1,
+                         2 * PS,
+                         2 * PS + 1,
+                         3 * PS - 1,
+                         3 * PS,
+                         3 * PS + 1,
+                         4 * PS - 1,
+                         4 * PS,
+                         4 * PS + 1,
+                         8 * PS,
+                         8 * PS + 1,
+                         8 * PS + PS,
+                         8 * PS + 2 * PS,
+                         8 * PS + 3 * PS,
+                         8 * PS + 3 * PS + 1};
+  for (int si = 0; si < 20; ++si) {
+    const Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    Vec v1 = Vec::Random(n);
+    Vec v2 = Vec::Random(n);
+    // Reference: scalar loop
+    Scalar expected(0);
+    for (Index k = 0; k < n; ++k) expected += numext::conj(v1(k)) * v2(k);
+    VERIFY_IS_APPROX(v1.dot(v2), expected);
+    // Also test squaredNorm
+    Scalar sq_expected(0);
+    for (Index k = 0; k < n; ++k) sq_expected += numext::conj(v1(k)) * v1(k);
+    VERIFY_IS_APPROX(v1.squaredNorm(), numext::real(sq_expected));
+  }
+}
+
+// Test transposeInPlace at vectorization boundary sizes.
+// BlockedInPlaceTranspose uses PacketSize-blocked loops with a scalar remainder (line 273),
+// exercising off-by-one-prone transitions.
+template <typename Scalar>
+void transposeInPlace_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  // Sizes around packet boundaries where the blocked path's remainder handling is exercised.
+  const Index sizes[] = {1,      2,          3,      PS - 1,     PS,     PS + 1,    2 * PS - 1,
+                         2 * PS, 2 * PS + 1, 3 * PS, 3 * PS + 1, 4 * PS, 4 * PS + 1};
+  for (int si = 0; si < 13; ++si) {
+    Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+    // Square transposeInPlace
+    Mat m1 = Mat::Random(n, n);
+    Mat m2 = m1;
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, m1.transpose());
+    // Double transpose should return to original
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, m1);
+  }
+
+  // Non-square transposeInPlace (resizable dynamic matrices)
+  const Index rect_sizes[][2] = {{2, 5}, {PS, 2 * PS + 1}, {3, 1}, {1, 7}, {2 * PS, PS + 1}};
+  for (int si = 0; si < 5; ++si) {
+    Index r = rect_sizes[si][0], c = rect_sizes[si][1];
+    if (r <= 0 || c <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+    Mat m1 = Mat::Random(r, c);
+    Mat expected = m1.transpose();
+    Mat m2 = m1;
+    m2.transposeInPlace();
+    VERIFY_IS_APPROX(m2, expected);
+    VERIFY(m2.rows() == c && m2.cols() == r);
+  }
+}
+
 EIGEN_DECLARE_TEST(adjoint) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(adjoint(Matrix<float, 1, 1>()));
@@ -233,4 +303,15 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_7(adjoint(Matrix<float, 100, 100>()));
 
   CALL_SUBTEST_13(adjoint_extra<0>());
+
+  // Inner product vectorization boundary tests (deterministic, outside g_repeat)
+  CALL_SUBTEST_14(inner_product_boundary_sizes<float>());
+  CALL_SUBTEST_15(inner_product_boundary_sizes<double>());
+  CALL_SUBTEST_16(inner_product_boundary_sizes<std::complex<float>>());
+  CALL_SUBTEST_17(inner_product_boundary_sizes<std::complex<double>>());
+
+  // transposeInPlace at vectorization boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_18(transposeInPlace_boundary<float>());
+  CALL_SUBTEST_18(transposeInPlace_boundary<double>());
+  CALL_SUBTEST_18(transposeInPlace_boundary<std::complex<float>>());
 }

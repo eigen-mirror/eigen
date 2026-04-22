@@ -108,6 +108,150 @@ void trsolve(int size = Size, int cols = Cols) {
   }
 }
 
+// Test triangular solve with non-unit inner stride at blocking boundary sizes.
+// The scalar fallback path in trsmKernelR (TriangularSolverMatrix.h lines 156-166)
+// is used when OtherInnerStride != 1. The existing bug 1741 test only uses
+// InnerStride=2 at random sizes. This exercises the scalar path at sizes that
+// trigger blocking transitions and tests additional configurations.
+template <int>
+void trsolve_strided_boundary() {
+  typedef double Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+
+  const int sizes[] = {1, 2, 3, 4, 8, 12, 16, 24, 32, 47, 48, 49, 64};
+  for (int si = 0; si < 13; ++si) {
+    int n = sizes[si];
+
+    MatrixX lhs = MatrixX::Random(n, n);
+    lhs *= 0.1;
+    lhs.diagonal().array() += 1.0;
+
+    // InnerStride = 2: ColMajor RHS, OnTheLeft, Lower
+    {
+      int cols = 5;
+      MatrixX buffer(2 * n, 2 * cols);
+      Map<MatrixX, 0, Stride<Dynamic, 2> > map(buffer.data(), n, cols, Stride<Dynamic, 2>(2 * n, 2));
+      MatrixX ref(n, cols);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<Lower>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<Lower>().toDenseMatrix() * MatrixX(map), ref);
+    }
+
+    // InnerStride = 2: Upper triangular
+    {
+      int cols = 5;
+      MatrixX buffer(2 * n, 2 * cols);
+      Map<MatrixX, 0, Stride<Dynamic, 2> > map(buffer.data(), n, cols, Stride<Dynamic, 2>(2 * n, 2));
+      MatrixX ref(n, cols);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<Upper>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<Upper>().toDenseMatrix() * MatrixX(map), ref);
+    }
+
+    // InnerStride = 2: UnitLower (tests the UnitDiag path without diagonal scaling)
+    {
+      int cols = 3;
+      MatrixX buffer(2 * n, 2 * cols);
+      Map<MatrixX, 0, Stride<Dynamic, 2> > map(buffer.data(), n, cols, Stride<Dynamic, 2>(2 * n, 2));
+      MatrixX ref(n, cols);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<UnitLower>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<UnitLower>().toDenseMatrix() * MatrixX(map), ref);
+    }
+
+    // InnerStride = 3: Less common stride to exercise the scalar path more thoroughly
+    {
+      int cols = 4;
+      MatrixX buffer(3 * n, 3 * cols);
+      Map<MatrixX, 0, Stride<Dynamic, 3> > map(buffer.data(), n, cols, Stride<Dynamic, 3>(3 * n, 3));
+      MatrixX ref(n, cols);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<Lower>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<Lower>().toDenseMatrix() * MatrixX(map), ref);
+    }
+
+    // Vector RHS with InnerStride = 2
+    {
+      typedef Matrix<Scalar, Dynamic, 1> VecX;
+      VecX buffer(2 * n);
+      Map<VecX, 0, InnerStride<2> > map(buffer.data(), n, InnerStride<2>(2));
+      buffer.setZero();
+      map.setRandom();
+      VecX ref = map;
+      lhs.triangularView<Lower>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<Lower>().toDenseMatrix() * VecX(map), ref);
+    }
+  }
+
+  // Complex with non-unit stride: tests conjugation in the scalar fallback path.
+  {
+    typedef std::complex<double> CScalar;
+    typedef Matrix<CScalar, Dynamic, Dynamic> CMatrixX;
+    int n = 32;
+    CMatrixX lhs = CMatrixX::Random(n, n);
+    lhs *= CScalar(0.1);
+    lhs.diagonal().array() += CScalar(1.0);
+
+    int cols = 4;
+    CMatrixX buffer(2 * n, 2 * cols);
+    Map<CMatrixX, 0, Stride<Dynamic, 2> > map(buffer.data(), n, cols, Stride<Dynamic, 2>(2 * n, 2));
+    CMatrixX ref(n, cols);
+
+    // Conjugate Lower
+    buffer.setZero();
+    map.setRandom();
+    ref = map;
+    lhs.conjugate().triangularView<Lower>().solveInPlace(map);
+    VERIFY_IS_APPROX(lhs.conjugate().triangularView<Lower>().toDenseMatrix() * CMatrixX(map), ref);
+
+    // Adjoint Upper
+    buffer.setZero();
+    map.setRandom();
+    ref = map;
+    lhs.adjoint().triangularView<Lower>().solveInPlace(map);
+    VERIFY_IS_APPROX(lhs.adjoint().triangularView<Lower>().toDenseMatrix() * CMatrixX(map), ref);
+  }
+}
+
+void trsolve_indexed_view() {
+  typedef Matrix<double, Dynamic, Dynamic> MatrixX;
+  typedef Matrix<double, Dynamic, 1> VectorX;
+
+  MatrixX lhs = MatrixX::Random(8, 8);
+  lhs *= 0.1;
+  lhs.diagonal().array() += 1.0;
+
+  VectorX rhs = VectorX::Random(8);
+  std::vector<int> indices{0, 1, 2, 7};
+
+  MatrixX lhs_slice = lhs(indices, indices);
+  VectorX rhs_slice = rhs(indices);
+  VectorX expected = lhs_slice.triangularView<Upper>().solve(rhs_slice);
+
+  VectorX actual = lhs(indices, indices).triangularView<Upper>().solve(rhs(indices));
+  VERIFY_IS_APPROX(actual, expected);
+
+  VectorX assigned = VectorX::Random(8);
+  VectorX assigned_ref = assigned;
+  assigned(indices) = lhs_slice.triangularView<Upper>().solve(rhs_slice);
+  assigned_ref(indices) = expected;
+  VERIFY_IS_APPROX(assigned, assigned_ref);
+
+  VectorX inplace = rhs;
+  VectorX inplace_ref = rhs;
+  lhs_slice.triangularView<Upper>().solveInPlace(inplace(indices));
+  inplace_ref(indices) = expected;
+  VERIFY_IS_APPROX(inplace, inplace_ref);
+}
+
 EIGEN_DECLARE_TEST(product_trsolve) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
@@ -134,4 +278,8 @@ EIGEN_DECLARE_TEST(product_trsolve) {
     CALL_SUBTEST_13((trsolve<float, 1, 2>()));
     CALL_SUBTEST_14((trsolve<float, 3, 1>()));
   }
+
+  // Strided solve at blocking boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_15(trsolve_strided_boundary<0>());
+  CALL_SUBTEST_16(trsolve_indexed_view());
 }

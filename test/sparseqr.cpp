@@ -132,9 +132,49 @@ void test_sparseqr_scalar() {
   dQ = solver.matrixQ();
   VERIFY_IS_APPROX(Q, dQ);
 }
+
+void test_sparseqr_factorize_uncompressed_input() {
+  typedef SparseMatrix<double, ColMajor> MatrixType;
+  typedef VectorXd Vector;
+  typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
+
+  MatrixType uncompressed(2, 2);
+  VectorXi reserve(2);
+  reserve << 2, 3;
+  uncompressed.reserve(reserve);
+  uncompressed.insert(0, 0) = 1.0;
+  uncompressed.insert(0, 1) = 0.5;
+  uncompressed.insert(1, 1) = 1.0;
+
+  // Poison inactive capacity so factorize() must ignore unused slots in the
+  // uncompressed input instead of treating reserved space as structural nnz.
+  uncompressed.innerIndexPtr()[1] = 1;
+  uncompressed.valuePtr()[1] = 7.0;
+
+  MatrixType compressed = uncompressed;
+  compressed.makeCompressed();
+
+  Vector b(2);
+  b << 1.0, 2.0;
+  Vector expected(2);
+  expected << 0.0, 2.0;
+
+  Solver compressed_solver;
+  compressed_solver.compute(compressed);
+  VERIFY_IS_EQUAL(compressed_solver.info(), Success);
+  VERIFY_IS_APPROX(compressed_solver.solve(b), expected);
+
+  Solver two_step_solver;
+  two_step_solver.analyzePattern(compressed);
+  two_step_solver.factorize(uncompressed);
+  VERIFY_IS_EQUAL(two_step_solver.info(), Success);
+  VERIFY_IS_APPROX(two_step_solver.solve(b), expected);
+}
+
 EIGEN_DECLARE_TEST(sparseqr) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
     CALL_SUBTEST_2(test_sparseqr_scalar<std::complex<double> >());
   }
+  CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input());
 }

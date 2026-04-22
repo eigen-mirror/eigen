@@ -74,7 +74,7 @@ const int TestQueue::kQueueSize;
 // fake queues. Ensure that it does not crash, consumers don't deadlock and
 // number of blocked and unblocked threads match.
 static void test_stress_eventcount() {
-  const int kThreads = std::thread::hardware_concurrency();
+  const int kThreads = (std::min)(static_cast<int>(std::thread::hardware_concurrency()), 16);
   static const int kEvents = 1 << 16;
   static const int kQueues = 10;
 

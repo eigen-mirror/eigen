@@ -40,7 +40,7 @@ namespace internal {
 //    Steve
 
 /****************************************************************************
- * Implementation of lgamma, requires C++11/C99                             *
+ * Implementation of lgamma, requires C99                                   *
  ****************************************************************************/
 
 template <typename Scalar>
@@ -506,7 +506,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<float>::run(const T& x)
 
 template <>
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x_in) {
+  // Clamp x to [-28:28] beyond which erf(x) is ±1 within double precision.
+  // This avoids NaN from twoprod and exp operations for infinite inputs.
+  constexpr double kClamp = 28.0;
+  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
   T x2 = pmul(x, x);
   T erf_small = pmul(x, erf_over_x_double_small(x2));
 
@@ -751,7 +755,7 @@ struct ndtri_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /**************************************************************************************************************
- * Implementation of igammac (complemented incomplete gamma integral), based on Cephes but requires C++11/C99 *
+ * Implementation of igammac (complemented incomplete gamma integral), based on Cephes but requires C99       *
  **************************************************************************************************************/
 
 template <typename Scalar>
@@ -1103,7 +1107,9 @@ struct igammac_impl {
     }
 
     if ((x < one) || (x < a)) {
-      return (one - igamma_series_impl<Scalar, VALUE>::run(a, x));
+      // Clamp to [0,1] since 1-igamma can produce tiny negative values
+      // due to floating-point cancellation for extreme arguments.
+      return numext::mini(one, numext::maxi(zero, one - igamma_series_impl<Scalar, VALUE>::run(a, x)));
     }
 
     return igammac_cf_impl<Scalar, VALUE>::run(a, x);
@@ -1113,7 +1119,7 @@ struct igammac_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /************************************************************************************************
- * Implementation of igamma (incomplete gamma integral), based on Cephes but requires C++11/C99 *
+ * Implementation of igamma (incomplete gamma integral), based on Cephes but requires C99        *
  ************************************************************************************************/
 
 #if !EIGEN_HAS_C99_MATH
@@ -1155,13 +1161,21 @@ struct igamma_generic_impl {
     if ((x > one) && (x > a)) {
       Scalar ret = igammac_cf_impl<Scalar, mode>::run(a, x);
       if (mode == VALUE) {
-        return one - ret;
+        // Clamp to [0,1] since 1-igammac can produce tiny negative values
+        // due to floating-point cancellation for extreme arguments.
+        return numext::mini(one, numext::maxi(zero, one - ret));
       } else {
         return -ret;
       }
     }
 
-    return igamma_series_impl<Scalar, mode>::run(a, x);
+    Scalar ret = igamma_series_impl<Scalar, mode>::run(a, x);
+    if (mode == VALUE) {
+      // Clamp to [0,1] since accumulated series terms can slightly exceed 1.0
+      // due to floating-point rounding for extreme arguments.
+      return numext::mini(one, numext::maxi(zero, ret));
+    }
+    return ret;
   }
 };
 
@@ -1511,7 +1525,7 @@ struct zeta_impl {
 };
 
 /****************************************************************************
- * Implementation of polygamma function, requires C++11/C99                 *
+ * Implementation of polygamma function, requires C99                       *
  ****************************************************************************/
 
 template <typename Scalar>
@@ -1556,7 +1570,7 @@ struct polygamma_impl {
 #endif  // EIGEN_HAS_C99_MATH
 
 /************************************************************************************************
- * Implementation of betainc (incomplete beta integral), based on Cephes but requires C++11/C99 *
+ * Implementation of betainc (incomplete beta integral), based on Cephes but requires C99        *
  ************************************************************************************************/
 
 template <typename Scalar>
@@ -1910,8 +1924,6 @@ struct betainc_impl<double> {
   EIGEN_DEVICE_FUNC static double run(double aa, double bb, double xx) {
     const double nan = NumTraits<double>::quiet_NaN();
     const double machep = cephes_helper<double>::machep();
-    // const double maxgam = 171.624376956302725;
-
     double a, b, t, x, xc, w, y;
     bool reversed_a_b = false;
 

@@ -42,11 +42,41 @@ void selfadjoint(const MatrixType& m) {
   m4 = m2;
   m4 -= m1.template selfadjointView<Lower>();
   VERIFY_IS_APPROX(m4, m2 - m3);
+
+  Scalar s = internal::random<Scalar>();
+
+  m4 = s * m1.template selfadjointView<Upper>();
+  VERIFY_IS_APPROX(m4, MatrixType((s * m1).template selfadjointView<Upper>()));
+  m4 = m1.template selfadjointView<Upper>() * s;
+  VERIFY_IS_APPROX(m4, MatrixType((m1 * s).template selfadjointView<Upper>()));
+
+  m4 = s * m1.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(m4, MatrixType((s * m1).template selfadjointView<Lower>()));
+  m4 = m1.template selfadjointView<Lower>() * s;
+  VERIFY_IS_APPROX(m4, MatrixType((m1 * s).template selfadjointView<Lower>()));
+
+  // l1Norm: reads only the stored triangle but must agree with the L1 norm of
+  // the materialized full matrix. Upper and Lower views of the same (stored-
+  // full) self-adjoint matrix must return the same value; complex scalars
+  // behave identically since |conj(x)| = |x|.
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  m3 = m1.template selfadjointView<Upper>();  // m3 is now fully self-adjoint
+  RealScalar ref_l1 = m3.cwiseAbs().colwise().sum().maxCoeff();
+  VERIFY_IS_APPROX(m3.template selfadjointView<Upper>().l1Norm(), ref_l1);
+  VERIFY_IS_APPROX(m3.template selfadjointView<Lower>().l1Norm(), ref_l1);
+  // Either triangle alone still gives the correct L1 norm even if the other
+  // half is zero (the view conjure it back via symmetry).
+  MatrixType upperOnly = MatrixType::Zero(rows, cols);
+  upperOnly.template triangularView<Upper>() = m3;
+  VERIFY_IS_APPROX(upperOnly.template selfadjointView<Upper>().l1Norm(), ref_l1);
+  MatrixType lowerOnly = MatrixType::Zero(rows, cols);
+  lowerOnly.template triangularView<Lower>() = m3;
+  VERIFY_IS_APPROX(lowerOnly.template selfadjointView<Lower>().l1Norm(), ref_l1);
 }
 
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
+  EIGEN_UNUSED_VARIABLE(m);
 }
 
 EIGEN_DECLARE_TEST(selfadjoint) {
@@ -59,7 +89,7 @@ EIGEN_DECLARE_TEST(selfadjoint) {
     CALL_SUBTEST_4(selfadjoint(MatrixXcd(s, s)));
     CALL_SUBTEST_5(selfadjoint(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
 
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 
   CALL_SUBTEST_1(bug_159());

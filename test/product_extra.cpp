@@ -252,6 +252,7 @@ EIGEN_DONT_INLINE Index test_compute_block_size(Index m, Index n, Index k) {
 template <typename T>
 Index compute_block_size() {
   Index ret = 0;
+  // Zero-sized inputs: verify they compile and don't crash.
   ret += test_compute_block_size<T>(0, 1, 1);
   ret += test_compute_block_size<T>(1, 0, 1);
   ret += test_compute_block_size<T>(1, 1, 0);
@@ -259,7 +260,56 @@ Index compute_block_size() {
   ret += test_compute_block_size<T>(0, 1, 0);
   ret += test_compute_block_size<T>(1, 0, 0);
   ret += test_compute_block_size<T>(0, 0, 0);
+
+  // Sanity checks: blocking sizes must be positive and not exceed the original.
+  {
+    Index m = 200, n = 200, k = 200;
+    Index mc = m, nc = n, kc = k;
+    internal::computeProductBlockingSizes<T, T>(kc, mc, nc);
+    VERIFY(kc > 0 && kc <= k);
+    VERIFY(mc > 0 && mc <= m);
+    VERIFY(nc > 0 && nc <= n);
+  }
+  // With EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS (l1=9KB, l2=32KB, l3=512KB),
+  // large sizes must be actually blocked (not returned as-is).
+  {
+    Index m = 500, n = 500, k = 500;
+    Index mc = m, nc = n, kc = k;
+    internal::computeProductBlockingSizes<T, T>(kc, mc, nc);
+    VERIFY(kc < k);
+  }
+
   return ret;
+}
+
+// Verify correctness of GEMM at sizes that require multiple blocking passes
+// under EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS (l1=9KB, l2=32KB, l3=512KB).
+// The blocking early-return threshold is max(k,m,n) < 48, so sizes >= 48
+// trigger actual multi-pass blocking with these tiny cache sizes.
+// Verifies GEMM against column-by-column GEMV (a different code path).
+template <int>
+void test_small_block_correctness() {
+  const int sizes[] = {48, 64, 96, 128, 200};
+  for (int si = 0; si < 5; ++si) {
+    int n = sizes[si];
+    MatrixXd A = MatrixXd::Random(n, n);
+    MatrixXd B = MatrixXd::Random(n, n);
+    MatrixXd C(n, n);
+    C.noalias() = A * B;
+    MatrixXd Cref(n, n);
+    for (int j = 0; j < n; ++j) Cref.col(j) = A * B.col(j);
+    VERIFY_IS_APPROX(C, Cref);
+  }
+  // Non-square: exercise different blocking in m, n, k dimensions.
+  {
+    MatrixXd A = MatrixXd::Random(200, 64);
+    MatrixXd B = MatrixXd::Random(64, 300);
+    MatrixXd C(200, 300);
+    C.noalias() = A * B;
+    MatrixXd Cref(200, 300);
+    for (int j = 0; j < 300; ++j) Cref.col(j) = A * B.col(j);
+    VERIFY_IS_APPROX(C, Cref);
+  }
 }
 
 template <typename>
@@ -347,6 +397,260 @@ void bug_1308() {
   VERIFY_IS_APPROX(r44.noalias() += Vector4d::Ones() * m44.col(0).transpose(), ones44);
 }
 
+// Regression test for issue #3059: GEBP asm register constraints fail
+// for custom (non-vectorizable) scalar types. Type T has a non-trivial
+// destructor (making sizeof(T) > sizeof(double)), while type U is a
+// simple wrapper. Both must compile and produce correct products.
+namespace issue_3059 {
+
+class Ptr {
+ public:
+  ~Ptr() {}
+  double* m_ptr = nullptr;
+};
+
+class T {
+ public:
+  T() = default;
+  T(double v) : m_value(v) {}
+
+  friend T operator*(const T& a, const T& b) { return T(a.m_value * b.m_value); }
+  T& operator*=(const T& o) {
+    m_value *= o.m_value;
+    return *this;
+  }
+  friend T operator/(const T& a, const T& b) { return T(a.m_value / b.m_value); }
+  T& operator/=(const T& o) {
+    m_value /= o.m_value;
+    return *this;
+  }
+  friend T operator+(const T& a, const T& b) { return T(a.m_value + b.m_value); }
+  T& operator+=(const T& o) {
+    m_value += o.m_value;
+    return *this;
+  }
+  friend T operator-(const T& a, const T& b) { return T(a.m_value - b.m_value); }
+  T& operator-=(const T& o) {
+    m_value -= o.m_value;
+    return *this;
+  }
+  friend T operator-(const T& a) { return T(-a.m_value); }
+
+  bool operator==(const T& o) const { return m_value == o.m_value; }
+  bool operator<(const T& o) const { return m_value < o.m_value; }
+  bool operator<=(const T& o) const { return m_value <= o.m_value; }
+  bool operator>(const T& o) const { return m_value > o.m_value; }
+  bool operator>=(const T& o) const { return m_value >= o.m_value; }
+  bool operator!=(const T& o) const { return m_value != o.m_value; }
+
+  double value() const { return m_value; }
+
+ private:
+  double m_value = 0.0;
+  Ptr m_ptr;  // Makes sizeof(T) > sizeof(double)
+};
+
+T sqrt(const T& x) { return T(std::sqrt(x.value())); }
+T abs(const T& x) { return T(std::abs(x.value())); }
+T abs2(const T& x) { return T(x.value() * x.value()); }
+
+class U {
+ public:
+  U() = default;
+  U(double v) : m_value(v) {}
+
+  friend U operator*(const U& a, const U& b) { return U(a.m_value * b.m_value); }
+  U& operator*=(const U& o) {
+    m_value *= o.m_value;
+    return *this;
+  }
+  friend U operator/(const U& a, const U& b) { return U(a.m_value / b.m_value); }
+  U& operator/=(const U& o) {
+    m_value /= o.m_value;
+    return *this;
+  }
+  friend U operator+(const U& a, const U& b) { return U(a.m_value + b.m_value); }
+  U& operator+=(const U& o) {
+    m_value += o.m_value;
+    return *this;
+  }
+  friend U operator-(const U& a, const U& b) { return U(a.m_value - b.m_value); }
+  U& operator-=(const U& o) {
+    m_value -= o.m_value;
+    return *this;
+  }
+  friend U operator-(const U& a) { return U(-a.m_value); }
+
+  bool operator==(const U& o) const { return m_value == o.m_value; }
+  bool operator<(const U& o) const { return m_value < o.m_value; }
+  bool operator<=(const U& o) const { return m_value <= o.m_value; }
+  bool operator>(const U& o) const { return m_value > o.m_value; }
+  bool operator>=(const U& o) const { return m_value >= o.m_value; }
+  bool operator!=(const U& o) const { return m_value != o.m_value; }
+
+  double value() const { return m_value; }
+
+ private:
+  double m_value = 0.0;
+};
+
+U sqrt(const U& x) { return U(std::sqrt(x.value())); }
+U abs(const U& x) { return U(std::abs(x.value())); }
+U abs2(const U& x) { return U(x.value() * x.value()); }
+
+}  // namespace issue_3059
+
+namespace Eigen {
+
+template <>
+struct NumTraits<issue_3059::T> : NumTraits<double> {
+  using Real = issue_3059::T;
+  using NonInteger = issue_3059::T;
+  using Nested = issue_3059::T;
+  enum { IsComplex = 0, RequireInitialization = 1 };
+};
+
+template <>
+struct NumTraits<issue_3059::U> : NumTraits<double> {
+  using Real = issue_3059::U;
+  using NonInteger = issue_3059::U;
+  using Nested = issue_3059::U;
+  enum { IsComplex = 0, RequireInitialization = 0 };
+};
+
+}  // namespace Eigen
+
+template <int>
+void product_custom_scalar_types() {
+  using namespace issue_3059;
+  // Type T: has non-trivial destructor, sizeof(T) > sizeof(double)
+  {
+    Matrix<T, Dynamic, Dynamic> A(4, 4), B(4, 4), C(4, 4);
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) {
+        A(i, j) = T(static_cast<double>(i + 1));
+        B(i, j) = T(static_cast<double>(j + 1));
+      }
+    C.noalias() = A * B;
+    // A*B: C(i,j) = sum_k (i+1)*(k+1) * ... no, A(i,k)=(i+1), B(k,j)=(j+1)
+    // so C(i,j) = sum_k (i+1)*(j+1) = 4*(i+1)*(j+1)
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) VERIFY(C(i, j) == T(4.0 * (i + 1) * (j + 1)));
+  }
+  // Type U: simple wrapper, sizeof(U) == sizeof(double)
+  {
+    Matrix<U, Dynamic, Dynamic> A(4, 4), B(4, 4), C(4, 4);
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) {
+        A(i, j) = U(static_cast<double>(i + 1));
+        B(i, j) = U(static_cast<double>(j + 1));
+      }
+    C.noalias() = A * B;
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j) VERIFY(C(i, j) == U(4.0 * (i + 1) * (j + 1)));
+  }
+  // Larger matrices to exercise GEBP blocking.
+  {
+    const int n = 33;
+    Matrix<U, Dynamic, Dynamic> A(n, n), B(n, n), C(n, n);
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) {
+        A(i, j) = U(static_cast<double>((i * 7 + j * 3) % 13));
+        B(i, j) = U(static_cast<double>((i * 5 + j * 11) % 17));
+      }
+    C.noalias() = A * B;
+    // Verify against explicit triple loop.
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j) {
+        double sum = 0;
+        for (int k = 0; k < n; ++k) sum += A(i, k).value() * B(k, j).value();
+        VERIFY(C(i, j) == U(sum));
+      }
+  }
+}
+
+// Test complex GEMV with all conjugation combinations at sizes that
+// exercise full, half, and quarter packet code paths.
+// The GEMV kernels in GeneralMatrixVector.h use conj_helper at three
+// packet levels. The existing product_extra tests cover conjugation
+// but only at random sizes, never systematically at packet boundaries.
+template <int>
+void gemv_complex_conjugate() {
+  typedef std::complex<float> Scf;
+  typedef std::complex<double> Scd;
+  const Index PS_f = internal::packet_traits<Scf>::size;
+  const Index PS_d = internal::packet_traits<Scd>::size;
+
+  // Sizes chosen to exercise packet boundaries for both float and double.
+  const Index sizes[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33};
+
+  for (int si = 0; si < 14; ++si) {
+    Index m = sizes[si];
+    // Test complex<float> GEMV with all conjugation combos.
+    {
+      typedef Matrix<Scf, Dynamic, Dynamic> Mat;
+      typedef Matrix<Scf, Dynamic, 1> Vec;
+      Mat A = Mat::Random(m, m);
+      Vec v = Vec::Random(m);
+      Vec res(m);
+
+      // A * v (no conjugation)
+      res.noalias() = A * v;
+      VERIFY_IS_APPROX(res, (A.eval() * v.eval()).eval());
+
+      // A.conjugate() * v
+      res.noalias() = A.conjugate() * v;
+      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
+
+      // A * v.conjugate()
+      res.noalias() = A * v.conjugate();
+      VERIFY_IS_APPROX(res, (A.eval() * v.conjugate().eval()).eval());
+
+      // A.conjugate() * v.conjugate()
+      res.noalias() = A.conjugate() * v.conjugate();
+      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.conjugate().eval()).eval());
+
+      // A.adjoint() * v (transpose + conjugate of lhs)
+      Vec res2(m);
+      res2.noalias() = A.adjoint() * v;
+      VERIFY_IS_APPROX(res2, (A.adjoint().eval() * v.eval()).eval());
+
+      // Row-major complex GEMV
+      typedef Matrix<Scf, Dynamic, Dynamic, RowMajor> RMat;
+      RMat B = A;
+      res.noalias() = B * v;
+      VERIFY_IS_APPROX(res, (A.eval() * v.eval()).eval());
+
+      res.noalias() = B.conjugate() * v;
+      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
+    }
+
+    // Test complex<double> GEMV with conjugation.
+    {
+      typedef Matrix<Scd, Dynamic, Dynamic> Mat;
+      typedef Matrix<Scd, Dynamic, 1> Vec;
+      Mat A = Mat::Random(m, m);
+      Vec v = Vec::Random(m);
+      Vec res(m);
+
+      res.noalias() = A.conjugate() * v;
+      VERIFY_IS_APPROX(res, (A.conjugate().eval() * v.eval()).eval());
+
+      res.noalias() = A * v.conjugate();
+      VERIFY_IS_APPROX(res, (A.eval() * v.conjugate().eval()).eval());
+
+      // Non-square: wide matrix × vector (exercises different cols path).
+      Mat C = Mat::Random(m, m + 3);
+      Vec w = Vec::Random(m + 3);
+      Vec res3(m);
+      res3.noalias() = C.conjugate() * w;
+      VERIFY_IS_APPROX(res3, (C.conjugate().eval() * w.eval()).eval());
+    }
+  }
+  (void)PS_f;
+  (void)PS_d;
+}
+
 EIGEN_DECLARE_TEST(product_extra) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product_extra(
@@ -369,4 +673,9 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_7(compute_block_size<double>());
   CALL_SUBTEST_7(compute_block_size<std::complex<double> >());
   CALL_SUBTEST_8(aliasing_with_resize<void>());
+  CALL_SUBTEST_9(product_custom_scalar_types<0>());
+  CALL_SUBTEST_10(test_small_block_correctness<0>());
+
+  // Complex GEMV conjugation at varied sizes (deterministic, outside g_repeat).
+  CALL_SUBTEST_11(gemv_complex_conjugate<0>());
 }

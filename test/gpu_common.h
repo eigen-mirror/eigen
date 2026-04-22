@@ -104,7 +104,7 @@ void run_and_compare_to_gpu(const Kernel& ker, int n, const Input& in, Output& o
 struct compile_time_device_info {
   EIGEN_DEVICE_FUNC void operator()(int i, const int* /*in*/, int* info) const {
     if (i == 0) {
-      EIGEN_UNUSED_VARIABLE(info)
+      EIGEN_UNUSED_VARIABLE(info);
 #if defined(__CUDA_ARCH__)
       info[0] = int(__CUDA_ARCH__ + 0);
 #endif

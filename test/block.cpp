@@ -49,6 +49,21 @@ std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> check_left_top(
 }
 
 template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) == 0), void> checkInnerVector(const MatrixType& m, Index /*r*/,
+                                                                                  Index c, Index /*rows*/, Index cols) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(c), m.col(c));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(c, cols), m.middleCols(c, cols));
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> checkInnerVector(const MatrixType& m, Index r,
+                                                                                  Index /*c*/, Index rows,
+                                                                                  Index /*cols*/) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(r), m.row(r));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(r, rows), m.middleRows(r, rows));
+}
+
+template <typename MatrixType>
 void block(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
@@ -72,6 +87,7 @@ void block(const MatrixType& m) {
   Index c2 = internal::random<Index>(c1, cols - 1);
 
   block_real_only(m1, r1, r2, c1, c1, s1);
+  checkInnerVector(m1, r1, c1, r2 - r1, c2 - c1);
 
   // test fill logic with innerpanel and non-innerpanel blocks
   m1.row(r1).setConstant(s1);
@@ -86,6 +102,32 @@ void block(const MatrixType& m) {
   m1 = m1_copy;
   m1.col(c1).setZero();
   VERIFY_IS_CWISE_EQUAL(m1.col(c1), DynamicVectorType::Zero(rows));
+  m1 = m1_copy;
+  // test setZero/setConstant/setOnes on non-contiguous multi-row/multi-col blocks
+  // This exercises the non-fill_n path in Fill.h and verifies no data corruption
+  if (r2 > r1 && c2 > c1) {
+    Index br = r2 - r1, bc = c2 - c1;
+    m1 = m1_copy;
+    m1.block(r1, c1, br, bc).setZero();
+    VERIFY_IS_CWISE_EQUAL(m1.block(r1, c1, br, bc), DynamicMatrixType::Zero(br, bc));
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i)
+        if (i < r1 || i >= r2 || j < c1 || j >= c2) VERIFY_IS_EQUAL(m1(i, j), m1_copy(i, j));
+
+    m1 = m1_copy;
+    m1.block(r1, c1, br, bc).setConstant(s1);
+    VERIFY_IS_CWISE_EQUAL(m1.block(r1, c1, br, bc), DynamicMatrixType::Constant(br, bc, s1));
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i)
+        if (i < r1 || i >= r2 || j < c1 || j >= c2) VERIFY_IS_EQUAL(m1(i, j), m1_copy(i, j));
+
+    m1 = m1_copy;
+    m1.block(r1, c1, br, bc).setOnes();
+    VERIFY_IS_CWISE_EQUAL(m1.block(r1, c1, br, bc), DynamicMatrixType::Ones(br, bc));
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i)
+        if (i < r1 || i >= r2 || j < c1 || j >= c2) VERIFY_IS_EQUAL(m1(i, j), m1_copy(i, j));
+  }
   m1 = m1_copy;
 
   // check row() and col()

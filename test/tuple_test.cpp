@@ -23,24 +23,23 @@ void basic_tuple_test() {
   tuple<int, float, double> tuple3{7, 11.0f, 13.0};
   // Default construction.
   tuple<> tuple0default;
-  EIGEN_UNUSED_VARIABLE(tuple0default)
+  EIGEN_UNUSED_VARIABLE(tuple0default);
   tuple<int> tuple1default;
-  EIGEN_UNUSED_VARIABLE(tuple1default)
+  EIGEN_UNUSED_VARIABLE(tuple1default);
   tuple<int, float> tuple2default;
-  EIGEN_UNUSED_VARIABLE(tuple2default)
+  EIGEN_UNUSED_VARIABLE(tuple2default);
   tuple<int, float, double> tuple3default;
-  EIGEN_UNUSED_VARIABLE(tuple3default)
+  EIGEN_UNUSED_VARIABLE(tuple3default);
 
   // Assignment.
   tuple<> tuple0b = tuple0;
-  EIGEN_UNUSED_VARIABLE(tuple0b)
+  EIGEN_UNUSED_VARIABLE(tuple0b);
   decltype(tuple1) tuple1b = tuple1;
-  EIGEN_UNUSED_VARIABLE(tuple1b)
+  EIGEN_UNUSED_VARIABLE(tuple1b);
   decltype(tuple2) tuple2b = tuple2;
-  EIGEN_UNUSED_VARIABLE(tuple2b)
+  EIGEN_UNUSED_VARIABLE(tuple2b);
   decltype(tuple3) tuple3b = tuple3;
-  EIGEN_UNUSED_VARIABLE(tuple3b)
-
+  EIGEN_UNUSED_VARIABLE(tuple3b);
   // get.
   VERIFY_IS_EQUAL(tuple_impl::get<0>(tuple3), 7);
   VERIFY_IS_EQUAL(tuple_impl::get<1>(tuple3), 11.0f);

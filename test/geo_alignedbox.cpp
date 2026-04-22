@@ -257,8 +257,8 @@ void alignedboxRotatable(const BoxType& box,
   // box((-3, -2, -2), (-1, 0, 0))
 
   IsometryTransform tf2 = IsometryTransform::Identity();
-  // for some weird reason the following statement has to be put separate from
-  // the following rotate call, otherwise precision problems arise...
+  // The following statement must be separate from the rotate call below,
+  // otherwise precision problems arise.
   Rotation rot = rotate(NonInteger(EIGEN_PI));
   tf2.rotate(rot);
 

@@ -134,6 +134,6 @@ EIGEN_DECLARE_TEST(eigensolver_generalized_real) {
     CALL_SUBTEST_3(generalized_eigensolver_real(Matrix<double, 1, 1>()));
     CALL_SUBTEST_4(generalized_eigensolver_real(Matrix2d()));
     CALL_SUBTEST_5(generalized_eigensolver_assert<MatrixXd>());
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }

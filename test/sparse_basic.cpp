@@ -540,8 +540,6 @@ void sparse_basic(const SparseMatrixType& ref) {
 
     triplets.reserve(ntriplets);
     DenseMatrix refMat_sum = DenseMatrix::Zero(rows, cols);
-    DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
-    DenseMatrix refMat_last = DenseMatrix::Zero(rows, cols);
 
     for (Index i = 0; i < ntriplets; ++i) {
       StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
@@ -549,18 +547,11 @@ void sparse_basic(const SparseMatrixType& ref) {
       Scalar v = internal::random<Scalar>();
       triplets.push_back(TripletType(r, c, v));
       refMat_sum(r, c) += v;
-      if (std::abs(refMat_prod(r, c)) == 0)
-        refMat_prod(r, c) = v;
-      else
-        refMat_prod(r, c) *= v;
-      refMat_last(r, c) = v;
     }
 
     std::vector<TripletType> moreTriplets;
     moreTriplets.reserve(ntriplets);
     DenseMatrix refMat_sum_more = refMat_sum;
-    DenseMatrix refMat_prod_more = refMat_prod;
-    DenseMatrix refMat_last_more = refMat_last;
 
     for (Index i = 0; i < ntriplets; ++i) {
       StorageIndex r = internal::random<StorageIndex>(0, StorageIndex(rows - 1));
@@ -568,11 +559,44 @@ void sparse_basic(const SparseMatrixType& ref) {
       Scalar v = internal::random<Scalar>();
       moreTriplets.push_back(TripletType(r, c, v));
       refMat_sum_more(r, c) += v;
-      if (std::abs(refMat_prod_more(r, c)) == 0)
-        refMat_prod_more(r, c) = v;
-      else
-        refMat_prod_more(r, c) *= v;
-      refMat_last_more(r, c) = v;
+    }
+
+    // setFromTriplets sorts internally by (outer, inner), so non-commutative
+    // reductions (std::multiplies, "last wins") depend on sorted order.
+    // Compute these references from sorted triplets to match.
+    struct triplet_comp {
+      inline bool operator()(const TripletType& a, const TripletType& b) {
+        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
+                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
+      }
+    };
+
+    DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
+    DenseMatrix refMat_last = DenseMatrix::Zero(rows, cols);
+    {
+      auto sorted = triplets;
+      std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
+      for (const auto& t : sorted) {
+        if (std::abs(refMat_prod(t.row(), t.col())) == 0)
+          refMat_prod(t.row(), t.col()) = t.value();
+        else
+          refMat_prod(t.row(), t.col()) *= t.value();
+        refMat_last(t.row(), t.col()) = t.value();
+      }
+    }
+
+    DenseMatrix refMat_prod_more = refMat_prod;
+    DenseMatrix refMat_last_more = refMat_last;
+    {
+      auto sorted = moreTriplets;
+      std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
+      for (const auto& t : sorted) {
+        if (std::abs(refMat_prod_more(t.row(), t.col())) == 0)
+          refMat_prod_more(t.row(), t.col()) = t.value();
+        else
+          refMat_prod_more(t.row(), t.col()) *= t.value();
+        refMat_last_more(t.row(), t.col()) = t.value();
+      }
     }
 
     SparseMatrixType m(rows, cols);
@@ -631,13 +655,6 @@ void sparse_basic(const SparseMatrixType& ref) {
     VERIFY_IS_EQUAL(m.innerIndicesAreSorted(), m.outerSize());
 
     // test setFromSortedTriplets / insertFromSortedTriplets
-
-    struct triplet_comp {
-      inline bool operator()(const TripletType& a, const TripletType& b) {
-        return SparseMatrixType::IsRowMajor ? ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()))
-                                            : ((a.col() != b.col()) ? (a.col() < b.col()) : (a.row() < b.row()));
-      }
-    };
 
     // stable_sort is only necessary when the reduction functor is dependent on the order of the triplets
     // this is the case with refMat_last
@@ -779,10 +796,28 @@ void sparse_basic(const SparseMatrixType& ref) {
     m3 -= m2.template selfadjointView<Lower>();
     VERIFY_IS_APPROX(m3, refMat3);
 
+    Scalar s2 = internal::random<Scalar>();
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
+    SparseMatrixType m4 = s2 * m2.template selfadjointView<Upper>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Upper>() * s2;
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = s2 * m2.template selfadjointView<Lower>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Lower>() * s2;
+    VERIFY_IS_APPROX(m4, refMat3);
+
     // selfadjointView only works for square matrices:
-    SparseMatrixType m4(rows, rows + 1);
-    VERIFY_RAISES_ASSERT(m4.template selfadjointView<Lower>());
-    VERIFY_RAISES_ASSERT(m4.template selfadjointView<Upper>());
+    SparseMatrixType m5(rows, rows + 1);
+    VERIFY_RAISES_ASSERT(m5.template selfadjointView<Lower>());
+    VERIFY_RAISES_ASSERT(m5.template selfadjointView<Upper>());
   }
 
   // test sparseView
@@ -854,6 +889,10 @@ void sparse_basic(const SparseMatrixType& ref) {
     m2 -= d.asDiagonal();
     refMat2 -= d.asDiagonal();
     VERIFY_IS_APPROX(m2, refMat2);
+
+    // zero-length diagonal
+    d = DenseVector(0);
+    SparseMatrixType m4(d.asDiagonal());
   }
 
   // test conservative resize
@@ -996,6 +1035,80 @@ void big_sparse_triplet(Index rows, Index cols, double density) {
   VERIFY_IS_APPROX(sum, m.sum());
 }
 
+// Regression test: SparseMatrixBase::operator-=(const EigenBase&) must subtract, not overwrite.
+// SparseSelfAdjointView inherits EigenBase (not SparseMatrixBase), so it exercises this overload.
+template <int>
+void sparse_sub_assign_eigenbase() {
+  Index n = 10;
+  SparseMatrix<double> A(n, n), B(n, n);
+  A.setIdentity();
+  B.setIdentity();
+  B *= 3.0;
+
+  // Make B symmetric so selfadjointView is valid
+  MatrixXd refA = MatrixXd(A);
+  MatrixXd refB = MatrixXd(B);
+
+  // operator-= going through the EigenBase<OtherDerived> overload
+  A -= B.selfadjointView<Lower>();
+  refA -= refB.selfadjointView<Lower>();
+  VERIFY_IS_APPROX(MatrixXd(A), refA);
+
+  // Also test operator+= for symmetry
+  A += B.selfadjointView<Lower>();
+  refA += refB.selfadjointView<Lower>();
+  VERIFY_IS_APPROX(MatrixXd(A), refA);
+}
+
+// Regression test: AmbiVector::coeff() must return the correct linked-list element.
+template <int>
+void ambivector_coeff() {
+  using namespace Eigen::internal;
+  const Index size = 20;
+  AmbiVector<double, int> vec(size);
+  vec.setBounds(0, size);
+
+  // Test in sparse (linked-list) mode
+  vec.init(IsSparse);
+  vec.restart();
+  // Insert elements out of order to stress linked-list traversal:
+  // Insert at indices 2, 5, 10, 15 with distinct values
+  vec.coeffRef(2) = 2.0;
+  vec.coeffRef(5) = 5.0;
+  vec.coeffRef(10) = 10.0;
+  vec.coeffRef(15) = 15.0;
+
+  // coeff() should return the correct value for each inserted element
+  VERIFY_IS_APPROX(vec.coeff(2), 2.0);
+  VERIFY_IS_APPROX(vec.coeff(5), 5.0);
+  VERIFY_IS_APPROX(vec.coeff(10), 10.0);
+  VERIFY_IS_APPROX(vec.coeff(15), 15.0);
+
+  // coeff() should return zero for non-inserted elements
+  VERIFY_IS_EQUAL(vec.coeff(0), 0.0);
+  VERIFY_IS_EQUAL(vec.coeff(3), 0.0);
+  VERIFY_IS_EQUAL(vec.coeff(7), 0.0);
+  VERIFY_IS_EQUAL(vec.coeff(18), 0.0);
+
+  // Verify coeff() still works after coeffRef() advances m_llCurrent.
+  // This is the specific scenario that triggered the bug: coeffRef(15)
+  // leaves m_llCurrent pointing at element 15, then coeff(2) should
+  // still return 2.0, not 15.0.
+  vec.restart();
+  vec.coeffRef(15) += 0.0;  // advances m_llCurrent to element at index 15
+  VERIFY_IS_APPROX(vec.coeff(2), 2.0);
+  VERIFY_IS_APPROX(vec.coeff(5), 5.0);
+
+  // Test in dense mode as well (simpler, but for completeness)
+  vec.init(IsDense);
+  vec.setZero();
+  vec.coeffRef(3) = 3.0;
+  vec.coeffRef(7) = 7.0;
+  VERIFY_IS_APPROX(vec.coeff(3), 3.0);
+  VERIFY_IS_APPROX(vec.coeff(7), 7.0);
+  VERIFY_IS_EQUAL(vec.coeff(0), 0.0);
+}
+
 template <int>
 void bug1105() {
   // Regression test for bug 1105
@@ -1045,5 +1158,7 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_5((big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125)));
 
   CALL_SUBTEST_5(bug1105<0>());
+  CALL_SUBTEST_1(sparse_sub_assign_eigenbase<0>());
+  CALL_SUBTEST_1(ambivector_coeff<0>());
 }
 #endif

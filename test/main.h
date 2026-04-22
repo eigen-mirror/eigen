@@ -76,9 +76,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#if CUDA_VERSION >= 7050
 #include <cuda_fp16.h>
-#endif
 #endif
 
 #if defined(EIGEN_CUDACC) || defined(EIGEN_HIPCC)
@@ -605,6 +603,72 @@ typename NumTraits<T>::Real get_test_precision(
   return test_precision<typename NumTraits<T>::Real>();
 }
 
+// Rounding error bounds for matrix products, based on:
+//
+//   Deterministic: Higham, "Accuracy and Stability of Numerical Algorithms",
+//     Thm 3.5: |fl(A*B) - A*B| <= gamma_k * |A| * |B|,  gamma_k ~ k * epsilon.
+//
+//   Probabilistic: Higham & Mary, "A New Approach to Probabilistic Rounding
+//     Error Analysis", SISC 2019, Thm 3.4: under the assumption that rounding
+//     errors are independent with mean zero:
+//       |fl(A*B) - A*B| <= gamma_tilde_k * |A| * |B|,
+//       gamma_tilde_k ~ lambda * sqrt(k) * epsilon,
+//     holding with probability >= 1 - 2*exp(-lambda^2/2) per inner product.
+//
+// Two overloads are provided:
+//
+// 1. product_tolerance<Scalar>(inner_dim, ...) — RELATIVE tolerance for use
+//    with isApprox(). Assumes random matrices in [-1,1], where sign
+//    cancellation gives || |A|*|B| ||_F / ||A*B||_F ~ (3/4)*sqrt(k).
+//    Combined: tol ~ lambda * num_products * k * epsilon.
+//
+// 2. product_error_bound(A, B, ...) — ABSOLUTE error bound for arbitrary
+//    matrices. Computes || |A|*|B| ||_F directly.
+//    Bound: lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
+//
+// Parameters common to both:
+//   num_products: number of independent products contributing error (default 1).
+//                 Use 2 when comparing two different evaluations of A*B.
+//   lambda:       probability parameter; P(lambda) = 1 - 2*exp(-lambda^2/2).
+//                 lambda=5 gives P > 0.9999 per inner product.
+
+// Overload 1: Relative tolerance for random [-1,1] matrices.
+template <typename Scalar>
+typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_products = 1, double lambda = 5) {
+  using Real = typename NumTraits<Scalar>::Real;
+  const Real lambda_real(lambda);
+  return lambda_real * Real(num_products) * Real(inner_dim) * NumTraits<Scalar>::epsilon();
+}
+
+// Overload 2: Absolute error bound for arbitrary matrices.
+// Returns lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
+template <typename DerivedA, typename DerivedB>
+typename NumTraits<typename DerivedA::Scalar>::Real product_error_bound(const MatrixBase<DerivedA>& A,
+                                                                        const MatrixBase<DerivedB>& B,
+                                                                        int num_products = 1, double lambda = 5) {
+  using Scalar = typename DerivedA::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
+  Index k = A.cols();
+  Real abs_prod_norm = (A.cwiseAbs() * B.cwiseAbs()).norm();
+  const Real lambda_real(lambda);
+  return lambda_real * numext::sqrt(Real(k)) * NumTraits<Scalar>::epsilon() * Real(num_products) * abs_prod_norm;
+}
+
+// Verify that two computations of A*B agree within the Higham-Mary bound.
+// Returns true if ||actual - expected||_F <= product_error_bound(A, B, ...).
+template <typename D1, typename D2, typename DA, typename DB>
+inline bool verifyProduct(const MatrixBase<D1>& actual, const MatrixBase<D2>& expected, const MatrixBase<DA>& A,
+                          const MatrixBase<DB>& B, int num_products = 2, double lambda = 5) {
+  using Real = typename NumTraits<typename DA::Scalar>::Real;
+  Real bound = product_error_bound(A, B, num_products, lambda);
+  Real error = (actual - expected).norm();
+  if (error > bound) {
+    std::cerr << "Product verification failed: error " << error << " exceeds bound " << bound << std::endl;
+    return false;
+  }
+  return true;
+}
+
 // verifyIsApprox is a wrapper to test_isApprox that outputs the relative difference magnitude if the test fails.
 template <typename Type1, typename Type2>
 inline bool verifyIsApprox(const Type1& a, const Type2& b) {
@@ -635,7 +699,7 @@ inline bool verifyIsCwiseApprox(const Type1& a, const Type2& b, bool exact) {
 // The idea behind this function is to compare the two scalars a and b where
 // the scalar ref is a hint about the expected order of magnitude of a and b.
 // WARNING: the scalar a and b must be positive
-// Therefore, if for some reason a and b are very small compared to ref,
+// Therefore, if a and b happen to be very small compared to ref,
 // we won't issue a false negative.
 // This test could be: abs(a-b) <= eps * ref
 // However, it seems that simply comparing a+ref and b+ref is more sensitive to true error.
@@ -826,7 +890,26 @@ std::string type_name() {
   return type_name(T());
 }
 
+template <typename DataContainer>
+void setRandomDataInRange(DataContainer& data_container, typename DataContainer::Scalar min_value,
+                          typename DataContainer::Scalar max_value) {
+  for (Eigen::Index i = 0; i < data_container.size(); ++i) {
+    data_container.data()[i] = Eigen::internal::random<typename DataContainer::Scalar>(min_value, max_value);
+  }
+}
+
 using namespace Eigen;
+
+template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
+MatrixType RandomMatrix(Index rows, Index cols, Scalar min, Scalar max) {
+  MatrixType M = MatrixType(rows, cols);
+  for (Index i = 0; i < rows; ++i) {
+    for (Index j = 0; j < cols; ++j) {
+      M(i, j) = Eigen::internal::random<Scalar>(min, max);
+    }
+  }
+  return M;
+}
 
 /**
  * Set number of repetitions for unit test from input string.
@@ -863,6 +946,37 @@ inline void set_seed_from_time() {
   long long ns = duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count();
   g_seed = static_cast<decltype(g_seed)>(ns);
 }
+
+#if defined(EIGEN_USE_GPU)
+inline int maybe_skip_gpu_tests() {
+#if defined(EIGEN_USE_HIP)
+  int device_count = 0;
+  hipError_t status = hipGetDeviceCount(&device_count);
+  if (status != hipSuccess) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device. hipGetDeviceCount failed with: "
+              << hipGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device." << std::endl;
+    return 77;
+  }
+#elif defined(EIGEN_CUDACC)
+  int device_count = 0;
+  cudaError_t status = cudaGetDeviceCount(&device_count);
+  if (status != cudaSuccess) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device. cudaGetDeviceCount failed with: "
+              << cudaGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device." << std::endl;
+    return 77;
+  }
+#endif
+  return 0;
+}
+#endif
 
 int main(int argc, char* argv[]) {
   g_has_set_repeat = false;
@@ -911,6 +1025,13 @@ int main(int argc, char* argv[]) {
   g_test_stack.push_back(ss.str());
   srand(g_seed);
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
+
+#if defined(EIGEN_USE_GPU)
+  {
+    const int skip_code = maybe_skip_gpu_tests();
+    if (skip_code != 0) return skip_code;
+  }
+#endif
 
   VERIFY(EigenTest::all().size() > 0);
 

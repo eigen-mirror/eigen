@@ -158,6 +158,11 @@ void sparse_product() {
     VERIFY_IS_APPROX(dm4 = m2t.transpose() * (refMat3 + refMat5) * 0.5,
                      refMat4 = refMat2t.transpose() * (refMat3 + refMat5) * 0.5);
 
+    // sparse * dense expression without DirectAccessBit (e.g. CwiseNullaryOp)
+    VERIFY_IS_APPROX(dm4 = m2 * DenseMatrix::Constant(depth, cols, s1),
+                     refMat4 = refMat2 * DenseMatrix::Constant(depth, cols, s1));
+    VERIFY_IS_APPROX(dm4 = m2 * DenseMatrix::Zero(depth, cols), refMat4 = refMat2 * DenseMatrix::Zero(depth, cols));
+
     // sparse * dense vector
     VERIFY_IS_APPROX(dm4.col(0) = m2 * refMat3.col(0), refMat4.col(0) = refMat2 * refMat3.col(0));
     VERIFY_IS_APPROX(dm4.col(0) = m2 * refMat3t.transpose().col(0),
@@ -296,9 +301,11 @@ void sparse_product() {
     SparseMatrixType mS(rows, rows);
     SparseMatrixType mA(rows, rows);
     initSparse<Scalar>(density, refA, mA);
-    do {
-      initSparse<Scalar>(density, refUp, mUp, ForceRealDiag | /*ForceNonZeroDiag|*/ MakeUpperTriangular);
-    } while (refUp.isZero());
+    initSparse<Scalar>(density, refUp, mUp, ForceRealDiag | /*ForceNonZeroDiag|*/ MakeUpperTriangular);
+    if (refUp.isZero()) {
+      refUp(0, 0) = Scalar(1);
+      mUp.coeffRef(0, 0) = Scalar(1);
+    }
     refLo = refUp.adjoint();
     mLo = mUp.adjoint();
     refS = refUp + refLo;
@@ -535,8 +542,20 @@ void test_mixed_storage() {
   test_mixed_storage_imp<ColMajor, ColMajor, ColMajor>();
 }
 
+void test_sparse_vector_dense_product() {
+  SparseVector<double> sv(3);
+  sv.insert(0) = 1.0;
+  sv.insert(2) = 2.0;
+
+  MatrixXd dm = MatrixXd::Random(3, 2);
+  MatrixXd res = sv.transpose() * dm;
+  MatrixXd ref = MatrixXd(sv).transpose() * dm;
+  VERIFY_IS_APPROX(res, ref);
+}
+
 EIGEN_DECLARE_TEST(sparse_product) {
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1((test_sparse_vector_dense_product()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor> >()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor> >()));
     CALL_SUBTEST_1((bug_942<double>()));

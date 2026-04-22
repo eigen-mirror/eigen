@@ -15,13 +15,12 @@
 
 namespace Eigen {
 
-/** \cpp11 \returns an expression of the coefficient-wise igamma(\a a, \a x) to the given arrays.
+/** \returns an expression of the coefficient-wise igamma(\a a, \a x) to the given arrays.
  *
  * This function computes the coefficient-wise incomplete gamma function.
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of igammac(T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of igammac(T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::igammac(), Eigen::lgamma()
  */
@@ -33,16 +32,13 @@ igamma(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDerive
                               const ExponentDerived>(a.derived(), x.derived());
 }
 
-/** \cpp11 \returns an expression of the coefficient-wise igamma_der_a(\a a, \a x) to the given arrays.
+/** \returns an expression of the coefficient-wise igamma_der_a(\a a, \a x) to the given arrays.
  *
  * This function computes the coefficient-wise derivative of the incomplete
  * gamma function with respect to the parameter a.
  *
- * \note This function supports only float and double scalar types in c++11
- * mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations
- * of igamma_der_a(T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of igamma_der_a(T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
@@ -54,17 +50,14 @@ igamma_der_a(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<Exponent
                               const ExponentDerived>(a.derived(), x.derived());
 }
 
-/** \cpp11 \returns an expression of the coefficient-wise gamma_sample_der_alpha(\a alpha, \a sample) to the given
+/** \returns an expression of the coefficient-wise gamma_sample_der_alpha(\a alpha, \a sample) to the given
  * arrays.
  *
  * This function computes the coefficient-wise derivative of the sample
  * of a Gamma(alpha, 1) random variable with respect to the parameter alpha.
  *
- * \note This function supports only float and double scalar types in c++11
- * mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations
- * of gamma_sample_der_alpha(T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of gamma_sample_der_alpha(T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
@@ -77,13 +70,12 @@ EIGEN_STRONG_INLINE const
                               const AlphaDerived, const SampleDerived>(alpha.derived(), sample.derived());
 }
 
-/** \cpp11 \returns an expression of the coefficient-wise igammac(\a a, \a x) to the given arrays.
+/** \returns an expression of the coefficient-wise igammac(\a a, \a x) to the given arrays.
  *
  * This function computes the coefficient-wise complementary incomplete gamma function.
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of igammac(T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of igammac(T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::igamma(), Eigen::lgamma()
  */
@@ -95,13 +87,12 @@ igammac(const Eigen::ArrayBase<Derived>& a, const Eigen::ArrayBase<ExponentDeriv
                               const ExponentDerived>(a.derived(), x.derived());
 }
 
-/** \cpp11 \returns an expression of the coefficient-wise polygamma(\a n, \a x) to the given arrays.
+/** \returns an expression of the coefficient-wise polygamma(\a n, \a x) to the given arrays.
  *
  * It returns the \a n -th derivative of the digamma(psi) evaluated at \c x.
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of polygamma(T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of polygamma(T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::digamma()
  */
@@ -115,13 +106,12 @@ polygamma(const Eigen::ArrayBase<DerivedN>& n, const Eigen::ArrayBase<DerivedX>&
                               const DerivedX>(n.derived(), x.derived());
 }
 
-/** \cpp11 \returns an expression of the coefficient-wise betainc(\a x, \a a, \a b) to the given arrays.
+/** \returns an expression of the coefficient-wise betainc(\a x, \a a, \a b) to the given arrays.
  *
  * This function computes the regularized incomplete beta function (integral).
  *
- * \note This function supports only float and double scalar types in c++11 mode. To support other scalar types,
- * or float/double in non c++11 mode, the user has to provide implementations of betainc(T,T,T) for any scalar
- * type T to be supported.
+ * \note This function supports only float and double scalar types. To support other scalar types,
+ * the user has to provide implementations of betainc(T,T,T) for any scalar type T to be supported.
  *
  * \sa Eigen::betainc(), Eigen::lgamma()
  */

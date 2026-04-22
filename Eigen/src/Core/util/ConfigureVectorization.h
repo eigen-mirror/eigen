@@ -72,6 +72,9 @@
 #else
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 0
 #endif
+#elif defined(EIGEN_VECTORIZE_GENERIC)
+// Generic clang backend overrides native SIMD; align to the generic vector size.
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES EIGEN_GENERIC_VECTOR_SIZE_BYTES
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
@@ -357,7 +360,7 @@
 // notice that since these are C headers, the extern "C" is theoretically needed anyways.
 extern "C" {
 // In theory we should only include immintrin.h and not the other *mmintrin.h header files directly.
-// Doing so triggers some issues with ICC. However old gcc versions seems to not have this file, thus:
+// Doing so triggers some issues with ICC. However old gcc versions may not have this file, thus:
 #if EIGEN_COMP_ICC >= 1110 || EIGEN_COMP_EMSCRIPTEN
 #include <immintrin.h>
 #else
@@ -388,7 +391,7 @@ extern "C" {
 #define EIGEN_VECTORIZE_VSX 1
 #define EIGEN_VECTORIZE_FMA
 #include <altivec.h>
-// We need to #undef all these ugly tokens defined in <altivec.h>
+// We need to #undef macros defined by <altivec.h> that conflict with standard C++ names.
 // => use __vector instead of vector
 #undef bool
 #undef vector
@@ -400,7 +403,7 @@ extern "C" {
 #define EIGEN_VECTORIZE_ALTIVEC
 #define EIGEN_VECTORIZE_FMA
 #include <altivec.h>
-// We need to #undef all these ugly tokens defined in <altivec.h>
+// We need to #undef macros defined by <altivec.h> that conflict with standard C++ names.
 // => use __vector instead of vector
 #undef bool
 #undef vector
@@ -538,12 +541,6 @@ extern "C" {
 #if defined EIGEN_CUDACC
 #define EIGEN_VECTORIZE_GPU
 #include <vector_types.h>
-#if EIGEN_CUDA_SDK_VER >= 70500
-#define EIGEN_HAS_CUDA_FP16
-#endif
-#endif
-
-#if defined(EIGEN_HAS_CUDA_FP16)
 #include <cuda_runtime_api.h>
 #include <cuda_fp16.h>
 #endif
@@ -551,7 +548,6 @@ extern "C" {
 #if defined(EIGEN_HIPCC)
 #define EIGEN_VECTORIZE_GPU
 #include <hip/hip_vector_types.h>
-#define EIGEN_HAS_HIP_FP16
 #include <hip/hip_fp16.h>
 #define EIGEN_HAS_HIP_BF16
 #include <hip/hip_bfloat16.h>

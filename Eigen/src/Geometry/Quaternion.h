@@ -115,13 +115,6 @@ class QuaternionBase : public RotationBase<Derived, 3> {
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const QuaternionBase<OtherDerived>& other);
 
-  // disabled this copy operator as it is giving very strange compilation errors when compiling
-  // test_stdvector with GCC 4.4.2. This looks like a GCC bug though, so feel free to re-enable it if it's
-  // useful; however notice that we already have the templated operator= above and e.g. in MatrixBase
-  // we didn't have to add, in addition to templated operator=, such a non-templated copy operator.
-  //  Derived& operator=(const QuaternionBase& other)
-  //  { return operator=<Derived>(other); }
-
   EIGEN_DEVICE_FUNC Derived& operator=(const AngleAxisType& aa);
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC Derived& operator=(const MatrixBase<OtherDerived>& m);
@@ -697,19 +690,10 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
   Scalar c = v1.dot(v0);
 
   // if dot == -1, vectors are nearly opposites
-  // => accurately compute the rotation axis by computing the
-  //    intersection of the two planes. This is done by solving:
-  //       x^T v0 = 0
-  //       x^T v1 = 0
-  //    under the constraint:
-  //       ||x|| = 1
-  //    which yields a singular value problem
+  // => any axis perpendicular to v0 will do for a ~180 degree rotation.
   if (c < Scalar(-1) + NumTraits<Scalar>::dummy_precision()) {
     c = numext::maxi(c, Scalar(-1));
-    Matrix<Scalar, 2, 3> m;
-    m << v0.transpose(), v1.transpose();
-    JacobiSVD<Matrix<Scalar, 2, 3>, ComputeFullV> svd(m);
-    Vector3 axis = svd.matrixV().col(2);
+    Vector3 axis = v0.unitOrthogonal();
 
     Scalar w2 = (Scalar(1) + c) * Scalar(0.5);
     this->w() = sqrt(w2);
@@ -797,7 +781,7 @@ EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromT
 template <class Derived>
 EIGEN_DEVICE_FUNC inline Quaternion<typename internal::traits<Derived>::Scalar> QuaternionBase<Derived>::inverse()
     const {
-  // FIXME should this function be called multiplicativeInverse and conjugate() be called inverse() or opposite()  ??
+  // FIXME: consider renaming to multiplicativeInverse() and renaming conjugate() to inverse() or opposite().
   Scalar n2 = this->squaredNorm();
   if (n2 > Scalar(0))
     return Quaternion<Scalar>(conjugate().coeffs() / n2);
@@ -837,8 +821,12 @@ template <class OtherDerived>
 EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar QuaternionBase<Derived>::angularDistance(
     const QuaternionBase<OtherDerived>& other) const {
   EIGEN_USING_STD(atan2)
-  Quaternion<Scalar> d = (*this) * other.conjugate();
-  return Scalar(2) * atan2(d.vec().norm(), numext::abs(d.w()));
+  // For unit quaternions: dot = cos(theta/2), so theta = 2*atan2(sin(theta/2), |cos(theta/2)|).
+  // Using atan2 instead of acos for numerical accuracy at small angles.
+  Scalar d = numext::abs(this->dot(other));
+  // Clamp to handle non-unit quaternions gracefully.
+  if (d >= Scalar(1)) return Scalar(0);
+  return Scalar(2) * atan2(numext::sqrt(Scalar(1) - d * d), d);
 }
 
 /** \returns the spherical linear interpolation between the two quaternions
@@ -861,6 +849,7 @@ EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> Quatern
   Scalar scale1;
 
   if (absD >= one) {
+    // Near-parallel quaternions: use lerp to avoid division by ~zero sinTheta.
     scale0 = Scalar(1) - t;
     scale1 = t;
   } else {
@@ -890,7 +879,7 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
     // Ken Shoemake, 1987 SIGGRAPH course notes
     Scalar t = mat.trace();
     if (t > Scalar(0)) {
-      t = sqrt(t + Scalar(1.0));
+      t = sqrt(numext::maxi(t + Scalar(1.0), Scalar(0)));
       q.w() = Scalar(0.5) * t;
       t = Scalar(0.5) / t;
       q.x() = (mat.coeff(2, 1) - mat.coeff(1, 2)) * t;
@@ -903,7 +892,8 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
       Index j = (i + 1) % 3;
       Index k = (j + 1) % 3;
 
-      t = sqrt(mat.coeff(i, i) - mat.coeff(j, j) - mat.coeff(k, k) + Scalar(1.0));
+      // Guard against slightly negative argument from non-orthogonal matrices.
+      t = sqrt(numext::maxi(mat.coeff(i, i) - mat.coeff(j, j) - mat.coeff(k, k) + Scalar(1.0), Scalar(0)));
       q.coeffs().coeffRef(i) = Scalar(0.5) * t;
       t = Scalar(0.5) / t;
       q.w() = (mat.coeff(k, j) - mat.coeff(j, k)) * t;

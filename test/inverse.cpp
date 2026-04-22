@@ -58,6 +58,32 @@ void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::S
     VERIFY_IS_APPROX((m5.template topLeftCorner<MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>()),
                      m2.inverse());
   }
+
+  // check that computeInverseAndDetWithCheck resizes dynamic result matrix (issue #2917)
+  {
+    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    DynamicMatrix m_dyn_inv;
+    Scalar det_dyn;
+    bool inv_dyn;
+    m1.computeInverseAndDetWithCheck(m_dyn_inv, det_dyn, inv_dyn);
+    VERIFY(inv_dyn);
+    VERIFY_IS_EQUAL(m_dyn_inv.rows(), m1.rows());
+    VERIFY_IS_EQUAL(m_dyn_inv.cols(), m1.cols());
+    VERIFY_IS_APPROX(identity, m1 * m_dyn_inv);
+    VERIFY_IS_APPROX(det_dyn, m1.determinant());
+  }
+
+  // check that computeInverseWithCheck resizes dynamic result matrix
+  {
+    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    DynamicMatrix m_dyn_inv;
+    bool inv_dyn;
+    m1.computeInverseWithCheck(m_dyn_inv, inv_dyn);
+    VERIFY(inv_dyn);
+    VERIFY_IS_EQUAL(m_dyn_inv.rows(), m1.rows());
+    VERIFY_IS_EQUAL(m_dyn_inv.cols(), m1.cols());
+    VERIFY_IS_APPROX(identity, m1 * m_dyn_inv);
+  }
 }
 
 template <typename MatrixType>
@@ -124,14 +150,14 @@ EIGEN_DECLARE_TEST(inverse) {
 
     s = internal::random<int>(50, 320);
     CALL_SUBTEST_5(inverse(MatrixXf(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
     CALL_SUBTEST_5(inverse_zerosized<float>());
     CALL_SUBTEST_5(inverse(MatrixXf(0, 0)));
     CALL_SUBTEST_5(inverse(MatrixXf(1, 1)));
 
     s = internal::random<int>(25, 100);
     CALL_SUBTEST_6(inverse(MatrixXcd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     CALL_SUBTEST_7(inverse(Matrix4d()));
     CALL_SUBTEST_7(inverse(Matrix<double, 4, 4, DontAlign>()));

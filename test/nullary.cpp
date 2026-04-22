@@ -155,11 +155,11 @@ void testVectorType(const VectorType& base) {
     VERIFY(m.size() == n0);
 
     if (VectorType::SizeAtCompileTime == Dynamic) {
-      VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, 0, Scalar(n0 - 1)).sum(), Scalar(0));
+      VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, 0, Scalar(RealScalar(n0 - 1))).sum(), Scalar(0));
       VERIFY_IS_EQUAL(VectorType::LinSpaced(n0, low, low - RealScalar(1)).sum(), Scalar(0));
     }
 
-    m.setLinSpaced(n0, 0, Scalar(n0 - 1));
+    m.setLinSpaced(n0, 0, Scalar(RealScalar(n0 - 1)));
     VERIFY(m.size() == n0);
     m.setLinSpaced(n0, low, low - RealScalar(1));
     VERIFY(m.size() == n0);
@@ -170,18 +170,18 @@ void testVectorType(const VectorType& base) {
     VERIFY_IS_APPROX(m, VectorType::Constant(size, low));
 
     if (NumTraits<Scalar>::IsInteger) {
-      VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(size - 1)),
-                       VectorType::LinSpaced(size, low + Scalar(size - 1), low).reverse());
+      VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(RealScalar(size - 1))),
+                       VectorType::LinSpaced(size, low + Scalar(RealScalar(size - 1)), low).reverse());
 
       if (VectorType::SizeAtCompileTime == Dynamic) {
         // Check negative multiplicator path:
         for (Index k = 1; k < 5; ++k)
-          VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar((size - 1) * k)),
-                           VectorType::LinSpaced(size, low + Scalar((size - 1) * k), low).reverse());
+          VERIFY_IS_APPROX(VectorType::LinSpaced(size, low, low + Scalar(RealScalar((size - 1) * k))),
+                           VectorType::LinSpaced(size, low + Scalar(RealScalar((size - 1) * k)), low).reverse());
         // Check negative divisor path:
         for (Index k = 1; k < 5; ++k)
-          VERIFY_IS_APPROX(VectorType::LinSpaced(size * k, low, low + Scalar(size - 1)),
-                           VectorType::LinSpaced(size * k, low + Scalar(size - 1), low).reverse());
+          VERIFY_IS_APPROX(VectorType::LinSpaced(size * k, low, low + Scalar(RealScalar(size - 1))),
+                           VectorType::LinSpaced(size * k, low + Scalar(RealScalar(size - 1)), low).reverse());
       }
     }
   }
@@ -207,12 +207,8 @@ void testMatrixType(const MatrixType& m) {
   const Index rows = m.rows();
   const Index cols = m.cols();
   typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
 
-  Scalar s1;
-  do {
-    s1 = internal::random<Scalar>();
-  } while (abs(s1) < RealScalar(1e-5) && (!NumTraits<Scalar>::IsInteger));
+  Scalar s1 = internal::random<Scalar>();
 
   MatrixType A;
   A.setIdentity(rows, cols);
@@ -271,7 +267,7 @@ void nullary_internal_logic() {
   VERIFY((!internal::has_binary_operator<internal::linspaced_op<float> >::value));
   VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::ret));
 
-  // Regression unit test for a weird MSVC bug.
+  // Regression unit test for an MSVC bug.
   // Search "nullary_wrapper_workaround_msvc" in CoreEvaluators.h for the details.
   // See also traits<Ref>::match.
   {
@@ -294,6 +290,130 @@ void nullary_internal_logic() {
     VERIFY((internal::has_unary_operator<internal::linspaced_op<int> >::value));
     VERIFY((!internal::has_binary_operator<internal::linspaced_op<int> >::value));
     VERIFY((internal::functor_has_linear_access<internal::linspaced_op<int> >::ret));
+  }
+}
+
+// Test LinSpaced at vectorization boundary sizes.
+// The packetOp in linspaced_op_impl uses mask/select logic to handle
+// the last partial packet (when vector size is not a multiple of PacketSize).
+// This exercises those boundaries with element-by-element verification.
+template <typename Scalar>
+void linspaced_boundary() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index PS = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {1, 2, 3, PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1};
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  for (int si = 0; si < 11; ++si) {
+    Index n = sizes[si];
+    if (n <= 0) continue;
+
+    Scalar low(1), high(100);
+    Vec v = Vec::LinSpaced(n, low, high);
+
+    // With n==1, LinSpaced returns [high] by design.
+    if (n == 1) {
+      VERIFY_IS_EQUAL(v(0), high);
+    } else {
+      VERIFY_IS_EQUAL(v(0), low);
+      VERIFY_IS_EQUAL(v(n - 1), high);
+
+      // Verify monotonicity.
+      for (Index k = 1; k < n; ++k) {
+        VERIFY(numext::real(v(k)) >= numext::real(v(k - 1)));
+      }
+
+      // Verify against scalar reference computation.
+      for (Index k = 0; k < n; ++k) {
+        Scalar ref = Scalar(low + (high - low) * RealScalar(k) / RealScalar(n - 1));
+        VERIFY_IS_APPROX(v(k), ref);
+      }
+    }
+  }
+
+  // Test the "flip" path: when |high| < |low|, the implementation uses
+  // a reversed computation for better precision. Verify at packet boundaries.
+  for (int si = 0; si < 11; ++si) {
+    Index n = sizes[si];
+    if (n <= 0 || n == 1) continue;  // skip n=1, flip irrelevant for single element
+
+    Scalar low(1000), high(1);  // |high| < |low| triggers flip
+    Vec v = Vec::LinSpaced(n, low, high);
+
+    VERIFY_IS_EQUAL(v(0), low);
+    VERIFY_IS_EQUAL(v(n - 1), high);
+
+    // Verify monotonicity (decreasing).
+    for (Index k = 1; k < n; ++k) {
+      VERIFY(numext::real(v(k)) <= numext::real(v(k - 1)));
+    }
+
+    // Verify against scalar reference.
+    for (Index k = 0; k < n; ++k) {
+      Scalar ref = Scalar(low + (high - low) * RealScalar(k) / RealScalar(n - 1));
+      VERIFY_IS_APPROX(v(k), ref);
+    }
+  }
+}
+
+// Test integer LinSpaced divisor path.
+// When (abs(high - low) + 1) < num_steps, the integer LinSpaced uses
+// a divisor-based formula instead of multiplication. This path is
+// barely covered by existing tests which use random ranges.
+template <int>
+void linspaced_integer_divisor() {
+  typedef Matrix<int, Dynamic, 1> VecI;
+
+  // Case: num_steps much larger than range → triggers divisor path.
+  // LinSpaced(12, 0, 5): 12 steps over range [0,5], so range+1=6, 6 < 12.
+  {
+    VecI v = VecI::LinSpaced(12, 0, 5);
+    VERIFY_IS_EQUAL(v(0), 0);
+    // All values must be in [0, 5].
+    for (Index k = 0; k < 12; ++k) {
+      VERIFY(v(k) >= 0 && v(k) <= 5);
+    }
+    // Must be non-decreasing.
+    for (Index k = 1; k < 12; ++k) {
+      VERIFY(v(k) >= v(k - 1));
+    }
+    // Each integer 0-5 should appear at least once.
+    for (int val = 0; val <= 5; ++val) {
+      bool found = false;
+      for (Index k = 0; k < 12; ++k) {
+        if (v(k) == val) {
+          found = true;
+          break;
+        }
+      }
+      VERIFY(found);
+    }
+  }
+
+  // Case: range exactly divides steps → each value should appear equally.
+  // LinSpaced(20, 0, 3): range+1=4, 20%4==0, so each of 0,1,2,3 appears 5 times.
+  {
+    VecI v = VecI::LinSpaced(20, 0, 3);
+    VERIFY_IS_EQUAL(v(0), 0);
+    for (Index k = 0; k < 20; ++k) {
+      VERIFY(v(k) >= 0 && v(k) <= 3);
+    }
+    for (Index k = 1; k < 20; ++k) {
+      VERIFY(v(k) >= v(k - 1));
+    }
+  }
+
+  // Reverse: LinSpaced(12, 5, 0) should be reverse of LinSpaced(12, 0, 5).
+  {
+    VecI fwd = VecI::LinSpaced(12, 0, 5);
+    VecI rev = VecI::LinSpaced(12, 5, 0);
+    VERIFY_IS_APPROX(fwd, rev.reverse());
+  }
+
+  // Single step: always returns high.
+  {
+    VecI v = VecI::LinSpaced(1, 3, 7);
+    VERIFY_IS_EQUAL(v(0), 7);
   }
 }
 
@@ -322,4 +442,11 @@ EIGEN_DECLARE_TEST(nullary) {
   CALL_SUBTEST_6(bug1630<0>());
   CALL_SUBTEST_9(nullary_overflow<0>());
   CALL_SUBTEST_10(nullary_internal_logic<0>());
+
+  // LinSpaced at vectorization boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_11(linspaced_boundary<float>());
+  CALL_SUBTEST_11(linspaced_boundary<double>());
+
+  // Integer LinSpaced divisor path tests.
+  CALL_SUBTEST_12(linspaced_integer_divisor<0>());
 }

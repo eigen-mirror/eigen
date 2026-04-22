@@ -14,7 +14,7 @@
 // SafeScalar<T> is used to simulate custom Scalar types, which use a more generalized approach to generate random
 // numbers
 
-// For GCC-6, if this function is inlined then there seems to be an optimization
+// For GCC-6, if this function is inlined then there is an optimization
 // bug that triggers a failure.  This failure goes away if you access `r` in
 // in any way, and for any other compiler.
 template <typename Scalar>
@@ -262,7 +262,7 @@ EIGEN_DECLARE_TEST(rand) {
 
   CALL_SUBTEST_11(check_histogram<int32_t>(-5, 5, 11));
   int bins = 100;
-  EIGEN_UNUSED_VARIABLE(bins)
+  EIGEN_UNUSED_VARIABLE(bins);
   CALL_SUBTEST_11(check_histogram<int32_t>(-3333, -3333 + bins * (3333 / bins) - 1, bins));
   bins = 1000;
   CALL_SUBTEST_11(check_histogram<int32_t>(-RAND_MAX + 10, -RAND_MAX + 10 + bins * (RAND_MAX / bins) - 1, bins));

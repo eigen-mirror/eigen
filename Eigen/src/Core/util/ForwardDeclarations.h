@@ -405,6 +405,8 @@ template <typename ExpressionType, int Direction>
 class VectorwiseOp;
 template <typename MatrixType, int RowFactor, int ColFactor>
 class Replicate;
+template <int Direction, typename LhsType, typename RhsType>
+class Concat;
 template <typename MatrixType, int Direction = BothDirections>
 class Reverse;
 

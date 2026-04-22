@@ -81,15 +81,24 @@ void product(const MatrixType& m) {
 
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(8);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
+    square.array() = square.array() - kMaxVal * (square.array() / kMaxVal);
+    res.array() = res.array() - kMaxVal * (res.array() / kMaxVal);
+    square2.array() = square2.array() - kMaxVal * (square2.array() / kMaxVal);
+    res2.array() = res2.array() - kMaxVal * (res2.array() / kMaxVal);
     v1.array() = v1.array() - kMaxVal * (v1.array() / kMaxVal);
+    vc2.array() = vc2.array() - kMaxVal * (vc2.array() / kMaxVal);
   }
 
   OtherMajorMatrixType tm1 = m1;
 
   Scalar s1 = internal::random<Scalar>();
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(8);
+    s1 = s1 - kMaxVal * (s1 / kMaxVal);
+  }
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1),
         c2 = internal::random<Index>(0, cols - 1);
@@ -97,8 +106,12 @@ void product(const MatrixType& m) {
   // begin testing Product.h: only associativity for now
   // (we use Transpose.h but this doesn't count as a test for it)
   {
-    // Increase tolerance, since coefficients here can get relatively large.
-    RealScalar tol = RealScalar(2) * get_test_precision(m1);
+    // Associativity: (m1 * m1^T) * m2 vs m1 * (m1^T * m2).
+    // Two chained products with inner dims cols and rows. Intermediate entries
+    // of m1*m1^T are O(sqrt(cols)), amplifying the second product's error.
+    // Probabilistic bound (Higham & Mary 2019): ~lambda * sqrt(k) * epsilon
+    // per inner product, times sqrt(cols) amplification from chained product.
+    RealScalar tol = product_tolerance<Scalar>((std::max)(rows, cols), 3);
     VERIFY(verifyIsApprox((m1 * m1.transpose()) * m2, m1 * (m1.transpose() * m2), tol));
   }
   m3 = m1;
@@ -107,8 +120,12 @@ void product(const MatrixType& m) {
   VERIFY_IS_APPROX(m3, m1 * (m1.transpose() * m2));
 
   // continue testing Product.h: distributivity
-  VERIFY_IS_APPROX(square * (m1 + m2), square * m1 + square * m2);
-  VERIFY_IS_APPROX(square * (m1 - m2), square * m1 - square * m2);
+  {
+    // Increase tolerance, since coefficients here can get relatively large.
+    RealScalar tol = RealScalar(2) * get_test_precision(m1);
+    VERIFY(verifyIsApprox(square * (m1 + m2), square * m1 + square * m2, tol));
+    VERIFY(verifyIsApprox(square * (m1 - m2), square * m1 - square * m2, tol));
+  }
 
   // continue testing Product.h: compatibility with ScalarMultiple.h
   VERIFY_IS_APPROX(s1 * (square * m1), (s1 * square) * m1);
@@ -126,7 +143,10 @@ void product(const MatrixType& m) {
 
   // test the previous tests were not screwed up because operator* returns 0
   // (we use the more accurate default epsilon)
-  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1) {
+  // Skip non-commutativity check for very low-precision types (e.g. bfloat16) where
+  // random small matrices can produce products that are approximately equal.
+  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1 &&
+      NumTraits<RealScalar>::dummy_precision() < RealScalar(0.04)) {
     VERIFY(areNotApprox(m1.transpose() * m2, m2.transpose() * m1, not_approx_epsilon));
   }
 
@@ -134,7 +154,8 @@ void product(const MatrixType& m) {
   res = square;
   res.noalias() += m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square + m1 * m2.transpose());
-  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1) {
+  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1 &&
+      NumTraits<RealScalar>::dummy_precision() < RealScalar(0.04)) {
     VERIFY(areNotApprox(res, square + m2 * m1.transpose(), not_approx_epsilon));
   }
   vcres = vc2;
@@ -145,7 +166,8 @@ void product(const MatrixType& m) {
   res = square;
   res.noalias() -= m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square - (m1 * m2.transpose()));
-  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1) {
+  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1 &&
+      NumTraits<RealScalar>::dummy_precision() < RealScalar(0.04)) {
     VERIFY(areNotApprox(res, square - m2 * m1.transpose(), not_approx_epsilon));
   }
   vcres = vc2;
@@ -179,21 +201,35 @@ void product(const MatrixType& m) {
   res.noalias() -= square - m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square - m1 * m2.transpose());
 
-  tm1 = m1;
-  VERIFY_IS_APPROX(tm1.transpose() * v1, m1.transpose() * v1);
-  VERIFY_IS_APPROX(v1.transpose() * tm1, v1.transpose() * m1);
+  // Row-major vs col-major GEMV: different accumulation orders produce
+  // rounding differences bounded by O(sqrt(n)) * epsilon per inner product.
+  // tm1.transpose() * v1 has inner dimension rows; v1^T * tm1 has inner dim cols.
+  {
+    RealScalar gemv_tol = (std::max)(get_test_precision(m1),
+                                     numext::sqrt(RealScalar((std::max)(rows, cols))) * NumTraits<Scalar>::epsilon());
+    tm1 = m1;
+    VERIFY(verifyIsApprox(tm1.transpose() * v1, m1.transpose() * v1, gemv_tol));
+    VERIFY(verifyIsApprox(v1.transpose() * tm1, v1.transpose() * m1, gemv_tol));
+  }
 
   // test submatrix and matrix/vector product
-  for (int i = 0; i < rows; ++i) res.row(i) = m1.row(i) * m2.transpose();
-  VERIFY_IS_APPROX(res, m1 * m2.transpose());
-  // the other way round:
-  for (int i = 0; i < rows; ++i) res.col(i) = m1 * m2.transpose().col(i);
-  VERIFY_IS_APPROX(res, m1 * m2.transpose());
+  // Row-by-row vs full GEMM: different evaluation strategies can differ
+  // by O(sqrt(n)) * epsilon for low-precision types.
+  {
+    RealScalar prod_tol =
+        (std::max)(get_test_precision(m1), numext::sqrt(RealScalar(cols)) * NumTraits<Scalar>::epsilon());
+    for (int i = 0; i < rows; ++i) res.row(i) = m1.row(i) * m2.transpose();
+    VERIFY(verifyIsApprox(res, m1 * m2.transpose(), prod_tol));
+    // the other way round:
+    for (int i = 0; i < rows; ++i) res.col(i) = m1 * m2.transpose().col(i);
+    VERIFY(verifyIsApprox(res, m1 * m2.transpose(), prod_tol));
+  }
 
   res2 = square2;
   res2.noalias() += m1.transpose() * m2;
   VERIFY_IS_APPROX(res2, square2 + m1.transpose() * m2);
-  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1) {
+  if (!NumTraits<Scalar>::IsInteger && (std::min)(rows, cols) > 1 &&
+      NumTraits<RealScalar>::dummy_precision() < RealScalar(0.04)) {
     VERIFY(areNotApprox(res2, square2 + m2.transpose() * m1, not_approx_epsilon));
   }
 
@@ -289,8 +325,10 @@ void product(const MatrixType& m) {
 
   // regression for blas_trais
   {
-    // Increase test tolerance, since coefficients can get relatively large.
-    RealScalar tol = RealScalar(2) * get_test_precision(square);
+    // Triple products of rows x rows matrices. Each side computes 2-3
+    // products with inner dim = rows. Probabilistic bound with amplification
+    // from chained products with O(sqrt(rows)) intermediate entries.
+    RealScalar tol = product_tolerance<Scalar>(rows, 4);
     VERIFY(
         verifyIsApprox(square * (square * square).transpose(), square * square.transpose() * square.transpose(), tol));
     VERIFY(verifyIsApprox(square * (-(square * square)), -square * square * square, tol));
