@@ -36,9 +36,9 @@ struct complex_packet_wrapper {
   RealPacketT v;
 };
 
-typedef complex_packet_wrapper<Packet2Xf, 28> Packet1Xcf;
-typedef complex_packet_wrapper<Packet4Xf, 29> Packet2Xcf;
-typedef complex_packet_wrapper<Packet1Xf, 30> Packet1Xcfh;
+typedef complex_packet_wrapper<Packet2Xf, 29> Packet1Xcf;
+typedef complex_packet_wrapper<Packet4Xf, 30> Packet2Xcf;
+typedef complex_packet_wrapper<Packet1Xf, 31> Packet1Xcfh;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xcfh PacketXcf;
@@ -143,7 +143,7 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 template <>
 struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
   typedef std::complex<float> type;
-#ifndef USE_LMUL1_ONLY
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcfh half;
 #else
   typedef Packet1Xcf half;
@@ -161,7 +161,7 @@ struct unpacket_traits<Packet1Xcf> : default_unpacket_traits {
 template <>
 struct unpacket_traits<Packet2Xcf> : default_unpacket_traits {
   typedef std::complex<float> type;
-#ifndef USE_LMUL2_ONLY
+#ifndef USE_LMUL4_ONLY
   typedef Packet1Xcf half;
 #else
   typedef Packet2Xcf half;
@@ -439,9 +439,9 @@ EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcf, Packet2Xf)
 
 /********************************* double ************************************/
 
-typedef complex_packet_wrapper<Packet2Xd, 31> Packet1Xcd;
-typedef complex_packet_wrapper<Packet4Xd, 32> Packet2Xcd;
-typedef complex_packet_wrapper<Packet1Xd, 33> Packet1Xcdh;
+typedef complex_packet_wrapper<Packet2Xd, 32> Packet1Xcd;
+typedef complex_packet_wrapper<Packet4Xd, 33> Packet2Xcd;
+typedef complex_packet_wrapper<Packet1Xd, 34> Packet1Xcdh;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 typedef Packet1Xcd PacketXcd;
@@ -546,7 +546,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
 template <>
 struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
   typedef std::complex<double> type;
-#ifndef USE_LMUL1_ONLY
+#ifndef USE_LMUL2_ONLY
   typedef Packet1Xcdh half;
 #else
   typedef Packet1Xcd half;
@@ -564,7 +564,7 @@ struct unpacket_traits<Packet1Xcd> : default_unpacket_traits {
 template <>
 struct unpacket_traits<Packet2Xcd> : default_unpacket_traits {
   typedef std::complex<double> type;
-#ifndef USE_LMUL2_ONLY
+#ifndef USE_LMUL4_ONLY
   typedef Packet1Xcd half;
 #else
   typedef Packet2Xcd half;
