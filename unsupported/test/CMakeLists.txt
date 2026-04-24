@@ -287,6 +287,8 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   ei_add_test(tensor_random_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
+
+  add_subdirectory(GPU)
 endif()
 
 # Add HIP specific tests

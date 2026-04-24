@@ -271,23 +271,56 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
-# GCC-10, CUDA-12.2
-test:linux:cuda-12.2:gcc-10:
+# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
+
+# GCC-10, CUDA-11.5
+test:linux:cuda-11.5:gcc-10:
   extends: .test:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
-  needs: [ build:linux:cuda-12.2:gcc-10 ]
+  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.5:gcc-10 ]
   variables:
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_CC_COMPILER: gcc-10
 
-# Clang-12, CUDA-12.2
-test:linux:cuda-12.2:clang-12:
+# Clang-14, CUDA-11.5
+test:linux:cuda-11.5:clang-14:
   extends: .test:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
-  needs: [ build:linux:cuda-12.2:clang-12 ]
+  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.5:clang-14 ]
+  before_script:
+    # Ubuntu 20.04 lacks clang-14.  Add the LLVM apt repo before
+    # the common before_script installs EIGEN_CI_INSTALL packages.
+    - apt-get update -y > /dev/null
+    - apt-get install -y --no-install-recommends wget gnupg > /dev/null
+    - wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+    - echo 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main' > /etc/apt/sources.list.d/llvm-14.list
+    - apt-get update -y > /dev/null
+    - . ci/scripts/common.linux.before_script.sh
   variables:
-    EIGEN_CI_CXX_COMPILER: clang++-12
-    EIGEN_CI_CC_COMPILER: clang-12
+    EIGEN_CI_INSTALL: clang-14
+    EIGEN_CI_CXX_COMPILER: clang++-14
+    EIGEN_CI_CC_COMPILER: clang-14
+
+# ---- New: latest CUDA -------------------------------------------------------
+
+# GCC-13, CUDA-12.6
+test:linux:cuda-12.6:gcc-13:
+  extends: .test:linux:cuda
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  needs: [ build:linux:cuda-12.6:gcc-13 ]
+  variables:
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_CC_COMPILER: gcc-13
+
+# Clang-19, CUDA-12.6
+test:linux:cuda-12.6:clang-19:
+  extends: .test:linux:cuda
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  needs: [ build:linux:cuda-12.6:clang-19 ]
+  variables:
+    EIGEN_CI_INSTALL: clang-19
+    EIGEN_CI_CXX_COMPILER: clang++-19
+    EIGEN_CI_CC_COMPILER: clang-19
 
 
 ##### arm ######################################################################
