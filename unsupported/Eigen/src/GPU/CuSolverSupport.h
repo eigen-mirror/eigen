@@ -123,6 +123,68 @@ struct cusolver_fill_mode<Upper> {
   static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_UPPER;
 };
 
+// ---- Type-specific cuSOLVER wrappers ----------------------------------------
+// cuSOLVER does not provide generic X variants for ormqr/unmqr. These overloaded
+// wrappers dispatch to the correct type-specific function.
+// For real types: ormqr (orthogonal Q). For complex types: unmqr (unitary Q).
+
+inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
+                                         int n, int k, const float* A, int lda, const float* tau, float* C, int ldc,
+                                         float* work, int lwork, int* info) {
+  return cusolverDnSormqr(h, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
+                                         int n, int k, const double* A, int lda, const double* tau, double* C, int ldc,
+                                         double* work, int lwork, int* info) {
+  return cusolverDnDormqr(h, side, trans, m, n, k, A, lda, tau, C, ldc, work, lwork, info);
+}
+inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
+                                         int n, int k, const std::complex<float>* A, int lda,
+                                         const std::complex<float>* tau, std::complex<float>* C, int ldc,
+                                         std::complex<float>* work, int lwork, int* info) {
+  return cusolverDnCunmqr(h, side, trans, m, n, k, reinterpret_cast<const cuComplex*>(A), lda,
+                          reinterpret_cast<const cuComplex*>(tau), reinterpret_cast<cuComplex*>(C), ldc,
+                          reinterpret_cast<cuComplex*>(work), lwork, info);
+}
+inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
+                                         int n, int k, const std::complex<double>* A, int lda,
+                                         const std::complex<double>* tau, std::complex<double>* C, int ldc,
+                                         std::complex<double>* work, int lwork, int* info) {
+  return cusolverDnZunmqr(h, side, trans, m, n, k, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                          reinterpret_cast<const cuDoubleComplex*>(tau), reinterpret_cast<cuDoubleComplex*>(C), ldc,
+                          reinterpret_cast<cuDoubleComplex*>(work), lwork, info);
+}
+
+// Buffer size wrappers for ormqr/unmqr.
+inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublasSideMode_t side,
+                                                    cublasOperation_t trans, int m, int n, int k, const float* A,
+                                                    int lda, const float* tau, const float* C, int ldc, int* lwork) {
+  return cusolverDnSormqr_bufferSize(h, side, trans, m, n, k, A, lda, tau, C, ldc, lwork);
+}
+inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublasSideMode_t side,
+                                                    cublasOperation_t trans, int m, int n, int k, const double* A,
+                                                    int lda, const double* tau, const double* C, int ldc, int* lwork) {
+  return cusolverDnDormqr_bufferSize(h, side, trans, m, n, k, A, lda, tau, C, ldc, lwork);
+}
+inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublasSideMode_t side,
+                                                    cublasOperation_t trans, int m, int n, int k,
+                                                    const std::complex<float>* A, int lda,
+                                                    const std::complex<float>* tau, const std::complex<float>* C,
+                                                    int ldc, int* lwork) {
+  return cusolverDnCunmqr_bufferSize(h, side, trans, m, n, k, reinterpret_cast<const cuComplex*>(A), lda,
+                                     reinterpret_cast<const cuComplex*>(tau), reinterpret_cast<const cuComplex*>(C),
+                                     ldc, lwork);
+}
+inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublasSideMode_t side,
+                                                    cublasOperation_t trans, int m, int n, int k,
+                                                    const std::complex<double>* A, int lda,
+                                                    const std::complex<double>* tau, const std::complex<double>* C,
+                                                    int ldc, int* lwork) {
+  return cusolverDnZunmqr_bufferSize(h, side, trans, m, n, k, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                                     reinterpret_cast<const cuDoubleComplex*>(tau),
+                                     reinterpret_cast<const cuDoubleComplex*>(C), ldc, lwork);
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen
