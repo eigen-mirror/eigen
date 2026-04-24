@@ -6,6 +6,7 @@ set(Eigen_HEADERS
   BVH
   EulerAngles
   FFT
+  GPU
   IterativeSolvers
   KroneckerProduct
   LevenbergMarquardt

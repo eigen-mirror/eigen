@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.17)
 
 #==============================================================================
 # CMake Policy issues.
@@ -9,7 +9,7 @@ if (POLICY CMP0077)
 endif (POLICY CMP0077)
 
 # NOTE Remove setting the policy once the minimum required CMake version is
-# increased to at least 3.15. Retain enabling the export to package registry.
+# increased to at least 3.21. Retain enabling the export to package registry.
 if (POLICY CMP0090)
   # The export command does not populate package registry by default
   cmake_policy (SET CMP0090 NEW)
