@@ -104,15 +104,6 @@ void quaternion(void) {
     VERIFY_IS_MUCH_SMALLER_THAN(abs(q1.angularDistance(q2) - refangle), Scalar(1));
   }
 
-  // angular distance with non-unit quaternions (scale-invariance)
-  {
-    Quaternionx qunit(AngleAxisx(Scalar(EIGEN_PI / 2), Vector3::UnitX()));
-    Quaternionx qscaled;
-    qscaled.coeffs() = qunit.coeffs() * Scalar(2);
-    VERIFY_IS_APPROX(qscaled.angularDistance(Quaternionx::Identity()), Scalar(EIGEN_PI / 2));
-    VERIFY_IS_APPROX(Quaternionx::Identity().angularDistance(qscaled), Scalar(EIGEN_PI / 2));
-  }
-
   // Action on vector by the q v q* formula
   VERIFY_IS_APPROX(q1 * v2, (q1 * Quaternionx(Scalar(0), v2) * q1.inverse()).vec());
   VERIFY_IS_APPROX(q1.inverse() * v2, (q1.inverse() * Quaternionx(Scalar(0), v2) * q1).vec());

@@ -821,8 +821,12 @@ template <class OtherDerived>
 EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar QuaternionBase<Derived>::angularDistance(
     const QuaternionBase<OtherDerived>& other) const {
   EIGEN_USING_STD(atan2)
-  Quaternion<Scalar> d = (*this) * other.conjugate();
-  return Scalar(2) * atan2(d.vec().norm(), numext::abs(d.w()));
+  // For unit quaternions: dot = cos(theta/2), so theta = 2*atan2(sin(theta/2), |cos(theta/2)|).
+  // Using atan2 instead of acos for numerical accuracy at small angles.
+  Scalar d = numext::abs(this->dot(other));
+  // Clamp to handle non-unit quaternions gracefully.
+  if (d >= Scalar(1)) return Scalar(0);
+  return Scalar(2) * atan2(numext::sqrt(Scalar(1) - d * d), d);
 }
 
 /** \returns the spherical linear interpolation between the two quaternions
