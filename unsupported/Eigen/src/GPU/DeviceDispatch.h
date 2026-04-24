@@ -46,6 +46,10 @@ void dispatch_gemm(
   const DeviceMatrix<Scalar>& A = traits_lhs::matrix(expr.lhs());
   const DeviceMatrix<Scalar>& B = traits_rhs::matrix(expr.rhs());
 
+  // cuBLAS GEMM: C must not alias A or B (undefined behavior).
+  eigen_assert(dst.data() != A.data() && "GEMM: output aliases left operand (use a temporary)");
+  eigen_assert(dst.data() != B.data() && "GEMM: output aliases right operand (use a temporary)");
+
   constexpr cublasOperation_t transA = to_cublas_op(traits_lhs::op);
   constexpr cublasOperation_t transB = to_cublas_op(traits_rhs::op);
 
@@ -510,6 +514,289 @@ void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A,
   SyrkExpr<Scalar_, UpLo_> expr(A);
   RealScalar beta = matrix().empty() ? RealScalar(0) : RealScalar(1);
   internal::dispatch_syrk(Context::threadLocal(), matrix(), expr, alpha, beta);
+}
+
+// ---- Helper: scoped CUBLAS_POINTER_MODE_DEVICE ------------------------------
+// Saves the current pointer mode, switches to device, runs the callable,
+// then restores the original mode. Used by dot, norm, operator*=(DeviceScalar),
+// and operator+=(DeviceScaledDevice).
+
+namespace internal {
+template <typename F>
+void with_device_pointer_mode(cublasHandle_t h, F&& f) {
+  cublasPointerMode_t prev;
+  EIGEN_CUBLAS_CHECK(cublasGetPointerMode(h, &prev));
+  EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, CUBLAS_POINTER_MODE_DEVICE));
+  f();
+  EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, prev));
+}
+}  // namespace internal
+
+// ---- DeviceMatrix BLAS-1 out-of-line definitions ----------------------------
+// Defined here because they need the full Context definition.
+// All methods take an explicit Context& so callers can ensure same-stream
+// execution (zero event overhead when all operations share one context).
+//
+// Reduction methods (dot, norm, squaredNorm) use CUBLAS_POINTER_MODE_DEVICE:
+// the scalar result is written to device memory and stays there until read
+// via DeviceScalar's implicit conversion to Scalar (which syncs).
+
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
+                                                                                const DeviceMatrix& other) const {
+  const int n = static_cast<int>(rows_ * cols_);
+  eigen_assert(n == static_cast<int>(other.rows_ * other.cols_));
+  DeviceScalar<Scalar> result(Scalar(0), ctx.stream());
+  if (n > 0) {
+    waitReady(ctx.stream());
+    other.waitReady(ctx.stream());
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(
+          internal::cublasXdot(ctx.cublasHandle(), n, data_.get(), 1, other.data_.get(), 1, result.devicePtr()));
+    });
+  }
+  return result;
+}
+
+namespace internal {
+// Real: dot(x,x) returns DeviceScalar<Scalar> which IS DeviceScalar<RealScalar>.
+// Move-construct without any sync.
+template <typename Scalar, typename RealScalar>
+typename std::enable_if<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>>::type squaredNorm_from_dot(
+    DeviceScalar<Scalar>&& d, cudaStream_t) {
+  return std::move(d);
+}
+// Complex: must sync to extract the real part (DeviceScalar arithmetic is real-only).
+template <typename Scalar, typename RealScalar>
+typename std::enable_if<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>>::type squaredNorm_from_dot(
+    DeviceScalar<Scalar>&& d, cudaStream_t stream) {
+  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), stream);
+}
+}  // namespace internal
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
+  // Use dot(x,x) instead of nrm2()^2: dot kernel is ~4.5x faster than nrm2
+  // (nrm2 uses a numerically careful scaled-sum-of-squares algorithm that is
+  // unnecessary for CG convergence checks).
+  using RealScalar = typename NumTraits<Scalar_>::Real;
+  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const int n = static_cast<int>(rows_ * cols_);
+  DeviceScalar<RealScalar> result(RealScalar(0), ctx.stream());
+  if (n > 0) {
+    waitReady(ctx.stream());
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data_.get(), 1, result.devicePtr()));
+    });
+  }
+  return result;
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::setZero(Context& ctx) {
+  if (sizeInBytes() > 0) {
+    waitReady(ctx.stream());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(data_.get(), 0, sizeInBytes(), ctx.stream()));
+    recordReady(ctx.stream());
+  }
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::addScaled(Context& ctx, Scalar alpha, const DeviceMatrix& x) {
+  const int n = static_cast<int>(rows_ * cols_);
+  eigen_assert(n == static_cast<int>(x.rows_ * x.cols_));
+  if (n > 0) {
+    waitReady(ctx.stream());
+    x.waitReady(ctx.stream());
+    EIGEN_CUBLAS_CHECK(internal::cublasXaxpy(ctx.cublasHandle(), n, &alpha, x.data_.get(), 1, data_.get(), 1));
+    recordReady(ctx.stream());
+  }
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::scale(Context& ctx, Scalar alpha) {
+  const int n = static_cast<int>(rows_ * cols_);
+  if (n > 0) {
+    waitReady(ctx.stream());
+    EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, &alpha, data_.get(), 1));
+    recordReady(ctx.stream());
+  }
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::copyFrom(Context& ctx, const DeviceMatrix& other) {
+  // Wait on *this before resize — resize may free the old buffer while another
+  // stream is still reading it.
+  if (!empty()) waitReady(ctx.stream());
+  resize(other.rows_, other.cols_);
+  const int n = static_cast<int>(rows_ * cols_);
+  if (n > 0) {
+    other.waitReady(ctx.stream());
+    EIGEN_CUBLAS_CHECK(internal::cublasXcopy(ctx.cublasHandle(), n, other.data_.get(), 1, data_.get(), 1));
+    recordReady(ctx.stream());
+  }
+}
+
+// ---- BLAS-1 operator overloads for CG compatibility -------------------------
+
+// this += alpha * x  (axpy)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const Scaled<DeviceMatrix>& expr) {
+  addScaled(Context::threadLocal(), expr.scalar(), internal::device_expr_traits<DeviceMatrix>::matrix(expr.inner()));
+  return *this;
+}
+
+// this -= alpha * x  (axpy with negated alpha)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator-=(const Scaled<DeviceMatrix>& expr) {
+  addScaled(Context::threadLocal(), -expr.scalar(), internal::device_expr_traits<DeviceMatrix>::matrix(expr.inner()));
+  return *this;
+}
+
+// this += x  (axpy with alpha=1)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const DeviceMatrix& other) {
+  Scalar one(1);
+  addScaled(Context::threadLocal(), one, other);
+  return *this;
+}
+
+// this -= x  (axpy with alpha=-1)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator-=(const DeviceMatrix& other) {
+  Scalar neg_one(-1);
+  addScaled(Context::threadLocal(), neg_one, other);
+  return *this;
+}
+
+// this *= alpha  (scal, host pointer)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(Scalar alpha) {
+  scale(Context::threadLocal(), alpha);
+  return *this;
+}
+
+// this *= alpha  (scal, device pointer — avoids host sync)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(const DeviceScalar<Scalar>& alpha) {
+  const int n = static_cast<int>(rows_ * cols_);
+  if (n > 0) {
+    auto& ctx = Context::threadLocal();
+    waitReady(ctx.stream());
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, alpha.devicePtr(), data_.get(), 1));
+    });
+    recordReady(ctx.stream());
+  }
+  return *this;
+}
+
+// this += DeviceScalar * x  (axpy with CUBLAS_POINTER_MODE_DEVICE)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const DeviceScaledDevice<Scalar_>& expr) {
+  const int n = static_cast<int>(rows_ * cols_);
+  const auto& x = expr.matrix();
+  eigen_assert(n == static_cast<int>(x.rows_ * x.cols_));
+  if (n > 0) {
+    auto& ctx = Context::threadLocal();
+    waitReady(ctx.stream());
+    x.waitReady(ctx.stream());
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(
+          internal::cublasXaxpy(ctx.cublasHandle(), n, expr.alpha().devicePtr(), x.data_.get(), 1, data_.get(), 1));
+    });
+    recordReady(ctx.stream());
+  }
+  return *this;
+}
+
+// this -= DeviceScalar * x  (axpy with negated device scalar)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator-=(const DeviceScaledDevice<Scalar_>& expr) {
+  auto neg_alpha = -expr.alpha();
+  DeviceScaledDevice<Scalar_> neg_expr(neg_alpha, expr.matrix());
+  return operator+=(neg_expr);
+}
+
+// this = alpha * A + beta * B  (cuBLAS geam)
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceAddExpr<Scalar_>& expr) {
+  auto& ctx = Context::threadLocal();
+  const auto& A = expr.A();
+  const auto& B = expr.B();
+  eigen_assert(A.rows() == B.rows() && A.cols() == B.cols());
+  const int m = static_cast<int>(A.rows());
+  const int n = static_cast<int>(A.cols());
+  // Wait on *this before resize — resize may free the old buffer while another
+  // stream is still reading it.
+  if (!empty()) waitReady(ctx.stream());
+  resize(A.rows(), A.cols());
+  if (m > 0 && n > 0) {
+    A.waitReady(ctx.stream());
+    B.waitReady(ctx.stream());
+    Scalar_ alpha = expr.alpha();
+    Scalar_ beta = expr.beta();
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &alpha, A.data(), m,
+                                             &beta, B.data(), m, data_.get(), m));
+    recordReady(ctx.stream());
+  }
+  return *this;
+}
+
+// cwiseProduct (allocating).
+template <typename Scalar_>
+DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& other) const {
+  const int n = static_cast<int>(rows_ * cols_);
+  eigen_assert(n == static_cast<int>(other.rows_ * other.cols_));
+  DeviceMatrix result(rows_, cols_);
+  if (n > 0) {
+    waitReady(ctx.stream());
+    other.waitReady(ctx.stream());
+    internal::device_cwiseProduct(data_.get(), other.data_.get(), result.data_.get(), n, ctx.stream());
+    result.recordReady(ctx.stream());
+  }
+  return result;
+}
+
+// In-place cwiseProduct: this = a .* b (reuses this buffer, no allocation).
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, const DeviceMatrix& b) {
+  const int n = static_cast<int>(a.rows_ * a.cols_);
+  eigen_assert(n == static_cast<int>(b.rows_ * b.cols_));
+  if (!empty()) waitReady(ctx.stream());
+  resize(a.rows_, a.cols_);
+  if (n > 0) {
+    a.waitReady(ctx.stream());
+    b.waitReady(ctx.stream());
+    internal::device_cwiseProduct(a.data_.get(), b.data_.get(), data_.get(), n, ctx.stream());
+    recordReady(ctx.stream());
+  }
+}
+
+// Convenience overloads using thread-local default Context.
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(const DeviceMatrix& other) const {
+  return dot(Context::threadLocal(), other);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm() const {
+  return squaredNorm(Context::threadLocal());
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm() const {
+  return norm(Context::threadLocal());
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::setZero() {
+  setZero(Context::threadLocal());
 }
 
 }  // namespace gpu

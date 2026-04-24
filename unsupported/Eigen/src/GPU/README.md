@@ -1,9 +1,8 @@
 # Eigen GPU Module (`unsupported/Eigen/GPU`)
 
 GPU-accelerated linear algebra for Eigen users, dispatching to NVIDIA CUDA
-Math Libraries (cuBLAS, cuSOLVER, cuFFT, cuSPARSE, cuDSS). Requires CUDA
-11.4+; cuDSS features require CUDA 12.0+ and a separate cuDSS install.
-Header-only.
+Math Libraries (cuBLAS, cuSOLVER, cuFFT, cuSPARSE, cuDSS). Requires CUDA 11.4+;
+cuDSS features require CUDA 12.0+ and a separate cuDSS install. Header-only.
 
 ## Why this module
 
@@ -32,8 +31,9 @@ learning CUDA library APIs directly.
 
 **CPU and GPU coexist.** There is no global compile-time switch that replaces
 CPU implementations (unlike `EIGEN_USE_LAPACKE`). Users choose GPU solvers
-explicitly -- `gpu::LLT<double>` vs `LLT<MatrixXd>`, `gpu::SparseLLT<double>` vs
-`SimplicialLLT<SparseMatrix<double>>` -- and both coexist in the same binary.
+explicitly -- `gpu::LLT<double>` vs `Eigen::LLT<MatrixXd>`,
+`gpu::SparseLLT<double>` vs `SimplicialLLT<SparseMatrix<double>>` -- and both
+coexist in the same binary.
 This also lets users keep the factored matrix on device across multiple solves,
 something impossible with compile-time replacement.
 
@@ -70,6 +70,16 @@ expression template system (`MatrixBase`, `CwiseBinaryOp`, etc.).
 supported expression maps to a single NVIDIA library call. There is no
 coefficient-level evaluation, lazy fusion, or packet operations.
 
+**Interoperability where useful.** `DeviceMatrix` provides the same operator
+signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`,
+`dot()`, `squaredNorm()`, `norm()`, `setZero()`, and `noalias()`. This makes
+`DeviceMatrix` usable as a drop-in `VectorType` in Eigen algorithm templates
+that rely on these operations. For example, Eigen's `conjugate_gradient()`
+template works with `DeviceMatrix` with a single typedef change -- no
+modifications to the algorithm or the expression template system. Conjugate
+gradient is just the motivating example; we are open to expanding operator
+coverage as needed to support other high-level Eigen algorithms on the GPU.
+
 **Explicit over implicit.** Host-device transfers, stream management, and
 library handle lifetimes are visible in the API. There are no hidden
 allocations or synchronizations except where documented (e.g., `toHost()` must
@@ -77,11 +87,12 @@ synchronize to deliver data to the host).
 
 ## Key concepts
 
-### `DeviceMatrix<Scalar>`
+### `gpu::DeviceMatrix<Scalar>`
 
 A typed RAII wrapper for a dense column-major matrix in GPU device memory.
 This is the GPU counterpart of Eigen's `MatrixX<Scalar>`. A vector is simply
-a `DeviceMatrix` with one column.
+a `DeviceMatrix` with one column. All public GPU classes live in `namespace
+Eigen::gpu`.
 
 ```cpp
 // Upload from host
@@ -104,10 +115,33 @@ MatrixXd C = transfer.get();
 `selfadjointView<UpLo>()`, `llt()`, `lu()`. These return lightweight
 expression objects that are evaluated when assigned.
 
+For BLAS Level-1 operations, `DeviceMatrix` also provides `dot()`, `norm()`,
+`squaredNorm()`, `setZero()`, `noalias()`, and arithmetic operators
+(`+=`, `-=`, `*=`) that dispatch to cuBLAS `axpy`, `nrm2`, `dot`, and
+`geam`. These are the operations needed by iterative solvers.
+
+### `gpu::DeviceScalar<Scalar>`
+
+A device-resident scalar value. Reductions like `dot()`, `norm()`, and
+`squaredNorm()` return `DeviceScalar` instead of a host scalar, deferring
+the host synchronization until the value is actually needed:
+
+```cpp
+auto dot_val = d_x.dot(d_y);          // DeviceScalar -- no sync
+auto norm_sq = d_r.squaredNorm();      // DeviceScalar -- no sync
+Scalar alpha = dot_val / norm_sq;      // sync here (implicit conversion)
+d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
+```
+
+Division between `DeviceScalar` values (real types only) is performed on
+device via NPP, avoiding extra synchronizations. Small device allocations
+(including `DeviceScalar`) are recycled through a thread-local
+`DeviceBufferPool` to avoid `cudaMalloc`/`cudaFree` overhead in tight loops.
+
 ### `gpu::Context`
 
 Every GPU operation needs a CUDA stream and library handles (cuBLAS,
-cuSOLVER). `gpu::Context` bundles these together.
+cuSOLVER, cuSPARSE). `gpu::Context` bundles these together.
 
 For simple usage, you don't need to create one -- a per-thread default context
 is created lazily on first use:
@@ -126,6 +160,22 @@ d_C1.device(ctx1) = d_A1 * d_B1;   // runs on stream 1
 d_C2.device(ctx2) = d_A2 * d_B2;   // runs on stream 2 (concurrently)
 ```
 
+To integrate with existing CUDA code, borrow an existing stream:
+
+```cpp
+gpu::Context ctx(my_existing_stream);  // wraps stream, does not take ownership
+```
+
+To override the thread-local default (e.g., in CG where all ops share one
+context):
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);    // all threadLocal() calls return ctx
+// ... GPU operations ...
+gpu::Context::setThreadLocal(nullptr); // restore lazy-created default
+```
+
 ## Usage
 
 ### Matrix operations (cuBLAS)
@@ -141,7 +191,7 @@ d_C = d_A * d_B.transpose();
 
 // Scaled and accumulated
 d_C += 2.0 * d_A * d_B;             // alpha=2, beta=1
-d_C.device(ctx) -= d_A * d_B;       // alpha=-1, beta=1 (requires explicit context)
+d_C.device(ctx) -= d_A * d_B;       // alpha=-1, beta=1 (GEMM requires explicit context for -=)
 
 // Triangular solve (TRSM)
 d_X = d_A.triangularView<Lower>().solve(d_B);
@@ -151,6 +201,30 @@ d_C = d_A.selfadjointView<Lower>() * d_B;
 
 // Rank-k update (SYRK/HERK)
 d_C.selfadjointView<Lower>().rankUpdate(d_A);  // C += A * A^H
+```
+
+### BLAS Level-1 operations
+
+```cpp
+// Dot product and norms (return DeviceScalar -- no sync until read)
+auto dot_val = d_x.dot(d_y);          // cublasDdot / cublasCdotc
+auto norm_val = d_r.norm();            // cublasDnrm2
+double n = norm_val;                   // implicit conversion triggers sync
+
+// Vector arithmetic (cuBLAS axpy / geam)
+d_x += alpha * d_p;                    // axpy: x = x + alpha * p
+d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
+d_x *= alpha;                          // scal: x = alpha * x
+d_r.setZero();                         // cudaMemsetAsync
+
+// DeviceScalar arithmetic (stays on device, real types only)
+auto alpha = absNew / dot_val;         // device-side division via NPP
+d_x += alpha * d_p;                    // DeviceScalar * DeviceMatrix (axpy with device pointer)
+
+// Matrix add/subtract (cuBLAS geam)
+gpu::DeviceMatrix<double> d_C = d_A + d_B;       // C = A + B
+d_C = d_A + 2.0 * d_B;                          // C = A + 2*B
+d_C = d_A - d_B;                                 // C = A - B
 ```
 
 ### Dense solvers (cuSOLVER)
@@ -191,6 +265,7 @@ gpu::SVD<double> svd;
 svd.compute(d_A, ComputeThinU | ComputeThinV);
 VectorXd S = svd.singularValues();   // downloads to host
 MatrixXd U = svd.matrixU();          // downloads to host
+MatrixXd V = svd.matrixV();          // V (matches JacobiSVD)
 MatrixXd VT = svd.matrixVT();        // V^T (matches cuSOLVER)
 
 // Self-adjoint eigenvalue decomposition (results downloaded on access)
@@ -261,13 +336,65 @@ MatrixXcf C = fft.inv2d(B);         // 2D inverse (scaled by 1/(rows*cols))
 SparseMatrix<double> A = ...;
 VectorXd x = ...;
 
-gpu::SparseContext<double> ctx;
-VectorXd y = ctx.multiply(A, x);            // y = A * x
-VectorXd z = ctx.multiplyT(A, x);           // z = A^T * x
-ctx.multiply(A, x, y, 2.0, 1.0);            // y = 2*A*x + y
+// Host vectors (upload/download handled internally)
+gpu::SparseContext<double> spmv;
+VectorXd y = spmv.multiply(A, x);           // y = A * x
+VectorXd z = spmv.multiplyT(A, x);          // z = A^T * x
+spmv.multiply(A, x, y, 2.0, 1.0);           // y = 2*A*x + y
+MatrixXd Y = spmv.multiplyMat(A, X);        // Y = A * X (SpMM)
 
-// Multiple RHS (SpMM)
-MatrixXd Y = ctx.multiplyMat(A, X);         // Y = A * X
+// Device-resident SpMV (sparse matrix cached on device)
+gpu::SparseContext<double> spmv(ctx);          // share gpu::Context for same-stream
+auto d_A = spmv.deviceView(A);              // upload sparse matrix once
+d_y = d_A * d_x;                            // operator syntax, stays on device
+```
+
+### Eigen algorithm interop (example: Conjugate gradient)
+
+The BLAS-1 operators and `DeviceSparseView` make `DeviceMatrix` usable as a
+vector type in GPU implementations of algorithms like conjugate gradient.
+Conjugate gradient is the motivating example -- the GPU CG mirrors Eigen's
+`conjugate_gradient()` line for line, with only one host sync per iteration
+(the convergence check). All scalar intermediates (`alpha`, `beta`, `absNew`)
+stay on device as `DeviceScalar` values:
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);
+gpu::SparseContext<double> spmv(ctx);
+auto mat = spmv.deviceView(A);              // upload sparse matrix once
+
+auto rhs = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+gpu::DeviceMatrix<double> x(n, 1);
+x.setZero();
+gpu::DeviceMatrix<double> residual(n, 1);
+residual.copyFrom(ctx, rhs);                // r = b (x=0)
+gpu::DeviceMatrix<double> p(n, 1);
+p.copyFrom(ctx, residual);                  // p = r
+gpu::DeviceMatrix<double> z(n, 1), tmp(n, 1);
+
+auto absNew = residual.dot(p);              // DeviceScalar -- no sync
+
+while (i < maxIters) {
+  tmp.noalias() = mat * p;                   // SpMV, device-resident
+
+  auto alpha = absNew / p.dot(tmp);          // DeviceScalar / DeviceScalar -- no sync
+
+  x += alpha * p;                            // DeviceScalar * DeviceMatrix axpy -- no sync
+  residual -= alpha * tmp;                   // DeviceScalar * DeviceMatrix axpy -- no sync
+
+  residualNorm2 = residual.squaredNorm();    // THE one sync per iteration
+  if (residualNorm2 < threshold) break;
+
+  z.copyFrom(ctx, residual);                 // no preconditioner: z = r
+  auto absOld = std::move(absNew);           // no sync, no alloc
+  absNew = residual.dot(z);                  // DeviceScalar -- no sync
+  auto beta = absNew / absOld;               // DeviceScalar / DeviceScalar -- no sync
+
+  p *= beta;                                 // DeviceScalar scal -- no sync
+  p += z;                                    // axpy -- no sync
+}
+MatrixXd result = x.toHost();
 ```
 
 ### Precision control
@@ -293,6 +420,7 @@ Mandatory sync points:
 - `fromHost()` -- Synchronizes to complete the upload before returning
 - `toHost()` / `HostTransfer::get()` -- Must deliver data to host
 - `info()` -- Must read the factorization status
+- `DeviceScalar` implicit conversion -- Downloads scalar from device
 
 **Cross-stream safety** is automatic. `DeviceMatrix` tracks write completion
 via CUDA events. When a matrix written on stream A is read on stream B, the
@@ -327,21 +455,33 @@ noted otherwise).
 
 | DeviceMatrix expression | Library call | Parameters |
 |---|---|---|
-| `C = A * B` | `cublasGemmEx` | transA=N, transB=N, alpha=1, beta=0 |
-| `C = A.adjoint() * B` | `cublasGemmEx` | transA=C, transB=N |
-| `C = A.transpose() * B` | `cublasGemmEx` | transA=T, transB=N |
-| `C = A * B.adjoint()` | `cublasGemmEx` | transA=N, transB=C |
-| `C = A * B.transpose()` | `cublasGemmEx` | transA=N, transB=T |
-| `C = alpha * A * B` | `cublasGemmEx` | alpha from LHS |
-| `C = A * (alpha * B)` | `cublasGemmEx` | alpha from RHS |
-| `C += A * B` | `cublasGemmEx` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasGemmEx` | alpha=-1, beta=1 |
+| `C = A * B` | `cublasXgemm` | transA=N, transB=N, alpha=1, beta=0 |
+| `C = A.adjoint() * B` | `cublasXgemm` | transA=C, transB=N |
+| `C = A.transpose() * B` | `cublasXgemm` | transA=T, transB=N |
+| `C = A * B.adjoint()` | `cublasXgemm` | transA=N, transB=C |
+| `C = A * B.transpose()` | `cublasXgemm` | transA=N, transB=T |
+| `C = alpha * A * B` | `cublasXgemm` | alpha from LHS |
+| `C = A * (alpha * B)` | `cublasXgemm` | alpha from RHS |
+| `C += A * B` | `cublasXgemm` | alpha=1, beta=1 |
+| `C.device(ctx) -= A * B` | `cublasXgemm` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
 | `X = A.triangularView<L>().solve(B)` | `cublasXtrsm` | side=L, uplo, diag=NonUnit |
 | `C = A.selfadjointView<L>() * B` | `cublasXsymm` / `cublasXhemm` | side=L, uplo |
 | `C.selfadjointView<L>().rankUpdate(A)` | `cublasXsyrk` / `cublasXherk` | uplo, trans=N |
+| `C = A + B` | `cublasXgeam` | alpha=1, beta=1 |
+| `C = A + alpha * B` | `cublasXgeam` | alpha=1, beta from scaled |
+| `C = A - B` | `cublasXgeam` | alpha=1, beta=-1 |
+| `C = A - alpha * B` | `cublasXgeam` | alpha=1, beta=-scaled |
+| `x += alpha * y` | `cublasXaxpy` | alpha (host scalar) |
+| `x += dAlpha * y` | `cublasXaxpy` | alpha (DeviceScalar, device pointer mode) |
+| `x -= alpha * y` | `cublasXaxpy` | alpha negated |
+| `x *= alpha` | `cublasXscal` | alpha (host or DeviceScalar) |
+| `x.dot(y)` | `cublasXdot` / `cublasXdotc` | returns `DeviceScalar` |
+| `x.norm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
+| `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
+| `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 
 ### `DeviceMatrix<Scalar>`
 
@@ -352,11 +492,12 @@ one column.
 ```cpp
 // Construction
 DeviceMatrix<Scalar>()                                   // Empty (0x0)
+DeviceMatrix<Scalar>(Index n)                            // Allocate column vector (n x 1)
 DeviceMatrix<Scalar>(rows, cols)                         // Allocate uninitialized
 
 // Upload / download
 static DeviceMatrix fromHost(matrix, stream=nullptr)           // -> DeviceMatrix (syncs)
-static DeviceMatrix fromHostAsync(ptr, rows, cols, outerStride, s)  // -> DeviceMatrix (no sync, caller manages ptr lifetime)
+static DeviceMatrix fromHostAsync(ptr, rows, cols, stream)         // -> DeviceMatrix (no sync, caller manages ptr lifetime)
 PlainMatrix        toHost(stream=nullptr)                      // -> host Matrix (syncs)
 HostTransfer       toHostAsync(stream=nullptr)                 // -> HostTransfer future (no sync)
 DeviceMatrix       clone(stream=nullptr)                       // -> DeviceMatrix (D2D copy, async)
@@ -377,6 +518,50 @@ LuExpr             lu()                                  // -> .solve(d_B) -> De
 TriangularView     triangularView<UpLo>()                // -> .solve(d_B) -> DeviceMatrix (TRSM)
 SelfAdjointView    selfadjointView<UpLo>()               // -> * d_B (SYMM), .rankUpdate(d_A) (SYRK)
 Assignment   device(gpu::Context& ctx)                // Bind assignment to explicit stream
+DeviceMatrix&      noalias()                             // No-op (all ops are implicitly noalias)
+
+// BLAS Level-1 (all have overloads with explicit gpu::Context& parameter)
+DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
+DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
+DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
+void                     setZero()                       // cudaMemsetAsync
+void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
+void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
+void                     copyFrom(gpu::Context&, const DeviceMatrix& other)              // this = other (D2D copy)
+DeviceMatrix& operator+=(Scalar * DeviceMatrix)          // cuBLAS axpy
+DeviceMatrix& operator-=(Scalar * DeviceMatrix)          // cuBLAS axpy (negated)
+DeviceMatrix& operator+=(const DeviceMatrix&)            // cuBLAS axpy
+DeviceMatrix& operator-=(const DeviceMatrix&)            // cuBLAS axpy
+DeviceMatrix& operator+=(const DeviceScaledDevice&)      // cuBLAS axpy (DeviceScalar * DeviceMatrix)
+DeviceMatrix& operator-=(const DeviceScaledDevice&)      // cuBLAS axpy (DeviceScalar * DeviceMatrix, negated)
+DeviceMatrix& operator*=(Scalar)                         // cuBLAS scal
+DeviceMatrix& operator*=(const DeviceScalar<Scalar>&)    // cuBLAS scal (device pointer)
+DeviceMatrix  cwiseProduct(gpu::Context&, const DeviceMatrix&)            // NPP nppsMul (float/double only)
+void          cwiseProduct(gpu::Context&, const DeviceMatrix&, const DeviceMatrix&)  // in-place: this = a .* b
+
+// geam expressions (evaluated on assignment)
+DeviceMatrix& operator=(const DeviceAddExpr&)            // C = A + B, C = A + alpha*B, C = A - B, etc.
+```
+
+### `DeviceScalar<Scalar>`
+
+Device-resident scalar. Returned by `dot()`, `norm()`, and `squaredNorm()`.
+Implicit conversion to `Scalar` triggers `cudaStreamSynchronize` + download.
+
+```cpp
+DeviceScalar(cudaStream_t stream = nullptr)              // Allocate uninitialized
+DeviceScalar(Scalar host_val, cudaStream_t stream)       // Upload host value
+
+Scalar         get()                                     // Download (syncs stream)
+               operator Scalar()                         // Implicit conversion (syncs)
+Scalar*        devicePtr()                               // Raw device pointer
+cudaStream_t   stream()
+
+// Device-side arithmetic (no host sync, real types only)
+DeviceScalar   operator/(DeviceScalar, DeviceScalar)     // NPP nppsDiv
+DeviceScalar   operator/(Scalar, DeviceScalar)           // upload + div
+DeviceScalar   operator/(DeviceScalar, Scalar)           // upload + div
+DeviceScalar   operator-()                               // NPP nppsMulC(-1)
 ```
 
 ### `gpu::Context`
@@ -385,11 +570,15 @@ Unified GPU execution context owning a CUDA stream and library handles.
 
 ```cpp
 gpu::Context()                                             // Creates dedicated stream + handles
+gpu::Context(cudaStream_t stream)                          // Borrow existing stream (not owned)
 static gpu::Context& threadLocal()                         // Per-thread default (lazy-created)
+static void        setThreadLocal(gpu::Context* ctx)       // Override thread-local default (nullptr restores)
 
 cudaStream_t       stream()
 cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()
+cublasLtHandle_t   cublasLtHandle()                     // Lazy-initialized
+cusparseHandle_t   cusparseHandle()                     // Lazy-initialized
 ```
 
 Non-copyable, non-movable (owns library handles).
@@ -460,6 +649,7 @@ gpu::SVD&            compute(const DeviceMatrix& d_A, unsigned options = Compute
 
 RealVector         singularValues()                      // -> host vector (syncs, downloads)
 PlainMatrix        matrixU()                             // -> host Matrix (syncs, downloads)
+PlainMatrix        matrixV()                             // -> host Matrix (V = VT^H, matches JacobiSVD)
 PlainMatrix        matrixVT()                            // -> host Matrix (syncs, downloads V^T)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (pseudoinverse)
@@ -472,9 +662,9 @@ Index              rows() / cols()
 cudaStream_t       stream()
 ```
 
-**Note:** `singularValues()`, `matrixU()`, and `matrixVT()` download to host
-on each call. Device-side accessors returning `DeviceMatrix` are planned but
-not yet implemented.
+**Note:** `singularValues()`, `matrixU()`, `matrixV()`, and `matrixVT()`
+download to host on each call. Device-side accessors returning `DeviceMatrix`
+are planned but not yet implemented.
 
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
@@ -564,19 +754,36 @@ the input scalar type (complex vs real).
 
 ### `gpu::SparseContext<Scalar>` -- SpMV/SpMM (cuSPARSE)
 
-Accepts `SparseMatrix<Scalar, ColMajor>`. All methods accept host data and
-return host data.
+Accepts `SparseMatrix<Scalar, ColMajor>`.
 
 ```cpp
 gpu::SparseContext()                                       // Creates own stream + cuSPARSE handle
+gpu::SparseContext(gpu::Context& ctx)                        // Borrow gpu::Context for same-stream execution
 
-DenseVector        multiply(A, x)                                       // y = A * x
-void               multiply(A, x, y, alpha=1, beta=0,                   // y = alpha*op(A)*x + beta*y
+// Host data in/out
+DenseVector        multiply(A, x)                        // y = A * x
+void               multiply(A, x, y, alpha=1, beta=0,   // y = alpha*op(A)*x + beta*y
                      op=CUSPARSE_OPERATION_NON_TRANSPOSE)
-DenseVector        multiplyT(A, x)                                      // y = A^T * x
-DenseMatrix        multiplyMat(A, X)                                    // Y = A * X (SpMM)
+DenseVector        multiplyT(A, x)                       // y = A^T * x
+DenseMatrix        multiplyMat(A, X)                     // Y = A * X (SpMM)
+
+// DeviceMatrix in/out (sparse matrix re-uploaded each call)
+void               multiply(A, d_x, d_y)                // SpMV with device vectors
+void               multiply(A, d_x, d_y, alpha, beta, op)
+
+// Device-resident sparse matrix (upload once, reuse)
+DeviceSparseView   deviceView(A)                         // Upload sparse matrix, return view
 
 cudaStream_t       stream()
+```
+
+### `DeviceSparseView<Scalar>` -- Device-resident sparse matrix
+
+Returned by `gpu::SparseContext::deviceView()`. Holds a sparse matrix on device
+for repeated SpMV without re-uploading.
+
+```cpp
+SpMVExpr           operator*(const DeviceMatrix& d_x)    // d_y = view * d_x (evaluated on assignment)
 ```
 
 ### Aliasing
@@ -585,35 +792,40 @@ Unlike Eigen's `Matrix`, where omitting `.noalias()` triggers a copy to a
 temporary, DeviceMatrix dispatches directly to NVIDIA library calls which have
 no built-in aliasing protection. All operations are implicitly noalias.
 The caller must ensure operands don't alias the destination for GEMM and TRSM
-(debug asserts catch violations).
+(debug asserts catch violations). `geam` expressions (`d_C = d_A + alpha * d_B`)
+are safe with aliasing. The `.noalias()` method exists as a no-op for Eigen
+template compatibility.
 
 ## File layout
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `cuda_data_type<>` |
-| `DeviceMatrix.h` | `GpuSupport.h` | `DeviceMatrix<>`, `HostTransfer<>` |
-| `DeviceExpr.h` | `DeviceMatrix.h` | GEMM expression wrappers |
+| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
+| `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
-| `DeviceDispatch.h` | all above | All dispatch functions + `Assignment` |
+| `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
+| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP |
+| `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
 | `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
-| `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>` | cuBLAS error macro, op/compute type maps |
+| `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
-| `GpuLLT.h` | `CuSolverSupport.h` | Cached dense Cholesky factorization |
-| `GpuLU.h` | `CuSolverSupport.h` | Cached dense LU factorization |
-| `GpuQR.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense QR decomposition |
-| `GpuSVD.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Dense SVD decomposition |
-| `GpuEigenSolver.h` | `CuSolverSupport.h` | Self-adjoint eigenvalue decomposition |
+| `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
+| `GpuLLT.h` | `GpuSolverContext.h` | `gpu::LLT<>` -- Cached dense Cholesky factorization |
+| `GpuLU.h` | `GpuSolverContext.h` | `gpu::LU<>` -- Cached dense LU factorization |
+| `GpuQR.h` | `GpuSolverContext.h` | `gpu::QR<>` -- Dense QR decomposition |
+| `GpuSVD.h` | `GpuSolverContext.h` | `gpu::SVD<>` -- Dense SVD decomposition |
+| `GpuEigenSolver.h` | `GpuSolverContext.h` | `gpu::SelfAdjointEigenSolver<>` |
 | `CuFftSupport.h` | `GpuSupport.h`, `<cufft.h>` | cuFFT error macro, type-dispatch wrappers |
-| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h` | 1D/2D FFT with plan caching |
+| `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h` | `gpu::FFT<>` -- 1D/2D FFT with plan caching |
 | `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro |
-| `GpuSparseContext.h` | `CuSparseSupport.h` | SpMV/SpMM via cuSPARSE |
+| `GpuSparseContext.h` | `CuSparseSupport.h` | `gpu::SparseContext<>`, `gpu::DeviceSparseView<>` |
 | `CuDssSupport.h` | `GpuSupport.h`, `<cudss.h>` | cuDSS error macro, type traits (optional) |
 | `GpuSparseSolverBase.h` | `CuDssSupport.h` | CRTP base for sparse solvers (optional) |
-| `GpuSparseLLT.h` | `GpuSparseSolverBase.h` | Sparse Cholesky via cuDSS (optional) |
-| `GpuSparseLDLT.h` | `GpuSparseSolverBase.h` | Sparse LDL^T via cuDSS (optional) |
-| `GpuSparseLU.h` | `GpuSparseSolverBase.h` | Sparse LU via cuDSS (optional) |
+| `GpuSparseLLT.h` | `GpuSparseSolverBase.h` | `gpu::SparseLLT<>` -- Sparse Cholesky via cuDSS (optional) |
+| `GpuSparseLDLT.h` | `GpuSparseSolverBase.h` | `gpu::SparseLDLT<>` -- Sparse LDL^T via cuDSS (optional) |
+| `GpuSparseLU.h` | `GpuSparseSolverBase.h` | `gpu::SparseLU<>` -- Sparse LU via cuDSS (optional) |
 
 ## Building and testing
 
@@ -626,7 +838,7 @@ cmake -G Ninja -B build -S . \
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \
-  device_matrix cufft cusparse_spmv
+  device_matrix cufft cusparse_spmv cg
 ctest --test-dir build -L gpu --output-on-failure
 
 # Sparse solvers (cuDSS -- separate install required)
@@ -647,10 +859,24 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
   Device-side accessors returning `DeviceMatrix` views of the internal buffers
   would allow chaining GPU operations (e.g., `svd.deviceU() * d_A`) without
   round-tripping through host memory.
-- **Device-resident sparse matrix-vector products.** `gpu::SparseContext`
-  currently operates on host vectors and matrices, uploading and downloading
-  on each call. The key missing piece is a `DeviceSparseView` that holds a
-  sparse matrix on device and supports operator syntax (`d_y = d_A * d_x`)
-  with `DeviceMatrix` operands -- keeping the entire SpMV/SpMM pipeline on
-  device. This is essential for iterative solvers and any workflow that chains
-  sparse and dense operations without returning to the host.
+- **Batched API (`DeviceBatchMatrix`).** A strided batch of N identical-size
+  matrices dispatching to cuBLAS/cuSOLVER batched APIs (`cublasDgemmBatched`,
+  `cusolverDnXpotrfBatched`, etc.). This enables robotics and model-predictive
+  control workloads where many small independent systems are solved in
+  parallel.
+- **cuTENSOR for Tensor module.** Replace the hand-written GPU tensor
+  contraction and reduction kernels (~2300 lines in
+  `TensorContractionGpu.h` / `TensorReductionGpu.h`) with cuTENSOR dispatch,
+  following the same library-dispatch pattern used by `unsupported/Eigen/GPU`.
+- **Unified/zero-copy memory for Jetson.** Use `cudaMallocManaged` or
+  `cudaHostAllocMapped` to eliminate `fromHost()` / `toHost()` copies on
+  integrated GPUs (Jetson) where CPU and GPU share DRAM.
+- **Device-side Eigen interop.** Bridge between host-side `DeviceMatrix`
+  dispatch and device-side Eigen expression templates (Core + Tensor) running
+  inside CUDA kernels. Raw-pointer + `Map` / `TensorMap` as the zero-copy
+  interop surface.
+- **Per-stream CUDA memory pools.** Currently all streams in a `GpuContext`
+  share the default device memory pool. Attaching a dedicated
+  `cudaMemPool_t` per stream (`cudaDeviceSetMempool` /
+  `cudaMallocFromPoolAsync`) can reduce cross-stream allocator contention for
+  workloads that fan out many concurrent solves.
