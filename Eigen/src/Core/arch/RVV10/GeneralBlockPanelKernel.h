@@ -409,35 +409,30 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
 
   template <typename ResPacketType, typename AccPacketType>
   EIGEN_STRONG_INLINE void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
-    conj_helper<ResPacketType, ResPacketType, ConjLhs, false> cj2;
-    r = cj2.pmadd(c, alpha, r);
+    r = cj.pmadd(c, alpha, r);
   }
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
   EIGEN_STRONG_INLINE void acc(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
-    conj_helper<Packet2Xcf, Packet2Xcf, false, ConjRhs> cj2;
     Packet2Xcf cp = pdup(c);
-    r = cj2.pmadd(cp, alpha, r);
+    r = cj.pmadd(cp, alpha, r);
   }
 
   EIGEN_STRONG_INLINE void acc(const Packet1Xcd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
-    conj_helper<Packet2Xcd, Packet2Xcd, false, ConjRhs> cj2;
     Packet2Xcd cp = pdup(c);
-    r = cj2.pmadd(cp, alpha, r);
+    r = cj.pmadd(cp, alpha, r);
   }
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL >= 2
   EIGEN_STRONG_INLINE void acc(const Packet1Xcfh& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
-    conj_helper<Packet1Xcf, Packet1Xcf, false, ConjRhs> cj2;
     Packet1Xcf cp = pdup(c);
-    r = cj2.pmadd(cp, alpha, r);
+    r = cj.pmadd(cp, alpha, r);
   }
 
   EIGEN_STRONG_INLINE void acc(const Packet1Xcdh& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
-    conj_helper<Packet1Xcd, Packet1Xcd, false, ConjRhs> cj2;
     Packet1Xcd cp = pdup(c);
-    r = cj2.pmadd(cp, alpha, r);
+    r = cj.pmadd(cp, alpha, r);
   }
 #endif
 
@@ -489,6 +484,8 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
   typedef QuadPacket<RhsPacket> RhsPacketx4;
   typedef ResPacket AccPacket;
 
+  EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
+
   template <typename RhsPacketType>
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketType& dest) const {
     dest = pset1<RhsPacketType>(*b);
@@ -505,13 +502,13 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
 
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
-  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const { dest = pload<LhsPacket>(a); }
+  EIGEN_STRONG_INLINE void loadLhs(const LhsScalar* a, LhsPacket& dest) const { dest = ploaddup<LhsPacket>(a); }
 
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const { dest = ploadquad<RhsPacket>(b); }
 
   template <typename LhsPacketType>
   EIGEN_STRONG_INLINE void loadLhsUnaligned(const LhsScalar* a, LhsPacketType& dest) const {
-    dest = ploadu<LhsPacketType>((const typename unpacket_traits<LhsPacketType>::type*)a);
+    dest = ploaddup<LhsPacketType>(a);
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
