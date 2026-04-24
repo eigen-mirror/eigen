@@ -750,8 +750,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
   static constexpr int Layout = TensorEvaluator<InputArgType, GpuDevice>::Layout;
   enum {
-    IsAligned =
-        TensorEvaluator<InputArgType, GpuDevice>::IsAligned & TensorEvaluator<KernelArgType, GpuDevice>::IsAligned,
+    IsAligned = int(TensorEvaluator<InputArgType, GpuDevice>::IsAligned) &
+                int(TensorEvaluator<KernelArgType, GpuDevice>::IsAligned),
     PacketAccess = false,
     BlockAccess = false,
     PreferBlockAccess = false,
