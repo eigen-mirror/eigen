@@ -184,6 +184,87 @@ GemmExpr<Lhs, Rhs> operator*(const Lhs& a, const Rhs& b) {
   return {a, b};
 }
 
+// ---- DeviceScaledDevice: DeviceScalar * DeviceMatrix → device-pointer axpy ---
+// Like Scaled but carries a DeviceScalar (device pointer) instead of
+// a host scalar. operator+= dispatches to cuBLAS axpy with POINTER_MODE_DEVICE.
+
+template <typename Scalar_>
+class DeviceScaledDevice {
+ public:
+  using Scalar = Scalar_;
+  DeviceScaledDevice(const DeviceScalar<Scalar>& alpha, const DeviceMatrix<Scalar>& mat) : alpha_(alpha), mat_(mat) {}
+  const DeviceScalar<Scalar>& alpha() const { return alpha_; }
+  const DeviceMatrix<Scalar>& matrix() const { return mat_; }
+
+ private:
+  const DeviceScalar<Scalar>& alpha_;
+  const DeviceMatrix<Scalar>& mat_;
+};
+
+// DeviceScalar * DeviceMatrix → DeviceScaledDevice
+template <typename S>
+DeviceScaledDevice<S> operator*(const DeviceScalar<S>& alpha, const DeviceMatrix<S>& m) {
+  return {alpha, m};
+}
+
+// ---- DeviceAddExpr: a + b → cublasXgeam -------------------------------------
+// Captures `DeviceMatrix + Scaled<DeviceMatrix>` (and reverse).
+// Dispatched to geam: C = alpha * A + beta * B.
+//
+// Note: These operator+/- overloads are intentionally free functions on
+// DeviceMatrix, not Eigen expression templates. DeviceMatrix does not inherit
+// from MatrixBase, so there is no ambiguity with Eigen's own operator+/-.
+// If DeviceMatrix is ever made an Eigen expression type, these would need to
+// be revisited.
+
+template <typename Scalar_>
+class DeviceAddExpr {
+ public:
+  using Scalar = Scalar_;
+  DeviceAddExpr(Scalar alpha, const DeviceMatrix<Scalar>& A, Scalar beta, const DeviceMatrix<Scalar>& B)
+      : alpha_(alpha), A_(A), beta_(beta), B_(B) {}
+  Scalar alpha() const { return alpha_; }
+  Scalar beta() const { return beta_; }
+  const DeviceMatrix<Scalar>& A() const { return A_; }
+  const DeviceMatrix<Scalar>& B() const { return B_; }
+
+ private:
+  Scalar alpha_;
+  const DeviceMatrix<Scalar>& A_;
+  Scalar beta_;
+  const DeviceMatrix<Scalar>& B_;
+};
+
+// DeviceMatrix + DeviceMatrix → DeviceAddExpr (alpha=1, beta=1)
+template <typename S>
+DeviceAddExpr<S> operator+(const DeviceMatrix<S>& a, const DeviceMatrix<S>& b) {
+  return {S(1), a, S(1), b};
+}
+
+// DeviceMatrix + Scaled<DeviceMatrix> → DeviceAddExpr (alpha=1, beta=scaled)
+template <typename S>
+DeviceAddExpr<S> operator+(const DeviceMatrix<S>& a, const Scaled<DeviceMatrix<S>>& b) {
+  return {S(1), a, b.scalar(), b.inner()};
+}
+
+// Scaled<DeviceMatrix> + DeviceMatrix → DeviceAddExpr (alpha=scaled, beta=1)
+template <typename S>
+DeviceAddExpr<S> operator+(const Scaled<DeviceMatrix<S>>& a, const DeviceMatrix<S>& b) {
+  return {a.scalar(), a.inner(), S(1), b};
+}
+
+// DeviceMatrix - DeviceMatrix → DeviceAddExpr (alpha=1, beta=-1)
+template <typename S>
+DeviceAddExpr<S> operator-(const DeviceMatrix<S>& a, const DeviceMatrix<S>& b) {
+  return {S(1), a, S(-1), b};
+}
+
+// DeviceMatrix - Scaled<DeviceMatrix> → DeviceAddExpr (alpha=1, beta=-scaled)
+template <typename S>
+DeviceAddExpr<S> operator-(const DeviceMatrix<S>& a, const Scaled<DeviceMatrix<S>>& b) {
+  return {S(1), a, -b.scalar(), b.inner()};
+}
+
 }  // namespace gpu
 }  // namespace Eigen
 

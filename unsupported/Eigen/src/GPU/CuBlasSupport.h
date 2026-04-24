@@ -21,6 +21,7 @@
 
 #include "./GpuSupport.h"
 #include <cublas_v2.h>
+#include <cublasLt.h>
 #include <cstring>
 
 namespace Eigen {
@@ -237,6 +238,106 @@ inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m
                                   int lda, const std::complex<double>* x, int incx, std::complex<double>* C, int ldc) {
   return cublasZdgmm(h, side, m, n, reinterpret_cast<const cuDoubleComplex*>(A), lda,
                      reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
+// ---- cuBLAS Level-1 wrappers ------------------------------------------------
+// Type-dispatched wrappers for BLAS-1 vector operations: dot, axpy, nrm2, scal, copy.
+// These work with CUBLAS_POINTER_MODE_HOST or CUBLAS_POINTER_MODE_DEVICE depending
+// on the caller's configuration. For device pointer mode, scalar result pointers
+// (dot, nrm2) must point to device memory.
+
+// dot: result = x^T * y (real) or x^H * y (complex conjugate dot)
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const float* x, int incx, const float* y, int incy,
+                                 float* result) {
+  return cublasSdot(h, n, x, incx, y, incy, result);
+}
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const double* x, int incx, const double* y, int incy,
+                                 double* result) {
+  return cublasDdot(h, n, x, incx, y, incy, result);
+}
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const std::complex<float>* x, int incx,
+                                 const std::complex<float>* y, int incy, std::complex<float>* result) {
+  return cublasCdotc(h, n, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<const cuComplex*>(y), incy,
+                     reinterpret_cast<cuComplex*>(result));
+}
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const std::complex<double>* x, int incx,
+                                 const std::complex<double>* y, int incy, std::complex<double>* result) {
+  return cublasZdotc(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx,
+                     reinterpret_cast<const cuDoubleComplex*>(y), incy, reinterpret_cast<cuDoubleComplex*>(result));
+}
+
+// nrm2: result = ||x||_2 (always returns real)
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const float* x, int incx, float* result) {
+  return cublasSnrm2(h, n, x, incx, result);
+}
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const double* x, int incx, double* result) {
+  return cublasDnrm2(h, n, x, incx, result);
+}
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const std::complex<float>* x, int incx, float* result) {
+  return cublasScnrm2(h, n, reinterpret_cast<const cuComplex*>(x), incx, result);
+}
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const std::complex<double>* x, int incx, double* result) {
+  return cublasDznrm2(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx, result);
+}
+
+// axpy: y += alpha * x
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const float* alpha, const float* x, int incx, float* y,
+                                  int incy) {
+  return cublasSaxpy(h, n, alpha, x, incx, y, incy);
+}
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const double* alpha, const double* x, int incx, double* y,
+                                  int incy) {
+  return cublasDaxpy(h, n, alpha, x, incx, y, incy);
+}
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const std::complex<float>* alpha,
+                                  const std::complex<float>* x, int incx, std::complex<float>* y, int incy) {
+  cuComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasCaxpy(h, n, &a, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<cuComplex*>(y), incy);
+}
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const std::complex<double>* alpha,
+                                  const std::complex<double>* x, int incx, std::complex<double>* y, int incy) {
+  cuDoubleComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasZaxpy(h, n, &a, reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(y),
+                     incy);
+}
+
+// scal: x *= alpha
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, float* x, int incx) {
+  return cublasSscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, double* x, int incx) {
+  return cublasDscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<float>* alpha, std::complex<float>* x,
+                                  int incx) {
+  cuComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasCscal(h, n, &a, reinterpret_cast<cuComplex*>(x), incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<double>* alpha, std::complex<double>* x,
+                                  int incx) {
+  cuDoubleComplex a;
+  std::memcpy(&a, alpha, sizeof(a));
+  return cublasZscal(h, n, &a, reinterpret_cast<cuDoubleComplex*>(x), incx);
+}
+
+// copy: y = x
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const float* x, int incx, float* y, int incy) {
+  return cublasScopy(h, n, x, incx, y, incy);
+}
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const double* x, int incx, double* y, int incy) {
+  return cublasDcopy(h, n, x, incx, y, incy);
+}
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const std::complex<float>* x, int incx,
+                                  std::complex<float>* y, int incy) {
+  return cublasCcopy(h, n, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<cuComplex*>(y), incy);
+}
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const std::complex<double>* x, int incx,
+                                  std::complex<double>* y, int incy) {
+  return cublasZcopy(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(y),
+                     incy);
 }
 
 }  // namespace internal
