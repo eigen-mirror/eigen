@@ -140,7 +140,7 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
   }
 
  protected:
-  const ArgTypeNested m_arg;
+  ArgTypeNested m_arg;
   evaluator<ArgTypeNestedCleaned> m_argImpl;
   const variable_if_dynamic<Index, ArgTypeNestedCleaned::SizeAtCompileTime> m_size;
 };

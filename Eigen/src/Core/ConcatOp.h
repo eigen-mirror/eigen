@@ -290,8 +290,8 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
     return ploadSegment<PacketType>(tmp, begin, count);
   }
 
-  const LhsNested m_lhs;
-  const RhsNested m_rhs;
+  LhsNested m_lhs;
+  RhsNested m_rhs;
   evaluator<LhsNestedCleaned> m_lhsImpl;
   evaluator<RhsNestedCleaned> m_rhsImpl;
   const variable_if_dynamic<Index, LhsType::RowsAtCompileTime> m_lhsRows;

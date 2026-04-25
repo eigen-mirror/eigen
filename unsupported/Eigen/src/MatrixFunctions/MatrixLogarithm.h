@@ -343,7 +343,7 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
   Index cols() const { return m_A.cols(); }
 
  private:
-  const DerivedNested m_A;
+  DerivedNested m_A;
 };
 
 namespace internal {
