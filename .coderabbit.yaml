@@ -29,10 +29,9 @@ reviews:
   review_status: true
   collapse_walkthrough: true
   changed_files_summary: true
+  enable_prompt_for_ai_agents: true
   # Trim down the noise in the auto-posted comment: drop sections that don't
-  # carry weight on a numerics-heavy template library and skip the AI-agent
-  # prompt boilerplate that bloats every inline finding.
-  enable_prompt_for_ai_agents: false
+  # carry weight on a numerics-heavy template library.
   sequence_diagrams: false
   estimate_code_review_effort: false
   assess_linked_issues: false
