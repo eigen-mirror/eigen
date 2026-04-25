@@ -28,6 +28,19 @@ reviews:
   poem: false
   review_status: true
   collapse_walkthrough: true
+  changed_files_summary: true
+  # Trim down the noise in the auto-posted comment: drop sections that don't
+  # carry weight on a numerics-heavy template library and skip the AI-agent
+  # prompt boilerplate that bloats every inline finding.
+  enable_prompt_for_ai_agents: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  in_progress_fortune: false
 
   auto_review:
     enabled: true
