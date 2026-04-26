@@ -339,21 +339,52 @@ class SparseContext {
   }
 
  private:
+  // cuSPARSE 11.x's cusparseSpMM rejects CSC for matA (CSC support landed in
+  // CUDA 12.0). On 11.x we register the same buffers as CSR-of-A^T (dims
+  // swapped) and invert the user-facing op before each cuSPARSE call. On 12+
+  // we keep the natural CSC path so users pay no extra cost.
+#if !defined(CUSPARSE_VERSION) || CUSPARSE_VERSION < 12000
+  static constexpr bool kUseCsrOfTranspose = true;
+  static constexpr cusparseSpMMAlg_t kSpMMAlg = CUSPARSE_SPMM_CSR_ALG2;
+#else
+  static constexpr bool kUseCsrOfTranspose = false;
+  static constexpr cusparseSpMMAlg_t kSpMMAlg = CUSPARSE_SPMM_ALG_DEFAULT;
+#endif
+
+  // Map a user-facing op on A to the cuSPARSE op on the cached descriptor.
+  // Identity on cuSPARSE 12+ (descriptor is CSC of A); inverted on 11.x
+  // (descriptor is CSR of A^T).
+  static cusparseOperation_t descriptor_op(cusparseOperation_t user_op) {
+    if (!kUseCsrOfTranspose) return user_op;
+    switch (user_op) {
+      case CUSPARSE_OPERATION_NON_TRANSPOSE:
+        return CUSPARSE_OPERATION_TRANSPOSE;
+      case CUSPARSE_OPERATION_TRANSPOSE:
+        return CUSPARSE_OPERATION_NON_TRANSPOSE;
+      default:
+        // CONJUGATE_TRANSPOSE on the CSR-of-A^T descriptor would compute
+        // conj(A) * x, not A^H * x — not supported via this representation.
+        eigen_assert(false && "CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE not supported on cuSPARSE < 12.0");
+        return user_op;
+    }
+  }
+
   // ---- Shared SpMV execution ------------------------------------------------
 
   void exec_spmv(Index x_size, Index y_size, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
     constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
+    const cusparseOperation_t cu_op = descriptor_op(op);
     cusparseDnVecDescr_t x_desc = nullptr, y_desc = nullptr;
     EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&x_desc, x_size, d_x_ptr, dtype));
     EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&y_desc, y_size, d_y_ptr, dtype));
 
     size_t ws_size = 0;
-    EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
+    EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, cu_op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
                                                  CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
     ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
 
-    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
+    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
 
     (void)cusparseDestroyDnVec(x_desc);
@@ -391,17 +422,18 @@ class SparseContext {
     }
 
     constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
+    const cusparseOperation_t cu_op = descriptor_op(op);
     cusparseDnMatDescr_t x_desc = nullptr, y_desc = nullptr;
     EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&x_desc, k, n, k, d_x_.get(), dtype, CUSPARSE_ORDER_COL));
     EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&y_desc, m, n, m, d_y_.get(), dtype, CUSPARSE_ORDER_COL));
 
     size_t ws_size = 0;
-    EIGEN_CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle_, op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
-                                                 x_desc, &beta, y_desc, dtype, CUSPARSE_SPMM_ALG_DEFAULT, &ws_size));
+    EIGEN_CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
+                                                 x_desc, &beta, y_desc, dtype, kSpMMAlg, &ws_size));
     ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
 
-    EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_, x_desc, &beta,
-                                      y_desc, dtype, CUSPARSE_SPMM_ALG_DEFAULT, d_workspace_.get()));
+    EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_, x_desc,
+                                      &beta, y_desc, dtype, kSpMMAlg, d_workspace_.get()));
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
@@ -438,11 +470,23 @@ class SparseContext {
       constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
       constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
 
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
+      if (kUseCsrOfTranspose) {
+        // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
+        // A^T share the same buffers, so register the data as CSR-of-A^T (dims
+        // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      } else {
+        EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
+                                               val_type));
+      }
       cached_rows_ = m;
       cached_cols_ = n;
       cached_nnz_ = nnz;
+    } else if (kUseCsrOfTranspose) {
+      EIGEN_CUSPARSE_CHECK(cusparseCsrSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
     } else {
       EIGEN_CUSPARSE_CHECK(cusparseCscSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
     }
