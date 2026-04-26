@@ -21,17 +21,17 @@ enable_free_tier: true
 reviews:
   profile: chill
   request_changes_workflow: false
-  high_level_summary: true
-  # Post the high-level summary in the walkthrough comment, NOT in the MR
-  # description. Eigen maintainers want the description left alone.
-  high_level_summary_in_walkthrough: true
+  # Trim down the noise in the auto-posted comment: drop sections that don't
+  # carry weight on a numerics-heavy template library. Keep the walkthrough
+  # (file-by-file summary) but skip the high-level summary, the changed-files
+  # overview, and don't collapse the walkthrough so reviewers see it expanded.
+  high_level_summary: false
+  high_level_summary_in_walkthrough: false
   poem: false
   review_status: true
-  collapse_walkthrough: true
-  changed_files_summary: true
+  collapse_walkthrough: false
+  changed_files_summary: false
   enable_prompt_for_ai_agents: true
-  # Trim down the noise in the auto-posted comment: drop sections that don't
-  # carry weight on a numerics-heavy template library.
   sequence_diagrams: false
   estimate_code_review_effort: false
   assess_linked_issues: false
@@ -40,6 +40,12 @@ reviews:
   suggested_labels: false
   suggested_reviewers: false
   in_progress_fortune: false
+
+  pre_merge_checks:
+    # Eigen is a header-only template library where docstring coverage
+    # has limited value; the docstrings precheck adds noise without signal.
+    docstrings:
+      mode: off
 
   auto_review:
     enabled: true
