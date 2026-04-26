@@ -52,6 +52,9 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
   static void run(Index rows, Index cols, Index depth, const LhsScalar* lhs_, Index lhsStride, const RhsScalar* rhs_,
                   Index rhsStride, ResScalar* res_, Index resIncr, Index resStride, ResScalar alpha,
                   level3_blocking<LhsScalar, RhsScalar>& blocking, GemmParallelInfo<Index>* info = 0) {
+    // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
+    if (numext::is_exactly_zero(alpha)) return;
+
     typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
     typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
     typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
