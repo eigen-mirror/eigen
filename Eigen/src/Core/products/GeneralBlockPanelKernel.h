@@ -300,9 +300,11 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
         // problem is small enough to keep in L1
         // Let's choose m such that lhs's block fit in 1/3 of L1
         actual_lm = static_cast<Index>(l1);
-      } else if (l3 != 0 && problem_size <= 32768) {
-        // we have both L2 and L3, and problem is small enough to be kept in L2
-        // Let's choose m such that lhs's block fit in 1/3 of L2
+      } else if (l3 != 0 && problem_size <= l1) {
+        // We have both L2 and L3, and the rhs panel still fits in L1. Choose mc so the
+        // lhs block fits in 1/3 of L2 and avoid spilling into the L2+50% fallback band.
+        // The 32768 byte threshold previously used here was a stand-in for typical x86
+        // L1 size; using the runtime-detected l1 generalizes this to current cache sizes.
         actual_lm = static_cast<Index>(l2);
         max_mc = (numext::mini<Index>)(576, max_mc);
       }
