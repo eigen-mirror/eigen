@@ -141,7 +141,7 @@ inline void manage_multi_threading(Action action, int* v) {
     // for OpenMP.
     eigen_internal_assert(*v >= 0);
     int omp_threads = omp_get_max_threads();
-    m_maxThreads = (*v == 0 ? omp_threads : std::min(*v, omp_threads));
+    m_maxThreads = (*v == 0 ? omp_threads : std::min<int>(*v, omp_threads));
 #elif defined(EIGEN_GEMM_THREADPOOL)
     // Calling action == SetAction and *v = 0 means
     // restoring m_maxThreads to the number of threads in the ThreadPool,
