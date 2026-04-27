@@ -31,6 +31,11 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
+template <typename Scalar>
+bool aliases_device_memory(const DeviceMatrix<Scalar>& a, const DeviceMatrix<Scalar>& b) {
+  return a.data() != nullptr && a.data() == b.data();
+}
+
 // ---- GEMM dispatch ----------------------------------------------------------
 // GemmExpr<Lhs, Rhs> → cublasXgemm (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
 
@@ -59,6 +64,9 @@ void dispatch_gemm(
 
   const int64_t lda = A.outerStride();
   const int64_t ldb = B.outerStride();
+
+  eigen_assert(!aliases_device_memory(dst, A) && "DeviceMatrix GEMM destination aliases lhs operand");
+  eigen_assert(!aliases_device_memory(dst, B) && "DeviceMatrix GEMM destination aliases rhs operand");
 
   if (!dst.empty()) {
     dst.waitReady(ctx.stream());
@@ -260,6 +268,8 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
 
   A.waitReady(ctx.stream());
   B.waitReady(ctx.stream());
+  eigen_assert(!aliases_device_memory(dst, A) && "DeviceMatrix TRSM destination aliases triangular operand");
+  eigen_assert(!aliases_device_memory(dst, B) && "DeviceMatrix TRSM destination aliases RHS operand");
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
   dst.resize(n, B.cols());
@@ -299,6 +309,8 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 
   A.waitReady(ctx.stream());
   B.waitReady(ctx.stream());
+  eigen_assert(!aliases_device_memory(dst, A) && "DeviceMatrix SYMM destination aliases self-adjoint operand");
+  eigen_assert(!aliases_device_memory(dst, B) && "DeviceMatrix SYMM destination aliases RHS operand");
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
   dst.resize(m, n);
@@ -334,6 +346,7 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
   }
 
   A.waitReady(ctx.stream());
+  eigen_assert(!aliases_device_memory(dst, A) && "DeviceMatrix SYRK destination aliases input operand");
   if (!dst.empty()) dst.waitReady(ctx.stream());
 
   if (dst.empty() || dst.rows() != n || dst.cols() != n) {
