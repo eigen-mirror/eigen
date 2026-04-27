@@ -384,6 +384,41 @@ static void test_matrix_vector() {
   }
 }
 
+// Regression test for issue #1648: contraction y = A^T * x where the LHS
+// contracted dim is the contiguous one. Prior to the fix this dispatched
+// through evalGemv with a mapper that scalar-gathered, producing correct
+// values but >100x slower than the equivalent Matrix expression.
+template <typename Scalar, int DataLayout>
+static void test_matrix_transpose_vector_impl() {
+  for (int M : {1, 5, 16, 17, 64, 129}) {
+    for (int N : {1, 4, 16, 33, 100}) {
+      Tensor<Scalar, 2, DataLayout> t_left(M, N);
+      Tensor<Scalar, 1, DataLayout> t_right(M);
+      t_left.setRandom();
+      t_right.setRandom();
+
+      Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
+      Tensor<Scalar, 1, DataLayout> t_result = t_left.contract(t_right, dims);
+
+      typedef Map<const Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>> MapMat;
+      typedef Map<const Eigen::Matrix<Scalar, Dynamic, 1>> MapVec;
+      MapMat m_left(t_left.data(), M, N);
+      MapVec m_right(t_right.data(), M);
+      Eigen::Matrix<Scalar, Dynamic, 1> m_result = m_left.transpose() * m_right;
+
+      for (int j = 0; j < N; ++j) {
+        VERIFY(internal::isApprox(t_result(j), m_result(j), 1));
+      }
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_matrix_transpose_vector() {
+  test_matrix_transpose_vector_impl<float, DataLayout>();
+  test_matrix_transpose_vector_impl<double, DataLayout>();
+}
+
 template <int DataLayout>
 static void test_tensor_vector() {
   Tensor<float, 3, DataLayout> t_left(7, 13, 17);
@@ -551,6 +586,8 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_5(test_large_contraction<RowMajor>());
   CALL_SUBTEST_6(test_matrix_vector<ColMajor>());
   CALL_SUBTEST_6(test_matrix_vector<RowMajor>());
+  CALL_SUBTEST_6(test_matrix_transpose_vector<ColMajor>());
+  CALL_SUBTEST_6(test_matrix_transpose_vector<RowMajor>());
   CALL_SUBTEST_6(test_tensor_vector<ColMajor>());
   CALL_SUBTEST_6(test_tensor_vector<RowMajor>());
   CALL_SUBTEST_7(test_small_blocking_factors<ColMajor>());

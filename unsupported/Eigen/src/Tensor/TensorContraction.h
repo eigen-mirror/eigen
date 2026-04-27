@@ -605,6 +605,21 @@ struct TensorContractionEvaluatorBase {
       }
     }
 
+    // After the sort above, eval_op_indices[*].first is in ascending order. The
+    // contracted LHS dims are the contiguous prefix of storage iff that prefix
+    // is exactly {0, 1, ..., ContractDims-1}. Similarly for the RHS — and we
+    // also detect the "contracted dims at the trailing end" case, which
+    // matters when LHS/RHS were swapped at the type level for RowMajor inputs.
+    m_lhs_contracted_dims_leading = true;
+    m_rhs_contracted_dims_leading = true;
+    m_rhs_contracted_dims_trailing = true;
+    const int rhs_trail_start = RDims - ContractDims;
+    for (int i = 0; i < ContractDims; i++) {
+      if (eval_op_indices[i].first != i) m_lhs_contracted_dims_leading = false;
+      if (eval_op_indices[i].second != i) m_rhs_contracted_dims_leading = false;
+      if (eval_op_indices[i].second != rhs_trail_start + i) m_rhs_contracted_dims_trailing = false;
+    }
+
     // If the layout is RowMajor, we need to reverse the m_dimensions
     if (static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
       for (int i = 0, j = NumDims - 1; i < j; i++, j--) {
@@ -663,13 +678,46 @@ struct TensorContractionEvaluatorBase {
 
   template <bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered, int Alignment>
   void evalProductSequential(Scalar* buffer) const {
+    // Gemv-shape contractions (output is a vector) get a direct GEMV kernel
+    // call when the operand layout admits one. There are four shapes:
+    //
+    //   m_j_size == 1: ColMajor inputs. m_leftImpl is the matrix.
+    //     (A) lhs_inner_dim_contiguous: contracted dims at non-contiguous end
+    //         of LHS. Existing evalGemv via TensorContractionInputMapper.
+    //     (B) m_lhs_contracted_dims_leading: contracted dims at contiguous end.
+    //         RowMajor view of LHS via const_blas_data_mapper.
+    //
+    //   m_i_size == 1: RowMajor inputs (lines 407-414 swap LHS/RHS at the type
+    //         level, so the matrix is m_rightImpl).
+    //     (C) m_rhs_contracted_dims_leading: contracted dims at contiguous end
+    //         of (eval-)RHS. RowMajor view of m_rightImpl.
+    //     (D) m_rhs_contracted_dims_trailing: contracted dims at non-contiguous
+    //         end. ColMajor view of m_rightImpl.
+    //
+    // Cases B/C/D require direct memory (data() != nullptr) on both impls.
+    // Anything else falls back to evalGemm.
     if (this->m_j_size == 1) {
-      this->template evalGemv<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
-          buffer);
-    } else {
-      this->template evalGemm<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
-          buffer);
+      if (lhs_inner_dim_contiguous) {
+        this->template evalGemv<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
+            buffer);
+        return;
+      }
+      if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
+        evalGemvDirect<RowMajor, /*MatrixIsRight=*/false>(buffer);
+        return;
+      }
+    } else if (this->m_i_size == 1 && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
+      if (m_rhs_contracted_dims_leading) {
+        evalGemvDirect<RowMajor, /*MatrixIsRight=*/true>(buffer);
+        return;
+      }
+      if (m_rhs_contracted_dims_trailing) {
+        evalGemvDirect<ColMajor, /*MatrixIsRight=*/true>(buffer);
+        return;
+      }
     }
+    this->template evalGemm<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
+        buffer);
   }
 
   template <bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered, int Alignment>
@@ -709,6 +757,52 @@ struct TensorContractionEvaluatorBase {
 
     internal::general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, false, RhsScalar, RhsMapper,
                                             false>::run(rows, cols, lhs, rhs, buffer, resIncr, alpha);
+
+    using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
+    m_output_kernel(OutputMapper(buffer, rows), m_tensor_contraction_params, static_cast<Index>(0),
+                    static_cast<Index>(0), rows, static_cast<Index>(1));
+  }
+
+  // Direct gemv fast path: drives the GEMV kernel against raw tensor memory via
+  // const_blas_data_mapper, bypassing TensorContractionInputMapper (which only
+  // delivers vectorized loads along the free dim) and the GEBP packing overhead
+  // of evalGemm.
+  //
+  // StorageOrder is the layout of the (rows × cols) matrix view in memory.
+  // MatrixIsRight selects which TensorEvaluator holds the matrix and which
+  // holds the vector — needed because the constructor swaps LHS/RHS for
+  // RowMajor inputs (lines 407-414), so the gemv shape lives in m_rightImpl
+  // there. Caller guarantees both impls expose direct memory.
+  template <int StorageOrder, bool MatrixIsRight>
+#if !defined(EIGEN_HIPCC)
+  EIGEN_DEVICE_FUNC
+#endif
+      void
+      evalGemvDirect(Scalar* buffer) const {
+    using MatScalar = std::remove_const_t<
+        std::conditional_t<MatrixIsRight, typename EvalRightArgType::Scalar, typename EvalLeftArgType::Scalar>>;
+    using VecScalar = std::remove_const_t<
+        std::conditional_t<MatrixIsRight, typename EvalLeftArgType::Scalar, typename EvalRightArgType::Scalar>>;
+
+    const Index rows = MatrixIsRight ? m_j_size : m_i_size;
+    const Index cols = m_k_size;
+    // For a row-major (rows × cols) view the row stride is cols; for a
+    // column-major view the column stride is rows.
+    const Index mat_stride = (StorageOrder == RowMajor) ? cols : rows;
+
+    const MatScalar* mat_data = MatrixIsRight ? m_rightImpl.data() : m_leftImpl.data();
+    const VecScalar* vec_data = MatrixIsRight ? m_leftImpl.data() : m_rightImpl.data();
+    eigen_assert(mat_data != nullptr && vec_data != nullptr);
+
+    using LhsMapper = internal::const_blas_data_mapper<MatScalar, Index, StorageOrder>;
+    using RhsMapper = internal::const_blas_data_mapper<VecScalar, Index, ColMajor>;
+    LhsMapper lhs(mat_data, mat_stride);
+    RhsMapper rhs(vec_data, /*stride=*/1);
+
+    m_device.fill(buffer, buffer + rows, Scalar(0));
+
+    internal::general_matrix_vector_product<Index, MatScalar, LhsMapper, StorageOrder, false, VecScalar, RhsMapper,
+                                            false>::run(rows, cols, lhs, rhs, buffer, /*resIncr=*/1, Scalar(1));
 
     using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
     m_output_kernel(OutputMapper(buffer, rows), m_tensor_contraction_params, static_cast<Index>(0),
@@ -871,6 +965,12 @@ struct TensorContractionEvaluatorBase {
   bool m_lhs_inner_dim_contiguous;
   bool m_rhs_inner_dim_contiguous;
   bool m_rhs_inner_dim_reordered;
+  // Set in the constructor; describe whether the contracted LHS/RHS dims
+  // form a contiguous block at the leading or trailing end of storage. Used
+  // by evalProductSequential to pick a direct GEMV path when applicable.
+  bool m_lhs_contracted_dims_leading;
+  bool m_rhs_contracted_dims_leading;
+  bool m_rhs_contracted_dims_trailing;
 
   left_nocontract_t m_i_strides{};
   right_nocontract_t m_j_strides{};
