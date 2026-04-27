@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Generic CUDA runtime support shared across all GPU library integrations
-// (cuSOLVER, cuBLAS, cuDSS, etc.):
+// (cuSOLVER and cuBLAS):
 //   - Error-checking macros
 //   - RAII device buffer
 //

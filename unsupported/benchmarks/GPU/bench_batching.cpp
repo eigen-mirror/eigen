@@ -1,6 +1,6 @@
 // GPU batching benchmarks: multi-stream concurrency for many small solves.
 //
-// Each GpuLLT/GpuLU owns its own CUDA stream. This benchmark measures how
+// Each gpu::LLT/gpu::LU owns its own CUDA stream. This benchmark measures how
 // well multiple solver instances overlap on the GPU, which is critical for
 // workloads like robotics (many small systems) and SLAM (batched poses).
 //
@@ -63,7 +63,7 @@ static void BM_Batch_Sequential(benchmark::State& state) {
     Bs[i] = Mat::Random(n, 1);
   }
 
-  GpuLLT<Scalar> llt;
+  gpu::LLT<Scalar> llt;
 
   for (auto _ : state) {
     std::vector<Mat> results(batch_size);
@@ -90,22 +90,22 @@ static void BM_Batch_Sequential_Device(benchmark::State& state) {
 
   std::vector<Mat> As(batch_size);
   std::vector<Mat> Bs(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_As(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_Bs(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_As(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_Bs(batch_size);
   for (int i = 0; i < batch_size; ++i) {
     As[i] = make_spd(n);
     Bs[i] = Mat::Random(n, 1);
-    d_As[i] = DeviceMatrix<Scalar>::fromHost(As[i]);
-    d_Bs[i] = DeviceMatrix<Scalar>::fromHost(Bs[i]);
+    d_As[i] = gpu::DeviceMatrix<Scalar>::fromHost(As[i]);
+    d_Bs[i] = gpu::DeviceMatrix<Scalar>::fromHost(Bs[i]);
   }
 
-  GpuLLT<Scalar> llt;
+  gpu::LLT<Scalar> llt;
 
   for (auto _ : state) {
     std::vector<Mat> results(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       llt.compute(d_As[i]);
-      DeviceMatrix<Scalar> d_X = llt.solve(d_Bs[i]);
+      gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_Bs[i]);
       results[i] = d_X.toHost();
     }
     benchmark::DoNotOptimize(results.back().data());
@@ -127,19 +127,19 @@ static void BM_Batch_MultiStream(benchmark::State& state) {
 
   std::vector<Mat> As(batch_size);
   std::vector<Mat> Bs(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_As(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_Bs(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_As(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_Bs(batch_size);
   for (int i = 0; i < batch_size; ++i) {
     As[i] = make_spd(n);
     Bs[i] = Mat::Random(n, 1);
-    d_As[i] = DeviceMatrix<Scalar>::fromHost(As[i]);
-    d_Bs[i] = DeviceMatrix<Scalar>::fromHost(Bs[i]);
+    d_As[i] = gpu::DeviceMatrix<Scalar>::fromHost(As[i]);
+    d_Bs[i] = gpu::DeviceMatrix<Scalar>::fromHost(Bs[i]);
   }
 
   // N solvers = N independent CUDA streams.
-  std::vector<std::unique_ptr<GpuLLT<Scalar>>> solvers(batch_size);
+  std::vector<std::unique_ptr<gpu::LLT<Scalar>>> solvers(batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    solvers[i] = std::make_unique<GpuLLT<Scalar>>();
+    solvers[i] = std::make_unique<gpu::LLT<Scalar>>();
   }
 
   for (auto _ : state) {
@@ -149,7 +149,7 @@ static void BM_Batch_MultiStream(benchmark::State& state) {
     }
 
     // Phase 2: launch all solves (async, different streams).
-    std::vector<DeviceMatrix<Scalar>> d_Xs(batch_size);
+    std::vector<gpu::DeviceMatrix<Scalar>> d_Xs(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       d_Xs[i] = solvers[i]->solve(d_Bs[i]);
     }
@@ -179,30 +179,30 @@ static void BM_Batch_MultiStream_AsyncDownload(benchmark::State& state) {
 
   std::vector<Mat> As(batch_size);
   std::vector<Mat> Bs(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_As(batch_size);
-  std::vector<DeviceMatrix<Scalar>> d_Bs(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_As(batch_size);
+  std::vector<gpu::DeviceMatrix<Scalar>> d_Bs(batch_size);
   for (int i = 0; i < batch_size; ++i) {
     As[i] = make_spd(n);
     Bs[i] = Mat::Random(n, 1);
-    d_As[i] = DeviceMatrix<Scalar>::fromHost(As[i]);
-    d_Bs[i] = DeviceMatrix<Scalar>::fromHost(Bs[i]);
+    d_As[i] = gpu::DeviceMatrix<Scalar>::fromHost(As[i]);
+    d_Bs[i] = gpu::DeviceMatrix<Scalar>::fromHost(Bs[i]);
   }
 
-  std::vector<std::unique_ptr<GpuLLT<Scalar>>> solvers(batch_size);
+  std::vector<std::unique_ptr<gpu::LLT<Scalar>>> solvers(batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    solvers[i] = std::make_unique<GpuLLT<Scalar>>();
+    solvers[i] = std::make_unique<gpu::LLT<Scalar>>();
   }
 
   for (auto _ : state) {
     // Launch all compute + solve.
-    std::vector<DeviceMatrix<Scalar>> d_Xs(batch_size);
+    std::vector<gpu::DeviceMatrix<Scalar>> d_Xs(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       solvers[i]->compute(d_As[i]);
       d_Xs[i] = solvers[i]->solve(d_Bs[i]);
     }
 
     // Enqueue all async downloads.
-    std::vector<HostTransfer<Scalar>> transfers;
+    std::vector<gpu::HostTransfer<Scalar>> transfers;
     transfers.reserve(batch_size);
     for (int i = 0; i < batch_size; ++i) {
       transfers.push_back(d_Xs[i].toHostAsync());

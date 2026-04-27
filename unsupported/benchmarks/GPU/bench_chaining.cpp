@@ -50,7 +50,7 @@ static void BM_Chain_HostRoundtrip(benchmark::State& state) {
 
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, 1);
-  GpuLLT<Scalar> llt(A);
+  gpu::LLT<Scalar> llt(A);
 
   for (auto _ : state) {
     Mat X = B;
@@ -76,11 +76,11 @@ static void BM_Chain_Device(benchmark::State& state) {
 
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, 1);
-  GpuLLT<Scalar> llt(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LLT<Scalar> llt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);  // device → device, fully async
     }
@@ -104,11 +104,11 @@ static void BM_Chain_DeviceAsync(benchmark::State& state) {
 
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, 1);
-  GpuLLT<Scalar> llt(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LLT<Scalar> llt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);
     }
@@ -133,11 +133,11 @@ static void BM_Chain_DeviceNoDownload(benchmark::State& state) {
 
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, 1);
-  GpuLLT<Scalar> llt(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LLT<Scalar> llt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);
     }
@@ -163,7 +163,7 @@ static void BM_FullPipeline_Host(benchmark::State& state) {
   Mat B = Mat::Random(n, 1);
 
   for (auto _ : state) {
-    GpuLLT<Scalar> llt(A);
+    gpu::LLT<Scalar> llt(A);
     Mat X = B;
     for (int i = 0; i < chain_len; ++i) {
       X = llt.solve(X);
@@ -184,11 +184,11 @@ static void BM_FullPipeline_Device(benchmark::State& state) {
   Mat B = Mat::Random(n, 1);
 
   for (auto _ : state) {
-    auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-    auto d_B = DeviceMatrix<Scalar>::fromHost(B);
-    GpuLLT<Scalar> llt;
+    auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+    auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+    gpu::LLT<Scalar> llt;
     llt.compute(d_A);
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);
     }

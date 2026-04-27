@@ -13,7 +13,6 @@
 //
 #define EIGEN_USE_GPU
 #include "main.h"
-#include <Eigen/LU>
 #include <unsupported/Eigen/GPU>
 
 using namespace Eigen;
@@ -78,7 +77,7 @@ void test_multiple_solves(Index n) {
   }
 }
 
-// ---- Agreement with CPU PartialPivLU ----------------------------------------
+// ---- Residual check for host solve ------------------------------------------
 
 template <typename Scalar>
 void test_vs_cpu(Index n) {
@@ -92,10 +91,9 @@ void test_vs_cpu(Index n) {
   VERIFY_IS_EQUAL(gpu_lu.info(), Success);
 
   MatrixType X_gpu = gpu_lu.solve(B);
-  MatrixType X_cpu = PartialPivLU<MatrixType>(A).solve(B);
 
-  RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
-  VERIFY((X_gpu - X_cpu).norm() / X_cpu.norm() < tol);
+  RealScalar residual = (A * X_gpu - B).norm() / (A.norm() * X_gpu.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
 }
 
 // ---- Singular matrix detection ----------------------------------------------
@@ -167,13 +165,12 @@ void test_chaining(Index n) {
   // Chain: solve → use result as RHS
   gpu::DeviceMatrix<Scalar> d_X = lu.solve(d_B);
   gpu::DeviceMatrix<Scalar> d_Y = lu.solve(d_X);
+  MatrixType X = d_X.toHost();
   MatrixType Y = d_Y.toHost();
 
-  MatrixType X_ref = PartialPivLU<MatrixType>(A).solve(B);
-  MatrixType Y_ref = PartialPivLU<MatrixType>(A).solve(X_ref);
-
-  RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon() * Y_ref.norm();
-  VERIFY((Y - Y_ref).norm() < tol);
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((A * X - B).norm() / (A.norm() * X.norm()) < tol);
+  VERIFY((A * Y - X).norm() / (A.norm() * Y.norm()) < tol);
 }
 
 // ---- Per-scalar driver -------------------------------------------------------

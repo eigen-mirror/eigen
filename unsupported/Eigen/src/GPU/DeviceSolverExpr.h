@@ -81,8 +81,8 @@ class LLTView {
    * The expression is evaluated when assigned to a gpu::DeviceMatrix. */
   LltSolveExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
-  // For cached factorizations, use the explicit GpuLLT API directly:
-  //   GpuLLT<double> llt;
+  // For cached factorizations, use the explicit gpu::LLT API directly:
+  //   gpu::LLT<double> llt;
   //   llt.compute(d_A);
   //   auto d_X1 = llt.solve(d_B1);
   //   auto d_X2 = llt.solve(d_B2);
@@ -103,8 +103,8 @@ class LUView {
   /** Build a solve expression: d_A.lu().solve(d_B). */
   LuSolveExpr<Scalar> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
-  // For cached factorizations, use the explicit GpuLU API directly:
-  //   GpuLU<double> lu;
+  // For cached factorizations, use the explicit gpu::LU API directly:
+  //   gpu::LU<double> lu;
   //   lu.compute(d_A);
   //   auto d_X1 = lu.solve(d_B1);
   //   auto d_X2 = lu.solve(d_B2);

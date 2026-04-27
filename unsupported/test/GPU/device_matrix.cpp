@@ -81,6 +81,19 @@ void test_roundtrip_async(Index rows, Index cols) {
   VERIFY_IS_APPROX(result, host);
 
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+
+  cudaStream_t producer_stream;
+  cudaStream_t consumer_stream;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
+
+  auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, producer_stream);
+  auto cross_stream_transfer = cross_stream_dm.toHostAsync(consumer_stream);
+  MatrixType cross_stream_result = cross_stream_transfer.get();
+  VERIFY_IS_APPROX(cross_stream_result, host);
+
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(producer_stream));
 }
 
 // ---- HostTransfer::ready() and idempotent get() -----------------------------

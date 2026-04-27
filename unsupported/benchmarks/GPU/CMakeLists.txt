@@ -10,7 +10,7 @@
 #   nsys profile --trace=cuda ./build-bench-gpu/bench_solvers
 #   ncu --set full -o profile ./build-bench-gpu/bench_solvers --benchmark_filter=BM_GpuLLT_Compute/4096
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.17)
 project(EigenGpuBenchmarks CXX)
 
 find_package(benchmark REQUIRED)
@@ -24,6 +24,7 @@ function(eigen_add_gpu_benchmark name source)
     set(source "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
   endif()
   add_executable(${name} ${source})
+  target_compile_features(${name} PRIVATE cxx_std_14)
   target_include_directories(${name} PRIVATE
     ${EIGEN_SOURCE_DIR}
     ${CUDAToolkit_INCLUDE_DIRS})

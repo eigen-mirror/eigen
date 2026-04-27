@@ -14,8 +14,8 @@
 
 /** \defgroup GPU_Module GPU module
  *
- * GPU-accelerated solvers and operations using NVIDIA CUDA libraries
- * (cuSOLVER, cuBLAS, cuSPARSE, cuFFT, cuDSS).
+ * GPU-accelerated dense linear algebra using NVIDIA CUDA libraries
+ * (cuSOLVER and cuBLAS).
  *
  * This module provides explicit GPU solver classes that coexist with Eigen's
  * CPU solvers. Unlike the LAPACKE dispatch (which replaces the CPU
@@ -34,7 +34,7 @@
  * auto X = llt_gpu.solve(B);            // only B transferred per solve
  * \endcode
  *
- * Requires CUDA 11.4+. See CLAUDE.md.
+ * Requires CUDA 11.4+.
  */
 
 #ifdef EIGEN_USE_GPU

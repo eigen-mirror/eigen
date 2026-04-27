@@ -177,7 +177,7 @@ host-device transfers and re-factorizations.
 Operations are asynchronous by default. The compute-solve chain runs without
 host synchronization until you need a result on the host:
 
-```
+```text
 fromHost(A) --sync-->  compute() --async-->  solve() --async-->  toHost()
    H2D                  potrf                 potrs                D2H
                                                                    sync
@@ -205,7 +205,8 @@ an explicit `gpu::Context` that outlives both producer and consumer):
 
 ```cpp
 gpu::LLT<double> llt(d_A);             // factor stays on device
-auto h_x = d_X = llt.solve(d_B).toHostAsync(stream);
+auto d_X = llt.solve(d_B);
+auto h_x = d_X.toHostAsync(llt.stream());
 h_x.get();                             // sync: factor + result complete
 // llt may now be destroyed without stalling the device
 ```

@@ -181,6 +181,7 @@ class LLT {
     lda_ = static_cast<int64_t>(d_A.outerStride());
     d_A.waitReady(stream_);
     d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
+    factor_alloc_size_ = factorBytes();
 
     factorize();
     return *this;
@@ -280,6 +281,7 @@ class LLT {
     n_ = rows;
     if (n_ == 0) {
       info_ = Success;
+      info_synced_ = true;
       return false;
     }
     info_ = InvalidInput;
@@ -320,6 +322,7 @@ class LLT {
 
   void* scratch_workspace() const { return d_scratch_.get(); }
   int* scratch_info() const {
+    eigen_assert(d_scratch_ && scratch_size_ >= sizeof(int));
     return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - sizeof(int));
   }
 

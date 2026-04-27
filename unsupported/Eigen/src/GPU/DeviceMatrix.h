@@ -11,7 +11,7 @@
 //
 // gpu::DeviceMatrix<Scalar> holds a column-major matrix on the GPU with tracked
 // dimensions and leading dimension. It can be passed to GPU solvers
-// (gpu::LLT, gpu::LU, future cuBLAS/cuDSS) without host round-trips.
+// (gpu::LLT, gpu::LU, cuBLAS expressions) without host round-trips.
 //
 // Cross-stream safety is automatic: an internal CUDA event tracks when the
 // last write completed. Consumers on a different stream wait on that event
@@ -367,6 +367,7 @@ class DeviceMatrix {
 
   /** Discard contents and reallocate to (rows x cols). Clears the ready event. */
   void resize(Index rows, Index cols) {
+    eigen_assert(rows >= 0 && cols >= 0);
     if (rows == rows_ && cols == cols_) return;
     data_.reset();
     if (ready_event_) {

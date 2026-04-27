@@ -107,49 +107,7 @@ class GemmExpr {
 };
 
 // ---- Free operator* overloads that produce GemmExpr -------------------------
-// These cover: DM*DM, Adj*DM, DM*Adj, Trans*DM, DM*Trans, Scaled*DM, etc.
-
-// Matrix * Matrix
-template <typename S>
-GemmExpr<DeviceMatrix<S>, DeviceMatrix<S>> operator*(const DeviceMatrix<S>& a, const DeviceMatrix<S>& b) {
-  return {a, b};
-}
-
-// AdjointView * Matrix
-template <typename S>
-GemmExpr<AdjointView<S>, DeviceMatrix<S>> operator*(const AdjointView<S>& a, const DeviceMatrix<S>& b) {
-  return {a, b};
-}
-
-// Matrix * AdjointView
-template <typename S>
-GemmExpr<DeviceMatrix<S>, AdjointView<S>> operator*(const DeviceMatrix<S>& a, const AdjointView<S>& b) {
-  return {a, b};
-}
-
-// TransposeView * Matrix
-template <typename S>
-GemmExpr<TransposeView<S>, DeviceMatrix<S>> operator*(const TransposeView<S>& a, const DeviceMatrix<S>& b) {
-  return {a, b};
-}
-
-// Matrix * TransposeView
-template <typename S>
-GemmExpr<DeviceMatrix<S>, TransposeView<S>> operator*(const DeviceMatrix<S>& a, const TransposeView<S>& b) {
-  return {a, b};
-}
-
-// Scaled * Matrix
-template <typename Inner, typename S>
-GemmExpr<Scaled<Inner>, DeviceMatrix<S>> operator*(const Scaled<Inner>& a, const DeviceMatrix<S>& b) {
-  return {a, b};
-}
-
-// Matrix * Scaled
-template <typename S, typename Inner>
-GemmExpr<DeviceMatrix<S>, Scaled<Inner>> operator*(const DeviceMatrix<S>& a, const Scaled<Inner>& b) {
-  return {a, b};
-}
+// Defined after device_expr_traits so it can accept any supported view pair.
 
 // ---- Scalar * Matrix / View -> Scaled ---------------------------------------
 
@@ -217,6 +175,15 @@ struct device_expr_traits<Scaled<Inner>> {
 };
 
 }  // namespace internal
+
+template <typename Lhs, typename Rhs,
+          typename std::enable_if<internal::device_expr_traits<Lhs>::is_device_expr &&
+                                      internal::device_expr_traits<Rhs>::is_device_expr,
+                                  int>::type = 0>
+GemmExpr<Lhs, Rhs> operator*(const Lhs& a, const Rhs& b) {
+  return {a, b};
+}
+
 }  // namespace gpu
 }  // namespace Eigen
 

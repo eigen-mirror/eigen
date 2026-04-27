@@ -9,8 +9,8 @@
 
 // Unified GPU execution context.
 //
-// gpu::Context owns a CUDA stream and all NVIDIA library handles (cuBLAS,
-// cuSOLVER, future cuDSS/cuSPARSE). It is the entry point for all GPU
+// gpu::Context owns a CUDA stream and NVIDIA library handles (cuBLAS,
+// cuSOLVER). It is the entry point for all GPU
 // operations on gpu::DeviceMatrix.
 //
 // Usage:
@@ -62,6 +62,8 @@ class Context {
   // Non-copyable, non-movable (owns library handles).
   Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
+  Context(Context&&) = delete;
+  Context& operator=(Context&&) = delete;
 
   /** Lazily-created thread-local default context.
    *

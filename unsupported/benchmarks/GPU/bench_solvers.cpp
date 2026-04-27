@@ -1,4 +1,4 @@
-// GPU solver benchmarks: GpuLLT and GpuLU compute + solve throughput.
+// GPU solver benchmarks: gpu::LLT and gpu::LU compute + solve throughput.
 //
 // Measures factorization and solve performance for the host-matrix and
 // DeviceMatrix code paths across a range of matrix sizes.
@@ -53,7 +53,7 @@ static void BM_GpuLLT_Compute_Host(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   Mat A = make_spd(n);
-  GpuLLT<Scalar> llt;
+  gpu::LLT<Scalar> llt;
 
   for (auto _ : state) {
     llt.compute(A);
@@ -71,8 +71,8 @@ static void BM_GpuLLT_Compute_Device(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   Mat A = make_spd(n);
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  GpuLLT<Scalar> llt;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  gpu::LLT<Scalar> llt;
 
   for (auto _ : state) {
     llt.compute(d_A);
@@ -90,10 +90,10 @@ static void BM_GpuLLT_Compute_DeviceMove(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   Mat A = make_spd(n);
-  GpuLLT<Scalar> llt;
+  gpu::LLT<Scalar> llt;
 
   for (auto _ : state) {
-    auto d_A = DeviceMatrix<Scalar>::fromHost(A);
+    auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
     llt.compute(std::move(d_A));
     if (llt.info() != Success) state.SkipWithError("factorization failed");
   }
@@ -111,7 +111,7 @@ static void BM_GpuLLT_Solve_Host(benchmark::State& state) {
   const Index nrhs = state.range(1);
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, nrhs);
-  GpuLLT<Scalar> llt(A);
+  gpu::LLT<Scalar> llt(A);
 
   for (auto _ : state) {
     Mat X = llt.solve(B);
@@ -129,11 +129,11 @@ static void BM_GpuLLT_Solve_Device(benchmark::State& state) {
   const Index nrhs = state.range(1);
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, nrhs);
-  GpuLLT<Scalar> llt(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LLT<Scalar> llt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     Mat X = d_X.toHost();
     benchmark::DoNotOptimize(X.data());
   }
@@ -149,11 +149,11 @@ static void BM_GpuLLT_Solve_DeviceOnly(benchmark::State& state) {
   const Index nrhs = state.range(1);
   Mat A = make_spd(n);
   Mat B = Mat::Random(n, nrhs);
-  GpuLLT<Scalar> llt(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LLT<Scalar> llt(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     // Force completion without D2H transfer.
     cudaStreamSynchronize(llt.stream());
     benchmark::DoNotOptimize(d_X.data());
@@ -171,7 +171,7 @@ static void BM_GpuLU_Compute_Host(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   Mat A = Mat::Random(n, n);
-  GpuLU<Scalar> lu;
+  gpu::LU<Scalar> lu;
 
   for (auto _ : state) {
     lu.compute(A);
@@ -188,8 +188,8 @@ static void BM_GpuLU_Compute_Device(benchmark::State& state) {
   cuda_warmup();
   const Index n = state.range(0);
   Mat A = Mat::Random(n, n);
-  auto d_A = DeviceMatrix<Scalar>::fromHost(A);
-  GpuLU<Scalar> lu;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  gpu::LU<Scalar> lu;
 
   for (auto _ : state) {
     lu.compute(d_A);
@@ -208,7 +208,7 @@ static void BM_GpuLU_Solve_Host(benchmark::State& state) {
   const Index nrhs = state.range(1);
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, nrhs);
-  GpuLU<Scalar> lu(A);
+  gpu::LU<Scalar> lu(A);
 
   for (auto _ : state) {
     Mat X = lu.solve(B);
@@ -225,11 +225,11 @@ static void BM_GpuLU_Solve_Device(benchmark::State& state) {
   const Index nrhs = state.range(1);
   Mat A = Mat::Random(n, n);
   Mat B = Mat::Random(n, nrhs);
-  GpuLU<Scalar> lu(A);
-  auto d_B = DeviceMatrix<Scalar>::fromHost(B);
+  gpu::LU<Scalar> lu(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
   for (auto _ : state) {
-    DeviceMatrix<Scalar> d_X = lu.solve(d_B);
+    gpu::DeviceMatrix<Scalar> d_X = lu.solve(d_B);
     Mat X = d_X.toHost();
     benchmark::DoNotOptimize(X.data());
   }

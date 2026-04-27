@@ -86,6 +86,30 @@ void test_gemm_transpose_rhs(Index m, Index n, Index k) {
   VERIFY((C - C_ref).norm() < tol);
 }
 
+// ---- GEMM with view/view operands: C = alpha * A^T * B^H -------------------
+
+template <typename Scalar>
+void test_gemm_view_pairs(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(k, m);  // A^T is m x k
+  Mat B = Mat::Random(n, k);  // B^H is k x n
+  Scalar alpha = Scalar(2);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+
+  gpu::DeviceMatrix<Scalar> d_C;
+  d_C = (alpha * d_A.transpose()) * d_B.adjoint();
+
+  Mat C = d_C.toHost();
+  Mat C_ref = (alpha * A.transpose()) * B.adjoint();
+
+  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  VERIFY((C - C_ref).norm() < tol);
+}
+
 // ---- GEMM with scaled: C = alpha * A * B ------------------------------------
 
 template <typename Scalar>
@@ -636,6 +660,7 @@ void test_scalar() {
 
   CALL_SUBTEST(test_gemm_transpose_rhs<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_transpose_rhs<Scalar>(128, 32, 64));
+  CALL_SUBTEST(test_gemm_view_pairs<Scalar>(64, 32, 48));
 
   CALL_SUBTEST(test_gemm_scaled<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_scaled_rhs<Scalar>(64, 64, 64));
