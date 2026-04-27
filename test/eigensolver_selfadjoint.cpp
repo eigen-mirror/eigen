@@ -938,6 +938,21 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
 
     // RowMajor
     CALL_SUBTEST_19(selfadjointeigensolver_rowmajor<0>());
+
+    // Larger matrices to exercise the blocked tridiagonalization path (n >= 96).
+    CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(256, 256)));
+    CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(256, 256)));
+    CALL_SUBTEST_3(selfadjointeigensolver(MatrixXf(256, 256)));
+    CALL_SUBTEST_9(selfadjointeigensolver(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(256, 256)));
+
+    // Deterministic blocked-path stress: clustered + extreme spectra at n=128
+    // (>= the n>=96 blocking threshold). The repeated/near-repeated and high-
+    // dynamic-range cases are the ones most likely to expose a stability
+    // regression in the rank-2k trailing update.
+    CALL_SUBTEST_4(selfadjointeigensolver_repeated_eigenvalues(MatrixXd(128, 128)));
+    CALL_SUBTEST_4(selfadjointeigensolver_extreme_eigenvalues(MatrixXd(128, 128)));
+    CALL_SUBTEST_3(selfadjointeigensolver_repeated_eigenvalues(MatrixXf(128, 128)));
+    CALL_SUBTEST_5(selfadjointeigensolver_repeated_eigenvalues(MatrixXcd(128, 128)));
   }
 
   CALL_SUBTEST_17(bug_854<0>());
