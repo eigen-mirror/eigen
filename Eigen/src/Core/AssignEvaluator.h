@@ -83,20 +83,36 @@ struct copy_using_evaluator_traits {
                                             (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
                                             (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
   static constexpr bool MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit);
+  static constexpr int CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
+  static constexpr bool SmallAssignmentScalarPathIsCheap =
+      (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= EIGEN_UNROLLING_LIMIT);
+  /* Packet traversal has enough setup/tail overhead that it is not worth it
+     for very small fixed-size assignments when the scalar path can be fully
+     unrolled. More expensive RHS expressions can still amortize packet setup. */
+  static constexpr int SmallAssignmentPacketThreshold = 3;
+  static constexpr int LinearPacketThreshold = SmallAssignmentScalarPathIsCheap ? SmallAssignmentPacketThreshold : 1;
+  static constexpr int LinearSizeThreshold = LinearPacketThreshold * LinearPacketSize;
   static constexpr bool MayLinearVectorize =
       MightVectorize && MayLinearize && DstHasDirectAccess &&
       (EIGEN_UNALIGNED_VECTORIZE || (DstAlignment >= LinearRequiredAlignment) || MaxSizeAtCompileTime == Dynamic) &&
-      (MaxSizeAtCompileTime == Dynamic || MaxSizeAtCompileTime >= LinearPacketSize);
-  /* If the destination isn't aligned, we have to do runtime checks and we don't unroll,
-     so it's only good for large enough sizes. */
-  static constexpr int InnerSizeThreshold = (EIGEN_UNALIGNED_VECTORIZE ? 1 : 3) * InnerPacketSize;
+      (MaxSizeAtCompileTime == Dynamic || MaxSizeAtCompileTime >= LinearSizeThreshold);
+  /* Slice vectorization can be slow, so use MaxInnerSize rather than InnerSize:
+     a dynamic block in a fixed-size matrix can still have large slices. With
+     EIGEN_UNALIGNED_VECTORIZE and unrolling, one packet is still worthwhile for
+     non-vector slices. Cheap fixed-size vector blocks can otherwise fall back to
+     slice vectorization after the linear path is rejected, so use the same
+     conservative cutoff there. */
+  static constexpr bool UseConservativeVectorInnerThreshold = IsVectorAtCompileTime && SmallAssignmentScalarPathIsCheap;
+  static constexpr int VectorInnerPacketThreshold =
+      (UseConservativeVectorInnerThreshold || !EIGEN_UNALIGNED_VECTORIZE) ? SmallAssignmentPacketThreshold : 1;
+  static constexpr int VectorInnerSizeThreshold = VectorInnerPacketThreshold * InnerPacketSize;
+  static constexpr int NonVectorInnerSizeThreshold =
+      (EIGEN_UNALIGNED_VECTORIZE ? 1 : SmallAssignmentPacketThreshold) * InnerPacketSize;
+  static constexpr int InnerSizeThreshold =
+      IsVectorAtCompileTime ? VectorInnerSizeThreshold : NonVectorInnerSizeThreshold;
   static constexpr bool MaySliceVectorize =
       MightVectorize && DstHasDirectAccess &&
       (MaxInnerSizeAtCompileTime == Dynamic || MaxInnerSizeAtCompileTime >= InnerSizeThreshold);
-  /* slice vectorization can be slow, so we only want it if the slices are big, which is
-     indicated by InnerMaxSize rather than InnerSize, think of the case of a dynamic block
-     in a fixed-size matrix
-     However, with EIGEN_UNALIGNED_VECTORIZE and unrolling, slice vectorization is still worth it */
 
  public:
   static constexpr int Traversal = SizeAtCompileTime == 0 ? AllAtOnceTraversal
@@ -115,7 +131,6 @@ struct copy_using_evaluator_traits {
  private:
   static constexpr int ActualPacketSize = Vectorized ? unpacket_traits<PacketType>::size : 1;
   static constexpr int UnrollingLimit = EIGEN_UNROLLING_LIMIT * ActualPacketSize;
-  static constexpr int CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
   static constexpr bool MayUnrollCompletely =
       (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
   static constexpr bool MayUnrollInner =
