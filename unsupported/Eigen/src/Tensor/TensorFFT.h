@@ -146,14 +146,22 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   enum {
     IsAligned = false,
     PacketAccess = true,
-    BlockAccess = false,
+    // FFT eagerly materializes its result into m_data; once that buffer
+    // exists, exposing block access is just a wrapper around it. Leave
+    // PreferBlockAccess false so the executor still uses the cheaper
+    // packet path by default; this only matters when an outer expression
+    // calls block() directly.
+    BlockAccess = (NumDims > 0),
     PreferBlockAccess = false,
     CoordAccess = false,
     RawAccess = false
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  typedef typename internal::TensorMaterializedBlock<std::remove_const_t<CoeffReturnType>, NumDims, Layout, Index>
+      TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -213,6 +221,16 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_data; }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    return internal::TensorBlockResourceRequirements::any();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    eigen_assert(m_data != nullptr);
+    return TensorBlock::materialize(m_data, m_dimensions, desc, scratch);
+  }
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalToBuf(EvaluatorPointerType data) {

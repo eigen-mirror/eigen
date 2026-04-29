@@ -955,6 +955,17 @@ struct TensorContractionEvaluatorBase {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return m_result; }
 
+  // Required so a contraction can be composed with operators whose own
+  // getResourceRequirements() forwards into m_impl (TensorPaddingOp,
+  // TensorBroadcastingOp, etc.). Without this, e.g. an expression like
+  // `Tensor B = A.contract(C, dims).pad(p)` fails to compile because
+  // Pad's BlockAccess is gated on m_impl.RawAccess (which is true here)
+  // and instantiating Pad's getResourceRequirements then requires this
+  // method on the operand evaluator.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    return internal::TensorBlockResourceRequirements::any();
+  }
+
  protected:
   Dimensions m_dimensions;
 
