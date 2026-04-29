@@ -191,15 +191,28 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    // TODO(ndjaitly): write a better packing routine that uses
-    // local structure.
+    // Fast path: when the whole packet stays inside a single inner-most
+    // slice of the input, replace PacketSize coeff() calls with one packet
+    // load (plus a preverse when the inner dim is reversed).
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const Index inner_size = m_dimensions[inner_dim];
+    const Index inner_pos = index - (index / inner_size) * inner_size;
+    if (inner_pos + PacketSize <= inner_size) {
+      if (m_reverse[inner_dim]) {
+        const Index input_index = reverseIndex(index + PacketSize - 1);
+        return internal::preverse(m_impl.template packet<Unaligned>(input_index));
+      }
+      return m_impl.template packet<Unaligned>(reverseIndex(index));
+    }
+
+    // Slow path: the packet crosses an inner-slice boundary, so the
+    // contiguous-load trick does not apply.
     EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
       values[i] = coeff(index + i);
     }
-    PacketReturnType rslt = internal::pload<PacketReturnType>(values);
-    return rslt;
+    return internal::pload<PacketReturnType>(values);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
@@ -322,7 +335,9 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
         compute_cost += 2 * TensorOpCost::AddCost<Index>();
       }
     }
-    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, false /* vectorized */, PacketSize);
+    // The inner-slice fast path runs the per-coeff index math once per packet,
+    // so the amortized compute cost matches the vectorized convention.
+    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
   EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }

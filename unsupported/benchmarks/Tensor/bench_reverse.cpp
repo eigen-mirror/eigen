@@ -1,0 +1,103 @@
+// Benchmarks for Eigen TensorReverse.
+
+#include <benchmark/benchmark.h>
+#include <unsupported/Eigen/CXX11/Tensor>
+
+using namespace Eigen;
+
+typedef float Scalar;
+
+// --- Reverse only the inner-most (contiguous) dimension. SIMD preverse case. ---
+static void BM_Reverse_Inner(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  A.setRandom();
+
+  array<bool, 2> dim_rev = {true, false};
+
+  for (auto _ : state) {
+    Tensor<Scalar, 2> B = A.reverse(dim_rev);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+// --- Reverse only an outer dimension. Inner dim stays contiguous. ---
+static void BM_Reverse_Outer(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  A.setRandom();
+
+  array<bool, 2> dim_rev = {false, true};
+
+  for (auto _ : state) {
+    Tensor<Scalar, 2> B = A.reverse(dim_rev);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+// --- Reverse every dimension. ---
+static void BM_Reverse_All(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  A.setRandom();
+
+  array<bool, 2> dim_rev = {true, true};
+
+  for (auto _ : state) {
+    Tensor<Scalar, 2> B = A.reverse(dim_rev);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+// --- 3D reverse with the inner dim reversed (typical CNN-style layout). ---
+static void BM_Reverse_3D_Inner(benchmark::State& state) {
+  const int D0 = state.range(0);
+  const int D1 = state.range(1);
+  const int D2 = state.range(2);
+
+  Tensor<Scalar, 3> A(D0, D1, D2);
+  A.setRandom();
+
+  array<bool, 3> dim_rev = {true, false, false};
+
+  for (auto _ : state) {
+    Tensor<Scalar, 3> B = A.reverse(dim_rev);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(D0) * D1 * D2 * sizeof(Scalar));
+}
+
+// Sweep sizes that span L1 (~32 KB), L2 (~256 KB), and LLC (~MBs) for float
+// tensors. Bytes per element = 4, so per-side sizes:
+//   64x64    = 16 KB (L1)
+//   256x256  = 256 KB (L2)
+//   1024x1024 = 4 MB (LLC / DRAM)
+static void ReverseSizes(::benchmark::Benchmark* b) {
+  for (int size : {64, 256, 1024}) {
+    b->Args({size, size});
+  }
+}
+
+static void Reverse3DSizes(::benchmark::Benchmark* b) {
+  b->Args({32, 32, 32});     // 128 KB
+  b->Args({64, 64, 64});     // 1 MB
+  b->Args({128, 128, 128});  // 8 MB
+}
+
+BENCHMARK(BM_Reverse_Inner)->Apply(ReverseSizes);
+BENCHMARK(BM_Reverse_Outer)->Apply(ReverseSizes);
+BENCHMARK(BM_Reverse_All)->Apply(ReverseSizes);
+BENCHMARK(BM_Reverse_3D_Inner)->Apply(Reverse3DSizes);
