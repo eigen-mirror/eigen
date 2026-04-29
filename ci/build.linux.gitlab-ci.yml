@@ -214,6 +214,9 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
 
 .build:linux:cuda:
   extends: .build:linux:cross:x86-64
+  # CUDA images and compiler packages vary enough that a cached CMake build
+  # directory can retain stale compiler-feature detection across pipeline runs.
+  cache: []
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
