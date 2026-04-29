@@ -247,8 +247,10 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
       Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV;
   }
 
-  internal::selfadjoint_rank2_update_selector<Scalar, Index, (IsRowMajor ? int(UpLo == Upper ? Lower : Upper) : UpLo)>::
-      run(size, _expression().const_cast_derived().data(), _expression().outerStride(), uPtr, vPtr, actualAlpha);
+  internal::selfadjoint_rank2_update_selector<
+      Scalar, Index, (IsRowMajor ? int(UpLo == Upper ? Lower : Upper) : UpLo)>::run(size, nestedExpression().data(),
+                                                                                    nestedExpression().outerStride(),
+                                                                                    uPtr, vPtr, actualAlpha);
 
   return *this;
 }

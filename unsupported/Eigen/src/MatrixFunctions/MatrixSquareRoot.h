@@ -324,7 +324,7 @@ class MatrixSquareRootReturnValue : public ReturnByValue<MatrixSquareRootReturnV
   Index cols() const { return m_src.cols(); }
 
  protected:
-  const DerivedNested m_src;
+  DerivedNested m_src;
 };
 
 namespace internal {

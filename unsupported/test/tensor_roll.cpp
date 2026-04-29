@@ -146,6 +146,47 @@ static void test_expr_roll(bool LValue) {
   }
 }
 
+// Verify that the rvalue evaluator's packet() returns the same lanes as
+// coeff() for every offset across a range of shift values, including the
+// no-shift, in-slice, and wrap-around cases.
+template <int DataLayout>
+static void test_packet_roll() {
+  using namespace Eigen::internal;
+
+  Tensor<float, 3, DataLayout> tensor(8, 5, 7);
+  tensor.setRandom();
+
+  // Cover several shift configurations: zero, in-bounds, and a shift that
+  // forces a modular wrap-around inside any reasonable packet.
+  array<array<Index, 3>, 4> roll_configs;
+  roll_configs[0] = {{0, 0, 0}};
+  roll_configs[1] = {{2, 1, 3}};
+  roll_configs[2] = {{6, 0, 0}};  // near-end shift on dim 0
+  roll_configs[3] = {{0, 0, 6}};  // near-end shift on dim 2
+
+  for (const auto& rolls : roll_configs) {
+    auto expr = tensor.roll(rolls);
+    using Eval = TensorEvaluator<const decltype(expr), DefaultDevice>;
+    using Packet = typename Eval::PacketReturnType;
+    constexpr int PacketSize = Eval::PacketSize;
+
+    DefaultDevice device;
+    Eval eval(expr, device);
+    eval.evalSubExprsIfNeeded(nullptr);
+
+    const Index total = tensor.size();
+    EIGEN_ALIGN_MAX float lanes[PacketSize];
+    for (Index offset = 0; offset + PacketSize <= total; ++offset) {
+      Packet p = eval.template packet<Unaligned>(offset);
+      pstoreu(lanes, p);
+      for (int i = 0; i < PacketSize; ++i) {
+        VERIFY_IS_EQUAL(lanes[i], eval.coeff(offset + i));
+      }
+    }
+    eval.cleanup();
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_simple_roll<ColMajor>());
   CALL_SUBTEST(test_simple_roll<RowMajor>());
@@ -153,4 +194,6 @@ EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_expr_roll<RowMajor>(true));
   CALL_SUBTEST(test_expr_roll<ColMajor>(false));
   CALL_SUBTEST(test_expr_roll<RowMajor>(false));
+  CALL_SUBTEST(test_packet_roll<ColMajor>());
+  CALL_SUBTEST(test_packet_roll<RowMajor>());
 }

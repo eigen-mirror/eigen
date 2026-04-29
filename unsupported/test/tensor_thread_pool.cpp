@@ -220,6 +220,41 @@ void test_multithread_contraction() {
   }
 }
 
+// Issue #1648: lock the threaded dispatch of gemv-shape contractions
+// (TensorContractionThreadPool forces num_threads = 1 for n == 1 and routes
+// through evalProductSequential, which now selects one of four direct GEMV
+// fast paths). Covers y = A^T * x where the LHS contracted dim is the
+// contiguous one — the path that motivated the fix.
+template <int DataLayout>
+void test_multithread_gemv_transpose() {
+  for (int M : {17, 64, 129}) {
+    for (int N : {16, 33, 100}) {
+      Tensor<float, 2, DataLayout> t_left(M, N);
+      Tensor<float, 1, DataLayout> t_right(M);
+      t_left.setRandom();
+      t_right.setRandom();
+
+      typedef Tensor<float, 1>::DimensionPair DimPair;
+      Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
+
+      Eigen::ThreadPool tp(4);
+      Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+      Tensor<float, 1, DataLayout> t_result(N);
+      t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+
+      typedef Map<const Matrix<float, Dynamic, Dynamic, DataLayout>> MapMat;
+      typedef Map<const Matrix<float, Dynamic, 1>> MapVec;
+      MapMat m_left(t_left.data(), M, N);
+      MapVec m_right(t_right.data(), M);
+      Matrix<float, Dynamic, 1> m_result = m_left.transpose() * m_right;
+
+      for (int j = 0; j < N; ++j) {
+        VERIFY(internal::isApprox(t_result(j), m_result(j), 1e-4f));
+      }
+    }
+  }
+}
+
 template <int DataLayout>
 void test_contraction_corner_cases() {
   Tensor<float, 2, DataLayout> t_left(32, 500);
@@ -727,6 +762,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_2(test_multithread_contraction<ColMajor>());
   CALL_SUBTEST_2(test_multithread_contraction<RowMajor>());
+  CALL_SUBTEST_2(test_multithread_gemv_transpose<ColMajor>());
+  CALL_SUBTEST_2(test_multithread_gemv_transpose<RowMajor>());
 
   CALL_SUBTEST_3(test_multithread_chip());
   CALL_SUBTEST_3(test_async_multithread_chip());

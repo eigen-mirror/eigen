@@ -203,6 +203,10 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   for (Index i = 0; i < block.dimensions().TotalSize(); ++i) {
     VERIFY_IS_EQUAL(block.coeff(i), slice.coeff(i));
   }
+
+  // Release evaluator-owned temporaries (e.g. the materialized buffer that
+  // TensorScan / TensorFFT allocate during evalSubExprsIfNeeded).
+  eval.cleanup();
 }
 
 // -------------------------------------------------------------------------- //
@@ -271,6 +275,118 @@ static void test_eval_tensor_broadcast() {
   // materializations.
   VerifyBlockEvaluator<T, NumDims, Layout>(input.broadcast(bcast) * input.abs().broadcast(bcast),
                                            [&bcasted_dims]() { return SkewedInnerBlock<Layout>(bcasted_dims); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_scan() {
+  // Scan eagerly materializes m_output during evalSubExprsIfNeeded; this
+  // exercises the block() wrapper around that buffer.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  const Index axis = NumDims == 1 ? 0 : NumDims / 2;
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_fft() {
+  // FFT eagerly materializes m_data during evalSubExprsIfNeeded; this
+  // exercises the block() wrapper around that buffer. Use RealPart so
+  // the output type matches the input type and the harness's slice
+  // comparison stays straightforward.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  Eigen::array<int, 1> fft_dims = {0};
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.template fft<RealPart, FFT_FORWARD>(fft_dims),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.template fft<RealPart, FFT_FORWARD>(fft_dims),
+                                           [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_layout_swap() {
+  // The swap_layout expression has the opposite layout of its operand. Build
+  // the input with the opposite layout and assert the block evaluator on the
+  // resulting expression matches the slice-based reference.
+  constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
+  DSizes<Index, NumDims> input_dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, InputLayout> input(input_dims);
+  input.setRandom();
+
+  DSizes<Index, NumDims> swapped_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    swapped_dims[i] = input_dims[NumDims - 1 - i];
+  }
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.swap_layout(),
+                                           [&swapped_dims]() { return RandomBlock<Layout>(swapped_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.swap_layout(),
+                                           [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
+}
+
+// Regression for the original failure mode this MR fixes: TensorPaddingOp's
+// BlockAccess gates on m_impl.RawAccess (true for Scan/FFT/LayoutSwap/Contraction)
+// and its getResourceRequirements() unconditionally calls the operand's. Before
+// the operand-side block plumbing was added, instantiating the executor's
+// Tiling=On path through these compositions failed to compile. Driving block()
+// over the composed expressions exercises both sides of that compile path.
+template <typename T, int NumDims, int Layout>
+static void test_eval_composed_block_ops() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 8);
+  array<std::pair<Index, Index>, NumDims> paddings;
+  DSizes<Index, NumDims> padded_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    paddings[i] = std::make_pair(1, 2);
+    padded_dims[i] = dims[i] + 3;
+  }
+
+  const Index axis = NumDims == 1 ? 0 : NumDims / 2;
+
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  // cumsum(...).pad(...) — TensorScan + TensorPadding.
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis).pad(paddings),
+                                           [&padded_dims]() { return RandomBlock<Layout>(padded_dims, 1, 5); });
+
+  // swap_layout().pad(...) — operand built with the opposite layout so the
+  // composed expression evaluates in the test's Layout.
+  constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
+  Tensor<T, NumDims, InputLayout> swap_input(dims);
+  swap_input.setRandom();
+  DSizes<Index, NumDims> swap_padded_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    swap_padded_dims[i] = dims[NumDims - 1 - i] + 3;
+  }
+  VerifyBlockEvaluator<T, NumDims, Layout>(swap_input.swap_layout().pad(paddings), [&swap_padded_dims]() {
+    return RandomBlock<Layout>(swap_padded_dims, 1, 5);
+  });
+}
+
+// 2D-specific regression: contract(...).pad(...) hit the same composition bug
+// because TensorContraction has RawAccess=true but lacked getResourceRequirements().
+template <typename T, int Layout>
+static void test_eval_contract_pad_composition() {
+  Tensor<T, 2, Layout> A(8, 6);
+  Tensor<T, 2, Layout> B(6, 4);
+  A.setRandom();
+  B.setRandom();
+
+  Eigen::array<IndexPair<Index>, 1> contract_dims = {IndexPair<Index>(1, 0)};
+  array<std::pair<Index, Index>, 2> paddings = {std::pair<Index, Index>{1, 1}, std::pair<Index, Index>{2, 2}};
+  DSizes<Index, 2> padded_dims(8 + 2, 4 + 4);
+
+  VerifyBlockEvaluator<T, 2, Layout>(A.contract(B, contract_dims).pad(paddings),
+                                     [&padded_dims]() { return RandomBlock<Layout>(padded_dims, 1, 5); });
 }
 
 template <typename T, int NumDims, int Layout>
@@ -815,6 +931,27 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS(2, test_eval_tensor_binary_with_unary_expr_block);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_broadcast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_reshape);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(2, test_eval_tensor_layout_swap);
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 2, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 3, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_scan<float, 4, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 2, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 3, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 4, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 2, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 3, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_tensor_fft<float, 4, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 2, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 3, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 4, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 2, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 3, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_composed_block_ops<float, 4, ColMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, RowMajor>()));
+  CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);

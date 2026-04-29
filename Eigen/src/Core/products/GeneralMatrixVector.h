@@ -190,6 +190,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   EIGEN_UNUSED_VARIABLE(resIncr);
   eigen_internal_assert(resIncr == 1);
 
+  // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
+  if (numext::is_exactly_zero(alpha)) return;
+
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
   // This helps GCC to generate proper code.
   LhsMapper lhs(alhs);
@@ -337,6 +340,9 @@ EIGEN_DEVICE_FUNC inline void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, ResScalar alpha) {
+  // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
+  if (numext::is_exactly_zero(alpha)) return;
+
   // When cols < full packet size, the main vectorized loops are empty.
   // Dispatch to a separate noinline function to avoid polluting the icache.
   // Only dispatch when cols is large enough that half or quarter packets can be used;
@@ -664,7 +670,11 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   const Index halfColBlockEnd = LhsPacketSizeHalf * (UnsignedIndex(cols) / LhsPacketSizeHalf);
   const Index quarterColBlockEnd = LhsPacketSizeQuarter * (UnsignedIndex(cols) / LhsPacketSizeQuarter);
 
-  const Index n8 = lhs.stride() * sizeof(LhsScalar) > 32000 ? 0 : rows - 7;
+  // Disable the 8-row inner unroll once a single column slice no longer fits in L1; with very
+  // large LHS strides each unrolled iteration evicts the previously-loaded rows from cache.
+  std::ptrdiff_t l1, l2, l3;
+  manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  const Index n8 = lhs.stride() * Index(sizeof(LhsScalar)) > Index(l1) ? 0 : rows - 7;
   const Index n4 = rows - 3;
   const Index n2 = rows - 1;
 
