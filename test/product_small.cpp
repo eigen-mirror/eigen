@@ -275,6 +275,31 @@ void product_small_regressions() {
   }
 }
 
+// Test products at sizes near critical code-path transitions:
+//  - EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD = 8 (coeff-based vs GEBP)
+//  - Blocking early-return at max(k,m,n) < 48
+// Uses a sparse set of sizes so total count is 14^3 = 2744 (fast).
+template <typename T>
+void product_transition_sizes() {
+  using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+  const int critical[] = {1, 2, 4, 7, 8, 9, 12, 16, 24, 32, 47, 48, 49, 64};
+  for (int im = 0; im < 14; ++im) {
+    for (int in = 0; in < 14; ++in) {
+      Matrix C = Matrix::Zero(critical[im], critical[in]);
+      Matrix Cref = Matrix::Zero(critical[im], critical[in]);
+      for (int ik = 0; ik < 14; ++ik) {
+        int m = critical[im], n = critical[in], k = critical[ik];
+        Matrix A = Matrix::Random(m, k);
+        Matrix B = Matrix::Random(k, n);
+        C = A * B;
+        Cref.setZero();
+        ref_prod(Cref, A, B);
+        VERIFY_IS_APPROX(C, Cref);
+      }
+    }
+  }
+}
+
 template <typename T>
 void product_sweep(int max_m, int max_k, int max_n) {
   using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
@@ -338,4 +363,8 @@ EIGEN_DECLARE_TEST(product_small) {
   }
 
   CALL_SUBTEST_6(product_small_regressions<0>());
+
+  // Deterministic sweep at transition boundaries (outside g_repeat).
+  CALL_SUBTEST_54(product_transition_sizes<float>());
+  CALL_SUBTEST_55(product_transition_sizes<double>());
 }

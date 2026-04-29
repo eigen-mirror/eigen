@@ -182,7 +182,7 @@ void test_stress_runqueue() {
   }));
   for (int i = 0; i < 2; i++) {
     threads.emplace_back(new std::thread([&q, &total]() {
-      int sum = 0;
+      int64_t sum = 0;
       for (int j = 1; j < kEvents; j++) {
         if (q.PushBack(j) == 0) {
           sum += j;
@@ -194,7 +194,7 @@ void test_stress_runqueue() {
       total += sum;
     }));
     threads.emplace_back(new std::thread([&q, &total]() {
-      int sum = 0;
+      int64_t sum = 0;
       std::vector<int> stolen;
       for (int j = 1; j < kEvents;) {
         if (q.PopBackHalf(&stolen) == 0) {

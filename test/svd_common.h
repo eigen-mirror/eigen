@@ -124,7 +124,7 @@ void svd_least_square(const MatrixType& m) {
     if (internal::is_same<RealScalar, double>::value || svd.rank() == m.diagonal().size()) {
       using std::sqrt;
       // This test is not stable with single precision.
-      // This is probably because squaring m signicantly affects the precision.
+      // This is likely because squaring m significantly affects the precision.
       if (internal::is_same<RealScalar, float>::value) ++g_test_level;
 
       VERIFY_IS_APPROX(m.adjoint() * (m * x), m.adjoint() * rhs);
@@ -174,11 +174,11 @@ void svd_min_norm(const MatrixType& m) {
   typedef Matrix<Scalar, ColsAtCompileTime, RankAtCompileTime2> MatrixType2T;
   Index rank = RankAtCompileTime2 == Dynamic ? internal::random<Index>(1, cols) : Index(RankAtCompileTime2);
   MatrixType2 m2(rank, cols);
-  int guard = 0;
-  do {
-    m2.setRandom();
-  } while (SVD_FOR_MIN_NORM(MatrixType2)(m2).setThreshold(test_precision<Scalar>()).rank() != rank && (++guard) < 10);
-  VERIFY(guard < 10);
+  m2.setRandom();
+  if (SVD_FOR_MIN_NORM(MatrixType2)(m2).setThreshold(test_precision<Scalar>()).rank() != rank) {
+    // Ensure full row rank by making the leading square block diagonally dominant.
+    for (Index i = 0; i < rank; ++i) m2(i, i) += Scalar(1);
+  }
 
   RhsType2 rhs2 = RhsType2::Random(rank);
   // use QR to find a reference minimal norm solution

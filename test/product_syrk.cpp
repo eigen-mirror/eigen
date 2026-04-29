@@ -153,12 +153,12 @@ EIGEN_DECLARE_TEST(product_syrk) {
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_1(syrk(MatrixXf(s, s)));
     CALL_SUBTEST_2(syrk(MatrixXd(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     CALL_SUBTEST_3(syrk(MatrixXcf(s, s)));
     CALL_SUBTEST_4(syrk(MatrixXcd(s, s)));
     CALL_SUBTEST_5(syrk(Matrix<bfloat16, Dynamic, Dynamic>(s, s)));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }

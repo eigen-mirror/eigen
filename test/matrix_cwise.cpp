@@ -69,7 +69,14 @@ void test_cwise_real(const MatrixType& m) {
   VERIFY_IS_CWISE_APPROX(m2.cwiseInverse(), cwise_ref(m2, [](const Scalar& x) { return Scalar(Scalar(1) / x); }));
   VERIFY_IS_CWISE_APPROX(m1.cwiseArg(), cwise_ref(m1, [](const Scalar& x) { return Eigen::numext::arg(x); }));
   // Only take sqrt of positive values.
-  m2 = m1.cwiseAbs();
+  // For signed integers, abs(min_value) overflows, so clamp it first.
+  m2 = m1;
+  if (Eigen::NumTraits<Scalar>::IsInteger && std::is_signed<Scalar>::value) {
+    m2 = m1.unaryExpr([](const Scalar& x) {
+      return x == (std::numeric_limits<Scalar>::min)() ? (std::numeric_limits<Scalar>::max)() : x;
+    });
+  }
+  m2 = m2.cwiseAbs();
   VERIFY_IS_CWISE_APPROX(m2.cwiseSqrt(), cwise_ref(m2, [](const Scalar& x) { return Eigen::numext::sqrt(x); }));
   // Only find Square/Abs2 of +/- sqrt values so we don't overflow.
   m2 = m2.cwiseSqrt().array() * m1.cwiseSign().array();

@@ -59,7 +59,6 @@ std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_seq_type(const 
 
 #define VERIFY_EQ_INT(A, B) VERIFY_IS_APPROX(int(A), int(B))
 
-// C++03 does not allow local or unnamed enums as index
 enum DummyEnum { XX = 0, YY = 1 };
 
 void check_indexed_view() {
@@ -356,7 +355,7 @@ void check_indexed_view() {
     VERIFY_IS_CWISE_EQUAL(R_ref(eigen_matrix_rows, eigen_matrix_cols), R_ref(c_array_rows, c_array_cols));
   }
 
-  // check mat(i,j) with weird types for i and j
+  // check mat(i,j) with unusual types for i and j
   {
     VERIFY_IS_APPROX(A(B.RowsAtCompileTime - 1, 1), A(3, 1));
     VERIFY_IS_APPROX(A(B.RowsAtCompileTime, 1), A(4, 1));
@@ -411,7 +410,6 @@ void check_indexed_view() {
   // Check compilation of enums as index type:
   a(XX) = 1;
   A(XX, YY) = 1;
-  // Anonymous enums only work with C++11
   enum { X = 0, Y = 1 };
   a(X) = 1;
   A(X, Y) = 1;
@@ -420,9 +418,9 @@ void check_indexed_view() {
   // check symbolic indices
   a(last) = 1.0;
   A(last, last) = 1;
-  // check weird non-const, non-lvalue scenarios
+  // check unusual non-const, non-lvalue scenarios
   {
-    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const
+    // in these scenarios, the objects are not declared 'const', and the compiler will attempt to use the non-const
     // overloads without intervention
 
     // non-const map to a const object
@@ -790,7 +788,7 @@ void check_tutorial_examples() {
     VERIFY_IS_EQUAL(int(slice1.SizeAtCompileTime), 6);
     VERIFY_IS_EQUAL(int(slice2.SizeAtCompileTime), 6);
     auto slice3 = A(all, seq(fix<0>, last, fix<2>));
-    TEST_SET_BUT_UNUSED_VARIABLE(slice3)
+    TEST_SET_BUT_UNUSED_VARIABLE(slice3);
     VERIFY_IS_EQUAL(int(slice3.RowsAtCompileTime), kRows);
     VERIFY_IS_EQUAL(int(slice3.ColsAtCompileTime), (kCols + 1) / 2);
   }
@@ -840,6 +838,61 @@ void check_tutorial_examples() {
   }
 }
 
+// Regression test for bug #1943: IndexedView with temporary expression indices.
+void check_expression_indices() {
+  MatrixXd m(3, 4);
+  m << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12;
+
+  // Reshaped temporary as column index (was segfault before fix).
+  {
+    auto view = m(all, Array<int, 1, 1>{0}.reshaped());
+    VectorXd result = view;
+    VERIFY_IS_APPROX(result, m.col(0));
+  }
+
+  // Block expression as index.
+  {
+    ArrayXi idx(3);
+    idx << 0, 1, 2;
+    auto view = m(all, idx.head(2));
+    MatrixXd result = view;
+    VERIFY_IS_APPROX(result, m.leftCols(2));
+  }
+
+  // CwiseBinaryOp expression as index.
+  {
+    Array<int, 2, 1> base;
+    base << 0, 1;
+    auto view = m(all, base + 0);
+    MatrixXd result = view;
+    VERIFY_IS_APPROX(result, m.leftCols(2));
+  }
+
+  // Reverse expression as index.
+  {
+    Array<int, 3, 1> idx;
+    idx << 2, 1, 0;
+    auto view = m(all, idx.reverse());
+    MatrixXd result = view;
+    MatrixXd expected(3, 3);
+    expected << m.col(0), m.col(1), m.col(2);
+    VERIFY_IS_APPROX(result, expected);
+  }
+
+  // 1D vector indexed view (VectorIndexedViewSelector path).
+  {
+    VectorXd v(5);
+    v << 10, 20, 30, 40, 50;
+    ArrayXi idx(3);
+    idx << 4, 2, 0;
+    auto view = v(idx.reverse());
+    VectorXd result = view;
+    VectorXd expected(3);
+    expected << 10, 30, 50;
+    VERIFY_IS_APPROX(result, expected);
+  }
+}
+
 void check_aliasing() {
   Eigen::Vector<float, 5> z = {0.0f, 1.1f, 2.2f, 3.3f, 4.4f};
   std::vector<int> left_indices = {0, 1, 3, 4};
@@ -854,6 +907,7 @@ EIGEN_DECLARE_TEST(indexed_view) {
     CALL_SUBTEST_1(check_indexed_view());
   }
   CALL_SUBTEST_1(check_tutorial_examples());
+  CALL_SUBTEST_1(check_expression_indices());
   CALL_SUBTEST_1(check_aliasing());
 
   // static checks of some internals:

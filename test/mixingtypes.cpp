@@ -77,10 +77,10 @@ void mixingtypes(int size = SizeAtCompileType) {
   float epsf = std::sqrt(std::numeric_limits<float>::min EIGEN_EMPTY());
   double epsd = std::sqrt(std::numeric_limits<double>::min EIGEN_EMPTY());
 
-  while (std::abs(sf) < epsf) sf = internal::random<float>();
-  while (std::abs(sd) < epsd) sd = internal::random<double>();
-  while (std::abs(scf) < epsf) scf = internal::random<CF>();
-  while (std::abs(scd) < epsd) scd = internal::random<CD>();
+  if (std::abs(sf) < epsf) sf = 1.0f;
+  if (std::abs(sd) < epsd) sd = 1.0;
+  if (std::abs(scf) < epsf) scf = CF(1);
+  if (std::abs(scd) < epsd) scd = CD(1);
 
   // check scalar products
   VERIFY_MIX_SCALAR(vcf * sf, vcf * complex<float>(sf));
@@ -89,9 +89,9 @@ void mixingtypes(int size = SizeAtCompileType) {
   VERIFY_MIX_SCALAR(scd * vd, scd * vd.template cast<complex<double> >());
 
   VERIFY_MIX_SCALAR(vcf * 2, vcf * complex<float>(2));
-  VERIFY_MIX_SCALAR(vcf * 2.1, vcf * complex<float>(2.1));
+  VERIFY_MIX_SCALAR(vcf * 2.1, vcf * complex<float>(2.1f));
   VERIFY_MIX_SCALAR(2 * vcf, vcf * complex<float>(2));
-  VERIFY_MIX_SCALAR(2.1 * vcf, vcf * complex<float>(2.1));
+  VERIFY_MIX_SCALAR(2.1 * vcf, vcf * complex<float>(2.1f));
 
   // check scalar quotients
   VERIFY_MIX_SCALAR(vcf / sf, vcf / complex<float>(sf));
@@ -293,7 +293,8 @@ void mixingtypes(int size = SizeAtCompileType) {
 }
 
 EIGEN_DECLARE_TEST(mixingtypes) {
-  g_called = false;  // Silence -Wunneeded-internal-declaration.
+  g_called = false;  // Silence -Wunneeded-internal-declaration and set_but_not_used.
+  VERIFY(true || g_called);
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(mixingtypes<3>());
     CALL_SUBTEST_2(mixingtypes<4>());

@@ -260,6 +260,34 @@ void eulerangles_rand() {
   check_all_var(ea);
 }
 
+template <typename Scalar>
+void eulerangles_gimbal_lock_regression() {
+  typedef Matrix<Scalar, 3, 1> Vector3;
+  const Scalar deg = Scalar(EIGEN_PI / 180.0);
+
+  check_all_var(Vector3(Scalar(10) * deg, Scalar(90) * deg, Scalar(30) * deg));
+  check_all_var(Vector3(Scalar(10) * deg, Scalar(-90) * deg, Scalar(30) * deg));
+  check_all_var(Vector3(Scalar(10) * deg, Scalar(60) * deg, Scalar(30) * deg));
+  check_all_var(Vector3(Scalar(10) * deg, Scalar(89.5) * deg, Scalar(30) * deg));
+  check_all_var(Vector3(Scalar(10) * deg, Scalar(-89.5) * deg, Scalar(30) * deg));
+}
+
+void eulerangles_gimbal_lock_reproducer() {
+  Quaterniond q;
+  q.coeffs() << numext::bit_cast<double>(numext::uint64_t(0x3FDFFFFFC0000000ull)),
+      numext::bit_cast<double>(numext::uint64_t(0x3FE0000000000001ull)),
+      numext::bit_cast<double>(numext::uint64_t(0xBFE0000000000000ull)),
+      numext::bit_cast<double>(numext::uint64_t(0x3FDFFFFFBFFFFFFEull));
+
+  const Matrix3d m(q);
+  const EulerAnglesYXZd e(q);
+
+  VERIFY_IS_APPROX(e.angles(), m.canonicalEulerAngles(1, 0, 2));
+  // Angle tolerances are ill-conditioned at gimbal lock; this checks the
+  // reconstructed matrix with a fixed absolute tolerance instead.
+  VERIFY((m - e.toRotationMatrix()).norm() < 1e-6);
+}
+
 EIGEN_DECLARE_TEST(EulerAngles) {
   // Simple cast test
   EulerAnglesXYZd onesEd(1, 1, 1);
@@ -276,6 +304,10 @@ EIGEN_DECLARE_TEST(EulerAngles) {
     CALL_SUBTEST_3(eulerangles_rand<float>());
     CALL_SUBTEST_4(eulerangles_rand<double>());
   }
+
+  CALL_SUBTEST_5(eulerangles_gimbal_lock_regression<float>());
+  CALL_SUBTEST_5(eulerangles_gimbal_lock_regression<double>());
+  CALL_SUBTEST_5(eulerangles_gimbal_lock_reproducer());
 
   // TODO: Add tests for auto diff
   // TODO: Add tests for complex numbers

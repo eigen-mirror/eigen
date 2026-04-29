@@ -110,6 +110,26 @@ void symm(int size = Size, int othersize = OtherSize) {
   }
 }
 
+// Test symmetric products at blocking boundary sizes.
+// The existing test uses random sizes; these deterministic sizes exercise
+// transitions in GEBP blocking (early-return at 48, block size changes).
+template <int>
+void product_symm_boundary() {
+  const int sizes[] = {1, 2, 3, 4, 8, 16, 47, 48, 49, 64, 96, 128};
+  for (int si = 0; si < 12; ++si) {
+    int n = sizes[si];
+
+    // double, matrix RHS
+    symm<double, Dynamic, Dynamic>(n, 5);
+    // double, vector RHS
+    symm<double, Dynamic, 1>(n);
+    // float, matrix RHS
+    symm<float, Dynamic, Dynamic>(n, 7);
+    // complex float, matrix RHS
+    symm<std::complex<float>, Dynamic, Dynamic>(n, 3);
+  }
+}
+
 EIGEN_DECLARE_TEST(product_symm) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((symm<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
@@ -126,4 +146,7 @@ EIGEN_DECLARE_TEST(product_symm) {
     CALL_SUBTEST_7((symm<std::complex<float>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_8((symm<std::complex<double>, Dynamic, 1>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
+
+  // Deterministic blocking boundary tests (outside g_repeat).
+  CALL_SUBTEST_9(product_symm_boundary<0>());
 }

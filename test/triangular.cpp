@@ -13,6 +13,55 @@
 
 #include "main.h"
 
+template <typename ViewType, typename = void>
+struct has_left_scalar_multiply : std::false_type {};
+
+template <typename ViewType>
+struct has_left_scalar_multiply<
+    ViewType, internal::void_t<decltype(std::declval<typename ViewType::Scalar>() * std::declval<const ViewType&>())>>
+    : std::true_type {};
+
+template <typename ViewType, typename = void>
+struct has_right_scalar_multiply : std::false_type {};
+
+template <typename ViewType>
+struct has_right_scalar_multiply<
+    ViewType, internal::void_t<decltype(std::declval<const ViewType&>() * std::declval<typename ViewType::Scalar>())>>
+    : std::true_type {};
+
+template <unsigned int Mode, typename MatrixType>
+void triangular_scalar_multiply(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+
+  const Index rows = m.rows();
+  const Index cols = m.cols();
+
+  const Scalar s = internal::random<Scalar>();
+  const MatrixType triangular = MatrixType::Random(rows, cols);
+
+  VERIFY_IS_APPROX((s * triangular.template triangularView<Mode>()).toDenseMatrix(),
+                   (s * triangular).template triangularView<Mode>().toDenseMatrix());
+  VERIFY_IS_APPROX((triangular.template triangularView<Mode>() * s).toDenseMatrix(),
+                   (triangular * s).template triangularView<Mode>().toDenseMatrix());
+}
+
+template <typename MatrixType>
+void triangular_scalar_multiply_sfinae() {
+  typedef decltype(std::declval<MatrixType&>().template triangularView<Lower>()) LowerView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyLower>()) StrictlyLowerView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyUpper>()) StrictlyUpperView;
+  typedef decltype(std::declval<MatrixType&>().template triangularView<UnitLower>()) UnitLowerView;
+
+  STATIC_CHECK((has_left_scalar_multiply<LowerView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<LowerView>::value));
+  STATIC_CHECK((has_left_scalar_multiply<StrictlyLowerView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<StrictlyLowerView>::value));
+  STATIC_CHECK((has_left_scalar_multiply<StrictlyUpperView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<StrictlyUpperView>::value));
+  STATIC_CHECK((!has_left_scalar_multiply<UnitLowerView>::value));
+  STATIC_CHECK((!has_right_scalar_multiply<UnitLowerView>::value));
+}
+
 template <typename MatrixType>
 void triangular_deprecated(const MatrixType& m) {
   Index rows = m.rows();
@@ -41,6 +90,8 @@ void triangular_square(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+
+  triangular_scalar_multiply_sfinae<MatrixType>();
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();
 
@@ -86,7 +137,7 @@ void triangular_square(const MatrixType& m) {
 
   m1 = MatrixType::Random(rows, cols);
   for (int i = 0; i < rows; ++i)
-    while (numext::abs2(m1(i, i)) < RealScalar(1e-1)) m1(i, i) = internal::random<Scalar>();
+    if (numext::abs2(m1(i, i)) < RealScalar(1e-1)) m1(i, i) = Scalar(1);
 
   Transpose<MatrixType> trm4(m4);
   // test back and forward substitution with a vector as the rhs
@@ -151,6 +202,10 @@ void triangular_square(const MatrixType& m) {
   m6.setRandom();
   VERIFY_IS_APPROX(m1.template triangularView<Upper>() * m5, m3 * m5);
   VERIFY_IS_APPROX(m6 * m1.template triangularView<Upper>(), m6 * m3);
+  triangular_scalar_multiply<Upper>(m1);
+  triangular_scalar_multiply<Lower>(m1);
+  triangular_scalar_multiply<StrictlyUpper>(m1);
+  triangular_scalar_multiply<StrictlyLower>(m1);
 
   m1up = m1.template triangularView<Upper>();
   VERIFY_IS_APPROX(m1.template selfadjointView<Upper>().template triangularView<Upper>().toDenseMatrix(), m1up);
@@ -228,6 +283,10 @@ void triangular_rect(const MatrixType& m) {
   m1.setZero();
   m1.template triangularView<StrictlyLower>() = 3 * m2;
   VERIFY_IS_APPROX(m3.template triangularView<StrictlyLower>().toDenseMatrix(), m1);
+  triangular_scalar_multiply<Upper>(m1);
+  triangular_scalar_multiply<Lower>(m1);
+  triangular_scalar_multiply<StrictlyUpper>(m1);
+  triangular_scalar_multiply<StrictlyLower>(m1);
   m1.setRandom();
   m2 = m1.template triangularView<Upper>();
   VERIFY(m2.isUpperTriangular());
@@ -258,18 +317,83 @@ void triangular_rect(const MatrixType& m) {
   VERIFY_IS_APPROX(m2, m3);
 }
 
+// Test triangular solve and product at sizes that exercise GEBP blocking.
+// The standard test caps at maxsize=20, which never triggers the blocked code paths
+// in TriangularSolverMatrix.h (requires size >= 48 with EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS).
+template <int>
+void triangular_at_blocking_boundaries() {
+  typedef double Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+
+  const int sizes[] = {47, 48, 49, 64, 96, 128};
+  for (int si = 0; si < 6; ++si) {
+    int n = sizes[si];
+    Mat m1 = Mat::Random(n, n);
+    // Make well-conditioned: dominant diagonal
+    for (int i = 0; i < n; ++i) m1(i, i) += Scalar(n);
+
+    Vec v = Vec::Random(n);
+    Mat rhs = Mat::Random(n, 5);
+
+    // Upper triangular solve with vector
+    Mat U = m1.triangularView<Upper>();
+    Vec x = m1.triangularView<Upper>().solve(v);
+    VERIFY_IS_APPROX(U * x, v);
+
+    // Lower triangular solve with vector
+    Mat L = m1.triangularView<Lower>();
+    x = m1.triangularView<Lower>().solve(v);
+    VERIFY_IS_APPROX(L * x, v);
+
+    // Upper triangular solve with matrix rhs
+    Mat X = m1.triangularView<Upper>().solve(rhs);
+    VERIFY_IS_APPROX(U * X, rhs);
+
+    // Lower triangular solve with matrix rhs
+    X = m1.triangularView<Lower>().solve(rhs);
+    VERIFY_IS_APPROX(L * X, rhs);
+
+    // Triangular product
+    Mat prod = m1.triangularView<Upper>() * rhs;
+    VERIFY_IS_APPROX(prod, U * rhs);
+    prod = rhs.transpose() * m1.triangularView<Upper>();
+    VERIFY_IS_APPROX(prod, rhs.transpose() * U);
+  }
+
+  // Also test with float and RowMajor
+  {
+    typedef Matrix<float, Dynamic, Dynamic, RowMajor> RMat;
+    typedef Matrix<float, Dynamic, 1> FVec;
+    for (int si = 0; si < 6; ++si) {
+      int n = sizes[si];
+      RMat m1 = RMat::Random(n, n);
+      for (int i = 0; i < n; ++i) m1(i, i) += float(n);
+
+      FVec v = FVec::Random(n);
+      RMat U = m1.triangularView<Upper>();
+      FVec x = m1.triangularView<Upper>().solve(v);
+      VERIFY_IS_APPROX(U * x, v);
+
+      RMat L = m1.triangularView<Lower>();
+      x = m1.triangularView<Lower>().solve(v);
+      VERIFY_IS_APPROX(L * x, v);
+    }
+  }
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().triangularView<Lower>();
-  EIGEN_UNUSED_VARIABLE(m)
+  EIGEN_UNUSED_VARIABLE(m);
 }
 
 EIGEN_DECLARE_TEST(triangular) {
   int maxsize = (std::min)(EIGEN_TEST_MAX_SIZE, 20);
   for (int i = 0; i < g_repeat; i++) {
     int r = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(r)
+    TEST_SET_BUT_UNUSED_VARIABLE(r);
     int c = internal::random<int>(2, maxsize);
-    TEST_SET_BUT_UNUSED_VARIABLE(c)
+    TEST_SET_BUT_UNUSED_VARIABLE(c);
 
     CALL_SUBTEST_1(triangular_square(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(triangular_square(Matrix<float, 2, 2>()));
@@ -289,4 +413,7 @@ EIGEN_DECLARE_TEST(triangular) {
   }
 
   CALL_SUBTEST_1(bug_159());
+
+  // Triangular solve/product at blocking boundaries (deterministic, outside g_repeat).
+  CALL_SUBTEST_11(triangular_at_blocking_boundaries<0>());
 }

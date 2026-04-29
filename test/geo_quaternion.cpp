@@ -37,7 +37,7 @@ void check_slerp(const QuatType& q0, const QuatType& q1) {
     Scalar theta = AA(q * q0.inverse()).angle();
     VERIFY(abs(q.norm() - 1) < largeEps);
     if (theta_tot == 0)
-      VERIFY(theta_tot == 0);
+      VERIFY(theta < largeEps);
     else
       VERIFY(abs(theta - t * theta_tot) < largeEps);
   }
@@ -55,7 +55,6 @@ void quaternion(void) {
   typedef AngleAxis<Scalar> AngleAxisx;
 
   Scalar largeEps = test_precision<Scalar>();
-  if (internal::is_same<Scalar, float>::value) largeEps = Scalar(1e-3);
 
   Scalar eps = internal::random<Scalar>() * Scalar(1e-2);
 
@@ -103,6 +102,15 @@ void quaternion(void) {
 
   if ((q1.coeffs() - q2.coeffs()).norm() > Scalar(10) * largeEps) {
     VERIFY_IS_MUCH_SMALLER_THAN(abs(q1.angularDistance(q2) - refangle), Scalar(1));
+  }
+
+  // angular distance with non-unit quaternions (scale-invariance)
+  {
+    Quaternionx qunit(AngleAxisx(Scalar(EIGEN_PI / 2), Vector3::UnitX()));
+    Quaternionx qscaled;
+    qscaled.coeffs() = qunit.coeffs() * Scalar(2);
+    VERIFY_IS_APPROX(qscaled.angularDistance(Quaternionx::Identity()), Scalar(EIGEN_PI / 2));
+    VERIFY_IS_APPROX(Quaternionx::Identity().angularDistance(qscaled), Scalar(EIGEN_PI / 2));
   }
 
   // Action on vector by the q v q* formula

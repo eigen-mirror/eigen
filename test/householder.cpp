@@ -213,6 +213,51 @@ void householder_update(const MatrixType& m) {
   }
 }
 
+template <typename Scalar>
+void householder_blocked_right_regression() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  typedef HouseholderSequence<MatrixX, VectorX> LeftSequence;
+  typedef HouseholderSequence<MatrixX, VectorX, OnTheRight> RightSequence;
+
+  const Index rows = 256;
+  const Index cols = 128;
+  const Index shift = 17;
+
+  // Force the blocked path added for right-side Householder application.
+  VERIFY(cols >= 48 && rows - shift >= 4 * 48);
+
+  MatrixX input = MatrixX::Random(rows, cols);
+  MatrixX qr_input = input.block(shift, 0, rows - shift, cols);
+  HouseholderQR<MatrixX> qr(qr_input);
+
+  MatrixX packed = input;
+  packed.block(shift, 0, rows - shift, cols) = qr.matrixQR();
+  VectorX hcoeffs = qr.hCoeffs().conjugate();
+
+  LeftSequence hseq(packed, hcoeffs);
+  hseq.setLength(hcoeffs.size()).setShift(shift);
+  MatrixX dense_left = MatrixX(hseq);
+
+  MatrixX packed_transposed = packed.transpose();
+  RightSequence rhseq(packed_transposed, hcoeffs);
+  rhseq.setLength(hcoeffs.size()).setShift(shift);
+  MatrixX dense_right = MatrixX(rhseq);
+
+  MatrixX left_rhs = MatrixX::Random(rows, rows + 9);
+  MatrixX right_lhs = MatrixX::Random(rows + 7, rows);
+
+  VERIFY_IS_APPROX(hseq * left_rhs, dense_left * left_rhs);
+  VERIFY_IS_APPROX(hseq.adjoint() * left_rhs, dense_left.adjoint() * left_rhs);
+  VERIFY_IS_APPROX(right_lhs * hseq, right_lhs * dense_left);
+  VERIFY_IS_APPROX(right_lhs * hseq.adjoint(), right_lhs * dense_left.adjoint());
+
+  VERIFY_IS_APPROX(rhseq * left_rhs, dense_right * left_rhs);
+  VERIFY_IS_APPROX(rhseq.adjoint() * left_rhs, dense_right.adjoint() * left_rhs);
+  VERIFY_IS_APPROX(right_lhs * rhseq, right_lhs * dense_right);
+  VERIFY_IS_APPROX(right_lhs * rhseq.adjoint(), right_lhs * dense_right.adjoint());
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -232,4 +277,7 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_9(householder_update(
         MatrixXcf(internal::random<Index>(1, EIGEN_TEST_MAX_SIZE), internal::random<Index>(1, EIGEN_TEST_MAX_SIZE))));
   }
+
+  CALL_SUBTEST_10(householder_blocked_right_regression<double>());
+  CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
 }

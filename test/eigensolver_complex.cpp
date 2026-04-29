@@ -132,7 +132,8 @@ void eigensolver(const MatrixType& m) {
     ComplexEigenSolver<MatrixType> ei3(a);
     VERIFY_IS_EQUAL(ei3.info(), Success);
     VERIFY_IS_MUCH_SMALLER_THAN(ei3.eigenvalues().norm(), RealScalar(1));
-    VERIFY((ei3.eigenvectors().transpose() * ei3.eigenvectors().transpose()).eval().isIdentity());
+    RealScalar tol = 2 * a.cols() * NumTraits<RealScalar>::epsilon();
+    VERIFY((ei3.eigenvectors().adjoint() * ei3.eigenvectors()).eval().isIdentity(tol));
   }
 }
 
@@ -155,7 +156,7 @@ EIGEN_DECLARE_TEST(eigensolver_complex) {
     CALL_SUBTEST_2(eigensolver(MatrixXcd(s, s)));
     CALL_SUBTEST_3(eigensolver(Matrix<std::complex<float>, 1, 1>()));
     CALL_SUBTEST_4(eigensolver(Matrix3f()));
-    TEST_SET_BUT_UNUSED_VARIABLE(s)
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
   CALL_SUBTEST_1(eigensolver_verify_assert(Matrix4cf()));
   s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
@@ -169,5 +170,5 @@ EIGEN_DECLARE_TEST(eigensolver_complex) {
   // Test custom complex scalar type.
   CALL_SUBTEST_6(eigensolver(Matrix<CustomComplex<double>, 5, 5>()));
 
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

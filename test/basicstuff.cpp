@@ -38,8 +38,8 @@ void basicStuff(const MatrixType& m) {
   VectorType v1 = VectorType::Random(rows), vzero = VectorType::Zero(rows);
   SquareMatrixType sm1 = SquareMatrixType::Random(rows, rows), sm2(rows, rows);
 
-  Scalar x = 0;
-  while (x == Scalar(0)) x = internal::random<Scalar>();
+  Scalar x = internal::random<Scalar>();
+  if (x == Scalar(0)) x = Scalar(1);
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
@@ -207,7 +207,12 @@ struct casting_test {
     Matrix<TgtScalar, 4, 4> n = m.template cast<TgtScalar>();
     for (int i = 0; i < m.rows(); ++i) {
       for (int j = 0; j < m.cols(); ++j) {
-        VERIFY_IS_APPROX(n(i, j), (internal::cast<SrcScalar, TgtScalar>(m(i, j))));
+        // Materialize both values to avoid GCC miscompilation at -O3 on some targets
+        // (e.g., loongarch64) where the compiler may keep intermediate results in wider
+        // FP registers, causing the comparison to see different precision than intended.
+        TgtScalar actual = n(i, j);
+        TgtScalar expected = internal::cast<SrcScalar, TgtScalar>(m(i, j));
+        VERIFY_IS_APPROX(actual, expected);
       }
     }
   }

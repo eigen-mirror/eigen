@@ -1008,7 +1008,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
     const bool overwrite = internal::is_same<Func, internal::assign_op<Scalar, Scalar>>::value;
     if (overwrite) {
-      if ((m_outerSize != n) || (m_innerSize != n)) resize(n, n);
+      if ((m_outerSize != n) || (m_innerSize != n) || (n == 0)) resize(n, n);
     }
 
     if (m_data.size() == 0 || overwrite) {
@@ -1277,7 +1277,8 @@ void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator
   using SrcXprType =
       CwiseBinaryOp<scalar_disjunction_op<DupFunctor, Scalar>, const SparseMatrixType, const SparseMatrixType>;
 
-  // TODO: process triplets without making a copy
+  // Saving the trips temporary would need a direct mat+triplets merge with
+  // on-the-fly duplicate collapsing (non-trivial).
   SparseMatrixType trips(mat.rows(), mat.cols());
   set_from_triplets_sorted(begin, end, trips, dup_func);
 
@@ -1337,7 +1338,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.setFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1366,7 +1367,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.setFromSortedTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1430,7 +1431,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromTriplets(const Inp
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.insertFromTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1459,7 +1460,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::insertFromSortedTriplets(con
  * \code
  * value = dup_func(OldValue, NewValue)
  * \endcode
- * Here is a C++11 example keeping the latest entry only:
+ * Here is an example keeping the latest entry only:
  * \code
  * mat.insertFromSortedTriplets(triplets.begin(), triplets.end(), [] (const Scalar&,const Scalar &b) { return b; });
  * \endcode
@@ -1548,7 +1549,7 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     Eigen::Map<IndexVector>(dest.m_outerIndex, dest.outerSize()).setZero();
 
     // pass 1
-    // FIXME the above copy could be merged with that pass
+    // FIXME: merge the above copy into this pass to avoid iterating twice.
     for (Index j = 0; j < otherCopy.outerSize(); ++j)
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) ++dest.m_outerIndex[it.index()];
 
@@ -1846,26 +1847,34 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
       // Inner non-zero counts.
       std::size_t data_bytes = sizeof(StorageIndex) * header.outer_size;
       if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-      memcpy(value.innerNonZeroPtr(), src, data_bytes);
+      if (data_bytes != 0) {
+        memcpy(value.innerNonZeroPtr(), src, data_bytes);
+      }
       src += data_bytes;
     }
 
     // Outer indices.
     std::size_t data_bytes = sizeof(StorageIndex) * (header.outer_size + 1);
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.outerIndexPtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.outerIndexPtr(), src, data_bytes);
+    }
     src += data_bytes;
 
     // Inner indices.
     data_bytes = sizeof(StorageIndex) * header.inner_buffer_size;
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.innerIndexPtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.innerIndexPtr(), src, data_bytes);
+    }
     src += data_bytes;
 
     // Values.
     data_bytes = sizeof(Scalar) * header.inner_buffer_size;
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.valuePtr(), src, data_bytes);
+    if (data_bytes != 0) {
+      memcpy(value.valuePtr(), src, data_bytes);
+    }
     src += data_bytes;
     return src;
   }

@@ -39,3 +39,4 @@ Makefile
 !scripts/buildtests.in
 !Eigen/Core
 !Eigen/src/Core
+CLAUDE.md

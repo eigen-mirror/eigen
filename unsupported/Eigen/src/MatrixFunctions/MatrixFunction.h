@@ -490,7 +490,7 @@ class MatrixFunctionReturnValue : public ReturnByValue<MatrixFunctionReturnValue
   Index cols() const { return m_A.cols(); }
 
  private:
-  const DerivedNested m_A;
+  DerivedNested m_A;
   StemFunction* m_f;
 };
 

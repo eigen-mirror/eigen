@@ -324,7 +324,6 @@ EIGEN_STRONG_INLINE Packet1cd pandnot<Packet1cd>(const Packet1cd& a, const Packe
   return Packet1cd(_mm_andnot_pd(b.v, a.v));
 }
 
-// FIXME force unaligned load, this is a temporary fix
 template <>
 EIGEN_STRONG_INLINE Packet1cd pload<Packet1cd>(const std::complex<double>* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return Packet1cd(_mm_load_pd((const double*)from));
@@ -344,7 +343,6 @@ EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* fr
   return pset1<Packet1cd>(*from);
 }
 
-// FIXME force unaligned store, this is a temporary fix
 template <>
 EIGEN_STRONG_INLINE void pstore<std::complex<double> >(std::complex<double>* to, const Packet1cd& from) {
   EIGEN_DEBUG_ALIGNED_STORE _mm_store_pd((double*)to, from.v);
@@ -413,35 +411,8 @@ EIGEN_STRONG_INLINE Packet1cd pcmp_eq(const Packet1cd& a, const Packet1cd& b) {
   return Packet1cd(pand<Packet2d>(eq, vec2d_swizzle1(eq, 1, 0)));
 }
 
-template <>
-EIGEN_STRONG_INLINE Packet1cd psqrt<Packet1cd>(const Packet1cd& a) {
-  return psqrt_complex<Packet1cd>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf psqrt<Packet2cf>(const Packet2cf& a) {
-  return psqrt_complex<Packet2cf>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd plog<Packet1cd>(const Packet1cd& a) {
-  return plog_complex<Packet1cd>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf plog<Packet2cf>(const Packet2cf& a) {
-  return plog_complex<Packet2cf>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd pexp<Packet1cd>(const Packet1cd& a) {
-  return pexp_complex<Packet1cd>(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pexp<Packet2cf>(const Packet2cf& a) {
-  return pexp_complex<Packet2cf>(a);
-}
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet1cd)
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet2cf)
 
 #ifdef EIGEN_VECTORIZE_FMA
 // std::complex<float>

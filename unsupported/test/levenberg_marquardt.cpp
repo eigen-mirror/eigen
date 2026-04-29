@@ -68,8 +68,7 @@ void testLmder1() {
   lmder_functor functor;
   LevenbergMarquardt<lmder_functor> lm(functor);
   info = lm.lmder1(x);
-  EIGEN_UNUSED_VARIABLE(info)
-  // check return value
+  EIGEN_UNUSED_VARIABLE(info);  // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 6);
   // VERIFY_IS_EQUAL(lm.njev(), 5);
@@ -96,8 +95,7 @@ void testLmder() {
   lmder_functor functor;
   LevenbergMarquardt<lmder_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return values
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 6);
@@ -164,8 +162,7 @@ void testLmdif1() {
   lmdif_functor functor;
   DenseIndex nfev;
   info = LevenbergMarquardt<lmdif_functor>::lmdif1(functor, x, &nfev);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   //   VERIFY_IS_EQUAL(nfev, 26);
@@ -194,8 +191,7 @@ void testLmdif() {
   NumericalDiff<lmdif_functor> numDiff(functor);
   LevenbergMarquardt<NumericalDiff<lmdif_functor> > lm(numDiff);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return values
   // VERIFY_IS_EQUAL(info, 1);
   //   VERIFY_IS_EQUAL(lm.nfev(), 26);
@@ -285,8 +281,7 @@ void testNistChwirut2(void) {
   chwirut2_functor functor;
   LevenbergMarquardt<chwirut2_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   //   VERIFY_IS_EQUAL(lm.nfev(), 10);
@@ -307,8 +302,7 @@ void testNistChwirut2(void) {
   lm.setFtol(1.E6 * NumTraits<double>::epsilon());
   lm.setXtol(1.E6 * NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   //   VERIFY_IS_EQUAL(lm.nfev(), 7);
@@ -364,8 +358,7 @@ void testNistMisra1a(void) {
   misra1a_functor functor;
   LevenbergMarquardt<misra1a_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 19);
@@ -382,8 +375,7 @@ void testNistMisra1a(void) {
   x << 250., 0.0005;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 5);
@@ -493,8 +485,7 @@ void testNistHahn1(void) {
   hahn1_functor functor;
   LevenbergMarquardt<hahn1_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 11);
@@ -505,7 +496,7 @@ void testNistHahn1(void) {
   VERIFY_IS_APPROX(x[0], 1.0776351733E+00);
   VERIFY_IS_APPROX(x[1], -1.2269296921E-01);
   VERIFY_IS_APPROX(x[2], 4.0863750610E-03);
-  VERIFY_IS_APPROX(x[3], -1.426264e-06);  // shoulde be : -1.4262662514E-06
+  VERIFY_IS_APPROX(x[3], -1.426264e-06);  // should be : -1.4262662514E-06
   VERIFY_IS_APPROX(x[4], -5.7609940901E-03);
   VERIFY_IS_APPROX(x[5], 2.4053735503E-04);
   VERIFY_IS_APPROX(x[6], -1.2314450199E-07);
@@ -516,8 +507,7 @@ void testNistHahn1(void) {
   x << .1, -.1, .005, -.000001, -.005, .0001, -.0000001;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   //   VERIFY_IS_EQUAL(lm.nfev(), 11);
@@ -528,7 +518,7 @@ void testNistHahn1(void) {
   VERIFY_IS_APPROX(x[0], 1.077640);       // should be :  1.0776351733E+00
   VERIFY_IS_APPROX(x[1], -0.1226933);     // should be : -1.2269296921E-01
   VERIFY_IS_APPROX(x[2], 0.004086383);    // should be : 4.0863750610E-03
-  VERIFY_IS_APPROX(x[3], -1.426277e-06);  // shoulde be : -1.4262662514E-06
+  VERIFY_IS_APPROX(x[3], -1.426277e-06);  // should be : -1.4262662514E-06
   VERIFY_IS_APPROX(x[4], -5.7609940901E-03);
   VERIFY_IS_APPROX(x[5], 0.00024053772);  // should be : 2.4053735503E-04
   VERIFY_IS_APPROX(x[6], -1.231450e-07);  // should be : -1.2314450199E-07
@@ -578,8 +568,7 @@ void testNistMisra1d(void) {
   misra1d_functor functor;
   LevenbergMarquardt<misra1d_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 9);
@@ -596,8 +585,7 @@ void testNistMisra1d(void) {
   x << 450., 0.0003;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 4);
@@ -663,8 +651,7 @@ void testNistLanczos1(void) {
   lanczos1_functor functor;
   LevenbergMarquardt<lanczos1_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeErrorTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 79);
@@ -685,8 +672,7 @@ void testNistLanczos1(void) {
   x << 0.5, 0.7, 3.6, 4.2, 4., 6.3;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeErrorTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 9);
@@ -748,8 +734,7 @@ void testNistRat42(void) {
   rat42_functor functor;
   LevenbergMarquardt<rat42_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeReductionTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 10);
@@ -767,8 +752,7 @@ void testNistRat42(void) {
   x << 75., 2.5, 0.07;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeReductionTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 6);
@@ -827,8 +811,7 @@ void testNistMGH10(void) {
   MGH10_functor functor;
   LevenbergMarquardt<MGH10_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-  // ++g_test_level;
+  EIGEN_UNUSED_VARIABLE(info);  // ++g_test_level;
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeReductionTooSmall);
   // --g_test_level;
   // was: VERIFY_IS_EQUAL(info, 1);
@@ -855,8 +838,7 @@ void testNistMGH10(void) {
   x << 0.02, 4000., 250.;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-  // ++g_test_level;
+  EIGEN_UNUSED_VARIABLE(info);  // ++g_test_level;
   // VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeReductionTooSmall);
   // // was: VERIFY_IS_EQUAL(info, 1);
   // --g_test_level;
@@ -919,8 +901,7 @@ void testNistBoxBOD(void) {
   lm.setXtol(1.E6 * NumTraits<double>::epsilon());
   lm.setFactor(10);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check norm^2
   VERIFY_IS_APPROX(lm.fvec().squaredNorm(), 1.1680088766E+03);
   // check x
@@ -941,8 +922,7 @@ void testNistBoxBOD(void) {
   lm.setFtol(NumTraits<double>::epsilon());
   lm.setXtol(NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // ++g_test_level;
@@ -1013,8 +993,7 @@ void testNistMGH17(void) {
   lm.setXtol(NumTraits<double>::epsilon());
   lm.setMaxfev(1000);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check norm^2
   VERIFY_IS_APPROX(lm.fvec().squaredNorm(), 5.4648946975E-05);
   // check x
@@ -1036,8 +1015,7 @@ void testNistMGH17(void) {
   // do the computation
   lm.resetParameters();
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 18);
@@ -1101,8 +1079,7 @@ void testNistMGH09(void) {
   LevenbergMarquardt<MGH09_functor> lm(functor);
   lm.setMaxfev(1000);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check norm^2
   VERIFY_IS_APPROX(lm.fvec().squaredNorm(), 3.0750560385E-04);
   // check x
@@ -1122,8 +1099,7 @@ void testNistMGH09(void) {
   // do the computation
   lm.resetParameters();
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 18);
@@ -1217,8 +1193,7 @@ void testNistBennett5(void) {
   LevenbergMarquardt<Bennett5_functor> lm(functor);
   lm.setMaxfev(1000);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 758);
@@ -1236,8 +1211,7 @@ void testNistBennett5(void) {
   // do the computation
   lm.resetParameters();
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 203);
@@ -1313,8 +1287,7 @@ void testNistThurber(void) {
   lm.setFtol(1.E4 * NumTraits<double>::epsilon());
   lm.setXtol(1.E4 * NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 39);
@@ -1339,8 +1312,7 @@ void testNistThurber(void) {
   lm.setFtol(1.E4 * NumTraits<double>::epsilon());
   lm.setXtol(1.E4 * NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 29);
@@ -1403,8 +1375,7 @@ void testNistRat43(void) {
   lm.setFtol(1.E6 * NumTraits<double>::epsilon());
   lm.setXtol(1.E6 * NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 27);
@@ -1426,8 +1397,7 @@ void testNistRat43(void) {
   lm.setFtol(1.E5 * NumTraits<double>::epsilon());
   lm.setXtol(1.E5 * NumTraits<double>::epsilon());
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 9);
@@ -1491,8 +1461,7 @@ void testNistEckerle4(void) {
   eckerle4_functor functor;
   LevenbergMarquardt<eckerle4_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 18);
@@ -1510,8 +1479,7 @@ void testNistEckerle4(void) {
   x << 1.5, 5., 450.;
   // do the computation
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info)
-
+  EIGEN_UNUSED_VARIABLE(info);
   // check return value
   // VERIFY_IS_EQUAL(info, 1);
   // VERIFY_IS_EQUAL(lm.nfev(), 7);

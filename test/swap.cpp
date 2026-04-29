@@ -119,5 +119,5 @@ EIGEN_DECLARE_TEST(swap) {
   CALL_SUBTEST_2(swap(Matrix4d()));      // fixed size, possible vectorization
   CALL_SUBTEST_3(swap(MatrixXd(s, s)));  // dyn size, no vectorization
   CALL_SUBTEST_4(swap(MatrixXf(s, s)));  // dyn size, possible vectorization
-  TEST_SET_BUT_UNUSED_VARIABLE(s)
+  TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

@@ -162,22 +162,22 @@ void eulerangles() {
   // Similar to above, but with pi instead of pi/2
   Vector3 ea_pi = ea;
   ea_pi[1] = kPi;
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] += internal::random<Scalar>(-smallVal, smallVal);
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] = -kPi;
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] += internal::random<Scalar>(-smallVal, smallVal);
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] = kPi;
   ea_pi[2] = ea_pi[0];
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] += internal::random<Scalar>(-smallVal, smallVal);
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] = -kPi;
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
   ea_pi[1] += internal::random<Scalar>(-smallVal, smallVal);
-  test_with_some_zeros(ea_gl);
+  test_with_some_zeros(ea_pi);
 
   ea[2] = ea[0] = internal::random<Scalar>(0, kPi);
   check_all_var(ea);

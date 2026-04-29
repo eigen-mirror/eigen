@@ -81,6 +81,44 @@ void plusMinus() {
   VERIFY_IS_APPROX((sk1 + sk1).vector(), 2 * v1);
   VERIFY((sk1 - sk1).vector().isZero());
   VERIFY((sk1 - sk1).toDenseMatrix().isZero());
+
+  // Mixed dense / skew-symmetric +/- operators (see issue #2925, MR !2308).
+  // Cases c1/c2/c3 below are exactly the three expressions from the issue.
+  {
+    const SquareMatrix A = SquareMatrix::Random();
+    const Vector b = Vector::Random();
+
+    const SquareMatrix skA = (A * b).asSkewSymmetric().toDenseMatrix();
+    const SquareMatrix skB = v1.asSkewSymmetric().toDenseMatrix();
+    const SquareMatrix skB_times_A = v1.asSkewSymmetric().toDenseMatrix() * A;
+    const SquareMatrix A_times_skB = A * v1.asSkewSymmetric().toDenseMatrix();
+
+    // c1: dense - skew
+    const SquareMatrix c1 = A - SkewSymmetricMatrix3<Scalar>(A * b);
+    VERIFY_IS_APPROX(c1, A - skA);
+
+    // c2: Product<dense,skew> - skew
+    const SquareMatrix c2 = A * SkewSymmetricMatrix3<Scalar>(v1) - SkewSymmetricMatrix3<Scalar>(A * b);
+    VERIFY_IS_APPROX(c2, A_times_skB - skA);
+
+    // c3: Product<skew,dense> - skew
+    const SquareMatrix c3 = SkewSymmetricMatrix3<Scalar>(v1) * A - SkewSymmetricMatrix3<Scalar>(A * b);
+    VERIFY_IS_APPROX(c3, skB_times_A - skA);
+
+    // M + S and S + M (commutativity check).
+    VERIFY_IS_APPROX(SquareMatrix(A + sk1), A + skB);
+    VERIFY_IS_APPROX(SquareMatrix(sk1 + A), skB + A);
+    VERIFY_IS_APPROX(SquareMatrix(A + sk1), SquareMatrix(sk1 + A));
+
+    // M - S and S - M (anti-commutativity sanity).
+    VERIFY_IS_APPROX(SquareMatrix(A - sk1), A - skB);
+    VERIFY_IS_APPROX(SquareMatrix(sk1 - A), skB - A);
+    VERIFY_IS_APPROX(SquareMatrix(A - sk1), -SquareMatrix(sk1 - A));
+
+    // Product expression on the LHS should still fuse (no explicit
+    // .toDenseMatrix() needed on the dense side).
+    VERIFY_IS_APPROX(SquareMatrix(A * A - sk1), (A * A).eval() - skB);
+  }
 }
 
 template <typename Scalar>

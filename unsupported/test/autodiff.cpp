@@ -91,7 +91,6 @@ struct TestFunc1 {
   }
 };
 
-/* Test functor for the C++11 features. */
 template <typename Scalar>
 struct integratorFunctor {
   typedef Matrix<Scalar, 2, 1> InputType;

@@ -32,7 +32,7 @@ void matrixRedux(const MatrixType& m) {
   m2.setRandom();
   // Prevent overflows for integer types.
   if (Eigen::NumTraits<Scalar>::IsInteger) {
-    Scalar kMaxVal = Scalar(10000);
+    Scalar kMaxVal = Scalar(8);
     m1.array() = m1.array() - kMaxVal * (m1.array() / kMaxVal);
     m2.array() = m2.array() - kMaxVal * (m2.array() / kMaxVal);
   }
@@ -98,6 +98,11 @@ void vectorRedux(const VectorType& w) {
 
   VectorType v = VectorType::Random(size);
   VectorType v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;  // see comment above declaration of m1_for_prod
+  if (Eigen::NumTraits<Scalar>::IsInteger) {
+    Scalar kMaxVal = Scalar(8);
+    v.array() = v.array() - kMaxVal * (v.array() / kMaxVal);
+    v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;
+  }
 
   for (int i = 1; i < size; i++) {
     Scalar s(0), p(1);
@@ -152,6 +157,110 @@ void vectorRedux(const VectorType& w) {
   VERIFY_RAISES_ASSERT(v.head(0).maxCoeff());
 }
 
+void boolRedux(Index rows, Index cols) {
+  // Test boolean reductions: all(), any(), count()
+  typedef Array<bool, Dynamic, Dynamic> BoolArray;
+
+  // All-true
+  BoolArray all_true = BoolArray::Constant(rows, cols, true);
+  VERIFY(all_true.all());
+  VERIFY(all_true.any());
+  VERIFY_IS_EQUAL(all_true.count(), rows * cols);
+
+  // All-false
+  BoolArray all_false = BoolArray::Constant(rows, cols, false);
+  if (rows > 0 && cols > 0) {
+    VERIFY(!all_false.all());
+    VERIFY(!all_false.any());
+  }
+  VERIFY_IS_EQUAL(all_false.count(), Index(0));
+
+  // Mixed: set a checkerboard pattern
+  BoolArray mixed(rows, cols);
+  Index expected_count = 0;
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      mixed(i, j) = ((i + j) % 2 == 0);
+      if (mixed(i, j)) expected_count++;
+    }
+  VERIFY_IS_EQUAL(mixed.count(), expected_count);
+  if (rows > 0 && cols > 0) {
+    VERIFY(mixed.any());
+    VERIFY(mixed.all() == (expected_count == rows * cols));
+  }
+
+  // Partial reductions
+  if (rows > 0 && cols > 0) {
+    auto col_counts = mixed.colwise().count();
+    for (Index k = 0; k < cols; ++k) VERIFY_IS_EQUAL(col_counts(k), mixed.col(k).count());
+    auto row_counts = mixed.rowwise().count();
+    for (Index k = 0; k < rows; ++k) VERIFY_IS_EQUAL(row_counts(k), mixed.row(k).count());
+  }
+}
+
+// Test reductions at sizes that hit vectorization boundaries in Redux.h:
+// LinearVectorizedTraversal with 2-way unrolled packet loop, scalar pre/post loops.
+template <typename Scalar>
+void redux_vec_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  // Critical sizes: around packet multiples and at 2-way unroll boundaries
+  const Index sizes[] = {1,      PS - 1,     PS,         PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1,
+                         3 * PS, 3 * PS + 1, 4 * PS - 1, 4 * PS, 4 * PS + 1, 8 * PS, 8 * PS + 1};
+  for (int si = 0; si < 14; ++si) {
+    const Index n = sizes[si];
+    if (n <= 0) continue;
+    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    Vec v = Vec::Random(n);
+    // For prod, use values near 1 to avoid underflow (float) or overflow (int).
+    Vec v_for_prod = Vec::Ones(n) + Scalar(typename NumTraits<Scalar>::Real(0.2)) * v;
+    // Reference: scalar loops
+    Scalar ref_sum(0), ref_prod(1);
+    typename NumTraits<Scalar>::Real ref_min = numext::real(v(0)), ref_max = numext::real(v(0));
+    for (Index k = 0; k < n; ++k) {
+      ref_sum += v(k);
+      ref_prod *= v_for_prod(k);
+      ref_min = (std::min)(ref_min, numext::real(v(k)));
+      ref_max = (std::max)(ref_max, numext::real(v(k)));
+    }
+    VERIFY_IS_APPROX(v.sum(), ref_sum);
+    VERIFY_IS_APPROX(v_for_prod.prod(), ref_prod);
+    VERIFY_IS_APPROX(v.real().minCoeff(), ref_min);
+    VERIFY_IS_APPROX(v.real().maxCoeff(), ref_max);
+  }
+}
+
+// Test reductions on strided (non-contiguous) mapped data.
+// This exercises SliceVectorizedTraversal or DefaultTraversal in Redux.h
+// depending on stride and packet size.
+template <typename Scalar>
+void redux_strided() {
+  const Index n = 64;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  Vec data = Vec::Random(2 * n);
+  // Map with inner stride of 2 — every other element
+  Map<Vec, 0, InnerStride<2>> strided(data.data(), n);
+  Scalar ref_sum(0);
+  typename NumTraits<Scalar>::Real ref_min = numext::real(strided(0)), ref_max = numext::real(strided(0));
+  for (Index k = 0; k < n; ++k) {
+    ref_sum += strided(k);
+    ref_min = (std::min)(ref_min, numext::real(strided(k)));
+    ref_max = (std::max)(ref_max, numext::real(strided(k)));
+  }
+  VERIFY_IS_APPROX(strided.sum(), ref_sum);
+  VERIFY_IS_APPROX(strided.real().minCoeff(), ref_min);
+  VERIFY_IS_APPROX(strided.real().maxCoeff(), ref_max);
+
+  // Also test reduction on a non-contiguous matrix block (SliceVectorizedTraversal)
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  Mat m = Mat::Random(16, 16);
+  for (Index bsz = 1; bsz <= 8; bsz *= 2) {
+    Scalar block_sum(0);
+    for (Index j = 0; j < bsz; ++j)
+      for (Index i = 0; i < bsz; ++i) block_sum += m(1 + i, 1 + j);
+    VERIFY_IS_APPROX(m.block(1, 1, bsz, bsz).sum(), block_sum);
+  }
+}
+
 EIGEN_DECLARE_TEST(redux) {
   // the max size cannot be too large, otherwise reduxion operations obviously generate large errors.
   int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
@@ -202,4 +311,34 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_10(vectorRedux(VectorX<int64_t>(size)));
     CALL_SUBTEST_10(vectorRedux(ArrayX<int64_t>(size)));
   }
+  // Bool reductions (deterministic, outside g_repeat)
+  CALL_SUBTEST_11(boolRedux(1, 1));
+  CALL_SUBTEST_11(boolRedux(4, 4));
+  CALL_SUBTEST_11(boolRedux(7, 13));
+  CALL_SUBTEST_11(boolRedux(63, 63));
+
+  // Bool reductions at vectorization boundary sizes.
+  // all()/any()/count() use packet-level visitors with remainder handling.
+  {
+    // bool packets are typically 16 bytes (SSE) or 32 bytes (AVX).
+    // Test sizes around common packet sizes to catch off-by-one in remainder loops.
+    const Index bsizes[] = {1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129};
+    EIGEN_UNUSED_VARIABLE(bsizes);
+    for (int si = 0; si < 18; ++si) {
+      CALL_SUBTEST_11(boolRedux(bsizes[si], 1));  // column vector
+      CALL_SUBTEST_11(boolRedux(1, bsizes[si]));  // row vector
+      CALL_SUBTEST_11(boolRedux(bsizes[si], 3));  // thin matrix
+    }
+  }
+
+  // Vectorization boundary sizes — deterministic, run once.
+  // Integer types are excluded: full-range random ints overflow in sum/prod (UB).
+  // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.
+  CALL_SUBTEST_12(redux_vec_boundary<float>());
+  CALL_SUBTEST_12(redux_vec_boundary<double>());
+
+  // Strided (non-contiguous) reductions.
+  CALL_SUBTEST_13(redux_strided<float>());
+  CALL_SUBTEST_13(redux_strided<double>());
+  CALL_SUBTEST_13(redux_strided<std::complex<float>>());
 }

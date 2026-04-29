@@ -162,9 +162,8 @@ void transformations() {
 
   // Transform
   // TODO complete the tests !
-  a = 0;
-  while (abs(a) < Scalar(0.1))
-    a = internal::random<Scalar>(-Scalar(0.4) * Scalar(EIGEN_PI), Scalar(0.4) * Scalar(EIGEN_PI));
+  a = internal::random<Scalar>(-Scalar(0.4) * Scalar(EIGEN_PI), Scalar(0.4) * Scalar(EIGEN_PI));
+  if (abs(a) < Scalar(0.1)) a = Scalar(0.1);
   q1 = AngleAxisx(a, v0.normalized());
   Transform3 t0, t1, t2;
 
@@ -224,10 +223,11 @@ void transformations() {
   t4 *= aa3;
   VERIFY_IS_APPROX(t3.matrix(), t4.matrix());
 
-  do {
-    v3 = Vector3::Random();
-    dont_over_optimize(v3);
-  } while (v3.cwiseAbs().minCoeff() < NumTraits<Scalar>::epsilon());
+  v3 = Vector3::Random();
+  dont_over_optimize(v3);
+  for (int k = 0; k < 3; ++k) {
+    if (numext::abs(v3(k)) < NumTraits<Scalar>::epsilon()) v3(k) = NumTraits<Scalar>::epsilon();
+  }
   Translation3 tv3(v3);
   Transform3 t5(tv3);
   t4 = tv3;
@@ -381,9 +381,8 @@ void transformations() {
   // test transform inversion
   t0.setIdentity();
   t0.translate(v0);
-  do {
-    t0.linear().setRandom();
-  } while (t0.linear().jacobiSvd().singularValues()(2) < test_precision<Scalar>());
+  t0.linear().setRandom();
+  if (t0.linear().jacobiSvd().singularValues()(2) < test_precision<Scalar>()) t0.linear().setIdentity();
   Matrix4 t044 = Matrix4::Zero();
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();
