@@ -284,8 +284,10 @@ using std::ptrdiff_t;
 #if defined EIGEN_VECTORIZE_RVV10BF16
 #include "src/Core/arch/RVV10/PacketMathBF16.h"
 #endif
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1
 #include "src/Core/arch/RVV10/Complex.h"
 #include "src/Core/arch/RVV10/Complex2.h"
+#endif
 #elif defined EIGEN_VECTORIZE_ZVECTOR
 #include "src/Core/arch/ZVector/PacketMath.h"
 #include "src/Core/arch/ZVector/MathFunctions.h"

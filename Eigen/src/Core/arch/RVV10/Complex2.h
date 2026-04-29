@@ -271,13 +271,11 @@ EIGEN_STRONG_INLINE Packet2Xcf pexp<Packet2Xcf>(const Packet2Xcf& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL4_ONLY
 template <typename Packet = Packet2Xcf>
 EIGEN_STRONG_INLINE Packet1Xcf predux_half(const Packet2Xcf& a) {
   return Packet1Xcf(__riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a.v, 0), __riscv_vget_v_f32m4_f32m2(a.v, 1),
                                 unpacket_traits<Packet2Xf>::size));
 }
-#endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcf, Packet4Xf)
 
@@ -804,13 +802,11 @@ EIGEN_STRONG_INLINE Packet2Xcd pexp<Packet2Xcd>(const Packet2Xcd& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL4_ONLY
 template <typename Packet = Packet2Xcd>
 EIGEN_STRONG_INLINE Packet1Xcd predux_half(const Packet2Xcd& a) {
   return Packet1Xcd(__riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a.v, 0), __riscv_vget_v_f64m4_f64m2(a.v, 1),
                                 unpacket_traits<Packet2Xd>::size));
 }
-#endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcd, Packet4Xd)
 

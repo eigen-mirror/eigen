@@ -230,6 +230,7 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
 
 #endif
 
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1
 /********************************* complex ************************************/
 
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
@@ -412,27 +413,31 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     r = cj.pmadd(c, alpha, r);
   }
 
-#if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
-    Packet2Xcf cp = pdup(c);
-    r = cj.pmadd(cp, alpha, r);
+  EIGEN_STRONG_INLINE void acc(const Packet1Xf& c, const Packet1Xcfh& alpha, Packet1Xcfh& r) const {
+    r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
-    Packet2Xcd cp = pdup(c);
-    r = cj.pmadd(cp, alpha, r);
+  EIGEN_STRONG_INLINE void acc(const Packet1Xd& c, const Packet1Xcdh& alpha, Packet1Xcdh& r) const {
+    r = cj.pmadd(c, alpha, r);
+  }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE void acc(const Packet2Xf& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
+    r = cj.pmadd(c, alpha, r);
+  }
+
+  EIGEN_STRONG_INLINE void acc(const Packet2Xd& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
+    r = cj.pmadd(c, alpha, r);
   }
 #endif
 
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcfh& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
-    Packet1Xcf cp = pdup(c);
-    r = cj.pmadd(cp, alpha, r);
+#if EIGEN_RISCV64_DEFAULT_LMUL == 4
+  EIGEN_STRONG_INLINE void acc(const Packet4Xf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
+    r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet1Xcdh& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
-    Packet1Xcd cp = pdup(c);
-    r = cj.pmadd(cp, alpha, r);
+  EIGEN_STRONG_INLINE void acc(const Packet4Xd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
+    r = cj.pmadd(c, alpha, r);
   }
 #endif
 
@@ -712,6 +717,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
     r = cj.pmadd(c, alpha, r);
   }
 };
+#endif
 
 }  // namespace internal
 }  // namespace Eigen

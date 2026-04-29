@@ -20,12 +20,14 @@ namespace internal {
 
 /********************************* float32 ************************************/
 
+#if 0
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
 #define USE_LMUL4_ONLY
 #elif EIGEN_RISCV64_DEFAULT_LMUL == 2
 #define USE_LMUL2_ONLY
 #else
 #define USE_LMUL1_ONLY
+#endif
 #endif
 
 template <typename RealPacketT, int N>
@@ -427,13 +429,11 @@ EIGEN_STRONG_INLINE Packet1Xcf pexp<Packet1Xcf>(const Packet1Xcf& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL2_ONLY
 template <typename Packet = Packet1Xcf>
 EIGEN_STRONG_INLINE Packet1Xcfh predux_half(const Packet1Xcf& a) {
   return Packet1Xcfh(__riscv_vfadd_vv_f32m1(__riscv_vget_v_f32m2_f32m1(a.v, 0), __riscv_vget_v_f32m2_f32m1(a.v, 1),
                                 unpacket_traits<Packet1Xf>::size));
 }
-#endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcf, Packet2Xf)
 
@@ -850,13 +850,11 @@ EIGEN_STRONG_INLINE Packet1Xcd pexp<Packet1Xcd>(const Packet1Xcd& a) {
   return pexp_complex(a);
 }
 
-#ifndef USE_LMUL2_ONLY
 template <typename Packet = Packet1Xcd>
 EIGEN_STRONG_INLINE Packet1Xcdh predux_half(const Packet1Xcd& a) {
   return Packet1Xcdh(__riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a.v, 0), __riscv_vget_v_f64m2_f64m1(a.v, 1),
                                 unpacket_traits<Packet1Xd>::size));
 }
-#endif
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1Xcd, Packet2Xd)
 
