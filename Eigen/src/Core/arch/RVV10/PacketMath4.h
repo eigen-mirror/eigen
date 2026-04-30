@@ -143,8 +143,8 @@ EIGEN_STRONG_INLINE Packet4Xi pandnot<Packet4Xi>(const Packet4Xi& a, const Packe
   return __riscv_vand_vv_i32m4(a, __riscv_vnot_v_i32m4(b, unpacket_traits<Packet4Xi>::size),
                                unpacket_traits<Packet4Xi>::size);
 #else
-  return __riscv_vreinterpret_v_u32m4_i32m4(__riscv_vandn_vv_u32m4(__riscv_vreinterpret_v_i32m4_u32m4(a),
-    __riscv_vreinterpret_v_i32m4_u32m4(b), unpacket_traits<Packet4Xi>::size));
+  return __riscv_vreinterpret_v_u32m4_i32m4(__riscv_vandn_vv_u32m4(
+      __riscv_vreinterpret_v_i32m4_u32m4(a), __riscv_vreinterpret_v_i32m4_u32m4(b), unpacket_traits<Packet4Xi>::size));
 #endif
 }
 
@@ -177,9 +177,9 @@ EIGEN_STRONG_INLINE Packet4Xi ploadu<Packet4Xi>(const numext::int32_t* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xi ploaddup<Packet4Xi>(const numext::int32_t* from) {
   Packet4Xul data = __riscv_vwcvtu_x_x_v_u64m4(__riscv_vreinterpret_v_i32m2_u32m2(pload<Packet2Xi>(from)),
-      unpacket_traits<Packet2Xi>::size);
-  return __riscv_vreinterpret_v_u64m4_i32m4(__riscv_vadd_vv_u64m4(__riscv_vsll_vx_u64m4(data, 32,
-      unpacket_traits<Packet4Xl>::size), data, unpacket_traits<Packet4Xl>::size));
+                                               unpacket_traits<Packet2Xi>::size);
+  return __riscv_vreinterpret_v_u64m4_i32m4(__riscv_vadd_vv_u64m4(
+      __riscv_vsll_vx_u64m4(data, 32, unpacket_traits<Packet4Xl>::size), data, unpacket_traits<Packet4Xl>::size));
 }
 
 template <>
@@ -187,7 +187,7 @@ EIGEN_STRONG_INLINE Packet4Xi ploadquad<Packet4Xi>(const numext::int32_t* from) 
   Packet4Xu idx =
       __riscv_vsrl_vx_u32m4(__riscv_vid_v_u32m4(unpacket_traits<Packet4Xi>::size), 2, unpacket_traits<Packet4Xi>::size);
   return __riscv_vrgather_vv_i32m4(__riscv_vlmul_ext_v_i32m1_i32m4(pload<Packet1Xi>(from)), idx,
-      unpacket_traits<Packet4Xi>::size);
+                                   unpacket_traits<Packet4Xi>::size);
 }
 
 template <>
@@ -490,8 +490,8 @@ EIGEN_STRONG_INLINE Packet4Xf pandnot<Packet4Xf>(const Packet4Xf& a, const Packe
       __riscv_vnot_v_u32m4(__riscv_vreinterpret_v_f32m4_u32m4(b), unpacket_traits<Packet4Xf>::size),
       unpacket_traits<Packet4Xf>::size));
 #else
-  return __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vandn_vv_u32m4(__riscv_vreinterpret_v_f32m4_u32m4(a),
-    __riscv_vreinterpret_v_f32m4_u32m4(b), unpacket_traits<Packet4Xi>::size));
+  return __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vandn_vv_u32m4(
+      __riscv_vreinterpret_v_f32m4_u32m4(a), __riscv_vreinterpret_v_f32m4_u32m4(b), unpacket_traits<Packet4Xi>::size));
 #endif
 }
 
@@ -508,9 +508,9 @@ EIGEN_STRONG_INLINE Packet4Xf ploadu<Packet4Xf>(const float* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xf ploaddup<Packet4Xf>(const float* from) {
   Packet4Xul data = __riscv_vwcvtu_x_x_v_u64m4(__riscv_vreinterpret_v_f32m2_u32m2(pload<Packet2Xf>(from)),
-      unpacket_traits<Packet2Xi>::size);
-  return __riscv_vreinterpret_v_u64m4_f32m4(__riscv_vadd_vv_u64m4(__riscv_vsll_vx_u64m4(data, 32,
-      unpacket_traits<Packet4Xl>::size), data, unpacket_traits<Packet4Xl>::size));
+                                               unpacket_traits<Packet2Xi>::size);
+  return __riscv_vreinterpret_v_u64m4_f32m4(__riscv_vadd_vv_u64m4(
+      __riscv_vsll_vx_u64m4(data, 32, unpacket_traits<Packet4Xl>::size), data, unpacket_traits<Packet4Xl>::size));
 }
 
 template <>
@@ -518,7 +518,7 @@ EIGEN_STRONG_INLINE Packet4Xf ploadquad<Packet4Xf>(const float* from) {
   Packet4Xu idx =
       __riscv_vsrl_vx_u32m4(__riscv_vid_v_u32m4(unpacket_traits<Packet4Xf>::size), 2, unpacket_traits<Packet4Xf>::size);
   return __riscv_vrgather_vv_f32m4(__riscv_vlmul_ext_v_f32m1_f32m4(pload<Packet1Xf>(from)), idx,
-      unpacket_traits<Packet4Xf>::size);
+                                   unpacket_traits<Packet4Xf>::size);
 }
 
 template <>
@@ -622,7 +622,7 @@ EIGEN_STRONG_INLINE float predux_max<Packet4Xf>(const Packet4Xf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2Xf predux_half(const Packet4Xf& a) {
   return Packet2Xf(__riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
-                                unpacket_traits<Packet2Xf>::size));
+                                          unpacket_traits<Packet2Xf>::size));
 }
 
 template <int N>
@@ -776,8 +776,8 @@ EIGEN_STRONG_INLINE Packet4Xl pandnot<Packet4Xl>(const Packet4Xl& a, const Packe
   return __riscv_vand_vv_i64m4(a, __riscv_vnot_v_i64m4(b, unpacket_traits<Packet4Xl>::size),
                                unpacket_traits<Packet4Xl>::size);
 #else
-  return __riscv_vreinterpret_v_u64m4_i64m4(__riscv_vandn_vv_u64m4(__riscv_vreinterpret_v_i64m4_u64m4(a),
-    __riscv_vreinterpret_v_i64m4_u64m4(b), unpacket_traits<Packet4Xl>::size));
+  return __riscv_vreinterpret_v_u64m4_i64m4(__riscv_vandn_vv_u64m4(
+      __riscv_vreinterpret_v_i64m4_u64m4(a), __riscv_vreinterpret_v_i64m4_u64m4(b), unpacket_traits<Packet4Xl>::size));
 #endif
 }
 
@@ -812,7 +812,7 @@ EIGEN_STRONG_INLINE Packet4Xl ploaddup<Packet4Xl>(const numext::int64_t* from) {
   Packet4Xul idx =
       __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xl>::size), 1, unpacket_traits<Packet4Xl>::size);
   return __riscv_vrgather_vv_i64m4(__riscv_vlmul_ext_v_i64m2_i64m4(pload<Packet2Xl>(from)), idx,
-       unpacket_traits<Packet4Xl>::size);
+                                   unpacket_traits<Packet4Xl>::size);
 }
 
 template <>
@@ -820,7 +820,7 @@ EIGEN_STRONG_INLINE Packet4Xl ploadquad<Packet4Xl>(const numext::int64_t* from) 
   Packet4Xul idx =
       __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xl>::size), 2, unpacket_traits<Packet4Xl>::size);
   return __riscv_vrgather_vv_i64m4(__riscv_vlmul_ext_v_i64m1_i64m4(pload<Packet1Xl>(from)), idx,
-      unpacket_traits<Packet4Xl>::size);
+                                   unpacket_traits<Packet4Xl>::size);
 }
 
 template <>
@@ -1128,8 +1128,8 @@ EIGEN_STRONG_INLINE Packet4Xd pandnot<Packet4Xd>(const Packet4Xd& a, const Packe
       __riscv_vnot_v_u64m4(__riscv_vreinterpret_v_f64m4_u64m4(b), unpacket_traits<Packet4Xd>::size),
       unpacket_traits<Packet4Xd>::size));
 #else
-  return __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vandn_vv_u64m4(__riscv_vreinterpret_v_f64m4_u64m4(a),
-    __riscv_vreinterpret_v_f64m4_u64m4(b), unpacket_traits<Packet4Xl>::size));
+  return __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vandn_vv_u64m4(
+      __riscv_vreinterpret_v_f64m4_u64m4(a), __riscv_vreinterpret_v_f64m4_u64m4(b), unpacket_traits<Packet4Xl>::size));
 #endif
 }
 
@@ -1148,7 +1148,7 @@ EIGEN_STRONG_INLINE Packet4Xd ploaddup<Packet4Xd>(const double* from) {
   Packet4Xul idx =
       __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size), 1, unpacket_traits<Packet4Xd>::size);
   return __riscv_vrgather_vv_f64m4(__riscv_vlmul_ext_v_f64m2_f64m4(pload<Packet2Xd>(from)), idx,
-      unpacket_traits<Packet4Xd>::size);
+                                   unpacket_traits<Packet4Xd>::size);
 }
 
 template <>
@@ -1156,7 +1156,7 @@ EIGEN_STRONG_INLINE Packet4Xd ploadquad<Packet4Xd>(const double* from) {
   Packet4Xul idx =
       __riscv_vsrl_vx_u64m4(__riscv_vid_v_u64m4(unpacket_traits<Packet4Xd>::size), 2, unpacket_traits<Packet4Xd>::size);
   return __riscv_vrgather_vv_f64m4(__riscv_vlmul_ext_v_f64m1_f64m4(pload<Packet1Xd>(from)), idx,
-      unpacket_traits<Packet4Xd>::size);
+                                   unpacket_traits<Packet4Xd>::size);
 }
 
 template <>
@@ -1260,7 +1260,7 @@ EIGEN_STRONG_INLINE double predux_max<Packet4Xd>(const Packet4Xd& a) {
 template <>
 EIGEN_STRONG_INLINE Packet2Xd predux_half(const Packet4Xd& a) {
   return Packet2Xd(__riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
-                                unpacket_traits<Packet2Xd>::size));
+                                          unpacket_traits<Packet2Xd>::size));
 }
 
 template <int N>
@@ -1418,8 +1418,8 @@ EIGEN_STRONG_INLINE Packet4Xs pandnot<Packet4Xs>(const Packet4Xs& a, const Packe
   return __riscv_vand_vv_i16m4(a, __riscv_vnot_v_i16m4(b, unpacket_traits<Packet4Xs>::size),
                                unpacket_traits<Packet4Xs>::size);
 #else
-  return __riscv_vreinterpret_v_u16m4_i16m4(__riscv_vandn_vv_u16m4(__riscv_vreinterpret_v_i16m4_u16m4(a),
-    __riscv_vreinterpret_v_i16m4_u16m4(b), unpacket_traits<Packet4Xs>::size));
+  return __riscv_vreinterpret_v_u16m4_i16m4(__riscv_vandn_vv_u16m4(
+      __riscv_vreinterpret_v_i16m4_u16m4(a), __riscv_vreinterpret_v_i16m4_u16m4(b), unpacket_traits<Packet4Xs>::size));
 #endif
 }
 
@@ -1452,9 +1452,9 @@ EIGEN_STRONG_INLINE Packet4Xs ploadu<Packet4Xs>(const numext::int16_t* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4Xs ploaddup<Packet4Xs>(const numext::int16_t* from) {
   Packet4Xu data = __riscv_vwcvtu_x_x_v_u32m4(__riscv_vreinterpret_v_i16m2_u16m2(pload<Packet2Xs>(from)),
-       unpacket_traits<Packet2Xs>::size);
-  return __riscv_vreinterpret_v_u32m4_i16m4(__riscv_vadd_vv_u32m4(__riscv_vsll_vx_u32m4(data, 16,
-       unpacket_traits<Packet4Xi>::size), data, unpacket_traits<Packet4Xi>::size));
+                                              unpacket_traits<Packet2Xs>::size);
+  return __riscv_vreinterpret_v_u32m4_i16m4(__riscv_vadd_vv_u32m4(
+      __riscv_vsll_vx_u32m4(data, 16, unpacket_traits<Packet4Xi>::size), data, unpacket_traits<Packet4Xi>::size));
 }
 
 template <>
@@ -1462,7 +1462,7 @@ EIGEN_STRONG_INLINE Packet4Xs ploadquad<Packet4Xs>(const numext::int16_t* from) 
   Packet4Xsu idx =
       __riscv_vsrl_vx_u16m4(__riscv_vid_v_u16m4(unpacket_traits<Packet4Xs>::size), 2, unpacket_traits<Packet4Xs>::size);
   return __riscv_vrgather_vv_i16m4(__riscv_vlmul_ext_v_i16m1_i16m4(pload<Packet1Xs>(from)), idx,
-      unpacket_traits<Packet4Xs>::size);
+                                   unpacket_traits<Packet4Xs>::size);
 }
 
 template <>

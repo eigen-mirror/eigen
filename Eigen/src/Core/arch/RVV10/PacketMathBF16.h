@@ -355,8 +355,8 @@ EIGEN_STRONG_INLINE Packet1Xbf pxor<Packet1Xbf>(const Packet1Xbf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf pandnot<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
-  return __riscv_vreinterpret_v_i16m1_bf16m1(pandnot<Packet1Xs>(__riscv_vreinterpret_v_bf16m1_i16m1(a),
-      __riscv_vreinterpret_v_bf16m1_i16m1(b)));
+  return __riscv_vreinterpret_v_i16m1_bf16m1(
+      pandnot<Packet1Xs>(__riscv_vreinterpret_v_bf16m1_i16m1(a), __riscv_vreinterpret_v_bf16m1_i16m1(b)));
 }
 
 template <>
@@ -685,8 +685,8 @@ EIGEN_STRONG_INLINE Packet2Xbf pxor<Packet2Xbf>(const Packet2Xbf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pandnot<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
-  return __riscv_vreinterpret_v_i16m2_bf16m2(pandnot<Packet2Xs>(__riscv_vreinterpret_v_bf16m2_i16m2(a),
-      __riscv_vreinterpret_v_bf16m2_i16m2(b)));
+  return __riscv_vreinterpret_v_i16m2_bf16m2(
+      pandnot<Packet2Xs>(__riscv_vreinterpret_v_bf16m2_i16m2(a), __riscv_vreinterpret_v_bf16m2_i16m2(b)));
 }
 
 template <>
