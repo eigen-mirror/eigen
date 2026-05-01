@@ -445,7 +445,7 @@ typedef complex_packet_wrapper<Packet4Xd, 33> Packet4Xcd;
 typedef complex_packet_wrapper<Packet1Xd, 34> Packet1Xcd;
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
-typedef Packet2Xcd PacketXcd;
+typedef Packet1Xcd PacketXcd;
 
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
