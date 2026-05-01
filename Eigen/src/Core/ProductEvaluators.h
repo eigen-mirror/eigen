@@ -277,6 +277,41 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, cons
   for (Index i = 0; i < rows; ++i) func(dst.row(i), lhsEval.coeff(i, Index(0)) * actual_rhs);
 }
 
+template <typename Dst>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outer_product_use_small_assignment(const Dst& dst) {
+  return dst.rows() <= 16 && dst.cols() <= 16;
+}
+
+template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
+void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
+                                                        const Scalar& alpha, const false_type&) {
+  evaluator<Rhs> rhsEval(rhs);
+  ei_declare_local_nested_eval(Lhs, lhs, Rhs::SizeAtCompileTime, actual_lhs);
+  const Index rows = dst.rows();
+  const Index cols = dst.cols();
+  for (Index j = 0; j < cols; ++j) {
+    const Scalar rhs_j = rhsEval.coeff(Index(0), j);
+    for (Index i = 0; i < rows; ++i) {
+      func.assignCoeff(dst.coeffRef(i, j), alpha * (rhs_j * actual_lhs.coeff(i, Index(0))));
+    }
+  }
+}
+
+template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
+void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
+                                                        const Scalar& alpha, const true_type&) {
+  evaluator<Lhs> lhsEval(lhs);
+  ei_declare_local_nested_eval(Rhs, rhs, Lhs::SizeAtCompileTime, actual_rhs);
+  const Index rows = dst.rows();
+  const Index cols = dst.cols();
+  for (Index i = 0; i < rows; ++i) {
+    const Scalar lhs_i = lhsEval.coeff(i, Index(0));
+    for (Index j = 0; j < cols; ++j) {
+      func.assignCoeff(dst.coeffRef(i, j), alpha * (lhs_i * actual_rhs.coeff(Index(0), j)));
+    }
+  }
+}
+
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
@@ -317,23 +352,43 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
+    if (internal::outer_product_use_small_assignment(dst)) {
+      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
+                                                 Scalar(1), is_row_major<Dst>());
+    } else {
+      internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
+    }
   }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
+    if (internal::outer_product_use_small_assignment(dst)) {
+      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
+                                                 Scalar(1), is_row_major<Dst>());
+    } else {
+      internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
+    }
   }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
+    if (internal::outer_product_use_small_assignment(dst)) {
+      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
+                                                 Scalar(1), is_row_major<Dst>());
+    } else {
+      internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
+    }
   }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
-    internal::outer_product_selector_run(dst, lhs, rhs, adds(alpha), is_row_major<Dst>());
+    if (internal::outer_product_use_small_assignment(dst)) {
+      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
+                                                 alpha, is_row_major<Dst>());
+    } else {
+      internal::outer_product_selector_run(dst, lhs, rhs, adds(alpha), is_row_major<Dst>());
+    }
   }
 };
 

@@ -729,12 +729,12 @@
 //
 // With MSVC, without defining /Zc:__cplusplus, the __cplusplus macro will
 // report 199711L regardless of the language standard specified via /std.
-// We need to rely on _MSVC_LANG instead, which is only available after
-// VS2015.3.
+// We need to rely on _MSVC_LANG instead where available. Older MSVC versions
+// supported by Eigen do not define _MSVC_LANG, so use Eigen's minimum standard.
 #if EIGEN_COMP_MSVC_LANG > 0
 #define EIGEN_CPLUSPLUS EIGEN_COMP_MSVC_LANG
 #elif EIGEN_COMP_MSVC >= 1900
-#define EIGEN_CPLUSPLUS 201103L
+#define EIGEN_CPLUSPLUS 201402L
 #elif defined(__cplusplus)
 #define EIGEN_CPLUSPLUS __cplusplus
 #else
@@ -750,10 +750,8 @@
 #define EIGEN_COMP_CXXVER 17
 #elif EIGEN_CPLUSPLUS >= 201402L
 #define EIGEN_COMP_CXXVER 14
-#elif EIGEN_CPLUSPLUS >= 201103L
-#define EIGEN_COMP_CXXVER 11
 #else
-#define EIGEN_COMP_CXXVER 03
+#define EIGEN_COMP_CXXVER 0
 #endif
 
 // The macros EIGEN_HAS_CXX?? defines a rough estimate of available c++ features

@@ -872,7 +872,7 @@ void packetmath_real() {
     test::packet_helper<PacketTraits::HasNegate, Packet> h;
     data1[0] = Scalar{-0};
     h.store(data2, internal::pnegate(h.load(data1)));
-    typedef typename internal::make_unsigned<typename internal::make_integer<Scalar>::type>::type Bits;
+    typedef std::make_unsigned_t<typename internal::make_integer<Scalar>::type> Bits;
     Bits bits = numext::bit_cast<Bits>(data2[0]);
     VERIFY_IS_EQUAL(bits, static_cast<Bits>(Bits(1) << (sizeof(Scalar) * CHAR_BIT - 1)));
   }

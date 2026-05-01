@@ -368,64 +368,15 @@ struct logical_and_op {
     return a && b;
   }
 };
-struct logical_or_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a || b) {
-    return a || b;
-  }
-};
-
-struct equal_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a == b) {
-    return a == b;
-  }
-};
-struct not_equal_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a != b) {
-    return a != b;
-  }
-};
 struct lesser_op {
   template <typename A, typename B>
   constexpr static auto run(A a, B b) -> decltype(a < b) {
     return a < b;
   }
 };
-struct lesser_equal_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a <= b) {
-    return a <= b;
-  }
-};
-struct greater_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a > b) {
-    return a > b;
-  }
-};
-struct greater_equal_op {
-  template <typename A, typename B>
-  constexpr static auto run(A a, B b) -> decltype(a >= b) {
-    return a >= b;
-  }
-};
 
 /* generic unary operations */
 
-struct not_op {
-  template <typename A>
-  constexpr static auto run(A a) -> decltype(!a) {
-    return !a;
-  }
-};
-struct negation_op {
-  template <typename A>
-  constexpr static auto run(A a) -> decltype(-a) {
-    return -a;
-  }
-};
 struct greater_equal_zero_op {
   template <typename A>
   constexpr static auto run(A a) -> decltype(a >= 0) {

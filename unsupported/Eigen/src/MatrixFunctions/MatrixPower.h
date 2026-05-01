@@ -86,7 +86,7 @@ class MatrixPowerParenthesesReturnValue : public ReturnByValue<MatrixPowerParent
  * facilitate future development of triangular matrix functions.
  */
 template <typename MatrixType>
-class MatrixPowerAtomic : internal::noncopyable {
+class MatrixPowerAtomic {
  private:
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime };
   typedef typename MatrixType::Scalar Scalar;
@@ -107,6 +107,9 @@ class MatrixPowerAtomic : internal::noncopyable {
   static RealScalar computeSuperDiag(RealScalar, RealScalar, RealScalar p);
 
  public:
+  MatrixPowerAtomic(const MatrixPowerAtomic&) = delete;
+  MatrixPowerAtomic& operator=(const MatrixPowerAtomic&) = delete;
+
   /**
    * \brief Constructor.
    *
@@ -340,12 +343,15 @@ inline typename MatrixPowerAtomic<MatrixType>::RealScalar MatrixPowerAtomic<Matr
  * Output: \verbinclude MatrixPower_optimal.out
  */
 template <typename MatrixType>
-class MatrixPower : internal::noncopyable {
+class MatrixPower {
  private:
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
 
  public:
+  MatrixPower(const MatrixPower&) = delete;
+  MatrixPower& operator=(const MatrixPower&) = delete;
+
   /**
    * \brief Constructor.
    *

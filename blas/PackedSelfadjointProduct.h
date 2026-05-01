@@ -24,7 +24,7 @@ struct selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, C
   typedef typename NumTraits<Scalar>::Real RealScalar;
   static void run(Index size, Scalar* mat, const Scalar* vec, RealScalar alpha) {
     typedef Map<const Matrix<Scalar, Dynamic, 1> > OtherMap;
-    typedef typename conj_expr_if<ConjLhs, OtherMap>::type ConjRhsType;
+    typedef conj_expr_if<ConjLhs, OtherMap> ConjRhsType;
     conj_if<ConjRhs> cj;
 
     for (Index i = 0; i < size; ++i) {
