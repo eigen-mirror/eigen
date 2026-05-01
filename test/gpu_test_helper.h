@@ -40,9 +40,6 @@ using tuple_impl::tuple;
 #undef EIGEN_USE_CUSTOM_TUPLE
 }  // namespace test_detail
 
-template <typename T>
-using decay_t = typename std::decay<T>::type;
-
 template <typename Func, typename... Args>
 using kernel_result_t = decltype(std::declval<Func>()(std::declval<Args>()...));
 
@@ -64,10 +61,10 @@ template <size_t N, size_t Idx, size_t... OutputIndices, typename T1, typename..
 struct extract_output_indices_helper<N, Idx, std::index_sequence<OutputIndices...>, T1, Ts...> {
   using type = typename extract_output_indices_helper<
       N - 1, Idx + 1,
-      typename std::conditional<
+      std::conditional_t<
           // If is a non-const l-value reference, append index.
           std::is_lvalue_reference<T1>::value && !std::is_const<std::remove_reference_t<T1>>::value,
-          std::index_sequence<OutputIndices..., Idx>, std::index_sequence<OutputIndices...>>::type,
+          std::index_sequence<OutputIndices..., Idx>, std::index_sequence<OutputIndices...>>,
       Ts...>::type;
 };
 
@@ -89,7 +86,7 @@ struct void_helper {
 
   // Converts void -> Void, T otherwise.
   template <typename T>
-  using ReturnType = typename std::conditional<std::is_same<T, void>::value, Void, T>::type;
+  using ReturnType = std::conditional_t<std::is_same<T, void>::value, Void, T>;
 
   // Non-void return value.
   template <typename Func, typename... Args>
@@ -109,9 +106,8 @@ struct void_helper {
 
   // Restores the original return type, Void -> void, T otherwise.
   template <typename T>
-  static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC
-      std::enable_if_t<!std::is_same<typename std::decay<T>::type, Void>::value, T>
-      restore(T&& val) {
+  static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC std::enable_if_t<!std::is_same<std::decay_t<T>, Void>::value, T> restore(
+      T&& val) {
     return val;
   }
 
@@ -140,18 +136,18 @@ EIGEN_DEVICE_FUNC void run_serialized(std::index_sequence<Indices...>, std::inde
   const uint8_t* read_end = buffer + capacity;
   read_ptr = Eigen::deserialize(read_ptr, read_end, input_size);
   // Create value-type instances to populate.
-  auto args = make_tuple(decay_t<Args>{}...);
+  auto args = make_tuple(std::decay_t<Args>{}...);
   EIGEN_UNUSED_VARIABLE(args);  // Avoid NVCC compile warning.
   // NVCC 9.1 requires us to spell out the template parameters explicitly.
-  read_ptr = Eigen::deserialize(read_ptr, read_end, get<Indices, decay_t<Args>...>(args)...);
+  read_ptr = Eigen::deserialize(read_ptr, read_end, get<Indices, std::decay_t<Args>...>(args)...);
 
   // Call function, with void->Void conversion so we are guaranteed a complete
   // output type.
-  auto result = void_helper::call(kernel, get<Indices, decay_t<Args>...>(args)...);
+  auto result = void_helper::call(kernel, get<Indices, std::decay_t<Args>...>(args)...);
 
   // Determine required output size.
   size_t output_size = Eigen::serialize_size(capacity);
-  output_size += Eigen::serialize_size(get<OutputIndices, decay_t<Args>...>(args)...);
+  output_size += Eigen::serialize_size(get<OutputIndices, std::decay_t<Args>...>(args)...);
   output_size += Eigen::serialize_size(result);
 
   // Always serialize required buffer size.
@@ -162,7 +158,7 @@ EIGEN_DEVICE_FUNC void run_serialized(std::index_sequence<Indices...>, std::inde
   // Serialize outputs if they fit in the buffer.
   if (output_size <= capacity) {
     // Collect outputs and result.
-    write_ptr = Eigen::serialize(write_ptr, write_end, get<OutputIndices, decay_t<Args>...>(args)...);
+    write_ptr = Eigen::serialize(write_ptr, write_end, get<OutputIndices, std::decay_t<Args>...>(args)...);
     write_ptr = Eigen::serialize(write_ptr, write_end, result);
   }
 }

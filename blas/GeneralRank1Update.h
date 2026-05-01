@@ -21,7 +21,7 @@ template <typename Scalar, typename Index, bool ConjLhs, bool ConjRhs>
 struct general_rank1_update<Scalar, Index, ColMajor, ConjLhs, ConjRhs> {
   static void run(Index rows, Index cols, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, Scalar alpha) {
     typedef Map<const Matrix<Scalar, Dynamic, 1> > OtherMap;
-    typedef typename conj_expr_if<ConjLhs, OtherMap>::type ConjRhsType;
+    typedef conj_expr_if<ConjLhs, OtherMap> ConjRhsType;
     conj_if<ConjRhs> cj;
 
     for (Index i = 0; i < cols; ++i)

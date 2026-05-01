@@ -51,9 +51,9 @@ void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out) {
   gpuDeviceSynchronize();
 
 #ifdef EIGEN_USE_HIP
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(run_on_gpu_meta_kernel<Kernel, typename std::decay<decltype(*d_in)>::type,
-                                                            typename std::decay<decltype(*d_out)>::type>),
-                     dim3(Grids), dim3(Blocks), 0, 0, ker, n, d_in, d_out);
+  hipLaunchKernelGGL(
+      HIP_KERNEL_NAME(run_on_gpu_meta_kernel<Kernel, std::decay_t<decltype(*d_in)>, std::decay_t<decltype(*d_out)>>),
+      dim3(Grids), dim3(Blocks), 0, 0, ker, n, d_in, d_out);
 #else
   // Various versions of clang-format incorrectly add spaces to the kernel launch brackets.
   // clang-format off

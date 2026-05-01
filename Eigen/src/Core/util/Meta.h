@@ -197,18 +197,6 @@ using add_const_on_value_type_t = typename add_const_on_value_type<T>::type;
 using std::is_convertible;
 
 /** \internal
- * A base class do disable default copy ctor and copy assignment operator.
- */
-class noncopyable {
-  EIGEN_DEVICE_FUNC noncopyable(const noncopyable&);
-  EIGEN_DEVICE_FUNC const noncopyable& operator=(const noncopyable&);
-
- protected:
-  EIGEN_DEVICE_FUNC noncopyable() {}
-  EIGEN_DEVICE_FUNC ~noncopyable() {}
-};
-
-/** \internal
  * Provides access to the number of elements in the object of as a compile-time constant expression.
  * It "returns" Eigen::Dynamic if the size cannot be resolved at compile-time (default).
  *
@@ -301,22 +289,10 @@ struct result_of<F(ArgTypes...)> {
   typedef typename std::invoke_result<F, ArgTypes...>::type type1;
   typedef remove_all_t<type1> type;
 };
-
-template <typename F, typename... ArgTypes>
-struct invoke_result {
-  typedef typename std::invoke_result<F, ArgTypes...>::type type1;
-  typedef remove_all_t<type1> type;
-};
 #else
 template <typename T>
 struct result_of {
   typedef typename std::result_of<T>::type type1;
-  typedef remove_all_t<type1> type;
-};
-
-template <typename F, typename... ArgTypes>
-struct invoke_result {
-  typedef typename result_of<F(ArgTypes...)>::type type1;
   typedef remove_all_t<type1> type;
 };
 #endif
@@ -326,82 +302,35 @@ template <bool... values>
 using reduce_all =
     std::is_same<std::integer_sequence<bool, values..., true>, std::integer_sequence<bool, true, values...>>;
 
-// Reduces a sequence of bools to true if any are true, false if all false.
-template <bool... values>
-using reduce_any = std::integral_constant<bool, !std::is_same<std::integer_sequence<bool, values..., false>,
-                                                              std::integer_sequence<bool, false, values...>>::value>;
-
-struct meta_yes {
-  char a[1];
-};
-struct meta_no {
-  char a[2];
-};
-
 // Check whether T::ReturnType does exist
-template <typename T>
-struct has_ReturnType {
-  template <typename C>
-  static meta_yes testFunctor(C const*, typename C::ReturnType const* = 0);
-  template <typename C>
-  static meta_no testFunctor(...);
-
-  enum { value = sizeof(testFunctor<T>(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename EnableIf = void>
+struct has_ReturnType : false_type {};
 
 template <typename T>
-const T* return_ptr();
+struct has_ReturnType<T, void_t<typename T::ReturnType>> : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_nullary_operator {
-  template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()()) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_nullary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename IndexType>
+struct has_nullary_operator<T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()())) > 0)>>
+    : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_unary_operator {
-  template <typename C>
-  static meta_yes testFunctor(C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_unary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
+template <typename T, typename IndexType>
+struct has_unary_operator<T, IndexType,
+                          std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0)))) > 0)>>
+    : true_type {};
 
-template <typename T, typename IndexType = Index>
-struct has_binary_operator {
-  template <typename C>
-  static meta_yes testFunctor(
-      C const*, std::enable_if_t<(sizeof(return_ptr<C>()->operator()(IndexType(0), IndexType(0))) > 0)>* = 0);
-  static meta_no testFunctor(...);
+template <typename T, typename IndexType = Index, typename EnableIf = void>
+struct has_binary_operator : false_type {};
 
-  enum { value = sizeof(testFunctor(static_cast<T*>(0))) == sizeof(meta_yes) };
-};
-
-/** \internal In short, it computes int(sqrt(\a Y)) with \a Y an integer.
- * Usage example: \code meta_sqrt<1023>::ret \endcode
- */
-template <int Y, int InfX = 0, int SupX = ((Y == 1) ? 1 : Y / 2),
-          bool Done = ((SupX - InfX) <= 1 || ((SupX * SupX <= Y) && ((SupX + 1) * (SupX + 1) > Y)))>
-class meta_sqrt {
-  enum {
-    MidX = (InfX + SupX) / 2,
-    TakeInf = MidX * MidX > Y ? 1 : 0,
-    NewInf = int(TakeInf) ? InfX : int(MidX),
-    NewSup = int(TakeInf) ? int(MidX) : SupX
-  };
-
- public:
-  enum { ret = meta_sqrt<Y, NewInf, NewSup>::ret };
-};
-
-template <int Y, int InfX, int SupX>
-class meta_sqrt<Y, InfX, SupX, true> {
- public:
-  enum { ret = (SupX * SupX <= Y) ? SupX : InfX };
-};
+template <typename T, typename IndexType>
+struct has_binary_operator<
+    T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0), IndexType(0)))) > 0)>>
+    : true_type {};
 
 /** \internal Computes the least common multiple of two positive integer A and B
  * at compile-time.
@@ -469,7 +398,7 @@ struct equal_strict_impl<X, Y, true, false, true, true> {
   // X is an unsigned integer
   // Y is a signed integer
   // if Y is non-negative, it may be represented exactly as its unsigned counterpart.
-  using UnsignedY = typename internal::make_unsigned<Y>::type;
+  using UnsignedY = std::make_unsigned_t<Y>;
   static constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool run(const X& x, const Y& y) {
     return y < Y(0) ? false : (x == static_cast<UnsignedY>(y));
   }
@@ -634,20 +563,6 @@ constexpr bool enum_lt_not_dynamic(A a, B b) {
   plain_enum_asserts(a, b);
   if ((int)a == Dynamic || (int)b == Dynamic) return false;
   return (int)a < (int)b;
-}
-
-template <typename A, typename B>
-constexpr bool enum_le_not_dynamic(A a, B b) {
-  plain_enum_asserts(a, b);
-  if ((int)a == Dynamic || (int)b == Dynamic) return false;
-  return (int)a <= (int)b;
-}
-
-template <typename A, typename B>
-constexpr bool enum_gt_not_dynamic(A a, B b) {
-  plain_enum_asserts(a, b);
-  if ((int)a == Dynamic || (int)b == Dynamic) return false;
-  return (int)a > (int)b;
 }
 
 template <typename A, typename B>

@@ -111,25 +111,6 @@ EIGEN_DECLARE_TEST(meta) {
   VERIFY((internal::has_ReturnType<ScalarBinaryOpTraits<int, int>>::value));
   VERIFY((!internal::has_ReturnType<MatrixXf>::value));
   VERIFY((!internal::has_ReturnType<int>::value));
-
-  VERIFY(internal::meta_sqrt<1>::ret == 1);
-#define VERIFY_META_SQRT(X) VERIFY(internal::meta_sqrt<X>::ret == int(std::sqrt(double(X))))
-  VERIFY_META_SQRT(2);
-  VERIFY_META_SQRT(3);
-  VERIFY_META_SQRT(4);
-  VERIFY_META_SQRT(5);
-  VERIFY_META_SQRT(6);
-  VERIFY_META_SQRT(8);
-  VERIFY_META_SQRT(9);
-  VERIFY_META_SQRT(15);
-  VERIFY_META_SQRT(16);
-  VERIFY_META_SQRT(17);
-  VERIFY_META_SQRT(255);
-  VERIFY_META_SQRT(256);
-  VERIFY_META_SQRT(257);
-  VERIFY_META_SQRT(1023);
-  VERIFY_META_SQRT(1024);
-  VERIFY_META_SQRT(1025);
 }
 
 using Eigen::internal::apply_op_from_left;

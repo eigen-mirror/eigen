@@ -119,9 +119,8 @@ struct evaluator_base {
   using ExpressionTraits = traits<ExpressionType>;
 
   enum { Alignment = 0 };
-  // noncopyable:
-  // Don't make this class inherit noncopyable as this kills EBO (Empty Base Optimization)
-  // and make complex evaluator much larger than then should do.
+  // Spell out deleted copy operations instead of inheriting from an empty helper:
+  // an extra base can kill EBO and make complex evaluators larger than they should be.
   EIGEN_DEVICE_FUNC constexpr evaluator_base() = default;
 
   evaluator_base(const evaluator_base&) = delete;

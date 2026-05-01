@@ -806,10 +806,9 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2Xbf, N>& kernel) {
 }
 
 template <typename Packet = Packet2Xbf>
-EIGEN_STRONG_INLINE
-    typename std::enable_if<std::is_same<Packet, Packet2Xbf>::value && (unpacket_traits<Packet2Xbf>::size % 8) == 0,
-                            Packet1Xbf>::type
-    predux_half(const Packet2Xbf& a) {
+EIGEN_STRONG_INLINE std::enable_if_t<
+    std::is_same<Packet, Packet2Xbf>::value && (unpacket_traits<Packet2Xbf>::size % 8) == 0, Packet1Xbf>
+predux_half(const Packet2Xbf& a) {
   return padd<Packet1Xbf>(__riscv_vget_v_bf16m2_bf16m1(a, 0), __riscv_vget_v_bf16m2_bf16m1(a, 1));
 }
 

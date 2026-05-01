@@ -64,14 +64,17 @@ std::enable_if_t<Rhs::ColsAtCompileTime == 1 || Dest::ColsAtCompileTime == 1> so
  *
  */
 template <typename Derived>
-class SparseSolverBase : internal::noncopyable {
+class SparseSolverBase {
  public:
   /** Default constructor */
   SparseSolverBase() : m_isInitialized(false) {}
 
-  SparseSolverBase(SparseSolverBase&& other) : internal::noncopyable{}, m_isInitialized{other.m_isInitialized} {}
+  SparseSolverBase(const SparseSolverBase&) = delete;
+  SparseSolverBase& operator=(const SparseSolverBase&) = delete;
 
-  ~SparseSolverBase() {}
+  SparseSolverBase(SparseSolverBase&& other) : m_isInitialized{other.m_isInitialized} {}
+
+  ~SparseSolverBase() = default;
 
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }

@@ -434,9 +434,8 @@ struct VectorIndexedViewSelector<
   using ColMajorReturnType = IndexedView<Derived, IvcType<Indices, Derived::SizeAtCompileTime>, ZeroIndex>;
   using ConstColMajorReturnType = IndexedView<const Derived, IvcType<Indices, Derived::SizeAtCompileTime>, ZeroIndex>;
 
-  using ReturnType = typename internal::conditional<IsRowMajor, RowMajorReturnType, ColMajorReturnType>::type;
-  using ConstReturnType =
-      typename internal::conditional<IsRowMajor, ConstRowMajorReturnType, ConstColMajorReturnType>::type;
+  using ReturnType = std::conditional_t<IsRowMajor, RowMajorReturnType, ColMajorReturnType>;
+  using ConstReturnType = std::conditional_t<IsRowMajor, ConstRowMajorReturnType, ConstColMajorReturnType>;
 
   template <bool UseRowMajor = IsRowMajor, std::enable_if_t<UseRowMajor, bool> = true>
   static inline RowMajorReturnType run(Derived& derived, const Indices& indices) {
