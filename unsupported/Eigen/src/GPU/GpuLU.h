@@ -19,7 +19,7 @@
 //   gpu::LU<double> lu(A);            // upload A, getrf, LU+ipiv on device
 //   if (lu.info() != Success) { ... }
 //   MatrixXd x = lu.solve(b);         // getrs NoTrans, only b transferred
-//   MatrixXd xt = lu.solve(b, gpu::LU<double>::Transpose);   // A^T x = b
+//   MatrixXd xt = lu.solve(b, gpu::GpuOp::Trans);             // A^T x = b
 
 #ifndef EIGEN_GPU_LU_H
 #define EIGEN_GPU_LU_H
@@ -27,6 +27,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
 #include <vector>
 
@@ -41,7 +42,7 @@ namespace gpu {
  *
  * Decomposes a square matrix A = P L U on the GPU and retains the factored
  * matrix and pivot array in device memory. Solves A*X=B, A^T*X=B, or
- * A^H*X=B by passing the appropriate TransposeMode.
+ * A^H*X=B by passing the appropriate gpu::GpuOp.
  *
  * Each LU object owns a dedicated CUDA stream and cuSOLVER handle.
  */
@@ -51,13 +52,6 @@ class LU {
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-
-  /** Controls which system is solved in solve(). */
-  enum TransposeMode {
-    NoTranspose,        ///< Solve A   * X = B
-    Transpose,          ///< Solve A^T * X = B
-    ConjugateTranspose  ///< Solve A^H * X = B (same as Transpose for real types)
-  };
 
   // ---- Construction / destruction ------------------------------------------
 
@@ -69,6 +63,10 @@ class LU {
   }
 
   ~LU() {
+    // Ignore errors here: dtors are noexcept, and EIGEN_CUSOLVER_CHECK /
+    // EIGEN_CUDA_RUNTIME_CHECK are eigen_assert-based — firing one from a
+    // noexcept dtor terminates the program. The trailing cudaFree() of the
+    // device buffers (via internal::DeviceBuffer::~DeviceBuffer) is sync.
     if (handle_) (void)cusolverDnDestroy(handle_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -103,6 +101,11 @@ class LU {
 
   LU& operator=(LU&& o) noexcept {
     if (this != &o) {
+      // Drain pending work on the old stream before tearing it down so the
+      // upcoming move of d_lu_/d_ipiv_/d_scratch_ doesn't free buffers that an
+      // in-flight kernel is still touching. The asymmetric move-ctor doesn't
+      // need this — it constructs onto uninitialized storage.
+      if (stream_) (void)cudaStreamSynchronize(stream_);
       if (handle_) (void)cusolverDnDestroy(handle_);
       if (stream_) (void)cudaStreamDestroy(stream_);
       stream_ = o.stream_;
@@ -181,11 +184,11 @@ class LU {
 
   /** Solve op(A) * X = B using the cached LU factorization (host → host).
    *
-   * \param B    Right-hand side (n x nrhs host matrix).
-   * \param mode NoTranspose (default), Transpose, or ConjugateTranspose.
+   * \param B  Right-hand side (n x nrhs host matrix).
+   * \param op gpu::GpuOp::NoTrans (default), Trans, or ConjTrans.
    */
   template <typename Rhs>
-  PlainMatrix solve(const MatrixBase<Rhs>& B, TransposeMode mode = NoTranspose) const {
+  PlainMatrix solve(const MatrixBase<Rhs>& B, GpuOp op = GpuOp::NoTrans) const {
     const_cast<LU*>(this)->sync_info();
     eigen_assert(info_ == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
@@ -193,10 +196,10 @@ class LU {
     const PlainMatrix rhs(B);
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.outerStride());
-    DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, mode, [&](Scalar* d_x_ptr) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_x_ptr, rhs.data(), matrixBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
-    });
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_x.get(), rhs.data(), matrixBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
+    DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, op, std::move(d_x));
 
     PlainMatrix X(n_, B.cols());
     int solve_info = 0;
@@ -211,15 +214,15 @@ class LU {
   }
 
   /** Solve op(A) * X = B with device-resident RHS. Fully async. */
-  DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B, TransposeMode mode = NoTranspose) const {
+  DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B, GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.outerStride());
-    return solve_impl(nrhs, ldb, mode, [&](Scalar* d_x_ptr) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_x_ptr, d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
-    });
+    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_x.get(), d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
+    return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
   // ---- Accessors -----------------------------------------------------------
@@ -277,39 +280,43 @@ class LU {
     }
   }
 
-  // Ensure d_scratch_ is at least `workspace_bytes + sizeof(int)`.
-  // Layout: [workspace (workspace_bytes) | info_word (sizeof(int))].
-  // Ensure d_scratch_ can hold workspace_bytes + an aligned info word.
-  // Grows but never shrinks. Syncs the stream before reallocating to
-  // avoid freeing memory that async kernels may still be using.
-  void ensure_scratch(size_t workspace_bytes) {
-    constexpr size_t kAlign = 16;
-    workspace_bytes = (workspace_bytes + kAlign - 1) & ~(kAlign - 1);
-    size_t needed = workspace_bytes + sizeof(int);
-    if (needed > scratch_size_) {
+  // Scratch layout: [ workspace (aligned) | info_word (sizeof(int)) ].
+  // Workspace size is rounded up to 16 bytes so the info word lands aligned.
+  static constexpr size_t kInfoBytes = sizeof(int);
+  static constexpr size_t kScratchAlign = 16;
+
+  static size_t scratchBytesFor(size_t workspace_bytes) {
+    workspace_bytes = (workspace_bytes + kScratchAlign - 1) & ~(kScratchAlign - 1);
+    return workspace_bytes + kInfoBytes;
+  }
+
+  // Ensure d_scratch_ is at least `bytes`. Grows but never shrinks.
+  // Syncs the stream before reallocating to avoid freeing memory that
+  // async kernels may still be using.
+  void ensure_scratch(size_t bytes) {
+    if (bytes > scratch_size_) {
       if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      d_scratch_ = internal::DeviceBuffer(needed);
-      scratch_size_ = needed;
+      d_scratch_ = internal::DeviceBuffer(bytes);
+      scratch_size_ = bytes;
     }
   }
 
   void* scratch_workspace() const { return d_scratch_.get(); }
   int* scratch_info() const {
-    eigen_assert(d_scratch_ && scratch_size_ >= sizeof(int));
-    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - sizeof(int));
+    eigen_assert(d_scratch_ && scratch_size_ >= kInfoBytes);
+    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - kInfoBytes);
   }
 
-  template <typename CopyRhs>
-  DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, TransposeMode mode, CopyRhs&& copy_rhs) const {
+  // Solve in place on `d_x` (which already holds B), then re-wrap as a
+  // typed DeviceMatrix carrying shape and a ready event. The release/adopt
+  // hop just hands ownership of the raw cudaMalloc pointer from the untyped
+  // DeviceBuffer to the typed DeviceMatrix without copying.
+  DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, GpuOp op, internal::DeviceBuffer&& d_x) const {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
-    const cublasOperation_t trans = to_cublas_op(mode);
-
-    internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
-    Scalar* d_x_ptr = static_cast<Scalar*>(d_x.get());
-    copy_rhs(d_x_ptr);
+    const cublasOperation_t trans = internal::to_cublas_op(op);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(handle_, params_.p, trans, n_, nrhs, dtype, d_lu_.get(), lda_,
-                                          static_cast<const int64_t*>(d_ipiv_.get()), dtype, d_x_ptr, ldb,
+                                          static_cast<const int64_t*>(d_ipiv_.get()), dtype, d_x.get(), ldb,
                                           scratch_info()));
 
     DeviceMatrix<Scalar> result =
@@ -322,7 +329,7 @@ class LU {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
     EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&handle_));
     EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(handle_, stream_));
-    ensure_scratch(0);  // allocate at least the info word
+    ensure_scratch(kInfoBytes);
   }
 
   void sync_info() {
@@ -349,7 +356,7 @@ class LU {
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(handle_, params_.p, n_, n_, dtype, d_lu_.get(), lda_, dtype,
                                                      &dev_ws_bytes, &host_ws_bytes));
 
-    ensure_scratch(dev_ws_bytes);
+    ensure_scratch(scratchBytesFor(dev_ws_bytes));
     h_workspace_.resize(host_ws_bytes);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf(handle_, params_.p, n_, n_, dtype, d_lu_.get(), lda_,
@@ -359,17 +366,6 @@ class LU {
 
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(&info_word(), scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, stream_));
-  }
-
-  static cublasOperation_t to_cublas_op(TransposeMode mode) {
-    switch (mode) {
-      case Transpose:
-        return CUBLAS_OP_T;
-      case ConjugateTranspose:
-        return CUBLAS_OP_C;
-      default:
-        return CUBLAS_OP_N;
-    }
   }
 };
 

@@ -25,6 +25,12 @@
 
 namespace Eigen {
 namespace gpu {
+
+// ---- Operation enum ---------------------------------------------------------
+// Public flag for transpose/adjoint in BLAS- and solver-style calls.
+
+enum class GpuOp { NoTrans, Trans, ConjTrans };
+
 namespace internal {
 
 // ---- Error-checking macro ---------------------------------------------------
@@ -34,11 +40,6 @@ namespace internal {
     cublasStatus_t _s = (expr);                                        \
     eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLAS call failed"); \
   } while (0)
-
-// ---- Operation enum ---------------------------------------------------------
-// Maps transpose/adjoint flags to cublasOperation_t.
-
-enum class GpuOp { NoTrans, Trans, ConjTrans };
 
 constexpr cublasOperation_t to_cublas_op(GpuOp op) {
   switch (op) {

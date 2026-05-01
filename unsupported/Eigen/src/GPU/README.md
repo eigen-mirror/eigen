@@ -166,7 +166,7 @@ MatrixXd X2 = d_X2.toHost();
 // LU with transpose solve
 gpu::LU<double> lu;
 lu.compute(d_A);
-auto d_Y = lu.solve(d_B, gpu::LU<double>::Transpose);  // A^T Y = B
+auto d_Y = lu.solve(d_B, gpu::GpuOp::Trans);           // A^T Y = B
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
@@ -292,9 +292,8 @@ GPU dense Cholesky (LL^T) via cuSOLVER. Caches factor on device.
 
 ### `gpu::LU<Scalar>` API
 
-GPU dense partial-pivoting LU via cuSOLVER. Same pattern as `gpu::LLT`, plus
-`TransposeMode` parameter on `solve()` (`NoTranspose`, `Transpose`,
-`ConjugateTranspose`).
+GPU dense partial-pivoting LU via cuSOLVER. Same pattern as `gpu::LLT`, plus a
+`gpu::GpuOp` parameter on `solve()` (`NoTrans`, `Trans`, `ConjTrans`).
 
 ### `HostTransfer<Scalar>` API
 

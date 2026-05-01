@@ -20,6 +20,8 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <functional>
+
 namespace Eigen {
 namespace gpu {
 
@@ -35,7 +37,7 @@ template <typename Scalar_, int UpLo_>
 class TriangularView {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   explicit TriangularView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
@@ -44,7 +46,7 @@ class TriangularView {
   TrsmExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
  private:
-  const DeviceMatrix<Scalar>& mat_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
 // ---- TrsmExpr: triangularView<UpLo>().solve(B) -> cublasXtrsm --------------
@@ -53,15 +55,15 @@ template <typename Scalar_, int UpLo_>
 class TrsmExpr {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   TrsmExpr(const DeviceMatrix<Scalar>& A, const DeviceMatrix<Scalar>& B) : A_(A), B_(B) {}
   const DeviceMatrix<Scalar>& matrix() const { return A_; }
   const DeviceMatrix<Scalar>& rhs() const { return B_; }
 
  private:
-  const DeviceMatrix<Scalar>& A_;
-  const DeviceMatrix<Scalar>& B_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
 // ---- SelfAdjointView -------------------------------------------------------
@@ -72,7 +74,7 @@ class SelfAdjointView {
  public:
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   explicit SelfAdjointView(DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
@@ -84,7 +86,7 @@ class SelfAdjointView {
   void rankUpdate(const DeviceMatrix<Scalar>& A, RealScalar alpha = RealScalar(1));
 
  private:
-  DeviceMatrix<Scalar>& mat_;
+  std::reference_wrapper<DeviceMatrix<Scalar>> mat_;
 };
 
 // Const variant for multiplication only (no rankUpdate).
@@ -92,13 +94,13 @@ template <typename Scalar_, int UpLo_>
 class ConstSelfAdjointView {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   explicit ConstSelfAdjointView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
  private:
-  const DeviceMatrix<Scalar>& mat_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
 // ---- SymmExpr: selfadjointView<UpLo>() * B -> cublasXsymm/Xhemm -----------
@@ -107,15 +109,15 @@ template <typename Scalar_, int UpLo_>
 class SymmExpr {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   SymmExpr(const DeviceMatrix<Scalar>& A, const DeviceMatrix<Scalar>& B) : A_(A), B_(B) {}
   const DeviceMatrix<Scalar>& matrix() const { return A_; }
   const DeviceMatrix<Scalar>& rhs() const { return B_; }
 
  private:
-  const DeviceMatrix<Scalar>& A_;
-  const DeviceMatrix<Scalar>& B_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
 // operator*: SelfAdjointView * Matrix -> SymmExpr (mutable and const variants)
@@ -135,13 +137,13 @@ template <typename Scalar_, int UpLo_>
 class SyrkExpr {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   SyrkExpr(const DeviceMatrix<Scalar>& A) : A_(A) {}
   const DeviceMatrix<Scalar>& matrix() const { return A_; }
 
  private:
-  const DeviceMatrix<Scalar>& A_;
+  std::reference_wrapper<const DeviceMatrix<Scalar>> A_;
 };
 
 }  // namespace gpu

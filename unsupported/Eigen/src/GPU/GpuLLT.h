@@ -72,7 +72,10 @@ class LLT {
   }
 
   ~LLT() {
-    // Ignore errors in destructors — cannot propagate.
+    // Ignore errors here: dtors are noexcept, and EIGEN_CUSOLVER_CHECK /
+    // EIGEN_CUDA_RUNTIME_CHECK are eigen_assert-based — firing one from a
+    // noexcept dtor terminates the program. The trailing cudaFree() of the
+    // device buffers (via internal::DeviceBuffer::~DeviceBuffer) is sync.
     if (handle_) (void)cusolverDnDestroy(handle_);
     if (stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -108,6 +111,11 @@ class LLT {
 
   LLT& operator=(LLT&& o) noexcept {
     if (this != &o) {
+      // Drain pending work on the old stream before tearing it down so the
+      // upcoming move of d_factor_/d_scratch_ doesn't free buffers that an
+      // in-flight kernel is still touching. The asymmetric move-ctor doesn't
+      // need this — it constructs onto uninitialized storage.
+      if (stream_) (void)cudaStreamSynchronize(stream_);
       if (handle_) (void)cusolverDnDestroy(handle_);
       if (stream_) (void)cudaStreamDestroy(stream_);
       stream_ = o.stream_;
@@ -207,10 +215,10 @@ class LLT {
     const PlainMatrix rhs(B);
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.outerStride());
-    DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, [&](Scalar* d_x_ptr) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_x_ptr, rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
-    });
+    internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, stream_));
+    DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, std::move(d_x));
 
     PlainMatrix X(n_, B.cols());
     int solve_info = 0;
@@ -236,10 +244,10 @@ class LLT {
     d_B.waitReady(stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.outerStride());
-    return solve_impl(nrhs, ldb, [&](Scalar* d_x_ptr) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_x_ptr, d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
-    });
+    internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
+    EIGEN_CUDA_RUNTIME_CHECK(
+        cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, stream_));
+    return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
   // ---- Accessors -----------------------------------------------------------
@@ -302,41 +310,43 @@ class LLT {
     }
   }
 
-  // Ensure d_scratch_ is at least `workspace_bytes + sizeof(int)`.
-  // Layout: [workspace (workspace_bytes) | info_word (sizeof(int))].
-  // Ensure d_scratch_ can hold workspace_bytes + an aligned info word.
-  // Grows but never shrinks. Syncs the stream before reallocating to
-  // avoid freeing memory that async kernels may still be using.
-  void ensure_scratch(size_t workspace_bytes) {
-    // Round up so the info word is naturally aligned.
-    // 16-byte alignment for optimal GPU memory access.
-    constexpr size_t kAlign = 16;
-    workspace_bytes = (workspace_bytes + kAlign - 1) & ~(kAlign - 1);
-    size_t needed = workspace_bytes + sizeof(int);
-    if (needed > scratch_size_) {
+  // Scratch layout: [ workspace (aligned) | info_word (sizeof(int)) ].
+  // Workspace size is rounded up to 16 bytes so the info word lands aligned.
+  static constexpr size_t kInfoBytes = sizeof(int);
+  static constexpr size_t kScratchAlign = 16;
+
+  static size_t scratchBytesFor(size_t workspace_bytes) {
+    workspace_bytes = (workspace_bytes + kScratchAlign - 1) & ~(kScratchAlign - 1);
+    return workspace_bytes + kInfoBytes;
+  }
+
+  // Ensure d_scratch_ is at least `bytes`. Grows but never shrinks.
+  // Syncs the stream before reallocating to avoid freeing memory that
+  // async kernels may still be using.
+  void ensure_scratch(size_t bytes) {
+    if (bytes > scratch_size_) {
       if (d_scratch_) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-      d_scratch_ = internal::DeviceBuffer(needed);
-      scratch_size_ = needed;
+      d_scratch_ = internal::DeviceBuffer(bytes);
+      scratch_size_ = bytes;
     }
   }
 
   void* scratch_workspace() const { return d_scratch_.get(); }
   int* scratch_info() const {
-    eigen_assert(d_scratch_ && scratch_size_ >= sizeof(int));
-    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - sizeof(int));
+    eigen_assert(d_scratch_ && scratch_size_ >= kInfoBytes);
+    return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + scratch_size_ - kInfoBytes);
   }
 
-  template <typename CopyRhs>
-  DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, CopyRhs&& copy_rhs) const {
+  // Solve in place on `d_x` (which already holds B), then re-wrap as a
+  // typed DeviceMatrix carrying shape and a ready event. The release/adopt
+  // hop just hands ownership of the raw cudaMalloc pointer from the untyped
+  // DeviceBuffer to the typed DeviceMatrix without copying.
+  DeviceMatrix<Scalar> solve_impl(int64_t nrhs, int64_t ldb, internal::DeviceBuffer&& d_x) const {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
-    internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
-    Scalar* d_x_ptr = static_cast<Scalar*>(d_x.get());
-    copy_rhs(d_x_ptr);
-
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(handle_, params_.p, uplo, n_, nrhs, dtype, d_factor_.get(), lda_, dtype,
-                                          d_x_ptr, ldb, scratch_info()));
+                                          d_x.get(), ldb, scratch_info()));
 
     DeviceMatrix<Scalar> result =
         DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
@@ -348,7 +358,7 @@ class LLT {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
     EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&handle_));
     EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(handle_, stream_));
-    ensure_scratch(0);  // allocate at least the info word
+    ensure_scratch(kInfoBytes);
   }
 
   // Synchronize stream and interpret the info word. No-op if already synced.
@@ -374,7 +384,7 @@ class LLT {
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(handle_, params_.p, uplo, n_, dtype, d_factor_.get(), lda_, dtype,
                                                      &dev_ws_bytes, &host_ws_bytes));
 
-    ensure_scratch(dev_ws_bytes);
+    ensure_scratch(scratchBytesFor(dev_ws_bytes));
     h_workspace_.resize(host_ws_bytes);
 
     EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(

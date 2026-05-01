@@ -40,7 +40,7 @@ template <typename Scalar_, int UpLo_ = Lower>
 class LltSolveExpr {
  public:
   using Scalar = Scalar_;
-  enum { UpLo = UpLo_ };
+  static constexpr int UpLo = UpLo_;
 
   LltSolveExpr(const DeviceMatrix<Scalar>& A, const DeviceMatrix<Scalar>& B) : A_(A), B_(B) {}
   const DeviceMatrix<Scalar>& matrix() const { return A_; }

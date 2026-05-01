@@ -51,10 +51,10 @@ void test_getrs_trans(Index n) {
   gpu::LU<Scalar> lu(A);
   VERIFY_IS_EQUAL(lu.info(), Success);
 
-  MatrixType Xt = lu.solve(B, gpu::LU<Scalar>::Transpose);
+  MatrixType Xt = lu.solve(B, gpu::GpuOp::Trans);
   VERIFY((A.transpose() * Xt - B).norm() / (A.norm() * Xt.norm()) < tol);
 
-  MatrixType Xc = lu.solve(B, gpu::LU<Scalar>::ConjugateTranspose);
+  MatrixType Xc = lu.solve(B, gpu::GpuOp::ConjTrans);
   VERIFY((A.adjoint() * Xc - B).norm() / (A.norm() * Xc.norm()) < tol);
 }
 
