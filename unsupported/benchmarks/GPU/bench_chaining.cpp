@@ -124,8 +124,8 @@ static void BM_Chain_DeviceAsync(benchmark::State& state) {
   auto prev = run_chain();
 
   for (auto _ : state) {
-    auto next = run_chain();          // kick off N+1 while D2H of N is in flight
-    Mat X = prev.get();               // drain N (overlaps with `next` compute)
+    auto next = run_chain();  // kick off N+1 while D2H of N is in flight
+    Mat X = prev.get();       // drain N (overlaps with `next` compute)
     benchmark::DoNotOptimize(X.data());
     prev = std::move(next);
   }
