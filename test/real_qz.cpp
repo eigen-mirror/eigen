@@ -76,6 +76,26 @@ void real_qz(const MatrixType& m) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
+// Regression test for the iteration-cap accounting bug in
+// RealQZ::compute. On a 3x3 all-zero pencil (a degenerate case observed
+// in production), every iteration of the inner while loop took the
+// pushDownZero branch and made no progress: pushDownZero(2, 0, 2) is a
+// no-op because its inner for(zz=z; zz<l; ++zz) loop runs zero times
+// and the trailing Givens rotation operates on already-zero entries.
+// Before the fix, local_iter was not incremented on the pushDownZero
+// branch, so the m_maxIters cap never engaged and compute() looped
+// indefinitely. After the fix, every "no convergence yet" iteration
+// counts toward the cap, so the loop exits with NoConvergence.
+template <typename MatrixType>
+void real_qz_iteration_cap_regression() {
+  MatrixType A = MatrixType::Zero(3, 3);
+  MatrixType B = MatrixType::Zero(3, 3);
+  RealQZ<MatrixType> qz(3);
+  qz.setMaxIterations(50);
+  qz.compute(A, B);
+  VERIFY_IS_EQUAL(qz.info(), NoConvergence);
+}
+
 EIGEN_DECLARE_TEST(real_qz) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -88,6 +108,8 @@ EIGEN_DECLARE_TEST(real_qz) {
     CALL_SUBTEST_2(real_qz(MatrixXd(2, 2)));
     CALL_SUBTEST_3(real_qz(Matrix<double, 1, 1>()));
     CALL_SUBTEST_4(real_qz(Matrix2d()));
+
+    CALL_SUBTEST_2(real_qz_iteration_cap_regression<MatrixXd>());
   }
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);

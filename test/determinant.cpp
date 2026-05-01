@@ -10,6 +10,96 @@
 
 #include "main.h"
 #include <Eigen/LU>
+#include <algorithm>
+#include <limits>
+#include <vector>
+
+template <typename Scalar>
+struct determinant_reference_scalar {
+  typedef long double type;
+};
+
+template <typename RealScalar>
+struct determinant_reference_scalar<std::complex<RealScalar> > {
+  typedef std::complex<long double> type;
+};
+
+template <typename MatrixType>
+typename determinant_reference_scalar<typename MatrixType::Scalar>::type brute_force_determinant(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename determinant_reference_scalar<Scalar>::type ReferenceScalar;
+  const Index size = m.rows();
+  std::vector<Index> permutation(size);
+  for (Index i = 0; i < size; ++i) permutation[i] = i;
+
+  ReferenceScalar result(0);
+  do {
+    int inversions = 0;
+    for (Index i = 0; i < size; ++i)
+      for (Index j = i + 1; j < size; ++j)
+        if (permutation[i] > permutation[j]) ++inversions;
+
+    ReferenceScalar term(1);
+    for (Index i = 0; i < size; ++i) term *= ReferenceScalar(m(i, permutation[i]));
+    result += inversions % 2 ? -term : term;
+  } while (std::next_permutation(permutation.begin(), permutation.end()));
+
+  return result;
+}
+
+template <typename MatrixType>
+void verify_determinant_against_reference(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  Scalar expected = Scalar(brute_force_determinant(m));
+  Scalar actual = m.determinant();
+  const RealScalar max_abs = (std::max)(RealScalar(1), m.cwiseAbs().maxCoeff());
+  RealScalar scale = max_abs;
+  for (Index i = 1; i < m.rows(); ++i) scale *= max_abs;
+  RealScalar tolerance = RealScalar(100000) * NumTraits<RealScalar>::epsilon() * scale;
+  RealScalar error = numext::abs(actual - expected);
+  if (error > tolerance) std::cerr << "determinant error " << error << " exceeds tolerance " << tolerance << std::endl;
+  VERIFY(error <= tolerance);
+}
+
+template <typename MatrixType>
+void determinant_lu_fallback_reference(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index size = m.rows();
+
+  MatrixType random(size, size);
+  random.setRandom();
+  verify_determinant_against_reference(random);
+
+  MatrixType ill_conditioned = random;
+  ill_conditioned.col(0) = ill_conditioned.col(1) + RealScalar(1e-8) * ill_conditioned.col(0);
+  verify_determinant_against_reference(ill_conditioned);
+
+  MatrixType scaled = RealScalar(1e6) * random;
+  verify_determinant_against_reference(scaled);
+
+  MatrixType tiny = MatrixType::Identity(size, size);
+  tiny(0, 0) = Scalar((std::numeric_limits<RealScalar>::min)());
+  verify_determinant_against_reference(tiny);
+
+#if !EIGEN_ARCH_ARM
+  MatrixType subnormal = MatrixType::Identity(size, size);
+  subnormal(0, 0) = Scalar(std::numeric_limits<RealScalar>::denorm_min() * RealScalar(16));
+  verify_determinant_against_reference(subnormal);
+#endif
+}
+
+void determinant_non_finite_lu_fallback() {
+  Matrix<double, 5, 5> m = Matrix<double, 5, 5>::Identity();
+  m(0, 0) = std::numeric_limits<double>::quiet_NaN();
+  VERIFY((numext::isnan)(m.determinant()));
+
+  m = Matrix<double, 5, 5>::Identity();
+  m(0, 0) = std::numeric_limits<double>::infinity();
+  VERIFY((numext::isinf)(m.determinant()));
+}
 
 template <typename MatrixType>
 void determinant(const MatrixType& m) {
@@ -57,9 +147,13 @@ EIGEN_DECLARE_TEST(determinant) {
     CALL_SUBTEST_2(determinant(Matrix<double, 2, 2>()));
     CALL_SUBTEST_3(determinant(Matrix<double, 3, 3>()));
     CALL_SUBTEST_4(determinant(Matrix<double, 4, 4>()));
-    CALL_SUBTEST_5(determinant(Matrix<std::complex<double>, 10, 10>()));
+    CALL_SUBTEST_5(determinant(Matrix<double, 5, 5>()));
+    CALL_SUBTEST_6(determinant(Matrix<std::complex<double>, 10, 10>()));
+    CALL_SUBTEST_7(determinant_lu_fallback_reference(Matrix<double, 5, 5>()));
+    CALL_SUBTEST_8(determinant_lu_fallback_reference(MatrixXcd(5, 5)));
+    CALL_SUBTEST_9(determinant_non_finite_lu_fallback());
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);
-    CALL_SUBTEST_6(determinant(MatrixXd(s, s)));
+    CALL_SUBTEST_10(determinant(MatrixXd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
 }
