@@ -23,7 +23,7 @@ struct packed_triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mo
   static void run(Index size, const LhsScalar* lhs, RhsScalar* rhs) {
     internal::conj_if<Conjugate> cj;
     typedef Map<const Matrix<LhsScalar, Dynamic, 1> > LhsMap;
-    typedef typename conj_expr_if<Conjugate, LhsMap>::type ConjLhsType;
+    typedef conj_expr_if<Conjugate, LhsMap> ConjLhsType;
 
     lhs += IsLower ? 0 : (size * (size + 1) >> 1) - 1;
     for (Index pi = 0; pi < size; ++pi) {
@@ -46,7 +46,7 @@ struct packed_triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mo
   static void run(Index size, const LhsScalar* lhs, RhsScalar* rhs) {
     internal::conj_if<Conjugate> cj;
     typedef Map<const Matrix<LhsScalar, Dynamic, 1> > LhsMap;
-    typedef typename conj_expr_if<Conjugate, LhsMap>::type ConjLhsType;
+    typedef conj_expr_if<Conjugate, LhsMap> ConjLhsType;
 
     lhs += IsLower ? 0 : size * (size - 1) >> 1;
     for (Index pi = 0; pi < size; ++pi) {

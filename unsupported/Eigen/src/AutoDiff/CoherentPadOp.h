@@ -22,7 +22,7 @@ struct CoherentPadOp;
 
 template <typename XprType, int SizeAtCompileTime_>
 struct traits<CoherentPadOp<XprType, SizeAtCompileTime_>> : public traits<XprType> {
-  typedef typename internal::remove_all<XprType>::type PlainXprType;
+  typedef internal::remove_all_t<XprType> PlainXprType;
   typedef typename internal::ref_selector<XprType>::type XprNested;
   typedef typename std::remove_reference_t<XprNested> XprNested_;
   enum : int {

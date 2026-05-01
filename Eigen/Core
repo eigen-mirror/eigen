@@ -96,6 +96,9 @@
 // for std::is_nothrow_move_assignable
 #include <type_traits>
 
+// for std::move, std::forward, std::declval
+#include <utility>
+
 // for std::this_thread::yield().
 #if !defined(EIGEN_USE_BLAS) && (defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL))
 #include <thread>
@@ -139,7 +142,6 @@
 #include <CL/sycl.hpp>
 #include <map>
 #include <thread>
-#include <utility>
 #ifndef EIGEN_SYCL_LOCAL_THREAD_DIM0
 #define EIGEN_SYCL_LOCAL_THREAD_DIM0 16
 #endif

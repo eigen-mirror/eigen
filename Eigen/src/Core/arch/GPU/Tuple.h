@@ -187,7 +187,7 @@ struct unwrap_reference_wrapper<std::reference_wrapper<T>> {
 // For use in make_tuple, decays a type and unwraps a reference_wrapper.
 template <typename T>
 struct unwrap_decay {
-  using type = typename unwrap_reference_wrapper<typename std::decay<T>::type>::type;
+  using type = typename unwrap_reference_wrapper<std::decay_t<T>>::type;
 };
 
 /**
@@ -223,12 +223,12 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename tuple_get_impl<Idx, Typ
  * \param tuples ... list of tuples.
  * \return concatenated tuple.
  */
-template <typename... Tuples, typename EnableIf = std::enable_if_t<
-                                  internal::reduce_all<is_tuple<typename std::decay<Tuples>::type>::value...>::value>>
+template <typename... Tuples,
+          typename EnableIf = std::enable_if_t<internal::reduce_all<is_tuple<std::decay_t<Tuples>>::value...>::value>>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename tuple_cat_impl<sizeof...(Tuples), typename std::decay<Tuples>::type...>::ReturnType
+    typename tuple_cat_impl<sizeof...(Tuples), std::decay_t<Tuples>...>::ReturnType
     tuple_cat(Tuples&&... tuples) {
-  return tuple_cat_impl<sizeof...(Tuples), typename std::decay<Tuples>::type...>::run(std::forward<Tuples>(tuples)...);
+  return tuple_cat_impl<sizeof...(Tuples), std::decay_t<Tuples>...>::run(std::forward<Tuples>(tuples)...);
 }
 
 /**

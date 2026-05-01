@@ -1376,7 +1376,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double trunc(const double& x) {
 // T is assumed to be an integer type with a>=0, and b>0
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T div_ceil(T a, T b) {
-  using UnsignedT = typename internal::make_unsigned<T>::type;
+  using UnsignedT = std::make_unsigned_t<T>;
   EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   // Note: explicitly declaring a and b as non-negative values allows the compiler to use better optimizations
   const UnsignedT ua = UnsignedT(a);
@@ -1389,8 +1389,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T div_ceil(T a, T b) {
 // T is assumed to be an integer type with a>=0, and b>0
 template <typename T, typename U>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T round_down(T a, U b) {
-  using UnsignedT = typename internal::make_unsigned<T>::type;
-  using UnsignedU = typename internal::make_unsigned<U>::type;
+  using UnsignedT = std::make_unsigned_t<T>;
+  using UnsignedU = std::make_unsigned_t<U>;
   EIGEN_STATIC_ASSERT((NumTraits<T>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   EIGEN_STATIC_ASSERT((NumTraits<U>::IsInteger), THIS FUNCTION IS FOR INTEGER TYPES)
   // Note: explicitly declaring a and b as non-negative values allows the compiler to use better optimizations

@@ -52,10 +52,8 @@
 #include <queue>
 #include <cassert>
 #include <list>
-#if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#endif
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
 // libstdc++ 10's <memory> indirectly uses max() via ranges headers.

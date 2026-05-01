@@ -1329,8 +1329,8 @@ struct cast_tests_impl {
 
   template <size_t i = 0, size_t j = i + 1, bool Done = (i >= ScalarTupleSize - 1) || (j >= ScalarTupleSize)>
   static std::enable_if_t<!Done> run() {
-    using Type1 = typename std::tuple_element<i, ScalarTuple>::type;
-    using Type2 = typename std::tuple_element<j, ScalarTuple>::type;
+    using Type1 = std::tuple_element_t<i, ScalarTuple>;
+    using Type2 = std::tuple_element_t<j, ScalarTuple>;
     cast_test_impl<Type1, Type2, RowsAtCompileTime, ColsAtCompileTime>::run();
     cast_test_impl<Type2, Type1, RowsAtCompileTime, ColsAtCompileTime>::run();
     static constexpr size_t next_i = (j == ScalarTupleSize - 1) ? (i + 1) : (i + 0);
