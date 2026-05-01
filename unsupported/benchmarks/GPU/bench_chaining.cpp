@@ -95,6 +95,10 @@ static void BM_Chain_Device(benchmark::State& state) {
 
 // --------------------------------------------------------------------------
 // DeviceMatrix chaining with async download (overlap D2H with next iteration)
+//
+// Double-buffered: each loop body issues iteration N+1's chain *before*
+// draining iteration N's D2H, so the host wait overlaps with on-device
+// compute instead of stalling the pipeline.
 // --------------------------------------------------------------------------
 
 static void BM_Chain_DeviceAsync(benchmark::State& state) {
@@ -107,15 +111,27 @@ static void BM_Chain_DeviceAsync(benchmark::State& state) {
   gpu::LLT<Scalar> llt(A);
   auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
 
-  for (auto _ : state) {
+  auto run_chain = [&]() {
     gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);
     }
-    auto transfer = d_X.toHostAsync();
-    Mat X = transfer.get();
+    return d_X.toHostAsync();
+  };
+
+  // Prime the pipeline so each timed iteration overlaps a fresh chain
+  // with the previous iteration's D2H.
+  auto prev = run_chain();
+
+  for (auto _ : state) {
+    auto next = run_chain();          // kick off N+1 while D2H of N is in flight
+    Mat X = prev.get();               // drain N (overlaps with `next` compute)
     benchmark::DoNotOptimize(X.data());
+    prev = std::move(next);
   }
+
+  // Drain the trailing transfer outside the timed region.
+  prev.get();
 
   state.counters["n"] = n;
   state.counters["chain"] = chain_len;
