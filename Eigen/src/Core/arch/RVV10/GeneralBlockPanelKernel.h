@@ -335,31 +335,31 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     dest = ploadu<LhsPacketType>((const typename unpacket_traits<LhsPacketType>::type*)(a));
   }
 
-  EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xcfh& a, float b, const Packet1Xcfh& c) const {
-    return Packet1Xcfh(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
-  }
-
-  EIGEN_STRONG_INLINE Packet1Xcdh pmadd_scalar(const Packet1Xcdh& a, double b, const Packet1Xcdh& c) const {
-    return Packet1Xcdh(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
-  }
-
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xcf& a, float b, const Packet1Xcf& c) const {
-    return Packet1Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
+    return Packet1Xcf(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
   }
 
   EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet1Xcd& a, double b, const Packet1Xcd& c) const {
-    return Packet1Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
+    return Packet1Xcd(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
+  }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
+    return Packet2Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
+  }
+
+  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet2Xcd& a, double b, const Packet2Xcd& c) const {
+    return Packet2Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
   }
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
-    return Packet2Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
+  EIGEN_STRONG_INLINE Packet4Xcf pmadd_scalar(const Packet4Xcf& a, float b, const Packet4Xcf& c) const {
+    return Packet4Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
   }
 
-  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet2Xcd& a, double b, const Packet2Xcd& c) const {
-    return Packet2Xcd(__riscv_vfmadd_vf_f64m4(a.v, b, c.v, unpacket_traits<Packet4Xd>::size));
+  EIGEN_STRONG_INLINE Packet4Xcd pmadd_scalar(const Packet4Xcd& a, double b, const Packet4Xcd& c) const {
+    return Packet4Xcd(__riscv_vfmadd_vf_f64m4(a.v, b, c.v, unpacket_traits<Packet4Xd>::size));
   }
 #endif
 
@@ -413,30 +413,30 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet1Xf& c, const Packet1Xcfh& alpha, Packet1Xcfh& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet1Xf& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet1Xd& c, const Packet1Xcdh& alpha, Packet1Xcdh& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet1Xd& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 
 #if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-  EIGEN_STRONG_INLINE void acc(const Packet2Xf& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet2Xf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet2Xd& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet2Xd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE void acc(const Packet4Xf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet4Xf& c, const Packet4Xcf& alpha, Packet4Xcf& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 
-  EIGEN_STRONG_INLINE void acc(const Packet4Xd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
+  EIGEN_STRONG_INLINE void acc(const Packet4Xd& c, const Packet4Xcd& alpha, Packet4Xcd& r) const {
     r = cj.pmadd(c, alpha, r);
   }
 #endif
@@ -522,37 +522,37 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
-  EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xf& a, std::complex<float> b, const Packet1Xcfh& c) const {
-    Packet1Xcfh bp = pset1<Packet1Xcfh>(b);
-    return Packet1Xcfh(__riscv_vfmadd_vv_f32m1(a, bp.v, c.v, unpacket_traits<Packet1Xf>::size));
+  EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xf& a, std::complex<float> b, const Packet1Xcf& c) const {
+    Packet1Xcf bp = pset1<Packet1Xcf>(b);
+    return Packet1Xcf(__riscv_vfmadd_vv_f32m1(a, bp.v, c.v, unpacket_traits<Packet1Xf>::size));
   }
 
-  EIGEN_STRONG_INLINE Packet1Xcdh pmadd_scalar(const Packet1Xd& a, std::complex<double> b, const Packet1Xcdh& c) const {
-    Packet1Xcdh bp = pset1<Packet1Xcdh>(b);
-    return Packet1Xcdh(__riscv_vfmadd_vv_f64m1(a, bp.v, c.v, unpacket_traits<Packet1Xd>::size));
+  EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet1Xd& a, std::complex<double> b, const Packet1Xcd& c) const {
+    Packet1Xcd bp = pset1<Packet1Xcd>(b);
+    return Packet1Xcd(__riscv_vfmadd_vv_f64m1(a, bp.v, c.v, unpacket_traits<Packet1Xd>::size));
   }
 
 #if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-  EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet2Xf& a, std::complex<float> b, const Packet1Xcf& c) const {
-    Packet1Xcf bp = pset1<Packet1Xcf>(b);
-    return Packet1Xcf(__riscv_vfmadd_vv_f32m2(a, bp.v, c.v, unpacket_traits<Packet2Xf>::size));
+  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xf& a, std::complex<float> b, const Packet2Xcf& c) const {
+    Packet2Xcf bp = pset1<Packet2Xcf>(b);
+    return Packet2Xcf(__riscv_vfmadd_vv_f32m2(a, bp.v, c.v, unpacket_traits<Packet2Xf>::size));
   }
 
-  EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet2Xd& a, std::complex<double> b, const Packet1Xcd& c) const {
-    Packet1Xcd bp = pset1<Packet1Xcd>(b);
-    return Packet1Xcd(__riscv_vfmadd_vv_f64m2(a, bp.v, c.v, unpacket_traits<Packet2Xd>::size));
+  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet2Xd& a, std::complex<double> b, const Packet2Xcd& c) const {
+    Packet2Xcd bp = pset1<Packet2Xcd>(b);
+    return Packet2Xcd(__riscv_vfmadd_vv_f64m2(a, bp.v, c.v, unpacket_traits<Packet2Xd>::size));
   }
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet4Xf& a, std::complex<float> b, const Packet2Xcf& c) const {
-    Packet2Xcf bp = pset1<Packet2Xcf>(b);
-    return Packet2Xcf(__riscv_vfmadd_vv_f32m4(a, bp.v, c.v, unpacket_traits<Packet4Xf>::size));
+  EIGEN_STRONG_INLINE Packet4Xcf pmadd_scalar(const Packet4Xf& a, std::complex<float> b, const Packet4Xcf& c) const {
+    Packet4Xcf bp = pset1<Packet4Xcf>(b);
+    return Packet4Xcf(__riscv_vfmadd_vv_f32m4(a, bp.v, c.v, unpacket_traits<Packet4Xf>::size));
   }
 
-  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet4Xd& a, std::complex<double> b, const Packet2Xcd& c) const {
-    Packet2Xcd bp = pset1<Packet2Xcd>(b);
-    return Packet2Xcd(__riscv_vfmadd_vv_f64m4(a, bp.v, c.v, unpacket_traits<Packet4Xd>::size));
+  EIGEN_STRONG_INLINE Packet4Xcd pmadd_scalar(const Packet4Xd& a, std::complex<double> b, const Packet4Xcd& c) const {
+    Packet4Xcd bp = pset1<Packet4Xcd>(b);
+    return Packet4Xcd(__riscv_vfmadd_vv_f64m4(a, bp.v, c.v, unpacket_traits<Packet4Xd>::size));
   }
 #endif
 
@@ -665,31 +665,31 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
     madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
   }
 
-  EIGEN_STRONG_INLINE Packet1Xcfh pmadd_scalar(const Packet1Xcfh& a, float b, const Packet1Xcfh& c) const {
-    return Packet1Xcfh(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
-  }
-
-  EIGEN_STRONG_INLINE Packet1Xcdh pmadd_scalar(const Packet1Xcdh& a, double b, const Packet1Xcdh& c) const {
-    return Packet1Xcdh(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
-  }
-
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xcf& a, float b, const Packet1Xcf& c) const {
-    return Packet1Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
+    return Packet1Xcf(__riscv_vfmadd_vf_f32m1(a.v, b, c.v, unpacket_traits<Packet1Xf>::size));
   }
 
   EIGEN_STRONG_INLINE Packet1Xcd pmadd_scalar(const Packet1Xcd& a, double b, const Packet1Xcd& c) const {
-    return Packet1Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
+    return Packet1Xcd(__riscv_vfmadd_vf_f64m1(a.v, b, c.v, unpacket_traits<Packet1Xd>::size));
+  }
+
+#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
+  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
+    return Packet2Xcf(__riscv_vfmadd_vf_f32m2(a.v, b, c.v, unpacket_traits<Packet2Xf>::size));
+  }
+
+  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet2Xcd& a, double b, const Packet2Xcd& c) const {
+    return Packet2Xcd(__riscv_vfmadd_vf_f64m2(a.v, b, c.v, unpacket_traits<Packet2Xd>::size));
   }
 #endif
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE Packet2Xcf pmadd_scalar(const Packet2Xcf& a, float b, const Packet2Xcf& c) const {
-    return Packet2Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
+  EIGEN_STRONG_INLINE Packet4Xcf pmadd_scalar(const Packet4Xcf& a, float b, const Packet4Xcf& c) const {
+    return Packet4Xcf(__riscv_vfmadd_vf_f32m4(a.v, b, c.v, unpacket_traits<Packet4Xf>::size));
   }
 
-  EIGEN_STRONG_INLINE Packet2Xcd pmadd_scalar(const Packet2Xcd& a, double b, const Packet2Xcd& c) const {
-    return Packet2Xcd(__riscv_vfmadd_vf_f64m4(a.v, b, c.v, unpacket_traits<Packet4Xd>::size));
+  EIGEN_STRONG_INLINE Packet4Xcd pmadd_scalar(const Packet4Xcd& a, double b, const Packet4Xcd& c) const {
+    return Packet4Xcd(__riscv_vfmadd_vf_f64m4(a.v, b, c.v, unpacket_traits<Packet4Xd>::size));
   }
 #endif
 
