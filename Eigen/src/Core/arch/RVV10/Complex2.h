@@ -370,8 +370,7 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xcf pmul<Packet1Xcf>(const Packet1Xcf& a, const Packet1Xcf& b) {
   Packet1Xf real, imag;
   prealimag2(a, real, imag);
-  return Packet1Xcf(
-      pmadd<Packet1Xf>(imag, pcplxflip<Packet1Xcf>(pconj<Packet1Xcf>(b)).v, pmul<Packet1Xf>(real, b.v)));
+  return Packet1Xcf(pmadd<Packet1Xf>(imag, pcplxflip<Packet1Xcf>(pconj<Packet1Xcf>(b)).v, pmul<Packet1Xf>(real, b.v)));
 }
 
 template <>
@@ -474,8 +473,8 @@ pgather<std::complex<float>, Packet1Xcf>(const std::complex<float>* from, Index 
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter<std::complex<float>, Packet1Xcf>(std::complex<float>* to,
-                                                                                      const Packet1Xcf& from,
-                                                                                      Index stride) {
+                                                                                     const Packet1Xcf& from,
+                                                                                     Index stride) {
   pscatter<int64_t, Packet1Xl>(reinterpret_cast<numext::int64_t*>(reinterpret_cast<void*>(to)),
                                __riscv_vreinterpret_v_f32m1_i64m1(from.v), stride);
 }
@@ -885,8 +884,7 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xcd pmul<Packet1Xcd>(const Packet1Xcd& a, const Packet1Xcd& b) {
   Packet1Xd real, imag;
   prealimag2(a, real, imag);
-  return Packet1Xcd(
-      pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcd>(pconj<Packet1Xcd>(b)).v, pmul<Packet1Xd>(real, b.v)));
+  return Packet1Xcd(pmadd<Packet1Xd>(imag, pcplxflip<Packet1Xcd>(pconj<Packet1Xcd>(b)).v, pmul<Packet1Xd>(real, b.v)));
 }
 
 template <>
@@ -972,7 +970,7 @@ EIGEN_STRONG_INLINE Packet1Xcd ploaddup<Packet1Xcd>(const std::complex<double>* 
       __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 1, unpacket_traits<Packet1Xd>::size);
   Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
   return Packet1Xcd(__riscv_vrgather_vv_f64m1(pload<Packet1Xd>(reinterpret_cast<const double*>(from)), idx2,
-                                               unpacket_traits<Packet1Xd>::size));
+                                              unpacket_traits<Packet1Xd>::size));
 }
 
 template <>
@@ -983,7 +981,7 @@ EIGEN_STRONG_INLINE Packet1Xcd ploadquad<Packet1Xcd>(const std::complex<double>*
       __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 2, unpacket_traits<Packet1Xd>::size);
   Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
   return Packet1Xcd(__riscv_vrgather_vv_f64m1(pload<Packet1Xd>(reinterpret_cast<const double*>(from)), idx2,
-                                               unpacket_traits<Packet1Xd>::size));
+                                              unpacket_traits<Packet1Xd>::size));
 }
 
 template <>
@@ -1013,8 +1011,8 @@ pgather<std::complex<double>, Packet1Xcd>(const std::complex<double>* from, Inde
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pscatter<std::complex<double>, Packet1Xcd>(std::complex<double>* to,
-                                                                                       const Packet1Xcd& from,
-                                                                                       Index stride) {
+                                                                                      const Packet1Xcd& from,
+                                                                                      Index stride) {
   const PacketMask64 mask =
       __riscv_vreinterpret_v_i8m1_b64(__riscv_vmv_v_x_i8m1(static_cast<char>(0x55), unpacket_traits<Packet1Xc>::size));
   double* to2 = reinterpret_cast<double*>(to);

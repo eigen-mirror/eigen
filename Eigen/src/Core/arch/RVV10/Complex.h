@@ -433,7 +433,7 @@ EIGEN_STRONG_INLINE Packet2Xcf pexp<Packet2Xcf>(const Packet2Xcf& a) {
 template <typename Packet = Packet2Xcf>
 EIGEN_STRONG_INLINE Packet1Xcf predux_half(const Packet2Xcf& a) {
   return Packet1Xcf(__riscv_vfadd_vv_f32m1(__riscv_vget_v_f32m2_f32m1(a.v, 0), __riscv_vget_v_f32m2_f32m1(a.v, 1),
-                                            unpacket_traits<Packet1Xf>::size));
+                                           unpacket_traits<Packet1Xf>::size));
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcf, Packet2Xf)
@@ -859,7 +859,7 @@ EIGEN_STRONG_INLINE Packet2Xcd pexp<Packet2Xcd>(const Packet2Xcd& a) {
 template <typename Packet = Packet2Xcd>
 EIGEN_STRONG_INLINE Packet1Xcd predux_half(const Packet2Xcd& a) {
   return Packet1Xcd(__riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a.v, 0), __riscv_vget_v_f64m2_f64m1(a.v, 1),
-                                            unpacket_traits<Packet1Xd>::size));
+                                           unpacket_traits<Packet1Xd>::size));
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2Xcd, Packet2Xd)
