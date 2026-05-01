@@ -173,6 +173,10 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ true> {
                                            Index& inner) {
     Index outerSize = eval.outerSize();
     Index innerSize = eval.innerSize();
+    if (innerSize < PacketSize) {
+      ScalarImpl::run(eval, func, result, outer, inner);
+      return;
+    }
     Index packetEnd = numext::round_down(innerSize, PacketSize);
 
     /* initialization performed in calling function */
@@ -229,6 +233,10 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ true> {
 
   static EIGEN_DEVICE_FUNC inline void run(const Evaluator& eval, Func& func, Scalar& result, Index& index) {
     Index size = eval.size();
+    if (size < PacketSize) {
+      ScalarImpl::run(eval, func, result, index);
+      return;
+    }
     Index packetEnd = numext::round_down(size, PacketSize);
 
     /* initialization performed in calling function */
