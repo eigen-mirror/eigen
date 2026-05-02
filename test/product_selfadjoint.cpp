@@ -12,6 +12,7 @@
 template <typename MatrixType>
 void product_selfadjoint(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
   typedef Matrix<Scalar, 1, MatrixType::RowsAtCompileTime> RowVectorType;
 
@@ -84,17 +85,20 @@ void product_selfadjoint(const MatrixType& m) {
   m3.template triangularView<Lower>() -= m1;
   VERIFY_IS_APPROX(m2, m3);
 
+  // SelfAdjointView in-place scaling/division accept real scalars only: scaling only the
+  // stored triangle by a non-real factor would leave conj(other) on the unstored half.
+  const RealScalar real_s1 = numext::real(s1);
+  const RealScalar real_divisor = numext::real(s2) + RealScalar(2);
   m2.setRandom();
   m3 = m2;
-  m2.template selfadjointView<Upper>() *= s1;
-  m3.template triangularView<Upper>() *= s1;
+  m2.template selfadjointView<Upper>() *= real_s1;
+  m3.template triangularView<Upper>() *= real_s1;
   VERIFY_IS_APPROX(m2, m3);
 
   m2.setRandom();
   m3 = m2;
-  const Scalar divisor = s2 + Scalar(2);
-  m2.template selfadjointView<Lower>() /= divisor;
-  m3.template triangularView<Lower>() /= divisor;
+  m2.template selfadjointView<Lower>() /= real_divisor;
+  m3.template triangularView<Lower>() /= real_divisor;
   VERIFY_IS_APPROX(m2, m3);
 
   m2.setRandom();

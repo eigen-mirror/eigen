@@ -230,6 +230,28 @@ void bug2013() {
   no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template triangularView<UnitUpper>();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  // Triangular destination assignment from a structured*diagonal product must go through the
+  // lazy product_evaluator and avoid materializing a full PlainObject temporary.
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Upper>() =
+      MatrixXd(dynamic_m.template triangularView<Upper>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Upper>() =
+      dynamic_m.template triangularView<Upper>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Lower>() =
+      dynamic_d.asDiagonal() * MatrixXd(dynamic_m.template triangularView<Lower>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Lower>() =
+      dynamic_d.asDiagonal() * dynamic_m.template triangularView<Lower>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 }
 
 template <int>
@@ -288,6 +310,28 @@ void selfadjoint_diagonal_products() {
   dynamic_expected = dynamic_d.asDiagonal() * MatrixXcd(dynamic_m.template selfadjointView<Upper>());
   internal::set_is_malloc_allowed(false);
   no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template selfadjointView<Upper>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  // Triangular destination assignment from selfadjoint*diagonal must use the lazy
+  // product_evaluator (with conjugate-mirror coeffs) and not materialize a temporary.
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Lower>() =
+      MatrixXcd(dynamic_m.template selfadjointView<Upper>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Lower>() =
+      dynamic_m.template selfadjointView<Upper>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  no_malloc_result = dynamic_m;
+  dynamic_expected = dynamic_m;
+  dynamic_expected.template triangularView<Upper>() =
+      dynamic_d.asDiagonal() * MatrixXcd(dynamic_m.template selfadjointView<Lower>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.template triangularView<Upper>() =
+      dynamic_d.asDiagonal() * dynamic_m.template selfadjointView<Lower>();
   internal::set_is_malloc_allowed(true);
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 }

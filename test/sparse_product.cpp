@@ -370,6 +370,10 @@ void sparse_product() {
     VERIFY_IS_APPROX(x = scale.asDiagonal() * mLo.template selfadjointView<Lower>(), refX = scale.asDiagonal() * refS);
     VERIFY_IS_APPROX(x = mUp.template selfadjointView<Upper>() * scale.asDiagonal(), refX = refS * scale.asDiagonal());
     VERIFY_IS_APPROX(x = scale.asDiagonal() * mUp.template selfadjointView<Upper>(), refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(x = mS.template selfadjointView<Upper | Lower>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(x = scale.asDiagonal() * mS.template selfadjointView<Upper | Lower>(),
+                     refX = scale.asDiagonal() * refS);
 
     // sparse selfadjointView with sparse matrices
     SparseMatrixType mSres(rows, rows);
@@ -384,6 +388,10 @@ void sparse_product() {
     VERIFY_IS_APPROX(mSres = mUp.template selfadjointView<Upper>() * scale.asDiagonal(),
                      refX = refS * scale.asDiagonal());
     VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mUp.template selfadjointView<Upper>(),
+                     refX = scale.asDiagonal() * refS);
+    VERIFY_IS_APPROX(mSres = mS.template selfadjointView<Upper | Lower>() * scale.asDiagonal(),
+                     refX = refS * scale.asDiagonal());
+    VERIFY_IS_APPROX(mSres = scale.asDiagonal() * mS.template selfadjointView<Upper | Lower>(),
                      refX = scale.asDiagonal() * refS);
 
     // sparse triangularView with dense matrices

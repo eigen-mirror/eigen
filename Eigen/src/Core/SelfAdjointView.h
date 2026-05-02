@@ -108,12 +108,20 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /** \sa MatrixBase::operator*=() */
   EIGEN_DEVICE_FUNC SelfAdjointView& operator*=(const Scalar& other) {
+    eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
+                 "SelfAdjointView in-place scaling requires a real scalar; "
+                 "scaling only the stored triangle by a non-real scalar would "
+                 "leave conj(other) on the unstored half.");
     m_matrix.template triangularView<UpLo>() *= other;
     return *this;
   }
 
   /** \sa DenseBase::operator/=() */
   EIGEN_DEVICE_FUNC SelfAdjointView& operator/=(const Scalar& other) {
+    eigen_assert(numext::imag(other) == typename NumTraits<Scalar>::Real(0) &&
+                 "SelfAdjointView in-place division requires a real scalar; "
+                 "dividing only the stored triangle by a non-real scalar would "
+                 "leave conj(other) on the unstored half.");
     m_matrix.template triangularView<UpLo>() /= other;
     return *this;
   }
