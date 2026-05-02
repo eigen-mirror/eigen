@@ -775,13 +775,18 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
   Packet p = ppolevl<Packet, 4>::run(x2, alpha);
   p = pmadd(x3, p, x);
 
-  // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
   const Packet half = pset1<Packet>(0.5f);
   const Packet one = pset1<Packet>(1.0f);
+  const Packet x_gt_half = pcmp_le(half, pabs(x));
+  // Fast exit: if all |x| <= 0.5, skip the expensive plog/pdiv branch.
+  if (!predux_any(x_gt_half)) {
+    return p;
+  }
+
+  // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
   Packet r = pdiv(padd(one, x), psub(one, x));
   r = pmul(half, plog(r));
 
-  const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
   const Packet sign_mask = pset1<Packet>(-0.0f);
@@ -808,13 +813,18 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
   Packet q = ppolevl<Packet, 5>::run(x2, beta);
   Packet y_small = pmadd(x3, pdiv(p, q), x);
 
-  // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
   const Packet half = pset1<Packet>(0.5);
   const Packet one = pset1<Packet>(1.0);
+  const Packet x_gt_half = pcmp_le(half, pabs(x));
+  // Fast exit: if all |x| <= 0.5, skip the expensive plog/pdiv branch.
+  if (!predux_any(x_gt_half)) {
+    return y_small;
+  }
+
+  // For |x| in ]0.5:1.0] we use atanh = 0.5*ln((1+x)/(1-x));
   Packet y_large = pdiv(padd(one, x), psub(one, x));
   y_large = pmul(half, plog(y_large));
 
-  const Packet x_gt_half = pcmp_le(half, pabs(x));
   const Packet x_eq_one = pcmp_eq(one, pabs(x));
   const Packet x_gt_one = pcmp_lt(one, pabs(x));
   const Packet sign_mask = pset1<Packet>(-0.0);

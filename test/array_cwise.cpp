@@ -191,6 +191,7 @@ void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp2));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log10));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sin));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cos));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(tan));

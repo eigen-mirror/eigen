@@ -596,15 +596,27 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Pa
     log10(x) ~= log(x) * hi + log(x) * lo, computed via fma. */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_float(const Packet& x) {
-  const Packet cst_log10e = pset1<Packet>(0.4342944819032518f);
-  return pmul(plog(x), cst_log10e);
+  typedef typename unpacket_traits<Packet>::type Scalar;
+  // log10(e) in higher precision, split into hi+lo so log_x*(hi+lo) is reconstructed via FMA.
+  // hi = round-to-nearest-float of log10(e); lo = float(log10(e) - hi).
+  const Packet cst_log10e_hi = pset1<Packet>(0.4342944920063018f);
+  const Packet cst_log10e_lo = pset1<Packet>(-1.0103049952192578e-08f);
+  const Packet cst_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
+  const Packet cst_zero = pzero(x);
+
+  const Packet log_x = plog(x);
+  const Packet finite_mask = pcmp_lt(pabs(log_x), cst_inf);
+  const Packet finite_log_x = pselect(finite_mask, log_x, cst_zero);
+  const Packet split_log10_x = pmadd(finite_log_x, cst_log10e_hi, pmul(finite_log_x, cst_log10e_lo));
+  return pselect(finite_mask, split_log10_x, log_x);
 }
 
 /** \internal \returns log10(x) for double precision float.
-    Computed as log(x) * log10(e). */
+    Computed as log(x) * log10(e). For double, single-constant rounding error
+    is ~1e-17 (sub-ULP), so the simple form is precise enough. */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_double(const Packet& x) {
-  const Packet cst_log10e = pset1<Packet>(0.4342944819032518);
+  const Packet cst_log10e = pset1<Packet>(0.43429448190325182);
   return pmul(plog(x), cst_log10e);
 }
 
