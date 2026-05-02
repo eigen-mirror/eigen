@@ -217,6 +217,13 @@ void bug_817() {
 }
 
 template <int>
+void triangular_product_assignment_size_mismatch() {
+  MatrixXd m1 = MatrixXd::Random(5, 5);
+  MatrixXd m2(6, 6);
+  VERIFY_RAISES_ASSERT(m2.triangularView<Lower>() = m1 * m1);
+}
+
+template <int>
 void unaligned_objects() {
   // Regression test for the bug reported here:
   // http://forum.kde.org/viewtopic.php?f=74&t=107541
@@ -734,6 +741,7 @@ EIGEN_DECLARE_TEST(product_extra) {
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
   CALL_SUBTEST_5(bug_127<0>());
+  CALL_SUBTEST_5(triangular_product_assignment_size_mismatch<0>());
   CALL_SUBTEST_5(bug_817<0>());
   CALL_SUBTEST_5(bug_1308<0>());
   CALL_SUBTEST_6(unaligned_objects<0>());

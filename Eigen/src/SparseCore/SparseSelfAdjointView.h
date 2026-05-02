@@ -109,9 +109,20 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
     return Product<SparseSelfAdjointView, OtherDerived>(*this, rhs.derived());
   }
 
+  template <typename OtherDerived>
+  Product<SparseSelfAdjointView, OtherDerived> operator*(const DiagonalBase<OtherDerived>& rhs) const {
+    return Product<SparseSelfAdjointView, OtherDerived>(*this, rhs.derived());
+  }
+
   /** Efficient dense vector/matrix times sparse self-adjoint matrix product */
   template <typename OtherDerived>
   friend Product<OtherDerived, SparseSelfAdjointView> operator*(const MatrixBase<OtherDerived>& lhs,
+                                                                const SparseSelfAdjointView& rhs) {
+    return Product<OtherDerived, SparseSelfAdjointView>(lhs.derived(), rhs);
+  }
+
+  template <typename OtherDerived>
+  friend Product<OtherDerived, SparseSelfAdjointView> operator*(const DiagonalBase<OtherDerived>& lhs,
                                                                 const SparseSelfAdjointView& rhs) {
     return Product<OtherDerived, SparseSelfAdjointView>(lhs.derived(), rhs);
   }

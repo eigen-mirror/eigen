@@ -172,6 +172,126 @@ void bug987() {
   VERIFY_IS_APPROX((res1 = points.topLeftCorner<2, 2>() * diag.asDiagonal()), res2 = tmp2 * diag.asDiagonal());
 }
 
+template <int>
+void bug2013() {
+  Matrix3d m = Matrix3d::Random();
+  Vector3d d = Vector3d::Random();
+
+  Matrix3d ref_unit_lower = m.template triangularView<UnitLower>();
+  Matrix3d ref_unit_upper = m.template triangularView<UnitUpper>();
+  Matrix3d ref_lower = m.template triangularView<Lower>();
+  Matrix3d ref_upper = m.template triangularView<Upper>();
+
+  VERIFY_IS_APPROX((m.template triangularView<UnitLower>() * d.asDiagonal()).eval(), ref_unit_lower * d.asDiagonal());
+  VERIFY_IS_APPROX((d.asDiagonal() * m.template triangularView<UnitLower>()).eval(), d.asDiagonal() * ref_unit_lower);
+
+  VERIFY_IS_APPROX((m.template triangularView<UnitUpper>() * d.asDiagonal()).eval(), ref_unit_upper * d.asDiagonal());
+  VERIFY_IS_APPROX((d.asDiagonal() * m.template triangularView<UnitUpper>()).eval(), d.asDiagonal() * ref_unit_upper);
+
+  Matrix3d actual = Matrix3d::Random();
+  Matrix3d expected = actual;
+  actual = m;
+  expected = m;
+  actual.template triangularView<Upper>() = actual.template triangularView<Upper>() * d.asDiagonal();
+  expected.template triangularView<Upper>() = Matrix3d(ref_upper * d.asDiagonal());
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual = m;
+  expected = m;
+  actual.template triangularView<Lower>() = d.asDiagonal() * actual.template triangularView<Lower>();
+  expected.template triangularView<Lower>() = Matrix3d(d.asDiagonal() * ref_lower);
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual.setRandom();
+  expected = actual;
+  actual.noalias() += m.template triangularView<UnitLower>() * d.asDiagonal();
+  expected.noalias() += ref_unit_lower * d.asDiagonal();
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual.setRandom();
+  expected = actual;
+  actual.noalias() -= d.asDiagonal() * m.template triangularView<UnitUpper>();
+  expected.noalias() -= d.asDiagonal() * ref_unit_upper;
+  VERIFY_IS_APPROX(actual, expected);
+
+  MatrixXd dynamic_m = MatrixXd::Random(4, 4);
+  VectorXd dynamic_d = VectorXd::Random(4);
+  MatrixXd dynamic_expected(4, 4);
+  MatrixXd no_malloc_result(4, 4);
+
+  dynamic_expected = MatrixXd(dynamic_m.template triangularView<UnitLower>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.noalias() = dynamic_m.template triangularView<UnitLower>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  dynamic_expected = dynamic_d.asDiagonal() * MatrixXd(dynamic_m.template triangularView<UnitUpper>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template triangularView<UnitUpper>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+}
+
+template <int>
+void selfadjoint_diagonal_products() {
+  Matrix3cd m = Matrix3cd::Random();
+  m.diagonal() = m.diagonal().real();
+  Vector3cd d = Vector3cd::Random();
+
+  Matrix3cd ref_lower = m.template selfadjointView<Lower>();
+  Matrix3cd ref_upper = m.template selfadjointView<Upper>();
+
+  VERIFY_IS_APPROX((m.template selfadjointView<Lower>() * d.asDiagonal()).eval(), ref_lower * d.asDiagonal());
+  VERIFY_IS_APPROX((d.asDiagonal() * m.template selfadjointView<Lower>()).eval(), d.asDiagonal() * ref_lower);
+
+  VERIFY_IS_APPROX((m.template selfadjointView<Upper>() * d.asDiagonal()).eval(), ref_upper * d.asDiagonal());
+  VERIFY_IS_APPROX((d.asDiagonal() * m.template selfadjointView<Upper>()).eval(), d.asDiagonal() * ref_upper);
+
+  Matrix3cd actual = Matrix3cd::Random();
+  Matrix3cd expected = actual;
+  actual = m;
+  expected = m;
+  actual.template selfadjointView<Upper>() = actual.template selfadjointView<Upper>() * d.asDiagonal();
+  expected.template triangularView<Upper>() = Matrix3cd(ref_upper * d.asDiagonal());
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual = m;
+  expected = m;
+  actual.template selfadjointView<Lower>() = d.asDiagonal() * actual.template selfadjointView<Lower>();
+  expected.template triangularView<Lower>() = Matrix3cd(d.asDiagonal() * ref_lower);
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual.setRandom();
+  expected = actual;
+  actual.noalias() += m.template selfadjointView<Lower>() * d.asDiagonal();
+  expected.noalias() += ref_lower * d.asDiagonal();
+  VERIFY_IS_APPROX(actual, expected);
+
+  actual.setRandom();
+  expected = actual;
+  actual.noalias() -= d.asDiagonal() * m.template selfadjointView<Upper>();
+  expected.noalias() -= d.asDiagonal() * ref_upper;
+  VERIFY_IS_APPROX(actual, expected);
+
+  MatrixXcd dynamic_m = MatrixXcd::Random(4, 4);
+  dynamic_m.diagonal() = dynamic_m.diagonal().real();
+  VectorXcd dynamic_d = VectorXcd::Random(4);
+  MatrixXcd dynamic_expected(4, 4);
+  MatrixXcd no_malloc_result(4, 4);
+
+  dynamic_expected = MatrixXcd(dynamic_m.template selfadjointView<Lower>()) * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.noalias() = dynamic_m.template selfadjointView<Lower>() * dynamic_d.asDiagonal();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+
+  dynamic_expected = dynamic_d.asDiagonal() * MatrixXcd(dynamic_m.template selfadjointView<Upper>());
+  internal::set_is_malloc_allowed(false);
+  no_malloc_result.noalias() = dynamic_d.asDiagonal() * dynamic_m.template selfadjointView<Upper>();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
+}
+
 EIGEN_DECLARE_TEST(diagonalmatrices) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonalmatrices(Matrix<float, 1, 1>()));
@@ -194,4 +314,6 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
     CALL_SUBTEST_9(as_scalar_product(MatrixXf(1, 1)));
   }
   CALL_SUBTEST_10(bug987<0>());
+  CALL_SUBTEST_10(bug2013<0>());
+  CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
 }

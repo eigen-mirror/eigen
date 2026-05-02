@@ -58,6 +58,9 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
     this->solveInPlace(dst);
   }
 
+  EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return derived().nestedExpression().rows(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return derived().nestedExpression().cols(); }
+
   /** Applies the inverse of \c *this to the dense vector or matrix \a other, "in-place" */
   template <typename OtherDerived>
   void solveInPlace(MatrixBase<OtherDerived>& other) const;

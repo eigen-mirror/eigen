@@ -108,6 +108,11 @@ void product_notemporary(const MatrixType& m) {
 
   VERIFY_EVALUATION_COUNT(m3.template triangularView<Upper>() = (m1 * m2.adjoint()), 0);
   VERIFY_EVALUATION_COUNT(m3.template triangularView<Upper>() -= (m1 * m2.adjoint()), 0);
+  VERIFY_EVALUATION_COUNT(m3.template selfadjointView<Lower>() = m1.template triangularView<Upper>(), 0);
+  VERIFY_EVALUATION_COUNT(m3.template selfadjointView<Upper>() = m1.template selfadjointView<Lower>(), 0);
+  VERIFY_EVALUATION_COUNT(m3.template selfadjointView<Lower>() =
+                              s1 * m1.template selfadjointView<Lower>() + m2.template selfadjointView<Lower>(),
+                          0);
 
   // NOTE this is because the blas_traits require innerstride==1 to avoid a temporary, but that doesn't seem to be
   // actually needed for the triangular products

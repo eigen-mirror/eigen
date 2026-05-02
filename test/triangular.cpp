@@ -29,6 +29,14 @@ struct has_right_scalar_multiply<
     ViewType, internal::void_t<decltype(std::declval<const ViewType&>() * std::declval<typename ViewType::Scalar>())>>
     : std::true_type {};
 
+template <typename ViewType, typename = void>
+struct has_structured_sum : std::false_type {};
+
+template <typename ViewType>
+struct has_structured_sum<ViewType,
+                          internal::void_t<decltype(std::declval<const ViewType&>() + std::declval<const ViewType&>())>>
+    : std::true_type {};
+
 template <unsigned int Mode, typename MatrixType>
 void triangular_scalar_multiply(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
@@ -45,13 +53,103 @@ void triangular_scalar_multiply(const MatrixType& m) {
                    (triangular * s).template triangularView<Mode>().toDenseMatrix());
 }
 
+template <unsigned int Mode, typename MatrixType, bool IsSelfAdjointMode = Mode == Upper || Mode == Lower>
+struct selfadjoint_structured_sum_impl {
+  typedef typename MatrixType::Scalar Scalar;
+
+  static void run(const Scalar&, const MatrixType&, const MatrixType&, MatrixType&, MatrixType&) {}
+};
+
+template <unsigned int Mode, typename MatrixType>
+struct selfadjoint_structured_sum_impl<Mode, MatrixType, true> {
+  typedef typename MatrixType::Scalar Scalar;
+
+  static void run(const Scalar& s, const MatrixType& a, const MatrixType& b, MatrixType& result,
+                  MatrixType& reference) {
+    if (a.rows() != a.cols()) return;
+
+    result.setRandom();
+    result.template selfadjointView<Mode>() =
+        s * a.template selfadjointView<Mode>() + b.template selfadjointView<Mode>();
+    reference = (s * a + b).template selfadjointView<Mode>().toDenseMatrix();
+    VERIFY_IS_APPROX(result, reference);
+
+    result.setRandom();
+    result.template selfadjointView<Mode>() =
+        a.template selfadjointView<Mode>() - s * b.template selfadjointView<Mode>();
+    reference = (a - s * b).template selfadjointView<Mode>().toDenseMatrix();
+    VERIFY_IS_APPROX(result, reference);
+  }
+};
+
+template <unsigned int Mode, typename MatrixType>
+void triangular_structured_sum(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+
+  const Index rows = m.rows();
+  const Index cols = m.cols();
+
+  const Scalar s = internal::random<Scalar>();
+  const MatrixType a = MatrixType::Random(rows, cols);
+  const MatrixType b = MatrixType::Random(rows, cols);
+
+  MatrixType result = MatrixType::Random(rows, cols);
+  MatrixType reference = result;
+
+  result.template triangularView<Mode>() = s * a.template triangularView<Mode>() + b.template triangularView<Mode>();
+  reference.template triangularView<Mode>() = s * a + b;
+  VERIFY_IS_APPROX(result, reference);
+
+  result.setRandom();
+  reference = result;
+  result.template triangularView<Mode>() = a.template triangularView<Mode>() - s * b.template triangularView<Mode>();
+  reference.template triangularView<Mode>() = a - s * b;
+  VERIFY_IS_APPROX(result, reference);
+
+  selfadjoint_structured_sum_impl<Mode, MatrixType>::run(s, a, b, result, reference);
+}
+
+template <typename MatrixType>
+void triangular_setters(const MatrixType& m) {
+  const Index rows = m.rows();
+  const Index cols = m.cols();
+
+  MatrixType result = MatrixType::Random(rows, cols);
+  MatrixType reference = result;
+
+  result.template triangularView<Upper>().setIdentity();
+  reference.template triangularView<Upper>() = MatrixType::Identity(rows, cols);
+  VERIFY_IS_APPROX(result, reference);
+
+  result.setRandom();
+  reference = result;
+  result.template triangularView<Lower>().setIdentity();
+  reference.template triangularView<Lower>() = MatrixType::Identity(rows, cols);
+  VERIFY_IS_APPROX(result, reference);
+
+  result.setRandom();
+  reference = result;
+  result.template triangularView<Upper>().setRandom();
+  VERIFY_IS_APPROX(result.template triangularView<StrictlyLower>().toDenseMatrix(),
+                   reference.template triangularView<StrictlyLower>().toDenseMatrix());
+
+  result.setRandom();
+  reference = result;
+  result.template triangularView<StrictlyLower>().setRandom();
+  VERIFY_IS_APPROX(result.template triangularView<Upper>().toDenseMatrix(),
+                   reference.template triangularView<Upper>().toDenseMatrix());
+}
+
 template <typename MatrixType>
 void triangular_scalar_multiply_sfinae() {
+  typedef decltype(std::declval<MatrixType&>().template triangularView<Upper>()) UpperView;
   typedef decltype(std::declval<MatrixType&>().template triangularView<Lower>()) LowerView;
   typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyLower>()) StrictlyLowerView;
   typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyUpper>()) StrictlyUpperView;
   typedef decltype(std::declval<MatrixType&>().template triangularView<UnitLower>()) UnitLowerView;
 
+  STATIC_CHECK((has_left_scalar_multiply<UpperView>::value));
+  STATIC_CHECK((has_right_scalar_multiply<UpperView>::value));
   STATIC_CHECK((has_left_scalar_multiply<LowerView>::value));
   STATIC_CHECK((has_right_scalar_multiply<LowerView>::value));
   STATIC_CHECK((has_left_scalar_multiply<StrictlyLowerView>::value));
@@ -60,6 +158,12 @@ void triangular_scalar_multiply_sfinae() {
   STATIC_CHECK((has_right_scalar_multiply<StrictlyUpperView>::value));
   STATIC_CHECK((!has_left_scalar_multiply<UnitLowerView>::value));
   STATIC_CHECK((!has_right_scalar_multiply<UnitLowerView>::value));
+
+  STATIC_CHECK((has_structured_sum<UpperView>::value));
+  STATIC_CHECK((has_structured_sum<LowerView>::value));
+  STATIC_CHECK((has_structured_sum<StrictlyLowerView>::value));
+  STATIC_CHECK((has_structured_sum<StrictlyUpperView>::value));
+  STATIC_CHECK((!has_structured_sum<UnitLowerView>::value));
 }
 
 template <typename MatrixType>
@@ -92,6 +196,11 @@ void triangular_square(const MatrixType& m) {
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
 
   triangular_scalar_multiply_sfinae<MatrixType>();
+  triangular_structured_sum<Upper>(m);
+  triangular_structured_sum<Lower>(m);
+  triangular_structured_sum<StrictlyUpper>(m);
+  triangular_structured_sum<StrictlyLower>(m);
+  triangular_setters(m);
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();
 
@@ -287,6 +396,11 @@ void triangular_rect(const MatrixType& m) {
   triangular_scalar_multiply<Lower>(m1);
   triangular_scalar_multiply<StrictlyUpper>(m1);
   triangular_scalar_multiply<StrictlyLower>(m1);
+  triangular_structured_sum<Upper>(m1);
+  triangular_structured_sum<Lower>(m1);
+  triangular_structured_sum<StrictlyUpper>(m1);
+  triangular_structured_sum<StrictlyLower>(m1);
+  triangular_setters(m1);
   m1.setRandom();
   m2 = m1.template triangularView<Upper>();
   VERIFY(m2.isUpperTriangular());
