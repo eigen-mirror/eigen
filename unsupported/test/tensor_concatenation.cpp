@@ -95,8 +95,41 @@ static void test_simple_concatenation() {
   }
 }
 
-// TODO(phli): Add test once we have a real vectorized implementation.
-// static void test_vectorized_concatenation() {}
+// Exercise the packet() fast path when the concat axis is not the innermost
+// dim and the inner dim is small enough that a packet load spans multiple
+// rows -- including rows that fall on the right side of the boundary. The
+// guard in packet() must reject this case and fall back to scalars.
+template <int DataLayout>
+static void test_concatenation_packet_axis_not_innermost() {
+  // Output shape (8, 6, 1) with concat along axis 1: each packet load whose
+  // first/last linear indices land on the left side will sweep through right
+  // rows in between unless the fast path is correctly guarded.
+  Tensor<float, 3, DataLayout> left(8, 3, 1);
+  Tensor<float, 3, DataLayout> right(8, 3, 1);
+  left.setRandom();
+  right.setRandom();
+
+  Tensor<float, 3, DataLayout> concatenation = left.concatenate(right, 1);
+  VERIFY_IS_EQUAL(concatenation.dimension(0), 8);
+  VERIFY_IS_EQUAL(concatenation.dimension(1), 6);
+  VERIFY_IS_EQUAL(concatenation.dimension(2), 1);
+  for (int i = 0; i < 8; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      VERIFY_IS_EQUAL(concatenation(i, j, 0), left(i, j, 0));
+      VERIFY_IS_EQUAL(concatenation(i, j + 3, 0), right(i, j, 0));
+    }
+  }
+
+  // Force evaluation through the packet path with a coefficient-wise op so
+  // the executor will request packets aligned to the output strides.
+  Tensor<float, 3, DataLayout> doubled = concatenation * concatenation.constant(2.0f);
+  for (int i = 0; i < 8; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      VERIFY_IS_APPROX(doubled(i, j, 0), 2.0f * left(i, j, 0));
+      VERIFY_IS_APPROX(doubled(i, j + 3, 0), 2.0f * right(i, j, 0));
+    }
+  }
+}
 
 static void test_concatenation_as_lvalue() {
   Tensor<int, 2> t1(2, 3);
@@ -123,6 +156,7 @@ EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_static_dimension_failure<RowMajor>());
   CALL_SUBTEST(test_simple_concatenation<ColMajor>());
   CALL_SUBTEST(test_simple_concatenation<RowMajor>());
-  // CALL_SUBTEST(test_vectorized_concatenation());
+  CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<ColMajor>());
+  CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<RowMajor>());
   CALL_SUBTEST(test_concatenation_as_lvalue());
 }

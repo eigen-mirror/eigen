@@ -243,11 +243,14 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
   // When the packet sits entirely on one side of the concat boundary, delegate
   // to that operand's packet<>() rather than assembling PacketSize coeff()
-  // calls. The packet can straddle the boundary when either (a) the concat
-  // axis is the innermost dim and subs[axis] crosses left_dims[axis] within
-  // the packet, or (b) the innermost dim has fewer elements than PacketSize
-  // and the packet spills into a higher dim that happens to be the concat
-  // axis. Check the first and last linear index explicitly to cover both.
+  // calls. The packet stays on one side iff only the innermost dim varies
+  // across the packet -- i.e. all other subs match between the first and last
+  // index. When that holds, subs[m_axis] is either constant (m_axis is not
+  // innermost) or monotonic non-decreasing (m_axis is innermost), so checking
+  // just the endpoints decides the side. Otherwise subs[m_axis] can wrap back
+  // through the boundary mid-packet (as when the inner dim has fewer than
+  // PacketSize elements and the packet spills past the concat axis), so fall
+  // back to scalars.
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
@@ -281,8 +284,19 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     const Dimensions& left_dims = m_leftImpl.dimensions();
     const Index left_axis_size = left_dims[m_axis];
 
-    const bool on_left = subs[m_axis] < left_axis_size && subs_end[m_axis] < left_axis_size;
-    const bool on_right = subs[m_axis] >= left_axis_size && subs_end[m_axis] >= left_axis_size;
+    const int innermost = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    bool packet_in_single_inner_row = true;
+    EIGEN_UNROLL_LOOP
+    for (int i = 0; i < NumDims; ++i) {
+      if (i != innermost && subs[i] != subs_end[i]) {
+        packet_in_single_inner_row = false;
+      }
+    }
+
+    const bool on_left =
+        packet_in_single_inner_row && subs[m_axis] < left_axis_size && subs_end[m_axis] < left_axis_size;
+    const bool on_right =
+        packet_in_single_inner_row && subs[m_axis] >= left_axis_size && subs_end[m_axis] >= left_axis_size;
 
     if (on_left) {
       Index left_index;
@@ -320,8 +334,8 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
       return m_rightImpl.template packet<LoadMode>(right_index);
     }
 
-    // Straddling case (m_axis == innermost and the packet crosses the boundary):
-    // fall back to assembling scalars.
+    // The packet straddles the boundary or spans multiple inner rows: fall
+    // back to assembling scalars.
     EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < packetSize; ++i) {
