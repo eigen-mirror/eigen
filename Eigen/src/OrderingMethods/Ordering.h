@@ -16,25 +16,6 @@
 #include "Eigen_Colamd.h"
 
 namespace Eigen {
-namespace internal {
-
-/** \internal
- * \ingroup OrderingMethods_Module
- * Build the symmetric sparsity pattern \c symmat = pattern(A^T + A) from a
- * column-major input \a A. Only the sparsity pattern is read or written —
- * scalar values are placeholders and are not meaningful.
- */
-template <typename MatrixType>
-void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {
-  MatrixType C;
-  C = A.transpose();
-  for (int i = 0; i < C.rows(); i++) {
-    for (typename MatrixType::InnerIterator it(C, i); it; ++it) it.valueRef() = typename MatrixType::Scalar(0);
-  }
-  symmat = C + A;
-}
-
-}  // namespace internal
 
 /** \ingroup OrderingMethods_Module
  * \class AMDOrdering
@@ -56,20 +37,15 @@ class AMDOrdering {
    */
   template <typename MatrixType>
   void operator()(const MatrixType& mat, PermutationType& perm) const {
-    // AMD only reads the sparsity pattern. Project mat to a column-major
-    // SparseMatrix<signed char> (1-byte placeholder values; never read), then
-    // symmetrize and run minimum-degree ordering — independent of the source's
-    // Scalar type or storage order, this avoids the O(nnz) Scalar-value copy
-    // the previous implementation paid to build the symmetric pattern.
-    SparseMatrix<signed char, ColMajor, StorageIndex> A;
-    {
-      Matrix<StorageIndex, Dynamic, 1> outer_buf;
-      Matrix<StorageIndex, Dynamic, 1> inner_buf;
-      internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
-      internal::materialize_col_major_pattern(pat, A);
-    }
+    // AMD only reads the sparsity pattern. Build a column-major view of mat,
+    // then materialize \c pattern(mat + mat^T) directly into a
+    // SparseMatrix<signed char> (1-byte placeholder values), bypassing
+    // Eigen's generic transpose + sparse-sum evaluators.
+    Matrix<StorageIndex, Dynamic, 1> outer_buf;
+    Matrix<StorageIndex, Dynamic, 1> inner_buf;
+    internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
     SparseMatrix<signed char, ColMajor, StorageIndex> symm;
-    internal::ordering_helper_at_plus_a(A, symm);
+    internal::materialize_at_plus_a_pattern(pat, symm);
     internal::minimum_degree_ordering(symm, perm);
   }
 
@@ -78,20 +54,16 @@ class AMDOrdering {
    */
   template <typename SrcType, unsigned int SrcUpLo>
   void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) const {
-    // Materialize the underlying triangle's pattern as a SparseMatrix<signed char>
-    // (works for any source Scalar including complex — no value read), then
-    // expand to a full symmetric SparseMatrix<signed char>.
-    SparseMatrix<signed char, ColMajor, StorageIndex> sc_src;
-    {
-      Matrix<StorageIndex, Dynamic, 1> outer_buf;
-      Matrix<StorageIndex, Dynamic, 1> inner_buf;
-      internal::SparsityPatternRef<StorageIndex> pat =
-          internal::make_col_major_pattern_ref(mat.matrix(), outer_buf, inner_buf);
-      internal::materialize_col_major_pattern(pat, sc_src);
-    }
-    SparseMatrix<signed char, ColMajor, StorageIndex> C;
-    C = sc_src.template selfadjointView<SrcUpLo>();
-    internal::minimum_degree_ordering(C, perm);
+    // Build a column-major pattern view of the underlying matrix and expand
+    // its UpLo triangle to the full symmetric pattern in one pass, bypassing
+    // Eigen's generic selfadjointView assignment evaluator.
+    Matrix<StorageIndex, Dynamic, 1> outer_buf;
+    Matrix<StorageIndex, Dynamic, 1> inner_buf;
+    internal::SparsityPatternRef<StorageIndex> pat =
+        internal::make_col_major_pattern_ref(mat.matrix(), outer_buf, inner_buf);
+    SparseMatrix<signed char, ColMajor, StorageIndex> symm;
+    internal::materialize_selfadjoint_pattern<SrcUpLo>(pat, symm);
+    internal::minimum_degree_ordering(symm, perm);
   }
 };
 

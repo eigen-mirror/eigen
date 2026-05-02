@@ -1159,6 +1159,111 @@ void sparsity_pattern_ref_sparse_expressions() {
   verify_sparsity_pattern_ref_matches(row_major_pattern, real_part);
 }
 
+// Verify that two compressed column-major sparse matrices have the same
+// sparsity pattern (rows, cols, and per-column inner indices).
+template <typename SparseA, typename SparseB>
+void verify_same_pattern(const SparseA& got, const SparseB& expected) {
+  VERIFY_IS_EQUAL(got.rows(), expected.rows());
+  VERIFY_IS_EQUAL(got.cols(), expected.cols());
+  for (Index j = 0; j < expected.cols(); ++j) {
+    std::vector<Index> got_rows, expected_rows;
+    for (typename SparseA::InnerIterator it(got, j); it; ++it) got_rows.push_back(it.row());
+    for (typename SparseB::InnerIterator it(expected, j); it; ++it) expected_rows.push_back(it.row());
+    std::sort(got_rows.begin(), got_rows.end());
+    std::sort(expected_rows.begin(), expected_rows.end());
+    VERIFY_IS_EQUAL(Index(got_rows.size()), Index(expected_rows.size()));
+    for (size_t k = 0; k < got_rows.size(); ++k) VERIFY_IS_EQUAL(got_rows[k], expected_rows[k]);
+  }
+}
+
+template <int>
+void materialize_at_plus_a_pattern_basic() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  // Asymmetric pattern: (0,0), (1,0), (2,1), (0,2), (2,2). Its A^T+A pattern
+  // adds (0,1), (1,2), (2,0).
+  SparseMatrixType a(3, 3);
+  std::vector<Triplet<double, int>> triplets;
+  triplets.emplace_back(0, 0, 1.0);
+  triplets.emplace_back(1, 0, 2.0);
+  triplets.emplace_back(2, 1, 3.0);
+  triplets.emplace_back(0, 2, 4.0);
+  triplets.emplace_back(2, 2, 5.0);
+  a.setFromTriplets(triplets.begin(), triplets.end());
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+
+  PatternMatrixType got;
+  internal::materialize_at_plus_a_pattern(pat, got);
+
+  // Reference: pattern of (a + a.transpose()), keeping structural nonzeros.
+  SparseMatrixType expected = a + SparseMatrixType(a.transpose());
+  verify_same_pattern(got, expected);
+  // Output values must be the placeholder sentinel.
+  const signed char one = 1;
+  for (Index j = 0; j < got.cols(); ++j) {
+    for (PatternMatrixType::InnerIterator it(got, j); it; ++it) {
+      VERIFY_IS_EQUAL(it.value(), one);
+    }
+  }
+}
+
+template <int>
+void materialize_at_plus_a_pattern_random() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  const int n = internal::random<int>(8, 64);
+  DenseMatrixType ref(n, n);
+  SparseMatrixType a(n, n);
+  initSparse<double>(0.4, ref, a, ForceNonZeroDiag);
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+  PatternMatrixType got;
+  internal::materialize_at_plus_a_pattern(pat, got);
+
+  SparseMatrixType expected = a + SparseMatrixType(a.transpose());
+  verify_same_pattern(got, expected);
+}
+
+template <unsigned int UpLo>
+void materialize_selfadjoint_pattern_random_impl() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  // Build a random sparse matrix that may have entries on both triangles; the
+  // selfadjoint pattern must filter to only the requested triangle.
+  const int n = internal::random<int>(8, 64);
+  DenseMatrixType ref(n, n);
+  SparseMatrixType a(n, n);
+  initSparse<double>(0.4, ref, a, ForceNonZeroDiag);
+  a.makeCompressed();
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+  PatternMatrixType got;
+  internal::materialize_selfadjoint_pattern<UpLo>(pat, got);
+
+  // Reference: explicit symmetrization of the requested triangle.
+  SparseMatrixType expected(n, n);
+  expected = a.template selfadjointView<UpLo>();
+  verify_same_pattern(got, expected);
+}
+
+template <int>
+void materialize_selfadjoint_pattern_lower_upper() {
+  materialize_selfadjoint_pattern_random_impl<Lower>();
+  materialize_selfadjoint_pattern_random_impl<Upper>();
+}
+
 template <int>
 void bug1105() {
   // Regression test for bug 1105
@@ -1211,5 +1316,10 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_1(sparse_sub_assign_eigenbase<0>());
   CALL_SUBTEST_1(ambivector_coeff<0>());
   CALL_SUBTEST_1(sparsity_pattern_ref_sparse_expressions<0>());
+  CALL_SUBTEST_1(materialize_at_plus_a_pattern_basic<0>());
+  for (int i = 0; i < g_repeat; ++i) {
+    CALL_SUBTEST_1(materialize_at_plus_a_pattern_random<0>());
+    CALL_SUBTEST_1(materialize_selfadjoint_pattern_lower_upper<0>());
+  }
 }
 #endif
