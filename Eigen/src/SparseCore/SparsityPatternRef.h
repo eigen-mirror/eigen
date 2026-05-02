@@ -143,22 +143,49 @@ void materialize_col_major_pattern(const SparsityPatternRef<StorageIndex>& pat, 
   out.resize(n_inner, n_outer);
 
   Index total = 0;
-  for (Index j = 0; j < n_outer; ++j) total += pat.nonZeros(j);
+  if (pat.isCompressed()) {
+    total = pat.outer[n_outer];
+  } else {
+    for (Index j = 0; j < n_outer; ++j) total += pat.nonZeros(j);
+  }
   out.resizeNonZeros(total);
 
   StorageIndex* o_outer = out.outerIndexPtr();
   StorageIndex* o_inner = out.innerIndexPtr();
-  o_outer[0] = 0;
-  for (Index j = 0; j < n_outer; ++j) {
-    const Index nz = pat.nonZeros(j);
-    o_outer[j + 1] = convert_index<StorageIndex>(o_outer[j] + nz);
-    const StorageIndex* src = pat.inner + pat.outer[j];
-    StorageIndex* dst = o_inner + o_outer[j];
+  if (pat.isCompressed()) {
+    // The source's outer array is already in CSC form, and SparseMatrix's
+    // outerIndexPtr() always starts at zero (as does the buffer-built fallback
+    // in make_col_major_pattern_ref), so the result's outer indices are a
+    // verbatim copy. For the no-permutation case the inner indices are also a
+    // straight bulk copy. Both reduce to single std::copy / memcpy calls.
+    std::copy(pat.outer, pat.outer + n_outer + 1, o_outer);
     if (row_perm == nullptr) {
-      std::copy(src, src + nz, dst);
+      std::copy(pat.inner, pat.inner + total, o_inner);
     } else {
-      for (Index k = 0; k < nz; ++k) dst[k] = row_perm[src[k]];
-      std::sort(dst, dst + nz);
+      // Remap-and-sort per column, reading from the source's inner array
+      // directly to avoid the write-amplification of bulk-copying then
+      // overwriting in place.
+      for (Index j = 0; j < n_outer; ++j) {
+        const StorageIndex* src = pat.inner + o_outer[j];
+        StorageIndex* dst = o_inner + o_outer[j];
+        const Index nz = o_outer[j + 1] - o_outer[j];
+        for (Index k = 0; k < nz; ++k) dst[k] = row_perm[src[k]];
+        std::sort(dst, dst + nz);
+      }
+    }
+  } else {
+    o_outer[0] = 0;
+    for (Index j = 0; j < n_outer; ++j) {
+      const Index nz = pat.nonZeros(j);
+      o_outer[j + 1] = convert_index<StorageIndex>(o_outer[j] + nz);
+      const StorageIndex* src = pat.inner + pat.outer[j];
+      StorageIndex* dst = o_inner + o_outer[j];
+      if (row_perm == nullptr) {
+        std::copy(src, src + nz, dst);
+      } else {
+        for (Index k = 0; k < nz; ++k) dst[k] = row_perm[src[k]];
+        std::sort(dst, dst + nz);
+      }
     }
   }
   // Fill values with a fixed nonzero sentinel so downstream consumers that
