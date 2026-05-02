@@ -32,6 +32,37 @@ struct simplicial_cholesky_grab_input<MatrixType, MatrixType> {
   typedef MatrixType const* ConstMatrixPtr;
   static void run(const MatrixType& input, ConstMatrixPtr& pmat, MatrixType& /*tmp*/) { pmat = &input; }
 };
+
+// Compute a fill-reducing permutation for SimplicialCholesky. The generic path
+// builds the full Scalar-valued symmetric matrix that the user's OrderingType
+// expects. The AMDOrdering specialization below skips that copy: AMD reads
+// only the sparsity pattern, so we can hand it a SparseSelfAdjointView<UpLo>
+// whose pattern-only overload materializes the underlying triangle as
+// SparseMatrix<signed char> and expands once.
+template <bool UseAMDFastPath>
+struct simplicial_cholesky_amd_dispatch {
+  template <int UpLo_, bool NonHermitian, typename Ordering, typename MatrixType, typename CholMatrixType,
+            typename Perm>
+  static void run(const MatrixType& a, CholMatrixType& C, Perm& perm) {
+    permute_symm_to_fullsymm<UpLo_, NonHermitian>(a, C, NULL);
+    Ordering ordering;
+    ordering(C, perm);
+  }
+};
+
+template <>
+struct simplicial_cholesky_amd_dispatch<true> {
+  template <int UpLo_, bool /*NonHermitian*/, typename Ordering, typename MatrixType, typename CholMatrixType,
+            typename Perm>
+  static void run(const MatrixType& a, CholMatrixType& /*C*/, Perm& perm) {
+    // Pattern-only: works for both Hermitian and NonHermitian variants because
+    // AMD's selfadjointView overload never reads scalar values, so the
+    // selfadjoint-vs-symmetric distinction (which only affects value
+    // expansion) is irrelevant.
+    Ordering ordering;
+    ordering(a.template selfadjointView<UpLo_>(), perm);
+  }
+};
 }  // end namespace internal
 
 /** \ingroup SparseCholesky_Module
@@ -838,10 +869,9 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
   if (!internal::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value) {
     {
       CholMatrixType C;
-      internal::permute_symm_to_fullsymm<UpLo, NonHermitian>(a, C, NULL);
-
-      OrderingType ordering;
-      ordering(C, m_Pinv);
+      constexpr bool kUseAMDFastPath = internal::is_same<OrderingType, AMDOrdering<StorageIndex> >::value;
+      internal::simplicial_cholesky_amd_dispatch<kUseAMDFastPath>::template run<UpLo, NonHermitian, OrderingType>(
+          a, C, m_Pinv);
     }
 
     if (m_Pinv.size() > 0)
