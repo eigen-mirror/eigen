@@ -173,6 +173,7 @@ void check_marketio_dense() {
 template <typename Scalar>
 void check_sparse_inverse() {
   typedef SparseMatrix<Scalar> MatrixType;
+  typedef SparseMatrix<Scalar, RowMajor> RowMatrixType;
 
   Matrix<Scalar, -1, -1> A;
   A.resize(1000, 1000);
@@ -210,6 +211,12 @@ void check_sparse_inverse() {
   }
 
   VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, 1e-10);
+
+  RowMatrixType DU = slu.matrixU().toSparse();
+  Matrix<Scalar, Dynamic, 1> invD = DU.diagonal().cwiseInverse();
+  RowMatrixType scaled_before_view = (invD.asDiagonal() * DU).template triangularView<StrictlyUpper>();
+  RowMatrixType view_before_scaled = invD.asDiagonal() * DU.template triangularView<StrictlyUpper>();
+  VERIFY_IS_APPROX(scaled_before_view, view_before_scaled);
 }
 
 EIGEN_DECLARE_TEST(sparse_extra) {

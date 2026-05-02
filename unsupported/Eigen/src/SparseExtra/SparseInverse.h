@@ -171,7 +171,7 @@ class SparseInverse {
     {
       RowMatrixType DU = slu.matrixU().toSparse();
       invD = DU.diagonal().cwiseInverse();
-      Upper = (invD.asDiagonal() * DU).template triangularView<StrictlyUpper>();
+      Upper = invD.asDiagonal() * DU.template triangularView<StrictlyUpper>();
     }
     MatrixType Lower = slu.matrixL().toSparse().template triangularView<StrictlyLower>();
 
