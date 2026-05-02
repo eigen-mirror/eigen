@@ -1109,6 +1109,56 @@ void ambivector_coeff() {
   VERIFY_IS_EQUAL(vec.coeff(0), 0.0);
 }
 
+template <typename Pattern, typename SparseMatrixType>
+void verify_sparsity_pattern_ref_matches(const Pattern& pattern, const SparseMatrixType& expected) {
+  VERIFY_IS_EQUAL(pattern.outerSize, expected.cols());
+  VERIFY_IS_EQUAL(pattern.innerSize, expected.rows());
+
+  Index pattern_nonzeros = 0;
+  for (Index j = 0; j < pattern.outerSize; ++j) {
+    const Index nz = pattern.nonZeros(j);
+    pattern_nonzeros += nz;
+    for (Index k = pattern.outer[j], end = k + nz; k < end; ++k) {
+      VERIFY(expected.coeff(pattern.inner[k], j) != typename SparseMatrixType::Scalar(0));
+    }
+  }
+  VERIFY_IS_EQUAL(pattern_nonzeros, expected.nonZeros());
+}
+
+template <int>
+void sparsity_pattern_ref_sparse_expressions() {
+  typedef std::complex<double> Scalar;
+  typedef SparseMatrix<Scalar, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<double, ColMajor, int> RealSparseMatrixType;
+  typedef SparseMatrix<double, RowMajor, int> RowMajorSparseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  SparseMatrixType a(3, 3);
+  std::vector<Triplet<Scalar, int>> triplets;
+  triplets.emplace_back(0, 0, Scalar(1.0, 1.0));
+  triplets.emplace_back(1, 0, Scalar(2.0, -1.0));
+  triplets.emplace_back(2, 1, Scalar(3.0, 2.0));
+  triplets.emplace_back(2, 2, Scalar(4.0, -3.0));
+  a.setFromTriplets(triplets.begin(), triplets.end());
+
+  PermutationMatrix<Dynamic, Dynamic, int> p(3);
+  p.indices() << 1, 2, 0;
+
+  VectorI outer, inner;
+  SparseMatrixType permuted = p * a;
+  const internal::SparsityPatternRef<int> permuted_pattern = internal::make_col_major_pattern_ref(p * a, outer, inner);
+  verify_sparsity_pattern_ref_matches(permuted_pattern, permuted);
+
+  RealSparseMatrixType real_part = a.real();
+  const internal::SparsityPatternRef<int> real_pattern = internal::make_col_major_pattern_ref(a.real(), outer, inner);
+  verify_sparsity_pattern_ref_matches(real_pattern, real_part);
+
+  RowMajorSparseMatrixType row_major = real_part;
+  const internal::SparsityPatternRef<int> row_major_pattern =
+      internal::make_col_major_pattern_ref(row_major, outer, inner);
+  verify_sparsity_pattern_ref_matches(row_major_pattern, real_part);
+}
+
 template <int>
 void bug1105() {
   // Regression test for bug 1105
@@ -1160,5 +1210,6 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_5(bug1105<0>());
   CALL_SUBTEST_1(sparse_sub_assign_eigenbase<0>());
   CALL_SUBTEST_1(ambivector_coeff<0>());
+  CALL_SUBTEST_1(sparsity_pattern_ref_sparse_expressions<0>());
 }
 #endif

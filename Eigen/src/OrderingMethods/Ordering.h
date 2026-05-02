@@ -20,14 +20,14 @@ namespace internal {
 
 /** \internal
  * \ingroup OrderingMethods_Module
- * \param[in] A the input non-symmetric matrix
- * \param[out] symmat the symmetric pattern A^T+A from the input matrix \a A.
- * FIXME: only the sparsity pattern should be used here; values should be ignored.
+ * Build the symmetric sparsity pattern \c symmat = pattern(A^T + A) from a
+ * column-major input \a A. Only the sparsity pattern is read or written —
+ * scalar values are placeholders and are not meaningful.
  */
 template <typename MatrixType>
 void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {
   MatrixType C;
-  C = A.transpose();  // NOTE: Could be  costly
+  C = A.transpose();
   for (int i = 0; i < C.rows(); i++) {
     for (typename MatrixType::InnerIterator it(C, i); it; ++it) it.valueRef() = typename MatrixType::Scalar(0);
   }
@@ -40,7 +40,8 @@ void ordering_helper_at_plus_a(const MatrixType& A, MatrixType& symmat) {
  * \class AMDOrdering
  *
  * Functor computing the \em approximate \em minimum \em degree ordering
- * If the matrix is not structurally symmetric, an ordering of A^T+A is computed
+ * If the matrix is not structurally symmetric, an ordering of A^T+A is computed.
+ * Only the sparsity pattern of the input is read — scalar values are not.
  * \tparam  StorageIndex The type of indices of the matrix
  * \sa COLAMDOrdering
  */
@@ -49,28 +50,47 @@ class AMDOrdering {
  public:
   typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
 
-  /** Compute the permutation vector from a sparse matrix
-   * This routine is much faster if the input matrix is column-major
+  /** Compute the permutation vector from a sparse matrix.
+   * Only the sparsity pattern of \a mat is read; scalar values are not.
+   * This routine is much faster if the input matrix is column-major.
    */
   template <typename MatrixType>
   void operator()(const MatrixType& mat, PermutationType& perm) const {
-    // Compute the symmetric pattern
-    SparseMatrix<typename MatrixType::Scalar, ColMajor, StorageIndex> symm;
-    internal::ordering_helper_at_plus_a(mat, symm);
-
-    // Call the AMD routine
-    // m_mat.prune(keep_diag());
+    // AMD only reads the sparsity pattern. Project mat to a column-major
+    // SparseMatrix<signed char> (1-byte placeholder values; never read), then
+    // symmetrize and run minimum-degree ordering — independent of the source's
+    // Scalar type or storage order, this avoids the O(nnz) Scalar-value copy
+    // the previous implementation paid to build the symmetric pattern.
+    SparseMatrix<signed char, ColMajor, StorageIndex> A;
+    {
+      Matrix<StorageIndex, Dynamic, 1> outer_buf;
+      Matrix<StorageIndex, Dynamic, 1> inner_buf;
+      internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
+      internal::materialize_col_major_pattern(pat, A);
+    }
+    SparseMatrix<signed char, ColMajor, StorageIndex> symm;
+    internal::ordering_helper_at_plus_a(A, symm);
     internal::minimum_degree_ordering(symm, perm);
   }
 
-  /** Compute the permutation with a selfadjoint matrix */
+  /** Compute the permutation with a selfadjoint matrix.
+   * Only the sparsity pattern is used; scalar values are not.
+   */
   template <typename SrcType, unsigned int SrcUpLo>
   void operator()(const SparseSelfAdjointView<SrcType, SrcUpLo>& mat, PermutationType& perm) const {
-    SparseMatrix<typename SrcType::Scalar, ColMajor, StorageIndex> C;
-    C = mat;
-
-    // Call the AMD routine
-    // m_mat.prune(keep_diag()); //Remove the diagonal elements
+    // Materialize the underlying triangle's pattern as a SparseMatrix<signed char>
+    // (works for any source Scalar including complex — no value read), then
+    // expand to a full symmetric SparseMatrix<signed char>.
+    SparseMatrix<signed char, ColMajor, StorageIndex> sc_src;
+    {
+      Matrix<StorageIndex, Dynamic, 1> outer_buf;
+      Matrix<StorageIndex, Dynamic, 1> inner_buf;
+      internal::SparsityPatternRef<StorageIndex> pat =
+          internal::make_col_major_pattern_ref(mat.matrix(), outer_buf, inner_buf);
+      internal::materialize_col_major_pattern(pat, sc_src);
+    }
+    SparseMatrix<signed char, ColMajor, StorageIndex> C;
+    C = sc_src.template selfadjointView<SrcUpLo>();
     internal::minimum_degree_ordering(C, perm);
   }
 };

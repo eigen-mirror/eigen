@@ -195,20 +195,6 @@ class IncompleteLUT : public SparseSolverBase<IncompleteLUT<Scalar_, StorageInde
   template <typename MatrixType>
   Index computeRowMatching(const MatrixType& amat);
 
-  // Produce a column-major CSC sparsity pattern for `amat` (integers only —
-  // the scalar values are never read or copied). When `amat` is already a
-  // compressed column-major SparseMatrix, `outer`/`inner` point directly into
-  // its index storage; otherwise the pattern is materialized into the local
-  // `outer_buf`/`inner_buf` arrays and pointers are set into them.
-  static void patternColMajor(const SparseMatrix<Scalar, ColMajor, StorageIndex>& amat,
-                              Matrix<StorageIndex, Dynamic, 1>& outer_buf, Matrix<StorageIndex, Dynamic, 1>& inner_buf,
-                              const StorageIndex*& outer, const StorageIndex*& inner);
-
-  template <typename MatrixType>
-  static void patternColMajor(const MatrixType& amat, Matrix<StorageIndex, Dynamic, 1>& outer_buf,
-                              Matrix<StorageIndex, Dynamic, 1>& inner_buf, const StorageIndex*& outer,
-                              const StorageIndex*& inner);
-
  protected:
   FactorType m_lu;
   RealScalar m_droptol;
@@ -262,58 +248,6 @@ const typename IncompleteLUT<Scalar, StorageIndex>::FactorType IncompleteLUT<Sca
   return m_lu.template triangularView<Upper>();
 }
 
-// Specialization: amat is already a column-major SparseMatrix.
-// Share its index storage directly when compressed; otherwise materialize the
-// indices (without copying any scalar values) into outer_buf/inner_buf.
-template <typename Scalar, typename StorageIndex>
-void IncompleteLUT<Scalar, StorageIndex>::patternColMajor(const SparseMatrix<Scalar, ColMajor, StorageIndex>& amat,
-                                                          Matrix<StorageIndex, Dynamic, 1>& outer_buf,
-                                                          Matrix<StorageIndex, Dynamic, 1>& inner_buf,
-                                                          const StorageIndex*& outer, const StorageIndex*& inner) {
-  if (amat.isCompressed()) {
-    outer = amat.outerIndexPtr();
-    inner = amat.innerIndexPtr();
-    return;
-  }
-  const Index n = amat.cols();
-  const StorageIndex* a_outer = amat.outerIndexPtr();
-  const StorageIndex* a_inner_nz = amat.innerNonZeroPtr();
-  const StorageIndex* a_inner = amat.innerIndexPtr();
-  outer_buf.resize(n + 1);
-  outer_buf(0) = 0;
-  for (Index j = 0; j < n; ++j) outer_buf(j + 1) = outer_buf(j) + a_inner_nz[j];
-  inner_buf.resize(outer_buf(n));
-  for (Index j = 0; j < n; ++j) {
-    const StorageIndex* src = a_inner + a_outer[j];
-    std::copy(src, src + a_inner_nz[j], inner_buf.data() + outer_buf(j));
-  }
-  outer = outer_buf.data();
-  inner = inner_buf.data();
-}
-
-// Generic fallback: any other sparse input (row-major, expressions). Build a
-// column-major pattern via inner iterators — no scalar values are read.
-template <typename Scalar, typename StorageIndex>
-template <typename MatrixType_>
-void IncompleteLUT<Scalar, StorageIndex>::patternColMajor(const MatrixType_& amat,
-                                                          Matrix<StorageIndex, Dynamic, 1>& outer_buf,
-                                                          Matrix<StorageIndex, Dynamic, 1>& inner_buf,
-                                                          const StorageIndex*& outer, const StorageIndex*& inner) {
-  using internal::convert_index;
-  const Index n = amat.cols();
-  outer_buf.setZero(n + 1);
-  for (Index i = 0; i < amat.outerSize(); ++i)
-    for (typename MatrixType_::InnerIterator it(amat, i); it; ++it) ++outer_buf(it.col() + 1);
-  for (Index j = 0; j < n; ++j) outer_buf(j + 1) += outer_buf(j);
-  inner_buf.resize(outer_buf(n));
-  Matrix<StorageIndex, Dynamic, 1> head = outer_buf.head(n);
-  for (Index i = 0; i < amat.outerSize(); ++i)
-    for (typename MatrixType_::InnerIterator it(amat, i); it; ++it)
-      inner_buf(head(it.col())++) = convert_index<StorageIndex>(it.row());
-  outer = outer_buf.data();
-  inner = inner_buf.data();
-}
-
 // Compute a row permutation m_Pr such that (m_Pr * amat) has a structurally
 // nonzero diagonal wherever one exists. Returns the number of matched columns.
 // Uses a maximum bipartite cardinality matching on the sparsity pattern, with
@@ -324,14 +258,15 @@ template <typename MatrixType_>
 Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_& amat) {
   using internal::convert_index;
   const Index n = amat.rows();
-  // We only need the column-major sparsity pattern; never read scalar values.
-  // Share amat's index storage when it is already a compressed column-major
-  // SparseMatrix, otherwise build a value-free pattern into local arrays.
+  // We only need amat's column-major sparsity pattern; never read scalar
+  // values. The pattern view aliases amat's index storage when amat is
+  // already a column-major SparseMatrix, and otherwise materializes a CSC
+  // pattern into the scratch buffers.
   Matrix<StorageIndex, Dynamic, 1> outer_buf;
   Matrix<StorageIndex, Dynamic, 1> inner_buf;
-  const StorageIndex* outer = nullptr;
-  const StorageIndex* inner = nullptr;
-  patternColMajor(amat, outer_buf, inner_buf, outer, inner);
+  internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(amat, outer_buf, inner_buf);
+  const StorageIndex* outer = pat.outer;
+  const StorageIndex* inner = pat.inner;
 
   const StorageIndex kUnmatched = StorageIndex(-1);
   // match_row[j] = original row matched to column j; match_col[i] = column matched to row i.
@@ -343,7 +278,8 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
   // the same analysis is reusable for any matrix sharing this stored pattern.
   // Phase 1: greedy diagonal preference.
   for (Index j = 0; j < n; ++j) {
-    for (Index k = outer[j]; k < outer[j + 1]; ++k) {
+    const Index col_end = outer[j] + pat.nonZeros(j);
+    for (Index k = outer[j]; k < col_end; ++k) {
       if (Index(inner[k]) == j) {
         match_row[j] = convert_index<StorageIndex>(j);
         match_col[j] = convert_index<StorageIndex>(j);
@@ -354,7 +290,8 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
   // Phase 2: greedy off-diagonal pickup of any free row.
   for (Index j = 0; j < n; ++j) {
     if (match_row[j] != kUnmatched) continue;
-    for (Index k = outer[j]; k < outer[j + 1]; ++k) {
+    const Index col_end = outer[j] + pat.nonZeros(j);
+    for (Index k = outer[j]; k < col_end; ++k) {
       Index i = inner[k];
       if (match_col[i] == kUnmatched) {
         match_row[j] = convert_index<StorageIndex>(i);
@@ -387,7 +324,7 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
     while (!stack_col.empty()) {
       Index j = stack_col.back();
       Index pos = stack_pos.back();
-      Index col_end = outer[j + 1];
+      Index col_end = outer[j] + pat.nonZeros(j);
       bool advanced = false;
 
       while (pos < col_end) {
@@ -463,16 +400,21 @@ void IncompleteLUT<Scalar, StorageIndex>::analyzePattern(const MatrixType_& amat
   computeRowMatching(amat);
 
   // 2. Compute the Fill-reducing permutation on the row-permuted matrix.
-  // Since ILUT does not perform any numerical pivoting,
-  // it is highly preferable to keep the diagonal through symmetric permutations.
-  // To this end, let's symmetrize the pattern and perform AMD on it.
-  SparseMatrix<Scalar, ColMajor, StorageIndex> mat1 = m_Pr * amat;
-  SparseMatrix<Scalar, ColMajor, StorageIndex> mat2 = mat1.transpose();
-  // FIXME: for a nearly symmetric pattern, mat2+mat1 is appropriate;
-  //        for a highly non-symmetric pattern, mat2*mat1 should be preferred.
-  SparseMatrix<Scalar, ColMajor, StorageIndex> AtA = mat2 + mat1;
+  // Since ILUT does not perform any numerical pivoting, it is highly
+  // preferable to keep the diagonal through symmetric permutations. AMD
+  // computes a fill-reducing ordering for a symmetric matrix and only reads
+  // the sparsity pattern; build a value-free, row-permuted representation
+  // (1-byte placeholder Scalar, indices remapped through m_Pr) and feed that
+  // to AMDOrdering, avoiding the previous mat1/mat2/AtA value copies.
+  SparseMatrix<signed char, ColMajor, StorageIndex> permuted_pattern;
+  {
+    Matrix<StorageIndex, Dynamic, 1> outer_buf;
+    Matrix<StorageIndex, Dynamic, 1> inner_buf;
+    internal::SparsityPatternRef<StorageIndex> pat = internal::make_col_major_pattern_ref(amat, outer_buf, inner_buf);
+    internal::materialize_col_major_pattern(pat, m_Pr.indices().data(), permuted_pattern);
+  }
   AMDOrdering<StorageIndex> ordering;
-  ordering(AtA, m_P);
+  ordering(permuted_pattern, m_P);
   m_Pinv = m_P.inverse();  // cache the inverse permutation
   // Cache the composition m_Pinv * m_Pr so _solve_impl applies a single
   // permutation to the RHS instead of two.

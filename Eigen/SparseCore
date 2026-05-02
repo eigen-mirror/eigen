@@ -59,6 +59,7 @@
 #include "src/SparseCore/SparsePermutation.h"
 #include "src/SparseCore/SparseFuzzy.h"
 #include "src/SparseCore/SparseSolverBase.h"
+#include "src/SparseCore/SparsityPatternRef.h"
 // IWYU pragma: end_exports
 
 #include "src/Core/util/ReenableStupidWarnings.h"
