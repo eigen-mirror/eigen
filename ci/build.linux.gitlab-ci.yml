@@ -214,11 +214,15 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
 
 .build:linux:cuda:
   extends: .build:linux:cross:x86-64
+  # CUDA images and compiler packages vary enough that a cached CMake build
+  # directory can retain stale compiler-feature detection across pipeline runs.
+  cache: []
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
+    # SaaS GPU runners have Tesla T4 (sm_75).
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
@@ -237,21 +241,79 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# GCC-10, CUDA-12.2
-build:linux:cuda-12.2:gcc-10:
+# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
+# clang-14 fully supports up to CUDA 11.5.  CUDA 11.5 images are Ubuntu 20.04
+# only, which lacks clang-14 and cmake >= 3.17.  EIGEN_CI_BEFORE_SCRIPT adds
+# the LLVM apt repo (for clang-14) and installs cmake via pip.
+
+build:linux:cuda-11.5:gcc-10:
   extends: .build:linux:cuda
-  image: nvidia/cuda:12.2.0-devel-ubuntu20.04
+  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
+  before_script:
+    # Ubuntu 20.04 has cmake 3.16; Eigen requires 3.17+. Pull a newer
+    # cmake from Kitware's official apt repo for focal.
+    - apt-get update -y > /dev/null
+    - apt-get install -y --no-install-recommends wget gnupg ca-certificates > /dev/null
+    - wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc
+        | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
+    - echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main'
+        > /etc/apt/sources.list.d/kitware.list
+    - apt-get update -y > /dev/null
+    - . ci/scripts/common.linux.before_script.sh
   variables:
+    EIGEN_CI_INSTALL: gcc-10 g++-10
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
 
-# Clang-12, CUDA-12.2
-build:linux:cuda-12.2:clang-12:
-  extends: build:linux:cuda-12.2:gcc-10
+build:linux:cuda-11.5:clang-14:
+  extends: build:linux:cuda-11.5:gcc-10
+  before_script:
+    # Ubuntu 20.04 lacks clang-14 and has cmake 3.16. Add both the LLVM
+    # apt repo (for clang-14) and Kitware's apt repo (for cmake >= 3.17)
+    # before running common.linux.before_script.sh, which apt-installs
+    # cmake + the requested compiler.
+    - apt-get update -y > /dev/null
+    - apt-get install -y --no-install-recommends wget gnupg ca-certificates > /dev/null
+    - wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key
+        | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+    - echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main'
+        > /etc/apt/sources.list.d/llvm-14.list
+    - wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc
+        | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
+    - echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main'
+        > /etc/apt/sources.list.d/kitware.list
+    - apt-get update -y > /dev/null
+    - . ci/scripts/common.linux.before_script.sh
   variables:
-    EIGEN_CI_C_COMPILER: clang-12
-    EIGEN_CI_CXX_COMPILER: clang++-12
+    EIGEN_CI_INSTALL: clang-14
+    EIGEN_CI_C_COMPILER: clang-14
+    EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+
+# ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
+# sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
+
+# GCC-13, CUDA-12.6 (nvcc)
+# CUDA 12.6 nvcc only supports gcc up to 13.
+build:linux:cuda-12.6:gcc-13:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-13
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
+
+# Clang-19, CUDA-12.6 (clang as CUDA compiler)
+# Clang CUDA support lags behind nvcc; clang-19 supports up to CUDA 12.x.
+build:linux:cuda-12.6:clang-19:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:12.6.3-devel-ubuntu24.04
+  variables:
+    EIGEN_CI_INSTALL: clang-19
+    EIGEN_CI_C_COMPILER: clang-19
+    EIGEN_CI_CXX_COMPILER: clang++-19
+    EIGEN_CI_TEST_CUDA_CLANG: "on"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
 
 
 ######### HIP ##################################################################
@@ -402,4 +464,3 @@ build:linux:aarch64:gcc-10:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-medium-arm64
-
