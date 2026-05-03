@@ -257,9 +257,12 @@ void test_qr_vs_cpu(Index n, Index nrhs) {
   // is bounded by Higham's backward-stable solve result at O(n * eps),
   // independent of kappa.
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
-  RealScalar denom = A.norm() * X_gpu.norm() + B.norm();
-  VERIFY((A * X_gpu - B).norm() / denom < tol);
-  VERIFY((A * X_cpu - B).norm() / denom < tol);
+  RealScalar A_norm = A.norm();
+  RealScalar B_norm = B.norm();
+  RealScalar denom_gpu = A_norm * X_gpu.norm() + B_norm;
+  RealScalar denom_cpu = A_norm * X_cpu.norm() + B_norm;
+  VERIFY((A * X_gpu - B).norm() / denom_gpu < tol);
+  VERIFY((A * X_cpu - B).norm() / denom_cpu < tol);
 }
 
 // ---- Per-scalar driver ------------------------------------------------------

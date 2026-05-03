@@ -22,6 +22,7 @@
 
 #include <cuda_runtime.h>
 
+#include <limits>
 #include <memory>
 
 namespace Eigen {
@@ -36,6 +37,19 @@ namespace internal {
     cudaError_t _e = (expr);                                       \
     eigen_assert(_e == cudaSuccess && "CUDA runtime call failed"); \
   } while (0)
+
+// ---- Bounds-checked narrowing for cuBLAS/cuSOLVER int parameters ------------
+// cuBLAS and the legacy cuSOLVER APIs take dimensions and leading dimensions as
+// `int` (32-bit signed). Modern GPUs can host allocations whose dimensions
+// exceed INT_MAX, and Eigen's Index is 64-bit by default. Use this helper at
+// every narrowing call site so an out-of-range value triggers an assert
+// instead of silently overflowing the BLAS argument.
+
+inline int to_blas_int(int64_t v) {
+  eigen_assert(v >= 0 && v <= static_cast<int64_t>((std::numeric_limits<int>::max)()) &&
+               "dimension exceeds the int range supported by cuBLAS / cuSOLVER");
+  return static_cast<int>(v);
+}
 
 // ---- Custom deleters for CUDA-allocated memory ------------------------------
 // Used with std::unique_ptr to give CUDA allocations RAII semantics with no

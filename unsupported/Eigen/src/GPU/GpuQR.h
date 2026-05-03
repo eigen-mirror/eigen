@@ -134,9 +134,9 @@ class QR {
       // Transpose-on-device via cuBLAS geam: d_qr_ = A^H.
       Scalar alpha_one(1), beta_zero(0);
       EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_), static_cast<int>(m_), &alpha_one, d_A.data(),
-          static_cast<int>(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr), static_cast<int>(n_),
-          static_cast<Scalar*>(d_qr_.get()), static_cast<int>(n_)));
+          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_), internal::to_blas_int(m_), &alpha_one,
+          d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
+          internal::to_blas_int(n_), static_cast<Scalar*>(d_qr_.get()), internal::to_blas_int(n_)));
     } else {
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, ctx_.stream_));
@@ -243,11 +243,11 @@ class QR {
   // For real types Q^H = Q^T -> CUBLAS_OP_T. For complex -> CUBLAS_OP_C.
   // Workspace lives in ctx_.scratch (grows but never shrinks): no per-call malloc/free.
   void apply_Q(cublasOperation_t op, void* d_B, int64_t ldb, int64_t nrhs) const {
-    const int im = static_cast<int>(factor_rows());
-    const int in = static_cast<int>(nrhs);
-    const int ik = static_cast<int>(k());
-    const int ilda = static_cast<int>(lda_);
-    const int ildb = static_cast<int>(ldb);
+    const int im = internal::to_blas_int(factor_rows());
+    const int in = internal::to_blas_int(nrhs);
+    const int ik = internal::to_blas_int(k());
+    const int ilda = internal::to_blas_int(lda_);
+    const int ildb = internal::to_blas_int(ldb);
 
     int lwork = 0;
     EIGEN_CUSOLVER_CHECK(internal::cusolverDnXormqr_bufferSize(
@@ -381,10 +381,10 @@ class QR {
   // op = CUBLAS_OP_T or _C  for the m<n branch  (R^H z = B)
   void trsm_R(void* d_B, int64_t ldb, int64_t nrhs, cublasOperation_t op) const {
     Scalar alpha(1);
-    EIGEN_CUBLAS_CHECK(internal::cublasXtrsm(ctx_.cublas_, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op,
-                                             CUBLAS_DIAG_NON_UNIT, static_cast<int>(k()), static_cast<int>(nrhs),
-                                             &alpha, static_cast<const Scalar*>(d_qr_.get()), static_cast<int>(lda_),
-                                             static_cast<Scalar*>(d_B), static_cast<int>(ldb)));
+    EIGEN_CUBLAS_CHECK(internal::cublasXtrsm(
+        ctx_.cublas_, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op, CUBLAS_DIAG_NON_UNIT, internal::to_blas_int(k()),
+        internal::to_blas_int(nrhs), &alpha, static_cast<const Scalar*>(d_qr_.get()), internal::to_blas_int(lda_),
+        static_cast<Scalar*>(d_B), internal::to_blas_int(ldb)));
   }
 };
 

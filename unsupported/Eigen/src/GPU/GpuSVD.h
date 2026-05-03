@@ -145,9 +145,9 @@ class SVD {
       // geam: C(m×n) = alpha * op(A) + beta * op(B). beta=0, B=nullptr.
       Scalar alpha_one(1), beta_zero(0);
       EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(m_), static_cast<int>(n_), &alpha_one, d_A.data(),
-          static_cast<int>(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr), static_cast<int>(m_),
-          static_cast<Scalar*>(d_A_.get()), static_cast<int>(m_)));
+          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(m_), internal::to_blas_int(n_), &alpha_one,
+          d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
+          internal::to_blas_int(m_), static_cast<Scalar*>(d_A_.get()), internal::to_blas_int(m_)));
     } else {
       lda_ = static_cast<int64_t>(d_A.rows());
       const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
@@ -273,9 +273,9 @@ class SVD {
     if (n_ > 0 && vtrows_stored > 0) {
       Scalar alpha_one(1), beta_zero(0);
       EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_), static_cast<int>(vtrows_stored), &alpha_one,
-          static_cast<const Scalar*>(d_VT_.get()), static_cast<int>(vtrows_stored), &beta_zero,
-          static_cast<const Scalar*>(nullptr), static_cast<int>(n_), result.data(), static_cast<int>(n_)));
+          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_), internal::to_blas_int(vtrows_stored),
+          &alpha_one, static_cast<const Scalar*>(d_VT_.get()), internal::to_blas_int(vtrows_stored), &beta_zero,
+          static_cast<const Scalar*>(nullptr), internal::to_blas_int(n_), result.data(), internal::to_blas_int(n_)));
       result.recordReady(ctx_.stream_);
     }
     return result;
@@ -301,10 +301,11 @@ class SVD {
     DeviceMatrix<Scalar> result(ucols, m_);
     if (ucols > 0 && m_ > 0) {
       Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(ucols),
-                                               static_cast<int>(m_), &alpha_one, static_cast<const Scalar*>(d_U_.get()),
-                                               static_cast<int>(m_), &beta_zero, static_cast<const Scalar*>(nullptr),
-                                               static_cast<int>(ucols), result.data(), static_cast<int>(ucols)));
+      EIGEN_CUBLAS_CHECK(
+          internal::cublasXgeam(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(ucols),
+                                internal::to_blas_int(m_), &alpha_one, static_cast<const Scalar*>(d_U_.get()),
+                                internal::to_blas_int(m_), &beta_zero, static_cast<const Scalar*>(nullptr),
+                                internal::to_blas_int(ucols), result.data(), internal::to_blas_int(ucols)));
       result.recordReady(ctx_.stream_);
     }
     return result;
@@ -437,6 +438,13 @@ class SVD {
     const Index kk = (std::min)(trunc, k);
     const Index nrhs = B.cols();
 
+    // Empty problem: no rank, no RHS, or zero domain -> result is the zero matrix.
+    // Returning early avoids reading S(0) below when k == 0 and prevents zero-extent
+    // GEMM/dgmm calls.
+    if (kk == 0 || nrhs == 0 || n_orig == 0) {
+      return PlainMatrix::Zero(n_orig, nrhs);
+    }
+
     // Enqueue both transfers on ctx_.stream_ in one batch and sync once. Issuing the
     // B upload before reading S means B's H2D is already in flight while we wait for
     // gesvd-then-S-D2H, instead of two back-to-back blocking syncs.
@@ -462,16 +470,16 @@ class SVD {
       Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
       if (!transposed_) {
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(kk),
-                                                 static_cast<int>(nrhs), static_cast<int>(m_), &scalars[0], U_dev,
-                                                 static_cast<int>(m_), B_dev, static_cast<int>(m_orig), &scalars[1],
-                                                 tmp_dev, static_cast<int>(kk)));
+        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(kk),
+                                                 internal::to_blas_int(nrhs), internal::to_blas_int(m_), &scalars[0],
+                                                 U_dev, internal::to_blas_int(m_), B_dev, internal::to_blas_int(m_orig),
+                                                 &scalars[1], tmp_dev, internal::to_blas_int(kk)));
       } else {
         const Index vtrows_stored = (swap_uv_options(options_) & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(kk),
-                                                 static_cast<int>(nrhs), static_cast<int>(m_orig), &scalars[0], VT_dev,
-                                                 static_cast<int>(vtrows_stored), B_dev, static_cast<int>(m_orig),
-                                                 &scalars[1], tmp_dev, static_cast<int>(kk)));
+        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(
+            ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, internal::to_blas_int(kk), internal::to_blas_int(nrhs),
+            internal::to_blas_int(m_orig), &scalars[0], VT_dev, internal::to_blas_int(vtrows_stored), B_dev,
+            internal::to_blas_int(m_orig), &scalars[1], tmp_dev, internal::to_blas_int(kk)));
       }
     }
 
@@ -501,8 +509,8 @@ class SVD {
                                                cudaMemcpyHostToDevice, ctx_.stream_));
 
       EIGEN_CUBLAS_CHECK(internal::cublasXdgmm(
-          ctx_.cublas_, CUBLAS_SIDE_LEFT, static_cast<int>(kk), static_cast<int>(nrhs), tmp_dev, static_cast<int>(kk),
-          static_cast<const Scalar*>(d_D.get()), 1, tmp_dev, static_cast<int>(kk)));
+          ctx_.cublas_, CUBLAS_SIDE_LEFT, internal::to_blas_int(kk), internal::to_blas_int(nrhs), tmp_dev,
+          internal::to_blas_int(kk), static_cast<const Scalar*>(d_D.get()), 1, tmp_dev, internal::to_blas_int(kk)));
     }
 
     // Step 3: X = V_orig * tmp  (n_orig × nrhs).
@@ -514,15 +522,15 @@ class SVD {
 
       if (!transposed_) {
         const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                                 static_cast<int>(nrhs), static_cast<int>(kk), &scalars[0], VT_dev,
-                                                 static_cast<int>(vtrows), tmp_dev, static_cast<int>(kk), &scalars[1],
-                                                 X_dev, static_cast<int>(n_orig)));
+        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(
+            ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_orig), internal::to_blas_int(nrhs),
+            internal::to_blas_int(kk), &scalars[0], VT_dev, internal::to_blas_int(vtrows), tmp_dev,
+            internal::to_blas_int(kk), &scalars[1], X_dev, internal::to_blas_int(n_orig)));
       } else {
-        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, static_cast<int>(n_orig),
-                                                 static_cast<int>(nrhs), static_cast<int>(kk), &scalars[0], U_dev,
-                                                 static_cast<int>(m_), tmp_dev, static_cast<int>(kk), &scalars[1],
-                                                 X_dev, static_cast<int>(n_orig)));
+        EIGEN_CUBLAS_CHECK(internal::cublasXgemm(ctx_.cublas_, CUBLAS_OP_N, CUBLAS_OP_N, internal::to_blas_int(n_orig),
+                                                 internal::to_blas_int(nrhs), internal::to_blas_int(kk), &scalars[0],
+                                                 U_dev, internal::to_blas_int(m_), tmp_dev, internal::to_blas_int(kk),
+                                                 &scalars[1], X_dev, internal::to_blas_int(n_orig)));
       }
 
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_X.get(),

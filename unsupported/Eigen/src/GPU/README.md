@@ -245,15 +245,15 @@ h_x.get();                             // sync: factor + result complete
 
 | DeviceMatrix expression | Library call | Parameters |
 |---|---|---|
-| `C = A * B` | `cublasGemmEx` | transA=N, transB=N, alpha=1, beta=0 |
-| `C = A.adjoint() * B` | `cublasGemmEx` | transA=C, transB=N |
-| `C = A.transpose() * B` | `cublasGemmEx` | transA=T, transB=N |
-| `C = A * B.adjoint()` | `cublasGemmEx` | transA=N, transB=C |
-| `C = A * B.transpose()` | `cublasGemmEx` | transA=N, transB=T |
-| `C = alpha * A * B` | `cublasGemmEx` | alpha from LHS |
-| `C = A * (alpha * B)` | `cublasGemmEx` | alpha from RHS |
-| `C += A * B` | `cublasGemmEx` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasGemmEx` | alpha=-1, beta=1 |
+| `C = A * B` | `cublasXgemm` | transA=N, transB=N, alpha=1, beta=0 |
+| `C = A.adjoint() * B` | `cublasXgemm` | transA=C, transB=N |
+| `C = A.transpose() * B` | `cublasXgemm` | transA=T, transB=N |
+| `C = A * B.adjoint()` | `cublasXgemm` | transA=N, transB=C |
+| `C = A * B.transpose()` | `cublasXgemm` | transA=N, transB=T |
+| `C = alpha * A * B` | `cublasXgemm` | alpha from LHS |
+| `C = A * (alpha * B)` | `cublasXgemm` | alpha from RHS |
+| `C += A * B` | `cublasXgemm` | alpha=1, beta=1 |
+| `C.device(ctx) -= A * B` | `cublasXgemm` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
