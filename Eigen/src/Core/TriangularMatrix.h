@@ -987,6 +987,32 @@ struct triangular_product_assignment_dispatcher {
   }
 };
 
+// Underlying-storage data pointer for the diagonal operand of a structured x diagonal
+// product, or nullptr for non-diagonal operands. The structured (triangular/selfadjoint)
+// operand can safely share storage with dst because the kernel reads each (row, col) cell
+// before writing it; only diagonal/dst overlap can corrupt later reads via the diagonal
+// entries that have already been written.
+template <typename Op>
+EIGEN_DEVICE_FUNC inline const void* diagonal_operand_data(const Op& op, DiagonalShape) {
+  return extract_data(op.diagonal());
+}
+template <typename Op, typename Shape>
+EIGEN_DEVICE_FUNC inline const void* diagonal_operand_data(const Op& /*op*/, Shape) {
+  return nullptr;
+}
+
+template <typename DstXprType, typename SrcXprType>
+EIGEN_DEVICE_FUNC inline bool structured_diagonal_product_aliases(const DstXprType& dst, const SrcXprType& src) {
+  const void* dst_data = dst.nestedExpression().data();
+  if (dst_data == nullptr) return false;
+  const void* lhs_diag_data =
+      diagonal_operand_data(src.lhs(), typename evaluator_traits<typename SrcXprType::Lhs>::Shape{});
+  const void* rhs_diag_data =
+      diagonal_operand_data(src.rhs(), typename evaluator_traits<typename SrcXprType::Rhs>::Shape{});
+  return (lhs_diag_data != nullptr && lhs_diag_data == dst_data) ||
+         (rhs_diag_data != nullptr && rhs_diag_data == dst_data);
+}
+
 template <>
 struct triangular_product_assignment_dispatcher<true> {
   template <typename DstXprType, typename SrcXprType, typename Functor, typename Scalar>
@@ -996,7 +1022,20 @@ struct triangular_product_assignment_dispatcher<true> {
     EIGEN_UNUSED_VARIABLE(beta);
     EIGEN_STATIC_ASSERT((int(DstXprType::Mode) & int(UnitDiag)) == 0,
                         WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
-    call_triangular_assignment_loop<DstXprType::Mode, false>(dst, src, func);
+    // The triangular assignment loop reads src.coeff(row, col) lazily while writing
+    // dst.coeffRef(row, col). When the diagonal operand of the product shares storage with
+    // dst (e.g.
+    //   A.triangularView<Upper>() = A.diagonal().asDiagonal() * A.triangularView<Upper>())
+    // the diagonal entries already written in earlier columns would feed back as modified
+    // values, corrupting later reads. Materialize the source into a temporary first when
+    // overlap is detected at run time. The structured (triangular/selfadjoint) operand may
+    // safely alias dst because the kernel reads each cell before writing it.
+    if (structured_diagonal_product_aliases(dst, src)) {
+      typename SrcXprType::PlainObject tmp(src);
+      call_triangular_assignment_loop<DstXprType::Mode, false>(dst, tmp, func);
+    } else {
+      call_triangular_assignment_loop<DstXprType::Mode, false>(dst, src, func);
+    }
   }
 };
 

@@ -444,6 +444,70 @@ void selfadjoint_diagonal_products_block_path() {
   selfadjoint_diagonal_products_at<std::complex<double>>(65);
 }
 
+// In-place patterns where the diagonal operand shares storage with the destination view.
+// The fast path in triangular_product_assignment_dispatcher detects the run-time overlap
+// and materializes a temporary, so the result must match a reference computed against a
+// materialized source. The structured (triangular/selfadjoint) operand can safely share
+// storage with dst because the kernel reads each cell before writing it.
+template <unsigned int Mode, typename Mat>
+void verify_triangular_in_place_with_aliased_diagonal(const Mat& m) {
+  // diagonal * tri_view
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_tri = actual.template triangularView<Mode>();
+    expected.template triangularView<Mode>() = (ref_diag * ref_tri).eval();
+    actual.template triangularView<Mode>() = actual.diagonal().asDiagonal() * actual.template triangularView<Mode>();
+    VERIFY_IS_APPROX(actual, expected);
+  }
+  // tri_view * diagonal
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_tri = actual.template triangularView<Mode>();
+    expected.template triangularView<Mode>() = (ref_tri * ref_diag).eval();
+    actual.template triangularView<Mode>() = actual.template triangularView<Mode>() * actual.diagonal().asDiagonal();
+    VERIFY_IS_APPROX(actual, expected);
+  }
+}
+
+template <unsigned int Mode, typename Mat>
+void verify_selfadjoint_in_place_with_aliased_diagonal(const Mat& m) {
+  // diagonal * sa_view
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_sa = actual.template selfadjointView<Mode>();
+    expected.template triangularView<Mode>() = (ref_diag * ref_sa).eval();
+    actual.template selfadjointView<Mode>() = actual.diagonal().asDiagonal() * actual.template selfadjointView<Mode>();
+    VERIFY_IS_APPROX(actual.template triangularView<Mode>().toDenseMatrix(),
+                     expected.template triangularView<Mode>().toDenseMatrix());
+  }
+  // sa_view * diagonal
+  {
+    Mat actual = m, expected = m;
+    Mat ref_diag = actual.diagonal().asDiagonal();
+    Mat ref_sa = actual.template selfadjointView<Mode>();
+    expected.template triangularView<Mode>() = (ref_sa * ref_diag).eval();
+    actual.template selfadjointView<Mode>() = actual.template selfadjointView<Mode>() * actual.diagonal().asDiagonal();
+    VERIFY_IS_APPROX(actual.template triangularView<Mode>().toDenseMatrix(),
+                     expected.template triangularView<Mode>().toDenseMatrix());
+  }
+}
+
+template <int>
+void structured_diagonal_aliasing() {
+  for (int n : {3, 5, 8, 17, 32, 33, 64, 65}) {
+    MatrixXcd m = MatrixXcd::Random(n, n);
+    m.diagonal() = m.diagonal().real();  // Hermitian-friendly diagonal
+
+    verify_triangular_in_place_with_aliased_diagonal<Upper>(m);
+    verify_triangular_in_place_with_aliased_diagonal<Lower>(m);
+    verify_selfadjoint_in_place_with_aliased_diagonal<Upper>(m);
+    verify_selfadjoint_in_place_with_aliased_diagonal<Lower>(m);
+  }
+}
+
 EIGEN_DECLARE_TEST(diagonalmatrices) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonalmatrices(Matrix<float, 1, 1>()));
@@ -469,4 +533,5 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_10(bug2013<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products_block_path<0>());
+  CALL_SUBTEST_10(structured_diagonal_aliasing<0>());
 }
