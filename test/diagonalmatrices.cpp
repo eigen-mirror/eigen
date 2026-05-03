@@ -336,6 +336,114 @@ void selfadjoint_diagonal_products() {
   VERIFY_IS_APPROX(no_malloc_result, dynamic_expected);
 }
 
+// Exercise the block-tile path of the dense selfadjoint x diagonal kernel
+// (BlockSize = 32 in ProductEvaluators.h). Picks a few sizes that hit
+// full blocks (size = 64), partial blocks (size = 33, 65), and a tiny size
+// that bypasses the block loop entirely (size = 8). Also verifies the
+// overwrite path leaves no stale data when dst is pre-filled.
+template <typename Scalar>
+void selfadjoint_diagonal_products_at(Index n) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
+  typedef Matrix<Scalar, Dynamic, 1> VecType;
+
+  MatType m = MatType::Random(n, n);
+  m.diagonal() = m.diagonal().real().template cast<Scalar>();  // Hermitian diagonal
+  VecType d = VecType::Random(n);
+
+  MatType ref_lower = m.template selfadjointView<Lower>();
+  MatType ref_upper = m.template selfadjointView<Upper>();
+
+  // Plain assignment goes through evalTo (overwrite kernel).
+  // Pre-fill dst with garbage to verify no stale entries remain.
+  MatType dst = MatType::Constant(n, n, Scalar(42));
+  dst.noalias() = m.template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, ref_upper * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(-7));
+  dst.noalias() = m.template selfadjointView<Lower>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, ref_lower * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(13));
+  dst.noalias() = d.asDiagonal() * m.template selfadjointView<Upper>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * ref_upper);
+
+  dst = MatType::Constant(n, n, Scalar(99));
+  dst.noalias() = d.asDiagonal() * m.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * ref_lower);
+
+  // Accumulating paths (scaleAndAddTo).
+  MatType base = MatType::Random(n, n);
+  dst = base;
+  dst.noalias() += m.template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, base + ref_upper * d.asDiagonal());
+
+  dst = base;
+  dst.noalias() -= d.asDiagonal() * m.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, base - d.asDiagonal() * ref_lower);
+
+  // Scalar-scaled products: the "Dense ?= scalar * Product" rewriting rule
+  // folds alpha into the SelfAdjointView. For a complex alpha that fold is
+  // not Hermitian, so the dispatch must restore alpha rather than apply it
+  // straight to the kernel — verify all four orientation x triangle combos.
+  Scalar alpha = internal::random<Scalar>();
+  dst = base;
+  dst.noalias() += alpha * (m.template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base + alpha * (ref_lower * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() -= alpha * (m.template selfadjointView<Upper>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base - alpha * (ref_upper * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() += alpha * (d.asDiagonal() * m.template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, base + alpha * (d.asDiagonal() * ref_upper));
+
+  dst = base;
+  dst.noalias() -= alpha * (d.asDiagonal() * m.template selfadjointView<Lower>());
+  VERIFY_IS_APPROX(dst, base - alpha * (d.asDiagonal() * ref_lower));
+
+  // Overwrite-with-scalar path: hits evalTo's HasScalarFactor branch.
+  dst = MatType::Constant(n, n, Scalar(17));
+  dst.noalias() = alpha * (m.template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, alpha * (ref_lower * d.asDiagonal()));
+
+  dst = MatType::Constant(n, n, Scalar(-3));
+  dst.noalias() = alpha * (d.asDiagonal() * m.template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, alpha * (d.asDiagonal() * ref_upper));
+
+  // Conjugated nested expressions go through the same blas_traits extraction
+  // path. The extracted matrix must keep NeedToConjugate, otherwise the kernel
+  // computes with m instead of m.conjugate().
+  MatType conj_ref_lower = m.conjugate().template selfadjointView<Lower>();
+  MatType conj_ref_upper = m.conjugate().template selfadjointView<Upper>();
+
+  dst = MatType::Constant(n, n, Scalar(23));
+  dst.noalias() = m.conjugate().template selfadjointView<Upper>() * d.asDiagonal();
+  VERIFY_IS_APPROX(dst, conj_ref_upper * d.asDiagonal());
+
+  dst = MatType::Constant(n, n, Scalar(-29));
+  dst.noalias() = d.asDiagonal() * m.conjugate().template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(dst, d.asDiagonal() * conj_ref_lower);
+
+  dst = base;
+  dst.noalias() += alpha * (m.conjugate().template selfadjointView<Lower>() * d.asDiagonal());
+  VERIFY_IS_APPROX(dst, base + alpha * (conj_ref_lower * d.asDiagonal()));
+
+  dst = base;
+  dst.noalias() -= alpha * (d.asDiagonal() * m.conjugate().template selfadjointView<Upper>());
+  VERIFY_IS_APPROX(dst, base - alpha * (d.asDiagonal() * conj_ref_upper));
+}
+
+template <int>
+void selfadjoint_diagonal_products_block_path() {
+  selfadjoint_diagonal_products_at<double>(8);
+  selfadjoint_diagonal_products_at<double>(33);  // partial off-diagonal block
+  selfadjoint_diagonal_products_at<double>(64);  // exact multiple of BlockSize
+  selfadjoint_diagonal_products_at<double>(65);  // off-by-one
+  selfadjoint_diagonal_products_at<std::complex<double>>(33);
+  selfadjoint_diagonal_products_at<std::complex<double>>(65);
+}
+
 EIGEN_DECLARE_TEST(diagonalmatrices) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonalmatrices(Matrix<float, 1, 1>()));
@@ -360,4 +468,5 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_10(bug987<0>());
   CALL_SUBTEST_10(bug2013<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
+  CALL_SUBTEST_10(selfadjoint_diagonal_products_block_path<0>());
 }
