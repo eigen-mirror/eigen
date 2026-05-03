@@ -360,7 +360,12 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    return TensorOpCost(sizeof(CoeffReturnType), 0, 0, vectorized, PacketType<CoeffReturnType, Device>::size);
+    // NullaryOps (constants, zero, identity, random) generate values from
+    // registers or minimal state — they do not load from memory.  Report
+    // zero bytes_loaded so the cost model correctly classifies expressions
+    // containing many constants (e.g. Horner polynomials) as compute-bound
+    // rather than memory-bound.
+    return TensorOpCost(0, 0, 0, vectorized, PacketType<CoeffReturnType, Device>::size);
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }

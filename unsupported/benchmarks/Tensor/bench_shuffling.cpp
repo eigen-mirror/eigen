@@ -1,7 +1,10 @@
 // Benchmarks for Eigen Tensor shuffling (transpose / permutation).
 
+#define EIGEN_USE_THREADS
+
 #include <benchmark/benchmark.h>
 #include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/CXX11/ThreadPool>
 
 using namespace Eigen;
 
@@ -85,6 +88,56 @@ static void BM_Shuffle4D_NCHW_to_NHWC(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * N * C * H * H * sizeof(Scalar) * 2);
 }
 
+// --- ThreadPool variants ---
+
+static void BM_Shuffle2D_ThreadPool(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const int threads = state.range(2);
+
+  Tensor<Scalar, 2> A(M, N);
+  Tensor<Scalar, 2> B(N, M);
+  A.setRandom();
+
+  ThreadPool tp(threads);
+  ThreadPoolDevice dev(&tp, threads);
+
+  Eigen::array<int, 2> perm = {1, 0};
+
+  for (auto _ : state) {
+    B.device(dev) = A.shuffle(perm);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar) * 2);
+  state.counters["threads"] = threads;
+}
+
+static void BM_Shuffle4D_NCHW_to_NHWC_ThreadPool(benchmark::State& state) {
+  const int N = state.range(0);
+  const int C = state.range(1);
+  const int H = state.range(2);
+  const int threads = state.range(3);
+
+  Tensor<Scalar, 4> A(N, C, H, H);
+  Tensor<Scalar, 4> B(N, H, H, C);
+  A.setRandom();
+
+  ThreadPool tp(threads);
+  ThreadPoolDevice dev(&tp, threads);
+
+  // NCHW -> NHWC: permute (0, 2, 3, 1)
+  Eigen::array<int, 4> perm = {0, 2, 3, 1};
+
+  for (auto _ : state) {
+    B.device(dev) = A.shuffle(perm);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * N * C * H * H * sizeof(Scalar) * 2);
+  state.counters["threads"] = threads;
+}
+
 static void Shuffle2DSizes(::benchmark::Benchmark* b) {
   for (int size : {256, 1024}) {
     b->Args({size, size});
@@ -109,7 +162,29 @@ static void Shuffle4DSizes(::benchmark::Benchmark* b) {
   }
 }
 
+static void Shuffle2DThreadPoolSizes(::benchmark::Benchmark* b) {
+  for (int size : {256, 1024}) {
+    for (int threads : {1, 2, 4, 8, 12, 16}) {
+      b->Args({size, size, threads});
+    }
+  }
+}
+
+static void Shuffle4DThreadPoolSizes(::benchmark::Benchmark* b) {
+  for (int batch : {1, 8}) {
+    for (int c : {64}) {
+      for (int h : {32, 64}) {
+        for (int threads : {1, 2, 4, 8, 12, 16}) {
+          b->Args({batch, c, h, threads});
+        }
+      }
+    }
+  }
+}
+
 BENCHMARK(BM_Shuffle2D)->Apply(Shuffle2DSizes);
 BENCHMARK(BM_ShuffleIdentity)->Apply(Shuffle2DSizes);
 BENCHMARK(BM_Shuffle3D)->Apply(Shuffle3DSizes);
 BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC)->Apply(Shuffle4DSizes);
+BENCHMARK(BM_Shuffle2D_ThreadPool)->Apply(Shuffle2DThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool)->Apply(Shuffle4DThreadPoolSizes)->UseRealTime();

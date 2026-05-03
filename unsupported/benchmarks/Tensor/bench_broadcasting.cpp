@@ -1,8 +1,11 @@
 // Benchmarks for Eigen Tensor broadcasting.
 // Tests broadcasting along various dimensions and ranks.
 
+#define EIGEN_USE_THREADS
+
 #include <benchmark/benchmark.h>
 #include <unsupported/Eigen/CXX11/Tensor>
+#include <unsupported/Eigen/CXX11/ThreadPool>
 
 using namespace Eigen;
 
@@ -87,6 +90,56 @@ static void BM_BroadcastRank4(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * batch * C * H * H * sizeof(Scalar));
 }
 
+// --- ThreadPool variants ---
+
+static void BM_BroadcastRow_ThreadPool(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const int threads = state.range(2);
+
+  Tensor<Scalar, 2> row(1, N);
+  Tensor<Scalar, 2> result(M, N);
+  row.setRandom();
+
+  ThreadPool tp(threads);
+  ThreadPoolDevice dev(&tp, threads);
+
+  Eigen::array<int, 2> bcast = {M, 1};
+
+  for (auto _ : state) {
+    result.device(dev) = row.broadcast(bcast);
+    benchmark::DoNotOptimize(result.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar));
+  state.counters["threads"] = threads;
+}
+
+static void BM_BroadcastAdd_ThreadPool(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const int threads = state.range(2);
+
+  Tensor<Scalar, 2> mat(M, N);
+  Tensor<Scalar, 2> bias(1, N);
+  Tensor<Scalar, 2> result(M, N);
+  mat.setRandom();
+  bias.setRandom();
+
+  ThreadPool tp(threads);
+  ThreadPoolDevice dev(&tp, threads);
+
+  Eigen::array<int, 2> bcast = {M, 1};
+
+  for (auto _ : state) {
+    result.device(dev) = mat + bias.broadcast(bcast);
+    benchmark::DoNotOptimize(result.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar) * 2);
+  state.counters["threads"] = threads;
+}
+
 static void BroadcastSizes(::benchmark::Benchmark* b) {
   for (int m : {64, 256, 1024}) {
     for (int n : {64, 256, 1024}) {
@@ -105,7 +158,17 @@ static void Rank4Sizes(::benchmark::Benchmark* b) {
   }
 }
 
+static void BroadcastThreadPoolSizes(::benchmark::Benchmark* b) {
+  for (int size : {256, 1024}) {
+    for (int threads : {1, 2, 4, 8, 12, 16}) {
+      b->Args({size, size, threads});
+    }
+  }
+}
+
 BENCHMARK(BM_BroadcastRow)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastCol)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastAdd)->Apply(BroadcastSizes);
 BENCHMARK(BM_BroadcastRank4)->Apply(Rank4Sizes);
+BENCHMARK(BM_BroadcastRow_ThreadPool)->Apply(BroadcastThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_BroadcastAdd_ThreadPool)->Apply(BroadcastThreadPoolSizes)->UseRealTime();

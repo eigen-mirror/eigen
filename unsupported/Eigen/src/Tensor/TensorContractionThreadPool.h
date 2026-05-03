@@ -1507,7 +1507,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     int num_threads = 1;
     double min_cost = total_parallel_cost;
     double kPerThreadOverHead = 3000;
-    double kFixedOverHead = 100000;
+    double kFixedOverHead = 20000;
     for (int nt = 2; nt <= this->m_device.numThreads(); nt += 2) {
       double sequential_cost = kFixedOverHead + nt * (reduction_cost + kPerThreadOverHead);
       double parallel_cost = total_parallel_cost / nt + sequential_cost;
