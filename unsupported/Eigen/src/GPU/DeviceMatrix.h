@@ -488,8 +488,8 @@ class DeviceMatrix {
    * pointer would be silently replaced and the underlying owner left intact. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
-    dm.data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr,
-                                                                  internal::CudaFreeDeleter{/*borrow=*/true});
+    dm.data_ =
+        std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr, internal::CudaFreeDeleter{/*borrow=*/true});
     dm.rows_ = rows;
     dm.cols_ = cols;
     return dm;
