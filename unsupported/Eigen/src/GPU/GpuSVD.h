@@ -203,6 +203,9 @@ class SVD {
     }
   }
 
+  /** Right singular vectors V (matches host JacobiSVD/BDCSVD). */
+  PlainMatrix matrixV() const { return matrixVT().adjoint(); }
+
   /** Right singular vectors transposed V^T. */
   PlainMatrix matrixVT() const {
     ctx_.sync_info();
@@ -226,6 +229,85 @@ class SVD {
                                           cudaMemcpyDeviceToHost));
       return U_stored.adjoint();
     }
+  }
+
+  // ---- Device-side accessors (zero-copy views; chain into cuBLAS without D2D) ---------
+  //
+  // These return non-owning DeviceMatrix views over the SVD's internal device storage.
+  // The view borrows the pointer: destruction does not free; the SVD object must outlive
+  // any view derived from it. For the common case (m >= n) all three accessors are pure
+  // metadata: zero kernel launches, zero allocations.
+  //
+  // For wide matrices (m < n, internally factored as A^H), original U and V^T are the
+  // adjoints of the stored buffers, so d_matrixU() / d_matrixVT() build them via a
+  // cublasXgeam into an owning temporary. d_singularValues() remains zero-copy.
+
+  /** Singular values as a k × 1 view on this solver's stream. */
+  DeviceMatrix<RealScalar> d_singularValues() const {
+    ctx_.sync_info();
+    eigen_assert(ctx_.info_ == Success);
+    const Index k = (std::min)(m_, n_);
+    auto v = DeviceMatrix<RealScalar>::view(static_cast<RealScalar*>(d_S_.get()), k, 1);
+    v.recordReady(ctx_.stream_);
+    return v;
+  }
+
+  /** Left singular vectors U as a DeviceMatrix on this solver's stream.
+   * For m >= n: zero-copy view. For m < n: owning (one cublasXgeam adjoint pass). */
+  DeviceMatrix<Scalar> d_matrixU() const {
+    ctx_.sync_info();
+    eigen_assert(ctx_.info_ == Success);
+    eigen_assert((options_ & (ComputeThinU | ComputeFullU)) && "d_matrixU() requires ComputeThinU or ComputeFullU");
+    const Index m_orig = transposed_ ? n_ : m_;
+    const Index n_orig = transposed_ ? m_ : n_;
+    const Index k = (std::min)(m_orig, n_orig);
+    if (!transposed_) {
+      const Index ucols = (options_ & ComputeFullU) ? m_ : k;
+      auto v = DeviceMatrix<Scalar>::view(static_cast<Scalar*>(d_U_.get()), m_, ucols);
+      v.recordReady(ctx_.stream_);
+      return v;
+    }
+    // transposed: U_orig = VT_stored^H -> conjugate-transpose via cublasXgeam.
+    const Index vtrows_stored = (options_ & ComputeFullU) ? m_ : k;
+    DeviceMatrix<Scalar> result(n_, vtrows_stored);
+    if (n_ > 0 && vtrows_stored > 0) {
+      Scalar alpha_one(1), beta_zero(0);
+      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
+          ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(n_), static_cast<int>(vtrows_stored), &alpha_one,
+          static_cast<const Scalar*>(d_VT_.get()), static_cast<int>(vtrows_stored), &beta_zero,
+          static_cast<const Scalar*>(nullptr), static_cast<int>(n_), result.data(), static_cast<int>(n_)));
+      result.recordReady(ctx_.stream_);
+    }
+    return result;
+  }
+
+  /** Right singular vectors transposed V^T as a DeviceMatrix on this solver's stream.
+   * For m >= n: zero-copy view. For m < n: owning (one cublasXgeam adjoint pass). */
+  DeviceMatrix<Scalar> d_matrixVT() const {
+    ctx_.sync_info();
+    eigen_assert(ctx_.info_ == Success);
+    eigen_assert((options_ & (ComputeThinV | ComputeFullV)) && "d_matrixVT() requires ComputeThinV or ComputeFullV");
+    const Index m_orig = transposed_ ? n_ : m_;
+    const Index n_orig = transposed_ ? m_ : n_;
+    const Index k = (std::min)(m_orig, n_orig);
+    if (!transposed_) {
+      const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
+      auto v = DeviceMatrix<Scalar>::view(static_cast<Scalar*>(d_VT_.get()), vtrows, n_);
+      v.recordReady(ctx_.stream_);
+      return v;
+    }
+    // transposed: VT_orig = U_stored^H.
+    const Index ucols = (options_ & ComputeFullV) ? n_orig : k;
+    DeviceMatrix<Scalar> result(ucols, m_);
+    if (ucols > 0 && m_ > 0) {
+      Scalar alpha_one(1), beta_zero(0);
+      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, static_cast<int>(ucols),
+                                               static_cast<int>(m_), &alpha_one, static_cast<const Scalar*>(d_U_.get()),
+                                               static_cast<int>(m_), &beta_zero, static_cast<const Scalar*>(nullptr),
+                                               static_cast<int>(ucols), result.data(), static_cast<int>(ucols)));
+      result.recordReady(ctx_.stream_);
+    }
+    return result;
   }
 
   /** Number of singular values above threshold. */
@@ -355,18 +437,18 @@ class SVD {
     const Index kk = (std::min)(trunc, k);
     const Index nrhs = B.cols();
 
-    // Download S to host to build the diagonal scaling.
-    RealVector S(k);
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpy(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar), cudaMemcpyDeviceToHost));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_.stream_));
-
-    // Upload B (m_orig × nrhs).
+    // Enqueue both transfers on ctx_.stream_ in one batch and sync once. Issuing the
+    // B upload before reading S means B's H2D is already in flight while we wait for
+    // gesvd-then-S-D2H, instead of two back-to-back blocking syncs.
     const PlainMatrix rhs(B);
     internal::DeviceBuffer d_B(static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_B.get(), rhs.data(),
                                              static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
                                              cudaMemcpyHostToDevice, ctx_.stream_));
+    RealVector S(k);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar),
+                                             cudaMemcpyDeviceToHost, ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_.stream_));
 
     // Typed pointers for device buffers.
     auto* U_dev = static_cast<const Scalar*>(d_U_.get());
