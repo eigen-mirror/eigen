@@ -69,12 +69,10 @@ static void BM_TensorIFFT_1D(benchmark::State& state) {
       benchmark::Counter(mflops, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
-static void FFTSizes(::benchmark::Benchmark* b) {
-  for (int n : {64, 256, 1024, 4096}) {
-    b->Arg(n);
-  }
-}
+// clang-format off
+#define FFT_SIZES ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)
+// clang-format on
 
-BENCHMARK(BM_TensorFFT_1D)->Apply(FFTSizes);
-BENCHMARK(BM_TensorFFT_2D)->Apply(FFTSizes);
-BENCHMARK(BM_TensorIFFT_1D)->Apply(FFTSizes);
+BENCHMARK(BM_TensorFFT_1D) FFT_SIZES;
+BENCHMARK(BM_TensorFFT_2D) FFT_SIZES;
+BENCHMARK(BM_TensorIFFT_1D) FFT_SIZES;

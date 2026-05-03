@@ -168,46 +168,32 @@ static void BM_Pad_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
-static void MorphSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    b->Args({size, size});
-  }
-}
+// clang-format off
+#define MORPH_SIZES \
+  ->Args({256, 256})->Args({1024, 1024})
 
-static void ChipSizes(::benchmark::Benchmark* b) {
-  b->Args({32, 256, 256});
-  b->Args({64, 128, 128});
-  b->Args({8, 512, 512});
-}
+#define CHIP_SIZES \
+  ->Args({32, 256, 256})->Args({64, 128, 128})->Args({8, 512, 512})
 
-static void PadSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    for (int pad : {1, 4, 16}) {
-      b->Args({size, size, pad});
-    }
-  }
-}
+#define PAD_SIZES \
+  ->Args({256, 256, 1})->Args({256, 256, 4})->Args({256, 256, 16}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 4})->Args({1024, 1024, 16})
 
-static void StrideSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    for (int stride : {2, 4}) {
-      b->Args({size, size, stride});
-    }
-  }
-}
+#define STRIDE_SIZES \
+  ->Args({256, 256, 2})->Args({256, 256, 4}) \
+  ->Args({1024, 1024, 2})->Args({1024, 1024, 4})
 
-static void MorphThreadPoolSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    for (int threads : {1, 2, 4, 8, 12, 16}) {
-      b->Args({size, size, threads});
-    }
-  }
-}
+#define MORPH_THREADPOOL_SIZES \
+  ->Args({256, 256, 1})->Args({256, 256, 2})->Args({256, 256, 4}) \
+  ->Args({256, 256, 8})->Args({256, 256, 12})->Args({256, 256, 16}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 2})->Args({1024, 1024, 4}) \
+  ->Args({1024, 1024, 8})->Args({1024, 1024, 12})->Args({1024, 1024, 16})
+// clang-format on
 
-BENCHMARK(BM_Reshape)->Apply(MorphSizes);
-BENCHMARK(BM_Slice)->Apply(MorphSizes);
-BENCHMARK(BM_Chip)->Apply(ChipSizes);
-BENCHMARK(BM_Pad)->Apply(PadSizes);
-BENCHMARK(BM_Stride)->Apply(StrideSizes);
-BENCHMARK(BM_Slice_ThreadPool)->Apply(MorphThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_Pad_ThreadPool)->Apply(MorphThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Reshape) MORPH_SIZES;
+BENCHMARK(BM_Slice) MORPH_SIZES;
+BENCHMARK(BM_Chip) CHIP_SIZES;
+BENCHMARK(BM_Pad) PAD_SIZES;
+BENCHMARK(BM_Stride) STRIDE_SIZES;
+BENCHMARK(BM_Slice_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_Pad_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();

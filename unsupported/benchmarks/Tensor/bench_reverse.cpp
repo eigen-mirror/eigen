@@ -85,19 +85,16 @@ static void BM_Reverse_3D_Inner(benchmark::State& state) {
 //   64x64    = 16 KB (L1)
 //   256x256  = 256 KB (L2)
 //   1024x1024 = 4 MB (LLC / DRAM)
-static void ReverseSizes(::benchmark::Benchmark* b) {
-  for (int size : {64, 256, 1024}) {
-    b->Args({size, size});
-  }
-}
+// clang-format off
+#define REVERSE_SIZES \
+  ->Args({64, 64})->Args({256, 256})->Args({1024, 1024})
 
-static void Reverse3DSizes(::benchmark::Benchmark* b) {
-  b->Args({32, 32, 32});     // 128 KB
-  b->Args({64, 64, 64});     // 1 MB
-  b->Args({128, 128, 128});  // 8 MB
-}
+// 128 KB / 1 MB / 8 MB
+#define REVERSE_3D_SIZES \
+  ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128})
+// clang-format on
 
-BENCHMARK(BM_Reverse_Inner)->Apply(ReverseSizes);
-BENCHMARK(BM_Reverse_Outer)->Apply(ReverseSizes);
-BENCHMARK(BM_Reverse_All)->Apply(ReverseSizes);
-BENCHMARK(BM_Reverse_3D_Inner)->Apply(Reverse3DSizes);
+BENCHMARK(BM_Reverse_Inner) REVERSE_SIZES;
+BENCHMARK(BM_Reverse_Outer) REVERSE_SIZES;
+BENCHMARK(BM_Reverse_All) REVERSE_SIZES;
+BENCHMARK(BM_Reverse_3D_Inner) REVERSE_3D_SIZES;

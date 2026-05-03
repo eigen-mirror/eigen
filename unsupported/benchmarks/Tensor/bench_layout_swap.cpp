@@ -60,18 +60,10 @@ static void BM_LayoutSwap_Composed(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * 3ll * static_cast<int64_t>(M) * N * sizeof(Scalar));
 }
 
-static void LayoutSwapSizes(::benchmark::Benchmark* b) {
-  for (int size : {64, 256, 1024}) {
-    b->Args({size, size});
-  }
-}
+// {n, n} and {n, n, n}: explicit because dims are repeated.
+#define LAYOUT_SWAP_SIZES ->Args({64, 64})->Args({256, 256})->Args({1024, 1024})
+#define LAYOUT_SWAP_3D_SIZES ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128})
 
-static void LayoutSwap3DSizes(::benchmark::Benchmark* b) {
-  b->Args({32, 32, 32});
-  b->Args({64, 64, 64});
-  b->Args({128, 128, 128});
-}
-
-BENCHMARK(BM_LayoutSwap_2D)->Apply(LayoutSwapSizes);
-BENCHMARK(BM_LayoutSwap_3D)->Apply(LayoutSwap3DSizes);
-BENCHMARK(BM_LayoutSwap_Composed)->Apply(LayoutSwapSizes);
+BENCHMARK(BM_LayoutSwap_2D) LAYOUT_SWAP_SIZES;
+BENCHMARK(BM_LayoutSwap_3D) LAYOUT_SWAP_3D_SIZES;
+BENCHMARK(BM_LayoutSwap_Composed) LAYOUT_SWAP_SIZES;

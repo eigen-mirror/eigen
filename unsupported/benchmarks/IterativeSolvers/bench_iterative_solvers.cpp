@@ -192,18 +192,13 @@ static void BM_BiCGSTAB_Reference(benchmark::State& state) {
   state.counters["iterations"] = solver.iterations();
 }
 
-static void SolverSizes(::benchmark::Benchmark* b) {
-  for (int n : {1000, 10000, 100000}) {
-    for (int bw : {5, 20}) {
-      b->Args({n, bw});
-    }
-  }
-}
+// {n, bandwidth} as a Cartesian product.
+#define SOLVER_SIZES ->ArgsProduct({{1000, 10000, 100000}, {5, 20}})
 
-BENCHMARK(BM_GMRES)->Apply(SolverSizes);
-BENCHMARK(BM_DGMRES)->Apply(SolverSizes);
-BENCHMARK(BM_MINRES)->Apply(SolverSizes);
-BENCHMARK(BM_IDRS)->Apply(SolverSizes);
-BENCHMARK(BM_BiCGSTABL)->Apply(SolverSizes);
-BENCHMARK(BM_CG_Reference)->Apply(SolverSizes);
-BENCHMARK(BM_BiCGSTAB_Reference)->Apply(SolverSizes);
+BENCHMARK(BM_GMRES) SOLVER_SIZES;
+BENCHMARK(BM_DGMRES) SOLVER_SIZES;
+BENCHMARK(BM_MINRES) SOLVER_SIZES;
+BENCHMARK(BM_IDRS) SOLVER_SIZES;
+BENCHMARK(BM_BiCGSTABL) SOLVER_SIZES;
+BENCHMARK(BM_CG_Reference) SOLVER_SIZES;
+BENCHMARK(BM_BiCGSTAB_Reference) SOLVER_SIZES;

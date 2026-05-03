@@ -206,39 +206,33 @@ static void BM_ReLU_Rank4(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * batch * C * H * H * sizeof(Scalar) * 2);
 }
 
-static void CwiseSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    b->Args({size, size});
-  }
-}
+// clang-format off
+#define CWISE_SIZES \
+  ->Args({256, 256})->Args({1024, 1024})
 
-static void CwiseThreadPoolSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    for (int threads : {1, 2, 4, 8, 12, 16}) {
-      b->Args({size, size, threads});
-    }
-  }
-}
+#define CWISE_THREADPOOL_SIZES \
+  ->Args({256, 256, 1})->Args({256, 256, 2})->Args({256, 256, 4}) \
+  ->Args({256, 256, 8})->Args({256, 256, 12})->Args({256, 256, 16}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 2})->Args({1024, 1024, 4}) \
+  ->Args({1024, 1024, 8})->Args({1024, 1024, 12})->Args({1024, 1024, 16})
 
-static void Rank4Sizes(::benchmark::Benchmark* b) {
-  b->Args({32, 64, 16});
-  b->Args({8, 128, 32});
-  b->Args({1, 256, 64});
-}
+#define RANK4_SIZES \
+  ->Args({32, 64, 16})->Args({8, 128, 32})->Args({1, 256, 64})
+// clang-format on
 
-BENCHMARK(BM_Exp)->Apply(CwiseSizes);
-BENCHMARK(BM_Log)->Apply(CwiseSizes);
-BENCHMARK(BM_Tanh)->Apply(CwiseSizes);
-BENCHMARK(BM_Sigmoid)->Apply(CwiseSizes);
-BENCHMARK(BM_ReLU)->Apply(CwiseSizes);
-BENCHMARK(BM_Sqrt)->Apply(CwiseSizes);
-BENCHMARK(BM_Add)->Apply(CwiseSizes);
-BENCHMARK(BM_Mul)->Apply(CwiseSizes);
-BENCHMARK(BM_FMA)->Apply(CwiseSizes);
-BENCHMARK(BM_ReLU_Rank4)->Apply(Rank4Sizes);
-BENCHMARK(BM_Add_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_Mul_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_FMA_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_Exp_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_Tanh_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_ReLU_ThreadPool)->Apply(CwiseThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Exp) CWISE_SIZES;
+BENCHMARK(BM_Log) CWISE_SIZES;
+BENCHMARK(BM_Tanh) CWISE_SIZES;
+BENCHMARK(BM_Sigmoid) CWISE_SIZES;
+BENCHMARK(BM_ReLU) CWISE_SIZES;
+BENCHMARK(BM_Sqrt) CWISE_SIZES;
+BENCHMARK(BM_Add) CWISE_SIZES;
+BENCHMARK(BM_Mul) CWISE_SIZES;
+BENCHMARK(BM_FMA) CWISE_SIZES;
+BENCHMARK(BM_ReLU_Rank4) RANK4_SIZES;
+BENCHMARK(BM_Add_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_Mul_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_FMA_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_Exp_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_Tanh_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_ReLU_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();

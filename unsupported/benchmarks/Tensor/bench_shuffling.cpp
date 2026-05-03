@@ -138,53 +138,30 @@ static void BM_Shuffle4D_NCHW_to_NHWC_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
-static void Shuffle2DSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    b->Args({size, size});
-  }
-  b->Args({64, 4096});
-  b->Args({4096, 64});
-}
+// clang-format off
+#define SHUFFLE_2D_SIZES \
+  ->Args({256, 256})->Args({1024, 1024}) \
+  ->Args({64, 4096})->Args({4096, 64})
 
-static void Shuffle3DSizes(::benchmark::Benchmark* b) {
-  b->Args({64, 64, 64});
-  b->Args({128, 128, 64});
-  b->Args({32, 256, 256});
-}
+#define SHUFFLE_3D_SIZES \
+  ->Args({64, 64, 64})->Args({128, 128, 64})->Args({32, 256, 256})
 
-static void Shuffle4DSizes(::benchmark::Benchmark* b) {
-  for (int batch : {1, 8}) {
-    for (int c : {3, 64}) {
-      for (int h : {32, 64}) {
-        b->Args({batch, c, h});
-      }
-    }
-  }
-}
+// {batch, channels, h}: pure Cartesian product.
+#define SHUFFLE_4D_SIZES ->ArgsProduct({{1, 8}, {3, 64}, {32, 64}})
 
-static void Shuffle2DThreadPoolSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024}) {
-    for (int threads : {1, 2, 4, 8, 12, 16}) {
-      b->Args({size, size, threads});
-    }
-  }
-}
+#define SHUFFLE_2D_THREADPOOL_SIZES \
+  ->Args({256, 256, 1})->Args({256, 256, 2})->Args({256, 256, 4}) \
+  ->Args({256, 256, 8})->Args({256, 256, 12})->Args({256, 256, 16}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 2})->Args({1024, 1024, 4}) \
+  ->Args({1024, 1024, 8})->Args({1024, 1024, 12})->Args({1024, 1024, 16})
 
-static void Shuffle4DThreadPoolSizes(::benchmark::Benchmark* b) {
-  for (int batch : {1, 8}) {
-    for (int c : {64}) {
-      for (int h : {32, 64}) {
-        for (int threads : {1, 2, 4, 8, 12, 16}) {
-          b->Args({batch, c, h, threads});
-        }
-      }
-    }
-  }
-}
+// {batch, channels, h, threads}: pure Cartesian product.
+#define SHUFFLE_4D_THREADPOOL_SIZES ->ArgsProduct({{1, 8}, {64}, {32, 64}, {1, 2, 4, 8, 12, 16}})
+// clang-format on
 
-BENCHMARK(BM_Shuffle2D)->Apply(Shuffle2DSizes);
-BENCHMARK(BM_ShuffleIdentity)->Apply(Shuffle2DSizes);
-BENCHMARK(BM_Shuffle3D)->Apply(Shuffle3DSizes);
-BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC)->Apply(Shuffle4DSizes);
-BENCHMARK(BM_Shuffle2D_ThreadPool)->Apply(Shuffle2DThreadPoolSizes)->UseRealTime();
-BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool)->Apply(Shuffle4DThreadPoolSizes)->UseRealTime();
+BENCHMARK(BM_Shuffle2D) SHUFFLE_2D_SIZES;
+BENCHMARK(BM_ShuffleIdentity) SHUFFLE_2D_SIZES;
+BENCHMARK(BM_Shuffle3D) SHUFFLE_3D_SIZES;
+BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC) SHUFFLE_4D_SIZES;
+BENCHMARK(BM_Shuffle2D_ThreadPool) SHUFFLE_2D_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool) SHUFFLE_4D_THREADPOOL_SIZES->UseRealTime();

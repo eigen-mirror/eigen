@@ -83,21 +83,17 @@ static void BM_Roll_3D_Inner(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(D0) * D1 * D2 * sizeof(Scalar));
 }
 
-static void RollSizes(::benchmark::Benchmark* b) {
-  for (int size : {64, 256, 1024}) {
-    for (int shift : {1, 13}) {
-      b->Args({size, size, shift});
-    }
-  }
-}
+// clang-format off
+#define ROLL_SIZES \
+  ->Args({64, 64, 1})->Args({64, 64, 13}) \
+  ->Args({256, 256, 1})->Args({256, 256, 13}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 13})
 
-static void Roll3DSizes(::benchmark::Benchmark* b) {
-  b->Args({32, 32, 32});
-  b->Args({64, 64, 64});
-  b->Args({128, 128, 128});
-}
+#define ROLL_3D_SIZES \
+  ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128})
+// clang-format on
 
-BENCHMARK(BM_Roll_Inner)->Apply(RollSizes);
-BENCHMARK(BM_Roll_Outer)->Apply(RollSizes);
-BENCHMARK(BM_Roll_All)->Apply(RollSizes);
-BENCHMARK(BM_Roll_3D_Inner)->Apply(Roll3DSizes);
+BENCHMARK(BM_Roll_Inner) ROLL_SIZES;
+BENCHMARK(BM_Roll_Outer) ROLL_SIZES;
+BENCHMARK(BM_Roll_All) ROLL_SIZES;
+BENCHMARK(BM_Roll_3D_Inner) ROLL_3D_SIZES;

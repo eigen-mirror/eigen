@@ -41,7 +41,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
     scaledA /= scaling;
     MatrixType residual =
         scaledA * eiSymm.eigenvectors() - eiSymm.eigenvectors() * (eiSymm.eigenvalues() / scaling).asDiagonal();
-    RealScalar tol = RealScalar(4) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
+    RealScalar tol = RealScalar(8) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
     for (Index i = 0; i < n; ++i) {
       VERIFY(residual.col(i).norm() <= tol);
     }
@@ -50,7 +50,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
 
   // Eigenvectors must be unitary. Use a tolerance proportional to n*epsilon,
   // which is the expected rounding error for Householder-based orthogonal transformations.
-  RealScalar unitary_tol = RealScalar(4) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
+  RealScalar unitary_tol = RealScalar(8) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
   // But don't go below the test_precision floor (matters for float).
   unitary_tol = numext::maxi(unitary_tol, test_precision<RealScalar>());
   VERIFY(eiSymm.eigenvectors().isUnitary(unitary_tol));

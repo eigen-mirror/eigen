@@ -198,111 +198,48 @@ static void BM_ImagePatch_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
-// --- Size generators ---
+// --- Size configurations ---
 
-static void PatchSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, W, kH, kW
-  for (int c : {3, 32, 64}) {
-    for (int hw : {32, 64, 128}) {
-      for (int k : {3, 5, 7}) {
-        b->Args({c, hw, hw, k, k});
-      }
-    }
-  }
-}
+// channels, H, W, kH, kW (H==W and kH==kW); explicit because of duplicated dims.
+// clang-format off
+#define PATCH_SIZES \
+  ->Args({3, 32, 32, 3, 3})->Args({3, 32, 32, 5, 5})->Args({3, 32, 32, 7, 7}) \
+  ->Args({3, 64, 64, 3, 3})->Args({3, 64, 64, 5, 5})->Args({3, 64, 64, 7, 7}) \
+  ->Args({3, 128, 128, 3, 3})->Args({3, 128, 128, 5, 5})->Args({3, 128, 128, 7, 7}) \
+  ->Args({32, 32, 32, 3, 3})->Args({32, 32, 32, 5, 5})->Args({32, 32, 32, 7, 7}) \
+  ->Args({32, 64, 64, 3, 3})->Args({32, 64, 64, 5, 5})->Args({32, 64, 64, 7, 7}) \
+  ->Args({32, 128, 128, 3, 3})->Args({32, 128, 128, 5, 5})->Args({32, 128, 128, 7, 7}) \
+  ->Args({64, 32, 32, 3, 3})->Args({64, 32, 32, 5, 5})->Args({64, 32, 32, 7, 7}) \
+  ->Args({64, 64, 64, 3, 3})->Args({64, 64, 64, 5, 5})->Args({64, 64, 64, 7, 7}) \
+  ->Args({64, 128, 128, 3, 3})->Args({64, 128, 128, 5, 5})->Args({64, 128, 128, 7, 7})
 
-static void StridedSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, kH, stride
-  for (int c : {3, 64}) {
-    for (int hw : {56, 112, 224}) {
-      for (int k : {3, 5}) {
-        for (int s : {1, 2}) {
-          b->Args({c, hw, k, s});
-        }
-      }
-    }
-  }
-}
+// channels, H, W, kH (H==W); explicit because of duplicated H/W dim.
+#define EXPLICIT_PADDING_SIZES \
+  ->Args({3, 32, 32, 3})->Args({3, 32, 32, 5})->Args({3, 64, 64, 3})->Args({3, 64, 64, 5}) \
+  ->Args({3, 128, 128, 3})->Args({3, 128, 128, 5})->Args({64, 32, 32, 3})->Args({64, 32, 32, 5}) \
+  ->Args({64, 64, 64, 3})->Args({64, 64, 64, 5})->Args({64, 128, 128, 3})->Args({64, 128, 128, 5})
 
-static void DilatedSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, kH, dilation
-  for (int c : {3, 64}) {
-    for (int hw : {32, 64}) {
-      for (int k : {3, 5}) {
-        for (int d : {2, 4}) {
-          b->Args({c, hw, k, d});
-        }
-      }
-    }
-  }
-}
+// {channels, spatial, kernel, stride/dilation/threads/batch}: pure Cartesian products.
+#define STRIDED_SIZES ->ArgsProduct({{3, 64}, {56, 112, 224}, {3, 5}, {1, 2}})
+#define DILATED_SIZES ->ArgsProduct({{3, 64}, {32, 64}, {3, 5}, {2, 4}})
+#define BATCHED_SIZES ->ArgsProduct({{3, 64}, {32, 56}, {3, 5}, {4, 16, 32}})
+#define THREAD_POOL_SIZES ->ArgsProduct({{64, 128}, {56, 112}, {3, 5}, {2, 4, 8}})
 
-static void ExplicitPaddingSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, W, kH
-  for (int c : {3, 64}) {
-    for (int hw : {32, 64, 128}) {
-      for (int k : {3, 5}) {
-        b->Args({c, hw, hw, k});
-      }
-    }
-  }
-}
+// Realistic CNN layer configurations: channels, spatial_size, kernel, stride.
+// AlexNet conv1; VGG, VGG deeper x2; ResNet, ResNet downsample, ResNet deeper x2;
+// MobileNet depthwise; Inception 1x1 (degenerate patch).
+#define IMAGENET_SIZES \
+  ->Args({3, 227, 11, 4}) \
+  ->Args({64, 224, 3, 1})->Args({128, 112, 3, 1})->Args({256, 56, 3, 1}) \
+  ->Args({64, 56, 3, 1})->Args({128, 56, 3, 2})->Args({256, 28, 3, 1})->Args({512, 14, 3, 1}) \
+  ->Args({32, 112, 3, 1})->Args({192, 28, 1, 1})
+// clang-format on
 
-static void BatchedSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, kH, batch
-  for (int c : {3, 64}) {
-    for (int hw : {32, 56}) {
-      for (int k : {3, 5}) {
-        for (int batch : {4, 16, 32}) {
-          b->Args({c, hw, k, batch});
-        }
-      }
-    }
-  }
-}
-
-static void ImageNetSizes(::benchmark::internal::Benchmark* b) {
-  // Realistic CNN layer configurations: channels, spatial_size, kernel, stride
-  // AlexNet conv1: 3x227x227, 11x11, stride 4
-  b->Args({3, 227, 11, 4});
-  // VGG-style: 64x224x224, 3x3, stride 1
-  b->Args({64, 224, 3, 1});
-  // VGG deeper: 128x112x112, 3x3, stride 1
-  b->Args({128, 112, 3, 1});
-  // VGG deeper: 256x56x56, 3x3, stride 1
-  b->Args({256, 56, 3, 1});
-  // ResNet: 64x56x56, 3x3, stride 1
-  b->Args({64, 56, 3, 1});
-  // ResNet downsample: 128x56x56, 3x3, stride 2
-  b->Args({128, 56, 3, 2});
-  // ResNet: 256x28x28, 3x3, stride 1
-  b->Args({256, 28, 3, 1});
-  // ResNet: 512x14x14, 3x3, stride 1
-  b->Args({512, 14, 3, 1});
-  // MobileNet depthwise: 32x112x112, 3x3, stride 1
-  b->Args({32, 112, 3, 1});
-  // Inception 1x1 (degenerate patch): 192x28x28, 1x1, stride 1
-  b->Args({192, 28, 1, 1});
-}
-
-static void ThreadPoolSizes(::benchmark::internal::Benchmark* b) {
-  // channels, H, kH, threads
-  for (int c : {64, 128}) {
-    for (int hw : {56, 112}) {
-      for (int k : {3, 5}) {
-        for (int threads : {2, 4, 8}) {
-          b->Args({c, hw, k, threads});
-        }
-      }
-    }
-  }
-}
-
-BENCHMARK(BM_ImagePatch_Valid)->Apply(PatchSizes);
-BENCHMARK(BM_ImagePatch_Same)->Apply(PatchSizes);
-BENCHMARK(BM_ImagePatch_Strided)->Apply(StridedSizes);
-BENCHMARK(BM_ImagePatch_Dilated)->Apply(DilatedSizes);
-BENCHMARK(BM_ImagePatch_ExplicitPadding)->Apply(ExplicitPaddingSizes);
-BENCHMARK(BM_ImagePatch_Batched)->Apply(BatchedSizes);
-BENCHMARK(BM_ImagePatch_ImageNet)->Apply(ImageNetSizes);
-BENCHMARK(BM_ImagePatch_ThreadPool)->Apply(ThreadPoolSizes);
+BENCHMARK(BM_ImagePatch_Valid) PATCH_SIZES;
+BENCHMARK(BM_ImagePatch_Same) PATCH_SIZES;
+BENCHMARK(BM_ImagePatch_Strided) STRIDED_SIZES;
+BENCHMARK(BM_ImagePatch_Dilated) DILATED_SIZES;
+BENCHMARK(BM_ImagePatch_ExplicitPadding) EXPLICIT_PADDING_SIZES;
+BENCHMARK(BM_ImagePatch_Batched) BATCHED_SIZES;
+BENCHMARK(BM_ImagePatch_ImageNet) IMAGENET_SIZES;
+BENCHMARK(BM_ImagePatch_ThreadPool) THREAD_POOL_SIZES;

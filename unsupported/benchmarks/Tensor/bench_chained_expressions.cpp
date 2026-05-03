@@ -142,16 +142,18 @@ static void BM_BatchNorm_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
-static void ChainedSizes(::benchmark::Benchmark* b) {
-  for (int size : {256, 1024, 4096}) {
-    for (int threads : {1, 2, 4, 8, 12, 16}) {
-      b->Args({size, size, threads});
-    }
-  }
-}
+// clang-format off
+#define CHAINED_SIZES \
+  ->Args({256, 256, 1})->Args({256, 256, 2})->Args({256, 256, 4}) \
+  ->Args({256, 256, 8})->Args({256, 256, 12})->Args({256, 256, 16}) \
+  ->Args({1024, 1024, 1})->Args({1024, 1024, 2})->Args({1024, 1024, 4}) \
+  ->Args({1024, 1024, 8})->Args({1024, 1024, 12})->Args({1024, 1024, 16}) \
+  ->Args({4096, 4096, 1})->Args({4096, 4096, 2})->Args({4096, 4096, 4}) \
+  ->Args({4096, 4096, 8})->Args({4096, 4096, 12})->Args({4096, 4096, 16})
+// clang-format on
 
-BENCHMARK(BM_Copy_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
-BENCHMARK(BM_BiasReLU_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
-BENCHMARK(BM_Polynomial_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
-BENCHMARK(BM_ExpNormalize_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
-BENCHMARK(BM_BatchNorm_ThreadPool)->Apply(ChainedSizes)->UseRealTime();
+BENCHMARK(BM_Copy_ThreadPool) CHAINED_SIZES->UseRealTime();
+BENCHMARK(BM_BiasReLU_ThreadPool) CHAINED_SIZES->UseRealTime();
+BENCHMARK(BM_Polynomial_ThreadPool) CHAINED_SIZES->UseRealTime();
+BENCHMARK(BM_ExpNormalize_ThreadPool) CHAINED_SIZES->UseRealTime();
+BENCHMARK(BM_BatchNorm_ThreadPool) CHAINED_SIZES->UseRealTime();
