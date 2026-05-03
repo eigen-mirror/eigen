@@ -110,13 +110,13 @@ test:linux:x86-64:gcc-13:avx512fp16:official:
   extends: .test:linux:x86-64:gcc-13:avx512fp16
   needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:official ]
   variables:
-    EIGEN_CI_TEST_LABEL: Official
+    EIGEN_CI_CTEST_LABEL: Official
 
 test:linux:x86-64:gcc-13:avx512fp16:unsupported:
   extends: .test:linux:x86-64:gcc-13:avx512fp16
   needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported ]
   variables:
-    EIGEN_CI_TEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Unsupported
 
 # Clang-14 (modern stable)
 .test:linux:x86-64:clang-14:default:
