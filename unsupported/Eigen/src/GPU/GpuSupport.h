@@ -42,8 +42,12 @@ namespace internal {
 // hand-rolled move/dtor boilerplate.
 
 struct CudaFreeDeleter {
+  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
+  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
+  // smart-pointer machinery as owning storage, without changing the type.
+  bool borrow = false;
   void operator()(void* p) const noexcept {
-    if (p) (void)cudaFree(p);
+    if (p && !borrow) (void)cudaFree(p);
   }
 };
 

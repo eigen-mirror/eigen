@@ -478,6 +478,23 @@ class DeviceMatrix {
     return dm;
   }
 
+  /** Construct a non-owning view over an existing device pointer.
+   *
+   * The pointer is *borrowed*: destruction does not free, and the underlying
+   * storage must outlive this view. Use this to chain decomposition outputs
+   * (e.g. `svd.d_matrixU()`) into downstream cuBLAS expressions without an
+   * intervening D2D copy. The view supports the full read interface (toHost,
+   * gemm operands, adjoint(), etc.). Do not assign through a view: the borrowed
+   * pointer would be silently replaced and the underlying owner left intact. */
+  static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
+    DeviceMatrix dm;
+    dm.data_ = std::unique_ptr<Scalar, internal::CudaFreeDeleter>(device_ptr,
+                                                                  internal::CudaFreeDeleter{/*borrow=*/true});
+    dm.rows_ = rows;
+    dm.cols_ = cols;
+    return dm;
+  }
+
   /** Transfer ownership of the device pointer out. Zeros internal state. */
   Scalar* release() {
     Scalar* p = data_.release();

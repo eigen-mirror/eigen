@@ -168,6 +168,163 @@ void test_svd_solve_regularized(Index m, Index n) {
   VERIFY((X_reg - X_ref).norm() / X_ref.norm() < tol);
 }
 
+// ---- Solve: rank-deficient (exercise drop_threshold pseudoinverse) ----------
+
+template <typename Scalar>
+void test_svd_solve_rank_deficient(Index m, Index n, Index r) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<typename NumTraits<Scalar>::Real, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(r > 0 && r < (std::min)(m, n));
+
+  // Build A of rank exactly r: A = U[:,:r] * diag(s) * V[:,:r]^H.
+  Mat U_seed = Mat::Random(m, m);
+  Mat U_full = HouseholderQR<Mat>(U_seed).householderQ();
+  Mat V_seed = Mat::Random(n, n);
+  Mat V_full = HouseholderQR<Mat>(V_seed).householderQ();
+  Vec sigma(r);
+  for (Index i = 0; i < r; ++i) sigma(i) = RealScalar(1) + RealScalar(i);  // distinct, well-spaced
+  Mat A = U_full.leftCols(r) * sigma.asDiagonal() * V_full.leftCols(r).adjoint();
+
+  Mat B = Mat::Random(m, 1);
+
+  gpu::SVD<Scalar> svd(A, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  Mat X_gpu = svd.solve(B);
+
+  // Reference: CPU BDCSVD with the same drop_threshold semantics (its default solve()
+  // also drops near-zero singular values relative to S(0) * (m, n)_max * epsilon).
+  Mat X_cpu = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV).solve(B);
+
+  // Both should produce the minimum-norm least-squares solution; compare via the
+  // "useful" residual A^H r: zero up to the rank-r component plus rounding.
+  RealScalar tol = RealScalar(50) * RealScalar((std::max)(m, n)) * NumTraits<Scalar>::epsilon();
+  VERIFY((X_gpu - X_cpu).norm() / X_cpu.norm() < tol);
+
+  // Norm of X should also be minimum (X has no component in null(A) up to rounding).
+  VERIFY(numext::abs(X_gpu.norm() - X_cpu.norm()) / X_cpu.norm() < tol);
+}
+
+// ---- Reconstruction: full U / full V on a wide matrix (m < n) ---------------
+//
+// Exercises the transposed-internal-representation path through gesvd combined
+// with the matrixU/matrixVT swap logic.
+
+template <typename Scalar>
+void test_svd_reconstruction_full_wide(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(m < n);
+  Mat A = Mat::Random(m, n);
+  gpu::SVD<Scalar> svd(A, ComputeFullU | ComputeFullV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  auto S = svd.singularValues();
+  Mat U = svd.matrixU();    // m × m
+  Mat VT = svd.matrixVT();  // n × n
+  Mat V = svd.matrixV();    // n × n (matrixV alias should match matrixVT().adjoint())
+
+  VERIFY_IS_EQUAL(U.rows(), m);
+  VERIFY_IS_EQUAL(U.cols(), m);
+  VERIFY_IS_EQUAL(VT.rows(), n);
+  VERIFY_IS_EQUAL(VT.cols(), n);
+  VERIFY_IS_EQUAL(V.rows(), n);
+  VERIFY_IS_EQUAL(V.cols(), n);
+  VERIFY_IS_APPROX(V, VT.adjoint());
+
+  const Index k = (std::min)(m, n);
+  Mat A_hat = U.leftCols(k) * S.asDiagonal() * VT.topRows(k);
+  RealScalar tol = RealScalar(5) * std::sqrt(static_cast<RealScalar>(k)) * NumTraits<Scalar>::epsilon() * A.norm();
+  VERIFY((A_hat - A).norm() < tol);
+
+  Mat UtU = U.adjoint() * U;
+  VERIFY((UtU - Mat::Identity(m, m)).norm() < tol);
+  Mat VtVh = VT * VT.adjoint();
+  VERIFY((VtVh - Mat::Identity(n, n)).norm() < tol);
+}
+
+// ---- Device-side accessors --------------------------------------------------
+//
+// Verify that d_singularValues / d_matrixU / d_matrixVT return views over the
+// SVD's internal storage that agree with the host accessors after toHost().
+
+template <typename Scalar>
+void test_svd_device_accessors(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, n);
+  gpu::SVD<Scalar> svd(A, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  auto d_S = svd.d_singularValues();
+  auto d_U = svd.d_matrixU();
+  auto d_VT = svd.d_matrixVT();
+
+  Matrix<RealScalar, Dynamic, 1> S_host = d_S.toHost();
+  Mat U_host = d_U.toHost();
+  Mat VT_host = d_VT.toHost();
+
+  VERIFY_IS_APPROX(S_host, svd.singularValues());
+  VERIFY_IS_APPROX(U_host, svd.matrixU());
+  VERIFY_IS_APPROX(VT_host, svd.matrixVT());
+
+  // Multiple invocations must keep returning views without disturbing the SVD's state:
+  // call again, then verify the SVD's host accessors still produce correct results.
+  (void)svd.d_matrixU();
+  (void)svd.d_matrixVT();
+  VERIFY_IS_APPROX(svd.matrixU(), U_host);
+  VERIFY_IS_APPROX(svd.matrixVT(), VT_host);
+}
+
+// ---- Chain device views into a downstream cuBLAS GEMM (no D2D copy) ---------
+//
+// d_matrixU() returns a non-owning view over the SVD's internal d_U_ buffer.
+// Feeding the view straight into a Context-driven GEMM exercises cross-stream
+// event sync and confirms the borrow-deleter does not double-free on temporary
+// destruction.
+
+template <typename Scalar>
+void test_svd_chain_orthogonality(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, n);
+  gpu::SVD<Scalar> svd(A, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  const Index k = (std::min)(m, n);
+
+  // U^H * U = I_k, all on device, no host roundtrip on U.
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_UtU;
+  {
+    auto d_U = svd.d_matrixU();
+    d_UtU.device(ctx) = d_U.adjoint() * d_U;
+  }
+  Mat UtU = d_UtU.toHost();
+  RealScalar tol = RealScalar(20) * std::sqrt(static_cast<RealScalar>(k)) * NumTraits<Scalar>::epsilon();
+  VERIFY((UtU - Mat::Identity(k, k)).norm() < tol);
+
+  // VT * VT^H = I_k.
+  gpu::DeviceMatrix<Scalar> d_VVt;
+  {
+    auto d_VT = svd.d_matrixVT();
+    d_VVt.device(ctx) = d_VT * d_VT.adjoint();
+  }
+  Mat VVt = d_VVt.toHost();
+  VERIFY((VVt - Mat::Identity(k, k)).norm() < tol);
+
+  // After view destruction, SVD's state must remain valid (the deleter is a no-op
+  // for views, so the underlying d_U_ / d_VT_ are not freed).
+  Mat U_again = svd.matrixU();
+  Mat VT_again = svd.matrixVT();
+  VERIFY_IS_EQUAL(U_again.rows(), m);
+  VERIFY_IS_EQUAL(VT_again.cols(), n);
+}
+
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_svd_empty() {
@@ -200,6 +357,23 @@ void test_scalar() {
   // Truncated and regularized solve.
   CALL_SUBTEST(test_svd_solve_truncated<Scalar>(64, 64));
   CALL_SUBTEST(test_svd_solve_regularized<Scalar>(64, 64));
+
+  // Rank-deficient solve (exercises drop_threshold pseudoinverse).
+  CALL_SUBTEST(test_svd_solve_rank_deficient<Scalar>(64, 64, 32));
+  CALL_SUBTEST(test_svd_solve_rank_deficient<Scalar>(96, 64, 16));
+  CALL_SUBTEST(test_svd_solve_rank_deficient<Scalar>(64, 96, 16));
+
+  // Wide matrix with full U/V (transposed-internal path).
+  CALL_SUBTEST((test_svd_reconstruction_full_wide<Scalar>(64, 96)));
+
+  // Device accessors.
+  CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 64));
+  CALL_SUBTEST(test_svd_device_accessors<Scalar>(96, 64));
+  CALL_SUBTEST(test_svd_device_accessors<Scalar>(64, 96));
+
+  // Chain device views into a downstream GEMM (orthogonality check).
+  CALL_SUBTEST(test_svd_chain_orthogonality<Scalar>(64, 64));
+  CALL_SUBTEST(test_svd_chain_orthogonality<Scalar>(96, 64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_svd) {

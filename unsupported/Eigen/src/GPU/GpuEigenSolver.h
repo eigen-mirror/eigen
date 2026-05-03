@@ -36,14 +36,12 @@ class SelfAdjointEigenSolver {
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   using RealVector = Eigen::Matrix<RealScalar, Dynamic, 1>;
 
-  /** Eigenvalue-only or eigenvalues + eigenvectors. */
-  enum ComputeMode { EigenvaluesOnly, ComputeEigenvectors };
-
   SelfAdjointEigenSolver() = default;
 
+  /** \param options  Eigen::ComputeEigenvectors (default) or Eigen::EigenvaluesOnly. */
   template <typename InputType>
-  explicit SelfAdjointEigenSolver(const EigenBase<InputType>& A, ComputeMode mode = ComputeEigenvectors) {
-    compute(A, mode);
+  explicit SelfAdjointEigenSolver(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
+    compute(A, options);
   }
 
   ~SelfAdjointEigenSolver() = default;
@@ -54,11 +52,12 @@ class SelfAdjointEigenSolver {
   // ---- Factorization -------------------------------------------------------
 
   template <typename InputType>
-  SelfAdjointEigenSolver& compute(const EigenBase<InputType>& A, ComputeMode mode = ComputeEigenvectors) {
+  SelfAdjointEigenSolver& compute(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
     eigen_assert(A.rows() == A.cols() && "SelfAdjointEigenSolver requires a square matrix");
-    mode_ = mode;
+    eigen_assert((options == ComputeEigenvectors || options == EigenvaluesOnly) &&
+                 "options must be ComputeEigenvectors or EigenvaluesOnly");
+    compute_eigenvectors_ = (options == ComputeEigenvectors);
     n_ = A.rows();
-    ctx_.mark_pending();
 
     if (n_ == 0) {
       ctx_.info_ = Success;
@@ -77,11 +76,12 @@ class SelfAdjointEigenSolver {
     return *this;
   }
 
-  SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, ComputeMode mode = ComputeEigenvectors) {
+  SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
     eigen_assert(d_A.rows() == d_A.cols() && "SelfAdjointEigenSolver requires a square matrix");
-    mode_ = mode;
+    eigen_assert((options == ComputeEigenvectors || options == EigenvaluesOnly) &&
+                 "options must be ComputeEigenvectors or EigenvaluesOnly");
+    compute_eigenvectors_ = (options == ComputeEigenvectors);
     n_ = d_A.rows();
-    ctx_.mark_pending();
 
     if (n_ == 0) {
       ctx_.info_ = Success;
@@ -125,7 +125,7 @@ class SelfAdjointEigenSolver {
   PlainMatrix eigenvectors() const {
     ctx_.sync_info();
     eigen_assert(ctx_.info_ == Success);
-    eigen_assert(mode_ == ComputeEigenvectors && "eigenvectors() requires ComputeEigenvectors mode");
+    eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
     if (n_ > 0) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(V.data(), d_A_.get(),
@@ -135,13 +135,38 @@ class SelfAdjointEigenSolver {
     return V;
   }
 
+  // ---- Device-side accessors (zero-copy views; chain into cuBLAS without D2D) ---------
+  //
+  // These return non-owning DeviceMatrix views over this solver's internal storage. The
+  // view borrows the pointer: destruction does not free; this solver must outlive any
+  // view derived from it. Both accessors are pure metadata — zero kernel launches.
+
+  /** Eigenvalues as an n × 1 view on this solver's stream. */
+  DeviceMatrix<RealScalar> d_eigenvalues() const {
+    ctx_.sync_info();
+    eigen_assert(ctx_.info_ == Success);
+    auto v = DeviceMatrix<RealScalar>::view(static_cast<RealScalar*>(d_W_.get()), n_, 1);
+    v.recordReady(ctx_.stream_);
+    return v;
+  }
+
+  /** Eigenvectors (columns) as an n × n view on this solver's stream. */
+  DeviceMatrix<Scalar> d_eigenvectors() const {
+    ctx_.sync_info();
+    eigen_assert(ctx_.info_ == Success);
+    eigen_assert(compute_eigenvectors_ && "d_eigenvectors() requires ComputeEigenvectors option");
+    auto v = DeviceMatrix<Scalar>::view(static_cast<Scalar*>(d_A_.get()), n_, n_);
+    v.recordReady(ctx_.stream_);
+    return v;
+  }
+
   cudaStream_t stream() const { return ctx_.stream_; }
 
  private:
   mutable internal::GpuSolverContext ctx_;
   internal::DeviceBuffer d_A_;  // overwritten with eigenvectors by syevd
   internal::DeviceBuffer d_W_;  // eigenvalues (RealScalar, length n)
-  ComputeMode mode_ = ComputeEigenvectors;
+  bool compute_eigenvectors_ = true;
   int64_t n_ = 0;
   int64_t lda_ = 0;
 
@@ -153,8 +178,7 @@ class SelfAdjointEigenSolver {
 
     d_W_ = internal::DeviceBuffer(static_cast<size_t>(n_) * sizeof(RealScalar));
 
-    const cusolverEigMode_t jobz =
-        (mode_ == ComputeEigenvectors) ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
+    const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 
     // Use lower triangle (standard convention).
     constexpr cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;

@@ -12,6 +12,7 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <Eigen/QR>
+#include <Eigen/SVD>
 #include <unsupported/Eigen/GPU>
 
 using namespace Eigen;
@@ -124,6 +125,94 @@ void test_qr_solve_overdetermined_device(Index m, Index n, Index nrhs) {
   VERIFY((A.adjoint() * (A * X_cpu - B)).norm() / denom_cpu < tol);
 }
 
+// ---- Solve underdetermined system: m < n (minimum norm) ---------------------
+
+template <typename Scalar>
+void test_qr_solve_underdetermined(Index m, Index n, Index nrhs) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(m < n);
+  Mat A = Mat::Random(m, n);
+  Mat B = Mat::Random(m, nrhs);
+
+  gpu::QR<Scalar> qr(A);
+  VERIFY_IS_EQUAL(qr.info(), Success);
+
+  Mat X = qr.solve(B);
+  VERIFY_IS_EQUAL(X.rows(), n);
+  VERIFY_IS_EQUAL(X.cols(), nrhs);
+
+  // The minimum-norm solution exactly satisfies A X = B (m equations, n > m
+  // unknowns). Backward error is O(m * eps) * ||A|| * ||X||.
+  RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((A * X - B).norm() / (A.norm() * X.norm() + B.norm()) < tol);
+
+  // Min-norm property: X ⟂ null(A), so X ∈ row space(A) = col space(A^H).
+  // ||X|| <= ||X_any|| for any other solution. Compare to the SVD min-norm reference.
+  Mat X_svd = BDCSVD<Mat>(A, ComputeThinU | ComputeThinV).solve(B);
+  // Both should have the same norm (up to rounding).
+  VERIFY(numext::abs(X.norm() - X_svd.norm()) / X_svd.norm() <
+         RealScalar(50) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+}
+
+template <typename Scalar>
+void test_qr_solve_underdetermined_device(Index m, Index n, Index nrhs) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(m < n);
+  Mat A = Mat::Random(m, n);
+  Mat B = Mat::Random(m, nrhs);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+
+  gpu::QR<Scalar> qr;
+  qr.compute(d_A);
+  VERIFY_IS_EQUAL(qr.info(), Success);
+
+  gpu::DeviceMatrix<Scalar> d_X = qr.solve(d_B);
+  VERIFY_IS_EQUAL(d_X.rows(), n);
+  VERIFY_IS_EQUAL(d_X.cols(), nrhs);
+
+  Mat X = d_X.toHost();
+  RealScalar tol = RealScalar(20) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((A * X - B).norm() / (A.norm() * X.norm() + B.norm()) < tol);
+}
+
+// ---- matrixR() returns the upper-triangular factor --------------------------
+
+template <typename Scalar>
+void test_qr_matrixR(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  eigen_assert(m >= n);
+  Mat A = Mat::Random(m, n);
+  gpu::QR<Scalar> qr(A);
+  VERIFY_IS_EQUAL(qr.info(), Success);
+
+  Mat R = qr.matrixR();
+  VERIFY_IS_EQUAL(R.rows(), n);
+  VERIFY_IS_EQUAL(R.cols(), n);
+
+  // Verify R is upper-triangular (lower triangle exactly zero).
+  for (Index j = 0; j < n; ++j) {
+    for (Index i = j + 1; i < n; ++i) {
+      VERIFY_IS_EQUAL(R(i, j), Scalar(0));
+    }
+  }
+
+  // Verify that the diagonal of R matches the absolute values of CPU R diagonal
+  // up to sign (Householder QR has free diagonal sign).
+  Mat R_cpu = HouseholderQR<Mat>(A).matrixQR().topRows(n).template triangularView<Upper>();
+  RealScalar tol = RealScalar(20) * RealScalar(m) * NumTraits<Scalar>::epsilon() * A.norm();
+  for (Index i = 0; i < n; ++i) {
+    VERIFY(numext::abs(numext::abs(R(i, i)) - numext::abs(R_cpu(i, i))) < tol);
+  }
+}
+
 // ---- Multiple solves reuse the factorization --------------------------------
 
 template <typename Scalar>
@@ -184,6 +273,13 @@ void test_scalar() {
 
   CALL_SUBTEST(test_qr_solve_overdetermined<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined<Scalar>(256, 128, 1));
+
+  CALL_SUBTEST(test_qr_solve_underdetermined<Scalar>(64, 128, 4));
+  CALL_SUBTEST(test_qr_solve_underdetermined<Scalar>(64, 128, 1));
+  CALL_SUBTEST(test_qr_solve_underdetermined_device<Scalar>(64, 128, 4));
+
+  CALL_SUBTEST(test_qr_matrixR<Scalar>(64, 64));
+  CALL_SUBTEST(test_qr_matrixR<Scalar>(128, 64));
 
   CALL_SUBTEST(test_qr_solve_device<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined_device<Scalar>(128, 64, 4));
