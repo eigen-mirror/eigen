@@ -229,6 +229,13 @@ struct unpacket_traits<Packet4Xd> : rvv_default_unpacket_traits<double, Packet4X
   typedef PacketMask16 packet_mask;
 };
 
+/********************************* char ************************************/
+
+typedef eigen_packet_wrapper<vint8m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 28> Packet1Xc;
+
+template <>
+struct unpacket_traits<Packet1Xc> : rvv_default_unpacket_traits<numext::int8_t, Packet1Xc, 1> {};
+
 /********************************* default **************************************/
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
