@@ -156,10 +156,7 @@ struct unpacket_traits<const T> : unpacket_traits<T> {};
  * This is used to enable some generic packet implementations.
  */
 template <typename Packet>
-struct is_scalar {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  enum { value = internal::is_same<Packet, Scalar>::value };
-};
+struct is_scalar : std::is_same<Packet, typename unpacket_traits<Packet>::type> {};
 
 // automatically and succinctly define combinations of pcast<SrcPacket,TgtPacket> when
 // 1) the packets are the same type, or
@@ -167,7 +164,7 @@ struct is_scalar {
 // In both of these cases, preinterpret (bit_cast) is equivalent to pcast (static_cast)
 template <typename SrcPacket, typename TgtPacket,
           bool Scalar = is_scalar<SrcPacket>::value && is_scalar<TgtPacket>::value>
-struct is_degenerate_helper : is_same<SrcPacket, TgtPacket> {};
+struct is_degenerate_helper : std::is_same<SrcPacket, TgtPacket> {};
 template <>
 struct is_degenerate_helper<int8_t, uint8_t, true> : std::true_type {};
 template <>
@@ -240,7 +237,7 @@ struct eigen_packet_wrapper {
   T m_val;
 };
 
-template <typename Target, typename Packet, bool IsSame = is_same<Target, Packet>::value>
+template <typename Target, typename Packet, bool IsSame = std::is_same<Target, Packet>::value>
 struct preinterpret_generic;
 
 template <typename Target, typename Packet>
@@ -352,7 +349,7 @@ EIGEN_DEVICE_FUNC inline Packet psub(const Packet& a, const Packet& b) {
 /** \internal \returns -a (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
-  EIGEN_STATIC_ASSERT((!is_same<typename unpacket_traits<Packet>::type, bool>::value),
+  EIGEN_STATIC_ASSERT((!std::is_same<typename unpacket_traits<Packet>::type, bool>::value),
                       NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   return numext::negate(a);
 }
@@ -528,8 +525,8 @@ struct bitwise_helper : public bytewise_bitwise_helper<T> {};
 
 // For integers or non-trivial scalars, use binary operators.
 template <typename T>
-struct bitwise_helper<T, typename std::enable_if_t<is_scalar<T>::value &&
-                                                   (NumTraits<T>::IsInteger || NumTraits<T>::RequireInitialization)>>
+struct bitwise_helper<
+    T, std::enable_if_t<is_scalar<T>::value && (NumTraits<T>::IsInteger || NumTraits<T>::RequireInitialization)>>
     : public operator_bitwise_helper<T> {};
 
 /** \internal \returns the bitwise and of \a a and \a b */

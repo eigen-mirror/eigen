@@ -37,15 +37,16 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices>> : traits<XprType> {
     OuterIncr = IsRowMajor ? RowIncr : ColIncr,
 
     HasSameStorageOrderAsXprType = (IsRowMajor == XprTypeIsRowMajor),
-    XprInnerStride = HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType>::ret)
-                                                  : int(outer_stride_at_compile_time<XprType>::ret),
-    XprOuterstride = HasSameStorageOrderAsXprType ? int(outer_stride_at_compile_time<XprType>::ret)
-                                                  : int(inner_stride_at_compile_time<XprType>::ret),
+    XprInnerStride = HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType>::value)
+                                                  : int(outer_stride_at_compile_time<XprType>::value),
+    XprOuterstride = HasSameStorageOrderAsXprType ? int(outer_stride_at_compile_time<XprType>::value)
+                                                  : int(inner_stride_at_compile_time<XprType>::value),
 
     InnerSize = XprTypeIsRowMajor ? ColsAtCompileTime : RowsAtCompileTime,
     IsBlockAlike = InnerIncr == 1 && OuterIncr == 1,
-    IsInnerPannel = HasSameStorageOrderAsXprType &&
-                    is_same<AllRange<InnerSize>, std::conditional_t<XprTypeIsRowMajor, ColIndices, RowIndices>>::value,
+    IsInnerPannel =
+        HasSameStorageOrderAsXprType &&
+        std::is_same<AllRange<InnerSize>, std::conditional_t<XprTypeIsRowMajor, ColIndices, RowIndices>>::value,
 
     InnerStrideAtCompileTime =
         InnerIncr < 0 || InnerIncr == DynamicIndex || XprInnerStride == Dynamic || InnerIncr == Undefined

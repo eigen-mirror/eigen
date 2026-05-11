@@ -239,7 +239,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
   template <class Derived>
   EulerAngles& operator=(const MatrixBase<Derived>& other) {
     EIGEN_STATIC_ASSERT(
-        (internal::is_same<Scalar, typename Derived::Scalar>::value),
+        (std::is_same<Scalar, typename Derived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
     internal::eulerangles_assign_impl<System, Derived>::run(*this, other.derived());

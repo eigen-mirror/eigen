@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_REVERSE_H
-#define EIGEN_CXX11_TENSOR_TENSOR_REVERSE_H
+#ifndef EIGEN_TENSOR_TENSOR_REVERSE_H
+#define EIGEN_TENSOR_TENSOR_REVERSE_H
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
@@ -44,7 +44,7 @@ struct nested<TensorReverseOp<ReverseDimensions, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor reverse elements class.
  *
@@ -419,4 +419,4 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_REVERSE_H
+#endif  // EIGEN_TENSOR_TENSOR_REVERSE_H

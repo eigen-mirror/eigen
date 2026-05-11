@@ -7,6 +7,7 @@
   stage: build
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests
+    EIGEN_CI_SKIP_APT: "false"
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
@@ -439,10 +440,14 @@ build:linux:cross:loongarch64:gcc-14:default:
       -DEIGEN_TEST_LSX=on
 
 ######## MR Smoke Tests ########################################################
+# aarch64 targets are cross-compiled via g++-10-aarch64-linux-gnu / clang-14.
+# Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:
   extends: build:linux:cross:x86-64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -451,7 +456,9 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: build:linux:cross:x86-64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -460,9 +467,22 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: build:linux:cross:aarch64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-arm64
+    - saas-linux-medium-amd64
+
+build:linux:aarch64:clang-14:default:smoketest:
+  extends: build:linux:cross:aarch64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-medium-amd64

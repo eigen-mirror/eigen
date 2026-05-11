@@ -360,9 +360,8 @@
 // so, to avoid compile errors when windows.h is included after Eigen/Core, ensure intrinsics are extern "C" here too.
 // notice that since these are C headers, the extern "C" is theoretically needed anyways.
 extern "C" {
-// In theory we should only include immintrin.h and not the other *mmintrin.h header files directly.
-// Doing so triggers some issues with ICC. However old gcc versions may not have this file, thus:
-#if EIGEN_COMP_ICC >= 1110 || EIGEN_COMP_EMSCRIPTEN
+// ICC and Emscripten need the umbrella header instead of direct *mmintrin.h includes.
+#if EIGEN_COMP_ICC || EIGEN_COMP_EMSCRIPTEN
 #include <immintrin.h>
 #else
 #include <mmintrin.h>
@@ -525,7 +524,7 @@ extern "C" {
 #define EIGEN_VECTORIZE_FMA
 #endif
 
-#if defined(__F16C__) && !defined(EIGEN_GPUCC) && (!EIGEN_COMP_CLANG_STRICT || EIGEN_CLANG_STRICT_AT_LEAST(3, 8, 0))
+#if defined(__F16C__) && !defined(EIGEN_GPUCC)
 // We can use the optimized fp16 to float and float to fp16 conversion routines
 #define EIGEN_HAS_FP16_C
 

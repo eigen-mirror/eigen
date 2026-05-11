@@ -42,8 +42,8 @@ class CwiseBinaryOpImpl<BinaryOp, Lhs, Rhs, Sparse> : public SparseMatrixBase<Cw
   typedef CwiseBinaryOp<BinaryOp, Lhs, Rhs> Derived;
   typedef SparseMatrixBase<Derived> Base;
   EIGEN_SPARSE_PUBLIC_INTERFACE(Derived)
-  EIGEN_STATIC_ASSERT(((!internal::is_same<typename internal::traits<Lhs>::StorageKind,
-                                           typename internal::traits<Rhs>::StorageKind>::value) ||
+  EIGEN_STATIC_ASSERT(((!std::is_same<typename internal::traits<Lhs>::StorageKind,
+                                      typename internal::traits<Rhs>::StorageKind>::value) ||
                        ((internal::evaluator<Lhs>::Flags & RowMajorBit) ==
                         (internal::evaluator<Rhs>::Flags & RowMajorBit))),
                       THE_STORAGE_ORDER_OF_BOTH_SIDES_MUST_MATCH)

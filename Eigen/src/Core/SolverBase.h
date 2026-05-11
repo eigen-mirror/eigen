@@ -90,7 +90,7 @@ class SolverBase : public EigenBase<Derived> {
   enum {
     RowsAtCompileTime = internal::traits<Derived>::RowsAtCompileTime,
     ColsAtCompileTime = internal::traits<Derived>::ColsAtCompileTime,
-    SizeAtCompileTime = (internal::size_of_xpr_at_compile_time<Derived>::ret),
+    SizeAtCompileTime = (internal::size_of_xpr_at_compile_time<Derived>::value),
     MaxRowsAtCompileTime = internal::traits<Derived>::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = internal::traits<Derived>::MaxColsAtCompileTime,
     MaxSizeAtCompileTime = internal::size_at_compile_time(internal::traits<Derived>::MaxRowsAtCompileTime,

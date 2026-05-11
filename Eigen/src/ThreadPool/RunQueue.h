@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_THREADPOOL_RUNQUEUE_H
-#define EIGEN_CXX11_THREADPOOL_RUNQUEUE_H
+#ifndef EIGEN_THREADPOOL_RUNQUEUE_H
+#define EIGEN_THREADPOOL_RUNQUEUE_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -228,4 +228,4 @@ class RunQueue {
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_THREADPOOL_RUNQUEUE_H
+#endif  // EIGEN_THREADPOOL_RUNQUEUE_H

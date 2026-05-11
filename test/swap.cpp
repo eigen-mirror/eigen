@@ -40,7 +40,7 @@ void swap(const MatrixType& m) {
   typedef typename other_matrix_type<MatrixType>::type OtherMatrixType;
   typedef typename MatrixType::Scalar Scalar;
 
-  eigen_assert((!internal::is_same<MatrixType, OtherMatrixType>::value));
+  eigen_assert((!std::is_same<MatrixType, OtherMatrixType>::value));
   Index rows = m.rows();
   Index cols = m.cols();
 

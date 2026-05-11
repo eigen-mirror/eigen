@@ -43,10 +43,10 @@ struct traits<Block<XprType_, BlockRows, BlockCols, InnerPanel_>> : traits<XprTy
                                                                             : XprTypeIsRowMajor,
     HasSameStorageOrderAsXprType = (IsRowMajor == XprTypeIsRowMajor),
     InnerSize = IsRowMajor ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
-    InnerStrideAtCompileTime = HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType_>::ret)
-                                                            : int(outer_stride_at_compile_time<XprType_>::ret),
-    OuterStrideAtCompileTime = HasSameStorageOrderAsXprType ? int(outer_stride_at_compile_time<XprType_>::ret)
-                                                            : int(inner_stride_at_compile_time<XprType_>::ret),
+    InnerStrideAtCompileTime = HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType_>::value)
+                                                            : int(outer_stride_at_compile_time<XprType_>::value),
+    OuterStrideAtCompileTime = HasSameStorageOrderAsXprType ? int(outer_stride_at_compile_time<XprType_>::value)
+                                                            : int(inner_stride_at_compile_time<XprType_>::value),
 
     // FIXME, this traits is rather specialized for dense object and it needs to be cleaned further
     FlagsLvalueBit = is_lvalue<XprType_>::value ? LvalueBit : 0,
@@ -64,7 +64,7 @@ struct traits<Block<XprType_, BlockRows, BlockCols, InnerPanel_>> : traits<XprTy
 };
 
 template <typename XprType, int BlockRows = Dynamic, int BlockCols = Dynamic, bool InnerPanel = false,
-          bool HasDirectAccess = internal::has_direct_access<XprType>::ret>
+          bool HasDirectAccess = internal::has_direct_access<XprType>::value>
 class BlockImpl_dense;
 
 }  // end namespace internal

@@ -7,6 +7,7 @@
 #include <Eigen/Core>
 
 // Allow gpu** macros for generic tests.
+#define EIGEN_PERMANENTLY_ENABLE_GPU_HIP_CUDA_DEFINES
 #include <Eigen/src/Core/util/GpuHipCudaDefines.inc>
 
 // std::tuple cannot be used on device, so use our custom implementation there.

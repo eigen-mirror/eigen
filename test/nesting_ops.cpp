@@ -25,7 +25,7 @@ void use_n_times(const XprType& xpr) {
 template <int N, typename ReferenceType, typename XprType>
 bool verify_eval_type(const XprType&, const ReferenceType&) {
   typedef typename internal::nested_eval<XprType, N>::type EvalType;
-  return internal::is_same<internal::remove_all_t<EvalType>, internal::remove_all_t<ReferenceType>>::value;
+  return std::is_same<internal::remove_all_t<EvalType>, internal::remove_all_t<ReferenceType>>::value;
 }
 
 template <typename MatrixType>

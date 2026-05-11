@@ -11,6 +11,9 @@
 // Utilities for generating random numbers without overflows, which might
 // otherwise result in undefined behavior.
 
+#ifndef EIGEN_TEST_RANDOM_WITHOUT_CAST_OVERFLOW_H
+#define EIGEN_TEST_RANDOM_WITHOUT_CAST_OVERFLOW_H
+
 namespace Eigen {
 namespace internal {
 
@@ -190,3 +193,5 @@ struct random_without_cast_overflow<
 
 }  // namespace internal
 }  // namespace Eigen
+
+#endif  // EIGEN_TEST_RANDOM_WITHOUT_CAST_OVERFLOW_H

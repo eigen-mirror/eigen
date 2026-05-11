@@ -28,7 +28,7 @@ class UpperBidiagonalization {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    ColsAtCompileTimeMinusOne = internal::decrement_size<ColsAtCompileTime>::ret
+    ColsAtCompileTimeMinusOne = internal::decrement_size<ColsAtCompileTime>::value
   };
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;

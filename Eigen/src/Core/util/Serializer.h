@@ -29,8 +29,7 @@ class Serializer;
 
 // Specialization for POD types.
 template <typename T>
-class Serializer<T,
-                 typename std::enable_if_t<std::is_trivially_copyable<T>::value && std::is_standard_layout<T>::value>> {
+class Serializer<T, std::enable_if_t<std::is_trivially_copyable<T>::value && std::is_standard_layout<T>::value>> {
  public:
   /**
    * Determines the required size of the serialization buffer for a value.

@@ -36,13 +36,9 @@ namespace internal {
 #if defined(EIGEN_GPUCC) && defined(EIGEN_USE_GPU)
 
 template <>
-struct is_arithmetic<float4> {
-  enum { value = true };
-};
+struct is_arithmetic<float4> : std::true_type {};
 template <>
-struct is_arithmetic<double2> {
-  enum { value = true };
-};
+struct is_arithmetic<double2> : std::true_type {};
 
 template <>
 struct packet_traits<float> : default_packet_traits {
@@ -589,9 +585,7 @@ struct unpacket_traits<Packet4h2> {
   using half = Packet4h2;
 };
 template <>
-struct is_arithmetic<Packet4h2> {
-  enum { value = true };
-};
+struct is_arithmetic<Packet4h2> : std::true_type {};
 
 template <>
 struct unpacket_traits<half2> {
@@ -604,9 +598,7 @@ struct unpacket_traits<half2> {
   using half = half2;
 };
 template <>
-struct is_arithmetic<half2> {
-  enum { value = true };
-};
+struct is_arithmetic<half2> : std::true_type {};
 
 template <>
 struct packet_traits<Eigen::half> : default_packet_traits {

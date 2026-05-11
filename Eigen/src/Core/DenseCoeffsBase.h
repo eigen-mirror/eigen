@@ -557,25 +557,17 @@ static inline Index first_default_aligned(const DenseBase<Derived>& m) {
   return internal::first_aligned<int(unpacket_traits<DefaultPacketType>::alignment), Derived>(m);
 }
 
-template <typename Derived, bool HasDirectAccess = has_direct_access<Derived>::ret>
-struct inner_stride_at_compile_time {
-  enum { ret = traits<Derived>::InnerStrideAtCompileTime };
-};
+template <typename Derived, bool HasDirectAccess = has_direct_access<Derived>::value>
+struct inner_stride_at_compile_time : std::integral_constant<int, traits<Derived>::InnerStrideAtCompileTime> {};
 
 template <typename Derived>
-struct inner_stride_at_compile_time<Derived, false> {
-  enum { ret = 0 };
-};
+struct inner_stride_at_compile_time<Derived, false> : std::integral_constant<int, 0> {};
 
-template <typename Derived, bool HasDirectAccess = has_direct_access<Derived>::ret>
-struct outer_stride_at_compile_time {
-  enum { ret = traits<Derived>::OuterStrideAtCompileTime };
-};
+template <typename Derived, bool HasDirectAccess = has_direct_access<Derived>::value>
+struct outer_stride_at_compile_time : std::integral_constant<int, traits<Derived>::OuterStrideAtCompileTime> {};
 
 template <typename Derived>
-struct outer_stride_at_compile_time<Derived, false> {
-  enum { ret = 0 };
-};
+struct outer_stride_at_compile_time<Derived, false> : std::integral_constant<int, 0> {};
 
 }  // end namespace internal
 

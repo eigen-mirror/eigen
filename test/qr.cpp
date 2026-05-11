@@ -57,14 +57,14 @@ void qr_invertible() {
   typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
   typedef typename MatrixType::Scalar Scalar;
 
-  STATIC_CHECK((internal::is_same<typename HouseholderQR<MatrixType>::StorageIndex, int>::value));
+  STATIC_CHECK((std::is_same<typename HouseholderQR<MatrixType>::StorageIndex, int>::value));
 
   int size = internal::random<int>(10, 50);
 
   MatrixType m1(size, size), m2(size, size), m3(size, size);
   m1 = MatrixType::Random(size, size);
 
-  if (internal::is_same<RealScalar, float>::value) {
+  if (std::is_same<RealScalar, float>::value) {
     // let's build a matrix more stable to inverse
     MatrixType a = MatrixType::Random(size, size * 4);
     m1 += a * a.adjoint();

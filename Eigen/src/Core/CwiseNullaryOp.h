@@ -127,8 +127,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
  *
  * The template parameter \a CustomNullaryOp is the type of the functor.
  *
- * Here is an example with std random generators: \include random_cpp11.cpp
- * Output: \verbinclude random_cpp11.out
+ * Here is an example with std random generators: \include random_generators.cpp
+ * Output: \verbinclude random_generators.out
  *
  * \sa class CwiseNullaryOp
  */

@@ -166,7 +166,7 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
   }
 };
 
-#if !(defined EIGEN_VECTORIZE_NEON && !(EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG))
+#if !defined(EIGEN_VECTORIZE_NEON) || EIGEN_ARCH_ARM64
 // same algorithm as above, except that each operand is split into
 // halves for two registers to hold.
 template <typename MatrixType, typename ResultType>

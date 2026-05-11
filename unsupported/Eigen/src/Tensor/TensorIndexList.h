@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
-#define EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
+#ifndef EIGEN_TENSOR_TENSOR_INDEX_LIST_H
+#define EIGEN_TENSOR_TENSOR_INDEX_LIST_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -73,43 +73,16 @@ EIGEN_DEVICE_FUNC void update_value(type2indexpair<f, s>& val, IndexPair<Index> 
 }
 
 template <typename T>
-struct is_compile_time_constant {
-  static constexpr bool value = false;
-};
-
-template <Index idx>
-struct is_compile_time_constant<type2index<idx>> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<const type2index<idx>> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<type2index<idx>&> {
-  static constexpr bool value = true;
-};
-template <Index idx>
-struct is_compile_time_constant<const type2index<idx>&> {
-  static constexpr bool value = true;
-};
+struct is_compile_time_constant_impl : std::false_type {};
 
 template <Index f, Index s>
-struct is_compile_time_constant<type2indexpair<f, s>> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<const type2indexpair<f, s>> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<type2indexpair<f, s>&> {
-  static constexpr bool value = true;
-};
-template <Index f, Index s>
-struct is_compile_time_constant<const type2indexpair<f, s>&> {
-  static constexpr bool value = true;
-};
+struct is_compile_time_constant_impl<type2indexpair<f, s>> : std::true_type {};
+
+template <Index idx>
+struct is_compile_time_constant_impl<type2index<idx>> : std::true_type {};
+
+template <typename T>
+struct is_compile_time_constant : is_compile_time_constant_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
 
 template <typename... T>
 struct IndexTuple;
@@ -253,7 +226,7 @@ struct tuple_coeff<0, ValueT> {
 
 /** \internal
  *
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Set of classes used to encode a set of Tensor dimensions/indices.
  *
@@ -617,4 +590,4 @@ static EIGEN_DEVICE_FUNC constexpr bool index_pair_second_statically_eq(Index i,
 }  // end namespace internal
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_INDEX_LIST_H
+#endif  // EIGEN_TENSOR_TENSOR_INDEX_LIST_H

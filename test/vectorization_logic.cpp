@@ -400,9 +400,10 @@ struct vectorization_logic<Scalar, false> {
   static void run() {}
 };
 
-template <typename Scalar, bool Enable = !internal::is_same<
-                               typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half,
-                               typename internal::packet_traits<Scalar>::type>::value>
+template <typename Scalar,
+          bool Enable =
+              !std::is_same<typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half,
+                            typename internal::packet_traits<Scalar>::type>::value>
 struct vectorization_logic_half {
   using RealScalar = typename NumTraits<Scalar>::Real;
   typedef internal::packet_traits<Scalar> PacketTraits;

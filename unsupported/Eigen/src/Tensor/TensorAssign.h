@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_ASSIGN_H
-#define EIGEN_CXX11_TENSOR_TENSOR_ASSIGN_H
+#ifndef EIGEN_TENSOR_TENSOR_ASSIGN_H
+#define EIGEN_TENSOR_TENSOR_ASSIGN_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -47,7 +47,7 @@ struct nested<TensorAssignOp<LhsXprType, RhsXprType>, 1, typename eval<TensorAss
 }  // end namespace internal
 
 /** The tensor assignment class.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * This class represents the assignment of the values resulting from the evaluation of
  * the rhs expression to the memory locations denoted by the lhs expression.
@@ -209,4 +209,4 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_ASSIGN_H
+#endif  // EIGEN_TENSOR_TENSOR_ASSIGN_H

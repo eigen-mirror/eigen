@@ -880,9 +880,7 @@ EIGEN_ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, const half& v) {
 namespace internal {
 
 template <>
-struct is_arithmetic<half> {
-  enum { value = true };
-};
+struct is_arithmetic<half> : std::true_type {};
 
 template <>
 struct random_impl<half> {

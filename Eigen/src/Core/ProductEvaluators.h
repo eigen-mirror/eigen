@@ -257,7 +257,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, InnerProduct> {
 // Column major result
 template <typename Dst, typename Lhs, typename Rhs, typename Func>
 void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
-                                                  const false_type&) {
+                                                  const std::false_type&) {
   evaluator<Rhs> rhsEval(rhs);
   ei_declare_local_nested_eval(Lhs, lhs, Rhs::SizeAtCompileTime, actual_lhs);
   // FIXME if cols is large enough, then it might be useful to make sure that lhs is sequentially stored
@@ -269,7 +269,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, cons
 // Row major result
 template <typename Dst, typename Lhs, typename Rhs, typename Func>
 void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
-                                                  const true_type&) {
+                                                  const std::true_type&) {
   evaluator<Lhs> lhsEval(lhs);
   ei_declare_local_nested_eval(Rhs, rhs, Lhs::SizeAtCompileTime, actual_rhs);
   // FIXME if rows is large enough, then it might be useful to make sure that rhs is sequentially stored
@@ -285,7 +285,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outer_product_use_small_assignment(co
 
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
-                                                        const Scalar& alpha, const false_type&) {
+                                                        const Scalar& alpha, const std::false_type&) {
   evaluator<Rhs> rhsEval(rhs);
   ei_declare_local_nested_eval(Lhs, lhs, Rhs::SizeAtCompileTime, actual_lhs);
   const Index rows = dst.rows();
@@ -300,7 +300,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
 
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
-                                                        const Scalar& alpha, const true_type&) {
+                                                        const Scalar& alpha, const std::true_type&) {
   evaluator<Lhs> lhsEval(lhs);
   ei_declare_local_nested_eval(Rhs, rhs, Lhs::SizeAtCompileTime, actual_rhs);
   const Index rows = dst.rows();
@@ -505,7 +505,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
   template <typename Dst, typename LhsT, typename RhsT, typename Func, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void eval_dynamic_impl(Dst& dst, const LhsT& lhs, const RhsT& rhs,
                                                                       const Func& func, const Scalar& s /* == 1 */,
-                                                                      false_type) {
+                                                                      std::false_type) {
     EIGEN_UNUSED_VARIABLE(s);
     eigen_internal_assert(numext::is_exactly_one(s));
     call_restricted_packet_assignment_no_alias(dst, lhs.lazyProduct(rhs), func);
@@ -513,7 +513,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
 
   template <typename Dst, typename LhsT, typename RhsT, typename Func, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void eval_dynamic_impl(Dst& dst, const LhsT& lhs, const RhsT& rhs,
-                                                                      const Func& func, const Scalar& s, true_type) {
+                                                                      const Func& func, const Scalar& s,
+                                                                      std::true_type) {
     call_restricted_packet_assignment_no_alias(dst, s * lhs.lazyProduct(rhs), func);
   }
 };
@@ -603,7 +604,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   static constexpr int RhsAlignment =
       plain_enum_min(RhsEtorType::Alignment, RhsVecPacketSize* int(sizeof(typename RhsNestedCleaned::Scalar)));
 
-  static constexpr bool SameType = is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value;
+  static constexpr bool SameType =
+      std::is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value;
 
   static constexpr bool CanVectorizeRhs = bool(RhsRowMajor) && (RhsFlags & PacketAccessBit) && (ColsAtCompileTime != 1);
   static constexpr bool CanVectorizeLhs = (!LhsRowMajor) && (LhsFlags & PacketAccessBit) && (RowsAtCompileTime != 1);
@@ -1245,7 +1247,7 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
 
     ScalarAccessOnDiag_ = !((int(StorageOrder_) == ColMajor && int(ProductOrder) == OnTheLeft) ||
                             (int(StorageOrder_) == RowMajor && int(ProductOrder) == OnTheRight)),
-    SameTypes_ = is_same<typename MatrixType::Scalar, typename DiagonalType::Scalar>::value,
+    SameTypes_ = std::is_same<typename MatrixType::Scalar, typename DiagonalType::Scalar>::value,
     // FIXME currently we need same types, but in the future the next rule should be the one
     // Vectorizable_ = bool(int(MatrixFlags)&PacketAccessBit) && ((!_PacketOnDiag) || (SameTypes_ &&
     // bool(int(DiagFlags)&PacketAccessBit))),
@@ -1280,13 +1282,13 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
 
  protected:
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, internal::true_type) const {
+  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::true_type) const {
     return internal::pmul(m_matImpl.template packet<LoadMode, PacketType>(row, col),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, internal::false_type) const {
+  EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
@@ -1300,14 +1302,14 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                     internal::true_type) const {
+                                                     std::true_type) const {
     return internal::pmul(m_matImpl.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
                           internal::pset1<PacketType>(m_diagImpl.coeff(id)));
   }
 
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet_segment_impl(Index row, Index col, Index id, Index begin, Index count,
-                                                     internal::false_type) const {
+                                                     std::false_type) const {
     enum {
       InnerSize = (MatrixType::Flags & RowMajorBit) ? MatrixType::ColsAtCompileTime : MatrixType::RowsAtCompileTime,
       DiagonalPacketLoadMode = plain_enum_min(
@@ -1583,7 +1585,7 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> 
     const Index n = Side == OnTheLeft ? mat.rows() : mat.cols();
     // FIXME we need an is_same for expression that is not sensitive to constness. For instance
     // is_same_xpr<Block<const Matrix>, Block<Matrix> >::value should be true.
-    // if(is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat))
+    // if(std::is_same<MatrixTypeCleaned,Dest>::value && extract_data(dst) == extract_data(mat))
     if (is_same_dense(dst, mat)) {
       // apply the permutation inplace
       Matrix<bool, PermutationType::RowsAtCompileTime, 1, 0, PermutationType::MaxRowsAtCompileTime> mask(perm.size());
@@ -1780,4 +1782,4 @@ struct generic_product_impl<Lhs, Rhs, HomogeneousShape, PermutationShape, Produc
 #pragma warning(pop)
 #endif
 
-#endif  // EIGEN_PRODUCT_EVALUATORS_H
+#endif  // EIGEN_PRODUCTEVALUATORS_H

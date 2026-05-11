@@ -36,8 +36,8 @@
  *1, no. 1 (2008): 1-17.
  *****************************************************************/
 
-#ifndef UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP
-#define UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP
+#ifndef UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP
+#define UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -505,4 +505,4 @@ struct ScanLauncher<Self, Reducer, Eigen::SyclDevice, vectorize> {
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP
+#endif  // UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_SYCL_SYCL_HPP

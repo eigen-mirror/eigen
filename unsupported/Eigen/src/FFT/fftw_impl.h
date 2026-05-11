@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_FFT_FFTW_IMPL_H
+#define EIGEN_FFT_FFTW_IMPL_H
+
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
@@ -215,3 +218,5 @@ struct fftw_impl {
 }  // end namespace internal
 
 }  // end namespace Eigen
+
+#endif  // EIGEN_FFT_FFTW_IMPL_H

@@ -33,7 +33,7 @@ std::enable_if_t<NumTraits<typename MatrixType::Scalar>::IsComplex, typename Mat
 
 // Check at compile-time that T1==T2, and at runtime-time that a==b
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_block(const T1& a, const T2& b) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_block(const T1& a, const T2& b) {
   return a.isApprox(b);
 }
 

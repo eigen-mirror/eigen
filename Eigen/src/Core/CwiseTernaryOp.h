@@ -95,11 +95,11 @@ class CwiseTernaryOp : public CwiseTernaryOpImpl<TernaryOp, Arg1Type, Arg2Type, 
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Arg1, Arg3)
 
   // The index types should match
-  EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::StorageKind,
-                                         typename internal::traits<Arg2Type>::StorageKind>::value),
+  EIGEN_STATIC_ASSERT((std::is_same<typename internal::traits<Arg1Type>::StorageKind,
+                                    typename internal::traits<Arg2Type>::StorageKind>::value),
                       STORAGE_KIND_MUST_MATCH)
-  EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::StorageKind,
-                                         typename internal::traits<Arg3Type>::StorageKind>::value),
+  EIGEN_STATIC_ASSERT((std::is_same<typename internal::traits<Arg1Type>::StorageKind,
+                                    typename internal::traits<Arg3Type>::StorageKind>::value),
                       STORAGE_KIND_MUST_MATCH)
 
   typedef typename CwiseTernaryOpImpl<TernaryOp, Arg1Type, Arg2Type, Arg3Type,

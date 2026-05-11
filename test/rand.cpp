@@ -88,7 +88,7 @@ struct get_range_type {
   using type = std::conditional_t<(sizeof(T) < sizeof(int)), unsigned int, std::make_unsigned_t<T>>;
 };
 template <typename T>
-struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
+struct get_range_type<SafeScalar<T>> : std::make_unsigned<T> {};
 
 template <typename Scalar>
 class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteger>> {

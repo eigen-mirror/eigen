@@ -36,7 +36,6 @@ void test_allocate(Index rows, Index cols) {
   VERIFY(!dm.empty());
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
-  VERIFY_IS_EQUAL(dm.outerStride(), rows);
   VERIFY(dm.data() != nullptr);
   VERIFY_IS_EQUAL(dm.sizeInBytes(), size_t(rows) * size_t(cols) * sizeof(Scalar));
 }
@@ -70,7 +69,7 @@ void test_roundtrip_async(Index rows, Index cols) {
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
 
   // Async upload from raw pointer.
-  auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, stream);
+  auto dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, stream);
   VERIFY_IS_EQUAL(dm.rows(), rows);
   VERIFY_IS_EQUAL(dm.cols(), cols);
 
@@ -88,7 +87,7 @@ void test_roundtrip_async(Index rows, Index cols) {
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
 
-  auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, rows, producer_stream);
+  auto cross_stream_dm = gpu::DeviceMatrix<Scalar>::fromHostAsync(host.data(), rows, cols, producer_stream);
   auto cross_stream_transfer = cross_stream_dm.toHostAsync(consumer_stream);
   MatrixType cross_stream_result = cross_stream_transfer.get();
   VERIFY_IS_APPROX(cross_stream_result, host);
@@ -199,7 +198,6 @@ void test_resize() {
   dm.resize(50, 30);
   VERIFY_IS_EQUAL(dm.rows(), 50);
   VERIFY_IS_EQUAL(dm.cols(), 30);
-  VERIFY_IS_EQUAL(dm.outerStride(), 50);
   VERIFY(dm.data() != nullptr);
 
   // Resize to same dimensions is a no-op.

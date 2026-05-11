@@ -403,10 +403,10 @@ struct sparse_dense_outer_product_evaluator {
 
   // if the actual left-hand side is a dense vector,
   // then build a sparse-view so that we can seamlessly iterate over it.
-  typedef std::conditional_t<is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1,
+  typedef std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1,
                              SparseView<Lhs1> >
       ActualLhs;
-  typedef std::conditional_t<is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1 const&,
+  typedef std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1 const&,
                              SparseView<Lhs1> >
       LhsArg;
 

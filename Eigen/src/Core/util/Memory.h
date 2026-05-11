@@ -64,8 +64,7 @@
 // set_is_malloc_allowed() function.
 #ifndef EIGEN_AVOID_THREAD_LOCAL
 
-#if ((EIGEN_COMP_GNUC) || __has_feature(cxx_thread_local) || EIGEN_COMP_MSVC >= 1900) && \
-    !defined(EIGEN_GPU_COMPILE_PHASE)
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
 #define EIGEN_MALLOC_CHECK_THREAD_LOCAL thread_local
 #else
 #define EIGEN_MALLOC_CHECK_THREAD_LOCAL

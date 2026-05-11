@@ -69,7 +69,38 @@ endif()
 # cuSOLVER dense factorizations (LLT, LU).
 option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" ON)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
-  foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_lu)
+  foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_lu cusolver_qr cusolver_svd cusolver_eigen)
     ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver CUDA::cublas)
   endforeach()
+endif()
+
+# cuFFT (part of the CUDA toolkit, no separate option needed).
+if(TARGET CUDA::cufft)
+  ei_add_gpu_test(cufft EXTRA_LIBS CUDA::cufft CUDA::cublas)
+endif()
+
+# cuSPARSE SpMV (part of the CUDA toolkit).
+if(TARGET CUDA::cusparse)
+  ei_add_gpu_test(cusparse_spmv
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
+endif()
+
+# cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.
+option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
+if(EIGEN_TEST_CUDSS)
+  find_path(CUDSS_INCLUDE_DIR cudss.h
+    HINTS ${CUDSS_DIR}/include ${CUDA_TOOLKIT_ROOT_DIR}/include /usr/include)
+  find_library(CUDSS_LIBRARY cudss
+    HINTS ${CUDSS_DIR}/lib ${CUDSS_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib64 /usr/lib/x86_64-linux-gnu)
+  if(CUDSS_INCLUDE_DIR AND CUDSS_LIBRARY)
+    message(STATUS "cuDSS found: ${CUDSS_LIBRARY}")
+    foreach(_cudss_test IN ITEMS cudss_llt cudss_ldlt cudss_lu)
+      ei_add_gpu_test(${_cudss_test}
+        EXTRA_LIBS CUDA::cusolver CUDA::cublas ${CUDSS_LIBRARY}
+        EXTRA_INCLUDES ${CUDSS_INCLUDE_DIR}
+        EXTRA_DEFINES EIGEN_CUDSS=1)
+    endforeach()
+  else()
+    message(WARNING "EIGEN_TEST_CUDSS=ON but cuDSS not found. Set CUDSS_DIR.")
+  endif()
 endif()

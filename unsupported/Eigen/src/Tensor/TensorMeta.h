@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_META_H
-#define EIGEN_CXX11_TENSOR_TENSOR_META_H
+#ifndef EIGEN_TENSOR_TENSOR_META_H
+#define EIGEN_TENSOR_TENSOR_META_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -253,40 +253,23 @@ namespace internal {
 
 template <typename IndexType, typename Index, Index First, Index... Is>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, 1 + sizeof...(Is)> customIndices2Array(
-    IndexType& idx, numeric_list<Index, First, Is...>) {
+    IndexType& idx, std::integer_sequence<Index, First, Is...>) {
   return {static_cast<Index>(idx[First]), static_cast<Index>(idx[Is])...};
 }
 template <typename IndexType, typename Index>
-constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, 0> customIndices2Array(IndexType&, numeric_list<Index>) {
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, 0> customIndices2Array(IndexType&,
+                                                                                    std::integer_sequence<Index>) {
   return array<Index, 0>();
 }
 
 /** Make an array (for index/dimensions) out of a custom index */
 template <typename Index, std::size_t NumIndices, typename IndexType>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, NumIndices> customIndices2Array(IndexType& idx) {
-  return customIndices2Array(idx, typename gen_numeric_list<Index, NumIndices>::type{});
+  return customIndices2Array(idx, std::make_integer_sequence<Index, NumIndices>{});
 }
-
-template <typename B, typename D>
-struct is_base_of {
-  typedef char (&yes)[1];
-  typedef char (&no)[2];
-
-  template <typename BB, typename DD>
-  struct Host {
-    operator BB*() const;
-    operator DD*();
-  };
-
-  template <typename T>
-  static yes check(D*, T);
-  static no check(B*, int);
-
-  static constexpr bool value = sizeof(check(Host<B, D>(), int())) == sizeof(yes);
-};
 
 }  // namespace internal
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_META_H
+#endif  // EIGEN_TENSOR_TENSOR_META_H

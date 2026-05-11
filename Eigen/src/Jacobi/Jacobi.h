@@ -77,8 +77,8 @@ class JacobiRotation {
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r = 0);
 
  protected:
-  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, internal::true_type);
-  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, internal::false_type);
+  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type);
+  EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::false_type);
 
   Scalar m_c, m_s;
 };
@@ -151,13 +151,12 @@ EIGEN_DEVICE_FUNC inline bool JacobiRotation<Scalar>::makeJacobi(const MatrixBas
  */
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r) {
-  makeGivens(p, q, r, std::conditional_t<NumTraits<Scalar>::IsComplex, internal::true_type, internal::false_type>());
+  makeGivens(p, q, r, std::conditional_t<NumTraits<Scalar>::IsComplex, std::true_type, std::false_type>());
 }
 
 // specialization for complexes
 template <typename Scalar>
-EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
-                                                          internal::true_type) {
+EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type) {
   using numext::conj;
   using std::abs;
   using std::sqrt;
@@ -206,7 +205,7 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 // specialization for reals
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
-                                                          internal::false_type) {
+                                                          std::false_type) {
   using std::abs;
   using std::sqrt;
   if (numext::is_exactly_zero(q)) {

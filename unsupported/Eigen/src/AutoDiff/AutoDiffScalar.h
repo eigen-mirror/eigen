@@ -95,13 +95,13 @@ inline AutoDiffScalar<NewDerType> MakeAutoDiffScalar(const typename NewDerType::
 template <typename DerivativeType>
 class AutoDiffScalar
     : public internal::auto_diff_special_op<
-          DerivativeType, !internal::is_same<typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar,
-                                             typename NumTraits<typename internal::traits<
-                                                 internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value> {
+          DerivativeType, !std::is_same<typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar,
+                                        typename NumTraits<typename internal::traits<
+                                            internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value> {
  public:
   typedef internal::auto_diff_special_op<
       DerivativeType,
-      !internal::is_same<
+      !std::is_same<
           typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar,
           typename NumTraits<typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value>
       Base;
@@ -136,8 +136,8 @@ class AutoDiffScalar
 #ifndef EIGEN_PARSED_BY_DOXYGEN
       ,
       std::enable_if_t<
-          internal::is_same<Scalar, typename internal::traits<internal::remove_all_t<OtherDerType>>::Scalar>::value &&
-              internal::is_convertible<OtherDerType, DerType>::value,
+          std::is_same<Scalar, typename internal::traits<internal::remove_all_t<OtherDerType>>::Scalar>::value &&
+              std::is_convertible<OtherDerType, DerType>::value,
           void*> = 0
 #endif
       )
@@ -336,7 +336,7 @@ namespace internal {
 template <typename DerivativeType>
 struct auto_diff_special_op<DerivativeType, true>
 //   : auto_diff_scalar_op<DerivativeType, typename NumTraits<Scalar>::Real,
-//                            is_same<Scalar,typename NumTraits<Scalar>::Real>::value>
+//                            std::is_same<Scalar,typename NumTraits<Scalar>::Real>::value>
 {
   typedef remove_all_t<DerivativeType> DerType;
   typedef typename traits<DerType>::Scalar Scalar;

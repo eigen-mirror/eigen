@@ -10,8 +10,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_GPU_H
-#define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_GPU_H
+#ifndef EIGEN_TENSOR_TENSOR_CONTRACTION_GPU_H
+#define EIGEN_TENSOR_TENSOR_CONTRACTION_GPU_H
 
 #if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 
@@ -1260,7 +1260,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef typename RightEvaluator::Dimensions RightDimensions;
 
   TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {
-    EIGEN_STATIC_ASSERT((internal::is_same<OutputKernelType, const NoOpOutputKernel>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<OutputKernelType, const NoOpOutputKernel>::value),
                         GPU_TENSOR_CONTRACTION_DOES_NOT_SUPPORT_OUTPUT_KERNELS);
   }
 
@@ -1387,4 +1387,4 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 }  // end namespace Eigen
 
 #endif  // EIGEN_USE_GPU and EIGEN_GPUCC
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_GPU_H
+#endif  // EIGEN_TENSOR_TENSOR_CONTRACTION_GPU_H

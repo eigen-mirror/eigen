@@ -55,7 +55,7 @@ void sparse_basic(const SparseMatrixType& ref) {
     // test coeff and coeffRef
     for (std::size_t i = 0; i < zeroCoords.size(); ++i) {
       VERIFY_IS_MUCH_SMALLER_THAN(m.coeff(zeroCoords[i].x(), zeroCoords[i].y()), eps);
-      if (internal::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags>>::value)
+      if (std::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags>>::value)
         VERIFY_RAISES_ASSERT(m.coeffRef(zeroCoords[i].x(), zeroCoords[i].y()) = 5);
     }
     VERIFY_IS_APPROX(m, refMat);

@@ -497,8 +497,10 @@ test:linux:loongarch64:gcc-14:default:unsupported:
 
 test:linux:x86-64:gcc-10:default:smoketest:
   extends: .test:linux:x86-64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN}
   needs: [ build:linux:cross:x86-64:gcc-10:default:smoketest ]
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -507,8 +509,10 @@ test:linux:x86-64:gcc-10:default:smoketest:
 
 test:linux:x86-64:clang-14:default:smoketest:
   extends: .test:linux:x86-64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN}
   needs: [ build:linux:cross:x86-64:clang-14:default:smoketest ]
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -517,10 +521,24 @@ test:linux:x86-64:clang-14:default:smoketest:
 
 test:linux:aarch64:gcc-10:default:smoketest:
   extends: .test:linux:aarch64:gcc-10:default
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_RUN}
   needs: [ build:linux:aarch64:gcc-10:default:smoketest ]
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-arm64
+    - saas-linux-small-arm64
+
+test:linux:aarch64:clang-14:default:smoketest:
+  extends: .test:linux:aarch64:clang-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_RUN}
+  needs: [ build:linux:aarch64:clang-14:default:smoketest ]
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_CTEST_LABEL: smoketest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-small-arm64

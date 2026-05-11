@@ -15,7 +15,7 @@ using Eigen::placeholders::all;
 using Eigen::placeholders::last;
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_eq(const T1& a, const T2& b) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_eq(const T1& a, const T2& b) {
   return (a.array() == b.array()).all();
 }
 

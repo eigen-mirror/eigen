@@ -649,4 +649,4 @@ inline Index ComplexQZ<MatrixType_>::findSmallDiagEntry(Index f, Index l) {
 
 }  // namespace Eigen
 
-#endif  // _COMPLEX_QZ_H_
+#endif  // EIGEN_COMPLEX_QZ_H_

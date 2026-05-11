@@ -31,8 +31,8 @@ struct traits<Transpose<MatrixType> > : public traits<MatrixType> {
     Flags0 = traits<MatrixTypeNestedPlain>::Flags & ~(LvalueBit | NestByRefBit),
     Flags1 = Flags0 | FlagsLvalueBit,
     Flags = Flags1 ^ RowMajorBit,
-    InnerStrideAtCompileTime = inner_stride_at_compile_time<MatrixType>::ret,
-    OuterStrideAtCompileTime = outer_stride_at_compile_time<MatrixType>::ret
+    InnerStrideAtCompileTime = inner_stride_at_compile_time<MatrixType>::value,
+    OuterStrideAtCompileTime = outer_stride_at_compile_time<MatrixType>::value
   };
 };
 }  // namespace internal
@@ -89,7 +89,7 @@ class Transpose : public TransposeImpl<MatrixType, typename internal::traits<Mat
 
 namespace internal {
 
-template <typename MatrixType, bool HasDirectAccess = has_direct_access<MatrixType>::ret>
+template <typename MatrixType, bool HasDirectAccess = has_direct_access<MatrixType>::value>
 struct TransposeImpl_base {
   typedef typename dense_xpr_base<Transpose<MatrixType> >::type type;
 };
@@ -360,17 +360,13 @@ EIGEN_DEVICE_FUNC inline void MatrixBase<Derived>::adjointInPlace() {
 namespace internal {
 
 template <bool DestIsTransposed, typename OtherDerived>
-struct check_transpose_aliasing_compile_time_selector {
-  enum { ret = bool(blas_traits<OtherDerived>::IsTransposed) != DestIsTransposed };
-};
+struct check_transpose_aliasing_compile_time_selector
+    : std::integral_constant<bool, bool(blas_traits<OtherDerived>::IsTransposed) != DestIsTransposed> {};
 
 template <bool DestIsTransposed, typename BinOp, typename DerivedA, typename DerivedB>
-struct check_transpose_aliasing_compile_time_selector<DestIsTransposed, CwiseBinaryOp<BinOp, DerivedA, DerivedB> > {
-  enum {
-    ret = bool(blas_traits<DerivedA>::IsTransposed) != DestIsTransposed ||
-          bool(blas_traits<DerivedB>::IsTransposed) != DestIsTransposed
-  };
-};
+struct check_transpose_aliasing_compile_time_selector<DestIsTransposed, CwiseBinaryOp<BinOp, DerivedA, DerivedB> >
+    : std::integral_constant<bool, bool(blas_traits<DerivedA>::IsTransposed) != DestIsTransposed ||
+                                       bool(blas_traits<DerivedB>::IsTransposed) != DestIsTransposed> {};
 
 template <typename Scalar, bool DestIsTransposed, typename OtherDerived>
 struct check_transpose_aliasing_run_time_selector {
@@ -398,7 +394,7 @@ struct check_transpose_aliasing_run_time_selector<Scalar, DestIsTransposed, Cwis
 
 template <typename Derived, typename OtherDerived,
           bool MightHaveTransposeAliasing =
-              check_transpose_aliasing_compile_time_selector<blas_traits<Derived>::IsTransposed, OtherDerived>::ret>
+              check_transpose_aliasing_compile_time_selector<blas_traits<Derived>::IsTransposed, OtherDerived>::value>
 struct checkTransposeAliasing_impl {
   EIGEN_DEVICE_FUNC static void run(const Derived& dst, const OtherDerived& other) {
     eigen_assert(

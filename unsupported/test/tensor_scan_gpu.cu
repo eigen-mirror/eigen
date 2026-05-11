@@ -53,7 +53,7 @@ void test_gpu_cumsum(int m_size, int k_size, int n_size) {
 
   gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
-    if (fabs(t_result(i) - t_result_gpu(i)) < 1e-4f) {
+    if (numext::abs(t_result(i) - t_result_gpu(i)) < 1e-4f) {
       continue;
     }
     if (Eigen::internal::isApprox(t_result(i), t_result_gpu(i), 1e-4f)) {

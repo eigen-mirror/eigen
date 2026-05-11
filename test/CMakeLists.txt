@@ -553,7 +553,3 @@ if(MPFR_FOUND AND GMP_FOUND)
   target_link_libraries(ulp_accuracy ${MPFR_LIBRARIES} ${GMP_LIBRARIES})
   target_compile_definitions(ulp_accuracy PRIVATE EIGEN_HAS_MPFR)
 endif()
-
-# Register all smoke tests
-include("EigenSmokeTestList")
-ei_add_smoke_tests("${ei_smoke_test_list}")

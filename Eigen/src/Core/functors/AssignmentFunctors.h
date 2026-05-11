@@ -45,7 +45,7 @@ template <typename DstScalar, typename SrcScalar>
 struct functor_traits<assign_op<DstScalar, SrcScalar>> {
   enum {
     Cost = NumTraits<DstScalar>::ReadCost,
-    PacketAccess = is_same<DstScalar, SrcScalar>::value && packet_traits<DstScalar>::Vectorizable &&
+    PacketAccess = std::is_same<DstScalar, SrcScalar>::value && packet_traits<DstScalar>::Vectorizable &&
                    packet_traits<SrcScalar>::Vectorizable
   };
 };

@@ -587,4 +587,4 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const Ma
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_REAL_QZ
+#endif  // EIGEN_REAL_QZ_H

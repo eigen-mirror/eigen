@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_SAFE_SCALAR_H
+#define EIGEN_TEST_SAFE_SCALAR_H
+
 // A Scalar that asserts for uninitialized access.
 template <typename T>
 class SafeScalar {
@@ -33,3 +36,5 @@ struct NumTraits<SafeScalar<T>> : GenericNumTraits<T> {
   enum { RequireInitialization = 1 };
 };
 }  // namespace Eigen
+
+#endif  // EIGEN_TEST_SAFE_SCALAR_H

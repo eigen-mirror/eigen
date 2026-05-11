@@ -40,7 +40,7 @@ template <typename ExpressionType>
 class NestByValue : public internal::dense_xpr_base<NestByValue<ExpressionType> >::type {
  public:
   typedef typename internal::dense_xpr_base<NestByValue>::type Base;
-  static constexpr bool HasDirectAccess = internal::has_direct_access<ExpressionType>::ret;
+  static constexpr bool HasDirectAccess = internal::has_direct_access<ExpressionType>::value;
 
   EIGEN_DENSE_PUBLIC_INTERFACE(NestByValue)
 

@@ -188,7 +188,7 @@ def is_eigen_umbrella_header(rel: Path) -> bool:
         and parts[1] == "Eigen"
         and parts[-1][:1].isupper()
     ):
-        # unsupported/Eigen/Tensor, unsupported/Eigen/CXX11/Tensor, ...
+        # unsupported/Eigen/Tensor, ...
         return True
     return False
 

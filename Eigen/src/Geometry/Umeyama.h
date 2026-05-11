@@ -96,7 +96,7 @@ typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type um
 
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<Scalar, typename internal::traits<OtherDerived>::Scalar>::value),
+      (std::is_same<Scalar, typename internal::traits<OtherDerived>::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   enum { Dimension = internal::min_size_prefer_dynamic(Derived::RowsAtCompileTime, OtherDerived::RowsAtCompileTime) };

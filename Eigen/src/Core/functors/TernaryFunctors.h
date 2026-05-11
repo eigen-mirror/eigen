@@ -23,7 +23,7 @@ namespace internal {
 template <typename ThenScalar, typename ElseScalar, typename ConditionScalar>
 struct scalar_boolean_select_op {
   static constexpr bool ThenElseAreSame =
-      is_same<std::remove_const_t<ThenScalar>, std::remove_const_t<ElseScalar>>::value;
+      std::is_same<std::remove_const_t<ThenScalar>, std::remove_const_t<ElseScalar>>::value;
   EIGEN_STATIC_ASSERT(ThenElseAreSame, THEN AND ELSE MUST BE SAME TYPE)
   using Scalar = ThenScalar;
   using result_type = Scalar;
@@ -42,7 +42,7 @@ struct functor_traits<scalar_boolean_select_op<ThenScalar, ElseScalar, Condition
   using Scalar = ThenScalar;
   enum {
     Cost = 1,
-    PacketAccess = is_same<ThenScalar, ElseScalar>::value && is_same<ConditionScalar, Scalar>::value &&
+    PacketAccess = std::is_same<ThenScalar, ElseScalar>::value && std::is_same<ConditionScalar, Scalar>::value &&
                    packet_traits<Scalar>::HasCmp
   };
 };

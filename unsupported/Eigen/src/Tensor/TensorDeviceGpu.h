@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#if defined(EIGEN_USE_GPU) && !defined(EIGEN_CXX11_TENSOR_TENSOR_DEVICE_GPU_H)
-#define EIGEN_CXX11_TENSOR_TENSOR_DEVICE_GPU_H
+#if defined(EIGEN_USE_GPU) && !defined(EIGEN_TENSOR_TENSOR_DEVICE_GPU_H)
+#define EIGEN_TENSOR_TENSOR_DEVICE_GPU_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -348,4 +348,4 @@ struct GpuDevice {
 // undefine all the gpu* macros we defined at the beginning of the file
 #include "../../../../Eigen/src/Core/util/GpuHipCudaUndefines.inc"
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_DEVICE_GPU_H
+#endif  // EIGEN_TENSOR_TENSOR_DEVICE_GPU_H

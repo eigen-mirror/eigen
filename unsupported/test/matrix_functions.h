@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_UNSUPPORTED_TEST_MATRIX_FUNCTIONS_H
+#define EIGEN_UNSUPPORTED_TEST_MATRIX_FUNCTIONS_H
+
 #include "main.h"
 #include <unsupported/Eigen/MatrixFunctions>
 
@@ -79,3 +82,5 @@ template <typename Derived, typename OtherDerived>
 typename Derived::RealScalar relerr(const MatrixBase<Derived>& A, const MatrixBase<OtherDerived>& B) {
   return std::sqrt((A - B).cwiseAbs2().sum() / (std::min)(A.cwiseAbs2().sum(), B.cwiseAbs2().sum()));
 }
+
+#endif  // EIGEN_UNSUPPORTED_TEST_MATRIX_FUNCTIONS_H

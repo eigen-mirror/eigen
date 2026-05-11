@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
-#define EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
+#ifndef EIGEN_TENSOR_TENSOR_EVALUATOR_H
+#define EIGEN_TENSOR_TENSOR_EVALUATOR_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -18,7 +18,7 @@ namespace Eigen {
 
 // Generic evaluator
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief The tensor evaluator class.
  *
@@ -609,18 +609,18 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
                          internal::traits<XprType>::NumDimensions <= 1),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
 
-    EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::StorageKind,
-                                           typename internal::traits<Arg2Type>::StorageKind>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<typename internal::traits<Arg1Type>::StorageKind,
+                                      typename internal::traits<Arg2Type>::StorageKind>::value),
                         STORAGE_KIND_MUST_MATCH)
-    EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::StorageKind,
-                                           typename internal::traits<Arg3Type>::StorageKind>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<typename internal::traits<Arg1Type>::StorageKind,
+                                      typename internal::traits<Arg3Type>::StorageKind>::value),
                         STORAGE_KIND_MUST_MATCH)
-    EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::Index,
-                                           typename internal::traits<Arg2Type>::Index>::value),
-                        STORAGE_INDEX_MUST_MATCH)
-    EIGEN_STATIC_ASSERT((internal::is_same<typename internal::traits<Arg1Type>::Index,
-                                           typename internal::traits<Arg3Type>::Index>::value),
-                        STORAGE_INDEX_MUST_MATCH)
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<typename internal::traits<Arg1Type>::Index, typename internal::traits<Arg2Type>::Index>::value),
+        STORAGE_INDEX_MUST_MATCH)
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<typename internal::traits<Arg1Type>::Index, typename internal::traits<Arg3Type>::Index>::value),
+        STORAGE_INDEX_MUST_MATCH)
 
     eigen_assert(dimensions_match(m_arg1Impl.dimensions(), m_arg2Impl.dimensions()) &&
                  dimensions_match(m_arg1Impl.dimensions(), m_arg3Impl.dimensions()));
@@ -862,4 +862,4 @@ struct cl::sycl::is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable<Eigen::TensorEvaluator<Derived, Device>>::value>> : std::true_type {};
 #endif
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_EVALUATOR_H
+#endif  // EIGEN_TENSOR_TENSOR_EVALUATOR_H

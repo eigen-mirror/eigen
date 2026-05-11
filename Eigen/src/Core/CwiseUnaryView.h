@@ -29,7 +29,7 @@ struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixTy
     Flags =
         traits<MatrixTypeNested_>::Flags &
         (RowMajorBit | FlagsLvalueBit | DirectAccessBit),  // FIXME DirectAccessBit should not be handled by expressions
-    MatrixTypeInnerStride = inner_stride_at_compile_time<MatrixType>::ret,
+    MatrixTypeInnerStride = inner_stride_at_compile_time<MatrixType>::value,
     // need to cast the sizeof's from size_t to int explicitly, otherwise:
     // "error: no integral type can represent all of the enumerator values
     InnerStrideAtCompileTime =
@@ -40,9 +40,9 @@ struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixTy
             : int(StrideType::InnerStrideAtCompileTime),
 
     OuterStrideAtCompileTime = StrideType::OuterStrideAtCompileTime == 0
-                                   ? (outer_stride_at_compile_time<MatrixType>::ret == Dynamic
+                                   ? (outer_stride_at_compile_time<MatrixType>::value == Dynamic
                                           ? int(Dynamic)
-                                          : outer_stride_at_compile_time<MatrixType>::ret *
+                                          : outer_stride_at_compile_time<MatrixType>::value *
                                                 int(sizeof(typename traits<MatrixType>::Scalar) / sizeof(Scalar)))
                                    : int(StrideType::OuterStrideAtCompileTime)
   };

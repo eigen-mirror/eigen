@@ -251,10 +251,10 @@ class SingleRange {
 };
 
 template <typename T>
-struct is_single_range : public std::false_type {};
+struct is_single_range : std::false_type {};
 
 template <Index ValueAtCompileTime>
-struct is_single_range<SingleRange<ValueAtCompileTime>> : public std::true_type {};
+struct is_single_range<SingleRange<ValueAtCompileTime>> : std::true_type {};
 
 template <typename SingleIndex, int NestedSizeAtCompileTime>
 struct IndexedViewHelperIndicesWrapper<

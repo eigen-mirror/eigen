@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_META_MACROS_H
-#define EIGEN_CXX11_TENSOR_TENSOR_META_MACROS_H
+#ifndef EIGEN_TENSOR_TENSOR_META_MACROS_H
+#define EIGEN_TENSOR_TENSOR_META_MACROS_H
 
 /** use this macro in sfinae selection in templated functions
  *

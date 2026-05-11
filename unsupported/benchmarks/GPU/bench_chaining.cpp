@@ -35,8 +35,8 @@ static void cuda_warmup() {
   static bool done = false;
   if (!done) {
     void* p;
-    cudaMalloc(&p, 1);
-    cudaFree(p);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, 1));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
     done = true;
   }
 }
@@ -159,7 +159,7 @@ static void BM_Chain_DeviceNoDownload(benchmark::State& state) {
     for (int i = 1; i < chain_len; ++i) {
       d_X = llt.solve(d_X);
     }
-    cudaStreamSynchronize(llt.stream());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(llt.stream()));
     benchmark::DoNotOptimize(d_X.data());
   }
 

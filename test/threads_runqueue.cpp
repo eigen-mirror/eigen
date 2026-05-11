@@ -224,7 +224,7 @@ void test_stress_runqueue() {
   VERIFY(total.load() == 0);
 }
 
-EIGEN_DECLARE_TEST(cxx11_runqueue) {
+EIGEN_DECLARE_TEST(threads_runqueue) {
   CALL_SUBTEST_1(test_basic_runqueue());
   CALL_SUBTEST_2(test_empty_runqueue());
   CALL_SUBTEST_3(test_stress_runqueue());

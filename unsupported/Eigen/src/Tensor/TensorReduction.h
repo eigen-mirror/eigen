@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_REDUCTION_H
-#define EIGEN_CXX11_TENSOR_TENSOR_REDUCTION_H
+#ifndef EIGEN_TENSOR_TENSOR_REDUCTION_H
+#define EIGEN_TENSOR_TENSOR_REDUCTION_H
 
 // clang is incompatible with the CUDA syntax wrt making a kernel a class friend,
 // so we'll use a macro to make clang happy.
@@ -493,7 +493,7 @@ struct ReductionReturnType {
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor reduction class.
  *
@@ -556,10 +556,10 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
   // For full reductions
 #if defined(EIGEN_USE_GPU) && (defined(EIGEN_GPUCC))
-  static constexpr bool RunningOnGPU = internal::is_same<Device, Eigen::GpuDevice>::value;
+  static constexpr bool RunningOnGPU = std::is_same<Device, Eigen::GpuDevice>::value;
   static constexpr bool RunningOnSycl = false;
 #elif defined(EIGEN_USE_SYCL)
-  static constexpr bool RunningOnSycl = internal::is_same<internal::remove_all_t<Device>, Eigen::SyclDevice>::value;
+  static constexpr bool RunningOnSycl = std::is_same<internal::remove_all_t<Device>, Eigen::SyclDevice>::value;
   static constexpr bool RunningOnGPU = false;
 #else
   static constexpr bool RunningOnGPU = false;
@@ -1021,4 +1021,4 @@ struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>,
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_REDUCTION_H
+#endif  // EIGEN_TENSOR_TENSOR_REDUCTION_H

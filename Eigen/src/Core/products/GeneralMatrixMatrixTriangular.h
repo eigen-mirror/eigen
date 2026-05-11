@@ -153,7 +153,7 @@ struct tribb_kernel {
   typedef gebp_traits<LhsScalar, RhsScalar, ConjLhs, ConjRhs> Traits;
   typedef typename Traits::ResScalar ResScalar;
 
-  enum { BlockSize = meta_least_common_multiple<plain_enum_max(mr, nr), plain_enum_min(mr, nr)>::ret };
+  enum { BlockSize = meta_least_common_multiple<plain_enum_max(mr, nr), plain_enum_min(mr, nr)>::value };
   void operator()(ResScalar* res_, Index resIncr, Index resStride, const LhsScalar* blockA, const RhsScalar* blockB,
                   Index size, Index depth, const ResScalar& alpha) const {
     typedef blas_data_mapper<ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;

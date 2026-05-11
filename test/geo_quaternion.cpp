@@ -148,7 +148,7 @@ void quaternion(void) {
   VERIFY_IS_APPROX(v2.normalized(), (q2.setFromTwoVectors(v1, v2) * v1).normalized());
   VERIFY_IS_APPROX(v1.normalized(), (q2.setFromTwoVectors(v1, v1) * v1).normalized());
   VERIFY_IS_APPROX(-v1.normalized(), (q2.setFromTwoVectors(v1, -v1) * v1).normalized());
-  if (internal::is_same<Scalar, double>::value) {
+  if (std::is_same<Scalar, double>::value) {
     v3 = (v1.array() + eps).matrix();
     VERIFY_IS_APPROX(v3.normalized(), (q2.setFromTwoVectors(v1, v3) * v1).normalized());
     VERIFY_IS_APPROX(-v3.normalized(), (q2.setFromTwoVectors(v1, -v3) * v1).normalized());
@@ -158,7 +158,7 @@ void quaternion(void) {
   VERIFY_IS_APPROX(v2.normalized(), (Quaternionx::FromTwoVectors(v1, v2) * v1).normalized());
   VERIFY_IS_APPROX(v1.normalized(), (Quaternionx::FromTwoVectors(v1, v1) * v1).normalized());
   VERIFY_IS_APPROX(-v1.normalized(), (Quaternionx::FromTwoVectors(v1, -v1) * v1).normalized());
-  if (internal::is_same<Scalar, double>::value) {
+  if (std::is_same<Scalar, double>::value) {
     v3 = (v1.array() + eps).matrix();
     VERIFY_IS_APPROX(v3.normalized(), (Quaternionx::FromTwoVectors(v1, v3) * v1).normalized());
     VERIFY_IS_APPROX(-v3.normalized(), (Quaternionx::FromTwoVectors(v1, -v3) * v1).normalized());

@@ -109,9 +109,9 @@ void svd_least_square(const MatrixType& m) {
   RhsType rhs = RhsType::Random(rows, internal::random<Index>(1, cols));
   SvdType svd(m);
 
-  if (internal::is_same<RealScalar, double>::value)
+  if (std::is_same<RealScalar, double>::value)
     svd.setThreshold(RealScalar(1e-8));
-  else if (internal::is_same<RealScalar, float>::value)
+  else if (std::is_same<RealScalar, float>::value)
     svd.setThreshold(RealScalar(2e-4));
 
   SolutionType x = svd.solve(rhs);
@@ -122,15 +122,15 @@ void svd_least_square(const MatrixType& m) {
     // ^^^ If the residual is very small, then we have an exact solution, so we are already good.
 
     // evaluate normal equation which works also for least-squares solutions
-    if (internal::is_same<RealScalar, double>::value || svd.rank() == m.diagonal().size()) {
+    if (std::is_same<RealScalar, double>::value || svd.rank() == m.diagonal().size()) {
       using std::sqrt;
       // This test is not stable with single precision.
       // This is likely because squaring m significantly affects the precision.
-      if (internal::is_same<RealScalar, float>::value) ++g_test_level;
+      if (std::is_same<RealScalar, float>::value) ++g_test_level;
 
       VERIFY_IS_APPROX(m.adjoint() * (m * x), m.adjoint() * rhs);
 
-      if (internal::is_same<RealScalar, float>::value) --g_test_level;
+      if (std::is_same<RealScalar, float>::value) --g_test_level;
     }
 
     // Check that there is no significantly better solution in the neighborhood of x
@@ -141,16 +141,16 @@ void svd_least_square(const MatrixType& m) {
       y.row(k) = (RealScalar(1) + 2 * NumTraits<RealScalar>::epsilon()) * x.row(k);
       RealScalar residual_y = (m * y - rhs).norm();
       VERIFY(test_isMuchSmallerThan(abs(residual_y - residual), rhs_norm) || residual < residual_y);
-      if (internal::is_same<RealScalar, float>::value) ++g_test_level;
+      if (std::is_same<RealScalar, float>::value) ++g_test_level;
       VERIFY(test_isApprox(residual_y, residual) || residual < residual_y);
-      if (internal::is_same<RealScalar, float>::value) --g_test_level;
+      if (std::is_same<RealScalar, float>::value) --g_test_level;
 
       y.row(k) = (RealScalar(1) - 2 * NumTraits<RealScalar>::epsilon()) * x.row(k);
       residual_y = (m * y - rhs).norm();
       VERIFY(test_isMuchSmallerThan(abs(residual_y - residual), rhs_norm) || residual < residual_y);
-      if (internal::is_same<RealScalar, float>::value) ++g_test_level;
+      if (std::is_same<RealScalar, float>::value) ++g_test_level;
       VERIFY(test_isApprox(residual_y, residual) || residual < residual_y);
-      if (internal::is_same<RealScalar, float>::value) --g_test_level;
+      if (std::is_same<RealScalar, float>::value) --g_test_level;
     }
   }
 }

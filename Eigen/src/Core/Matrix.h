@@ -275,8 +275,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * constructor must match the fixed number of rows (resp. columns) of \c *this.
    *
    *
-   * Example: \include Matrix_variadic_ctor_cxx11.cpp
-   * Output: \verbinclude Matrix_variadic_ctor_cxx11.out
+   * Example: \include Matrix_variadic_ctor.cpp
+   * Output: \verbinclude Matrix_variadic_ctor.out
    *
    * \sa Matrix(const std::initializer_list<std::initializer_list<Scalar>>&)
    */
@@ -290,8 +290,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    *
    * In the general case, the constructor takes a list of rows, each row being represented as a list of coefficients:
    *
-   * Example: \include Matrix_initializer_list_23_cxx11.cpp
-   * Output: \verbinclude Matrix_initializer_list_23_cxx11.out
+   * Example: \include Matrix_initializer_list_23.cpp
+   * Output: \verbinclude Matrix_initializer_list_23.out
    *
    * Each of the inner initializer lists must contain the exact same number of elements, otherwise an assertion is
    * triggered.
@@ -300,8 +300,8 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * Therefore <code>VectorXd{{1,2,3,4,5}}</code> is legal and the more verbose syntax
    * <code>RowVectorXd{{1},{2},{3},{4},{5}}</code> can be avoided:
    *
-   * Example: \include Matrix_initializer_list_vector_cxx11.cpp
-   * Output: \verbinclude Matrix_initializer_list_vector_cxx11.out
+   * Example: \include Matrix_initializer_list_vector.cpp
+   * Output: \verbinclude Matrix_initializer_list_vector.out
    *
    * In the case of fixed-sized matrices, the initializer list sizes must exactly match the matrix sizes,
    * and implicit transposition is allowed for compile-time vectors only.

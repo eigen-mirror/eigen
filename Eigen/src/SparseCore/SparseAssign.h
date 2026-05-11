@@ -144,8 +144,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, Sparse2Sparse> {
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Weak>
 struct Assignment<DstXprType, SrcXprType, Functor, Sparse2Dense, Weak> {
   static void run(DstXprType &dst, const SrcXprType &src, const Functor &func) {
-    if (internal::is_same<Functor,
-                          internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>>::value)
+    if (std::is_same<Functor, internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>>::value)
       dst.setZero();
 
     internal::evaluator<SrcXprType> srcEval(src);
@@ -176,7 +175,7 @@ struct assignment_from_dense_op_sparse {
   // Specialization for dense1 = sparse + dense2; -> dense1 = dense2; dense1 += sparse;
   template <typename Lhs, typename Rhs, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
+      std::enable_if_t<std::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
       run(DstXprType &dst, const CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
           const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
 #ifdef EIGEN_SPARSE_ASSIGNMENT_FROM_SPARSE_ADD_DENSE_PLUGIN
@@ -191,7 +190,7 @@ struct assignment_from_dense_op_sparse {
   // Specialization for dense1 = sparse - dense2; -> dense1 = -dense2; dense1 += sparse;
   template <typename Lhs, typename Rhs, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
+      std::enable_if_t<std::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>
       run(DstXprType &dst,
           const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const Lhs, const Rhs> &src,
           const internal::assign_op<typename DstXprType::Scalar, Scalar> & /*func*/) {
@@ -210,8 +209,8 @@ struct assignment_from_dense_op_sparse {
   struct Assignment<                                                                                            \
       DstXprType, CwiseBinaryOp<internal::BINOP<Scalar, Scalar>, const Lhs, const Rhs>,                         \
       internal::ASSIGN_OP<typename DstXprType::Scalar, Scalar>, Sparse2Dense,                                   \
-      std::enable_if_t<internal::is_same<typename internal::evaluator_traits<Lhs>::Shape, DenseShape>::value || \
-                       internal::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>>  \
+      std::enable_if_t<std::is_same<typename internal::evaluator_traits<Lhs>::Shape, DenseShape>::value ||      \
+                       std::is_same<typename internal::evaluator_traits<Rhs>::Shape, DenseShape>::value>>       \
       : assignment_from_dense_op_sparse<DstXprType,                                                             \
                                         internal::ASSIGN_OP<typename DstXprType::Scalar, typename Lhs::Scalar>, \
                                         internal::ASSIGN_OP2<typename DstXprType::Scalar, typename Rhs::Scalar>> {}

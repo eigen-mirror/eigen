@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_STRIDING_H
-#define EIGEN_CXX11_TENSOR_TENSOR_STRIDING_H
+#ifndef EIGEN_TENSOR_TENSOR_STRIDING_H
+#define EIGEN_TENSOR_TENSOR_STRIDING_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -43,7 +43,7 @@ struct nested<TensorStridingOp<Strides, XprType>, 1, typename eval<TensorStridin
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor striding class.
  */
@@ -310,4 +310,4 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_STRIDING_H
+#endif  // EIGEN_TENSOR_TENSOR_STRIDING_H

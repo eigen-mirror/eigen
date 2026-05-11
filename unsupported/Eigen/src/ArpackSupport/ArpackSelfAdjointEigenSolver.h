@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_ARPACKGENERALIZEDSELFADJOINTEIGENSOLVER_H
-#define EIGEN_ARPACKGENERALIZEDSELFADJOINTEIGENSOLVER_H
+#ifndef EIGEN_ARPACKSELFADJOINTEIGENSOLVER_H
+#define EIGEN_ARPACKSELFADJOINTEIGENSOLVER_H
 
 #include "../../../../Eigen/Dense"
 

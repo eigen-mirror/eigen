@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_SPLIT_TEST_HELPER_H
+#define EIGEN_TEST_SPLIT_TEST_HELPER_H
+
 #if defined(EIGEN_TEST_PART_1) || defined(EIGEN_TEST_PART_ALL)
 #define CALL_SUBTEST_1(FUNC) CALL_SUBTEST(FUNC)
 #else
@@ -5994,3 +5997,5 @@
 #else
 #define CALL_SUBTEST_999(FUNC)
 #endif
+
+#endif  // EIGEN_TEST_SPLIT_TEST_HELPER_H

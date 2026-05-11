@@ -3,8 +3,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_VOLUME_PATCH_H
-#define EIGEN_CXX11_TENSOR_TENSOR_VOLUME_PATCH_H
+#ifndef EIGEN_TENSOR_TENSOR_VOLUME_PATCH_H
+#define EIGEN_TENSOR_TENSOR_VOLUME_PATCH_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -40,7 +40,7 @@ struct nested<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Patch extraction specialized for processing of volumetric data.
  * This assumes that the input has a least 4 dimensions ordered as follows:
@@ -620,4 +620,4 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_VOLUME_PATCH_H
+#endif  // EIGEN_TENSOR_TENSOR_VOLUME_PATCH_H

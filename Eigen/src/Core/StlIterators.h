@@ -28,7 +28,7 @@ class indexed_based_stl_iterator_base {
   typedef typename traits::XprType XprType;
   typedef indexed_based_stl_iterator_base<typename traits::non_const_iterator> non_const_iterator;
   typedef indexed_based_stl_iterator_base<typename traits::const_iterator> const_iterator;
-  typedef std::conditional_t<internal::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
+  typedef std::conditional_t<std::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
 
   friend class indexed_based_stl_iterator_base<typename traits::const_iterator>;
   friend class indexed_based_stl_iterator_base<typename traits::non_const_iterator>;
@@ -174,7 +174,7 @@ class indexed_based_stl_reverse_iterator_base {
   typedef typename traits::XprType XprType;
   typedef indexed_based_stl_reverse_iterator_base<typename traits::non_const_iterator> non_const_iterator;
   typedef indexed_based_stl_reverse_iterator_base<typename traits::const_iterator> const_iterator;
-  typedef std::conditional_t<internal::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
+  typedef std::conditional_t<std::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
 
   friend class indexed_based_stl_reverse_iterator_base<typename traits::const_iterator>;
   friend class indexed_based_stl_reverse_iterator_base<typename traits::non_const_iterator>;
@@ -318,7 +318,7 @@ class pointer_based_stl_iterator {
   enum { is_lvalue = internal::is_lvalue<XprType>::value };
   typedef pointer_based_stl_iterator<std::remove_const_t<XprType>> non_const_iterator;
   typedef pointer_based_stl_iterator<std::add_const_t<XprType>> const_iterator;
-  typedef std::conditional_t<internal::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
+  typedef std::conditional_t<std::is_const<XprType>::value, non_const_iterator, const_iterator> other_iterator;
 
   friend class pointer_based_stl_iterator<std::add_const_t<XprType>>;
   friend class pointer_based_stl_iterator<std::remove_const_t<XprType>>;

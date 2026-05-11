@@ -301,7 +301,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
 
  private:
   template <typename ResType, typename OtherDerived,
-            typename std::enable_if<(int(OtherDerived::Flags) & DirectAccessBit) == DirectAccessBit, int>::type = 0>
+            std::enable_if_t<(int(OtherDerived::Flags) & DirectAccessBit) == DirectAccessBit, int> = 0>
   void evalToImpl(ResType& res, const MatrixBase<OtherDerived>& otherExpr) const {
     cholmod_dense y_cd;
     cholmod_dense* x_cd;
@@ -315,7 +315,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   }
 
   template <typename ResType, typename OtherDerived,
-            typename std::enable_if<(int(OtherDerived::Flags) & DirectAccessBit) == 0, int>::type = 0>
+            std::enable_if_t<(int(OtherDerived::Flags) & DirectAccessBit) == 0, int> = 0>
   void evalToImpl(ResType& res, const MatrixBase<OtherDerived>& otherExpr) const {
     cholmod_dense y_cd;
     cholmod_dense* x_cd;
@@ -344,7 +344,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   }
 
   template <typename ResType, typename OtherScalar, int OtherOptions, typename OtherStorageIndex,
-            typename std::enable_if<internal::is_same<OtherStorageIndex, StorageIndex>::value, int>::type = 0>
+            std::enable_if_t<std::is_same<OtherStorageIndex, StorageIndex>::value, int> = 0>
   void evalToImpl(ResType& res, const SparseMatrix<OtherScalar, OtherOptions, OtherStorageIndex>& otherExpr) const {
     cholmod_sparse y_cs;
     cholmod_sparse* x_cs;

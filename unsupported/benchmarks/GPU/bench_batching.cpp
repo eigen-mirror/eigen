@@ -42,8 +42,8 @@ static void cuda_warmup() {
   static bool done = false;
   if (!done) {
     void* p;
-    cudaMalloc(&p, 1);
-    cudaFree(p);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, 1));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
     done = true;
   }
 }

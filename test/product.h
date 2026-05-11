@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_PRODUCT_H
+#define EIGEN_TEST_PRODUCT_H
+
 #include "main.h"
 #include <Eigen/QR>
 
@@ -352,3 +355,5 @@ void product(const MatrixType& m) {
     VERIFY_IS_APPROX(map1.noalias() += m1 * m2.transpose(), (m1 * m2.transpose()).eval());
   }
 }
+
+#endif  // EIGEN_TEST_PRODUCT_H

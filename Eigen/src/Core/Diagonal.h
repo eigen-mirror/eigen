@@ -58,7 +58,7 @@ struct traits<Diagonal<MatrixType, DiagIndex> > : traits<MatrixType> {
     MaskLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
     Flags = (unsigned int)MatrixTypeNested_::Flags & (RowMajorBit | MaskLvalueBit | DirectAccessBit) &
             ~RowMajorBit,  // FIXME DirectAccessBit should not be handled by expressions
-    MatrixTypeOuterStride = outer_stride_at_compile_time<MatrixType>::ret,
+    MatrixTypeOuterStride = outer_stride_at_compile_time<MatrixType>::value,
     InnerStrideAtCompileTime = MatrixTypeOuterStride == Dynamic ? Dynamic : MatrixTypeOuterStride + 1,
     OuterStrideAtCompileTime = 0
   };

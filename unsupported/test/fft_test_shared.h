@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
+#define EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
+
 #include "main.h"
 #include <unsupported/Eigen/FFT>
 
@@ -310,3 +313,5 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST((test_complex2d<double, 60, 24>()));
 #endif
 }
+
+#endif  // EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H

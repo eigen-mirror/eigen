@@ -72,8 +72,7 @@ inline void GetDenseElt(const std::string& line, std::complex<RealScalar>& val) 
 template <typename Scalar>
 inline void putMarketHeader(std::string& header, int sym) {
   header = "%%MatrixMarket matrix coordinate ";
-  if (internal::is_same<Scalar, std::complex<float> >::value ||
-      internal::is_same<Scalar, std::complex<double> >::value) {
+  if (std::is_same<Scalar, std::complex<float> >::value || std::is_same<Scalar, std::complex<double> >::value) {
     header += " complex";
     if (sym == Symmetric)
       header += " symmetric";
@@ -339,7 +338,7 @@ bool saveMarketDense(const DenseType& mat, const std::string& filename) {
 
   out.flags(std::ios_base::scientific);
   out.precision(std::numeric_limits<RealScalar>::digits10 + 2);
-  if (internal::is_same<Scalar, std::complex<float> >::value || internal::is_same<Scalar, std::complex<double> >::value)
+  if (std::is_same<Scalar, std::complex<float> >::value || std::is_same<Scalar, std::complex<double> >::value)
     out << "%%MatrixMarket matrix array complex general\n";
   else
     out << "%%MatrixMarket matrix array real general\n";

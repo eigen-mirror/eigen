@@ -17,7 +17,7 @@ template <typename EigType, typename MatType>
 void check_eigensolver_for_given_mat(const EigType& eig, const MatType& a) {
   typedef typename NumTraits<typename MatType::Scalar>::Real RealScalar;
   typedef Matrix<RealScalar, MatType::RowsAtCompileTime, 1> RealVectorType;
-  typedef typename std::complex<RealScalar> Complex;
+  typedef std::complex<RealScalar> Complex;
   Index n = a.rows();
   VERIFY_IS_EQUAL(eig.info(), Success);
   VERIFY_IS_APPROX(a * eig.pseudoEigenvectors(), eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix());
@@ -37,7 +37,7 @@ void eigensolver(const MatrixType& m) {
 
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename std::complex<RealScalar> Complex;
+  typedef std::complex<RealScalar> Complex;
 
   MatrixType a = MatrixType::Random(rows, cols);
   MatrixType a1 = MatrixType::Random(rows, cols);

@@ -55,6 +55,11 @@
 #include <list>
 #include <random>
 #include <chrono>
+// libstdc++'s <unordered_map> uses std::numeric_limits<size_t>::max() internally
+// (in <bits/hashtable_policy.h>); pre-include here so the macro definitions of
+// min/max below don't break it on toolchains where it isn't pulled in by
+// another pre-included header (e.g. cuda-11.5 / gcc-10).
+#include <unordered_map>
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
 // libstdc++ 10's <memory> indirectly uses max() via ranges headers.
@@ -402,7 +407,7 @@ bool test_is_equal(const T& actual, const U& expected, bool expect_equal = true)
 namespace Eigen {
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
   return true;
 }
 

@@ -27,7 +27,8 @@ set(ei_smoke_test_list
   conservative_resize_1
   constructor_1
   corners_1
-  ctorleakmiscmatrices_4
+  ctorleak
+  miscmatrices_4
   dense_storage
   determinant_1
   diagonal_1
@@ -49,7 +50,8 @@ set(ei_smoke_test_list
   geo_transformations_7
   half_float
   hessenberg_1
-  hessenberg_6qr_10
+  hessenberg_6
+  qr_10
   householder_8
   indexed_view_1
   inplace_decomposition_1
@@ -63,9 +65,9 @@ set(ei_smoke_test_list
   mapped_matrix_1
   mapstaticmethods_1
   mapstride_1
-  unaryviewstride_1
-  unaryviewstride_2
-  unaryviewstride_3
+  unaryview_1
+  unaryview_2
+  unaryview_3
   matrix_square_root_1
   meta
   minres_2
@@ -129,9 +131,9 @@ set(ei_smoke_test_list
   swap_1
   symbolic_index_1
   triangular_1
-  type_aliaslu_9
+  type_alias
+  lu_9
   umeyama_3
-  unalignedassert
   unalignedcount
   vectorwiseop_1
   visitor_1

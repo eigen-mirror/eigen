@@ -5,8 +5,8 @@
 #define EIGEN_USE_THREADS
 
 #include <benchmark/benchmark.h>
-#include <unsupported/Eigen/CXX11/Tensor>
-#include <unsupported/Eigen/CXX11/ThreadPool>
+#include <unsupported/Eigen/Tensor>
+#include <unsupported/Eigen/ThreadPool>
 
 using namespace Eigen;
 

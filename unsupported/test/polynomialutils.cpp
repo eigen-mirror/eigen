@@ -17,16 +17,14 @@ using namespace std;
 namespace Eigen {
 namespace internal {
 template <int Size>
-struct increment_if_fixed_size {
-  enum { ret = (Size == Dynamic) ? Dynamic : Size + 1 };
-};
+struct increment_if_fixed_size : std::integral_constant<int, (Size == Dynamic) ? Dynamic : Size + 1> {};
 }  // namespace internal
 }  // namespace Eigen
 
 template <typename Scalar_, int Deg_>
 void realRoots_to_monicPolynomial_test(int deg) {
   typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::ret, 1> PolynomialType;
+  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
   typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
 
   PolynomialType pols(deg + 1);
@@ -61,7 +59,7 @@ void realRoots_to_monicPolynomial_scalar() {
 template <typename Scalar_, int Deg_>
 void CauchyBounds(int deg) {
   typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::ret, 1> PolynomialType;
+  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
   typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
 
   PolynomialType pols(deg + 1);

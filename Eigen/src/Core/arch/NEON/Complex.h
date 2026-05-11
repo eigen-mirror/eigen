@@ -461,7 +461,7 @@ EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet1cf)
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet2cf)
 
 //---------- double ----------
-#if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
+#if EIGEN_ARCH_ARM64
 
 inline uint64x2_t p2ul_CONJ_XOR() {
   static const uint64_t p2ul_conj_XOR_DATA[] = {0x0, 0x8000000000000000};

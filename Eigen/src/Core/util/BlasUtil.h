@@ -470,7 +470,7 @@ struct blas_traits {
     NeedToConjugate = false,
     HasUsableDirectAccess =
         ((int(XprType::Flags) & DirectAccessBit) &&
-         (bool(XprType::IsVectorAtCompileTime) || int(inner_stride_at_compile_time<XprType>::ret) == 1))
+         (bool(XprType::IsVectorAtCompileTime) || int(inner_stride_at_compile_time<XprType>::value) == 1))
             ? 1
             : 0,
     HasScalarFactor = false

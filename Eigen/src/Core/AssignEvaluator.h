@@ -62,7 +62,7 @@ struct copy_using_evaluator_traits {
                                                                          : MaxRowsAtCompileTime;
   static constexpr int RestrictedInnerSize = min_size_prefer_fixed(MaxInnerSizeAtCompileTime, MaxPacketSize);
   static constexpr int RestrictedLinearSize = min_size_prefer_fixed(MaxSizeAtCompileTime, MaxPacketSize);
-  static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::ret;
+  static constexpr int OuterStride = outer_stride_at_compile_time<Dst>::value;
 
   // TODO: distinguish between linear traversal and inner-traversal packet types.
   using LinearPacketType = typename find_best_packet<DstScalar, RestrictedLinearSize>::type;

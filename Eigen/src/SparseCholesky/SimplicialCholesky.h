@@ -867,10 +867,10 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
   const Index size = a.rows();
   pmat = &ap;
   // Note that ordering methods compute the inverse permutation
-  if (!internal::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value) {
+  if (!std::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value) {
     {
       CholMatrixType C;
-      constexpr bool kUseAMDFastPath = internal::is_same<OrderingType, AMDOrdering<StorageIndex> >::value;
+      constexpr bool kUseAMDFastPath = std::is_same<OrderingType, AMDOrdering<StorageIndex> >::value;
       internal::simplicial_cholesky_amd_dispatch<kUseAMDFastPath>::template run<UpLo, NonHermitian, OrderingType>(
           a, C, m_Pinv);
     }

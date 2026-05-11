@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_PADDING_H
-#define EIGEN_CXX11_TENSOR_TENSOR_PADDING_H
+#ifndef EIGEN_TENSOR_TENSOR_PADDING_H
+#define EIGEN_TENSOR_TENSOR_PADDING_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -44,7 +44,7 @@ struct nested<TensorPaddingOp<PaddingDimensions, XprType>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor padding class.
  * At the moment only padding with a constant value is supported.
@@ -618,4 +618,4 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_PADDING_H
+#endif  // EIGEN_TENSOR_TENSOR_PADDING_H

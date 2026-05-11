@@ -29,9 +29,7 @@ template <typename T>
 struct traits<const T> : traits<T> {};
 
 template <typename Derived>
-struct has_direct_access {
-  enum { ret = (traits<Derived>::Flags & DirectAccessBit) ? 1 : 0 };
-};
+struct has_direct_access : std::integral_constant<bool, (traits<Derived>::Flags & DirectAccessBit) != 0> {};
 
 template <typename Derived>
 struct accessors_level {
@@ -228,7 +226,7 @@ struct EnableIf;
  * Products need their own evaluator with more template arguments allowing for
  * easier partial template specializations.
  */
-template <typename T, int ProductTag = internal::product_type<typename T::Lhs, typename T::Rhs>::ret,
+template <typename T, int ProductTag = internal::product_type<typename T::Lhs, typename T::Rhs>::value,
           typename LhsShape = typename evaluator_traits<typename T::Lhs>::Shape,
           typename RhsShape = typename evaluator_traits<typename T::Rhs>::Shape,
           typename LhsScalar = typename traits<typename T::Lhs>::Scalar,

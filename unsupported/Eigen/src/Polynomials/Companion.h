@@ -25,9 +25,7 @@ namespace internal {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 
 template <int Size>
-struct decrement_if_fixed_size {
-  enum { ret = (Size == Dynamic) ? Dynamic : Size - 1 };
-};
+struct decrement_if_fixed_size : std::integral_constant<int, (Size == Dynamic) ? Dynamic : Size - 1> {};
 
 #endif
 
@@ -36,7 +34,7 @@ class companion {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_, Deg_ == Dynamic ? Dynamic : Deg_)
 
-  enum { Deg = Deg_, Deg_1 = decrement_if_fixed_size<Deg>::ret };
+  enum { Deg = Deg_, Deg_1 = decrement_if_fixed_size<Deg>::value };
 
   typedef Scalar_ Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;

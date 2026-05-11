@@ -23,10 +23,19 @@
 
 #include <cuda_runtime.h>
 
+#include <limits>
 #include <memory>
 
 namespace Eigen {
 namespace gpu {
+
+// ---- Generic operation flag -------------------------------------------------
+// Public flag for transpose/adjoint in BLAS-, solver-, and sparse-style calls.
+// Each library's support header maps this to its own enum (cublasOperation_t,
+// cusparseOperation_t, etc.) via a small to_<lib>_op() helper.
+
+enum class GpuOp { NoTrans, Trans, ConjTrans };
+
 namespace internal {
 
 // ---- Error-checking macros --------------------------------------------------
@@ -38,13 +47,30 @@ namespace internal {
     eigen_assert(_e == cudaSuccess && "CUDA runtime call failed"); \
   } while (0)
 
+// ---- Bounds-checked narrowing for cuBLAS/cuSOLVER int parameters ------------
+// cuBLAS and the legacy cuSOLVER APIs take dimensions and leading dimensions as
+// `int` (32-bit signed). Modern GPUs can host allocations whose dimensions
+// exceed INT_MAX, and Eigen's Index is 64-bit by default. Use this helper at
+// every narrowing call site so an out-of-range value triggers an assert
+// instead of silently overflowing the BLAS argument.
+
+inline int to_blas_int(int64_t v) {
+  eigen_assert(v >= 0 && v <= static_cast<int64_t>((std::numeric_limits<int>::max)()) &&
+               "dimension exceeds the int range supported by cuBLAS / cuSOLVER");
+  return static_cast<int>(v);
+}
+
 // ---- Custom deleters for CUDA-allocated memory ------------------------------
 // Used with std::unique_ptr to give CUDA allocations RAII semantics with no
 // hand-rolled move/dtor boilerplate.
 
 struct CudaFreeDeleter {
+  // When `borrow == true`, the unique_ptr does not free the pointer. Used by
+  // DeviceMatrix::view() to wrap a non-owning device pointer with the same
+  // smart-pointer machinery as owning storage, without changing the type.
+  bool borrow = false;
   void operator()(void* p) const noexcept {
-    if (p) (void)cudaFree(p);
+    if (p && !borrow) (void)cudaFree(p);
   }
 };
 

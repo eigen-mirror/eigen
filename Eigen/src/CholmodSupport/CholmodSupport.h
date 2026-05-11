@@ -83,9 +83,9 @@ cholmod_sparse viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, StorageIndex_> 
   res.dtype = 0;
   res.stype = -1;
 
-  if (internal::is_same<StorageIndex_, int>::value) {
+  if (std::is_same<StorageIndex_, int>::value) {
     res.itype = CHOLMOD_INT;
-  } else if (internal::is_same<StorageIndex_, SuiteSparse_long>::value) {
+  } else if (std::is_same<StorageIndex_, SuiteSparse_long>::value) {
     res.itype = CHOLMOD_LONG;
   } else {
     eigen_assert(false && "Index type not supported yet");
@@ -260,14 +260,14 @@ class CholmodBase : public SparseSolverBase<Derived> {
 
  public:
   CholmodBase() : m_cholmodFactor(0), m_info(Success), m_factorizationIsOk(false), m_analysisIsOk(false) {
-    EIGEN_STATIC_ASSERT((internal::is_same<double, RealScalar>::value), CHOLMOD_SUPPORTS_DOUBLE_PRECISION_ONLY);
+    EIGEN_STATIC_ASSERT((std::is_same<double, RealScalar>::value), CHOLMOD_SUPPORTS_DOUBLE_PRECISION_ONLY);
     m_shiftOffset[0] = m_shiftOffset[1] = 0.0;
     internal::cm_start<StorageIndex>(m_cholmod);
   }
 
   explicit CholmodBase(const MatrixType& matrix)
       : m_cholmodFactor(0), m_info(Success), m_factorizationIsOk(false), m_analysisIsOk(false) {
-    EIGEN_STATIC_ASSERT((internal::is_same<double, RealScalar>::value), CHOLMOD_SUPPORTS_DOUBLE_PRECISION_ONLY);
+    EIGEN_STATIC_ASSERT((std::is_same<double, RealScalar>::value), CHOLMOD_SUPPORTS_DOUBLE_PRECISION_ONLY);
     m_shiftOffset[0] = m_shiftOffset[1] = 0.0;
     internal::cm_start<StorageIndex>(m_cholmod);
     compute(matrix);

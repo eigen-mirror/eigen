@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_REF_H
-#define EIGEN_CXX11_TENSOR_TENSOR_REF_H
+#ifndef EIGEN_TENSOR_TENSOR_REF_H
+#define EIGEN_TENSOR_TENSOR_REF_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -231,7 +231,7 @@ class TensorRefBase : public TensorBase<Derived> {
 }  // namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A reference to a tensor expression
  * The expression will be evaluated lazily (as much as possible).
@@ -295,7 +295,7 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
 };
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A reference to a constant tensor expression
  * The expression will be evaluated lazily (as much as possible).
@@ -388,4 +388,4 @@ struct TensorEvaluator<TensorRef<Derived>, Device> : public TensorEvaluator<cons
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_REF_H
+#endif  // EIGEN_TENSOR_TENSOR_REF_H

@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_TRACE_H
-#define EIGEN_CXX11_TENSOR_TENSOR_TRACE_H
+#ifndef EIGEN_TENSOR_TENSOR_TRACE_H
+#define EIGEN_TENSOR_TENSOR_TRACE_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -47,7 +47,7 @@ struct nested<TensorTraceOp<Dims, XprType>, 1, typename eval<TensorTraceOp<Dims,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor Trace class.
  */
@@ -279,4 +279,4 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
 
 }  // End namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_TRACE_H
+#endif  // EIGEN_TENSOR_TENSOR_TRACE_H

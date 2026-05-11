@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSORSYMMETRY_SYMMETRY_H
-#define EIGEN_CXX11_TENSORSYMMETRY_SYMMETRY_H
+#ifndef EIGEN_TENSORSYMMETRY_SYMMETRY_H
+#define EIGEN_TENSORSYMMETRY_SYMMETRY_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -328,7 +328,7 @@ class tensor_symmetry_value_setter {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSORSYMMETRY_SYMMETRY_H
+#endif  // EIGEN_TENSORSYMMETRY_SYMMETRY_H
 
 /*
  * kate: space-indent on; indent-width 2; mixedindent off; indent-mode cstyle;

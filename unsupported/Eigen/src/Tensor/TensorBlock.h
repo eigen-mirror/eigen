@@ -7,8 +7,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
-#define EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
+#ifndef EIGEN_TENSOR_TENSOR_BLOCK_H
+#define EIGEN_TENSOR_TENSOR_BLOCK_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -33,7 +33,7 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, N
   if (NumDims == 0) return strides;
 
   // TODO(ezhulenev): Use templates to unroll this loop (similar to
-  // h_array_reduce in CXX11meta.h)? Benchmark it.
+  // h_array_reduce in MoreMeta.h)? Benchmark it.
   if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     strides[0] = 1;
     for (int i = 1; i < NumDims; ++i) {
@@ -767,7 +767,7 @@ class TensorMaterializedBlock {
 
 template <typename UnaryOp, typename ArgTensorBlock>
 class TensorCwiseUnaryBlock {
-  static constexpr bool NoArgBlockAccess = internal::is_void<typename ArgTensorBlock::XprType>::value;
+  static constexpr bool NoArgBlockAccess = std::is_void<typename ArgTensorBlock::XprType>::value;
 
  public:
   typedef std::conditional_t<NoArgBlockAccess, void,
@@ -796,8 +796,8 @@ class TensorCwiseUnaryBlock {
 
 template <typename BinaryOp, typename LhsTensorBlock, typename RhsTensorBlock>
 class TensorCwiseBinaryBlock {
-  static constexpr bool NoArgBlockAccess = internal::is_void<typename LhsTensorBlock::XprType>::value ||
-                                           internal::is_void<typename RhsTensorBlock::XprType>::value;
+  static constexpr bool NoArgBlockAccess =
+      std::is_void<typename LhsTensorBlock::XprType>::value || std::is_void<typename RhsTensorBlock::XprType>::value;
 
  public:
   typedef std::conditional_t<
@@ -835,7 +835,7 @@ class TensorCwiseBinaryBlock {
 template <typename BlockFactory, typename ArgTensorBlock>
 class TensorUnaryExprBlock {
   typedef typename ArgTensorBlock::XprType ArgXprType;
-  static constexpr bool NoArgBlockAccess = internal::is_void<ArgXprType>::value;
+  static constexpr bool NoArgBlockAccess = std::is_void<ArgXprType>::value;
 
  public:
   typedef std::conditional_t<NoArgBlockAccess, void, typename BlockFactory::template XprType<ArgXprType>::type> XprType;
@@ -865,9 +865,8 @@ class TensorTernaryExprBlock {
   typedef typename Arg2TensorBlock::XprType Arg2XprType;
   typedef typename Arg3TensorBlock::XprType Arg3XprType;
 
-  static constexpr bool NoArgBlockAccess = internal::is_void<Arg1XprType>::value ||
-                                           internal::is_void<Arg2XprType>::value ||
-                                           internal::is_void<Arg3XprType>::value;
+  static constexpr bool NoArgBlockAccess =
+      std::is_void<Arg1XprType>::value || std::is_void<Arg2XprType>::value || std::is_void<Arg3XprType>::value;
 
  public:
   typedef std::conditional_t<NoArgBlockAccess, void,
@@ -1473,4 +1472,4 @@ class TensorBlockAssignment {
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_BLOCK_H
+#endif  // EIGEN_TENSOR_TENSOR_BLOCK_H

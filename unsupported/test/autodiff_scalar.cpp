@@ -82,7 +82,7 @@ void check_limits_specialization() {
   typedef std::numeric_limits<Scalar> B;
 
   // workaround "unused typedef" warning:
-  VERIFY(!bool(internal::is_same<B, A>::value));
+  VERIFY(!bool(std::is_same<B, A>::value));
 
   VERIFY(bool(std::is_base_of<B, A>::value));
 }

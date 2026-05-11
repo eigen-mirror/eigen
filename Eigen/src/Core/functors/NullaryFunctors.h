@@ -208,64 +208,38 @@ struct functor_traits<equalspaced_op<Scalar>> {
 // and linear access is not possible. In all other cases, linear access is enabled.
 // Users should not have to deal with this structure.
 template <typename Functor>
-struct functor_has_linear_access {
-  enum { ret = !has_binary_operator<Functor>::value };
-};
+struct functor_has_linear_access : std::integral_constant<bool, !has_binary_operator<Functor>::value> {};
 
 // For unreliable compilers, let's specialize the has_*ary_operator
 // helpers so that at least built-in nullary functors work fine.
 #if !(EIGEN_COMP_MSVC || EIGEN_COMP_GNUC || (EIGEN_COMP_ICC >= 1600))
 template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_constant_op<Scalar>, IndexType> {
-  enum { value = 1 };
-};
+struct has_nullary_operator<scalar_constant_op<Scalar>, IndexType> : std::true_type {};
 template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_constant_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_unary_operator<scalar_constant_op<Scalar>, IndexType> : std::false_type {};
 template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_constant_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_binary_operator<scalar_constant_op<Scalar>, IndexType> : std::false_type {};
 
 template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_identity_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_nullary_operator<scalar_identity_op<Scalar>, IndexType> : std::false_type {};
 template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_identity_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_unary_operator<scalar_identity_op<Scalar>, IndexType> : std::false_type {};
 template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_identity_op<Scalar>, IndexType> {
-  enum { value = 1 };
-};
+struct has_binary_operator<scalar_identity_op<Scalar>, IndexType> : std::true_type {};
 
 template <typename Scalar, typename IndexType>
-struct has_nullary_operator<linspaced_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_nullary_operator<linspaced_op<Scalar>, IndexType> : std::false_type {};
 template <typename Scalar, typename IndexType>
-struct has_unary_operator<linspaced_op<Scalar>, IndexType> {
-  enum { value = 1 };
-};
+struct has_unary_operator<linspaced_op<Scalar>, IndexType> : std::true_type {};
 template <typename Scalar, typename IndexType>
-struct has_binary_operator<linspaced_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_binary_operator<linspaced_op<Scalar>, IndexType> : std::false_type {};
 
 template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_random_op<Scalar>, IndexType> {
-  enum { value = 1 };
-};
+struct has_nullary_operator<scalar_random_op<Scalar>, IndexType> : std::true_type {};
 template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_random_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_unary_operator<scalar_random_op<Scalar>, IndexType> : std::false_type {};
 template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_random_op<Scalar>, IndexType> {
-  enum { value = 0 };
-};
+struct has_binary_operator<scalar_random_op<Scalar>, IndexType> : std::false_type {};
 #endif
 
 }  // end namespace internal

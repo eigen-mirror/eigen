@@ -105,6 +105,17 @@ void test_singular() {
   VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
 }
 
+// solve(DeviceMatrix) must not silently return garbage when the factorization
+// failed: it must sync the info word and assert just like solve(MatrixBase).
+void test_singular_device_solve_asserts() {
+  MatrixXd A = MatrixXd::Zero(8, 8);
+  MatrixXd B = MatrixXd::Random(8, 4);
+  gpu::LU<double> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), NumericalIssue);
+  auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
+  VERIFY_RAISES_ASSERT(lu.solve(d_B));
+}
+
 // ---- DeviceMatrix integration tests -----------------------------------------
 
 template <typename Scalar>
@@ -202,4 +213,5 @@ EIGEN_DECLARE_TEST(gpu_cusolver_lu) {
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_singular());
+  CALL_SUBTEST_5(test_singular_device_solve_asserts());
 }

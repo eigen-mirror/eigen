@@ -26,12 +26,6 @@
 
 namespace Eigen {
 namespace gpu {
-
-// ---- Operation enum ---------------------------------------------------------
-// Public flag for transpose/adjoint in BLAS- and solver-style calls.
-
-enum class GpuOp { NoTrans, Trans, ConjTrans };
-
 namespace internal {
 
 // ---- Error-checking macro ---------------------------------------------------
@@ -163,6 +157,38 @@ inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cubla
                      reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
+// GEAM wrappers: C = alpha * op(A) + beta * op(B)
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const float* alpha, const float* A, int lda, const float* beta, const float* B,
+                                  int ldb, float* C, int ldc) {
+  return cublasSgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const double* alpha, const double* A, int lda, const double* beta, const double* B,
+                                  int ldb, double* C, int ldc) {
+  return cublasDgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
+                                  const std::complex<float>* beta, const std::complex<float>* B, int ldb,
+                                  std::complex<float>* C, int ldc) {
+  cuComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasCgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda, &b,
+                     reinterpret_cast<const cuComplex*>(B), ldb, reinterpret_cast<cuComplex*>(C), ldc);
+}
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
+                                  const std::complex<double>* beta, const std::complex<double>* B, int ldb,
+                                  std::complex<double>* C, int ldc) {
+  cuDoubleComplex a, b;
+  std::memcpy(&a, alpha, sizeof(a));
+  std::memcpy(&b, beta, sizeof(b));
+  return cublasZgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda, &b,
+                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
 // SYRK wrappers (real → syrk, complex → herk)
 inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
                                   const float* alpha, const float* A, int lda, const float* beta, float* C, int ldc) {
@@ -184,6 +210,59 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
                                   std::complex<double>* C, int ldc) {
   return cublasZherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuDoubleComplex*>(A), lda, beta,
                      reinterpret_cast<cuDoubleComplex*>(C), ldc);
+}
+
+// SCAL wrappers: x = alpha * x.
+// For complex x, alpha is real-valued (Csscal/Zdscal) — this matches the
+// 1/n inverse-FFT scaling pattern, where the scale is intrinsically real.
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, float* x, int incx) {
+  return cublasSscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, double* x, int incx) {
+  return cublasDscal(h, n, alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, std::complex<float>* x, int incx) {
+  return cublasCsscal(h, n, alpha, reinterpret_cast<cuComplex*>(x), incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, std::complex<double>* x, int incx) {
+  return cublasZdscal(h, n, alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
+}
+
+// By-value alpha overloads: convenience for callers that hold the scale as a
+// scalar rather than a host pointer (e.g. inverse-FFT 1/n normalization).
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, float* x, int incx) {
+  return cublasSscal(h, n, &alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, double* x, int incx) {
+  return cublasDscal(h, n, &alpha, x, incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, std::complex<float>* x, int incx) {
+  return cublasCsscal(h, n, &alpha, reinterpret_cast<cuComplex*>(x), incx);
+}
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, std::complex<double>* x, int incx) {
+  return cublasZdscal(h, n, &alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
+}
+
+// DGMM wrappers: C = A * diag(x)  (side=RIGHT) or C = diag(x) * A  (side=LEFT).
+// Useful for applying a diagonal scaling without materialising diag(x) as a
+// dense matrix. cuBLAS docs guarantee in-place is safe when C == A.
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const float* A, int lda,
+                                  const float* x, int incx, float* C, int ldc) {
+  return cublasSdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const double* A, int lda,
+                                  const double* x, int incx, double* C, int ldc) {
+  return cublasDdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<float>* A,
+                                  int lda, const std::complex<float>* x, int incx, std::complex<float>* C, int ldc) {
+  return cublasCdgmm(h, side, m, n, reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(x),
+                     incx, reinterpret_cast<cuComplex*>(C), ldc);
+}
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<double>* A,
+                                  int lda, const std::complex<double>* x, int incx, std::complex<double>* C, int ldc) {
+  return cublasZdgmm(h, side, m, n, reinterpret_cast<const cuDoubleComplex*>(A), lda,
+                     reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
 }  // namespace internal

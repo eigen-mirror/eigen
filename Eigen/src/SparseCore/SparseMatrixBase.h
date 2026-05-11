@@ -69,7 +69,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
      * it is set to the \a Dynamic constant.
      * \sa MatrixBase::rows(), MatrixBase::cols(), RowsAtCompileTime, SizeAtCompileTime */
 
-    SizeAtCompileTime = (internal::size_of_xpr_at_compile_time<Derived>::ret),
+    SizeAtCompileTime = (internal::size_of_xpr_at_compile_time<Derived>::value),
     /**< This is equal to the number of coefficients, i.e. the number of
      * rows times the number of columns, or to \a Dynamic if this is not
      * known at compile-time. \sa RowsAtCompileTime, ColsAtCompileTime */

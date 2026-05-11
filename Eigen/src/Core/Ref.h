@@ -35,7 +35,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
   struct match {
     enum {
       IsVectorAtCompileTime = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime,
-      HasDirectAccess = internal::has_direct_access<Derived>::ret,
+      HasDirectAccess = internal::has_direct_access<Derived>::value,
       StorageOrderMatch =
           IsVectorAtCompileTime || ((PlainObjectType::Flags & RowMajorBit) == (Derived::Flags & RowMajorBit)),
       InnerStrideMatch = int(InnerStrideAtCompileTime) == int(Dynamic) ||
@@ -52,11 +52,11 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       AlignmentMatch = (int(traits<PlainObjectType>::Alignment) == int(Unaligned)) ||
                        (DerivedAlignment >= int(Alignment)),  // FIXME the first condition is not very clear, it should
                                                               // be replaced by the required alignment
-      ScalarTypeMatch = internal::is_same<typename PlainObjectType::Scalar, typename Derived::Scalar>::value,
+      ScalarTypeMatch = std::is_same<typename PlainObjectType::Scalar, typename Derived::Scalar>::value,
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch &&
                            AlignmentMatch && ScalarTypeMatch
     };
-    typedef std::conditional_t<MatchAtCompileTime, internal::true_type, internal::false_type> type;
+    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
   };
 };
 
@@ -361,15 +361,15 @@ class Ref<const TPlainObjectType, Options, StrideType>
 
  protected:
   template <typename Expression>
-  EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::true_type) {
+  EIGEN_DEVICE_FUNC void construct(const Expression& expr, std::true_type) {
     // Check if we can use the underlying expr's storage directly, otherwise call the copy version.
     if (!Base::construct(expr)) {
-      construct(expr, internal::false_type());
+      construct(expr, std::false_type());
     }
   }
 
   template <typename Expression>
-  EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type) {
+  EIGEN_DEVICE_FUNC void construct(const Expression& expr, std::false_type) {
     internal::call_assignment_no_alias(m_object, expr, internal::assign_op<Scalar, Scalar>());
     const bool success = Base::construct(m_object);
     EIGEN_ONLY_USED_FOR_DEBUG(success);

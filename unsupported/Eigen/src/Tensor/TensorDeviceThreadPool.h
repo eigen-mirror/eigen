@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#if defined(EIGEN_USE_THREADS) && !defined(EIGEN_CXX11_TENSOR_TENSOR_DEVICE_THREAD_POOL_H)
-#define EIGEN_CXX11_TENSOR_TENSOR_DEVICE_THREAD_POOL_H
+#if defined(EIGEN_USE_THREADS) && !defined(EIGEN_TENSOR_TENSOR_DEVICE_THREAD_POOL_H)
+#define EIGEN_TENSOR_TENSOR_DEVICE_THREAD_POOL_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -343,4 +343,4 @@ struct ThreadPoolDevice {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_DEVICE_THREAD_POOL_H
+#endif  // EIGEN_TENSOR_TENSOR_DEVICE_THREAD_POOL_H

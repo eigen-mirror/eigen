@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_CHIPPING_H
-#define EIGEN_CXX11_TENSOR_TENSOR_CHIPPING_H
+#ifndef EIGEN_TENSOR_TENSOR_CHIPPING_H
+#define EIGEN_TENSOR_TENSOR_CHIPPING_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -60,7 +60,7 @@ struct DimensionId<Dynamic> {
 }  // end namespace internal
 
 /** A chip is a thin slice, corresponding to a column or a row in a 2-d tensor.
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  */
 template <DenseIndex DimId, typename XprType>
 class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
@@ -467,4 +467,4 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_CHIPPING_H
+#endif  // EIGEN_TENSOR_TENSOR_CHIPPING_H

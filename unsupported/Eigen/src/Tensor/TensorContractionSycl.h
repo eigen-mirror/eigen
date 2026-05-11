@@ -18,8 +18,8 @@
  *
  *****************************************************************/
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
-#define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#ifndef EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#define EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -247,8 +247,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<dt != data_source:
 
 template <data_source dt, typename PacketType, typename DataScalar>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size != 1 && dt == data_source::global_mem,
-                              void>
+    std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size != 1 && dt == data_source::global_mem, void>
     write(PacketType &packet_data, DataScalar *ptr) {
   ::Eigen::internal::pstoreu<DataScalar, PacketType>(ptr, packet_data);
 }
@@ -268,8 +267,7 @@ static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
  */
 template <data_source dt, typename PacketType, typename DataScalar>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    typename std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size == 1 && dt == data_source::global_mem,
-                              void>
+    std::enable_if_t<Eigen::internal::unpacket_traits<PacketType>::size == 1 && dt == data_source::global_mem, void>
     write(PacketType &packet_data, DataScalar *ptr) {
   *ptr = packet_data;
 }
@@ -1652,4 +1650,4 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   }
 };
 }  // namespace Eigen
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_SYCL_H
+#endif  // EIGEN_TENSOR_TENSOR_CONTRACTION_SYCL_H

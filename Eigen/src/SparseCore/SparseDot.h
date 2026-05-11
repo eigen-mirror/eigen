@@ -24,7 +24,7 @@ inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Derived, OtherDerived)
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+      (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   eigen_assert(size() == other.size());
@@ -54,7 +54,7 @@ inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Derived, OtherDerived)
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+      (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   eigen_assert(size() == other.size());

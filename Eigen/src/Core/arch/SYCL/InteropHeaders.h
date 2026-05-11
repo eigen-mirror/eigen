@@ -97,11 +97,9 @@ SYCL_PACKET_TRAITS(cl::sycl::cl_double2, const double, 2)
 // Make sure this is only available when targeting a GPU: we don't want to
 // introduce conflicts between these packet_traits definitions and the ones
 // we'll use on the host side (SSE, AVX, ...)
-#define SYCL_ARITHMETIC(packet_type)  \
-  template <>                         \
-  struct is_arithmetic<packet_type> { \
-    enum { value = true };            \
-  };
+#define SYCL_ARITHMETIC(packet_type) \
+  template <>                        \
+  struct is_arithmetic<packet_type> : std::true_type {};
 SYCL_ARITHMETIC(cl::sycl::cl_half8)
 SYCL_ARITHMETIC(cl::sycl::cl_float4)
 SYCL_ARITHMETIC(cl::sycl::cl_double2)

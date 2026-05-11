@@ -228,14 +228,12 @@ class QuaternionBase : public RotationBase<Derived, 3> {
 #else
 
   template <typename NewScalarType>
-  EIGEN_DEVICE_FUNC inline std::enable_if_t<internal::is_same<Scalar, NewScalarType>::value, const Derived&> cast()
-      const {
+  EIGEN_DEVICE_FUNC inline std::enable_if_t<std::is_same<Scalar, NewScalarType>::value, const Derived&> cast() const {
     return derived();
   }
 
   template <typename NewScalarType>
-  EIGEN_DEVICE_FUNC inline std::enable_if_t<!internal::is_same<Scalar, NewScalarType>::value,
-                                            Quaternion<NewScalarType> >
+  EIGEN_DEVICE_FUNC inline std::enable_if_t<!std::is_same<Scalar, NewScalarType>::value, Quaternion<NewScalarType> >
   cast() const {
     return Quaternion<NewScalarType>(coeffs().template cast<NewScalarType>());
   }
@@ -555,7 +553,7 @@ template <class OtherDerived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Quaternion<typename internal::traits<Derived>::Scalar>
 QuaternionBase<Derived>::operator*(const QuaternionBase<OtherDerived>& other) const {
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<typename Derived::Scalar, typename OtherDerived::Scalar>::value),
+      (std::is_same<typename Derived::Scalar, typename OtherDerived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
   return internal::quat_product<Architecture::Target, Derived, OtherDerived,
                                 typename internal::traits<Derived>::Scalar>::run(*this, other);
@@ -627,7 +625,7 @@ template <class Derived>
 template <class MatrixDerived>
 EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::operator=(const MatrixBase<MatrixDerived>& xpr) {
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<typename Derived::Scalar, typename MatrixDerived::Scalar>::value),
+      (std::is_same<typename Derived::Scalar, typename MatrixDerived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
   internal::quaternionbase_assign_impl<MatrixDerived>::run(*this, xpr.derived());
   return derived();

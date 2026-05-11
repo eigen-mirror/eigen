@@ -1427,9 +1427,9 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_33((cast_test<Dynamic, 1>()));
   }
 
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));
   typedef CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd> Xpr;
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<Xpr>::type, ArrayBase<Xpr>>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<Xpr>::type, ArrayBase<Xpr>>::value));
 }

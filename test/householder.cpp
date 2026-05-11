@@ -24,7 +24,7 @@ void householder(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::ret, 1> EssentialVectorType;
+  typedef Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::value, 1> EssentialVectorType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
   typedef Matrix<Scalar, Dynamic, MatrixType::ColsAtCompileTime> HBlockMatrixType;
   typedef Matrix<Scalar, Dynamic, 1> HCoeffsVectorType;

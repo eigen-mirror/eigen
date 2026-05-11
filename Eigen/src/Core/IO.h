@@ -126,8 +126,6 @@ struct significant_decimals_impl {
  * print the matrix \a _m to the output stream \a s using the output format \a fmt */
 template <typename Derived>
 std::ostream& print_matrix(std::ostream& s, const Derived& _m, const IOFormat& fmt) {
-  using internal::is_same;
-
   if (_m.size() == 0) {
     s << fmt.matPrefix << fmt.matSuffix;
     return s;
@@ -135,13 +133,14 @@ std::ostream& print_matrix(std::ostream& s, const Derived& _m, const IOFormat& f
 
   typename Derived::Nested m = _m;
   typedef typename Derived::Scalar Scalar;
-  typedef std::conditional_t<is_same<Scalar, char>::value || is_same<Scalar, unsigned char>::value ||
-                                 is_same<Scalar, numext::int8_t>::value || is_same<Scalar, numext::uint8_t>::value,
+  typedef std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
+                                 std::is_same<Scalar, numext::int8_t>::value ||
+                                 std::is_same<Scalar, numext::uint8_t>::value,
                              int,
-                             std::conditional_t<is_same<Scalar, std::complex<char> >::value ||
-                                                    is_same<Scalar, std::complex<unsigned char> >::value ||
-                                                    is_same<Scalar, std::complex<numext::int8_t> >::value ||
-                                                    is_same<Scalar, std::complex<numext::uint8_t> >::value,
+                             std::conditional_t<std::is_same<Scalar, std::complex<char> >::value ||
+                                                    std::is_same<Scalar, std::complex<unsigned char> >::value ||
+                                                    std::is_same<Scalar, std::complex<numext::int8_t> >::value ||
+                                                    std::is_same<Scalar, std::complex<numext::uint8_t> >::value,
                                                 std::complex<int>, const Scalar&> >
       PrintType;
 

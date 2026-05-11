@@ -226,7 +226,7 @@ struct check_sqrt_impl {
 template <typename T>
 struct check_sqrt_impl<std::complex<T>> {
   static void run() {
-    typedef typename std::complex<T> ComplexT;
+    typedef std::complex<T> ComplexT;
 
     for (int i = 0; i < 1000; ++i) {
       const ComplexT x = internal::random<ComplexT>();
@@ -294,7 +294,7 @@ struct check_rsqrt_impl {
 template <typename T>
 struct check_rsqrt_impl<std::complex<T>> {
   static void run() {
-    typedef typename std::complex<T> ComplexT;
+    typedef std::complex<T> ComplexT;
     const T zero = T(0);
     const T one = T(1);
     const T inf = std::numeric_limits<T>::infinity();

@@ -389,8 +389,7 @@ struct cast_impl<OldType, bool> {
 // Casting from S -> Complex<T> leads to an implicit conversion from S to T,
 // generating warnings on clang.  Here we explicitly cast the real component.
 template <typename OldType, typename NewType>
-struct cast_impl<OldType, NewType,
-                 typename std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
+struct cast_impl<OldType, NewType, std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
   EIGEN_DEVICE_FUNC static inline NewType run(const OldType& x) {
     typedef typename NumTraits<NewType>::Real NewReal;
     return static_cast<NewType>(static_cast<NewReal>(x));
@@ -412,9 +411,10 @@ EIGEN_DEVICE_FUNC inline NewType cast(const OldType& x) {
 // This seems to be fixed in VS 2019.
 #if (!EIGEN_COMP_MSVC || EIGEN_COMP_MSVC >= 1920)
 // std::arg is only defined for types of std::complex, or integer types or float/double/long double
-template <typename Scalar, bool HasStdImpl = NumTraits<Scalar>::IsComplex || is_integral<Scalar>::value ||
-                                             is_same<Scalar, float>::value || is_same<Scalar, double>::value ||
-                                             is_same<Scalar, long double>::value>
+template <typename Scalar, bool HasStdImpl = NumTraits<Scalar>::IsComplex || std::is_integral<Scalar>::value ||
+                                             std::is_same<Scalar, float>::value ||
+                                             std::is_same<Scalar, double>::value ||
+                                             std::is_same<Scalar, long double>::value>
 struct arg_default_impl;
 
 template <typename Scalar>
@@ -622,19 +622,18 @@ template <unsigned int n, int lower = 0, int upper = sizeof(unsigned int) * CHAR
 struct meta_floor_log2 {};
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_down> {
-  enum { value = meta_floor_log2<n, lower, meta_floor_log2_selector<n, lower, upper>::middle>::value };
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_down>
+    : std::integral_constant<int, meta_floor_log2<n, lower, meta_floor_log2_selector<n, lower, upper>::middle>::value> {
 };
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_up> {
-  enum { value = meta_floor_log2<n, meta_floor_log2_selector<n, lower, upper>::middle, upper>::value };
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_up>
+    : std::integral_constant<int, meta_floor_log2<n, meta_floor_log2_selector<n, lower, upper>::middle, upper>::value> {
 };
 
 template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_terminate> {
-  enum { value = (n >= ((unsigned int)(1) << (lower + 1))) ? lower + 1 : lower };
-};
+struct meta_floor_log2<n, lower, upper, meta_floor_log2_terminate>
+    : std::integral_constant<int, (n >= ((unsigned int)(1) << (lower + 1))) ? lower + 1 : lower> {};
 
 template <unsigned int n, int lower, int upper>
 struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
@@ -943,7 +942,7 @@ struct negate_impl {
 
 template <typename Scalar>
 struct negate_impl<Scalar, true> {
-  EIGEN_STATIC_ASSERT((!is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
+  EIGEN_STATIC_ASSERT((!std::is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
 };
 
@@ -1014,7 +1013,7 @@ struct fma_impl<T, std::enable_if_t<has_fma<T>::value>> {
 
 #if defined(EIGEN_GPUCC)
 template <>
-struct has_fma<float> : public true_type {};
+struct has_fma<float> : public std::true_type {};
 
 template <>
 struct fma_impl<float, void> {
@@ -1024,7 +1023,7 @@ struct fma_impl<float, void> {
 };
 
 template <>
-struct has_fma<double> : public true_type {};
+struct has_fma<double> : public std::true_type {};
 
 template <>
 struct fma_impl<double, void> {

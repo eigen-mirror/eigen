@@ -776,7 +776,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   inline SparseMatrix(const SparseMatrixBase<OtherDerived>& other)
       : m_outerSize(0), m_innerSize(0), m_outerIndex(0), m_innerNonZeros(0) {
     EIGEN_STATIC_ASSERT(
-        (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     const bool needToTranspose = (Flags & RowMajorBit) != (internal::evaluator<OtherDerived>::Flags & RowMajorBit);
     if (needToTranspose)
@@ -1007,7 +1007,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
     Index n = diagXpr.size();
 
-    const bool overwrite = internal::is_same<Func, internal::assign_op<Scalar, Scalar>>::value;
+    const bool overwrite = std::is_same<Func, internal::assign_op<Scalar, Scalar>>::value;
     if (overwrite) {
       if ((m_outerSize != n) || (m_innerSize != n) || (n == 0)) resize(n, n);
     }
@@ -1526,7 +1526,7 @@ template <typename OtherDerived>
 EIGEN_DONT_INLINE SparseMatrix<Scalar, Options_, StorageIndex_>&
 SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+      (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
 #ifdef EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN

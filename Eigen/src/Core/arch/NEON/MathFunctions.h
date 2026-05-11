@@ -52,7 +52,7 @@ EIGEN_STRONG_INLINE Packet4bf pldexp(const Packet4bf& a, const Packet4bf& expone
 
 //---------- double ----------
 
-#if EIGEN_ARCH_ARM64 && !EIGEN_APPLE_DOUBLE_NEON_BUG
+#if EIGEN_ARCH_ARM64
 
 EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(Packet2d)
 

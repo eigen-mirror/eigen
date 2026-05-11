@@ -544,4 +544,4 @@ class DenseStorage<T, Size, Rows, Cols, Options, false>
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_MATRIX_H
+#endif  // EIGEN_MATRIXSTORAGE_H

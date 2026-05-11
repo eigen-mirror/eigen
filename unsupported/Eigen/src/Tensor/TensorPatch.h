@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_PATCH_H
-#define EIGEN_CXX11_TENSOR_TENSOR_PATCH_H
+#ifndef EIGEN_TENSOR_TENSOR_PATCH_H
+#define EIGEN_TENSOR_TENSOR_PATCH_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -43,7 +43,7 @@ struct nested<TensorPatchOp<PatchDim, XprType>, 1, typename eval<TensorPatchOp<P
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor patch class.
  */
@@ -256,4 +256,4 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_PATCH_H
+#endif  // EIGEN_TENSOR_TENSOR_PATCH_H

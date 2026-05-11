@@ -11,8 +11,8 @@
 // Barrier is an object that allows one or more threads to wait until
 // Notify has been called a specified number of times.
 
-#ifndef EIGEN_CXX11_THREADPOOL_BARRIER_H
-#define EIGEN_CXX11_THREADPOOL_BARRIER_H
+#ifndef EIGEN_THREADPOOL_BARRIER_H
+#define EIGEN_THREADPOOL_BARRIER_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -68,4 +68,4 @@ struct Notification : Barrier {
 
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_THREADPOOL_BARRIER_H
+#endif  // EIGEN_THREADPOOL_BARRIER_H

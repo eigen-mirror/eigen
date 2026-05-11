@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H
-#define EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H
+#ifndef EIGEN_TENSOR_TENSOR_INITIALIZER_H
+#define EIGEN_TENSOR_TENSOR_INITIALIZER_H
 
 #include <initializer_list>
 
@@ -21,7 +21,7 @@ namespace Eigen {
 namespace internal {
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Helper template to initialize Tensors from std::initializer_lists.
  */
@@ -76,4 +76,4 @@ void initialize_tensor(TensorEvaluator<Derived, DefaultDevice>& tensor,
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H
+#endif  // EIGEN_TENSOR_TENSOR_INITIALIZER_H

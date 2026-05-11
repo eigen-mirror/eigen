@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_MAP_H
-#define EIGEN_CXX11_TENSOR_TENSOR_MAP_H
+#ifndef EIGEN_TENSOR_TENSOR_MAP_H
+#define EIGEN_TENSOR_TENSOR_MAP_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -19,7 +19,7 @@ namespace Eigen {
 // FIXME: Use proper doxygen documentation (e.g. \tparam MakePointer_).
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief A tensor expression mapping an existing array of data.
  *
@@ -187,4 +187,4 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_MAP_H
+#endif  // EIGEN_TENSOR_TENSOR_MAP_H

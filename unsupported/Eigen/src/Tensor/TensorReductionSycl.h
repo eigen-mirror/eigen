@@ -27,8 +27,8 @@
  *
  *****************************************************************/
 
-#ifndef UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP
-#define UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP
+#ifndef UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP
+#define UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
@@ -583,4 +583,4 @@ struct GenericReducer<Self, Op, Eigen::SyclDevice> {
 }  // namespace internal
 }  // namespace Eigen
 
-#endif  // UNSUPPORTED_EIGEN_CXX11_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP
+#endif  // UNSUPPORTED_EIGEN_SRC_TENSOR_TENSOR_REDUCTION_SYCL_HPP

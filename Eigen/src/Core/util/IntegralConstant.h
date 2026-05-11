@@ -187,7 +187,7 @@ struct cleanup_index_type {
 
 // Convert any integral type (e.g., short, int, unsigned int, etc.) to Eigen::Index
 template <typename T, int DynamicKey>
-struct cleanup_index_type<T, DynamicKey, std::enable_if_t<internal::is_integral<T>::value>> {
+struct cleanup_index_type<T, DynamicKey, std::enable_if_t<std::is_integral<T>::value>> {
   typedef Index type;
 };
 

@@ -734,7 +734,7 @@
 // supported by Eigen do not define _MSVC_LANG, so use Eigen's minimum standard.
 #if EIGEN_COMP_MSVC_LANG > 0
 #define EIGEN_CPLUSPLUS EIGEN_COMP_MSVC_LANG
-#elif EIGEN_COMP_MSVC >= 1900
+#elif EIGEN_COMP_MSVC
 #define EIGEN_CPLUSPLUS 201402L
 #elif defined(__cplusplus)
 #define EIGEN_CPLUSPLUS __cplusplus
@@ -809,8 +809,8 @@
 //       See https://gitlab.com/libeigen/eigen/-/issues/2575
 // Does the compiler support C++17 if constexpr?
 #ifndef EIGEN_HAS_CXX17_IFCONSTEXPR
-#if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17 &&                                                            \
-    ((EIGEN_COMP_MSVC >= 1911) || (EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0)) || (EIGEN_CLANG_STRICT_AT_LEAST(3, 9, 0)) || \
+#if EIGEN_MAX_CPP_VER >= 17 && EIGEN_COMP_CXXVER >= 17 &&                                             \
+    ((EIGEN_COMP_MSVC >= 1911) || (EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0)) || EIGEN_COMP_CLANG_STRICT || \
      (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE >= 10000000))
 #define EIGEN_HAS_CXX17_IFCONSTEXPR 1
 #endif

@@ -86,9 +86,7 @@ struct partial_redux_dummy_func;
     typedef ResultType result_type;                                                         \
     typedef BINARYOP<Scalar, Scalar> BinaryOp;                                              \
     template <int Size>                                                                     \
-    struct Cost {                                                                           \
-      enum { value = COST };                                                                \
-    };                                                                                      \
+    struct Cost : std::integral_constant<int, COST> {};                                     \
     enum { Vectorizable = VECTORIZABLE };                                                   \
     template <typename XprType>                                                             \
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const { \
@@ -119,8 +117,8 @@ struct member_lpnorm {
   typedef ResultType result_type;
   enum { Vectorizable = 0 };
   template <int Size>
-  struct Cost {
-    enum { value = (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost };
+  struct Cost
+      : std::integral_constant<int, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost> {
   };
   EIGEN_DEVICE_FUNC member_lpnorm() {}
   template <typename XprType>
@@ -136,9 +134,7 @@ struct member_redux {
 
   enum { Vectorizable = functor_traits<BinaryOp>::PacketAccess };
   template <int Size>
-  struct Cost {
-    enum { value = (Size - 1) * functor_traits<BinaryOp>::Cost };
-  };
+  struct Cost : std::integral_constant<int, (Size - 1) * functor_traits<BinaryOp>::Cost> {};
   EIGEN_DEVICE_FUNC explicit member_redux(const BinaryOp func) : m_functor(func) {}
   template <typename Derived>
   EIGEN_DEVICE_FUNC inline result_type operator()(const DenseBase<Derived>& mat) const {
@@ -189,8 +185,8 @@ struct functor_traits<scalar_replace_zero_with_one_op<Scalar>> {
  * return STL-compatible begin/end iterators to the rows or columns of the nested expression.
  * Typical use cases include for-range-loop and calls to STL algorithms:
  *
- * Example: \include MatrixBase_colwise_iterator_cxx11.cpp
- * Output: \verbinclude MatrixBase_colwise_iterator_cxx11.out
+ * Example: \include MatrixBase_colwise_iterator.cpp
+ * Output: \verbinclude MatrixBase_colwise_iterator.out
  *
  * For a partial reduction on an empty input, some rules apply.
  * For the sake of clarity, let's consider a vertical reduction:

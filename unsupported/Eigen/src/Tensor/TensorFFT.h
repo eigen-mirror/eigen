@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_FFT_H
-#define EIGEN_CXX11_TENSOR_TENSOR_FFT_H
+#ifndef EIGEN_TENSOR_TENSOR_FFT_H
+#define EIGEN_TENSOR_TENSOR_FFT_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -89,7 +89,7 @@ struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor FFT class.
  *
@@ -235,12 +235,12 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalToBuf(EvaluatorPointerType data) {
-    const bool write_to_out = internal::is_same<OutputScalar, ComplexScalar>::value;
+    const bool write_to_out = std::is_same<OutputScalar, ComplexScalar>::value;
     ComplexScalar* buf =
         write_to_out ? (ComplexScalar*)data : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * m_size);
 
     for (Index i = 0; i < m_size; ++i) {
-      buf[i] = MakeComplex<internal::is_same<InputScalar, RealScalar>::value>()(m_impl.coeff(i));
+      buf[i] = MakeComplex<std::is_same<InputScalar, RealScalar>::value>()(m_impl.coeff(i));
     }
 
     for (size_t i = 0; i < m_fft.size(); ++i) {
@@ -666,4 +666,4 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_FFT_H
+#endif  // EIGEN_TENSOR_TENSOR_FFT_H

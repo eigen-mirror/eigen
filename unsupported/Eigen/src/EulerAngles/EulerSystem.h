@@ -22,19 +22,13 @@ class EulerAngles;
 namespace internal {
 // TODO: Add this trait to the Eigen internal API?
 template <int Num, bool IsPositive = (Num > 0)>
-struct Abs {
-  enum { value = Num };
-};
+struct Abs : std::integral_constant<int, Num> {};
 
 template <int Num>
-struct Abs<Num, false> {
-  enum { value = -Num };
-};
+struct Abs<Num, false> : std::integral_constant<int, -Num> {};
 
 template <int Axis>
-struct IsValidAxis {
-  enum { value = Axis != 0 && Abs<Axis>::value <= 3 };
-};
+struct IsValidAxis : std::integral_constant<bool, Axis != 0 && Abs<Axis>::value <= 3> {};
 
 template <typename System, typename Other, int OtherRows = Other::RowsAtCompileTime,
           int OtherCols = Other::ColsAtCompileTime>

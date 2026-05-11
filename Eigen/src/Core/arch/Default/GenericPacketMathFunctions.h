@@ -485,14 +485,27 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   Packet y = pmadd(r, p_odd, p_even);
   y = pmadd(r2, y, p_low);
 
-  // Construct 2^m by directly manipulating the exponent bits.
-  // After clamping, m is in [-150, 128], so biased exponent m+127 is in [-23, 255].
-  // We only need the lower clamp to 0 (the upper bound 255 is exact).
-  const PacketI cst_bias = pset1<PacketI>(127);
-  PacketI mi = pcast<Packet, PacketI>(m);
-  mi = pmax(padd(mi, cst_bias), pzero(mi));
-  const Packet pow2m = preinterpret<Packet>(plogical_shift_left<23>(mi));
-  y = pmul(y, pow2m);
+  // Construct the result y * 2^m via a 2-way exponent split. Writing
+  //   2^m = 2^floor(m/2) * 2^(m - floor(m/2))
+  // keeps each constructed power-of-two within the normal float range (since
+  // |m| <= 150 after the input clamp implies each half lies in [-75, 65]), so
+  // the IEEE-correct rounding of normal*normal handles the subnormal output
+  // range without special-casing.
+  //
+  // To minimize integer ops we fold the bias into the split:
+  //   biased_sum = m + 254                      (always nonnegative)
+  //   biased_hi  = biased_sum >> 1  =  m/2 + 127
+  //   biased_lo  = biased_sum - biased_hi = (m - m/2) + 127
+  // so each <<23 directly yields the float bit pattern for 2^(m/2) and
+  // 2^(m - m/2).
+  const PacketI cst_double_bias = pset1<PacketI>(254);
+  const PacketI mi = pcast<Packet, PacketI>(m);
+  const PacketI biased_sum = padd(mi, cst_double_bias);
+  const PacketI biased_hi = plogical_shift_right<1>(biased_sum);  // m/2 + 127
+  const PacketI biased_lo = psub(biased_sum, biased_hi);          // (m - m/2) + 127
+  const Packet pow2_hi = preinterpret<Packet>(plogical_shift_left<23>(biased_hi));
+  const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(biased_lo));
+  y = pmul(pmul(y, pow2_hi), pow2_lo);
 
   if (!IsFinite) {
     // Handle NaN: exp(nan) = nan. Use pmax to propagate NaN from input.

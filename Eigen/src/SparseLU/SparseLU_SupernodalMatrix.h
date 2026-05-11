@@ -313,4 +313,4 @@ void MappedSuperNodalMatrix<Scalar, Index_>::solveTransposedInPlace(MatrixBase<D
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_SPARSELU_MATRIX_H
+#endif  // EIGEN_SPARSELU_SUPERNODAL_MATRIX_H

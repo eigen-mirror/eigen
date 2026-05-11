@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_ARG_MAX_H
-#define EIGEN_CXX11_TENSOR_TENSOR_ARG_MAX_H
+#ifndef EIGEN_TENSOR_TENSOR_ARG_MAX_H
+#define EIGEN_TENSOR_TENSOR_ARG_MAX_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -43,7 +43,7 @@ struct nested<TensorIndexPairOp<XprType>, 1, typename eval<TensorIndexPairOp<Xpr
 }  // end namespace internal
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Tensor + Index Pair class.
  */
@@ -119,7 +119,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
 namespace internal {
 
 /** \class TensorPairIndex
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief Converts to Tensor<Pair<Index, Scalar> > and reduces to Tensor<Index>.
  *
@@ -280,4 +280,4 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_ARG_MAX_H
+#endif  // EIGEN_TENSOR_TENSOR_ARG_MAX_H

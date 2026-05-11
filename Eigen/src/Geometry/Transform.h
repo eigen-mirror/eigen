@@ -269,7 +269,7 @@ class Transform {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC inline explicit Transform(const EigenBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT(
-        (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY);
 
     check_template_params();
@@ -280,7 +280,7 @@ class Transform {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC inline Transform& operator=(const EigenBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT(
-        (internal::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY);
 
     internal::transform_construct_from_matrix<OtherDerived, Mode, Options, Dim, HDim>::run(this, other.derived());

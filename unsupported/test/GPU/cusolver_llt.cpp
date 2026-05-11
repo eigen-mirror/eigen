@@ -106,6 +106,17 @@ void test_not_spd() {
   VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::NumericalIssue);
 }
 
+// solve(DeviceMatrix) must not silently return garbage when the factorization
+// failed: it must sync the info word and assert just like solve(MatrixBase).
+void test_not_spd_device_solve_asserts() {
+  Eigen::MatrixXd h_A = -Eigen::MatrixXd::Identity(8, 8);
+  Eigen::MatrixXd h_B = Eigen::MatrixXd::Random(8, 4);
+  Eigen::gpu::LLT<double> gpu_llt(h_A);
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::NumericalIssue);
+  auto d_B = Eigen::gpu::DeviceMatrix<double>::fromHost(h_B);
+  VERIFY_RAISES_ASSERT(gpu_llt.solve(d_B));
+}
+
 // ---- DeviceMatrix-native API --------------------------------------------
 // These tests exercise the device-resident path: compute(DeviceMatrix) +
 // solve(DeviceMatrix) -> DeviceMatrix, with the user explicitly managing
@@ -218,4 +229,5 @@ EIGEN_DECLARE_TEST(gpu_cusolver_llt) {
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_not_spd());
+  CALL_SUBTEST_5(test_not_spd_device_solve_asserts());
 }

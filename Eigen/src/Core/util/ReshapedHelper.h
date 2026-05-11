@@ -22,9 +22,7 @@ const int AutoOrder = 2;
 namespace internal {
 
 template <typename SizeType, typename OtherSize, int TotalSize>
-struct get_compiletime_reshape_size {
-  enum { value = get_fixed_value<SizeType>::value };
-};
+struct get_compiletime_reshape_size : get_fixed_value<SizeType> {};
 
 template <typename SizeType>
 Index get_runtime_reshape_size(SizeType size, Index /*other*/, Index /*total*/) {

@@ -222,7 +222,7 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
   EIGEN_USING_STD(atan2)
   EIGEN_USING_STD(sqrt)
   EIGEN_STATIC_ASSERT(
-      (internal::is_same<Scalar, typename Derived::Scalar>::value),
+      (std::is_same<Scalar, typename Derived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
   eigen_assert(mat.cols() == 3 && mat.rows() == 3);
 

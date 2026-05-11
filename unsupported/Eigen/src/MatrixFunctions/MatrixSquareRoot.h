@@ -343,4 +343,4 @@ const MatrixSquareRootReturnValue<Derived> MatrixBase<Derived>::sqrt() const {
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_MATRIX_FUNCTION
+#endif  // EIGEN_MATRIX_SQUARE_ROOT

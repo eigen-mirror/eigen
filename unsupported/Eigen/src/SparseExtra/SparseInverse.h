@@ -84,7 +84,7 @@ typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const S
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Derived, OtherDerived)
-  static_assert(internal::is_same<Scalar, typename OtherDerived::Scalar>::value, "mismatched types");
+  static_assert(std::is_same<Scalar, typename OtherDerived::Scalar>::value, "mismatched types");
 
   internal::evaluator<Derived> thisEval(A.derived());
   typename Derived::ReverseInnerIterator i(thisEval, 0);

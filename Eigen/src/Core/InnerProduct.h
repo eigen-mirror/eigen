@@ -20,8 +20,8 @@ namespace internal {
 
 // recursively searches for the largest simd type that does not exceed Size, or the smallest if no such type exists
 template <typename Scalar, int Size, typename Packet = typename packet_traits<Scalar>::type,
-          bool Stop =
-              (unpacket_traits<Packet>::size <= Size) || is_same<Packet, typename unpacket_traits<Packet>::half>::value>
+          bool Stop = (unpacket_traits<Packet>::size <= Size) ||
+                      std::is_same<Packet, typename unpacket_traits<Packet>::half>::value>
 struct find_inner_product_packet_helper;
 
 template <typename Scalar, int Size, typename Packet>
@@ -222,8 +222,7 @@ struct scalar_inner_product_op {
 template <typename Scalar, bool Conj>
 struct scalar_inner_product_op<
     Scalar,
-    std::enable_if_t<internal::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value,
-                     Scalar>,
+    std::enable_if_t<std::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value, Scalar>,
     Conj> {
   using result_type = Scalar;
   using conj_helper = conditional_conj<Scalar, Conj>;

@@ -7,6 +7,9 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_FFT_IMKLFFT_IMPL_H
+#define EIGEN_FFT_IMKLFFT_IMPL_H
+
 #include <mkl_dfti.h>
 
 // IWYU pragma: private
@@ -248,3 +251,5 @@ struct imklfft_impl {
 }  // namespace imklfft
 }  // namespace internal
 }  // namespace Eigen
+
+#endif  // EIGEN_FFT_IMKLFFT_IMPL_H

@@ -40,8 +40,8 @@ static void cuda_warmup() {
   static bool done = false;
   if (!done) {
     void* p;
-    cudaMalloc(&p, 1);
-    cudaFree(p);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, 1));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
     done = true;
   }
 }
@@ -157,7 +157,7 @@ static void BM_GpuLLT_Solve_DeviceOnly(benchmark::State& state) {
   for (auto _ : state) {
     gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
     // Force completion without D2H transfer.
-    cudaStreamSynchronize(llt.stream());
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(llt.stream()));
     benchmark::DoNotOptimize(d_X.data());
   }
 

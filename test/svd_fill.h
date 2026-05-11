@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#ifndef EIGEN_TEST_SVD_FILL_H
+#define EIGEN_TEST_SVD_FILL_H
+
 template <typename T>
 Array<T, 4, 1> four_denorms();
 
@@ -133,3 +136,5 @@ void svd_fill_random(MatrixType& m, int Option = 0) {
     }
   }
 }
+
+#endif  // EIGEN_TEST_SVD_FILL_H

@@ -234,12 +234,12 @@ EIGEN_DECLARE_TEST(sparse_permutations) {
     CALL_SUBTEST_2((sparse_permutations_all<std::complex<double> >(s)));
   }
 
-  VERIFY((internal::is_same<
+  VERIFY((std::is_same<
           internal::permutation_matrix_product<SparseMatrix<double>, OnTheRight, false, SparseShape>::ReturnType,
           internal::nested_eval<Product<SparseMatrix<double>, PermutationMatrix<Dynamic, Dynamic>, AliasFreeProduct>,
                                 1>::type>::value));
 
-  VERIFY((internal::is_same<
+  VERIFY((std::is_same<
           internal::permutation_matrix_product<SparseMatrix<double>, OnTheLeft, false, SparseShape>::ReturnType,
           internal::nested_eval<Product<PermutationMatrix<Dynamic, Dynamic>, SparseMatrix<double>, AliasFreeProduct>,
                                 1>::type>::value));

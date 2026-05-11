@@ -179,12 +179,11 @@ class MatrixMarketIterator {
       if (!getMarketHeader(curfile, m_sym, iscomplex, isvector)) continue;
       if (isvector) continue;
       if (!iscomplex) {
-        if (internal::is_same<Scalar, std::complex<float> >::value ||
-            internal::is_same<Scalar, std::complex<double> >::value)
+        if (std::is_same<Scalar, std::complex<float> >::value || std::is_same<Scalar, std::complex<double> >::value)
           continue;
       }
       if (iscomplex) {
-        if (internal::is_same<Scalar, float>::value || internal::is_same<Scalar, double>::value) continue;
+        if (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) continue;
       }
 
       // Get the matrix name

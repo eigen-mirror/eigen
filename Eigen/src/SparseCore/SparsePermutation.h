@@ -21,7 +21,7 @@ namespace Eigen {
 namespace internal {
 
 template <typename ExpressionType, typename PlainObjectType,
-          bool NeedEval = !is_same<ExpressionType, PlainObjectType>::value>
+          bool NeedEval = !std::is_same<ExpressionType, PlainObjectType>::value>
 struct XprHelper {
   XprHelper(const ExpressionType& xpr) : m_xpr(xpr) {}
   inline const PlainObjectType& xpr() const { return m_xpr; }

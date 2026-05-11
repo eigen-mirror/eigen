@@ -76,8 +76,8 @@ void cholesky(const MatrixType& m) {
   }
 
   {
-    STATIC_CHECK((internal::is_same<typename LLT<MatrixType, Lower>::StorageIndex, int>::value));
-    STATIC_CHECK((internal::is_same<typename LLT<MatrixType, Upper>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LLT<MatrixType, Lower>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LLT<MatrixType, Upper>::StorageIndex, int>::value));
 
     SquareMatrixType symmUp = symm.template triangularView<Upper>();
     SquareMatrixType symmLo = symm.template triangularView<Lower>();
@@ -139,8 +139,8 @@ void cholesky(const MatrixType& m) {
 
   // LDLT
   {
-    STATIC_CHECK((internal::is_same<typename LDLT<MatrixType, Lower>::StorageIndex, int>::value));
-    STATIC_CHECK((internal::is_same<typename LDLT<MatrixType, Upper>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LDLT<MatrixType, Lower>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LDLT<MatrixType, Upper>::StorageIndex, int>::value));
 
     int sign = internal::random<int>() % 2 ? 1 : -1;
 

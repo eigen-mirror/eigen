@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_CXX11_TENSOR_TENSOR_FIXED_SIZE_H
-#define EIGEN_CXX11_TENSOR_TENSOR_FIXED_SIZE_H
+#ifndef EIGEN_TENSOR_TENSOR_FIXED_SIZE_H
+#define EIGEN_TENSOR_TENSOR_FIXED_SIZE_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -17,7 +17,7 @@
 namespace Eigen {
 
 /**
- * \ingroup CXX11_Tensor_Module
+ * \ingroup Tensor_Module
  *
  * \brief The fixed sized version of the tensor class.
  *
@@ -199,12 +199,6 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool checkIndexRange(const array<Index, NumIndices>& /*indices*/) const {
-    using internal::array_apply_and_reduce;
-    using internal::array_zip_and_reduce;
-    using internal::greater_equal_zero_op;
-    using internal::lesser_op;
-    using internal::logical_and_op;
-
     return true;
   }
 
@@ -219,4 +213,4 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_CXX11_TENSOR_TENSOR_FIXED_SIZE_H
+#endif  // EIGEN_TENSOR_TENSOR_FIXED_SIZE_H

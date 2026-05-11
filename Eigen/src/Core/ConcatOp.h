@@ -99,12 +99,12 @@ class Concat : public internal::dense_xpr_base<Concat<Direction, LhsType, RhsTyp
   template <typename OriginalLhsType, typename OriginalRhsType>
   EIGEN_DEVICE_FUNC constexpr inline Concat(const OriginalLhsType& lhs, const OriginalRhsType& rhs)
       : m_lhs(lhs), m_rhs(rhs) {
-    EIGEN_STATIC_ASSERT((internal::is_same<std::remove_const_t<LhsType>, OriginalLhsType>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<std::remove_const_t<LhsType>, OriginalLhsType>::value),
                         THE_MATRIX_OR_EXPRESSION_THAT_YOU_PASSED_DOES_NOT_HAVE_THE_EXPECTED_TYPE)
-    EIGEN_STATIC_ASSERT((internal::is_same<std::remove_const_t<RhsType>, OriginalRhsType>::value),
+    EIGEN_STATIC_ASSERT((std::is_same<std::remove_const_t<RhsType>, OriginalRhsType>::value),
                         THE_MATRIX_OR_EXPRESSION_THAT_YOU_PASSED_DOES_NOT_HAVE_THE_EXPECTED_TYPE)
     EIGEN_STATIC_ASSERT(
-        (internal::is_same<typename LhsType::Scalar, typename RhsType::Scalar>::value),
+        (std::is_same<typename LhsType::Scalar, typename RhsType::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(LhsType, RhsType)
     EIGEN_STATIC_ASSERT(Direction != Horizontal || int(LhsType::RowsAtCompileTime) == Dynamic ||
