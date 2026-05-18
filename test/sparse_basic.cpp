@@ -981,6 +981,32 @@ void sparse_basic(const SparseMatrixType& ref) {
     iters[1] = IteratorType(m2, m2.outerSize() - 1);
   }
 
+  // test InnerIterator equality (bug #1192)
+  {
+    typedef typename SparseMatrixType::InnerIterator IteratorType;
+    SparseMatrixType m2(rows, cols);
+    DenseMatrix refMat2 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat2, m2);
+    Index outer_with_two = -1;
+    for (Index o = 0; o < m2.outerSize(); ++o)
+      if (m2.innerVector(o).nonZeros() >= 2) {
+        outer_with_two = o;
+        break;
+      }
+    if (outer_with_two >= 0) {
+      IteratorType a(m2, outer_with_two), b(m2, outer_with_two);
+      VERIFY(a == b);
+      ++b;
+      VERIFY(a != b);
+      VERIFY(!(a == b));
+      ++a;
+      VERIFY(a == b);
+      while (a) ++a;
+      while (b) ++b;
+      VERIFY(a == b);
+    }
+  }
+
   // test reserve with empty rows/columns
   {
     SparseMatrixType m1(0, cols);
