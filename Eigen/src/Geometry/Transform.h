@@ -249,6 +249,11 @@ class Transform {
         m_matrix);
   }
 
+  // These conversion ctors are intentionally `explicit`: keeping copy-init
+  // (`Transform t = rot;`) from compiling stops a Dim+1 x Dim+1 matrix
+  // from being silently materialized in function-call argument lists.
+  // Use direct-init (`Transform t(rot);`) or assignment (`Transform t; t = rot;`)
+  // instead. See bug #1209.
   EIGEN_DEVICE_FUNC inline explicit Transform(const TranslationType& t) {
     check_template_params();
     *this = t;
