@@ -93,8 +93,8 @@ class NaturalOrdering {
  *
  * \tparam  StorageIndex The type of indices of the matrix
  *
- * Functor computing the \em column \em approximate \em minimum \em degree ordering
- * The matrix should be in column-major and \b compressed format (see SparseMatrix::makeCompressed()).
+ * Functor computing the \em column \em approximate \em minimum \em degree ordering.
+ * Only the sparsity pattern of the input is read — scalar values are not.
  */
 template <typename StorageIndex>
 class COLAMDOrdering {
@@ -102,35 +102,57 @@ class COLAMDOrdering {
   typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
   typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
 
-  /** Compute the permutation vector \a perm form the sparse matrix \a mat
-   * \warning The input sparse matrix \a mat must be in compressed mode (see SparseMatrix::makeCompressed()).
-   */
+  /** Compute the permutation vector \a perm from the sparse matrix \a mat. */
   template <typename MatrixType>
   void operator()(const MatrixType& mat, PermutationType& perm) const {
-    eigen_assert(mat.isCompressed() &&
-                 "COLAMDOrdering requires a sparse matrix in compressed mode. Call .makeCompressed() before passing it "
-                 "to COLAMDOrdering");
+    typedef typename MatrixType::StorageIndex MatrixStorageIndex;
+    Matrix<MatrixStorageIndex, Dynamic, 1> outer_buf, inner_buf;
+    internal::SparsityPatternRef<MatrixStorageIndex> pat =
+        internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);
+    const StorageIndex m = internal::convert_index<StorageIndex>(pat.innerSize);
+    const StorageIndex n = internal::convert_index<StorageIndex>(pat.outerSize);
+    // Accumulate in Index — Eigen's contract is that any valid nnz fits there
+    // (mat.nonZeros() returns Index), so the sum can't overflow. One
+    // bounds-checked narrow to StorageIndex at the end catches the only real
+    // overflow case (total > StorageIndex range).
+    Index total_nnz = 0;
+    for (Index j = 0; j < pat.outerSize; ++j) total_nnz += pat.nonZeros(j);
+    const StorageIndex nnz = internal::convert_index<StorageIndex>(total_nnz);
 
-    StorageIndex m = StorageIndex(mat.rows());
-    StorageIndex n = StorageIndex(mat.cols());
-    StorageIndex nnz = StorageIndex(mat.nonZeros());
-    // Get the recommended value of Alen to be used by colamd
     StorageIndex Alen = internal::Colamd::recommended(nnz, m, n);
-    // Set the default parameters
     double knobs[internal::Colamd::NKnobs];
     StorageIndex stats[internal::Colamd::NStats];
     internal::Colamd::set_defaults(knobs);
 
+    // Colamd writes into A[] in place and needs a contiguous CSC layout, so
+    // always compact per column — handles both compressed and uncompressed
+    // sources uniformly via SparsityPatternRef::nonZeros(j).
     IndexVector p(n + 1), A(Alen);
-    for (StorageIndex i = 0; i <= n; i++) p(i) = mat.outerIndexPtr()[i];
-    for (StorageIndex i = 0; i < nnz; i++) A(i) = mat.innerIndexPtr()[i];
-    // Call Colamd routine to compute the ordering
+    p(0) = 0;
+    for (StorageIndex j = 0; j < n; ++j) {
+      const Index nz = pat.nonZeros(j);
+      const MatrixStorageIndex* src = pat.inner + pat.outer[j];
+      copy_colamd_indices(src, nz, A.data() + p(j), std::is_same<MatrixStorageIndex, StorageIndex>());
+      p(j + 1) = p(j) + static_cast<StorageIndex>(nz);
+    }
+
     StorageIndex info = internal::Colamd::compute_ordering(m, n, Alen, A.data(), p.data(), knobs, stats);
     EIGEN_UNUSED_VARIABLE(info);
-    eigen_assert(info && "COLAMD failed ");
+    eigen_assert(info && "COLAMD failed");
 
     perm.resize(n);
     for (StorageIndex i = 0; i < n; i++) perm.indices()(p(i)) = i;
+  }
+
+ private:
+  template <typename SrcStorageIndex>
+  static void copy_colamd_indices(const SrcStorageIndex* src, Index nz, StorageIndex* dst, std::true_type) {
+    std::copy_n(src, nz, dst);
+  }
+
+  template <typename SrcStorageIndex>
+  static void copy_colamd_indices(const SrcStorageIndex* src, Index nz, StorageIndex* dst, std::false_type) {
+    for (Index k = 0; k < nz; ++k) dst[k] = internal::convert_index<StorageIndex>(src[k]);
   }
 };
 
