@@ -234,6 +234,15 @@ void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
   int degree;
   MatrixType T = A, sqrtT;
 
+  // The matrix logarithm is undefined for singular matrices. Without this
+  // guard, a zero diagonal entry (eigenvalue) is a fixed point of the
+  // square-rooting loop below (sqrt(0) = 0), so the loop never terminates
+  // (bug #1613).
+  if ((T.diagonal().array() == Scalar(0)).any()) {
+    result.setConstant(T.rows(), T.rows(), NumTraits<RealScalar>::quiet_NaN());
+    return;
+  }
+
   const int maxPadeDegree = matrix_log_max_pade_degree<Scalar>::value;
   const RealScalar maxNormForPade = RealScalar(maxPadeDegree <= 5 ? 5.3149729967117310e-1L :  // single precision
                                                    maxPadeDegree <= 7 ? 2.6429608311114350e-1L
