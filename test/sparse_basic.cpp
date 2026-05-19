@@ -935,6 +935,38 @@ void sparse_basic(const SparseMatrixType& ref) {
     }
   }
 
+  // test resize / conservativeResize with Eigen::NoChange (bug #656)
+  {
+    SparseMatrixType m1(rows, cols);
+    DenseMatrix refMat1 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat1, m1);
+
+    SparseMatrixType m2 = m1;
+
+    m1.conservativeResize(NoChange, cols + 2);
+    refMat1.conservativeResize(NoChange, cols + 2);
+    refMat1.rightCols(2).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m1.conservativeResize(rows + 1, NoChange);
+    refMat1.conservativeResize(rows + 1, NoChange);
+    refMat1.bottomRows(1).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m2.resize(NoChange, cols + 4);
+    VERIFY(m2.rows() == rows && m2.cols() == cols + 4);
+    VERIFY(m2.nonZeros() == 0);
+
+    m2.resize(rows + 2, NoChange);
+    VERIFY(m2.rows() == rows + 2 && m2.cols() == cols + 4);
+
+    SparseVector<Scalar, ColMajor, StorageIndex> v(rows);
+    v.resize(NoChange, 1);
+    VERIFY(v.size() == rows);
+    v.resize(rows + 3, NoChange);
+    VERIFY(v.size() == rows + 3);
+  }
+
   // test Identity matrix
   {
     DenseMatrix refMat1 = DenseMatrix::Identity(rows, rows);

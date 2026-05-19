@@ -228,6 +228,12 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
     resize(IsColVector ? rows : cols);
   }
 
+  /** \sa resize(Index,Index) */
+  void resize(NoChange_t, Index cols) { resize(rows(), cols); }
+
+  /** \sa resize(Index,Index) */
+  void resize(Index rows, NoChange_t) { resize(rows, cols()); }
+
   /** Resizes the sparse vector to \a newSize
    * This method deletes all entries, thus leaving an empty sparse vector
    *
