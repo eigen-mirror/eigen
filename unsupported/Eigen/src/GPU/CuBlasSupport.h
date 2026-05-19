@@ -23,7 +23,9 @@
 #include "./GpuSupport.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#include <climits>
 #include <cstring>
+#include <utility>
 
 namespace Eigen {
 namespace gpu {
@@ -45,6 +47,284 @@ constexpr cublasOperation_t to_cublas_op(GpuOp op) {
       return CUBLAS_OP_C;
     default:
       return CUBLAS_OP_N;
+  }
+}
+
+// ---- Scalar → cublasComputeType_t -------------------------------------------
+// cublasLtMatmul requires a compute type (separate from the data type).
+//
+// Precision policy:
+//   - Default: tensor core algorithms enabled via cublasLtMatmul heuristics.
+//     For double, cuBLAS may use Ozaki emulation on sm_80+ tensor cores.
+//   - EIGEN_CUDA_TF32: opt-in to TF32 for float (~2x faster, 10-bit mantissa).
+//   - EIGEN_NO_CUDA_TENSOR_OPS: disables all tensor core usage. Uses pedantic
+//     compute types. For bit-exact reproducibility.
+
+// Single-precision (real or complex) and double-precision (real or complex) each
+// pick their compute type from one set of preprocessor switches; specializations
+// just dispatch to the right precision tag.
+namespace cuda_compute_type_detail {
+#if defined(EIGEN_NO_CUDA_TENSOR_OPS)
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F_PEDANTIC;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F_PEDANTIC;
+#elif defined(EIGEN_CUDA_TF32)
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F_FAST_TF32;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F;
+#else
+constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F;
+constexpr cublasComputeType_t kDouble = CUBLAS_COMPUTE_64F;
+#endif
+}  // namespace cuda_compute_type_detail
+
+template <typename Scalar>
+struct cuda_compute_type;
+
+template <>
+struct cuda_compute_type<float> {
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kFloat;
+};
+template <>
+struct cuda_compute_type<double> {
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
+};
+template <>
+struct cuda_compute_type<std::complex<float>> {
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kFloat;
+};
+template <>
+struct cuda_compute_type<std::complex<double>> {
+  static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
+};
+
+// ---- cublasLt GEMM dispatch -------------------------------------------------
+// Wraps cublasLtMatmul with descriptor setup, heuristic algorithm selection,
+// and a small per-context plan cache. Supports 64-bit dimensions natively.
+//
+// The workspace buffer (DeviceBuffer*) is grown lazily to match the selected
+// algorithm's actual requirement. Growth is monotonic.
+//
+// EIGEN_NO_CUDA_TENSOR_OPS: pedantic compute types prevent cublasLt from
+// selecting tensor core algorithms, matching the previous cublasGemmEx behavior.
+//
+// Thread safety: the workspace buffer and plan cache are not thread-safe. All
+// GEMM calls sharing them must be on the same CUDA stream (guaranteed by
+// gpu::Context's single-stream design and by each solver owning its own stream).
+
+#define EIGEN_CUBLASLT_CHECK(expr)                                       \
+  do {                                                                   \
+    cublasStatus_t _s = (expr);                                          \
+    eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLASLt call failed"); \
+  } while (0)
+
+// Maximum workspace the heuristic is allowed to consider. This is a preference
+// ceiling, not an allocation — actual allocation matches the selected algorithm.
+// Override at compile time via EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES.
+#ifndef EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES
+#define EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES (32 * 1024 * 1024)  // 32 MB
+#endif
+static constexpr size_t kCublasLtMaxWorkspaceBytes = EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES;
+
+// cublasGemmEx fallback algorithm hint (used when cublasLt heuristic returns no results).
+constexpr cublasGemmAlgo_t cuda_gemm_algo() {
+#ifdef EIGEN_NO_CUDA_TENSOR_OPS
+  return CUBLAS_GEMM_DEFAULT;
+#else
+  return CUBLAS_GEMM_DEFAULT_TENSOR_OP;
+#endif
+}
+
+// ---- cublasLt plan cache ----------------------------------------------------
+// Caches matmul descriptors, matrix layouts, and the selected algorithm for
+// repeated GEMM calls with the same (m, n, k, dtype, transA, transB) shape.
+// Eliminates per-call descriptor creation and heuristic lookup overhead, which
+// can be 5-35% of total time for small/medium matrices.
+//
+// Backed by Eigen::internal::LruCache. GEMM shapes in typical workloads (CG
+// iteration, chained solves) have very low cardinality (usually 1-3 distinct
+// shapes), so the cache is small.
+
+static constexpr std::size_t kCublasLtPlanCacheCapacity = 8;
+
+struct CublasLtPlanKey {
+  int64_t m, n, k;
+  int64_t lda, ldb, ldc;
+  cudaDataType_t dtype;
+  cublasOperation_t transA, transB;
+
+  bool operator==(const CublasLtPlanKey& o) const {
+    return m == o.m && n == o.n && k == o.k && lda == o.lda && ldb == o.ldb && ldc == o.ldc && dtype == o.dtype &&
+           transA == o.transA && transB == o.transB;
+  }
+};
+
+struct CublasLtPlanKeyHash {
+  std::size_t operator()(const CublasLtPlanKey& k) const noexcept {
+    // boost-style hash_combine: mix each field into the rolling hash.
+    auto mix = [](std::size_t a, std::size_t b) { return a ^ (b + 0x9e3779b97f4a7c15ULL + (a << 6) + (a >> 2)); };
+    std::size_t r = std::hash<int64_t>{}(k.m);
+    r = mix(r, std::hash<int64_t>{}(k.n));
+    r = mix(r, std::hash<int64_t>{}(k.k));
+    r = mix(r, std::hash<int64_t>{}(k.lda));
+    r = mix(r, std::hash<int64_t>{}(k.ldb));
+    r = mix(r, std::hash<int64_t>{}(k.ldc));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.dtype)));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.transA)));
+    r = mix(r, std::hash<int>{}(static_cast<int>(k.transB)));
+    return r;
+  }
+};
+
+// Move-only RAII wrapper for a cached cuBLASLt matmul plan: the descriptor,
+// three matrix layouts, and the heuristic-selected algorithm. Destruction
+// destroys all cuBLASLt handles, so the cache can manage entry lifetime via
+// LruCache's eviction.
+//
+// Move-only because each instance uniquely owns four cuBLASLt handles
+// (matmul_desc and three matrix layouts); copying would alias the handles
+// and cause double-destroy.
+class CublasLtPlanEntry {
+ public:
+  // Build descriptors and run the heuristic. If the heuristic returns no
+  // usable algorithm, use_cublaslt stays false and the caller takes the
+  // cublasGemmEx fallback path. `max_workspace_bytes` is the heuristic's
+  // workspace ceiling — see gpu::Context::setCublasLtMaxWorkspaceBytes().
+  CublasLtPlanEntry(cublasLtHandle_t lt_handle, const CublasLtPlanKey& key, cublasComputeType_t compute,
+                    cudaDataType_t alpha_type, std::size_t max_workspace_bytes) {
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&matmul_desc, compute, alpha_type));
+    EIGEN_CUBLASLT_CHECK(
+        cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSA, &key.transA, sizeof(key.transA)));
+    EIGEN_CUBLASLT_CHECK(
+        cublasLtMatmulDescSetAttribute(matmul_desc, CUBLASLT_MATMUL_DESC_TRANSB, &key.transB, sizeof(key.transB)));
+
+    // Layout dimensions are the physical (rows, cols) of the column-major operand;
+    // the leading dimension is the actual stride between columns (lda/ldb/ldc),
+    // which may exceed the active row count (e.g., a thin view of a wider buffer).
+    const int64_t a_rows = (key.transA == CUBLAS_OP_N) ? key.m : key.k;
+    const int64_t a_cols = (key.transA == CUBLAS_OP_N) ? key.k : key.m;
+    const int64_t b_rows = (key.transB == CUBLAS_OP_N) ? key.k : key.n;
+    const int64_t b_cols = (key.transB == CUBLAS_OP_N) ? key.n : key.k;
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_A, key.dtype, a_rows, a_cols, key.lda));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_B, key.dtype, b_rows, b_cols, key.ldb));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatrixLayoutCreate(&layout_C, key.dtype, key.m, key.n, key.ldc));
+
+    cublasLtMatmulPreference_t preference = nullptr;
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceCreate(&preference));
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                              &max_workspace_bytes, sizeof(max_workspace_bytes)));
+
+    cublasLtMatmulHeuristicResult_t result;
+    int returned_results = 0;
+    cublasStatus_t heuristic_status = cublasLtMatmulAlgoGetHeuristic(
+        lt_handle, matmul_desc, layout_A, layout_B, layout_C, layout_C, preference, 1, &result, &returned_results);
+
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmulPreferenceDestroy(preference));
+
+    // cublasLtMatmulAlgoGetHeuristic can return CUBLAS_STATUS_SUCCESS overall while
+    // marking individual results NOT_SUPPORTED via result.state, so gate on both.
+    if (heuristic_status == CUBLAS_STATUS_SUCCESS && returned_results > 0 && result.state == CUBLAS_STATUS_SUCCESS) {
+      algo = result.algo;
+      workspace_size = result.workspaceSize;
+      use_cublaslt = true;
+    }
+  }
+
+  ~CublasLtPlanEntry() { destroy(); }
+
+  CublasLtPlanEntry(const CublasLtPlanEntry&) = delete;
+  CublasLtPlanEntry& operator=(const CublasLtPlanEntry&) = delete;
+
+  CublasLtPlanEntry(CublasLtPlanEntry&& o) noexcept
+      : matmul_desc(o.matmul_desc),
+        layout_A(o.layout_A),
+        layout_B(o.layout_B),
+        layout_C(o.layout_C),
+        algo(o.algo),
+        workspace_size(o.workspace_size),
+        use_cublaslt(o.use_cublaslt) {
+    o.matmul_desc = nullptr;
+    o.layout_A = o.layout_B = o.layout_C = nullptr;
+    o.use_cublaslt = false;
+  }
+
+  CublasLtPlanEntry& operator=(CublasLtPlanEntry&& o) noexcept {
+    if (this != &o) {
+      destroy();
+      matmul_desc = o.matmul_desc;
+      layout_A = o.layout_A;
+      layout_B = o.layout_B;
+      layout_C = o.layout_C;
+      algo = o.algo;
+      workspace_size = o.workspace_size;
+      use_cublaslt = o.use_cublaslt;
+      o.matmul_desc = nullptr;
+      o.layout_A = o.layout_B = o.layout_C = nullptr;
+      o.use_cublaslt = false;
+    }
+    return *this;
+  }
+
+  // Public read-side state for cublaslt_gemm().
+  cublasLtMatmulDesc_t matmul_desc = nullptr;
+  cublasLtMatrixLayout_t layout_A = nullptr;
+  cublasLtMatrixLayout_t layout_B = nullptr;
+  cublasLtMatrixLayout_t layout_C = nullptr;
+  cublasLtMatmulAlgo_t algo{};
+  std::size_t workspace_size = 0;
+  bool use_cublaslt = false;
+
+ private:
+  void destroy() noexcept {
+    if (layout_C) cublasLtMatrixLayoutDestroy(layout_C);
+    if (layout_B) cublasLtMatrixLayoutDestroy(layout_B);
+    if (layout_A) cublasLtMatrixLayoutDestroy(layout_A);
+    if (matmul_desc) cublasLtMatmulDescDestroy(matmul_desc);
+  }
+};
+
+using CublasLtPlanCache = Eigen::internal::LruCache<CublasLtPlanKey, CublasLtPlanEntry, CublasLtPlanKeyHash>;
+
+// cublasLtMatmul GEMM with shape-keyed plan cache and lazy workspace.
+//
+// Falls back to cublasGemmEx for shapes/types where the cublasLt heuristic
+// returns no results.
+template <typename Scalar>
+void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cublasOperation_t transA,
+                   cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
+                   int64_t lda, const Scalar* B, int64_t ldb, const Scalar* beta, Scalar* C, int64_t ldc,
+                   DeviceBuffer* workspace, CublasLtPlanCache* plan_cache, std::size_t max_workspace_bytes,
+                   cudaStream_t stream) {
+  constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
+  constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
+  constexpr cudaDataType_t alpha_type = cuda_data_type<Scalar>::value;
+
+  // Look up or create a cached plan for this shape (key includes leading dims so
+  // strided views — e.g. SVD's thin VT/U slices — get distinct cache entries).
+  const CublasLtPlanKey key{m, n, k, lda, ldb, ldc, dtype, transA, transB};
+  CublasLtPlanEntry* entry = plan_cache->find(key);
+  if (!entry) {
+    entry = plan_cache->insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type, max_workspace_bytes));
+  }
+
+  if (entry->use_cublaslt) {
+    const size_t needed = entry->workspace_size;
+    if (needed > workspace->size()) {
+      // Sync only when freeing an existing buffer that may be in use.
+      if (workspace->get()) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+      *workspace = DeviceBuffer(needed);
+    }
+
+    EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
+                                        beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace->get(),
+                                        needed, stream));
+  } else {
+    // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
+    // cublasGemmEx takes int dimensions; cublaslt_gemm itself supports int64_t.
+    eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
+                 "cublasGemmEx fallback: dimensions exceed int range");
+    EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_handle, transA, transB, static_cast<int>(m), static_cast<int>(n),
+                                    static_cast<int>(k), alpha, A, dtype, static_cast<int>(lda), B, dtype,
+                                    static_cast<int>(ldb), beta, C, dtype, static_cast<int>(ldc), compute,
+                                    cuda_gemm_algo()));
   }
 }
 

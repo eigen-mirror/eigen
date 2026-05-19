@@ -447,11 +447,21 @@ MatrixXd result = x.toHost();
 
 ### Precision control
 
-GEMM dispatch uses `cublasXgemm` (type-specific Sgemm/Dgemm/Cgemm/Zgemm).
-cuBLAS may internally use tensor cores depending on the GPU architecture,
-matrix dimensions, and CUDA math mode settings. No Eigen-specific macros
-control this; use the standard `CUDA_MATH_MODE` environment variable or
-`cublasSetMathMode()` to configure tensor core behavior if needed.
+GEMM dispatch routes through `cublasLtMatmul`. The compute type is selected
+per scalar via the `cuda_compute_type` trait in `CuBlasSupport.h`, gated by
+two compile-time macros:
+
+| Macro | Effect |
+|---|---|
+| (default) | `CUBLAS_COMPUTE_32F` / `CUBLAS_COMPUTE_64F`. cublasLt heuristics may pick tensor-core algorithms; on `sm_80+` doubles can land on Ozaki-emulated tensor cores. |
+| `EIGEN_CUDA_TF32` | `CUBLAS_COMPUTE_32F_FAST_TF32` for `float` and `complex<float>` (~2x faster, 10-bit mantissa). No effect on `double` / `complex<double>`. |
+| `EIGEN_NO_CUDA_TENSOR_OPS` | Pedantic compute types (`CUBLAS_COMPUTE_*_PEDANTIC`) for every scalar — disables tensor-core algorithms. Use for bit-exact reproducibility. Takes precedence over `EIGEN_CUDA_TF32`. |
+
+These are independent of cuBLAS's runtime `cublasSetMathMode()` /
+`CUBLAS_TF32_OVERRIDE` controls; the cublasLt path keys off the compile-time
+compute type instead. The `cublasGemmEx` fallback (used when cublasLt's
+heuristic returns no candidate) honors `EIGEN_NO_CUDA_TENSOR_OPS` via its
+algorithm hint (`CUBLAS_GEMM_DEFAULT` vs `CUBLAS_GEMM_DEFAULT_TENSOR_OP`).
 
 ### Stream control and async execution
 
@@ -503,15 +513,15 @@ noted otherwise).
 
 | DeviceMatrix expression | Library call | Parameters |
 |---|---|---|
-| `C = A * B` | `cublasXgemm` | transA=N, transB=N, alpha=1, beta=0 |
-| `C = A.adjoint() * B` | `cublasXgemm` | transA=C, transB=N |
-| `C = A.transpose() * B` | `cublasXgemm` | transA=T, transB=N |
-| `C = A * B.adjoint()` | `cublasXgemm` | transA=N, transB=C |
-| `C = A * B.transpose()` | `cublasXgemm` | transA=N, transB=T |
-| `C = alpha * A * B` | `cublasXgemm` | alpha from LHS |
-| `C = A * (alpha * B)` | `cublasXgemm` | alpha from RHS |
-| `C += A * B` | `cublasXgemm` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasXgemm` | alpha=-1, beta=1 |
+| `C = A * B` | `cublasLtMatmul` (with `cublasGemmEx` fallback) | transA=N, transB=N, alpha=1, beta=0 |
+| `C = A.adjoint() * B` | `cublasLtMatmul` | transA=C, transB=N |
+| `C = A.transpose() * B` | `cublasLtMatmul` | transA=T, transB=N |
+| `C = A * B.adjoint()` | `cublasLtMatmul` | transA=N, transB=C |
+| `C = A * B.transpose()` | `cublasLtMatmul` | transA=N, transB=T |
+| `C = alpha * A * B` | `cublasLtMatmul` | alpha from LHS |
+| `C = A * (alpha * B)` | `cublasLtMatmul` | alpha from RHS |
+| `C += A * B` | `cublasLtMatmul` | alpha=1, beta=1 |
+| `C.device(ctx) -= A * B` | `cublasLtMatmul` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
@@ -633,6 +643,9 @@ cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
+
+internal::DeviceBuffer*       gemmWorkspace()              // cublasLtMatmul scratch (lazy-grown per context)
+internal::CublasLtPlanCache*  gemmPlanCache()              // shape-keyed plan cache (per context, ~8-entry LRU)
 ```
 
 Non-copyable, non-movable (owns library handles). Translation units that

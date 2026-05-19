@@ -36,7 +36,9 @@ function(eigen_add_gpu_benchmark name source)
   if(BENCH_LIBRARIES)
     target_link_libraries(${name} PRIVATE ${BENCH_LIBRARIES})
   endif()
-  target_compile_options(${name} PRIVATE -O3 -DNDEBUG)
+  # Note: do NOT set -DNDEBUG here. EIGEN_CUDA_RUNTIME_CHECK uses eigen_assert,
+  # which is a no-op under NDEBUG, silently skipping cudaStreamSynchronize calls.
+  target_compile_options(${name} PRIVATE -O3)
   target_compile_definitions(${name} PRIVATE EIGEN_USE_GPU)
   if(BENCH_DEFINITIONS)
     target_compile_definitions(${name} PRIVATE ${BENCH_DEFINITIONS})
@@ -46,6 +48,10 @@ endfunction()
 # Solver benchmarks: LLT/LU compute + solve, host vs device paths, CPU baselines.
 eigen_add_gpu_benchmark(bench_solvers bench_solvers.cpp)
 eigen_add_gpu_benchmark(bench_solvers_float bench_solvers.cpp DEFINITIONS SCALAR=float)
+
+# GEMM benchmarks: cublasLtMatmul (with plan cache) vs raw cublasGemmEx across sizes.
+eigen_add_gpu_benchmark(bench_gemm bench_gemm.cpp LIBRARIES CUDA::cublasLt)
+eigen_add_gpu_benchmark(bench_gemm_float bench_gemm.cpp LIBRARIES CUDA::cublasLt DEFINITIONS SCALAR=float)
 
 # Chaining benchmarks: async pipeline efficiency, host-roundtrip vs device chain.
 eigen_add_gpu_benchmark(bench_chaining bench_chaining.cpp)
