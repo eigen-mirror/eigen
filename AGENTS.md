@@ -98,7 +98,7 @@ Auxiliary trees:
 ### Running tests
 
 ```bash
-ctest -j$(nproc) --output-on-failure          # everything that's been built
+ctest --parallel --output-on-failure          # everything that's been built
 ctest -L Official                              # only tests under test/
 ctest -L Unsupported                           # only tests under unsupported/test/
 ctest -L gpu                                   # GPU-tagged tests
@@ -283,7 +283,7 @@ Vectorization is abstracted through a "packet" layer. Each scalar type maps to a
 - GPU: `arch/GPU/` (CUDA), `arch/HIP/`, `arch/SYCL/`
 - `arch/clang/` — generic clang vector-extension backend
 
-Packets are selected at compile time; the assignment loop splits into an aligned vectorized path plus a scalar remainder. New packet-math intrinsics get added in **every** backend that supports the type; `Default/` provides scalar fallbacks. `test/packetmath.cpp` (and `unsupported/test/special_packetmath.cpp`) exercises them across all enabled backends — failures there often indicate a missing or divergent specialization.
+Packets are selected at compile time; the assignment loop splits into an aligned vectorized path plus a scalar remainder. New packet-math intrinsics get added in **every** backend that supports the type. `arch/Default/` holds generic SIMD implementations shared across backends; scalar fallbacks live in `Eigen/src/Core/GenericPacketMath.h` and `Eigen/src/Core/MathFunctions.h`. `test/packetmath.cpp` (and `unsupported/test/special_packetmath.cpp`) exercises them across all enabled backends — failures there often indicate a missing or divergent specialization.
 
 **Guard intrinsics by ISA feature macro.** Inside a backend directory, an intrinsic is only available when its ISA is enabled — `arch/AVX/` is compiled when `EIGEN_VECTORIZE_AVX` is set, but AVX2 / FMA / AVX512* intrinsics within those files must each be guarded by their own `EIGEN_VECTORIZE_*` macro (`#ifdef EIGEN_VECTORIZE_AVX2`, `EIGEN_VECTORIZE_FMA`, `EIGEN_VECTORIZE_AVX512DQ`, etc.), with a fallback for the un-guarded path. Full list in `Eigen/src/Core/util/ConfigureVectorization.h`. Same discipline applies elsewhere (`EIGEN_VECTORIZE_NEON_FP16`, `EIGEN_VECTORIZE_VSX`, …). Missing guards typically compile fine locally and break CI on narrower ISA targets.
 
