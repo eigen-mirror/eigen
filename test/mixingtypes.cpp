@@ -14,11 +14,8 @@
 // ignore double-promotion diagnostic for clang and gcc, if we check for static assertion anyway:
 // TODO do the same for MSVC?
 #if defined(__clang__)
-#if (__clang_major__ * 100 + __clang_minor__) >= 308
 #pragma clang diagnostic ignored "-Wdouble-promotion"
-#endif
 #elif defined(__GNUC__)
-// TODO is there a minimal GCC version for this? At least g++-4.7 seems to be fine with this.
 #pragma GCC diagnostic ignored "-Wdouble-promotion"
 #endif
 

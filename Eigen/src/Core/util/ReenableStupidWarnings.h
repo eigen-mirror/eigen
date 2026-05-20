@@ -8,7 +8,6 @@
 #elif defined(EIGEN_WARNINGS_DISABLED)
 #undef EIGEN_WARNINGS_DISABLED
 
-#ifndef EIGEN_PERMANENTLY_DISABLE_STUPID_WARNINGS
 #ifdef _MSC_VER
 #pragma warning(pop)
 #ifdef EIGEN_REENABLE_CXX23_DENORM_DEPRECATION_WARNING
@@ -20,7 +19,7 @@
 #pragma warning pop
 #elif defined __clang__
 #pragma clang diagnostic pop
-#elif defined __GNUC__ && !defined(__FUJITSU) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
+#elif defined __GNUC__ && !defined(__FUJITSU)
 #pragma GCC diagnostic pop
 #endif
 
@@ -40,8 +39,6 @@
 //    EIGEN_NV_DIAG_DEFAULT(2653)
 //    #undef EIGEN_NV_DIAG_DEFAULT
 //    #undef EIGEN_MAKE_PRAGMA
-#endif
-
 #endif
 
 #endif  // EIGEN_WARNINGS_DISABLED

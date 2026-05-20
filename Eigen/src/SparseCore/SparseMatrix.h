@@ -725,6 +725,12 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     m_data.resize(newSize);
   }
 
+  /** \sa conservativeResize(Index,Index) */
+  void conservativeResize(NoChange_t, Index cols) { conservativeResize(rows(), cols); }
+
+  /** \sa conservativeResize(Index,Index) */
+  void conservativeResize(Index rows, NoChange_t) { conservativeResize(rows, cols()); }
+
   /** Resizes the matrix to a \a rows x \a cols matrix and initializes it to zero.
    *
    * This function does not free the currently allocated memory. To release as much as memory as possible,
@@ -749,6 +755,12 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     using std::fill_n;
     fill_n(m_outerIndex, m_outerSize + 1, StorageIndex(0));
   }
+
+  /** \sa resize(Index,Index) */
+  void resize(NoChange_t, Index cols) { resize(rows(), cols); }
+
+  /** \sa resize(Index,Index) */
+  void resize(Index rows, NoChange_t) { resize(rows, cols()); }
 
   /** \internal
    * Resize the nonzero vector to \a size */

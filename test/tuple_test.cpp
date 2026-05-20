@@ -61,8 +61,7 @@ void basic_tuple_test() {
   VERIFY_IS_EQUAL(tuple_impl::tuple_size<decltype(tuple3cat0)>::value, size_t(3));
   auto singlecat = tuple_impl::tuple_cat(tuple3);
   VERIFY_IS_EQUAL(tuple_impl::tuple_size<decltype(singlecat)>::value, size_t(3));
-  auto emptycat = tuple_impl::tuple_cat();
-  VERIFY_IS_EQUAL(tuple_impl::tuple_size<decltype(emptycat)>::value, size_t(0));
+  VERIFY_IS_EQUAL(tuple_impl::tuple_size<decltype(tuple_impl::tuple_cat())>::value, size_t(0));
   auto tuple0cat1cat2cat3 = tuple_impl::tuple_cat(tuple0, tuple1, tuple2, tuple3);
   VERIFY_IS_EQUAL(tuple_impl::tuple_size<decltype(tuple0cat1cat2cat3)>::value, size_t(6));
 

@@ -122,6 +122,9 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
                              static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout) ||
                          NumDims == 1),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
+    // TensorConcatenationOp requires both operands to have the same static
+    // rank. Reshape the lower-rank operand explicitly if you need to mix
+    // ranks; see the concatenate() entry in unsupported/Eigen/src/Tensor/README.md.
     EIGEN_STATIC_ASSERT((NumDims == RightNumDims), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
 

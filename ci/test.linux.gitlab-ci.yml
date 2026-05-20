@@ -8,10 +8,7 @@
     - . ci/scripts/test.linux.script.sh
   after_script:
     - . ci/scripts/test.linux.after_script.sh
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+  rules: !reference [.rules:libeigen:all-tests, rules]
   tags:
     - saas-linux-2xlarge-amd64
   allow_failure:
@@ -101,25 +98,11 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
   variables:
     EIGEN_CI_INSTALL: g++-13
 
-.test:linux:x86-64:gcc-13:avx512fp16:
-  extends: .test:linux:x86-64:gcc-13:default
-  tags:
-    - eigen-runner
-    - linux
-    - x86-64
-    - avx512
-
-test:linux:x86-64:gcc-13:avx512fp16:official:
-  extends: .test:linux:x86-64:gcc-13:avx512fp16
-  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:official ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:x86-64:gcc-13:avx512fp16:unsupported:
-  extends: .test:linux:x86-64:gcc-13:avx512fp16
-  needs: [ build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported ]
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+# The corresponding test jobs (test:linux:x86-64:gcc-13:avx512fp16:{official,
+# unsupported}) are intentionally omitted: we do not currently have a runner
+# whose CPU supports AVX512-FP16, so running them produces wholesale SIGILL
+# failures.  The build:linux:cross:x86-64:gcc-13:avx512fp16:* jobs remain so
+# that AVX512-FP16 code paths are still compile-checked.
 
 # Clang-14 (modern stable)
 .test:linux:x86-64:clang-14:default:
@@ -266,11 +249,7 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
+  rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
@@ -329,19 +308,27 @@ test:linux:cuda-12.6:clang-19:
     EIGEN_CI_C_COMPILER: clang-19
 
 
-##### arm ######################################################################
+##### qemu-emulated test base ##################################################
 
-.test:linux:arm:
+# Shared base for cross-arch tests that run under qemu-user emulation
+# (arm, ppc64le, loongarch64).  Limits parallelism, raises the per-test
+# timeout, and skips tests that are too slow to be useful under qemu.
+.test:linux:qemu:
   extends: .test:linux
   variables:
-    EIGEN_CI_TARGET_ARCH: arm
-    EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
     EIGEN_CI_CTEST_ARGS: --timeout 2000
     EIGEN_CI_CTEST_PARALLEL: "4"
-    # Thread pool tests are too slow under qemu emulation.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
   tags:
     - saas-linux-large-amd64
+
+##### arm ######################################################################
+
+.test:linux:arm:
+  extends: .test:linux:qemu
+  variables:
+    EIGEN_CI_TARGET_ARCH: arm
+    EIGEN_CI_CROSS_TARGET_TRIPLE: arm-linux-gnueabihf
 
 .test:linux:arm:gcc-10:default:
   extends: .test:linux:arm
@@ -420,16 +407,10 @@ test:linux:aarch64:clang-14:default:unsupported:
 ##### ppc64le ##################################################################
 
 .test:linux:ppc64le:
-  extends: .test:linux
+  extends: .test:linux:qemu
   variables:
     EIGEN_CI_TARGET_ARCH: ppc64le
     EIGEN_CI_CROSS_TARGET_TRIPLE: powerpc64le-linux-gnu
-    EIGEN_CI_CTEST_ARGS: --timeout 2000
-    EIGEN_CI_CTEST_PARALLEL: "4"
-    # Thread pool tests are too slow under qemu emulation.
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
-  tags:
-    - saas-linux-large-amd64
 
 .test:linux:ppc64le:gcc-14:default:
   extends: .test:linux:ppc64le
@@ -466,17 +447,11 @@ test:linux:ppc64le:clang-16:default:unsupported:
 ##### loongarch64 ##############################################################
 
 .test:linux:loongarch64:
-  extends: .test:linux
+  extends: .test:linux:qemu
   variables:
     EIGEN_CI_TARGET_ARCH: loongarch64
     EIGEN_CI_CROSS_TARGET_TRIPLE: loongarch64-linux-gnu
     EIGEN_CI_CROSS_INSTALL: g++-14-loongarch64-linux-gnu qemu-user-static
-    EIGEN_CI_CTEST_ARGS: --timeout 2000
-    EIGEN_CI_CTEST_PARALLEL: "4"
-    # Thread pool tests are too slow under qemu emulation.
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
-  tags:
-    - saas-linux-large-amd64
 
 # GCC-14 (Ubuntu 24)
 .test:linux:loongarch64:gcc-14:default:

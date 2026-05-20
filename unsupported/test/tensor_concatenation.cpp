@@ -40,13 +40,9 @@ static void test_static_dimension_failure() {
   left.setRandom();
   right.setRandom();
 
-#ifdef CXX11_TENSOR_CONCATENATION_STATIC_DIMENSION_FAILURE
-  // Technically compatible, but we static assert that the inputs have same
-  // NumDims.
-  Tensor<int, 3, DataLayout> concatenation = left.concatenate(right, 0);
-#endif
-
-  // This can be worked around in this case.
+  // TensorConcatenationOp requires both operands to have the same static rank.
+  // To join tensors of different ranks, reshape one of the operands at the
+  // call site; both directions are exercised here.
   Tensor<int, 3, DataLayout> concatenation = left.reshape(Tensor<int, 3>::Dimensions(2, 3, 1)).concatenate(right, 0);
   Tensor<int, 2, DataLayout> alternative = left.concatenate(right.reshape(Tensor<int, 2>::Dimensions(2, 3)), 0);
 }

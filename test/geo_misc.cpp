@@ -77,7 +77,7 @@ void angleaxis_edge_cases() {
     // Round-trip through quaternion
     Quaternionx q(aa);
     AngleAxisx aa2(q);
-    VERIFY(abs(aa2.angle()) < Scalar(4) * tiny);
+    VERIFY(numext::abs(aa2.angle()) < Scalar(4) * tiny);
   }
 
   // Round-trip: AngleAxis -> Matrix -> AngleAxis
@@ -92,7 +92,7 @@ void angleaxis_edge_cases() {
     aa2.fromRotationMatrix(m);
     VERIFY_IS_APPROX(aa.toRotationMatrix(), aa2.toRotationMatrix());
     // Verify angle is preserved
-    VERIFY(abs(aa2.angle() - a) < eps);
+    VERIFY(numext::abs(aa2.angle() - a) < eps);
   }
 
   // Round-trip for near-180-degree rotation
@@ -148,7 +148,7 @@ void angleaxis_edge_cases() {
     Quaternionx q(aa);
     VERIFY_IS_APPROX(q.norm(), Scalar(1));
     AngleAxisx aa2(q);
-    VERIFY(abs(aa2.angle() - a) < eps);
+    VERIFY(numext::abs(aa2.angle() - a) < eps);
     // Axis should agree (possibly with sign flip for angle > pi)
     VERIFY(aa2.axis().isApprox(axis, eps) || aa2.axis().isApprox(-axis, eps));
   }
@@ -219,7 +219,7 @@ void rotation2d_standalone() {
     Rotation2Dx half = r.slerp(Scalar(0.5), r.inverse());
     // The midpoint between a rotation and its inverse via shortest path should be ~0 or ~pi
     Scalar halfAngle = half.smallestAngle();
-    VERIFY(abs(halfAngle) < eps || abs(abs(halfAngle) - Scalar(EIGEN_PI)) < eps);
+    VERIFY(numext::abs(halfAngle) < eps || numext::abs(numext::abs(halfAngle) - Scalar(EIGEN_PI)) < eps);
   }
 
   // Rotation2D slerp interpolation: verify linearity of angle
@@ -231,7 +231,7 @@ void rotation2d_standalone() {
     Rotation2Dx rt = r0.slerp(t, r1);
     // Slerp for 2D rotations is just linear interpolation of angle along shortest path.
     Scalar expected = a0 + t * Rotation2Dx(a1 - a0).smallestAngle();
-    VERIFY(abs(Rotation2Dx(rt.angle() - expected).smallestAngle()) < eps);
+    VERIFY(numext::abs(Rotation2Dx(rt.angle() - expected).smallestAngle()) < eps);
   }
 
   // smallestAngle range
@@ -377,7 +377,7 @@ void quaternion_from_non_orthogonal_matrix() {
     VERIFY(!(numext::isnan)(q.y()));
     VERIFY(!(numext::isnan)(q.z()));
     // Should still be approximately a rotation
-    VERIFY(abs(q.norm() - Scalar(1)) < Scalar(0.01));
+    VERIFY(numext::abs(q.norm() - Scalar(1)) < Scalar(0.01));
   }
 
   // Negative trace case with non-orthogonal matrix
@@ -425,7 +425,6 @@ void quaternion_slerp_edge_cases() {
   typedef Matrix<Scalar, 3, 1> Vector3;
   typedef Matrix<Scalar, 3, 3> Matrix3;
 
-  Scalar eps = test_precision<Scalar>();
   // The slerp formula preserves unit norm to O(epsilon^2) for unit inputs.
   Scalar tight = Scalar(32) * NumTraits<Scalar>::epsilon();
 
@@ -434,7 +433,7 @@ void quaternion_slerp_edge_cases() {
     Quaternionx q = Quaternionx::UnitRandom();
     Quaternionx r = q.slerp(Scalar(0.5), q);
     VERIFY_IS_APPROX(r.coeffs(), q.coeffs());
-    VERIFY(abs(r.norm() - Scalar(1)) < tight);
+    VERIFY(numext::abs(r.norm() - Scalar(1)) < tight);
   }
 
   // slerp at t=0 and t=1
@@ -443,8 +442,8 @@ void quaternion_slerp_edge_cases() {
     Quaternionx q1 = Quaternionx::UnitRandom();
     Quaternionx r0 = q0.slerp(Scalar(0), q1);
     Quaternionx r1 = q0.slerp(Scalar(1), q1);
-    VERIFY(abs(r0.norm() - Scalar(1)) < tight);
-    VERIFY(abs(r1.norm() - Scalar(1)) < tight);
+    VERIFY(numext::abs(r0.norm() - Scalar(1)) < tight);
+    VERIFY(numext::abs(r1.norm() - Scalar(1)) < tight);
     VERIFY_IS_APPROX(r0.toRotationMatrix(), q0.toRotationMatrix());
     VERIFY_IS_APPROX(r1.toRotationMatrix(), q1.toRotationMatrix());
   }
@@ -456,7 +455,7 @@ void quaternion_slerp_edge_cases() {
     qn.coeffs() = -q.coeffs();
     for (Scalar t = 0; t <= Scalar(1.001); t += Scalar(0.25)) {
       Quaternionx r = q.slerp(t, qn);
-      VERIFY(abs(r.norm() - Scalar(1)) < tight);
+      VERIFY(numext::abs(r.norm() - Scalar(1)) < tight);
       // Should stay at the same rotation
       VERIFY_IS_APPROX(r.toRotationMatrix(), q.toRotationMatrix());
     }
@@ -468,10 +467,10 @@ void quaternion_slerp_edge_cases() {
     Quaternionx q0(AngleAxisx(Scalar(0), axis1));
     Quaternionx q1(AngleAxisx(Scalar(EIGEN_PI), axis1));
     Quaternionx mid = q0.slerp(Scalar(0.5), q1);
-    VERIFY(abs(mid.norm() - Scalar(1)) < tight);
+    VERIFY(numext::abs(mid.norm() - Scalar(1)) < tight);
     // Midpoint should be a 90-degree rotation
     AngleAxisx aa(mid);
-    VERIFY(abs(aa.angle() - Scalar(EIGEN_PI) / Scalar(2)) < test_precision<Scalar>());
+    VERIFY(numext::abs(aa.angle() - Scalar(EIGEN_PI) / Scalar(2)) < test_precision<Scalar>());
   }
 
   // slerp unit-norm preservation and rotation matrix orthogonality
@@ -480,7 +479,7 @@ void quaternion_slerp_edge_cases() {
     Quaternionx q1 = Quaternionx::UnitRandom();
     for (Scalar t = 0; t <= Scalar(1.001); t += Scalar(0.05)) {
       Quaternionx r = q0.slerp(t, q1);
-      VERIFY(abs(r.norm() - Scalar(1)) < tight);
+      VERIFY(numext::abs(r.norm() - Scalar(1)) < tight);
       Matrix3 m = r.toRotationMatrix();
       VERIFY_IS_APPROX(m.transpose() * m, Matrix3::Identity());
       VERIFY_IS_APPROX(m.determinant(), Scalar(1));

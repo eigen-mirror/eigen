@@ -264,7 +264,7 @@ void eulerangles_rand() {
 template <typename Scalar>
 void eulerangles_gimbal_lock_regression() {
   typedef Matrix<Scalar, 3, 1> Vector3;
-  const Scalar deg = Scalar(EIGEN_PI / 180.0);
+  const Scalar deg = Scalar(EIGEN_PI) / Scalar(180);
 
   check_all_var(Vector3(Scalar(10) * deg, Scalar(90) * deg, Scalar(30) * deg));
   check_all_var(Vector3(Scalar(10) * deg, Scalar(-90) * deg, Scalar(30) * deg));

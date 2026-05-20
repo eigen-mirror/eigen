@@ -50,7 +50,7 @@ def parse_args():
     p.add_argument(
         "--history-count",
         type=int,
-        default=14,
+        default=30,
         help="Number of past runs to compare against.",
     )
     p.add_argument(

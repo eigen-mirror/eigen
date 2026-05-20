@@ -357,6 +357,12 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
   using std::abs;
 
   eigen_assert(m_analysisIsok && "analyzePattern() should be called before this step");
+
+  // Reset state from any prior factorize() so info() and lastErrorMessage()
+  // describe this call's outcome, not the previous matrix's.
+  m_info = Success;
+  m_lastError.clear();
+
   StorageIndex m = StorageIndex(mat.rows());
   StorageIndex n = StorageIndex(mat.cols());
   StorageIndex diagSize = (std::min)(m, n);

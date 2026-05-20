@@ -1262,13 +1262,17 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
   const int GenuineIntel[] = {0x756e6547, 0x49656e69, 0x6c65746e};
   const int AuthenticAMD[] = {0x68747541, 0x69746e65, 0x444d4163};
   const int AMDisbetter_[] = {0x69444d41, 0x74656273, 0x21726574};  // "AMDisbetter!"
+  // Hygon Dhyana is a Zen-based joint-venture line that returns "HygonGenuine"
+  // and shares AMD's CPUID layout for cache descriptors (AMD Family 17h).
+  const int HygonGenuine[] = {0x6f677948, 0x6e65476e, 0x656e6975};  // "HygonGenuine"
 
   // identify the CPU vendor
   EIGEN_CPUID(abcd, 0x0, 0);
   int max_std_funcs = abcd[0];
   if (cpuid_is_vendor(abcd, GenuineIntel))
     queryCacheSizes_intel(l1, l2, l3, max_std_funcs);
-  else if (cpuid_is_vendor(abcd, AuthenticAMD) || cpuid_is_vendor(abcd, AMDisbetter_))
+  else if (cpuid_is_vendor(abcd, AuthenticAMD) || cpuid_is_vendor(abcd, AMDisbetter_) ||
+           cpuid_is_vendor(abcd, HygonGenuine))
     queryCacheSizes_amd(l1, l2, l3);
   else
     // by default let's use Intel's API

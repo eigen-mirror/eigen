@@ -150,6 +150,46 @@ void test_plan_reuse() {
   }
 }
 
+// ---- LRU eviction + user-configurable capacity ------------------------------
+// Constructs an FFT with an explicit small plan-cache capacity (also exercising
+// the user-configurable constructor), pushes 2 * capacity distinct shapes
+// through it so the cache is forced to evict and recreate plans, verifies the
+// cache stays clamped at capacity, then revisits the first (now-evicted) shape.
+// Two correctness conditions: every transform stays numerically correct, and
+// cufftDestroy on eviction leaves no dangling state on the stream.
+
+template <typename Scalar>
+void test_plan_cache_eviction() {
+  using Complex = std::complex<Scalar>;
+  using Vec = Matrix<Complex, Dynamic, 1>;
+  using RealScalar = Scalar;
+
+  constexpr std::size_t capacity = 4;
+  gpu::FFT<Scalar> fft(capacity);
+  VERIFY_IS_EQUAL(fft.plan_cache_capacity(), capacity);
+  VERIFY_IS_EQUAL(fft.plan_cache_size(), std::size_t(0));
+
+  const int num_shapes = static_cast<int>(2 * capacity);
+  for (int k = 0; k < num_shapes; ++k) {
+    const Index n = 32 + 16 * k;  // 32, 48, 64, ... all distinct.
+    Vec x = Vec::Random(n);
+    Vec X = fft.fwd(x);
+    Vec y = fft.inv(X);
+    RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+    VERIFY((y - x).norm() / x.norm() < tol);
+  }
+  // Cache should be clamped at capacity, never exceeding it.
+  VERIFY_IS_EQUAL(fft.plan_cache_size(), capacity);
+
+  // Smallest shape has been evicted by now; re-creating it must succeed.
+  Vec x = Vec::Random(32);
+  Vec X = fft.fwd(x);
+  Vec y = fft.inv(X);
+  RealScalar tol = RealScalar(10) * RealScalar(32) * NumTraits<Scalar>::epsilon();
+  VERIFY((y - x).norm() / x.norm() < tol);
+  VERIFY_IS_EQUAL(fft.plan_cache_size(), capacity);
+}
+
 // ---- Empty ------------------------------------------------------------------
 
 template <typename Scalar>
@@ -206,6 +246,7 @@ void test_scalar() {
   CALL_SUBTEST(test_2d_roundtrip<Scalar>(16, 64));  // non-square
   CALL_SUBTEST(test_2d_constant<Scalar>());
   CALL_SUBTEST(test_plan_reuse<Scalar>());
+  CALL_SUBTEST(test_plan_cache_eviction<Scalar>());
   CALL_SUBTEST(test_empty<Scalar>());
   CALL_SUBTEST(test_explicit_context<Scalar>(64));
 }

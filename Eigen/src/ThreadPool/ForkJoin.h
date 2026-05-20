@@ -62,6 +62,10 @@ class ForkJoinScheduler {
   // Runs `do_func` asynchronously for the range [start, end) with a specified
   // granularity. `do_func` should be of type `std::function<void(Index,
   // Index)`. `done()` is called exactly once after all tasks have been executed.
+  //
+  // WARNING: like `ParallelFor` below, scheduling nested `ParallelForAsync`
+  // calls (one task body invokes ParallelForAsync on the same pool) can deadlock
+  // because `ForkJoin`'s help-while-waiting loop is not reentrancy-aware.
   template <typename DoFnType, typename DoneFnType, typename ThreadPoolEnv>
   static void ParallelForAsync(Index start, Index end, Index granularity, DoFnType&& do_func, DoneFnType&& done,
                                ThreadPoolTempl<ThreadPoolEnv>* thread_pool) {
@@ -85,7 +89,7 @@ class ForkJoinScheduler {
     if (start >= end) return;
     Barrier barrier(1);
     auto done = [&barrier]() { barrier.Notify(); };
-    ParallelForAsync(start, end, granularity, do_func, done, thread_pool);
+    ParallelForAsync(start, end, granularity, std::forward<DoFnType>(do_func), done, thread_pool);
     barrier.Wait();
   }
 
@@ -99,7 +103,7 @@ class ForkJoinScheduler {
       std::forward<RightType>(right_thunk)();
       right_done.store(true, std::memory_order_release);
     };
-    thread_pool->Schedule(execute_right);
+    thread_pool->Schedule(std::move(execute_right));
     std::forward<LeftType>(left_thunk)();
     Task task;
     while (!right_done.load(std::memory_order_acquire)) {

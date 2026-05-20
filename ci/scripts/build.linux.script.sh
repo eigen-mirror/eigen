@@ -4,12 +4,10 @@
 
 set -x
 
-# Create and enter build directory.
 rootdir=`pwd`
 mkdir -p ${EIGEN_CI_BUILDDIR}
 cd ${EIGEN_CI_BUILDDIR}
 
-# Configure build.
 cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
   -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
@@ -25,7 +23,8 @@ fi
 # out of resources.  In that case, keep trying to build the remaining
 # targets (k0), then retry with reduced parallelism to minimize resource use.
 # EIGEN_CI_BUILD_JOBS can be set to limit parallelism for memory-hungry
-# compilers (e.g. NVHPC).  When unset, ninja uses all available CPUs.
+# compilers (e.g. NVHPC).  When unset, leave -j off so ninja picks its
+# own default (NPROC + 2).  njobs is still needed for batch-size sizing.
 njobs=${EIGEN_CI_BUILD_JOBS:-${NPROC}}
 jobs=""
 if [[ -n "${EIGEN_CI_BUILD_JOBS}" ]]; then
@@ -105,7 +104,6 @@ if [[ "$shuffled" != "true" ]]; then
   cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs}
 fi
 
-# Return to root directory.
 cd ${rootdir}
 
 set +x

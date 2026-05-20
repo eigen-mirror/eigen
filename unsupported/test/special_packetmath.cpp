@@ -38,7 +38,6 @@ void packetmath_real() {
   EIGEN_ALIGN_MAX Scalar data2[PacketSize * 4] = {};
   EIGEN_ALIGN_MAX Scalar ref[PacketSize * 4] = {};
 
-#if EIGEN_HAS_C99_MATH
   {
     data1[0] = std::numeric_limits<Scalar>::quiet_NaN();
     test::packet_helper<internal::packet_traits<Scalar>::HasLGamma, Packet> h;
@@ -63,7 +62,6 @@ void packetmath_real() {
     }
     CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNdtri, numext::ndtri, internal::pndtri);
   }
-#endif  // EIGEN_HAS_C99_MATH
 
   // For bessel_i*e and bessel_j*, the valid range is negative reals.
   {
@@ -129,13 +127,11 @@ void packetmath_real() {
                Scalar(std::pow(Scalar(10), internal::random<Scalar>(Scalar(-1), Scalar(2))));
   }
 
-#if EIGEN_HAS_C99_MATH
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasLGamma, std::lgamma, internal::plgamma);
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErf, std::erf, internal::perf);
   // FIXME(rmlarsen): This test occasionally fails due to difference in tiny subnormal results
   // near the underflow boundary. I am not sure which version is correct.
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErfc, MAYBE_FLUSH(std::erfc), internal::perfc);
-#endif
 }
 
 namespace Eigen {

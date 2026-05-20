@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-find_package(CUDAToolkit)
+find_package(CUDAToolkit QUIET)
 
 # ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...])
 #
@@ -57,17 +57,18 @@ function(ei_add_gpu_test test_name)
   endforeach()
 endfunction()
 
-# DeviceMatrix core: CUDA runtime only.
-ei_add_gpu_test(device_matrix)
+# DeviceMatrix core: CUDA runtime + cuBLAS + cuSOLVER (for BLAS-1 ops via GpuContext).
+ei_add_gpu_test(device_matrix
+  EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 
-# cuBLAS integration (BLAS-3, triangular solves, rank-k updates, ...).
-option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" ON)
+# cuBLAS integration. OFF by default; later MRs in the stack opt in.
+option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
 if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
   ei_add_gpu_test(cublas EXTRA_LIBS CUDA::cublas CUDA::cusolver)
 endif()
 
-# cuSOLVER dense factorizations (LLT, LU).
-option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" ON)
+# cuSOLVER dense factorizations (LLT, LU, QR, SVD, self-adjoint eigensolver).
+option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
   foreach(_cusolver_test IN ITEMS cusolver_llt cusolver_lu cusolver_qr cusolver_svd cusolver_eigen)
     ei_add_gpu_test(${_cusolver_test} EXTRA_LIBS CUDA::cusolver CUDA::cublas)
@@ -79,10 +80,18 @@ if(TARGET CUDA::cufft)
   ei_add_gpu_test(cufft EXTRA_LIBS CUDA::cufft CUDA::cublas)
 endif()
 
-# cuSPARSE SpMV (part of the CUDA toolkit).
+# cuSPARSE SpMV (part of the CUDA toolkit) and the end-to-end CG test that
+# exercises Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
 if(TARGET CUDA::cusparse)
   ei_add_gpu_test(cusparse_spmv
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
+  ei_add_gpu_test(cg
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+endif()
+
+option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
+if(EIGEN_TEST_CUSPARSE AND TARGET CUDA::cusparse)
+  ei_add_gpu_test(cusparse EXTRA_LIBS CUDA::cusparse)
 endif()
 
 # cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.

@@ -21,7 +21,10 @@
 // Inverse transforms are scaled by 1/n (1D) or 1/(n*m) (2D) so that
 // inv(fwd(x)) == x, matching Eigen's FFT convention.
 //
-// cuFFT plans are cached by (size, type) and reused across calls.
+// cuFFT plans are cached by (size, type) in a bounded LRU. On overflow the
+// least-recently-used plan is destroyed via cufftDestroy. The capacity
+// defaults to kDefaultCufftPlanCacheCapacity and can be overridden at
+// construction.
 //
 // Thread safety: not thread-safe. Concurrent fwd/inv calls on a single FFT
 // instance race on the cached plans and the bound Context. Use one FFT
@@ -47,10 +50,13 @@
 #include "./CuFftSupport.h"
 #include "./CuBlasSupport.h"
 #include "./GpuContext.h"
-#include <unordered_map>
 
 namespace Eigen {
 namespace gpu {
+
+// Default capacity of the per-FFT-instance cuFFT plan cache. Override by
+// passing a capacity to the FFT constructor.
+static constexpr std::size_t kDefaultCufftPlanCacheCapacity = 16;
 
 template <typename Scalar_>
 class FFT {
@@ -64,16 +70,31 @@ class FFT {
   /** Construct an FFT bound to the calling thread's default Context.
    * The instance is thread-affine: it must not outlive the thread that
    * constructed it, since it borrows a pointer into thread-local storage.
-   * For cross-thread lifetimes, pass an explicit Context. */
-  FFT() : ctx_(&Context::threadLocal()) {}
+   * For cross-thread lifetimes, pass an explicit Context.
+   *
+   * @param plan_cache_capacity max number of cuFFT plans to keep cached
+   *   (silently clamped to at least 1). On overflow the least-recently-used
+   *   plan is destroyed. */
+  explicit FFT(std::size_t plan_cache_capacity = kDefaultCufftPlanCacheCapacity)
+      : ctx_(&Context::threadLocal()), plans_(plan_cache_capacity > 0 ? plan_cache_capacity : 1) {}
 
   /** Construct an FFT bound to the given Context. The Context must outlive
-   * this FFT instance; this object only borrows its stream and cuBLAS handle. */
-  explicit FFT(Context& ctx) : ctx_(&ctx) {}
+   * this FFT instance; this object only borrows its stream and cuBLAS handle.
+   *
+   * @param plan_cache_capacity max number of cuFFT plans to keep cached
+   *   (silently clamped to at least 1). On overflow the least-recently-used
+   *   plan is destroyed. */
+  explicit FFT(Context& ctx, std::size_t plan_cache_capacity = kDefaultCufftPlanCacheCapacity)
+      : ctx_(&ctx), plans_(plan_cache_capacity > 0 ? plan_cache_capacity : 1) {}
 
-  ~FFT() {
-    for (auto& kv : plans_) (void)cufftDestroy(kv.second);
-  }
+  // Destructor is implicit: ~LruCache destroys each CufftPlan, which calls
+  // cufftDestroy via CufftPlan's destructor.
+
+  /** Capacity of the cuFFT plan cache (set at construction). */
+  std::size_t plan_cache_capacity() const { return plans_.capacity(); }
+
+  /** Current number of cached cuFFT plans. */
+  std::size_t plan_cache_size() const { return plans_.size(); }
 
   FFT(const FFT&) = delete;
   FFT& operator=(const FFT&) = delete;
@@ -252,7 +273,7 @@ class FFT {
 
  private:
   Context* ctx_;
-  std::unordered_map<int64_t, cufftHandle> plans_;
+  Eigen::internal::LruCache<int64_t, internal::CufftPlan> plans_;
   internal::DeviceBuffer d_in_;
   internal::DeviceBuffer d_out_;
   size_t d_in_size_ = 0;
@@ -294,21 +315,18 @@ class FFT {
   }
 
   cufftHandle get_plan_1d(int n, cufftType type) {
-    int64_t key = plan_key_1d(n, type);
-    auto it = plans_.find(key);
-    if (it != plans_.end()) return it->second;
+    const int64_t key = plan_key_1d(n, type);
+    if (internal::CufftPlan* hit = plans_.find(key)) return hit->get();
 
     cufftHandle plan;
     EIGEN_CUFFT_CHECK(cufftPlan1d(&plan, n, type, /*batch=*/1));
     EIGEN_CUFFT_CHECK(cufftSetStream(plan, ctx_->stream()));
-    plans_[key] = plan;
-    return plan;
+    return plans_.insert(key, internal::CufftPlan(plan))->get();
   }
 
   cufftHandle get_plan_2d(int rows, int cols, cufftType type) {
-    int64_t key = plan_key_2d(rows, cols, type);
-    auto it = plans_.find(key);
-    if (it != plans_.end()) return it->second;
+    const int64_t key = plan_key_2d(rows, cols, type);
+    if (internal::CufftPlan* hit = plans_.find(key)) return hit->get();
 
     // cuFFT uses row-major (C order) for 2D: first dim = rows, second = cols.
     // Eigen matrices are column-major, so we pass (cols, rows) to cuFFT
@@ -316,8 +334,7 @@ class FFT {
     cufftHandle plan;
     EIGEN_CUFFT_CHECK(cufftPlan2d(&plan, cols, rows, type));
     EIGEN_CUFFT_CHECK(cufftSetStream(plan, ctx_->stream()));
-    plans_[key] = plan;
-    return plan;
+    return plans_.insert(key, internal::CufftPlan(plan))->get();
   }
 };
 

@@ -70,6 +70,45 @@ struct cufft_c2r_type<double> {
   static constexpr cufftType value = CUFFT_Z2D;
 };
 
+// ---- Plan RAII wrapper ------------------------------------------------------
+
+// Move-only owner of a cufftHandle. Used as the Value type of an LruCache so
+// that eviction destroys the plan via the wrapper's destructor — no callback
+// machinery in the cache itself.
+class CufftPlan {
+ public:
+  CufftPlan() = default;
+  explicit CufftPlan(cufftHandle plan) : plan_(plan), owns_(true) {}
+
+  CufftPlan(const CufftPlan&) = delete;
+  CufftPlan& operator=(const CufftPlan&) = delete;
+
+  CufftPlan(CufftPlan&& o) noexcept : plan_(o.plan_), owns_(o.owns_) { o.owns_ = false; }
+
+  CufftPlan& operator=(CufftPlan&& o) noexcept {
+    if (this != &o) {
+      destroy();
+      plan_ = o.plan_;
+      owns_ = o.owns_;
+      o.owns_ = false;
+    }
+    return *this;
+  }
+
+  ~CufftPlan() { destroy(); }
+
+  cufftHandle get() const { return plan_; }
+
+ private:
+  void destroy() noexcept {
+    if (owns_) (void)cufftDestroy(plan_);
+    owns_ = false;
+  }
+
+  cufftHandle plan_{};
+  bool owns_ = false;
+};
+
 // ---- Type-dispatched cuFFT execution ----------------------------------------
 
 // C2C

@@ -97,6 +97,30 @@ void test_sparselu_colmajor_uncompressed_input() {
   VERIFY_IS_APPROX(uncompressed_solver.solve(b), expected);
 }
 
+// Regression for issue #1908: lastErrorMessage() must not carry over from a
+// previous failed factorize() once a subsequent factorize() succeeds.
+template <typename T>
+void test_sparselu_clear_error_state() {
+  typedef SparseMatrix<T, ColMajor> ColMajorSparseMatrix;
+
+  ColMajorSparseMatrix singular(3, 3);  // structurally singular: no nonzeros
+
+  ColMajorSparseMatrix non_singular(3, 3);
+  non_singular.insert(0, 0) = T(1);
+  non_singular.insert(1, 1) = T(1);
+  non_singular.insert(2, 2) = T(1);
+  non_singular.makeCompressed();
+
+  SparseLU<ColMajorSparseMatrix> solver;
+  solver.compute(singular);
+  VERIFY(solver.info() != Success);
+  VERIFY(!solver.lastErrorMessage().empty());
+
+  solver.compute(non_singular);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY(solver.lastErrorMessage().empty());
+}
+
 EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_1(test_sparselu_T<float>());
   CALL_SUBTEST_2(test_sparselu_T<double>());
@@ -106,4 +130,6 @@ EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_6(test_sparselu_rowmajor_compressed_input<double>());
   CALL_SUBTEST_7(test_sparselu_colmajor_uncompressed_input<float>());
   CALL_SUBTEST_8(test_sparselu_colmajor_uncompressed_input<double>());
+  CALL_SUBTEST_9(test_sparselu_clear_error_state<float>());
+  CALL_SUBTEST_10(test_sparselu_clear_error_state<double>());
 }

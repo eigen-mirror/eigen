@@ -55,6 +55,9 @@ void product_large_regressions() {
   {
     // check the functions to setup blocking sizes compile and do not segfault
     // FIXME check they do what they are supposed to do !!
+    std::ptrdiff_t old_l1 = l1CacheSize();
+    std::ptrdiff_t old_l2 = l2CacheSize();
+    std::ptrdiff_t old_l3 = l3CacheSize();
     std::ptrdiff_t l1 = internal::random<int>(10000, 20000);
     std::ptrdiff_t l2 = internal::random<int>(100000, 200000);
     std::ptrdiff_t l3 = internal::random<int>(1000000, 2000000);
@@ -66,6 +69,19 @@ void product_large_regressions() {
     std::ptrdiff_t n1 = internal::random<int>(10, 100) * 16;
     // only makes sure it compiles fine
     internal::computeProductBlockingSizes<float, float, std::ptrdiff_t>(k1, m1, n1, 1);
+
+    // Regression test for small synthetic caches with AVX512 and multiple threads.
+    // The L2 model can report that fewer than one nr-wide RHS panel fits.
+    setCpuCacheSizes(10000, 100000, 1000000);
+    std::ptrdiff_t k2 = 5000;
+    std::ptrdiff_t m2 = 5000;
+    std::ptrdiff_t n2 = 256;
+    internal::computeProductBlockingSizes<double, double, std::ptrdiff_t>(k2, m2, n2, 32);
+    VERIFY(k2 > 0);
+    VERIFY(m2 > 0);
+    VERIFY(n2 > 0);
+
+    setCpuCacheSizes(old_l1, old_l2, old_l3);
   }
 
   {

@@ -43,7 +43,8 @@ class generic_matrix_wrapper<MatrixType, false> {
 
   enum { MatrixFree = false };
 
-  generic_matrix_wrapper() : m_dummy(0, 0), m_matrix(m_dummy) {}
+  // Default-construct: passing (0,0) trips the size assertion for fixed-size MatrixType (#1704).
+  generic_matrix_wrapper() : m_dummy(), m_matrix(m_dummy) {}
 
   template <typename InputType>
   generic_matrix_wrapper(const InputType& mat) : m_matrix(mat) {}

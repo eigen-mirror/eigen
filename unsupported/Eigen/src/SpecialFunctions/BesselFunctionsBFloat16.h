@@ -16,7 +16,6 @@
 namespace Eigen {
 namespace numext {
 
-#if EIGEN_HAS_C99_MATH
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::bfloat16 bessel_i0(const Eigen::bfloat16& x) {
   return Eigen::bfloat16(Eigen::numext::bessel_i0(static_cast<float>(x)));
@@ -65,7 +64,6 @@ template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::bfloat16 bessel_k1e(const Eigen::bfloat16& x) {
   return Eigen::bfloat16(Eigen::numext::bessel_k1e(static_cast<float>(x)));
 }
-#endif
 
 }  // end namespace numext
 }  // end namespace Eigen

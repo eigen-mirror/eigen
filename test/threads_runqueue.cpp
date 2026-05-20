@@ -158,10 +158,10 @@ void test_empty_runqueue() {
 void test_stress_runqueue() {
   static const int kEvents = 1 << 18;
   RunQueue<int, 8> q;
-  std::atomic<int> total(0);
+  std::atomic<int64_t> total(0);
   std::vector<std::unique_ptr<std::thread>> threads;
   threads.emplace_back(new std::thread([&q, &total]() {
-    int sum = 0;
+    int64_t sum = 0;
     int pushed = 1;
     int popped = 1;
     while (pushed < kEvents || popped < kEvents) {

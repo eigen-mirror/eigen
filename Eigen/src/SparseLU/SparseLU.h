@@ -618,6 +618,11 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
 
   m_isInitialized = true;
 
+  // Reset state from any prior factorize() so info() and lastErrorMessage()
+  // describe this call's outcome, not the previous matrix's.
+  m_info = Success;
+  m_lastError.clear();
+
   // Apply the column permutation computed in analyzepattern()
   m_mat = matrix;
   if (m_perm_c.size()) {

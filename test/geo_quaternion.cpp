@@ -50,6 +50,9 @@ void quaternion(void) {
      Quaternion.h
   */
   using std::abs;
+  using std::cos;
+  using std::sin;
+  using std::sqrt;
   typedef Matrix<Scalar, 3, 1> Vector3;
   typedef Matrix<Scalar, 3, 3> Matrix3;
   typedef Quaternion<Scalar, Options> Quaternionx;
@@ -177,6 +180,121 @@ void quaternion(void) {
   // test bug 369 - improper alignment.
   Quaternionx* q = new Quaternionx;
   delete q;
+
+  // ---- setFromScaledAxis / toScaledAxis (SO(3) exp/log) ----
+  // Identity round-trip.
+  VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(Vector3::Zero()).coeffs(), Quaternionx::Identity().coeffs());
+  VERIFY_IS_EQUAL(Quaternionx::Identity().toScaledAxis(), Vector3::Zero());
+
+  // Canonical axis rotations: 90/180/60 degrees.
+  {
+    Vector3 sa = Vector3::UnitX() * Scalar(EIGEN_PI / 2);
+    Scalar c = sqrt(Scalar(2)) * Scalar(0.5);
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa), Quaternionx(c, c, Scalar(0), Scalar(0)));
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa), Quaternionx(AngleAxisx(Scalar(EIGEN_PI / 2), Vector3::UnitX())));
+  }
+  VERIFY_IS_APPROX(Quaternionx(Scalar(0), Scalar(0), Scalar(1), Scalar(0)).toScaledAxis(),
+                   Vector3(Scalar(0), Scalar(EIGEN_PI), Scalar(0)));
+  VERIFY_IS_APPROX(Quaternionx(sqrt(Scalar(3)) / Scalar(2), Scalar(0), Scalar(0), Scalar(0.5)).toScaledAxis(),
+                   Scalar(EIGEN_PI / 3) * Vector3::UnitZ());
+
+  // Small but normal angle: agrees with the closed-form half-angle quaternion.
+  {
+    Scalar theta = Scalar(1e-2);
+    Vector3 sa = Vector3::UnitX() * theta;
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa),
+                     Quaternionx(cos(theta / Scalar(2)), sin(theta / Scalar(2)), Scalar(0), Scalar(0)));
+    VERIFY_IS_APPROX(Quaternionx(AngleAxisx(theta, Vector3::UnitX())).toScaledAxis(), sa);
+  }
+
+  // Tiny angle (sqrt of the smallest normal): the squared-norm formulation would have
+  // flushed to zero here, so this exercises the stableNorm() path. The closed form is
+  // still used (no Taylor expansion) and must agree with the math.
+  {
+    const Scalar theta_base = (numext::numeric_limits<Scalar>::min)();
+    const Scalar theta = sqrt(theta_base);
+    Vector3 sa = Vector3::UnitX() * theta;
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa),
+                     Quaternionx(cos(theta / Scalar(2)), sin(theta / Scalar(2)), Scalar(0), Scalar(0)));
+    VERIFY_IS_APPROX(Quaternionx(AngleAxisx(theta, Vector3::UnitX())).toScaledAxis(), sa);
+  }
+
+  // Exact-zero handling: identity quaternion out / zero vector out, no NaN.
+  {
+    Quaternionx qid = Quaternionx::FromScaledAxis(Vector3::Zero());
+    VERIFY_IS_EQUAL(qid.w(), Scalar(1));
+    VERIFY_IS_EQUAL(qid.vec(), Vector3::Zero());
+    VERIFY_IS_EQUAL(Quaternionx::Identity().toScaledAxis(), Vector3::Zero());
+    // -1 quaternion (same rotation as identity) also maps to zero.
+    Quaternionx qneg(Scalar(-1), Scalar(0), Scalar(0), Scalar(0));
+    VERIFY_IS_EQUAL(qneg.toScaledAxis(), Vector3::Zero());
+  }
+
+  // Negative-w quaternion: the canonical magnitude of the rotation vector is in [0, pi].
+  {
+    Vector3 axis = Vector3::UnitX();
+    Quaternionx q_pos(AngleAxisx(Scalar(EIGEN_PI / 3), axis));
+    Quaternionx q_neg(-q_pos.w(), -q_pos.x(), -q_pos.y(), -q_pos.z());
+    Vector3 sa_pos = q_pos.toScaledAxis();
+    Vector3 sa_neg = q_neg.toScaledAxis();
+    VERIFY(sa_pos.norm() <= Scalar(EIGEN_PI) + test_precision<Scalar>());
+    VERIFY(sa_neg.norm() <= Scalar(EIGEN_PI) + test_precision<Scalar>());
+    // Both quaternions represent the same rotation, so re-applying exp gives back q_pos
+    // up to sign.
+    Quaternionx q_round = Quaternionx::FromScaledAxis(sa_neg);
+    VERIFY_IS_APPROX(numext::abs(q_round.dot(q_pos)), Scalar(1));
+  }
+
+  // Near-pi rotations: sin(theta/2) is near 1 and cos(theta/2) is near 0, so the
+  // canonicalisation branch (the abs(w)/(w<0) split) is stress-tested. Stay in [0, pi]:
+  // for theta > pi the canonical answer is (2*pi - theta) * (-axis), which is an
+  // important behaviour but is covered by the "Negative-w quaternion" test.
+  {
+    Vector3 axis = Vector3(Scalar(1), Scalar(2), Scalar(3)).normalized();
+    for (Scalar gap : {Scalar(1e-3), Scalar(1e-6)}) {
+      Scalar theta = Scalar(EIGEN_PI) - gap;
+      Quaternionx near_pi_quat(AngleAxisx(theta, axis));
+      Vector3 sa = near_pi_quat.toScaledAxis();
+      VERIFY_IS_APPROX(sa.stableNorm(), theta);
+      VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sa), near_pi_quat);
+    }
+  }
+
+  // w == -0.0 corner case (and its +0.0 counterpart).
+  {
+    // (w=+0, x=0, y=0, z=1) and (w=-0, ...) both represent rotation by pi about z.
+    Quaternionx qp(Scalar(0), Scalar(0), Scalar(0), Scalar(1));
+    Quaternionx qn(-Scalar(0), Scalar(0), Scalar(0), Scalar(1));
+    Vector3 sap = qp.toScaledAxis();
+    Vector3 san = qn.toScaledAxis();
+    VERIFY_IS_APPROX(sap.stableNorm(), Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX(san.stableNorm(), Scalar(EIGEN_PI));
+    VERIFY_IS_APPROX(Quaternionx::FromScaledAxis(sap), qp);
+    // qp and qn represent the same rotation, so the recovered quaternions must agree up
+    // to sign.
+    VERIFY_IS_APPROX(numext::abs(Quaternionx::FromScaledAxis(san).dot(qp)), Scalar(1));
+  }
+
+  // Round-trip across the full canonical range. Includes near-pi by construction.
+  {
+    static const int kNumOctants = 8;
+    const Scalar angle_base = internal::random<Scalar>(Scalar(0), Scalar(EIGEN_PI));
+    for (int octant = 0; octant < kNumOctants; ++octant) {
+      // Sweep through magnitude as well, including the antipodal boundary at pi.
+      Scalar angle =
+          angle_base * Scalar(octant) / Scalar(kNumOctants - 1);  // 0 .. angle_base, hits pi when angle_base = pi
+      Scalar theta = -Scalar(EIGEN_PI) + Scalar(2 * EIGEN_PI) * Scalar(octant) / Scalar(kNumOctants);
+      Scalar phi = Scalar(EIGEN_PI) * Scalar(octant + 1) / Scalar(kNumOctants + 1);
+      Vector3 sa(angle * sin(phi) * cos(theta), angle * sin(phi) * sin(theta), angle * cos(phi));
+      Quaternionx roundtrip_quat = Quaternionx::FromScaledAxis(sa);
+      VERIFY_IS_APPROX(roundtrip_quat.norm(), Scalar(1));
+      Vector3 sa_rt = roundtrip_quat.toScaledAxis();
+      VERIFY_IS_APPROX(sa_rt, sa);
+      // And the other direction (quaternion -> sa -> quaternion).
+      Quaternionx roundtrip_quat2 = Quaternionx::FromScaledAxis(sa_rt);
+      VERIFY_IS_APPROX(roundtrip_quat2, roundtrip_quat);
+    }
+  }
 
   q1 = Quaternionx::UnitRandom();
   q2 = Quaternionx::UnitRandom();

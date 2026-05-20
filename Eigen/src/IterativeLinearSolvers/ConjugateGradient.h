@@ -32,7 +32,10 @@ EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs,
                                           Index& iters, typename Dest::RealScalar& tol_error) {
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  // Use Dest's plain (owning) type as VectorType. For CPU Matrix/Map this
+  // resolves to Matrix<Scalar,Dynamic,1>. For GPU DeviceMatrix, PlainObject
+  // is DeviceMatrix itself (already owning).
+  typedef typename Dest::PlainObject VectorType;
 
   RealScalar tol = tol_error;
   Index maxIters = iters;

@@ -40,3 +40,4 @@ Makefile
 !Eigen/Core
 !Eigen/src/Core
 CLAUDE.md
+.DS_Store

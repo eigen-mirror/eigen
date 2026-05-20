@@ -161,6 +161,12 @@ void transformations() {
   aa1 = m;
   VERIFY_IS_APPROX(AngleAxisx(m).toRotationMatrix(), Quaternionx(m).toRotationMatrix());
 
+  // Regression test for #3082: constructing AngleAxis from a 3x3 sub-block of a
+  // larger matrix expression (rather than a plain Matrix3) must compile.
+  Matrix<Scalar, 4, 4> m44 = Matrix<Scalar, 4, 4>::Identity();
+  m44.template topLeftCorner<3, 3>() = m;
+  VERIFY_IS_APPROX(AngleAxisx(m44.template block<3, 3>(0, 0)).toRotationMatrix(), m);
+
   // Transform
   // TODO complete the tests !
   a = internal::random<Scalar>(-Scalar(0.4) * Scalar(EIGEN_PI), Scalar(0.4) * Scalar(EIGEN_PI));

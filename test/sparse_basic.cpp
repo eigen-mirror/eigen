@@ -935,6 +935,38 @@ void sparse_basic(const SparseMatrixType& ref) {
     }
   }
 
+  // test resize / conservativeResize with Eigen::NoChange (bug #656)
+  {
+    SparseMatrixType m1(rows, cols);
+    DenseMatrix refMat1 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat1, m1);
+
+    SparseMatrixType m2 = m1;
+
+    m1.conservativeResize(NoChange, cols + 2);
+    refMat1.conservativeResize(NoChange, cols + 2);
+    refMat1.rightCols(2).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m1.conservativeResize(rows + 1, NoChange);
+    refMat1.conservativeResize(rows + 1, NoChange);
+    refMat1.bottomRows(1).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m2.resize(NoChange, cols + 4);
+    VERIFY(m2.rows() == rows && m2.cols() == cols + 4);
+    VERIFY(m2.nonZeros() == 0);
+
+    m2.resize(rows + 2, NoChange);
+    VERIFY(m2.rows() == rows + 2 && m2.cols() == cols + 4);
+
+    SparseVector<Scalar, ColMajor, StorageIndex> v(rows);
+    v.resize(NoChange, 1);
+    VERIFY(v.size() == rows);
+    v.resize(rows + 3, NoChange);
+    VERIFY(v.size() == rows + 3);
+  }
+
   // test Identity matrix
   {
     DenseMatrix refMat1 = DenseMatrix::Identity(rows, rows);
@@ -979,6 +1011,32 @@ void sparse_basic(const SparseMatrixType& ref) {
     std::vector<IteratorType> iters(2);
     iters[0] = IteratorType(m2, 0);
     iters[1] = IteratorType(m2, m2.outerSize() - 1);
+  }
+
+  // test InnerIterator equality (bug #1192)
+  {
+    typedef typename SparseMatrixType::InnerIterator IteratorType;
+    SparseMatrixType m2(rows, cols);
+    DenseMatrix refMat2 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat2, m2);
+    Index outer_with_two = -1;
+    for (Index o = 0; o < m2.outerSize(); ++o)
+      if (m2.innerVector(o).nonZeros() >= 2) {
+        outer_with_two = o;
+        break;
+      }
+    if (outer_with_two >= 0) {
+      IteratorType a(m2, outer_with_two), b(m2, outer_with_two);
+      VERIFY(a == b);
+      ++b;
+      VERIFY(a != b);
+      VERIFY(!(a == b));
+      ++a;
+      VERIFY(a == b);
+      while (a) ++a;
+      while (b) ++b;
+      VERIFY(a == b);
+    }
   }
 
   // test reserve with empty rows/columns

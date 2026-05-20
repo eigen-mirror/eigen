@@ -72,13 +72,63 @@ void vectorwiseop_array(const ArrayType& m) {
   VERIFY_IS_APPROX(m2, m1.rowwise() / rowvec);
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) / rowvec);
 
+  // test assignment
   m2 = m1;
-  // yes, there might be an aliasing issue there but ".rowwise() /="
-  // is supposed to evaluate " m2.colwise().sum()" into a temporary to avoid
-  // evaluating the reduction multiple times
-  if (ArrayType::RowsAtCompileTime > 2 || ArrayType::RowsAtCompileTime == Dynamic) {
-    m2.rowwise() /= m2.colwise().sum();
-    VERIFY_IS_APPROX(m2, m1.rowwise() / m1.colwise().sum());
+  m2.rowwise() = rowvec;
+  for (Index k = 0; k < rows; ++k) {
+    VERIFY_IS_APPROX(m2.row(k), rowvec);
+  }
+  m2 = m1;
+  m2.colwise() = colvec;
+  for (Index k = 0; k < cols; ++k) {
+    VERIFY_IS_APPROX(m2.col(k), colvec);
+  }
+
+  // Block rhs: nested_eval must bind by reference, not materialize.
+  {
+    ArrayType other = ArrayType::Random(rows, cols);
+    m2 = m1;
+    m2.rowwise() += other.row(0);
+    VERIFY_IS_APPROX(m2, m1.rowwise() + RowVectorType(other.row(0)));
+    m2 = m1;
+    m2.rowwise() -= other.row(0);
+    VERIFY_IS_APPROX(m2, m1.rowwise() - RowVectorType(other.row(0)));
+    m2 = m1;
+    m2.colwise() *= other.col(0);
+    VERIFY_IS_APPROX(m2, m1.colwise() * ColVectorType(other.col(0)));
+    m2 = m1;
+    m2.colwise() = other.col(0);
+    for (Index k = 0; k < cols; ++k) {
+      VERIFY_IS_APPROX(m2.col(k), ColVectorType(other.col(0)));
+    }
+  }
+
+  // Issue #1731: aliased rhs across all five compound operators (used to
+  // fail on `/=` when RowsAtCompileTime == 2).
+  m2 = m1;
+  m2.rowwise() /= m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() / m1.colwise().sum());
+
+  m2 = m1;
+  m2.colwise() /= m2.rowwise().sum();
+  VERIFY_IS_APPROX(m2, m1.colwise() / m1.rowwise().sum());
+
+  m2 = m1;
+  m2.rowwise() += m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() + m1.colwise().sum());
+
+  m2 = m1;
+  m2.rowwise() -= m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() - m1.colwise().sum());
+
+  m2 = m1;
+  m2.rowwise() *= m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() * m1.colwise().sum());
+
+  m2 = m1;
+  m2.rowwise() = m2.colwise().sum();
+  for (Index k = 0; k < rows; ++k) {
+    VERIFY_IS_APPROX(m2.row(k), m1.colwise().sum());
   }
 
   // all/any
@@ -155,6 +205,38 @@ void vectorwiseop_matrix(const MatrixType& m) {
   m2.rowwise() -= rowvec;
   VERIFY_IS_APPROX(m2, m1.rowwise() - rowvec);
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) - rowvec);
+
+  // Block rhs: nested_eval must bind by reference, not materialize.
+  {
+    MatrixType other = MatrixType::Random(rows, cols);
+    m2 = m1;
+    m2.rowwise() += other.row(0);
+    VERIFY_IS_APPROX(m2, m1.rowwise() + RowVectorType(other.row(0)));
+    m2 = m1;
+    m2.colwise() -= other.col(0);
+    VERIFY_IS_APPROX(m2, m1.colwise() - ColVectorType(other.col(0)));
+    m2 = m1;
+    m2.colwise() = other.col(0);
+    for (Index k = 0; k < cols; ++k) {
+      VERIFY_IS_APPROX(m2.col(k), ColVectorType(other.col(0)));
+    }
+  }
+
+  // Issue #1731: aliased rhs across `=`/`+=`/`-=` on matrices (Array's
+  // `*=`/`/=` variants are exercised in vectorwiseop_array).
+  m2 = m1;
+  m2.rowwise() += m2.colwise().sum();
+  VERIFY_IS_APPROX(m2, m1.rowwise() + m1.colwise().sum());
+
+  m2 = m1;
+  m2.colwise() -= m2.rowwise().sum();
+  VERIFY_IS_APPROX(m2, m1.colwise() - m1.rowwise().sum());
+
+  m2 = m1;
+  m2.rowwise() = m2.colwise().sum();
+  for (Index k = 0; k < rows; ++k) {
+    VERIFY_IS_APPROX(m2.row(k), m1.colwise().sum());
+  }
 
   // ------ partial reductions ------
 
@@ -378,6 +460,8 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_1(vectorwiseop_array(Array22cd()));
   CALL_SUBTEST_2(vectorwiseop_array(Array<double, 3, 2>()));
   CALL_SUBTEST_3(vectorwiseop_array(ArrayXXf(3, 4)));
+  // Issue #1731: compile-time 2-row Array used to alias on rowwise() /= colwise().sum().
+  CALL_SUBTEST_3(vectorwiseop_array(Array<double, 2, Dynamic>(2, internal::random<int>(2, EIGEN_TEST_MAX_SIZE))));
   CALL_SUBTEST_4(vectorwiseop_matrix(Matrix4cf()));
   CALL_SUBTEST_5(vectorwiseop_matrix(Matrix4f()));
   CALL_SUBTEST_5(vectorwiseop_matrix(Vector4f()));

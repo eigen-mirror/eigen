@@ -650,12 +650,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff) {
 
 #elif defined(EIGEN_HAS_FP16_C)
   __half_raw h;
-#if EIGEN_COMP_MSVC
-  // MSVC does not have scalar instructions.
-  h.x = _mm_extract_epi16(_mm_cvtps_ph(_mm_set_ss(ff), 0), 0);
-#else
-  h.x = _cvtss_sh(ff, 0);
-#endif
+  // Spell out the vector conversion to avoid Clang warning about the C99 compound literal used by _cvtss_sh.
+  h.x = static_cast<numext::uint16_t>(_mm_extract_epi16(_mm_cvtps_ph(_mm_set_ss(ff), 0), 0));
   return h;
 
 #else

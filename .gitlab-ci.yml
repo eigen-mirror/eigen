@@ -37,10 +37,10 @@ variables:
   # See ci/docker/ for the corresponding Dockerfiles.
   # Slim images used for MR smoke tests (gcc-10 + clang-14).
   # Builds are cross-compiled on arm64; tests run on their native runner.
-  EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64-smoketest-build:latest"
-  EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-amd64-smoketest-run:latest"
-  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_BUILD: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest-build:latest"
-  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_RUN: "${CI_REGISTRY_IMAGE}/ubuntu-24.04-arm64-smoketest-run:latest"
+  EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-amd64-smoketest-build:latest"
+  EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_RUN: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-amd64-smoketest-run:latest"
+  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_BUILD: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest-build:latest"
+  EIGEN_CI_IMAGE_LINUX_ARM64_SMOKETEST_RUN: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-arm64-smoketest-run:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.
@@ -48,6 +48,7 @@ variables:
   # If a test regex is specified, that will be selected.
   # Otherwise, we will try a label if specified.
   EIGEN_CI_CTEST_REGEX: ""
+  # Valid CTest labels: Official, Unsupported, gpu, smoketest.
   EIGEN_CI_CTEST_LABEL: ""
   EIGEN_CI_CTEST_ARGS: ""
 

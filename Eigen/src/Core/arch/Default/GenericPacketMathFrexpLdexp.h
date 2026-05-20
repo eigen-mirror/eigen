@@ -126,9 +126,9 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 
-  constexpr Scalar max_exp_value = Scalar((ScalarI(1) << ExponentBits) + ScalarI(MantissaBits - 1));  // 278
-  const Packet max_exponent = pset1<Packet>(max_exp_value);
-  const Packet neg_max_exponent = pset1<Packet>(-max_exp_value);
+  constexpr ScalarI max_exp_value = (ScalarI(1) << ExponentBits) + ScalarI(MantissaBits - 1);  // 278
+  const Packet max_exponent = pset1<Packet>(Scalar(max_exp_value));
+  const Packet neg_max_exponent = pset1<Packet>(Scalar(-max_exp_value));
   const PacketI bias = pset1<PacketI>((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1));  // 127
   const PacketI e = pcast<Packet, PacketI>(pmin(pmax(exponent, neg_max_exponent), max_exponent));
   const PacketI b = parithmetic_shift_right<2>(e);                                                     // floor(e/4);

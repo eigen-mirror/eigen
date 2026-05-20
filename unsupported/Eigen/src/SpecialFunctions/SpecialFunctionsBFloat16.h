@@ -16,7 +16,6 @@
 namespace Eigen {
 namespace numext {
 
-#if EIGEN_HAS_C99_MATH
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::bfloat16 lgamma(const Eigen::bfloat16& a) {
   return Eigen::bfloat16(Eigen::numext::lgamma(static_cast<float>(a)));
@@ -67,7 +66,6 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::bfloat16 betainc(const Eigen::bfloa
                                                               const Eigen::bfloat16& x) {
   return Eigen::bfloat16(Eigen::numext::betainc(static_cast<float>(a), static_cast<float>(b), static_cast<float>(x)));
 }
-#endif
 
 }  // end namespace numext
 }  // end namespace Eigen

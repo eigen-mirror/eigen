@@ -16,7 +16,6 @@
 namespace Eigen {
 namespace numext {
 
-#if EIGEN_HAS_C99_MATH
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half bessel_i0(const Eigen::half& x) {
   return Eigen::half(Eigen::numext::bessel_i0(static_cast<float>(x)));
@@ -63,7 +62,6 @@ template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half bessel_k1e(const Eigen::half& x) {
   return Eigen::half(Eigen::numext::bessel_k1e(static_cast<float>(x)));
 }
-#endif
 
 }  // end namespace numext
 }  // end namespace Eigen

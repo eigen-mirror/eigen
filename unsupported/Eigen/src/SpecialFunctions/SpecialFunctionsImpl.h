@@ -41,7 +41,7 @@ namespace internal {
 //    Steve
 
 /****************************************************************************
- * Implementation of lgamma, requires C99                                   *
+ * Implementation of lgamma                                                 *
  ****************************************************************************/
 
 template <typename Scalar>
@@ -56,7 +56,6 @@ struct lgamma_retval {
   typedef Scalar type;
 };
 
-#if EIGEN_HAS_C99_MATH
 // Since glibc 2.19
 #if defined(__GLIBC__) && ((__GLIBC__ >= 2 && __GLIBC_MINOR__ >= 19) || __GLIBC__ > 2) && \
     (defined(_DEFAULT_SOURCE) || defined(_BSD_SOURCE) || defined(_SVID_SOURCE))
@@ -98,7 +97,6 @@ struct lgamma_impl<double> {
 };
 
 #undef EIGEN_HAS_LGAMMA_R
-#endif
 
 /****************************************************************************
  * Implementation of digamma (psi), based on Cephes                         *
@@ -435,7 +433,6 @@ struct erfc_retval {
   typedef Scalar type;
 };
 
-#if EIGEN_HAS_C99_MATH
 template <>
 struct erfc_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float x) {
@@ -457,7 +454,6 @@ struct erfc_impl<double> {
 #endif
   }
 };
-#endif  // EIGEN_HAS_C99_MATH
 
 /****************************************************************************
  * Implementation of erf.
@@ -537,7 +533,6 @@ struct erf_retval {
   typedef Scalar type;
 };
 
-#if EIGEN_HAS_C99_MATH
 template <>
 struct erf_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float x) {
@@ -559,7 +554,6 @@ struct erf_impl<double> {
 #endif
   }
 };
-#endif  // EIGEN_HAS_C99_MATH
 
 /***************************************************************************
  * Implementation of ndtri.                                                 *
@@ -737,26 +731,13 @@ struct ndtri_retval {
   typedef Scalar type;
 };
 
-#if !EIGEN_HAS_C99_MATH
-
-template <typename Scalar>
-struct ndtri_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) { return Scalar(0); }
-};
-
-#else
-
 template <typename Scalar>
 struct ndtri_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar x) { return generic_ndtri<Scalar, Scalar>(x); }
 };
 
-#endif  // EIGEN_HAS_C99_MATH
-
 /**************************************************************************************************************
- * Implementation of igammac (complemented incomplete gamma integral), based on Cephes but requires C99       *
+ * Implementation of igammac (complemented incomplete gamma integral), based on Cephes                       *
  **************************************************************************************************************/
 
 template <typename Scalar>
@@ -1026,17 +1007,6 @@ struct igamma_series_impl {
   }
 };
 
-#if !EIGEN_HAS_C99_MATH
-
-template <typename Scalar>
-struct igammac_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static Scalar run(Scalar a, Scalar x) { return Scalar(0); }
-};
-
-#else
-
 template <typename Scalar>
 struct igammac_impl {
   EIGEN_DEVICE_FUNC static Scalar run(Scalar a, Scalar x) {
@@ -1117,22 +1087,9 @@ struct igammac_impl {
   }
 };
 
-#endif  // EIGEN_HAS_C99_MATH
-
 /************************************************************************************************
- * Implementation of igamma (incomplete gamma integral), based on Cephes but requires C99        *
+ * Implementation of igamma (incomplete gamma integral), based on Cephes                         *
  ************************************************************************************************/
-
-#if !EIGEN_HAS_C99_MATH
-
-template <typename Scalar, IgammaComputationMode mode>
-struct igamma_generic_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar a, Scalar x) { return Scalar(0); }
-};
-
-#else
 
 template <typename Scalar, IgammaComputationMode mode>
 struct igamma_generic_impl {
@@ -1179,8 +1136,6 @@ struct igamma_generic_impl {
     return ret;
   }
 };
-
-#endif  // EIGEN_HAS_C99_MATH
 
 template <typename Scalar>
 struct igamma_retval {
@@ -1526,24 +1481,13 @@ struct zeta_impl {
 };
 
 /****************************************************************************
- * Implementation of polygamma function, requires C99                       *
+ * Implementation of polygamma function                                      *
  ****************************************************************************/
 
 template <typename Scalar>
 struct polygamma_retval {
   typedef Scalar type;
 };
-
-#if !EIGEN_HAS_C99_MATH
-
-template <typename Scalar>
-struct polygamma_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar n, Scalar x) { return Scalar(0); }
-};
-
-#else
 
 template <typename Scalar>
 struct polygamma_impl {
@@ -1568,27 +1512,14 @@ struct polygamma_impl {
   }
 };
 
-#endif  // EIGEN_HAS_C99_MATH
-
 /************************************************************************************************
- * Implementation of betainc (incomplete beta integral), based on Cephes but requires C99        *
+ * Implementation of betainc (incomplete beta integral), based on Cephes                         *
  ************************************************************************************************/
 
 template <typename Scalar>
 struct betainc_retval {
   typedef Scalar type;
 };
-
-#if !EIGEN_HAS_C99_MATH
-
-template <typename Scalar>
-struct betainc_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar a, Scalar b, Scalar x) { return Scalar(0); }
-};
-
-#else
 
 template <typename Scalar>
 struct betainc_impl {
@@ -2011,8 +1942,6 @@ struct betainc_impl<double> {
     return t;
   }
 };
-
-#endif  // EIGEN_HAS_C99_MATH
 
 }  // end namespace internal
 

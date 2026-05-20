@@ -170,11 +170,15 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     }
 
     const Index n_cache = static_cast<Index>((l2 - l1) / (nr * sizeof(RhsScalar) * k));
+    const Index nr_index = static_cast<Index>(nr);
+    // If the cache model says that even one kernel-width RHS panel does not fit,
+    // fall back to the minimum useful panel width instead of producing a zero block.
+    const Index n_cache_aligned = n_cache >= nr_index ? n_cache - (n_cache % nr_index) : nr_index;
     const Index n_per_thread = numext::div_ceil(n, num_threads);
     if (n_cache <= n_per_thread) {
-      // Don't exceed the capacity of the l2 cache.
-      eigen_internal_assert(n_cache >= static_cast<Index>(nr));
-      n = n_cache - (n_cache % nr);
+      // Don't exceed the capacity of the l2 cache unless the minimum panel width
+      // is already larger than the modeled capacity.
+      n = (numext::mini<Index>)(n, n_cache_aligned);
       eigen_internal_assert(n > 0);
     } else {
       n = (numext::mini<Index>)(n, (n_per_thread + nr - 1) - ((n_per_thread + nr - 1) % nr));

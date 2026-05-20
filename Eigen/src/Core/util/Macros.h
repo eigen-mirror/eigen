@@ -759,24 +759,18 @@
 // but in practice we should not rely on them but rather on the availability of
 // individual features as defined later.
 // This is why there is no EIGEN_HAS_CXX17.
-#if EIGEN_MAX_CPP_VER < 14 || EIGEN_COMP_CXXVER < 14 || (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1900) || \
-    (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1500) || (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 80000) ||       \
-    (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) ||                                             \
+#if EIGEN_MAX_CPP_VER < 14 || EIGEN_COMP_CXXVER < 14 || (EIGEN_COMP_MSVC_STRICT && EIGEN_COMP_MSVC < 1910) || \
+    (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1700) || (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 90000) ||              \
+    (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) ||                                                    \
     (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 510)
 #error Eigen requires at least c++14 support.
 #endif
 
-// Does the compiler support C99?
-// Need to include <cmath> to make sure _GLIBCXX_USE_C99 gets defined
-#include <cmath>
+// Deprecated compatibility macro. Eigen requires C++14 and no longer uses this
+// token internally, but keep it defined so downstream #if EIGEN_HAS_C99_MATH
+// checks do not trip -Wundef.
 #ifndef EIGEN_HAS_C99_MATH
-#if ((defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901)) ||                                          \
-     (defined(__GNUC__) && defined(_GLIBCXX_USE_C99)) || (defined(_LIBCPP_VERSION) && !defined(_MSC_VER)) || \
-     (EIGEN_COMP_MSVC) || defined(SYCL_DEVICE_ONLY))
 #define EIGEN_HAS_C99_MATH 1
-#else
-#define EIGEN_HAS_C99_MATH 0
-#endif
 #endif
 
 // Does the compiler support std::hash?
@@ -899,14 +893,15 @@
 #endif
 #endif
 
-// EIGEN_ALWAYS_INLINE is the strongest, it has the effect of making the function inline and adding every possible
-// attribute to maximize inlining. This should only be used when really necessary: in particular,
-// it uses __attribute__((always_inline)) on GCC, which most of the time is useless and can severely harm compile times.
-// FIXME with the always_inline attribute,
+// EIGEN_ALWAYS_INLINE is the strongest default inline hint. It makes the function inline and, where supported,
+// adds attributes to maximize inlining. This should only be used when really necessary: in particular, the
+// __attribute__((always_inline)) used on GCC is often unnecessary and can severely harm compile times.
+#ifndef EIGEN_ALWAYS_INLINE
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_ALWAYS_INLINE __attribute__((always_inline)) inline
 #else
 #define EIGEN_ALWAYS_INLINE EIGEN_STRONG_INLINE
+#endif
 #endif
 
 // EIGEN_LAMBDA_ALWAYS_INLINE forces inlining of lambda functions.
@@ -914,18 +909,22 @@
 // On MSVC, [[msvc::forceinline]] cannot be applied to generic lambdas
 // (those with auto parameters), so we leave it empty and rely on the
 // optimizer to inline small lambda bodies at /O2.
+#ifndef EIGEN_LAMBDA_ALWAYS_INLINE
 #if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
 #define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define EIGEN_LAMBDA_ALWAYS_INLINE
 #endif
+#endif
 
+#ifndef EIGEN_DONT_INLINE
 #if EIGEN_COMP_GNUC
 #define EIGEN_DONT_INLINE __attribute__((noinline))
 #elif EIGEN_COMP_MSVC
 #define EIGEN_DONT_INLINE __declspec(noinline)
 #else
 #define EIGEN_DONT_INLINE
+#endif
 #endif
 
 #if EIGEN_COMP_GNUC

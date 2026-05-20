@@ -518,7 +518,7 @@ struct SimpleTensorGenerator<bool, NumDims> {
   bool operator()(const array<Index, NumDims>& coords) const {
     bool result = false;
     for (int i = 0; i < NumDims; ++i) {
-      result ^= coords[i];
+      result = result != (coords[i] != 0);
     }
     return result;
   }

@@ -202,12 +202,13 @@ class TensorCostModel {
     // live data is N. A working-set-aware estimate would need each evaluator to
     // surface its unique-operand footprint; until that exists we accept a small
     // bias toward over-capping for reuse-heavy expressions.
-    if (candidate > kMemBandwidthSaturationThreads) {
+    const int mem_bandwidth_saturation_threads = kMemBandwidthSaturationThreads;
+    if (candidate > mem_bandwidth_saturation_threads) {
       bool is_memory_bound = (comp > 0) ? (mem / comp > kMemBoundThreshold) : (mem > 0);
       if (is_memory_bound) {
         double total_bytes = output_size * cost_per_coeff.total_bytes();
         if (total_bytes > kDramThresholdBytes) {
-          candidate = numext::mini(candidate, kMemBandwidthSaturationThreads);
+          candidate = numext::mini(candidate, mem_bandwidth_saturation_threads);
         }
       }
     }

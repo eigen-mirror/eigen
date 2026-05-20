@@ -416,7 +416,7 @@ namespace internal {
  * Implemented from Golub's "Matrix Computations", algorithm 8.3.2:
  * "implicit symmetric QR step with Wilkinson shift"
  */
-template <int StorageOrder, typename RealScalar, typename Scalar, typename Index>
+template <typename RealScalar, typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end,
                                                   Scalar* matrixQ, Index n);
 }  // namespace internal
@@ -607,8 +607,8 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
       }
     }
 
-    internal::tridiagonal_qr_step<MatrixType::Flags & RowMajorBit ? RowMajor : ColMajor>(
-        diag.data(), subdiag.data(), start, end, computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+    internal::tridiagonal_qr_step(diag.data(), subdiag.data(), start, end,
+                                  computeEigenvectors ? eivec.data() : (Scalar*)0, n);
   }
 
   // Unscale any remaining scaled block.
@@ -906,8 +906,9 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 
 namespace internal {
 
-// Francis implicit QR step.
-template <int StorageOrder, typename RealScalar, typename Scalar, typename Index>
+// Francis implicit QR step. matrixQ, if non-null, is column-major: SelfAdjointEigenSolver's
+// EigenvectorsType is hardcoded ColMajor regardless of the user's MatrixType storage order.
+template <typename RealScalar, typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end,
                                                   Scalar* matrixQ, Index n) {
   // Wilkinson Shift.
@@ -959,8 +960,7 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
 
     // apply the givens rotation to the unit matrix Q = Q * G
     if (matrixQ) {
-      // FIXME: this operation is inefficient for RowMajor storage order.
-      Map<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > q(matrixQ, n, n);
+      Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor> > q(matrixQ, n, n);
       q.applyOnTheRight(k, k + 1, rot);
     }
   }

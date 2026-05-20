@@ -190,6 +190,7 @@ using std::size_t;
 #include "src/Core/util/SymbolicIndex.h"
 #include "src/Core/util/EmulateArray.h"
 #include "src/Core/util/MoreMeta.h"
+#include "src/Core/util/LruCache.h"
 
 #include "src/Core/NumTraits.h"
 #include "src/Core/MathFunctions.h"

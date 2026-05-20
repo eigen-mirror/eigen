@@ -51,15 +51,12 @@ void array_special_functions() {
   // API
   {
     ArrayType m1 = ArrayType::Random(rows, cols);
-#if EIGEN_HAS_C99_MATH
     VERIFY_IS_APPROX(m1.lgamma(), lgamma(m1));
     VERIFY_IS_APPROX(m1.digamma(), digamma(m1));
     VERIFY_IS_APPROX(m1.erf(), erf(m1));
     VERIFY_IS_APPROX(m1.erfc(), erfc(m1));
-#endif  // EIGEN_HAS_C99_MATH
   }
 
-#if EIGEN_HAS_C99_MATH
   // check special functions (comparing against numpy implementation)
   if (!NumTraits<Scalar>::IsComplex) {
     {
@@ -154,7 +151,6 @@ void array_special_functions() {
       }
     }
   }
-#endif  // EIGEN_HAS_C99_MATH
 
   // Check the ndtri function against scipy.special.ndtri
   {
@@ -197,7 +193,6 @@ void array_special_functions() {
     CALL_SUBTEST(res = digamma(x); verify_component_wise(res, ref););
   }
 
-#if EIGEN_HAS_C99_MATH
   {
     ArrayType n(16), x(16), res(16), ref(16);
     n << 1, 1, 1, 1.5, 17, 31, 28, 8, 42, 147, 170, -1, 0, 1, 2, 3;
@@ -215,9 +210,7 @@ void array_special_functions() {
       CALL_SUBTEST(res = polygamma(n, x); verify_component_wise(res.head(8), ref.head(8)););
     }
   }
-#endif
 
-#if EIGEN_HAS_C99_MATH
   {
     // Inputs and ground truth generated with scipy via:
     //   a = np.logspace(-3, 3, 5) - 1e-3
@@ -335,7 +328,6 @@ void array_special_functions() {
         ArrayType expected = betainc(a, b, x) + num / denom + eps; ArrayType test = betainc(a, b + one, x) + eps;
         verify_component_wise(test, expected););
   }
-#endif  // EIGEN_HAS_C99_MATH
 
   /* Code to generate the data for the following two test cases.
   N = 5
@@ -364,7 +356,6 @@ void array_special_functions() {
   v_gamma_sample_der_alpha = np.vectorize(gamma_sample_der_alpha)(a, x)
 */
 
-#if EIGEN_HAS_C99_MATH
   // Test igamma_der_a
   {
     ArrayType a(30);
@@ -414,7 +405,6 @@ void array_special_functions() {
 
     CALL_SUBTEST(res = gamma_sample_der_alpha(alpha, sample); verify_component_wise(res, v););
   }
-#endif  // EIGEN_HAS_C99_MATH
 }
 
 EIGEN_DECLARE_TEST(special_functions) {

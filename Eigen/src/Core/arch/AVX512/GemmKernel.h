@@ -18,6 +18,7 @@
 #endif
 #include <immintrin.h>
 #include <type_traits>
+#include <utility>
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
@@ -350,31 +351,25 @@ class gemm_class {
     }
   }
 
-  template <int j, int endX, int i, int endY, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(j > endX) || (i > endY)> a_loads(const Scalar* ao) {
-    EIGEN_UNUSED_VARIABLE(ao);
+  template <int index, int endY, int nelems>
+  EIGEN_ALWAYS_INLINE void a_load_one(const Scalar* ao) {
+    constexpr int j = index / endY;
+    constexpr int i = index % endY;
+    auto& a_reg = zmm[a_regs[i + (j % 2) * 3]];
+    const Scalar* a_addr = ao + nelems * j + nelems_in_cache_line * i - a_shift;
+    a_load<nelems>(a_reg, a_addr);
+  }
+
+  template <int endY, int nelems, int... indices>
+  EIGEN_ALWAYS_INLINE void a_loads_impl(std::integer_sequence<int, indices...>, const Scalar* ao) {
+    int unused[] = {0, (a_load_one<indices, endY, nelems>(ao), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <int j, int endX, int i, int endY, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(j <= endX) && (i <= endY)> a_loads(const Scalar* ao) {
-    if (j < endX) {
-      if (i < endY) {
-        auto& a_reg = zmm[a_regs[i + (j % 2) * 3]];
-        const Scalar* a_addr = ao + nelems * j + nelems_in_cache_line * i - a_shift;
-        a_load<nelems>(a_reg, a_addr);
-
-        a_loads<j, endX, i + 1, endY, nelems>(ao);
-      } else {
-        a_loads<j + 1, endX, 0, endY, nelems>(ao);
-      }
-    }
-  }
-
-  template <int un, int max_b_unroll, int i, int um_vecs, int a_unroll, int b_unroll>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(un > max_b_unroll) || (i > um_vecs)> prefetch_cs(const Scalar* co1,
-                                                                                         const Scalar* co2) {
-    EIGEN_UNUSED_VARIABLE(co1);
-    EIGEN_UNUSED_VARIABLE(co2);
+  EIGEN_ALWAYS_INLINE void a_loads(const Scalar* ao) {
+    static_assert(j == 0 && i == 0, "a_loads expects to start at zero");
+    a_loads_impl<endY, nelems>(std::make_integer_sequence<int, endX * endY>{}, ao);
   }
 
   /* C prefetch loop structure.
@@ -391,78 +386,88 @@ class gemm_class {
    * }
    */
 
-  template <int un, int max_b_unroll, int i, int um_vecs, int a_unroll, int b_unroll>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(un <= max_b_unroll) && (i <= um_vecs)> prefetch_cs(Scalar*& co1, Scalar*& co2) {
-    if (un < max_b_unroll) {
-      if (b_unroll >= un + 1) {
-        if (un == 4 && i == 0) co2 = co1 + 4 * ldc;
+  template <int index, int um_vecs, int a_unroll, int b_unroll>
+  EIGEN_ALWAYS_INLINE void prefetch_c_one(Scalar*& co1, Scalar*& co2) {
+    constexpr int un = index / um_vecs;
+    constexpr int i = index % um_vecs;
 
-        if (i < um_vecs) {
-          Scalar* co = (un + 1 <= 4) ? co1 : co2;
-          auto co_off = (un % 4) * ldc + a_unroll - 1 + i * nelems_in_cache_line * sizeof *co;
-          prefetch_c(co + co_off);
+    if (b_unroll >= un + 1) {
+      if (un == 4 && i == 0) co2 = co1 + 4 * ldc;
 
-          prefetch_cs<un, max_b_unroll, i + 1, um_vecs, a_unroll, b_unroll>(co1, co2);
-        } else {
-          prefetch_cs<un + 1, max_b_unroll, 0, um_vecs, a_unroll, b_unroll>(co1, co2);
-        }
-
-      } else {
-        prefetch_cs<un + 1, max_b_unroll, 0, um_vecs, a_unroll, b_unroll>(co1, co2);
-      }
+      Scalar* co = (un + 1 <= 4) ? co1 : co2;
+      auto co_off = (un % 4) * ldc + a_unroll - 1 + i * nelems_in_cache_line * sizeof *co;
+      prefetch_c(co + co_off);
     }
+  }
+
+  template <int um_vecs, int a_unroll, int b_unroll, int... indices>
+  EIGEN_ALWAYS_INLINE void prefetch_cs_impl(std::integer_sequence<int, indices...>, Scalar*& co1, Scalar*& co2) {
+    int unused[] = {0, (prefetch_c_one<indices, um_vecs, a_unroll, b_unroll>(co1, co2), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
+  template <int un, int max_b_unroll, int i, int um_vecs, int a_unroll, int b_unroll>
+  EIGEN_ALWAYS_INLINE void prefetch_cs(Scalar*& co1, Scalar*& co2) {
+    static_assert(un == 0 && i == 0, "prefetch_cs expects to start at zero");
+    prefetch_cs_impl<um_vecs, a_unroll, b_unroll>(std::make_integer_sequence<int, max_b_unroll * um_vecs>{}, co1, co2);
   }
 
   // load_c
-  template <int i, int um_vecs, int idx, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(i > um_vecs)> scale_load_c(const Scalar* cox, vec& alpha_reg) {
-    EIGEN_UNUSED_VARIABLE(cox);
-    EIGEN_UNUSED_VARIABLE(alpha_reg);
+  template <int i, int idx, int nelems>
+  EIGEN_ALWAYS_INLINE void scale_load_c_one(const Scalar* cox, vec& alpha_reg) {
+    auto& c_reg = zmm[c_regs[i + idx * 3]];
+    auto& c_load_reg = zmm[c_load_regs[i % 3]];
+    auto c_mem = cox;
+    if (is_unit_inc)
+      c_mem += i * nelems_in_cache_line;
+    else
+      c_mem += i * nelems_in_cache_line * inc;
+
+    if (!is_beta0 && is_alpha1)
+      vaddm<nelems>(c_reg, c_mem, c_reg, c_load_reg);
+    else if (!is_beta0 && !is_alpha1)
+      vfmaddm<nelems>(c_reg, c_mem, c_reg, alpha_reg, c_load_reg);
+    else if (is_beta0 && !is_alpha1)
+      c_reg = pmul(alpha_reg, c_reg);
+  }
+
+  template <int start, int idx, int nelems, int... indices>
+  EIGEN_ALWAYS_INLINE void scale_load_c_impl(std::integer_sequence<int, indices...>, const Scalar* cox,
+                                             vec& alpha_reg) {
+    int unused[] = {0, (scale_load_c_one<start + indices, idx, nelems>(cox, alpha_reg), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <int i, int um_vecs, int idx, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(i <= um_vecs)> scale_load_c(const Scalar* cox, vec& alpha_reg) {
-    if (i < um_vecs) {
-      auto& c_reg = zmm[c_regs[i + idx * 3]];
-      auto& c_load_reg = zmm[c_load_regs[i % 3]];
-      auto c_mem = cox;
-      if (is_unit_inc)
-        c_mem += i * nelems_in_cache_line;
-      else
-        c_mem += i * nelems_in_cache_line * inc;
-
-      if (!is_beta0 && is_alpha1)
-        vaddm<nelems>(c_reg, c_mem, c_reg, c_load_reg);
-      else if (!is_beta0 && !is_alpha1)
-        vfmaddm<nelems>(c_reg, c_mem, c_reg, alpha_reg, c_load_reg);
-      else if (is_beta0 && !is_alpha1)
-        c_reg = pmul(alpha_reg, c_reg);
-
-      scale_load_c<i + 1, um_vecs, idx, nelems>(cox, alpha_reg);
-    }
+  EIGEN_ALWAYS_INLINE void scale_load_c(const Scalar* cox, vec& alpha_reg) {
+    static_assert(i <= um_vecs, "invalid C load range");
+    scale_load_c_impl<i, idx, nelems>(std::make_integer_sequence<int, um_vecs - i>{}, cox, alpha_reg);
   }
 
   // store_c
-  template <int i, int um_vecs, int idx, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(i > um_vecs)> write_c(Scalar* cox) {
-    EIGEN_UNUSED_VARIABLE(cox);
+  template <int i, int idx, int nelems>
+  EIGEN_ALWAYS_INLINE void write_c_one(Scalar* cox) {
+    auto& c_reg = zmm[c_regs[i + idx * 3]];
+    auto c_mem = cox;
+    if (is_unit_inc)
+      c_mem += i * nelems_in_cache_line;
+    else
+      c_mem += i * nelems_in_cache_line * inc;
+
+    c_store<nelems>(c_mem, c_reg);
+    c_reg = pzero(c_reg);
+  }
+
+  template <int start, int idx, int nelems, int... indices>
+  EIGEN_ALWAYS_INLINE void write_c_impl(std::integer_sequence<int, indices...>, Scalar* cox) {
+    int unused[] = {0, (write_c_one<start + indices, idx, nelems>(cox), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <int i, int um_vecs, int idx, int nelems>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(i <= um_vecs)> write_c(Scalar* cox) {
-    if (i < um_vecs) {
-      auto& c_reg = zmm[c_regs[i + idx * 3]];
-      auto c_mem = cox;
-      if (is_unit_inc)
-        c_mem += i * nelems_in_cache_line;
-      else
-        c_mem += i * nelems_in_cache_line * inc;
-
-      c_store<nelems>(c_mem, c_reg);
-      c_reg = pzero(c_reg);
-
-      write_c<i + 1, um_vecs, idx, nelems>(cox);
-    }
+  EIGEN_ALWAYS_INLINE void write_c(Scalar* cox) {
+    static_assert(i <= um_vecs, "invalid C store range");
+    write_c_impl<i, idx, nelems>(std::make_integer_sequence<int, um_vecs - i>{}, cox);
   }
 
   /*  C update loop structure.
@@ -542,102 +547,104 @@ class gemm_class {
   }
 
   // compute
-  template <int um, int um_vecs, int idx, int uk, bool fetch_x, bool ktail>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(um > um_vecs)> compute(const Scalar* ao, const Scalar* bo, int& fetchA_idx,
-                                                               int& fetchB_idx, vec& b_reg) {
-    EIGEN_UNUSED_VARIABLE(ao);
-    EIGEN_UNUSED_VARIABLE(bo);
-    EIGEN_UNUSED_VARIABLE(fetchA_idx);
-    EIGEN_UNUSED_VARIABLE(fetchB_idx);
-    EIGEN_UNUSED_VARIABLE(b_reg);
+  template <int um, int idx, int uk, bool fetch_x, bool ktail>
+  EIGEN_ALWAYS_INLINE void compute_one(const Scalar* ao, const Scalar* bo, int& fetchA_idx, int& fetchB_idx,
+                                       vec& b_reg) {
+    auto& c_reg = zmm[c_regs[um + idx * 3]];
+    auto& a_reg = zmm[a_regs[um + (uk % 2) * 3]];
+
+    vfmadd(c_reg, a_reg, b_reg);
+
+    if (!fetch_x && um == 0 &&
+        (((idx == 0 || idx == 6) && (uk % 2 == 0 || is_f64 || ktail)) ||
+         (idx == 3 && (uk % 2 == 1 || is_f64 || ktail)))) {
+      prefetch_a(ao + nelems_in_cache_line * fetchA_idx);
+      fetchA_idx++;
+    }
+
+    if (um == 0 && idx == 1 && (uk % 2 == 0 || is_f64 || ktail)) {
+      prefetch_b(bo + nelems_in_cache_line * fetchB_idx);
+      fetchB_idx++;
+    }
+  }
+
+  template <int start, int idx, int uk, bool fetch_x, bool ktail, int... indices>
+  EIGEN_ALWAYS_INLINE void compute_impl(std::integer_sequence<int, indices...>, const Scalar* ao, const Scalar* bo,
+                                        int& fetchA_idx, int& fetchB_idx, vec& b_reg) {
+    int unused[] = {
+        0, (compute_one<start + indices, idx, uk, fetch_x, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
+  template <int um, int uk, int nelems, bool ktail>
+  EIGEN_ALWAYS_INLINE void load_a_one(const Scalar* ao) {
+    auto& a_reg = zmm[a_regs[um + (uk % 2) * 3]];
+    const Scalar* a_addr = ao + nelems * (1 + !ktail * !use_less_a_regs + uk) + nelems_in_cache_line * um - a_shift;
+    a_load<nelems>(a_reg, a_addr);
   }
 
   template <int um, int um_vecs, int idx, int uk, bool fetch_x, bool ktail>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(um <= um_vecs)> compute(const Scalar* ao, const Scalar* bo, int& fetchA_idx,
-                                                                int& fetchB_idx, vec& b_reg) {
-    if (um < um_vecs) {
-      auto& c_reg = zmm[c_regs[um + idx * 3]];
-      auto& a_reg = zmm[a_regs[um + (uk % 2) * 3]];
-
-      vfmadd(c_reg, a_reg, b_reg);
-
-      if (!fetch_x && um == 0 &&
-          (((idx == 0 || idx == 6) && (uk % 2 == 0 || is_f64 || ktail)) ||
-           (idx == 3 && (uk % 2 == 1 || is_f64 || ktail)))) {
-        prefetch_a(ao + nelems_in_cache_line * fetchA_idx);
-        fetchA_idx++;
-      }
-
-      if (um == 0 && idx == 1 && (uk % 2 == 0 || is_f64 || ktail)) {
-        prefetch_b(bo + nelems_in_cache_line * fetchB_idx);
-        fetchB_idx++;
-      }
-
-      compute<um + 1, um_vecs, idx, uk, fetch_x, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg);
-    }
+  EIGEN_ALWAYS_INLINE void compute(const Scalar* ao, const Scalar* bo, int& fetchA_idx, int& fetchB_idx, vec& b_reg) {
+    static_assert(um <= um_vecs, "invalid compute range");
+    compute_impl<um, idx, uk, fetch_x, ktail>(std::make_integer_sequence<int, um_vecs - um>{}, ao, bo, fetchA_idx,
+                                              fetchB_idx, b_reg);
   }
 
   // load_a
-  template <int um, int um_vecs, int uk, int nelems, bool ktail>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(um > um_vecs)> load_a(const Scalar* ao) {
-    EIGEN_UNUSED_VARIABLE(ao);
+  template <int start, int uk, int nelems, bool ktail, int... indices>
+  EIGEN_ALWAYS_INLINE void load_a_impl(std::integer_sequence<int, indices...>, const Scalar* ao) {
+    int unused[] = {0, (load_a_one<start + indices, uk, nelems, ktail>(ao), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <int um, int um_vecs, int uk, int nelems, bool ktail>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(um <= um_vecs)> load_a(const Scalar* ao) {
-    if (um < um_vecs) {
-      auto& a_reg = zmm[a_regs[um + (uk % 2) * 3]];
-      const Scalar* a_addr = ao + nelems * (1 + !ktail * !use_less_a_regs + uk) + nelems_in_cache_line * um - a_shift;
-      a_load<nelems>(a_reg, a_addr);
-
-      load_a<um + 1, um_vecs, uk, nelems, ktail>(ao);
-    }
-  }
-  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool c_fetch>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(count > (pow + 1) / 2)> innerkernel_1pow(const Scalar*& aa,
-                                                                                 const Scalar* const& ao,
-                                                                                 const Scalar* const& bo, Scalar*& co2,
-                                                                                 int& fetchA_idx, int& fetchB_idx) {
-    EIGEN_UNUSED_VARIABLE(aa);
-    EIGEN_UNUSED_VARIABLE(ao);
-    EIGEN_UNUSED_VARIABLE(bo);
-    EIGEN_UNUSED_VARIABLE(co2);
-    EIGEN_UNUSED_VARIABLE(fetchA_idx);
-    EIGEN_UNUSED_VARIABLE(fetchB_idx);
+  EIGEN_ALWAYS_INLINE void load_a(const Scalar* ao) {
+    static_assert(um <= um_vecs, "invalid A load range");
+    load_a_impl<um, uk, nelems, ktail>(std::make_integer_sequence<int, um_vecs - um>{}, ao);
   }
 
-  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool c_fetch>
-  EIGEN_ALWAYS_INLINE std::enable_if_t<(count <= (pow + 1) / 2)> innerkernel_1pow(const Scalar*& aa,
-                                                                                  const Scalar* const& ao,
-                                                                                  const Scalar* const& bo, Scalar*& co2,
-                                                                                  int& fetchA_idx, int& fetchB_idx) {
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x>
+  EIGEN_ALWAYS_INLINE void innerkernel_1pow_one(const Scalar*& aa, const Scalar* const& ao, const Scalar* const& bo,
+                                                int& fetchA_idx, int& fetchB_idx) {
     const int idx = (pow / 2) + count;
 
-    if (count < (pow + 1) / 2) {
-      auto& b_reg = zmm[b_regs[idx % 2]];
+    auto& b_reg = zmm[b_regs[idx % 2]];
 
-      if (fetch_x && uk == 3 && idx == 0) prefetch_x(aa);
-      if (fetch_x && uk == 3 && idx == 4) aa += 8;
+    if (fetch_x && uk == 3 && idx == 0) prefetch_x(aa);
+    if (fetch_x && uk == 3 && idx == 4) aa += 8;
 
-      if (b_unroll >= pow) {
-        compute<0, um_vecs, idx, uk, fetch_x, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg);
+    if (b_unroll >= pow) {
+      compute<0, um_vecs, idx, uk, fetch_x, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg);
 
-        const Scalar* b_addr = bo + b_unroll * uk + idx + 1 + (b_unroll > 1) * !use_less_b_regs - b_shift;
-        b_load(b_reg, b_addr);
-      }
+      const Scalar* b_addr = bo + b_unroll * uk + idx + 1 + (b_unroll > 1) * !use_less_b_regs - b_shift;
+      b_load(b_reg, b_addr);
+    }
+  }
 
-      // Go to the next count.
-      innerkernel_1pow<uk, pow, count + 1, um_vecs, b_unroll, ktail, fetch_x, c_fetch>(aa, ao, bo, co2, fetchA_idx,
-                                                                                       fetchB_idx);
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, int... indices>
+  EIGEN_ALWAYS_INLINE void innerkernel_1pow_impl(std::integer_sequence<int, indices...>, const Scalar*& aa,
+                                                 const Scalar* const& ao, const Scalar* const& bo, int& fetchA_idx,
+                                                 int& fetchB_idx) {
+    int unused[] = {0, (innerkernel_1pow_one<uk, pow, count + indices, um_vecs, b_unroll, ktail, fetch_x>(
+                            aa, ao, bo, fetchA_idx, fetchB_idx),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
 
-    } else {
-      // Maybe prefetch C data after count-loop.
-      if (pow == 2 && c_fetch) {
-        if (uk % 3 == 0 && uk > 0) {
-          co2 += ldc;
-        } else {
-          prefetch_c(co2 + (uk % 3) * nelems_in_cache_line);
-        }
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool c_fetch>
+  EIGEN_ALWAYS_INLINE void innerkernel_1pow(const Scalar*& aa, const Scalar* const& ao, const Scalar* const& bo,
+                                            Scalar*& co2, int& fetchA_idx, int& fetchB_idx) {
+    constexpr int max_count = (pow + 1) / 2;
+    static_assert(count <= max_count, "invalid B load range");
+    innerkernel_1pow_impl<uk, pow, count, um_vecs, b_unroll, ktail, fetch_x>(
+        std::make_integer_sequence<int, max_count - count>{}, aa, ao, bo, fetchA_idx, fetchB_idx);
+
+    // Maybe prefetch C data after count-loop.
+    if (pow == 2 && c_fetch) {
+      if (uk % 3 == 0 && uk > 0) {
+        co2 += ldc;
+      } else {
+        prefetch_c(co2 + (uk % 3) * nelems_in_cache_line);
       }
     }
   }

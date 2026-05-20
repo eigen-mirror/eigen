@@ -234,6 +234,12 @@ install(FILES
   )
 
 if(EIGEN_BUILD_PKGCONFIG)
+    # Walk back from the .pc file's location to the install prefix so
+    # eigen3.pc resolves ${prefix} at lookup time via ${pcfiledir} and
+    # honors install-time --prefix overrides.
+    file(RELATIVE_PATH PKGCONFIG_RELATIVE_PATH_TO_PREFIX
+        "${CMAKE_INSTALL_PREFIX}/${PKGCONFIG_INSTALL_DIR}"
+        "${CMAKE_INSTALL_PREFIX}")
     configure_file(eigen3.pc.in eigen3.pc @ONLY)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/eigen3.pc
         DESTINATION ${PKGCONFIG_INSTALL_DIR})

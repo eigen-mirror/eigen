@@ -72,7 +72,7 @@ static void test_expr_roll(bool LValue) {
   Tensor<float, 4, DataLayout> tensor(2, 3, 5, 7);
   tensor.setRandom();
 
-  array<bool, 4> dim_roll;
+  array<Index, 4> dim_roll;
   dim_roll[0] = 2;
   dim_roll[1] = 1;
   dim_roll[2] = 0;

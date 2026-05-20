@@ -308,7 +308,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
 #endif
 
  protected:
-  friend class CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>;
+  friend class internal::CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, ColPivHouseholderQR>;
 
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 

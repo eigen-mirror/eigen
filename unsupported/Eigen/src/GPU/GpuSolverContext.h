@@ -32,10 +32,16 @@ struct GpuSolverContext {
   cudaStream_t stream_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cublasHandle_t cublas_ = nullptr;
+  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy: created on first GEMM-via-cublasLt call
   CusolverParams params_;
   DeviceBuffer d_scratch_;
   size_t scratch_size_ = 0;
   std::vector<char> h_workspace_;
+  DeviceBuffer gemm_workspace_;  // grown lazily by cublaslt_gemm
+  CublasLtPlanCache gemm_plan_cache_{kCublasLtPlanCacheCapacity};
+  // Workspace ceiling fed to the cublasLtMatmul heuristic at plan-creation time.
+  // See gpu::Context::setCublasLtMaxWorkspaceBytes() for semantics.
+  std::size_t cublaslt_max_workspace_bytes_ = kCublasLtMaxWorkspaceBytes;
   ComputationInfo info_ = InvalidInput;
   PinnedHostBuffer pinned_info_{sizeof(int)};  // pinned host memory for async D2H of info word
   bool info_synced_ = true;
@@ -57,6 +63,9 @@ struct GpuSolverContext {
     // are eigen_assert-based — firing one from a noexcept dtor terminates the program.
     // The trailing cudaFree() of the device buffers (via DeviceBuffer::~DeviceBuffer) is
     // synchronous and waits for any in-flight kernel touching the buffer.
+    // Destroy plan cache before its cublasLt handle (entries hold descriptors).
+    gemm_plan_cache_.clear();
+    if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
     if (cublas_) (void)cublasDestroy(cublas_);
     if (cusolver_) (void)cusolverDnDestroy(cusolver_);
     if (stream_) (void)cudaStreamDestroy(stream_);
@@ -66,16 +75,21 @@ struct GpuSolverContext {
       : stream_(o.stream_),
         cusolver_(o.cusolver_),
         cublas_(o.cublas_),
+        cublas_lt_(o.cublas_lt_),
         params_(std::move(o.params_)),
         d_scratch_(std::move(o.d_scratch_)),
         scratch_size_(o.scratch_size_),
         h_workspace_(std::move(o.h_workspace_)),
+        gemm_workspace_(std::move(o.gemm_workspace_)),
+        gemm_plan_cache_(std::move(o.gemm_plan_cache_)),
+        cublaslt_max_workspace_bytes_(o.cublaslt_max_workspace_bytes_),
         info_(o.info_),
         pinned_info_(std::move(o.pinned_info_)),
         info_synced_(o.info_synced_) {
     o.stream_ = nullptr;
     o.cusolver_ = nullptr;
     o.cublas_ = nullptr;
+    o.cublas_lt_ = nullptr;
     o.scratch_size_ = 0;
     o.info_ = InvalidInput;
     o.info_synced_ = true;
@@ -88,27 +102,43 @@ struct GpuSolverContext {
       // kernel is still touching; then swallow destroy errors (the EIGEN_CU*_CHECK
       // macros are eigen_assert-based and would terminate from a noexcept body).
       if (stream_) (void)cudaStreamSynchronize(stream_);
+      gemm_plan_cache_.clear();
+      if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
       if (cublas_) (void)cublasDestroy(cublas_);
       if (cusolver_) (void)cusolverDnDestroy(cusolver_);
       if (stream_) (void)cudaStreamDestroy(stream_);
       stream_ = o.stream_;
       cusolver_ = o.cusolver_;
       cublas_ = o.cublas_;
+      cublas_lt_ = o.cublas_lt_;
       params_ = std::move(o.params_);
       d_scratch_ = std::move(o.d_scratch_);
       scratch_size_ = o.scratch_size_;
       h_workspace_ = std::move(o.h_workspace_);
+      gemm_workspace_ = std::move(o.gemm_workspace_);
+      gemm_plan_cache_ = std::move(o.gemm_plan_cache_);
+      cublaslt_max_workspace_bytes_ = o.cublaslt_max_workspace_bytes_;
       info_ = o.info_;
       pinned_info_ = std::move(o.pinned_info_);
       info_synced_ = o.info_synced_;
       o.stream_ = nullptr;
       o.cusolver_ = nullptr;
       o.cublas_ = nullptr;
+      o.cublas_lt_ = nullptr;
       o.scratch_size_ = 0;
       o.info_ = InvalidInput;
       o.info_synced_ = true;
     }
     return *this;
+  }
+
+  /** cuBLASLt handle (lazy-initialized on first GEMM-via-cublasLt call).
+   * Matches the camelCase accessor on gpu::Context for consistency. */
+  cublasLtHandle_t cublasLtHandle() {
+    if (!cublas_lt_) {
+      EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
+    }
+    return cublas_lt_;
   }
 
   GpuSolverContext(const GpuSolverContext&) = delete;

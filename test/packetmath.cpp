@@ -1113,14 +1113,12 @@ void packetmath_real() {
     }
   }
 
-#if EIGEN_HAS_C99_MATH
   data1[0] = NumTraits<Scalar>::infinity();
   data1[1] = Scalar(-1);
   CHECK_CWISE1_IF(PacketTraits::HasLog1p, std::log1p, internal::plog1p);
   data1[0] = NumTraits<Scalar>::infinity();
   data1[1] = -NumTraits<Scalar>::infinity();
   CHECK_CWISE1_IF(PacketTraits::HasExpm1, std::expm1, internal::pexpm1);
-#endif
 
   if (PacketSize >= 2) {
     data1[0] = NumTraits<Scalar>::quiet_NaN();

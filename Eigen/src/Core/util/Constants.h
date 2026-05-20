@@ -357,7 +357,11 @@ enum NaNPropagationOptions {
  * and we do not know how to get rid of them (bug 450).
  */
 
-enum NoChange_t { NoChange };
+// NoChange is set to -1 (rather than 0) so that calls like resize(NoChange, n)
+// that land in a generic resize(Index, Index) overload — missing the NoChange_t
+// overload — trip the rows/cols >= 0 assertion instead of silently producing a
+// 0-sized dimension. See issue #656.
+enum NoChange_t { NoChange = -1 };
 enum Sequential_t { Sequential };
 enum Default_t { Default };
 

@@ -29,7 +29,6 @@ namespace internal {
   template <typename T, typename U, unsigned int n, IgammaComputationMode mode> \
   struct NAME<hip_impl::Scalar_accessor<T, U, n>, mode> : NAME<T, mode> {};
 
-#if EIGEN_HAS_C99_MATH
 HIP_SCALAR_ACCESSOR_BUILDER(betainc_helper)
 HIP_SCALAR_ACCESSOR_BUILDER(incbeta_cfe)
 
@@ -41,7 +40,6 @@ HIP_SCALAR_ACCESSOR_BUILDER_RETVAL(ndtri)
 HIP_SCALAR_ACCESSOR_BUILDER_RETVAL(polygamma)
 
 HIP_SCALAR_ACCESSOR_BUILDER_IGAMMA(igamma_generic_impl)
-#endif
 
 HIP_SCALAR_ACCESSOR_BUILDER(digamma_impl_maybe_poly)
 HIP_SCALAR_ACCESSOR_BUILDER(zeta_impl_series)

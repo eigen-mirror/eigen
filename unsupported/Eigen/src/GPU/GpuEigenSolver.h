@@ -120,6 +120,10 @@ class SelfAdjointEigenSolver {
   Index cols() const { return n_; }
   Index rows() const { return n_; }
 
+  // TODO: Add device-side accessors (deviceEigenvalues(), deviceEigenvectors())
+  // returning DeviceMatrix views of the internal buffers, so users can chain
+  // GPU operations without round-tripping through host memory.
+
   /** Eigenvalues in ascending order. Downloads from device. */
   RealVector eigenvalues() const {
     solver_ctx_.sync_info();

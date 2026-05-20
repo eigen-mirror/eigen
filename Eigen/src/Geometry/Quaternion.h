@@ -171,6 +171,11 @@ class QuaternionBase : public RotationBase<Derived, 3> {
   template <typename Derived1, typename Derived2>
   EIGEN_DEVICE_FUNC Derived& setFromTwoVectors(const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b);
 
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC Derived& setFromScaledAxis(const MatrixBase<OtherDerived>& scaled_axis);
+
+  EIGEN_DEVICE_FUNC inline Vector3 toScaledAxis() const;
+
   template <class OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Quaternion<Scalar> operator*(const QuaternionBase<OtherDerived>& q) const;
   template <class OtherDerived>
@@ -380,6 +385,9 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
 
   template <typename Derived1, typename Derived2>
   EIGEN_DEVICE_FUNC static Quaternion FromTwoVectors(const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b);
+
+  template <typename Derived>
+  EIGEN_DEVICE_FUNC static Quaternion FromScaledAxis(const MatrixBase<Derived>& scaled_axis);
 
   EIGEN_DEVICE_FUNC inline Coefficients& coeffs() { return m_coeffs; }
   EIGEN_DEVICE_FUNC inline const Coefficients& coeffs() const { return m_coeffs; }
@@ -708,6 +716,78 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
   return derived();
 }
 
+/** Sets \c *this to the unit quaternion representing the rotation by `||scaled_axis||` radians
+ * around the axis `scaled_axis / ||scaled_axis||`. This is the SO(3) exponential map.
+ *
+ * The closed form \f$ q = (\cos(\theta/2),\;(\sin(\theta/2)/\theta)\,v),\;\theta=\|v\| \f$ is
+ * evaluated directly for every non-zero input; the limit value (the identity quaternion) is
+ * substituted only at the bit-exact zero input. No Taylor expansion and no scalar-type-
+ * dependent threshold are involved, and the result is accurate to a few ULPs across the
+ * full range of finite inputs.
+ *
+ * \sa toScaledAxis(), Quaternion::FromScaledAxis()
+ */
+template <class Derived>
+template <typename OtherDerived>
+EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
+    const MatrixBase<OtherDerived>& scaled_axis) {
+  EIGEN_USING_STD(sin)
+  EIGEN_USING_STD(cos)
+  EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 3)
+
+  // Materialise the input once so the caller's expression (e.g. omega*dt) is not
+  // recomputed by the norm and the subsequent assignment to vec().
+  const Vector3 v = scaled_axis;
+
+  // Fast path with stableNorm() fallback when norm() returns a suspiciously small
+  // value (below epsilon, where squaredNorm() may have underflowed); same idiom
+  // as AngleAxis::operator=(QuaternionBase).
+  Scalar angle = v.norm();
+  if (angle < NumTraits<Scalar>::epsilon()) angle = v.stableNorm();
+  if (numext::is_exactly_zero(angle)) {
+    this->w() = Scalar(1);
+    this->vec().setZero();
+    return derived();
+  }
+
+  const Scalar half_angle = Scalar(0.5) * angle;
+  this->w() = cos(half_angle);
+  this->vec() = (sin(half_angle) / angle) * v;
+  return derived();
+}
+
+/** \returns the rotation vector (axis scaled by the rotation angle in `[0, pi]`)
+ * corresponding to \c *this. This is the SO(3) logarithmic map and the inverse of
+ * setFromScaledAxis().
+ *
+ * The closed form \f$ v = (2\,\mathrm{atan2}(\|q_v\|,\,q_w)/\|q_v\|)\, q_v \f$ is evaluated
+ * directly for every quaternion with non-zero imaginary part; the limit value (the zero
+ * vector) is substituted only at the bit-exact zero imaginary part. The IEEE corner case
+ * `w == -0.0` is handled by passing \c |w| to \c atan2 and recovering the sign separately,
+ * mirroring AngleAxis::operator=(QuaternionBase). The result is accurate to a few ULPs.
+ *
+ * \pre \c *this is approximately a unit quaternion.
+ * \sa setFromScaledAxis(), Quaternion::FromScaledAxis()
+ */
+template <class Derived>
+EIGEN_DEVICE_FUNC inline typename QuaternionBase<Derived>::Vector3 QuaternionBase<Derived>::toScaledAxis() const {
+  EIGEN_USING_STD(atan2)
+  eigen_assert(internal::isApprox(this->squaredNorm(), Scalar(1), Scalar(8) * NumTraits<Scalar>::dummy_precision()) &&
+               "QuaternionBase::toScaledAxis(): the quaternion must be approximately a unit quaternion");
+
+  // Fast path with stableNorm() fallback; same idiom as AngleAxis::operator=(QuaternionBase).
+  Scalar sin_half_angle = this->vec().norm();
+  if (sin_half_angle < NumTraits<Scalar>::epsilon()) sin_half_angle = this->vec().stableNorm();
+  if (numext::is_exactly_zero(sin_half_angle)) return Vector3::Zero();
+
+  // |w| in atan2 prevents -0.0 from flipping the sign; recover it via the comparison below
+  // (false for both +0.0 and -0.0).
+  // Cannot overflow: for unit q, atan2(s, |c|) is O(s) as s -> 0, so k stays in [2, pi].
+  Scalar k = Scalar(2) * atan2(sin_half_angle, numext::abs(this->w())) / sin_half_angle;
+  if (this->w() < Scalar(0)) k = -k;
+  return k * this->vec();
+}
+
 /** \returns a random unit quaternion following a uniform distribution law on SO(3)
  *
  * \note The implementation is based on http://planning.cs.uiuc.edu/node198.html
@@ -768,6 +848,21 @@ EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromT
     const MatrixBase<Derived1>& a, const MatrixBase<Derived2>& b) {
   Quaternion quat;
   quat.setFromTwoVectors(a, b);
+  return quat;
+}
+
+/** Returns a unit quaternion representing the rotation by `||scaled_axis||` radians around
+ * the axis `scaled_axis / ||scaled_axis||`. The natural building block for SO(3)-aware
+ * integration of a body angular velocity \a omega over a small interval \a dt:
+ * \code Quaterniond q_next = q_curr * Quaterniond::FromScaledAxis(omega * dt); \endcode
+ * \sa setFromScaledAxis(), toScaledAxis()
+ */
+template <typename Scalar, int Options>
+template <typename Derived>
+EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::FromScaledAxis(
+    const MatrixBase<Derived>& scaled_axis) {
+  Quaternion quat;
+  quat.setFromScaledAxis(scaled_axis);
   return quat;
 }
 

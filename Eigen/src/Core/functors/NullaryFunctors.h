@@ -212,7 +212,7 @@ struct functor_has_linear_access : std::integral_constant<bool, !has_binary_oper
 
 // For unreliable compilers, let's specialize the has_*ary_operator
 // helpers so that at least built-in nullary functors work fine.
-#if !(EIGEN_COMP_MSVC || EIGEN_COMP_GNUC || (EIGEN_COMP_ICC >= 1600))
+#if !(EIGEN_COMP_MSVC || EIGEN_COMP_GNUC || EIGEN_COMP_ICC)
 template <typename Scalar, typename IndexType>
 struct has_nullary_operator<scalar_constant_op<Scalar>, IndexType> : std::true_type {};
 template <typename Scalar, typename IndexType>

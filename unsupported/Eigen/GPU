@@ -42,6 +42,7 @@
 
 #ifdef EIGEN_USE_GPU
 // IWYU pragma: begin_exports
+#include "src/GPU/DeviceScalar.h"
 #include "src/GPU/DeviceMatrix.h"
 #include "src/GPU/GpuContext.h"
 #include "src/GPU/DeviceExpr.h"
@@ -57,8 +58,10 @@
 #include "src/GPU/CuFftSupport.h"
 #include "src/GPU/GpuFFT.h"
 #include "src/GPU/CuSparseSupport.h"
+#ifdef EIGEN_SPARSECORE_MODULE_H
 #include "src/GPU/GpuSparseContext.h"
-#ifdef EIGEN_CUDSS
+#endif
+#if defined(EIGEN_CUDSS) && defined(EIGEN_SPARSECORE_MODULE_H)
 #include "src/GPU/CuDssSupport.h"
 #include "src/GPU/GpuSparseSolverBase.h"
 #include "src/GPU/GpuSparseLLT.h"

@@ -226,7 +226,7 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
   eigen_assert(mat.cols() == 3 && mat.rows() == 3);
 
-  const typename internal::nested_eval<Derived, 3>::type m(mat);
+  const typename internal::nested_eval<Derived, 3>::type m(mat.derived());
 
   // Skew-symmetric part gives sin(angle) * axis.
   const Scalar sx = m.coeff(2, 1) - m.coeff(1, 2);
