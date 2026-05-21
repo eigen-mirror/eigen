@@ -11,6 +11,11 @@
 #ifndef EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
 #define EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
 
+// Enable runtime malloc tracking so test_inplace_complex<>() can assert the
+// in-place scratch comes from the stack.  Allocation defaults to allowed; the
+// tracking only fires inside explicit set_is_malloc_allowed(false) windows.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 #include <unsupported/Eigen/FFT>
 
@@ -232,6 +237,37 @@ void test_complex2d() {
   VERIFY((dst - dst2).norm() < test_precision<T>());
 }
 
+// Regression for issue #868: fft.fwd(buf, buf) / fft.inv(buf, buf) with the
+// same buffer as input and output must produce the out-of-place result.
+// Also pins down that the in-place scratch comes from the stack for typical
+// sizes so EIGEN_RUNTIME_NO_MALLOC users aren't forced to heap-allocate.
+template <typename T>
+void test_inplace_complex(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+
+  ComplexVector in(nfft);
+  for (int k = 0; k < nfft; ++k)
+    in[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
+
+  FFT<T> fft;
+  ComplexVector out_ref;
+  fft.fwd(out_ref, in);
+  ComplexVector inv_ref;
+  fft.inv(inv_ref, out_ref);
+
+  ComplexVector inout_fwd = in;
+  ComplexVector inout_inv = out_ref;
+
+  Eigen::internal::set_is_malloc_allowed(false);
+  fft.fwd(inout_fwd, inout_fwd);
+  fft.inv(inout_inv, inout_inv);
+  Eigen::internal::set_is_malloc_allowed(true);
+
+  VERIFY((out_ref - inout_fwd).cwiseAbs().maxCoeff() < test_precision<T>());
+  VERIFY((inv_ref - inout_inv).cwiseAbs().maxCoeff() < test_precision<T>());
+}
+
 inline void test_return_by_value(int len) {
   VectorXf in;
   VectorXf in1;
@@ -300,6 +336,10 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_reuse_real_and_complex<double>(32));
   CALL_SUBTEST(test_reuse_real_and_complex<float>(256));
   CALL_SUBTEST(test_reuse_real_and_complex<double>(256));
+  CALL_SUBTEST(test_inplace_complex<float>(32));
+  CALL_SUBTEST(test_inplace_complex<double>(32));
+  CALL_SUBTEST(test_inplace_complex<float>(256));
+  CALL_SUBTEST(test_inplace_complex<double>(256));
   CALL_SUBTEST(test_complex<float>(32));
   CALL_SUBTEST(test_complex<double>(32));
   CALL_SUBTEST(test_complex<float>(256));
