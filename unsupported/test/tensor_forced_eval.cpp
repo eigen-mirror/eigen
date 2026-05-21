@@ -8,10 +8,14 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+
 #include "main.h"
 
 #include <Eigen/Core>
 #include <Eigen/Tensor>
+
+#include "AnnoyingScalar.h"
 
 using Eigen::MatrixXf;
 using Eigen::Tensor;
@@ -70,7 +74,21 @@ static void test_const() {
   }
 }
 
+// Bug #1530: forced-eval of a non-POD tensor leaked elements because
+// TensorForcedEvalOp::cleanup() never called destructors on the placement-new'd
+// buffer.
+static void test_non_pod_no_leak() {
+  AnnoyingScalar::instances = 0;
+  {
+    Tensor<AnnoyingScalar, 1> a(8);
+    Tensor<AnnoyingScalar, 1> b(8);
+    b = a.eval();  // forces TensorForcedEvalOp
+  }
+  VERIFY_IS_EQUAL(AnnoyingScalar::instances, 0);
+}
+
 EIGEN_DECLARE_TEST(tensor_forced_eval) {
   CALL_SUBTEST(test_simple());
   CALL_SUBTEST(test_const());
+  CALL_SUBTEST(test_non_pod_no_leak());
 }
