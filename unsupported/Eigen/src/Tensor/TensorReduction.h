@@ -660,6 +660,14 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
                           : (static_cast<int>(Layout) == static_cast<int>(ColMajor))
                               ? m_preservedStrides[0]
                               : m_preservedStrides[static_cast<size_t>(NumOutputDims - 1)];
+
+    // Runtime mirror of the static `ReducingInnerMostDims` predicate, set when
+    // the reduce dims aren't statically known (e.g. a plain std::array).
+    m_reducingInnerMostDims = (NumReducedDims > 0);
+    for (int i = 0; i < NumReducedDims && m_reducingInnerMostDims; ++i) {
+      const int axis = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? i : NumInputDims - 1 - i;
+      if (!m_reduced[axis]) m_reducingInnerMostDims = false;
+    }
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
@@ -806,6 +814,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
                                              ? m_preservedStrides[0]
                                              : m_preservedStrides[NumPreservedStrides - 1];
       return internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstInput(index), num_values_to_reduce, reducer);
+    } else if (m_reducingInnerMostDims) {
+      return internal::InnerMostDimReducer<Self, Op>::reduce(*this, index * m_numValuesToReduce, m_numValuesToReduce,
+                                                             reducer);
     } else {
       typename Self::CoeffReturnType accum = reducer.initialize();
       internal::GenericDimReducer<NumReducedDims - 1, Self, Op>::reduce(*this, firstInput(index), reducer, &accum);
@@ -846,6 +857,15 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
         for (int i = 0; i < PacketSize; ++i) {
           values[i] = coeff(index + i);
         }
+      }
+    } else if (m_reducingInnerMostDims) {
+      // Mirror the static `ReducingInnerMostDims` packet path so we don't fall
+      // back to PS coeff() calls that route through the scalar GenericDimReducer.
+      const Index firstIndex = index * m_numValuesToReduce;
+      for (Index i = 0; i < PacketSize; ++i) {
+        Op reducer(m_reducer);
+        values[i] = internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstIndex + i * m_numValuesToReduce,
+                                                                    m_numValuesToReduce, reducer);
       }
     } else {
       for (int i = 0; i < PacketSize; ++i) {
@@ -973,6 +993,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   array<Index, (std::max)(NumOutputDims, 1)> m_output_to_input_dim_map;
   // How many values go into each reduction
   Index m_numValuesToReduce;
+
+  // Runtime mirror of `ReducingInnerMostDims` (set when Dims is non-static).
+  bool m_reducingInnerMostDims;
 
   // Subset of strides of the input tensor for the reduced dimensions.
   // Indexed by reduced dimensions.
