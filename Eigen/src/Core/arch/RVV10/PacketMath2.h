@@ -1255,11 +1255,13 @@ EIGEN_STRONG_INLINE double predux_max<Packet2Xd>(const Packet2Xd& a) {
       -(std::numeric_limits<double>::max)());
 }
 
+#if __riscv_v_min_vlen >= 256
 template <>
 EIGEN_STRONG_INLINE Packet1Xd predux_half(const Packet2Xd& a) {
   return Packet1Xd(__riscv_vfadd_vv_f64m1(__riscv_vget_v_f64m2_f64m1(a, 0), __riscv_vget_v_f64m2_f64m1(a, 1),
                                           unpacket_traits<Packet1Xd>::size));
 }
+#endif
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2Xd, N>& kernel) {
