@@ -400,6 +400,15 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
+    // The forwarded destination buffer is sized for TargetType (the assign
+    // LHS); the child block evaluator below us writes SrcType. When the cast
+    // is non-degenerate the buffer would be misinterpreted by any
+    // block-materializing child's prepareStorage (assert in debug, corruption
+    // in release). Drop the buffer; the child falls back to scratch and
+    // writeBlock still lands the cast values in the LHS.
+    if (!IsSameType) {
+      desc.DropDestinationBuffer();
+    }
     return TensorBlock(m_impl.block(desc, scratch), TensorConversionOpBlockFactory());
   }
 

@@ -10,6 +10,8 @@
 
 #include "main.h"
 
+#include <complex>
+
 #include <Eigen/Tensor>
 
 using Eigen::Tensor;
@@ -146,6 +148,59 @@ static void test_concatenation_as_lvalue() {
   }
 }
 
+// Regression tests: when a scalar-changing consumer (TensorCwiseUnaryOp,
+// TensorConversionOp) sits above concat in an assign, the assign forwards a
+// destination buffer sized for its *output* scalar (e.g. float in
+// `abs(complex)`, double in `int.cast<double>()`). Before the producer-side
+// fix in TensorCwiseUnaryOp::block / TensorConversionOp::block, concat's
+// prepareStorage would reuse that buffer as its own (different) scalar,
+// asserting in debug and corrupting output in release. These cases exercise
+// the block path with the consumer dropping the buffer.
+
+template <int DataLayout>
+static void test_complex_concatenation_through_abs() {
+  Tensor<std::complex<float>, 2, DataLayout> a(2, 3);
+  Tensor<std::complex<float>, 2, DataLayout> b(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      a(i, j) = std::complex<float>(static_cast<float>(i + 1), static_cast<float>(j + 1));
+      b(i, j) = std::complex<float>(static_cast<float>(i + 5), static_cast<float>(j + 2));
+    }
+  }
+
+  Tensor<float, 2, DataLayout> out(4, 3);
+  out = a.concatenate(b, 0).abs();
+
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      VERIFY_IS_APPROX(out(i, j), std::abs(a(i, j)));
+      VERIFY_IS_APPROX(out(i + 2, j), std::abs(b(i, j)));
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_concatenation_through_cast() {
+  Tensor<int, 2, DataLayout> a(2, 3);
+  Tensor<int, 2, DataLayout> b(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      a(i, j) = i + 1 + 10 * j;
+      b(i, j) = i + 5 + 10 * j;
+    }
+  }
+
+  Tensor<double, 2, DataLayout> out(4, 3);
+  out = a.concatenate(b, 0).template cast<double>();
+
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      VERIFY_IS_APPROX(out(i, j), static_cast<double>(a(i, j)));
+      VERIFY_IS_APPROX(out(i + 2, j), static_cast<double>(b(i, j)));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_dimension_failures<ColMajor>());
   CALL_SUBTEST(test_dimension_failures<RowMajor>());
@@ -156,4 +211,8 @@ EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<ColMajor>());
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<RowMajor>());
   CALL_SUBTEST(test_concatenation_as_lvalue());
+  CALL_SUBTEST(test_complex_concatenation_through_abs<ColMajor>());
+  CALL_SUBTEST(test_complex_concatenation_through_abs<RowMajor>());
+  CALL_SUBTEST(test_concatenation_through_cast<ColMajor>());
+  CALL_SUBTEST(test_concatenation_through_cast<RowMajor>());
 }

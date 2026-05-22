@@ -83,9 +83,35 @@ static void test_padded_expr() {
   }
 }
 
+// Regression: a scalar-changing consumer (here `.cast<double>()`) sits above
+// pad in the assign. Before TensorConversionOp::block dropped the forwarded
+// destination on a non-degenerate cast, pad's prepareStorage would reuse a
+// double-sized buffer as int storage (assert in debug, corruption in
+// release). Mirrors test_concatenation_through_cast.
+template <int DataLayout>
+static void test_padding_through_cast() {
+  Tensor<int, 2, DataLayout> src(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) src(i, j) = i + 1 + 10 * j;
+  }
+  array<std::pair<ptrdiff_t, ptrdiff_t>, 2> paddings;
+  paddings[0] = std::make_pair(1, 1);
+  paddings[1] = std::make_pair(0, 0);
+  Tensor<double, 2, DataLayout> out(4, 3);
+  out = src.pad(paddings).template cast<double>();
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 4; ++i) {
+      const double expected = (i >= 1 && i < 3) ? static_cast<double>(src(i - 1, j)) : 0.0;
+      VERIFY_IS_APPROX(out(i, j), expected);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_padding) {
   CALL_SUBTEST(test_simple_padding<ColMajor>());
   CALL_SUBTEST(test_simple_padding<RowMajor>());
   CALL_SUBTEST(test_padded_expr<ColMajor>());
   CALL_SUBTEST(test_padded_expr<RowMajor>());
+  CALL_SUBTEST(test_padding_through_cast<ColMajor>());
+  CALL_SUBTEST(test_padding_through_cast<RowMajor>());
 }

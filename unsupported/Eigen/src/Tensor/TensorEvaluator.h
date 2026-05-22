@@ -452,6 +452,17 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
+    // The forwarded destination buffer is sized for *our* output Scalar (the
+    // assign LHS), but the child block evaluator below us writes ArgScalar.
+    // For functors that change the scalar type (abs(complex)->real,
+    // isnan/isfinite->bool, ...) the buffer would be misinterpreted by any
+    // block-materializing child's prepareStorage (assert in debug, corruption
+    // in release). Drop the buffer in that case; the child falls back to
+    // scratch and writeBlock still lands the converted values in the LHS.
+    if (!std::is_same<std::remove_const_t<Scalar>,
+                      std::remove_const_t<typename TensorEvaluator<ArgType, Device>::Scalar>>::value) {
+      desc.DropDestinationBuffer();
+    }
     return TensorBlock(m_argImpl.block(desc, scratch), m_functor);
   }
 

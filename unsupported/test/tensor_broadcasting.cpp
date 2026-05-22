@@ -291,6 +291,27 @@ static void test_simple_broadcasting_one_by_n_by_one_2d() {
   }
 }
 
+// Regression: a scalar-changing consumer (here `.cast<double>()`) sits above
+// broadcast in the assign. Before TensorConversionOp::block dropped the
+// forwarded destination on a non-degenerate cast, broadcast's prepareStorage
+// would reuse a double-sized buffer as int storage (assert in debug,
+// corruption in release). Mirrors test_concatenation_through_cast.
+template <int DataLayout>
+static void test_broadcasting_through_cast() {
+  Tensor<int, 2, DataLayout> src(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) src(i, j) = i + 1 + 10 * j;
+  }
+  array<int, 2> bcast{2, 1};
+  Tensor<double, 2, DataLayout> out(4, 3);
+  out = src.broadcast(bcast).template cast<double>();
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 4; ++i) {
+      VERIFY_IS_APPROX(out(i, j), static_cast<double>(src(i % 2, j)));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_broadcasting) {
   CALL_SUBTEST(test_simple_broadcasting<ColMajor>());
   CALL_SUBTEST(test_simple_broadcasting<RowMajor>());
@@ -310,4 +331,6 @@ EIGEN_DECLARE_TEST(tensor_broadcasting) {
   CALL_SUBTEST(test_simple_broadcasting_one_by_n_by_one_2d<RowMajor>());
   CALL_SUBTEST(test_size_one_broadcasting<ColMajor>());
   CALL_SUBTEST(test_size_one_broadcasting<RowMajor>());
+  CALL_SUBTEST(test_broadcasting_through_cast<ColMajor>());
+  CALL_SUBTEST(test_broadcasting_through_cast<RowMajor>());
 }

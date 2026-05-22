@@ -501,6 +501,32 @@ static void test_eval_tensor_chipping() {
                                                [&chipped_dims]() { return RandomBlock<Layout>(chipped_dims, 1, 10); });
 }
 
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_concatenation() {
+  DSizes<Index, NumDims> lhs_dims = RandomDims<NumDims>(5, 12);
+  DSizes<Index, NumDims> rhs_dims = lhs_dims;
+
+  const Index axis = internal::random<int>(0, NumDims - 1);
+  rhs_dims[axis] = internal::random<Index>(1, 10);
+
+  Tensor<T, NumDims, Layout> lhs(lhs_dims);
+  Tensor<T, NumDims, Layout> rhs(rhs_dims);
+  lhs.setRandom();
+  rhs.setRandom();
+
+  DSizes<Index, NumDims> out_dims = lhs_dims;
+  out_dims[axis] = lhs_dims[axis] + rhs_dims[axis];
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(lhs.concatenate(rhs, axis),
+                                           [&out_dims]() { return FixedSizeBlock(out_dims); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(lhs.concatenate(rhs, axis),
+                                           [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 5); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(lhs.concatenate(rhs, axis),
+                                           [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
+}
+
 template <typename T, int NumDims>
 struct SimpleTensorGenerator {
   T operator()(const array<Index, NumDims>& coords) const {
@@ -958,6 +984,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_chipping);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_concatenation);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_generator);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_reverse);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(5, test_eval_tensor_slice);
