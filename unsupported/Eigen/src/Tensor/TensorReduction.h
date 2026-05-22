@@ -607,13 +607,14 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
     // Precompute output strides.
     if (NumOutputDims > 0) {
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
           m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
           m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
         }
-      } else {
+      }
+      else {
         m_outputStrides[static_cast<size_t>(NumOutputDims - 1)] = 1;
         for (int i = NumOutputDims - 2; i >= 0; --i) {
           m_outputStrides[i] = m_outputStrides[i + 1] * m_dimensions[i + 1];
@@ -625,12 +626,13 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     // Precompute input strides.
     if (NumInputDims > 0) {
       array<Index, NumInputDims> input_strides;
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         input_strides[0] = 1;
         for (int i = 1; i < NumInputDims; ++i) {
           input_strides[i] = input_strides[i - 1] * input_dims[i - 1];
         }
-      } else {
+      }
+      else {
         input_strides.back() = 1;
         for (int i = NumInputDims - 2; i >= 0; --i) {
           input_strides[i] = input_strides[i + 1] * input_dims[i + 1];
@@ -693,9 +695,10 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     else if ((RunningOnGPU && (m_device.majorDeviceVersion() >= 3)) || (RunningOnSycl)) {
       bool reducing_inner_dims = true;
       for (int i = 0; i < NumReducedDims; ++i) {
-        if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
           reducing_inner_dims &= m_reduced[i];
-        } else {
+        }
+        else {
           reducing_inner_dims &= m_reduced[NumInputDims - 1 - i];
         }
       }
@@ -730,9 +733,10 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
       bool preserving_inner_dims = true;
       for (int i = 0; i < NumReducedDims; ++i) {
-        if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+        EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
           preserving_inner_dims &= m_reduced[NumInputDims - 1 - i];
-        } else {
+        }
+        else {
           preserving_inner_dims &= m_reduced[i];
         }
       }
@@ -846,7 +850,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       }
     } else if (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
-      const int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
+      constexpr int innermost_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumOutputDims - 1;
       // TBD: extend this to the n innermost dimensions that we preserve.
       if (((firstIndex % m_dimensions[innermost_dim]) + PacketSize - 1) < m_dimensions[innermost_dim]) {
         Op reducer(m_reducer);
@@ -942,15 +946,16 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   // used to compute the reduction at output index "index".
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
     if (ReducingInnerMostDims) {
-      if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         return index * m_preservedStrides[0];
-      } else {
+      }
+      else {
         return index * m_preservedStrides[NumPreservedStrides - 1];
       }
     }
     // TBD: optimize the case where we preserve the innermost dimensions.
     Index startInput = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumOutputDims - 1; i > 0; --i) {
         // This is index_i in the output tensor.
         const Index idx = index / m_outputStrides[i];
@@ -963,7 +968,8 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       } else {
         startInput += index * m_preservedStrides[0];
       }
-    } else {
+    }
+    else {
       for (int i = 0; i < NumOutputDims - 1; ++i) {
         // This is index_i in the output tensor.
         const Index idx = index / m_outputStrides[i];

@@ -145,14 +145,15 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
       }
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_inputStrides[0] = 1;
       m_outputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
         m_inputStrides[i] = m_inputStrides[i - 1] * input_dims[i - 1];
         m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
       }
-    } else {
+    }
+    else {
       m_inputStrides[NumDims - 1] = 1;
       m_outputStrides[NumDims - 1] = 1;
       for (int i = NumDims - 2; i >= 0; --i) {
@@ -217,13 +218,14 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
       return m_impl.coeff(0);
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       if (isCopy) {
         return m_impl.coeff(index);
       } else {
         return coeffColMajor(index);
       }
-    } else {
+    }
+    else {
       if (isCopy) {
         return m_impl.coeff(index);
       } else {
@@ -312,7 +314,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
       return internal::pset1<PacketReturnType>(m_impl.coeff(0));
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       if (isCopy) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
         // See PR 437: on NVIDIA P100 and K20m we observed a x3-4 speed up by enforcing
@@ -330,7 +332,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
       } else {
         return packetColMajor<LoadMode>(index);
       }
-    } else {
+    }
+    else {
       if (isCopy) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
         // See above.
@@ -358,10 +361,11 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     Index startDim, endDim;
     Index inputIndex, outputOffset, batchedIndex;
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       startDim = NumDims - 1;
       endDim = 1;
-    } else {
+    }
+    else {
       startDim = 0;
       endDim = NumDims - 2;
     }

@@ -83,11 +83,11 @@ cholmod_sparse viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, StorageIndex_> 
   res.dtype = 0;
   res.stype = -1;
 
-  if (std::is_same<StorageIndex_, int>::value) {
-    res.itype = CHOLMOD_INT;
-  } else if (std::is_same<StorageIndex_, SuiteSparse_long>::value) {
+  EIGEN_IF_CONSTEXPR((std::is_same<StorageIndex_, int>::value)) { res.itype = CHOLMOD_INT; }
+  else EIGEN_IF_CONSTEXPR((std::is_same<StorageIndex_, SuiteSparse_long>::value)) {
     res.itype = CHOLMOD_LONG;
-  } else {
+  }
+  else {
     eigen_assert(false && "Index type not supported yet");
   }
 

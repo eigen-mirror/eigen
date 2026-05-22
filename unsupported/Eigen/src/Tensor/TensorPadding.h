@@ -121,7 +121,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
       m_dimensions[i] += m_padding[i].first + m_padding[i].second;
     }
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_inputStrides[0] = 1;
       m_outputStrides[0] = 1;
       for (int i = 1; i < NumDims; ++i) {
@@ -129,7 +129,8 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
         m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
       }
       m_outputStrides[NumDims] = m_outputStrides[NumDims - 1] * m_dimensions[NumDims - 1];
-    } else {
+    }
+    else {
       m_inputStrides[NumDims - 1] = 1;
       m_outputStrides[NumDims] = 1;
       for (int i = NumDims - 2; i >= 0; --i) {
@@ -159,7 +160,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     eigen_assert(index < dimensions().TotalSize());
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_outputStrides[i];
@@ -173,7 +174,8 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
         return m_paddingValue;
       }
       inputIndex += (index - m_padding[0].first);
-    } else {
+    }
+    else {
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < NumDims - 1; ++i) {
         const Index idx = index / m_outputStrides[i + 1];
@@ -193,18 +195,17 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      return packetColMajor(index);
-    }
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) { return packetColMajor(index); }
     return packetRowMajor(index);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     TensorOpCost cost = m_impl.costPerCoeff(vectorized);
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < NumDims; ++i) updateCostPerDimension(cost, i, i == 0);
-    } else {
+    }
+    else {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 1; i >= 0; --i) updateCostPerDimension(cost, i, i == NumDims - 1);
     }
@@ -225,7 +226,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     }
 
     static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
-    const int inner_dim_idx = IsColMajor ? 0 : NumDims - 1;
+    constexpr int inner_dim_idx = IsColMajor ? 0 : NumDims - 1;
 
     Index offset = desc.offset();
 
@@ -342,7 +343,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
                                 // and equal to the block inner dimension
                                 (input_inner_dim_size == output_inner_dim_size);
 
-    const int squeeze_dim = IsColMajor ? inner_dim_idx + 1 : inner_dim_idx - 1;
+    constexpr int squeeze_dim = IsColMajor ? inner_dim_idx + 1 : inner_dim_idx - 1;
 
     // Maximum coordinate on a squeeze dimension that we can write to.
     const Index squeeze_max_coord =

@@ -374,9 +374,10 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
     // If we are not going to do the cast, we just need to check that base
     // TensorEvaluator has packet access. Otherwise we also need to make sure,
     // that we have an implementation of vectorized cast.
-    const bool Vectorizable = IsSameType ? TensorEvaluator<ArgType, Device>::PacketAccess
-                                         : int(TensorEvaluator<ArgType, Device>::PacketAccess) &
-                                               int(internal::type_casting_traits<SrcType, TargetType>::VectorizedCast);
+    constexpr bool Vectorizable = IsSameType
+                                      ? TensorEvaluator<ArgType, Device>::PacketAccess
+                                      : int(TensorEvaluator<ArgType, Device>::PacketAccess) &
+                                            int(internal::type_casting_traits<SrcType, TargetType>::VectorizedCast);
 
     return internal::PacketConv<PacketSourceType, PacketReturnType, LoadMode, Vectorizable, IsSameType>::run(m_impl,
                                                                                                              index);

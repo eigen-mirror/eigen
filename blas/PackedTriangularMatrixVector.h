@@ -38,9 +38,7 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
       if (!(HasUnitDiag || HasZeroDiag) || (--r > 0)) {
         ResMap(res + (IsLower ? s + i : 0), r) += alpha * cj(rhs[i]) * ConjLhsType(LhsMap(lhs + s, r));
       }
-      if (HasUnitDiag) {
-        res[i] += alpha * cj(rhs[i]);
-      }
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) { res[i] += alpha * cj(rhs[i]); }
       lhs += IsLower ? size - i : i + 1;
     }
   };
@@ -69,9 +67,7 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
             alpha *
             (ConjLhsType(LhsMap(lhs + s, r)).cwiseProduct(ConjRhsType(RhsMap(rhs + (IsLower ? 0 : s + i), r)))).sum();
       }
-      if (HasUnitDiag) {
-        res[i] += alpha * cj(rhs[i]);
-      }
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) { res[i] += alpha * cj(rhs[i]); }
       lhs += IsLower ? i + 1 : size - i;
     }
   };

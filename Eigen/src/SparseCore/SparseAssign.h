@@ -144,8 +144,9 @@ struct Assignment<DstXprType, SrcXprType, Functor, Sparse2Sparse> {
 template <typename DstXprType, typename SrcXprType, typename Functor, typename Weak>
 struct Assignment<DstXprType, SrcXprType, Functor, Sparse2Dense, Weak> {
   static void run(DstXprType &dst, const SrcXprType &src, const Functor &func) {
-    if (std::is_same<Functor, internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>>::value)
-      dst.setZero();
+    EIGEN_IF_CONSTEXPR(
+        (std::is_same<Functor, internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>>::value))
+    dst.setZero();
 
     internal::evaluator<SrcXprType> srcEval(src);
     resize_if_allowed(dst, src, func);

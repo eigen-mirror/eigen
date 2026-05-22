@@ -219,12 +219,14 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
     const Index n = m_matrix.rows();
     for (Index col = 0; col < n; ++col) {
       RealScalar_ abs_col_sum;
-      if (UpLo == Lower)
+      EIGEN_IF_CONSTEXPR(UpLo == Lower) {
         abs_col_sum =
             m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
-      else
+      }
+      else {
         abs_col_sum =
             m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
+      }
       if (abs_col_sum > norm) norm = abs_col_sum;
     }
     return norm;

@@ -44,8 +44,8 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
           if (lastIndex == i) break;
           tmp = numext::madd<Scalar>(-lastVal, other.coeff(lastIndex, col), tmp);
         }
-        if (Mode & UnitDiag)
-          other.coeffRef(i, col) = tmp;
+        EIGEN_IF_CONSTEXPR(Mode & UnitDiag)
+        other.coeffRef(i, col) = tmp;
         else {
           eigen_assert(lastIndex == i);
           other.coeffRef(i, col) = tmp / lastVal;
@@ -69,20 +69,19 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
         Scalar l_ii(0);
         LhsIterator it(lhsEval, i);
         while (it && it.index() < i) ++it;
-        if (!(Mode & UnitDiag)) {
+        EIGEN_IF_CONSTEXPR(!(Mode & UnitDiag)) {
           eigen_assert(it && it.index() == i);
           l_ii = it.value();
           ++it;
-        } else if (it && it.index() == i)
-          ++it;
+        }
+        else if (it && it.index() == i)++ it;
         for (; it; ++it) {
           tmp = numext::madd<Scalar>(-it.value(), other.coeff(it.index(), col), tmp);
         }
 
-        if (Mode & UnitDiag)
-          other.coeffRef(i, col) = tmp;
-        else
-          other.coeffRef(i, col) = tmp / l_ii;
+        EIGEN_IF_CONSTEXPR(Mode & UnitDiag)
+        other.coeffRef(i, col) = tmp;
+        else other.coeffRef(i, col) = tmp / l_ii;
       }
     }
   }
@@ -103,7 +102,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
         {
           LhsIterator it(lhsEval, i);
           while (it && it.index() < i) ++it;
-          if (!(Mode & UnitDiag)) {
+          EIGEN_IF_CONSTEXPR(!(Mode & UnitDiag)) {
             eigen_assert(it && it.index() == i);
             tmp /= it.value();
           }
@@ -130,7 +129,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
         Scalar& tmp = other.coeffRef(i, col);
         if (!numext::is_exactly_zero(tmp))  // optimization when other is actually sparse
         {
-          if (!(Mode & UnitDiag)) {
+          EIGEN_IF_CONSTEXPR(!(Mode & UnitDiag)) {
             // TODO: replace this with a binary search. make sure the binary search is safe for partially sorted
             // elements
             LhsIterator it(lhsEval, i);
@@ -211,20 +210,21 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
         if (!numext::is_exactly_zero(ci)) {
           // find
           typename Lhs::InnerIterator it(lhs, i);
-          if (!(Mode & UnitDiag)) {
-            if (IsLower) {
+          EIGEN_IF_CONSTEXPR(!(Mode & UnitDiag)) {
+            EIGEN_IF_CONSTEXPR(IsLower) {
               eigen_assert(it.index() == i);
               ci /= it.value();
-            } else
-              ci /= lhs.coeff(i, i);
+            }
+            else ci /= lhs.coeff(i, i);
           }
           tempVector.restart();
-          if (IsLower) {
+          EIGEN_IF_CONSTEXPR(IsLower) {
             if (it.index() == i) ++it;
             for (; it; ++it) {
               tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
             }
-          } else {
+          }
+          else {
             for (; it && it.index() < i; ++it) {
               tempVector.coeffRef(it.index()) = numext::madd<Scalar>(-ci, it.value(), tempVector.coeffRef(it.index()));
             }

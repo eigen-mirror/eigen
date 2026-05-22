@@ -120,7 +120,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
       }
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_unshuffledInputStrides[0] = 1;
       m_outputStrides[0] = 1;
 
@@ -130,7 +130,8 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
         m_fastOutputStrides[i] =
             internal::TensorIntDivisor<Index>(m_outputStrides[i] > 0 ? m_outputStrides[i] : Index(1));
       }
-    } else {
+    }
+    else {
       m_unshuffledInputStrides[NumDims - 1] = 1;
       m_outputStrides[NumDims - 1] = 1;
       for (int i = NumDims - 2; i >= 0; --i) {
@@ -264,14 +265,15 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
                       const DSizes<Index, NumDims>& output_block_strides,
                       const DSizes<internal::TensorIntDivisor<Index>, NumDims>& fast_input_block_strides) const {
     Index output_index = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = input_index / fast_input_block_strides[i];
         output_index += idx * output_block_strides[m_inverseShuffle[i]];
         input_index -= idx * input_block_strides[i];
       }
       return output_index + input_index * output_block_strides[m_inverseShuffle[0]];
-    } else {
+    }
+    else {
       for (int i = 0; i < NumDims - 1; ++i) {
         const Index idx = input_index / fast_input_block_strides[i];
         output_index += idx * output_block_strides[m_inverseShuffle[i]];
@@ -283,14 +285,15 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {
     Index inputIndex = 0;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fastOutputStrides[i];
         inputIndex += idx * m_inputStrides[i];
         index -= idx * m_outputStrides[i];
       }
       return inputIndex + index * m_inputStrides[0];
-    } else {
+    }
+    else {
       for (int i = 0; i < NumDims - 1; ++i) {
         const Index idx = index / m_fastOutputStrides[i];
         inputIndex += idx * m_inputStrides[i];

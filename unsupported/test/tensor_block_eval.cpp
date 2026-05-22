@@ -86,14 +86,15 @@ static TensorBlockParams<NumDims> SkewedInnerBlock(DSizes<Index, NumDims> dims) 
 
   // Compute offsets for the first block coefficient.
   Index index = block.offset();
-  if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+  EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     for (int i = NumDims - 1; i > 0; --i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];
       offsets[i] = idx;
     }
     if (NumDims > 0) offsets[0] = index;
-  } else {
+  }
+  else {
     for (int i = 0; i < NumDims - 1; ++i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];
@@ -287,7 +288,7 @@ static void test_eval_tensor_scan() {
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
-  const Index axis = NumDims == 1 ? 0 : NumDims / 2;
+  constexpr Index axis = NumDims == 1 ? 0 : NumDims / 2;
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.cumsum(axis), [&dims]() { return RandomBlock<Layout>(dims, 1, 5); });
 
@@ -351,7 +352,7 @@ static void test_eval_composed_block_ops() {
     padded_dims[i] = dims[i] + 3;
   }
 
-  const Index axis = NumDims == 1 ? 0 : NumDims / 2;
+  constexpr Index axis = NumDims == 1 ? 0 : NumDims / 2;
 
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
@@ -434,7 +435,7 @@ static void test_eval_tensor_select() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_padding() {
-  const int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
+  constexpr int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
 
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);

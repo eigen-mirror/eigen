@@ -375,7 +375,12 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
     } else {
       Index p = Lp[k] + nonZerosPerCol[k]++;
       Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
-      if (NonHermitian ? d == RealScalar(0) : numext::real(d) <= RealScalar(0)) {
+      bool failed;
+      EIGEN_IF_CONSTEXPR(NonHermitian) { failed = d == RealScalar(0); }
+      else {
+        failed = numext::real(d) <= RealScalar(0);
+      }
+      if (failed) {
         ok = false; /* failure, matrix is not positive definite */
         break;
       }

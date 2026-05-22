@@ -130,7 +130,7 @@ template <typename MatrixType>
 void zero_sized_objects(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   const int PacketSize = internal::packet_traits<Scalar>::size;
-  const int PacketSize1 = PacketSize > 1 ? PacketSize - 1 : 1;
+  constexpr int PacketSize1 = PacketSize > 1 ? PacketSize - 1 : 1;
   Index rows = m.rows();
   Index cols = m.cols();
 

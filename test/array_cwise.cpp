@@ -1293,8 +1293,8 @@ struct cast_test_impl {
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
   static void run() {
-    const Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
-    const Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
+    constexpr Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
+    constexpr Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
     const Index testSize = testRows * testCols;
     const Index minTestSize = 100;
     const Index repeats = numext::div_ceil(minTestSize, testSize);

@@ -203,12 +203,12 @@ void plaintype_tests() {
   constexpr int ColsAtCompileTime = PlainType::ColsAtCompileTime;
   constexpr int MaxRowsAtCompileTime = PlainType::MaxRowsAtCompileTime;
   constexpr int MaxColsAtCompileTime = PlainType::MaxColsAtCompileTime;
-  const Index expectedDefaultRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
-  const Index expectedDefaultCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
-  const Index minRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
-  const Index minCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
-  const Index maxRows = MaxRowsAtCompileTime == Dynamic ? 100 : MaxRowsAtCompileTime;
-  const Index maxCols = MaxColsAtCompileTime == Dynamic ? 100 : MaxColsAtCompileTime;
+  constexpr Index expectedDefaultRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
+  constexpr Index expectedDefaultCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
+  constexpr Index minRows = RowsAtCompileTime == Dynamic ? 0 : RowsAtCompileTime;
+  constexpr Index minCols = ColsAtCompileTime == Dynamic ? 0 : ColsAtCompileTime;
+  constexpr Index maxRows = MaxRowsAtCompileTime == Dynamic ? 100 : MaxRowsAtCompileTime;
+  constexpr Index maxCols = MaxColsAtCompileTime == Dynamic ? 100 : MaxColsAtCompileTime;
   const Index rows = internal::random<Index>(minRows, maxRows);
   const Index cols = internal::random<Index>(minCols, maxCols);
   // default construction

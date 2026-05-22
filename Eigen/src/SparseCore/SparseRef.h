@@ -90,16 +90,18 @@ class SparseRefBase : public SparseMapBase<Derived> {
  protected:
   template <typename Expression>
   void construct(Expression& expr) {
-    if (Expression::IsVectorAtCompileTime) {
+    EIGEN_IF_CONSTEXPR(Expression::IsVectorAtCompileTime) {
       const Index offset = expr.outerIndexPtr() ? expr.outerIndexPtr()[0] : 0;
       auto inner_index_ptr = expr.innerIndexPtr();
       auto value_ptr = expr.valuePtr();
       if (inner_index_ptr) inner_index_ptr += offset;
       if (value_ptr) value_ptr += offset;
       internal::construct_at<Base>(this, expr.size(), expr.nonZeros(), inner_index_ptr, value_ptr);
-    } else if (expr.outerIndexPtr() == 0) {
+    }
+    else if (expr.outerIndexPtr() == 0) {
       internal::construct_at<Base>(this, expr.size(), expr.nonZeros(), expr.innerIndexPtr(), expr.valuePtr());
-    } else {
+    }
+    else {
       internal::construct_at<Base>(this, expr.rows(), expr.cols(), expr.nonZeros(), expr.outerIndexPtr(),
                                    expr.innerIndexPtr(), expr.valuePtr(), expr.innerNonZeroPtr());
     }

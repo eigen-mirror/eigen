@@ -198,33 +198,35 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const auto* innerNnz = mat.innerNonZeroPtr();
     // The fast result pointer path requires contiguous ColMajor result layout.
     // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
-    if (!(Res::Flags & RowMajorBit) && res.innerStride() == 1) {
-      for (Index c = 0; c < rhs.cols(); ++c) {
-        typename Res::Scalar* y = res.data() + c * res.outerStride();
-        for (Index j = 0; j < lhs.outerSize(); ++j) {
-          typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-          const Index start = outer ? outer[j] : 0;
-          const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
-          Index k = start;
-          // 4-way unrolled scatter-add (no SIMD: writes are scattered)
-          for (; k + 3 < end; k += 4) {
-            y[inds[k]] += vals[k] * rhs_j;
-            y[inds[k + 1]] += vals[k + 1] * rhs_j;
-            y[inds[k + 2]] += vals[k + 2] * rhs_j;
-            y[inds[k + 3]] += vals[k + 3] * rhs_j;
+    EIGEN_IF_CONSTEXPR(!(Res::Flags & RowMajorBit)) {
+      if (res.innerStride() == 1) {
+        for (Index c = 0; c < rhs.cols(); ++c) {
+          typename Res::Scalar* y = res.data() + c * res.outerStride();
+          for (Index j = 0; j < lhs.outerSize(); ++j) {
+            typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
+            const Index start = outer ? outer[j] : 0;
+            const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
+            Index k = start;
+            // 4-way unrolled scatter-add (no SIMD: writes are scattered)
+            for (; k + 3 < end; k += 4) {
+              y[inds[k]] += vals[k] * rhs_j;
+              y[inds[k + 1]] += vals[k + 1] * rhs_j;
+              y[inds[k + 2]] += vals[k + 2] * rhs_j;
+              y[inds[k + 3]] += vals[k + 3] * rhs_j;
+            }
+            for (; k < end; ++k) y[inds[k]] += vals[k] * rhs_j;
           }
-          for (; k < end; ++k) y[inds[k]] += vals[k] * rhs_j;
         }
+        return;
       }
-    } else {
-      // Non-unit result stride: use coeffRef() for result access
-      for (Index c = 0; c < rhs.cols(); ++c) {
-        for (Index j = 0; j < lhs.outerSize(); ++j) {
-          typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
-          const Index start = outer ? outer[j] : 0;
-          const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
-          for (Index k = start; k < end; ++k) res.coeffRef(inds[k], c) += vals[k] * rhs_j;
-        }
+    }
+    // Non-unit result stride: use coeffRef() for result access
+    for (Index c = 0; c < rhs.cols(); ++c) {
+      for (Index j = 0; j < lhs.outerSize(); ++j) {
+        typename ScalarBinaryOpTraits<AlphaType, typename Rhs::Scalar>::ReturnType rhs_j(alpha * rhs.coeff(j, c));
+        const Index start = outer ? outer[j] : 0;
+        const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
+        for (Index k = start; k < end; ++k) res.coeffRef(inds[k], c) += vals[k] * rhs_j;
       }
     }
   }

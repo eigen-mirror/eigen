@@ -55,7 +55,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
 
     // Process the triangular panel using raw pointer operations with 2-column batching
     // to eliminate expression template overhead and share result loads/stores.
-    if (IsLower) {
+    EIGEN_IF_CONSTEXPR(IsLower) {
       Index k = 0;
       for (; k + 1 < actualPanelWidth; k += 2) {
         Index i0 = pi + k;
@@ -66,18 +66,18 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
         const LhsScalar* EIGEN_RESTRICT c1 = lhs_ + i1 * lhsStride;
 
         // Diagonal of column 0
-        if (!(HasUnitDiag || HasZeroDiag)) res_[i0] += s0 * cjl(c0[i0]);
+        EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) res_[i0] += s0 * cjl(c0[i0]);
         // Row i1: contribution from column 0 + diagonal of column 1
         {
           ResScalar r1 = s0 * cjl(c0[i1]);
-          if (!(HasUnitDiag || HasZeroDiag)) r1 += s1 * cjl(c1[i1]);
+          EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) r1 += s1 * cjl(c1[i1]);
           res_[i1] += r1;
         }
         // Shared rows where both columns contribute
         Index panelEnd = pi + actualPanelWidth;
         for (Index j = i1 + 1; j < panelEnd; ++j) res_[j] += s0 * cjl(c0[j]) + s1 * cjl(c1[j]);
 
-        if (HasUnitDiag) {
+        EIGEN_IF_CONSTEXPR(HasUnitDiag) {
           res_[i0] += s0;
           res_[i1] += s1;
         }
@@ -86,10 +86,11 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
         Index i = pi + k;
         ResScalar s = alpha * cjr(rhs_[i * rhsIncr]);
         const LhsScalar* EIGEN_RESTRICT c = lhs_ + i * lhsStride;
-        if (!(HasUnitDiag || HasZeroDiag)) res_[i] += s * cjl(c[i]);
-        if (HasUnitDiag) res_[i] += s;
+        EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) res_[i] += s * cjl(c[i]);
+        EIGEN_IF_CONSTEXPR(HasUnitDiag) res_[i] += s;
       }
-    } else {
+    }
+    else {
       // Upper triangular: process 2 columns at a time
       Index k = 0;
       for (; k + 1 < actualPanelWidth; k += 2) {
@@ -106,13 +107,13 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
         // Row i0: diagonal of col0 + contribution from col1
         {
           ResScalar r0 = s1 * cjl(c1[i0]);
-          if (!(HasUnitDiag || HasZeroDiag)) r0 += s0 * cjl(c0[i0]);
+          EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) r0 += s0 * cjl(c0[i0]);
           res_[i0] += r0;
         }
         // Diagonal of column 1
-        if (!(HasUnitDiag || HasZeroDiag)) res_[i1] += s1 * cjl(c1[i1]);
+        EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) res_[i1] += s1 * cjl(c1[i1]);
 
-        if (HasUnitDiag) {
+        EIGEN_IF_CONSTEXPR(HasUnitDiag) {
           res_[i0] += s0;
           res_[i1] += s1;
         }
@@ -122,8 +123,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
         ResScalar s = alpha * cjr(rhs_[i * rhsIncr]);
         const LhsScalar* EIGEN_RESTRICT c = lhs_ + i * lhsStride;
         for (Index j = pi; j < i; ++j) res_[j] += s * cjl(c[j]);
-        if (!(HasUnitDiag || HasZeroDiag)) res_[i] += s * cjl(c[i]);
-        if (HasUnitDiag) res_[i] += s;
+        EIGEN_IF_CONSTEXPR(!(HasUnitDiag || HasZeroDiag)) res_[i] += s * cjl(c[i]);
+        EIGEN_IF_CONSTEXPR(HasUnitDiag) res_[i] += s;
       }
     }
 
@@ -136,10 +137,12 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
                                                   RhsMapper(&rhs_[pi * rhsIncr], rhsIncr), &res_[s], resIncr, alpha);
     }
   }
-  if ((!IsLower) && cols > size) {
-    general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjLhs, RhsScalar, RhsMapper, ConjRhs>::run(
-        rows, cols - size, LhsMapper(&lhs_[size * lhsStride], lhsStride), RhsMapper(&rhs_[size * rhsIncr], rhsIncr),
-        res_, resIncr, alpha);
+  EIGEN_IF_CONSTEXPR(!IsLower) {
+    if (cols > size) {
+      general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjLhs, RhsScalar, RhsMapper, ConjRhs>::run(
+          rows, cols - size, LhsMapper(&lhs_[size * lhsStride], lhsStride), RhsMapper(&rhs_[size * rhsIncr], rhsIncr),
+          res_, resIncr, alpha);
+    }
   }
 }
 
@@ -181,17 +184,18 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
       const LhsScalar* EIGEN_RESTRICT row_i = lhs_ + i * lhsStride;
       ResScalar dot = ResScalar(0);
 
-      if (IsLower) {
+      EIGEN_IF_CONSTEXPR(IsLower) {
         Index s = pi;
         Index len = (HasUnitDiag || HasZeroDiag) ? k : k + 1;
         for (Index j = 0; j < len; ++j) dot += cjl(row_i[s + j]) * cjr(rhs_[s + j]);
-      } else {
+      }
+      else {
         Index s = (HasUnitDiag || HasZeroDiag) ? i + 1 : i;
         Index len = pi + actualPanelWidth - s;
         for (Index j = 0; j < len; ++j) dot += cjl(row_i[s + j]) * cjr(rhs_[s + j]);
       }
       res_[i * resIncr] += alpha * dot;
-      if (HasUnitDiag) res_[i * resIncr] += alpha * cjr(rhs_[i]);
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) res_[i * resIncr] += alpha * cjr(rhs_[i]);
     }
 
     // Rectangular part: delegate to optimized GEMV
@@ -203,10 +207,12 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
                                                   RhsMapper(&rhs_[s], rhsIncr), &res_[pi * resIncr], resIncr, alpha);
     }
   }
-  if (IsLower && rows > diagSize) {
-    general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjLhs, RhsScalar, RhsMapper, ConjRhs>::run(
-        rows - diagSize, cols, LhsMapper(&lhs_[diagSize * lhsStride], lhsStride), RhsMapper(rhs_, rhsIncr),
-        &res_[diagSize * resIncr], resIncr, alpha);
+  EIGEN_IF_CONSTEXPR(IsLower) {
+    if (rows > diagSize) {
+      general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjLhs, RhsScalar, RhsMapper, ConjRhs>::run(
+          rows - diagSize, cols, LhsMapper(&lhs_[diagSize * lhsStride], lhsStride), RhsMapper(rhs_, rhsIncr),
+          &res_[diagSize * resIncr], resIncr, alpha);
+    }
   }
 }
 

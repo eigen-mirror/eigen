@@ -94,10 +94,10 @@ template <typename Iterator, bool IsColMajor>
 struct TripletComp {
   typedef typename Iterator::value_type Triplet;
   bool operator()(const Triplet& a, const Triplet& b) {
-    if (IsColMajor)
-      return ((a.col() == b.col() && a.row() < b.row()) || (a.col() < b.col()));
-    else
+    EIGEN_IF_CONSTEXPR(IsColMajor) { return ((a.col() == b.col() && a.row() < b.row()) || (a.col() < b.col())); }
+    else {
       return ((a.row() == b.row() && a.col() < b.col()) || (a.row() < b.row()));
+    }
   }
 };
 }  // end namespace internal

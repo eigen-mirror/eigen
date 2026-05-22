@@ -26,7 +26,7 @@ namespace internal {
 // updated the content of the output address it will try again.
 template <typename T, typename R>
 __device__ EIGEN_ALWAYS_INLINE void atomicReduce(T* output, T accum, R& reducer) {
-  if (sizeof(T) == 4) {
+  EIGEN_IF_CONSTEXPR(sizeof(T) == 4) {
     unsigned int oldval = *reinterpret_cast<unsigned int*>(output);
     unsigned int newval = oldval;
     reducer.reduce(accum, reinterpret_cast<T*>(&newval));
@@ -42,7 +42,8 @@ __device__ EIGEN_ALWAYS_INLINE void atomicReduce(T* output, T accum, R& reducer)
         return;
       }
     }
-  } else if (sizeof(T) == 8) {
+  }
+  else EIGEN_IF_CONSTEXPR(sizeof(T) == 8) {
     unsigned long long oldval = *reinterpret_cast<unsigned long long*>(output);
     unsigned long long newval = oldval;
     reducer.reduce(accum, reinterpret_cast<T*>(&newval));
@@ -58,7 +59,8 @@ __device__ EIGEN_ALWAYS_INLINE void atomicReduce(T* output, T accum, R& reducer)
         return;
       }
     }
-  } else {
+  }
+  else {
     gpu_assert(0 && "Wordsize not supported");
   }
 }
@@ -365,9 +367,8 @@ template <typename Op>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionCleanupKernelHalfFloat(Op reducer, half* output, half* scratch) {
   eigen_assert(threadIdx.x == 1);
   typedef packet_traits<Eigen::half>::type packet_type;
-  if (unpacket_traits<packet_type>::size == 1) {
-    *output = *scratch;
-  } else {
+  EIGEN_IF_CONSTEXPR(unpacket_traits<packet_type>::size == 1) { *output = *scratch; }
+  else {
     half2* pscratch = reinterpret_cast<half2*>(scratch);
     half tmp = __float2half(0.f);
     for (int i = 0; i < unpacket_traits<packet_type>::size; i += 2) {

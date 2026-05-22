@@ -447,7 +447,7 @@ struct TensorContractionEvaluatorBase {
     DSizes<Index, LDims> eval_left_dims;
     DSizes<Index, RDims> eval_right_dims;
     array<IndexPair<Index>, ContractDims> eval_op_indices;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       // For ColMajor, we keep using the existing dimensions
       for (int i = 0; i < LDims; i++) {
         eval_left_dims[i] = m_leftImpl.dimensions()[i];
@@ -460,7 +460,8 @@ struct TensorContractionEvaluatorBase {
         eval_op_indices[i].first = op.indices()[i].first;
         eval_op_indices[i].second = op.indices()[i].second;
       }
-    } else {
+    }
+    else {
       // For RowMajor, we need to reverse the existing dimensions
       for (int i = 0; i < LDims; i++) {
         eval_left_dims[i] = m_leftImpl.dimensions()[LDims - i - 1];
@@ -622,7 +623,7 @@ struct TensorContractionEvaluatorBase {
     }
 
     // If the layout is RowMajor, we need to reverse the m_dimensions
-    if (static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(RowMajor)) {
       for (int i = 0, j = NumDims - 1; i < j; i++, j--) {
         numext::swap(m_dimensions[i], m_dimensions[j]);
       }
@@ -736,8 +737,8 @@ struct TensorContractionEvaluatorBase {
     using RightEvaluator = TensorEvaluator<EvalRightArgType, Device>;
     const int lhs_packet_size = internal::unpacket_traits<typename LeftEvaluator::PacketReturnType>::size;
     const int rhs_packet_size = internal::unpacket_traits<typename RightEvaluator::PacketReturnType>::size;
-    const int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
-    const int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int lhs_alignment = LeftEvaluator::IsAligned ? Aligned : Unaligned;
+    constexpr int rhs_alignment = RightEvaluator::IsAligned ? Aligned : Unaligned;
     using LhsMapper = internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator,
                                                              left_nocontract_t, contract_t, lhs_packet_size,
                                                              lhs_inner_dim_contiguous, false, lhs_alignment>;

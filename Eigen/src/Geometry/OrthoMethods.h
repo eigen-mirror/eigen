@@ -157,12 +157,13 @@ VectorwiseOp<ExpressionType, Direction>::cross(const MatrixBase<OtherDerived>& o
   typename internal::nested_eval<OtherDerived, 2>::type vec(other.derived());
 
   CrossReturnType res(_expression().rows(), _expression().cols());
-  if (Direction == Vertical) {
+  EIGEN_IF_CONSTEXPR(Direction == Vertical) {
     eigen_assert(CrossReturnType::RowsAtCompileTime == 3 && "the matrix must have exactly 3 rows");
     res.row(0) = (mat.row(1) * vec.coeff(2) - mat.row(2) * vec.coeff(1)).conjugate();
     res.row(1) = (mat.row(2) * vec.coeff(0) - mat.row(0) * vec.coeff(2)).conjugate();
     res.row(2) = (mat.row(0) * vec.coeff(1) - mat.row(1) * vec.coeff(0)).conjugate();
-  } else {
+  }
+  else {
     eigen_assert(CrossReturnType::ColsAtCompileTime == 3 && "the matrix must have exactly 3 columns");
     res.col(0) = (mat.col(1) * vec.coeff(2) - mat.col(2) * vec.coeff(1)).conjugate();
     res.col(1) = (mat.col(2) * vec.coeff(0) - mat.col(0) * vec.coeff(2)).conjugate();

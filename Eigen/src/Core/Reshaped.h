@@ -296,10 +296,11 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   typedef std::pair<Index, Index> RowCol;
 
   EIGEN_DEVICE_FUNC constexpr inline RowCol index_remap(Index rowId, Index colId) const {
-    if (Order == ColMajor) {
+    EIGEN_IF_CONSTEXPR(Order == ColMajor) {
       const Index nth_elem_idx = colId * m_xpr.rows() + rowId;
       return RowCol(nth_elem_idx % m_xpr.nestedExpression().rows(), nth_elem_idx / m_xpr.nestedExpression().rows());
-    } else {
+    }
+    else {
       const Index nth_elem_idx = colId + rowId * m_xpr.cols();
       return RowCol(nth_elem_idx / m_xpr.nestedExpression().cols(), nth_elem_idx % m_xpr.nestedExpression().cols());
     }
