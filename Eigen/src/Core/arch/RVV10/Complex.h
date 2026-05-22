@@ -327,6 +327,11 @@ EIGEN_STRONG_INLINE Packet2Xcf pandnot<Packet2Xcf>(const Packet2Xcf& a, const Pa
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xcf pnot<Packet2Xcf>(const Packet2Xcf& a) {
+  return Packet2Xcf(pnot<Packet2Xf>(a.v));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xcf pload<Packet2Xcf>(const std::complex<float>* from) {
   Packet2Xf res = pload<Packet2Xf>(reinterpret_cast<const float*>(from));
   EIGEN_DEBUG_ALIGNED_LOAD return Packet2Xcf(res);
@@ -712,6 +717,11 @@ EIGEN_STRONG_INLINE Packet2Xcd pxor<Packet2Xcd>(const Packet2Xcd& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet2Xcd pandnot<Packet2Xcd>(const Packet2Xcd& a, const Packet2Xcd& b) {
   return Packet2Xcd(pandnot<Packet2Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xcd pnot<Packet2Xcd>(const Packet2Xcd& a) {
+  return Packet2Xcd(pnot<Packet2Xd>(a.v));
 }
 
 template <>

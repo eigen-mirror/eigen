@@ -302,6 +302,12 @@ EIGEN_STRONG_INLINE Packet1Xbf pandnot<Packet1Xbf>(const Packet1Xbf& a, const Pa
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xbf pnot<Packet1Xbf>(const Packet1Xbf& a) {
+  return __riscv_vreinterpret_v_u16m1_bf16m1(__riscv_vnot_v_u16m1(__riscv_vreinterpret_v_bf16m1_u16m1(a),
+                                                                  unpacket_traits<Packet1Xbf>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xbf pload<Packet1Xbf>(const bfloat16* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle16_v_bf16m1(reinterpret_cast<const __bf16*>(from),
                                                          unpacket_traits<Packet1Xbf>::size);
@@ -629,6 +635,12 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xbf pandnot<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
   return __riscv_vreinterpret_v_i16m2_bf16m2(
       pandnot<Packet2Xs>(__riscv_vreinterpret_v_bf16m2_i16m2(a), __riscv_vreinterpret_v_bf16m2_i16m2(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf pnot<Packet2Xbf>(const Packet2Xbf& a) {
+  return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vnot_v_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(a),
+                                                                  unpacket_traits<Packet2Xbf>::size));
 }
 
 template <>

@@ -149,6 +149,11 @@ EIGEN_STRONG_INLINE Packet4Xi pandnot<Packet4Xi>(const Packet4Xi& a, const Packe
 #endif
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet4Xi pnot<Packet4Xi>(const Packet4Xi& a) {
+  return __riscv_vnot_v_i32m4(a, unpacket_traits<Packet4Xi>::size);
+}
+
 template <int N>
 EIGEN_STRONG_INLINE Packet4Xi parithmetic_shift_right(Packet4Xi a) {
   return __riscv_vsra_vx_i32m4(a, N, unpacket_traits<Packet4Xi>::size);
@@ -497,6 +502,17 @@ EIGEN_STRONG_INLINE Packet4Xf pandnot<Packet4Xf>(const Packet4Xf& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet4Xf pnot<Packet4Xf>(const Packet4Xf& a) {
+  return __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vnot_v_u32m4(
+      __riscv_vreinterpret_v_f32m4_u32m4(a), unpacket_traits<Packet4Xf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xs pnot<Packet4Xs>(const Packet4Xs& a) {
+  return __riscv_vnot_v_i16m4(a, unpacket_traits<Packet4Xs>::size);
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4Xf pload<Packet4Xf>(const float* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle32_v_f32m4(from, unpacket_traits<Packet4Xf>::size);
 }
@@ -764,6 +780,11 @@ EIGEN_STRONG_INLINE Packet4Xl pand<Packet4Xl>(const Packet4Xl& a, const Packet4X
 template <>
 EIGEN_STRONG_INLINE Packet4Xl por<Packet4Xl>(const Packet4Xl& a, const Packet4Xl& b) {
   return __riscv_vor_vv_i64m4(a, b, unpacket_traits<Packet4Xl>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xl pnot<Packet4Xl>(const Packet4Xl& a) {
+  return __riscv_vnot_v_i64m4(a, unpacket_traits<Packet4Xl>::size);
 }
 
 template <>
@@ -1132,6 +1153,12 @@ EIGEN_STRONG_INLINE Packet4Xd pandnot<Packet4Xd>(const Packet4Xd& a, const Packe
   return __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vandn_vv_u64m4(
       __riscv_vreinterpret_v_f64m4_u64m4(a), __riscv_vreinterpret_v_f64m4_u64m4(b), unpacket_traits<Packet4Xl>::size));
 #endif
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xd pnot<Packet4Xd>(const Packet4Xd& a) {
+  return __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vnot_v_u64m4(
+      __riscv_vreinterpret_v_f64m4_u64m4(a), unpacket_traits<Packet4Xd>::size));
 }
 
 template <>
