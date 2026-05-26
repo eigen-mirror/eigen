@@ -149,6 +149,11 @@ EIGEN_STRONG_INLINE Packet2Xi pandnot<Packet2Xi>(const Packet2Xi& a, const Packe
 #endif
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet2Xi pnot<Packet2Xi>(const Packet2Xi& a) {
+  return __riscv_vnot_v_i32m2(a, unpacket_traits<Packet2Xi>::size);
+}
+
 template <int N>
 EIGEN_STRONG_INLINE Packet2Xi parithmetic_shift_right(Packet2Xi a) {
   return __riscv_vsra_vx_i32m2(a, N, unpacket_traits<Packet2Xi>::size);
@@ -496,6 +501,12 @@ EIGEN_STRONG_INLINE Packet2Xf pandnot<Packet2Xf>(const Packet2Xf& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xf pnot<Packet2Xf>(const Packet2Xf& a) {
+  return __riscv_vreinterpret_v_u32m2_f32m2(
+      __riscv_vnot_v_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(a), unpacket_traits<Packet2Xf>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xf pload<Packet2Xf>(const float* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle32_v_f32m2(from, unpacket_traits<Packet2Xf>::size);
 }
@@ -764,6 +775,11 @@ EIGEN_STRONG_INLINE Packet2Xl pand<Packet2Xl>(const Packet2Xl& a, const Packet2X
 template <>
 EIGEN_STRONG_INLINE Packet2Xl por<Packet2Xl>(const Packet2Xl& a, const Packet2Xl& b) {
   return __riscv_vor_vv_i64m2(a, b, unpacket_traits<Packet2Xl>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xl pnot<Packet2Xl>(const Packet2Xl& a) {
+  return __riscv_vnot_v_i64m2(a, unpacket_traits<Packet2Xl>::size);
 }
 
 template <>
@@ -1129,6 +1145,12 @@ EIGEN_STRONG_INLINE Packet2Xd pandnot<Packet2Xd>(const Packet2Xd& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2Xd pnot<Packet2Xd>(const Packet2Xd& a) {
+  return __riscv_vreinterpret_v_u64m2_f64m2(
+      __riscv_vnot_v_u64m2(__riscv_vreinterpret_v_f64m2_u64m2(a), unpacket_traits<Packet2Xd>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet2Xd pload<Packet2Xd>(const double* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle64_v_f64m2(from, unpacket_traits<Packet2Xd>::size);
 }
@@ -1420,6 +1442,11 @@ EIGEN_STRONG_INLINE Packet2Xs pandnot<Packet2Xs>(const Packet2Xs& a, const Packe
   return __riscv_vreinterpret_v_u16m2_i16m2(__riscv_vandn_vv_u16m2(
       __riscv_vreinterpret_v_i16m2_u16m2(a), __riscv_vreinterpret_v_i16m2_u16m2(b), unpacket_traits<Packet2Xs>::size));
 #endif
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xs pnot<Packet2Xs>(const Packet2Xs& a) {
+  return __riscv_vnot_v_i16m2(a, unpacket_traits<Packet2Xs>::size);
 }
 
 template <int N>
