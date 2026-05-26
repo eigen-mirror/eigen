@@ -122,26 +122,32 @@ class CwiseTernaryOp : public CwiseTernaryOpImpl<TernaryOp, Arg1Type, Arg2Type, 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index rows() const {
     // return the fixed size type if available to enable compile time
     // optimizations
-    if (internal::traits<internal::remove_all_t<Arg1Nested>>::RowsAtCompileTime == Dynamic &&
-        internal::traits<internal::remove_all_t<Arg2Nested>>::RowsAtCompileTime == Dynamic)
+    EIGEN_IF_CONSTEXPR(internal::traits<internal::remove_all_t<Arg1Nested>>::RowsAtCompileTime == Dynamic &&
+                       internal::traits<internal::remove_all_t<Arg2Nested>>::RowsAtCompileTime == Dynamic) {
       return m_arg3.rows();
-    else if (internal::traits<internal::remove_all_t<Arg1Nested>>::RowsAtCompileTime == Dynamic &&
-             internal::traits<internal::remove_all_t<Arg3Nested>>::RowsAtCompileTime == Dynamic)
+    }
+    else EIGEN_IF_CONSTEXPR(internal::traits<internal::remove_all_t<Arg1Nested>>::RowsAtCompileTime == Dynamic &&
+                            internal::traits<internal::remove_all_t<Arg3Nested>>::RowsAtCompileTime == Dynamic) {
       return m_arg2.rows();
-    else
+    }
+    else {
       return m_arg1.rows();
+    }
   }
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index cols() const {
     // return the fixed size type if available to enable compile time
     // optimizations
-    if (internal::traits<internal::remove_all_t<Arg1Nested>>::ColsAtCompileTime == Dynamic &&
-        internal::traits<internal::remove_all_t<Arg2Nested>>::ColsAtCompileTime == Dynamic)
+    EIGEN_IF_CONSTEXPR(internal::traits<internal::remove_all_t<Arg1Nested>>::ColsAtCompileTime == Dynamic &&
+                       internal::traits<internal::remove_all_t<Arg2Nested>>::ColsAtCompileTime == Dynamic) {
       return m_arg3.cols();
-    else if (internal::traits<internal::remove_all_t<Arg1Nested>>::ColsAtCompileTime == Dynamic &&
-             internal::traits<internal::remove_all_t<Arg3Nested>>::ColsAtCompileTime == Dynamic)
+    }
+    else EIGEN_IF_CONSTEXPR(internal::traits<internal::remove_all_t<Arg1Nested>>::ColsAtCompileTime == Dynamic &&
+                            internal::traits<internal::remove_all_t<Arg3Nested>>::ColsAtCompileTime == Dynamic) {
       return m_arg2.cols();
-    else
+    }
+    else {
       return m_arg1.cols();
+    }
   }
 
   /** \returns the first argument nested expression */

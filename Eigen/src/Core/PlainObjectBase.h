@@ -171,10 +171,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * See DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index) const for details. */
   EIGEN_DEVICE_FUNC constexpr const Scalar& coeff(Index rowId, Index colId) const {
-    if (Flags & RowMajorBit)
-      return m_storage.data()[colId + rowId * m_storage.cols()];
-    else  // column-major
+    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
+    else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
+    }
   }
 
   /** This is an overloaded version of DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index) const
@@ -188,10 +188,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * See DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index,Index) const for details. */
   EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index rowId, Index colId) {
-    if (Flags & RowMajorBit)
-      return m_storage.data()[colId + rowId * m_storage.cols()];
-    else  // column-major
+    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
+    else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
+    }
   }
 
   /** This is an overloaded version of DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index) const
@@ -203,10 +203,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   /** This is the const version of coeffRef(Index,Index) which is thus synonym of coeff(Index,Index).
    * It is provided for convenience. */
   EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
-    if (Flags & RowMajorBit)
-      return m_storage.data()[colId + rowId * m_storage.cols()];
-    else  // column-major
+    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
+    else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
+    }
   }
 
   /** This is the const version of coeffRef(Index) which is thus synonym of coeff(Index).
@@ -303,10 +303,10 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 #ifdef EIGEN_INITIALIZE_COEFFS
     bool size_changed = size != this->size();
 #endif
-    if (RowsAtCompileTime == 1)
-      m_storage.resize(size, 1, size);
-    else
+    EIGEN_IF_CONSTEXPR(RowsAtCompileTime == 1) { m_storage.resize(size, 1, size); }
+    else {
       m_storage.resize(size, size, 1);
+    }
 #ifdef EIGEN_INITIALIZE_COEFFS
     if (size_changed) EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
 #endif
@@ -347,14 +347,17 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
         other.rows(), other.cols());
 #endif
     const Index othersize = other.rows() * other.cols();
-    if (RowsAtCompileTime == 1) {
+    EIGEN_IF_CONSTEXPR(RowsAtCompileTime == 1) {
       eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(1, othersize);
-    } else if (ColsAtCompileTime == 1) {
+    }
+    else EIGEN_IF_CONSTEXPR(ColsAtCompileTime == 1) {
       eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(othersize, 1);
-    } else
+    }
+    else {
       resize(other.rows(), other.cols());
+    }
   }
 
   /** Resizes the matrix to \a rows x \a cols while leaving old values untouched.

@@ -335,7 +335,7 @@ inline void sparse_selfadjoint_time_dense_product(const SparseLhsType& lhs, cons
       typename DenseResType::Scalar res_j(0);
       for (; (ProcessFirstHalf ? i && i.index() < j : i); ++i) {
         LhsScalar lhs_ij = i.value();
-        if (!LhsIsRowMajor) lhs_ij = numext::conj(lhs_ij);
+        EIGEN_IF_CONSTEXPR(!LhsIsRowMajor) { lhs_ij = numext::conj(lhs_ij); }
         res_j += lhs_ij * rhs.coeff(i.index(), k);
         res(i.index(), k) += numext::conj(lhs_ij) * rhs_j;
       }
@@ -456,10 +456,9 @@ void permute_symm_to_fullsymm(
       Index r = it.row();
       Index c = it.col();
       Index ip = perm ? perm[i] : i;
-      if (Mode == int(Upper | Lower))
-        count[StorageOrderMatch ? jp : ip]++;
-      else if (r == c)
-        count[ip]++;
+      EIGEN_IF_CONSTEXPR(Mode == int(Upper | Lower))
+      count[StorageOrderMatch ? jp : ip]++;
+      else if (r == c) count[ip]++;
       else if ((Mode == Lower && r > c) || (Mode == Upper && r < c)) {
         count[ip]++;
         count[jp]++;
@@ -484,16 +483,18 @@ void permute_symm_to_fullsymm(
       StorageIndex jp = perm ? perm[j] : j;
       StorageIndex ip = perm ? perm[i] : i;
 
-      if (Mode == int(Upper | Lower)) {
+      EIGEN_IF_CONSTEXPR(Mode == int(Upper | Lower)) {
         Index k = count[StorageOrderMatch ? jp : ip]++;
         dest.innerIndexPtr()[k] = StorageOrderMatch ? ip : jp;
         dest.valuePtr()[k] = it.value();
-      } else if (r == c) {
+      }
+      else if (r == c) {
         Index k = count[ip]++;
         dest.innerIndexPtr()[k] = ip;
         dest.valuePtr()[k] = it.value();
-      } else if (((Mode & Lower) == Lower && r > c) || ((Mode & Upper) == Upper && r < c)) {
-        if (!StorageOrderMatch) std::swap(ip, jp);
+      }
+      else if (((Mode & Lower) == Lower && r > c) || ((Mode & Upper) == Upper && r < c)) {
+        EIGEN_IF_CONSTEXPR(!StorageOrderMatch) std::swap(ip, jp);
         Index k = count[jp]++;
         dest.innerIndexPtr()[k] = ip;
         dest.valuePtr()[k] = it.value();
@@ -555,7 +556,7 @@ void permute_symm_to_symm(const MatrixType& mat,
       Index k = count[int(DstMode) == int(Lower) ? (std::min)(ip, jp) : (std::max)(ip, jp)]++;
       dest.innerIndexPtr()[k] = int(DstMode) == int(Lower) ? (std::max)(ip, jp) : (std::min)(ip, jp);
 
-      if (!StorageOrderMatch) std::swap(ip, jp);
+      EIGEN_IF_CONSTEXPR(!StorageOrderMatch) std::swap(ip, jp);
       if (((int(DstMode) == int(Lower) && ip < jp) || (int(DstMode) == int(Upper) && ip > jp)))
         dest.valuePtr()[k] = (NonHermitian ? it.value() : numext::conj(it.value()));
       else

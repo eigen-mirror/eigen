@@ -197,9 +197,8 @@ class RunQueue {
         std::atomic_thread_fence(std::memory_order_acquire);
         continue;
       }
-      if (NeedSizeEstimate) {
-        return CalculateSize(front, back);
-      } else {
+      EIGEN_IF_CONSTEXPR(NeedSizeEstimate) { return CalculateSize(front, back); }
+      else {
         // This value will be 0 if the queue is empty, and undefined otherwise.
         unsigned maybe_zero = ((front ^ back) & kMask2);
         // Queue size estimate must agree with maybe zero check on the queue

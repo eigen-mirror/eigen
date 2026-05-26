@@ -363,9 +363,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index linearizedIndex(const array<Index, NumIndices>& indices) const {
-    if (Options & RowMajor) {
-      return m_storage.dimensions().IndexOfRowMajor(indices);
-    } else {
+    EIGEN_IF_CONSTEXPR(Options & RowMajor) { return m_storage.dimensions().IndexOfRowMajor(indices); }
+    else {
       return m_storage.dimensions().IndexOfColMajor(indices);
     }
   }

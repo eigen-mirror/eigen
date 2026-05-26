@@ -34,12 +34,13 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, N
 
   // TODO(ezhulenev): Use templates to unroll this loop (similar to
   // h_array_reduce in MoreMeta.h)? Benchmark it.
-  if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+  EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     strides[0] = 1;
     for (int i = 1; i < NumDims; ++i) {
       strides[i] = strides[i - 1] * dimensions[i - 1];
     }
-  } else {
+  }
+  else {
     strides[NumDims - 1] = 1;
     for (int i = NumDims - 2; i >= 0; --i) {
       strides[i] = strides[i + 1] * dimensions[i + 1];
@@ -951,7 +952,7 @@ class StridedLinearBufferCopy {
     const Scalar* src = &src_data[src_offset];
     Scalar* dst = &dst_data[dst_offset];
 
-    if (!Vectorizable) {
+    EIGEN_IF_CONSTEXPR(!Vectorizable) {
       for (Index i = 0; i < count; ++i) {
         dst[i * dst_stride] = src[i * src_stride];
       }
@@ -961,7 +962,7 @@ class StridedLinearBufferCopy {
     const IndexType vectorized_size = PacketSize * (count / PacketSize);
     IndexType i = 0;
 
-    if (kind == StridedLinearBufferCopy::Kind::Linear) {
+    EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::Linear) {
       // ******************************************************************** //
       // Linear copy from `src` to `dst`.
       const IndexType unrolled_size = (4 * PacketSize) * (count / (4 * PacketSize));
@@ -976,7 +977,7 @@ class StridedLinearBufferCopy {
         Packet p = ploadu<Packet>(src + i);
         pstoreu<Scalar, Packet>(dst + i, p);
       }
-      if (HasHalfPacket) {
+      EIGEN_IF_CONSTEXPR(HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
@@ -988,14 +989,15 @@ class StridedLinearBufferCopy {
         dst[i] = src[i];
       }
       // ******************************************************************** //
-    } else if (kind == StridedLinearBufferCopy::Kind::Scatter) {
+    }
+    else EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::Scatter) {
       // Scatter from `src` to `dst`.
       eigen_assert(src_stride == 1 && dst_stride != 1);
       for (; i < vectorized_size; i += PacketSize) {
         Packet p = ploadu<Packet>(src + i);
         pscatter<Scalar, Packet>(dst + i * dst_stride, p, dst_stride);
       }
-      if (HasHalfPacket) {
+      EIGEN_IF_CONSTEXPR(HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
           HalfPacket p = ploadu<HalfPacket>(src + i);
@@ -1007,7 +1009,8 @@ class StridedLinearBufferCopy {
         dst[i * dst_stride] = src[i];
       }
       // ******************************************************************** //
-    } else if (kind == StridedLinearBufferCopy::Kind::FillLinear) {
+    }
+    else EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::FillLinear) {
       // Fill `dst` with value at `*src`.
       eigen_assert(src_stride == 0 && dst_stride == 1);
 
@@ -1022,7 +1025,7 @@ class StridedLinearBufferCopy {
       for (; i < vectorized_size; i += PacketSize) {
         pstoreu<Scalar, Packet>(dst + i, p);
       }
-      if (HasHalfPacket) {
+      EIGEN_IF_CONSTEXPR(HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
           HalfPacket hp = pset1<HalfPacket>(s);
@@ -1034,7 +1037,8 @@ class StridedLinearBufferCopy {
         dst[i] = s;
       }
       // ******************************************************************** //
-    } else if (kind == StridedLinearBufferCopy::Kind::FillScatter) {
+    }
+    else EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::FillScatter) {
       // Scatter `*src` into `dst`.
       eigen_assert(src_stride == 0 && dst_stride != 1);
       Scalar s = *src;
@@ -1042,7 +1046,7 @@ class StridedLinearBufferCopy {
       for (; i < vectorized_size; i += PacketSize) {
         pscatter<Scalar, Packet>(dst + i * dst_stride, p, dst_stride);
       }
-      if (HasHalfPacket) {
+      EIGEN_IF_CONSTEXPR(HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
           HalfPacket hp = pset1<HalfPacket>(s);
@@ -1054,14 +1058,15 @@ class StridedLinearBufferCopy {
         dst[i * dst_stride] = s;
       }
       // ******************************************************************** //
-    } else if (kind == StridedLinearBufferCopy::Kind::Gather) {
+    }
+    else EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::Gather) {
       // Gather from `src` into `dst`.
       eigen_assert(dst_stride == 1);
       for (; i < vectorized_size; i += PacketSize) {
         Packet p = pgather<Scalar, Packet>(src + i * src_stride, src_stride);
         pstoreu<Scalar, Packet>(dst + i, p);
       }
-      if (HasHalfPacket) {
+      EIGEN_IF_CONSTEXPR(HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
           HalfPacket p = pgather<Scalar, HalfPacket>(src + i * src_stride, src_stride);
@@ -1073,12 +1078,14 @@ class StridedLinearBufferCopy {
         dst[i] = src[i * src_stride];
       }
       // ******************************************************************** //
-    } else if (kind == StridedLinearBufferCopy::Kind::Random) {
+    }
+    else EIGEN_IF_CONSTEXPR(kind == StridedLinearBufferCopy::Kind::Random) {
       // Random.
       for (; i < count; ++i) {
         dst[i * dst_stride] = src[i * src_stride];
       }
-    } else {
+    }
+    else {
       eigen_assert(false);
     }
   }
@@ -1200,7 +1207,7 @@ class TensorBlockIO {
     IndexType input_stride = NumDims == 0 ? 1 : src.strides[src_dim_for_dst_stride1_dim];
     IndexType output_stride = NumDims == 0 ? 1 : dst.strides[dst_stride1_dim];
 
-    const int at_least_1_dim = NumDims <= 1 ? 1 : NumDims - 1;
+    constexpr int at_least_1_dim = NumDims <= 1 ? 1 : NumDims - 1;
     array<BlockIteratorState, at_least_1_dim> it;
 
     // Initialize block iterator state. Squeeze away any dimension of size 1.
@@ -1395,7 +1402,7 @@ class TensorBlockAssignment {
 
     // Initialize output inner dimension size based on a layout.
     const IndexType output_size = NumDims == 0 ? 1 : target.dims.TotalSize();
-    const int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
+    constexpr int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
     IndexType output_inner_dim_size = target.dims[inner_dim_idx];
 
     // Target inner dimension stride must be '1'.

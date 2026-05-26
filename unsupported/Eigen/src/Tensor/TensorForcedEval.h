@@ -70,14 +70,17 @@ class TensorForcedEvalOp : public TensorBase<TensorForcedEvalOp<XprType>, ReadOn
 };
 
 namespace internal {
+// Returns true iff it actually placement-new'd any elements (so cleanup
+// knows whether destructors must be run — see bug #1530).
 template <typename Device, typename CoeffReturnType>
 struct non_integral_type_placement_new {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index numValues, StorageType m_buffer) const {
-    // Initialize non-trivially constructible types.
-    if (!internal::is_arithmetic<CoeffReturnType>::value) {
-      for (Index i = 0; i < numValues; ++i) new (m_buffer + i) CoeffReturnType();
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(Index numValues, StorageType m_buffer) const {
+    if (NumTraits<CoeffReturnType>::RequireInitialization) {
+      default_construct_elements_of_array(m_buffer, numValues);
+      return true;
     }
+    return false;
   }
 };
 
@@ -87,7 +90,9 @@ struct non_integral_type_placement_new {
 template <typename CoeffReturnType>
 struct non_integral_type_placement_new<Eigen::SyclDevice, CoeffReturnType> {
   template <typename StorageType>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index, StorageType) const {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator()(Index, StorageType) const {
+    return false;
+  }
 };
 }  // end namespace internal
 
@@ -148,7 +153,8 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
         m_op(op.expression()),
         m_device(device),
         m_buffer_holder(nullptr),
-        m_buffer(nullptr) {}
+        m_buffer(nullptr),
+        m_placement_constructed(false) {}
 
   ~TensorEvaluator() { cleanup(); }
 
@@ -159,7 +165,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
     m_buffer_holder = std::make_shared<DeviceTempPointerHolder<Device>>(m_device, numValues * sizeof(CoeffReturnType));
     m_buffer = static_cast<EvaluatorPointerType>(m_buffer_holder->ptr());
 
-    internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
+    m_placement_constructed = internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
 
     typedef TensorEvalToOp<const std::remove_const_t<ArgType>> EvalTo;
     EvalTo evalToTmp(m_device.get(m_buffer), m_op);
@@ -191,6 +197,10 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 #endif
 
   EIGEN_STRONG_INLINE void cleanup() {
+    if (m_placement_constructed) {
+      internal::destruct_elements_of_array(m_buffer, internal::array_prod(m_impl.dimensions()));
+      m_placement_constructed = false;
+    }
     m_buffer_holder = nullptr;
     m_buffer = nullptr;
   }
@@ -224,6 +234,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   const Device EIGEN_DEVICE_REF m_device;
   std::shared_ptr<DeviceTempPointerHolder<Device>> m_buffer_holder;
   EvaluatorPointerType m_buffer;  // Cached copy of the value stored in m_buffer_holder.
+  bool m_placement_constructed;   // See bug #1530.
 };
 
 }  // end namespace Eigen

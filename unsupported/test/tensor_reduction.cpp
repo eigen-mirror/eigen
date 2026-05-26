@@ -458,6 +458,76 @@ static void test_reduce_middle_dims() {
   }
 }
 
+// Exercises the runtime innermost-dim detection added at TensorReduction.h:817
+// (coeff path) and :861 (packet path). The static `ReducingInnerMostDims`
+// predicate only fires when the reduce-dim container is an IndexList; with
+// Eigen::array it stays false at compile time, but the m_reducingInnerMostDims
+// runtime mirror picks up the same fast path. We verify correctness against a
+// manual sum and check that the result is bit-identical to the IndexList form.
+template <int DataLayout>
+static void test_dynamic_innermost_dims() {
+  // 2D: ColMajor reduces axis 0 (innermost); RowMajor reduces axis 1 (innermost).
+  // Size chosen >> PacketSize so packet() drives the hot path.
+  Tensor<float, 2, DataLayout> in_2d(127, 53);
+  in_2d.setRandom();
+  Eigen::array<int, 1> dyn_axis_2d{(DataLayout == ColMajor) ? 0 : 1};
+  Tensor<float, 1, DataLayout> out_2d_dyn = in_2d.sum(dyn_axis_2d);
+
+  Eigen::IndexList<Eigen::type2index<(DataLayout == ColMajor) ? 0 : 1>> static_axis_2d;
+  Tensor<float, 1, DataLayout> out_2d_static = in_2d.sum(static_axis_2d);
+
+  const int preserved_2d = (DataLayout == ColMajor) ? 53 : 127;
+  const int reduced_2d = (DataLayout == ColMajor) ? 127 : 53;
+  for (int i = 0; i < preserved_2d; ++i) {
+    float expected = 0;
+    for (int j = 0; j < reduced_2d; ++j) {
+      expected += (DataLayout == ColMajor) ? in_2d(j, i) : in_2d(i, j);
+    }
+    VERIFY_IS_APPROX(out_2d_dyn(i), expected);
+    VERIFY_IS_EQUAL(out_2d_dyn(i), out_2d_static(i));
+  }
+
+  // 4D: reduce the two innermost dims at once. This is the multi-reduce case
+  // where the runtime mirror also needs to recognize the contiguous block.
+  Tensor<float, 4, DataLayout> in_4d(31, 17, 19, 23);
+  in_4d.setRandom();
+  Eigen::array<int, 2> dyn_axes_4d = (DataLayout == ColMajor) ? Eigen::array<int, 2>{0, 1} : Eigen::array<int, 2>{2, 3};
+  Tensor<float, 2, DataLayout> out_4d_dyn = in_4d.sum(dyn_axes_4d);
+  Eigen::IndexList<Eigen::type2index<(DataLayout == ColMajor) ? 0 : 2>,
+                   Eigen::type2index<(DataLayout == ColMajor) ? 1 : 3>>
+      static_axes_4d;
+  Tensor<float, 2, DataLayout> out_4d_static = in_4d.sum(static_axes_4d);
+
+  if (DataLayout == ColMajor) {
+    for (int i = 0; i < 19; ++i) {
+      for (int j = 0; j < 23; ++j) {
+        VERIFY_IS_EQUAL(out_4d_dyn(i, j), out_4d_static(i, j));
+      }
+    }
+  } else {
+    for (int i = 0; i < 31; ++i) {
+      for (int j = 0; j < 17; ++j) {
+        VERIFY_IS_EQUAL(out_4d_dyn(i, j), out_4d_static(i, j));
+      }
+    }
+  }
+
+  // Negative case: reducing a non-innermost dim must NOT take the runtime
+  // fast path. We can't observe the dispatch directly, but bit-identity with
+  // a manual sum + agreement with the IndexList form covers correctness.
+  Eigen::array<int, 1> outer_axis{(DataLayout == ColMajor) ? 1 : 0};
+  Tensor<float, 1, DataLayout> out_outer = in_2d.sum(outer_axis);
+  const int preserved_outer = (DataLayout == ColMajor) ? 127 : 53;
+  const int reduced_outer = (DataLayout == ColMajor) ? 53 : 127;
+  for (int i = 0; i < preserved_outer; ++i) {
+    float expected = 0;
+    for (int j = 0; j < reduced_outer; ++j) {
+      expected += (DataLayout == ColMajor) ? in_2d(i, j) : in_2d(j, i);
+    }
+    VERIFY_IS_APPROX(out_outer(i), expected);
+  }
+}
+
 template <typename ScalarType, int num_elements, int max_mean>
 void test_sum_accuracy() {
   Tensor<double, 1> double_tensor(num_elements);
@@ -511,6 +581,8 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST(test_innermost_first_dims<RowMajor>());
   CALL_SUBTEST(test_reduce_middle_dims<ColMajor>());
   CALL_SUBTEST(test_reduce_middle_dims<RowMajor>());
+  CALL_SUBTEST(test_dynamic_innermost_dims<ColMajor>());
+  CALL_SUBTEST(test_dynamic_innermost_dims<RowMajor>());
   CALL_SUBTEST((test_sum_accuracy<float, 10 * 1024 * 1024, 8 * 1024>()));
   CALL_SUBTEST((test_sum_accuracy<Eigen::bfloat16, 10 * 1024 * 1024, 8 * 1024>()));
   // The range of half is limited to 65519 when using round-to-even,

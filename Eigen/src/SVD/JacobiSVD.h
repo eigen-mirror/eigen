@@ -841,7 +841,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     // For a complex matrix, some diagonal coefficients might note have been
     // treated by svd_precondition_2x2_block_to_be_real, and the imaginary part
     // of some diagonal entry might not be null.
-    if (NumTraits<Scalar>::IsComplex && abs(numext::imag(m_workMatrix.coeff(i, i))) > considerAsZero) {
+    bool diagonal_has_imaginary_part = false;
+    EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::IsComplex) {
+      diagonal_has_imaginary_part = abs(numext::imag(m_workMatrix.coeff(i, i))) > considerAsZero;
+    }
+    if (diagonal_has_imaginary_part) {
       RealScalar a = abs(m_workMatrix.coeff(i, i));
       m_singularValues.coeffRef(i) = abs(a);
       if (computeU()) m_matrixU.col(i) *= m_workMatrix.coeff(i, i) / a;

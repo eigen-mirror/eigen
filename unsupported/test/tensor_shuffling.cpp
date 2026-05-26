@@ -257,6 +257,27 @@ static void test_empty_shuffling() {
   }
 }
 
+// Regression: a scalar-changing consumer (here `.cast<double>()`) sits above
+// shuffle in the assign. Before TensorConversionOp::block dropped the
+// forwarded destination on a non-degenerate cast, shuffle's prepareStorage
+// would reuse a double-sized buffer as int storage (assert in debug,
+// corruption in release). Mirrors test_concatenation_through_cast.
+template <int DataLayout>
+static void test_shuffling_through_cast() {
+  Tensor<int, 2, DataLayout> src(2, 3);
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) src(i, j) = i + 1 + 10 * j;
+  }
+  array<ptrdiff_t, 2> shuffles{1, 0};
+  Tensor<double, 2, DataLayout> out(3, 2);
+  out = src.shuffle(shuffles).template cast<double>();
+  for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      VERIFY_IS_APPROX(out(j, i), static_cast<double>(src(i, j)));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_shuffling) {
   CALL_SUBTEST(test_simple_shuffling<ColMajor>());
   CALL_SUBTEST(test_simple_shuffling<RowMajor>());
@@ -268,4 +289,6 @@ EIGEN_DECLARE_TEST(tensor_shuffling) {
   CALL_SUBTEST(test_shuffle_unshuffle<RowMajor>());
   CALL_SUBTEST(test_empty_shuffling<ColMajor>());
   CALL_SUBTEST(test_empty_shuffling<RowMajor>());
+  CALL_SUBTEST(test_shuffling_through_cast<ColMajor>());
+  CALL_SUBTEST(test_shuffling_through_cast<RowMajor>());
 }

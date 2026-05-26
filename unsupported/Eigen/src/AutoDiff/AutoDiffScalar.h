@@ -446,7 +446,8 @@ inline typename CleanedUpDerType<DerType>::type(max)(const T& x, const AutoDiffS
 template <typename DerType>
 inline
     typename CleanedUpDerType<DerType>::type(min)(const AutoDiffScalar<DerType>& x, const AutoDiffScalar<DerType>& y) {
-  return (x.value() < y.value() ? x : y);
+  // Match std::min / max(ADS, ADS): on tie, return the first argument.
+  return (x.value() <= y.value() ? x : y);
 }
 template <typename DerType>
 inline

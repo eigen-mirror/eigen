@@ -867,7 +867,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
   const Index size = a.rows();
   pmat = &ap;
   // Note that ordering methods compute the inverse permutation
-  if (!std::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value) {
+  EIGEN_IF_CONSTEXPR((!std::is_same<OrderingType, NaturalOrdering<StorageIndex> >::value)) {
     {
       CholMatrixType C;
       constexpr bool kUseAMDFastPath = std::is_same<OrderingType, AMDOrdering<StorageIndex> >::value;
@@ -882,15 +882,16 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
 
     ap.resize(size, size);
     internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, m_P.indices().data());
-  } else {
+  }
+  else {
     m_Pinv.resize(0);
     m_P.resize(0);
-    if (int(UpLo) == int(Lower) || MatrixType::IsRowMajor) {
+    EIGEN_IF_CONSTEXPR(int(UpLo) == int(Lower) || MatrixType::IsRowMajor) {
       // we have to transpose the lower part to to the upper one
       ap.resize(size, size);
       internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, NULL);
-    } else
-      internal::simplicial_cholesky_grab_input<CholMatrixType, MatrixType>::run(a, pmat, ap);
+    }
+    else internal::simplicial_cholesky_grab_input<CholMatrixType, MatrixType>::run(a, pmat, ap);
   }
 }
 

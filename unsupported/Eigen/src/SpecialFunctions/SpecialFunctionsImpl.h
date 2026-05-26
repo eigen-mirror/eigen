@@ -804,20 +804,13 @@ EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar main_igamma_term(Scalar a, S
 }
 
 template <typename Scalar, IgammaComputationMode mode>
-EIGEN_DEVICE_FUNC int igamma_num_iterations() {
+EIGEN_DEVICE_FUNC constexpr int igamma_num_iterations() {
   /* Returns the maximum number of internal iterations for igamma computation.
    */
-  if (mode == VALUE) {
-    return 2000;
-  }
-
-  if (std::is_same<Scalar, float>::value) {
-    return 200;
-  } else if (std::is_same<Scalar, double>::value) {
-    return 500;
-  } else {
-    return 2000;
-  }
+  return mode == VALUE                         ? 2000
+         : std::is_same<Scalar, float>::value  ? 200
+         : std::is_same<Scalar, double>::value ? 500
+                                               : 2000;
 }
 
 template <typename Scalar, IgammaComputationMode mode>
@@ -1620,7 +1613,7 @@ struct incbeta_cfe {
     Scalar ans;
     int n;
 
-    const int num_iters = (std::is_same<Scalar, float>::value) ? 100 : 300;
+    constexpr int num_iters = (std::is_same<Scalar, float>::value) ? 100 : 300;
     const Scalar thresh = (std::is_same<Scalar, float>::value) ? machep : Scalar(3) * machep;
     Scalar r = (std::is_same<Scalar, float>::value) ? zero : one;
 

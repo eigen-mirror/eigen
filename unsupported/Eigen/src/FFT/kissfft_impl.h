@@ -299,7 +299,7 @@ struct kissfft_impl {
     m_realTwiddles.clear();
   }
 
-  inline void fwd(Complex *dst, const Complex *src, int nfft) { get_plan(nfft, false).work(0, dst, src, 1, 1); }
+  inline void fwd(Complex *dst, const Complex *src, int nfft) { run_c2c(dst, src, nfft, /*inverse=*/false); }
 
   inline void fwd2(Complex *dst, const Complex *src, int n0, int n1) {
     EIGEN_UNUSED_VARIABLE(dst);
@@ -350,7 +350,7 @@ struct kissfft_impl {
   }
 
   // inverse complex-to-complex
-  inline void inv(Complex *dst, const Complex *src, int nfft) { get_plan(nfft, true).work(0, dst, src, 1, 1); }
+  inline void inv(Complex *dst, const Complex *src, int nfft) { run_c2c(dst, src, nfft, /*inverse=*/true); }
 
   // half-complex to scalar
   inline void inv(Scalar *dst, const Complex *src, int nfft) {
@@ -400,6 +400,18 @@ struct kissfft_impl {
       pd.factorize(nfft);
     }
     return pd;
+  }
+
+  // work() writes dst while reading src, so an in-place call must stage src
+  // through a scratch buffer first.
+  inline void run_c2c(Complex *dst, const Complex *src, int nfft, bool inverse) {
+    if (dst == src) {
+      ei_declare_aligned_stack_constructed_variable(Complex, scratch, nfft, 0);
+      std::copy(src, src + nfft, scratch);
+      get_plan(nfft, inverse).work(0, dst, scratch, 1, 1);
+      return;
+    }
+    get_plan(nfft, inverse).work(0, dst, src, 1, 1);
   }
 
   inline Complex *real_twiddles(int ncfft2) {

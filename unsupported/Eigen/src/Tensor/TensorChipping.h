@@ -156,12 +156,13 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
 
     m_stride = 1;
     m_inputStride = 1;
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = 0; i < m_dim.actualDim(); ++i) {
         m_stride *= input_dims[i];
         m_inputStride *= input_dims[i];
       }
-    } else {
+    }
+    else {
       for (int i = NumInputDims - 1; i > m_dim.actualDim(); --i) {
         m_stride *= input_dims[i];
         m_inputStride *= input_dims[i];
@@ -182,10 +183,11 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
       before_chipped_dim_product *= input_dims[i];
     }
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_isEffectivelyInnerChipping = before_chipped_dim_product == 1;
       m_isEffectivelyOuterChipping = after_chipped_dim_product == 1;
-    } else {
+    }
+    else {
       m_isEffectivelyInnerChipping = after_chipped_dim_product == 1;
       m_isEffectivelyOuterChipping = before_chipped_dim_product == 1;
     }

@@ -105,23 +105,30 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
         : Base(xprEval.m_argImpl, outer),
           m_returnOne(false),
           m_containsDiag(Base::outer() < xprEval.m_arg.innerSize()) {
-      if (SkipFirst) {
+      EIGEN_IF_CONSTEXPR(SkipFirst) {
         while ((*this) && ((HasUnitDiag || SkipDiag) ? this->index() <= outer : this->index() < outer))
           Base::operator++();
-        if (HasUnitDiag) m_returnOne = m_containsDiag;
-      } else if (HasUnitDiag && ((!Base::operator bool()) || Base::index() >= Base::outer())) {
-        if ((!SkipFirst) && Base::operator bool()) Base::operator++();
-        m_returnOne = m_containsDiag;
+        EIGEN_IF_CONSTEXPR(HasUnitDiag) m_returnOne = m_containsDiag;
+      }
+      else EIGEN_IF_CONSTEXPR(HasUnitDiag) {
+        if ((!Base::operator bool()) || Base::index() >= Base::outer()) {
+          if (Base::operator bool()) Base::operator++();
+          m_returnOne = m_containsDiag;
+        }
       }
     }
 
     EIGEN_STRONG_INLINE InnerIterator& operator++() {
-      if (HasUnitDiag && m_returnOne)
-        m_returnOne = false;
-      else {
-        Base::operator++();
-        if (HasUnitDiag && (!SkipFirst) && ((!Base::operator bool()) || Base::index() >= Base::outer())) {
-          if ((!SkipFirst) && Base::operator bool()) Base::operator++();
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) {
+        if (m_returnOne) {
+          m_returnOne = false;
+          return *this;
+        }
+      }
+      Base::operator++();
+      EIGEN_IF_CONSTEXPR(HasUnitDiag && !SkipFirst) {
+        if ((!Base::operator bool()) || Base::index() >= Base::outer()) {
+          if (Base::operator bool()) Base::operator++();
           m_returnOne = m_containsDiag;
         }
       }
@@ -129,30 +136,31 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
     }
 
     EIGEN_STRONG_INLINE operator bool() const {
-      if (HasUnitDiag && m_returnOne) return true;
-      if (SkipFirst)
-        return Base::operator bool();
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) {
+        if (m_returnOne) return true;
+      }
+      EIGEN_IF_CONSTEXPR(SkipFirst) { return Base::operator bool(); }
       else {
-        if (SkipDiag)
-          return (Base::operator bool() && this->index() < this->outer());
-        else
+        EIGEN_IF_CONSTEXPR(SkipDiag) { return (Base::operator bool() && this->index() < this->outer()); }
+        else {
           return (Base::operator bool() && this->index() <= this->outer());
+        }
       }
     }
 
     inline Index row() const { return (ArgType::Flags & RowMajorBit ? Base::outer() : this->index()); }
     inline Index col() const { return (ArgType::Flags & RowMajorBit ? this->index() : Base::outer()); }
     inline StorageIndex index() const {
-      if (HasUnitDiag && m_returnOne)
-        return internal::convert_index<StorageIndex>(Base::outer());
-      else
-        return Base::index();
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) {
+        if (m_returnOne) return internal::convert_index<StorageIndex>(Base::outer());
+      }
+      return Base::index();
     }
     inline Scalar value() const {
-      if (HasUnitDiag && m_returnOne)
-        return Scalar(1);
-      else
-        return Base::value();
+      EIGEN_IF_CONSTEXPR(HasUnitDiag) {
+        if (m_returnOne) return Scalar(1);
+      }
+      return Base::value();
     }
 
    protected:

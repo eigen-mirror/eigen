@@ -398,11 +398,12 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
 
     // Compute stride of scan axis
     const Dimensions& dims = m_impl.dimensions();
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = 0; i < op.axis(); ++i) {
         m_stride = m_stride * dims[i];
       }
-    } else {
+    }
+    else {
       // dims can only be indexed through unsigned integers,
       // so use an unsigned type to let the compiler know.
       // This prevents spurious warnings: "'*((void*)(& evaluator)+64)[18446744073709551615]' may be used uninitialized

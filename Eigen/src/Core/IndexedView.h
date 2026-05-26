@@ -199,13 +199,13 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
   IndexedViewImpl(XprType& xpr, const T0& rowIndices, const T1& colIndices) : Base(xpr, rowIndices, colIndices) {}
 
   Index rowIncrement() const {
-    if (traits<Derived>::RowIncr != DynamicIndex && traits<Derived>::RowIncr != Undefined) {
+    EIGEN_IF_CONSTEXPR(traits<Derived>::RowIncr != DynamicIndex && traits<Derived>::RowIncr != Undefined) {
       return traits<Derived>::RowIncr;
     }
     return IndexedViewHelper<RowIndices>::incr(this->rowIndices());
   }
   Index colIncrement() const {
-    if (traits<Derived>::ColIncr != DynamicIndex && traits<Derived>::ColIncr != Undefined) {
+    EIGEN_IF_CONSTEXPR(traits<Derived>::ColIncr != DynamicIndex && traits<Derived>::ColIncr != Undefined) {
       return traits<Derived>::ColIncr;
     }
     return IndexedViewHelper<ColIndices>::incr(this->colIndices());
@@ -228,14 +228,14 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
   }
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept {
-    if (traits<Derived>::InnerStrideAtCompileTime != Dynamic) {
+    EIGEN_IF_CONSTEXPR(traits<Derived>::InnerStrideAtCompileTime != Dynamic) {
       return traits<Derived>::InnerStrideAtCompileTime;
     }
     return innerIncrement() * this->nestedExpression().innerStride();
   }
 
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept {
-    if (traits<Derived>::OuterStrideAtCompileTime != Dynamic) {
+    EIGEN_IF_CONSTEXPR(traits<Derived>::OuterStrideAtCompileTime != Dynamic) {
       return traits<Derived>::OuterStrideAtCompileTime;
     }
     return outerIncrement() * this->nestedExpression().outerStride();

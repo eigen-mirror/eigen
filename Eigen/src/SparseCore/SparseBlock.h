@@ -204,10 +204,11 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
     }
 
     // update outer index pointers and innerNonZeros
-    if (IsVectorAtCompileTime) {
+    EIGEN_IF_CONSTEXPR(IsVectorAtCompileTime) {
       if (!m_matrix.isCompressed()) matrix.innerNonZeroPtr()[m_outerStart] = StorageIndex(nnz);
       matrix.outerIndexPtr()[m_outerStart] = StorageIndex(start);
-    } else {
+    }
+    else {
       StorageIndex p = StorageIndex(start);
       for (Index k = 0; k < m_outerSize.value(); ++k) {
         StorageIndex nnz_k = internal::convert_index<StorageIndex>(tmp.innerVector(k).nonZeros());

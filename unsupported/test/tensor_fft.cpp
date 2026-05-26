@@ -245,6 +245,50 @@ static void test_fft_non_power_of_2_round_trip(int exponent) {
   }
 }
 
+// Documented precondition: finite inputs must produce finite outputs. The hot-
+// path complex multiply uses the naive form (no NaN/inf disambiguation), so
+// this verifies the optimization didn't introduce spurious NaN/inf on legal
+// inputs. Covers both Cooley-Tukey (power-of-2) and Bluestein (non-pow-2).
+template <typename RealScalar>
+static void test_fft_finite_input_stays_finite(int n) {
+  using Complex = std::complex<RealScalar>;
+  Tensor<Complex, 1, ColMajor> input(n);
+  // Large but finite magnitudes — close to overflow but not at it — to catch
+  // any cmul that produces inf - inf = NaN under unfavorable scheduling.
+  const RealScalar big = RealScalar(1e18);
+  for (int i = 0; i < n; ++i) {
+    input(i) = Complex(big * std::cos(RealScalar(i)), big * std::sin(RealScalar(0.5) * RealScalar(i)));
+  }
+  array<int, 1> fft = {0};
+  Tensor<Complex, 1, ColMajor> fwd = input.template fft<Eigen::BothParts, FFT_FORWARD>(fft);
+  for (int i = 0; i < n; ++i) {
+    VERIFY((numext::isfinite)(fwd(i).real()));
+    VERIFY((numext::isfinite)(fwd(i).imag()));
+  }
+  Tensor<Complex, 1, ColMajor> rev = fwd.template fft<Eigen::BothParts, FFT_REVERSE>(fft);
+  for (int i = 0; i < n; ++i) {
+    VERIFY((numext::isfinite)(rev(i).real()));
+    VERIFY((numext::isfinite)(rev(i).imag()));
+  }
+}
+
+// `x = x.fft(...)` aliases the FFT input and output onto the same storage.
+// Regression test for the memcpy fast-path's self-copy guard in evalToBuf.
+template <typename RealScalar>
+static void test_fft_in_place_assign(int n) {
+  using Complex = std::complex<RealScalar>;
+  Tensor<Complex, 1, ColMajor> reference(n);
+  reference.setRandom();
+  Tensor<Complex, 1, ColMajor> x = reference;
+  array<int, 1> fft = {0};
+  x = x.template fft<Eigen::BothParts, FFT_FORWARD>(fft);
+  x = x.template fft<Eigen::BothParts, FFT_REVERSE>(fft);
+  for (int i = 0; i < n; ++i) {
+    RealScalar tol = test_precision<RealScalar>() * (std::abs(reference(i)) + std::abs(x(i)) + RealScalar(1));
+    VERIFY_IS_APPROX_OR_LESS_THAN(std::abs(reference(i) - x(i)) / RealScalar(n), tol);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_fft) {
   test_fft_complex_input_golden();
   test_fft_real_input_golden();
@@ -294,4 +338,16 @@ EIGEN_DECLARE_TEST(tensor_fft) {
 
   test_fft_non_power_of_2_round_trip<float>(7);
   test_fft_non_power_of_2_round_trip<double>(7);
+
+  // Pow-2 (Cooley-Tukey) and non-pow-2 (Bluestein) finite-input precondition.
+  test_fft_finite_input_stays_finite<float>(64);
+  test_fft_finite_input_stays_finite<float>(100);
+  test_fft_finite_input_stays_finite<double>(64);
+  test_fft_finite_input_stays_finite<double>(100);
+
+  // x = x.fft(...) — exercises the self-copy guard in evalToBuf.
+  test_fft_in_place_assign<float>(64);
+  test_fft_in_place_assign<float>(100);
+  test_fft_in_place_assign<double>(64);
+  test_fft_in_place_assign<double>(100);
 }

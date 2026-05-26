@@ -11,6 +11,11 @@
 #ifndef EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
 #define EIGEN_UNSUPPORTED_TEST_FFT_TEST_SHARED_H
 
+// Enable runtime malloc tracking so test_inplace_complex<>() can assert the
+// in-place scratch comes from the stack.  Allocation defaults to allowed; the
+// tracking only fires inside explicit set_is_malloc_allowed(false) windows.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 #include <unsupported/Eigen/FFT>
 
@@ -232,6 +237,37 @@ void test_complex2d() {
   VERIFY((dst - dst2).norm() < test_precision<T>());
 }
 
+// Regression for issue #868: fft.fwd(buf, buf) / fft.inv(buf, buf) with the
+// same buffer as input and output must produce the out-of-place result.
+// Also pins down that the in-place scratch comes from the stack for typical
+// sizes so EIGEN_RUNTIME_NO_MALLOC users aren't forced to heap-allocate.
+template <typename T>
+void test_inplace_complex(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+
+  ComplexVector in(nfft);
+  for (int k = 0; k < nfft; ++k)
+    in[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
+
+  FFT<T> fft;
+  ComplexVector out_ref;
+  fft.fwd(out_ref, in);
+  ComplexVector inv_ref;
+  fft.inv(inv_ref, out_ref);
+
+  ComplexVector inout_fwd = in;
+  ComplexVector inout_inv = out_ref;
+
+  Eigen::internal::set_is_malloc_allowed(false);
+  fft.fwd(inout_fwd, inout_fwd);
+  fft.inv(inout_inv, inout_inv);
+  Eigen::internal::set_is_malloc_allowed(true);
+
+  VERIFY((out_ref - inout_fwd).cwiseAbs().maxCoeff() < test_precision<T>());
+  VERIFY((inv_ref - inout_inv).cwiseAbs().maxCoeff() < test_precision<T>());
+}
+
 inline void test_return_by_value(int len) {
   VectorXf in;
   VectorXf in1;
@@ -248,8 +284,62 @@ inline void test_return_by_value(int len) {
   VERIFY((in1 - in).norm() < test_precision<float>());
 }
 
+// Regression for issue #1537: reusing the same FFT object across real-input
+// and complex-input transforms of the same size must produce correct results.
+// Before the fix, the FFTW backend's plan cache keyed only on (nfft, inverse,
+// inplace, aligned), so an r2c plan could be returned for a c2c call (or
+// vice versa).
+template <typename T>
+void test_reuse_real_and_complex(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<T, Dynamic, 1> ScalarVector;
+  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+
+  ScalarVector real_in(nfft);
+  ComplexVector complex_in(nfft);
+  for (int k = 0; k < nfft; ++k) {
+    real_in[k] = (T)(rand() / (double)RAND_MAX - .5);
+    complex_in[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
+  }
+
+  FFT<T> fft;
+  ComplexVector r2c_out;
+  ComplexVector c2c_out;
+
+  fft.fwd(r2c_out, real_in);
+  fft.fwd(c2c_out, complex_in);
+  VERIFY(T(fft_rmse(r2c_out, real_in)) < test_precision<T>());
+  VERIFY(T(fft_rmse(c2c_out, complex_in)) < test_precision<T>());
+
+  // Repeat with the reverse first-call ordering so the cache miss happens on
+  // the opposite transform kind; this catches the symmetric c2c-then-r2c case.
+  fft.fwd(c2c_out, complex_in);
+  fft.fwd(r2c_out, real_in);
+  VERIFY(T(fft_rmse(r2c_out, real_in)) < test_precision<T>());
+  VERIFY(T(fft_rmse(c2c_out, complex_in)) < test_precision<T>());
+
+  // Round-trip fwd->inv on the same shared FFT object exercises the c2r and
+  // c2c inverse plans alongside the forward plans cached above.
+  ScalarVector real_round;
+  ComplexVector complex_round;
+  fft.inv(real_round, r2c_out);
+  VERIFY(T(dif_rmse(real_in, real_round)) < test_precision<T>());
+  fft.inv(complex_round, c2c_out);
+  VERIFY(T(dif_rmse(complex_in, complex_round)) < test_precision<T>());
+}
+
 EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_return_by_value(32));
+  // Regression test for #1537 -- reuse one FFT object for both real and
+  // complex inputs of the same size.
+  CALL_SUBTEST(test_reuse_real_and_complex<float>(32));
+  CALL_SUBTEST(test_reuse_real_and_complex<double>(32));
+  CALL_SUBTEST(test_reuse_real_and_complex<float>(256));
+  CALL_SUBTEST(test_reuse_real_and_complex<double>(256));
+  CALL_SUBTEST(test_inplace_complex<float>(32));
+  CALL_SUBTEST(test_inplace_complex<double>(32));
+  CALL_SUBTEST(test_inplace_complex<float>(256));
+  CALL_SUBTEST(test_inplace_complex<double>(256));
   CALL_SUBTEST(test_complex<float>(32));
   CALL_SUBTEST(test_complex<double>(32));
   CALL_SUBTEST(test_complex<float>(256));

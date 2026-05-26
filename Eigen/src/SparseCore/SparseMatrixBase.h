@@ -228,7 +228,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
     using Nested = typename Derived::Nested;
     using NestedCleaned = internal::remove_all_t<Nested>;
 
-    if (Flags & RowMajorBit) {
+    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) {
       Nested nm(m.derived());
       internal::evaluator<NestedCleaned> thisEval(nm);
 
@@ -268,7 +268,8 @@ class SparseMatrixBase : public EigenBase<Derived> {
         }
         s << std::endl;
       }
-    } else {
+    }
+    else {
       Nested nm(m.derived());
       internal::evaluator<NestedCleaned> thisEval(nm);
       if (m.cols() == 1) {

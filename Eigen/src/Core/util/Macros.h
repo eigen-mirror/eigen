@@ -575,6 +575,14 @@
 #error "Eigen requires CUDA 11.4 or later."
 #endif
 
+// Native FP16 packet math intrinsics (e.g. __hfma2, h2exp, h2log) are only
+// declared by the CUDA headers when __CUDA_ARCH__ >= 530. Eigen's documented
+// floor is sm_70, so guard the device pass with a clear error rather than
+// surfacing as "identifier `__hfma2` is undefined" deep inside PacketMath.h.
+#if defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH < 700
+#error "Eigen requires CUDA compute capability >= 7.0 (sm_70). Compile with -arch=sm_70 or higher."
+#endif
+
 #if defined(__HIPCC__) && !defined(EIGEN_NO_HIP) && !defined(__SYCL_DEVICE_ONLY__)
 // Means the compiler is HIPCC (analogous to EIGEN_CUDACC, but for HIP)
 #define EIGEN_HIPCC __HIPCC__

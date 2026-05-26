@@ -142,20 +142,20 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
   LeastSquareDiagonalPreconditioner& factorize(const MatType& mat) {
     // Compute the inverse squared-norm of each column of mat
     m_invdiag.resize(mat.cols());
-    if (MatType::IsRowMajor) {
+    EIGEN_IF_CONSTEXPR(MatType::IsRowMajor) {
       m_invdiag.setZero();
       for (Index j = 0; j < mat.outerSize(); ++j) {
         for (typename MatType::InnerIterator it(mat, j); it; ++it) m_invdiag(it.index()) += numext::abs2(it.value());
       }
-      for (Index j = 0; j < mat.cols(); ++j)
-        if (numext::real(m_invdiag(j)) > RealScalar(0)) m_invdiag(j) = RealScalar(1) / numext::real(m_invdiag(j));
-    } else {
+      for (Index j = 0; j < mat.cols(); ++j) {
+        RealScalar sum = numext::real(m_invdiag(j));
+        m_invdiag(j) = sum > RealScalar(0) ? RealScalar(1) / sum : RealScalar(1);
+      }
+    }
+    else {
       for (Index j = 0; j < mat.outerSize(); ++j) {
         RealScalar sum = mat.col(j).squaredNorm();
-        if (sum > RealScalar(0))
-          m_invdiag(j) = RealScalar(1) / sum;
-        else
-          m_invdiag(j) = RealScalar(1);
+        m_invdiag(j) = sum > RealScalar(0) ? RealScalar(1) / sum : RealScalar(1);
       }
     }
     Base::m_isInitialized = true;

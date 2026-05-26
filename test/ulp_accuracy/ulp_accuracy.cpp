@@ -405,8 +405,8 @@ struct Options {
 
 template <typename Scalar>
 static int run_test(const Options& opts) {
-  const int kDigits = std::is_same<Scalar, float>::value ? 9 : 17;
-  const char* kTypeName = std::is_same<Scalar, float>::value ? "float" : "double";
+  constexpr int kDigits = std::is_same<Scalar, float>::value ? 9 : 17;
+  constexpr const char* kTypeName = std::is_same<Scalar, float>::value ? "float" : "double";
 
   auto table = build_func_table<Scalar>();
 

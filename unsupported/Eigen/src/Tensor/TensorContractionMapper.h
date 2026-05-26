@@ -451,7 +451,7 @@ class TensorContractionSubMapper {
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i) const {
     static_assert(std::is_same<PacketT, PacketT>::value, "YOU_MADE_A_PROGRAMMING_MISTAKE");
-    const int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
+    constexpr int ActualAlignment = (AlignmentType == Aligned) && (Alignment == Aligned) ? Aligned : Unaligned;
     if (UseDirectOffsets) {
       return m_base_mapper.template loadPacket<PacketT, ActualAlignment>(i, 0);
     }

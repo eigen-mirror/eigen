@@ -777,14 +777,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half abs(const half& a) {
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
-  return half(hexp(a));
+  return half(hexp(::__half(a)));
 #else
   return half(::expf(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
-  return half(hexp2(a));
+  return half(hexp2(::__half(a)));
 #else
   return half(::exp2f(float(a)));
 #endif
@@ -792,7 +792,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half expm1(const half& a) { return half(numext::expm1(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log(const half& a) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
-  return half(hlog(a));
+  return half(hlog(::__half(a)));
 #else
   return half(::logf(float(a)));
 #endif
@@ -805,7 +805,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log2(const half& a) {
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sqrt(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
-  return half(hsqrt(a));
+  return half(hsqrt(::__half(a)));
 #else
   return half(::sqrtf(float(a)));
 #endif
@@ -826,14 +826,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atan(const half& a) { return half(::a
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atanh(const half& a) { return half(::atanhf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half floor(const half& a) {
 #if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
-  return half(hfloor(a));
+  return half(hfloor(::__half(a)));
 #else
   return half(::floorf(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ceil(const half& a) {
 #if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
-  return half(hceil(a));
+  return half(hceil(::__half(a)));
 #else
   return half(::ceilf(float(a)));
 #endif

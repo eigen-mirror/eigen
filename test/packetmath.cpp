@@ -572,7 +572,7 @@ void packetmath() {
     std::cerr << "=== Testing packet of type '" << typeid(Packet).name() << "' and scalar type '"
               << typeid(Scalar).name() << "' and size '" << PacketSize << "' ===\n";
 
-  const int max_size = PacketSize > 4 ? PacketSize : 4;
+  constexpr int max_size = PacketSize > 4 ? PacketSize : 4;
   const int size = PacketSize * max_size;
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];

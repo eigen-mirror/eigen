@@ -126,11 +126,12 @@ class RefBase : public MapBase<Derived> {
     // Determine runtime rows and columns.
     Index rows = expr.rows();
     Index cols = expr.cols();
-    if (PlainObjectType::RowsAtCompileTime == 1) {
+    EIGEN_IF_CONSTEXPR(PlainObjectType::RowsAtCompileTime == 1) {
       eigen_assert(expr.rows() == 1 || expr.cols() == 1);
       rows = 1;
       cols = expr.size();
-    } else if (PlainObjectType::ColsAtCompileTime == 1) {
+    }
+    else EIGEN_IF_CONSTEXPR(PlainObjectType::ColsAtCompileTime == 1) {
       eigen_assert(expr.rows() == 1 || expr.cols() == 1);
       rows = expr.size();
       cols = 1;

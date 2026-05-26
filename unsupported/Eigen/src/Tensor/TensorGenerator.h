@@ -105,14 +105,15 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
     TensorEvaluator<ArgType, Device> argImpl(op.expression(), device);
     m_dimensions = argImpl.dimensions();
 
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_strides[0] = 1;
       EIGEN_UNROLL_LOOP
       for (int i = 1; i < NumDims; ++i) {
         m_strides[i] = m_strides[i - 1] * m_dimensions[i - 1];
         if (m_strides[i] != 0) m_fast_strides[i] = IndexDivisor(m_strides[i]);
       }
-    } else {
+    }
+    else {
       m_strides[NumDims - 1] = 1;
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 2; i >= 0; --i) {
@@ -241,14 +242,15 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void extract_coordinates(Index index, array<Index, NumDims>& coords) const {
-    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fast_strides[i];
         index -= idx * m_strides[i];
         coords[i] = idx;
       }
       coords[0] = index;
-    } else {
+    }
+    else {
       for (int i = 0; i < NumDims - 1; ++i) {
         const Index idx = index / m_fast_strides[i];
         index -= idx * m_strides[i];

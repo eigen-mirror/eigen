@@ -238,9 +238,8 @@ struct TensorPrinter {
     if (fmt.precision == StreamPrecision) {
       explicit_precision = 0;
     } else if (fmt.precision == FullPrecision) {
-      if (NumTraits<Scalar>::IsInteger) {
-        explicit_precision = 0;
-      } else {
+      EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::IsInteger) { explicit_precision = 0; }
+      else {
         explicit_precision = significant_decimals_impl<Scalar>::run();
       }
     } else {
@@ -386,9 +385,8 @@ struct TensorPrinter<Tensor, 0, Format> {
     if (fmt.precision == StreamPrecision) {
       explicit_precision = 0;
     } else if (fmt.precision == FullPrecision) {
-      if (NumTraits<Scalar>::IsInteger) {
-        explicit_precision = 0;
-      } else {
+      EIGEN_IF_CONSTEXPR(NumTraits<Scalar>::IsInteger) { explicit_precision = 0; }
+      else {
         explicit_precision = significant_decimals_impl<Scalar>::run();
       }
     } else {

@@ -13,7 +13,7 @@
 template <typename T>
 int get_random_size() {
   const int factor = NumTraits<T>::ReadCost;
-  const int max_test_size = EIGEN_TEST_MAX_SIZE > 2 * factor ? EIGEN_TEST_MAX_SIZE / factor : EIGEN_TEST_MAX_SIZE;
+  constexpr int max_test_size = EIGEN_TEST_MAX_SIZE > 2 * factor ? EIGEN_TEST_MAX_SIZE / factor : EIGEN_TEST_MAX_SIZE;
   return internal::random<int>(1, max_test_size);
 }
 

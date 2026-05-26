@@ -374,9 +374,10 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
     // If we are not going to do the cast, we just need to check that base
     // TensorEvaluator has packet access. Otherwise we also need to make sure,
     // that we have an implementation of vectorized cast.
-    const bool Vectorizable = IsSameType ? TensorEvaluator<ArgType, Device>::PacketAccess
-                                         : int(TensorEvaluator<ArgType, Device>::PacketAccess) &
-                                               int(internal::type_casting_traits<SrcType, TargetType>::VectorizedCast);
+    constexpr bool Vectorizable = IsSameType
+                                      ? TensorEvaluator<ArgType, Device>::PacketAccess
+                                      : int(TensorEvaluator<ArgType, Device>::PacketAccess) &
+                                            int(internal::type_casting_traits<SrcType, TargetType>::VectorizedCast);
 
     return internal::PacketConv<PacketSourceType, PacketReturnType, LoadMode, Vectorizable, IsSameType>::run(m_impl,
                                                                                                              index);
@@ -400,6 +401,15 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
+    // The forwarded destination buffer is sized for TargetType (the assign
+    // LHS); the child block evaluator below us writes SrcType. When the cast
+    // is non-degenerate the buffer would be misinterpreted by any
+    // block-materializing child's prepareStorage (assert in debug, corruption
+    // in release). Drop the buffer; the child falls back to scratch and
+    // writeBlock still lands the cast values in the LHS.
+    if (!IsSameType) {
+      desc.DropDestinationBuffer();
+    }
     return TensorBlock(m_impl.block(desc, scratch), TensorConversionOpBlockFactory());
   }
 

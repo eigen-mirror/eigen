@@ -38,14 +38,15 @@ template <int Layout, int NumDims>
 static Index GetInputIndex(Index output_index, const array<Index, NumDims>& output_to_input_dim_map,
                            const array<Index, NumDims>& input_strides, const array<Index, NumDims>& output_strides) {
   int input_index = 0;
-  if (Layout == ColMajor) {
+  EIGEN_IF_CONSTEXPR(Layout == ColMajor) {
     for (int i = NumDims - 1; i > 0; --i) {
       const Index idx = output_index / output_strides[i];
       input_index += idx * input_strides[output_to_input_dim_map[i]];
       output_index -= idx * output_strides[i];
     }
     return input_index + output_index * input_strides[output_to_input_dim_map[0]];
-  } else {
+  }
+  else {
     for (int i = 0; i < NumDims - 1; ++i) {
       const Index idx = output_index / output_strides[i];
       input_index += idx * input_strides[output_to_input_dim_map[i]];

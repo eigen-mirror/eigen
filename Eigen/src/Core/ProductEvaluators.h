@@ -899,15 +899,18 @@ struct triangular_diagonal_product_impl {
     const Index rows = matrix.rows();
     const Index cols = matrix.cols();
     for (Index col = 0; col < cols; ++col) {
-      if ((Mode & Upper) == Upper) {
+      EIGEN_IF_CONSTEXPR((Mode & Upper) == Upper) {
         const Index end = (std::min)(rows, ((Mode & (UnitDiag | ZeroDiag)) ? col : col + 1));
         addStoredSegment(dst, matrix, diagonal, 0, end, col, alpha);
-      } else {
+      }
+      else {
         const Index begin = ((Mode & (UnitDiag | ZeroDiag)) ? col + 1 : col);
         addStoredSegment(dst, matrix, diagonal, begin, rows - begin, col, alpha);
       }
 
-      if ((Mode & UnitDiag) == UnitDiag && col < rows) addUnitCoeff(dst, diagonal, col, alpha);
+      EIGEN_IF_CONSTEXPR((Mode & UnitDiag) == UnitDiag) {
+        if (col < rows) addUnitCoeff(dst, diagonal, col, alpha);
+      }
     }
   }
 
@@ -925,10 +928,12 @@ struct triangular_diagonal_product_impl {
   template <typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addUnitCoeff(Dest& dst, const DiagonalType& diagonal, Index index,
                                                                  const Alpha& alpha) {
-    if (ProductOrder == OnTheLeft)
+    EIGEN_IF_CONSTEXPR(ProductOrder == OnTheLeft) {
       dst.coeffRef(index, index) += alpha * (diagonal.coeff(index) * MatrixScalar(1));
-    else
+    }
+    else {
       dst.coeffRef(index, index) += alpha * (MatrixScalar(1) * diagonal.coeff(index));
+    }
   }
 };
 
@@ -1036,9 +1041,10 @@ struct selfadjoint_diagonal_product_impl {
 
     // Stored half: one column-strided segment per output column.
     for (Index col = 0; col < size; ++col) {
-      if ((Mode & Upper) == Upper) {
+      EIGEN_IF_CONSTEXPR((Mode & Upper) == Upper) {
         storedSegment<Accumulate>(dst, matrix, diagonal, 0, col + 1, col, alpha);
-      } else {
+      }
+      else {
         storedSegment<Accumulate>(dst, matrix, diagonal, col, size - col, col, alpha);
       }
     }
@@ -1047,7 +1053,7 @@ struct selfadjoint_diagonal_product_impl {
     for (Index ib = 0; ib < size; ib += BlockSize) {
       const Index ib_end = numext::mini(size, ib + BlockSize);
       const Index br = ib_end - ib;
-      if ((Mode & Upper) == Upper) {
+      EIGEN_IF_CONSTEXPR((Mode & Upper) == Upper) {
         // Off-diagonal: write strict-lower of dst from strict-upper of source.
         for (Index jb = 0; jb < ib; jb += BlockSize) {
           const Index bc = numext::mini(jb + BlockSize, ib) - jb;
@@ -1056,7 +1062,8 @@ struct selfadjoint_diagonal_product_impl {
         // Diagonal tile: in-tile strict-lower mirror.
         for (Index col = ib; col < ib_end; ++col)
           conjugateSegment<Accumulate>(dst, matrix, diagonal, col + 1, ib_end - col - 1, col, alpha);
-      } else {
+      }
+      else {
         // Off-diagonal: write strict-upper of dst from strict-lower of source.
         for (Index jb = ib_end; jb < size; jb += BlockSize) {
           const Index bc = numext::mini(size, jb + BlockSize) - jb;
@@ -1076,10 +1083,12 @@ struct selfadjoint_diagonal_product_impl {
     if (size <= 0) return;
     auto dstSegment = dst.col(col).segment(begin, size);
     auto srcSegment = matrix.col(col).segment(begin, size);
-    if (Accumulate)
+    EIGEN_IF_CONSTEXPR(Accumulate) {
       diagonal_product_segment_impl<ProductOrder>::run(dstSegment, srcSegment, diagonal, begin, col, alpha);
-    else
+    }
+    else {
       diagonal_product_segment_impl<ProductOrder>::runOverwrite(dstSegment, srcSegment, diagonal, begin, col);
+    }
   }
 
   template <bool Accumulate, typename Dest, typename Alpha>
@@ -1089,10 +1098,12 @@ struct selfadjoint_diagonal_product_impl {
     if (size <= 0) return;
     auto dstSegment = dst.col(col).segment(begin, size);
     auto srcSegment = matrix.row(col).segment(begin, size).conjugate().transpose();
-    if (Accumulate)
+    EIGEN_IF_CONSTEXPR(Accumulate) {
       diagonal_product_segment_impl<ProductOrder>::run(dstSegment, srcSegment, diagonal, begin, col, alpha);
-    else
+    }
+    else {
       diagonal_product_segment_impl<ProductOrder>::runOverwrite(dstSegment, srcSegment, diagonal, begin, col);
+    }
   }
 
   // dst.block(ib, jb, br, bc) [+= alpha *] matrix.block(jb, ib, bc, br).adjoint() * <diag>,
@@ -1104,18 +1115,19 @@ struct selfadjoint_diagonal_product_impl {
                                                                 Index br, Index bc, const Alpha& alpha) {
     auto dstBlock = dst.block(ib, jb, br, bc);
     auto srcAdjoint = matrix.block(jb, ib, bc, br).adjoint();
-    if (ProductOrder == OnTheRight) {
+    EIGEN_IF_CONSTEXPR(ProductOrder == OnTheRight) {
       auto scaled = srcAdjoint * diagonal.segment(jb, bc).asDiagonal();
-      if (Accumulate)
-        dstBlock.noalias() += alpha * scaled;
-      else
+      EIGEN_IF_CONSTEXPR(Accumulate) { dstBlock.noalias() += alpha * scaled; }
+      else {
         dstBlock.noalias() = scaled;
-    } else {
+      }
+    }
+    else {
       auto scaled = diagonal.segment(ib, br).asDiagonal() * srcAdjoint;
-      if (Accumulate)
-        dstBlock.noalias() += alpha * scaled;
-      else
+      EIGEN_IF_CONSTEXPR(Accumulate) { dstBlock.noalias() += alpha * scaled; }
+      else {
         dstBlock.noalias() = scaled;
+      }
     }
   }
 };
@@ -1168,12 +1180,13 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    if (LhsBlasTraits::HasScalarFactor) {
+    EIGEN_IF_CONSTEXPR(LhsBlasTraits::HasScalarFactor) {
       // Folded scalar factor present: zero dst then accumulate at the extracted alpha.
       Scalar factor = LhsBlasTraits::extractScalarFactor(lhs.nestedExpression());
       dst.setZero();
       Kernel::run(dst, actualLhsMatrix(lhs.nestedExpression()), rhs.diagonal(), factor);
-    } else {
+    }
+    else {
       // No scalar factor: kernel writes every entry exactly once, skip setZero.
       Kernel::runOverwrite(dst, actualLhsMatrix(lhs.nestedExpression()), rhs.diagonal());
     }
@@ -1206,11 +1219,12 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    if (RhsBlasTraits::HasScalarFactor) {
+    EIGEN_IF_CONSTEXPR(RhsBlasTraits::HasScalarFactor) {
       Scalar factor = RhsBlasTraits::extractScalarFactor(rhs.nestedExpression());
       dst.setZero();
       Kernel::run(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal(), factor);
-    } else {
+    }
+    else {
       Kernel::runOverwrite(dst, actualRhsMatrix(rhs.nestedExpression()), lhs.diagonal());
     }
   }
@@ -1457,11 +1471,11 @@ struct triangular_diagonal_product_lazy_evaluator_base : evaluator_base<Derived>
     const bool inActive = ((Mode & Upper) == Upper) ? (row <= col) : (row >= col);
     if (!inActive) return Scalar(0);
     if (row == col) {
-      if ((Mode & UnitDiag) == UnitDiag) {
+      EIGEN_IF_CONSTEXPR((Mode & UnitDiag) == UnitDiag) {
         return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * MatrixScalar(1))
                                          : Scalar(MatrixScalar(1) * m_diagImpl.coeff(col));
       }
-      if ((Mode & ZeroDiag) == ZeroDiag) return Scalar(0);
+      EIGEN_IF_CONSTEXPR((Mode & ZeroDiag) == ZeroDiag) return Scalar(0);
     }
     return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * m_matImpl.coeff(row, col))
                                      : Scalar(m_matImpl.coeff(row, col) * m_diagImpl.coeff(col));
@@ -1687,10 +1701,10 @@ struct transposition_matrix_product {
 
     for (Index k = (Transposed ? size - 1 : 0); Transposed ? k >= 0 : k < size; Transposed ? --k : ++k)
       if (Index(j = tr.coeff(k)) != k) {
-        if (Side == OnTheLeft)
-          dst.row(k).swap(dst.row(j));
-        else if (Side == OnTheRight)
+        EIGEN_IF_CONSTEXPR(Side == OnTheLeft) { dst.row(k).swap(dst.row(j)); }
+        else EIGEN_IF_CONSTEXPR(Side == OnTheRight) {
           dst.col(k).swap(dst.col(j));
+        }
       }
   }
 };
