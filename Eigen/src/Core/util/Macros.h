@@ -629,6 +629,16 @@
 // If either EIGEN_CUDACC or EIGEN_HIPCC is defined, then define EIGEN_GPUCC
 //
 #define EIGEN_GPUCC
+// NOTE: Some platforms (e.g. SPIRV) artificially set the CUDA SDK verion to 0,
+// and don't support FP16, so we need to check the version number here.
+#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER >= 70500
+#define EIGEN_HAS_CUDA_FP16 1
+#elif defined(EIGEN_HIPCC)
+#define EIGEN_HAS_HIP_FP16 1
+#endif
+#if defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)
+#define EIGEN_HAS_GPU_FP16 1
+#endif
 //
 // EIGEN_HIPCC implies the HIP compiler and is used to tweak Eigen code for use in HIP kernels
 // EIGEN_CUDACC implies the CUDA compiler and is used to tweak Eigen code for use in CUDA kernels

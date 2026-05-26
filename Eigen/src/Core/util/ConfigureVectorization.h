@@ -542,7 +542,9 @@ extern "C" {
 #define EIGEN_VECTORIZE_GPU
 #include <vector_types.h>
 #include <cuda_runtime_api.h>
+#if defined(EIGEN_HAS_CUDA_FP16)
 #include <cuda_fp16.h>
+#endif
 #endif
 
 #if defined(EIGEN_HIPCC)
