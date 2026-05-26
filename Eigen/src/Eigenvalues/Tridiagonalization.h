@@ -510,12 +510,11 @@ void tridiagonalization_inplace_blocked(MatrixType& matA, CoeffVectorType& hCoef
  */
 template <typename MatrixType, typename CoeffVectorType>
 EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& matA, CoeffVectorType& hCoeffs) {
-  Index n = matA.rows();
-  eigen_assert(n == matA.cols());
-  eigen_assert(n == hCoeffs.size() + 1 || n == 1);
+  eigen_assert(matA.rows() == matA.cols());
+  eigen_assert(matA.rows() == hCoeffs.size() + 1 || matA.rows() == 1);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
-  if ((MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) && n >= 96) {
+  if ((MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) && matA.rows() >= 96) {
     tridiagonalization_inplace_blocked(matA, hCoeffs);
     return;
   }
