@@ -508,8 +508,8 @@ EIGEN_STRONG_INLINE Packet1Xf pandnot<Packet1Xf>(const Packet1Xf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xf pnot<Packet1Xf>(const Packet1Xf& a) {
-  return __riscv_vreinterpret_v_u32m1_f32m1(__riscv_vnot_v_u32m1(
-      __riscv_vreinterpret_v_f32m1_u32m1(a), unpacket_traits<Packet1Xf>::size));
+  return __riscv_vreinterpret_v_u32m1_f32m1(
+      __riscv_vnot_v_u32m1(__riscv_vreinterpret_v_f32m1_u32m1(a), unpacket_traits<Packet1Xf>::size));
 }
 
 template <>
@@ -1205,8 +1205,8 @@ EIGEN_STRONG_INLINE Packet1Xd pandnot<Packet1Xd>(const Packet1Xd& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xd pnot<Packet1Xd>(const Packet1Xd& a) {
-  return __riscv_vreinterpret_v_u64m1_f64m1(__riscv_vnot_v_u64m1(
-      __riscv_vreinterpret_v_f64m1_u64m1(a), unpacket_traits<Packet1Xd>::size));
+  return __riscv_vreinterpret_v_u64m1_f64m1(
+      __riscv_vnot_v_u64m1(__riscv_vreinterpret_v_f64m1_u64m1(a), unpacket_traits<Packet1Xd>::size));
 }
 
 template <>

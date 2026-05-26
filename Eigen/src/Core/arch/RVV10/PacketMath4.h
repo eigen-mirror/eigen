@@ -503,8 +503,8 @@ EIGEN_STRONG_INLINE Packet4Xf pandnot<Packet4Xf>(const Packet4Xf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet4Xf pnot<Packet4Xf>(const Packet4Xf& a) {
-  return __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vnot_v_u32m4(
-      __riscv_vreinterpret_v_f32m4_u32m4(a), unpacket_traits<Packet4Xf>::size));
+  return __riscv_vreinterpret_v_u32m4_f32m4(
+      __riscv_vnot_v_u32m4(__riscv_vreinterpret_v_f32m4_u32m4(a), unpacket_traits<Packet4Xf>::size));
 }
 
 template <>
@@ -1157,8 +1157,8 @@ EIGEN_STRONG_INLINE Packet4Xd pandnot<Packet4Xd>(const Packet4Xd& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet4Xd pnot<Packet4Xd>(const Packet4Xd& a) {
-  return __riscv_vreinterpret_v_u64m4_f64m4(__riscv_vnot_v_u64m4(
-      __riscv_vreinterpret_v_f64m4_u64m4(a), unpacket_traits<Packet4Xd>::size));
+  return __riscv_vreinterpret_v_u64m4_f64m4(
+      __riscv_vnot_v_u64m4(__riscv_vreinterpret_v_f64m4_u64m4(a), unpacket_traits<Packet4Xd>::size));
 }
 
 template <>

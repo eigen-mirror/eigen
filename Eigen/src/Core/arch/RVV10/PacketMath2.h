@@ -502,8 +502,8 @@ EIGEN_STRONG_INLINE Packet2Xf pandnot<Packet2Xf>(const Packet2Xf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xf pnot<Packet2Xf>(const Packet2Xf& a) {
-  return __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vnot_v_u32m2(
-      __riscv_vreinterpret_v_f32m2_u32m2(a), unpacket_traits<Packet2Xf>::size));
+  return __riscv_vreinterpret_v_u32m2_f32m2(
+      __riscv_vnot_v_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(a), unpacket_traits<Packet2Xf>::size));
 }
 
 template <>
@@ -1146,8 +1146,8 @@ EIGEN_STRONG_INLINE Packet2Xd pandnot<Packet2Xd>(const Packet2Xd& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xd pnot<Packet2Xd>(const Packet2Xd& a) {
-  return __riscv_vreinterpret_v_u64m2_f64m2(__riscv_vnot_v_u64m2(
-      __riscv_vreinterpret_v_f64m2_u64m2(a), unpacket_traits<Packet2Xd>::size));
+  return __riscv_vreinterpret_v_u64m2_f64m2(
+      __riscv_vnot_v_u64m2(__riscv_vreinterpret_v_f64m2_u64m2(a), unpacket_traits<Packet2Xd>::size));
 }
 
 template <>

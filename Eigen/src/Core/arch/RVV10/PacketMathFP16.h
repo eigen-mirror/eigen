@@ -288,8 +288,8 @@ EIGEN_STRONG_INLINE Packet1Xh pxor<Packet1Xh>(const Packet1Xh& a, const Packet1X
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xh pnot<Packet1Xh>(const Packet1Xh& a) {
-  return __riscv_vreinterpret_v_u16m1_f16m1(__riscv_vnot_v_u16m1(
-      __riscv_vreinterpret_v_f16m1_u16m1(a), unpacket_traits<Packet1Xh>::size));
+  return __riscv_vreinterpret_v_u16m1_f16m1(
+      __riscv_vnot_v_u16m1(__riscv_vreinterpret_v_f16m1_u16m1(a), unpacket_traits<Packet1Xh>::size));
 }
 
 template <>
@@ -680,8 +680,8 @@ EIGEN_STRONG_INLINE Packet2Xh pandnot<Packet2Xh>(const Packet2Xh& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pnot<Packet2Xh>(const Packet2Xh& a) {
-  return __riscv_vreinterpret_v_u16m2_f16m2(__riscv_vnot_v_u16m2(
-      __riscv_vreinterpret_v_f16m2_u16m2(a), unpacket_traits<Packet2Xh>::size));
+  return __riscv_vreinterpret_v_u16m2_f16m2(
+      __riscv_vnot_v_u16m2(__riscv_vreinterpret_v_f16m2_u16m2(a), unpacket_traits<Packet2Xh>::size));
 }
 
 template <>
