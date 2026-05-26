@@ -78,6 +78,115 @@ struct AssignmentKind<DenseShape, SparseTriangularShape> {
   typedef Sparse2Dense Kind;
 };
 
+template <typename XprType>
+Index sparse_assignment_total_size(const XprType &src) {
+  const Index rows = src.rows();
+  const Index cols = src.cols();
+  const Index maxIndex = NumTraits<Index>::highest();
+
+  if (rows == 0 || cols == 0) {
+    return 0;
+  }
+  return rows <= maxIndex / cols ? rows * cols : maxIndex;
+}
+
+template <typename XprType>
+Index sparse_assignment_heuristic_reserve_size(const XprType &src) {
+  const Index maxSize = (std::max)(src.rows(), src.cols());
+  const Index maxIndex = NumTraits<Index>::highest();
+  const Index totalSize = sparse_assignment_total_size(src);
+  const Index vectorReserve = maxSize <= maxIndex / 2 ? 2 * maxSize : maxIndex;
+  return (std::min)(totalSize, vectorReserve);
+}
+
+inline Index scaled_sparse_assignment_reserve_size(Index count, Index numerator, Index denominator) {
+  eigen_internal_assert(denominator > 0);
+  if (count == 0 || numerator == 0) return 0;
+
+  const Index maxIndex = NumTraits<Index>::highest();
+  if (count > maxIndex / numerator) return maxIndex;
+
+  const Index product = count * numerator;
+  return product / denominator + Index(product % denominator != 0);
+}
+
+template <typename SrcXprType>
+struct use_exact_sparse_assignment_reserve : std::true_type {};
+
+template <typename SrcXprType>
+struct use_exact_sparse_assignment_reserve<const SrcXprType> : use_exact_sparse_assignment_reserve<SrcXprType> {};
+
+// SparseView over an index-based expression must scan the underlying dense coefficients to count non-zeros.
+// Use an estimated reserve there to avoid traversing the full source twice.
+template <typename ArgType>
+struct use_exact_sparse_assignment_reserve<SparseView<ArgType>>
+    : std::is_same<typename evaluator_traits<remove_all_t<ArgType>>::Kind, IteratorBased> {};
+
+// Detect whether a const SrcXprType exposes a member nonZeros(). Concrete sparse storage classes
+// (SparseMatrix via SparseCompressedBase, SparseVector, SparseMap, SparseBlock, SparseTranspose)
+// do; sparse expressions such as CwiseBinaryOp / CwiseUnaryOp / Product / SparseTriangularView /
+// SparseView do not -- their evaluators only expose nonZerosEstimate().
+template <typename T, typename = void>
+struct has_member_nonZeros : std::false_type {};
+
+template <typename T>
+struct has_member_nonZeros<T, void_t<decltype(std::declval<const T &>().nonZeros())>> : std::true_type {};
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size_exact(const SrcXprType &, SrcEvaluatorType &srcEvaluator,
+                                           Index outerEvaluationSize, std::false_type /*has_member_nonZeros*/) {
+  Index reserveSize = 0;
+  for (Index j = 0; j < outerEvaluationSize; ++j)
+    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) reserveSize++;
+  return reserveSize;
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size_exact(const SrcXprType &src, SrcEvaluatorType &srcEvaluator,
+                                           Index outerEvaluationSize, std::true_type /*has_member_nonZeros*/) {
+  // O(1) for compressed SparseMatrix, O(outerSize) uncompressed -- both cheaper than the O(nnz)
+  // iteration fallback. SparseBlock for general (non-inner-panel) blocks reports Dynamic; iterate
+  // in that case.
+  const Index nz = src.nonZeros();
+  if (nz != Dynamic) return nz;
+  return sparse_assignment_reserve_size_exact(src, srcEvaluator, outerEvaluationSize, std::false_type{});
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
+                                     std::true_type) {
+  return sparse_assignment_reserve_size_exact(src, srcEvaluator, outerEvaluationSize,
+                                              has_member_nonZeros<SrcXprType>{});
+}
+
+template <typename SrcXprType, typename SrcEvaluatorType>
+Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &srcEvaluator, Index outerEvaluationSize,
+                                     std::false_type) {
+  const Index totalSize = sparse_assignment_total_size(src);
+  // For small dense sources, reserve the full possible size instead of spending another pass counting
+  // entries. The 1024-slot cap bounds transient over-reservation to ~12 KB per assignment while still
+  // letting common small-matrix shapes (up to 32x32) avoid mid-fill reallocation when the source is
+  // densely populated.
+  if (totalSize <= 1024) return totalSize;
+
+  const Index heuristicReserveSize = sparse_assignment_heuristic_reserve_size(src);
+  // Avoid turning the sample into an almost-complete pre-scan for short, wide, or tall expressions.
+  if (outerEvaluationSize <= 8) return heuristicReserveSize;
+
+  // Scan up to 8 outer slices and scale the per-slice nnz to the full size. Small enough that the
+  // sample's scan cost is negligible against the assignment itself, large enough to keep variance
+  // low at typical sparsities; the result is then clamped by total size and the heuristic floor.
+  const Index sampleOuterSize = (std::min)(outerEvaluationSize, Index(8));
+  Index sampleReserveSize = 0;
+  for (Index j = 0; j < sampleOuterSize; ++j) {
+    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) sampleReserveSize++;
+  }
+
+  const Index estimatedReserveSize =
+      scaled_sparse_assignment_reserve_size(sampleReserveSize, outerEvaluationSize, sampleOuterSize);
+  return (std::min)(totalSize, (std::max)(heuristicReserveSize, estimatedReserveSize));
+}
+
 template <typename DstXprType, typename SrcXprType>
 void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
   typedef typename DstXprType::Scalar Scalar;
@@ -89,9 +198,8 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
   constexpr bool transpose = (DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit);
   const Index outerEvaluationSize = (SrcEvaluatorType::Flags & RowMajorBit) ? src.rows() : src.cols();
 
-  Index reserveSize = 0;
-  for (Index j = 0; j < outerEvaluationSize; ++j)
-    for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) reserveSize++;
+  const Index reserveSize = sparse_assignment_reserve_size(src, srcEvaluator, outerEvaluationSize,
+                                                           use_exact_sparse_assignment_reserve<SrcXprType>());
 
   if ((!transpose) && src.isRValue()) {
     // eval without temporary
