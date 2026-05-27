@@ -14,4 +14,7 @@
 
 #include <tuple>
 
-int main() { return static_cast<int>(std::tuple_size<Eigen::Matrix<double, ROWS, COLS>>::value); }
+int main() {
+  (void)std::tuple_size<Eigen::Matrix<double, ROWS, COLS>>::value;
+  return 0;  // Test should pass.
+}
