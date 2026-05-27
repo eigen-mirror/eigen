@@ -162,6 +162,11 @@ EIGEN_STRONG_INLINE Packet4Xcf pandnot<Packet4Xcf>(const Packet4Xcf& a, const Pa
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet4Xcf pnot<Packet4Xcf>(const Packet4Xcf& a) {
+  return Packet4Xcf(pnot<Packet4Xf>(a.v));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet4Xcf pload<Packet4Xcf>(const std::complex<float>* from) {
   Packet4Xf res = pload<Packet4Xf>(reinterpret_cast<const float*>(from));
   EIGEN_DEBUG_ALIGNED_LOAD return Packet4Xcf(res);
@@ -424,6 +429,11 @@ EIGEN_STRONG_INLINE Packet1Xcf pandnot<Packet1Xcf>(const Packet1Xcf& a, const Pa
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xcf pnot<Packet1Xcf>(const Packet1Xcf& a) {
+  return Packet1Xcf(pnot<Packet1Xf>(a.v));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xcf pload<Packet1Xcf>(const std::complex<float>* from) {
   Packet1Xf res = pload<Packet1Xf>(reinterpret_cast<const float*>(from));
   EIGEN_DEBUG_ALIGNED_LOAD return Packet1Xcf(res);
@@ -658,6 +668,11 @@ EIGEN_STRONG_INLINE Packet4Xcd pxor<Packet4Xcd>(const Packet4Xcd& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet4Xcd pandnot<Packet4Xcd>(const Packet4Xcd& a, const Packet4Xcd& b) {
   return Packet4Xcd(pandnot<Packet4Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4Xcd pnot<Packet4Xcd>(const Packet4Xcd& a) {
+  return Packet4Xcd(pnot<Packet4Xd>(a.v));
 }
 
 template <>
@@ -939,6 +954,11 @@ EIGEN_STRONG_INLINE Packet1Xcd pxor<Packet1Xcd>(const Packet1Xcd& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet1Xcd pandnot<Packet1Xcd>(const Packet1Xcd& a, const Packet1Xcd& b) {
   return Packet1Xcd(pandnot<Packet1Xd>(a.v, b.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xcd pnot<Packet1Xcd>(const Packet1Xcd& a) {
+  return Packet1Xcd(pnot<Packet1Xd>(a.v));
 }
 
 template <>

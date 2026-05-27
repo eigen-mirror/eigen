@@ -149,6 +149,11 @@ EIGEN_STRONG_INLINE Packet1Xi pandnot<Packet1Xi>(const Packet1Xi& a, const Packe
 #endif
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet1Xi pnot<Packet1Xi>(const Packet1Xi& a) {
+  return __riscv_vnot_v_i32m1(a, unpacket_traits<Packet1Xi>::size);
+}
+
 template <int N>
 EIGEN_STRONG_INLINE Packet1Xi parithmetic_shift_right(Packet1Xi a) {
   return __riscv_vsra_vx_i32m1(a, N, unpacket_traits<Packet1Xi>::size);
@@ -502,6 +507,12 @@ EIGEN_STRONG_INLINE Packet1Xf pandnot<Packet1Xf>(const Packet1Xf& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xf pnot<Packet1Xf>(const Packet1Xf& a) {
+  return __riscv_vreinterpret_v_u32m1_f32m1(
+      __riscv_vnot_v_u32m1(__riscv_vreinterpret_v_f32m1_u32m1(a), unpacket_traits<Packet1Xf>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xf pload<Packet1Xf>(const float* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle32_v_f32m1(from, unpacket_traits<Packet1Xf>::size);
 }
@@ -677,6 +688,21 @@ EIGEN_STRONG_INLINE PacketMask32 pand(const PacketMask32& a, const PacketMask32&
   return __riscv_vmand_mm_b32(a, b, unpacket_traits<Packet1Xf>::size);
 }
 
+template <>
+EIGEN_STRONG_INLINE PacketMask32 pxor(const PacketMask32& a, const PacketMask32& b) {
+  return __riscv_vmxor_mm_b32(a, b, unpacket_traits<Packet1Xf>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask32 pandnot(const PacketMask32& a, const PacketMask32& b) {
+  return __riscv_vmandn_mm_b32(a, b, unpacket_traits<Packet1Xf>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask32 pnot(const PacketMask32& a) {
+  return __riscv_vmnot_m_b32(a, unpacket_traits<Packet1Xf>::size);
+}
+
 EIGEN_STRONG_INLINE PacketMask32 pcmp_eq_mask(const Packet1Xf& a, const Packet1Xf& b) {
   return __riscv_vmfeq_vv_f32m1_b32(a, b, unpacket_traits<Packet1Xf>::size);
 }
@@ -804,6 +830,11 @@ EIGEN_STRONG_INLINE Packet1Xl pand<Packet1Xl>(const Packet1Xl& a, const Packet1X
 template <>
 EIGEN_STRONG_INLINE Packet1Xl por<Packet1Xl>(const Packet1Xl& a, const Packet1Xl& b) {
   return __riscv_vor_vv_i64m1(a, b, unpacket_traits<Packet1Xl>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xl pnot<Packet1Xl>(const Packet1Xl& a) {
+  return __riscv_vnot_v_i64m1(a, unpacket_traits<Packet1Xl>::size);
 }
 
 template <>
@@ -1173,6 +1204,12 @@ EIGEN_STRONG_INLINE Packet1Xd pandnot<Packet1Xd>(const Packet1Xd& a, const Packe
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet1Xd pnot<Packet1Xd>(const Packet1Xd& a) {
+  return __riscv_vreinterpret_v_u64m1_f64m1(
+      __riscv_vnot_v_u64m1(__riscv_vreinterpret_v_f64m1_u64m1(a), unpacket_traits<Packet1Xd>::size));
+}
+
+template <>
 EIGEN_STRONG_INLINE Packet1Xd pload<Packet1Xd>(const double* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return __riscv_vle64_v_f64m1(from, unpacket_traits<Packet1Xd>::size);
 }
@@ -1341,12 +1378,22 @@ EIGEN_STRONG_INLINE PacketMask64 por(const PacketMask64& a, const PacketMask64& 
 
 template <>
 EIGEN_STRONG_INLINE PacketMask64 pandnot(const PacketMask64& a, const PacketMask64& b) {
-  return __riscv_vmor_mm_b64(a, b, unpacket_traits<Packet1Xd>::size);
+  return __riscv_vmnand_mm_b64(a, b, unpacket_traits<Packet1Xd>::size);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketMask64 pand(const PacketMask64& a, const PacketMask64& b) {
   return __riscv_vmand_mm_b64(a, b, unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask64 pxor(const PacketMask64& a, const PacketMask64& b) {
+  return __riscv_vmxor_mm_b64(a, b, unpacket_traits<Packet1Xd>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask64 pnot(const PacketMask64& a) {
+  return __riscv_vmnot_m_b64(a, unpacket_traits<Packet1Xd>::size);
 }
 
 EIGEN_STRONG_INLINE PacketMask64 pcmp_eq_mask(const Packet1Xd& a, const Packet1Xd& b) {
@@ -1485,6 +1532,11 @@ EIGEN_STRONG_INLINE Packet1Xs por<Packet1Xs>(const Packet1Xs& a, const Packet1Xs
 template <>
 EIGEN_STRONG_INLINE Packet1Xs pxor<Packet1Xs>(const Packet1Xs& a, const Packet1Xs& b) {
   return __riscv_vxor_vv_i16m1(a, b, unpacket_traits<Packet1Xs>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xs pnot<Packet1Xs>(const Packet1Xs& a) {
+  return __riscv_vnot_v_i16m1(a, unpacket_traits<Packet1Xs>::size);
 }
 
 template <>
@@ -1640,6 +1692,31 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet1Xs, N>& kernel) {
     kernel.packet[i] =
         __riscv_vle16_v_i16m1(&buffer[i * unpacket_traits<Packet1Xs>::size], unpacket_traits<Packet1Xs>::size);
   }
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask16 por(const PacketMask16& a, const PacketMask16& b) {
+  return __riscv_vmor_mm_b16(a, b, unpacket_traits<Packet1Xs>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask16 pand(const PacketMask16& a, const PacketMask16& b) {
+  return __riscv_vmand_mm_b16(a, b, unpacket_traits<Packet1Xs>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask16 pxor(const PacketMask16& a, const PacketMask16& b) {
+  return __riscv_vmxor_mm_b16(a, b, unpacket_traits<Packet1Xs>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask16 pandnot(const PacketMask16& a, const PacketMask16& b) {
+  return __riscv_vmandn_mm_b16(a, b, unpacket_traits<Packet1Xs>::size);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketMask16 pnot(const PacketMask16& a) {
+  return __riscv_vmnot_m_b16(a, unpacket_traits<Packet1Xs>::size);
 }
 
 }  // namespace internal

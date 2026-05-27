@@ -87,11 +87,9 @@ namespace Eigen {
 // Vector types (Rows==1 or Cols==1) are unaffected because storage order
 // does not change element order for a 1×N or N×1 shape — and Eigen forces
 // row-major on 1×N regardless, so we must allow it for row vectors.
-#define EIGEN_STRUCTURED_BINDINGS_ASSERT_COL_MAJOR(ROWS, COLS, OPTIONS)                                       \
-  static_assert((ROWS) == 1 || (COLS) == 1 || ((OPTIONS) & Eigen::RowMajorBit) == 0,                          \
-                "Structured bindings on 2D RowMajor Eigen types are not supported: coeffRef(Index) follows "  \
-                "storage order, so decomposition order would silently flip versus the column-major default. " \
-                "Use a column-major type, or transpose first. Row/column vectors are unaffected.")
+#define EIGEN_STRUCTURED_BINDINGS_ASSERT_COL_MAJOR(ROWS, COLS, OPTIONS)  \
+  static_assert((ROWS <= 1 || COLS <= 1) || ((OPTIONS & RowMajor) == 0), \
+                "Structured bindings on 2D RowMajor Eigen matrices are disabled to prevent storage-order confusion.");
 
 // get<Idx_> free functions for Matrix.
 template <size_t Idx_, typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>

@@ -377,6 +377,25 @@ class TensorContractionOp
   const OutputKernelType m_output_kernel;
 };
 
+namespace internal {
+template <bool TypesMatch, int StorageOrder, bool MatrixIsRight>
+struct GemvDirectDispatcher {
+  template <typename Evaluator, typename Scalar>
+  static bool run(const Evaluator* self, Scalar* buffer) {
+    self->template evalGemvDirect<StorageOrder, MatrixIsRight>(buffer);
+    return true;
+  }
+};
+
+template <int StorageOrder, bool MatrixIsRight>
+struct GemvDirectDispatcher<false, StorageOrder, MatrixIsRight> {
+  template <typename Evaluator, typename Scalar>
+  static bool run(const Evaluator*, Scalar*) {
+    return false;
+  }
+};
+}  // namespace internal
+
 template <typename Derived>
 struct TensorContractionEvaluatorBase {
   using Indices = typename internal::traits<Derived>::Indices;
@@ -698,6 +717,8 @@ struct TensorContractionEvaluatorBase {
     //
     // Cases B/C/D require direct memory (data() != nullptr) on both impls.
     // Anything else falls back to evalGemm.
+    constexpr bool types_match = std::is_same<typename EvalLeftArgType::Scalar, Scalar>::value &&
+                                 std::is_same<typename EvalRightArgType::Scalar, Scalar>::value;
     if (this->m_j_size == 1) {
       if (lhs_inner_dim_contiguous) {
         this->template evalGemv<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(
@@ -705,17 +726,20 @@ struct TensorContractionEvaluatorBase {
         return;
       }
       if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
-        evalGemvDirect<RowMajor, /*MatrixIsRight=*/false>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, RowMajor, false>::run(this, buffer)) {
+          return;
+        }
       }
     } else if (this->m_i_size == 1 && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
       if (m_rhs_contracted_dims_leading) {
-        evalGemvDirect<RowMajor, /*MatrixIsRight=*/true>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, RowMajor, true>::run(this, buffer)) {
+          return;
+        }
       }
       if (m_rhs_contracted_dims_trailing) {
-        evalGemvDirect<ColMajor, /*MatrixIsRight=*/true>(buffer);
-        return;
+        if (internal::GemvDirectDispatcher<types_match, ColMajor, true>::run(this, buffer)) {
+          return;
+        }
       }
     }
     this->template evalGemm<lhs_inner_dim_contiguous, rhs_inner_dim_contiguous, rhs_inner_dim_reordered, Alignment>(

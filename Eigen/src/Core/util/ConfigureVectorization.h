@@ -85,7 +85,11 @@
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
 #elif defined(EIGEN_RISCV64_USE_RVV10)
+#if __riscv_v_fixed_vlen <= 512
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
+#else
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
+#endif
 #else
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 16
 #endif
@@ -458,7 +462,11 @@ extern "C" {
 #endif
 
 #undef EIGEN_STACK_ALLOCATION_LIMIT
+#if __riscv_v_fixed_vlen <= 512
 #define EIGEN_STACK_ALLOCATION_LIMIT 196608
+#else
+#define EIGEN_STACK_ALLOCATION_LIMIT 393216
+#endif
 
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
 #define EIGEN_VECTORIZE_RVV10FP16
@@ -542,7 +550,9 @@ extern "C" {
 #define EIGEN_VECTORIZE_GPU
 #include <vector_types.h>
 #include <cuda_runtime_api.h>
+#if defined(EIGEN_HAS_CUDA_FP16)
 #include <cuda_fp16.h>
+#endif
 #endif
 
 #if defined(EIGEN_HIPCC)
@@ -595,6 +605,8 @@ inline static const char* SimdInstructionSetsInUse(void) {
   return "MIPS MSA";
 #elif defined(EIGEN_VECTORIZE_LSX)
   return "LOONGARCH64 LSX";
+#elif defined(EIGEN_VECTORIZE_RVV10)
+  return "RVV";
 #else
   return "None";
 #endif

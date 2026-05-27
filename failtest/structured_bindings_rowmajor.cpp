@@ -13,5 +13,6 @@
 int main() {
   Eigen::Matrix<double, 2, 2, STORAGE_ORDER> m;
   m << 1, 2, 3, 4;
-  return static_cast<int>(Eigen::get<0>(m));
+  (void)Eigen::get<0>(m);
+  return 0;  // Test should pass.
 }

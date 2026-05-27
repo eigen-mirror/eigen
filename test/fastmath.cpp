@@ -179,6 +179,26 @@ void check_inf_nan(bool dryrun) {
   }
 }
 
+template <typename RealScalar>
+void check_complex_rowmajor_adjoint_product() {
+  typedef std::complex<RealScalar> Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrix;
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMatrix;
+
+  RowMatrix mat(2, 2);
+  mat << Scalar(1, 2), Scalar(3, -4), Scalar(-5, 6), Scalar(7, 8);
+
+  RowMatrix expected(2, 2);
+  expected << Scalar(66, 0), Scalar(8, -92), Scalar(8, 92), Scalar(138, 0);
+
+  const RowMatrix row_major_result = mat.adjoint() * mat;
+  const ColMatrix col_major_result = mat.adjoint() * mat;
+
+  VERIFY_IS_APPROX(mat.adjoint() * mat, expected);
+  VERIFY_IS_APPROX(row_major_result, expected);
+  VERIFY_IS_APPROX(col_major_result, expected);
+}
+
 EIGEN_DECLARE_TEST(fastmath) {
   std::cout << "*** float *** \n\n";
   check_inf_nan<float>(true);
@@ -190,4 +210,7 @@ EIGEN_DECLARE_TEST(fastmath) {
   check_inf_nan<float>(false);
   check_inf_nan<double>(false);
   check_inf_nan<long double>(false);
+
+  CALL_SUBTEST_1(check_complex_rowmajor_adjoint_product<float>());
+  CALL_SUBTEST_2(check_complex_rowmajor_adjoint_product<double>());
 }

@@ -61,6 +61,7 @@ struct packet_traits<Eigen::half> : rvv_default_packet_traits<Eigen::half, Packe
     HasSetLinear = 0,
     HasBlend = 0,
     HasReduxp = 0,
+    HasSign = 0,
 
     HasCmp = 1,
     HasDiv = 1,
@@ -283,6 +284,12 @@ template <>
 EIGEN_STRONG_INLINE Packet1Xh pxor<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
   return __riscv_vreinterpret_v_u16m1_f16m1(__riscv_vxor_vv_u16m1(
       __riscv_vreinterpret_v_f16m1_u16m1(a), __riscv_vreinterpret_v_f16m1_u16m1(b), unpacket_traits<Packet1Xh>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xh pnot<Packet1Xh>(const Packet1Xh& a) {
+  return __riscv_vreinterpret_v_u16m1_f16m1(
+      __riscv_vnot_v_u16m1(__riscv_vreinterpret_v_f16m1_u16m1(a), unpacket_traits<Packet1Xh>::size));
 }
 
 template <>
@@ -669,6 +676,12 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xh pandnot<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
   return __riscv_vreinterpret_v_i16m2_f16m2(
       pandnot<Packet2Xs>(__riscv_vreinterpret_v_f16m2_i16m2(a), __riscv_vreinterpret_v_f16m2_i16m2(b)));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xh pnot<Packet2Xh>(const Packet2Xh& a) {
+  return __riscv_vreinterpret_v_u16m2_f16m2(
+      __riscv_vnot_v_u16m2(__riscv_vreinterpret_v_f16m2_u16m2(a), unpacket_traits<Packet2Xh>::size));
 }
 
 template <>

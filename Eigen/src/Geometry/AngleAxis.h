@@ -137,10 +137,13 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Vector3 _transformVector(const OtherVectorType& v) const {
     EIGEN_USING_STD(sin)
     EIGEN_USING_STD(cos)
+    eigen_assert(v.size() == 3);
+
     // Rodrigues' rotation formula: v' = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+    const Vector3 v3(v);
     const Scalar c = cos(m_angle);
     const Scalar s = sin(m_angle);
-    return v * c + m_axis.cross(v) * s + m_axis * (m_axis.dot(v) * (Scalar(1) - c));
+    return v3 * c + m_axis.cross(v3) * s + m_axis * (m_axis.dot(v3) * (Scalar(1) - c));
   }
 
   /** \returns \c *this with scalar type casted to \a NewScalarType

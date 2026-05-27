@@ -23,6 +23,11 @@ struct functor_traits<scalar_norm1_op> {
 }  // namespace internal
 }  // namespace Eigen
 
+// computes |Re(z)| + |Im(z)| of a complex number z.
+extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_CAT(cabs1, EIGEN_BLAS_FUNC_SUFFIX))(Complex *z) {
+  return Eigen::numext::norm1(*z);
+}
+
 // computes the sum of magnitudes of all vector elements or, for a complex vector x, the sum
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
 extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(int *n, RealScalar *px, int *incx) {
