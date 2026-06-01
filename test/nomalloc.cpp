@@ -26,6 +26,7 @@ void nomalloc(const MatrixType& m) {
   /* this test check no dynamic memory allocation are issued with fixed-size matrices
    */
   typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -78,6 +79,12 @@ void nomalloc(const MatrixType& m) {
   m2.template selfadjointView<Upper>().rankUpdate(m1.row(0), -1);
   m2.template selfadjointView<Lower>().rankUpdate(m1.col(0), m1.col(0));  // rank-2
 
+  MatrixType spd = m1 * m1.adjoint();
+  spd.diagonal().array() += RealScalar(rows);
+  LLT<MatrixType> llt(spd);
+  VERIFY_IS_EQUAL(llt.info(), Success);
+  llt.rankUpdate(m1.col(0), RealScalar(1));
+
   // The following fancy matrix-matrix products are not safe yet regarding static allocation
   m2.template selfadjointView<Lower>().rankUpdate(m1);
   m2 += m2.template triangularView<Upper>() * m1;
@@ -109,6 +116,9 @@ void ctms_decompositions() {
   LLT.compute(A);
   X = LLT.solve(B);
   x = LLT.solve(b);
+  LLT.compute(saA);
+  VERIFY_IS_EQUAL(LLT.info(), Eigen::Success);
+  LLT.rankUpdate(b, Scalar(1));
   Eigen::LDLT<Matrix> LDLT;
   LDLT.compute(A);
   X = LDLT.solve(B);

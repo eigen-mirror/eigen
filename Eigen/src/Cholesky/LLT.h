@@ -228,7 +228,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
   typedef typename MatrixType::ColXpr ColXpr;
   typedef internal::remove_all_t<ColXpr> ColXprCleaned;
   typedef typename ColXprCleaned::SegmentReturnType ColXprSegment;
-  typedef Matrix<Scalar, Dynamic, 1> TempVectorType;
+  using TempVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1, 0, MatrixType::MaxRowsAtCompileTime, 1>;
   typedef typename TempVectorType::SegmentReturnType TempVecSegment;
 
   Index n = mat.cols();

@@ -1053,7 +1053,7 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
           const Scalar l22 = accum(kBlockSize, kBlockSize);
           auto Mq = m_workMatrix.template middleRows<kBlockSize>(q);
           auto Mp = m_workMatrix.row(p);
-          Matrix<Scalar, 1, Dynamic> Mp_save = Mp;
+          Matrix<Scalar, 1, Dynamic, RowMajor, 1, MaxDiagSizeAtCompileTime> Mp_save = Mp;
           Mp.noalias() = l21 * Mq + l22 * Mp_save;
           Mq = L11.template triangularView<Lower>() * Mq + l12 * Mp_save;
         }
