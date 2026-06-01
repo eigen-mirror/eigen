@@ -607,35 +607,19 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   static constexpr bool SameType =
       std::is_same<typename LhsNestedCleaned::Scalar, typename RhsNestedCleaned::Scalar>::value;
 
-#if defined(__FAST_MATH__) && EIGEN_COMP_GNUC_STRICT && EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0) && \
-    (EIGEN_GNUC_STRICT_LESS_THAN(8, 4, 0) ||                                                   \
-     (EIGEN_GNUC_STRICT_AT_LEAST(9, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(9, 3, 0)))
-  // Work around GCC PR tree-optimization/92420, a reversed-access vectorizer miscompile under -ffast-math.
-  // The bug was introduced by GCC r238039, fixed on the GCC 8 branch by
-  // https://gcc.gnu.org/g:785eda9390473e42f0e0b7199c42032a0432de68 and on the GCC 9 branch by
-  // https://gcc.gnu.org/g:2d8ea3a0a6095a56b7c59c50b1068d602cde934a.
-  // See also GitLab issue #1839.
-  static constexpr bool AllowComplexPacketProduct = !NumTraits<Scalar>::IsComplex;
-#else
-  static constexpr bool AllowComplexPacketProduct = true;
-#endif
-
-  static constexpr bool CanVectorizeRhs =
-      AllowComplexPacketProduct && bool(RhsRowMajor) && (RhsFlags & PacketAccessBit) && (ColsAtCompileTime != 1);
-  static constexpr bool CanVectorizeLhs =
-      AllowComplexPacketProduct && (!LhsRowMajor) && (LhsFlags & PacketAccessBit) && (RowsAtCompileTime != 1);
+  static constexpr bool CanVectorizeRhs = bool(RhsRowMajor) && (RhsFlags & PacketAccessBit) && (ColsAtCompileTime != 1);
+  static constexpr bool CanVectorizeLhs = (!LhsRowMajor) && (LhsFlags & PacketAccessBit) && (RowsAtCompileTime != 1);
 
   static constexpr int EvalToRowMajor = (MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1) ? 1
                                         : (MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1)
                                             ? 0
                                             : (bool(RhsRowMajor) && !CanVectorizeLhs);
 
-  static constexpr int Flags =
-      ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
-      (EvalToRowMajor ? RowMajorBit : 0)
-      // TODO: enable vectorization for mixed types
-      | (SameType && AllowComplexPacketProduct && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
-      (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
+  static constexpr int Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
+                               (EvalToRowMajor ? RowMajorBit : 0)
+                               // TODO: enable vectorization for mixed types
+                               | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
+                               (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
 
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
@@ -658,7 +642,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
    * loop of the product might be vectorized. This is the meaning of CanVectorizeInner. Since it doesn't affect
    * the Flags, it is safe to make this value depend on ActualPacketAccessBit, that doesn't affect the ABI.
    */
-  static constexpr bool CanVectorizeInner = SameType && AllowComplexPacketProduct && LhsRowMajor && (!RhsRowMajor) &&
+  static constexpr bool CanVectorizeInner = SameType && LhsRowMajor && (!RhsRowMajor) &&
                                             (int(LhsFlags) & int(RhsFlags) & ActualPacketAccessBit) &&
                                             (int(InnerSize) % packet_traits<Scalar>::size == 0);
 

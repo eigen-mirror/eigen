@@ -19,6 +19,8 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 inline uint32x4_t p4ui_CONJ_XOR() {
 // See bug 1325, clang fails to call vld1q_u64.
 #if EIGEN_COMP_CLANG || EIGEN_COMP_CASTXML
@@ -691,6 +693,8 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet1cd, 2>& kernel) {
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet1cd)
 
 #endif  // EIGEN_ARCH_ARM64
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal
 

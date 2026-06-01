@@ -297,6 +297,25 @@
 #define EIGEN_GNUC_STRICT_LESS_THAN(x, y, z) 0
 #endif
 
+// Work around GCC PR tree-optimization/92420, which miscompiles some packetized complex arithmetic under -ffast-math.
+// The bug was introduced by GCC r238039, fixed on the GCC 8 branch by
+// https://gcc.gnu.org/g:785eda9390473e42f0e0b7199c42032a0432de68 and on the GCC 9 branch by
+// https://gcc.gnu.org/g:2d8ea3a0a6095a56b7c59c50b1068d602cde934a.
+// See also GitLab issues #1839 and #1840.
+#if defined(__FAST_MATH__) && EIGEN_COMP_GNUC_STRICT && EIGEN_GNUC_STRICT_AT_LEAST(7, 0, 0) && \
+    (EIGEN_GNUC_STRICT_LESS_THAN(8, 4, 0) ||                                                   \
+     (EIGEN_GNUC_STRICT_AT_LEAST(9, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(9, 3, 0)))
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_BUG 1
+// Disable the affected loop vectorizer around the complex packet helpers.
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH \
+  _Pragma("GCC push_options") _Pragma("GCC optimize(\"no-tree-loop-vectorize\")")
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP _Pragma("GCC pop_options")
+#else
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_BUG 0
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+#define EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
+#endif
+
 /// \internal EIGEN_COMP_CLANG_STRICT set to 1 if the compiler is really Clang and not a compatible compiler (e.g.,
 /// AppleClang, etc.)
 #if EIGEN_COMP_CLANG && !(EIGEN_COMP_CLANGAPPLE || EIGEN_COMP_CLANGICC || EIGEN_COMP_CLANGFCC || EIGEN_COMP_CLANGCPE)

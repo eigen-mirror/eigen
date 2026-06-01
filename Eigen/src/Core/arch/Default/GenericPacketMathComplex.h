@@ -18,6 +18,8 @@
 namespace Eigen {
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 //----------------------------------------------------------------------
 // Complex Arithmetic and Functions
 //----------------------------------------------------------------------
@@ -277,6 +279,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const 
   h = pandnot(h, iszero);  // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
   return Packet(h);        // |sqrt(a^2+b^2), sqrt(a^2+b^2)|
 }
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal
 }  // end namespace Eigen

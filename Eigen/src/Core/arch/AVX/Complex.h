@@ -18,6 +18,8 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 //---------- float ----------
 struct Packet4cf {
   EIGEN_STRONG_INLINE Packet4cf() {}
@@ -554,6 +556,8 @@ inline void pstoreuSegment<std::complex<double>, Packet2cd>(std::complex<double>
 }
 
 /*---------------- end load/store segment support ----------------*/
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal
 

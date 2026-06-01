@@ -18,6 +18,8 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 //---------- float ----------
 struct Packet8cf {
   EIGEN_STRONG_INLINE Packet8cf() {}
@@ -446,6 +448,8 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4cd, 4>& kernel) {
 
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet4cd)
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet8cf)
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal
 }  // end namespace Eigen
