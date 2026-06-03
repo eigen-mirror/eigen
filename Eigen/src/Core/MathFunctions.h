@@ -1485,15 +1485,21 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double log(const double& x) {
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-    std::enable_if_t<NumTraits<T>::IsSigned || NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
+    std::enable_if_t<NumTraits<T>::IsSigned && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
     abs(const T& x) {
   EIGEN_USING_STD(abs);
   return abs(x);
 }
 
 template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<NumTraits<T>::IsComplex, typename NumTraits<T>::Real> abs(
+    const T& x) {
+  return numext::hypot(numext::real(x), numext::imag(x));
+}
+
+template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-    std::enable_if_t<!(NumTraits<T>::IsSigned || NumTraits<T>::IsComplex), typename NumTraits<T>::Real>
+    std::enable_if_t<!NumTraits<T>::IsSigned && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
     abs(const T& x) {
   return x;
 }

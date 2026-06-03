@@ -166,8 +166,7 @@ template <typename Scalar>
 struct hypot_impl {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   static EIGEN_DEVICE_FUNC inline RealScalar run(const Scalar& x, const Scalar& y) {
-    EIGEN_USING_STD(abs);
-    return positive_real_hypot<RealScalar>(abs(x), abs(y));
+    return positive_real_hypot<RealScalar>(numext::abs(x), numext::abs(y));
   }
 };
 

@@ -311,7 +311,7 @@ namespace internal {
 
 /** \internal This is the blocked version of fullpivlu_unblocked() */
 template <typename Scalar, int StorageOrder, typename PivIndex, int SizeAtCompileTime = Dynamic>
-struct partial_lu_impl {
+struct generic_partial_lu_impl {
   static constexpr int UnBlockedBound = 16;
   static constexpr bool UnBlockedAtCompileTime = SizeAtCompileTime != Dynamic && SizeAtCompileTime <= UnBlockedBound;
   static constexpr int ActualSizeAtCompileTime = UnBlockedAtCompileTime ? SizeAtCompileTime : Dynamic;
@@ -466,6 +466,9 @@ struct partial_lu_impl {
     return first_zero_pivot;
   }
 };
+
+template <typename Scalar, int StorageOrder, typename PivIndex, int SizeAtCompileTime = Dynamic>
+struct partial_lu_impl : generic_partial_lu_impl<Scalar, StorageOrder, PivIndex, SizeAtCompileTime> {};
 
 /** \internal performs the LU decomposition with partial pivoting in-place.
  */

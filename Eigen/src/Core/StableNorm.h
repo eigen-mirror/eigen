@@ -63,11 +63,10 @@ void stable_norm_impl_inner_step(const VectorType& vec, RealScalar& ssq, RealSca
 template <typename VectorType>
 typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
                                                  std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
-  using std::abs;
   using std::sqrt;
 
   Index n = vec.size();
-  if (EIGEN_PREDICT_FALSE(n == 1)) return abs(vec.coeff(0));
+  if (EIGEN_PREDICT_FALSE(n == 1)) return numext::abs(vec.coeff(0));
 
   typedef typename VectorType::RealScalar RealScalar;
   RealScalar scale(0);
@@ -96,7 +95,6 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
 template <typename Derived>
 inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
   typedef typename Derived::RealScalar RealScalar;
-  using std::abs;
   using std::pow;
   using std::sqrt;
 
@@ -133,7 +131,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
 
   for (Index j = 0; j < vec.outerSize(); ++j) {
     for (typename Derived::InnerIterator iter(vec, j); iter; ++iter) {
-      RealScalar ax = abs(iter.value());
+      RealScalar ax = numext::abs(iter.value());
       if (ax > ab2)
         abig += numext::abs2(ax * s2m);
       else if (ax < b1)

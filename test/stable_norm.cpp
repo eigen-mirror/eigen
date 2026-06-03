@@ -237,6 +237,31 @@ void test_hypot() {
   VERIFY((numext::isnan)(numext::hypot(a, nan)));
 }
 
+template <typename Scalar>
+void stable_norm_complex_infinity() {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> VecType;
+
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const Scalar finite(RealScalar(3), RealScalar(-4));
+  const Scalar both_inf(inf, inf);
+  const Scalar real_inf(inf, RealScalar(1));
+  const Scalar imag_inf(RealScalar(1), -inf);
+
+  VERIFY(isPlusInf(numext::abs(both_inf)));
+  VERIFY(isPlusInf(numext::abs(real_inf)));
+  VERIFY(isPlusInf(numext::abs(imag_inf)));
+  VERIFY(isPlusInf(numext::hypot(both_inf, finite)));
+
+  VecType v(4);
+  v << both_inf, finite, real_inf, imag_inf;
+
+  VERIFY(isPlusInf(v.cwiseAbs().maxCoeff()));
+  VERIFY(isPlusInf(v.stableNorm()));
+  VERIFY(isPlusInf(v.blueNorm()));
+  VERIFY(isPlusInf(v.hypotNorm()));
+}
+
 // Test stableNorm at the 4096-element block boundary.
 // stable_norm_impl_inner_step processes vectors in blocks of 4096.
 // Sizes near this boundary exercise the transition between full blocks
@@ -323,4 +348,6 @@ EIGEN_DECLARE_TEST(stable_norm) {
   // Block boundary and scale transition tests (deterministic, outside g_repeat).
   CALL_SUBTEST_7(stable_norm_block_boundary<float>());
   CALL_SUBTEST_7(stable_norm_block_boundary<double>());
+  CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<float> >());
+  CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<double> >());
 }
