@@ -251,13 +251,12 @@ class FFT {
     dst.derived().resize(dst_size);
 
     if (src.innerStride() != 1 || src.size() < nfft) {
-      Matrix<src_type, 1, Dynamic> tmp;
-      if (src.size() < nfft) {
-        tmp.setZero(nfft);
-        tmp.block(0, 0, src.size(), 1) = src;
-      } else {
-        tmp = src;
+      Matrix<src_type, 1, Dynamic> tmp(1, nfft);
+      const Index copy_size = (std::min)(src.size(), nfft);
+      if (copy_size > 0) {
+        tmp.head(copy_size).noalias() = src.reshaped().head(copy_size);
       }
+      if (copy_size < nfft) tmp.tail(nfft - copy_size).setZero();
       if (dst.innerStride() != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, dst_size);
         fwd(&out[0], &tmp[0], nfft);
