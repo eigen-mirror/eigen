@@ -1058,7 +1058,7 @@ struct madd_impl<Scalar, std::enable_if_t<has_fma<Scalar>::value>> {
 
 namespace numext {
 
-#if (!defined(EIGEN_GPUCC) || defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC))
+#if !defined(EIGEN_GPUCC)
 template <typename T>
 EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
   EIGEN_USING_STD(min)
@@ -1072,9 +1072,13 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y) {
 }
 #else
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T mini(const T& x, const T& y) {
   return y < x ? y : x;
 }
+#if !defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC)
+// Without relaxed constexpr, numeric GPU scalars keep fmin/fmax's number-preferring
+// NaN behavior. With relaxed constexpr, they use the constexpr ternary overloads,
+// matching std::min/std::max behavior and supporting custom less-comparable scalars.
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float mini(const float& x, const float& y) {
   return fminf(x, y);
@@ -1095,11 +1099,13 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE long double mini(const long double& x, con
 #endif
 }
 #endif
+#endif
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y) {
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE T maxi(const T& x, const T& y) {
   return x < y ? y : x;
 }
+#if !defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC)
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float maxi(const float& x, const float& y) {
   return fmaxf(x, y);
@@ -1118,6 +1124,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE long double maxi(const long double& x, con
   return fmaxl(x, y);
 #endif
 }
+#endif
 #endif
 #endif
 
