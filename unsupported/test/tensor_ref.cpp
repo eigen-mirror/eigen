@@ -120,6 +120,18 @@ static void test_ref_of_trace() {
   VERIFY_IS_EQUAL(ref.coeff(0), trace);
 }
 
+static void test_fixed_size_scalar_ref() {
+  Tensor<Vector2d, 2> input(3, 3);
+  TensorRef<Tensor<Vector2d, 2>> ref(input);
+
+  VERIFY_IS_EQUAL(ref.data(), input.data());
+  VERIFY_IS_EQUAL(ref.dimension(0), 3);
+  VERIFY_IS_EQUAL(ref.dimension(1), 3);
+
+  ref.coeffRef(0) = Vector2d(1.0, 2.0);
+  VERIFY_IS_APPROX(input.coeff(0), Vector2d(1.0, 2.0));
+}
+
 static void test_ref_of_ref() {
   Tensor<float, 3> input(3, 5, 7);
   input.setRandom();
@@ -237,6 +249,7 @@ EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_multiple_dims());
   CALL_SUBTEST(test_slice());
   CALL_SUBTEST(test_ref_of_trace());
+  CALL_SUBTEST(test_fixed_size_scalar_ref());
   CALL_SUBTEST(test_ref_of_ref());
   CALL_SUBTEST(test_ref_in_expr());
   CALL_SUBTEST(test_coeff_ref());

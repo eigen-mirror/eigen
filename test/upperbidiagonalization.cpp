@@ -57,6 +57,19 @@ void upperbidiag(const MatrixType& m) {
   upperbidiag_verify(a);
 }
 
+template <typename MatrixType>
+void upperbidiag_default_construct() {
+  internal::UpperBidiagonalization<MatrixType> bidiag;
+  VERIFY_IS_EQUAL(bidiag.householder().rows(),
+                  MatrixType::RowsAtCompileTime == Dynamic ? 0 : MatrixType::RowsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.householder().cols(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.bidiagonal().rows(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+  VERIFY_IS_EQUAL(bidiag.bidiagonal().cols(),
+                  MatrixType::ColsAtCompileTime == Dynamic ? 0 : MatrixType::ColsAtCompileTime);
+}
+
 // Test with structured/ill-conditioned matrices.
 template <typename Scalar>
 void upperbidiag_structured(Index rows, Index cols) {
@@ -124,6 +137,8 @@ EIGEN_DECLARE_TEST(upperbidiagonalization) {
     CALL_SUBTEST_13(upperbidiag(MatrixXf(1000, 50)));
 
     // Explicit unblocked path tests.
+    CALL_SUBTEST_14(upperbidiag_default_construct<MatrixXd>());
+    CALL_SUBTEST_14(upperbidiag_default_construct<Matrix3d>());
     CALL_SUBTEST_14(upperbidiag_verify_unblocked(MatrixXf(MatrixXf::Random(10, 8))));
     CALL_SUBTEST_14(upperbidiag_verify_unblocked(MatrixXd(MatrixXd::Random(64, 64))));
     CALL_SUBTEST_14(upperbidiag_verify_unblocked(MatrixXd(MatrixXd::Random(100, 80))));
