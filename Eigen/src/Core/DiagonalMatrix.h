@@ -72,7 +72,7 @@ class DiagonalBase : public EigenBase<Derived> {
 
   /** \returns the value of the coefficient as if \c *this was a dense matrix. */
   EIGEN_DEVICE_FUNC inline Scalar coeff(Index row, Index col) const {
-    eigen_assert(row >= 0 && col >= 0 && row < rows() && col <= cols());
+    eigen_assert(row >= 0 && col >= 0 && row < rows() && col < cols());
     return row == col ? diagonal().coeff(row) : Scalar(0);
   }
 

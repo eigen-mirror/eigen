@@ -56,7 +56,7 @@ class KroneckerProductBase : public ReturnByValue<Derived> {
    */
   Scalar coeff(Index i) const {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived);
-    return m_A.coeff(i / m_A.size()) * m_B.coeff(i % m_A.size());
+    return m_A.coeff(i / m_B.size()) * m_B.coeff(i % m_B.size());
   }
 
  protected:
