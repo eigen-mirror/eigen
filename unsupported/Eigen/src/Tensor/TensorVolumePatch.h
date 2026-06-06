@@ -209,13 +209,12 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
 
     // Cache a few variables.
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_inputDepth = input_dims[0];
       m_inputPlanes = input_dims[1];
       m_inputRows = input_dims[2];
       m_inputCols = input_dims[3];
-    }
-    else {
+    } else {
       m_inputDepth = input_dims[NumInputDims - 1];
       m_inputPlanes = input_dims[NumInputDims - 2];
       m_inputRows = input_dims[NumInputDims - 3];
@@ -288,7 +287,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     eigen_assert(m_outputPlanes > 0);
 
     // Dimensions for result of extraction.
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       // ColMajor
       // 0: depth
       // 1: patch_planes
@@ -304,8 +303,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       for (int i = 5; i < NumDims; ++i) {
         m_dimensions[i] = input_dims[i - 1];
       }
-    }
-    else {
+    } else {
       // RowMajor
       // NumDims-1: depth
       // NumDims-2: patch_planes
@@ -324,13 +322,12 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     }
 
     // Strides for the output tensor.
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_rowStride = m_dimensions[1];
       m_colStride = m_dimensions[2] * m_rowStride;
       m_patchStride = m_colStride * m_dimensions[3] * m_dimensions[0];
       m_otherStride = m_patchStride * m_dimensions[4];
-    }
-    else {
+    } else {
       m_rowStride = m_dimensions[NumDims - 2];
       m_colStride = m_dimensions[NumDims - 3] * m_rowStride;
       m_patchStride = m_colStride * m_dimensions[NumDims - 4] * m_dimensions[NumDims - 1];
@@ -358,10 +355,9 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     m_fastOutputPlanes = internal::TensorIntDivisor<Index>(m_outputPlanes);
     m_fastOutputPlanesRows = internal::TensorIntDivisor<Index>(m_outputPlanesRows);
 
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[0]);
-    }
-    else {
+    } else {
       m_fastOutputDepth = internal::TensorIntDivisor<Index>(m_dimensions[NumDims - 1]);
     }
   }

@@ -265,13 +265,12 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
     internal::tensor_contraction_dispatch(
         [&](auto lhs_c, auto rhs_c, auto rhs_r) {
-          EIGEN_IF_CONSTEXPR(IsEvalInSyncMode) {
+          EIGEN_IF_CONSTEXPR (IsEvalInSyncMode) {
             EvalParallelContext<NoCallback, lhs_c(), rhs_c(), rhs_r(), Alignment> ctx(
                 this, num_threads, buffer, m, n, k, bm, bn, bk, nm, nn, nk, gm, gn, nm0, nn0, shard_by_col,
                 parallel_pack, parallelize_by_sharding_dim_only, NoCallback());
             ctx.run();
-          }
-          else {
+          } else {
             auto* ctx = new EvalParallelContext<DoneCallback, lhs_c(), rhs_c(), rhs_r(), Alignment>(
                 this, num_threads, buffer, m, n, k, bm, bn, bk, nm, nn, nk, gm, gn, nm0, nn0, shard_by_col,
                 parallel_pack, parallelize_by_sharding_dim_only, std::move(done));

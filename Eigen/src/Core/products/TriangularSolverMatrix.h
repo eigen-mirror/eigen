@@ -98,7 +98,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
     Index j = IsLower ? size - k - 1 : k;
 
     typename LhsMapper::LinearMapper r = lhs.getLinearMapper(0, j);
-    EIGEN_IF_CONSTEXPR(OtherInnerStride == 1 && packet_traits<Scalar>::Vectorizable) {
+    EIGEN_IF_CONSTEXPR (OtherInnerStride == 1 && packet_traits<Scalar>::Vectorizable) {
       using Packet = typename packet_traits<Scalar>::type;
       constexpr Index PS = unpacket_traits<Packet>::size;
       // Unrolled k3 loop by 4 to reduce r load/store traffic.
@@ -144,7 +144,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
         for (; i < otherSize; ++i) r(i) -= a(i) * b;
       }
       // Vectorized diagonal scaling.
-      EIGEN_IF_CONSTEXPR((Mode & UnitDiag) == 0) {
+      EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == 0) {
         Scalar inv_rjj = RealScalar(1) / conj(rhs(j, j));
         Packet pinv = pset1<Packet>(inv_rjj);
         Index i = 0;
@@ -153,14 +153,13 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
         }
         for (; i < otherSize; ++i) r(i) *= inv_rjj;
       }
-    }
-    else {
+    } else {
       for (Index k3 = 0; k3 < k; ++k3) {
         Scalar b = conj(rhs(IsLower ? j + 1 + k3 : k3, j));
         typename LhsMapper::LinearMapper a = lhs.getLinearMapper(0, IsLower ? j + 1 + k3 : k3);
         for (Index i = 0; i < otherSize; ++i) r(i) -= a(i) * b;
       }
-      EIGEN_IF_CONSTEXPR((Mode & UnitDiag) == 0) {
+      EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == 0) {
         Scalar inv_rjj = RealScalar(1) / conj(rhs(j, j));
         for (Index i = 0; i < otherSize; ++i) r(i) *= inv_rjj;
       }
@@ -202,8 +201,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
 
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_L_KERNELS) && EIGEN_USE_AVX512_TRSM_L_KERNELS && \
     EIGEN_ENABLE_AVX512_NOCOPY_TRSM_L_CUTOFFS
-  EIGEN_IF_CONSTEXPR(
-      (OtherInnerStride == 1 && (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
+  EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 &&
+                       (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
     // Very rough cutoffs to determine when to call trsm w/o packing
     // For small problem sizes trsmKernel compiled with clang is generally faster.
     // TODO: Investigate better heuristics for cutoffs.
@@ -270,8 +269,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
         {
           Index i = IsLower ? k2 + k1 : k2 - k1;
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_L_KERNELS) && EIGEN_USE_AVX512_TRSM_L_KERNELS
-          EIGEN_IF_CONSTEXPR(
-              (OtherInnerStride == 1 && (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
+          EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 &&
+                               (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
             i = IsLower ? k2 + k1 : k2 - k1 - actualPanelWidth;
           }
 #endif
@@ -335,8 +334,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
 
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_R_KERNELS) && EIGEN_USE_AVX512_TRSM_R_KERNELS && \
     EIGEN_ENABLE_AVX512_NOCOPY_TRSM_R_CUTOFFS
-  EIGEN_IF_CONSTEXPR(
-      (OtherInnerStride == 1 && (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
+  EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 &&
+                       (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
     // TODO: Investigate better heuristics for cutoffs.
     std::ptrdiff_t l1, l2, l3;
     manage_caching_sizes(GetAction, &l1, &l2, &l3);

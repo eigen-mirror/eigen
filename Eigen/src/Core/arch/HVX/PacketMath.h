@@ -59,11 +59,10 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_load_partial(const T* mem) {
   HVX_Vector v0 = HVX_vmem<0>(mem);
   HVX_Vector v1 = v0;
   uintptr_t mem_addr = reinterpret_cast<uintptr_t>(mem);
-  EIGEN_IF_CONSTEXPR(Size * sizeof(T) <= Alignment) {
+  EIGEN_IF_CONSTEXPR (Size * sizeof(T) <= Alignment) {
     // Data size less than alignment will never cross multiple aligned vectors.
     v1 = v0;
-  }
-  else {
+  } else {
     uintptr_t left_off = mem_addr & (__HVX_LENGTH__ - 1);
     if (left_off + Size * sizeof(T) > __HVX_LENGTH__) {
       v1 = HVX_vmem<1>(mem);
@@ -99,7 +98,7 @@ EIGEN_STRONG_INLINE void HVX_store_partial(T* mem, HVX_Vector v) {
   HVX_VectorPred ql_not = Q6_Q_vsetq_R(mem_addr);
   HVX_VectorPred qr = Q6_Q_vsetq2_R(right_off);
 
-  EIGEN_IF_CONSTEXPR(Size * sizeof(T) > Alignment) {
+  EIGEN_IF_CONSTEXPR (Size * sizeof(T) > Alignment) {
     if (right_off > __HVX_LENGTH__) {
       Q6_vmem_QRIV(qr, mem + __HVX_LENGTH__ / sizeof(T), value);
       qr = Q6_Q_vcmp_eq_VbVb(value, value);

@@ -13,8 +13,10 @@
 
 template <bool isARowMajor = true>
 EIGEN_ALWAYS_INLINE int64_t idA(int64_t i, int64_t j, int64_t LDA) {
-  EIGEN_IF_CONSTEXPR(isARowMajor) return i * LDA + j;
-  else return i + j * LDA;
+  EIGEN_IF_CONSTEXPR (isARowMajor)
+    return i * LDA + j;
+  else
+    return i + j * LDA;
 }
 
 /**
@@ -59,11 +61,11 @@ namespace unrolls {
 
 template <int64_t N>
 EIGEN_ALWAYS_INLINE auto remMask(int64_t m) {
-  EIGEN_IF_CONSTEXPR(N == 16) { return 0xFFFF >> (16 - m); }
-  else EIGEN_IF_CONSTEXPR(N == 8) {
+  EIGEN_IF_CONSTEXPR (N == 16) {
+    return 0xFFFF >> (16 - m);
+  } else EIGEN_IF_CONSTEXPR (N == 8) {
     return 0xFF >> (8 - m);
-  }
-  else EIGEN_IF_CONSTEXPR(N == 4) {
+  } else EIGEN_IF_CONSTEXPR (N == 4) {
     return 0x0F >> (4 - m);
   }
   return 0;
@@ -155,22 +157,20 @@ class trans {
     constexpr int64_t counterReverse = endN - counter;
     constexpr int64_t startN = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(startN < EIGEN_AVX_MAX_NUM_ROW) {
-      EIGEN_IF_CONSTEXPR(remM) {
+    EIGEN_IF_CONSTEXPR (startN < EIGEN_AVX_MAX_NUM_ROW) {
+      EIGEN_IF_CONSTEXPR (remM) {
         pstoreu<Scalar>(
             C_arr + LDC * startN,
             padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
                  preinterpret<vecHalf>(zmm.packet[packetIndexOffset + (unrollN / PacketSize) * startN]),
                  remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
             remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
-      }
-      else {
+      } else {
         pstoreu<Scalar>(C_arr + LDC * startN,
                         padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN),
                              preinterpret<vecHalf>(zmm.packet[packetIndexOffset + (unrollN / PacketSize) * startN])));
       }
-    }
-    else {  // This block is only needed for fp32 case
+    } else {  // This block is only needed for fp32 case
       // Reinterpret as __m512 for _mm512_shuffle_f32x4
       vecFullFloat zmm2vecFullFloat = preinterpret<vecFullFloat>(
           zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)]);
@@ -178,15 +178,14 @@ class trans {
       zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)] =
           preinterpret<vec>(_mm512_shuffle_f32x4(zmm2vecFullFloat, zmm2vecFullFloat, 0b01001110));
 
-      EIGEN_IF_CONSTEXPR(remM) {
+      EIGEN_IF_CONSTEXPR (remM) {
         pstoreu<Scalar>(
             C_arr + LDC * startN,
             padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN, remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_)),
                  preinterpret<vecHalf>(
                      zmm.packet[packetIndexOffset + (unrollN / PacketSize) * (startN - EIGEN_AVX_MAX_NUM_ROW)])),
             remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
-      }
-      else {
+      } else {
         pstoreu<Scalar>(
             C_arr + LDC * startN,
             padd(ploadu<vecHalf>((const Scalar *)C_arr + LDC * startN),
@@ -308,16 +307,15 @@ class transB {
     constexpr int64_t counterReverse = endN - counter;
     constexpr int64_t startN = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(remM) {
+    EIGEN_IF_CONSTEXPR (remM) {
       ymm.packet[packetIndexOffset + startN] =
           ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB], remMask<EIGEN_AVX_MAX_NUM_ROW>(remM_));
-    }
-    else {
-      EIGEN_IF_CONSTEXPR(remN_ == 0) {
+    } else {
+      EIGEN_IF_CONSTEXPR (remN_ == 0) {
         ymm.packet[packetIndexOffset + startN] = ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB]);
-      }
-      else ymm.packet[packetIndexOffset + startN] =
-          ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB], remMask<EIGEN_AVX_MAX_NUM_ROW>(remN_));
+      } else
+        ymm.packet[packetIndexOffset + startN] =
+            ploadu<vecHalf>((const Scalar *)&B_arr[startN * LDB], remMask<EIGEN_AVX_MAX_NUM_ROW>(remN_));
     }
 
     aux_loadB<endN, counter - 1, packetIndexOffset, remM, remN_>(B_arr, LDB, ymm, remM_);
@@ -345,11 +343,10 @@ class transB {
     constexpr int64_t counterReverse = endN - counter;
     constexpr int64_t startN = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(remK || remM) {
+    EIGEN_IF_CONSTEXPR (remK || remM) {
       pstoreu<Scalar>(&B_arr[startN * LDB], ymm.packet[packetIndexOffset + startN],
                       remMask<EIGEN_AVX_MAX_NUM_ROW>(rem_));
-    }
-    else {
+    } else {
       pstoreu<Scalar>(&B_arr[startN * LDB], ymm.packet[packetIndexOffset + startN]);
     }
 
@@ -406,10 +403,9 @@ class transB {
     constexpr int64_t counterReverse = endN - counter;
     constexpr int64_t startN = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(toTemp) {
+    EIGEN_IF_CONSTEXPR (toTemp) {
       transB::template storeB<EIGEN_AVX_MAX_NUM_ROW, startN, remK_ != 0, false>(&B_temp[startN], LDB_, ymm, remK_);
-    }
-    else {
+    } else {
       transB::template storeB<std::min(EIGEN_AVX_MAX_NUM_ROW, endN), startN, false, remM>(&B_arr[0 + startN * LDB], LDB,
                                                                                           ymm, remM_);
     }
@@ -450,8 +446,9 @@ class transB {
   static EIGEN_ALWAYS_INLINE void loadBBlock(Scalar *B_arr, int64_t LDB, Scalar *B_temp, int64_t LDB_,
                                              PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm,
                                              int64_t remM_ = 0) {
-    EIGEN_IF_CONSTEXPR(toTemp) { transB::template loadB<unrollN, 0, remM, 0>(&B_arr[0], LDB, ymm, remM_); }
-    else {
+    EIGEN_IF_CONSTEXPR (toTemp) {
+      transB::template loadB<unrollN, 0, remM, 0>(&B_arr[0], LDB, ymm, remM_);
+    } else {
       aux_loadBBlock<unrollN, unrollN, toTemp, remM, remN_>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
     }
   }
@@ -501,7 +498,7 @@ class transB {
      *
      *  For fp32 L and U1 are 1:2 so for U3/U2 cases the loads/stores need to be split up.
      */
-    EIGEN_IF_CONSTEXPR(unrollN == U3) {
+    EIGEN_IF_CONSTEXPR (unrollN == U3) {
       // load LxU3 B col major, transpose LxU3 row major
       constexpr int64_t maxUBlock = std::min(3 * EIGEN_AVX_MAX_NUM_ROW, U3);
       transB::template loadBBlock<maxUBlock, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
@@ -510,7 +507,7 @@ class transB {
       transB::template transposeLxL<2 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
       transB::template storeBBlock<maxUBlock, toTemp, remM, 0>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
 
-      EIGEN_IF_CONSTEXPR(maxUBlock < U3) {
+      EIGEN_IF_CONSTEXPR (maxUBlock < U3) {
         transB::template loadBBlock<maxUBlock, toTemp, remM>(&B_arr[maxUBlock * LDB], LDB, &B_temp[maxUBlock], LDB_,
                                                              ymm, remM_);
         transB::template transposeLxL<0 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
@@ -519,50 +516,46 @@ class transB {
         transB::template storeBBlock<maxUBlock, toTemp, remM, 0>(&B_arr[maxUBlock * LDB], LDB, &B_temp[maxUBlock], LDB_,
                                                                  ymm, remM_);
       }
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == U2) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == U2) {
       // load LxU2 B col major, transpose LxU2 row major
       constexpr int64_t maxUBlock = std::min(3 * EIGEN_AVX_MAX_NUM_ROW, U2);
       transB::template loadBBlock<maxUBlock, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
       transB::template transposeLxL<1 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
-      EIGEN_IF_CONSTEXPR(maxUBlock < U2) transB::template transposeLxL<2 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
+      EIGEN_IF_CONSTEXPR (maxUBlock < U2) transB::template transposeLxL<2 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
       transB::template storeBBlock<maxUBlock, toTemp, remM, 0>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
 
-      EIGEN_IF_CONSTEXPR(maxUBlock < U2) {
+      EIGEN_IF_CONSTEXPR (maxUBlock < U2) {
         transB::template loadBBlock<EIGEN_AVX_MAX_NUM_ROW, toTemp, remM>(&B_arr[maxUBlock * LDB], LDB,
                                                                          &B_temp[maxUBlock], LDB_, ymm, remM_);
         transB::template transposeLxL<0>(ymm);
         transB::template storeBBlock<EIGEN_AVX_MAX_NUM_ROW, toTemp, remM, 0>(&B_arr[maxUBlock * LDB], LDB,
                                                                              &B_temp[maxUBlock], LDB_, ymm, remM_);
       }
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == U1) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == U1) {
       // load LxU1 B col major, transpose LxU1 row major
       transB::template loadBBlock<U1, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
-      EIGEN_IF_CONSTEXPR(EIGEN_AVX_MAX_NUM_ROW < U1) { transB::template transposeLxL<1 * EIGEN_AVX_MAX_NUM_ROW>(ymm); }
+      EIGEN_IF_CONSTEXPR (EIGEN_AVX_MAX_NUM_ROW < U1) {
+        transB::template transposeLxL<1 * EIGEN_AVX_MAX_NUM_ROW>(ymm);
+      }
       transB::template storeBBlock<U1, toTemp, remM, 0>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == 8 && U1 > 8) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == 8 && U1 > 8) {
       // load Lx4 B col major, transpose Lx4 row major
       transB::template loadBBlock<8, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<8, toTemp, remM, 8>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == 4 && U1 > 4) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == 4 && U1 > 4) {
       // load Lx4 B col major, transpose Lx4 row major
       transB::template loadBBlock<4, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<4, toTemp, remM, 4>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == 2) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == 2) {
       // load Lx2 B col major, transpose Lx2 row major
       transB::template loadBBlock<2, toTemp, remM, 2>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<2, toTemp, remM, 2>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
-    }
-    else EIGEN_IF_CONSTEXPR(unrollN == 1) {
+    } else EIGEN_IF_CONSTEXPR (unrollN == 1) {
       // load Lx1 B col major, transpose Lx1 row major
       transB::template loadBBlock<1, toTemp, remM, 1>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
@@ -614,10 +607,9 @@ class trsm {
     constexpr int64_t packetIndex = startM * endK + startK;
     constexpr int64_t startM_ = isFWDSolve ? startM : -startM;
     const int64_t rhsIndex = (startK * PacketSize) + startM_ * LDB;
-    EIGEN_IF_CONSTEXPR(krem) {
+    EIGEN_IF_CONSTEXPR (krem) {
       RHSInPacket.packet[packetIndex] = ploadu<vec>(&B_arr[rhsIndex], remMask<PacketSize>(rem));
-    }
-    else {
+    } else {
       RHSInPacket.packet[packetIndex] = ploadu<vec>(&B_arr[rhsIndex]);
     }
     aux_loadRHS<isFWDSolve, endM, endK, counter - 1, krem>(B_arr, LDB, RHSInPacket, rem);
@@ -649,10 +641,9 @@ class trsm {
     constexpr int64_t packetIndex = startM * endK + startK;
     constexpr int64_t startM_ = isFWDSolve ? startM : -startM;
     const int64_t rhsIndex = (startK * PacketSize) + startM_ * LDB;
-    EIGEN_IF_CONSTEXPR(krem) {
+    EIGEN_IF_CONSTEXPR (krem) {
       pstoreu<Scalar>(&B_arr[rhsIndex], RHSInPacket.packet[packetIndex], remMask<PacketSize>(rem));
-    }
-    else {
+    } else {
       pstoreu<Scalar>(&B_arr[rhsIndex], RHSInPacket.packet[packetIndex]);
     }
     aux_storeRHS<isFWDSolve, endM, endK, counter - 1, krem>(B_arr, LDB, RHSInPacket, rem);
@@ -711,26 +702,27 @@ class trsm {
 
     // For each row of A, first update all corresponding RHS
     constexpr int64_t packetIndex = startM * endK + startK;
-    EIGEN_IF_CONSTEXPR(currentM > 0) {
+    EIGEN_IF_CONSTEXPR (currentM > 0) {
       RHSInPacket.packet[packetIndex] =
           pnmadd(AInPacket.packet[startM], RHSInPacket.packet[(currentM - 1) * endK + startK],
                  RHSInPacket.packet[packetIndex]);
     }
 
-    EIGEN_IF_CONSTEXPR(startK == endK - 1) {
+    EIGEN_IF_CONSTEXPR (startK == endK - 1) {
       // Once all RHS for previous row of A is updated, we broadcast the next element in the column A_{i, currentM}.
-      EIGEN_IF_CONSTEXPR(startM == currentM && !isUnitDiag) {
+      EIGEN_IF_CONSTEXPR (startM == currentM && !isUnitDiag) {
         // If diagonal is not unit, we broadcast reciprocals of diagonals AinPacket.packet[currentM].
         // This will be used in divRHSByDiag
-        EIGEN_IF_CONSTEXPR(isFWDSolve)
-        AInPacket.packet[currentM] = pset1<vec>(Scalar(1) / A_arr[idA<isARowMajor>(currentM, currentM, LDA)]);
-        else AInPacket.packet[currentM] = pset1<vec>(Scalar(1) / A_arr[idA<isARowMajor>(-currentM, -currentM, LDA)]);
-      }
-      else {
+        EIGEN_IF_CONSTEXPR (isFWDSolve)
+          AInPacket.packet[currentM] = pset1<vec>(Scalar(1) / A_arr[idA<isARowMajor>(currentM, currentM, LDA)]);
+        else
+          AInPacket.packet[currentM] = pset1<vec>(Scalar(1) / A_arr[idA<isARowMajor>(-currentM, -currentM, LDA)]);
+      } else {
         // Broadcast next off diagonal element of A
-        EIGEN_IF_CONSTEXPR(isFWDSolve)
-        AInPacket.packet[startM] = pset1<vec>(A_arr[idA<isARowMajor>(startM, currentM, LDA)]);
-        else AInPacket.packet[startM] = pset1<vec>(A_arr[idA<isARowMajor>(-startM, -currentM, LDA)]);
+        EIGEN_IF_CONSTEXPR (isFWDSolve)
+          AInPacket.packet[startM] = pset1<vec>(A_arr[idA<isARowMajor>(startM, currentM, LDA)]);
+        else
+          AInPacket.packet[startM] = pset1<vec>(A_arr[idA<isARowMajor>(-startM, -currentM, LDA)]);
       }
     }
 
@@ -769,8 +761,8 @@ class trsm {
     // Without "if constexpr" the compiler instantiates the case <-1, numK>
     // this is handled with enable_if to prevent out-of-bound warnings
     // from the compiler
-    EIGEN_IF_CONSTEXPR(!isUnitDiag && startM > 0)
-    trsm::template divRHSByDiag<startM - 1, numK>(RHSInPacket, AInPacket);
+    EIGEN_IF_CONSTEXPR (!isUnitDiag && startM > 0)
+      trsm::template divRHSByDiag<startM - 1, numK>(RHSInPacket, AInPacket);
 
     // After division, the rhs corresponding to subsequent rows of A can be partially updated
     // We also broadcast the reciprocal of the next diagonal to AInPacket.packet[currentM] (if needed)
@@ -779,8 +771,8 @@ class trsm {
                                                                                                 AInPacket);
 
     // Handle division for the RHS corresponding to the final row of A.
-    EIGEN_IF_CONSTEXPR(!isUnitDiag && startM == endM - 1)
-    trsm::template divRHSByDiag<startM, numK>(RHSInPacket, AInPacket);
+    EIGEN_IF_CONSTEXPR (!isUnitDiag && startM == endM - 1)
+      trsm::template divRHSByDiag<startM, numK>(RHSInPacket, AInPacket);
 
     aux_triSolveMicroKernel<isARowMajor, isFWDSolve, isUnitDiag, endM, counter - 1, numK>(A_arr, LDA, RHSInPacket,
                                                                                           AInPacket);
@@ -916,12 +908,13 @@ class gemm {
     constexpr int64_t startM = counterReverse / (endN);
     constexpr int64_t startN = counterReverse % endN;
 
-    EIGEN_IF_CONSTEXPR(rem)
-    zmm.packet[startN * endM + startM] =
-        padd(ploadu<vec>(&C_arr[(startN)*LDC + startM * PacketSize], remMask<PacketSize>(rem_)),
-             zmm.packet[startN * endM + startM], remMask<PacketSize>(rem_));
-    else zmm.packet[startN * endM + startM] =
-        padd(ploadu<vec>(&C_arr[(startN)*LDC + startM * PacketSize]), zmm.packet[startN * endM + startM]);
+    EIGEN_IF_CONSTEXPR (rem)
+      zmm.packet[startN * endM + startM] =
+          padd(ploadu<vec>(&C_arr[(startN)*LDC + startM * PacketSize], remMask<PacketSize>(rem_)),
+               zmm.packet[startN * endM + startM], remMask<PacketSize>(rem_));
+    else
+      zmm.packet[startN * endM + startM] =
+          padd(ploadu<vec>(&C_arr[(startN)*LDC + startM * PacketSize]), zmm.packet[startN * endM + startM]);
     aux_updateC<endM, endN, counter - 1, rem>(C_arr, LDC, zmm, rem_);
   }
 
@@ -949,10 +942,11 @@ class gemm {
     constexpr int64_t startM = counterReverse / (endN);
     constexpr int64_t startN = counterReverse % endN;
 
-    EIGEN_IF_CONSTEXPR(rem)
-    pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM],
-                    remMask<PacketSize>(rem_));
-    else pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM]);
+    EIGEN_IF_CONSTEXPR (rem)
+      pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM],
+                      remMask<PacketSize>(rem_));
+    else
+      pstoreu<Scalar>(&C_arr[(startN)*LDC + startM * PacketSize], zmm.packet[startN * endM + startM]);
     aux_storeC<endM, endN, counter - 1, rem>(C_arr, LDC, zmm, rem_);
   }
 
@@ -978,11 +972,12 @@ class gemm {
     constexpr int64_t counterReverse = endL - counter;
     constexpr int64_t startL = counterReverse;
 
-    EIGEN_IF_CONSTEXPR(rem)
-    zmm.packet[unrollM * unrollN + startL] =
-        ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize], remMask<PacketSize>(rem_));
-    else zmm.packet[unrollM * unrollN + startL] =
-        ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize]);
+    EIGEN_IF_CONSTEXPR (rem)
+      zmm.packet[unrollM * unrollN + startL] =
+          ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize], remMask<PacketSize>(rem_));
+    else
+      zmm.packet[unrollM * unrollN + startL] =
+          ploadu<vec>(&B_t[(startL / unrollM) * LDB + (startL % unrollM) * PacketSize]);
 
     aux_startLoadB<unrollM, unrollN, endL, counter - 1, rem>(B_t, LDB, zmm, rem_);
   }
@@ -1037,11 +1032,10 @@ class gemm {
       constexpr int64_t counterReverse = endM - counter;
       constexpr int64_t startM = counterReverse;
 
-      EIGEN_IF_CONSTEXPR(rem) {
+      EIGEN_IF_CONSTEXPR (rem) {
         zmm.packet[endM * unrollN + (startM + currK * endM) % numLoad] =
             ploadu<vec>(&B_t[(numLoad / endM + currK) * LDB + startM * PacketSize], remMask<PacketSize>(rem_));
-      }
-      else {
+      } else {
         zmm.packet[endM * unrollN + (startM + currK * endM) % numLoad] =
             ploadu<vec>(&B_t[(numLoad / endM + currK) * LDB + startM * PacketSize]);
       }
@@ -1079,32 +1073,31 @@ class gemm {
     constexpr int startN = (counterReverse / (endM)) % endN;
     constexpr int startM = counterReverse % endM;
 
-    EIGEN_IF_CONSTEXPR(startK == 0 && startM == 0 && startN == 0) {
+    EIGEN_IF_CONSTEXPR (startK == 0 && startM == 0 && startN == 0) {
       gemm::template startLoadB<endM, endN, numLoad, rem>(B_t, LDB, zmm, rem_);
       gemm::template startBCastA<isARowMajor, endM, endN, numBCast, numLoad>(A_t, LDA, zmm);
     }
 
     {
       // Interleave FMA and Bcast
-      EIGEN_IF_CONSTEXPR(isAdd) {
+      EIGEN_IF_CONSTEXPR (isAdd) {
         zmm.packet[startN * endM + startM] =
             pmadd(zmm.packet[endM * endN + numLoad + (startN + startK * endN) % numBCast],
                   zmm.packet[endM * endN + (startM + startK * endM) % numLoad], zmm.packet[startN * endM + startM]);
-      }
-      else {
+      } else {
         zmm.packet[startN * endM + startM] =
             pnmadd(zmm.packet[endM * endN + numLoad + (startN + startK * endN) % numBCast],
                    zmm.packet[endM * endN + (startM + startK * endM) % numLoad], zmm.packet[startN * endM + startM]);
       }
       // Bcast
-      EIGEN_IF_CONSTEXPR(startM == endM - 1 && (numBCast + startN + startK * endN < endK * endN)) {
+      EIGEN_IF_CONSTEXPR (startM == endM - 1 && (numBCast + startN + startK * endN < endK * endN)) {
         zmm.packet[endM * endN + numLoad + (startN + startK * endN) % numBCast] = pload1<vec>(&A_t[idA<isARowMajor>(
             (numBCast + startN + startK * endN) % endN, (numBCast + startN + startK * endN) / endN, LDA)]);
       }
     }
 
     // We have updated all accumulators, time to load next set of B's
-    EIGEN_IF_CONSTEXPR((startN == endN - 1) && (startM == endM - 1)) {
+    EIGEN_IF_CONSTEXPR ((startN == endN - 1) && (startM == endM - 1)) {
       gemm::template loadB<endM, endN, startK, endK, numLoad, numBCast, rem>(B_t, LDB, zmm, rem_);
     }
     aux_microKernel<isARowMajor, endM, endN, endK, counter - 1, numLoad, numBCast, rem>(B_t, A_t, LDB, LDA, zmm, rem_);

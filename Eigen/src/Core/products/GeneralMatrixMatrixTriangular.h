@@ -121,7 +121,7 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
         //  1 - before the diagonal => processed with gebp or skipped
         //  2 - the actual_mc x actual_mc symmetric block => processed with a special kernel
         //  3 - after the diagonal => processed with gebp or skipped
-        EIGEN_IF_CONSTEXPR(UpLo == Lower) {
+        EIGEN_IF_CONSTEXPR (UpLo == Lower) {
           gebp(res.getSubMapper(i2, 0), blockA, blockB, actual_mc, actual_kc, (std::min)(size, i2), alpha, -1, -1, 0,
                0);
         }
@@ -129,7 +129,7 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
         sybb(res_ + resStride * i2 + resIncr * i2, resIncr, resStride, blockA, blockB + actual_kc * i2, actual_mc,
              actual_kc, alpha);
 
-        EIGEN_IF_CONSTEXPR(UpLo == Upper) {
+        EIGEN_IF_CONSTEXPR (UpLo == Upper) {
           Index j2 = i2 + actual_mc;
           gebp(res.getSubMapper(i2, j2), blockA, blockB + actual_kc * j2, actual_mc, actual_kc,
                (std::max)(Index(0), size - j2), alpha, -1, -1, 0, 0);
@@ -171,7 +171,7 @@ struct tribb_kernel {
       Index actualBlockSize = std::min<Index>(BlockSize, size - j);
       const RhsScalar* actual_b = blockB + j * depth;
 
-      EIGEN_IF_CONSTEXPR(UpLo == Upper) {
+      EIGEN_IF_CONSTEXPR (UpLo == Upper) {
         gebp_kernel1(res.getSubMapper(0, j), blockA, actual_b, j, depth, actualBlockSize, alpha, -1, -1, 0, 0);
       }
 
@@ -191,7 +191,7 @@ struct tribb_kernel {
         }
       }
 
-      EIGEN_IF_CONSTEXPR(UpLo == Lower) {
+      EIGEN_IF_CONSTEXPR (UpLo == Lower) {
         Index i = j + actualBlockSize;
         gebp_kernel1(res.getSubMapper(i, j), blockA + depth * i, actual_b, size - i, depth, actualBlockSize, alpha, -1,
                      -1, 0, 0);
@@ -240,7 +240,7 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
     ei_declare_aligned_stack_constructed_variable(
         Scalar, actualLhsPtr, actualLhs.size(),
         (UseLhsDirectly ? const_cast<Scalar*>(actualLhs.data()) : static_lhs.data()));
-    EIGEN_IF_CONSTEXPR(!UseLhsDirectly) {
+    EIGEN_IF_CONSTEXPR (!UseLhsDirectly) {
       Map<typename ActualLhs_::PlainObject>(actualLhsPtr, actualLhs.size()) = actualLhs;
     }
 
@@ -249,7 +249,7 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
     ei_declare_aligned_stack_constructed_variable(
         Scalar, actualRhsPtr, actualRhs.size(),
         (UseRhsDirectly ? const_cast<Scalar*>(actualRhs.data()) : static_rhs.data()));
-    EIGEN_IF_CONSTEXPR(!UseRhsDirectly) {
+    EIGEN_IF_CONSTEXPR (!UseRhsDirectly) {
       Map<typename ActualRhs_::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     }
 

@@ -203,7 +203,7 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     // Workaround for issue 1612 (closed): when PacketSize==1 (i.e. complex<double> with 128bits registers) the
     // storage-order of panel gets reversed and methods like packetByOuterInner do not make sense in this context, so
     // bypass "vectorization":
-    EIGEN_IF_CONSTEXPR(PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
+    EIGEN_IF_CONSTEXPR (PacketSize == 1) return internal::pset1<PacketType>(coeff(idx));
 
     Index startRow = Direction == Vertical ? 0 : idx;
     Index startCol = Direction == Vertical ? idx : 0;

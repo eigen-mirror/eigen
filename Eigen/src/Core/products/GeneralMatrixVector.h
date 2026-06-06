@@ -255,7 +255,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
       process_rows<1>(i, j2, jend, lhs, rhs, res, palpha, pcj);
       i += ResPacketSize;
     }
-    EIGEN_IF_CONSTEXPR(HasHalf) {
+    EIGEN_IF_CONSTEXPR (HasHalf) {
       if (i < n_half) {
         ResPacketHalf c0 = pzero(ResPacketHalf{});
         for (Index j = j2; j < jend; j += 1) {
@@ -267,7 +267,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
         i += ResPacketSizeHalf;
       }
     }
-    EIGEN_IF_CONSTEXPR(HasQuarter) {
+    EIGEN_IF_CONSTEXPR (HasQuarter) {
       if (i < n_quarter) {
         ResPacketQuarter c0 = pzero(ResPacketQuarter{});
         for (Index j = j2; j < jend; j += 1) {
@@ -511,14 +511,14 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
       c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i, j), b0, c0);
     }
     ResScalar cc0 = predux(c0);
-    EIGEN_IF_CONSTEXPR(HasHalf) {
+    EIGEN_IF_CONSTEXPR (HasHalf) {
       for (Index j = fullColBlockEnd; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
         RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
         c0_h = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i, j), b0, c0_h);
       }
       cc0 += predux(c0_h);
     }
-    EIGEN_IF_CONSTEXPR(HasQuarter) {
+    EIGEN_IF_CONSTEXPR (HasQuarter) {
       for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
         RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
         c0_q = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i, j), b0, c0_q);
@@ -631,7 +631,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   using Unroll = gemv_small_cols_unroller<N - 1, N>;
 
   ResScalar cc[N] = {};
-  EIGEN_IF_CONSTEXPR(HasHalf) {
+  EIGEN_IF_CONSTEXPR (HasHalf) {
     ResPacketHalf h[N];
     Unroll::init_zero(h);
     for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
@@ -640,7 +640,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     }
     Unroll::predux_accum(cc, h);
   }
-  EIGEN_IF_CONSTEXPR(HasQuarter) {
+  EIGEN_IF_CONSTEXPR (HasQuarter) {
     ResPacketQuarter q[N];
     Unroll::init_zero(q);
     for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {

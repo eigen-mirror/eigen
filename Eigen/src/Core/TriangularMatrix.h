@@ -391,11 +391,11 @@ class TriangularView
   /** \returns the determinant of the triangular matrix
    * \sa MatrixBase::determinant() */
   EIGEN_DEVICE_FUNC Scalar determinant() const {
-    EIGEN_IF_CONSTEXPR(Mode & UnitDiag) { return 1; }
-    else EIGEN_IF_CONSTEXPR(Mode & ZeroDiag) {
+    EIGEN_IF_CONSTEXPR (Mode & UnitDiag) {
+      return 1;
+    } else EIGEN_IF_CONSTEXPR (Mode & ZeroDiag) {
       return 0;
-    }
-    else {
+    } else {
       return m_matrix.diagonal().prod();
     }
   }
@@ -777,18 +777,20 @@ class triangular_dense_assignment_kernel
 #endif
 
   EIGEN_DEVICE_FUNC void assignDiagonalCoeff(Index id) {
-    EIGEN_IF_CONSTEXPR(Mode == UnitDiag && SetOpposite) { m_functor.assignCoeff(m_dst.coeffRef(id, id), Scalar(1)); }
-    else EIGEN_IF_CONSTEXPR(Mode == ZeroDiag && SetOpposite) {
+    EIGEN_IF_CONSTEXPR (Mode == UnitDiag && SetOpposite) {
+      m_functor.assignCoeff(m_dst.coeffRef(id, id), Scalar(1));
+    } else EIGEN_IF_CONSTEXPR (Mode == ZeroDiag && SetOpposite) {
       m_functor.assignCoeff(m_dst.coeffRef(id, id), Scalar(0));
-    }
-    else EIGEN_IF_CONSTEXPR(Mode == 0) {
+    } else EIGEN_IF_CONSTEXPR (Mode == 0) {
       Base::assignCoeff(id, id);
     }
   }
 
   EIGEN_DEVICE_FUNC void assignOppositeCoeff(Index row, Index col) {
     eigen_internal_assert(row != col);
-    EIGEN_IF_CONSTEXPR(SetOpposite) { m_functor.assignCoeff(m_dst.coeffRef(row, col), Scalar(0)); }
+    EIGEN_IF_CONSTEXPR (SetOpposite) {
+      m_functor.assignCoeff(m_dst.coeffRef(row, col), Scalar(0));
+    }
   }
 };
 
@@ -894,8 +896,9 @@ struct triangular_assignment_loop {
       kernel.assignDiagonalCoeff(row);
     else if (((Mode & Lower) && row > col) || ((Mode & Upper) && row < col))
       kernel.assignCoeff(row, col);
-    else
-      EIGEN_IF_CONSTEXPR(SetOpposite) { kernel.assignOppositeCoeff(row, col); }
+    else EIGEN_IF_CONSTEXPR (SetOpposite) {
+      kernel.assignOppositeCoeff(row, col);
+    }
   }
 };
 
@@ -942,22 +945,19 @@ struct triangular_assignment_loop<Kernel, Mode, Dynamic, SetOpposite> {
       const Index maxi = numext::mini(outer, innerSize);
       Index i = 0;
 
-      EIGEN_IF_CONSTEXPR(ActiveBeforeDiag) {
+      EIGEN_IF_CONSTEXPR (ActiveBeforeDiag) {
         for (; i < maxi; ++i) kernel.assignCoeff(row(outer, i), col(outer, i));
-      }
-      else EIGEN_IF_CONSTEXPR(SetOpposite) {
+      } else EIGEN_IF_CONSTEXPR (SetOpposite) {
         for (; i < maxi; ++i) kernel.assignOppositeCoeff(row(outer, i), col(outer, i));
-      }
-      else {
+      } else {
         i = maxi;
       }
 
       if (i < innerSize) kernel.assignDiagonalCoeff(i++);
 
-      EIGEN_IF_CONSTEXPR(!ActiveBeforeDiag) {
+      EIGEN_IF_CONSTEXPR (!ActiveBeforeDiag) {
         for (; i < innerSize; ++i) kernel.assignCoeff(row(outer, i), col(outer, i));
-      }
-      else EIGEN_IF_CONSTEXPR(SetOpposite) {
+      } else EIGEN_IF_CONSTEXPR (SetOpposite) {
         for (; i < innerSize; ++i) kernel.assignOppositeCoeff(row(outer, i), col(outer, i));
       }
     }

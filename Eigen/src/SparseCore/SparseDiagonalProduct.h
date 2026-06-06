@@ -144,8 +144,9 @@ struct sparse_selfadjoint_diagonal_product_impl {
     const StorageIndex outer = outerIndex(row, col);
     const Index k = count[outer]++;
     dest.innerIndexPtr()[k] = innerIndex(row, col);
-    EIGEN_IF_CONSTEXPR(ProductOrder == OnTheLeft) { dest.valuePtr()[k] = diagonal.coeff(row) * coeff; }
-    else {
+    EIGEN_IF_CONSTEXPR (ProductOrder == OnTheLeft) {
+      dest.valuePtr()[k] = diagonal.coeff(row) * coeff;
+    } else {
       dest.valuePtr()[k] = coeff * diagonal.coeff(col);
     }
   }

@@ -220,7 +220,9 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
 
   Scalar actualAlpha = alpha * UBlasTraits::extractScalarFactor(u.derived()) *
                        numext::conj(VBlasTraits::extractScalarFactor(v.derived()));
-  EIGEN_IF_CONSTEXPR(IsRowMajor) { actualAlpha = numext::conj(actualAlpha); }
+  EIGEN_IF_CONSTEXPR (IsRowMajor) {
+    actualAlpha = numext::conj(actualAlpha);
+  }
 
   const Index size = u.size();
 
@@ -229,9 +231,10 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
       static_u;
   ei_declare_aligned_stack_constructed_variable(Scalar, uPtr, size,
                                                 (UseUDirectly ? const_cast<Scalar*>(actualU.data()) : static_u.data()));
-  EIGEN_IF_CONSTEXPR(!UseUDirectly) {
-    EIGEN_IF_CONSTEXPR(NeedConjU) { Map<typename ActualUType_::PlainObject>(uPtr, size) = actualU.conjugate(); }
-    else {
+  EIGEN_IF_CONSTEXPR (!UseUDirectly) {
+    EIGEN_IF_CONSTEXPR (NeedConjU) {
+      Map<typename ActualUType_::PlainObject>(uPtr, size) = actualU.conjugate();
+    } else {
       Map<typename ActualUType_::PlainObject>(uPtr, size) = actualU;
     }
   }
@@ -241,9 +244,10 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
       static_v;
   ei_declare_aligned_stack_constructed_variable(Scalar, vPtr, size,
                                                 (UseVDirectly ? const_cast<Scalar*>(actualV.data()) : static_v.data()));
-  EIGEN_IF_CONSTEXPR(!UseVDirectly) {
-    EIGEN_IF_CONSTEXPR(NeedConjV) { Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV.conjugate(); }
-    else {
+  EIGEN_IF_CONSTEXPR (!UseVDirectly) {
+    EIGEN_IF_CONSTEXPR (NeedConjV) {
+      Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV.conjugate();
+    } else {
       Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV;
     }
   }

@@ -38,8 +38,9 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
   AmbiVector<ResScalar, StorageIndex> tempVector(rows);
 
   // mimics a resizeByInnerOuter:
-  EIGEN_IF_CONSTEXPR(ResultType::IsRowMajor) { res.resize(cols, rows); }
-  else {
+  EIGEN_IF_CONSTEXPR (ResultType::IsRowMajor) {
+    res.resize(cols, rows);
+  } else {
     res.resize(rows, cols);
   }
 

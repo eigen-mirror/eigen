@@ -92,9 +92,10 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
 
   Matrix<Scalar, SmallPanelWidth, SmallPanelWidth, LhsStorageOrder> triangularBuffer;
   triangularBuffer.setZero();
-  EIGEN_IF_CONSTEXPR((Mode & ZeroDiag) == ZeroDiag)
-  triangularBuffer.diagonal().setZero();
-  else triangularBuffer.diagonal().setOnes();
+  EIGEN_IF_CONSTEXPR ((Mode & ZeroDiag) == ZeroDiag)
+    triangularBuffer.diagonal().setZero();
+  else
+    triangularBuffer.diagonal().setOnes();
 
   gebp_kernel<Scalar, Scalar, Index, ResMapper, Traits::mr, Traits::nr, ConjugateLhs, ConjugateRhs> gebp_kernel;
   gemm_pack_lhs<Scalar, Index, LhsMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing,
@@ -217,9 +218,10 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
 
   Matrix<Scalar, SmallPanelWidth, SmallPanelWidth, RhsStorageOrder> triangularBuffer;
   triangularBuffer.setZero();
-  EIGEN_IF_CONSTEXPR((Mode & ZeroDiag) == ZeroDiag)
-  triangularBuffer.diagonal().setZero();
-  else triangularBuffer.diagonal().setOnes();
+  EIGEN_IF_CONSTEXPR ((Mode & ZeroDiag) == ZeroDiag)
+    triangularBuffer.diagonal().setZero();
+  else
+    triangularBuffer.diagonal().setOnes();
 
   gebp_kernel<Scalar, Scalar, Index, ResMapper, Traits::mr, Traits::nr, ConjugateLhs, ConjugateRhs> gebp_kernel;
   gemm_pack_lhs<Scalar, Index, LhsMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing,
@@ -233,7 +235,7 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
     Index actual_k2 = IsLower ? k2 : k2 - actual_kc;
 
     // align blocks with the end of the triangular part for trapezoidal rhs
-    EIGEN_IF_CONSTEXPR(IsLower) {
+    EIGEN_IF_CONSTEXPR (IsLower) {
       if ((k2 < cols) && (actual_k2 + actual_kc > cols)) {
         actual_kc = cols - k2;
         k2 = actual_k2 + actual_kc - kc;
@@ -355,7 +357,7 @@ struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
                                              actualAlpha, blocking);
 
     // Apply correction if the diagonal is unit and a scalar factor was nested:
-    EIGEN_IF_CONSTEXPR((Mode & UnitDiag) == UnitDiag) {
+    EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
       if (LhsIsTriangular && !numext::is_exactly_one(lhs_alpha)) {
         Index diagSize = (std::min)(lhs.rows(), lhs.cols());
         dst.topRows(diagSize) -= ((lhs_alpha - LhsScalar(1)) * a_rhs).topRows(diagSize);

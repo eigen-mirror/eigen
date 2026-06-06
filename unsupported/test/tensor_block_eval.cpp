@@ -17,10 +17,9 @@ using Eigen::internal::TensorExecutor;
 
 template <typename T, int NumDims, int Layout>
 static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
-  EIGEN_IF_CONSTEXPR((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {
+  EIGEN_IF_CONSTEXPR ((std::is_integral<T>::value && !std::is_same<T, bool>::value)) {
     setRandomDataInRange(tensor, T(-1000), T(1000));
-  }
-  else {
+  } else {
     tensor.setRandom();
   }
 }
@@ -86,15 +85,14 @@ static TensorBlockParams<NumDims> SkewedInnerBlock(DSizes<Index, NumDims> dims) 
 
   // Compute offsets for the first block coefficient.
   Index index = block.offset();
-  EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+  EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     for (int i = NumDims - 1; i > 0; --i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];
       offsets[i] = idx;
     }
     if (NumDims > 0) offsets[0] = index;
-  }
-  else {
+  } else {
     for (int i = 0; i < NumDims - 1; ++i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];

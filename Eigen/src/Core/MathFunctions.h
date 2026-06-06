@@ -921,7 +921,7 @@ struct copysign_impl<Scalar, true, IsInteger> {
 template <typename Scalar>
 struct copysign_impl<Scalar, false, true> {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
-    EIGEN_IF_CONSTEXPR(!NumTraits<Scalar>::IsSigned) return a;
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsSigned) return a;
     const Scalar abs_a = a < Scalar(0) ? -a : a;
     return b < Scalar(0) ? -abs_a : abs_a;
   }

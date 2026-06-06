@@ -1429,9 +1429,10 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
-    EIGEN_IF_CONSTEXPR(ForwardLinearAccess)
-    return m_argImpl.template packet<LoadMode, PacketType>(m_linear_offset.value() + index);
-    else return packet<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0);
+    EIGEN_IF_CONSTEXPR (ForwardLinearAccess)
+      return m_argImpl.template packet<LoadMode, PacketType>(m_linear_offset.value() + index);
+    else
+      return packet<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0);
   }
 
   template <int StoreMode, typename PacketType>
@@ -1441,10 +1442,11 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
 
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
-    EIGEN_IF_CONSTEXPR(ForwardLinearAccess)
-    return m_argImpl.template writePacket<StoreMode, PacketType>(m_linear_offset.value() + index, x);
-    else return writePacket<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
-                                                   RowsAtCompileTime == 1 ? index : 0, x);
+    EIGEN_IF_CONSTEXPR (ForwardLinearAccess)
+      return m_argImpl.template writePacket<StoreMode, PacketType>(m_linear_offset.value() + index, x);
+    else
+      return writePacket<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
+                                                x);
   }
 
   template <int LoadMode, typename PacketType>
@@ -1455,10 +1457,11 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
-    EIGEN_IF_CONSTEXPR(ForwardLinearAccess)
-    return m_argImpl.template packetSegment<LoadMode, PacketType>(m_linear_offset.value() + index, begin, count);
-    else return packetSegment<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
-                                                    RowsAtCompileTime == 1 ? index : 0, begin, count);
+    EIGEN_IF_CONSTEXPR (ForwardLinearAccess)
+      return m_argImpl.template packetSegment<LoadMode, PacketType>(m_linear_offset.value() + index, begin, count);
+    else
+      return packetSegment<LoadMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index, RowsAtCompileTime == 1 ? index : 0,
+                                                 begin, count);
   }
 
   template <int StoreMode, typename PacketType>
@@ -1471,11 +1474,12 @@ struct unary_evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>, IndexBa
   template <int StoreMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
                                                                 Index count) {
-    EIGEN_IF_CONSTEXPR(ForwardLinearAccess)
-    return m_argImpl.template writePacketSegment<StoreMode, PacketType>(m_linear_offset.value() + index, x, begin,
-                                                                        count);
-    else return writePacketSegment<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
-                                                          RowsAtCompileTime == 1 ? index : 0, x, begin, count);
+    EIGEN_IF_CONSTEXPR (ForwardLinearAccess)
+      return m_argImpl.template writePacketSegment<StoreMode, PacketType>(m_linear_offset.value() + index, x, begin,
+                                                                          count);
+    else
+      return writePacketSegment<StoreMode, PacketType>(RowsAtCompileTime == 1 ? 0 : index,
+                                                       RowsAtCompileTime == 1 ? index : 0, x, begin, count);
   }
 
  protected:

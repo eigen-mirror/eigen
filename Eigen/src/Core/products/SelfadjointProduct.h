@@ -40,7 +40,7 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
       Packet ps0 = internal::pset1<Packet>(s0);
       Packet ps1 = internal::pset1<Packet>(s1);
 
-      EIGEN_IF_CONSTEXPR(UpLo == Lower) {
+      EIGEN_IF_CONSTEXPR (UpLo == Lower) {
         Scalar* EIGEN_RESTRICT col0 = mat + stride * j + j;
         Scalar* EIGEN_RESTRICT col1 = mat + stride * (j + 1) + (j + 1);
 
@@ -71,8 +71,7 @@ struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs>
           d0[k] += s0 * cx;
           d1[k] += s1 * cx;
         }
-      }
-      else {
+      } else {
         // UpLo == Upper
         Scalar* EIGEN_RESTRICT col0 = mat + stride * j;
         Scalar* EIGEN_RESTRICT col1 = mat + stride * (j + 1);
@@ -162,7 +161,7 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, true> {
         Scalar, actualOtherPtr, other.size(),
         (UseOtherDirectly ? const_cast<Scalar*>(actualOther.data()) : static_other.data()));
 
-    EIGEN_IF_CONSTEXPR(!UseOtherDirectly) {
+    EIGEN_IF_CONSTEXPR (!UseOtherDirectly) {
       Map<typename ActualOtherType_::PlainObject>(actualOtherPtr, actualOther.size()) = actualOther;
     }
 

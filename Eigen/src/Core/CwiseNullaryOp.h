@@ -142,8 +142,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
 #endif
     DenseBase<Derived>::NullaryExpr(Index size, const CustomNullaryOp& func) {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-  EIGEN_IF_CONSTEXPR(RowsAtCompileTime == 1) { return CwiseNullaryOp<CustomNullaryOp, PlainObject>(1, size, func); }
-  else {
+  EIGEN_IF_CONSTEXPR (RowsAtCompileTime == 1) {
+    return CwiseNullaryOp<CustomNullaryOp, PlainObject>(1, size, func);
+  } else {
     return CwiseNullaryOp<CustomNullaryOp, PlainObject>(size, 1, func);
   }
 }
