@@ -114,51 +114,55 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
       const ResPacket& palpha, conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj);
 };
 
-// Recursive template unroller for col-major GEMV full-packet row blocks.
-// Unrolls the packet dimension (K = 0..N-1) at compile time, guaranteeing
-// that each accumulator lives in its own register variable.
-template <int K, int N>
-struct gemv_colmajor_unroller {
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero(Packet* c) {
-    gemv_colmajor_unroller<K - 1, N>::init_zero(c);
-    c[K] = pzero(Packet{});
-  }
-
-  template <typename LhsPacket, int LhsStride, int Alignment, typename AccPacket, typename RhsPacket,
-            typename ConjHelper, typename LhsMapper, typename Index>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd(AccPacket* c, const LhsMapper& lhs, Index i, Index j,
-                                                         const RhsPacket& b0, ConjHelper& pcj) {
-    gemv_colmajor_unroller<K - 1, N>::template madd<LhsPacket, LhsStride, Alignment>(c, lhs, i, j, b0, pcj);
-    c[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + LhsStride * K, j), b0, c[K]);
-  }
-
-  template <typename ResPacket, int ResStride, typename ResScalar>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void store(const ResPacket* c, ResScalar* res, Index i,
-                                                          const ResPacket& palpha) {
-    gemv_colmajor_unroller<K - 1, N>::template store<ResPacket, ResStride>(c, res, i, palpha);
-    pstoreu(res + i + ResStride * K, pmadd(c[K], palpha, ploadu<ResPacket>(res + i + ResStride * K)));
-  }
-};
-
+// Integer-sequence helper for col-major GEMV full-packet row blocks.
 template <int N>
-struct gemv_colmajor_unroller<0, N> {
+struct gemv_colmajor_unroller {
+  template <typename Packet, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero_impl(std::integer_sequence<int, K...>, Packet* c) {
+    int unused[] = {0, ((c[K] = pzero(Packet{})), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
   template <typename Packet>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero(Packet* c) {
-    c[0] = pzero(Packet{});
+    init_zero_impl(std::make_integer_sequence<int, N>{}, c);
+  }
+
+  template <typename LhsPacket, int LhsStride, int Alignment, typename AccPacket, typename RhsPacket,
+            typename ConjHelper, typename LhsMapper, typename Index, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd_impl(std::integer_sequence<int, K...>, AccPacket* c,
+                                                              const LhsMapper& lhs, Index i, Index j,
+                                                              const RhsPacket& b0, ConjHelper& pcj) {
+    int unused[] = {
+        0, ((c[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + LhsStride * K, j), b0, c[K])), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <typename LhsPacket, int LhsStride, int Alignment, typename AccPacket, typename RhsPacket,
             typename ConjHelper, typename LhsMapper, typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd(AccPacket* c, const LhsMapper& lhs, Index i, Index j,
                                                          const RhsPacket& b0, ConjHelper& pcj) {
-    c[0] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i, j), b0, c[0]);
+    madd_impl<LhsPacket, LhsStride, Alignment>(std::make_integer_sequence<int, N>{}, c, lhs, i, j, b0, pcj);
   }
 
-  template <typename ResPacket, int ResStride, typename ResScalar>
+  template <int K, typename ResPacket, int ResStride, typename ResScalar, typename Index>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void store_one(const ResPacket* c, ResScalar* res, Index i,
+                                                              const ResPacket& palpha) {
+    ResScalar* r = res + i + ResStride * K;
+    pstoreu(r, pmadd(c[K], palpha, ploadu<ResPacket>(r)));
+  }
+
+  template <typename ResPacket, int ResStride, typename ResScalar, typename Index, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void store_impl(std::integer_sequence<int, K...>, const ResPacket* c,
+                                                               ResScalar* res, Index i, const ResPacket& palpha) {
+    int unused[] = {0, (store_one<K, ResPacket, ResStride>(c, res, i, palpha), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
+
+  template <typename ResPacket, int ResStride, typename ResScalar, typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void store(const ResPacket* c, ResScalar* res, Index i,
                                                           const ResPacket& palpha) {
-    pstoreu(res + i, pmadd(c[0], palpha, ploadu<ResPacket>(res + i)));
+    store_impl<ResPacket, ResStride>(std::make_integer_sequence<int, N>{}, c, res, i, palpha);
   }
 };
 
@@ -171,7 +175,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void general_matrix_vector_product<
                            const ResPacket& palpha,
                            conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>& pcj) {
   enum { LhsAlignment = Unaligned, LhsPacketSize = Traits::LhsPacketSize, ResPacketSize = Traits::ResPacketSize };
-  using Unroller = gemv_colmajor_unroller<N - 1, N>;
+  using Unroller = gemv_colmajor_unroller<N>;
 
   ResPacket c[N];
   Unroller::init_zero(c);
@@ -322,15 +326,13 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, Conj
   EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
                                            ResScalar* res, Index resIncr, ResScalar alpha);
 
-  // Specialized path for when cols < full packet size. Kept noinline to avoid
-  // bloating the main run() function and causing icache pressure.
-  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
-                                                                 const RhsMapper& rhs, ResScalar* res, Index resIncr,
-                                                                 ResScalar alpha);
+  // Specialized path for when cols < full packet size.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static void run_small_cols(Index rows, Index cols, const LhsMapper& lhs,
+                                                                   const RhsMapper& rhs, ResScalar* res, Index resIncr,
+                                                                   ResScalar alpha);
 
   // Templated helper that processes N rows in run_small_cols. N is a compile-time
-  // constant; row-dimension unrolling is done via recursive templates to guarantee
-  // full unrolling regardless of compiler heuristics.
+  // constant; row-dimension unrolling is done inside flat helper loops.
   template <int N>
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE void process_rows_small_cols(Index i, Index cols, const LhsMapper& lhs,
                                                                             const RhsMapper& rhs, ResScalar* res,
@@ -349,9 +351,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   if (numext::is_exactly_zero(alpha)) return;
 
   // When cols < full packet size, the main vectorized loops are empty.
-  // Dispatch to a separate noinline function to avoid polluting the icache.
-  // Only dispatch when cols is large enough that half or quarter packets can be used;
-  // otherwise the helper would just do scalar work with extra function call overhead.
+  // Use the sub-packet helper only when half or quarter packets can do useful work;
+  // otherwise it would just duplicate the scalar cleanup.
   enum {
     LhsPacketSize_ = Traits::LhsPacketSize,
     MinUsefulCols_ =
@@ -532,76 +533,74 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
   }
 }
 
-// Recursive template unroller for process_rows_small_cols.
-// Unrolls the row dimension (K = 0..N-1) at compile time, guaranteeing
-// that each accumulator lives in its own register variable regardless
-// of compiler unrolling heuristics.
-template <int K, int N>
+// Integer-sequence helper for process_rows_small_cols.
+template <int N>
 struct gemv_small_cols_unroller {
   template <typename LhsPacket, typename AccPacket, int Alignment, typename RhsType, typename ConjHelper,
-            typename LhsMapper, typename Index>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd(AccPacket* acc, const LhsMapper& lhs, Index i, Index j,
-                                                         const RhsType& b0, ConjHelper& pcj) {
-    gemv_small_cols_unroller<K - 1, N>::template madd<LhsPacket, AccPacket, Alignment>(acc, lhs, i, j, b0, pcj);
-    acc[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + K, j), b0, acc[K]);
+            typename LhsMapper, typename Index, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd_impl(std::integer_sequence<int, K...>, AccPacket* acc,
+                                                              const LhsMapper& lhs, Index i, Index j, const RhsType& b0,
+                                                              ConjHelper& pcj) {
+    int unused[] = {0, ((acc[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + K, j), b0, acc[K])), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
-  template <typename ResScalar, typename RhsScalar, typename ConjHelper, typename LhsMapper, typename Index>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scalar_madd(ResScalar* cc, const LhsMapper& lhs, Index i, Index j,
-                                                                const RhsScalar& b0, ConjHelper& cj) {
-    gemv_small_cols_unroller<K - 1, N>::scalar_madd(cc, lhs, i, j, b0, cj);
-    cc[K] += cj.pmul(lhs(i + K, j), b0);
-  }
-
-  template <typename Scalar, typename Packet>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void predux_accum(Scalar* cc, const Packet* acc) {
-    gemv_small_cols_unroller<K - 1, N>::predux_accum(cc, acc);
-    cc[K] += predux(acc[K]);
-  }
-
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero(Packet* acc) {
-    gemv_small_cols_unroller<K - 1, N>::init_zero(acc);
-    acc[K] = pzero(Packet{});
-  }
-
-  template <typename Scalar, typename Index>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void write_result(Scalar* res, Index resIncr, Index i, Scalar alpha,
-                                                                 const Scalar* cc) {
-    gemv_small_cols_unroller<K - 1, N>::write_result(res, resIncr, i, alpha, cc);
-    res[(i + K) * resIncr] += alpha * cc[K];
-  }
-};
-
-template <int N>
-struct gemv_small_cols_unroller<0, N> {
   template <typename LhsPacket, typename AccPacket, int Alignment, typename RhsType, typename ConjHelper,
             typename LhsMapper, typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd(AccPacket* acc, const LhsMapper& lhs, Index i, Index j,
                                                          const RhsType& b0, ConjHelper& pcj) {
-    acc[0] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i, j), b0, acc[0]);
+    madd_impl<LhsPacket, AccPacket, Alignment>(std::make_integer_sequence<int, N>{}, acc, lhs, i, j, b0, pcj);
+  }
+
+  template <typename ResScalar, typename RhsScalar, typename ConjHelper, typename LhsMapper, typename Index, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scalar_madd_impl(std::integer_sequence<int, K...>, ResScalar* cc,
+                                                                     const LhsMapper& lhs, Index i, Index j,
+                                                                     const RhsScalar& b0, ConjHelper& cj) {
+    int unused[] = {0, ((cc[K] += cj.pmul(lhs(i + K, j), b0)), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <typename ResScalar, typename RhsScalar, typename ConjHelper, typename LhsMapper, typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scalar_madd(ResScalar* cc, const LhsMapper& lhs, Index i, Index j,
                                                                 const RhsScalar& b0, ConjHelper& cj) {
-    cc[0] += cj.pmul(lhs(i, j), b0);
+    scalar_madd_impl(std::make_integer_sequence<int, N>{}, cc, lhs, i, j, b0, cj);
+  }
+
+  template <typename Scalar, typename Packet, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void predux_accum_impl(std::integer_sequence<int, K...>, Scalar* cc,
+                                                                      const Packet* acc) {
+    int unused[] = {0, ((cc[K] += predux(acc[K])), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <typename Scalar, typename Packet>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void predux_accum(Scalar* cc, const Packet* acc) {
-    cc[0] += predux(acc[0]);
+    predux_accum_impl(std::make_integer_sequence<int, N>{}, cc, acc);
+  }
+
+  template <typename Packet, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero_impl(std::integer_sequence<int, K...>, Packet* acc) {
+    int unused[] = {0, ((acc[K] = pzero(Packet{})), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <typename Packet>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void init_zero(Packet* acc) {
-    acc[0] = pzero(Packet{});
+    init_zero_impl(std::make_integer_sequence<int, N>{}, acc);
+  }
+
+  template <typename Scalar, typename Index, int... K>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void write_result_impl(std::integer_sequence<int, K...>, Scalar* res,
+                                                                      Index resIncr, Index i, Scalar alpha,
+                                                                      const Scalar* cc) {
+    int unused[] = {0, ((res[(i + K) * resIncr] += alpha * cc[K]), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
 
   template <typename Scalar, typename Index>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void write_result(Scalar* res, Index resIncr, Index i, Scalar alpha,
                                                                  const Scalar* cc) {
-    res[i * resIncr] += alpha * cc[0];
+    write_result_impl(std::make_integer_sequence<int, N>{}, res, resIncr, i, alpha, cc);
   }
 };
 
@@ -628,7 +627,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf
   };
 
-  using Unroll = gemv_small_cols_unroller<N - 1, N>;
+  using Unroll = gemv_small_cols_unroller<N>;
 
   ResScalar cc[N] = {};
   EIGEN_IF_CONSTEXPR (HasHalf) {
@@ -658,7 +657,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
 
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
 general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs,
                               Version>::run_small_cols(Index rows, Index cols, const LhsMapper& alhs,
                                                        const RhsMapper& rhs, ResScalar* res, Index resIncr,
