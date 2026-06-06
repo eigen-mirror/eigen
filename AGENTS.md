@@ -88,7 +88,7 @@ Test-wide knobs:
 - `EIGEN_LEAVE_TEST_IN_ALL_TARGET=ON` — adds tests back to `all` (used by some CI harnesses driving ctest's automatic build path).
 - `EIGEN_TEST_CUSTOM_CXX_FLAGS=…`, `EIGEN_TEST_CUSTOM_LINKER_FLAGS=…` — extra flags applied **only** to test targets (handy for working around codegen bugs).
 - `EIGEN_TEST_OPENMP=ON` — link tests against OpenMP.
-- `EIGEN_TEST_EXTERNAL_BLAS=ON`, `EIGEN_TEST_EXTERNAL_LAPACK=ON` — exercise the `EIGEN_USE_BLAS` / `EIGEN_USE_LAPACKE` paths against an external implementation; without these, the in-tree `eigen_blas`/`eigen_lapack` from `blas/` and `lapack/` are used.
+- `EIGEN_TEST_EXTERNAL_BLAS=ON` — exercise the `EIGEN_USE_BLAS` path against an external BLAS implementation; without it, the in-tree `eigen_blas` from `blas/` is used. (An external-LAPACK equivalent is not yet wired up — `test/CMakeLists.txt` carries a `TODO do the same for EXTERNAL_LAPACK`, so `EIGEN_TEST_EXTERNAL_LAPACK` currently has no effect.)
 
 Auxiliary trees:
 - `EIGEN_BUILD_BLAS=ON` / `EIGEN_BUILD_LAPACK=ON` (default ON only for top-level builds) — build the Eigen-backed BLAS/LAPACK shim libraries under `blas/` and `lapack/`.
@@ -136,6 +136,10 @@ Test assertion macros (defined in `test/main.h`):
 
 `failtest/` holds compile-failure tests: each has an `_ok` and `_ko` target — `_ok` must compile, `_ko` must fail to compile (driven via `-DEIGEN_SHOULD_FAIL_TO_BUILD`).
 
+### Benchmarks
+
+Benchmarks under `benchmarks/` are **not** part of the main test build — `benchmarks/CMakeLists.txt` is a **standalone CMake project** (`project(EigenBenchmarks CXX)`) that depends on Google Benchmark (`find_package(benchmark REQUIRED)`) and finds Eigen as a sibling header-only include. Configure and build it separately (e.g. `cmake -G Ninja -S benchmarks -B build-bench && ninja -C build-bench`), not through the `buildtests`/`check` targets. CI builds them in the dedicated `benchmark` stage via `ci/scripts/build.benchmark.sh`. (See "Benchmarking discipline" in the agent guidelines for how to *run* them meaningfully.)
+
 ## Formatting and lint
 
 Style is `clang-format-17` (Google base, 120 cols, see `.clang-format`). The version is hard-coded — newer or older clang-format will diff against CI.
@@ -165,6 +169,8 @@ codespell --config setup.cfg                      # spell-check (also a CI job)
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 ```
+
+An alternative SPDX-style header — `// SPDX-FileCopyrightText: The Eigen Authors` plus `// SPDX-License-Identifier: MPL-2.0`, with no individual `Copyright (C)` line — is also accepted and is in active use (e.g. files attributed to "The Eigen Authors" and some top-level umbrella headers). The `Copyright (C) <year> <name>` form above remains the dominant convention; either passes `reuse lint`.
 
 Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't carry inline headers are covered by path annotations in `REUSE.toml` — add the path if you're creating one.
 
@@ -226,7 +232,7 @@ Use `.eval()` to force evaluation; `.noalias()` to override automatic temporary 
 
 ### Evaluator system
 
-The expression-template engine is implemented through `evaluator<>` traits (in `Eigen/src/Core/CoreEvaluators.h` and `ProductEvaluators.h`). Assignment goes through `Eigen/src/Core/AssignEvaluator.h` and `Assign.h`. New expression types must specialize `evaluator<>` (and often `assign_op` / `nested_eval`). Operations are lazy by default — work happens at assignment time inside `AssignEvaluator`, which picks between scalar / vectorized / linear / inner / outer traversal strategies based on `Flags`.
+The expression-template engine is implemented through `evaluator<>` traits (in `Eigen/src/Core/CoreEvaluators.h` and `Eigen/src/Core/ProductEvaluators.h`). Assignment goes through `Eigen/src/Core/AssignEvaluator.h` and `Assign.h`. New expression types must specialize `evaluator<>` (and often `assign_op` / `nested_eval`). Operations are lazy by default — work happens at assignment time inside `AssignEvaluator`, which picks between scalar / vectorized / linear / inner / outer traversal strategies based on `Flags`.
 
 ### Class hierarchy (CRTP)
 
@@ -357,11 +363,11 @@ The `EIGEN_GEMM_THREADPOOL` backend is Eigen's own **work-stealing thread pool**
 
 ## CI (GitLab)
 
-Pipeline stages: `checkformat` → `build` → `test` → `deploy`. Configuration in `.gitlab-ci.yml` and `ci/*.gitlab-ci.yml`; shell drivers under `ci/scripts/`.
+Pipeline stages: `checkformat` → `build` → `test` → `benchmark` → `deploy`. Configuration in `.gitlab-ci.yml` and `ci/*.gitlab-ci.yml`; shell drivers under `ci/scripts/`.
 
 `build` jobs produce a `.build/` artifact (test binaries) consumed by the matching `test` job — the test job only runs `ctest`, it does **not** rebuild. A test job that runs ctest without restricting via `-L` or `-R` will report `Could not find executable` for everything outside the build job's target. Test-job and build-job names must stay paired (see `needs:` in `ci/test.linux.gitlab-ci.yml`).
 
-Test jobs filter via `EIGEN_CI_CTEST_LABEL` (consumed in `ci/scripts/test.linux.script.sh` as `ctest -L $LABEL`). The `:official` and `:unsupported` job-name suffixes are convention only — actual filtering is through that variable. Defaults live in `ci/scripts/vars.linux.sh` (`EIGEN_CI_CTEST_LABEL=Official`, `EIGEN_CI_BUILD_TARGET=buildtests`, `EIGEN_CI_BUILDDIR=.build`).
+Test jobs filter via `EIGEN_CI_CTEST_LABEL` (consumed in `ci/scripts/test.linux.script.sh` as `ctest -L $LABEL`). The `:official` and `:unsupported` job-name suffixes are convention only — actual filtering is through that variable. The top-level `.gitlab-ci.yml` `variables:` block declares these with empty/global defaults (`EIGEN_CI_BUILDDIR=.build`, `EIGEN_CI_BUILD_TARGET=""`, `EIGEN_CI_CTEST_LABEL=""`); the meaningful values are set per-job in `ci/*.gitlab-ci.yml` (e.g. `EIGEN_CI_BUILD_TARGET=buildtests`/`BuildOfficial`/`buildtests_gpu` in `ci/build.linux.gitlab-ci.yml`, `EIGEN_CI_CTEST_LABEL=Official` in the matching test jobs).
 
 MR pipelines build / run only a smoke subset; scheduled (nightly) pipelines exercise the full matrix. Format failures (`scripts/format.sh` diff) are the single most common reason an MR is red — run it before pushing.
 
