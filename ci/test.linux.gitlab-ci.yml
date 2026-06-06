@@ -362,6 +362,35 @@ test:linux:arm:clang-14:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+##### SME ######################################################################
+
+.test:linux:sme:
+  extends: .test:linux
+  stage: test
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sme
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+  tags:
+    - saas-linux-medium-amd64
+
+.test:linux:sme:gcc-12:default:
+  extends: .test:linux:sme
+  needs: [ build:linux:cross:sme:gcc-12:default ]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "master"
+  variables:
+    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-12
+    EIGEN_CI_CROSS_INSTALL: g++-12-aarch64-linux-gnu qemu-user-static
+
+test:linux:sme:gcc-12:default:official:
+  extends: .test:linux:sme:gcc-12:default
+  script:
+    - export EIGEN_CTEST_ARGS="-j${EIGEN_CI_CTEST_JOBS}"
+    - ./scripts/check.in product_sme
+
 ##### aarch64 ##################################################################
 
 .test:linux:aarch64:

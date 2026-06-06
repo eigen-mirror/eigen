@@ -126,6 +126,41 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
  *
  * \sa setCpuCacheSizes */
 
+#ifdef EIGEN_VECTORIZE_SME
+template <typename LhsScalar, typename RhsScalar, typename Index>
+void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
+  typedef gebp_traits<LhsScalar, RhsScalar> Traits;
+
+  const Index mr = static_cast<Index>(Traits::mr);
+  const Index nr = static_cast<Index>(Traits::nr);
+
+  // Empirically tuned fp32 SME packed-panel budgets for Apple M4. These are
+  // heuristic working-set limits, not generic ARM64 cache defaults
+  constexpr Index sme_max_kc = static_cast<Index>(2048);
+  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(32 * 1024 * 1024);
+  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(7 * 1024 * 1024);
+
+  // Keep kc large enough to amortize SME setup and accumulation, but cap very
+  // deep products to avoid too many result store passes.
+  k = (numext::mini)(k, sme_max_kc);
+
+  // Bound the packed RHS strip so very wide matrices do not allocate an
+  // unbounded blockB panel.
+  Index nc = sme_packed_rhs_budget_bytes / (numext::maxi)(Index(1), k * Index(sizeof(RhsScalar)));
+  nc = (nc / nr) * nr;
+  n = (numext::mini)(n, (numext::maxi)(nr, nc));
+
+  const Index block_b_hot_bytes = k * nr * Index(sizeof(RhsScalar));
+  const Index min_lhs_bytes = mr * k * Index(sizeof(LhsScalar));
+  const Index block_a_bytes = sme_lhs_working_set_budget_bytes > block_b_hot_bytes
+                                  ? sme_lhs_working_set_budget_bytes - block_b_hot_bytes
+                                  : min_lhs_bytes;
+  Index mc = block_a_bytes / (k * Index(sizeof(LhsScalar)));
+  mc = (mc / mr) * mr;
+  m = (numext::mini)(m, (numext::maxi)(mr, mc));
+}
+#endif
+
 template <typename LhsScalar, typename RhsScalar, int KcFactor, typename Index>
 void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index num_threads = 1) {
   typedef gebp_traits<LhsScalar, RhsScalar> Traits;
@@ -209,6 +244,11 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     // Note that for very tiny problem, this function should be bypassed anyway
     // because we use the coefficient-based implementation for them.
     if ((numext::maxi)(k, (numext::maxi)(m, n)) < 48) return;
+
+#ifdef EIGEN_VECTORIZE_SME
+    evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
+    return;
+#endif
 
     typedef typename Traits::ResScalar ResScalar;
     enum {

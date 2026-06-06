@@ -367,6 +367,31 @@ build:linux:cross:arm:clang-14:default:
   tags:
     - saas-linux-large-arm64
 
+######## SME ###################################################################
+
+# Emulation via QEMU for SME (Streaming Matrix Extension)
+.build:linux:cross:sme:
+  extends: .build:linux:cross
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sme
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+    # qemu-aarch64 8.0+ is required for SME support.
+    # Enabling -msve-vector-bits=512 is required for Eigen's PacketMath
+    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_SME=ON -DEIGEN_TEST_CUSTOM_CXX_FLAGS="-march=armv9.2-a+sme2 -msve-vector-bits=512" -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-aarch64;-cpu;max,sme=on,sme2=on"
+    EIGEN_CI_CROSS_INSTALL: g++-12-aarch64-linux-gnu qemu-user-static
+  tags:
+    - saas-linux-medium-amd64
+
+build:linux:cross:sme:gcc-12:default:
+  extends: .build:linux:cross:sme
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-12
+    EIGEN_CI_CXX_COMPILER: g++-12
+    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-12
+    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-12
+
+
+
 build:linux:cross:aarch64:gcc-10:default:
   extends: .build:linux:cross:aarch64
   variables:
