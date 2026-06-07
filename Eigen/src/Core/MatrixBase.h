@@ -366,6 +366,7 @@ class MatrixBase : public DenseBase<Derived> {
 
   inline LLT<PlainObject> llt() const;
   inline LDLT<PlainObject> ldlt() const;
+  inline BunchKaufman<PlainObject> bunchKaufman() const;
 
   /////////// QR module ///////////
 

@@ -450,6 +450,8 @@ template <typename MatrixType, int UpLo = Lower>
 class LLT;
 template <typename MatrixType, int UpLo = Lower>
 class LDLT;
+template <typename MatrixType, int UpLo = Lower>
+class BunchKaufman;
 template <typename VectorsType, typename CoeffsType, int Side = OnTheLeft>
 class HouseholderSequence;
 template <typename Scalar>
