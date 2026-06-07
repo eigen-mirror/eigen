@@ -375,20 +375,34 @@ build:linux:cross:arm:clang-14:default:
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64-sme
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
-    # qemu-aarch64 8.0+ is required for SME support.
-    # Enabling -msve-vector-bits=512 is required for Eigen's PacketMath
-    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_SME=ON -DEIGEN_TEST_CUSTOM_CXX_FLAGS="-march=armv9.2-a+sme2 -msve-vector-bits=512" -DCMAKE_CROSSCOMPILING_EMULATOR="qemu-aarch64;-cpu;max,sme=on,sme2=on"
-    EIGEN_CI_CROSS_INSTALL: g++-12-aarch64-linux-gnu qemu-user-static
-  tags:
-    - saas-linux-medium-amd64
+    # EIGEN_CI_ADDITIONAL_ARGS is expanded *unquoted* into the cmake command
+    # line (ci/scripts/build.linux.script.sh), so each -D value must be a
+    # single shell word: multi-token flags use CMake's ';' list separator,
+    # with no spaces or embedded quotes (cf. the arm / generic-vector jobs).
+    # -msve-vector-bits=512 is required for Eigen's fixed-length PacketMath.
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DEIGEN_TEST_SME=ON
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2;-msve-vector-bits=512
+      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu;-cpu;max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+    # SME ACLE (arm_sme.h, __arm_streaming, +sme2) requires GCC >= 14.
+    # The build stage only cross-compiles and never invokes the emulator, so
+    # no qemu here -- the test stage installs qemu-user.
+    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu
+    # Only product_sme is exercised (test job runs `ctest -R product_sme`),
+    # so build just that aggregate target rather than the whole `buildtests`
+    # suite -- the latter cross-compiles every test under the SME flags and
+    # blows the runner timeout.
+    EIGEN_CI_BUILD_TARGET: product_sme
+  # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
+  # program bills small and large runners the same, so don't downsize.
 
-build:linux:cross:sme:gcc-12:default:
+build:linux:cross:sme:gcc-14:default:
   extends: .build:linux:cross:sme
   variables:
-    EIGEN_CI_C_COMPILER: gcc-12
-    EIGEN_CI_CXX_COMPILER: g++-12
-    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-12
-    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-12
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
 
 
 
