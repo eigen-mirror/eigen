@@ -218,7 +218,6 @@ struct traits<triangular_solve_retval<Side, TriangularType, Rhs> > {
 
 template <int Side, typename TriangularType, typename Rhs>
 struct triangular_solve_retval : public ReturnByValue<triangular_solve_retval<Side, TriangularType, Rhs> > {
-  typedef remove_all_t<typename Rhs::Nested> RhsNestedCleaned;
   typedef ReturnByValue<triangular_solve_retval> Base;
 
   triangular_solve_retval(const TriangularType& tri, const Rhs& rhs) : m_triangularMatrix(tri), m_rhs(rhs) {}

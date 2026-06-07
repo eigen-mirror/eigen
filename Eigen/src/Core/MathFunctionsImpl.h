@@ -93,7 +93,7 @@ struct generic_rsqrt_newton_step {
       inv_sqrt = pmadd(half_r, h_n, inv_sqrt);
     }
 
-    // If x is NaN, then either:
+    // If inv_sqrt is NaN, then either:
     // 1) the input is NaN
     // 2) zero and infinity were multiplied
     // In either of these cases, return approx_rsqrt
@@ -151,7 +151,7 @@ struct generic_sqrt_newton_step {
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealScalar& x,
                                                                                const RealScalar& y) {
-  // IEEE IEC 6059 special cases.
+  // IEEE IEC 60559 special cases.
   if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
 

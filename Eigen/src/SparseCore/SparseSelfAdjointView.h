@@ -24,7 +24,7 @@ namespace Eigen {
  * \param MatrixType the type of the dense matrix storing the coefficients
  * \param Mode can be either \c #Lower or \c #Upper
  *
- * This class is an expression of a sefladjoint matrix from a triangular part of a matrix
+ * This class is an expression of a selfadjoint matrix from a triangular part of a matrix
  * with given dense storage of the coefficients. It is the return type of MatrixBase::selfadjointView()
  * and most of the time this is the only way that it is used.
  *

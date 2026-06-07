@@ -606,7 +606,7 @@ inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::end() con
 
 /** returns a read-only const_iterator to the element following the last element of the 1D vector or array
  * \only_for_vectors
- * \sa begin(), cend()
+ * \sa cbegin(), end()
  */
 template <typename Derived>
 inline typename DenseBase<Derived>::const_iterator DenseBase<Derived>::cend() const {

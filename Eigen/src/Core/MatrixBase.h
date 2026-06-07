@@ -480,7 +480,7 @@ class MatrixBase : public DenseBase<Derived> {
   const MatrixFunctionReturnValue<Derived> matrixFunction(StemFunction f) const;
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, cosh, hyperbolic cosine)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, sinh, hyperbolic sine)
-  EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, atanh, inverse hyperbolic cosine)
+  EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, atanh, inverse hyperbolic tangent)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, acosh, inverse hyperbolic cosine)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, asinh, inverse hyperbolic sine)
   EIGEN_MATRIX_FUNCTION(MatrixFunctionReturnValue, cos, cosine)

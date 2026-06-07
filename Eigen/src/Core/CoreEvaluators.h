@@ -55,7 +55,7 @@ struct storage_kind_to_shape<TranspositionsStorage> {
 //  - etc.
 // Therefore, we need specialization of evaluator providing additional template arguments for each kind of evaluators.
 // We currently distinguish the following kind of evaluators:
-// - unary_evaluator    for expressions taking only one arguments (CwiseUnaryOp, CwiseUnaryView, Transpose,
+// - unary_evaluator    for expressions taking only one argument (CwiseUnaryOp, CwiseUnaryView, Transpose,
 // MatrixWrapper, ArrayWrapper, Reverse, Replicate)
 // - binary_evaluator   for expression taking two arguments (CwiseBinaryOp)
 // - ternary_evaluator   for expression taking three arguments (CwiseTernaryOp)
@@ -360,7 +360,7 @@ struct unary_evaluator<Transpose<ArgType>, IndexBased> : evaluator_base<Transpos
 
 // -------------------- CwiseNullaryOp --------------------
 // Like Matrix and Array, this is not really a unary expression, so we directly specialize evaluator.
-// Likewise, there is not need to more sophisticated dispatching here.
+// Likewise, there is no need for more sophisticated dispatching here.
 
 template <typename Scalar, typename NullaryOp, bool has_nullary = has_nullary_operator<NullaryOp>::value,
           bool has_unary = has_unary_operator<NullaryOp>::value,

@@ -28,7 +28,7 @@ inline void stable_norm_kernel(const ExpressionType& bl, Scalar& ssq, Scalar& sc
     if (tmp > NumTraits<Scalar>::highest()) {
       invScale = NumTraits<Scalar>::highest();
       scale = Scalar(1) / invScale;
-    } else if (maxCoeff > NumTraits<Scalar>::highest())  // we got a INF
+    } else if (maxCoeff > NumTraits<Scalar>::highest())  // we got an INF
     {
       invScale = Scalar(1);
       scale = maxCoeff;

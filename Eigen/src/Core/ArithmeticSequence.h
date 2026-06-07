@@ -194,7 +194,7 @@ auto lastN(SizeType size, IncrType incr)
  *
  *  It is a shortcut for: \code seq(last+fix<1>-size, last) \endcode
  *
- * \sa lastN(SizeType,IncrType, seqN(FirstType,SizeType), seq(FirstType,LastType) */
+ * \sa lastN(SizeType,IncrType), seqN(FirstType,SizeType), seq(FirstType,LastType) */
 template <typename SizeType>
 auto lastN(SizeType size) -> decltype(seqN(Eigen::placeholders::last + fix<1>() - size, size)) {
   return seqN(Eigen::placeholders::last + fix<1>() - size, size);

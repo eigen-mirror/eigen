@@ -61,7 +61,6 @@ struct eigen_fill_helper<Map<Xpr, Options, OuterStride<OuterStride_>>>
 template <typename Xpr>
 struct eigen_fill_impl<Xpr, /*use_fill*/ false> {
   using Scalar = typename Xpr::Scalar;
-  using Func = scalar_constant_op<Scalar>;
   using PlainObject = typename Xpr::PlainObject;
   using Constant = typename PlainObject::ConstantReturnType;
   static EIGEN_DEVICE_FUNC constexpr void run(Xpr& dst, const Scalar& val) {

@@ -134,8 +134,7 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ false, /*Vectorize*/ false> {
     for (Index j = 0; j < outerSize; j++) {
       for (Index i = 0; i < innerSize; i++) {
         Scalar xprCoeff = eval.coeffByOuterInner(j, i);
-        bool newRes = func.compareCoeff(res, xprCoeff);
-        if (newRes) {
+        if (func.compareCoeff(res, xprCoeff)) {
           outer = j;
           inner = i;
           res = xprCoeff;
@@ -156,8 +155,7 @@ struct find_coeff_loop<Evaluator, Func, /*Linear*/ true, /*Vectorize*/ false> {
 
     for (Index k = 0; k < size; k++) {
       Scalar xprCoeff = eval.coeff(k);
-      bool newRes = func.compareCoeff(res, xprCoeff);
-      if (newRes) {
+      if (func.compareCoeff(res, xprCoeff)) {
         index = k;
         res = xprCoeff;
       }
@@ -312,7 +310,6 @@ template <typename Derived, typename Func>
 struct find_coeff_impl {
   using Evaluator = find_coeff_evaluator<Derived>;
   static constexpr int Flags = Evaluator::Flags;
-  static constexpr int Alignment = Evaluator::Alignment;
   static constexpr bool IsRowMajor = Derived::IsRowMajor;
   static constexpr int MaxInnerSizeAtCompileTime =
       IsRowMajor ? Derived::MaxColsAtCompileTime : Derived::MaxRowsAtCompileTime;

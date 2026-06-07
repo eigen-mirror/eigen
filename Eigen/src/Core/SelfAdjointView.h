@@ -25,7 +25,7 @@ namespace Eigen {
  * \tparam MatrixType the type of the dense matrix storing the coefficients
  * \tparam TriangularPart can be either \c #Lower or \c #Upper
  *
- * This class is an expression of a sefladjoint matrix from a triangular part of a matrix
+ * This class is an expression of a selfadjoint matrix from a triangular part of a matrix
  * with given dense storage of the coefficients. It is the return type of MatrixBase::selfadjointView()
  * and most of the time this is the only way that it is used.
  *
@@ -150,7 +150,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * \returns a reference to \c *this
    *
    * The vectors \a u and \c v \b must be column vectors, however they can be
-   * a adjoint expression without any overhead. Only the meaningful triangular
+   * an adjoint expression without any overhead. Only the meaningful triangular
    * part of the matrix is updated, the rest is left unchanged.
    *
    * \sa rankUpdate(const MatrixBase<DerivedU>&, Scalar)

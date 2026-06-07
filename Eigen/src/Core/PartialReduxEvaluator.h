@@ -36,7 +36,7 @@ namespace internal {
  * on the inner unrolling.
  *
  * For the unrolling, we can reuse "internal::redux_vec_unroller" from Redux.h,
- * but be need to be careful to specify correct increment.
+ * but we need to be careful to specify correct increment.
  *
  ***************************************************************************/
 

@@ -325,7 +325,7 @@ template <typename T>
 struct visitor_has_linear_access<T, decltype(functor_traits<T>::LinearAccess)>
     : std::integral_constant<bool, static_cast<bool>(functor_traits<T>::LinearAccess)> {};
 
-template <typename Derived, typename Visitor, bool ShortCircuitEvaulation>
+template <typename Derived, typename Visitor, bool ShortCircuitEvaluation>
 struct visit_impl {
   using Evaluator = visitor_evaluator<Derived>;
   using Scalar = typename DenseBase<Derived>::Scalar;
@@ -353,7 +353,7 @@ struct visit_impl {
   static constexpr bool Unroll = (SizeAtCompileTime != Dynamic) && ((TotalOps * UnrollCost) <= EIGEN_UNROLLING_LIMIT);
   static constexpr int UnrollCount = Unroll ? int(SizeAtCompileTime) : Dynamic;
 
-  using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, ShortCircuitEvaulation>;
+  using impl = visitor_impl<Visitor, Evaluator, UnrollCount, Vectorize, LinearAccess, ShortCircuitEvaluation>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(const DenseBase<Derived>& mat, Visitor& visitor) {
     Evaluator evaluator(mat.derived());
@@ -385,7 +385,7 @@ struct visit_impl {
 template <typename Derived>
 template <typename Visitor>
 EIGEN_DEVICE_FUNC void DenseBase<Derived>::visit(Visitor& visitor) const {
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ false>;
+  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ false>;
   impl::run(derived(), visitor);
 }
 
@@ -493,7 +493,7 @@ struct all_finite_impl<Derived, false> {
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const {
   using Visitor = internal::all_visitor<Scalar>;
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ true>;
+  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>;
   Visitor visitor;
   impl::run(derived(), visitor);
   return visitor.res;
@@ -506,7 +506,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const {
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const {
   using Visitor = internal::any_visitor<Scalar>;
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ true>;
+  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>;
   Visitor visitor;
   impl::run(derived(), visitor);
   return visitor.res;
@@ -519,7 +519,7 @@ EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const {
 template <typename Derived>
 EIGEN_DEVICE_FUNC Index DenseBase<Derived>::count() const {
   using Visitor = internal::count_visitor<Scalar>;
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaulation*/ false>;
+  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ false>;
   Visitor visitor;
   impl::run(derived(), visitor);
   return visitor.res;

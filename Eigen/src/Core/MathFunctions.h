@@ -578,7 +578,6 @@ struct log1p_retval {
 template <typename ScalarX, typename ScalarY,
           bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
-  // typedef Scalar retval;
   typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
       result_type;
   static EIGEN_DEVICE_FUNC inline result_type run(const ScalarX& x, const ScalarY& y) {
@@ -1433,7 +1432,7 @@ constexpr int log2(int x) {
  * but slightly faster for float/double and some compilers (e.g., gcc), thanks to
  * specializations when SSE is enabled.
  *
- * It's usage is justified in performance critical functions, like norm/normalize.
+ * Its usage is justified in performance critical functions, like norm/normalize.
  */
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_MATHFUNC_RETVAL(sqrt, Scalar) sqrt(const Scalar& x) {
@@ -1959,7 +1958,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double fmod(const double& a, const double&
 #undef SYCL_SPECIALIZE_UNSIGNED_INTEGER_TYPES_BINARY
 #undef SYCL_SPECIALIZE_UNSIGNED_INTEGER_TYPES_UNARY
 #undef SYCL_SPECIALIZE_INTEGER_TYPES_BINARY
-#undef SYCL_SPECIALIZE_UNSIGNED_INTEGER_TYPES_UNARY
+#undef SYCL_SPECIALIZE_INTEGER_TYPES_UNARY
 #undef SYCL_SPECIALIZE_FLOATING_TYPES_BINARY
 #undef SYCL_SPECIALIZE_FLOATING_TYPES_UNARY
 #undef SYCL_SPECIALIZE_FLOATING_TYPES_UNARY_FUNC_RET_TYPE

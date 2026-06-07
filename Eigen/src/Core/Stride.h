@@ -46,7 +46,7 @@ namespace Eigen {
  * because of the ambiguity with Dynamic which is defined to -1 (historically, negative strides were
  * not allowed).
  *
- * Note that for compile-time vectors (ColsAtCompileTime==1 or RowsAtCompile==1),
+ * Note that for compile-time vectors (ColsAtCompileTime==1 or RowsAtCompileTime==1),
  * the inner stride is the pointer increment between two consecutive elements,
  * regardless of storage layout.
  *

@@ -240,7 +240,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
-      // on, the other hand it is good for the cache to pack the vector anyways...
+      // on the other hand it is good for the cache to pack the vector anyways...
       EvalToDestAtCompileTime = (ActualDest::InnerStrideAtCompileTime == 1),
       ComplexByReal = (NumTraits<LhsScalar>::IsComplex) && (!NumTraits<RhsScalar>::IsComplex),
       MightCannotUseDest = ((!EvalToDestAtCompileTime) || ComplexByReal) && (ActualDest::MaxSizeAtCompileTime != 0)
@@ -252,7 +252,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 
     if (!MightCannotUseDest) {
       // shortcut if we are sure to be able to use dest directly,
-      // this ease the compiler to generate cleaner and more optimzized code for most common cases
+      // this eases the compiler to generate cleaner and more optimized code for most common cases
       general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
                                     RhsMapper, RhsBlasTraits::NeedToConjugate>::run(actualLhs.rows(), actualLhs.cols(),
                                                                                     LhsMapper(actualLhs.data(),
@@ -323,7 +323,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
-      // on, the other hand it is good for the cache to pack the vector anyways...
+      // on the other hand it is good for the cache to pack the vector anyways...
       DirectlyUseRhs =
           ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1 || ActualRhsTypeCleaned::MaxSizeAtCompileTime == 0
     };

@@ -449,7 +449,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
   ThisEvaluator thisEval(derived());
 
   // The initial expression is passed to the reducer as an additional argument instead of
-  // passing it as a member of redux_evaluator to help
+  // passing it as a member of redux_evaluator.
   return internal::redux_impl<Func, ThisEvaluator>::run(thisEval, func, derived());
 }
 

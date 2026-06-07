@@ -222,7 +222,7 @@ struct vectorized_type_casting_traits {
 };
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
-    same underlying vector type. */
+    underlying vector type. */
 template <typename T, int unique_id = 0>
 struct eigen_packet_wrapper {
   EIGEN_ALWAYS_INLINE operator T&() { return m_val; }
@@ -747,7 +747,7 @@ EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) 
   return static_cast<Packet>(ldexp(a, static_cast<int>(exponent)));
 }
 
-/** \internal \returns the min of \a a and \a b  (coeff-wise) */
+/** \internal \returns the absolute difference of \a a and \a b  (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
 pabsdiff(const Packet& a, const Packet& b) {
@@ -1429,7 +1429,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const P
   return pmadd_impl<Packet>::pnmadd(a, b, c);
 }
 
-/** \internal \returns -((a * b + c) (coeff-wise) */
+/** \internal \returns -(a * b + c) (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pnmsub(a, b, c);

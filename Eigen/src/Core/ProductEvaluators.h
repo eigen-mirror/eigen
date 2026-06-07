@@ -1346,7 +1346,6 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 
   using XprType = Product<Lhs, Rhs, ProductKind>;
   using PlainObject = typename XprType::PlainObject;
-  using DiagonalType = typename Lhs::DiagonalVectorType;
 
   static constexpr int StorageOrder = Base::StorageOrder_;
   using IsRowMajor_t = bool_constant<StorageOrder == RowMajor>;
@@ -1675,7 +1674,7 @@ struct generic_product_impl<Lhs, Inverse<Rhs>, MatrixShape, PermutationShape, Pr
 
 /** \internal
  * \class transposition_matrix_product
- * Internal helper class implementing the product between a permutation matrix and a matrix.
+ * Internal helper class implementing the product between a transposition matrix and a matrix.
  */
 template <typename ExpressionType, int Side, bool Transposed, typename ExpressionShape>
 struct transposition_matrix_product {

@@ -545,7 +545,7 @@ class VectorwiseOp {
         _expression(), isVertical ? factor : 1, isHorizontal ? factor : 1);
   }
 
-  /////////// Artithmetic operators ///////////
+  /////////// Arithmetic operators ///////////
 
   // The broadcast (compound-)assignments below bind the rhs through
   // `nested_eval<.., Dynamic>` so expressions like `colwise().sum()` are

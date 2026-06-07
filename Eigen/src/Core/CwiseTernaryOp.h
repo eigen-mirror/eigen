@@ -58,7 +58,7 @@ class CwiseTernaryOpImpl;
  * \ingroup Core_Module
  *
  * \brief Generic expression where a coefficient-wise ternary operator is
- * applied to two expressions
+ * applied to three expressions
  *
  * \tparam TernaryOp template functor implementing the operator
  * \tparam Arg1Type the type of the first argument
@@ -148,7 +148,7 @@ class CwiseTernaryOp : public CwiseTernaryOpImpl<TernaryOp, Arg1Type, Arg2Type, 
 
   /** \returns the first argument nested expression */
   EIGEN_DEVICE_FUNC constexpr const Arg1Nested_& arg1() const { return m_arg1; }
-  /** \returns the first argument nested expression */
+  /** \returns the second argument nested expression */
   EIGEN_DEVICE_FUNC constexpr const Arg2Nested_& arg2() const { return m_arg2; }
   /** \returns the third argument nested expression */
   EIGEN_DEVICE_FUNC constexpr const Arg3Nested_& arg3() const { return m_arg3; }
