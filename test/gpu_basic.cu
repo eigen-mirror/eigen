@@ -317,6 +317,20 @@ struct eigenvalues {
   }
 };
 
+template <typename T, int UpLo>
+struct selfadjoint_rank2_update {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using namespace Eigen;
+    typedef Matrix<typename T::Scalar, T::RowsAtCompileTime, 1> Vec;
+    T M(in + i);
+    Vec u(in + i + T::MaxSizeAtCompileTime);
+    Vec v(in + i + T::MaxSizeAtCompileTime + Vec::MaxSizeAtCompileTime);
+    Map<T> res(out + i * T::MaxSizeAtCompileTime);
+    res = M;
+    res.template selfadjointView<UpLo>().rankUpdate(u, v, typename T::Scalar(0.25));
+  }
+};
+
 template <typename T>
 struct matrix_inverse {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -498,10 +512,9 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
 
-  // These tests require dynamic-sized matrix multiplication, which isn't currently
-  // supported on GPU.
-
-  // CALL_SUBTEST( run_and_compare_to_gpu(eigenvalues<Matrix4f>(), nthreads, in, out) );
-  // typedef Matrix<float,6,6> Matrix6f;
-  // CALL_SUBTEST( run_and_compare_to_gpu(eigenvalues<Matrix6f>(), nthreads, in, out) );
+  typedef Matrix<float, 6, 6> Matrix6f;
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Upper>(), nthreads, in, out));
 }

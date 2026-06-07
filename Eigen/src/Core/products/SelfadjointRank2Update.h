@@ -27,7 +27,8 @@ struct selfadjoint_rank2_update_selector;
 
 template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
-  static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
+                                    const Scalar& alpha) {
     typedef typename packet_traits<Scalar>::type Packet;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
@@ -112,7 +113,8 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
 
 template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
-  static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, const Scalar& alpha) {
+  EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
+                                    const Scalar& alpha) {
     typedef typename packet_traits<Scalar>::type Packet;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
