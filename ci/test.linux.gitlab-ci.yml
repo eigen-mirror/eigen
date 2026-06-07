@@ -384,11 +384,6 @@ test:linux:arm:clang-14:default:unsupported:
 .test:linux:sme:gcc-14:default:
   extends: .test:linux:sme
   needs: [ build:linux:cross:sme:gcc-14:default ]
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_BRANCH == "master"
   variables:
     EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-14
     # Test stage only needs the aarch64 runtime (loader + libstdc++/libc under
