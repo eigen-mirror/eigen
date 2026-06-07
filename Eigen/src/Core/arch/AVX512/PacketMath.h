@@ -45,6 +45,12 @@ typedef eigen_packet_wrapper<__m512i, 6> Packet32s;
 typedef eigen_packet_wrapper<__m256i, 6> Packet16s;
 typedef eigen_packet_wrapper<__m128i, 6> Packet8s;
 
+#if EIGEN_COMP_NVHPC
+#define EIGEN_AVX512_SHUFFLE_PS(A, B, M) ((__m512)_mm512_shuffle_ps(A, B, M))
+#else
+#define EIGEN_AVX512_SHUFFLE_PS(A, B, M) _mm512_shuffle_ps(A, B, M)
+#endif
+
 EIGEN_STRONG_INLINE Packet16i _eigen_mm512_loadu_epi32(const int* from) {
 #if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
   return _mm512_loadu_si512(reinterpret_cast<const void*>(from));
@@ -1604,22 +1610,22 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16f, 16>& kernel) {
   __m512 T13 = _mm512_unpackhi_ps(kernel.packet[12], kernel.packet[13]);
   __m512 T14 = _mm512_unpacklo_ps(kernel.packet[14], kernel.packet[15]);
   __m512 T15 = _mm512_unpackhi_ps(kernel.packet[14], kernel.packet[15]);
-  __m512 S0 = _mm512_shuffle_ps(T0, T2, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S1 = _mm512_shuffle_ps(T0, T2, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S2 = _mm512_shuffle_ps(T1, T3, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S3 = _mm512_shuffle_ps(T1, T3, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S4 = _mm512_shuffle_ps(T4, T6, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S5 = _mm512_shuffle_ps(T4, T6, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S6 = _mm512_shuffle_ps(T5, T7, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S7 = _mm512_shuffle_ps(T5, T7, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S8 = _mm512_shuffle_ps(T8, T10, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S9 = _mm512_shuffle_ps(T8, T10, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S10 = _mm512_shuffle_ps(T9, T11, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S11 = _mm512_shuffle_ps(T9, T11, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S12 = _mm512_shuffle_ps(T12, T14, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S13 = _mm512_shuffle_ps(T12, T14, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S14 = _mm512_shuffle_ps(T13, T15, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S15 = _mm512_shuffle_ps(T13, T15, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S0 = EIGEN_AVX512_SHUFFLE_PS(T0, T2, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S1 = EIGEN_AVX512_SHUFFLE_PS(T0, T2, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S2 = EIGEN_AVX512_SHUFFLE_PS(T1, T3, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S3 = EIGEN_AVX512_SHUFFLE_PS(T1, T3, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S4 = EIGEN_AVX512_SHUFFLE_PS(T4, T6, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S5 = EIGEN_AVX512_SHUFFLE_PS(T4, T6, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S6 = EIGEN_AVX512_SHUFFLE_PS(T5, T7, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S7 = EIGEN_AVX512_SHUFFLE_PS(T5, T7, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S8 = EIGEN_AVX512_SHUFFLE_PS(T8, T10, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S9 = EIGEN_AVX512_SHUFFLE_PS(T8, T10, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S10 = EIGEN_AVX512_SHUFFLE_PS(T9, T11, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S11 = EIGEN_AVX512_SHUFFLE_PS(T9, T11, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S12 = EIGEN_AVX512_SHUFFLE_PS(T12, T14, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S13 = EIGEN_AVX512_SHUFFLE_PS(T12, T14, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S14 = EIGEN_AVX512_SHUFFLE_PS(T13, T15, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S15 = EIGEN_AVX512_SHUFFLE_PS(T13, T15, _MM_SHUFFLE(3, 2, 3, 2));
 
   EIGEN_EXTRACT_8f_FROM_16f(S0, S0);
   EIGEN_EXTRACT_8f_FROM_16f(S1, S1);
@@ -1745,10 +1751,10 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16f, 4>& kernel) {
   __m512 T2 = _mm512_unpacklo_ps(kernel.packet[2], kernel.packet[3]);
   __m512 T3 = _mm512_unpackhi_ps(kernel.packet[2], kernel.packet[3]);
 
-  __m512 S0 = _mm512_shuffle_ps(T0, T2, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S1 = _mm512_shuffle_ps(T0, T2, _MM_SHUFFLE(3, 2, 3, 2));
-  __m512 S2 = _mm512_shuffle_ps(T1, T3, _MM_SHUFFLE(1, 0, 1, 0));
-  __m512 S3 = _mm512_shuffle_ps(T1, T3, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S0 = EIGEN_AVX512_SHUFFLE_PS(T0, T2, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S1 = EIGEN_AVX512_SHUFFLE_PS(T0, T2, _MM_SHUFFLE(3, 2, 3, 2));
+  __m512 S2 = EIGEN_AVX512_SHUFFLE_PS(T1, T3, _MM_SHUFFLE(1, 0, 1, 0));
+  __m512 S3 = EIGEN_AVX512_SHUFFLE_PS(T1, T3, _MM_SHUFFLE(3, 2, 3, 2));
 
   EIGEN_EXTRACT_8f_FROM_16f(S0, S0);
   EIGEN_EXTRACT_8f_FROM_16f(S1, S1);
@@ -1951,7 +1957,8 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet8l, 8>& kernel) {
 #define PACK_OUTPUT_I32_2(OUTPUT, INPUT, INDEX, STRIDE) \
   EIGEN_INSERT_8i_INTO_16i(OUTPUT[INDEX], INPUT[2 * INDEX], INPUT[2 * INDEX + STRIDE]);
 
-#define SHUFFLE_EPI32(A, B, M) _mm512_castps_si512(_mm512_shuffle_ps(_mm512_castsi512_ps(A), _mm512_castsi512_ps(B), M))
+#define SHUFFLE_EPI32(A, B, M) \
+  _mm512_castps_si512(EIGEN_AVX512_SHUFFLE_PS(_mm512_castsi512_ps(A), _mm512_castsi512_ps(B), M))
 
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16i, 16>& kernel) {
   __m512i T0 = _mm512_unpacklo_epi32(kernel.packet[0], kernel.packet[1]);

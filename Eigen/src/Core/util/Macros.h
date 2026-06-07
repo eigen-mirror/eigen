@@ -84,7 +84,7 @@
 #define EIGEN_COMP_GNUC 0
 #endif
 
-/// \internal EIGEN_COMP_CLANG set to version (e.g., 372 for clang 3.7.2) if the compiler is clang
+/// \internal EIGEN_COMP_CLANG set to version (e.g., 1400 for clang 14.0.0) if the compiler is clang
 #if defined(__clang__)
 #define EIGEN_COMP_CLANG (__clang_major__ * 100 + __clang_minor__ * 10 + __clang_patchlevel__)
 #else
@@ -466,8 +466,8 @@
 #define EIGEN_OS_ANDROID 1
 
 // Since NDK r16, `__NDK_MAJOR__` and `__NDK_MINOR__` are defined in
-// <android/ndk-version.h>. For NDK < r16, users should define these macros,
-// e.g. `-D__NDK_MAJOR__=11 -D__NKD_MINOR__=0` for NDK r11.
+// <android/ndk-version.h>. Include it when available so NDK-version-specific
+// workarounds can use these macros.
 #if defined __has_include
 #if __has_include(<android/ndk-version.h>)
 #include <android/ndk-version.h>

@@ -13,6 +13,7 @@
 
 // IWYU pragma: private
 #include "../../InternalHeaderCheck.h"
+#include <utility>
 
 #if !defined(EIGEN_USE_AVX512_TRSM_KERNELS)
 #define EIGEN_USE_AVX512_TRSM_KERNELS 1

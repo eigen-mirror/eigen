@@ -245,22 +245,30 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
 
  protected:
   // Given the output index, finds the first index in the input tensor used to compute the trace
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const { return firstInputImpl(index); }
+
+  template <int ND = NumOutputDims>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<ND == 0, Index> firstInputImpl(Index /*index*/) const {
+    return 0;
+  }
+
+  template <int ND = NumOutputDims>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<(ND > 0), Index> firstInputImpl(Index index) const {
     Index startInput = 0;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-      for (int i = NumOutputDims - 1; i > 0; --i) {
+      for (int i = ND - 1; i > 0; --i) {
         const Index idx = index / m_outputStrides[i];
         startInput += idx * m_preservedStrides[i];
         index -= idx * m_outputStrides[i];
       }
       startInput += index * m_preservedStrides[0];
     } else {
-      for (int i = 0; i < NumOutputDims - 1; ++i) {
+      for (int i = 0; i < ND - 1; ++i) {
         const Index idx = index / m_outputStrides[i];
         startInput += idx * m_preservedStrides[i];
         index -= idx * m_outputStrides[i];
       }
-      startInput += index * m_preservedStrides[NumOutputDims - 1];
+      startInput += index * m_preservedStrides[ND - 1];
     }
     return startInput;
   }

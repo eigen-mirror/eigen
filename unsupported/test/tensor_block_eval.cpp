@@ -69,6 +69,20 @@ static TensorBlockParams<NumDims> RandomBlock(DSizes<Index, NumDims> dims, Index
 // Generate block with block sizes skewed towards inner dimensions. This type of
 // block is required for evaluating broadcast expressions.
 template <int Layout, int NumDims>
+static std::enable_if_t<NumDims == 0, void> SetSkewedInnerBlockInnerOffset(DSizes<Index, NumDims>& /*offsets*/,
+                                                                           Index /*index*/) {}
+
+template <int Layout, int NumDims>
+static std::enable_if_t<(NumDims > 0), void> SetSkewedInnerBlockInnerOffset(DSizes<Index, NumDims>& offsets,
+                                                                            Index index) {
+  EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    offsets[0] = index;
+  } else {
+    offsets[NumDims - 1] = index;
+  }
+}
+
+template <int Layout, int NumDims>
 static TensorBlockParams<NumDims> SkewedInnerBlock(DSizes<Index, NumDims> dims) {
   using BlockMapper = internal::TensorBlockMapper<NumDims, Layout, Index>;
   BlockMapper block_mapper(
@@ -91,15 +105,14 @@ static TensorBlockParams<NumDims> SkewedInnerBlock(DSizes<Index, NumDims> dims) 
       index -= idx * strides[i];
       offsets[i] = idx;
     }
-    if (NumDims > 0) offsets[0] = index;
   } else {
     for (int i = 0; i < NumDims - 1; ++i) {
       const Index idx = index / strides[i];
       index -= idx * strides[i];
       offsets[i] = idx;
     }
-    if (NumDims > 0) offsets[NumDims - 1] = index;
   }
+  SetSkewedInnerBlockInnerOffset<Layout, NumDims>(offsets, index);
 
   return {offsets, sizes, block};
 }

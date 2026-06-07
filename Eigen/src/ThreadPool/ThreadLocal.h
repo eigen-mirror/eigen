@@ -21,7 +21,7 @@
 
 #define EIGEN_THREAD_LOCAL static thread_local
 
-// Disable TLS for Apple and Android builds with older toolchains.
+// Disable TLS for Apple builds with deployment targets that do not support it.
 #if defined(__APPLE__)
 // Included for TARGET_OS_IPHONE, __IPHONE_OS_VERSION_MIN_REQUIRED,
 // __IPHONE_9_0.
@@ -30,21 +30,9 @@
 #endif
 // Checks whether the `thread_local` storage duration specifier is supported.
 #if EIGEN_COMP_CLANGAPPLE && TARGET_OS_IPHONE && __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_9_0
-// Notes: `thread_local` is not supported for all iOS < 9.0.
-#undef EIGEN_THREAD_LOCAL
-
-#elif defined(__ANDROID__) && EIGEN_COMP_CLANG
-// There are platforms for which TLS should not be used even though the compiler
-// makes it seem like it's supported (Android NDK < r12b for example).
-// This is primarily because of linker problems and toolchain misconfiguration:
-// TLS isn't supported until NDK r12b per
-// https://developer.android.com/ndk/downloads/revision_history.html
-
-#if defined(__ANDROID__) && defined(__clang__) && defined(__NDK_MAJOR__) && defined(__NDK_MINOR__) && \
-    ((__NDK_MAJOR__ < 12) || ((__NDK_MAJOR__ == 12) && (__NDK_MINOR__ < 1)))
+// Notes: `thread_local` is not supported when targeting iOS versions before 9.0.
 #undef EIGEN_THREAD_LOCAL
 #endif
-#endif  // defined(__ANDROID__) && defined(__clang__)
 
 #endif  // EIGEN_AVOID_THREAD_LOCAL
 

@@ -210,8 +210,8 @@
 #endif
 #endif
 
-// The following (except #include <malloc.h> and _M_IX86_FP ??) can likely be
-// removed as gcc 4.1 and msvc 2008 are not supported anyways.
+// MSVC needs <malloc.h> for aligned allocation helpers, and 32-bit x86 uses
+// _M_IX86_FP to decide whether SSE2 is enabled.
 #if EIGEN_COMP_MSVC
 #include <malloc.h>  // for _aligned_malloc -- need it regardless of whether vectorization is enabled
 // a user reported that in 64-bit mode, MSVC doesn't care to define _M_IX86_FP.
@@ -307,7 +307,10 @@
 #define EIGEN_VECTORIZE_AVX512VL
 #endif
 #ifdef __AVX512FP16__
-#ifdef __AVX512VL__
+#if EIGEN_COMP_NVHPC
+// NVC++ exposes AVX512-FP16 inconsistently: older releases define the feature without _Float16/__m512h,
+// and 24.11-26.3 lower compare/blend intrinsics to unresolved __builtin_ia32_*ph* references.
+#elif defined(__AVX512VL__)
 #define EIGEN_VECTORIZE_AVX512FP16
 // Built-in _Float16.
 #define EIGEN_HAS_BUILTIN_FLOAT16 1

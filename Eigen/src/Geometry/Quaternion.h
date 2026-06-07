@@ -645,10 +645,7 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::operator=(const Matri
 template <class Derived>
 EIGEN_DEVICE_FUNC inline typename QuaternionBase<Derived>::Matrix3 QuaternionBase<Derived>::toRotationMatrix(
     void) const {
-  // NOTE if inlined, then gcc 4.2 and 4.4 get rid of the temporary (not gcc 4.3 !!)
-  // if not inlined then the cost of the return by value is huge ~ +35%,
-  // however, not inlining this function is an order of magnitude slower, so
-  // it has to be inlined, and so the return by value is not an issue
+  // Keep this inline: forcing an out-of-line call is much more expensive than returning Matrix3 by value.
   Matrix3 res;
 
   const Scalar tx = Scalar(2) * this->x();

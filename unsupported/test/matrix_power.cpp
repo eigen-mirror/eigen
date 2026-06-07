@@ -165,7 +165,7 @@ typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
 EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_2(test2dRotation<double>(1e-13));
-  CALL_SUBTEST_1(test2dRotation<float>(2e-5f));  // was 1e-5, relaxed for clang 2.8 / linux / x86-64
+  CALL_SUBTEST_1(test2dRotation<float>(2e-5f));
   CALL_SUBTEST_9(test2dRotation<long double>(1e-13L));
   CALL_SUBTEST_2(test2dHyperbolicRotation<double>(1e-14));
   CALL_SUBTEST_1(test2dHyperbolicRotation<float>(1e-5f));

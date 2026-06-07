@@ -203,7 +203,7 @@ EIGEN_STRONG_INLINE Packet8cf pdiv<Packet8cf>(const Packet8cf& a, const Packet8c
 
 template <>
 EIGEN_STRONG_INLINE Packet8cf pcplxflip<Packet8cf>(const Packet8cf& x) {
-  return Packet8cf(_mm512_shuffle_ps(x.v, x.v, _MM_SHUFFLE(2, 3, 0, 1)));
+  return Packet8cf(EIGEN_AVX512_SHUFFLE_PS(x.v, x.v, _MM_SHUFFLE(2, 3, 0, 1)));
 }
 
 //---------- double ----------

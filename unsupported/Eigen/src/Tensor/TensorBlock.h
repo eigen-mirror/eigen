@@ -28,10 +28,16 @@ class TensorBlockIO;
 // TODO(ezhulenev): We compute strides many times in different evaluators, use
 // this function instead everywhere.
 template <int Layout, typename IndexType, int NumDims>
-EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, NumDims>& dimensions) {
+EIGEN_ALWAYS_INLINE std::enable_if_t<NumDims == 0, DSizes<IndexType, NumDims> > strides_impl(
+    const DSizes<IndexType, NumDims>& /*dimensions*/) {
   DSizes<IndexType, NumDims> strides;
-  if (NumDims == 0) return strides;
+  return strides;
+}
 
+template <int Layout, typename IndexType, int NumDims>
+EIGEN_ALWAYS_INLINE std::enable_if_t<(NumDims > 0), DSizes<IndexType, NumDims> > strides_impl(
+    const DSizes<IndexType, NumDims>& dimensions) {
+  DSizes<IndexType, NumDims> strides;
   // TODO(ezhulenev): Use templates to unroll this loop (similar to
   // h_array_reduce in MoreMeta.h)? Benchmark it.
   EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
@@ -47,6 +53,11 @@ EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, N
   }
 
   return strides;
+}
+
+template <int Layout, typename IndexType, int NumDims>
+EIGEN_ALWAYS_INLINE DSizes<IndexType, NumDims> strides(const DSizes<IndexType, NumDims>& dimensions) {
+  return strides_impl<Layout>(dimensions);
 }
 
 template <int Layout, typename IndexType, size_t NumDims>
@@ -1395,11 +1406,11 @@ class TensorBlockAssignment {
 
     // Initialize output inner dimension size based on a layout.
     const IndexType output_size = NumDims == 0 ? 1 : target.dims.TotalSize();
-    constexpr int inner_dim_idx = is_col_major ? 0 : NumDims - 1;
-    IndexType output_inner_dim_size = target.dims[inner_dim_idx];
+    constexpr int inner_dim_idx = NumDims == 0 ? 0 : (is_col_major ? 0 : NumDims - 1);
+    IndexType output_inner_dim_size = NumDims == 0 ? 1 : target.dims[inner_dim_idx];
 
     // Target inner dimension stride must be '1'.
-    eigen_assert(target.strides[inner_dim_idx] == 1);
+    if (NumDims > 0) eigen_assert(target.strides[inner_dim_idx] == 1);
 
     // Squeeze multiple inner dims into one if they are contiguous in `target`.
     IndexType num_squeezed_dims = 0;
