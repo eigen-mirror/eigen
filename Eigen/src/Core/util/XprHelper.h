@@ -280,6 +280,61 @@ struct find_best_packet {
   using type = typename find_best_packet_helper<Size, typename packet_traits<T>::type>::type;
 };
 
+// Like find_best_packet, but picks the widest packet whose size is <= Size
+// rather than the widest that exactly divides Size. The caller handles any tail.
+template <int Size, typename PacketType,
+          bool Stop = Size == Dynamic || Size >= unpacket_traits<PacketType>::size ||
+                      std::is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
+struct find_largest_packet_helper;
+
+template <int Size, typename PacketType>
+struct find_largest_packet_helper<Size, PacketType, true> {
+  using type = PacketType;
+};
+
+template <int Size, typename PacketType>
+struct find_largest_packet_helper<Size, PacketType, false> {
+  using type = typename find_largest_packet_helper<Size, typename unpacket_traits<PacketType>::half>::type;
+};
+
+template <typename T, int Size>
+struct find_largest_packet {
+  using type = typename find_largest_packet_helper<Size, typename packet_traits<T>::type>::type;
+};
+
+// Pick the packet type for a linear-traversal assignment: the widest packet
+// whose <full-packet count + scalar-tail count> is minimal.
+//
+// find_best_packet picks the widest exact divisor (no scalar tail). That
+// overshoots when no exact divisor exists -- it falls through to the smallest
+// packet, e.g. Packet4f at N=9 float on AVX2 emits 2*SSE + 1 scalar where
+// 1*Packet8f + 1 scalar would do. We prefer find_largest_packet whenever it
+// strictly cuts the op count; otherwise we keep find_best_packet so kernels
+// like LLT/LDLT that rely on exact-fit narrow packets are not disturbed
+// (e.g. 3*Packet2d == 1*Packet4d + 2 scalars at N=6 double on AVX-512, both
+// 3 ops -- keep Packet2d).
+//
+// Only used in LinearVectorizedTraversal, whose tail handling already accepts
+// a partial-packet remainder. InnerVectorized / SliceVectorized still require
+// exact divisibility, so they continue to use find_best_packet.
+template <typename T, int Size>
+struct find_assign_linear_packet {
+ private:
+  using best_type = typename find_best_packet<T, Size>::type;
+  using largest_type = typename find_largest_packet<T, Size>::type;
+  // Op count = full packets + scalar-tail elements (one scalar emit per tail
+  // element under CompleteUnrolling). Both helpers return the max packet for
+  // Dynamic, so the op-count tie there harmlessly resolves to find_best.
+  template <typename P>
+  static constexpr int ops() {
+    constexpr int sz = unpacket_traits<P>::size;
+    return Size == Dynamic ? 0 : Size / sz + Size % sz;
+  }
+
+ public:
+  using type = std::conditional_t<(ops<largest_type>() < ops<best_type>()), largest_type, best_type>;
+};
+
 template <int Size, typename PacketType,
           bool Stop = (Size == unpacket_traits<PacketType>::size) ||
                       std::is_same<PacketType, typename unpacket_traits<PacketType>::half>::value>
