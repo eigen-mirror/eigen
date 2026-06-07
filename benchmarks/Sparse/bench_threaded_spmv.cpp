@@ -186,27 +186,30 @@ static void BM_Threaded_Adjoint(benchmark::State& state) {
 //   n=20000 -> ~800K nnz           -> threaded, parallelism matters
 //   n=100000-> ~4M   nnz           -> threaded, memory-bandwidth bound
 
-// Common arg grid: (kind, n) for baselines, (kind, n, threads) for threaded.
-static void BaselineArgs(::benchmark::Benchmark* b) {
-  for (int kind : {kBanded, kRandom, kHub}) {
-    for (int n : {200, 2000, 20000, 100000}) b->Args({kind, n});
-  }
-}
-static void ThreadedArgs(::benchmark::Benchmark* b) {
-  for (int kind : {kBanded, kRandom, kHub}) {
-    for (int n : {200, 2000, 20000, 100000}) {
-      for (int t : {1, 2, 4, 8}) b->Args({kind, n, t});
-    }
-  }
-}
-
-BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatRowMajor)->Apply(BaselineArgs);
-BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatColMajor)->Apply(BaselineArgs);
-BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatRowMajor)->Apply(BaselineArgs);
-BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatColMajor)->Apply(BaselineArgs);
+// Common arg grids, expressed declaratively with ArgsProduct: the Cartesian
+// product of {kind} x {n} for the baselines, and {kind} x {n} x {threads} for
+// the threaded variants. ArgsProduct keeps the grid on the registration itself
+// rather than routing through an Apply() callback, which would have to name the
+// implementation-detail benchmark::internal::Benchmark* type.
+BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatRowMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}});
+BENCHMARK_TEMPLATE(BM_Baseline_Forward, SpMatColMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}});
+BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatRowMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}});
+BENCHMARK_TEMPLATE(BM_Baseline_Adjoint, SpMatColMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}});
 // Threaded benchmarks measure wall-clock latency: Google Benchmark's default
 // CPU-time mode sums across worker threads and would hide actual speedup.
-BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatRowMajor)->Apply(ThreadedArgs)->UseRealTime();
-BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatColMajor)->Apply(ThreadedArgs)->UseRealTime();
-BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatRowMajor)->Apply(ThreadedArgs)->UseRealTime();
-BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatColMajor)->Apply(ThreadedArgs)->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatRowMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}, {1, 2, 4, 8}})
+    ->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Forward, SpMatColMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}, {1, 2, 4, 8}})
+    ->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatRowMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}, {1, 2, 4, 8}})
+    ->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Threaded_Adjoint, SpMatColMajor)
+    ->ArgsProduct({{kBanded, kRandom, kHub}, {200, 2000, 20000, 100000}, {1, 2, 4, 8}})
+    ->UseRealTime();
