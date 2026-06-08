@@ -703,8 +703,6 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
     conj_helper<ResPacketType, ResPacketType, ConjLhs, false> cj;
     r = cj.pmadd(c, alpha, r);
   }
-
- protected:
 };
 
 template <typename Packet>
@@ -765,14 +763,6 @@ struct unpacket_traits<DoublePacket<Packet>> {
   typedef DoublePacket<typename unpacket_traits<Packet>::half> half;
   enum { size = 2 * unpacket_traits<Packet>::size };
 };
-// template<typename Packet>
-// DoublePacket<Packet> pmadd(const DoublePacket<Packet> &a, const DoublePacket<Packet> &b)
-// {
-//   DoublePacket<Packet> res;
-//   res.first  = padd(a.first, b.first);
-//   res.second = padd(a.second,b.second);
-//   return res;
-// }
 
 template <typename RealScalar, bool ConjLhs_, bool ConjRhs_, int Arch, int PacketSize_>
 class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Arch, PacketSize_> {
@@ -1020,8 +1010,6 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
     conj_helper<ResPacketType, ResPacketType, false, ConjRhs> cj;
     r = cj.pmadd(alpha, c, r);
   }
-
- protected:
 };
 
 /* optimized General packed Block * packed Panel product kernel
@@ -1047,12 +1035,8 @@ struct gebp_kernel {
   typedef typename Traits::AccPacket AccPacket;
   typedef typename Traits::RhsPacketx4 RhsPacketx4;
 
-  typedef typename RhsPanelHelper<RhsPacket, RhsPacketx4, 15>::type RhsPanel15;
-  typedef typename RhsPanelHelper<RhsPacket, RhsPacketx4, 27>::type RhsPanel27;
-
   typedef gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target> SwappedTraits;
 
-  typedef typename SwappedTraits::ResScalar SResScalar;
   typedef typename SwappedTraits::LhsPacket SLhsPacket;
   typedef typename SwappedTraits::RhsPacket SRhsPacket;
   typedef typename SwappedTraits::ResPacket SResPacket;
@@ -1864,7 +1848,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 //  19 23 27 31 ...
 //
 //  32 33 34 35 ...
-//  36 36 38 39 ...
+//  36 37 38 39 ...
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {

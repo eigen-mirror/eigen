@@ -25,29 +25,12 @@ namespace Eigen {
 
 namespace internal {
 
-enum GEMVPacketSizeType { GEMVPacketFull = 0, GEMVPacketHalf, GEMVPacketQuarter };
-
-template <int N, typename T1, typename T2, typename T3>
-struct gemv_packet_cond {
-  typedef T3 type;
-};
-
-template <typename T1, typename T2, typename T3>
-struct gemv_packet_cond<GEMVPacketFull, T1, T2, T3> {
-  typedef T1 type;
-};
-
-template <typename T1, typename T2, typename T3>
-struct gemv_packet_cond<GEMVPacketHalf, T1, T2, T3> {
-  typedef T2 type;
-};
-
-template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEMVPacketFull>
+template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEBPPacketFull>
 class gemv_traits {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
-  typedef typename gemv_packet_cond<                                                                       \
+  typedef typename packet_conditional<                                                                     \
       packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
       typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet##postfix
 
@@ -81,15 +64,15 @@ class gemv_traits {
  *  |cplx |real |cplx | invalid, the caller has to do tmp: = A * B; C += alpha*tmp
  *  |cplx |real |real | optimal case, vectorization possible via real-cplx mul
  *
- * The same reasoning apply for the transposed case.
+ * The same reasoning applies for the transposed case.
  */
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
 struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper,
                                      ConjugateRhs, Version> {
   typedef gemv_traits<LhsScalar, RhsScalar> Traits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEMVPacketHalf> HalfTraits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEMVPacketQuarter> QuarterTraits;
+  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf> HalfTraits;
+  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter> QuarterTraits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 
@@ -306,8 +289,8 @@ template <typename Index, typename LhsScalar, typename LhsMapper, bool Conjugate
 struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper,
                                      ConjugateRhs, Version> {
   typedef gemv_traits<LhsScalar, RhsScalar> Traits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEMVPacketHalf> HalfTraits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEMVPacketQuarter> QuarterTraits;
+  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf> HalfTraits;
+  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter> QuarterTraits;
 
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 

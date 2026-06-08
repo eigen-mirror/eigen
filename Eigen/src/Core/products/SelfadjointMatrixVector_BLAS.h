@@ -26,7 +26,7 @@
 
  ********************************************************************************
  *   Content : Eigen bindings to BLAS F77
- *   Selfadjoint matrix-vector product functionality based on ?SYMV/HEMV.
+ *   Selfadjoint matrix-vector product functionality based on ?SYMV/?HEMV.
  ********************************************************************************
 */
 // SPDX-License-Identifier: BSD-3-Clause

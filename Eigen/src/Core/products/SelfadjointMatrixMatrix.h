@@ -55,7 +55,6 @@ struct symm_pack_lhs {
 
     const_blas_data_mapper<Scalar, Index, StorageOrder> lhs(lhs_, lhsStride);
     Index count = 0;
-    // Index peeled_mc3 = (rows/Pack1)*Pack1;
 
     const Index peeled_mc3 = Pack1 >= 3 * PacketSize ? (rows / (3 * PacketSize)) * (3 * PacketSize) : 0;
     const Index peeled_mc2 =

@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_SELFADJOINTRANK2UPTADE_H
-#define EIGEN_SELFADJOINTRANK2UPTADE_H
+#ifndef EIGEN_SELFADJOINTRANK2UPDATE_H
+#define EIGEN_SELFADJOINTRANK2UPDATE_H
 
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
@@ -189,10 +189,6 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
   }
 };
 
-template <bool Cond, typename T>
-using conj_expr_if =
-    std::conditional_t<!Cond, const T&, CwiseUnaryOp<scalar_conjugate_op<typename traits<T>::Scalar>, T>>;
-
 }  // end namespace internal
 
 template <typename MatrixType, unsigned int UpLo>
@@ -264,4 +260,4 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_SELFADJOINTRANK2UPTADE_H
+#endif  // EIGEN_SELFADJOINTRANK2UPDATE_H

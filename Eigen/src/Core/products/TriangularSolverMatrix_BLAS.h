@@ -26,7 +26,7 @@
 
  ********************************************************************************
  *   Content : Eigen bindings to BLAS F77
- *   Triangular matrix * matrix product functionality based on ?TRMM.
+ *   Triangular matrix-matrix solve functionality based on ?TRSM.
  ********************************************************************************
 */
 // SPDX-License-Identifier: BSD-3-Clause

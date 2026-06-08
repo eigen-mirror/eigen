@@ -117,7 +117,7 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
 
         pack_lhs(blockA, lhs.getSubMapper(i2, k2), actual_kc, actual_mc);
 
-        // the selected actual_mc * size panel of res is split into three different part:
+        // the selected actual_mc * size panel of res is split into three different parts:
         //  1 - before the diagonal => processed with gebp or skipped
         //  2 - the actual_mc x actual_mc symmetric block => processed with a special kernel
         //  3 - after the diagonal => processed with gebp or skipped

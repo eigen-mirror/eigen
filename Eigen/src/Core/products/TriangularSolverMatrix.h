@@ -91,7 +91,7 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
   LhsMapper lhs(_other, otherStride, otherIncr);
   RhsMapper rhs(_tri, triStride);
 
-  enum { RhsStorageOrder = TriStorageOrder, IsLower = (Mode & Lower) == Lower };
+  enum { IsLower = (Mode & Lower) == Lower };
   conj_if<Conjugate> conj;
 
   for (Index k = 0; k < size; ++k) {
@@ -239,7 +239,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
       pack_lhs;
   gemm_pack_rhs<Scalar, Index, OtherMapper, Traits::nr, ColMajor, false, true> pack_rhs;
 
-  // the goal here is to subdivise the Rhs panels such that we keep some cache
+  // the goal here is to subdivide the Rhs panels such that we keep some cache
   // coherence when accessing the rhs elements
   Index subcols = cols > 0 ? l2 / (4 * sizeof(Scalar) * std::max<Index>(otherStride, size)) : 0;
   subcols = std::max<Index>((subcols / Traits::nr) * Traits::nr, Traits::nr);

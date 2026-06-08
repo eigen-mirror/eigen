@@ -217,7 +217,7 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
         for (Index i = 0; i < threads; ++i) info->task_info[i].users -= 1;
       }
     } else
-#endif  // defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
+#endif  // !defined(EIGEN_USE_BLAS) && (defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL))
     {
       EIGEN_UNUSED_VARIABLE(info);
 
