@@ -282,7 +282,7 @@ class SparseCompressedBase<Derived>::InnerIterator {
   inline Index row() const { return IsRowMajor ? m_outer.value() : index(); }
   inline Index col() const { return IsRowMajor ? index() : m_outer.value(); }
 
-  inline operator bool() const { return (m_id < m_end); }
+  inline operator bool() const { return m_id < m_end; }
 
   // Position-based equality (bug #1192 — without these, == falls back to bool conversion).
   inline bool operator==(const InnerIterator& other) const {
@@ -356,7 +356,7 @@ class SparseCompressedBase<Derived>::ReverseInnerIterator {
   inline Index row() const { return IsRowMajor ? m_outer.value() : index(); }
   inline Index col() const { return IsRowMajor ? index() : m_outer.value(); }
 
-  inline operator bool() const { return (m_id > m_start); }
+  inline operator bool() const { return m_id > m_start; }
 
   inline bool operator==(const ReverseInnerIterator& other) const {
     eigen_assert(m_values == other.m_values && "comparing iterators from different sources");
@@ -414,7 +414,7 @@ class StorageRef {
  public:
   using value_type = StorageVal<Scalar, StorageIndex>;
 
-  // StorageRef Needs to be move-able for sort on macos.
+  // StorageRef needs to be move-able for sort on macOS.
   StorageRef(StorageRef&& other) = default;
 
   inline StorageRef& operator=(const StorageRef& other) {

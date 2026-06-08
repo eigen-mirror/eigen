@@ -179,10 +179,10 @@ template <typename Lhs, typename Rhs, int Mode,
           int UpLo = (Mode & Lower)   ? Lower
                      : (Mode & Upper) ? Upper
                                       : -1,
-          int StorageOrder = int(Lhs::Flags) & (RowMajorBit)>
+          int StorageOrder = int(Lhs::Flags) & RowMajorBit>
 struct sparse_solve_triangular_sparse_selector;
 
-// forward substitution, col-major
+// forward and backward substitution, col-major
 template <typename Lhs, typename Rhs, int Mode, int UpLo>
 struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   typedef typename Rhs::Scalar Scalar;

@@ -28,10 +28,6 @@ class CompressedStorage {
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
 
- protected:
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-
- public:
   CompressedStorage() : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0) {}
 
   explicit CompressedStorage(Index size) : m_values(0), m_indices(0), m_size(0), m_allocatedSize(0) { resize(size); }

@@ -34,7 +34,7 @@ Derived &SparseMatrixBase<Derived>::operator=(const ReturnByValue<OtherDerived> 
 template <typename Derived>
 template <typename OtherDerived>
 inline Derived &SparseMatrixBase<Derived>::operator=(const SparseMatrixBase<OtherDerived> &other) {
-  // by default sparse evaluation do not alias, so we can safely bypass the generic call_assignment routine
+  // by default sparse evaluations do not alias, so we can safely bypass the generic call_assignment routine
   internal::Assignment<Derived, OtherDerived, internal::assign_op<Scalar, typename OtherDerived::Scalar>>::run(
       derived(), other.derived(), internal::assign_op<Scalar, typename OtherDerived::Scalar>());
   return derived();
@@ -218,10 +218,8 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
     // eval through a temporary
     eigen_assert((((internal::traits<DstXprType>::SupportedAccessPatterns & OuterRandomAccessPattern) ==
                    OuterRandomAccessPattern) ||
-                  (!((DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit)))) &&
+                  (!transpose)) &&
                  "the transpose operation is supposed to be handled in SparseMatrix::operator=");
-
-    enum { Flip = (DstEvaluatorType::Flags & RowMajorBit) != (SrcEvaluatorType::Flags & RowMajorBit) };
 
     DstXprType temp(src.rows(), src.cols());
 
@@ -230,7 +228,7 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
       temp.startVec(j);
       for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) {
         Scalar v = it.value();
-        temp.insertBackByOuterInner(Flip ? it.index() : j, Flip ? j : it.index()) = v;
+        temp.insertBackByOuterInner(transpose ? it.index() : j, transpose ? j : it.index()) = v;
       }
     }
     temp.finalize();
@@ -331,6 +329,8 @@ EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE(sub_assign_op, scalar_sum_op, sub_assign_op);
 EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE(assign_op, scalar_difference_op, sub_assign_op);
 EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE(add_assign_op, scalar_difference_op, sub_assign_op);
 EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE(sub_assign_op, scalar_difference_op, add_assign_op);
+
+#undef EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE
 
 // Specialization for "dst = dec.solve(rhs)"
 // NOTE we need to specialize it for Sparse2Sparse to avoid ambiguous specialization error

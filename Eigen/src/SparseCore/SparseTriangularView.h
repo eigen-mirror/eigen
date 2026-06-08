@@ -29,14 +29,6 @@ namespace Eigen {
  */
 template <typename MatrixType, unsigned int Mode>
 class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<TriangularView<MatrixType, Mode> > {
-  enum {
-    SkipFirst =
-        ((Mode & Lower) && !(MatrixType::Flags & RowMajorBit)) || ((Mode & Upper) && (MatrixType::Flags & RowMajorBit)),
-    SkipLast = !SkipFirst,
-    SkipDiag = (Mode & ZeroDiag) ? 1 : 0,
-    HasUnitDiag = (Mode & UnitDiag) ? 1 : 0
-  };
-
   typedef TriangularView<MatrixType, Mode> TriangularViewType;
 
  protected:

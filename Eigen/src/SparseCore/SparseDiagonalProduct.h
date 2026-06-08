@@ -18,7 +18,7 @@ namespace Eigen {
 
 // The product of a diagonal matrix with a sparse matrix can be easily
 // implemented using expression template.
-// We have two consider very different cases:
+// We have to consider two very different cases:
 // 1 - diag * row-major sparse
 //     => each inner vector <=> scalar * sparse vector product
 //     => so we can reuse CwiseUnaryOp::InnerIterator

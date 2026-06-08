@@ -142,8 +142,6 @@ class SparseMapBase<Derived, ReadOnlyAccessors> : public SparseCompressedBase<De
  */
 template <typename Derived>
 class SparseMapBase<Derived, WriteAccessors> : public SparseMapBase<Derived, ReadOnlyAccessors> {
-  typedef MapBase<Derived, ReadOnlyAccessors> ReadOnlyMapBase;
-
  public:
   typedef SparseMapBase<Derived, ReadOnlyAccessors> Base;
   typedef typename Base::Scalar Scalar;

@@ -290,7 +290,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, SparseSelfAdjoint2Sparse> {
 }  // end namespace internal
 
 /***************************************************************************
- * Implementation of sparse self-adjoint time dense matrix
+ * Implementation of sparse self-adjoint times dense matrix
  ***************************************************************************/
 
 namespace internal {
@@ -558,7 +558,7 @@ void permute_symm_to_symm(const MatrixType& mat,
       dest.innerIndexPtr()[k] = int(DstMode) == int(Lower) ? (std::max)(ip, jp) : (std::min)(ip, jp);
 
       EIGEN_IF_CONSTEXPR (!StorageOrderMatch) std::swap(ip, jp);
-      if (((int(DstMode) == int(Lower) && ip < jp) || (int(DstMode) == int(Upper) && ip > jp)))
+      if ((int(DstMode) == int(Lower) && ip < jp) || (int(DstMode) == int(Upper) && ip > jp))
         dest.valuePtr()[k] = (NonHermitian ? it.value() : numext::conj(it.value()));
       else
         dest.valuePtr()[k] = it.value();
@@ -567,8 +567,6 @@ void permute_symm_to_symm(const MatrixType& mat,
 }
 
 }  // namespace internal
-
-// TODO implement twists in a more evaluator friendly fashion
 
 namespace internal {
 
@@ -618,7 +616,6 @@ struct Assignment<DstXprType, SparseSymmetricPermutationProduct<MatrixType, Mode
   template <int Options>
   static void run(SparseMatrix<Scalar, Options, DstIndex>& dst, const SrcXprType& src,
                   const internal::assign_op<Scalar, typename MatrixType::Scalar>&) {
-    // internal::permute_symm_to_fullsymm<Mode>(m_matrix,_dest,m_perm.indices().data());
     SparseMatrix<Scalar, (Options & RowMajor) == RowMajor ? ColMajor : RowMajor, DstIndex> tmp;
     internal::permute_symm_to_fullsymm<Mode, false>(src.matrix(), tmp, src.perm().indices().data());
     dst = tmp;

@@ -28,7 +28,6 @@ class AmbiVector {
  public:
   typedef Scalar_ Scalar;
   typedef StorageIndex_ StorageIndex;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
 
   explicit AmbiVector(Index size)
       : m_buffer(0), m_zero(0), m_size(0), m_end(0), m_allocatedSize(0), m_allocatedElements(0), m_mode(-1) {
@@ -102,7 +101,7 @@ class AmbiVector {
     Scalar value;
   };
 
-  // used to store data in both mode
+  // used to store data in both modes
   Scalar* m_buffer;
   Scalar m_zero;
   StorageIndex m_size;

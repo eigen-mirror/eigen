@@ -51,31 +51,11 @@ class SparseVector;
 
 template <typename MatrixType, unsigned int UpLo>
 class SparseSelfAdjointView;
-template <typename Lhs, typename Rhs>
-class SparseDiagonalProduct;
 template <typename MatrixType>
 class SparseView;
 
 template <typename Lhs, typename Rhs>
 class SparseSparseProduct;
-template <typename Lhs, typename Rhs>
-class SparseTimeDenseProduct;
-template <typename Lhs, typename Rhs>
-class DenseTimeSparseProduct;
-template <typename Lhs, typename Rhs, bool Transpose>
-class SparseDenseOuterProduct;
-
-template <typename Lhs, typename Rhs>
-struct SparseSparseProductReturnType;
-template <typename Lhs, typename Rhs,
-          int InnerSize = internal::min_size_prefer_fixed(internal::traits<Lhs>::ColsAtCompileTime,
-                                                          internal::traits<Rhs>::RowsAtCompileTime)>
-struct DenseSparseProductReturnType;
-
-template <typename Lhs, typename Rhs,
-          int InnerSize = internal::min_size_prefer_fixed(internal::traits<Lhs>::ColsAtCompileTime,
-                                                          internal::traits<Rhs>::RowsAtCompileTime)>
-struct SparseDenseProductReturnType;
 template <typename MatrixType, int UpLo>
 class SparseSymmetricPermutationProduct;
 

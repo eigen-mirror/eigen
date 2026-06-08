@@ -114,7 +114,7 @@ class SparseRefBase : public SparseMapBase<Derived> {
  * \brief A sparse matrix expression referencing an existing sparse expression
  *
  * \tparam SparseMatrixType the equivalent sparse matrix type of the referenced data, it must be a template instance of
- * class SparseMatrix. \tparam Options specifies whether the a standard compressed format is required \c Options is  \c
+ * class SparseMatrix. \tparam Options specifies whether a standard compressed format is required \c Options is  \c
  * #StandardCompressedFormat, or \c 0. The default is \c 0.
  *
  * \sa class Ref
@@ -130,7 +130,6 @@ class Ref<SparseMatrixType, Options>
                                                      // correctly via CRTP.
 #endif
 {
-  typedef SparseMatrix<MatScalar, MatOptions, MatIndex> PlainObjectType;
   typedef internal::traits<Ref> Traits;
   template <int OtherOptions>
   inline Ref(const SparseMatrix<MatScalar, OtherOptions, MatIndex>& expr);
@@ -225,7 +224,6 @@ class Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideTy
     Base::construct(*obj);
   }
 
- protected:
   typename internal::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
   bool m_hasCopy;
 };
@@ -327,7 +325,6 @@ class Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideTy
     Base::construct(*obj);
   }
 
- protected:
   typename internal::aligned_storage<sizeof(TPlainObjectType), EIGEN_ALIGNOF(TPlainObjectType)>::type m_storage;
   bool m_hasCopy;
 };

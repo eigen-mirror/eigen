@@ -43,7 +43,6 @@ template <typename SparseLhsType, typename DenseRhsType, typename DenseResType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, typename DenseResType::Scalar,
                                       RowMajor, true> {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseRhsType> Rhs;
   typedef internal::remove_all_t<DenseResType> Res;
   typedef typename evaluator<Lhs>::InnerIterator LhsInnerIterator;
   typedef evaluator<Lhs> LhsEval;
@@ -350,7 +349,6 @@ template <typename SparseLhsType, typename DenseRhsType, typename DenseResType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, typename DenseResType::Scalar,
                                       RowMajor, false> {
   typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseRhsType> Rhs;
   typedef internal::remove_all_t<DenseResType> Res;
   typedef evaluator<Lhs> LhsEval;
   typedef typename LhsEval::InnerIterator LhsInnerIterator;

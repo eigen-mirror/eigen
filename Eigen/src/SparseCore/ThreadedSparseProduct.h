@@ -256,7 +256,7 @@ class ThreadedSparseProduct {
     //   directly; otherwise build/use the mirror.
     constexpr bool NeedRowMajorView = !Adjoint;
     constexpr bool NativeIsRowMajor = IsRowMajor;
-    constexpr bool UseMirror = (NeedRowMajorView != NativeIsRowMajor);
+    constexpr bool UseMirror = NeedRowMajorView != NativeIsRowMajor;
 
     if (UseMirror) {
       const MirrorType& m = ensure_mirror();
