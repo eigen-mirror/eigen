@@ -39,6 +39,9 @@ and related methods. SIAM Journal on Scientific Computing, 34(5), A2576-A2598.
 #ifndef EIGEN_IDRSTABL_H
 #define EIGEN_IDRSTABL_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {

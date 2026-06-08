@@ -10,8 +10,8 @@
 // SPDX-License-Identifier: MPL-2.0
 #include <cmath>
 
-#include "../../test/sparse_solver.h"
-#include <Eigen/IterativeSolvers>
+#include "sparse_solver.h"
+#include <Eigen/IterativeLinearSolvers>
 
 template <typename T>
 void test_minres_T() {

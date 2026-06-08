@@ -15,7 +15,9 @@
 #include "Cholesky"
 #include "LU"
 #include "Geometry"
-#include "Sparse"  // Needed by ComplexQZ.
+// ComplexQZ only needs SparseQR. Include it directly rather than the broad Sparse umbrella to avoid a
+// cyclic dependency: Eigenvalues -> Sparse -> IterativeLinearSolvers -> DGMRES -> Eigenvalues.
+#include "SparseQR"
 
 #include "src/Core/util/DisableStupidWarnings.h"
 

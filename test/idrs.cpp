@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#include "../../test/sparse_solver.h"
-#include <Eigen/IterativeSolvers>
+#include "sparse_solver.h"
+#include <Eigen/IterativeLinearSolvers>
 
 template <typename T>
 void test_idrs_T() {

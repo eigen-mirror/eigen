@@ -30,6 +30,9 @@
 #ifndef EIGEN_BICGSTABL_H
 #define EIGEN_BICGSTABL_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {
