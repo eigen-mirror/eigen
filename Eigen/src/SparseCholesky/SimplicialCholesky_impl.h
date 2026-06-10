@@ -241,7 +241,7 @@ struct simpl_chol_helper {
     }
   }
 
-  // Finalizes the non zero pattern of the L factor and allocates the memory for the factorization.
+  // Finalizes the non-zero pattern of the L factor and allocates the memory for the factorization.
   static void init_matrix(const StorageIndex size, const StorageIndex* nonZerosPerCol, CholMatrixType& L) {
     eigen_assert(L.outerIndexPtr()[0] == 0);
     std::partial_sum(nonZerosPerCol, nonZerosPerCol + size, L.outerIndexPtr() + 1);

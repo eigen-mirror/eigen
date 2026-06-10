@@ -146,7 +146,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
         1. The basis of dimension <S is sufficient to exactly solve the linear
         system. I.e. the current residual is in span{r,Ar,...A^{m-1}r}, where
         (m-1)<=S.
-        2. Two vectors vectors generated from r, Ar,... are (numerically)
+        2. Two vectors generated from r, Ar,... are (numerically)
         parallel.
 
         In case 1, the exact solution to the system can be obtained from the
@@ -197,7 +197,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Select an initial (N x S) matrix R0.
     1. Generate random R0, orthonormalize the result.
     2. This results in R0, however to save memory and compute we only need the
-    adjoint of R0. This is given by the matrix R_T.\ Additionally, the matrix
+    adjoint of R0. This is given by the matrix R_T. Additionally, the matrix
     (mat.adjoint()*R_tilde).adjoint()=R_tilde.adjoint()*mat by the
     anti-distributivity property of the adjoint. This results in AR_T, which is
     constant if R_T does not have to be regenerated and can be precomputed.
@@ -469,7 +469,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
     m_L = L;
   }
   /** Sets the parameter S, indicating the dimension of the shadow residual
-   * space.. */
+   * space. */
   void setS(Index S) {
     eigen_assert(S >= 1 && "S needs to be positive");
     m_S = S;

@@ -58,6 +58,7 @@ DECL_GSSVX(s, float, float)
 DECL_GSSVX(c, float, std::complex<float>)
 DECL_GSSVX(d, double, double)
 DECL_GSSVX(z, double, std::complex<double>)
+#undef DECL_GSSVX
 
 #ifdef MILU_ALPHA
 #define EIGEN_SUPERLU_HAS_ILU
@@ -105,6 +106,7 @@ DECL_GSISX(s, float, float)
 DECL_GSISX(c, float, std::complex<float>)
 DECL_GSISX(d, double, double)
 DECL_GSISX(z, double, std::complex<double>)
+#undef DECL_GSISX
 
 #endif
 
@@ -116,7 +118,7 @@ struct SluMatrixMapHelper;
  * A wrapper class for SuperLU matrices. It supports only compressed sparse matrices
  * and dense matrices. Supernodal and other fancy format are not supported by this wrapper.
  *
- * This wrapper class mainly aims to avoids the need of dynamic allocation of the storage structure.
+ * This wrapper class mainly aims to avoid the need of dynamic allocation of the storage structure.
  */
 struct SluMatrix : SuperMatrix {
   SluMatrix() { Store = &storage; }
@@ -327,14 +329,14 @@ class SuperLUBase : public SparseSolverBase<Derived> {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the matrix.appears to be negative.
+   *          \c NumericalIssue if the matrix appears to be negative.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
     return m_info;
   }
 
-  /** Computes the sparse Cholesky decomposition of \a matrix */
+  /** Computes the sparse LU decomposition of \a matrix */
   void compute(const MatrixType &matrix) {
     derived().analyzePattern(matrix);
     derived().factorize(matrix);
@@ -665,7 +667,6 @@ void SuperLUBase<MatrixType, Derived>::extractData() const {
     int *Urow = m_u.innerIndexPtr();
     Scalar *Uval = m_u.valuePtr();
 
-    Ucol[0] = 0;
     Ucol[0] = 0;
 
     /* for each supernode */

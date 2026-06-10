@@ -284,7 +284,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the matrix.appears to be negative.
+   *          \c NumericalIssue if the matrix appears to be negative.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
@@ -429,7 +429,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
       // Supernodal factorization stored as a packed list of dense column-major blocks,
       // as described by the following structure:
 
-      // super[k] == index of the first column of the j-th super node
+      // super[k] == index of the first column of the k-th super node
       StorageIndex* super = static_cast<StorageIndex*>(m_cholmodFactor->super);
       // pi[k] == offset to the description of row indices
       StorageIndex* pi = static_cast<StorageIndex*>(m_cholmodFactor->pi);

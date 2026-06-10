@@ -122,7 +122,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the matrix.appears to be negative.
+   *          \c NumericalIssue if the matrix appears to be negative.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");
@@ -830,7 +830,7 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
 
     if (Base::m_diag.size() > 0) dest = Base::m_diag.real().asDiagonal().inverse() * dest;
 
-    if (Base::m_matrix.nonZeros() > 0)  // otherwise I==I
+    if (Base::m_matrix.nonZeros() > 0)  // otherwise U==I
     {
       if (m_LDLT)
         LDLTTraits::getU(Base::m_matrix).solveInPlace(dest);
@@ -886,7 +886,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
     m_Pinv.resize(0);
     m_P.resize(0);
     EIGEN_IF_CONSTEXPR (int(UpLo) == int(Lower) || MatrixType::IsRowMajor) {
-      // we have to transpose the lower part to to the upper one
+      // we have to transpose the lower part to the upper one
       ap.resize(size, size);
       internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, NULL);
     } else

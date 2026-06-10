@@ -327,7 +327,6 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
       m_V.col(it + 1) = tv1 / coef;
     }
     m_H(it + 1, it) = coef;
-    //     m_Hes(it+1,it) = coef;
 
     // Update Hessenberg matrix with Givens rotations
     for (Index i = 1; i <= it; ++i) {

@@ -79,8 +79,6 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
 
   VectorType x_prime = x;
 
-  // Redundant: x is already set to 0
-  // x.setZero();
   VectorType b_prime = rHat.col(0);
 
   // Other vectors and scalars initialization

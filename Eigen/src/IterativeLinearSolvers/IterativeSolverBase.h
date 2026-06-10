@@ -316,7 +316,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
       typename Rhs::ConstColXpr bk(b, k);
       derived()._solve_vector_with_guess_impl(bk, xk);
 
-      // The call to _solve_vector_with_guess updates m_info, so if it failed for a previous column
+      // The call to _solve_vector_with_guess_impl updates m_info, so if it failed for a previous column
       // we need to restore it to the worst value.
       if (m_info == NumericalIssue)
         global_info = NumericalIssue;

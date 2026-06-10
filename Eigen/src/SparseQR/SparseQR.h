@@ -61,7 +61,7 @@ struct traits<SparseQR_QProduct<SparseQRType, Derived> > {
  * Use matrixQ() to get an expression and matrixQ().adjoint() to get the adjoint.
  * You can then apply it to a vector.
  *
- * R is the sparse triangular or trapezoidal matrix. The later occurs when A is rank-deficient.
+ * R is the sparse triangular or trapezoidal matrix. The latter occurs when A is rank-deficient.
  * matrixR().topLeftCorner(rank(), rank()) always returns a triangular factor of full rank.
  *
  * \tparam MatrixType_ The type of the sparse matrix A, must be a column-major SparseMatrix<>
@@ -159,7 +159,7 @@ class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > 
 
   /** \returns a const reference to the \b sparse upper triangular matrix R of the QR factorization.
    * \warning The entries of the returned matrix are not sorted. This means that using it in algorithms
-   *          expecting sorted entries will fail. This include random coefficient accesses (SpaseMatrix::coeff()),
+   *          expecting sorted entries will fail. This includes random coefficient accesses (SparseMatrix::coeff()),
    *          and coefficient-wise operations. Matrix products and triangular solves are fine though.
    *
    * To sort the entries, you can assign it to a row-major matrix, and if a column-major matrix
@@ -292,8 +292,6 @@ class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > 
    * \returns \c Success if computation was successful,
    *          \c NumericalIssue if the QR factorization reports a numerical problem
    *          \c InvalidInput if the input matrix is invalid
-   *
-   * \sa iparm()
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");

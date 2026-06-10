@@ -22,8 +22,8 @@ namespace Eigen {
  *
  * This class can be used as a preprocessing tool to accelerate the convergence of iterative methods
  *
- * This feature is  useful to limit the pivoting amount during LU/ILU factorization
- * The  scaling strategy as presented here preserves the symmetry of the problem
+ * This feature is useful to limit the pivoting amount during LU/ILU factorization
+ * The scaling strategy as presented here preserves the symmetry of the problem
  * NOTE It is assumed that the matrix does not have empty row or column,
  *
  * Example with key steps

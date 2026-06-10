@@ -75,7 +75,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   DenseMatrixType P;
   {
     HouseholderQR<DenseMatrixType> qr(DenseMatrixType::Random(N, S));
-    P = (qr.householderQ() * DenseMatrixType::Identity(N, S));
+    P = qr.householderQ() * DenseMatrixType::Identity(N, S);
   }
 
   const RealScalar normb = b.stableNorm();
@@ -125,7 +125,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   VectorType t(N), v(N);
   Scalar om = 1.;
 
-  // Main iteration loop, guild G-spaces:
+  // Main iteration loop, build G-spaces:
   iter = 0;
 
   while (normr > tolb && iter < maxit) {
@@ -266,7 +266,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  * problems.
  *
  * This class allows to solve for A.x = b sparse linear problems. The vectors x and b can be either dense or sparse.
- * he Induced Dimension Reduction method, IDR(), is a robust and efficient short-recurrence Krylov subspace method for
+ * The Induced Dimension Reduction method, IDR(), is a robust and efficient short-recurrence Krylov subspace method for
  * solving large nonsymmetric systems of linear equations.
  *
  * For indefinite systems IDR(S) outperforms both BiCGStab and BiCGStab(L). Additionally, IDR(S) can handle matrices
@@ -276,7 +276,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  * converge the convergence for IDR(s) is typically much faster for difficult systems (for example indefinite problems).
  *
  * IDR(s) is a limited memory finite termination method. In exact arithmetic it converges in at most N+N/s iterations,
- * with N the system size.  It uses a fixed number of 4+3s vector. In comparison, BiCGSTAB terminates in 2N iterations
+ * with N the system size.  It uses a fixed number of 4+3s vectors. In comparison, BiCGSTAB terminates in 2N iterations
  * and uses 7 vectors. GMRES terminates in at most N iterations, and uses I+3 vectors, with I the number of iterations.
  * Restarting GMRES limits the memory consumption, but destroys the finite termination property.
  *
@@ -291,7 +291,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  *
  * The tolerance corresponds to the relative residual error: |Ax-b|/|b|
  *
- * \b Performance: when using sparse matrices, best performance is achied for a row-major sparse matrix format.
+ * \b Performance: when using sparse matrices, best performance is achieved for a row-major sparse matrix format.
  * Moreover, in this case multi-threading can be exploited if the user code is compiled with OpenMP enabled.
  * See \ref TopicMultiThreading for details.
  *

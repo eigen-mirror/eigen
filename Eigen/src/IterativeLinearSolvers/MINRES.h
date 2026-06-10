@@ -58,7 +58,6 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   RealScalar residualNorm2(v_new.squaredNorm());
   VectorType w(N);                         // will be initialized inside loop
   VectorType w_new(precond.solve(v_new));  // initialize w_new
-                                           //            RealScalar beta; // will be initialized inside loop
   RealScalar beta_new2(v_new.dot(w_new));
   eigen_assert(beta_new2 >= 0.0 && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
   RealScalar beta_new(sqrt(beta_new2));

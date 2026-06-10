@@ -140,7 +140,7 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
  *  "Eigen/src/IterativeLinearSolvers/Scaling.h"
  *
  * \tparam MatrixType_ The type of the sparse matrix. It must be a column-major SparseMatrix<>
- * \tparam OrderingType_ The ordering method to use, either AMD, COLAMD or METIS. Default is COLMAD
+ * \tparam OrderingType_ The ordering method to use, either AMD, COLAMD or METIS. Default is COLAMD
  *
  * \implsparsesolverconcept
  *
@@ -306,7 +306,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    *
    * \returns the solution X of \f$ A X = B \f$ using the current decomposition of A.
    *
-   * \warning the destination matrix X in X = this->solve(B) must be colmun-major.
+   * \warning the destination matrix X in X = this->solve(B) must be column-major.
    *
    * \sa compute()
    */
@@ -521,13 +521,13 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
  *
  * It is possible to call compute() instead of analyzePattern() + factorize().
  *
- * If the matrix is row-major this function will do an heavy copy.
+ * If the matrix is row-major this function will do a heavy copy.
  *
  * \sa factorize(), compute()
  */
 template <typename MatrixType, typename OrderingType>
 void SparseLU<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
-  // TODO  It is possible as in SuperLU to compute row and columns scaling vectors to equilibrate the matrix mat.
+  // TODO  It is possible as in SuperLU to compute row and column scaling vectors to equilibrate the matrix mat.
 
   // Firstly, copy the whole input matrix.
   m_mat = mat;
@@ -768,7 +768,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
       }
 
       // Form the L-segment
-      // Return O if success, i > 0 if U(i, i) is exactly zero.
+      // Return 0 if success, i > 0 if U(i, i) is exactly zero.
       info = Base::pivotL(jj, m_diagpivotthresh, m_perm_r.indices(), iperm_c.indices(), pivrow, m_glu);
       if (info) {
         m_lastError = "THE MATRIX IS STRUCTURALLY SINGULAR";

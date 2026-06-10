@@ -296,7 +296,7 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
   Index get_restart() const { return m_restart; }
 
   /** Set the number of iterations after that a restart is performed.
-   *  \param restart   number of iterations for a restarti, default is 30.
+   *  \param restart   number of iterations for a restart, default is 30.
    */
   void set_restart(const Index restart) { m_restart = restart; }
 
