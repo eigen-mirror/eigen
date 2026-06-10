@@ -117,8 +117,8 @@ struct transform_make_affine;
  * its principle consists to first convert the right/left hand sides of the product
  * to a compatible (Dim+1)^2 matrix and then perform a pure matrix product.
  * Of course, internally, operator* tries to perform the minimal number of operations
- * according to the nature of each terms. Likewise, when applying the transform
- * to points, the latters are automatically promoted to homogeneous vectors
+ * according to the nature of each term. Likewise, when applying the transform
+ * to points, the latter are automatically promoted to homogeneous vectors
  * before doing the matrix product. The conventions to homogeneous representations
  * are performed as follow:
  *
@@ -821,7 +821,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  linearExt().noalias() = (linearExt() * other.asDiagonal());
+  linearExt().noalias() = linearExt() * other.asDiagonal();
   return *this;
 }
 
@@ -847,7 +847,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  affine().noalias() = (other.asDiagonal() * affine());
+  affine().noalias() = other.asDiagonal() * affine();
   return *this;
 }
 

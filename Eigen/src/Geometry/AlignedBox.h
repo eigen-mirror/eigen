@@ -165,7 +165,7 @@ class AlignedBox {
 
   /** \returns the lengths of the sides of the bounding box.
    * Note that this function does not get the same
-   * result for integral or floating scalar types: see
+   * result for integral or floating scalar types.
    */
   EIGEN_DEVICE_FUNC inline const CwiseBinaryOp<internal::scalar_difference_op<Scalar, Scalar>, const VectorType,
                                                const VectorType>

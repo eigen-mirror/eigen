@@ -85,7 +85,7 @@ EIGEN_DOC_UNARY_ADDONS(real, real part function)
 /// \sa imag()
 EIGEN_DEVICE_FUNC constexpr inline RealReturnType real() const { return RealReturnType(derived()); }
 
-/// \returns an read-only expression of the imaginary part of \c *this.
+/// \returns a read-only expression of the imaginary part of \c *this.
 ///
 EIGEN_DOC_UNARY_ADDONS(imag, imaginary part function)
 ///
@@ -130,7 +130,7 @@ EIGEN_DEVICE_FUNC constexpr inline const CwiseUnaryOp<CustomUnaryOp, const Deriv
 ///
 EIGEN_DOC_UNARY_ADDONS(unaryViewExpr, unary function)
 ///
-/// \sa unaryExpr, binaryExpr class CwiseUnaryOp
+/// \sa unaryExpr, binaryExpr, class CwiseUnaryOp
 ///
 template <typename CustomViewOp>
 EIGEN_DEVICE_FUNC constexpr inline const CwiseUnaryView<CustomViewOp, const Derived> unaryViewExpr(
@@ -145,7 +145,7 @@ EIGEN_DEVICE_FUNC constexpr inline const CwiseUnaryView<CustomViewOp, const Deri
 ///
 EIGEN_DOC_UNARY_ADDONS(unaryViewExpr, unary function)
 ///
-/// \sa unaryExpr, binaryExpr class CwiseUnaryOp
+/// \sa unaryExpr, binaryExpr, class CwiseUnaryOp
 ///
 template <typename CustomViewOp>
 EIGEN_DEVICE_FUNC constexpr inline CwiseUnaryView<CustomViewOp, Derived> unaryViewExpr(
