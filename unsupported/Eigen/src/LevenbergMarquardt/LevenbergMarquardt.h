@@ -10,7 +10,7 @@
 // Copyright Ken Hillstrom - Argonne National Laboratory
 //
 // This Source Code Form is subject to the terms of the Minpack license
-// (a BSD-like license) described in the campaigned CopyrightMINPACK.txt file.
+// (a BSD-like license) described in the accompanying CopyrightMINPACK.txt file.
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
