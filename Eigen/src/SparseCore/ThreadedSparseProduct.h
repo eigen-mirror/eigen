@@ -170,10 +170,9 @@ class ThreadedSparseProduct {
   typedef Ref<const DenseVector> ConstVectorRef;
   typedef Ref<DenseVector> MutableVectorRef;
 
-  ThreadedSparseProduct() : m_mat(nullptr), m_pool(nullptr), m_mirror(nullptr) {}
+  ThreadedSparseProduct() = default;
 
-  explicit ThreadedSparseProduct(const SparseMatrixType& mat, ThreadPool* pool = nullptr)
-      : m_mat(nullptr), m_pool(pool), m_mirror(nullptr) {
+  explicit ThreadedSparseProduct(const SparseMatrixType& mat, ThreadPool* pool = nullptr) : m_pool(pool) {
     analyzePattern(mat);
   }
 
@@ -387,8 +386,8 @@ class ThreadedSparseProduct {
   }
 
  private:
-  const SparseMatrixType* m_mat;
-  ThreadPool* m_pool;
+  const SparseMatrixType* m_mat = nullptr;
+  ThreadPool* m_pool = nullptr;
 
   // Partition of A's native outer dim by nnz balance. Used by the direction
   // whose kernel matches A's storage order.
@@ -396,7 +395,7 @@ class ThreadedSparseProduct {
 
   // Lazy adjoint-direction mirror in the opposite storage order, plus its
   // own nnz-balanced partition. Constructed on first use.
-  mutable std::atomic<MirrorType*> m_mirror;
+  mutable std::atomic<MirrorType*> m_mirror{nullptr};
   mutable std::mutex m_mirror_init_mu;
   mutable std::vector<Index> m_adj_partition;
 };

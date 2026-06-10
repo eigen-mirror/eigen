@@ -187,8 +187,6 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
   template <typename MatrixDerived>
   explicit ConjugateGradient(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  ~ConjugateGradient() {}
-
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {

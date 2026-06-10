@@ -207,8 +207,6 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 
   explicit AccelerateImpl(const MatrixType& matrix) : AccelerateImpl() { compute(matrix); }
 
-  ~AccelerateImpl() {}
-
   inline Index cols() const { return m_nCols; }
   inline Index rows() const { return m_nRows; }
 

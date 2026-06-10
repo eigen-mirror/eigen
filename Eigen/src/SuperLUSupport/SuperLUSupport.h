@@ -474,8 +474,6 @@ class SuperLU : public SuperLUBase<MatrixType_, SuperLU<MatrixType_> > {
     Base::compute(matrix);
   }
 
-  ~SuperLU() {}
-
   /** Performs a symbolic decomposition on the sparsity of \a matrix.
    *
    * This function is particularly useful when solving for several problems having the same structure.
@@ -781,8 +779,6 @@ class SuperILU : public SuperLUBase<MatrixType_, SuperILU<MatrixType_> > {
     init();
     Base::compute(matrix);
   }
-
-  ~SuperILU() {}
 
   /** Performs a symbolic decomposition on the sparsity of \a matrix.
    *

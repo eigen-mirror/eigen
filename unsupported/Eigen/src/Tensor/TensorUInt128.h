@@ -22,7 +22,7 @@ struct static_val {
   static constexpr uint64_t value = n;
   constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE operator uint64_t() const { return n; }
 
-  constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static_val() {}
+  constexpr EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static_val() = default;
 
   template <typename T>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static_val(const T& v) {

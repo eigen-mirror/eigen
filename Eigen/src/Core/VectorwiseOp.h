@@ -120,7 +120,7 @@ struct member_lpnorm {
   struct Cost
       : std::integral_constant<int, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost> {
   };
-  EIGEN_DEVICE_FUNC member_lpnorm() {}
+  EIGEN_DEVICE_FUNC member_lpnorm() = default;
   template <typename XprType>
   EIGEN_DEVICE_FUNC inline ResultType operator()(const XprType& mat) const {
     return mat.template lpNorm<p>();

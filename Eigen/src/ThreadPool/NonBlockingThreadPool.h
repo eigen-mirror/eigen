@@ -24,16 +24,15 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   typedef RunQueue<Task, 1024> Queue;
 
   struct PerThread {
-    constexpr PerThread() : pool(NULL), rand(0), thread_id(-1) {}
-    ThreadPoolTempl* pool;  // Parent pool, or null for normal threads.
-    uint64_t rand;          // Random generator state.
-    int thread_id;          // Worker thread index in pool.
+    ThreadPoolTempl* pool = nullptr;  // Parent pool, or null for normal threads.
+    uint64_t rand = 0;                // Random generator state.
+    int thread_id = -1;               // Worker thread index in pool.
   };
 
   struct ThreadData {
-    constexpr ThreadData() : thread(), steal_partition(0), queue() {}
+    constexpr ThreadData() = default;
     std::unique_ptr<Thread> thread;
-    std::atomic<unsigned> steal_partition;
+    std::atomic<unsigned> steal_partition{0};
     Queue queue;
   };
 

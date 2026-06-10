@@ -317,14 +317,14 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_S;
-  bool m_smoothing;
-  RealScalar m_angle;
-  bool m_residual;
+  Index m_S = 4;
+  bool m_smoothing = false;
+  RealScalar m_angle = RealScalar(0.7);
+  bool m_residual = false;
 
  public:
   /** Default constructor. */
-  IDRS() : m_S(4), m_smoothing(false), m_angle(RealScalar(0.7)), m_residual(false) {}
+  IDRS() = default;
 
   /**     Initialize the solver with matrix \a A for further \c Ax=b solving.
 
@@ -337,8 +337,7 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
           matrix A, or modify a copy of A.
   */
   template <typename MatrixDerived>
-  explicit IDRS(const EigenBase<MatrixDerived>& A)
-      : Base(A.derived()), m_S(4), m_smoothing(false), m_angle(RealScalar(0.7)), m_residual(false) {}
+  explicit IDRS(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:

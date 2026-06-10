@@ -68,7 +68,7 @@ class Stride {
       : m_outer(outerStride), m_inner(innerStride) {}
 
   /** Copy constructor */
-  EIGEN_DEVICE_FUNC constexpr Stride(const Stride& other) : m_outer(other.outer()), m_inner(other.inner()) {}
+  EIGEN_DEVICE_FUNC constexpr Stride(const Stride& other) = default;
 
   /** Copy assignment operator */
   EIGEN_DEVICE_FUNC constexpr Stride& operator=(const Stride& other) {
@@ -94,7 +94,7 @@ class InnerStride : public Stride<0, Value> {
   typedef Stride<0, Value> Base;
 
  public:
-  EIGEN_DEVICE_FUNC constexpr InnerStride() : Base() {}
+  EIGEN_DEVICE_FUNC constexpr InnerStride() = default;
   EIGEN_DEVICE_FUNC constexpr InnerStride(Index v) : Base(0, v) {}  // FIXME making this explicit could break valid code
 };
 
@@ -105,7 +105,7 @@ class OuterStride : public Stride<Value, 0> {
   typedef Stride<Value, 0> Base;
 
  public:
-  EIGEN_DEVICE_FUNC constexpr OuterStride() : Base() {}
+  EIGEN_DEVICE_FUNC constexpr OuterStride() = default;
   EIGEN_DEVICE_FUNC constexpr OuterStride(Index v) : Base(v, 0) {}  // FIXME making this explicit could break valid code
 };
 

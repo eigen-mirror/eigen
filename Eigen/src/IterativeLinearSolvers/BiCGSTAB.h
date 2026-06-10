@@ -199,8 +199,6 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
   template <typename MatrixDerived>
   explicit BiCGSTAB(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  ~BiCGSTAB() {}
-
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {

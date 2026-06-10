@@ -38,7 +38,7 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
-  SparseLUTransposeView() : APIBase(), m_sparseLU(NULL) {}
+  SparseLUTransposeView() = default;
   SparseLUTransposeView(const SparseLUTransposeView& view) : APIBase() {
     this->m_sparseLU = view.m_sparseLU;
     this->m_isInitialized = view.m_isInitialized;
@@ -70,7 +70,7 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
   inline Index cols() const { return m_sparseLU->cols(); }
 
  private:
-  SparseLUType* m_sparseLU;
+  SparseLUType* m_sparseLU = nullptr;
   SparseLUTransposeView& operator=(const SparseLUTransposeView&);
 };
 

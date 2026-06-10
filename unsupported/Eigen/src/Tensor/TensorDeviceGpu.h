@@ -24,7 +24,7 @@ static const int kGpuScratchSize = 1024;
 // HIP / CUDA streams underneath.
 class StreamInterface {
  public:
-  virtual ~StreamInterface() {}
+  virtual ~StreamInterface() = default;
 
   virtual const gpuStream_t& stream() const = 0;
   virtual const gpuDeviceProp_t& deviceProperties() const = 0;

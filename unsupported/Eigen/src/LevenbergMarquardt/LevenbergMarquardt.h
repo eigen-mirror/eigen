@@ -49,9 +49,10 @@ struct DenseFunctor {
   typedef Matrix<Scalar, ValuesAtCompileTime, 1> ValueType;
   typedef Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime> JacobianType;
   typedef ColPivHouseholderQR<JacobianType> QRSolver;
-  const int m_inputs, m_values;
+  const int m_inputs = InputsAtCompileTime;
+  const int m_values = ValuesAtCompileTime;
 
-  DenseFunctor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
+  DenseFunctor() = default;
   DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
 
   int inputs() const { return m_inputs; }

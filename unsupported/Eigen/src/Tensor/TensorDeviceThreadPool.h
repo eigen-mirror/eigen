@@ -19,7 +19,7 @@ namespace Eigen {
 // An abstract interface to a device specific memory allocator.
 class Allocator {
  public:
-  virtual ~Allocator() {}
+  virtual ~Allocator() = default;
   virtual void* allocate(size_t num_bytes) const = 0;
   virtual void deallocate(void* buffer) const = 0;
 };

@@ -287,15 +287,15 @@ class level3_blocking {
   typedef RhsScalar_ RhsScalar;
 
  protected:
-  LhsScalar* m_blockA;
-  RhsScalar* m_blockB;
+  LhsScalar* m_blockA = nullptr;
+  RhsScalar* m_blockB = nullptr;
 
-  Index m_mc;
-  Index m_nc;
-  Index m_kc;
+  Index m_mc = 0;
+  Index m_nc = 0;
+  Index m_kc = 0;
 
  public:
-  level3_blocking() : m_blockA(0), m_blockB(0), m_mc(0), m_nc(0), m_kc(0) {}
+  level3_blocking() = default;
 
   inline Index mc() const { return m_mc; }
   inline Index nc() const { return m_nc; }

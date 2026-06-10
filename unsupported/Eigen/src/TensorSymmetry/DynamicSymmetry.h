@@ -167,7 +167,7 @@ template <typename... Gen>
 class DynamicSGroupFromTemplateArgs : public DynamicSGroup {
  public:
   inline DynamicSGroupFromTemplateArgs() : DynamicSGroup() { add_all(internal::type_list<Gen...>()); }
-  inline DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs const& other) : DynamicSGroup(other) {}
+  inline DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs const& other) = default;
   inline DynamicSGroupFromTemplateArgs(DynamicSGroupFromTemplateArgs&& other) : DynamicSGroup(other) {}
   inline DynamicSGroupFromTemplateArgs<Gen...>& operator=(const DynamicSGroupFromTemplateArgs<Gen...>& o) {
     DynamicSGroup::operator=(o);

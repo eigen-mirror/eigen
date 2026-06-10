@@ -238,7 +238,7 @@ class TensorBlockDescriptor {
    private:
     friend class TensorBlockDescriptor<NumDims, IndexType>;
 
-    DestinationBuffer() : m_data(NULL), m_data_type_size(0), m_kind(kEmpty) {}
+    DestinationBuffer() = default;
 
     template <typename Scalar>
     DestinationBuffer(Scalar* data, const Dimensions& strides, DestinationBufferKind kind)
@@ -262,14 +262,14 @@ class TensorBlockDescriptor {
 
     // Storage pointer is type erased, to reduce template bloat, but we still
     // keep the size of the underlying element type for error checking.
-    void* m_data;
-    size_t m_data_type_size;
+    void* m_data = nullptr;
+    size_t m_data_type_size = 0;
 
     // Destination buffer dimensions always match the dimensions of a tensor
     // block descriptor it belongs to, however strides might be different.
     Dimensions m_strides;
 
-    DestinationBufferKind m_kind;
+    DestinationBufferKind m_kind = kEmpty;
   };
 
   TensorBlockDescriptor(const IndexType offset, const Dimensions& dimensions, const DestinationBuffer& destination)
@@ -1277,14 +1277,14 @@ class TensorBlockIO {
 
  private:
   struct BlockIteratorState {
-    BlockIteratorState() : size(0), count(0), input_stride(0), output_stride(0), input_span(0), output_span(0) {}
+    BlockIteratorState() = default;
 
-    IndexType size;
-    IndexType count;
-    IndexType input_stride;
-    IndexType output_stride;
-    IndexType input_span;
-    IndexType output_span;
+    IndexType size = 0;
+    IndexType count = 0;
+    IndexType input_stride = 0;
+    IndexType output_stride = 0;
+    IndexType input_span = 0;
+    IndexType output_span = 0;
   };
 
   // Compute how many inner dimensions it's allowed to squeeze when doing IO
@@ -1467,12 +1467,12 @@ class TensorBlockAssignment {
 
  private:
   struct BlockIteratorState {
-    BlockIteratorState() : count(0), size(0), output_stride(0), output_span(0) {}
+    BlockIteratorState() = default;
 
-    IndexType count;
-    IndexType size;
-    IndexType output_stride;
-    IndexType output_span;
+    IndexType count = 0;
+    IndexType size = 0;
+    IndexType output_stride = 0;
+    IndexType output_span = 0;
   };
 };
 

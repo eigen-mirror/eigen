@@ -509,8 +509,6 @@ class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimpl
     this->compute(matrix);
   }
 
-  ~CholmodSimplicialLLT() {}
-
   /** \returns an expression of the factor L */
   inline MatrixL matrixL() const { return viewAsEigen<Scalar, StorageIndex>(*Base::m_cholmodFactor); }
 
@@ -568,8 +566,6 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
     init();
     this->compute(matrix);
   }
-
-  ~CholmodSimplicialLDLT() {}
 
   /** \returns a vector expression of the diagonal D */
   inline VectorType vectorD() const {
@@ -639,8 +635,6 @@ class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSuper
     this->compute(matrix);
   }
 
-  ~CholmodSupernodalLLT() {}
-
   /** \returns an expression of the factor L */
   inline MatrixType matrixL() const {
     // Convert Cholmod factor's supernodal storage format to Eigen's CSC storage format
@@ -700,8 +694,6 @@ class CholmodDecomposition : public CholmodBase<MatrixType_, UpLo_, CholmodDecom
     init();
     this->compute(matrix);
   }
-
-  ~CholmodDecomposition() {}
 
   void setMode(CholmodMode mode) {
     switch (mode) {

@@ -339,7 +339,7 @@ struct evaluator<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, Str
     : evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
   typedef evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> Base;
   typedef Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 
@@ -349,7 +349,7 @@ struct evaluator<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Option
   typedef evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>
       Base;
   typedef Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 
@@ -358,7 +358,7 @@ struct evaluator<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, Str
     : evaluator<SparseCompressedBase<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
   typedef evaluator<SparseCompressedBase<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> Base;
   typedef Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 
@@ -368,7 +368,7 @@ struct evaluator<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Option
   typedef evaluator<SparseCompressedBase<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>
       Base;
   typedef Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
 

@@ -124,8 +124,6 @@ class AlignedBox {
   template <typename Derived>
   EIGEN_DEVICE_FUNC inline explicit AlignedBox(const MatrixBase<Derived>& p) : m_min(p), m_max(m_min) {}
 
-  EIGEN_DEVICE_FUNC ~AlignedBox() {}
-
   /** \returns the dimension in which the box holds */
   EIGEN_DEVICE_FUNC inline Index dim() const {
     return AmbientDimAtCompileTime == Dynamic ? m_min.size() : Index(AmbientDimAtCompileTime);

@@ -487,7 +487,7 @@ class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Invers
   typedef internal::traits<PermutationType> PermTraits;
 
  protected:
-  InverseImpl() {}
+  InverseImpl() = default;
 
  public:
   typedef Inverse<PermutationType> InverseType;

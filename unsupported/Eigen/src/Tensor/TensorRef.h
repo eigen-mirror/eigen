@@ -21,8 +21,8 @@ namespace internal {
 template <typename Dimensions, typename Scalar>
 class TensorLazyBaseEvaluator {
  public:
-  TensorLazyBaseEvaluator() : m_refcount(0) {}
-  virtual ~TensorLazyBaseEvaluator() {}
+  TensorLazyBaseEvaluator() = default;
+  virtual ~TensorLazyBaseEvaluator() = default;
 
   EIGEN_DEVICE_FUNC virtual const Dimensions& dimensions() const = 0;
   EIGEN_DEVICE_FUNC virtual const Scalar* data() const = 0;
@@ -39,7 +39,7 @@ class TensorLazyBaseEvaluator {
   TensorLazyBaseEvaluator(const TensorLazyBaseEvaluator& other);
   TensorLazyBaseEvaluator& operator=(const TensorLazyBaseEvaluator& other);
 
-  int m_refcount;
+  int m_refcount = 0;
 };
 
 template <typename Dimensions, typename Expr, typename Device>
@@ -87,7 +87,7 @@ class TensorLazyEvaluatorWritable : public TensorLazyEvaluatorReadOnly<Dimension
   typedef typename Storage::Type EvaluatorPointerType;
 
   TensorLazyEvaluatorWritable(const Expr& expr, const Device& device) : Base(expr, device) {}
-  virtual ~TensorLazyEvaluatorWritable() {}
+  virtual ~TensorLazyEvaluatorWritable() = default;
 
   EIGEN_DEVICE_FUNC virtual Scalar& coeffRef(DenseIndex index) { return this->m_impl.coeffRef(index); }
 };
@@ -102,7 +102,7 @@ class TensorLazyEvaluator : public std::conditional_t<IsWritable, TensorLazyEval
   typedef typename Base::Scalar Scalar;
 
   TensorLazyEvaluator(const Expr& expr, const Device& device) : Base(expr, device) {}
-  virtual ~TensorLazyEvaluator() {}
+  virtual ~TensorLazyEvaluator() = default;
 };
 
 template <typename Derived>
@@ -136,7 +136,7 @@ class TensorRefBase : public TensorBase<Derived> {
   typedef TensorBlockNotImplemented TensorBlock;
   //===------------------------------------------------------------------===//
 
-  EIGEN_STRONG_INLINE TensorRefBase() : m_evaluator(NULL) {}
+  EIGEN_STRONG_INLINE TensorRefBase() = default;
 
   TensorRefBase(const TensorRefBase& other) : TensorBase<Derived>(other), m_evaluator(other.m_evaluator) {
     eigen_assert(m_evaluator->refCount() > 0);
@@ -225,7 +225,7 @@ class TensorRefBase : public TensorBase<Derived> {
     }
   }
 
-  TensorLazyBaseEvaluator<Dimensions, Scalar>* m_evaluator;
+  TensorLazyBaseEvaluator<Dimensions, Scalar>* m_evaluator = nullptr;
 };
 
 }  // namespace internal
@@ -245,9 +245,9 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
   using Scalar = typename Base::Scalar;
   using Dimensions = typename Base::Dimensions;
 
-  EIGEN_STRONG_INLINE TensorRef() : Base() {}
+  EIGEN_STRONG_INLINE TensorRef() = default;
 
-  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) : Base(other) {}
+  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) = default;
 
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef(const Expression& expr) : Base(expr) {
@@ -306,9 +306,9 @@ class TensorRef<const PlainObjectType> : public internal::TensorRefBase<TensorRe
   typedef internal::TensorRefBase<TensorRef<const PlainObjectType>> Base;
 
  public:
-  EIGEN_STRONG_INLINE TensorRef() : Base() {}
+  EIGEN_STRONG_INLINE TensorRef() = default;
 
-  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) : Base(other) {}
+  EIGEN_STRONG_INLINE TensorRef(const TensorRef& other) = default;
 
   template <typename Expression>
   EIGEN_STRONG_INLINE TensorRef(const Expression& expr) : Base(expr) {}

@@ -65,8 +65,6 @@ class ParametrizedLine {
     return ParametrizedLine(p0, (p1 - p0).normalized());
   }
 
-  EIGEN_DEVICE_FUNC ~ParametrizedLine() {}
-
   /** \returns the dimension in which the line holds */
   EIGEN_DEVICE_FUNC inline Index dim() const { return m_direction.size(); }
 

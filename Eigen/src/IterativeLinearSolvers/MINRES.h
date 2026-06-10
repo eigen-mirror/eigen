@@ -220,9 +220,6 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
   template <typename MatrixDerived>
   explicit MINRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
-  /** Destructor. */
-  ~MINRES() {}
-
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {

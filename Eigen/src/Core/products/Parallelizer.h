@@ -115,11 +115,11 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
 template <typename Index>
 struct GemmParallelTaskInfo {
-  GemmParallelTaskInfo() : sync(-1), users(0), lhs_start(0), lhs_length(0) {}
-  std::atomic<Index> sync;
-  std::atomic<int> users;
-  Index lhs_start;
-  Index lhs_length;
+  GemmParallelTaskInfo() {}
+  std::atomic<Index> sync{Index(-1)};
+  std::atomic<int> users{0};
+  Index lhs_start = 0;
+  Index lhs_length = 0;
 };
 
 template <typename Index>

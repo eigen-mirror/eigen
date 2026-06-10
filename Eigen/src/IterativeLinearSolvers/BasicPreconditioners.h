@@ -45,7 +45,7 @@ class DiagonalPreconditioner {
   typedef typename Vector::StorageIndex StorageIndex;
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 
-  DiagonalPreconditioner() : m_isInitialized(false) {}
+  DiagonalPreconditioner() = default;
 
   template <typename MatType>
   explicit DiagonalPreconditioner(const MatType& mat) : m_invdiag(mat.cols()) {
@@ -98,7 +98,7 @@ class DiagonalPreconditioner {
 
  protected:
   Vector m_invdiag;
-  bool m_isInitialized;
+  bool m_isInitialized = false;
 };
 
 /** \ingroup IterativeLinearSolvers_Module
@@ -126,7 +126,7 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
   using Base::m_invdiag;
 
  public:
-  LeastSquareDiagonalPreconditioner() : Base() {}
+  LeastSquareDiagonalPreconditioner() = default;
 
   template <typename MatType>
   explicit LeastSquareDiagonalPreconditioner(const MatType& mat) : Base() {
@@ -178,7 +178,7 @@ class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
  */
 class IdentityPreconditioner {
  public:
-  IdentityPreconditioner() {}
+  IdentityPreconditioner() = default;
 
   template <typename MatrixType>
   explicit IdentityPreconditioner(const MatrixType&) {}

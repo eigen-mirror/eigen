@@ -81,7 +81,7 @@ class generic_matrix_wrapper<MatrixType, true> {
 
   enum { MatrixFree = true };
 
-  generic_matrix_wrapper() : mp_matrix(0) {}
+  generic_matrix_wrapper() = default;
 
   generic_matrix_wrapper(const MatrixType& mat) : mp_matrix(&mat) {}
 
@@ -90,7 +90,7 @@ class generic_matrix_wrapper<MatrixType, true> {
   void grab(const MatrixType& mat) { mp_matrix = &mat; }
 
  protected:
-  const ActualMatrixType* mp_matrix;
+  const ActualMatrixType* mp_matrix = nullptr;
 };
 
 }  // namespace internal
@@ -138,8 +138,6 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   }
 
   IterativeSolverBase(IterativeSolverBase&&) = default;
-
-  ~IterativeSolverBase() {}
 
   /** Initializes the iterative solver for the sparsity pattern of the matrix \a A for further solving \c Ax=b problems.
    *

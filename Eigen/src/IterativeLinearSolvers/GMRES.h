@@ -263,7 +263,7 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
   using Base::matrix;
 
  private:
-  Index m_restart;
+  Index m_restart = 30;
 
  public:
   using Base::_solve_impl;
@@ -288,8 +288,6 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
    */
   template <typename MatrixDerived>
   explicit GMRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()), m_restart(30) {}
-
-  ~GMRES() {}
 
   /** Get the number of iterations after that a restart is performed.
    */

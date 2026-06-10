@@ -289,7 +289,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
+  Index m_L = 2;
 
  public:
   typedef MatrixType_ MatrixType;
@@ -298,7 +298,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   typedef Preconditioner_ Preconditioner;
 
   /** Default constructor. */
-  BiCGSTABL() : m_L(2) {}
+  BiCGSTABL() = default;
 
   /**
   Initialize the solver with matrix \a A for further \c Ax=b solving.
@@ -312,7 +312,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   matrix A, or modify a copy of A.
   */
   template <typename MatrixDerived>
-  explicit BiCGSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()), m_L(2) {}
+  explicit BiCGSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()) {}
 
   /** \internal */
   /** Loops over the number of columns of b and does the following:

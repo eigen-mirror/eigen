@@ -421,8 +421,8 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
-  Index m_S;
+  Index m_L = 2;
+  Index m_S = 4;
 
  public:
   typedef MatrixType_ MatrixType;
@@ -432,7 +432,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
 
  public:
   /** Default constructor. */
-  IDRSTABL() : m_L(2), m_S(4) {}
+  IDRSTABL() = default;
 
   /**   Initialize the solver with matrix \a A for further \c Ax=b solving.
 
@@ -445,7 +445,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   matrix A, or modify a copy of A.
           */
   template <typename MatrixDerived>
-  explicit IDRSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()), m_L(2), m_S(4) {}
+  explicit IDRSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()) {}
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:

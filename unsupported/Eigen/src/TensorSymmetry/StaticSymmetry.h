@@ -174,9 +174,9 @@ class StaticSGroup {
   typedef typename group_elements::type ge;
 
  public:
-  constexpr StaticSGroup() {}
-  constexpr StaticSGroup(const StaticSGroup<Gen...>&) {}
-  constexpr StaticSGroup(StaticSGroup<Gen...>&&) {}
+  constexpr StaticSGroup() = default;
+  constexpr StaticSGroup(const StaticSGroup<Gen...>&) = default;
+  constexpr StaticSGroup(StaticSGroup<Gen...>&&) = default;
 
   template <typename Op, typename RV, typename Index, std::size_t N, typename... Args>
   static inline RV apply(const std::array<Index, N>& idx, RV initial, Args&&... args) {

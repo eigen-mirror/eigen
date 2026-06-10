@@ -118,8 +118,6 @@ class Hyperplane {
     offset() = -parametrized.origin().dot(normal());
   }
 
-  EIGEN_DEVICE_FUNC ~Hyperplane() {}
-
   /** \returns the dimension in which the plane holds */
   EIGEN_DEVICE_FUNC inline Index dim() const {
     return AmbientDimAtCompileTime == Dynamic ? m_coeffs.size() - 1 : Index(AmbientDimAtCompileTime);

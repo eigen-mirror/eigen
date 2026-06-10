@@ -44,7 +44,6 @@ class MappedSuperNodalMatrix {
     setInfos(m, n, nzval, nzval_colptr, rowind, rowind_colptr, col_to_sup, sup_to_col);
   }
 
-  ~MappedSuperNodalMatrix() {}
   /**
    * Set appropriate pointers for the lower triangular supernodal matrix
    * These infos are available at the end of the numerical factorization

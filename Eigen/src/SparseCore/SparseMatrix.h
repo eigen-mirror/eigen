@@ -1766,7 +1766,7 @@ struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
     : evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> {
   typedef evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> Base;
   typedef SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
-  evaluator() : Base() {}
+  evaluator() = default;
   explicit evaluator(const SparseMatrixType& mat) : Base(mat) {}
 };
 

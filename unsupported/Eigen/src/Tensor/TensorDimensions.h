@@ -96,7 +96,7 @@ struct Sizes {
     return internal::arg_prod(Indices...);
   }
 
-  constexpr EIGEN_DEVICE_FUNC Sizes() {}
+  constexpr EIGEN_DEVICE_FUNC Sizes() = default;
   template <typename DenseIndex>
   explicit constexpr EIGEN_DEVICE_FUNC Sizes(const array<DenseIndex, count>& /*indices*/) {
     // TODO: Add assertion.

@@ -44,7 +44,7 @@ class TensorOpCost {
     return internal::functor_traits<internal::scalar_cast_op<SrcType, TargetType> >::Cost;
   }
 
-  constexpr EIGEN_DEVICE_FUNC TensorOpCost() : bytes_loaded_(0), bytes_stored_(0), compute_cycles_(0) {}
+  constexpr EIGEN_DEVICE_FUNC TensorOpCost() = default;
   constexpr EIGEN_DEVICE_FUNC TensorOpCost(double bytes_loaded, double bytes_stored, double compute_cycles)
       : bytes_loaded_(bytes_loaded), bytes_stored_(bytes_stored), compute_cycles_(compute_cycles) {}
 
@@ -123,9 +123,9 @@ class TensorOpCost {
   }
 
  private:
-  double bytes_loaded_;
-  double bytes_stored_;
-  double compute_cycles_;
+  double bytes_loaded_ = 0;
+  double bytes_stored_ = 0;
+  double compute_cycles_ = 0;
 };
 
 /**

@@ -447,14 +447,14 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
 
  private:
   struct BlockIteratorState {
-    BlockIteratorState() : count(0), size(0), input_stride(0), input_span(0), output_stride(0), output_span(0) {}
+    BlockIteratorState() = default;
 
-    Index count;
-    Index size;
-    Index input_stride;
-    Index input_span;
-    Index output_stride;
-    Index output_span;
+    Index count = 0;
+    Index size = 0;
+    Index input_stride = 0;
+    Index input_span = 0;
+    Index output_stride = 0;
+    Index output_span = 0;
   };
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isPaddingAtIndexForDim(Index index, int dim_index) const {

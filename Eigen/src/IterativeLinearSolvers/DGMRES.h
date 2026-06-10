@@ -145,8 +145,6 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
         m_isDeflAllocated(false),
         m_isDeflInitialized(false) {}
 
-  ~DGMRES() {}
-
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {

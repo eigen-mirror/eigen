@@ -139,8 +139,8 @@ class SGroup : public internal::tensor_symmetry_pre_analysis<internal::tensor_sy
   typedef typename internal::tensor_symmetry_pre_analysis<NumIndices, Gen...>::root_type Base;
 
   // make standard constructors + assignment operators public
-  inline SGroup() : Base() {}
-  inline SGroup(const SGroup<Gen...>& other) : Base(other) {}
+  inline SGroup() = default;
+  inline SGroup(const SGroup<Gen...>& other) = default;
   inline SGroup(SGroup<Gen...>&& other) : Base(other) {}
   inline SGroup<Gen...>& operator=(const SGroup<Gen...>& other) {
     Base::operator=(other);

@@ -111,8 +111,6 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     derived().compute(matrix);
   }
 
-  ~SimplicialCholeskyBase() {}
-
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
