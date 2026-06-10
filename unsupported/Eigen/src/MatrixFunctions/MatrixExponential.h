@@ -36,7 +36,7 @@ struct MatrixExponentialScalingOp {
 
   /** \brief Scale a matrix coefficient.
    *
-   * \param[in,out] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
+   * \param[in] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
    */
   inline const Scalar operator()(const Scalar& x) const {
     using std::ldexp;
@@ -57,7 +57,7 @@ struct MatrixExponentialScalingOp<Scalar, /*IsComplex=*/false> {
 
   /** \brief Scale a matrix coefficient.
    *
-   * \param[in,out] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
+   * \param[in] x  The scalar to be scaled, becoming \f$ 2^{-s} x \f$.
    */
   inline const Scalar operator()(const Scalar& x) const {
     using std::ldexp;
