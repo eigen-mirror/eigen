@@ -115,7 +115,7 @@ inline void putDenseElt(std::complex<Scalar> value, std::ofstream& out) {
  * @brief Reads the header of a matrixmarket file and determines the properties of a matrix
  *
  * @param filename of the file
- * @param sym if the matrix is hermitian,symmetric or none of the latter (sym=0)
+ * @param sym if the matrix is hermitian, symmetric or none of the latter (sym=0)
  * @param iscomplex if the matrix has complex or real coefficients
  * @param isdense if the matrix is dense or sparse
  * @return true if the file was found
@@ -175,7 +175,7 @@ bool loadMarket(SparseMatrixType& mat, const std::string& filename) {
   Index count = 0;
   while (input.getline(buffer, maxBuffersize)) {
     // skip comments
-    // NOTE An appropriate test should be done on the header to get the  symmetry
+    // NOTE An appropriate test should be done on the header to get the symmetry
     if (buffer[0] == '%') continue;
 
     if (!readsizes) {
@@ -288,7 +288,7 @@ bool loadMarketVector(VectorType& vec, const std::string& filename) {
 
 /**
  * \ingroup SparseExtra_Module
- * @brief writes a sparse Matrix to a marketmarket format file
+ * @brief writes a sparse Matrix to a matrixmarket format file
  *
  * @tparam SparseMatrixType to write to file
  * @param mat matrix to write to file
@@ -322,7 +322,7 @@ bool saveMarket(const SparseMatrixType& mat, const std::string& filename, int sy
 
 /**
  * \ingroup SparseExtra_Module
- * @brief writes a dense Matrix or vector to a marketmarket format file
+ * @brief writes a dense Matrix or vector to a matrixmarket format file
  *
  * @tparam DenseMatrixType to write to file
  * @param mat matrix to write to file
