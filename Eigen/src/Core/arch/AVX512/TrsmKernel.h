@@ -68,7 +68,7 @@ typedef Packet4d vecHalfDouble;
  * For smaller problem sizes, and certain compilers, using the optimized kernels trsmKernelL/R directly
  * is faster than the packed versions in TriangularSolverMatrix.h.
  *
- * The current heuristic is based on having having all arrays used in the largest gemm-update
+ * The current heuristic is based on having all arrays used in the largest gemm-update
  * in triSolve fit in roughly L2Cap (percentage) of the L2 cache. These cutoffs are a bit conservative and could be
  * larger for some trsm cases.
  * The formula:

@@ -130,7 +130,7 @@ struct __half_raw {
 #if (defined(EIGEN_GPUCC) && !defined(EIGEN_GPU_COMPILE_PHASE))
   // Eigen::half can be used as the datatype for shared memory declarations (in Eigen and TF)
   // The element type for shared memory cannot have non-trivial constructors
-  // and hence the following special casing (which skips the zero-initilization).
+  // and hence the following special casing (which skips the zero-initialization).
   // Note that this check gets done even in the host compilation phase, and
   // hence the need for this
   EIGEN_DEVICE_FUNC __half_raw() {}

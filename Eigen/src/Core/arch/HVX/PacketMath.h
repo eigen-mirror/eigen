@@ -27,7 +27,7 @@ EIGEN_STRONG_INLINE HVX_Vector HVX_vmem(const void* m) {
   HVX_Vector v;
 #if EIGEN_COMP_CLANG
   // Use inlined assembly for aligned vmem load on unaligned memory.
-  // Use type cast to HVX_Vector* may mess up with compiler data alignment.
+  // Using a type cast to HVX_Vector* may mess up the compiler data alignment.
   __asm__("%0 = vmem(%1+#%2)" : "=v"(v) : "r"(m), "i"(D) : "memory");
 #else
   void* aligned_mem =
@@ -195,7 +195,7 @@ struct unpacket_traits<Packet16f> {
   typedef Packet8f half;
   enum {
     size = 16,
-    // Many code assume alignment on packet size instead of following trait
+    // Much code assumes alignment on packet size instead of following the trait
     // So we do not use Aligned128 to optimize aligned load/store,
     alignment = Aligned64,
     vectorizable = true,
@@ -210,7 +210,7 @@ struct unpacket_traits<Packet8f> {
   typedef Packet8f half;
   enum {
     size = 8,
-    // Many code assume alignment on packet size instead of following trait
+    // Much code assumes alignment on packet size instead of following the trait
     // So we do not use Aligned128 to optimize aligned load/store,
     alignment = Aligned32,
     vectorizable = true,

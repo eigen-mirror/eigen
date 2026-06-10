@@ -167,7 +167,7 @@ struct bfloat16 : public bfloat16_impl::bfloat16_base {
   }
 };
 
-// TODO(majnemer): Get rid of this once we can rely on C++17 inline variables do
+// TODO(majnemer): Get rid of this once we can rely on C++17 inline variables to
 // solve the ODR issue.
 namespace bfloat16_impl {
 template <typename = void>

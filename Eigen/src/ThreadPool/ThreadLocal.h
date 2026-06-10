@@ -125,7 +125,7 @@ class ThreadLocal {
     // to our hash-map like data structure. If we didn't find an element during
     // the initial traversal, it's guaranteed that no one else could have
     // inserted it while we are in this function. This allows to massively
-    // simplify out lock-free insert-only hash map.
+    // simplify our lock-free insert-only hash map.
 
     // Check if we already have an element for `this_thread`.
     int idx = start_idx;
@@ -152,7 +152,7 @@ class ThreadLocal {
     if (insertion_index >= capacity_) return SpilledLocal(this_thread);
 
     // At this point it's guaranteed that we can access to
-    // data_[insertion_index_] without a data race.
+    // data_[insertion_index] without a data race.
     data_[insertion_index].thread_id = this_thread;
     initialize_(data_[insertion_index].value);
 

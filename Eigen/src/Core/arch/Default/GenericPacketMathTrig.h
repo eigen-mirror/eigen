@@ -57,7 +57,7 @@ inline float trig_reduce_huge(float xf, Eigen::numext::int32_t* quadrant) {
   // Below, -118 = -126 + 8.
   //   -126 is to get the exponent,
   //   +8 is to enable alignment of 2/pi's bits on 8 bits.
-  // This is possible because the fractional part of x as only 24 meaningful bits.
+  // This is possible because the fractional part of x has only 24 meaningful bits.
   uint32_t e = (xi >> 23) - 118;
   // Extract the mantissa and shift it to align it wrt the exponent
   xi = ((xi & 0x007fffffu) | 0x00800000u) << (e & 0x7);
@@ -79,7 +79,7 @@ inline float trig_reduce_huge(float xf, Eigen::numext::int32_t* quadrant) {
   // Now it remains to compute "r = x - q*pi/2" with high accuracy,
   // since we have p=x/(pi/2) with high accuracy, we can more efficiently compute r as:
   //   r = (p-q)*pi/2,
-  // where the product can be be carried out with sufficient accuracy using double precision.
+  // where the product can be carried out with sufficient accuracy using double precision.
   p -= q << 62;
   return float(double(int64_t(p)) * pio2_62);
 }
@@ -176,7 +176,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   y1 = pmadd(y1, x2, pset1<Packet>(-0.5f));
   y1 = pmadd(y1, x2, pset1<Packet>(1.f));
 
-  // Evaluate the sin(x) polynomial. (Pi/4 <= x <= Pi/4)
+  // Evaluate the sin(x) polynomial. (-Pi/4 <= x <= Pi/4)
   // octave/matlab code to compute those coefficients:
   //    x = (0:0.0001:pi/4)';
   //    A = [x.^3 x.^5 x.^7];

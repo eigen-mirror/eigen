@@ -29,7 +29,7 @@
 
 #define SECOND_FETCH (32)
 #if (EIGEN_COMP_GNUC_STRICT != 0) && !defined(EIGEN_ARCH_AVX512_GEMM_KERNEL_USE_LESS_A_REGS)
-// Use less registers to load A elements to workaround compiler spills. Loose a
+// Use less registers to load A elements to workaround compiler spills. Lose a
 // bit of performance (less than ~2%).
 #define EIGEN_ARCH_AVX512_GEMM_KERNEL_USE_LESS_A_REGS
 #endif

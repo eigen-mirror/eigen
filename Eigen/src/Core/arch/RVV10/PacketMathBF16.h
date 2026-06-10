@@ -609,7 +609,7 @@ EIGEN_STRONG_INLINE Packet2Xbf pselect(const Packet2Xbf& mask, const Packet2Xbf&
                                                                       unpacket_traits<Packet2Xbf>::size));
 }
 
-// Logical Operations are not supported for bflaot16, so reinterpret casts
+// Logical Operations are not supported for bfloat16, so reinterpret casts
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pand<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
   return __riscv_vreinterpret_v_u16m2_bf16m2(__riscv_vand_vv_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(a),

@@ -178,7 +178,7 @@ struct gebp_traits<double, double, false, false, Architecture::NEON>
 
 // The register at operand 3 of fmla for data type half must be v0~v15, the compiler may not
 // allocate a required register for the '%2' of inline asm 'fmla %0.8h, %1.8h, %2.h[id]',
-// so inline assembly can't be used here to advoid the bug that vfmaq_lane_f16 is implemented
+// so inline assembly can't be used here to avoid the bug that vfmaq_lane_f16 is implemented
 // through a costly dup in gcc compiler.
 #if EIGEN_HAS_ARM64_FP16 && EIGEN_COMP_CLANG
 

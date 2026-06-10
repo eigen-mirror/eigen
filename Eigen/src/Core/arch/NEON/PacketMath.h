@@ -4349,7 +4349,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2ul pselect(const Packet2ul& mask, c
   return vbslq_u64(mask, a, b);
 }
 
-// Use armv8 rounding intinsics if available.
+// Use armv8 rounding intrinsics if available.
 #if EIGEN_ARCH_ARMV8
 template <>
 EIGEN_STRONG_INLINE Packet2f print<Packet2f>(const Packet2f& a) {

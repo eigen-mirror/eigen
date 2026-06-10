@@ -230,7 +230,7 @@ EIGEN_STRONG_INLINE void pstoreu<numext::int32_t>(numext::int32_t* to, const Pac
 
 template <>
 EIGEN_DEVICE_FUNC inline PacketXi pgather<numext::int32_t, PacketXi>(const numext::int32_t* from, Index stride) {
-  // Indice format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
   svint32_t indices = svindex_s32(0, stride);
   return svld1_gather_s32index_s32(svptrue_b32(), from, indices);
 }
@@ -238,7 +238,7 @@ EIGEN_DEVICE_FUNC inline PacketXi pgather<numext::int32_t, PacketXi>(const numex
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<numext::int32_t, PacketXi>(numext::int32_t* to, const PacketXi& from,
                                                                   Index stride) {
-  // Indice format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
   svint32_t indices = svindex_s32(0, stride);
   svst1_scatter_s32index_s32(svptrue_b32(), to, indices, from);
 }
@@ -578,14 +578,14 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const PacketXf& from) {
 
 template <>
 EIGEN_DEVICE_FUNC inline PacketXf pgather<float, PacketXf>(const float* from, Index stride) {
-  // Indice format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
   svint32_t indices = svindex_s32(0, stride);
   return svld1_gather_s32index_f32(svptrue_b32(), from, indices);
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<float, PacketXf>(float* to, const PacketXf& from, Index stride) {
-  // Indice format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
+  // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
   svint32_t indices = svindex_s32(0, stride);
   svst1_scatter_s32index_f32(svptrue_b32(), to, indices, from);
 }

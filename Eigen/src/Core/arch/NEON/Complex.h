@@ -422,7 +422,7 @@ EIGEN_STRONG_INLINE std::complex<float> predux_mul<Packet2cf>(const Packet2cf& a
   a2 = vget_high_f32(a.v);
   // Get the real values of a | a1_re | a1_re | a2_re | a2_re |
   v1 = vdup_lane_f32(a1, 0);
-  // Get the real values of a | a1_im | a1_im | a2_im | a2_im |
+  // Get the imag values of a | a1_im | a1_im | a2_im | a2_im |
   v2 = vdup_lane_f32(a1, 1);
   // Multiply the real a with b
   v1 = vmul_f32(v1, a2);

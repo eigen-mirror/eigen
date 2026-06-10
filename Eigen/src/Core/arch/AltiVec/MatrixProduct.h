@@ -85,7 +85,7 @@ struct quad_traits<bfloat16> {
 };
 
 // MatrixProduct decomposes real/imaginary vectors into a real vector and an imaginary vector, this turned out
-// to be faster than Eigen's usual approach of having real/imaginary pairs on a single vector. This constants then
+// to be faster than Eigen's usual approach of having real/imaginary pairs on a single vector. These constants then
 // are responsible to extract from convert between Eigen's and MatrixProduct approach.
 
 const static Packet16uc p16uc_GETREAL32 = {0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27};
@@ -1328,7 +1328,7 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
         cblock.packet[1] = lhs2.template loadPacket<PacketC>(1, i);  //[a2 a2i]
 
         cblock.packet[2] = lhs2.template loadPacket<PacketC>(0, i + 1);  //[b1 b1i]
-        cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1);  //[b2 b2i
+        cblock.packet[3] = lhs2.template loadPacket<PacketC>(1, i + 1);  //[b2 b2i]
 
         blockr.packet[0] = vec_mergeh(cblock.packet[0].v, cblock.packet[1].v);  //[a1 a2]
         blockr.packet[1] = vec_mergeh(cblock.packet[2].v, cblock.packet[3].v);  //[b1 b2]
@@ -1509,7 +1509,7 @@ EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, N>* acc, const Scalar* lhs, co
   pger_common<Packet, NegativeAccumulate, N>(acc, lhsV, rhsV);
 }
 
-// 512-bits rank1-update of complex acc. It takes decoupled accumulators as entries. It also takes cares of mixed types
+// 512-bits rank1-update of complex acc. It takes decoupled accumulators as entries. It also takes care of mixed types
 // real * complex and complex * real.
 template <int N, typename Packet, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
 EIGEN_ALWAYS_INLINE void pgerc_common(PacketBlock<Packet, N>* accReal, PacketBlock<Packet, N>* accImag,

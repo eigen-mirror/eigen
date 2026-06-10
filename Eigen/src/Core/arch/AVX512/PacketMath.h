@@ -1106,7 +1106,7 @@ EIGEN_STRONG_INLINE Packet8d ploadu<Packet8d>(const double* from, uint8_t umask)
   EIGEN_DEBUG_UNALIGNED_LOAD return _mm512_maskz_loadu_pd(mask, from);
 }
 
-// Loads 8 floats from memory a returns the packet
+// Loads 8 floats from memory and returns the packet
 // {a0, a0  a1, a1, a2, a2, a3, a3, a4, a4, a5, a5, a6, a6, a7, a7}
 template <>
 EIGEN_STRONG_INLINE Packet16f ploaddup<Packet16f>(const float* from) {
@@ -1118,7 +1118,7 @@ EIGEN_STRONG_INLINE Packet16f ploaddup<Packet16f>(const float* from) {
   return pairs;
 }
 
-// Loads 4 doubles from memory a returns the packet {a0, a0,  a1, a1, a2, a2, a3,
+// Loads 4 doubles from memory and returns the packet {a0, a0,  a1, a1, a2, a2, a3,
 // a3}
 template <>
 EIGEN_STRONG_INLINE Packet8d ploaddup<Packet8d>(const double* from) {
@@ -1127,7 +1127,7 @@ EIGEN_STRONG_INLINE Packet8d ploaddup<Packet8d>(const double* from) {
   return _mm512_permutexvar_pd(scatter_mask, tmp);
 }
 
-// Loads 4 int64_t from memory a returns the packet {a0, a0,  a1, a1, a2, a2, a3,
+// Loads 4 int64_t from memory and returns the packet {a0, a0,  a1, a1, a2, a2, a3,
 // a3}
 template <>
 EIGEN_STRONG_INLINE Packet8l ploaddup<Packet8l>(const int64_t* from) {
@@ -1146,7 +1146,7 @@ EIGEN_STRONG_INLINE Packet16i ploaddup<Packet16i>(const int* from) {
   return _mm512_castps_si512(pairs);
 }
 
-// Loads 4 floats from memory a returns the packet
+// Loads 4 floats from memory and returns the packet
 // {a0, a0  a0, a0, a1, a1, a1, a1, a2, a2, a2, a2, a3, a3, a3, a3}
 template <>
 EIGEN_STRONG_INLINE Packet16f ploadquad<Packet16f>(const float* from) {
@@ -1155,7 +1155,7 @@ EIGEN_STRONG_INLINE Packet16f ploadquad<Packet16f>(const float* from) {
   return _mm512_permutexvar_ps(scatter_mask, tmp);
 }
 
-// Loads 2 doubles from memory a returns the packet
+// Loads 2 doubles from memory and returns the packet
 // {a0, a0  a0, a0, a1, a1, a1, a1}
 template <>
 EIGEN_STRONG_INLINE Packet8d ploadquad<Packet8d>(const double* from) {
@@ -1166,7 +1166,7 @@ EIGEN_STRONG_INLINE Packet8d ploadquad<Packet8d>(const double* from) {
   return _mm512_insertf64x4(tmp, lane1, 1);
 }
 
-// Loads 2 int64_t from memory a returns the packet
+// Loads 2 int64_t from memory and returns the packet
 // {a0, a0  a0, a0, a1, a1, a1, a1}
 template <>
 EIGEN_STRONG_INLINE Packet8l ploadquad<Packet8l>(const int64_t* from) {

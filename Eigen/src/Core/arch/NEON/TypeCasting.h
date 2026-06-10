@@ -264,7 +264,6 @@ EIGEN_STRONG_INLINE Packet2ul pcast<Packet4f, Packet2ul>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2ul pcast<Packet2f, Packet2ul>(const Packet2f& a) {
-  // Discard second half of input.
   return vmovl_u32(vcvt_u32_f32(a));
 }
 #endif  // EIGEN_ARCH_ARM64

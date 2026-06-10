@@ -581,7 +581,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
 // To improve accuracy, the product ln(2)*x is computed using the twoprod
 // algorithm, such that ln(2) * x = p_hi + p_lo holds exactly. Then exp2(x) is
 // computed as exp2(x) = exp(p_hi) * exp(p_lo) ~= exp(p_hi) * (1 + p_lo). This
-// correction step this reduces the maximum absolute error as follows:
+// correction step reduces the maximum absolute error as follows:
 //
 // type   | max error (simple product) | max error (twoprod) |
 // -----------------------------------------------------------

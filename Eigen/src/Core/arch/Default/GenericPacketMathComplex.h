@@ -151,7 +151,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   // a single complex square root of the number x + i*y. We want to find real numbers
   // u and v such that
   //    (u + i*v)^2 = x + i*y  <=>
-  //    u^2 - v^2 + i*2*u*v = x + i*v.
+  //    u^2 - v^2 + i*2*u*v = x + i*y.
   // By equating the real and imaginary parts we get:
   //    u^2 - v^2 = x
   //    2*u*v = y.
@@ -166,7 +166,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   //  To avoid unnecessary over- and underflow, we compute sqrt(x^2 + y^2) as
   //     l = max(|x|, |y|) * sqrt(1 + (min(|x|, |y|) / max(|x|, |y|))^2) ,
 
-  // In the following, without lack of generality, we have annotated the code, assuming
+  // In the following, without loss of generality, we have annotated the code, assuming
   // that the input is a packet of 2 complex numbers.
   //
   // Step 1. Compute l = [l0, l0, l1, l1], where
@@ -196,7 +196,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
 
   // Step 3. Compute [rho0, eta0, rho1, eta1], where
   // eta0 = (y0 / l0) / 2, and eta1 = (y1 / l1) / 2.
-  // set eta = 0 of input is 0 + i0.
+  // set eta = 0 if input is 0 + i0.
   RealPacket eta = pandnot(pmul(cst_half, pdiv(a.v, pcplxflip(rho).v)), a_max_zero_mask);
   RealPacket real_mask = peven_mask(a.v);
   Packet positive_real_result;
