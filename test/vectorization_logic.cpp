@@ -407,11 +407,14 @@ struct vectorization_logic_half {
       VERIFY(test_assign(Matrix3(), Matrix3().cwiseQuotient(Matrix3()),
                          PacketTraits::HasDiv ? LinearVectorizedTraversal : LinearTraversal, -1));
 
+      // Unrolling further depends on the linear packet width: find_assign_linear_packet
+      // may pick a full-width packet here (e.g. Packet16i on AVX-512), which scales the
+      // unrolling limit - ignore.
       VERIFY(test_assign(Matrix<Scalar, 17, 17>(), Matrix<Scalar, 17, 17>() + Matrix<Scalar, 17, 17>(),
                          sizeof(Scalar) == 16
                              ? InnerVectorizedTraversal
                              : (EIGEN_UNALIGNED_VECTORIZE ? LinearVectorizedTraversal : LinearTraversal),
-                         NoUnrolling));
+                         -1));
 
       VERIFY(test_assign(Matrix11(),
                          Matrix<Scalar, 17, 17>().template block<MinVSize, MinVSize>(2, 3) +
