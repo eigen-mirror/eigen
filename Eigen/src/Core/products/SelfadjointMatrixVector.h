@@ -346,6 +346,10 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
 
+    // Empty product, return early.  Otherwise, we get `nullptr` use errors below when we try to access
+    // coeffRef(0,0).
+    if (lhs.size() == 0) return;
+
     Scalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(a_lhs) * RhsBlasTraits::extractScalarFactor(a_rhs);
 
     enum {
