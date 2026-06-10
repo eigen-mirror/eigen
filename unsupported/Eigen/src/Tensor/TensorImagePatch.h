@@ -48,12 +48,12 @@ struct nested<TensorImagePatchOp<Rows, Cols, XprType>, 1,
  * \ingroup Tensor_Module
  *
  * \brief Patch extraction specialized for image processing.
- * This assumes that the input has a least 3 dimensions ordered as follow:
+ * This assumes that the input has at least 3 dimensions ordered as follows:
  *  1st dimension: channels (of size d)
  *  2nd dimension: rows (of size r)
  *  3rd dimension: columns (of size c)
  *  There can be additional dimensions such as time (for video) or batch (for
- * bulk processing after the first 3.
+ * bulk processing) after the first 3.
  * Calling the image patch code with patch_rows and patch_cols is equivalent
  * to calling the regular patch extraction code with parameters d, patch_rows,
  * patch_cols, and 1 for all the additional dimensions.
@@ -213,7 +213,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     m_col_inflate_strides = op.col_inflate_strides();
     // The "effective" input rows and input cols are the input rows and cols
     // after inflating them with zeros.
-    // For examples, a 2x3 matrix with row_inflate_strides and
+    // For example, a 2x3 matrix with row_inflate_strides and
     // col_inflate_strides of 2 comes from:
     //   A B C
     //   D E F

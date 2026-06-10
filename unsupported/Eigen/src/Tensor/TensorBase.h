@@ -23,7 +23,7 @@ namespace Eigen {
   *
   * \brief The tensor base class.
   *
-  * This class is the common parent of the Tensor and TensorMap class, thus
+  * This class is the common parent of the Tensor and TensorMap classes, thus
   * making it possible to use either class interchangeably in expressions.
   */
 #ifndef EIGEN_PARSED_BY_DOXYGEN

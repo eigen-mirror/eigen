@@ -120,7 +120,7 @@ template <typename HL, typename LL, typename HR, typename LR>
 static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorUInt128<uint64_t, uint64_t> operator*(
     const TensorUInt128<HL, LL>& lhs, const TensorUInt128<HR, LR>& rhs) {
   // Split each 128-bit integer into 4 32-bit integers, and then do the
-  // multiplications by hand as follow:
+  // multiplications by hand as follows:
   //   lhs      a  b  c  d
   //   rhs      e  f  g  h
   //           -----------

@@ -664,11 +664,6 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     return result;
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index getIndexFromOffset(Index base, Index omitted_dim, Index offset) const {
-    Index result = base + offset * m_strides[omitted_dim];
-    return result;
-  }
-
  protected:
   Index m_size;
   const FFT EIGEN_DEVICE_REF m_fft;

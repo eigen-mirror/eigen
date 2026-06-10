@@ -24,7 +24,7 @@ constexpr int Lhs = 1;
 /*
  * Implementation of the Eigen blas_data_mapper class for tensors.
  */
-/// The make pointer class is used by sycl in order to build the mapper class on the device. For other platform the
+/// The make pointer class is used by sycl in order to build the mapper class on the device. For other platforms the
 /// default make pointer is used which is scalar * for CoeffLoader.
 template <typename Tensor, bool HasRawAccess, template <class> class MakePointer_ = MakePointer>
 struct CoeffLoader;
@@ -213,7 +213,7 @@ class SimpleTensorContractionMapper {
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index firstAligned(Index size) const {
     // Only claim alignment when we can compute the actual stride (ie when we're
-    // dealing with the lhs with inner_dim_contiguous. This is because the
+    // dealing with the lhs with inner_dim_contiguous). This is because the
     // matrix-vector product relies on the stride when dealing with aligned inputs.
     return (Alignment == Aligned) && (side == Lhs) && inner_dim_contiguous ? 0 : size;
   }
@@ -363,7 +363,7 @@ class TensorContractionSubMapper {
   using LinearMapper = Self;
   using SubMapper = Self;
 
-  // We can use direct offsets iff the parent mapper supports then and we can compute the strides.
+  // We can use direct offsets iff the parent mapper supports them and we can compute the strides.
   // TODO: we should also enable direct offsets for the Rhs case.
   static constexpr bool UseDirectOffsets =
       ParentMapper::DirectOffsets && (side == Lhs) && inner_dim_contiguous && (array_size<contract_t>::value > 0);

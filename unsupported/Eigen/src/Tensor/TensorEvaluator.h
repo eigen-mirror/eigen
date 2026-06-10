@@ -64,7 +64,7 @@ struct TensorEvaluator {
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorEvaluator(const Derived& m, const Device& device)
-      : m_data(device.get((const_cast<TensorPointerType>(m.data())))), m_dims(m.dimensions()), m_device(device) {}
+      : m_data(device.get(const_cast<TensorPointerType>(m.data()))), m_dims(m.dimensions()), m_device(device) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dims; }
 

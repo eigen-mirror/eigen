@@ -161,7 +161,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
         inputIndex += idx * m_strides[i];
       }
       if (m_reverse[0]) {
-        inputIndex += (m_dimensions[0] - index - 1);
+        inputIndex += m_dimensions[0] - index - 1;
       } else {
         inputIndex += index;
       }
@@ -176,7 +176,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
         inputIndex += idx * m_strides[i];
       }
       if (m_reverse[NumDims - 1]) {
-        inputIndex += (m_dimensions[NumDims - 1] - index - 1);
+        inputIndex += m_dimensions[NumDims - 1] - index - 1;
       } else {
         inputIndex += index;
       }
@@ -239,7 +239,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     // Offset in the input Tensor.
     Index input_offset = reverseIndex(desc.offset());
 
-    // Initialize output block iterator state. Dimension in this array are
+    // Initialize output block iterator state. Dimensions in this array are
     // always in inner_most -> outer_most order (col major layout).
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {

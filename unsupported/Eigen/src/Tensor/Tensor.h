@@ -231,7 +231,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator[](Index index) {
-    // The bracket operator is only for vectors, use the parenthesis operator instead
+    // The bracket operator is only for vectors, use the parenthesis operator instead.
     EIGEN_STATIC_ASSERT(NumIndices == 1, YOU_MADE_A_PROGRAMMING_MISTAKE)
     return coeffRef(index);
   }

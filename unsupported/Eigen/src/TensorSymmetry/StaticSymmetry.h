@@ -18,19 +18,6 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename list>
-struct tensor_static_symgroup_permutate;
-
-template <int... nn>
-struct tensor_static_symgroup_permutate<std::integer_sequence<int, nn...>> {
-  constexpr static std::size_t N = sizeof...(nn);
-
-  template <typename T>
-  constexpr static std::array<T, N> run(const std::array<T, N>& indices) {
-    return {{indices[nn]...}};
-  }
-};
-
 template <typename indices_, int flags_>
 struct tensor_static_symgroup_element {
   typedef indices_ indices;

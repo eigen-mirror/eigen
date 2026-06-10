@@ -171,7 +171,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
     // Offset in the output block buffer.
     Index offset = 0;
 
-    // Initialize output block iterator state. Dimension in this array are
+    // Initialize output block iterator state. Dimensions in this array are
     // always in inner_most -> outer_most order (col major layout).
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {

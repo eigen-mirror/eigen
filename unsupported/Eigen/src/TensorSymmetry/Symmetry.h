@@ -213,7 +213,7 @@ struct tensor_symmetry_num_indices<AntiHermiticity<One_, Two_>, Sym...>
  *     still compiles with reasonable resources.</dd>
  * </dl>
  *
- * Note: Example compile time performance with g++-4.6 on an Intenl Core i5-3470
+ * Note: Example compile time performance with g++-4.6 on an Intel Core i5-3470
  *       with 16 GiB RAM (all generators non-redundant and the subgroups don't
  *       factorize):
  *

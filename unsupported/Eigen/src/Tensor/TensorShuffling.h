@@ -212,10 +212,10 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
     const size_t target_size = m_device.firstLevelCacheSize();
     const bool inner_dim_shuffled = m_shuffle[inner_dim] != inner_dim;
 
-    // Shuffled inner dimensions leads to a random memory access, which is not
+    // Shuffled inner dimensions lead to a random memory access, which is not
     // captured by default cost model bytes loaded/stored. We add this cost
-    // explicitly. The number of cycles picked based on the benchmarks.
-    // TODO(ezhulenev): This number was picked based on a very questionable
+    // explicitly. The number of cycles was picked based on the benchmarks.
+    // TODO(ezhulenev): This number was picked based on very questionable
     // benchmarks, add benchmarks that are representative of real workloads.
     using BlockRequirements = internal::TensorBlockResourceRequirements;
     if (inner_dim_shuffled) {

@@ -163,7 +163,7 @@ template <Index Idx, typename ValueT>
 struct tuple_coeff {
   template <typename... T>
   EIGEN_DEVICE_FUNC static constexpr ValueT get(const Index i, const IndexTuple<T...>& t) {
-    return (i == Idx ? array_get<Idx>(t) : tuple_coeff<Idx - 1, ValueT>::get(i, t));
+    return i == Idx ? array_get<Idx>(t) : tuple_coeff<Idx - 1, ValueT>::get(i, t);
   }
   template <typename... T>
   EIGEN_DEVICE_FUNC static void set(const Index i, IndexTuple<T...>& t, const ValueT& value) {
@@ -255,7 +255,7 @@ struct IndexList : internal::IndexTuple<FirstType, OtherTypes...> {
                                  Index>::set(i, *this, value);
   }
 
-  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr std::size_t size() const { return 1 + sizeof...(OtherTypes); };
+  EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC constexpr std::size_t size() const { return 1 + sizeof...(OtherTypes); }
 
   EIGEN_DEVICE_FUNC constexpr IndexList(const internal::IndexTuple<FirstType, OtherTypes...>& other)
       : internal::IndexTuple<FirstType, OtherTypes...>(other) {}

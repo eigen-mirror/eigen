@@ -98,7 +98,7 @@ __device__ EIGEN_STRONG_INLINE void EigenContractionKernelInternal(const LhsMapp
   // k: the horizontal index of the 8x8 block in the grid
   //
   // The k parameter is implicit (it was the loop counter for a loop that went
-  // from 0 to <8, but now that loop is unrolled in the below code.
+  // from 0 to <8, but now that loop is unrolled in the below code).
 
   const Index load_idx_vert = thread_x + 8 * thread_y;
   const Index lhs_vert = base_m + load_idx_vert;
@@ -760,14 +760,6 @@ __device__ __forceinline__ void EigenFloatContractionKernelInternal16x16(const L
     }
   } else if (!CHECK_LHS_BOUNDARY) {
     // CHECK RHS
-    /*
-    int ncols_rem = fminf(n_size- horiz_base, 4);
-    for (int i = 0; i < ncols_rem; i++) {
-      output(lhs_vert, horiz_base + i) = results[i].x;
-      output(lhs_vert + 1, horiz_base + i) = results[i].y;
-      output(lhs_vert + 2, horiz_base + i) = results[i].z;
-      output(lhs_vert + 3, horiz_base + i) = results[i].w;
-    }*/
     for (int i = 0; i < 4; i++) {
       if (horiz_base + i < n_size) {
         output(lhs_vert, horiz_base + i) = results[i].x;

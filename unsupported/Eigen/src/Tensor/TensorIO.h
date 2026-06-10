@@ -41,7 +41,7 @@ struct TensorIOFormatBase {
   }
 
   void init_spacer() {
-    if ((flags & DontAlignCols)) return;
+    if (flags & DontAlignCols) return;
     spacer.resize(prefix.size());
     spacer[0] = "";
     int i = int(tenPrefix.length()) - 1;
@@ -266,7 +266,7 @@ struct TensorPrinter {
       std::array<bool, rank> is_at_end{};
       std::array<bool, rank> is_at_begin{};
 
-      // is the ith element the end of an coeff (always true), of a row, of a matrix, ...?
+      // is the ith element the end of a coeff (always true), of a row, of a matrix, ...?
       for (std::size_t k = 0; k < rank; k++) {
         if ((i + 1) % (std::accumulate(tensor.dimensions().rbegin(), tensor.dimensions().rbegin() + k, 1,
                                        std::multiplies<IndexType>())) ==
@@ -275,7 +275,7 @@ struct TensorPrinter {
         }
       }
 
-      // is the ith element the begin of an coeff (always true), of a row, of a matrix, ...?
+      // is the ith element the begin of a coeff (always true), of a row, of a matrix, ...?
       for (std::size_t k = 0; k < rank; k++) {
         if (i % (std::accumulate(tensor.dimensions().rbegin(), tensor.dimensions().rbegin() + k, 1,
                                  std::multiplies<IndexType>())) ==

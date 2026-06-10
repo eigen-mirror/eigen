@@ -707,7 +707,7 @@ struct TensorContractionEvaluatorBase {
     //     (B) m_lhs_contracted_dims_leading: contracted dims at contiguous end.
     //         RowMajor view of LHS via const_blas_data_mapper.
     //
-    //   m_i_size == 1: RowMajor inputs (lines 407-414 swap LHS/RHS at the type
+    //   m_i_size == 1: RowMajor inputs (lines 431-434 swap LHS/RHS at the type
     //         level, so the matrix is m_rightImpl).
     //     (C) m_rhs_contracted_dims_leading: contracted dims at contiguous end
     //         of (eval-)RHS. RowMajor view of m_rightImpl.
@@ -796,7 +796,7 @@ struct TensorContractionEvaluatorBase {
   // StorageOrder is the layout of the (rows × cols) matrix view in memory.
   // MatrixIsRight selects which TensorEvaluator holds the matrix and which
   // holds the vector — needed because the constructor swaps LHS/RHS for
-  // RowMajor inputs (lines 407-414), so the gemv shape lives in m_rightImpl
+  // RowMajor inputs (lines 431-434), so the gemv shape lives in m_rightImpl
   // there. Caller guarantees both impls expose direct memory.
   template <int StorageOrder, bool MatrixIsRight>
 #if !defined(EIGEN_HIPCC)

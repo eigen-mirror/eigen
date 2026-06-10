@@ -43,7 +43,7 @@ struct nested<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, 1,
  * \ingroup Tensor_Module
  *
  * \brief Patch extraction specialized for processing of volumetric data.
- * This assumes that the input has a least 4 dimensions ordered as follows:
+ * This assumes that the input has at least 4 dimensions ordered as follows:
  *  - channels
  *  - planes
  *  - rows
@@ -413,7 +413,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     }
 
     // Calculate plane index in the original input tensor.
-    const Index planeIndex = (patch3DIndex - m_outputPlanes * (colIndex * m_outputRows + rowIndex));
+    const Index planeIndex = patch3DIndex - m_outputPlanes * (colIndex * m_outputRows + rowIndex);
     const Index planeOffset = patchOffset - colOffset * m_colStride - rowOffset * m_rowStride;
     const Index inputPlane = planeIndex * m_plane_strides + planeOffset * m_in_plane_strides - m_planePaddingTop;
     const Index origInputPlane =
@@ -489,7 +489,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       return packetWithPossibleZero(index);
     }
 
-    const Index planeIndex = (patch3DIndex - m_outputPlanes * (colIndex * m_outputRows + rowIndex));
+    const Index planeIndex = patch3DIndex - m_outputPlanes * (colIndex * m_outputRows + rowIndex);
     const Index planeOffsets[2] = {patchOffsets[0] - colOffsets[0] * m_colStride - rowOffsets[0] * m_rowStride,
                                    patchOffsets[1] - colOffsets[1] * m_colStride - rowOffsets[1] * m_rowStride};
     eigen_assert(planeOffsets[0] <= planeOffsets[1]);

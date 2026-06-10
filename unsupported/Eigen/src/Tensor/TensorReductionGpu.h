@@ -20,7 +20,7 @@ namespace internal {
 #if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 // Full reducers for GPU, don't vectorize for now
 
-// Reducer function that enables multiple gpu thread to safely accumulate at the same
+// Reducer function that enables multiple gpu threads to safely accumulate at the same
 // output address. It basically reads the current value of the output variable, and
 // attempts to update it with the new value. If in the meantime another gpu thread
 // updated the content of the output address it will try again.
@@ -429,7 +429,7 @@ struct FullReductionLauncher<Self, Op, Eigen::half, true> {
 
     if (num_blocks > 1) {
       // We initialize the output and the scratchpad outside the reduction kernel when we can't be sure that there
-      // won't be a race conditions between multiple thread blocks.
+      // won't be race conditions between multiple thread blocks.
       LAUNCH_GPU_KERNEL((ReductionInitFullReduxKernelHalfFloat<Self, Op, Index>), 1, 1, 0, device, reducer, self,
                         num_coeffs, scratch);
     }
@@ -726,7 +726,7 @@ struct InnerReductionLauncher<
 
     if (num_blocks > 1) {
       // We initialize the outputs outside the reduction kernel when we can't be sure that there
-      // won't be a race conditions between multiple thread blocks.
+      // won't be race conditions between multiple thread blocks.
       const int dyn_blocks2 = numext::div_ceil<int>(num_preserved_vals, 1024);
       const int max_blocks2 = device.getNumGpuMultiProcessors() * device.maxGpuThreadsPerMultiProcessor() / 1024;
       const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
@@ -770,7 +770,7 @@ struct InnerReductionLauncher<Self, Op, Eigen::half, true> {
 
     if (num_blocks > 1) {
       // We initialize the outputs outside the reduction kernel when we can't be sure that there
-      // won't be a race conditions between multiple thread blocks.
+      // won't be race conditions between multiple thread blocks.
       LAUNCH_GPU_KERNEL((ReductionInitKernelHalfFloat<Self, Op, Index>), 1, 1, 0, device, reducer, self,
                         num_preserved_vals, output);
     }
@@ -888,8 +888,8 @@ struct OuterReducer<Self, Op, GpuDevice> {
     const int num_blocks = numext::mini<int>(max_blocks, dyn_blocks);
 
     if (num_blocks > 1) {
-      // We initialize the outputs in the reduction kernel itself when we don't have to worry
-      // about race conditions between multiple thread blocks.
+      // We initialize the outputs outside the reduction kernel when we can't be sure that there
+      // won't be race conditions between multiple thread blocks.
       const int dyn_blocks2 = numext::div_ceil<int>(num_preserved_vals, 1024);
       const int max_blocks2 = device.getNumGpuMultiProcessors() * device.maxGpuThreadsPerMultiProcessor() / 1024;
       const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);

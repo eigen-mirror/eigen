@@ -118,7 +118,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
 
 namespace internal {
 
-/** \class TensorPairIndex
+/** \class TensorPairReducerOp
  * \ingroup Tensor_Module
  *
  * \brief Converts to Tensor<Pair<Index, Scalar> > and reduces to Tensor<Index>.

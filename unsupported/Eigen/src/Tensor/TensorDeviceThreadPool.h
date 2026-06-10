@@ -24,7 +24,7 @@ class Allocator {
   virtual void deallocate(void* buffer) const = 0;
 };
 
-// Build a thread pool device on top the an existing pool of threads.
+// Build a thread pool device on top of an existing pool of threads.
 struct ThreadPoolDevice {
   // The ownership of the thread pool remains with the caller.
   ThreadPoolDevice(ThreadPoolInterface* pool, int num_cores, Allocator* allocator = nullptr)

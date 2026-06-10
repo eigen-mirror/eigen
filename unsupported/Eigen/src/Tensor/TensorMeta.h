@@ -226,7 +226,7 @@ struct Pair {
 
 template <typename U, typename V>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool operator==(const Pair<U, V>& x, const Pair<U, V>& y) {
-  return (x.first == y.first && x.second == y.second);
+  return x.first == y.first && x.second == y.second;
 }
 
 template <typename U, typename V>

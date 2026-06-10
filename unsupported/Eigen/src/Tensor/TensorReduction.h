@@ -476,7 +476,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void OuterReductionKernel(R, const S, I_
 /**
  * For SYCL, the return type of the reduction is deduced from the initialize method of the given Op.
  * This allows the reduction to have a different type for the accumulator than the input data type.
- * If this is the case, the functor needs to have two reduce method: one for reducing an element of the input
+ * If this is the case, the functor needs to have two reduce methods: one for reducing an element of the input
  * with the accumulator and the other for reducing two accumulators.
  * Such a reducer can be useful for instance when the accumulator is a boolean or a bitset that checks for
  * some properties of the input.
@@ -931,12 +931,6 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
   template <typename S, typename O, typename D>
   friend struct internal::InnerReducer;
-
-  struct BlockIteratorState {
-    Index input_dim;
-    Index output_size;
-    Index output_count;
-  };
 
   // Returns the Index in the input tensor of the first value that needs to be
   // used to compute the reduction at output index "index".

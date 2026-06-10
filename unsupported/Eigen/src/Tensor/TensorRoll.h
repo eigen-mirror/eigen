@@ -236,7 +236,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     array<Index, NumDims> initial_coords = coords;
     Index offset = 0;  // Offset in the output block buffer.
 
-    // Initialize output block iterator state. Dimension in this array are
+    // Initialize output block iterator state. Dimensions in this array are
     // always in inner_most -> outer_most order (col major layout).
     array<BlockIteratorState, NumDims> it;
     for (int i = 0; i < NumDims; ++i) {
@@ -321,8 +321,6 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
       coords[NumDims - 1] = index;
     }
   }
-
- private:
 };
 
 // Eval as lvalue

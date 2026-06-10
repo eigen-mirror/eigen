@@ -113,7 +113,7 @@ struct TensorBlockResourceRequirements {
     // coefficients from the underlying tensor storage, and write to the tensor
     // block buffer (scratch or destination memory, reads and writes have linear
     // access pattern). We ignore the fixed cost of block evaluation, because in
-    // practice it should negligible.
+    // practice it should be negligible.
     //
     // Lazy block evaluation adds the cost of calling a functor for each
     // coefficient.
@@ -158,8 +158,6 @@ struct TensorBlockResourceRequirements {
   }
 
  private:
-  using Requirements = TensorBlockResourceRequirements;
-
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE size_t merge(size_t lhs_size, size_t rhs_size) {
     return numext::maxi(lhs_size, rhs_size);
   }
@@ -1103,7 +1101,7 @@ class StridedLinearBufferCopy {
 
 template <typename Scalar, typename IndexType, int NumDims, int Layout>
 class TensorBlockIO {
-  static constexpr bool IsColMajor = (Layout == ColMajor);
+  static constexpr bool IsColMajor = Layout == ColMajor;
 
   typedef StridedLinearBufferCopy<Scalar, IndexType> LinCopy;
 

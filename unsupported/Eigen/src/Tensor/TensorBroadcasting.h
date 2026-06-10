@@ -606,8 +606,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     size_t materialized_input_size = 0;
     ScalarNoConst* materialized_input = NULL;
 
-    // Initialize block broadcating iterator state for outer dimensions (outer
-    // with regard to bcast dimension). Dimension in this array are always in
+    // Initialize block broadcasting iterator state for outer dimensions (outer
+    // with regard to bcast dimension). Dimensions in this array are always in
     // inner_most -> outer_most order (col major layout).
     array<BlockBroadcastingIteratorState, NumDims> it;
     int idx = 0;
@@ -714,7 +714,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     params.output_strides = internal::strides<Layout>(params.output_dims);
 
     // Find the broadcasting dimension (first dimension with output size smaller
-    // that the input size).
+    // than the input size).
     params.bcast_dim = 0;
     params.bcast_dim_size = 1;
     params.inner_dim_size = 1;

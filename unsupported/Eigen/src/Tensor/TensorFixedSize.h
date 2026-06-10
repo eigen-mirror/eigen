@@ -169,7 +169,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator[](Index index) {
-    // The bracket operator is only for vectors, use the parenthesis operator instead
+    // The bracket operator is only for vectors, use the parenthesis operator instead.
     EIGEN_STATIC_ASSERT(NumIndices == 1, YOU_MADE_A_PROGRAMMING_MISTAKE)
     return coeffRef(index);
   }

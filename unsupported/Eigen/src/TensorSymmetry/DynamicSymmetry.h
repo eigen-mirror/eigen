@@ -269,15 +269,15 @@ inline void DynamicSGroup::updateGlobalFlags(int flagDiffOfSameGenerator) {
       // nothing happened
       break;
     case NegationFlag:
-      // every element is it's own negative => whole tensor is zero
+      // every element is its own negative => whole tensor is zero
       m_globalFlags |= GlobalZeroFlag;
       break;
     case ConjugationFlag:
-      // every element is it's own conjugate => whole tensor is real
+      // every element is its own conjugate => whole tensor is real
       m_globalFlags |= GlobalRealFlag;
       break;
     case (NegationFlag | ConjugationFlag):
-      // every element is it's own negative conjugate => whole tensor is imaginary
+      // every element is its own negative conjugate => whole tensor is imaginary
       m_globalFlags |= GlobalImagFlag;
       break;
       /* NOTE:

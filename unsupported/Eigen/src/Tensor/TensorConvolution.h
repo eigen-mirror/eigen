@@ -592,7 +592,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel1D(
     }
     __syncthreads();
   }
-};
+}
 
 template <typename InputEvaluator, typename Index, typename InputDims, int StaticKernelSizeX, int StaticKernelSizeY>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
@@ -661,7 +661,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
 
     __syncthreads();
   }
-};
+}
 
 template <typename InputEvaluator, typename Index, typename InputDims>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
@@ -736,7 +736,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
     }
     __syncthreads();
   }
-};
+}
 
 template <typename Indices, typename InputArgType, typename KernelArgType>
 struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelArgType>, GpuDevice> {
@@ -872,7 +872,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const int single_stride_dim =
             static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : m_inputImpl.dimensions().rank() - 1;
         if (m_indices[0] == single_stride_dim) {
-          // Maximum the reuse
+          // Maximize the reuse
           const int inner_dim = ((maxSharedMem / (sizeof(Scalar)) - kernel_size + 1 + 31) / 32) * 32;
           maxX = numext::mini<int>(inner_dim, numX);
           const int maxP = numext::mini<int>(maxSharedMem / ((kernel_size - 1 + maxX) * sizeof(Scalar)), numP);

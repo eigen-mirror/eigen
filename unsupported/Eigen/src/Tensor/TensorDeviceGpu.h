@@ -99,7 +99,7 @@ class GpuStreamDevice : public StreamInterface {
   // Use the default stream on the specified device
   GpuStreamDevice(int device) : stream_(&default_stream), device_(device), scratch_(NULL), semaphore_(NULL) {}
   // Use the specified stream. Note that it's the
-  // caller responsibility to ensure that the stream can run on
+  // caller's responsibility to ensure that the stream can run on
   // the specified device. If no device is specified the code
   // assumes that the stream is associated to the current gpu device.
   GpuStreamDevice(const gpuStream_t* stream, int device = -1)
