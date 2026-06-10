@@ -326,9 +326,9 @@ class SelfAdjointEigenSolver {
     return m_eivec * m_eivalues.cwiseSqrt().asDiagonal() * m_eivec.adjoint();
   }
 
-  /** \brief Computes the matrix exponential the matrix.
+  /** \brief Computes the matrix exponential of the matrix.
    *
-   * \returns the matrix exponential the matrix.
+   * \returns the matrix exponential of the matrix.
    *
    * \pre The eigenvalues and eigenvectors of a positive-definite matrix
    * have been computed before.
@@ -918,7 +918,7 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
   // underflow thus leading to inf/NaN values when using the following commented code:
   //   RealScalar e2 = numext::abs2(subdiag[end-1]);
   //   RealScalar mu = diag[end] - e2 / (td + (td>0 ? 1 : -1) * sqrt(td*td + e2));
-  // This explain the following, somewhat more complicated, version:
+  // This explains the following, somewhat more complicated, version:
   RealScalar mu = diag[end];
   if (numext::is_exactly_zero(td)) {
     mu -= numext::abs(e);
