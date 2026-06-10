@@ -54,14 +54,14 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  Possible values are #ComputeThinU, #ComputeThinV, #ComputeFullU, #ComputeFullV, and
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
- *                  performance on tall and wide matrices. For backwards compatility, the option
+ *                  performance on tall and wide matrices. For backwards compatibility, the option
  *                  #DisableQRDecomposition can be used to disable this optimization.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
  * You can control the switching size with the setSwitchSize() method, default is 16.
- * For small matrice (<16), it is thus preferable to directly use JacobiSVD. For larger ones, BDCSVD is highly
- * recommended and can several order of magnitude faster.
+ * For small matrices (<16), it is thus preferable to directly use JacobiSVD. For larger ones, BDCSVD is highly
+ * recommended and can be several orders of magnitude faster.
  *
  * \warning this algorithm is unlikely to provide accurate result when compiled with unsafe math optimizations.
  * For instance, this concerns Intel's compiler (ICC), which performs such optimization by default unless

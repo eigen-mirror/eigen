@@ -480,7 +480,7 @@ struct traits<JacobiSVD<MatrixType_, Options>> : svd_traits<MatrixType_, Options
  * \li HouseholderQRPreconditioner is the fastest, and less safe and accurate than the pivoting variants. It uses
  * non-pivoting QR. This is very similar in safety and accuracy to the bidiagonalization process used by bidiagonalizing
  * SVD algorithms (since bidiagonalization is inherently non-pivoting). However the resulting SVD is still more reliable
- * than bidiagonalizing SVDs because the Jacobi-based iterarive process is more reliable than the optimized bidiagonal
+ * than bidiagonalizing SVDs because the Jacobi-based iterative process is more reliable than the optimized bidiagonal
  * SVD iterations. \li NoQRPreconditioner allows not to use a QR preconditioner at all. This is useful if you know that
  * you will only be computing JacobiSVD decompositions of square matrices. Non-square matrices require a QR
  * preconditioner. Using this option will result in faster compilation and smaller executable code. It won't
@@ -715,7 +715,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
                                                                              unsigned int computationOptions) {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Derived, MatrixType);
   EIGEN_STATIC_ASSERT((std::is_same<typename Derived::Scalar, typename MatrixType::Scalar>::value),
-                      Input matrix must have the same Scalar type as the BDCSVD object.);
+                      Input matrix must have the same Scalar type as the JacobiSVD object.);
 
   using numext::abs;
 
@@ -834,7 +834,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
    * ***/
 
   for (Index i = 0; i < diagSize(); ++i) {
-    // For a complex matrix, some diagonal coefficients might note have been
+    // For a complex matrix, some diagonal coefficients might not have been
     // treated by svd_precondition_2x2_block_to_be_real, and the imaginary part
     // of some diagonal entry might not be null.
     bool diagonal_has_imaginary_part = false;

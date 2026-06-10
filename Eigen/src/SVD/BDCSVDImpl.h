@@ -250,7 +250,7 @@ void bdcsvd_impl<RealScalar_>::divide(Index firstCol, Index lastCol, Index first
 
   if (m_compU) {
     MatrixXr q1(m_naiveU.col(firstCol + k).segment(firstCol, k + 1));
-    // we shiftW Q1 to the right
+    // we shift Q1 to the right
     for (Index i = firstCol + k - 1; i >= firstCol; i--)
       m_naiveU.col(i + 1).segment(firstCol, k + 1) = m_naiveU.col(i).segment(firstCol, k + 1);
     // we shift q1 at the left with a factor c0
@@ -538,7 +538,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       } else {
         // We have a problem as shifting on the left or right give either a positive or negative value
         // at the middle of [left,right]...
-        // Instead of abbording or entering an infinite loop,
+        // Instead of aborting or entering an infinite loop,
         // let's just use the middle as the estimated zero-crossing:
         muCur = (right - left) * RealScalar(0.5);
         // we can test exact equality here, because shift comes from `... ? left : right`

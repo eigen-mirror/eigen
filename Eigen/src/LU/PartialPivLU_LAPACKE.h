@@ -43,7 +43,7 @@ namespace internal {
 
 namespace lapacke_helpers {
 // -------------------------------------------------------------------------------------------------------------------
-//        Generic lapacke partial lu implementation that converts arguments and dispatches to the function above
+//        Generic lapacke partial lu implementation that converts arguments and dispatches to getrf
 // -------------------------------------------------------------------------------------------------------------------
 
 template <typename Scalar, int StorageOrder>

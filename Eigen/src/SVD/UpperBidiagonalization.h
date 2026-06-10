@@ -185,7 +185,7 @@ void upperbidiagonalization_blocked_helper(
       SubMatType Y_k(Y.block(k + 1, 0, remainingCols, k + 1));
       SubMatType U_k1(A.block(0, k + 1, k, remainingCols));
 
-      // this eases the application of Householder transforAions
+      // this eases the application of Householder transformations
       // A(k,k) will store tau_v later
       A(k, k) = Scalar(1);
 

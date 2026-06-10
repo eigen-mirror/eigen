@@ -27,14 +27,6 @@ struct traits<PartialPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType
   enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
 };
 
-template <typename T, typename Derived>
-struct enable_if_ref;
-
-template <typename T, typename Derived>
-struct enable_if_ref<Ref<T>, Derived> {
-  typedef Derived type;
-};
-
 }  // end namespace internal
 
 /** \ingroup LU_Module
@@ -309,7 +301,7 @@ PartialPivLU<MatrixType, PermutationIndex>::PartialPivLU(EigenBase<InputType>& m
 
 namespace internal {
 
-/** \internal This is the blocked version of fullpivlu_unblocked() */
+/** \internal This is the blocked version of unblocked_lu() */
 template <typename Scalar, int StorageOrder, typename PivIndex, int SizeAtCompileTime = Dynamic>
 struct generic_partial_lu_impl {
   static constexpr int UnBlockedBound = 16;
