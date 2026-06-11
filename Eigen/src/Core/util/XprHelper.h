@@ -146,7 +146,7 @@ class variable_if_dynamic {
  public:
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit variable_if_dynamic(T v) noexcept {
     EIGEN_ONLY_USED_FOR_DEBUG(v);
-    eigen_assert(v == T(Value));
+    eigen_plain_assert(v == T(Value));
   }
   EIGEN_DEVICE_FUNC static constexpr T value() { return T(Value); }
   EIGEN_DEVICE_FUNC constexpr operator T() const { return T(Value); }
