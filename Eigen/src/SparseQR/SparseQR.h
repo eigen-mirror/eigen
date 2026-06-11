@@ -577,17 +577,26 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     }
 
     const RealScalar absBeta = abs(beta);
-    RealScalar threshold = pivotThreshold;
+    bool hasReplacement = false;
     const bool canRejectColumn = nonzeroCol + (n - col - 1) >= diagSize;
-    const RealScalar maxReplaceablePivotThreshold = max2Norm * NumTraits<RealScalar>::dummy_precision();
+    // Gate for examining a pivot as replaceable. The Householder pivot `beta` of a
+    // (nearly) dependent column is a catastrophic-cancellation residual whose exact
+    // magnitude is not reproducible across compilers or FMA-contraction settings, so
+    // this examination gate uses a generous sqrt(epsilon) tolerance rather than
+    // dummy_precision. The rejection below still requires a strictly stronger,
+    // independent replacement set, so a wider gate only changes which pivots are
+    // *examined* (and never rejects a pivot that lacks a replacement). A threshold at
+    // the residual's noise floor would otherwise make the pivoting decision -- and
+    // hence the result -- depend on floating-point contraction.
+    using std::sqrt;
+    const RealScalar weakPivotTolerance = sqrt(NumTraits<RealScalar>::epsilon());
+    const RealScalar maxReplaceablePivotThreshold = max2Norm * weakPivotTolerance;
     if (nonzeroCol < diagSize && canRejectColumn && m_useDefaultThreshold && absBeta >= pivotThreshold &&
         absBeta < maxReplaceablePivotThreshold) {
       const RealScalar colNorm = m_pmat.col(col).norm();
-      // Per-column replacement gate. It mirrors the global max2Norm * dummy_precision threshold, using
-      // dummy_precision rather than epsilon so only numerically negligible candidate pivots are considered replaceable.
-      const RealScalar replaceablePivotThreshold = colNorm * NumTraits<RealScalar>::dummy_precision();
+      // Per-column replacement gate, mirroring the global max2Norm * weakPivotTolerance threshold.
+      const RealScalar replaceablePivotThreshold = colNorm * weakPivotTolerance;
       if (absBeta < replaceablePivotThreshold) {
-        bool hasReplacement = false;
         const StorageIndex requiredReplacementCount = diagSize - nonzeroCol;
         const StorageIndex activeRows = m - nonzeroCol;
         const Index maxReplacementBasisEntries = Index(PivotLookAheadMaxBasisBytes) / Index(sizeof(Scalar));
@@ -636,10 +645,11 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
           // look-ahead would exceed its storage budget.
           m_lastPivotLookAheadSkipped = true;
         }
-        if (hasReplacement) threshold = replaceablePivotThreshold;
       }
     }
-    if (nonzeroCol < diagSize && absBeta >= threshold) {
+    // If a replacement set was found, the pivot is genuinely replaceable: reject it
+    // (defer the column to the end) independently of `beta`'s exact magnitude.
+    if (nonzeroCol < diagSize && absBeta >= pivotThreshold && !hasReplacement) {
       m_R.insertBackByOuterInner(col, nonzeroCol) = beta;
       // The householder coefficient
       m_hcoeffs(nonzeroCol) = tau;
