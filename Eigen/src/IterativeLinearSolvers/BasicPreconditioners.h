@@ -63,7 +63,7 @@ class DiagonalPreconditioner {
   template <typename MatType>
   DiagonalPreconditioner& factorize(const MatType& mat) {
     m_invdiag.resize(mat.cols());
-    for (int j = 0; j < mat.outerSize(); ++j) {
+    for (Index j = 0; j < mat.outerSize(); ++j) {
       typename MatType::InnerIterator it(mat, j);
       while (it && it.index() != j) ++it;
       if (it && it.index() == j && it.value() != Scalar(0))

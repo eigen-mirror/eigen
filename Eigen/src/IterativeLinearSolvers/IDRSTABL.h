@@ -53,7 +53,6 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Setup and type definitions.
   */
   using numext::abs;
-  using numext::sqrt;
   typedef typename Dest::Scalar Scalar;
   typedef typename Dest::RealScalar RealScalar;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
@@ -205,8 +204,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   */
 
   // Original IDRSTABL and Kensuke choose S random vectors:
-  const HouseholderQR<DenseMatrixType> qr(DenseMatrixType::Random(N, S));
-  DenseMatrixType R_T = (qr.householderQ() * DenseMatrixType::Identity(N, S)).adjoint();
+  DenseMatrixType R_T = internal::random_orthonormal_basis<DenseMatrixType>(N, S).adjoint();
   DenseMatrixType AR_T = DenseMatrixType(R_T * mat);
 
   // Pre-allocate sigma.
@@ -302,7 +300,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
         V.block(0, q - 1, N * (j + 1), 1).noalias() = u.reshaped().head(u.rows() * (j + 1));
       }
 
-      if (break_normalization == false) {
+      if (!break_normalization) {
         U = V;
       }
     }

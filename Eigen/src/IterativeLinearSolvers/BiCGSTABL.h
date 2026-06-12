@@ -50,12 +50,10 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditioner &precond, Index &iters,
                typename Dest::RealScalar &tol_error, Index L) {
-  using numext::abs;
-  using numext::sqrt;
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   const Index N = rhs.size();
-  L = L < x.rows() ? L : x.rows();
+  L = numext::mini(L, x.rows());
 
   Index k = 0;
 
@@ -91,7 +89,7 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
   bool bicg_convergence = false;
 
   const RealScalar normb = rhs.stableNorm();
-  if (internal::isApprox(normb, RealScalar(0))) {
+  if (normb == RealScalar(0)) {
     x.setZero();
     iters = 0;
     return true;

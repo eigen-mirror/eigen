@@ -64,7 +64,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
   typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
   const Index N = b.size();
-  S = S < x.rows() ? S : x.rows();
+  S = numext::mini(S, x.rows());
   const RealScalar tol = relres;
   const Index maxit = iter;
 
@@ -72,15 +72,11 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
 
   FullPivLU<DenseMatrixType> lu_solver;
 
-  DenseMatrixType P;
-  {
-    HouseholderQR<DenseMatrixType> qr(DenseMatrixType::Random(N, S));
-    P = qr.householderQ() * DenseMatrixType::Identity(N, S);
-  }
+  DenseMatrixType P = internal::random_orthonormal_basis<DenseMatrixType>(N, S);
 
   const RealScalar normb = b.stableNorm();
 
-  if (internal::isApprox(normb, RealScalar(0))) {
+  if (normb == RealScalar(0)) {
     // Solution is the zero vector
     x.setZero();
     iter = 0;
@@ -158,7 +154,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       // M(k:s,k) = (G(:,k)'*P(:,k:s))';
       M.block(k, k, S - k, 1) = (G.col(k).adjoint() * P.rightCols(S - k)).adjoint();
 
-      if (internal::isApprox(M(k, k), Scalar(0))) {
+      if (M(k, k) == Scalar(0)) {
         return false;
       }
 

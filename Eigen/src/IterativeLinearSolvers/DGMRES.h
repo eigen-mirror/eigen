@@ -40,9 +40,8 @@ struct traits<DGMRES<MatrixType_, Preconditioner_> > {
 template <typename VectorType, typename IndexType>
 void sortWithPermutation(VectorType& vec, IndexType& perm, typename IndexType::Scalar& ncut) {
   eigen_assert(vec.size() == perm.size());
-  bool flag;
   for (Index k = 0; k < ncut; k++) {
-    flag = false;
+    bool flag = false;
     for (Index j = 0; j < vec.size() - 1; j++) {
       if (vec(perm(j)) < vec(perm(j + 1))) {
         std::swap(perm(j), perm(j + 1));
@@ -359,8 +358,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
   }
 
   // Compute the new coefficients by solving the least square problem.
-  DenseVector nrs(m_restart);
-  nrs = m_H.topLeftCorner(it, it).template triangularView<Upper>().solve(g.head(it));
+  DenseVector nrs = m_H.topLeftCorner(it, it).template triangularView<Upper>().solve(g.head(it));
 
   // Form the new solution
   if (m_isDeflInitialized) {
@@ -423,9 +421,8 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
   matrixQ.setIdentity();
   schurofH.computeFromHessenberg(m_Hes.topLeftCorner(it, it), matrixQ, computeU);
 
-  ComplexVector eig(it);
+  ComplexVector eig = this->schurValues(schurofH);
   Matrix<StorageIndex, Dynamic, 1> perm(it);
-  eig = this->schurValues(schurofH);
 
   // Reorder the absolute values of Schur values
   DenseRealVector modulEig(it);
@@ -452,15 +449,14 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
   }
 
   // Form the Schur vectors of the initial matrix using the Krylov basis
-  DenseMatrix X;
-  X = m_V.leftCols(it) * Sr;
+  DenseMatrix X = m_V.leftCols(it) * Sr;
   if (m_r) {
     // Orthogonalize X against m_U using modified Gram-Schmidt
     for (Index j = 0; j < nbrEig; j++)
       for (Index k = 0; k < m_r; k++) X.col(j) = X.col(j) - (m_U.col(k).dot(X.col(j))) * m_U.col(k);
   }
 
-  // Compute m_MX = A * M^-1 * X
+  // Compute MX = M^-1 * A * X
   Index m = m_V.rows();
   if (!m_isDeflAllocated) dgmresInitDeflation(m);
   DenseMatrix MX(m, nbrEig);

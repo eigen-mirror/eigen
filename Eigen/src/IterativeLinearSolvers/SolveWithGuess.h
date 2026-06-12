@@ -26,6 +26,7 @@ class SolveWithGuess;
  *
  * \tparam Decomposition the type of the matrix or decomposition object
  * \tparam RhsType the type of the right-hand side
+ * \tparam GuessType the type of the initial guess
  *
  * This class represents an expression of A.solve(B)
  * and most of the time this is the only way it is used.

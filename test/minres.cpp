@@ -36,7 +36,29 @@ void test_minres_T() {
   // TO DO: symmetric indefinite matrix
 }
 
+void test_minres_extreme_rhs() {
+  const Matrix2d mat = Matrix2d::Identity();
+  const Vector2d direction = (Vector2d() << 1, -1).finished();
+  MINRES<Matrix2d, Lower | Upper, IdentityPreconditioner> solver(mat);
+  solver.setTolerance(1e-12);
+
+  for (double scale : {1e-200, 1e200}) {
+    const Vector2d rhs = scale * direction;
+    const Vector2d guess = 0.5 * rhs;
+    Vector2d x = solver.solve(rhs);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+
+    x = solver.solveWithGuess(rhs, guess);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+  }
+}
+
 EIGEN_DECLARE_TEST(minres) {
   CALL_SUBTEST_1(test_minres_T<double>());
   //  CALL_SUBTEST_2(test_minres_T<std::complex<double> >());
+  CALL_SUBTEST_3(test_minres_extreme_rhs());
 }

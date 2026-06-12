@@ -209,8 +209,6 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
 
     m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
-
- protected:
 };
 
 }  // end namespace Eigen

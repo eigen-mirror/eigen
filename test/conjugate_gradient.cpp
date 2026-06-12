@@ -36,9 +36,31 @@ void test_default_construct_fixed_size() {
   LeastSquaresConjugateGradient<MatrixType> lscg;
 }
 
+void test_conjugate_gradient_extreme_rhs() {
+  const Matrix2d mat = Matrix2d::Identity();
+  const Vector2d direction = (Vector2d() << 1, -1).finished();
+  ConjugateGradient<Matrix2d, Lower | Upper, IdentityPreconditioner> solver(mat);
+  solver.setTolerance(1e-12);
+
+  for (double scale : {1e-200, 1e200}) {
+    const Vector2d rhs = scale * direction;
+    const Vector2d guess = 0.5 * rhs;
+    Vector2d x = solver.solve(rhs);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+
+    x = solver.solveWithGuess(rhs, guess);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+  }
+}
+
 EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_1((test_conjugate_gradient_T<double, int>()));
   CALL_SUBTEST_2((test_conjugate_gradient_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_conjugate_gradient_T<double, long int>()));
   CALL_SUBTEST_4(test_default_construct_fixed_size<Matrix3d>());
+  CALL_SUBTEST_5(test_conjugate_gradient_extreme_rhs());
 }
