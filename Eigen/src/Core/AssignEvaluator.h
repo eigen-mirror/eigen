@@ -205,31 +205,33 @@ struct copy_using_evaluator_traits {
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling {
-  static constexpr int Outer = Index_ / Kernel::AssignmentTraits::InnerSizeAtCompileTime;
-  static constexpr int Inner = Index_ % Kernel::AssignmentTraits::InnerSizeAtCompileTime;
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run_impl(Kernel& kernel,
+                                                                       std::integer_sequence<int, Offsets...>) {
+    int unused[] = {
+        0, (kernel.assignCoeffByOuterInner((Index_ + Offsets) / Kernel::AssignmentTraits::InnerSizeAtCompileTime,
+                                           (Index_ + Offsets) % Kernel::AssignmentTraits::InnerSizeAtCompileTime),
+            0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    kernel.assignCoeffByOuterInner(Outer, Inner);
-    copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
+    run_impl(kernel, std::make_integer_sequence<int, Stop - Index_>{});
   }
-};
-
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_DefaultTraversal_CompleteUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&) {}
 };
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_DefaultTraversal_InnerUnrolling {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel, Index outer) {
-    kernel.assignCoeffByOuterInner(outer, Index_);
-    copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Index_ + 1, Stop>::run(kernel, outer);
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run_impl(Kernel& kernel, Index outer,
+                                                                       std::integer_sequence<int, Offsets...>) {
+    int unused[] = {0, (kernel.assignCoeffByOuterInner(outer, Index_ + Offsets), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
-};
 
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel, Index outer) {
+    run_impl(kernel, outer, std::make_integer_sequence<int, Stop - Index_>{});
+  }
 };
 
 /***********************
@@ -238,15 +240,16 @@ struct copy_using_evaluator_DefaultTraversal_InnerUnrolling<Kernel, Stop, Stop> 
 
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_LinearTraversal_CompleteUnrolling {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    kernel.assignCoeff(Index_);
-    copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Index_ + 1, Stop>::run(kernel);
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run_impl(Kernel& kernel,
+                                                                       std::integer_sequence<int, Offsets...>) {
+    int unused[] = {0, (kernel.assignCoeff(Index_ + Offsets), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
   }
-};
 
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&) {}
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
+    run_impl(kernel, std::make_integer_sequence<int, Stop - Index_>{});
+  }
 };
 
 /**************************
@@ -256,38 +259,43 @@ struct copy_using_evaluator_LinearTraversal_CompleteUnrolling<Kernel, Stop, Stop
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_innervec_CompleteUnrolling {
   using PacketType = typename Kernel::PacketType;
-  static constexpr int Outer = Index_ / Kernel::AssignmentTraits::InnerSizeAtCompileTime;
-  static constexpr int Inner = Index_ % Kernel::AssignmentTraits::InnerSizeAtCompileTime;
-  static constexpr int NextIndex = Index_ + unpacket_traits<PacketType>::size;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
   static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
+  static_assert((Stop - Index_) % PacketSize == 0, "Packet unrolling range must be divisible by packet size.");
+
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run_impl(Kernel& kernel, std::integer_sequence<int, Offsets...>) {
+    int unused[] = {0, (kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(
+                            (Index_ + Offsets * PacketSize) / Kernel::AssignmentTraits::InnerSizeAtCompileTime,
+                            (Index_ + Offsets * PacketSize) % Kernel::AssignmentTraits::InnerSizeAtCompileTime),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(Outer, Inner);
-    copy_using_evaluator_innervec_CompleteUnrolling<Kernel, NextIndex, Stop>::run(kernel);
+    run_impl(kernel, std::make_integer_sequence<int, (Stop - Index_) / PacketSize>{});
   }
-};
-
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_innervec_CompleteUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&) {}
 };
 
 template <typename Kernel, int Index_, int Stop, int SrcAlignment, int DstAlignment>
 struct copy_using_evaluator_innervec_InnerUnrolling {
   using PacketType = typename Kernel::PacketType;
-  static constexpr int NextIndex = Index_ + unpacket_traits<PacketType>::size;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static_assert((Stop - Index_) % PacketSize == 0, "Packet unrolling range must be divisible by packet size.");
+
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run_impl(Kernel& kernel, Index outer,
+                                                             std::integer_sequence<int, Offsets...>) {
+    int unused[] = {0, (kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(
+                            outer, Index_ + Offsets * PacketSize),
+                        0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {
-    kernel.template assignPacketByOuterInner<DstAlignment, SrcAlignment, PacketType>(outer, Index_);
-    copy_using_evaluator_innervec_InnerUnrolling<Kernel, NextIndex, Stop, SrcAlignment, DstAlignment>::run(kernel,
-                                                                                                           outer);
+    run_impl(kernel, outer, std::make_integer_sequence<int, (Stop - Index_) / PacketSize>{});
   }
-};
-
-template <typename Kernel, int Stop, int SrcAlignment, int DstAlignment>
-struct copy_using_evaluator_innervec_InnerUnrolling<Kernel, Stop, Stop, SrcAlignment, DstAlignment> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&, Index) {}
 };
 
 template <typename Kernel, int Start, int Stop, int SrcAlignment, int DstAlignment, bool UsePacketSegment>
@@ -442,19 +450,21 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
 template <typename Kernel, int Index_, int Stop>
 struct copy_using_evaluator_linearvec_CompleteUnrolling {
   using PacketType = typename Kernel::PacketType;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int SrcAlignment = Kernel::AssignmentTraits::SrcAlignment;
   static constexpr int DstAlignment = Kernel::AssignmentTraits::DstAlignment;
-  static constexpr int NextIndex = Index_ + unpacket_traits<PacketType>::size;
+  static_assert((Stop - Index_) % PacketSize == 0, "Packet unrolling range must be divisible by packet size.");
+
+  template <int... Offsets>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run_impl(Kernel& kernel, std::integer_sequence<int, Offsets...>) {
+    int unused[] = {
+        0, (kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(Index_ + Offsets * PacketSize), 0)...};
+    EIGEN_UNUSED_VARIABLE(unused);
+  }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel) {
-    kernel.template assignPacket<DstAlignment, SrcAlignment, PacketType>(Index_);
-    copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, NextIndex, Stop>::run(kernel);
+    run_impl(kernel, std::make_integer_sequence<int, (Stop - Index_) / PacketSize>{});
   }
-};
-
-template <typename Kernel, int Stop>
-struct copy_using_evaluator_linearvec_CompleteUnrolling<Kernel, Stop, Stop> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel&) {}
 };
 
 template <typename Kernel, int Index_, int Stop, bool UsePacketSegment>
