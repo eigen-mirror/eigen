@@ -111,8 +111,6 @@ class BlockSparseMatrix {
   using StorageIndex = StorageIndex_;
   using Index = Eigen::Index;
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_>;
-  using BlockMap = Map<BlockType>;
-  using ConstBlockMap = Map<const BlockType>;
   using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, StorageIndex>;
 
   enum {
@@ -122,6 +120,18 @@ class BlockSparseMatrix {
     IsRowMajor = (Options_ & RowMajorBit) != 0,
     BlockSize = BlockRows_ * BlockCols_
   };
+
+  // If one block occupies a power-of-two number of bytes, and the values array
+  // is Eigen-allocated (guaranteed aligned to EIGEN_MAX_ALIGN_BYTES), then every
+  // block pointer is aligned to min(BlockBytes, EIGEN_MAX_ALIGN_BYTES).
+  static constexpr std::size_t BlockBytes = std::size_t(BlockSize) * sizeof(Scalar);
+  static constexpr int BlockMapAlignment =
+      ((BlockBytes & (BlockBytes - 1)) == 0 && BlockBytes >= 8)
+          ? int(BlockBytes <= EIGEN_MAX_ALIGN_BYTES ? BlockBytes : EIGEN_MAX_ALIGN_BYTES)
+          : 0;
+
+  using BlockMap      = Map<BlockType,       BlockMapAlignment>;
+  using ConstBlockMap = Map<const BlockType, BlockMapAlignment>;
 
   // -------------------------------------------------------------------------
   // Constructors / copy / move
@@ -875,8 +885,9 @@ template <int RhsBlockCols>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::operator*(
     const BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>& rhs) const {
+  using RhsMatrix    = BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>;
   using ResultMatrix = BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>;
-  using ResultBlock = Matrix<Scalar_, BlockRows_, RhsBlockCols>;
+  using ResultBlock  = Matrix<Scalar_, BlockRows_, RhsBlockCols>;
   constexpr int ResultBlockSize = BlockRows_ * RhsBlockCols;
 
   eigen_assert(blockCols() == rhs.blockRows() &&
@@ -910,7 +921,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       Index J = out;
       for (Index rhsId = rhs.m_outerIndex(J); rhsId < rhs.m_outerIndex(J + 1); ++rhsId) {
         Index K = rhs.m_innerIndex(rhsId);
-        Map<const Matrix<Scalar_, BlockCols_, RhsBlockCols>> Bkj = rhs.blockRef(rhsId);
+        typename RhsMatrix::ConstBlockMap Bkj = rhs.blockRef(rhsId);
         for (Index lhsId = m_outerIndex(K); lhsId < m_outerIndex(K + 1); ++lhsId) {
           Index bI = m_innerIndex(lhsId);
           if (!mask(bI)) {
