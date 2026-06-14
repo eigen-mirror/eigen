@@ -466,6 +466,35 @@ void test_block_sparse_selfadjoint(int bN) {
 }
 
 // ---------------------------------------------------------------------------
+// BlockTriplet type-trait checks
+// ---------------------------------------------------------------------------
+
+void test_block_triplet_traits() {
+  // Flat scalar array means BlockTriplet should be trivially copyable and
+  // standard-layout for any trivially-copyable Scalar and StorageIndex.
+  EIGEN_STATIC_ASSERT((std::is_trivially_copyable<BlockTriplet<float, 2, 2>>::value),
+                      BLOCKTRIPLET_MUST_BE_TRIVIALLY_COPYABLE)
+  EIGEN_STATIC_ASSERT((std::is_trivially_copyable<BlockTriplet<double, 3, 3>>::value),
+                      BLOCKTRIPLET_MUST_BE_TRIVIALLY_COPYABLE)
+  EIGEN_STATIC_ASSERT((std::is_trivially_copyable<BlockTriplet<float, 2, 3>>::value),
+                      BLOCKTRIPLET_MUST_BE_TRIVIALLY_COPYABLE)
+  EIGEN_STATIC_ASSERT((std::is_standard_layout<BlockTriplet<float, 2, 2>>::value),
+                      BLOCKTRIPLET_MUST_BE_STANDARD_LAYOUT)
+  EIGEN_STATIC_ASSERT((std::is_standard_layout<BlockTriplet<double, 4, 4>>::value),
+                      BLOCKTRIPLET_MUST_BE_STANDARD_LAYOUT)
+
+  // No alignment padding: size must equal 2*sizeof(StorageIndex) + BlockSize*sizeof(Scalar).
+  EIGEN_STATIC_ASSERT((sizeof(BlockTriplet<float, 2, 2>) == 2 * sizeof(int) + 4 * sizeof(float)),
+                      BLOCKTRIPLET_MUST_HAVE_NO_ALIGNMENT_PADDING)
+  EIGEN_STATIC_ASSERT((sizeof(BlockTriplet<double, 2, 2>) == 2 * sizeof(int) + 4 * sizeof(double)),
+                      BLOCKTRIPLET_MUST_HAVE_NO_ALIGNMENT_PADDING)
+  EIGEN_STATIC_ASSERT((sizeof(BlockTriplet<float, 4, 4>) == 2 * sizeof(int) + 16 * sizeof(float)),
+                      BLOCKTRIPLET_MUST_HAVE_NO_ALIGNMENT_PADDING)
+  EIGEN_STATIC_ASSERT((sizeof(BlockTriplet<double, 4, 4>) == 2 * sizeof(int) + 16 * sizeof(double)),
+                      BLOCKTRIPLET_MUST_HAVE_NO_ALIGNMENT_PADDING)
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -518,4 +547,7 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
   CALL_SUBTEST_16((test_block_sparse_selfadjoint<2, ColMajor>(5)));
   CALL_SUBTEST_16((test_block_sparse_selfadjoint<3, ColMajor>(4)));
   CALL_SUBTEST_16((test_block_sparse_selfadjoint<2, RowMajor>(5)));
+
+  // BlockTriplet type traits
+  CALL_SUBTEST_17(test_block_triplet_traits());
 }

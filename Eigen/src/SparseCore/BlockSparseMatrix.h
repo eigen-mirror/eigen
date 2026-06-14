@@ -40,20 +40,28 @@ class BlockTriplet {
   using Scalar = Scalar_;
   using StorageIndex = StorageIndex_;
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_>;
+  using BlockMapType      = Map<BlockType,       Unaligned>;
+  using ConstBlockMapType = Map<const BlockType, Unaligned>;
+
+  static constexpr int BlockSize = BlockRows_ * BlockCols_;
 
   BlockTriplet() = default;
 
-  BlockTriplet(StorageIndex blockRow, StorageIndex blockCol, const BlockType& value)
-      : m_row(blockRow), m_col(blockCol), m_value(value) {}
+  BlockTriplet(StorageIndex blockRow, StorageIndex blockCol, const BlockType& block)
+      : m_row(blockRow), m_col(blockCol) {
+    BlockMapType{m_value} = block;
+  }
 
   StorageIndex row() const { return m_row; }
   StorageIndex col() const { return m_col; }
-  const BlockType& value() const { return m_value; }
+  // Implicitly usable wherever a MatrixBase expression is expected.
+  ConstBlockMapType value() const { return ConstBlockMapType(m_value); }
 
  private:
   StorageIndex m_row = StorageIndex(0);
   StorageIndex m_col = StorageIndex(0);
-  BlockType m_value = BlockType::Zero();
+  // Flat array avoids the alignment padding that a Matrix<> member would incur.
+  Scalar m_value[BlockSize];
 };
 
 /** \class BlockSparseMatrix
