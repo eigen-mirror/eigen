@@ -98,10 +98,8 @@ class BlockTriplet {
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_,
           typename StorageIndex_ = int>
 class BlockSparseMatrix {
-  static_assert(BlockRows_ >= 1, "BlockRows must be >= 1");
-  static_assert(BlockCols_ >= 1, "BlockCols must be >= 1");
-  static_assert(BlockRows_ != Dynamic, "BlockRows must be a fixed compile-time size");
-  static_assert(BlockCols_ != Dynamic, "BlockCols must be a fixed compile-time size");
+  static_assert(BlockRows_ >= 1, "BlockRows must be a positive compile-time size");
+  static_assert(BlockCols_ >= 1, "BlockCols must be a positive compile-time size");
 
  public:
   // -------------------------------------------------------------------------
@@ -277,8 +275,7 @@ class BlockSparseMatrix {
    *  \pre BlockRows == BlockCols (square blocks).
    */
   void setIdentity() {
-    static_assert(BlockRows_ == BlockCols_,
-                  "setIdentity requires square blocks (BlockRows == BlockCols)");
+    EIGEN_STATIC_ASSERT(BlockRows_ == BlockCols_, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     Index n = std::min(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_innerIndex.resize(n);
@@ -517,8 +514,7 @@ class BlockSparseMatrix {
    */
   template <int UpLo, bool DiagIsSelfAdjoint = false>
   BlockSparseSelfAdjointView<BlockSparseMatrix, UpLo, DiagIsSelfAdjoint> selfadjointView() const {
-    static_assert(BlockRows_ == BlockCols_,
-                  "selfadjointView requires square blocks (BlockRows == BlockCols)");
+    EIGEN_STATIC_ASSERT(BlockRows_ == BlockCols_, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     return BlockSparseSelfAdjointView<BlockSparseMatrix, UpLo, DiagIsSelfAdjoint>(*this);
   }
 
