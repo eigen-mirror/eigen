@@ -139,6 +139,17 @@ void test_block_sparse(int bRows, int bCols) {
     }
   }
 
+  // ---- setIdentity ----------------------------------------------------------
+  if constexpr (BlockRows == BlockCols) {
+    BSM Id(bRows, bCols);
+    Id.setIdentity();
+    VERIFY_IS_APPROX(DenseMat(Id.toSparse()), DenseMat::Identity(rows, cols));
+    if (bRows == bCols) {
+      VERIFY_IS_APPROX(DenseMat((Id * A).toSparse()), dA);
+      VERIFY_IS_APPROX(DenseMat((A * Id).toSparse()), dA);
+    }
+  }
+
   // ---- setFromTriplets with duplicate blocks (accumulation) ---------------
   {
     using Trip = typename BSM::TripletType;

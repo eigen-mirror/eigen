@@ -261,6 +261,28 @@ class BlockSparseMatrix {
     m_values.resize(0);
   }
 
+  /** Fill the matrix with the block identity: the min(blockRows,blockCols) diagonal blocks
+   *  are set to the B×B identity; all other blocks are absent.
+   *
+   *  \pre BlockRows == BlockCols (square blocks).
+   */
+  void setIdentity() {
+    static_assert(BlockRows_ == BlockCols_,
+                  "setIdentity requires square blocks (BlockRows == BlockCols)");
+    Index n = std::min(m_blockOuterSize, m_blockInnerSize);
+    m_outerIndex.resize(m_blockOuterSize + 1);
+    m_innerIndex.resize(n);
+    m_values.resize(n * Index(BlockSize));
+    m_values.setZero();
+    for (StorageIndex_ i = 0; i < StorageIndex_(n); ++i) {
+      m_outerIndex(Index(i)) = i;
+      m_innerIndex(Index(i)) = i;
+      Scalar* p = m_values.data() + Index(i) * Index(BlockSize);
+      for (int d = 0; d < BlockRows_; ++d) p[d * BlockRows_ + d] = Scalar(1);
+    }
+    for (Index j = n; j <= m_blockOuterSize; ++j) m_outerIndex(j) = StorageIndex_(n);
+  }
+
   // -------------------------------------------------------------------------
   // Assembly
   // -------------------------------------------------------------------------
