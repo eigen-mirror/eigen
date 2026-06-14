@@ -34,12 +34,13 @@ template <typename, int, bool>  class BlockSparseSelfAdjointView;
  * \tparam BlockCols_    Number of columns in each block.
  * \tparam StorageIndex_ Signed integer index type (default: int).
  */
-template <typename Scalar_, int BlockRows_, int BlockCols_, typename StorageIndex_ = int>
+template <typename Scalar_, int BlockRows_, int BlockCols_, int Options_ = ColMajor,
+          typename StorageIndex_ = int>
 class BlockTriplet {
  public:
   using Scalar = Scalar_;
   using StorageIndex = StorageIndex_;
-  using BlockType = Matrix<Scalar, BlockRows_, BlockCols_>;
+  using BlockType = Matrix<Scalar, BlockRows_, BlockCols_, Options_>;
   using BlockMapType      = Map<BlockType,       Unaligned>;
   using ConstBlockMapType = Map<const BlockType, Unaligned>;
 
@@ -115,9 +116,8 @@ class BlockSparseMatrix {
   // -------------------------------------------------------------------------
   using Scalar = Scalar_;
   using StorageIndex = StorageIndex_;
-  using Index = Eigen::Index;
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_>;
-  using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, StorageIndex>;
+  using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, Options_, StorageIndex>;
 
   enum {
     Options = Options_,
@@ -999,7 +999,6 @@ class BlockSparseTriangularView {
  public:
   using Scalar       = typename BSM::Scalar;
   using StorageIndex = typename BSM::StorageIndex;
-  using Index        = typename BSM::Index;
   using BlockType    = typename BSM::BlockType;
   static constexpr int  BlockRows  = BSM::BlockRows;
   static constexpr int  BlockCols  = BSM::BlockCols;
@@ -1132,7 +1131,6 @@ class BlockSparseSelfAdjointView {
  public:
   using Scalar       = typename BSM::Scalar;
   using StorageIndex = typename BSM::StorageIndex;
-  using Index        = typename BSM::Index;
   using BlockType    = typename BSM::BlockType;
   static constexpr int  BlockRows   = BSM::BlockRows;  // == BlockCols
   static constexpr int  BlockCols   = BSM::BlockCols;

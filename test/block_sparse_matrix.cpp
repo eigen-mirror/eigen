@@ -23,12 +23,12 @@ BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex> denseToBl
   using BSM = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
   using Triplet = typename BSM::TripletType;
 
-  const Eigen::Index bRows = dense.rows() / BlockRows;
-  const Eigen::Index bCols = dense.cols() / BlockCols;
+  const Index bRows = dense.rows() / BlockRows;
+  const Index bCols = dense.cols() / BlockCols;
 
   std::vector<Triplet> triplets;
-  for (Eigen::Index bi = 0; bi < bRows; ++bi) {
-    for (Eigen::Index bj = 0; bj < bCols; ++bj) {
+  for (Index bi = 0; bi < bRows; ++bi) {
+    for (Index bj = 0; bj < bCols; ++bj) {
       const Matrix<Scalar, BlockRows, BlockCols> tile =
           dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
       if (tile.squaredNorm() > Scalar(0))
