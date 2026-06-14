@@ -29,11 +29,10 @@ BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex> denseToBl
   std::vector<Triplet> triplets;
   for (Eigen::Index bi = 0; bi < bRows; ++bi) {
     for (Eigen::Index bj = 0; bj < bCols; ++bj) {
-      auto tile = dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
-      if (tile.squaredNorm() > Scalar(0)) {
-        triplets.emplace_back(StorageIndex(bi), StorageIndex(bj),
-                              Matrix<Scalar, BlockRows, BlockCols>(tile));
-      }
+      const Matrix<Scalar, BlockRows, BlockCols> tile =
+          dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
+      if (tile.squaredNorm() > Scalar(0))
+        triplets.emplace_back(StorageIndex(bi), StorageIndex(bj), tile);
     }
   }
 
@@ -188,7 +187,7 @@ void test_block_sparse_product(int bM, int bK, int bN) {
   BSMA A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dA);
   BSMA Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dB);
 
-  auto C = A * Bmat;
+  BSMA C = A * Bmat;
   DenseMat dC(C.toSparse());
   VERIFY_IS_APPROX(dC, dA * dB);
 }
@@ -272,9 +271,187 @@ void test_nonsquare_block_product() {
   BSMA A = denseToBlock<BR, BC, Scalar, ColMajor, StorageIndex>(dA);
   BSMB Bmat = denseToBlock<BC, BC2, Scalar, ColMajor, StorageIndex>(dB);
 
-  auto C = A * Bmat;
+  BlockSparseMatrix<Scalar, ColMajor, BR, BC2, StorageIndex> C = A * Bmat;
   DenseMat dC(C.toSparse());
   VERIFY_IS_APPROX(dC, dA * dB);
+}
+
+// ---------------------------------------------------------------------------
+// Transpose and adjoint
+// ---------------------------------------------------------------------------
+
+template <int BlockRows, int BlockCols, int Options>
+void test_block_sparse_transpose(int bRows, int bCols) {
+  using Scalar = double;
+  using StorageIndex = int;
+  using BSM  = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
+  using BSMT = BlockSparseMatrix<Scalar, Options, BlockCols, BlockRows, StorageIndex>;
+  using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  const int rows = bRows * BlockRows, cols = bCols * BlockCols;
+  DenseMat dA = DenseMat::Zero(rows, cols);
+  for (int bi = 0; bi < bRows; ++bi)
+    for (int bj = 0; bj < bCols; ++bj)
+      if (internal::random<double>(0.0, 1.0) < 0.5)
+        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) =
+            DenseMat::Random(BlockRows, BlockCols);
+
+  BSM A = denseToBlock<BlockRows, BlockCols, Scalar, Options, StorageIndex>(dA);
+
+  // transpose
+  BSMT At = A.transpose();
+  VERIFY_IS_APPROX(DenseMat(At.toSparse()), dA.transpose());
+
+  // adjoint (== transpose for real scalars)
+  BSMT Ah = A.adjoint();
+  VERIFY_IS_APPROX(DenseMat(Ah.toSparse()), dA.transpose());
+
+  // (A^T)^T == A
+  BSM AtT = At.transpose();
+  VERIFY_IS_APPROX(DenseMat(AtT.toSparse()), dA);
+}
+
+// ---------------------------------------------------------------------------
+// Triangular view: eval, +/-, dense products
+// ---------------------------------------------------------------------------
+
+template <int B, int Options>
+void test_block_sparse_triangular(int bN) {
+  using Scalar = double;
+  using StorageIndex = int;
+  using BSM = BlockSparseMatrix<Scalar, Options, B, B, StorageIndex>;
+  using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  const int N = bN * B;
+  DenseMat dA = DenseMat::Zero(N, N);
+  for (int bi = 0; bi < bN; ++bi)
+    for (int bj = 0; bj < bN; ++bj)
+      if (internal::random<double>(0.0, 1.0) < 0.5)
+        dA.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+
+  BSM A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dA);
+
+  // Upper eval
+  {
+    BSM Au = A.template triangularView<Upper>().eval();
+    DenseMat dAu = dA;
+    for (int bi = 0; bi < bN; ++bi)
+      for (int bj = 0; bj < bi; ++bj)
+        dAu.block(bi * B, bj * B, B, B).setZero();
+    VERIFY_IS_APPROX(DenseMat(Au.toSparse()), dAu);
+  }
+
+  // Lower eval
+  {
+    BSM Al = A.template triangularView<Lower>().eval();
+    DenseMat dAl = dA;
+    for (int bi = 0; bi < bN; ++bi)
+      for (int bj = bi + 1; bj < bN; ++bj)
+        dAl.block(bi * B, bj * B, B, B).setZero();
+    VERIFY_IS_APPROX(DenseMat(Al.toSparse()), dAl);
+  }
+
+  // Tri * dense and dense * Tri
+  {
+    DenseMat dAu = dA;
+    for (int bi = 0; bi < bN; ++bi)
+      for (int bj = 0; bj < bi; ++bj)
+        dAu.block(bi * B, bj * B, B, B).setZero();
+
+    DenseMat rhs = DenseMat::Random(N, 4);
+    DenseMat lhs = DenseMat::Random(3, N);
+
+    VERIFY_IS_APPROX(A.template triangularView<Upper>() * rhs, dAu * rhs);
+    VERIFY_IS_APPROX(lhs * A.template triangularView<Upper>(), lhs * dAu);
+  }
+
+  // Tri + Tri
+  {
+    DenseMat dB = DenseMat::Zero(N, N);
+    for (int bi = 0; bi < bN; ++bi)
+      for (int bj = 0; bj < bN; ++bj)
+        if (internal::random<double>(0.0, 1.0) < 0.5)
+          dB.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+    BSM Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dB);
+
+    DenseMat dAu = dA, dBu = dB;
+    for (int bi = 0; bi < bN; ++bi)
+      for (int bj = 0; bj < bi; ++bj) {
+        dAu.block(bi * B, bj * B, B, B).setZero();
+        dBu.block(bi * B, bj * B, B, B).setZero();
+      }
+    BSM C = A.template triangularView<Upper>() + Bmat.template triangularView<Upper>();
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dAu + dBu);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Self-adjoint view: eval, +/-, dense products
+// ---------------------------------------------------------------------------
+
+template <int B, int Options>
+void test_block_sparse_selfadjoint(int bN) {
+  using Scalar = double;
+  using StorageIndex = int;
+  using BSM = BlockSparseMatrix<Scalar, Options, B, B, StorageIndex>;
+  using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  const int N = bN * B;
+
+  // Build a block-symmetric dense matrix (upper triangle stored).
+  DenseMat dFull = DenseMat::Zero(N, N);
+  for (int bi = 0; bi < bN; ++bi) {
+    // diagonal: symmetric block
+    DenseMat blk = DenseMat::Random(B, B);
+    blk = (blk + blk.transpose()).eval();
+    dFull.block(bi * B, bi * B, B, B) = blk;
+    for (int bj = bi + 1; bj < bN; ++bj)
+      if (internal::random<double>(0.0, 1.0) < 0.5) {
+        DenseMat offblk = DenseMat::Random(B, B);
+        dFull.block(bi * B, bj * B, B, B) = offblk;
+        dFull.block(bj * B, bi * B, B, B) = offblk.transpose();
+      }
+  }
+
+  // Build BSM from the upper triangle only.
+  DenseMat dUpper = DenseMat::Zero(N, N);
+  for (int bi = 0; bi < bN; ++bi)
+    for (int bj = bi; bj < bN; ++bj)
+      dUpper.block(bi * B, bj * B, B, B) = dFull.block(bi * B, bj * B, B, B);
+
+  BSM A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dUpper);
+
+  // eval() must reproduce the full symmetric matrix
+  {
+    BSM Asym = A.template selfadjointView<Upper>().eval();
+    VERIFY_IS_APPROX(DenseMat(Asym.toSparse()), dFull);
+  }
+
+  // selfadjointView * dense
+  {
+    DenseMat rhs = DenseMat::Random(N, 5);
+    VERIFY_IS_APPROX(A.template selfadjointView<Upper>() * rhs, dFull * rhs);
+  }
+
+  // dense * selfadjointView
+  {
+    DenseMat lhs = DenseMat::Random(4, N);
+    VERIFY_IS_APPROX(lhs * A.template selfadjointView<Upper>(), lhs * dFull);
+  }
+
+  // selfadjointView + selfadjointView
+  {
+    BSM Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dUpper * 2.0);
+    BSM C = A.template selfadjointView<Upper>() + Bmat.template selfadjointView<Upper>();
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dFull * 3.0);
+  }
+
+  // DiagIsSelfAdjoint path: diagonal blocks ARE symmetric, product should match
+  {
+    DenseMat rhs = DenseMat::Random(N, 3);
+    DenseMat result = A.template selfadjointView<Upper, true>() * rhs;
+    VERIFY_IS_APPROX(result, dFull * rhs);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,4 +491,20 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
   CALL_SUBTEST_13((test_block_sparse_dense_product<2, 2, RowMajor>(4, 5)));
   CALL_SUBTEST_13((test_block_sparse_dense_product<3, 3, RowMajor>(3, 4)));
   CALL_SUBTEST_13((test_block_sparse_dense_product<2, 3, RowMajor>(4, 3)));
+
+  // Transpose / adjoint (ColMajor and RowMajor, square and non-square blocks)
+  CALL_SUBTEST_14((test_block_sparse_transpose<2, 2, ColMajor>(4, 5)));
+  CALL_SUBTEST_14((test_block_sparse_transpose<2, 3, ColMajor>(5, 4)));
+  CALL_SUBTEST_14((test_block_sparse_transpose<2, 2, RowMajor>(4, 5)));
+  CALL_SUBTEST_14((test_block_sparse_transpose<3, 2, RowMajor>(4, 5)));
+
+  // Triangular view (ColMajor and RowMajor)
+  CALL_SUBTEST_15((test_block_sparse_triangular<2, ColMajor>(5)));
+  CALL_SUBTEST_15((test_block_sparse_triangular<3, ColMajor>(4)));
+  CALL_SUBTEST_15((test_block_sparse_triangular<2, RowMajor>(5)));
+
+  // Self-adjoint view (ColMajor and RowMajor)
+  CALL_SUBTEST_16((test_block_sparse_selfadjoint<2, ColMajor>(5)));
+  CALL_SUBTEST_16((test_block_sparse_selfadjoint<3, ColMajor>(4)));
+  CALL_SUBTEST_16((test_block_sparse_selfadjoint<2, RowMajor>(5)));
 }

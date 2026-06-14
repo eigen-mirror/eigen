@@ -19,6 +19,10 @@
 
 namespace Eigen {
 
+// Forward declarations
+template <typename, int>        class BlockSparseTriangularView;
+template <typename, int, bool>  class BlockSparseSelfAdjointView;
+
 /** \class BlockTriplet
  * \ingroup SparseCore_Module
  * \brief A (blockRow, blockCol, blockValue) triplet for assembling a BlockSparseMatrix.
@@ -440,7 +444,55 @@ class BlockSparseMatrix {
     return toSparse().isApprox(other.toSparse(), prec);
   }
 
+  // -------------------------------------------------------------------------
+  // Transpose / adjoint
+  // -------------------------------------------------------------------------
+
+  /** Returns a new BSM whose block dimensions are swapped (BlockRows ↔ BlockCols)
+   *  and each stored block is transposed.  Storage order is preserved. */
+  BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_> transpose() const;
+
+  /** Returns a new BSM whose block dimensions are swapped and each stored block
+   *  is conjugate-transposed (adjoint).  Identical to transpose() for real scalars. */
+  BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_> adjoint() const;
+
+  // -------------------------------------------------------------------------
+  // View factories
+  // -------------------------------------------------------------------------
+
+  /** Returns a block-level triangular view.
+   *
+   * \tparam Mode  \c Eigen::Upper or \c Eigen::Lower.  Diagonal blocks are
+   *               always included; blocks strictly outside the triangle are
+   *               ignored by all view operations.
+   */
+  template <int Mode>
+  BlockSparseTriangularView<BlockSparseMatrix, Mode> triangularView() const {
+    return BlockSparseTriangularView<BlockSparseMatrix, Mode>(*this);
+  }
+
+  /** Returns a block-level self-adjoint view.
+   *
+   * Only the triangle selected by \p UpLo is read; the opposite triangle is
+   * reconstructed on-the-fly as the adjoint of each stored off-diagonal block.
+   *
+   * \tparam UpLo              \c Eigen::Upper or \c Eigen::Lower.
+   * \tparam DiagIsSelfAdjoint Set to \c true when every diagonal block is
+   *         itself Hermitian.  The dense sub-product on diagonal blocks then
+   *         calls \c selfadjointView<UpLo>(), enabling DSYMM/ZHEMM.
+   *
+   * \pre BlockRows == BlockCols (diagonal blocks must be square).
+   */
+  template <int UpLo, bool DiagIsSelfAdjoint = false>
+  BlockSparseSelfAdjointView<BlockSparseMatrix, UpLo, DiagIsSelfAdjoint> selfadjointView() const {
+    static_assert(BlockRows_ == BlockCols_,
+                  "selfadjointView requires square blocks (BlockRows == BlockCols)");
+    return BlockSparseSelfAdjointView<BlockSparseMatrix, UpLo, DiagIsSelfAdjoint>(*this);
+  }
+
  private:
+  template <bool Conjugate>
+  BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_> transposeImpl() const;
   // -------------------------------------------------------------------------
   // Storage
   // -------------------------------------------------------------------------
@@ -520,8 +572,9 @@ class BlockSparseMatrix {
 
   // Allow other instantiations of BlockSparseMatrix to access private members
   // (needed by operator*).
-  template <typename, int, int, int, typename>
-  friend class BlockSparseMatrix;
+  template <typename, int, int, int, typename>  friend class BlockSparseMatrix;
+  template <typename, int>                      friend class BlockSparseTriangularView;
+  template <typename, int, bool>                friend class BlockSparseSelfAdjointView;
 };
 
 // =============================================================================
@@ -835,7 +888,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       const Index J = out;
       for (Index rhsId = rhs.m_outerIndex(J); rhsId < rhs.m_outerIndex(J + 1); ++rhsId) {
         const Index K = rhs.m_innerIndex(rhsId);
-        const auto Bkj = rhs.blockRef(rhsId);
+        const Map<const Matrix<Scalar_, BlockCols_, RhsBlockCols>> Bkj = rhs.blockRef(rhsId);
         for (Index lhsId = m_outerIndex(K); lhsId < m_outerIndex(K + 1); ++lhsId) {
           const Index bI = m_innerIndex(lhsId);
           if (!mask(bI)) {
@@ -855,7 +908,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       const Index bI = out;
       for (Index lhsId = m_outerIndex(bI); lhsId < m_outerIndex(bI + 1); ++lhsId) {
         const Index K = m_innerIndex(lhsId);
-        const auto Aik = blockRef(lhsId);
+        const ConstBlockMap Aik = blockRef(lhsId);
         for (Index rhsId = rhs.m_outerIndex(K); rhsId < rhs.m_outerIndex(K + 1); ++rhsId) {
           const Index J = rhs.m_innerIndex(rhsId);
           if (!mask(J)) {
@@ -890,6 +943,381 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   result.m_values.conservativeResize(nnz * Index(ResultBlockSize));
 
   return result;
+}
+
+// =============================================================================
+// BlockSparseTriangularView
+// =============================================================================
+
+/** \class BlockSparseTriangularView
+ * \ingroup SparseCore_Module
+ * \brief Lazy block-level triangular view of a BlockSparseMatrix.
+ *
+ * Obtained via \c BSM::triangularView<Mode>().  All arithmetic operates only
+ * on blocks in the selected triangle; the opposite triangle is never read.
+ * eval() materialises the view into a new BlockSparseMatrix.
+ */
+template <typename BSM, int Mode>
+class BlockSparseTriangularView {
+ public:
+  using Scalar       = typename BSM::Scalar;
+  using StorageIndex = typename BSM::StorageIndex;
+  using Index        = typename BSM::Index;
+  using BlockType    = typename BSM::BlockType;
+  static constexpr int  BlockRows  = BSM::BlockRows;
+  static constexpr int  BlockCols  = BSM::BlockCols;
+  static constexpr int  BlockSize  = BSM::BlockSize;
+  static constexpr bool IsRowMajor = BSM::IsRowMajor;
+  static constexpr bool IsUpper    = (Mode & Upper) != 0;
+
+  explicit BlockSparseTriangularView(const BSM& m) : m_matrix(m) {}
+
+  Index rows() const { return m_matrix.rows(); }
+  Index cols() const { return m_matrix.cols(); }
+
+  // ---- Materialize ---------------------------------------------------------
+
+  /** Copy the triangular blocks into a new BSM; off-triangle blocks are dropped. */
+  BSM eval() const {
+    const BSM& m = m_matrix;
+    BSM result(m.blockRows(), m.blockCols());
+    const Index maxNnz = m.nonZeroBlocks();
+    result.m_innerIndex.resize(maxNnz);
+    result.m_values.resize(maxNnz * Index(BlockSize));
+    Index nnz = 0;
+
+    for (Index out = 0; out < m.m_blockOuterSize; ++out) {
+      result.m_outerIndex(out) = StorageIndex(nnz);
+      for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(m.m_innerIndex(id));
+        const Index bi = IsRowMajor ? out : inner;
+        const Index bj = IsRowMajor ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+        result.m_innerIndex(nnz) = StorageIndex(inner);
+        result.m_values.segment(nnz * Index(BlockSize), Index(BlockSize)) =
+            m.m_values.segment(id * Index(BlockSize), Index(BlockSize));
+        ++nnz;
+      }
+    }
+    result.m_outerIndex(m.m_blockOuterSize) = StorageIndex(nnz);
+    result.m_innerIndex.conservativeResize(nnz);
+    result.m_values.conservativeResize(nnz * Index(BlockSize));
+    return result;
+  }
+
+  /** Convert to a scalar-level SparseMatrix (off-triangle blocks zeroed). */
+  SparseMatrix<Scalar, BSM::Options, StorageIndex> toSparse() const { return eval().toSparse(); }
+
+  // ---- Arithmetic ----------------------------------------------------------
+
+  BSM operator+(const BlockSparseTriangularView& other) const { return eval() + other.eval(); }
+  BSM operator-(const BlockSparseTriangularView& other) const { return eval() - other.eval(); }
+
+  /** Tri × BSM product (materialises this view then delegates). */
+  template <int RhsBlockCols>
+  BlockSparseMatrix<Scalar, BSM::Options, BlockRows, RhsBlockCols, StorageIndex> operator*(
+      const BlockSparseMatrix<Scalar, BSM::Options, BlockCols, RhsBlockCols, StorageIndex>& rhs) const {
+    return eval() * rhs;
+  }
+
+  // ---- Dense products (no intermediate materialisation) --------------------
+
+  template <typename OtherDerived>
+  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
+  operator*(const MatrixBase<OtherDerived>& rhs) const {
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+    eigen_assert(m_matrix.cols() == rhs.rows() &&
+                 "BlockSparseTriangularView * Dense: dimension mismatch");
+    using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
+    ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
+    for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out) {
+      for (Index id = m_matrix.m_outerIndex(out); id < m_matrix.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(m_matrix.m_innerIndex(id));
+        const Index bi = IsRowMajor ? out : inner;
+        const Index bj = IsRowMajor ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+        result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
+            m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+      }
+    }
+    return result;
+  }
+
+  template <typename OtherDerived>
+  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>
+  operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseTriangularView& tri) {
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+    eigen_assert(lhs.cols() == tri.m_matrix.rows() &&
+                 "Dense * BlockSparseTriangularView: dimension mismatch");
+    constexpr bool isRM = BSM::IsRowMajor;
+    using ResultType = Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>;
+    ResultType result = ResultType::Zero(lhs.rows(), tri.m_matrix.cols());
+    for (Index out = 0; out < tri.m_matrix.m_blockOuterSize; ++out) {
+      for (Index id = tri.m_matrix.m_outerIndex(out); id < tri.m_matrix.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(tri.m_matrix.m_innerIndex(id));
+        const Index bi = isRM ? out : inner;
+        const Index bj = isRM ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+        result.middleCols(bj * Index(BlockCols), Index(BlockCols)).noalias() +=
+            lhs.middleCols(bi * Index(BlockRows), Index(BlockRows)) * tri.m_matrix.blockRef(id);
+      }
+    }
+    return result;
+  }
+
+ private:
+  const BSM& m_matrix;
+};
+
+// =============================================================================
+// BlockSparseSelfAdjointView
+// =============================================================================
+
+/** \class BlockSparseSelfAdjointView
+ * \ingroup SparseCore_Module
+ * \brief Lazy block-level self-adjoint (Hermitian) view of a BlockSparseMatrix.
+ *
+ * Obtained via \c BSM::selfadjointView<UpLo>() or
+ * \c BSM::selfadjointView<UpLo, true>() (the latter signals that every
+ * diagonal block is itself Hermitian, enabling DSYMM/ZHEMM on those blocks).
+ *
+ * Only the triangle selected by \p UpLo is read; the other triangle is
+ * reconstructed on-the-fly as the adjoint of each stored off-diagonal block.
+ *
+ * \pre BSM::BlockRows == BSM::BlockCols.
+ */
+template <typename BSM, int UpLo, bool DiagIsSelfAdjoint>
+class BlockSparseSelfAdjointView {
+ public:
+  using Scalar       = typename BSM::Scalar;
+  using StorageIndex = typename BSM::StorageIndex;
+  using Index        = typename BSM::Index;
+  using BlockType    = typename BSM::BlockType;
+  static constexpr int  BlockRows   = BSM::BlockRows;  // == BlockCols
+  static constexpr int  BlockCols   = BSM::BlockCols;
+  static constexpr int  BlockSize   = BSM::BlockSize;
+  static constexpr bool IsRowMajor  = BSM::IsRowMajor;
+  static constexpr bool IsUpper     = (UpLo & Upper) != 0;
+  // UpLo passed to Eigen's dense selfadjointView on diagonal blocks:
+  static constexpr int  DiagUpLo    = IsUpper ? Upper : Lower;
+
+  explicit BlockSparseSelfAdjointView(const BSM& m) : m_matrix(m) {}
+
+  Index rows() const { return m_matrix.rows(); }
+  Index cols() const { return m_matrix.cols(); }
+
+  // ---- Materialize ---------------------------------------------------------
+
+  /** Build a full symmetric BSM: stored triangle + adjoint mirror of each
+   *  off-diagonal block.  Diagonal blocks are copied as-is. */
+  BSM eval() const {
+    const BSM& m = m_matrix;
+
+    Index nDiag = 0, nOff = 0;
+    for (Index out = 0; out < m.m_blockOuterSize; ++out)
+      for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(m.m_innerIndex(id));
+        const Index bi = IsRowMajor ? out : inner;
+        const Index bj = IsRowMajor ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+        if (bi == bj) ++nDiag; else ++nOff;
+      }
+
+    const Index nTotal = nDiag + 2 * nOff;
+
+    Array<StorageIndex, Dynamic, 1> brows(nTotal), bcols(nTotal);
+    Array<Scalar, Dynamic, 1> bvals(nTotal * Index(BlockSize));
+
+    Index k = 0;
+    for (Index out = 0; out < m.m_blockOuterSize; ++out)
+      for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(m.m_innerIndex(id));
+        const Index bi = IsRowMajor ? out : inner;
+        const Index bj = IsRowMajor ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+
+        brows(k) = StorageIndex(bi);
+        bcols(k) = StorageIndex(bj);
+        Map<BlockType>(bvals.data() + k * Index(BlockSize)) = m.blockRef(id);
+        ++k;
+
+        if (bi != bj) {
+          brows(k) = StorageIndex(bj);
+          bcols(k) = StorageIndex(bi);
+          Map<BlockType>(bvals.data() + k * Index(BlockSize)) = m.blockRef(id).adjoint();
+          ++k;
+        }
+      }
+
+    // Sort by (outer, inner) then build BSM directly (no duplicates by construction).
+    Array<Index, Dynamic, 1> perm(nTotal);
+    std::iota(perm.data(), perm.data() + nTotal, Index(0));
+    std::sort(perm.data(), perm.data() + nTotal, [&](Index a, Index b) {
+      const StorageIndex ao = IsRowMajor ? brows(a) : bcols(a);
+      const StorageIndex bo = IsRowMajor ? brows(b) : bcols(b);
+      if (ao != bo) return ao < bo;
+      return (IsRowMajor ? bcols(a) : brows(a)) < (IsRowMajor ? bcols(b) : brows(b));
+    });
+
+    BSM result(m.blockRows(), m.blockCols());
+    result.m_innerIndex.resize(nTotal);
+    result.m_values.resize(nTotal * Index(BlockSize));
+
+    for (Index ki = 0; ki < nTotal; ++ki) {
+      const Index pi = perm(ki);
+      const StorageIndex outer = IsRowMajor ? brows(pi) : bcols(pi);
+      const StorageIndex inner = IsRowMajor ? bcols(pi) : brows(pi);
+      result.m_outerIndex(Index(outer) + 1)++;
+      result.m_innerIndex(ki) = inner;
+      result.m_values.segment(ki * Index(BlockSize), Index(BlockSize)) =
+          bvals.segment(pi * Index(BlockSize), Index(BlockSize));
+    }
+    for (Index j = 0; j < result.m_blockOuterSize; ++j)
+      result.m_outerIndex(j + 1) += result.m_outerIndex(j);
+
+    return result;
+  }
+
+  /** Convert to a symmetrised scalar-level SparseMatrix. */
+  SparseMatrix<Scalar, BSM::Options, StorageIndex> toSparse() const { return eval().toSparse(); }
+
+  // ---- Arithmetic ----------------------------------------------------------
+
+  BSM operator+(const BlockSparseSelfAdjointView& other) const { return eval() + other.eval(); }
+  BSM operator-(const BlockSparseSelfAdjointView& other) const { return eval() - other.eval(); }
+
+  /** SelfAdj × BSM: materialises the view then uses the general SpGEMM. */
+  template <int RhsBlockCols>
+  BlockSparseMatrix<Scalar, BSM::Options, BlockRows, RhsBlockCols, StorageIndex> operator*(
+      const BlockSparseMatrix<Scalar, BSM::Options, BlockCols, RhsBlockCols, StorageIndex>& rhs) const {
+    return eval() * rhs;
+  }
+
+  // ---- Dense products (no materialisation; exploits both triangles) ---------
+
+  /** SelfAdj × Dense.
+   *
+   *  Off-diagonal stored block A(bi,bj) contributes:
+   *    result(bi) += A(bi,bj) * rhs(bj)        [stored triangle]
+   *    result(bj) += A(bi,bj)^H * rhs(bi)      [implicit mirror]
+   *
+   *  When DiagIsSelfAdjoint, diagonal blocks use Eigen's dense
+   *  selfadjointView for a potential DSYMM/ZHEMM call.
+   */
+  template <typename OtherDerived>
+  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
+  operator*(const MatrixBase<OtherDerived>& rhs) const {
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+    eigen_assert(m_matrix.cols() == rhs.rows() &&
+                 "BlockSparseSelfAdjointView * Dense: dimension mismatch");
+    using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
+    ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
+
+    for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out)
+      for (Index id = m_matrix.m_outerIndex(out); id < m_matrix.m_outerIndex(out + 1); ++id) {
+        const Index inner = Index(m_matrix.m_innerIndex(id));
+        const Index bi = IsRowMajor ? out : inner;
+        const Index bj = IsRowMajor ? inner : out;
+        if (IsUpper ? (bj < bi) : (bj > bi)) continue;
+
+        if (bi == bj) {
+          if constexpr (DiagIsSelfAdjoint) {
+            result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
+                m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
+                rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+          } else {
+            result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
+                m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+          }
+        } else {
+          result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
+              m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+          result.middleRows(bj * Index(BlockRows), Index(BlockRows)).noalias() +=
+              m_matrix.blockRef(id).adjoint() * rhs.middleRows(bi * Index(BlockRows), Index(BlockRows));
+        }
+      }
+    return result;
+  }
+
+  /** Dense × SelfAdj:  lhs * A == (A^H * lhs^H)^H == (A * lhs^H)^H for Hermitian A. */
+  template <typename OtherDerived>
+  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>
+  operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseSelfAdjointView& view) {
+    EIGEN_STATIC_ASSERT(
+        (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
+        YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+    return (view * lhs.adjoint()).adjoint();
+  }
+
+ private:
+  const BSM& m_matrix;
+};
+
+// =============================================================================
+// BlockSparseMatrix::transposeImpl / transpose / adjoint (out-of-line)
+// =============================================================================
+
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
+template <bool Conjugate>
+BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_>
+BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::transposeImpl() const {
+  using ResultType = BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_>;
+  ResultType result(blockCols(), blockRows());
+
+  // Count entries per new outer (= old inner).
+  for (Index id = 0; id < nonZeroBlocks(); ++id)
+    result.m_outerIndex(Index(m_innerIndex(id)) + 1)++;
+
+  // Prefix sum.
+  for (Index j = 0; j < result.m_blockOuterSize; ++j)
+    result.m_outerIndex(j + 1) += result.m_outerIndex(j);
+
+  const Index nnz = nonZeroBlocks();
+  result.m_innerIndex.resize(nnz);
+  result.m_values.resize(nnz * Index(BlockSize));
+
+  // One insertion cursor per new outer; start at the prefix-sum boundary.
+  // Because we iterate oldOuter in increasing order, for each newOuter = oldInner
+  // the emitted newInner = oldOuter values are automatically sorted.
+  Array<StorageIndex_, Dynamic, 1> pos = result.m_outerIndex.head(result.m_blockOuterSize);
+
+  for (Index oldOuter = 0; oldOuter < m_blockOuterSize; ++oldOuter) {
+    for (Index id = m_outerIndex(oldOuter); id < m_outerIndex(oldOuter + 1); ++id) {
+      const Index newOuter = Index(m_innerIndex(id));
+      const Index insertAt = pos(newOuter)++;
+      result.m_innerIndex(insertAt) = StorageIndex_(oldOuter);
+      if constexpr (Conjugate) {
+        Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
+            result.m_values.data() + insertAt * Index(BlockSize)) =
+            Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
+                m_values.data() + id * Index(BlockSize)).adjoint();
+      } else {
+        Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
+            result.m_values.data() + insertAt * Index(BlockSize)) =
+            Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
+                m_values.data() + id * Index(BlockSize)).transpose();
+      }
+    }
+  }
+  return result;
+}
+
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
+BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_>
+BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::transpose() const {
+  return transposeImpl<false>();
+}
+
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
+BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_>
+BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::adjoint() const {
+  return transposeImpl<true>();
 }
 
 }  // end namespace Eigen
