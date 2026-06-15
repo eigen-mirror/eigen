@@ -468,6 +468,61 @@ build:linux:cross:loongarch64:gcc-14:default:
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-loongarch64-static;-L;/usr/loongarch64-linux-gnu
       -DEIGEN_TEST_LSX=on
 
+######## riscv64 ###############################################################
+# Builds cross-compile on amd64; tests run natively on the riscv runner
+# (SpacemiT K3, RVA23, RVV 1.0, VLEN=256).  Jobs are allowed to fail while
+# the runner is being brought up.
+
+.build:linux:riscv64:
+  extends: .build:linux:cross
+  variables:
+    EIGEN_CI_TARGET_ARCH: riscv64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: riscv64-linux-gnu
+  allow_failure: true
+
+build:linux:riscv64:gcc-14:default:
+  extends: .build:linux:riscv64
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu
+    EIGEN_CI_CROSS_C_COMPILER: riscv64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: riscv64-linux-gnu-g++-14
+
+# SpacemiT K3 (RVA23, RVV 1.0, VLEN=256).  The fixed vector length is
+# required by Eigen's RVV backend; Zvfh enables half-precision vectorization.
+build:linux:riscv64:gcc-14:rvv:
+  extends: build:linux:riscv64:gcc-14:default
+  variables:
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zfh_zvfh;-mrvv-vector-bits=256;-DEIGEN_RISCV64_USE_RVV10
+
+build:linux:riscv64:clang-18:default:
+  extends: .build:linux:riscv64
+  variables:
+    EIGEN_CI_INSTALL: clang-18
+    EIGEN_CI_C_COMPILER: clang-18
+    EIGEN_CI_CXX_COMPILER: clang++-18
+    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu clang-18
+
+build:linux:riscv64:gcc-14:default:smoketest:
+  extends: build:linux:riscv64:gcc-14:default
+  variables:
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-medium-amd64
+
+build:linux:riscv64:clang-18:default:smoketest:
+  extends: build:linux:riscv64:clang-18:default
+  variables:
+    EIGEN_CI_BUILD_TARGET: buildsmoketests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  tags:
+    - saas-linux-medium-amd64
+
 ######## MR Smoke Tests ########################################################
 # aarch64 targets are cross-compiled via g++-10-aarch64-linux-gnu / clang-14.
 # Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
