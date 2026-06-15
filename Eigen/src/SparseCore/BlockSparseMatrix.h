@@ -126,7 +126,7 @@ class BlockSparseMatrix {
   // -------------------------------------------------------------------------
   using Scalar = Scalar_;
   using StorageIndex = StorageIndex_;
-  using BlockType = Matrix<Scalar, BlockRows_, BlockCols_>;
+  using BlockType = Matrix<Scalar, BlockRows_, BlockCols_, Options_>;
   using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, Options_, StorageIndex>;
 
   enum {
@@ -822,13 +822,12 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
         prevInnerBlock = innerBlock;
       }
 
-      // Scatter into column-major block storage.
-      // ColMajor: outer=col, inner=row → offset = localOuter*BlockRows_ + localInner
-      // RowMajor: outer=row, inner=col → offset = localInner*BlockRows_ + localOuter
+      // Scatter into block storage (layout matches the BSM's Options_).
+      // ColMajor blocks: col * BlockRows_ + row = localOuter * BlockInnerSize + localInner
+      // RowMajor blocks: row * BlockCols_ + col = localOuter * BlockInnerSize + localInner
       Index localOuter = absOuter % BlockOuterSize;
       Index localInner = innerIdx % BlockInnerSize;
-      Index offset = IsRowMajor ? (localInner * BlockRows_ + localOuter)
-                                      : (localOuter * BlockRows_ + localInner);
+      Index offset = localOuter * BlockInnerSize + localInner;
 
       result.m_values(blockId * BlockSize + offset) = it.value();
     }
@@ -917,7 +916,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
     const BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>& rhs) const {
   using RhsMatrix    = BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>;
   using ResultMatrix = BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>;
-  using ResultBlock  = Matrix<Scalar_, BlockRows_, RhsBlockCols>;
+  using ResultBlock  = Matrix<Scalar_, BlockRows_, RhsBlockCols, Options_>;
   constexpr int ResultBlockSize = BlockRows_ * RhsBlockCols;
 
   eigen_assert(blockCols() == rhs.blockRows() &&
@@ -1493,10 +1492,10 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
       Index newOuter = m_innerIndex(id);
       Index insertAt = pos(newOuter)++;
       result.m_innerIndex(insertAt) = StorageIndex_(oldOuter);
-      Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
+      Map<Matrix<Scalar_, BlockCols_, BlockRows_, Options_>>(
           result.m_values.data() + insertAt * BlockSize) =
           internal::adjoint_if<Conjugate>(
-              Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
+              Map<const Matrix<Scalar_, BlockRows_, BlockCols_, Options_>>(
                   m_values.data() + id * BlockSize));
     }
   }
