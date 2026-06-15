@@ -541,8 +541,12 @@ class BlockSparseMatrix {
    *
    * \tparam UpLo              \c Eigen::Upper or \c Eigen::Lower.
    * \tparam DiagIsSelfAdjoint Set to \c true when every diagonal block is
-   *         itself Hermitian.  The dense sub-product on diagonal blocks then
-   *         calls \c selfadjointView<UpLo>(), enabling DSYMM/ZHEMM.
+   *         itself Hermitian \em and both triangles are explicitly stored.
+   *         The dense sub-product then uses a plain product rather than
+   *         \c selfadjointView, which is more efficient for the small
+   *         fixed-size blocks typical here.  When \c false (the default),
+   *         only the \p UpLo triangle of each diagonal block is assumed
+   *         valid; \c selfadjointView<UpLo>() reconstructs the full block.
    *
    * \pre BlockRows == BlockCols (diagonal blocks must be square).
    */
@@ -1405,8 +1409,10 @@ class BlockSparseSelfAdjointView {
    *    result(bi) += A(bi,bj) * rhs(bj)        [stored triangle]
    *    result(bj) += A(bi,bj)^H * rhs(bi)      [implicit mirror]
    *
-   *  When DiagIsSelfAdjoint, diagonal blocks use Eigen's dense
-   *  selfadjointView for a potential DSYMM/ZHEMM call.
+   *  When DiagIsSelfAdjoint is true, both triangles of each diagonal block
+   *  are valid; a plain product is used (faster for small fixed-size blocks).
+   *  Otherwise only the UpLo triangle is assumed valid and selfadjointView
+   *  reconstructs the full diagonal-block product.
    */
   template <typename OtherDerived>
   Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
@@ -1429,11 +1435,11 @@ class BlockSparseSelfAdjointView {
         if (bi == bj) {
           if constexpr (DiagIsSelfAdjoint) {
             result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
-                m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
-                rhs.template middleRows<BlockCols>(bj * BlockCols);
+                m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
           } else {
             result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
-                m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
+                m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
+                rhs.template middleRows<BlockCols>(bj * BlockCols);
           }
         } else {
           result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
