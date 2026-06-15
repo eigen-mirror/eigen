@@ -435,8 +435,8 @@ class BlockSparseMatrix {
         Index inner = m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
-        result.middleRows(bi * BlockRows_, BlockRows_).noalias() +=
-            blockRef(id) * rhs.middleRows(bj * BlockCols_, BlockCols_);
+        result.template middleRows<BlockRows_>(bi * BlockRows_).noalias() +=
+            blockRef(id) * rhs.template middleRows<BlockCols_>(bj * BlockCols_);
       }
     }
     return result;
@@ -465,8 +465,8 @@ class BlockSparseMatrix {
         Index inner = bsm.m_innerIndex(id);
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
-        result.middleCols(bj * BlockCols_, BlockCols_).noalias() +=
-            lhs.middleCols(bi * BlockRows_, BlockRows_) * bsm.blockRef(id);
+        result.template middleCols<BlockCols_>(bj * BlockCols_).noalias() +=
+            lhs.template middleCols<BlockRows_>(bi * BlockRows_) * bsm.blockRef(id);
       }
     }
     return result;
@@ -686,7 +686,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
     }
 
     m_innerIndex(nnz) = inner;
-    m_values.segment(nnz * BlockSize, BlockSize) =
+    m_values.template segment<BlockSize>(nnz * BlockSize) =
         Map<const Array<Scalar, BlockSize, 1>>(block.data());
     m_outerIndex(outer + 1)++;
     ++nnz;
@@ -882,7 +882,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       }
 
       result.m_innerIndex(nnz) = inner;
-      result.m_values.segment(nnz * BlockSize, BlockSize) =
+      result.m_values.template segment<BlockSize>(nnz * BlockSize) =
           Map<const Array<Scalar, BlockSize, 1>>(block.data());
       ++nnz;
     }
@@ -982,7 +982,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
     for (Index ki = 0; ki < nIndices; ++ki) {
       Index idx = indices(ki);
       result.m_innerIndex(nnz) = StorageIndex_(idx);
-      result.m_values.segment(nnz * ResultBlockSize, ResultBlockSize) =
+      result.m_values.template segment<ResultBlockSize>(nnz * ResultBlockSize) =
           Map<const Array<Scalar_, ResultBlockSize, 1>>(accumData.data() + idx * ResultBlockSize);
       mask(idx) = 0;
       ++nnz;
@@ -1046,8 +1046,8 @@ class BlockSparseTriangularView {
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
         result.m_innerIndex(nnz) = StorageIndex(inner);
-        result.m_values.segment(nnz * BlockSize, BlockSize) =
-            m.m_values.segment(id * BlockSize, BlockSize);
+        result.m_values.template segment<BlockSize>(nnz * BlockSize) =
+            m.m_values.template segment<BlockSize>(id * BlockSize);
         ++nnz;
       }
     }
@@ -1090,8 +1090,8 @@ class BlockSparseTriangularView {
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.middleRows(bi * BlockRows, BlockRows).noalias() +=
-            m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
+        result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
+            m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
       }
     }
     return result;
@@ -1114,8 +1114,8 @@ class BlockSparseTriangularView {
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.middleCols(bj * BlockCols, BlockCols).noalias() +=
-            lhs.middleCols(bi * BlockRows, BlockRows) * tri.m_matrix.blockRef(id);
+        result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
+            lhs.template middleCols<BlockRows>(bi * BlockRows) * tri.m_matrix.blockRef(id);
       }
     }
     return result;
@@ -1380,8 +1380,8 @@ class BlockSparseSelfAdjointView {
       StorageIndex inner = IsRowMajor ? bcols(pi) : brows(pi);
       result.m_outerIndex(outer + 1)++;
       result.m_innerIndex(ki) = inner;
-      result.m_values.segment(ki * BlockSize, BlockSize) =
-          bvals.segment(pi * BlockSize, BlockSize);
+      result.m_values.template segment<BlockSize>(ki * BlockSize) =
+          bvals.template segment<BlockSize>(pi * BlockSize);
     }
     for (Index j = 0; j < result.m_blockOuterSize; ++j)
       result.m_outerIndex(j + 1) += result.m_outerIndex(j);
@@ -1435,18 +1435,18 @@ class BlockSparseSelfAdjointView {
 
         if (bi == bj) {
           if constexpr (DiagIsSelfAdjoint) {
-            result.middleRows(bi * BlockRows, BlockRows).noalias() +=
+            result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
                 m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
-                rhs.middleRows(bj * BlockCols, BlockCols);
+                rhs.template middleRows<BlockCols>(bj * BlockCols);
           } else {
-            result.middleRows(bi * BlockRows, BlockRows).noalias() +=
-                m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
+            result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
+                m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
           }
         } else {
-          result.middleRows(bi * BlockRows, BlockRows).noalias() +=
-              m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
-          result.middleRows(bj * BlockRows, BlockRows).noalias() +=
-              m_matrix.blockRef(id).adjoint() * rhs.middleRows(bi * BlockRows, BlockRows);
+          result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
+              m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
+          result.template middleRows<BlockRows>(bj * BlockRows).noalias() +=
+              m_matrix.blockRef(id).adjoint() * rhs.template middleRows<BlockRows>(bi * BlockRows);
         }
       }
     return result;
