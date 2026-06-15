@@ -184,7 +184,7 @@ class BlockSparseMatrix {
   /** Number of stored (structurally non-zero) blocks. */
   Index nonZeroBlocks() const { return m_innerIndex.size(); }
   /** Total number of stored scalar coefficients (= nonZeroBlocks() * BlockRows * BlockCols). */
-  Index nonZeros() const { return nonZeroBlocks() * Index(BlockSize); }
+  Index nonZeros() const { return nonZeroBlocks() * BlockSize; }
 
   // -------------------------------------------------------------------------
   // Raw pointer access (for interoperability)
@@ -202,11 +202,11 @@ class BlockSparseMatrix {
 
   /** Read-only Map to the \a k-th stored block (column-major layout within block). */
   ConstBlockMap blockRef(Index k) const {
-    return ConstBlockMap(m_values.data() + k * Index(BlockSize));
+    return ConstBlockMap(m_values.data() + k * BlockSize);
   }
   /** Mutable Map to the \a k-th stored block. */
   BlockMap blockRef(Index k) {
-    return BlockMap(m_values.data() + k * Index(BlockSize));
+    return BlockMap(m_values.data() + k * BlockSize);
   }
 
   // -------------------------------------------------------------------------
@@ -222,8 +222,8 @@ class BlockSparseMatrix {
    public:
     EIGEN_STRONG_INLINE InnerIterator(const BlockSparseMatrix& mat, Index outer)
         : m_mat(mat),
-          m_id(static_cast<Index>(mat.m_outerIndex(outer))),
-          m_end(static_cast<Index>(mat.m_outerIndex(outer + 1))),
+          m_id(mat.m_outerIndex(outer)),
+          m_end(mat.m_outerIndex(outer + 1)),
           m_outer(outer) {}
 
     EIGEN_STRONG_INLINE operator bool() const { return m_id < m_end; }
@@ -235,7 +235,7 @@ class BlockSparseMatrix {
     /** Current block outer index (block-col for ColMajor, block-row for RowMajor). */
     EIGEN_STRONG_INLINE Index outer() const { return m_outer; }
     /** Current block inner index (block-row for ColMajor, block-col for RowMajor). */
-    EIGEN_STRONG_INLINE Index index() const { return static_cast<Index>(m_mat.m_innerIndex(m_id)); }
+    EIGEN_STRONG_INLINE Index index() const { return m_mat.m_innerIndex(m_id); }
     /** Block-row of the current block. */
     EIGEN_STRONG_INLINE Index blockRow() const { return IsRowMajor ? m_outer : index(); }
     /** Block-column of the current block. */
@@ -245,7 +245,7 @@ class BlockSparseMatrix {
     EIGEN_STRONG_INLINE ConstBlockMap value() const { return m_mat.blockRef(m_id); }
     /** Mutable Map to the current block value. */
     EIGEN_STRONG_INLINE BlockMap valueRef() {
-      return BlockMap(const_cast<Scalar*>(m_mat.m_values.data()) + m_id * Index(BlockSize));
+      return BlockMap(const_cast<Scalar*>(m_mat.m_values.data()) + m_id * BlockSize);
     }
 
    private:
@@ -287,12 +287,12 @@ class BlockSparseMatrix {
     Index n = std::min(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_innerIndex.resize(n);
-    m_values.resize(n * Index(BlockSize));
+    m_values.resize(n * BlockSize);
     m_values.setZero();
     for (StorageIndex_ i = 0; i < StorageIndex_(n); ++i) {
-      m_outerIndex(Index(i)) = i;
-      m_innerIndex(Index(i)) = i;
-      Scalar* p = m_values.data() + Index(i) * Index(BlockSize);
+      m_outerIndex(i) = i;
+      m_innerIndex(i) = i;
+      Scalar* p = m_values.data() + i * BlockSize;
       for (int d = 0; d < BlockRows_; ++d) p[d * BlockRows_ + d] = Scalar(1);
     }
     for (Index j = n; j <= m_blockOuterSize; ++j) m_outerIndex(j) = StorageIndex_(n);
@@ -310,7 +310,7 @@ class BlockSparseMatrix {
     m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_innerIndex.resize(nnzBlocks);
-    m_values.resize(nnzBlocks * Index(BlockSize));
+    m_values.resize(nnzBlocks * BlockSize);
     m_values.setZero();
     for (Index j = 0; j <= m_blockOuterSize; ++j) m_outerIndex(j) = outerPtr[j];
     for (Index k = 0; k < nnzBlocks; ++k) m_innerIndex(k) = innerPtr[k];
@@ -368,12 +368,12 @@ class BlockSparseMatrix {
     eigen_assert(row >= 0 && row < rows() && col >= 0 && col < cols());
     Index bOuter = IsRowMajor ? (row / BlockRows_) : (col / BlockCols_);
     Index bInner = IsRowMajor ? (col / BlockCols_) : (row / BlockRows_);
-    Index localRow = row % Index(BlockRows_);
-    Index localCol = col % Index(BlockCols_);
+    Index localRow = row % BlockRows_;
+    Index localCol = col % BlockCols_;
     const StorageIndex* beg = m_innerIndex.data() + m_outerIndex(bOuter);
     const StorageIndex* fin = m_innerIndex.data() + m_outerIndex(bOuter + 1);
     const StorageIndex* it = std::lower_bound(beg, fin, StorageIndex(bInner));
-    if (it == fin || static_cast<Index>(*it) != bInner) return Scalar(0);
+    if (it == fin || *it != bInner) return Scalar(0);
     return blockRef(static_cast<Index>(it - m_innerIndex.data()))(localRow, localCol);
   }
 
@@ -431,13 +431,12 @@ class BlockSparseMatrix {
     using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
     ResultType result = ResultType::Zero(rows(), rhs.cols());
     for (Index out = 0; out < m_blockOuterSize; ++out) {
-      for (Index id = static_cast<Index>(m_outerIndex(out));
-           id < static_cast<Index>(m_outerIndex(out + 1)); ++id) {
-        Index inner = static_cast<Index>(m_innerIndex(id));
+      for (Index id = m_outerIndex(out); id < m_outerIndex(out + 1); ++id) {
+        Index inner = m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
-        result.middleRows(bi * Index(BlockRows_), Index(BlockRows_)).noalias() +=
-            blockRef(id) * rhs.middleRows(bj * Index(BlockCols_), Index(BlockCols_));
+        result.middleRows(bi * BlockRows_, BlockRows_).noalias() +=
+            blockRef(id) * rhs.middleRows(bj * BlockCols_, BlockCols_);
       }
     }
     return result;
@@ -462,13 +461,12 @@ class BlockSparseMatrix {
     using ResultType = Matrix<Scalar_, OtherDerived::RowsAtCompileTime, Dynamic>;
     ResultType result = ResultType::Zero(lhs.rows(), bsm.cols());
     for (Index out = 0; out < bsm.m_blockOuterSize; ++out) {
-      for (Index id = static_cast<Index>(bsm.m_outerIndex(out));
-           id < static_cast<Index>(bsm.m_outerIndex(out + 1)); ++id) {
-        Index inner = static_cast<Index>(bsm.m_innerIndex(id));
+      for (Index id = bsm.m_outerIndex(out); id < bsm.m_outerIndex(out + 1); ++id) {
+        Index inner = bsm.m_innerIndex(id);
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
-        result.middleCols(bj * Index(BlockCols_), Index(BlockCols_)).noalias() +=
-            lhs.middleCols(bi * Index(BlockRows_), Index(BlockRows_)) * bsm.blockRef(id);
+        result.middleCols(bj * BlockCols_, BlockCols_).noalias() +=
+            lhs.middleCols(bi * BlockRows_, BlockRows_) * bsm.blockRef(id);
       }
     }
     return result;
@@ -647,13 +645,13 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
 
   // Copy triplet coordinates and block values into Eigen arrays.
   Array<StorageIndex, Dynamic, 1> tOuter(n), tInner(n);
-  Array<Scalar, Dynamic, 1> tValues(n * Index(BlockSize));
+  Array<Scalar, Dynamic, 1> tValues(n * BlockSize);
 
   Index k = 0;
   for (InputIterator it = begin; it != end; ++it, ++k) {
     tOuter(k) = IsRowMajor ? StorageIndex(it->row()) : StorageIndex(it->col());
     tInner(k) = IsRowMajor ? StorageIndex(it->col()) : StorageIndex(it->row());
-    Map<BlockType>(tValues.data() + k * Index(BlockSize)) = it->value();
+    Map<BlockType>(tValues.data() + k * BlockSize) = it->value();
   }
 
   // Compute a sort permutation by (outer, inner).
@@ -667,7 +665,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   m_outerIndex.resize(m_blockOuterSize + 1);
   m_outerIndex.setZero();
   m_innerIndex.resize(n);
-  m_values.resize(n * Index(BlockSize));
+  m_values.resize(n * BlockSize);
 
   Index nnz = 0;
   k = 0;
@@ -676,27 +674,27 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
     StorageIndex outer = tOuter(pi);
     StorageIndex inner = tInner(pi);
 
-    BlockType block = Map<const BlockType>(tValues.data() + pi * Index(BlockSize));
+    BlockType block = Map<const BlockType>(tValues.data() + pi * BlockSize);
     ++k;
 
     // Accumulate duplicate entries at the same (outer, inner) position.
     while (k < n) {
       Index pk = perm(k);
       if (tOuter(pk) != outer || tInner(pk) != inner) break;
-      block += Map<const BlockType>(tValues.data() + pk * Index(BlockSize));
+      block += Map<const BlockType>(tValues.data() + pk * BlockSize);
       ++k;
     }
 
     m_innerIndex(nnz) = inner;
-    m_values.segment(nnz * Index(BlockSize), Index(BlockSize)) =
+    m_values.segment(nnz * BlockSize, BlockSize) =
         Map<const Array<Scalar, BlockSize, 1>>(block.data());
-    m_outerIndex(Index(outer) + 1)++;
+    m_outerIndex(outer + 1)++;
     ++nnz;
   }
 
   // Trim to actual number of unique blocks.
   m_innerIndex.conservativeResize(nnz);
-  m_values.conservativeResize(nnz * Index(BlockSize));
+  m_values.conservativeResize(nnz * BlockSize);
 
   // Convert per-outer block counts to prefix sums.
   for (Index j = 0; j < m_blockOuterSize; ++j) {
@@ -712,7 +710,7 @@ template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typena
 SparseMatrix<Scalar_, Options_, StorageIndex_>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::toSparse() const {
   SparseMatrix<Scalar_, Options_, StorageIndex_> result(rows(), cols());
-  result.reserve(nonZeroBlocks() * Index(BlockSize));
+  result.reserve(nonZeroBlocks() * BlockSize);
 
   if (!IsRowMajor) {
     // ColMajor: outer = block-column J.  Emit scalar columns J*BlockCols+c
@@ -795,7 +793,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
 
   Index nBlocks = result.m_outerIndex(result.m_blockOuterSize);
   result.m_innerIndex.resize(nBlocks);
-  result.m_values.setZero(nBlocks * Index(BlockSize));
+  result.m_values.setZero(nBlocks * BlockSize);
 
   // Pass 2: scatter each scalar entry directly into its position within the
   // pre-zeroed block value array.
@@ -818,11 +816,11 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
       // ColMajor: outer=col, inner=row → offset = localOuter*BlockRows_ + localInner
       // RowMajor: outer=row, inner=col → offset = localInner*BlockRows_ + localOuter
       Index localOuter = absOuter % BlockOuterSize;
-      Index localInner = Index(innerIdx) % BlockInnerSize;
-      Index offset = IsRowMajor ? (localInner * Index(BlockRows_) + localOuter)
-                                      : (localOuter * Index(BlockRows_) + localInner);
+      Index localInner = innerIdx % BlockInnerSize;
+      Index offset = IsRowMajor ? (localInner * BlockRows_ + localOuter)
+                                      : (localOuter * BlockRows_ + localInner);
 
-      result.m_values(blockId * Index(BlockSize) + offset) = it.value();
+      result.m_values(blockId * BlockSize + offset) = it.value();
     }
   }
 
@@ -845,24 +843,24 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   // Pre-allocate worst case (union of both sparsity patterns).
   Index maxNnz = nonZeroBlocks() + other.nonZeroBlocks();
   result.m_innerIndex.resize(maxNnz);
-  result.m_values.resize(maxNnz * Index(BlockSize));
+  result.m_values.resize(maxNnz * BlockSize);
 
   Index nnz = 0;
 
   for (Index J = 0; J < m_blockOuterSize; ++J) {
     result.m_outerIndex(J) = StorageIndex_(nnz);
 
-    Index aId = static_cast<Index>(m_outerIndex(J));
-    Index aEnd = static_cast<Index>(m_outerIndex(J + 1));
-    Index bId = static_cast<Index>(other.m_outerIndex(J));
-    Index bEnd = static_cast<Index>(other.m_outerIndex(J + 1));
+    Index aId = m_outerIndex(J);
+    Index aEnd = m_outerIndex(J + 1);
+    Index bId = other.m_outerIndex(J);
+    Index bEnd = other.m_outerIndex(J + 1);
 
     while (aId < aEnd || bId < bEnd) {
       bool hasA = aId < aEnd;
       bool hasB = bId < bEnd;
       // Use -1 as a sentinel "infinity" for the absent side (inner indices >= 0).
-      Index aInner = hasA ? static_cast<Index>(m_innerIndex(aId)) : Index(-1);
-      Index bInner = hasB ? static_cast<Index>(other.m_innerIndex(bId)) : Index(-1);
+      Index aInner = hasA ? m_innerIndex(aId) : -1;
+      Index bInner = hasB ? other.m_innerIndex(bId) : -1;
 
       BlockType block;
       StorageIndex_ inner;
@@ -884,7 +882,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       }
 
       result.m_innerIndex(nnz) = inner;
-      result.m_values.segment(nnz * Index(BlockSize), Index(BlockSize)) =
+      result.m_values.segment(nnz * BlockSize, BlockSize) =
           Map<const Array<Scalar, BlockSize, 1>>(block.data());
       ++nnz;
     }
@@ -893,7 +891,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 
   // Trim to actual size.
   result.m_innerIndex.conservativeResize(nnz);
-  result.m_values.conservativeResize(nnz * Index(BlockSize));
+  result.m_values.conservativeResize(nnz * BlockSize);
 
   return result;
 }
@@ -923,7 +921,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   // For RowMajor: mask / accum indexed by block-col (size = cBlockCols).
   Index maskSize = IsRowMajor ? cBlockCols : cBlockRows;
   Array<uint8_t, Dynamic, 1> mask = Array<uint8_t, Dynamic, 1>::Zero(maskSize);
-  Array<Scalar_, Dynamic, 1> accumData(maskSize * Index(ResultBlockSize));
+  Array<Scalar_, Dynamic, 1> accumData(maskSize * ResultBlockSize);
   Array<Index, Dynamic, 1> indices(maskSize);
   Index nIndices = 0;
 
@@ -931,7 +929,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   Index cOuterSize = result.m_blockOuterSize;
   Index maxResultNnz = cBlockRows * cBlockCols;
   result.m_innerIndex.resize(maxResultNnz);
-  result.m_values.resize(maxResultNnz * Index(ResultBlockSize));
+  result.m_values.resize(maxResultNnz * ResultBlockSize);
   Index nnz = 0;
 
   for (Index out = 0; out < cOuterSize; ++out) {
@@ -948,11 +946,11 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
           Index bI = m_innerIndex(lhsId);
           if (!mask(bI)) {
             mask(bI) = 1;
-            Map<ResultBlock>(accumData.data() + bI * Index(ResultBlockSize)).noalias() =
+            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() =
                 blockRef(lhsId) * Bkj;
             indices(nIndices++) = bI;
           } else {
-            Map<ResultBlock>(accumData.data() + bI * Index(ResultBlockSize)).noalias() +=
+            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() +=
                 blockRef(lhsId) * Bkj;
           }
         }
@@ -968,11 +966,11 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
           Index J = rhs.m_innerIndex(rhsId);
           if (!mask(J)) {
             mask(J) = 1;
-            Map<ResultBlock>(accumData.data() + J * Index(ResultBlockSize)).noalias() =
+            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() =
                 Aik * rhs.blockRef(rhsId);
             indices(nIndices++) = J;
           } else {
-            Map<ResultBlock>(accumData.data() + J * Index(ResultBlockSize)).noalias() +=
+            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() +=
                 Aik * rhs.blockRef(rhsId);
           }
         }
@@ -984,8 +982,8 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
     for (Index ki = 0; ki < nIndices; ++ki) {
       Index idx = indices(ki);
       result.m_innerIndex(nnz) = StorageIndex_(idx);
-      result.m_values.segment(nnz * Index(ResultBlockSize), Index(ResultBlockSize)) =
-          Map<const Array<Scalar_, ResultBlockSize, 1>>(accumData.data() + idx * Index(ResultBlockSize));
+      result.m_values.segment(nnz * ResultBlockSize, ResultBlockSize) =
+          Map<const Array<Scalar_, ResultBlockSize, 1>>(accumData.data() + idx * ResultBlockSize);
       mask(idx) = 0;
       ++nnz;
     }
@@ -995,7 +993,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 
   // Trim to actual number of result blocks.
   result.m_innerIndex.conservativeResize(nnz);
-  result.m_values.conservativeResize(nnz * Index(ResultBlockSize));
+  result.m_values.conservativeResize(nnz * ResultBlockSize);
 
   return result;
 }
@@ -1037,25 +1035,25 @@ class BlockSparseTriangularView {
     BSM result(m.blockRows(), m.blockCols());
     Index maxNnz = m.nonZeroBlocks();
     result.m_innerIndex.resize(maxNnz);
-    result.m_values.resize(maxNnz * Index(BlockSize));
+    result.m_values.resize(maxNnz * BlockSize);
     Index nnz = 0;
 
     for (Index out = 0; out < m.m_blockOuterSize; ++out) {
       result.m_outerIndex(out) = StorageIndex(nnz);
       for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(m.m_innerIndex(id));
+        Index inner = m.m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
         result.m_innerIndex(nnz) = StorageIndex(inner);
-        result.m_values.segment(nnz * Index(BlockSize), Index(BlockSize)) =
-            m.m_values.segment(id * Index(BlockSize), Index(BlockSize));
+        result.m_values.segment(nnz * BlockSize, BlockSize) =
+            m.m_values.segment(id * BlockSize, BlockSize);
         ++nnz;
       }
     }
     result.m_outerIndex(m.m_blockOuterSize) = StorageIndex(nnz);
     result.m_innerIndex.conservativeResize(nnz);
-    result.m_values.conservativeResize(nnz * Index(BlockSize));
+    result.m_values.conservativeResize(nnz * BlockSize);
     return result;
   }
 
@@ -1088,12 +1086,12 @@ class BlockSparseTriangularView {
     ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
     for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out) {
       for (Index id = m_matrix.m_outerIndex(out); id < m_matrix.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(m_matrix.m_innerIndex(id));
+        Index inner = m_matrix.m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
-            m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+        result.middleRows(bi * BlockRows, BlockRows).noalias() +=
+            m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
       }
     }
     return result;
@@ -1112,12 +1110,12 @@ class BlockSparseTriangularView {
     ResultType result = ResultType::Zero(lhs.rows(), tri.m_matrix.cols());
     for (Index out = 0; out < tri.m_matrix.m_blockOuterSize; ++out) {
       for (Index id = tri.m_matrix.m_outerIndex(out); id < tri.m_matrix.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(tri.m_matrix.m_innerIndex(id));
+        Index inner = tri.m_matrix.m_innerIndex(id);
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.middleCols(bj * Index(BlockCols), Index(BlockCols)).noalias() +=
-            lhs.middleCols(bi * Index(BlockRows), Index(BlockRows)) * tri.m_matrix.blockRef(id);
+        result.middleCols(bj * BlockCols, BlockCols).noalias() +=
+            lhs.middleCols(bi * BlockRows, BlockRows) * tri.m_matrix.blockRef(id);
       }
     }
     return result;
@@ -1211,14 +1209,14 @@ class BlockSparseTriangularView {
             .template triangularView<DiagMode>()
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
-          x.template middleRows<BlockRows>(Index(*it) * BlockRows).noalias() -=
+          x.template middleRows<BlockRows>(*it * BlockRows).noalias() -=
               m_matrix.blockRef(it - innerPtr) *
               x.template middleRows<BlockRows>(k * BlockRows);
       } else {
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
               m_matrix.blockRef(it - innerPtr) *
-              x.template middleRows<BlockRows>(Index(*it) * BlockRows);
+              x.template middleRows<BlockRows>(*it * BlockRows);
         m_matrix.blockRef(diag_ptr - innerPtr)
             .template triangularView<DiagMode>()
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
@@ -1258,7 +1256,7 @@ class BlockSparseTriangularView {
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
               adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
-              x.template middleRows<BlockRows>(Index(*it) * BlockRows);
+              x.template middleRows<BlockRows>(*it * BlockRows);
         adjoint_if<Conjugate>(
             m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
@@ -1267,7 +1265,7 @@ class BlockSparseTriangularView {
             m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
-          x.template middleRows<BlockRows>(Index(*it) * BlockRows).noalias() -=
+          x.template middleRows<BlockRows>(*it * BlockRows).noalias() -=
               adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
               x.template middleRows<BlockRows>(k * BlockRows);
       }
@@ -1329,7 +1327,7 @@ class BlockSparseSelfAdjointView {
     Index nDiag = 0, nOff = 0;
     for (Index out = 0; out < m.m_blockOuterSize; ++out)
       for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(m.m_innerIndex(id));
+        Index inner = m.m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
@@ -1339,25 +1337,25 @@ class BlockSparseSelfAdjointView {
     Index nTotal = nDiag + 2 * nOff;
 
     Array<StorageIndex, Dynamic, 1> brows(nTotal), bcols(nTotal);
-    Array<Scalar, Dynamic, 1> bvals(nTotal * Index(BlockSize));
+    Array<Scalar, Dynamic, 1> bvals(nTotal * BlockSize);
 
     Index k = 0;
     for (Index out = 0; out < m.m_blockOuterSize; ++out)
       for (Index id = m.m_outerIndex(out); id < m.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(m.m_innerIndex(id));
+        Index inner = m.m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
 
         brows(k) = StorageIndex(bi);
         bcols(k) = StorageIndex(bj);
-        Map<BlockType>(bvals.data() + k * Index(BlockSize)) = m.blockRef(id);
+        Map<BlockType>(bvals.data() + k * BlockSize) = m.blockRef(id);
         ++k;
 
         if (bi != bj) {
           brows(k) = StorageIndex(bj);
           bcols(k) = StorageIndex(bi);
-          Map<BlockType>(bvals.data() + k * Index(BlockSize)) = m.blockRef(id).adjoint();
+          Map<BlockType>(bvals.data() + k * BlockSize) = m.blockRef(id).adjoint();
           ++k;
         }
       }
@@ -1374,16 +1372,16 @@ class BlockSparseSelfAdjointView {
 
     BSM result(m.blockRows(), m.blockCols());
     result.m_innerIndex.resize(nTotal);
-    result.m_values.resize(nTotal * Index(BlockSize));
+    result.m_values.resize(nTotal * BlockSize);
 
     for (Index ki = 0; ki < nTotal; ++ki) {
       Index pi = perm(ki);
       StorageIndex outer = IsRowMajor ? brows(pi) : bcols(pi);
       StorageIndex inner = IsRowMajor ? bcols(pi) : brows(pi);
-      result.m_outerIndex(Index(outer) + 1)++;
+      result.m_outerIndex(outer + 1)++;
       result.m_innerIndex(ki) = inner;
-      result.m_values.segment(ki * Index(BlockSize), Index(BlockSize)) =
-          bvals.segment(pi * Index(BlockSize), Index(BlockSize));
+      result.m_values.segment(ki * BlockSize, BlockSize) =
+          bvals.segment(pi * BlockSize, BlockSize);
     }
     for (Index j = 0; j < result.m_blockOuterSize; ++j)
       result.m_outerIndex(j + 1) += result.m_outerIndex(j);
@@ -1430,25 +1428,25 @@ class BlockSparseSelfAdjointView {
 
     for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out)
       for (Index id = m_matrix.m_outerIndex(out); id < m_matrix.m_outerIndex(out + 1); ++id) {
-        Index inner = Index(m_matrix.m_innerIndex(id));
+        Index inner = m_matrix.m_innerIndex(id);
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
 
         if (bi == bj) {
           if constexpr (DiagIsSelfAdjoint) {
-            result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
+            result.middleRows(bi * BlockRows, BlockRows).noalias() +=
                 m_matrix.blockRef(id).template selfadjointView<DiagUpLo>() *
-                rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+                rhs.middleRows(bj * BlockCols, BlockCols);
           } else {
-            result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
-                m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
+            result.middleRows(bi * BlockRows, BlockRows).noalias() +=
+                m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
           }
         } else {
-          result.middleRows(bi * Index(BlockRows), Index(BlockRows)).noalias() +=
-              m_matrix.blockRef(id) * rhs.middleRows(bj * Index(BlockCols), Index(BlockCols));
-          result.middleRows(bj * Index(BlockRows), Index(BlockRows)).noalias() +=
-              m_matrix.blockRef(id).adjoint() * rhs.middleRows(bi * Index(BlockRows), Index(BlockRows));
+          result.middleRows(bi * BlockRows, BlockRows).noalias() +=
+              m_matrix.blockRef(id) * rhs.middleRows(bj * BlockCols, BlockCols);
+          result.middleRows(bj * BlockRows, BlockRows).noalias() +=
+              m_matrix.blockRef(id).adjoint() * rhs.middleRows(bi * BlockRows, BlockRows);
         }
       }
     return result;
@@ -1481,7 +1479,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
 
   // Count entries per new outer (= old inner).
   for (Index id = 0; id < nonZeroBlocks(); ++id)
-    result.m_outerIndex(Index(m_innerIndex(id)) + 1)++;
+    result.m_outerIndex(m_innerIndex(id) + 1)++;
 
   // Prefix sum.
   for (Index j = 0; j < result.m_blockOuterSize; ++j)
@@ -1489,7 +1487,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
 
   Index nnz = nonZeroBlocks();
   result.m_innerIndex.resize(nnz);
-  result.m_values.resize(nnz * Index(BlockSize));
+  result.m_values.resize(nnz * BlockSize);
 
   // One insertion cursor per new outer; start at the prefix-sum boundary.
   // Because we iterate oldOuter in increasing order, for each newOuter = oldInner
@@ -1498,19 +1496,19 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
 
   for (Index oldOuter = 0; oldOuter < m_blockOuterSize; ++oldOuter) {
     for (Index id = m_outerIndex(oldOuter); id < m_outerIndex(oldOuter + 1); ++id) {
-      Index newOuter = Index(m_innerIndex(id));
+      Index newOuter = m_innerIndex(id);
       Index insertAt = pos(newOuter)++;
       result.m_innerIndex(insertAt) = StorageIndex_(oldOuter);
       if constexpr (Conjugate) {
         Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
-            result.m_values.data() + insertAt * Index(BlockSize)) =
+            result.m_values.data() + insertAt * BlockSize) =
             Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
-                m_values.data() + id * Index(BlockSize)).adjoint();
+                m_values.data() + id * BlockSize).adjoint();
       } else {
         Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
-            result.m_values.data() + insertAt * Index(BlockSize)) =
+            result.m_values.data() + insertAt * BlockSize) =
             Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
-                m_values.data() + id * Index(BlockSize)).transpose();
+                m_values.data() + id * BlockSize).transpose();
       }
     }
   }
