@@ -298,6 +298,24 @@ class BlockSparseMatrix {
     for (Index j = n; j <= m_blockOuterSize; ++j) m_outerIndex(j) = StorageIndex_(n);
   }
 
+  /** Initialize the block structure directly from compressed outer/inner index arrays,
+   *  zero-initializing all block values.
+   *
+   *  \p outerPtr  has size blockCols+1 (ColMajor) or blockRows+1 (RowMajor).
+   *  \p innerPtr  has size nnzBlocks.
+   */
+  void setFromOuterInner(Index blockRows, Index blockCols, Index nnzBlocks,
+                         const StorageIndex_* outerPtr, const StorageIndex_* innerPtr) {
+    m_blockOuterSize = IsRowMajor ? blockRows : blockCols;
+    m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
+    m_outerIndex.resize(m_blockOuterSize + 1);
+    m_innerIndex.resize(nnzBlocks);
+    m_values.resize(nnzBlocks * Index(BlockSize));
+    m_values.setZero();
+    for (Index j = 0; j <= m_blockOuterSize; ++j) m_outerIndex(j) = outerPtr[j];
+    for (Index k = 0; k < nnzBlocks; ++k) m_innerIndex(k) = innerPtr[k];
+  }
+
   // -------------------------------------------------------------------------
   // Assembly
   // -------------------------------------------------------------------------
@@ -1105,8 +1123,164 @@ class BlockSparseTriangularView {
     return result;
   }
 
+  // ---- Triangular solve -------------------------------------------------------
+
+  /** Solve T * x = rhs in-place. Requires square blocks.
+   *  ColMajor Lower: forward sub, diagonal first per column.
+   *  ColMajor Upper: backward sub, diagonal last per column.
+   *  RowMajor Lower: forward sub, diagonal last per row.
+   *  RowMajor Upper: backward sub, diagonal first per row.
+   */
+  template <typename Derived>
+  void solveInPlace(MatrixBase<Derived>& x) const {
+    doSolveImpl<false, false>(x.derived());
+  }
+
+  /** Proxy returned by transpose(): solveInPlace solves T^T x = b. */
+  struct TransposeReturnType {
+    const BlockSparseTriangularView& m_tri;
+    template <typename Derived>
+    void solveInPlace(MatrixBase<Derived>& x) const {
+      m_tri.template doSolveImpl<true, false>(x.derived());
+    }
+  };
+
+  /** Proxy returned by adjoint(): solveInPlace solves T^H x = b. */
+  struct AdjointReturnType {
+    const BlockSparseTriangularView& m_tri;
+    template <typename Derived>
+    void solveInPlace(MatrixBase<Derived>& x) const {
+      m_tri.template doSolveImpl<true, true>(x.derived());
+    }
+  };
+
+  TransposeReturnType transpose() const { return {*this}; }
+  AdjointReturnType   adjoint()   const { return {*this}; }
+
  private:
   const BSM& m_matrix;
+
+  // adjoint_if<Conj>(m): returns m.adjoint() when Conj==true, m.transpose() otherwise.
+  // Works with any Eigen expression (MatrixBase, TriangularView, …).
+  template <typename T>
+  static decltype(std::declval<T>().adjoint())
+  adjoint_if_run(const T& m, std::true_type) { return m.adjoint(); }
+
+  template <typename T>
+  static decltype(std::declval<T>().transpose())
+  adjoint_if_run(const T& m, std::false_type) { return m.transpose(); }
+
+  template <bool Conj, typename T>
+  static decltype(adjoint_if_run(std::declval<T>(), std::integral_constant<bool, Conj>{}))
+  adjoint_if(const T& m) {
+    return adjoint_if_run(m, std::integral_constant<bool, Conj>{});
+  }
+
+  // Non-transposed solve for both storage orders.
+  //
+  // diagFirst = (IsUpper == IsRowMajor): ColMajor Lower→first, ColMajor Upper→last,
+  //                                      RowMajor Lower→last,  RowMajor Upper→first.
+  // Loop direction: forward for Lower, backward for Upper (same for both storage orders).
+  // ColMajor: solve diagonal first, then scatter  x[inner] -= blk * x[k].
+  // RowMajor: gather x[k] -= blk * x[inner] first, then solve diagonal.
+  template <typename Derived>
+  void doSolveDirect(Derived& x) const {
+    static_assert(BlockRows == BlockCols, "BlockSparseTriangularView::solveInPlace requires square blocks");
+    constexpr int  DiagMode  = IsUpper ? Upper : Lower;
+    constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
+    const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
+    eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
+
+    const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
+    const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
+
+    Index outerStart = IsUpper ? nb - 1 : 0;
+    Index outerEnd   = IsUpper ? -1 : nb;
+    constexpr Index kStep  = IsUpper ? -1 : 1;
+
+    for (Index k = outerStart; k != outerEnd; k += kStep) {
+      const StorageIndex* beg = innerPtr + outerPtr[k];
+      const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      if (beg == end) continue;
+      const StorageIndex* diag_ptr = diagFirst ? beg     : end - 1;
+      const StorageIndex* off_beg  = diagFirst ? beg + 1 : beg;
+      const StorageIndex* off_end  = diagFirst ? end     : end - 1;
+      eigen_assert(*diag_ptr == k);
+      EIGEN_IF_CONSTEXPR (!BSM::IsRowMajor) {
+        m_matrix.blockRef(diag_ptr - innerPtr)
+            .template triangularView<DiagMode>()
+            .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
+        for (const StorageIndex* it = off_beg; it != off_end; ++it)
+          x.template middleRows<BlockRows>(Index(*it) * BlockRows).noalias() -=
+              m_matrix.blockRef(it - innerPtr) *
+              x.template middleRows<BlockRows>(k * BlockRows);
+      } else {
+        for (const StorageIndex* it = off_beg; it != off_end; ++it)
+          x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
+              m_matrix.blockRef(it - innerPtr) *
+              x.template middleRows<BlockRows>(Index(*it) * BlockRows);
+        m_matrix.blockRef(diag_ptr - innerPtr)
+            .template triangularView<DiagMode>()
+            .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
+      }
+    }
+  }
+
+  // Transposed/adjoint solve for both storage orders.
+  //
+  // Loop direction: forward for Upper, backward for Lower (same for both storage orders).
+  // ColMajor: gather x[k] -= adj(blk) * x[inner] first, then solve adj(diagonal).
+  // RowMajor: solve adj(diagonal) first, then scatter x[inner] -= adj(blk) * x[k].
+  template <bool Conjugate, typename Derived>
+  void doSolveTransposed(Derived& x) const {
+    static_assert(BlockRows == BlockCols, "BlockSparseTriangularView::solveInPlace requires square blocks");
+    constexpr int  DiagMode  = IsUpper ? Upper : Lower;
+    constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
+    const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
+    eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
+
+    const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
+    const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
+
+    Index outerStart = IsUpper ? 0 : nb - 1;
+    Index outerEnd   = IsUpper ? nb : -1;
+    constexpr Index kStep  = IsUpper ? 1 : -1;
+
+    for (Index k = outerStart; k != outerEnd; k += kStep) {
+      const StorageIndex* beg = innerPtr + outerPtr[k];
+      const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      if (beg == end) continue;
+      const StorageIndex* diag_ptr = diagFirst ? beg     : end - 1;
+      const StorageIndex* off_beg  = diagFirst ? beg + 1 : beg;
+      const StorageIndex* off_end  = diagFirst ? end     : end - 1;
+      eigen_assert(*diag_ptr == k);
+      EIGEN_IF_CONSTEXPR (!BSM::IsRowMajor) {
+        for (const StorageIndex* it = off_beg; it != off_end; ++it)
+          x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
+              adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
+              x.template middleRows<BlockRows>(Index(*it) * BlockRows);
+        adjoint_if<Conjugate>(
+            m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
+            .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
+      } else {
+        adjoint_if<Conjugate>(
+            m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
+            .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
+        for (const StorageIndex* it = off_beg; it != off_end; ++it)
+          x.template middleRows<BlockRows>(Index(*it) * BlockRows).noalias() -=
+              adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
+              x.template middleRows<BlockRows>(k * BlockRows);
+      }
+    }
+  }
+
+  template <bool Transposed, bool Conjugate, typename Derived>
+  void doSolveImpl(Derived& x) const {
+    EIGEN_IF_CONSTEXPR (!Transposed)
+      doSolveDirect(x);
+    else
+      doSolveTransposed<Conjugate>(x);
+  }
 };
 
 // =============================================================================
