@@ -154,7 +154,7 @@ class BlockSparseMatrix {
   // -------------------------------------------------------------------------
 
   /** Default constructor; creates a 0×0 matrix. */
-  BlockSparseMatrix() : m_blockOuterSize(0), m_blockInnerSize(0) {
+  BlockSparseMatrix() : m_blockOuterSize(0), m_blockInnerSize(0), m_allocatedBlocks(0) {
     m_outerIndex.resize(1);
     m_outerIndex(0) = StorageIndex(0);
   }
@@ -162,7 +162,8 @@ class BlockSparseMatrix {
   /** Construct a zero matrix with the given number of block-rows and block-columns. */
   BlockSparseMatrix(Index blockRows, Index blockCols)
       : m_blockOuterSize(IsRowMajor ? blockRows : blockCols),
-        m_blockInnerSize(IsRowMajor ? blockCols : blockRows) {
+        m_blockInnerSize(IsRowMajor ? blockCols : blockRows),
+        m_allocatedBlocks(0) {
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_outerIndex.setZero();
   }
@@ -192,9 +193,11 @@ class BlockSparseMatrix {
   Index blockInnerSize() const { return m_blockInnerSize; }
 
   /** Number of stored (structurally non-zero) blocks. */
-  Index nonZeroBlocks() const { return m_innerIndex.size(); }
+  Index nonZeroBlocks() const { return m_outerIndex(m_blockOuterSize); }
   /** Total number of stored scalar coefficients (= nonZeroBlocks() * BlockRows * BlockCols). */
   Index nonZeros() const { return nonZeroBlocks() * BlockSize; }
+  /** Number of blocks for which storage is currently allocated (capacity). */
+  Index allocatedBlocks() const { return m_allocatedBlocks; }
 
   // -------------------------------------------------------------------------
   // Raw pointer access (for interoperability)
@@ -269,22 +272,31 @@ class BlockSparseMatrix {
   // Resize / clear
   // -------------------------------------------------------------------------
 
-  /** Resize to \a blockRows × \a blockCols blocks and set all blocks to zero. */
+  /** Resize to \a blockRows × \a blockCols blocks and set the logical nnz to zero.
+   *  Allocated block storage is retained; call squeeze() to release it. */
   void resize(Index blockRows, Index blockCols) {
     m_blockOuterSize = IsRowMajor ? blockRows : blockCols;
     m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_outerIndex.setZero();
-    m_innerIndex.resize(0);
-    m_values.resize(0);
   }
 
-  /** Clear all stored blocks while keeping the matrix dimensions. */
+  /** Clear all stored blocks (logical nnz → 0) while keeping dimensions and allocated storage. */
   void setZero() {
     m_outerIndex.resize(m_blockOuterSize + 1);
     m_outerIndex.setZero();
-    m_innerIndex.resize(0);
-    m_values.resize(0);
+  }
+
+  /** Pre-allocate storage for at least \a n blocks without changing the logical sparsity pattern.
+   *  Existing block data is preserved up to min(n, nonZeroBlocks()). */
+  void reserve(Index n) {
+    if (n > m_allocatedBlocks) conservativeResizeBlockStorage_(n);
+  }
+
+  /** Release any excess allocated block storage so that allocatedBlocks() == nonZeroBlocks(). */
+  void squeeze() {
+    Index nnz = nonZeroBlocks();
+    if (nnz < m_allocatedBlocks) conservativeResizeBlockStorage_(nnz);
   }
 
   /** Fill the matrix with the block identity: the min(blockRows,blockCols) diagonal blocks
@@ -296,8 +308,7 @@ class BlockSparseMatrix {
     EIGEN_STATIC_ASSERT(BlockRows_ == BlockCols_, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     Index n = std::min(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
-    m_innerIndex.resize(n);
-    m_values.resize(n * BlockSize);
+    resizeBlockStorage_(n);
     m_values.setZero();
     for (StorageIndex_ i = 0; i < StorageIndex_(n); ++i) {
       m_outerIndex(i) = i;
@@ -319,8 +330,7 @@ class BlockSparseMatrix {
     m_blockOuterSize = IsRowMajor ? blockRows : blockCols;
     m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
     m_outerIndex.resize(m_blockOuterSize + 1);
-    m_innerIndex.resize(nnzBlocks);
-    m_values.resize(nnzBlocks * BlockSize);
+    resizeBlockStorage_(nnzBlocks);
     m_values.setZero();
     for (Index j = 0; j <= m_blockOuterSize; ++j) m_outerIndex(j) = outerPtr[j];
     for (Index k = 0; k < nnzBlocks; ++k) m_innerIndex(k) = innerPtr[k];
@@ -559,6 +569,21 @@ class BlockSparseMatrix {
  private:
   template <bool Conjugate>
   BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_> transposeImpl() const;
+
+  // Resize both block storage arrays non-conservatively and update the capacity counter.
+  void resizeBlockStorage_(Index n) {
+    m_innerIndex.resize(n);
+    m_values.resize(n * BlockSize);
+    m_allocatedBlocks = n;
+  }
+
+  // Resize both block storage arrays conservatively (preserving existing data) and update capacity.
+  void conservativeResizeBlockStorage_(Index n) {
+    m_innerIndex.conservativeResize(n);
+    m_values.conservativeResize(n * BlockSize);
+    m_allocatedBlocks = n;
+  }
+
   // -------------------------------------------------------------------------
   // Storage
   // -------------------------------------------------------------------------
@@ -566,10 +591,11 @@ class BlockSparseMatrix {
   Index m_blockInnerSize;  // block-rows (ColMajor) or block-cols (RowMajor)
 
   Array<StorageIndex, Dynamic, 1> m_outerIndex;  // size: m_blockOuterSize + 1
-  Array<StorageIndex, Dynamic, 1> m_innerIndex;  // size: nonZeroBlocks()
-  // Block values stored consecutively in column-major order; block k occupies
+  Array<StorageIndex, Dynamic, 1> m_innerIndex;  // allocated for m_allocatedBlocks entries
+  // Block values stored consecutively; block k occupies
   // m_values[k*BlockSize .. (k+1)*BlockSize - 1].
-  Array<Scalar, Dynamic, 1> m_values;  // size: nonZeroBlocks() * BlockSize
+  Array<Scalar, Dynamic, 1> m_values;  // allocated for m_allocatedBlocks * BlockSize scalars
+  Index m_allocatedBlocks;             // capacity: inner/values arrays hold this many blocks
 
   // -------------------------------------------------------------------------
   // MultiInnerIterator
@@ -678,8 +704,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   // Reset and pre-allocate (worst case: all n triplets are distinct blocks).
   m_outerIndex.resize(m_blockOuterSize + 1);
   m_outerIndex.setZero();
-  m_innerIndex.resize(n);
-  m_values.resize(n * BlockSize);
+  resizeBlockStorage_(n);
 
   Index nnz = 0;
   k = 0;
@@ -707,8 +732,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   }
 
   // Trim to actual number of unique blocks.
-  m_innerIndex.conservativeResize(nnz);
-  m_values.conservativeResize(nnz * BlockSize);
+  conservativeResizeBlockStorage_(nnz);
 
   // Convert per-outer block counts to prefix sums.
   for (Index j = 0; j < m_blockOuterSize; ++j) {
@@ -806,8 +830,8 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
     result.m_outerIndex(j + 1) += result.m_outerIndex(j);
 
   Index nBlocks = result.m_outerIndex(result.m_blockOuterSize);
-  result.m_innerIndex.resize(nBlocks);
-  result.m_values.setZero(nBlocks * BlockSize);
+  result.resizeBlockStorage_(nBlocks);
+  result.m_values.setZero();
 
   // Pass 2: scatter each scalar entry directly into its position within the
   // pre-zeroed block value array.
@@ -855,8 +879,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 
   // Pre-allocate worst case (union of both sparsity patterns).
   Index maxNnz = nonZeroBlocks() + other.nonZeroBlocks();
-  result.m_innerIndex.resize(maxNnz);
-  result.m_values.resize(maxNnz * BlockSize);
+  result.resizeBlockStorage_(maxNnz);
 
   Index nnz = 0;
 
@@ -903,8 +926,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   result.m_outerIndex(m_blockOuterSize) = StorageIndex_(nnz);
 
   // Trim to actual size.
-  result.m_innerIndex.conservativeResize(nnz);
-  result.m_values.conservativeResize(nnz * BlockSize);
+  result.conservativeResizeBlockStorage_(nnz);
 
   return result;
 }
@@ -941,8 +963,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   // Pre-allocate result storage (worst case = dense block pattern).
   Index cOuterSize = result.m_blockOuterSize;
   Index maxResultNnz = cBlockRows * cBlockCols;
-  result.m_innerIndex.resize(maxResultNnz);
-  result.m_values.resize(maxResultNnz * ResultBlockSize);
+  result.resizeBlockStorage_(maxResultNnz);
   Index nnz = 0;
 
   for (Index out = 0; out < cOuterSize; ++out) {
@@ -1005,8 +1026,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   result.m_outerIndex(cOuterSize) = StorageIndex_(nnz);
 
   // Trim to actual number of result blocks.
-  result.m_innerIndex.conservativeResize(nnz);
-  result.m_values.conservativeResize(nnz * ResultBlockSize);
+  result.conservativeResizeBlockStorage_(nnz);
 
   return result;
 }
@@ -1046,9 +1066,7 @@ class BlockSparseTriangularView {
   BSM eval() const {
     const BSM& m = m_matrix;
     BSM result(m.blockRows(), m.blockCols());
-    Index maxNnz = m.nonZeroBlocks();
-    result.m_innerIndex.resize(maxNnz);
-    result.m_values.resize(maxNnz * BlockSize);
+    result.resizeBlockStorage_(m.nonZeroBlocks());
     Index nnz = 0;
 
     for (Index out = 0; out < m.m_blockOuterSize; ++out) {
@@ -1065,8 +1083,7 @@ class BlockSparseTriangularView {
       }
     }
     result.m_outerIndex(m.m_blockOuterSize) = StorageIndex(nnz);
-    result.m_innerIndex.conservativeResize(nnz);
-    result.m_values.conservativeResize(nnz * BlockSize);
+    result.conservativeResizeBlockStorage_(nnz);
     return result;
   }
 
@@ -1368,8 +1385,7 @@ class BlockSparseSelfAdjointView {
     });
 
     BSM result(m.blockRows(), m.blockCols());
-    result.m_innerIndex.resize(nTotal);
-    result.m_values.resize(nTotal * BlockSize);
+    result.resizeBlockStorage_(nTotal);
 
     for (Index ki = 0; ki < nTotal; ++ki) {
       Index pi = perm(ki);
@@ -1485,8 +1501,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
     result.m_outerIndex(j + 1) += result.m_outerIndex(j);
 
   Index nnz = nonZeroBlocks();
-  result.m_innerIndex.resize(nnz);
-  result.m_values.resize(nnz * BlockSize);
+  result.resizeBlockStorage_(nnz);
 
   // One insertion cursor per new outer; start at the prefix-sum boundary.
   // Because we iterate oldOuter in increasing order, for each newOuter = oldInner
