@@ -23,6 +23,16 @@ namespace Eigen {
 template <typename, int>        class BlockSparseTriangularView;
 template <typename, int, bool>  class BlockSparseSelfAdjointView;
 
+namespace internal {
+// Returns m.adjoint() when Conj==true, m.transpose() otherwise.
+// Works with any Eigen expression (MatrixBase, TriangularView, …).
+template <bool Conj, typename T>
+decltype(auto) adjoint_if(const T& m) {
+  EIGEN_IF_CONSTEXPR (Conj) return m.adjoint();
+  else return m.transpose();
+}
+}  // namespace internal
+
 /** \class BlockTriplet
  * \ingroup SparseCore_Module
  * \brief A (blockRow, blockCol, blockValue) triplet for assembling a BlockSparseMatrix.
@@ -1158,22 +1168,6 @@ class BlockSparseTriangularView {
  private:
   const BSM& m_matrix;
 
-  // adjoint_if<Conj>(m): returns m.adjoint() when Conj==true, m.transpose() otherwise.
-  // Works with any Eigen expression (MatrixBase, TriangularView, …).
-  template <typename T>
-  static decltype(std::declval<T>().adjoint())
-  adjoint_if_run(const T& m, std::true_type) { return m.adjoint(); }
-
-  template <typename T>
-  static decltype(std::declval<T>().transpose())
-  adjoint_if_run(const T& m, std::false_type) { return m.transpose(); }
-
-  template <bool Conj, typename T>
-  static decltype(adjoint_if_run(std::declval<T>(), std::integral_constant<bool, Conj>{}))
-  adjoint_if(const T& m) {
-    return adjoint_if_run(m, std::integral_constant<bool, Conj>{});
-  }
-
   // Non-transposed solve for both storage orders.
   //
   // diagFirst = (IsUpper == IsRowMajor): ColMajor Lower→first, ColMajor Upper→last,
@@ -1255,18 +1249,18 @@ class BlockSparseTriangularView {
       EIGEN_IF_CONSTEXPR (!BSM::IsRowMajor) {
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
-              adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
+              internal::adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
               x.template middleRows<BlockRows>(*it * BlockRows);
-        adjoint_if<Conjugate>(
+        internal::adjoint_if<Conjugate>(
             m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
       } else {
-        adjoint_if<Conjugate>(
+        internal::adjoint_if<Conjugate>(
             m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(*it * BlockRows).noalias() -=
-              adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
+              internal::adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
               x.template middleRows<BlockRows>(k * BlockRows);
       }
     }
@@ -1499,17 +1493,11 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
       Index newOuter = m_innerIndex(id);
       Index insertAt = pos(newOuter)++;
       result.m_innerIndex(insertAt) = StorageIndex_(oldOuter);
-      if constexpr (Conjugate) {
-        Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
-            result.m_values.data() + insertAt * BlockSize) =
-            Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
-                m_values.data() + id * BlockSize).adjoint();
-      } else {
-        Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
-            result.m_values.data() + insertAt * BlockSize) =
-            Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
-                m_values.data() + id * BlockSize).transpose();
-      }
+      Map<Matrix<Scalar_, BlockCols_, BlockRows_>>(
+          result.m_values.data() + insertAt * BlockSize) =
+          internal::adjoint_if<Conjugate>(
+              Map<const Matrix<Scalar_, BlockRows_, BlockCols_>>(
+                  m_values.data() + id * BlockSize));
     }
   }
   return result;
