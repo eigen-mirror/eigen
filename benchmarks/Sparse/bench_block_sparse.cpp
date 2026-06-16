@@ -2,6 +2,19 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Benchmark: SparseMatrix vs BlockSparseMatrix, real and complex scalars.
+//
+// Naming convention:
+//   BM_Sm_*         — SparseMatrix (standard Eigen sparse)
+//   BM_BSM_*        — BlockSparseMatrix
+//   *_SpMV          — sparse × dense vector (GEMV)
+//   *_TriMV         — triangular-view × dense vector
+//   *_SymmMV        — selfadjoint-view × dense vector
+//   *_TriSolve      — triangular solve in-place
+//   BM_Sm_Sm_*      — SparseMatrix × SparseMatrix
+//   BM_BSM_BSM_*    — BlockSparseMatrix × BlockSparseMatrix
+//   DiagT           — DiagIsTriangular=true (diagonal blocks are actually triangular)
+//   DiagNSA         — DiagIsSelfAdjoint=false with Hermitian diagonal blocks
+//   DiagSA          — DiagIsSelfAdjoint=true with Hermitian diagonal blocks
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Sparse>
@@ -59,7 +72,7 @@ static void buildPair(int nB, int nnzPerCol, unsigned seed,
 }
 
 // ---------------------------------------------------------------------------
-// Build an upper-triangular block-sparse pair.
+// Build an upper-triangular block-sparse pair (diagonal blocks are general).
 // forSolve=true → diagonal blocks diagonally dominant (well-conditioned).
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
@@ -105,8 +118,49 @@ static void buildUpperTriPair(int nB, int nnzPerCol, unsigned seed,
 }
 
 // ---------------------------------------------------------------------------
+// Build an upper-triangular pair with actually-triangular diagonal blocks
+// (strict lower triangle zeroed). Valid for DiagIsTriangular=true.
+// ---------------------------------------------------------------------------
+template <typename Scalar, int B>
+static void buildActuallyTriPair(int nB, int nnzPerCol, unsigned seed,
+                                 BlockSparseMatrix<Scalar, ColMajor, B, B>& bsm,
+                                 SparseMatrix<Scalar>& sm) {
+  using BSM     = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  using BT      = typename BSM::BlockType;
+  using Triplet = typename BSM::TripletType;
+
+  std::mt19937 rng(seed);
+  std::uniform_int_distribution<int> rowDist(0, nB - 1);
+  std::normal_distribution<double>   vd;
+
+  std::vector<Triplet> triplets;
+  triplets.reserve(nB * nnzPerCol);
+  for (int j = 0; j < nB; ++j) {
+    BT diag = BT::Zero();
+    for (int r = 0; r < B; ++r)
+      for (int c = r; c < B; ++c)  // upper triangle only
+        diag(r, c) = randVal<Scalar>(rng, vd);
+    triplets.emplace_back(j, j, diag);
+
+    std::set<int> rows;
+    while ((int)rows.size() < std::min(nnzPerCol - 1, j))
+      rows.insert(rowDist(rng) % j);
+    for (int bi : rows) {
+      BT blk;
+      for (int r = 0; r < B; ++r)
+        for (int c = 0; c < B; ++c)
+          blk(r, c) = randVal<Scalar>(rng, vd);
+      triplets.emplace_back(bi, j, blk);
+    }
+  }
+  bsm = BSM(nB, nB);
+  bsm.setFromTriplets(triplets.begin(), triplets.end());
+  sm = bsm.toSparse();
+}
+
+// ---------------------------------------------------------------------------
 // Build an upper-triangular pair with Hermitian diagonal blocks.
-// Makes DiagIsSelfAdjoint=true semantically correct.
+// Valid for DiagIsSelfAdjoint=true.
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
 static void buildHermDiagUpperTriPair(int nB, int nnzPerCol, unsigned seed,
@@ -127,7 +181,7 @@ static void buildHermDiagUpperTriPair(int nB, int nnzPerCol, unsigned seed,
     for (int r = 0; r < B; ++r)
       for (int c = 0; c < B; ++c)
         raw(r, c) = randVal<Scalar>(rng, vd);
-    BT diag = (raw + raw.adjoint()) / Scalar(2);  // Hermitian for complex, symmetric for real
+    BT diag = (raw + raw.adjoint()) / Scalar(2);
     triplets.emplace_back(j, j, diag);
 
     std::set<int> rows;
@@ -147,10 +201,10 @@ static void buildHermDiagUpperTriPair(int nB, int nnzPerCol, unsigned seed,
 }
 
 // ---------------------------------------------------------------------------
-// Addition
+// Sparse×Sparse: Addition
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseAdd(benchmark::State& state) {
+static void BM_Sm_Sm_Add(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> smA, smB, smC;
   BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
@@ -161,7 +215,7 @@ static void BM_SparseAdd(benchmark::State& state) {
 }
 
 template <typename Scalar, int B>
-static void BM_BlockSparseAdd(benchmark::State& state) {
+static void BM_BSM_BSM_Add(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsmA, bsmB, bsmC; SparseMatrix<Scalar> smTmp;
@@ -172,10 +226,10 @@ static void BM_BlockSparseAdd(benchmark::State& state) {
 }
 
 // ---------------------------------------------------------------------------
-// SpGEMV
+// Sparse×Dense: GEMV
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseGEMV(benchmark::State& state) {
+static void BM_Sm_SpMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> sm; BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
   buildPair<Scalar, B>(nB, nnz, 1, tmp, sm);
@@ -186,7 +240,7 @@ static void BM_SparseGEMV(benchmark::State& state) {
 }
 
 template <typename Scalar, int B>
-static void BM_BlockSparseGEMV(benchmark::State& state) {
+static void BM_BSM_SpMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
@@ -198,10 +252,10 @@ static void BM_BlockSparseGEMV(benchmark::State& state) {
 }
 
 // ---------------------------------------------------------------------------
-// Triangular SpMV
+// Sparse×Dense: Triangular MV
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseTriMV(benchmark::State& state) {
+static void BM_Sm_TriMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> sm; BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
   buildUpperTriPair<Scalar, B>(nB, nnz, 1, tmp, sm);
@@ -211,23 +265,37 @@ static void BM_SparseTriMV(benchmark::State& state) {
   state.counters["n"] = sm.rows();
 }
 
+// BSM triangular view, DiagIsTriangular=false: diagonal blocks treated as triangular via triangularView<>.
 template <typename Scalar, int B>
-static void BM_BlockSparseTriMV(benchmark::State& state) {
+static void BM_BSM_TriMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
   buildUpperTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
   Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
   Matrix<Scalar, Dynamic, 1> y(bsm.rows());
-  for (auto _ : state) { y.noalias() = bsm.template triangularView<Upper>() * x; benchmark::DoNotOptimize(y.data()); }
+  for (auto _ : state) { y.noalias() = bsm.template triangularView<Upper, false>() * x; benchmark::DoNotOptimize(y.data()); }
+  state.counters["n"] = bsm.rows();
+}
+
+// BSM triangular view, DiagIsTriangular=true: diagonal blocks are actually triangular, uses full GEMV.
+template <typename Scalar, int B>
+static void BM_BSM_TriMV_DiagT(benchmark::State& state) {
+  int nB = state.range(0), nnz = state.range(1);
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
+  BSM bsm; SparseMatrix<Scalar> smTmp;
+  buildActuallyTriPair<Scalar, B>(nB, nnz, 1, bsm, smTmp);
+  Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(bsm.cols());
+  Matrix<Scalar, Dynamic, 1> y(bsm.rows());
+  for (auto _ : state) { y.noalias() = bsm.template triangularView<Upper, true>() * x; benchmark::DoNotOptimize(y.data()); }
   state.counters["n"] = bsm.rows();
 }
 
 // ---------------------------------------------------------------------------
-// Selfadjoint SpMV  (DiagIsSelfAdjoint=false, general diagonal blocks)
+// Sparse×Dense: Selfadjoint MV
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseSymmMV(benchmark::State& state) {
+static void BM_Sm_SymmMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> sm; BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
   buildUpperTriPair<Scalar, B>(nB, nnz, 1, tmp, sm);
@@ -237,8 +305,9 @@ static void BM_SparseSymmMV(benchmark::State& state) {
   state.counters["n"] = sm.rows();
 }
 
+// BSM selfadjoint view, general (non-Hermitian) diagonal blocks, DiagIsSA=false.
 template <typename Scalar, int B>
-static void BM_BlockSparseSymmMV(benchmark::State& state) {
+static void BM_BSM_SymmMV(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
@@ -249,11 +318,9 @@ static void BM_BlockSparseSymmMV(benchmark::State& state) {
   state.counters["n"] = bsm.rows();
 }
 
-// ---------------------------------------------------------------------------
-// Selfadjoint SpMV — Hermitian diagonal blocks, DiagIsSelfAdjoint=false/true
-// ---------------------------------------------------------------------------
+// BSM selfadjoint view, Hermitian diagonal blocks, DiagIsSA=false: fills diagonal via selfadjointView<>.
 template <typename Scalar, int B>
-static void BM_BlockSparseSymmMV_DiagNSA(benchmark::State& state) {
+static void BM_BSM_SymmMV_DiagNSA(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
@@ -264,8 +331,9 @@ static void BM_BlockSparseSymmMV_DiagNSA(benchmark::State& state) {
   state.counters["n"] = bsm.rows();
 }
 
+// BSM selfadjoint view, Hermitian diagonal blocks, DiagIsSA=true: full GEMV for diagonal blocks.
 template <typename Scalar, int B>
-static void BM_BlockSparseSymmMV_DiagSA(benchmark::State& state) {
+static void BM_BSM_SymmMV_DiagSA(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
@@ -277,10 +345,10 @@ static void BM_BlockSparseSymmMV_DiagSA(benchmark::State& state) {
 }
 
 // ---------------------------------------------------------------------------
-// Triangular solve
+// Sparse×Dense: Triangular solve
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseTriSolve(benchmark::State& state) {
+static void BM_Sm_TriSolve(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> sm; BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
   buildUpperTriPair<Scalar, B>(nB, nnz, 1, tmp, sm, true);
@@ -295,7 +363,7 @@ static void BM_SparseTriSolve(benchmark::State& state) {
 }
 
 template <typename Scalar, int B>
-static void BM_BlockSparseTriSolve(benchmark::State& state) {
+static void BM_BSM_TriSolve(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsm; SparseMatrix<Scalar> smTmp;
@@ -311,10 +379,10 @@ static void BM_BlockSparseTriSolve(benchmark::State& state) {
 }
 
 // ---------------------------------------------------------------------------
-// SpGEMM
+// Sparse×Sparse: Matrix multiply
 // ---------------------------------------------------------------------------
 template <typename Scalar, int B>
-static void BM_SparseMul(benchmark::State& state) {
+static void BM_Sm_Sm_Mul(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   SparseMatrix<Scalar> smA, smB, smC;
   BlockSparseMatrix<Scalar, ColMajor, B, B> tmp;
@@ -325,7 +393,7 @@ static void BM_SparseMul(benchmark::State& state) {
 }
 
 template <typename Scalar, int B>
-static void BM_BlockSparseMul(benchmark::State& state) {
+static void BM_BSM_BSM_Mul(benchmark::State& state) {
   int nB = state.range(0), nnz = state.range(1);
   using BSM = BlockSparseMatrix<Scalar, ColMajor, B, B>;
   BSM bsmA, bsmB, bsmC; SparseMatrix<Scalar> smTmp;
@@ -344,20 +412,21 @@ static void BM_BlockSparseMul(benchmark::State& state) {
 #define REG(fn, S, B) BENCHMARK(fn<S,B>)->Args({100,10})->Args({200,10})
 
 #define BENCH_TYPE(S, B) \
-  REG(BM_SparseAdd,                S, B)->Unit(US); \
-  REG(BM_BlockSparseAdd,           S, B)->Unit(US); \
-  REG(BM_SparseGEMV,               S, B)->Unit(NS); \
-  REG(BM_BlockSparseGEMV,          S, B)->Unit(NS); \
-  REG(BM_SparseTriMV,              S, B)->Unit(NS); \
-  REG(BM_BlockSparseTriMV,         S, B)->Unit(NS); \
-  REG(BM_SparseSymmMV,             S, B)->Unit(NS); \
-  REG(BM_BlockSparseSymmMV,        S, B)->Unit(NS); \
-  REG(BM_BlockSparseSymmMV_DiagNSA,S, B)->Unit(NS); \
-  REG(BM_BlockSparseSymmMV_DiagSA, S, B)->Unit(NS); \
-  REG(BM_SparseTriSolve,           S, B)->Unit(NS); \
-  REG(BM_BlockSparseTriSolve,      S, B)->Unit(NS); \
-  REG(BM_SparseMul,                S, B)->Unit(US); \
-  REG(BM_BlockSparseMul,           S, B)->Unit(US);
+  REG(BM_Sm_Sm_Add,          S, B)->Unit(US); \
+  REG(BM_BSM_BSM_Add,        S, B)->Unit(US); \
+  REG(BM_Sm_SpMV,            S, B)->Unit(NS); \
+  REG(BM_BSM_SpMV,           S, B)->Unit(NS); \
+  REG(BM_Sm_TriMV,           S, B)->Unit(NS); \
+  REG(BM_BSM_TriMV,          S, B)->Unit(NS); \
+  REG(BM_BSM_TriMV_DiagT,    S, B)->Unit(NS); \
+  REG(BM_Sm_SymmMV,          S, B)->Unit(NS); \
+  REG(BM_BSM_SymmMV,         S, B)->Unit(NS); \
+  REG(BM_BSM_SymmMV_DiagNSA, S, B)->Unit(NS); \
+  REG(BM_BSM_SymmMV_DiagSA,  S, B)->Unit(NS); \
+  REG(BM_Sm_TriSolve,        S, B)->Unit(NS); \
+  REG(BM_BSM_TriSolve,       S, B)->Unit(NS); \
+  REG(BM_Sm_Sm_Mul,          S, B)->Unit(US); \
+  REG(BM_BSM_BSM_Mul,        S, B)->Unit(US);
 
 BENCH_TYPE(double, 2)  BENCH_TYPE(cd, 2)
 BENCH_TYPE(double, 3)  BENCH_TYPE(cd, 3)
