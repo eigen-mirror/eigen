@@ -346,9 +346,11 @@ void test_block_sparse_triangular(int bN) {
   {
     BSM Au = A.template triangularView<Upper>().eval();
     DenseMat dAu = dA;
-    for (int bi = 0; bi < bN; ++bi)
+    for (int bi = 0; bi < bN; ++bi) {
       for (int bj = 0; bj < bi; ++bj)
         dAu.block(bi * B, bj * B, B, B).setZero();
+      dAu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
+    }
     VERIFY_IS_APPROX(DenseMat(Au.toSparse()), dAu);
   }
 
@@ -356,18 +358,22 @@ void test_block_sparse_triangular(int bN) {
   {
     BSM Al = A.template triangularView<Lower>().eval();
     DenseMat dAl = dA;
-    for (int bi = 0; bi < bN; ++bi)
+    for (int bi = 0; bi < bN; ++bi) {
       for (int bj = bi + 1; bj < bN; ++bj)
         dAl.block(bi * B, bj * B, B, B).setZero();
+      dAl.block(bi * B, bi * B, B, B).template triangularView<StrictlyUpper>().setZero();
+    }
     VERIFY_IS_APPROX(DenseMat(Al.toSparse()), dAl);
   }
 
   // Tri * dense and dense * Tri
   {
     DenseMat dAu = dA;
-    for (int bi = 0; bi < bN; ++bi)
+    for (int bi = 0; bi < bN; ++bi) {
       for (int bj = 0; bj < bi; ++bj)
         dAu.block(bi * B, bj * B, B, B).setZero();
+      dAu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
+    }
 
     DenseMat rhs = DenseMat::Random(N, 4);
     DenseMat lhs = DenseMat::Random(3, N);
@@ -386,11 +392,14 @@ void test_block_sparse_triangular(int bN) {
     BSM Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dB);
 
     DenseMat dAu = dA, dBu = dB;
-    for (int bi = 0; bi < bN; ++bi)
+    for (int bi = 0; bi < bN; ++bi) {
       for (int bj = 0; bj < bi; ++bj) {
         dAu.block(bi * B, bj * B, B, B).setZero();
         dBu.block(bi * B, bj * B, B, B).setZero();
       }
+      dAu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
+      dBu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
+    }
     BSM C = A.template triangularView<Upper>() + Bmat.template triangularView<Upper>();
     VERIFY_IS_APPROX(DenseMat(C.toSparse()), dAu + dBu);
   }

@@ -20,7 +20,7 @@
 namespace Eigen {
 
 // Forward declarations
-template <typename, int>        class BlockSparseTriangularView;
+template <typename, int, bool>  class BlockSparseTriangularView;
 template <typename, int, bool>  class BlockSparseSelfAdjointView;
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
 class BlockSparseMatrix;
@@ -552,13 +552,17 @@ class BlockSparseMatrix
 
   /** Returns a block-level triangular view.
    *
-   * \tparam Mode  \c Eigen::Upper or \c Eigen::Lower.  Diagonal blocks are
-   *               always included; blocks strictly outside the triangle are
-   *               ignored by all view operations.
+   * \tparam Mode             \c Eigen::Upper or \c Eigen::Lower.
+   * \tparam DiagIsTriangular When \c false (default), diagonal blocks are
+   *   treated as triangular regardless of what is stored in the unused
+   *   triangle — products use \c triangularView on the block and \c eval()
+   *   explicitly zeros the unused triangle.  When \c true, the caller
+   *   guarantees that the unused triangle of every diagonal block is already
+   *   zero; products then use a full vectorised GEMV (faster, no zeroing).
    */
-  template <int Mode>
-  BlockSparseTriangularView<BlockSparseMatrix, Mode> triangularView() const {
-    return BlockSparseTriangularView<BlockSparseMatrix, Mode>(*this);
+  template <int Mode, bool DiagIsTriangular = false>
+  BlockSparseTriangularView<BlockSparseMatrix, Mode, DiagIsTriangular> triangularView() const {
+    return BlockSparseTriangularView<BlockSparseMatrix, Mode, DiagIsTriangular>(*this);
   }
 
   /** Returns a block-level self-adjoint view.
@@ -682,7 +686,7 @@ class BlockSparseMatrix
   // Allow other instantiations of BlockSparseMatrix to access private members
   // (needed by operator*).
   template <typename, int, int, int, typename>  friend class BlockSparseMatrix;
-  template <typename, int>                      friend class BlockSparseTriangularView;
+  template <typename, int, bool>                friend class BlockSparseTriangularView;
   template <typename, int, bool>                friend class BlockSparseSelfAdjointView;
 };
 
@@ -1053,11 +1057,18 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
  * \ingroup SparseCore_Module
  * \brief Lazy block-level triangular view of a BlockSparseMatrix.
  *
- * Obtained via \c BSM::triangularView<Mode>().  All arithmetic operates only
- * on blocks in the selected triangle; the opposite triangle is never read.
- * eval() materialises the view into a new BlockSparseMatrix.
+ * Obtained via \c BSM::triangularView<Mode>() or
+ * \c BSM::triangularView<Mode, true>() (the latter asserts that the unused
+ * triangle of every diagonal block is already zero, enabling faster vectorised
+ * products without an explicit triangularView on the block).
+ *
+ * By default (\p DiagIsTriangular = \c false) diagonal blocks are treated as
+ * triangular regardless of what is stored in the unused half: products call
+ * \c block.triangularView<DiagMode>() and \c eval() zeroes the unused
+ * triangle.  Set \p DiagIsTriangular = \c true to skip that overhead when you
+ * can guarantee the unused triangle is already zero.
  */
-template <typename BSM, int Mode>
+template <typename BSM, int Mode, bool DiagIsTriangular = false>
 class BlockSparseTriangularView {
  public:
   using Scalar        = typename BSM::Scalar;
@@ -1078,8 +1089,11 @@ class BlockSparseTriangularView {
 
   // ---- Materialize ---------------------------------------------------------
 
-  /** Copy the triangular blocks into a new BSM; off-triangle blocks are dropped. */
+  /** Copy the triangular blocks into a new BSM; off-triangle blocks are dropped.
+   *  When DiagIsTriangular is false the unused triangle of each diagonal block
+   *  is explicitly zeroed in the output. */
   BSM eval() const {
+    constexpr int ZeroMode = IsUpper ? StrictlyLower : StrictlyUpper;
     const BSM& m = m_matrix;
     BSM result(m.blockRows(), m.blockCols());
     result.resizeBlockStorage_(m.nonZeroBlocks());
@@ -1095,6 +1109,11 @@ class BlockSparseTriangularView {
         result.m_innerIndex(nnz) = StorageIndex(inner);
         result.m_values.template segment<BlockSize>(nnz * BlockSize) =
             m.m_values.template segment<BlockSize>(id * BlockSize);
+        EIGEN_IF_CONSTEXPR (!DiagIsTriangular) {
+          if (bi == bj)
+            BlockMap(result.m_values.data() + nnz * BlockSize)
+                .template triangularView<ZeroMode>().setZero();
+        }
         ++nnz;
       }
     }
@@ -1136,8 +1155,14 @@ class BlockSparseTriangularView {
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
-            m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
+        constexpr int DiagMode = IsUpper ? Upper : Lower;
+        if (!DiagIsTriangular && bi == bj)
+          result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
+              m_matrix.blockRef(id).template triangularView<DiagMode>() *
+              rhs.template middleRows<BlockCols>(bj * BlockCols);
+        else
+          result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
+              m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
       }
     }
     return result;
@@ -1160,8 +1185,14 @@ class BlockSparseTriangularView {
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
-            lhs.template middleCols<BlockRows>(bi * BlockRows) * tri.m_matrix.blockRef(id);
+        constexpr int DiagMode = IsUpper ? Upper : Lower;
+        if (!DiagIsTriangular && bi == bj)
+          result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
+              lhs.template middleCols<BlockRows>(bi * BlockRows) *
+              tri.m_matrix.blockRef(id).template triangularView<DiagMode>();
+        else
+          result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
+              lhs.template middleCols<BlockRows>(bi * BlockRows) * tri.m_matrix.blockRef(id);
       }
     }
     return result;
@@ -1352,7 +1383,9 @@ class BlockSparseSelfAdjointView {
   // ---- Materialize ---------------------------------------------------------
 
   /** Build a full symmetric BSM: stored triangle + adjoint mirror of each
-   *  off-diagonal block.  Diagonal blocks are copied as-is. */
+   *  off-diagonal block.  Diagonal blocks: when DiagIsSelfAdjoint is false,
+   *  both triangles are filled from the stored triangle via selfadjointView;
+   *  when true the block is already fully populated and is copied as-is. */
   BSM eval() const {
     const BSM& m = m_matrix;
 
@@ -1381,7 +1414,11 @@ class BlockSparseSelfAdjointView {
 
         brows(k) = StorageIndex(bi);
         bcols(k) = StorageIndex(bj);
-        BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id);
+        if (!DiagIsSelfAdjoint && bi == bj)
+          BlockMap(bvals.data() + k * BlockSize) =
+              m.blockRef(id).template selfadjointView<DiagUpLo>();
+        else
+          BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id);
         ++k;
 
         if (bi != bj) {
