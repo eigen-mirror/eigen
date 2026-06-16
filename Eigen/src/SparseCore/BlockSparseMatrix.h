@@ -22,6 +22,15 @@ namespace Eigen {
 // Forward declarations
 template <typename, int>        class BlockSparseTriangularView;
 template <typename, int, bool>  class BlockSparseSelfAdjointView;
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
+class BlockSparseMatrix;
+
+/** Storage-kind tag for BlockSparseMatrix. */
+struct BlockSparse {};
+/** Evaluator shape tag for BlockSparseMatrix product dispatch. */
+struct BlockSparseShape {
+  static std::string debugName() { return "BlockSparseShape"; }
+};
 
 namespace internal {
 // Returns m.adjoint() when Conj==true, m.transpose() otherwise.
@@ -31,6 +40,32 @@ decltype(auto) adjoint_if(const T& m) {
   EIGEN_IF_CONSTEXPR (Conj) return m.adjoint();
   else return m.transpose();
 }
+template <>
+struct storage_kind_to_evaluator_kind<BlockSparse> {
+  typedef IndexBased Kind;
+};
+
+template <>
+struct storage_kind_to_shape<BlockSparse> {
+  typedef BlockSparseShape Shape;
+};
+
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
+struct traits<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>> {
+  typedef Scalar_ Scalar;
+  typedef StorageIndex_ StorageIndex;
+  typedef BlockSparse StorageKind;
+  typedef MatrixXpr XprKind;
+  enum {
+    RowsAtCompileTime = Dynamic,
+    ColsAtCompileTime = Dynamic,
+    MaxRowsAtCompileTime = Dynamic,
+    MaxColsAtCompileTime = Dynamic,
+    Options = Options_,
+    Flags = Options_ | NestByRefBit | LvalueBit,
+  };
+};
+
 }  // namespace internal
 
 /** \class BlockTriplet
@@ -116,7 +151,8 @@ class BlockTriplet {
  */
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_,
           typename StorageIndex_ = int>
-class BlockSparseMatrix {
+class BlockSparseMatrix
+    : public EigenBase<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>> {
   EIGEN_STATIC_ASSERT(BlockRows_ >= 1, BLOCKROWS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
   EIGEN_STATIC_ASSERT(BlockCols_ >= 1, BLOCKCOLS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
 
@@ -178,9 +214,9 @@ class BlockSparseMatrix {
   // -------------------------------------------------------------------------
 
   /** Total number of element rows. */
-  Index rows() const { return (IsRowMajor ? m_blockOuterSize : m_blockInnerSize) * BlockRows_; }
+  Index rows() const noexcept { return (IsRowMajor ? m_blockOuterSize : m_blockInnerSize) * BlockRows_; }
   /** Total number of element columns. */
-  Index cols() const { return (IsRowMajor ? m_blockInnerSize : m_blockOuterSize) * BlockCols_; }
+  Index cols() const noexcept { return (IsRowMajor ? m_blockInnerSize : m_blockOuterSize) * BlockCols_; }
 
   /** Number of block-rows. */
   Index blockRows() const { return IsRowMajor ? m_blockOuterSize : m_blockInnerSize; }
@@ -435,61 +471,40 @@ class BlockSparseMatrix {
 
   /** Block-sparse times dense matrix (or vector) product.
    *
-   * Returns a dense matrix.  If \a rhs has a fixed column count at compile
-   * time, that count is preserved in the result type.
+   * Returns a lazy \c Product<> expression evaluated via \c generic_product_impl.
+   * This enables fused accumulation:
+   *   \code
+   *   b.noalias()  = A * x;       // no temporary
+   *   b.noalias() += A * x;       // fused add
+   *   b.noalias() += alpha * (A * x);  // scale then add via evaluator
+   *   \endcode
    *
    * \pre  \c this->cols() == rhs.rows().
    * \pre  Scalar types must match.
    */
   template <typename OtherDerived>
-  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
+  Product<BlockSparseMatrix, OtherDerived, AliasFreeProduct>
   operator*(const MatrixBase<OtherDerived>& rhs) const {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(cols() == rhs.rows() && "BlockSparseMatrix * Dense: dimension mismatch");
-    using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
-    ResultType result = ResultType::Zero(rows(), rhs.cols());
-    for (Index out = 0; out < m_blockOuterSize; ++out) {
-      for (Index id = m_outerIndex(out); id < m_outerIndex(out + 1); ++id) {
-        Index inner = m_innerIndex(id);
-        Index bi = IsRowMajor ? out : inner;
-        Index bj = IsRowMajor ? inner : out;
-        result.template middleRows<BlockRows_>(bi * BlockRows_).noalias() +=
-            blockRef(id) * rhs.template middleRows<BlockCols_>(bj * BlockCols_);
-      }
-    }
-    return result;
+    return Product<BlockSparseMatrix, OtherDerived, AliasFreeProduct>(*this, rhs.derived());
   }
 
   /** Dense matrix (or vector) times block-sparse product (hidden friend).
    *
-   * Returns a dense matrix.  If \a lhs has a fixed row count at compile
-   * time, that count is preserved in the result type.
+   * Returns a lazy \c Product<> expression; evaluated via \c generic_product_impl.
    *
    * \pre  \c lhs.cols() == bsm.rows().
    * \pre  Scalar types must match.
    */
   template <typename OtherDerived>
-  friend Matrix<Scalar_, OtherDerived::RowsAtCompileTime, Dynamic>
+  friend Product<OtherDerived, BlockSparseMatrix, AliasFreeProduct>
   operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseMatrix& bsm) {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar_, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(lhs.cols() == bsm.rows() && "Dense * BlockSparseMatrix: dimension mismatch");
-    constexpr bool isRM = (Options_ & RowMajorBit) != 0;
-    using ResultType = Matrix<Scalar_, OtherDerived::RowsAtCompileTime, Dynamic>;
-    ResultType result = ResultType::Zero(lhs.rows(), bsm.cols());
-    for (Index out = 0; out < bsm.m_blockOuterSize; ++out) {
-      for (Index id = bsm.m_outerIndex(out); id < bsm.m_outerIndex(out + 1); ++id) {
-        Index inner = bsm.m_innerIndex(id);
-        Index bi = isRM ? out : inner;
-        Index bj = isRM ? inner : out;
-        result.template middleCols<BlockCols_>(bj * BlockCols_).noalias() +=
-            lhs.template middleCols<BlockRows_>(bi * BlockRows_) * bsm.blockRef(id);
-      }
-    }
-    return result;
+    return Product<OtherDerived, BlockSparseMatrix, AliasFreeProduct>(lhs.derived(), bsm);
   }
 
   /** Block-sparse matrix product.
@@ -1531,6 +1546,67 @@ BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::adjoint() const {
   return transposeImpl<true>();
 }
+
+namespace internal {
+
+// ---------------------------------------------------------------------------
+// generic_product_impl: BlockSparse × Dense → Dense
+// Provides evalTo / addTo / subTo / scaleAndAddTo via generic_product_impl_base.
+// ---------------------------------------------------------------------------
+template <typename Lhs, typename Rhs, int ProductType>
+struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
+    : generic_product_impl_base<
+          Lhs, Rhs, generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+
+  template <typename Dst>
+  static void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    constexpr bool IsRM = (Lhs::Options & RowMajorBit) != 0;
+    constexpr int BR = Lhs::BlockRows;
+    constexpr int BC = Lhs::BlockCols;
+    const typename Lhs::StorageIndex* outerPtr = lhs.outerIndexPtr();
+    const typename Lhs::StorageIndex* innerPtr = lhs.innerIndexPtr();
+    for (Eigen::Index out = 0; out < lhs.blockOuterSize(); ++out) {
+      for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
+        Eigen::Index inner = innerPtr[id];
+        Eigen::Index bi    = IsRM ? out : inner;
+        Eigen::Index bj    = IsRM ? inner : out;
+        dst.template middleRows<BR>(bi * BR).noalias() +=
+            alpha * lhs.blockRef(id) * rhs.template middleRows<BC>(bj * BC);
+      }
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------
+// generic_product_impl: Dense × BlockSparse → Dense
+// ---------------------------------------------------------------------------
+template <typename Lhs, typename Rhs, int ProductType>
+struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
+    : generic_product_impl_base<
+          Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+
+  template <typename Dst>
+  static void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    constexpr bool IsRM = (Rhs::Options & RowMajorBit) != 0;
+    constexpr int BR = Rhs::BlockRows;
+    constexpr int BC = Rhs::BlockCols;
+    const typename Rhs::StorageIndex* outerPtr = rhs.outerIndexPtr();
+    const typename Rhs::StorageIndex* innerPtr = rhs.innerIndexPtr();
+    for (Eigen::Index out = 0; out < rhs.blockOuterSize(); ++out) {
+      for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
+        Eigen::Index inner = innerPtr[id];
+        Eigen::Index bi    = IsRM ? out : inner;
+        Eigen::Index bj    = IsRM ? inner : out;
+        dst.template middleCols<BC>(bj * BC).noalias() +=
+            alpha * lhs.template middleCols<BR>(bi * BR) * rhs.blockRef(id);
+      }
+    }
+  }
+};
+
+}  // namespace internal
 
 }  // end namespace Eigen
 
