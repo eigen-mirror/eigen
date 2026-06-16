@@ -34,12 +34,14 @@ struct BlockSparseShape {
 
 namespace internal {
 // Returns m.adjoint() when Conj==true, m.transpose() otherwise.
-// Works with any Eigen expression (MatrixBase, TriangularView, …).
+// SFINAE overloads keep the return type concrete under C++14 (no if constexpr).
 template <bool Conj, typename T>
-decltype(auto) adjoint_if(const T& m) {
-  EIGEN_IF_CONSTEXPR (Conj) return m.adjoint();
-  else return m.transpose();
-}
+typename std::enable_if<Conj, decltype(std::declval<const T&>().adjoint())>::type
+adjoint_if(const T& m) { return m.adjoint(); }
+
+template <bool Conj, typename T>
+typename std::enable_if<!Conj, decltype(std::declval<const T&>().transpose())>::type
+adjoint_if(const T& m) { return m.transpose(); }
 template <>
 struct storage_kind_to_evaluator_kind<BlockSparse> {
   typedef IndexBased Kind;
@@ -1566,13 +1568,29 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
     constexpr int BC = Lhs::BlockCols;
     const typename Lhs::StorageIndex* outerPtr = lhs.outerIndexPtr();
     const typename Lhs::StorageIndex* innerPtr = lhs.innerIndexPtr();
+    // Branch on alpha before the loop: alpha==1 and alpha==-1 avoid creating a
+    // CwiseUnaryOp<scalar_multiple, B×B_block>, which defeats SIMD for complex scalars.
+    const bool a1  = (alpha == Scalar(1));
+    const bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < lhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
         Eigen::Index bi    = IsRM ? out : inner;
         Eigen::Index bj    = IsRM ? inner : out;
-        dst.template middleRows<BR>(bi * BR).noalias() +=
-            alpha * lhs.blockRef(id) * rhs.template middleRows<BC>(bj * BC);
+        auto dst_seg = dst.template middleRows<BR>(bi * BR);
+        auto rhs_seg = rhs.template middleRows<BC>(bj * BC);
+        if (EIGEN_PREDICT_TRUE(a1))
+          dst_seg.noalias() += lhs.blockRef(id) * rhs_seg;
+        else if (am1)
+          dst_seg.noalias() -= lhs.blockRef(id) * rhs_seg;
+        else {
+          // Materialize block×rhs_seg into a small fixed-size stack buffer, then
+          // scale by alpha.  Keeps the B×B block as a plain Map for vectorization.
+          typedef Matrix<Scalar, BR, Rhs::ColsAtCompileTime> TmpType;
+          TmpType tmp(BR, rhs.cols());
+          tmp.noalias() = lhs.blockRef(id) * rhs_seg;
+          dst_seg.noalias() += alpha * tmp;
+        }
       }
     }
   }
@@ -1594,13 +1612,25 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
     constexpr int BC = Rhs::BlockCols;
     const typename Rhs::StorageIndex* outerPtr = rhs.outerIndexPtr();
     const typename Rhs::StorageIndex* innerPtr = rhs.innerIndexPtr();
+    const bool a1  = (alpha == Scalar(1));
+    const bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < rhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
         Eigen::Index bi    = IsRM ? out : inner;
         Eigen::Index bj    = IsRM ? inner : out;
-        dst.template middleCols<BC>(bj * BC).noalias() +=
-            alpha * lhs.template middleCols<BR>(bi * BR) * rhs.blockRef(id);
+        auto dst_seg = dst.template middleCols<BC>(bj * BC);
+        auto lhs_seg = lhs.template middleCols<BR>(bi * BR);
+        if (EIGEN_PREDICT_TRUE(a1))
+          dst_seg.noalias() += lhs_seg * rhs.blockRef(id);
+        else if (am1)
+          dst_seg.noalias() -= lhs_seg * rhs.blockRef(id);
+        else {
+          typedef Matrix<Scalar, Lhs::RowsAtCompileTime, BC> TmpType;
+          TmpType tmp(lhs.rows(), BC);
+          tmp.noalias() = lhs_seg * rhs.blockRef(id);
+          dst_seg.noalias() += alpha * tmp;
+        }
       }
     }
   }
