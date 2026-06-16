@@ -117,8 +117,8 @@ class BlockTriplet {
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_,
           typename StorageIndex_ = int>
 class BlockSparseMatrix {
-  static_assert(BlockRows_ >= 1, "BlockRows must be a positive compile-time size");
-  static_assert(BlockCols_ >= 1, "BlockCols must be a positive compile-time size");
+  EIGEN_STATIC_ASSERT(BlockRows_ >= 1, BLOCKROWS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
+  EIGEN_STATIC_ASSERT(BlockCols_ >= 1, BLOCKCOLS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
 
  public:
   // -------------------------------------------------------------------------
@@ -691,7 +691,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   for (InputIterator it = begin; it != end; ++it, ++k) {
     tOuter(k) = IsRowMajor ? StorageIndex(it->row()) : StorageIndex(it->col());
     tInner(k) = IsRowMajor ? StorageIndex(it->col()) : StorageIndex(it->row());
-    Map<BlockType>(tValues.data() + k * BlockSize) = it->value();
+    BlockMap(tValues.data() + k * BlockSize) = it->value();
   }
 
   // Compute a sort permutation by (outer, inner).
@@ -713,20 +713,19 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
     StorageIndex outer = tOuter(pi);
     StorageIndex inner = tInner(pi);
 
-    BlockType block = Map<const BlockType>(tValues.data() + pi * BlockSize);
+    BlockType block = ConstBlockMap(tValues.data() + pi * BlockSize);
     ++k;
 
     // Accumulate duplicate entries at the same (outer, inner) position.
     while (k < n) {
       Index pk = perm(k);
       if (tOuter(pk) != outer || tInner(pk) != inner) break;
-      block += Map<const BlockType>(tValues.data() + pk * BlockSize);
+      block += ConstBlockMap(tValues.data() + pk * BlockSize);
       ++k;
     }
 
     m_innerIndex(nnz) = inner;
-    m_values.template segment<BlockSize>(nnz * BlockSize) =
-        Map<const Array<Scalar, BlockSize, 1>>(block.data());
+    blockRef(nnz) = block;
     m_outerIndex(outer + 1)++;
     ++nnz;
   }
@@ -918,8 +917,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       }
 
       result.m_innerIndex(nnz) = inner;
-      result.m_values.template segment<BlockSize>(nnz * BlockSize) =
-          Map<const Array<Scalar, BlockSize, 1>>(block.data());
+      result.blockRef(nnz) = block;
       ++nnz;
     }
   }
@@ -1016,8 +1014,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
     for (Index ki = 0; ki < nIndices; ++ki) {
       Index idx = indices(ki);
       result.m_innerIndex(nnz) = StorageIndex_(idx);
-      result.m_values.template segment<ResultBlockSize>(nnz * ResultBlockSize) =
-          Map<const Array<Scalar_, ResultBlockSize, 1>>(accumData.data() + idx * ResultBlockSize);
+      result.blockRef(nnz) = Map<ResultBlock>(accumData.data() + idx * ResultBlockSize);
       mask(idx) = 0;
       ++nnz;
     }
@@ -1046,9 +1043,11 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 template <typename BSM, int Mode>
 class BlockSparseTriangularView {
  public:
-  using Scalar       = typename BSM::Scalar;
-  using StorageIndex = typename BSM::StorageIndex;
-  using BlockType    = typename BSM::BlockType;
+  using Scalar        = typename BSM::Scalar;
+  using StorageIndex  = typename BSM::StorageIndex;
+  using BlockType     = typename BSM::BlockType;
+  using BlockMap      = typename BSM::BlockMap;
+  using ConstBlockMap = typename BSM::ConstBlockMap;
   static constexpr int  BlockRows  = BSM::BlockRows;
   static constexpr int  BlockCols  = BSM::BlockCols;
   static constexpr int  BlockSize  = BSM::BlockSize;
@@ -1197,7 +1196,7 @@ class BlockSparseTriangularView {
   // RowMajor: gather x[k] -= blk * x[inner] first, then solve diagonal.
   template <typename Derived>
   void doSolveDirect(Derived& x) const {
-    static_assert(BlockRows == BlockCols, "BlockSparseTriangularView::solveInPlace requires square blocks");
+    EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     constexpr int  DiagMode  = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
@@ -1245,7 +1244,7 @@ class BlockSparseTriangularView {
   // RowMajor: solve adj(diagonal) first, then scatter x[inner] -= adj(blk) * x[k].
   template <bool Conjugate, typename Derived>
   void doSolveTransposed(Derived& x) const {
-    static_assert(BlockRows == BlockCols, "BlockSparseTriangularView::solveInPlace requires square blocks");
+    EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
     constexpr int  DiagMode  = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
@@ -1315,9 +1314,11 @@ class BlockSparseTriangularView {
 template <typename BSM, int UpLo, bool DiagIsSelfAdjoint>
 class BlockSparseSelfAdjointView {
  public:
-  using Scalar       = typename BSM::Scalar;
-  using StorageIndex = typename BSM::StorageIndex;
-  using BlockType    = typename BSM::BlockType;
+  using Scalar        = typename BSM::Scalar;
+  using StorageIndex  = typename BSM::StorageIndex;
+  using BlockType     = typename BSM::BlockType;
+  using BlockMap      = typename BSM::BlockMap;
+  using ConstBlockMap = typename BSM::ConstBlockMap;
   static constexpr int  BlockRows   = BSM::BlockRows;  // == BlockCols
   static constexpr int  BlockCols   = BSM::BlockCols;
   static constexpr int  BlockSize   = BSM::BlockSize;
@@ -1363,13 +1364,13 @@ class BlockSparseSelfAdjointView {
 
         brows(k) = StorageIndex(bi);
         bcols(k) = StorageIndex(bj);
-        Map<BlockType>(bvals.data() + k * BlockSize) = m.blockRef(id);
+        BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id);
         ++k;
 
         if (bi != bj) {
           brows(k) = StorageIndex(bj);
           bcols(k) = StorageIndex(bi);
-          Map<BlockType>(bvals.data() + k * BlockSize) = m.blockRef(id).adjoint();
+          BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id).adjoint();
           ++k;
         }
       }
@@ -1449,7 +1450,7 @@ class BlockSparseSelfAdjointView {
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
 
         if (bi == bj) {
-          if constexpr (DiagIsSelfAdjoint) {
+          EIGEN_IF_CONSTEXPR (DiagIsSelfAdjoint) {
             result.template middleRows<BlockRows>(bi * BlockRows).noalias() +=
                 m_matrix.blockRef(id) * rhs.template middleRows<BlockCols>(bj * BlockCols);
           } else {
@@ -1513,11 +1514,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
       Index newOuter = m_innerIndex(id);
       Index insertAt = pos(newOuter)++;
       result.m_innerIndex(insertAt) = StorageIndex_(oldOuter);
-      Map<Matrix<Scalar_, BlockCols_, BlockRows_, Options_>>(
-          result.m_values.data() + insertAt * BlockSize) =
-          internal::adjoint_if<Conjugate>(
-              Map<const Matrix<Scalar_, BlockRows_, BlockCols_, Options_>>(
-                  m_values.data() + id * BlockSize));
+      result.blockRef(insertAt) = internal::adjoint_if<Conjugate>(blockRef(id));
     }
   }
   return result;
