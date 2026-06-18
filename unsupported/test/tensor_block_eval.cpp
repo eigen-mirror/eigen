@@ -287,7 +287,9 @@ static void test_eval_tensor_broadcast() {
 
   // Check that desc.destination() memory is not shared between two broadcast
   // materializations.
-  VerifyBlockEvaluator<T, NumDims, Layout>(input.broadcast(bcast) * input.abs().broadcast(bcast),
+  Tensor<T, NumDims, Layout> product_input(dims);
+  setRandomForBinaryProduct(product_input);
+  VerifyBlockEvaluator<T, NumDims, Layout>(product_input.broadcast(bcast) * product_input.abs().broadcast(bcast),
                                            [&bcasted_dims]() { return SkewedInnerBlock<Layout>(bcasted_dims); });
 }
 

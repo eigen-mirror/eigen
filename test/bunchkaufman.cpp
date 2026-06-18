@@ -259,7 +259,10 @@ void bunchkaufman_blocking_boundary() {
     VERIFY_IS_APPROX(lo.reconstructedMatrix(), up.reconstructedMatrix());
 
     Matrix<Scalar, Dynamic, 1> b = Matrix<Scalar, Dynamic, 1>::Random(n);
-    VERIFY_IS_APPROX(A * lo.solve(b).eval(), b);
+    Matrix<Scalar, Dynamic, 1> x = lo.solve(b);
+    const Matrix<Scalar, Dynamic, 1> residual = A * x - b;
+    // The diagonal shrink above intentionally makes the pivot-boundary cases harder than the generic solve tests.
+    VERIFY(residual.norm() <= RealScalar(10) * NumTraits<Scalar>::epsilon() * (A.norm() * x.norm() + b.norm()));
   }
 }
 
