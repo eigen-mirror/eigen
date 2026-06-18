@@ -319,11 +319,23 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs &b, Dest &x) const {
-    m_iterations = Base::maxIterations();
+    const Index max_iterations = Base::maxIterations();
+    m_iterations = max_iterations;
 
     m_error = Base::m_tolerance;
 
     bool ret = internal::bicgstabl(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, m_L);
+    Index total_iterations = m_iterations;
+    // The recursively updated residual may stop just above the requested tolerance.
+    // Restart from the current best iterate while there is still iteration budget.
+    while (ret && m_error > Base::m_tolerance && total_iterations < max_iterations) {
+      Index restart_iterations = max_iterations - total_iterations;
+      m_error = Base::m_tolerance;
+      ret = internal::bicgstabl(matrix(), b, x, Base::m_preconditioner, restart_iterations, m_error, m_L);
+      if (restart_iterations == 0) break;
+      total_iterations += restart_iterations;
+    }
+    m_iterations = total_iterations;
     m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
 
