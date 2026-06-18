@@ -39,6 +39,7 @@
 #include "src/Eigenvalues/EigenSolver.h"
 #include "src/Eigenvalues/SelfAdjointEigenSolver.h"
 #include "src/Eigenvalues/TridiagonalBisection.h"
+#include "src/Eigenvalues/TridiagonalInverseIteration.h"
 #include "src/Eigenvalues/TridiagonalEigenSolver.h"
 #include "src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h"
 #include "src/Eigenvalues/HessenbergDecomposition.h"

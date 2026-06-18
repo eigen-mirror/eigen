@@ -194,9 +194,183 @@ void tridiagonal_eigensolver_bisection() {
   }
 }
 
+// Test the inverse-iteration eigenvector stage (LAPACK xSTEIN analog): staged
+// (computeEigenvalues() followed by computeEigenvectors()), one-call compute(), and the direct
+// computeEigenvectors(diag, subdiag, eigenvalues) API.
+template <typename RealScalar>
+void tridiagonal_eigensolver_eigenvectors() {
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar tiny = (std::numeric_limits<RealScalar>::min)();
+  const double pi = 3.14159265358979323846;
+
+  // (a) Eigenvectors over the structured catalog: staged and direct APIs.
+  test::for_all_symmetric_tridiag_test_matrices<RealScalar>([&](const VectorType& diag, const VectorType& offdiag) {
+    const Index n = diag.size();
+
+    // Dense form of T for residual / reconstruction checks.
+    MatrixType T = MatrixType::Zero(n, n);
+    T.diagonal() = diag;
+    if (n > 1) {
+      T.diagonal(-1) = offdiag;
+      T.diagonal(1) = offdiag;
+    }
+    RealScalar scale = T.cwiseAbs().maxCoeff();
+    if (!(numext::isfinite)(scale)) return;  // skip non-finite inputs, like the eigenvalue path
+    if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+
+    TridiagonalEigenSolver<RealScalar> es;
+    es.computeEigenvalues(diag, offdiag);
+    if (es.info() != Success) return;
+    es.computeEigenvectors();  // staged inverse-iteration pass
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const VectorType w = es.eigenvalues();
+    const MatrixType V = es.eigenvectors();
+    VERIFY_IS_EQUAL(V.rows(), n);
+    VERIFY_IS_EQUAL(V.cols(), n);
+
+    const RealScalar tol = RealScalar(128) * RealScalar(n) * (eps * scale + tiny);
+    const RealScalar otol = RealScalar(128) * RealScalar(n) * eps;
+    // Per-column residual; stableNorm() since the catalog includes near-overflow entries.
+    for (Index i = 0; i < n; ++i) VERIFY((T * V.col(i) - w(i) * V.col(i)).stableNorm() <= tol);
+    // Orthonormality and full-spectrum reconstruction (the latter in scaled coordinates so the
+    // extreme-magnitude catalog entries cannot overflow the products).
+    VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <= otol);
+    const RealScalar recon =
+        ((V * (w / scale).asDiagonal() * V.transpose()) - (T / scale)).cwiseAbs().maxCoeff() * scale;
+    VERIFY(recon <= tol);
+
+    // The one-call compute() reproduces the staged result exactly.
+    TridiagonalEigenSolver<RealScalar> onecall;
+    onecall.compute(diag, offdiag);
+    VERIFY_IS_EQUAL(onecall.info(), Success);
+    VERIFY_IS_EQUAL((onecall.eigenvalues() - w).cwiseAbs().maxCoeff(), RealScalar(0));
+    VERIFY_IS_EQUAL((onecall.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+
+    // The direct API reproduces the staged result exactly (same eigenvalues -> same deterministic vectors).
+    TridiagonalEigenSolver<RealScalar> dir;
+    dir.computeEigenvectors(diag, offdiag, w);
+    VERIFY_IS_EQUAL(dir.eigenvectors().rows(), n);
+    VERIFY_IS_EQUAL(dir.eigenvectors().cols(), n);
+    VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+
+    // Index-subset eigenvectors: the bisection range selects a band, inverse iteration produces just
+    // those columns; check residual and that they are orthonormal among themselves.
+    if (n >= 4) {
+      const Index il = n / 4, iu = n - n / 4;
+      TridiagonalEigenSolver<RealScalar> sub;
+      sub.compute(diag, offdiag, ComputeEigenvectors, EigenvalueRange::indices(il, iu));
+      const MatrixType Vs = sub.eigenvectors();
+      const VectorType ws = sub.eigenvalues();
+      VERIFY_IS_EQUAL(Vs.rows(), n);
+      VERIFY_IS_EQUAL(Vs.cols(), iu - il);
+      for (Index k = 0; k < iu - il; ++k) VERIFY((T * Vs.col(k) - ws(k) * Vs.col(k)).stableNorm() <= tol);
+      VERIFY((Vs.transpose() * Vs - MatrixType::Identity(iu - il, iu - il)).cwiseAbs().maxCoeff() <= otol);
+    }
+  });
+
+  // (b) Closed-form 1-2-1 Toeplitz eigenvectors: v_k(j) = sin(j*(n-k)*pi/(n+1)) for the k-th
+  // (ascending) eigenvalue. An analytic, solver-independent check of the inverse-iteration vectors.
+  for (Index n : {5, 16, 33, 64}) {
+    VectorType d(n), e(n - 1);
+    test::tridiag_1_2_1(d, e);
+    TridiagonalEigenSolver<RealScalar> es(d, e);
+    const MatrixType V = es.eigenvectors();
+    for (Index k = 0; k < n; ++k) {
+      VectorType exact(n);
+      for (Index j = 0; j < n; ++j) exact(j) = RealScalar(std::sin(double(j + 1) * double(n - k) * pi / double(n + 1)));
+      exact.normalize();
+      const RealScalar err = (std::min)((V.col(k) - exact).norm(), (V.col(k) + exact).norm());
+      VERIFY(err <= RealScalar(256) * RealScalar(n) * eps);
+    }
+  }
+
+  // (c) Edge cases: fixed-size inputs, eigenvalues-only requests, subnormal-magnitude matrices,
+  // and convergence reporting.
+  {
+    // Fixed-size input vectors work for the full eigendecomposition and for subsets (the solver's
+    // own storage is dynamic).
+    Matrix<RealScalar, 4, 1> fdiag = Matrix<RealScalar, 4, 1>::Random();
+    Matrix<RealScalar, 3, 1> fsub = Matrix<RealScalar, 3, 1>::Random();
+    TridiagonalEigenSolver<RealScalar> fz;
+    fz.compute(fdiag, fsub);
+    VERIFY_IS_EQUAL(fz.info(), Success);
+    VERIFY_IS_EQUAL(fz.eigenvectors().cols(), Index(4));
+    {
+      MatrixType Tf = MatrixType::Zero(4, 4);
+      Tf.diagonal() = fdiag;
+      Tf.diagonal(-1) = fsub;
+      Tf.diagonal(1) = fsub;
+      const MatrixType Vf = fz.eigenvectors();
+      VERIFY((Vf.transpose() * Vf - MatrixType::Identity(4, 4)).cwiseAbs().maxCoeff() <= RealScalar(64) * eps);
+      VERIFY((Tf * Vf - Vf * fz.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <=
+             RealScalar(64) * eps * Tf.cwiseAbs().maxCoeff());
+    }
+
+    // An EigenvaluesOnly compute() does not produce eigenvectors; querying them is a usage error,
+    // and the staged computeEigenvectors() supplies them afterwards.
+    TridiagonalEigenSolver<RealScalar> staged;
+    staged.compute(fdiag, fsub, EigenvaluesOnly);
+    VERIFY_IS_EQUAL(staged.info(), Success);
+    VERIFY_RAISES_ASSERT(staged.eigenvectors());
+    staged.computeEigenvectors();
+    VERIFY_IS_EQUAL(staged.info(), Success);
+    VERIFY_IS_EQUAL((staged.eigenvectors() - fz.eigenvectors()).cwiseAbs().maxCoeff(), RealScalar(0));
+
+    // A matrix whose entries are all subnormal must still yield genuine unit-norm, orthonormal
+    // eigenvectors rather than all-zero columns. Inverse iteration normalizes the tridiagonal by
+    // dividing its entries directly by the largest magnitude; doing so (rather than multiplying by its
+    // reciprocal) keeps the normalization finite even when that magnitude is subnormal, where 1/scale
+    // overflows to infinity and would otherwise let the iterate underflow to zero. The eigenvalues are
+    // taken from the same matrix in a normal magnitude range (then scaled back down), so this exercises
+    // the eigenvector normalization in isolation from the eigenvalue solver.
+    {
+      const Index n = 6;
+      VectorType base_d(n), base_e(n - 1);
+      test::tridiag_1_2_1(base_d, base_e);
+      // sub_scale is subnormal and small enough that 1/sub_scale overflows to infinity.
+      const RealScalar sub_scale = (std::numeric_limits<RealScalar>::min)() / RealScalar(64);
+      const VectorType d = base_d * sub_scale, e = base_e * sub_scale;
+
+      TridiagonalEigenSolver<RealScalar> ref;
+      ref.computeEigenvalues(base_d, base_e);
+      const VectorType w_sub = ref.eigenvalues() * sub_scale;
+
+      TridiagonalEigenSolver<RealScalar> se;
+      se.computeEigenvectors(d, e, w_sub);
+      VERIFY_IS_EQUAL(se.info(), Success);
+      const MatrixType V = se.eigenvectors();
+      for (Index i = 0; i < n; ++i)
+        VERIFY(numext::abs(V.col(i).norm() - RealScalar(1)) <= RealScalar(64) * eps);  // unit norm, not all-zero
+      VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <=
+             RealScalar(64) * RealScalar(n) * eps);
+      // Residual in normal-range coordinates (the eigenvectors are invariant under the uniform scale).
+      MatrixType Tn = MatrixType::Zero(n, n);
+      Tn.diagonal() = base_d;
+      Tn.diagonal(-1) = base_e;
+      Tn.diagonal(1) = base_e;
+      for (Index i = 0; i < n; ++i)
+        VERIFY((Tn * V.col(i) - ref.eigenvalues()(i) * V.col(i)).norm() <= RealScalar(256) * RealScalar(n) * eps);
+    }
+
+    // Convergence is reported through info() rather than hard-coded to Success: inverse iteration
+    // counts the eigenvectors that fail to converge within its step limit (cf. LAPACK xSTEIN), and a
+    // well-conditioned spectrum converges fully, so that count is zero and info() is Success.
+    {
+      const Index n = 32;
+      VectorType d = VectorType::Random(n), e = VectorType::Random(n - 1);
+      TridiagonalEigenSolver<RealScalar> es2(d, e);
+      VERIFY_IS_EQUAL(es2.info(), Success);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());
+    CALL_SUBTEST_3(tridiagonal_eigensolver_eigenvectors<double>());
+    CALL_SUBTEST_4(tridiagonal_eigensolver_eigenvectors<float>());
   }
 }
