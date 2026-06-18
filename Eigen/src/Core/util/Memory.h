@@ -768,7 +768,7 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
 // We always manually re-align the result of EIGEN_ALLOCA.
 // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
 
-#if ((EIGEN_COMP_GNUC || EIGEN_COMP_CLANG) && !EIGEN_COMP_NVHPC)
+#if ((EIGEN_COMP_GNUC || EIGEN_COMP_CLANG) && !EIGEN_COMP_NVHPC && !EIGEN_COMP_ICC)
 #define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_DEFAULT_ALIGN_BYTES)
 #else
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* ptr) {
