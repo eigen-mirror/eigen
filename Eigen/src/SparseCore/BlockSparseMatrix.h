@@ -20,8 +20,10 @@
 namespace Eigen {
 
 // Forward declarations
-template <typename, int, bool>  class BlockSparseTriangularView;
-template <typename, int, bool>  class BlockSparseSelfAdjointView;
+template <typename, int, bool>
+class BlockSparseTriangularView;
+template <typename, int, bool>
+class BlockSparseSelfAdjointView;
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
 class BlockSparseMatrix;
 
@@ -36,12 +38,14 @@ namespace internal {
 // Returns m.adjoint() when Conj==true, m.transpose() otherwise.
 // SFINAE overloads keep the return type concrete under C++14 (no if constexpr).
 template <bool Conj, typename T>
-typename std::enable_if<Conj, decltype(std::declval<const T&>().adjoint())>::type
-adjoint_if(const T& m) { return m.adjoint(); }
+typename std::enable_if<Conj, decltype(std::declval<const T&>().adjoint())>::type adjoint_if(const T& m) {
+  return m.adjoint();
+}
 
 template <bool Conj, typename T>
-typename std::enable_if<!Conj, decltype(std::declval<const T&>().transpose())>::type
-adjoint_if(const T& m) { return m.transpose(); }
+typename std::enable_if<!Conj, decltype(std::declval<const T&>().transpose())>::type adjoint_if(const T& m) {
+  return m.transpose();
+}
 template <>
 struct storage_kind_to_evaluator_kind<BlockSparse> {
   using Kind = IndexBased;
@@ -80,14 +84,13 @@ struct traits<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, Stora
  * \tparam BlockCols_    Number of columns in each block.
  * \tparam StorageIndex_ Signed integer index type (default: int).
  */
-template <typename Scalar_, int BlockRows_, int BlockCols_, int Options_ = ColMajor,
-          typename StorageIndex_ = int>
+template <typename Scalar_, int BlockRows_, int BlockCols_, int Options_ = ColMajor, typename StorageIndex_ = int>
 class BlockTriplet {
  public:
   using Scalar = Scalar_;
   using StorageIndex = StorageIndex_;
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_, Options_>;
-  using BlockMapType      = Map<BlockType,       Unaligned>;
+  using BlockMapType = Map<BlockType, Unaligned>;
   using ConstBlockMapType = Map<const BlockType, Unaligned>;
 
   static constexpr int BlockSize = BlockRows_ * BlockCols_;
@@ -150,13 +153,12 @@ class BlockTriplet {
  * and BlockCols.  An implicit conversion operator to SparseMatrix is
  * also provided.
  */
-template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_,
-          typename StorageIndex_ = int>
+template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_ = int>
 class BlockSparseMatrix
     : public EigenBase<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>> {
   EIGEN_STATIC_ASSERT(BlockRows_ >= 1, BLOCKROWS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
   EIGEN_STATIC_ASSERT(BlockCols_ >= 1, BLOCKCOLS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
-  EIGEN_STATIC_ASSERT(std::is_integral<StorageIndex_>::value && std::is_signed<StorageIndex_>::value,
+  EIGEN_STATIC_ASSERT(std::is_integral<StorageIndex_>::value&& std::is_signed<StorageIndex_>::value,
                       STORAGEINDEX_MUST_BE_A_SIGNED_INTEGRAL_TYPE)
 
  public:
@@ -168,22 +170,21 @@ class BlockSparseMatrix
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_, Options_>;
   using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, Options_, StorageIndex>;
 
-  static constexpr int   Options    = Options_;
-  static constexpr Index BlockRows  = BlockRows_;
-  static constexpr Index BlockCols  = BlockCols_;
-  static constexpr bool  IsRowMajor = Options_ & RowMajorBit;
-  static constexpr Index BlockSize  = BlockRows_ * BlockCols_;
+  static constexpr int Options = Options_;
+  static constexpr Index BlockRows = BlockRows_;
+  static constexpr Index BlockCols = BlockCols_;
+  static constexpr bool IsRowMajor = Options_ & RowMajorBit;
+  static constexpr Index BlockSize = BlockRows_ * BlockCols_;
 
   // If one block occupies a power-of-two number of bytes, and the values array
   // is Eigen-allocated (guaranteed aligned to EIGEN_MAX_ALIGN_BYTES), then every
   // block pointer is aligned to min(BlockBytes, EIGEN_MAX_ALIGN_BYTES).
   static constexpr std::size_t BlockBytes = std::size_t(BlockSize) * sizeof(Scalar);
-  static constexpr int BlockMapAlignment =
-      ((BlockBytes & (BlockBytes - 1)) == 0 && BlockBytes >= 8)
-          ? int(numext::mini(BlockBytes, std::size_t(EIGEN_MAX_ALIGN_BYTES)))
-          : 0;
+  static constexpr int BlockMapAlignment = ((BlockBytes & (BlockBytes - 1)) == 0 && BlockBytes >= 8)
+                                               ? int(numext::mini(BlockBytes, std::size_t(EIGEN_MAX_ALIGN_BYTES)))
+                                               : 0;
 
-  using BlockMap      = Map<BlockType,       BlockMapAlignment>;
+  using BlockMap = Map<BlockType, BlockMapAlignment>;
   using ConstBlockMap = Map<const BlockType, BlockMapAlignment>;
 
   // -------------------------------------------------------------------------
@@ -195,9 +196,7 @@ class BlockSparseMatrix
 
   /** Construct a zero matrix with the given number of block-rows and block-columns. */
   BlockSparseMatrix(Index blockRows, Index blockCols)
-      : m_blockOuterSize(IsRowMajor ? blockRows : blockCols),
-        m_blockInnerSize(IsRowMajor ? blockCols : blockRows)
-  {}
+      : m_blockOuterSize(IsRowMajor ? blockRows : blockCols), m_blockInnerSize(IsRowMajor ? blockCols : blockRows) {}
 
   BlockSparseMatrix(const BlockSparseMatrix&) = default;
   BlockSparseMatrix(BlockSparseMatrix&&) noexcept = default;
@@ -245,13 +244,9 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
 
   /** Read-only Map to the \a k-th stored block (column-major layout within block). */
-  ConstBlockMap blockRef(Index k) const {
-    return ConstBlockMap(m_values.data() + k * BlockSize);
-  }
+  ConstBlockMap blockRef(Index k) const { return ConstBlockMap(m_values.data() + k * BlockSize); }
   /** Mutable Map to the \a k-th stored block. */
-  BlockMap blockRef(Index k) {
-    return BlockMap(m_values.data() + k * BlockSize);
-  }
+  BlockMap blockRef(Index k) { return BlockMap(m_values.data() + k * BlockSize); }
 
   // -------------------------------------------------------------------------
   // Inner iterator over blocks within one outer vector
@@ -265,10 +260,7 @@ class BlockSparseMatrix
   class InnerIterator {
    public:
     EIGEN_STRONG_INLINE InnerIterator(const BlockSparseMatrix& mat, Index outer)
-        : m_mat(mat),
-          m_id(mat.m_outerIndex(outer)),
-          m_end(mat.m_outerIndex(outer + 1)),
-          m_outer(outer) {}
+        : m_mat(mat), m_id(mat.m_outerIndex(outer)), m_end(mat.m_outerIndex(outer + 1)), m_outer(outer) {}
 
     EIGEN_STRONG_INLINE operator bool() const { return m_id < m_end; }
     EIGEN_STRONG_INLINE InnerIterator& operator++() {
@@ -340,8 +332,7 @@ class BlockSparseMatrix
     const Index n = (std::min)(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
     resizeBlockStorage_(n);
-    for (Index i = 0; i <= m_blockOuterSize; ++i)
-      m_outerIndex(i) = StorageIndex((std::min)(i, n));
+    for (Index i = 0; i <= m_blockOuterSize; ++i) m_outerIndex(i) = StorageIndex((std::min)(i, n));
     for (StorageIndex i = 0; i < n; ++i) {
       m_innerIndex(i) = i;
       blockRef(i).setIdentity();
@@ -354,8 +345,8 @@ class BlockSparseMatrix
    *  \p outerPtr  has size blockCols+1 (ColMajor) or blockRows+1 (RowMajor).
    *  \p innerPtr  has size nnzBlocks.
    */
-  void setFromOuterInner(Index blockRows, Index blockCols, Index nnzBlocks,
-                         const StorageIndex_* outerPtr, const StorageIndex_* innerPtr) {
+  void setFromOuterInner(Index blockRows, Index blockCols, Index nnzBlocks, const StorageIndex_* outerPtr,
+                         const StorageIndex_* innerPtr) {
     m_blockOuterSize = IsRowMajor ? blockRows : blockCols;
     m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
     m_outerIndex = Map<const decltype(m_outerIndex)>(outerPtr, m_blockOuterSize + 1);
@@ -475,8 +466,7 @@ class BlockSparseMatrix
    * \pre  Scalar types must match.
    */
   template <typename OtherDerived>
-  Product<BlockSparseMatrix, OtherDerived, AliasFreeProduct>
-  operator*(const MatrixBase<OtherDerived>& rhs) const {
+  Product<BlockSparseMatrix, OtherDerived, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& rhs) const {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
@@ -491,8 +481,8 @@ class BlockSparseMatrix
    * \pre  Scalar types must match.
    */
   template <typename OtherDerived>
-  friend Product<OtherDerived, BlockSparseMatrix, AliasFreeProduct>
-  operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseMatrix& bsm) {
+  friend Product<OtherDerived, BlockSparseMatrix, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& lhs,
+                                                                              const BlockSparseMatrix& bsm) {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar_, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
@@ -512,15 +502,14 @@ class BlockSparseMatrix
    * \pre  \c this->blockCols() == rhs.blockRows() (checked at runtime).
    */
   template <int RhsBlockCols>
-  BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>
-  operator*(const BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>& rhs) const;
+  BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_> operator*(
+      const BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>& rhs) const;
 
   // -------------------------------------------------------------------------
   // Approximate equality (useful for testing)
   // -------------------------------------------------------------------------
   bool isApprox(const BlockSparseMatrix& other,
-                const typename NumTraits<Scalar>::Real& prec =
-                    NumTraits<Scalar>::dummy_precision()) const {
+                const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
     return toSparse().isApprox(other.toSparse(), prec);
   }
 
@@ -606,8 +595,8 @@ class BlockSparseMatrix
   Array<StorageIndex, Dynamic, 1> m_innerIndex;  // allocated for m_allocatedBlocks entries
   // Block values stored consecutively; block k occupies
   // m_values[k*BlockSize .. (k+1)*BlockSize - 1].
-  Array<Scalar, Dynamic, 1> m_values;             // allocated for m_allocatedBlocks * BlockSize scalars
-  Index m_allocatedBlocks = 0;                    // capacity: inner/values arrays hold this many blocks
+  Array<Scalar, Dynamic, 1> m_values;  // allocated for m_allocatedBlocks * BlockSize scalars
+  Index m_allocatedBlocks = 0;         // capacity: inner/values arrays hold this many blocks
 
   // -------------------------------------------------------------------------
   // MultiInnerIterator
@@ -631,8 +620,7 @@ class BlockSparseMatrix
           m_innerPtr(mat.innerIndexPtr()),
           m_valuePtr(mat.valuePtr()),
           m_outerBase(outerBase) {
-      for (int k = 0; k < BlockOuterSize_; ++k)
-        m_pos[k] = m_outerPtr[outerBase + k];
+      for (int k = 0; k < BlockOuterSize_; ++k) m_pos[k] = m_outerPtr[outerBase + k];
       advance();
     }
 
@@ -676,9 +664,12 @@ class BlockSparseMatrix
 
   // Allow other instantiations of BlockSparseMatrix to access private members
   // (needed by operator*).
-  template <typename, int, int, int, typename>  friend class BlockSparseMatrix;
-  template <typename, int, bool>                friend class BlockSparseTriangularView;
-  template <typename, int, bool>                friend class BlockSparseSelfAdjointView;
+  template <typename, int, int, int, typename>
+  friend class BlockSparseMatrix;
+  template <typename, int, bool>
+  friend class BlockSparseTriangularView;
+  template <typename, int, bool>
+  friend class BlockSparseSelfAdjointView;
 };
 
 // =============================================================================
@@ -691,8 +682,8 @@ class BlockSparseMatrix
 
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
 template <typename InputIterator>
-void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::setFromTriplets(
-    InputIterator begin, InputIterator end) {
+void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::setFromTriplets(InputIterator begin,
+                                                                                                  InputIterator end) {
   Index n = static_cast<Index>(std::distance(begin, end));
 
   // Copy triplet coordinates and block values into Eigen arrays.
@@ -709,9 +700,8 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   // Compute a sort permutation by (outer, inner).
   Array<Index, Dynamic, 1> perm(n);
   std::iota(perm.data(), perm.data() + n, Index(0));
-  std::sort(perm.data(), perm.data() + n, [&](Index a, Index b) {
-    return tOuter(a) != tOuter(b) ? tOuter(a) < tOuter(b) : tInner(a) < tInner(b);
-  });
+  std::sort(perm.data(), perm.data() + n,
+            [&](Index a, Index b) { return tOuter(a) != tOuter(b) ? tOuter(a) < tOuter(b) : tInner(a) < tInner(b); });
 
   // Reset and pre-allocate (worst case: all n triplets are distinct blocks).
   m_outerIndex.resize(m_blockOuterSize + 1);
@@ -838,8 +828,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
   }
 
   // Prefix sum → result.m_outerIndex becomes the standard CSC/CSR outer pointer.
-  for (Index j = 0; j < result.m_blockOuterSize; ++j)
-    result.m_outerIndex(j + 1) += result.m_outerIndex(j);
+  for (Index j = 0; j < result.m_blockOuterSize; ++j) result.m_outerIndex(j + 1) += result.m_outerIndex(j);
 
   Index nBlocks = result.m_outerIndex(result.m_blockOuterSize);
   result.resizeBlockStorage_(nBlocks);
@@ -852,8 +841,8 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
     StorageIndex_ prevInnerBlock = kEmptyIndex;
 
     for (MultiInnerIterator<SpMat> it(sp, outerBlock * BlockOuterSize); it; ++it) {
-      Index absOuter = it.outer();           // absolute outer index in sp
-      StorageIndex_ innerIdx = it.index();   // inner index in sp
+      Index absOuter = it.outer();          // absolute outer index in sp
+      StorageIndex_ innerIdx = it.index();  // inner index in sp
       StorageIndex_ innerBlock = innerIdx / StorageIndex_(BlockInnerSize);
 
       if (innerBlock != prevInnerBlock) {
@@ -951,13 +940,12 @@ template <int RhsBlockCols>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>
 BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::operator*(
     const BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>& rhs) const {
-  using RhsMatrix    = BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>;
+  using RhsMatrix = BlockSparseMatrix<Scalar_, Options_, BlockCols_, RhsBlockCols, StorageIndex_>;
   using ResultMatrix = BlockSparseMatrix<Scalar_, Options_, BlockRows_, RhsBlockCols, StorageIndex_>;
-  using ResultBlock  = Matrix<Scalar_, BlockRows_, RhsBlockCols, Options_>;
+  using ResultBlock = Matrix<Scalar_, BlockRows_, RhsBlockCols, Options_>;
   constexpr int ResultBlockSize = BlockRows_ * RhsBlockCols;
 
-  eigen_assert(blockCols() == rhs.blockRows() &&
-               "BlockSparseMatrix product: lhs.blockCols() != rhs.blockRows()");
+  eigen_assert(blockCols() == rhs.blockRows() && "BlockSparseMatrix product: lhs.blockCols() != rhs.blockRows()");
 
   Index cBlockRows = blockRows();
   Index cBlockCols = rhs.blockCols();
@@ -991,12 +979,10 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
           Index bI = m_innerIndex(lhsId);
           if (!mask(bI)) {
             mask(bI) = 1;
-            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() =
-                blockRef(lhsId) * Bkj;
+            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() = blockRef(lhsId) * Bkj;
             indices(nIndices++) = bI;
           } else {
-            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() +=
-                blockRef(lhsId) * Bkj;
+            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() += blockRef(lhsId) * Bkj;
           }
         }
       }
@@ -1011,12 +997,10 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
           Index J = rhs.m_innerIndex(rhsId);
           if (!mask(J)) {
             mask(J) = 1;
-            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() =
-                Aik * rhs.blockRef(rhsId);
+            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() = Aik * rhs.blockRef(rhsId);
             indices(nIndices++) = J;
           } else {
-            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() +=
-                Aik * rhs.blockRef(rhsId);
+            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() += Aik * rhs.blockRef(rhsId);
           }
         }
       }
@@ -1063,16 +1047,16 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 template <typename BSM, int Mode, bool DiagIsTriangular = false>
 class BlockSparseTriangularView {
  public:
-  using Scalar        = typename BSM::Scalar;
-  using StorageIndex  = typename BSM::StorageIndex;
-  using BlockType     = typename BSM::BlockType;
-  using BlockMap      = typename BSM::BlockMap;
+  using Scalar = typename BSM::Scalar;
+  using StorageIndex = typename BSM::StorageIndex;
+  using BlockType = typename BSM::BlockType;
+  using BlockMap = typename BSM::BlockMap;
   using ConstBlockMap = typename BSM::ConstBlockMap;
-  static constexpr int  BlockRows  = BSM::BlockRows;
-  static constexpr int  BlockCols  = BSM::BlockCols;
-  static constexpr int  BlockSize  = BSM::BlockSize;
+  static constexpr int BlockRows = BSM::BlockRows;
+  static constexpr int BlockCols = BSM::BlockCols;
+  static constexpr int BlockSize = BSM::BlockSize;
   static constexpr bool IsRowMajor = BSM::IsRowMajor;
-  static constexpr bool IsUpper    = (Mode & Upper) != 0;
+  static constexpr bool IsUpper = (Mode & Upper) != 0;
 
   explicit BlockSparseTriangularView(const BSM& m) : m_matrix(m) {}
 
@@ -1103,8 +1087,7 @@ class BlockSparseTriangularView {
             m.m_values.template segment<BlockSize>(id * BlockSize);
         EIGEN_IF_CONSTEXPR (!DiagIsTriangular) {
           if (bi == bj)
-            BlockMap(result.m_values.data() + nnz * BlockSize)
-                .template triangularView<ZeroMode>().setZero();
+            BlockMap(result.m_values.data() + nnz * BlockSize).template triangularView<ZeroMode>().setZero();
         }
         ++nnz;
       }
@@ -1132,13 +1115,11 @@ class BlockSparseTriangularView {
   // ---- Dense products (no intermediate materialisation) --------------------
 
   template <typename OtherDerived>
-  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
-  operator*(const MatrixBase<OtherDerived>& rhs) const {
+  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime> operator*(const MatrixBase<OtherDerived>& rhs) const {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(m_matrix.cols() == rhs.rows() &&
-                 "BlockSparseTriangularView * Dense: dimension mismatch");
+    eigen_assert(m_matrix.cols() == rhs.rows() && "BlockSparseTriangularView * Dense: dimension mismatch");
     using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
     ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
     for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out) {
@@ -1161,13 +1142,12 @@ class BlockSparseTriangularView {
   }
 
   template <typename OtherDerived>
-  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>
-  operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseTriangularView& tri) {
+  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic> operator*(const MatrixBase<OtherDerived>& lhs,
+                                                                            const BlockSparseTriangularView& tri) {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(lhs.cols() == tri.m_matrix.rows() &&
-                 "Dense * BlockSparseTriangularView: dimension mismatch");
+    eigen_assert(lhs.cols() == tri.m_matrix.rows() && "Dense * BlockSparseTriangularView: dimension mismatch");
     constexpr bool isRM = BSM::IsRowMajor;
     using ResultType = Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>;
     ResultType result = ResultType::Zero(lhs.rows(), tri.m_matrix.cols());
@@ -1222,7 +1202,7 @@ class BlockSparseTriangularView {
   };
 
   TransposeReturnType transpose() const { return {*this}; }
-  AdjointReturnType   adjoint()   const { return {*this}; }
+  AdjointReturnType adjoint() const { return {*this}; }
 
  private:
   const BSM& m_matrix;
@@ -1237,7 +1217,7 @@ class BlockSparseTriangularView {
   template <typename Derived>
   void doSolveDirect(Derived& x) const {
     EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
-    constexpr int  DiagMode  = IsUpper ? Upper : Lower;
+    constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
     eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
@@ -1246,16 +1226,16 @@ class BlockSparseTriangularView {
     const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
 
     Index outerStart = IsUpper ? nb - 1 : 0;
-    Index outerEnd   = IsUpper ? -1 : nb;
-    constexpr Index kStep  = IsUpper ? -1 : 1;
+    Index outerEnd = IsUpper ? -1 : nb;
+    constexpr Index kStep = IsUpper ? -1 : 1;
 
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
       if (beg == end) continue;
-      const StorageIndex* diag_ptr = diagFirst ? beg     : end - 1;
-      const StorageIndex* off_beg  = diagFirst ? beg + 1 : beg;
-      const StorageIndex* off_end  = diagFirst ? end     : end - 1;
+      const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
+      const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;
+      const StorageIndex* off_end = diagFirst ? end : end - 1;
       eigen_assert(*diag_ptr == k);
       EIGEN_IF_CONSTEXPR (!BSM::IsRowMajor) {
         m_matrix.blockRef(diag_ptr - innerPtr)
@@ -1263,13 +1243,11 @@ class BlockSparseTriangularView {
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(*it * BlockRows).noalias() -=
-              m_matrix.blockRef(it - innerPtr) *
-              x.template middleRows<BlockRows>(k * BlockRows);
+              m_matrix.blockRef(it - innerPtr) * x.template middleRows<BlockRows>(k * BlockRows);
       } else {
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
-              m_matrix.blockRef(it - innerPtr) *
-              x.template middleRows<BlockRows>(*it * BlockRows);
+              m_matrix.blockRef(it - innerPtr) * x.template middleRows<BlockRows>(*it * BlockRows);
         m_matrix.blockRef(diag_ptr - innerPtr)
             .template triangularView<DiagMode>()
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
@@ -1285,7 +1263,7 @@ class BlockSparseTriangularView {
   template <bool Conjugate, typename Derived>
   void doSolveTransposed(Derived& x) const {
     EIGEN_STATIC_ASSERT(BlockRows == BlockCols, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
-    constexpr int  DiagMode  = IsUpper ? Upper : Lower;
+    constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     const Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
     eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
@@ -1294,28 +1272,26 @@ class BlockSparseTriangularView {
     const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
 
     Index outerStart = IsUpper ? 0 : nb - 1;
-    Index outerEnd   = IsUpper ? nb : -1;
-    constexpr Index kStep  = IsUpper ? 1 : -1;
+    Index outerEnd = IsUpper ? nb : -1;
+    constexpr Index kStep = IsUpper ? 1 : -1;
 
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
       if (beg == end) continue;
-      const StorageIndex* diag_ptr = diagFirst ? beg     : end - 1;
-      const StorageIndex* off_beg  = diagFirst ? beg + 1 : beg;
-      const StorageIndex* off_end  = diagFirst ? end     : end - 1;
+      const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
+      const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;
+      const StorageIndex* off_end = diagFirst ? end : end - 1;
       eigen_assert(*diag_ptr == k);
       EIGEN_IF_CONSTEXPR (!BSM::IsRowMajor) {
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(k * BlockRows).noalias() -=
               internal::adjoint_if<Conjugate>(m_matrix.blockRef(it - innerPtr)) *
               x.template middleRows<BlockRows>(*it * BlockRows);
-        internal::adjoint_if<Conjugate>(
-            m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
+        internal::adjoint_if<Conjugate>(m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
       } else {
-        internal::adjoint_if<Conjugate>(
-            m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
+        internal::adjoint_if<Conjugate>(m_matrix.blockRef(diag_ptr - innerPtr).template triangularView<DiagMode>())
             .solveInPlace(x.template middleRows<BlockRows>(k * BlockRows));
         for (const StorageIndex* it = off_beg; it != off_end; ++it)
           x.template middleRows<BlockRows>(*it * BlockRows).noalias() -=
@@ -1354,18 +1330,18 @@ class BlockSparseTriangularView {
 template <typename BSM, int UpLo, bool DiagIsSelfAdjoint>
 class BlockSparseSelfAdjointView {
  public:
-  using Scalar        = typename BSM::Scalar;
-  using StorageIndex  = typename BSM::StorageIndex;
-  using BlockType     = typename BSM::BlockType;
-  using BlockMap      = typename BSM::BlockMap;
+  using Scalar = typename BSM::Scalar;
+  using StorageIndex = typename BSM::StorageIndex;
+  using BlockType = typename BSM::BlockType;
+  using BlockMap = typename BSM::BlockMap;
   using ConstBlockMap = typename BSM::ConstBlockMap;
-  static constexpr int  BlockRows   = BSM::BlockRows;  // == BlockCols
-  static constexpr int  BlockCols   = BSM::BlockCols;
-  static constexpr int  BlockSize   = BSM::BlockSize;
-  static constexpr bool IsRowMajor  = BSM::IsRowMajor;
-  static constexpr bool IsUpper     = (UpLo & Upper) != 0;
+  static constexpr int BlockRows = BSM::BlockRows;  // == BlockCols
+  static constexpr int BlockCols = BSM::BlockCols;
+  static constexpr int BlockSize = BSM::BlockSize;
+  static constexpr bool IsRowMajor = BSM::IsRowMajor;
+  static constexpr bool IsUpper = (UpLo & Upper) != 0;
   // UpLo passed to Eigen's dense selfadjointView on diagonal blocks:
-  static constexpr int  DiagUpLo    = IsUpper ? Upper : Lower;
+  static constexpr int DiagUpLo = IsUpper ? Upper : Lower;
 
   explicit BlockSparseSelfAdjointView(const BSM& m) : m_matrix(m) {}
 
@@ -1388,7 +1364,10 @@ class BlockSparseSelfAdjointView {
         Index bi = IsRowMajor ? out : inner;
         Index bj = IsRowMajor ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
-        if (bi == bj) ++nDiag; else ++nOff;
+        if (bi == bj)
+          ++nDiag;
+        else
+          ++nOff;
       }
 
     Index nTotal = nDiag + 2 * nOff;
@@ -1407,8 +1386,7 @@ class BlockSparseSelfAdjointView {
         brows(k) = StorageIndex(bi);
         bcols(k) = StorageIndex(bj);
         if (!DiagIsSelfAdjoint && bi == bj)
-          BlockMap(bvals.data() + k * BlockSize) =
-              m.blockRef(id).template selfadjointView<DiagUpLo>();
+          BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id).template selfadjointView<DiagUpLo>();
         else
           BlockMap(bvals.data() + k * BlockSize) = m.blockRef(id);
         ++k;
@@ -1440,11 +1418,9 @@ class BlockSparseSelfAdjointView {
       StorageIndex inner = IsRowMajor ? bcols(pi) : brows(pi);
       result.m_outerIndex(outer + 1)++;
       result.m_innerIndex(ki) = inner;
-      result.m_values.template segment<BlockSize>(ki * BlockSize) =
-          bvals.template segment<BlockSize>(pi * BlockSize);
+      result.m_values.template segment<BlockSize>(ki * BlockSize) = bvals.template segment<BlockSize>(pi * BlockSize);
     }
-    for (Index j = 0; j < result.m_blockOuterSize; ++j)
-      result.m_outerIndex(j + 1) += result.m_outerIndex(j);
+    for (Index j = 0; j < result.m_blockOuterSize; ++j) result.m_outerIndex(j + 1) += result.m_outerIndex(j);
 
     return result;
   }
@@ -1478,13 +1454,11 @@ class BlockSparseSelfAdjointView {
    *  reconstructs the full diagonal-block product.
    */
   template <typename OtherDerived>
-  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>
-  operator*(const MatrixBase<OtherDerived>& rhs) const {
+  Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime> operator*(const MatrixBase<OtherDerived>& rhs) const {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(m_matrix.cols() == rhs.rows() &&
-                 "BlockSparseSelfAdjointView * Dense: dimension mismatch");
+    eigen_assert(m_matrix.cols() == rhs.rows() && "BlockSparseSelfAdjointView * Dense: dimension mismatch");
     using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
     ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
 
@@ -1516,8 +1490,8 @@ class BlockSparseSelfAdjointView {
 
   /** Dense × SelfAdj:  lhs * A == (A^H * lhs^H)^H == (A * lhs^H)^H for Hermitian A. */
   template <typename OtherDerived>
-  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>
-  operator*(const MatrixBase<OtherDerived>& lhs, const BlockSparseSelfAdjointView& view) {
+  friend Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic> operator*(const MatrixBase<OtherDerived>& lhs,
+                                                                            const BlockSparseSelfAdjointView& view) {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
@@ -1540,12 +1514,10 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::tra
   ResultType result(blockCols(), blockRows());
 
   // Count entries per new outer (= old inner).
-  for (Index id = 0; id < nonZeroBlocks(); ++id)
-    result.m_outerIndex(m_innerIndex(id) + 1)++;
+  for (Index id = 0; id < nonZeroBlocks(); ++id) result.m_outerIndex(m_innerIndex(id) + 1)++;
 
   // Prefix sum.
-  for (Index j = 0; j < result.m_blockOuterSize; ++j)
-    result.m_outerIndex(j + 1) += result.m_outerIndex(j);
+  for (Index j = 0; j < result.m_blockOuterSize; ++j) result.m_outerIndex(j + 1) += result.m_outerIndex(j);
 
   Index nnz = nonZeroBlocks();
   result.resizeBlockStorage_(nnz);
@@ -1586,8 +1558,7 @@ namespace internal {
 // ---------------------------------------------------------------------------
 template <typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
-    : generic_product_impl_base<
-          Lhs, Rhs, generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>> {
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>> {
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dst>
@@ -1599,13 +1570,13 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
     const typename Lhs::StorageIndex* innerPtr = lhs.innerIndexPtr();
     // Branch on alpha before the loop: alpha==1 and alpha==-1 avoid creating a
     // CwiseUnaryOp<scalar_multiple, B×B_block>, which defeats SIMD for complex scalars.
-    const bool a1  = (alpha == Scalar(1));
+    const bool a1 = (alpha == Scalar(1));
     const bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < lhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
-        Eigen::Index bi    = IsRM ? out : inner;
-        Eigen::Index bj    = IsRM ? inner : out;
+        Eigen::Index bi = IsRM ? out : inner;
+        Eigen::Index bj = IsRM ? inner : out;
         auto dst_seg = dst.template middleRows<BR>(bi * BR);
         auto rhs_seg = rhs.template middleRows<BC>(bj * BC);
         if (EIGEN_PREDICT_TRUE(a1))
@@ -1630,8 +1601,7 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
 // ---------------------------------------------------------------------------
 template <typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
-    : generic_product_impl_base<
-          Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>> {
+    : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>> {
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dst>
@@ -1641,13 +1611,13 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
     constexpr int BC = Rhs::BlockCols;
     const typename Rhs::StorageIndex* outerPtr = rhs.outerIndexPtr();
     const typename Rhs::StorageIndex* innerPtr = rhs.innerIndexPtr();
-    const bool a1  = (alpha == Scalar(1));
+    const bool a1 = (alpha == Scalar(1));
     const bool am1 = (alpha == Scalar(-1));
     for (Eigen::Index out = 0; out < rhs.blockOuterSize(); ++out) {
       for (Eigen::Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
         Eigen::Index inner = innerPtr[id];
-        Eigen::Index bi    = IsRM ? out : inner;
-        Eigen::Index bj    = IsRM ? inner : out;
+        Eigen::Index bi = IsRM ? out : inner;
+        Eigen::Index bj = IsRM ? inner : out;
         auto dst_seg = dst.template middleCols<BC>(bj * BC);
         auto lhs_seg = lhs.template middleCols<BR>(bi * BR);
         if (EIGEN_PREDICT_TRUE(a1))

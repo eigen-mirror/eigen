@@ -31,8 +31,7 @@ BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex> denseToBl
     for (Index bj = 0; bj < bCols; ++bj) {
       const Matrix<Scalar, BlockRows, BlockCols> tile =
           dense.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols);
-      if (tile.squaredNorm() > Scalar(0))
-        triplets.emplace_back(StorageIndex(bi), StorageIndex(bj), tile);
+      if (tile.squaredNorm() > Scalar(0)) triplets.emplace_back(StorageIndex(bi), StorageIndex(bj), tile);
     }
   }
 
@@ -62,12 +61,10 @@ void test_block_sparse(int bRows, int bCols) {
   for (int bi = 0; bi < bRows; ++bi) {
     for (int bj = 0; bj < bCols; ++bj) {
       if (internal::random<double>(0.0, 1.0) < 0.4) {
-        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) =
-            DenseMat::Random(BlockRows, BlockCols);
+        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) = DenseMat::Random(BlockRows, BlockCols);
       }
       if (internal::random<double>(0.0, 1.0) < 0.4) {
-        dB.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) =
-            DenseMat::Random(BlockRows, BlockCols);
+        dB.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) = DenseMat::Random(BlockRows, BlockCols);
       }
     }
   }
@@ -187,13 +184,11 @@ void test_block_sparse_product(int bM, int bK, int bN) {
 
   for (int bi = 0; bi < bM; ++bi)
     for (int bk = 0; bk < bK; ++bk)
-      if (internal::random<double>(0.0, 1.0) < 0.4)
-        dA.block(bi * B, bk * B, B, B) = DenseMat::Random(B, B);
+      if (internal::random<double>(0.0, 1.0) < 0.4) dA.block(bi * B, bk * B, B, B) = DenseMat::Random(B, B);
 
   for (int bk = 0; bk < bK; ++bk)
     for (int bj = 0; bj < bN; ++bj)
-      if (internal::random<double>(0.0, 1.0) < 0.4)
-        dB.block(bk * B, bj * B, B, B) = DenseMat::Random(B, B);
+      if (internal::random<double>(0.0, 1.0) < 0.4) dB.block(bk * B, bj * B, B, B) = DenseMat::Random(B, B);
 
   BSMA A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dA);
   BSMA Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dB);
@@ -223,8 +218,7 @@ void test_block_sparse_dense_product(int bRows, int bCols) {
   for (int bi = 0; bi < bRows; ++bi)
     for (int bj = 0; bj < bCols; ++bj)
       if (internal::random<double>(0.0, 1.0) < 0.5)
-        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) =
-            DenseMat::Random(BlockRows, BlockCols);
+        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) = DenseMat::Random(BlockRows, BlockCols);
 
   BSM A = denseToBlock<BlockRows, BlockCols, Scalar, Options, StorageIndex>(dA);
 
@@ -271,13 +265,11 @@ void test_nonsquare_block_product() {
 
   for (int bi = 0; bi < bM; ++bi)
     for (int bk = 0; bk < bK; ++bk)
-      if (internal::random<double>() > 0.0)
-        dA.block(bi * BR, bk * BC, BR, BC) = DenseMat::Random(BR, BC);
+      if (internal::random<double>() > 0.0) dA.block(bi * BR, bk * BC, BR, BC) = DenseMat::Random(BR, BC);
 
   for (int bk = 0; bk < bK; ++bk)
     for (int bj = 0; bj < bN; ++bj)
-      if (internal::random<double>() > 0.0)
-        dB.block(bk * BC, bj * BC2, BC, BC2) = DenseMat::Random(BC, BC2);
+      if (internal::random<double>() > 0.0) dB.block(bk * BC, bj * BC2, BC, BC2) = DenseMat::Random(BC, BC2);
 
   BSMA A = denseToBlock<BR, BC, Scalar, ColMajor, StorageIndex>(dA);
   BSMB Bmat = denseToBlock<BC, BC2, Scalar, ColMajor, StorageIndex>(dB);
@@ -295,7 +287,7 @@ template <int BlockRows, int BlockCols, int Options>
 void test_block_sparse_transpose(int bRows, int bCols) {
   using Scalar = double;
   using StorageIndex = int;
-  using BSM  = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
+  using BSM = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
   using BSMT = BlockSparseMatrix<Scalar, Options, BlockCols, BlockRows, StorageIndex>;
   using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
 
@@ -304,8 +296,7 @@ void test_block_sparse_transpose(int bRows, int bCols) {
   for (int bi = 0; bi < bRows; ++bi)
     for (int bj = 0; bj < bCols; ++bj)
       if (internal::random<double>(0.0, 1.0) < 0.5)
-        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) =
-            DenseMat::Random(BlockRows, BlockCols);
+        dA.block(bi * BlockRows, bj * BlockCols, BlockRows, BlockCols) = DenseMat::Random(BlockRows, BlockCols);
 
   BSM A = denseToBlock<BlockRows, BlockCols, Scalar, Options, StorageIndex>(dA);
 
@@ -337,8 +328,7 @@ void test_block_sparse_triangular(int bN) {
   DenseMat dA = DenseMat::Zero(N, N);
   for (int bi = 0; bi < bN; ++bi)
     for (int bj = 0; bj < bN; ++bj)
-      if (internal::random<double>(0.0, 1.0) < 0.5)
-        dA.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+      if (internal::random<double>(0.0, 1.0) < 0.5) dA.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
 
   BSM A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dA);
 
@@ -347,8 +337,7 @@ void test_block_sparse_triangular(int bN) {
     BSM Au = A.template triangularView<Upper>().eval();
     DenseMat dAu = dA;
     for (int bi = 0; bi < bN; ++bi) {
-      for (int bj = 0; bj < bi; ++bj)
-        dAu.block(bi * B, bj * B, B, B).setZero();
+      for (int bj = 0; bj < bi; ++bj) dAu.block(bi * B, bj * B, B, B).setZero();
       dAu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
     }
     VERIFY_IS_APPROX(DenseMat(Au.toSparse()), dAu);
@@ -359,8 +348,7 @@ void test_block_sparse_triangular(int bN) {
     BSM Al = A.template triangularView<Lower>().eval();
     DenseMat dAl = dA;
     for (int bi = 0; bi < bN; ++bi) {
-      for (int bj = bi + 1; bj < bN; ++bj)
-        dAl.block(bi * B, bj * B, B, B).setZero();
+      for (int bj = bi + 1; bj < bN; ++bj) dAl.block(bi * B, bj * B, B, B).setZero();
       dAl.block(bi * B, bi * B, B, B).template triangularView<StrictlyUpper>().setZero();
     }
     VERIFY_IS_APPROX(DenseMat(Al.toSparse()), dAl);
@@ -370,8 +358,7 @@ void test_block_sparse_triangular(int bN) {
   {
     DenseMat dAu = dA;
     for (int bi = 0; bi < bN; ++bi) {
-      for (int bj = 0; bj < bi; ++bj)
-        dAu.block(bi * B, bj * B, B, B).setZero();
+      for (int bj = 0; bj < bi; ++bj) dAu.block(bi * B, bj * B, B, B).setZero();
       dAu.block(bi * B, bi * B, B, B).template triangularView<StrictlyLower>().setZero();
     }
 
@@ -387,8 +374,7 @@ void test_block_sparse_triangular(int bN) {
     DenseMat dB = DenseMat::Zero(N, N);
     for (int bi = 0; bi < bN; ++bi)
       for (int bj = 0; bj < bN; ++bj)
-        if (internal::random<double>(0.0, 1.0) < 0.5)
-          dB.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+        if (internal::random<double>(0.0, 1.0) < 0.5) dB.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
     BSM Bmat = denseToBlock<B, B, Scalar, Options, StorageIndex>(dB);
 
     DenseMat dAu = dA, dBu = dB;
@@ -436,8 +422,7 @@ void test_block_sparse_selfadjoint(int bN) {
   // Build BSM from the upper triangle only.
   DenseMat dUpper = DenseMat::Zero(N, N);
   for (int bi = 0; bi < bN; ++bi)
-    for (int bj = bi; bj < bN; ++bj)
-      dUpper.block(bi * B, bj * B, B, B) = dFull.block(bi * B, bj * B, B, B);
+    for (int bj = bi; bj < bN; ++bj) dUpper.block(bi * B, bj * B, B, B) = dFull.block(bi * B, bj * B, B, B);
 
   BSM A = denseToBlock<B, B, Scalar, Options, StorageIndex>(dUpper);
 
@@ -487,8 +472,7 @@ void test_block_triplet_traits() {
                       BLOCKTRIPLET_MUST_BE_TRIVIALLY_COPYABLE)
   EIGEN_STATIC_ASSERT((std::is_trivially_copyable<BlockTriplet<float, 2, 3>>::value),
                       BLOCKTRIPLET_MUST_BE_TRIVIALLY_COPYABLE)
-  EIGEN_STATIC_ASSERT((std::is_standard_layout<BlockTriplet<float, 2, 2>>::value),
-                      BLOCKTRIPLET_MUST_BE_STANDARD_LAYOUT)
+  EIGEN_STATIC_ASSERT((std::is_standard_layout<BlockTriplet<float, 2, 2>>::value), BLOCKTRIPLET_MUST_BE_STANDARD_LAYOUT)
   EIGEN_STATIC_ASSERT((std::is_standard_layout<BlockTriplet<double, 4, 4>>::value),
                       BLOCKTRIPLET_MUST_BE_STANDARD_LAYOUT)
 
