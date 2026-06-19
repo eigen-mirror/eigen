@@ -123,10 +123,11 @@ class BlockTriplet {
  * (ColMajor) or compressed-row (RowMajor) format.
  *
  * \tparam Scalar_       Numeric scalar type.
- * \tparam Options_      ColMajor (0) or RowMajor.  Affects the outer
- *                       iteration direction over blocks, not the storage
- *                       layout within each block (which is always
- *                       column-major).
+ * \tparam Options_      ColMajor (0) or RowMajor.  Controls both the outer
+ *                       iteration direction over blocks and the storage
+ *                       layout within each block.  Note: vector-shaped blocks
+ *                       must use a compatible order — \c BlockCols_=1 requires
+ *                       ColMajor, \c BlockRows_=1 requires RowMajor.
  * \tparam BlockRows_    Rows per block; must be a fixed positive integer.
  * \tparam BlockCols_    Columns per block; must be a fixed positive integer.
  * \tparam StorageIndex_ Signed integer type for internal index arrays
@@ -160,6 +161,13 @@ class BlockSparseMatrix
   EIGEN_STATIC_ASSERT(BlockCols_ >= 1, BLOCKCOLS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
   EIGEN_STATIC_ASSERT(std::is_integral<StorageIndex_>::value&& std::is_signed<StorageIndex_>::value,
                       STORAGEINDEX_MUST_BE_A_SIGNED_INTEGRAL_TYPE)
+  // Eigen's Matrix<> requires: a column vector (Cols==1, Rows>1) must be ColMajor;
+  // a row vector (Rows==1, Cols>1) must be RowMajor.  Guard those cases here so
+  // the error fires at BlockSparseMatrix instantiation rather than inside BlockType.
+  EIGEN_STATIC_ASSERT(!(BlockCols_ == 1 && BlockRows_ != 1 && bool(Options_ & RowMajorBit)),
+                      INVALID_MATRIX_TEMPLATE_PARAMETERS)
+  EIGEN_STATIC_ASSERT(!(BlockRows_ == 1 && BlockCols_ != 1 && !bool(Options_ & RowMajorBit)),
+                      INVALID_MATRIX_TEMPLATE_PARAMETERS)
 
  public:
   // -------------------------------------------------------------------------
@@ -464,6 +472,9 @@ class BlockSparseMatrix
    *
    * \pre  \c this->cols() == rhs.rows().
    * \pre  Scalar types must match.
+   * \warning The result uses \c AliasFreeProduct, so assignment goes directly
+   *          through \c generic_product_impl::evalTo with no aliasing temporary.
+   *          \c x = A * x silently corrupts; use an explicit temporary if needed.
    */
   template <typename OtherDerived>
   Product<BlockSparseMatrix, OtherDerived, AliasFreeProduct> operator*(const MatrixBase<OtherDerived>& rhs) const {
@@ -692,6 +703,8 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
 
   Index k = 0;
   for (InputIterator it = begin; it != end; ++it, ++k) {
+    eigen_assert(it->row() >= 0 && it->row() < blockRows() && "setFromTriplets: block row out of range");
+    eigen_assert(it->col() >= 0 && it->col() < blockCols() && "setFromTriplets: block col out of range");
     tOuter(k) = IsRowMajor ? StorageIndex(it->row()) : StorageIndex(it->col());
     tInner(k) = IsRowMajor ? StorageIndex(it->col()) : StorageIndex(it->row());
     BlockMap(tValues.data() + k * BlockSize) = it->value();
