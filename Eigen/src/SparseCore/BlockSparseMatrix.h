@@ -44,28 +44,27 @@ typename std::enable_if<!Conj, decltype(std::declval<const T&>().transpose())>::
 adjoint_if(const T& m) { return m.transpose(); }
 template <>
 struct storage_kind_to_evaluator_kind<BlockSparse> {
-  typedef IndexBased Kind;
+  using Kind = IndexBased;
 };
 
 template <>
 struct storage_kind_to_shape<BlockSparse> {
-  typedef BlockSparseShape Shape;
+  using Shape = BlockSparseShape;
 };
 
 template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
 struct traits<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>> {
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef BlockSparse StorageKind;
-  typedef MatrixXpr XprKind;
-  enum {
-    RowsAtCompileTime = Dynamic,
-    ColsAtCompileTime = Dynamic,
-    MaxRowsAtCompileTime = Dynamic,
-    MaxColsAtCompileTime = Dynamic,
-    Options = Options_,
-    Flags = Options_ | NestByRefBit | LvalueBit,
-  };
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using StorageKind = BlockSparse;
+  using XprKind = MatrixXpr;
+
+  static constexpr Index RowsAtCompileTime = Dynamic;
+  static constexpr Index ColsAtCompileTime = Dynamic;
+  static constexpr Index MaxRowsAtCompileTime = Dynamic;
+  static constexpr Index MaxColsAtCompileTime = Dynamic;
+  static constexpr int Options = Options_;
+  static constexpr unsigned int Flags = Options_ | NestByRefBit | LvalueBit;
 };
 
 }  // namespace internal
@@ -106,8 +105,8 @@ class BlockTriplet {
   ConstBlockMapType value() const { return ConstBlockMapType(m_value); }
 
  private:
-  StorageIndex m_row = StorageIndex(0);
-  StorageIndex m_col = StorageIndex(0);
+  StorageIndex m_row = 0;
+  StorageIndex m_col = 0;
   // Flat array avoids the alignment padding that a Matrix<> member would incur.
   Scalar m_value[BlockSize];
 };
@@ -157,6 +156,8 @@ class BlockSparseMatrix
     : public EigenBase<BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>> {
   EIGEN_STATIC_ASSERT(BlockRows_ >= 1, BLOCKROWS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
   EIGEN_STATIC_ASSERT(BlockCols_ >= 1, BLOCKCOLS_MUST_BE_A_POSITIVE_COMPILE_TIME_SIZE)
+  EIGEN_STATIC_ASSERT(std::is_integral<StorageIndex_>::value && std::is_signed<StorageIndex_>::value,
+                      STORAGEINDEX_MUST_BE_A_SIGNED_INTEGRAL_TYPE)
 
  public:
   // -------------------------------------------------------------------------
@@ -167,13 +168,11 @@ class BlockSparseMatrix
   using BlockType = Matrix<Scalar, BlockRows_, BlockCols_, Options_>;
   using TripletType = BlockTriplet<Scalar, BlockRows_, BlockCols_, Options_, StorageIndex>;
 
-  enum {
-    Options = Options_,
-    BlockRows = BlockRows_,
-    BlockCols = BlockCols_,
-    IsRowMajor = (Options_ & RowMajorBit) != 0,
-    BlockSize = BlockRows_ * BlockCols_
-  };
+  static constexpr int   Options    = Options_;
+  static constexpr Index BlockRows  = BlockRows_;
+  static constexpr Index BlockCols  = BlockCols_;
+  static constexpr bool  IsRowMajor = Options_ & RowMajorBit;
+  static constexpr Index BlockSize  = BlockRows_ * BlockCols_;
 
   // If one block occupies a power-of-two number of bytes, and the values array
   // is Eigen-allocated (guaranteed aligned to EIGEN_MAX_ALIGN_BYTES), then every
@@ -181,7 +180,7 @@ class BlockSparseMatrix
   static constexpr std::size_t BlockBytes = std::size_t(BlockSize) * sizeof(Scalar);
   static constexpr int BlockMapAlignment =
       ((BlockBytes & (BlockBytes - 1)) == 0 && BlockBytes >= 8)
-          ? int(BlockBytes <= EIGEN_MAX_ALIGN_BYTES ? BlockBytes : EIGEN_MAX_ALIGN_BYTES)
+          ? int(numext::mini(BlockBytes, std::size_t(EIGEN_MAX_ALIGN_BYTES)))
           : 0;
 
   using BlockMap      = Map<BlockType,       BlockMapAlignment>;
@@ -192,19 +191,13 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
 
   /** Default constructor; creates a 0×0 matrix. */
-  BlockSparseMatrix() : m_blockOuterSize(0), m_blockInnerSize(0), m_allocatedBlocks(0) {
-    m_outerIndex.resize(1);
-    m_outerIndex(0) = StorageIndex(0);
-  }
+  BlockSparseMatrix() = default;
 
   /** Construct a zero matrix with the given number of block-rows and block-columns. */
   BlockSparseMatrix(Index blockRows, Index blockCols)
       : m_blockOuterSize(IsRowMajor ? blockRows : blockCols),
-        m_blockInnerSize(IsRowMajor ? blockCols : blockRows),
-        m_allocatedBlocks(0) {
-    m_outerIndex.resize(m_blockOuterSize + 1);
-    m_outerIndex.setZero();
-  }
+        m_blockInnerSize(IsRowMajor ? blockCols : blockRows)
+  {}
 
   BlockSparseMatrix(const BlockSparseMatrix&) = default;
   BlockSparseMatrix(BlockSparseMatrix&&) noexcept = default;
@@ -344,17 +337,15 @@ class BlockSparseMatrix
    */
   void setIdentity() {
     EIGEN_STATIC_ASSERT(BlockRows_ == BlockCols_, THIS_METHOD_IS_ONLY_FOR_SQUARE_BLOCK_MATRICES)
-    Index n = std::min(m_blockOuterSize, m_blockInnerSize);
+    const Index n = (std::min)(m_blockOuterSize, m_blockInnerSize);
     m_outerIndex.resize(m_blockOuterSize + 1);
     resizeBlockStorage_(n);
-    m_values.setZero();
-    for (StorageIndex_ i = 0; i < StorageIndex_(n); ++i) {
-      m_outerIndex(i) = i;
+    for (Index i = 0; i <= m_blockOuterSize; ++i)
+      m_outerIndex(i) = StorageIndex((std::min)(i, n));
+    for (StorageIndex i = 0; i < n; ++i) {
       m_innerIndex(i) = i;
-      Scalar* p = m_values.data() + i * BlockSize;
-      for (int d = 0; d < BlockRows_; ++d) p[d * BlockRows_ + d] = Scalar(1);
+      blockRef(i).setIdentity();
     }
-    for (Index j = n; j <= m_blockOuterSize; ++j) m_outerIndex(j) = StorageIndex_(n);
   }
 
   /** Initialize the block structure directly from compressed outer/inner index arrays,
@@ -367,11 +358,10 @@ class BlockSparseMatrix
                          const StorageIndex_* outerPtr, const StorageIndex_* innerPtr) {
     m_blockOuterSize = IsRowMajor ? blockRows : blockCols;
     m_blockInnerSize = IsRowMajor ? blockCols : blockRows;
-    m_outerIndex.resize(m_blockOuterSize + 1);
+    m_outerIndex = Map<const decltype(m_outerIndex)>(outerPtr, m_blockOuterSize + 1);
+    m_innerIndex = Map<const decltype(m_innerIndex)>(innerPtr, nnzBlocks);
     resizeBlockStorage_(nnzBlocks);
     m_values.setZero();
-    for (Index j = 0; j <= m_blockOuterSize; ++j) m_outerIndex(j) = outerPtr[j];
-    for (Index k = 0; k < nnzBlocks; ++k) m_innerIndex(k) = innerPtr[k];
   }
 
   // -------------------------------------------------------------------------
@@ -448,7 +438,7 @@ class BlockSparseMatrix
   /** Unary negation. */
   BlockSparseMatrix operator-() const {
     BlockSparseMatrix result(*this);
-    result.m_values = -result.m_values;
+    result.m_values = -m_values;
     return result;
   }
 
@@ -608,15 +598,16 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
   // Storage
   // -------------------------------------------------------------------------
-  Index m_blockOuterSize;  // block-cols (ColMajor) or block-rows (RowMajor)
-  Index m_blockInnerSize;  // block-rows (ColMajor) or block-cols (RowMajor)
+  Index m_blockOuterSize = 0;  // block-cols (ColMajor) or block-rows (RowMajor)
+  Index m_blockInnerSize = 0;  // block-rows (ColMajor) or block-cols (RowMajor)
 
-  Array<StorageIndex, Dynamic, 1> m_outerIndex;  // size: m_blockOuterSize + 1
+  Array<StorageIndex, Dynamic, 1> m_outerIndex =  // size: m_blockOuterSize + 1
+      decltype(m_outerIndex)::Zero(m_blockOuterSize + 1);
   Array<StorageIndex, Dynamic, 1> m_innerIndex;  // allocated for m_allocatedBlocks entries
   // Block values stored consecutively; block k occupies
   // m_values[k*BlockSize .. (k+1)*BlockSize - 1].
-  Array<Scalar, Dynamic, 1> m_values;  // allocated for m_allocatedBlocks * BlockSize scalars
-  Index m_allocatedBlocks;             // capacity: inner/values arrays hold this many blocks
+  Array<Scalar, Dynamic, 1> m_values;             // allocated for m_allocatedBlocks * BlockSize scalars
+  Index m_allocatedBlocks = 0;                    // capacity: inner/values arrays hold this many blocks
 
   // -------------------------------------------------------------------------
   // MultiInnerIterator
@@ -827,6 +818,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
   // BlockInnerSize: the inner dimension of each block.
   constexpr Index BlockOuterSize = IsRowMajor ? BlockRows_ : BlockCols_;
   constexpr Index BlockInnerSize = IsRowMajor ? BlockCols_ : BlockRows_;
+  constexpr StorageIndex_ kEmptyIndex = -1;
 
   using SpMat = SparseMatrix<Scalar_, Options_, StorageIndex_>;
 
@@ -835,7 +827,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
   // Pass 1: count the number of unique block-inner indices per block-outer,
   // by scanning each group of BlockOuterSize consecutive outer vectors together.
   for (Index outerBlock = 0; outerBlock < result.m_blockOuterSize; ++outerBlock) {
-    StorageIndex_ prevInnerBlock = StorageIndex_(-1);
+    StorageIndex_ prevInnerBlock = kEmptyIndex;
     for (MultiInnerIterator<SpMat> it(sp, outerBlock * BlockOuterSize); it; ++it) {
       StorageIndex_ innerBlock = it.index() / StorageIndex_(BlockInnerSize);
       if (innerBlock != prevInnerBlock) {
@@ -857,7 +849,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
   // pre-zeroed block value array.
   for (Index outerBlock = 0; outerBlock < result.m_blockOuterSize; ++outerBlock) {
     Index blockId = result.m_outerIndex(outerBlock) - 1;  // incremented on first new block
-    StorageIndex_ prevInnerBlock = StorageIndex_(-1);
+    StorageIndex_ prevInnerBlock = kEmptyIndex;
 
     for (MultiInnerIterator<SpMat> it(sp, outerBlock * BlockOuterSize); it; ++it) {
       Index absOuter = it.outer();           // absolute outer index in sp
