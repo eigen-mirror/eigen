@@ -394,8 +394,7 @@ void test_block_sparse_triangular(int bN) {
       blk.template triangularView<StrictlyLower>().setZero();
       dAu.block(bi * B, bi * B, B, B) = blk;
       for (int bj = bi + 1; bj < bN; ++bj)
-        if (internal::random<double>(0.0, 1.0) < 0.5)
-          dAu.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+        if (internal::random<double>(0.0, 1.0) < 0.5) dAu.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
     }
     BSM Au = denseToBlock<B, B, Scalar, Options, StorageIndex>(dAu);
     DenseMat rhs = DenseMat::Random(N, 3);
@@ -429,8 +428,7 @@ void test_block_sparse_triangular_solve(int bN) {
       for (int k = 0; k < B; ++k) blk(k, k) = Scalar(RealScalar(B + k + 1));
       dL.block(bi * B, bi * B, B, B) = blk;
       for (int bj = 0; bj < bi; ++bj)
-        if (internal::random<double>(0.0, 1.0) < 0.6)
-          dL.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+        if (internal::random<double>(0.0, 1.0) < 0.6) dL.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
     }
     return dL;
   };
@@ -443,8 +441,7 @@ void test_block_sparse_triangular_solve(int bN) {
       for (int k = 0; k < B; ++k) blk(k, k) = Scalar(RealScalar(B + k + 1));
       dU.block(bi * B, bi * B, B, B) = blk;
       for (int bj = bi + 1; bj < bN; ++bj)
-        if (internal::random<double>(0.0, 1.0) < 0.6)
-          dU.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
+        if (internal::random<double>(0.0, 1.0) < 0.6) dU.block(bi * B, bj * B, B, B) = DenseMat::Random(B, B);
     }
     return dU;
   };
