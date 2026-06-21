@@ -120,6 +120,30 @@ void test_block_sparse(int bRows, int bCols) {
     VERIFY_IS_APPROX(DenseMat(C.toSparse()), dC);
   }
 
+  // ---- unaryExpr ----------------------------------------------------------
+  {
+    BSM C = A.unaryExpr([](const Scalar& x) { return x * x; });
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dA.array().square().matrix());
+  }
+
+  // ---- disjunctionExpr (union sparsity) -----------------------------------
+  {
+    // sum via disjunctionExpr should match operator+
+    struct AddExpr {
+      Scalar operator()(const Scalar& a, const Scalar& b) const { return a + b; }
+      Scalar lhs(const Scalar& a) const { return a; }
+      Scalar rhs(const Scalar& b) const { return b; }
+    };
+    BSM C = A.disjunctionExpr(B, AddExpr{});
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dA + dB);
+  }
+
+  // ---- conjunctionExpr (intersection sparsity) ----------------------------
+  {
+    BSM C = A.conjunctionExpr(B, [](const Scalar& a, const Scalar& b) { return a * b; });
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dA.cwiseProduct(dB));
+  }
+
   // ---- Scalar multiplication ----------------------------------------------
   {
     const Scalar s = Scalar(3.14);

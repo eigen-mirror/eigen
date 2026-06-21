@@ -29,6 +29,7 @@ class BlockSparseMatrix;
 
 /** Storage-kind tag for BlockSparseMatrix. */
 struct BlockSparse {};
+
 /** Evaluator shape tag for BlockSparseMatrix product dispatch. */
 struct BlockSparseShape {
   static std::string debugName() { return "BlockSparseShape"; }
@@ -439,11 +440,36 @@ class BlockSparseMatrix
     return conjunctionWith_(other, CwiseMulOp_{});
   }
 
+  /** Applies a scalar unary functor to every stored nonzero, preserving the sparsity pattern. */
+  template <typename ScalarFunc>
+  BlockSparseMatrix unaryExpr(ScalarFunc func) const {
+    return withValues_([&func](const auto& v) { return v.unaryExpr(func); });
+  }
+
+  /** Applies a scalar binary functor with union sparsity.
+   *
+   * \p func must provide three members:
+   * \code
+   *   Scalar func(Scalar a, Scalar b)  // both present
+   *   Scalar func.lhs(Scalar a)        // only lhs present; rhs is implicitly zero
+   *   Scalar func.rhs(Scalar b)        // only rhs present; lhs is implicitly zero
+   * \endcode
+   */
+  template <typename ScalarFunc>
+  BlockSparseMatrix disjunctionExpr(const BlockSparseMatrix& other, ScalarFunc func) const {
+    return disjunctionWith_(other, DisjExprAdapter_<ScalarFunc>{func});
+  }
+
+  /** Applies a scalar binary functor with intersection sparsity: only block positions present
+   * in \em both matrices contribute; \p func is called as \c func(Scalar a, Scalar b). */
+  template <typename ScalarFunc>
+  BlockSparseMatrix conjunctionExpr(const BlockSparseMatrix& other, ScalarFunc func) const {
+    return conjunctionWith_(other, [&func](const auto& a, const auto& b) { return a.binaryExpr(b, func); });
+  }
+
   /** Unary negation. */
   BlockSparseMatrix operator-() const {
-    BlockSparseMatrix result(*this);
-    result.m_values = -m_values;
-    return result;
+    return withValues_([](const auto& v) { return -v; });
   }
 
   BlockSparseMatrix& operator+=(const BlockSparseMatrix& other) { return *this = *this + other; }
@@ -451,15 +477,15 @@ class BlockSparseMatrix
 
   /** Scalar multiplication (returns a new matrix). */
   BlockSparseMatrix operator*(const Scalar& s) const {
-    BlockSparseMatrix result(*this);
-    result.m_values *= s;
-    return result;
+    return withValues_([&s](const auto& v) { return v * s; });
   }
   BlockSparseMatrix& operator*=(const Scalar& s) {
     m_values *= s;
     return *this;
   }
-  BlockSparseMatrix operator/(const Scalar& s) const { return *this * (Scalar(1) / s); }
+  BlockSparseMatrix operator/(const Scalar& s) const {
+    return withValues_([&s](const auto& v) { return v / s; });
+  }
   BlockSparseMatrix& operator/=(const Scalar& s) { return *this *= (Scalar(1) / s); }
 
   /** Scalar-on-left multiplication. */
@@ -588,8 +614,12 @@ class BlockSparseMatrix
     BlockType operator()(const A& a, const B& b) const {
       return a + b;
     }
+    template <typename A>
+    BlockType lhs(const A& a) const {
+      return a;
+    }
     template <typename B>
-    BlockType operator()(const B& b) const {
+    BlockType rhs(const B& b) const {
       return b;
     }
   };
@@ -599,9 +629,32 @@ class BlockSparseMatrix
     BlockType operator()(const A& a, const B& b) const {
       return a - b;
     }
+    template <typename A>
+    BlockType lhs(const A& a) const {
+      return a;
+    }
     template <typename B>
-    BlockType operator()(const B& b) const {
+    BlockType rhs(const B& b) const {
       return -b;
+    }
+  };
+
+  // Scalar-to-block adapter for disjunctionExpr: translates scalar functor with lhs/rhs methods
+  // to the block level.
+  template <typename ScalarFunc>
+  struct DisjExprAdapter_ {
+    ScalarFunc func_;
+    template <typename A, typename B>
+    BlockType operator()(const A& a, const B& b) const {
+      return a.binaryExpr(b, func_);
+    }
+    template <typename A>
+    BlockType lhs(const A& a) const {
+      return a.unaryExpr([this](const Scalar& x) { return func_.lhs(x); });
+    }
+    template <typename B>
+    BlockType rhs(const B& b) const {
+      return b.unaryExpr([this](const Scalar& x) { return func_.rhs(x); });
     }
   };
 
@@ -611,6 +664,15 @@ class BlockSparseMatrix
       return a.cwiseProduct(b);
     }
   };
+
+  // Returns a copy with the same sparsity structure but m_values replaced by f(m_values).
+  // f receives the flat Eigen Array of all coefficients and returns any compatible expression.
+  template <typename F>
+  BlockSparseMatrix withValues_(F f) const {
+    BlockSparseMatrix result(*this);
+    result.m_values = f(m_values);
+    return result;
+  }
 
   // Disjunction (union-pattern): result has a block wherever *this OR other has one.
   //   lhs-only:  block copied from *this unchanged
@@ -638,10 +700,10 @@ class BlockSparseMatrix
         BlockType block;
         if (hasA && (!hasB || aInner < bInner)) {
           inner = StorageIndex_(aInner);
-          block = blockRef(aId++);
+          block = op.lhs(blockRef(aId++));
         } else if (hasB && (!hasA || bInner < aInner)) {
           inner = StorageIndex_(bInner);
-          block = op(other.blockRef(bId++));
+          block = op.rhs(other.blockRef(bId++));
         } else {
           inner = StorageIndex_(aInner);
           block = op(blockRef(aId++), other.blockRef(bId++));
