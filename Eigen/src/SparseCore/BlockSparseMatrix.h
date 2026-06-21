@@ -236,7 +236,7 @@ class BlockSparseMatrix
   /** Total number of stored scalar coefficients (= nonZeroBlocks() * BlockRows * BlockCols). */
   Index nonZeros() const { return nonZeroBlocks() * BlockSize; }
   /** Number of blocks for which storage is currently allocated (capacity). */
-  Index allocatedBlocks() const { return m_allocatedBlocks; }
+  Index allocatedBlocks() const { return Index(m_innerIndex.size()); }
 
   // -------------------------------------------------------------------------
   // Raw pointer access (for interoperability)
@@ -322,13 +322,13 @@ class BlockSparseMatrix
   /** Pre-allocate storage for at least \a n blocks without changing the logical sparsity pattern.
    *  Existing block data is preserved up to min(n, nonZeroBlocks()). */
   void reserve(Index n) {
-    if (n > m_allocatedBlocks) conservativeResizeBlockStorage_(n);
+    if (n > Index(m_innerIndex.size())) conservativeResizeBlockStorage_(n);
   }
 
   /** Release any excess allocated block storage so that allocatedBlocks() == nonZeroBlocks(). */
   void squeeze() {
     Index nnz = nonZeroBlocks();
-    if (nnz < m_allocatedBlocks) conservativeResizeBlockStorage_(nnz);
+    if (nnz < Index(m_innerIndex.size())) conservativeResizeBlockStorage_(nnz);
   }
 
   /** Fill the matrix with the block identity: the min(blockRows,blockCols) diagonal blocks
@@ -758,14 +758,11 @@ class BlockSparseMatrix
   void resizeBlockStorage_(Index n) {
     m_innerIndex.resize(n);
     m_values.resize(n * BlockSize);
-    m_allocatedBlocks = n;
   }
 
-  // Resize both block storage arrays conservatively (preserving existing data) and update capacity.
   void conservativeResizeBlockStorage_(Index n) {
     m_innerIndex.conservativeResize(n);
     m_values.conservativeResize(n * BlockSize);
-    m_allocatedBlocks = n;
   }
 
   // -------------------------------------------------------------------------
@@ -776,11 +773,10 @@ class BlockSparseMatrix
 
   Array<StorageIndex, Dynamic, 1> m_outerIndex =  // size: m_blockOuterSize + 1
       decltype(m_outerIndex)::Zero(m_blockOuterSize + 1);
-  Array<StorageIndex, Dynamic, 1> m_innerIndex;  // allocated for m_allocatedBlocks entries
+  Array<StorageIndex, Dynamic, 1> m_innerIndex;
   // Block values stored consecutively; block k occupies
   // m_values[k*BlockSize .. (k+1)*BlockSize - 1].
-  Array<Scalar, Dynamic, 1> m_values;  // allocated for m_allocatedBlocks * BlockSize scalars
-  Index m_allocatedBlocks = 0;         // capacity: inner/values arrays hold this many blocks
+  Array<Scalar, Dynamic, 1> m_values;
 
   // -------------------------------------------------------------------------
   // MultiInnerIterator
