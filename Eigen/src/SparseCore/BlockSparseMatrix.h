@@ -429,10 +429,15 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
 
   /** Element-wise addition.  Both matrices must have the same block dimensions. */
-  BlockSparseMatrix operator+(const BlockSparseMatrix& other) const;
+  BlockSparseMatrix operator+(const BlockSparseMatrix& other) const { return disjunctionWith_(other, AddOp_{}); }
 
   /** Element-wise subtraction. */
-  BlockSparseMatrix operator-(const BlockSparseMatrix& other) const { return *this + (-other); }
+  BlockSparseMatrix operator-(const BlockSparseMatrix& other) const { return disjunctionWith_(other, SubOp_{}); }
+
+  /** Element-wise product.  Only blocks present in \em both operands contribute to the result. */
+  BlockSparseMatrix cwiseProduct(const BlockSparseMatrix& other) const {
+    return conjunctionWith_(other, CwiseMulOp_{});
+  }
 
   /** Unary negation. */
   BlockSparseMatrix operator-() const {
@@ -578,6 +583,112 @@ class BlockSparseMatrix
   }
 
  private:
+  struct AddOp_ {
+    template <typename A, typename B>
+    BlockType operator()(const A& a, const B& b) const {
+      return a + b;
+    }
+    template <typename B>
+    BlockType operator()(const B& b) const {
+      return b;
+    }
+  };
+
+  struct SubOp_ {
+    template <typename A, typename B>
+    BlockType operator()(const A& a, const B& b) const {
+      return a - b;
+    }
+    template <typename B>
+    BlockType operator()(const B& b) const {
+      return -b;
+    }
+  };
+
+  struct CwiseMulOp_ {
+    template <typename A, typename B>
+    BlockType operator()(const A& a, const B& b) const {
+      return a.cwiseProduct(b);
+    }
+  };
+
+  // Disjunction (union-pattern): result has a block wherever *this OR other has one.
+  //   lhs-only:  block copied from *this unchanged
+  //   rhs-only:  op(b)      — unary overload of op
+  //   both:      op(a, b)   — binary overload of op
+  template <typename Op>
+  BlockSparseMatrix disjunctionWith_(const BlockSparseMatrix& other, Op op) const {
+    eigen_assert(blockRows() == other.blockRows() && blockCols() == other.blockCols() &&
+                 "BlockSparseMatrix size mismatch");
+    BlockSparseMatrix result(blockRows(), blockCols());
+    result.resizeBlockStorage_(nonZeroBlocks() + other.nonZeroBlocks());
+    Index nnz = 0;
+    for (Index j = 0; j < m_blockOuterSize; ++j) {
+      result.m_outerIndex(j) = StorageIndex_(nnz);
+      Index aId = m_outerIndex(j);
+      Index aEnd = m_outerIndex(j + 1);
+      Index bId = other.m_outerIndex(j);
+      Index bEnd = other.m_outerIndex(j + 1);
+      while (aId < aEnd || bId < bEnd) {
+        bool hasA = aId < aEnd;
+        bool hasB = bId < bEnd;
+        Index aInner = hasA ? Index(m_innerIndex(aId)) : -1;
+        Index bInner = hasB ? Index(other.m_innerIndex(bId)) : -1;
+        StorageIndex_ inner;
+        BlockType block;
+        if (hasA && (!hasB || aInner < bInner)) {
+          inner = StorageIndex_(aInner);
+          block = blockRef(aId++);
+        } else if (hasB && (!hasA || bInner < aInner)) {
+          inner = StorageIndex_(bInner);
+          block = op(other.blockRef(bId++));
+        } else {
+          inner = StorageIndex_(aInner);
+          block = op(blockRef(aId++), other.blockRef(bId++));
+        }
+        result.m_innerIndex(nnz) = inner;
+        result.blockRef(nnz) = block;
+        ++nnz;
+      }
+    }
+    result.m_outerIndex(m_blockOuterSize) = StorageIndex_(nnz);
+    result.conservativeResizeBlockStorage_(nnz);
+    return result;
+  }
+
+  // Conjunction (intersection-pattern): result has a block only where *this AND other both have one.
+  template <typename BinaryOp>
+  BlockSparseMatrix conjunctionWith_(const BlockSparseMatrix& other, BinaryOp func) const {
+    eigen_assert(blockRows() == other.blockRows() && blockCols() == other.blockCols() &&
+                 "BlockSparseMatrix size mismatch");
+    BlockSparseMatrix result(blockRows(), blockCols());
+    result.resizeBlockStorage_((std::min)(nonZeroBlocks(), other.nonZeroBlocks()));
+    Index nnz = 0;
+    for (Index j = 0; j < m_blockOuterSize; ++j) {
+      result.m_outerIndex(j) = StorageIndex_(nnz);
+      Index aId = m_outerIndex(j);
+      Index aEnd = m_outerIndex(j + 1);
+      Index bId = other.m_outerIndex(j);
+      Index bEnd = other.m_outerIndex(j + 1);
+      while (aId < aEnd && bId < bEnd) {
+        Index aInner = m_innerIndex(aId);
+        Index bInner = other.m_innerIndex(bId);
+        if (aInner < bInner) {
+          ++aId;
+        } else if (bInner < aInner) {
+          ++bId;
+        } else {
+          result.m_innerIndex(nnz) = StorageIndex_(aInner);
+          result.blockRef(nnz) = func(blockRef(aId++), other.blockRef(bId++));
+          ++nnz;
+        }
+      }
+    }
+    result.m_outerIndex(m_blockOuterSize) = StorageIndex_(nnz);
+    result.conservativeResizeBlockStorage_(nnz);
+    return result;
+  }
+
   template <bool Conjugate>
   BlockSparseMatrix<Scalar_, Options_, BlockCols_, BlockRows_, StorageIndex_> transposeImpl() const;
 
@@ -765,33 +876,33 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::toS
   result.reserve(nonZeroBlocks() * BlockSize);
 
   if (!IsRowMajor) {
-    // ColMajor: outer = block-column J.  Emit scalar columns J*BlockCols+c
+    // ColMajor: outer = block-column j.  Emit scalar columns j*BlockCols+c
     // in order c = 0..BlockCols-1.  Within each scalar column, blocks are
-    // sorted by bI (block-row), so scalar rows bI*BlockRows+r are increasing.
-    for (Index J = 0; J < m_blockOuterSize; ++J) {
+    // sorted by bi (block-row), so scalar rows bi*BlockRows+r are increasing.
+    for (Index j = 0; j < m_blockOuterSize; ++j) {
       for (Index c = 0; c < BlockCols_; ++c) {
-        result.startVec(J * BlockCols_ + c);
-        for (Index id = m_outerIndex(J); id < m_outerIndex(J + 1); ++id) {
-          Index bI = m_innerIndex(id);
+        result.startVec(j * BlockCols_ + c);
+        for (Index id = m_outerIndex(j); id < m_outerIndex(j + 1); ++id) {
+          Index bi = m_innerIndex(id);
           ConstBlockMap blk = blockRef(id);
           for (Index r = 0; r < BlockRows_; ++r) {
-            result.insertBack(bI * BlockRows_ + r, J * BlockCols_ + c) = blk(r, c);
+            result.insertBack(bi * BlockRows_ + r, j * BlockCols_ + c) = blk(r, c);
           }
         }
       }
     }
   } else {
-    // RowMajor: outer = block-row bI.  Emit scalar rows bI*BlockRows+r
+    // RowMajor: outer = block-row bi.  Emit scalar rows bi*BlockRows+r
     // in order r = 0..BlockRows-1.  Within each scalar row, blocks are
-    // sorted by J (block-col), so scalar cols J*BlockCols+c are increasing.
-    for (Index bI = 0; bI < m_blockOuterSize; ++bI) {
+    // sorted by j (block-col), so scalar cols j*BlockCols+c are increasing.
+    for (Index bi = 0; bi < m_blockOuterSize; ++bi) {
       for (Index r = 0; r < BlockRows_; ++r) {
-        result.startVec(bI * BlockRows_ + r);
-        for (Index id = m_outerIndex(bI); id < m_outerIndex(bI + 1); ++id) {
-          Index J = m_innerIndex(id);
+        result.startVec(bi * BlockRows_ + r);
+        for (Index id = m_outerIndex(bi); id < m_outerIndex(bi + 1); ++id) {
+          Index j = m_innerIndex(id);
           ConstBlockMap blk = blockRef(id);
           for (Index c = 0; c < BlockCols_; ++c) {
-            result.insertBack(bI * BlockRows_ + r, J * BlockCols_ + c) = blk(r, c);
+            result.insertBack(bi * BlockRows_ + r, j * BlockCols_ + c) = blk(r, c);
           }
         }
       }
@@ -879,72 +990,6 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::fro
 }
 
 // -----------------------------------------------------------------------------
-// operator+
-// -----------------------------------------------------------------------------
-
-template <typename Scalar_, int Options_, int BlockRows_, int BlockCols_, typename StorageIndex_>
-BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
-BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::operator+(
-    const BlockSparseMatrix& other) const {
-  eigen_assert(blockRows() == other.blockRows() && blockCols() == other.blockCols() &&
-               "BlockSparseMatrix size mismatch in operator+");
-
-  BlockSparseMatrix result(blockRows(), blockCols());
-
-  // Pre-allocate worst case (union of both sparsity patterns).
-  Index maxNnz = nonZeroBlocks() + other.nonZeroBlocks();
-  result.resizeBlockStorage_(maxNnz);
-
-  Index nnz = 0;
-
-  for (Index J = 0; J < m_blockOuterSize; ++J) {
-    result.m_outerIndex(J) = StorageIndex_(nnz);
-
-    Index aId = m_outerIndex(J);
-    Index aEnd = m_outerIndex(J + 1);
-    Index bId = other.m_outerIndex(J);
-    Index bEnd = other.m_outerIndex(J + 1);
-
-    while (aId < aEnd || bId < bEnd) {
-      bool hasA = aId < aEnd;
-      bool hasB = bId < bEnd;
-      // Use -1 as a sentinel "infinity" for the absent side (inner indices >= 0).
-      Index aInner = hasA ? m_innerIndex(aId) : -1;
-      Index bInner = hasB ? other.m_innerIndex(bId) : -1;
-
-      BlockType block;
-      StorageIndex_ inner;
-
-      if (hasA && (!hasB || aInner < bInner)) {
-        inner = StorageIndex_(aInner);
-        block = blockRef(aId);
-        ++aId;
-      } else if (hasB && (!hasA || bInner < aInner)) {
-        inner = StorageIndex_(bInner);
-        block = other.blockRef(bId);
-        ++bId;
-      } else {
-        // aInner == bInner: both are present, merge.
-        inner = StorageIndex_(aInner);
-        block = blockRef(aId) + other.blockRef(bId);
-        ++aId;
-        ++bId;
-      }
-
-      result.m_innerIndex(nnz) = inner;
-      result.blockRef(nnz) = block;
-      ++nnz;
-    }
-  }
-  result.m_outerIndex(m_blockOuterSize) = StorageIndex_(nnz);
-
-  // Trim to actual size.
-  result.conservativeResizeBlockStorage_(nnz);
-
-  return result;
-}
-
-// -----------------------------------------------------------------------------
 // operator* (block-sparse product)
 // -----------------------------------------------------------------------------
 
@@ -982,38 +1027,38 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
     result.m_outerIndex(out) = StorageIndex_(nnz);
 
     if (!IsRowMajor) {
-      // ColMajor: out is block-column J of the result.
-      // For each block B(K,J) and each block A(bI,K): C(bI,J) += A(bI,K)*B(K,J).
-      Index J = out;
-      for (Index rhsId = rhs.m_outerIndex(J); rhsId < rhs.m_outerIndex(J + 1); ++rhsId) {
-        Index K = rhs.m_innerIndex(rhsId);
+      // ColMajor: out is block-column j of the result.
+      // For each block B(k,j) and each block A(bi,k): C(bi,j) += A(bi,k)*B(k,j).
+      Index j = out;
+      for (Index rhsId = rhs.m_outerIndex(j); rhsId < rhs.m_outerIndex(j + 1); ++rhsId) {
+        Index k = rhs.m_innerIndex(rhsId);
         typename RhsMatrix::ConstBlockMap Bkj = rhs.blockRef(rhsId);
-        for (Index lhsId = m_outerIndex(K); lhsId < m_outerIndex(K + 1); ++lhsId) {
-          Index bI = m_innerIndex(lhsId);
-          if (!mask(bI)) {
-            mask(bI) = 1;
-            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() = blockRef(lhsId) * Bkj;
-            indices(nIndices++) = bI;
+        for (Index lhsId = m_outerIndex(k); lhsId < m_outerIndex(k + 1); ++lhsId) {
+          Index bi = m_innerIndex(lhsId);
+          if (!mask(bi)) {
+            mask(bi) = 1;
+            Map<ResultBlock>(accumData.data() + bi * ResultBlockSize).noalias() = blockRef(lhsId) * Bkj;
+            indices(nIndices++) = bi;
           } else {
-            Map<ResultBlock>(accumData.data() + bI * ResultBlockSize).noalias() += blockRef(lhsId) * Bkj;
+            Map<ResultBlock>(accumData.data() + bi * ResultBlockSize).noalias() += blockRef(lhsId) * Bkj;
           }
         }
       }
     } else {
-      // RowMajor: out is block-row bI of the result.
-      // For each block A(bI,K) and each block B(K,J): C(bI,J) += A(bI,K)*B(K,J).
-      Index bI = out;
-      for (Index lhsId = m_outerIndex(bI); lhsId < m_outerIndex(bI + 1); ++lhsId) {
-        Index K = m_innerIndex(lhsId);
+      // RowMajor: out is block-row bi of the result.
+      // For each block A(bi,k) and each block B(k,j): C(bi,j) += A(bi,k)*B(k,j).
+      Index bi = out;
+      for (Index lhsId = m_outerIndex(bi); lhsId < m_outerIndex(bi + 1); ++lhsId) {
+        Index k = m_innerIndex(lhsId);
         ConstBlockMap Aik = blockRef(lhsId);
-        for (Index rhsId = rhs.m_outerIndex(K); rhsId < rhs.m_outerIndex(K + 1); ++rhsId) {
-          Index J = rhs.m_innerIndex(rhsId);
-          if (!mask(J)) {
-            mask(J) = 1;
-            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() = Aik * rhs.blockRef(rhsId);
-            indices(nIndices++) = J;
+        for (Index rhsId = rhs.m_outerIndex(k); rhsId < rhs.m_outerIndex(k + 1); ++rhsId) {
+          Index j = rhs.m_innerIndex(rhsId);
+          if (!mask(j)) {
+            mask(j) = 1;
+            Map<ResultBlock>(accumData.data() + j * ResultBlockSize).noalias() = Aik * rhs.blockRef(rhsId);
+            indices(nIndices++) = j;
           } else {
-            Map<ResultBlock>(accumData.data() + J * ResultBlockSize).noalias() += Aik * rhs.blockRef(rhsId);
+            Map<ResultBlock>(accumData.data() + j * ResultBlockSize).noalias() += Aik * rhs.blockRef(rhsId);
           }
         }
       }

@@ -112,6 +112,14 @@ void test_block_sparse(int bRows, int bCols) {
     VERIFY_IS_APPROX(DenseMat(C.toSparse()), -dA);
   }
 
+  // ---- cwiseProduct (conjunction / intersection) --------------------------
+  {
+    BSM C = A.cwiseProduct(B);
+    // Result must only have blocks where both A and B had blocks.
+    DenseMat dC = dA.cwiseProduct(dB);
+    VERIFY_IS_APPROX(DenseMat(C.toSparse()), dC);
+  }
+
   // ---- Scalar multiplication ----------------------------------------------
   {
     const Scalar s = Scalar(3.14);
