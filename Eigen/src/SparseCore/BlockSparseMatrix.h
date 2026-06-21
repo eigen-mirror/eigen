@@ -480,7 +480,7 @@ class BlockSparseMatrix
     return withValues_([&s](const auto& v) { return v * s; });
   }
   BlockSparseMatrix& operator*=(const Scalar& s) {
-    m_values *= s;
+    m_values.head(nonZeros()) *= s;
     return *this;
   }
   BlockSparseMatrix operator/(const Scalar& s) const {
@@ -552,7 +552,16 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
   bool isApprox(const BlockSparseMatrix& other,
                 const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    return toSparse().isApprox(other.toSparse(), prec);
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    // Frobenius-norm comparison, matching SparseMatrixBase::isApprox semantics
+    // but computed directly from the block values — no scalar-level SparseMatrix
+    // materialization of either operand.  Explicit zero blocks contribute 0 to
+    // every norm, so the result is independent of structural differences.
+    const RealScalar n2a = m_values.head(nonZeros()).matrix().squaredNorm();
+    const RealScalar n2b = other.m_values.head(other.nonZeros()).matrix().squaredNorm();
+    const BlockSparseMatrix diff = *this - other;
+    const RealScalar d2 = diff.m_values.head(diff.nonZeros()).matrix().squaredNorm();
+    return d2 <= prec * prec * numext::mini(n2a, n2b);
   }
 
   // -------------------------------------------------------------------------
@@ -666,11 +675,16 @@ class BlockSparseMatrix
   };
 
   // Returns a copy with the same sparsity structure but m_values replaced by f(m_values).
-  // f receives the flat Eigen Array of all coefficients and returns any compatible expression.
+  // f receives the flat Eigen Array of the logical (non-zero) coefficients and returns any
+  // compatible expression.  Only the structure is copied — the source values are never
+  // duplicated, and unused tail capacity is neither copied nor evaluated.
   template <typename F>
   BlockSparseMatrix withValues_(F f) const {
-    BlockSparseMatrix result(*this);
-    result.m_values = f(m_values);
+    const Index nnz = nonZeroBlocks();
+    BlockSparseMatrix result(blockRows(), blockCols());
+    result.m_outerIndex = m_outerIndex;
+    result.m_innerIndex = m_innerIndex.head(nnz);
+    result.m_values = f(m_values.head(nnz * BlockSize));
     return result;
   }
 
@@ -696,20 +710,18 @@ class BlockSparseMatrix
         bool hasB = bId < bEnd;
         Index aInner = hasA ? Index(m_innerIndex(aId)) : -1;
         Index bInner = hasB ? Index(other.m_innerIndex(bId)) : -1;
-        StorageIndex_ inner;
-        BlockType block;
+        // Write the result block in place; the op overloads return a BlockType,
+        // which is assigned straight into the result's storage Map.
         if (hasA && (!hasB || aInner < bInner)) {
-          inner = StorageIndex_(aInner);
-          block = op.lhs(blockRef(aId++));
+          result.m_innerIndex(nnz) = StorageIndex_(aInner);
+          result.blockRef(nnz) = op.lhs(blockRef(aId++));
         } else if (hasB && (!hasA || bInner < aInner)) {
-          inner = StorageIndex_(bInner);
-          block = op.rhs(other.blockRef(bId++));
+          result.m_innerIndex(nnz) = StorageIndex_(bInner);
+          result.blockRef(nnz) = op.rhs(other.blockRef(bId++));
         } else {
-          inner = StorageIndex_(aInner);
-          block = op(blockRef(aId++), other.blockRef(bId++));
+          result.m_innerIndex(nnz) = StorageIndex_(aInner);
+          result.blockRef(nnz) = op(blockRef(aId++), other.blockRef(bId++));
         }
-        result.m_innerIndex(nnz) = inner;
-        result.blockRef(nnz) = block;
         ++nnz;
       }
     }
@@ -879,11 +891,27 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
     BlockMap(tValues.data() + k * BlockSize) = it->value();
   }
 
-  // Compute a sort permutation by (outer, inner).
-  Array<Index, Dynamic, 1> perm(n);
-  std::iota(perm.data(), perm.data() + n, Index(0));
-  std::sort(perm.data(), perm.data() + n,
-            [&](Index a, Index b) { return tOuter(a) != tOuter(b) ? tOuter(a) < tOuter(b) : tInner(a) < tInner(b); });
+  // Order the triplet indices by (outer, inner) using a stable LSD radix sort:
+  // pass 1 buckets by inner, pass 2 by outer.  This runs in
+  // O(n + blockInnerSize + blockOuterSize) with sequential writes, avoiding the
+  // cache-unfriendly indirect comparison sort.
+  Array<Index, Dynamic, 1> order(n), scratch(n);
+  {
+    Array<Index, Dynamic, 1> count = Array<Index, Dynamic, 1>::Zero(m_blockInnerSize + 1);
+    for (Index i = 0; i < n; ++i) count(tInner(i) + 1)++;
+    for (Index i = 0; i < m_blockInnerSize; ++i) count(i + 1) += count(i);
+    for (Index i = 0; i < n; ++i) order(count(tInner(i))++) = i;
+  }
+  {
+    Array<Index, Dynamic, 1> count = Array<Index, Dynamic, 1>::Zero(m_blockOuterSize + 1);
+    for (Index i = 0; i < n; ++i) count(tOuter(i) + 1)++;
+    for (Index i = 0; i < m_blockOuterSize; ++i) count(i + 1) += count(i);
+    for (Index i = 0; i < n; ++i) {
+      Index idx = order(i);
+      scratch(count(tOuter(idx))++) = idx;
+    }
+    order.swap(scratch);
+  }
 
   // Reset and pre-allocate (worst case: all n triplets are distinct blocks).
   m_outerIndex.resize(m_blockOuterSize + 1);
@@ -893,7 +921,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
   Index nnz = 0;
   k = 0;
   while (k < n) {
-    Index pi = perm(k);
+    Index pi = order(k);
     StorageIndex outer = tOuter(pi);
     StorageIndex inner = tInner(pi);
 
@@ -902,7 +930,7 @@ void BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>
 
     // Accumulate duplicate entries at the same (outer, inner) position.
     while (k < n) {
-      Index pk = perm(k);
+      Index pk = order(k);
       if (tOuter(pk) != outer || tInner(pk) != inner) break;
       block += ConstBlockMap(tValues.data() + pk * BlockSize);
       ++k;
@@ -1075,10 +1103,16 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   Array<Index, Dynamic, 1> indices(maskSize);
   Index nIndices = 0;
 
-  // Pre-allocate result storage (worst case = dense block pattern).
+  // Grow result storage geometrically rather than pre-allocating the dense
+  // worst case (cBlockRows*cBlockCols blocks): the product is typically far
+  // sparser than that, so the dense bound would blow up peak memory.
+  // capacity is always kept <= maxResultNnz (the true upper bound), and since
+  // any single outer emits at most maskSize blocks, the initial estimate of
+  // maskSize guarantees the first outer fits before the first grow check.
   Index cOuterSize = result.m_blockOuterSize;
   Index maxResultNnz = cBlockRows * cBlockCols;
-  result.resizeBlockStorage_(maxResultNnz);
+  Index capacity = numext::mini(maxResultNnz, numext::maxi(maskSize, nonZeroBlocks() + rhs.nonZeroBlocks()));
+  result.resizeBlockStorage_(capacity);
   Index nnz = 0;
 
   for (Index out = 0; out < cOuterSize; ++out) {
@@ -1124,6 +1158,10 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
 
     // Sort the accumulated indices so the result's inner index array is sorted.
     std::sort(indices.data(), indices.data() + nIndices);
+    if (nnz + nIndices > capacity) {
+      capacity = numext::mini(maxResultNnz, numext::maxi(2 * capacity, nnz + nIndices));
+      result.conservativeResizeBlockStorage_(capacity);
+    }
     for (Index ki = 0; ki < nIndices; ++ki) {
       Index idx = indices(ki);
       result.m_innerIndex(nnz) = StorageIndex_(idx);
