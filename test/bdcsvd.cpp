@@ -18,6 +18,7 @@
 #include "main.h"
 #include "tridiag_test_matrices.h"
 #include <Eigen/SVD>
+#include <cstdlib>
 
 #define SVD_DEFAULT(M) BDCSVD<M>
 #define SVD_FOR_MIN_NORM(M) BDCSVD<M>
@@ -201,6 +202,28 @@ void bdcsvd_public_missing_predecessor() {
   VERIFY(svd.info() == NumericalIssue);
 }
 
+#if defined(EIGEN_TEST_PART_54) || defined(EIGEN_TEST_PART_ALL)
+void bdcsvd_fast_math_regression_1588() {
+  const Index n = 500;
+  MatrixXd matrix = MatrixXd::Zero(n, n);
+
+  std::srand(1);
+  for (Index k = 0; k < 5000; ++k) {
+    const Index row = std::rand() % n;
+    const Index col = std::rand() % n;
+    matrix(row, col) = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
+  }
+  matrix = matrix * matrix;
+
+  BDCSVD<MatrixXd, ComputeThinU | ComputeThinV> svd(matrix);
+  VERIFY(svd.info() == Success);
+
+  MatrixXd reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
+  const double relative_error = (reconstruction - matrix).norm() / matrix.norm();
+  VERIFY(relative_error < 1e-10);
+}
+#endif
+
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_1((bdcsvd_verify_assert<Matrix3f>()));
   CALL_SUBTEST_2((bdcsvd_verify_assert<Matrix4d>()));
@@ -296,4 +319,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
   CALL_SUBTEST_53((bdcsvd_public_missing_predecessor()));
+  CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
 }
