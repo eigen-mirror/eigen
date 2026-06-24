@@ -543,22 +543,6 @@ test:linux:riscv64:gcc-14:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:linux:riscv64:gcc-14:rvv:
-  extends: .test:linux:riscv64
-  needs: [ build:linux:riscv64:gcc-14:rvv ]
-  variables:
-    EIGEN_CI_INSTALL: g++-14
-
-test:linux:riscv64:gcc-14:rvv:official:
-  extends: .test:linux:riscv64:gcc-14:rvv
-  variables:
-    EIGEN_CI_CTEST_LABEL: Official
-
-test:linux:riscv64:gcc-14:rvv:unsupported:
-  extends: .test:linux:riscv64:gcc-14:rvv
-  variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
-
 .test:linux:riscv64:clang-18:default:
   extends: .test:linux:riscv64
   needs: [ build:linux:riscv64:clang-18:default ]
