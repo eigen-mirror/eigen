@@ -191,6 +191,8 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, false> {
 
     Index size = mat.cols();
     Index depth = actualOther.cols();
+    eigen_assert(actualOther.rows() == size);
+    if (size == 0 || depth == 0) return;
 
     typedef internal::gemm_blocking_space<IsRowMajor ? RowMajor : ColMajor, Scalar, Scalar,
                                           MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime,

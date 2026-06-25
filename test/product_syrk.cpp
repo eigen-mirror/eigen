@@ -148,7 +148,25 @@ void syrk(const MatrixType& m) {
   }
 }
 
+template <typename MatrixType>
+void syrk_empty_update(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> UpdateType;
+
+  MatrixType m = MatrixType::Random(size, size);
+  MatrixType ref = m;
+  UpdateType empty_update(size, 0);
+
+  m.template selfadjointView<Lower>().rankUpdate(empty_update, Scalar(1));
+  VERIFY_IS_APPROX(m, ref);
+
+  m.template selfadjointView<Upper>().rankUpdate(empty_update, Scalar(1));
+  VERIFY_IS_APPROX(m, ref);
+}
+
 EIGEN_DECLARE_TEST(product_syrk) {
+  typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMajorMatrixXd;
+
   for (int i = 0; i < g_repeat; i++) {
     int s;
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
@@ -161,5 +179,8 @@ EIGEN_DECLARE_TEST(product_syrk) {
     CALL_SUBTEST_4(syrk(MatrixXcd(s, s)));
     CALL_SUBTEST_5(syrk(Matrix<bfloat16, Dynamic, Dynamic>(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    CALL_SUBTEST_6(syrk_empty_update<MatrixXd>(48));
+    CALL_SUBTEST_7(syrk_empty_update<RowMajorMatrixXd>(48));
   }
 }
