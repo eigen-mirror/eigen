@@ -18,7 +18,21 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Derived, typename Scalar = typename traits<Derived>::Scalar>
+// squaredNorm() reduces realView().cwiseAbs2(), a cwise expression with no direct access, so when
+// the underlying expression has an inner stride that is not statically 1 (a dynamic-inner-stride
+// Map/Ref, a row of a 1xN matrix, ...) the reduction falls back to a scalar traversal even though
+// the data is frequently contiguous at runtime. This trait flags the cases where a runtime
+// contiguity check is worthwhile; it mirrors the reduction fast path in Redux.h (redux_dispatch).
+// bool is excluded: its squared norm is any(), handled by a dedicated specialization below.
+template <typename Xpr>
+struct squared_norm_runtime_unit_stride {
+  using Scalar = typename traits<Xpr>::Scalar;
+  static constexpr bool value =
+      bool(traits<Xpr>::Flags & DirectAccessBit) && bool(packet_traits<Scalar>::Vectorizable) &&
+      !bool(internal::is_same<Scalar, bool>::value) && (int(inner_stride_at_compile_time<Xpr>::value) != 1);
+};
+
+template <typename Derived, typename Scalar = typename traits<Derived>::Scalar, typename Enable = void>
 struct squared_norm_impl {
   using Real = typename NumTraits<Scalar>::Real;
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Real run(const Derived& a) {
@@ -27,8 +41,24 @@ struct squared_norm_impl {
 };
 
 template <typename Derived>
-struct squared_norm_impl<Derived, bool> {
+struct squared_norm_impl<Derived, bool, void> {
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool run(const Derived& a) { return a.any(); }
+};
+
+// Runtime contiguity fast path: when the data is contiguous at runtime (inner stride 1, and a
+// single inner panel or no gap between inner panels), reduce the underlying buffer as a contiguous
+// vector, recovering vectorization of the abs2 reduction.
+template <typename Derived, typename Scalar>
+struct squared_norm_impl<Derived, Scalar, std::enable_if_t<squared_norm_runtime_unit_stride<Derived>::value>> {
+  using Real = typename NumTraits<Scalar>::Real;
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Real run(const Derived& a) {
+    if (a.innerStride() == 1 && (a.outerSize() == 1 || a.outerStride() == a.innerSize())) {
+      using PlainVector = Matrix<Scalar, Dynamic, 1>;
+      Map<const PlainVector, evaluator<Derived>::Alignment> contiguous(a.data(), a.size());
+      return contiguous.realView().cwiseAbs2().sum();
+    }
+    return a.realView().cwiseAbs2().sum();
+  }
 };
 
 }  // end namespace internal
