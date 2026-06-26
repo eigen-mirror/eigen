@@ -149,8 +149,11 @@ EIGEN_STRONG_INLINE Packet4cf pset1<Packet4cf>(const std::complex<float>& from) 
 #ifdef EIGEN_VECTORIZE_AVX2
   return Packet4cf(_mm256_castsi256_ps(_mm256_broadcastq_epi64(lo64)));
 #else
-  // No vpbroadcastq without AVX2: cast to __m128 then vinsertf128 into high lane.
-  const __m128 lo = _mm_castsi128_ps(lo64);
+  // No vpbroadcastq without AVX2: first duplicate the 64-bit complex across both
+  // halves of the 128-bit lane (movedup_pd: {x,_} -> {x,x}), otherwise the upper
+  // complex of each lane stays zeroed by _mm_loadl_epi64. Then vinsertf128 the
+  // filled lane into the high 256-bit lane.
+  const __m128 lo = _mm_castpd_ps(_mm_movedup_pd(_mm_castsi128_pd(lo64)));
   return Packet4cf(_mm256_insertf128_ps(_mm256_castps128_ps256(lo), lo, 1));
 #endif
 }
