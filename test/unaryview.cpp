@@ -8,6 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#include <type_traits>
 #include "main.h"
 
 struct UnaryViewBox {
@@ -86,6 +87,39 @@ void test_mutable_unaryview() {
     VERIFY_IS_EQUAL(m(i).y, 2);
     VERIFY_IS_EQUAL(m(i).z, 3);
   }
+}
+
+void test_unaryview_pointer_result() {
+  struct Payload {
+    double value;
+  };
+
+  struct Holder {
+    Payload* ptr;
+  };
+
+  struct pointer_view_op {
+    Payload*& operator()(Holder& x) const { return x.ptr; }
+    Payload* const& operator()(const Holder& x) const { return x.ptr; }
+  };
+
+  Payload p0 = {0.0};
+  Payload p1 = {1.0};
+  Payload p2 = {2.0};
+
+  Eigen::Vector<Holder, 2> holders;
+  holders(0).ptr = &p0;
+  holders(1).ptr = &p1;
+
+  auto view = holders.unaryViewExpr(pointer_view_op());
+  VERIFY((std::is_same<typename Eigen::internal::traits<decltype(view)>::Scalar, Payload*>::value));
+
+  Eigen::Vector<Payload*, 2> out = view;
+  VERIFY_IS_EQUAL(out(0), &p0);
+  VERIFY_IS_EQUAL(out(1), &p1);
+
+  view(0) = &p2;
+  VERIFY_IS_EQUAL(holders(0).ptr, &p2);
 }
 
 void test_unaryview_solve() {
@@ -172,6 +206,7 @@ EIGEN_DECLARE_TEST(unaryviewstride) {
   CALL_SUBTEST_3((unaryview_stride<1, 2>(RowVectorXf())));
   CALL_SUBTEST_3((unaryview_stride<0, 0>(RowVectorXf())));
   CALL_SUBTEST_4(test_mutable_unaryview());
+  CALL_SUBTEST_4(test_unaryview_pointer_result());
   CALL_SUBTEST_4(test_unaryview_solve());
   CALL_SUBTEST_4(test_unaryview_direct_access_product());
 }

@@ -260,13 +260,21 @@ constexpr std::ptrdiff_t index_list_size(const T (&)[N]) {
 }
 #endif
 
+// std::remove_cvref_t is C++20; use it when the standard library exposes the feature-test macro.
+#if defined(__cpp_lib_remove_cvref)
+using std::remove_cvref_t;
+#else
+template <typename T>
+using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
+#endif
+
 /** \internal
  * Convenient struct to get the result type of a nullary, unary, binary, or
  * ternary functor.
  *
  * Pre C++17:
- * This uses std::result_of. However, note the `type` member removes
- * const and converts references/pointers to their corresponding value type.
+ * This uses std::result_of. However, note the `type` member removes references and top-level const from
+ * callable results, while preserving pointers.
  *
  * Post C++17: Uses std::invoke_result
  */
@@ -277,13 +285,13 @@ struct result_of;
 template <typename F, typename... ArgTypes>
 struct result_of<F(ArgTypes...)> {
   typedef std::invoke_result_t<F, ArgTypes...> type1;
-  typedef remove_all_t<type1> type;
+  typedef remove_cvref_t<type1> type;
 };
 #else
 template <typename T>
 struct result_of {
   typedef std::result_of_t<T> type1;
-  typedef remove_all_t<type1> type;
+  typedef remove_cvref_t<type1> type;
 };
 #endif
 
