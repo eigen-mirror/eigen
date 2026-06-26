@@ -21,7 +21,7 @@ namespace internal {
 /** \ingroup SparseLU_Module
  * \brief a class to manipulate the L supernodal factor from the SparseLU factorization
  *
- * This class  contain the data to easily store
+ * This class contains the data to easily store
  * and manipulate the supernodes during the factorization and solution phase of Sparse LU.
  * Only the lower triangular matrix has supernodes.
  *
@@ -44,11 +44,10 @@ class MappedSuperNodalMatrix {
     setInfos(m, n, nzval, nzval_colptr, rowind, rowind_colptr, col_to_sup, sup_to_col);
   }
 
-  ~MappedSuperNodalMatrix() {}
   /**
    * Set appropriate pointers for the lower triangular supernodal matrix
    * These infos are available at the end of the numerical factorization
-   * FIXME This class will be modified such that it can be use in the course
+   * FIXME This class will be modified such that it can be used in the course
    * of the factorization.
    */
   void setInfos(Index m, Index n, ScalarVector& nzval, IndexVector& nzval_colptr, IndexVector& rowind,
@@ -97,7 +96,7 @@ class MappedSuperNodalMatrix {
   const StorageIndex* rowIndex() const { return m_rowind; }
 
   /**
-   * Return the location in \em rowvaluePtr() which starts each column
+   * Return the location in \em rowIndex() which starts each column
    */
   StorageIndex* rowIndexPtr() { return m_rowind_colptr; }
 
@@ -195,8 +194,6 @@ template <typename Scalar, typename Index_>
 template <typename Dest>
 void MappedSuperNodalMatrix<Scalar, Index_>::solveInPlace(MatrixBase<Dest>& X) const {
   /* Explicit type conversion as the Index type of MatrixBase<Dest> may be wider than Index */
-  //    eigen_assert(X.rows() <= NumTraits<Index>::highest());
-  //    eigen_assert(X.cols() <= NumTraits<Index>::highest());
   Index n = int(X.rows());
   Index nrhs = Index(X.cols());
   const Scalar* Lval = valuePtr();                                           // Nonzero values

@@ -29,7 +29,7 @@
 
 #define SECOND_FETCH (32)
 #if (EIGEN_COMP_GNUC_STRICT != 0) && !defined(EIGEN_ARCH_AVX512_GEMM_KERNEL_USE_LESS_A_REGS)
-// Use less registers to load A elements to workaround compiler spills. Loose a
+// Use less registers to load A elements to workaround compiler spills. Lose a
 // bit of performance (less than ~2%).
 #define EIGEN_ARCH_AVX512_GEMM_KERNEL_USE_LESS_A_REGS
 #endif
@@ -1001,10 +1001,10 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
   Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
   Index count = 0;
   const Index peeled_k = (depth / PacketSize) * PacketSize;
-  EIGEN_IF_CONSTEXPR(nr >= 8) {
+  EIGEN_IF_CONSTEXPR (nr >= 8) {
     for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
       // skip what we have before
-      EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * offset;
+      EIGEN_IF_CONSTEXPR (PanelMode) count += 8 * offset;
       const LinearMapper dm0 = rhs.getLinearMapper(0, j2 + 0);
       const LinearMapper dm1 = rhs.getLinearMapper(0, j2 + 1);
       const LinearMapper dm2 = rhs.getLinearMapper(0, j2 + 2);
@@ -1014,7 +1014,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
       const LinearMapper dm6 = rhs.getLinearMapper(0, j2 + 6);
       const LinearMapper dm7 = rhs.getLinearMapper(0, j2 + 7);
       Index k = 0;
-      EIGEN_IF_CONSTEXPR((PacketSize % 8) == 0 || PacketSize == 4) {
+      EIGEN_IF_CONSTEXPR ((PacketSize % 8) == 0 || PacketSize == 4) {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, 8> kernel;
 
@@ -1027,7 +1027,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
           kernel.packet[6] = dm6.template loadPacket<Packet>(k);
           kernel.packet[7] = dm7.template loadPacket<Packet>(k);
 
-          EIGEN_IF_CONSTEXPR(PacketSize == 4) {
+          EIGEN_IF_CONSTEXPR (PacketSize == 4) {
             // For PacketSize==4 we cannot ptranspose 8 packets directly; compose two
             // 4-packet transposes (cols 0-3 and 4-7) and interleave the halves so
             // the 8 stores produce 4 rows of 8 packed elements.
@@ -1051,8 +1051,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
             kernel.packet[5] = tmp_hi.packet[2];
             kernel.packet[6] = tmp_lo.packet[3];
             kernel.packet[7] = tmp_hi.packet[3];
-          }
-          else {
+          } else {
             ptranspose(kernel);
           }
 
@@ -1079,28 +1078,28 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
         count += 8;
       }
       // skip what we have after
-      EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR (PanelMode) count += 8 * (stride - offset - depth);
     }
   }
 
-  EIGEN_IF_CONSTEXPR(nr >= 4) {
+  EIGEN_IF_CONSTEXPR (nr >= 4) {
     for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
       // skip what we have before
-      EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * offset;
+      EIGEN_IF_CONSTEXPR (PanelMode) count += 4 * offset;
       const LinearMapper dm0 = rhs.getLinearMapper(0, j2 + 0);
       const LinearMapper dm1 = rhs.getLinearMapper(0, j2 + 1);
       const LinearMapper dm2 = rhs.getLinearMapper(0, j2 + 2);
       const LinearMapper dm3 = rhs.getLinearMapper(0, j2 + 3);
 
       Index k = 0;
-      EIGEN_IF_CONSTEXPR((PacketSize % 4) == 0 || PacketSize == 2) {
+      EIGEN_IF_CONSTEXPR ((PacketSize % 4) == 0 || PacketSize == 2) {
         for (; k < peeled_k; k += PacketSize) {
           PacketBlock<Packet, 4> kernel;
           kernel.packet[0] = dm0.template loadPacket<Packet>(k);
           kernel.packet[1] = dm1.template loadPacket<Packet>(k);
           kernel.packet[2] = dm2.template loadPacket<Packet>(k);
           kernel.packet[3] = dm3.template loadPacket<Packet>(k);
-          EIGEN_IF_CONSTEXPR(PacketSize == 2) {
+          EIGEN_IF_CONSTEXPR (PacketSize == 2) {
             // See the matching note in GeneralBlockPanelKernel.h.
             PacketBlock<Packet, 2> tmp01;
             tmp01.packet[0] = kernel.packet[0];
@@ -1114,8 +1113,7 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
             kernel.packet[1] = tmp23.packet[0];
             kernel.packet[2] = tmp01.packet[1];
             kernel.packet[3] = tmp23.packet[1];
-          }
-          else {
+          } else {
             ptranspose(kernel);
           }
           pstoreu(blockB + count + 0 * PacketSize, cj.pconj(kernel.packet[0]));
@@ -1133,19 +1131,19 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
         count += 4;
       }
       // skip what we have after
-      EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * (stride - offset - depth);
+      EIGEN_IF_CONSTEXPR (PanelMode) count += 4 * (stride - offset - depth);
     }
   }
 
   // copy the remaining columns one at a time (nr==1)
   for (Index j2 = packet_cols4; j2 < cols; ++j2) {
-    EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
+    EIGEN_IF_CONSTEXPR (PanelMode) count += offset;
     const LinearMapper dm0 = rhs.getLinearMapper(0, j2);
     for (Index k = 0; k < depth; k++) {
       blockB[count] = cj(dm0(k));
       count += 1;
     }
-    EIGEN_IF_CONSTEXPR(PanelMode) count += (stride - offset - depth);
+    EIGEN_IF_CONSTEXPR (PanelMode) count += (stride - offset - depth);
   }
 }
 
@@ -1174,33 +1172,29 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, RowMajor, Conjugate, PanelMod
     Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
     Index count = 0;
 
-    EIGEN_IF_CONSTEXPR(nr >= 8) {
+    EIGEN_IF_CONSTEXPR (nr >= 8) {
       for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
         // skip what we have before
-        EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * offset;
+        EIGEN_IF_CONSTEXPR (PanelMode) count += 8 * offset;
         for (Index k = 0; k < depth; k++) {
-          EIGEN_IF_CONSTEXPR(PacketSize == 8) {
+          EIGEN_IF_CONSTEXPR (PacketSize == 8) {
             // Packet A = ploadu<Packet>(&rhs.data()[k*rhs.stride() + j2]);
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
-          }
-          else EIGEN_IF_CONSTEXPR(HasHalf && HalfPacketSize == 8) {
+          } else EIGEN_IF_CONSTEXPR (HasHalf && HalfPacketSize == 8) {
             HalfPacket A = rhs.template loadPacket<HalfPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
-          }
-          else EIGEN_IF_CONSTEXPR(HasQuarter && QuarterPacketSize == 8) {
+          } else EIGEN_IF_CONSTEXPR (HasQuarter && QuarterPacketSize == 8) {
             QuarterPacket A = rhs.template loadPacket<QuarterPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
-          }
-          else EIGEN_IF_CONSTEXPR(PacketSize == 4) {
+          } else EIGEN_IF_CONSTEXPR (PacketSize == 4) {
             // Packet A = ploadu<Packet>(&rhs.data()[k*rhs.stride() + j2]);
             // Packet B = ploadu<Packet>(&rhs.data()[k*rhs.stride() + j2 + PacketSize]);
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             Packet B = rhs.template loadPacket<Packet>(k, j2 + PacketSize);
             pstoreu(blockB + count, cj.pconj(A));
             pstoreu(blockB + count + PacketSize, cj.pconj(B));
-          }
-          else {
+          } else {
             // const Scalar* b0 = &rhs.data()[k*rhs.stride() + j2];
             const LinearMapper dm0 = rhs.getLinearMapper(k, j2);
             blockB[count + 0] = cj(dm0(0));
@@ -1215,31 +1209,28 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, RowMajor, Conjugate, PanelMod
           count += 8;
         }
         // skip what we have after
-        EIGEN_IF_CONSTEXPR(PanelMode) count += 8 * (stride - offset - depth);
+        EIGEN_IF_CONSTEXPR (PanelMode) count += 8 * (stride - offset - depth);
       }
     }
 
-    EIGEN_IF_CONSTEXPR(nr >= 4) {
+    EIGEN_IF_CONSTEXPR (nr >= 4) {
       for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
         // skip what we have before
-        EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * offset;
+        EIGEN_IF_CONSTEXPR (PanelMode) count += 4 * offset;
         for (Index k = 0; k < depth; k++) {
-          EIGEN_IF_CONSTEXPR(PacketSize == 4) {
+          EIGEN_IF_CONSTEXPR (PacketSize == 4) {
             Packet A = rhs.template loadPacket<Packet>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += PacketSize;
-          }
-          else EIGEN_IF_CONSTEXPR(HasHalf && HalfPacketSize == 4) {
+          } else EIGEN_IF_CONSTEXPR (HasHalf && HalfPacketSize == 4) {
             HalfPacket A = rhs.template loadPacket<HalfPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += HalfPacketSize;
-          }
-          else EIGEN_IF_CONSTEXPR(HasQuarter && QuarterPacketSize == 4) {
+          } else EIGEN_IF_CONSTEXPR (HasQuarter && QuarterPacketSize == 4) {
             QuarterPacket A = rhs.template loadPacket<QuarterPacket>(k, j2);
             pstoreu(blockB + count, cj.pconj(A));
             count += QuarterPacketSize;
-          }
-          else {
+          } else {
             const LinearMapper dm0 = rhs.getLinearMapper(k, j2);
             blockB[count + 0] = cj(dm0(0));
             blockB[count + 1] = cj(dm0(1));
@@ -1249,17 +1240,17 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, RowMajor, Conjugate, PanelMod
           }
         }
         // skip what we have after
-        EIGEN_IF_CONSTEXPR(PanelMode) count += 4 * (stride - offset - depth);
+        EIGEN_IF_CONSTEXPR (PanelMode) count += 4 * (stride - offset - depth);
       }
     }
     // copy the remaining columns one at a time (nr==1)
     for (Index j2 = packet_cols4; j2 < cols; ++j2) {
-      EIGEN_IF_CONSTEXPR(PanelMode) count += offset;
+      EIGEN_IF_CONSTEXPR (PanelMode) count += offset;
       for (Index k = 0; k < depth; k++) {
         blockB[count] = cj(rhs(k, j2));
         count += 1;
       }
-      EIGEN_IF_CONSTEXPR(PanelMode) count += stride - offset - depth;
+      EIGEN_IF_CONSTEXPR (PanelMode) count += stride - offset - depth;
     }
   }
 };

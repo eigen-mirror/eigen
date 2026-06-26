@@ -105,7 +105,7 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
     return coeff(rowIndexByOuterInner(outer, inner), colIndexByOuterInner(outer, inner));
   }
 
-  /** \returns the coefficient at given the given row and column.
+  /** \returns the coefficient at the given row and column.
    *
    * \sa operator()(Index,Index), operator[](Index)
    */
@@ -115,7 +115,7 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   }
 
 #ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
-  /** \returns the coefficient at given the given row and column.
+  /** \returns the coefficient at the given row and column.
    *
    * \sa operator[](Index,Index), operator[](Index)
    */
@@ -321,7 +321,7 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
     return coeffRef(rowIndexByOuterInner(outer, inner), colIndexByOuterInner(outer, inner));
   }
 
-  /** \returns a reference to the coefficient at given the given row and column.
+  /** \returns a reference to the coefficient at the given row and column.
    *
    * \sa operator[](Index)
    */
@@ -331,7 +331,7 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
   }
 
 #ifdef EIGEN_MULTIDIMENSIONAL_SUBSCRIPT
-  /** \returns a reference to the coefficient at given the given row and column.
+  /** \returns a reference to the coefficient at the given row and column.
    *
    * \sa operator[](Index)
    */

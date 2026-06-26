@@ -199,15 +199,11 @@ EIGEN_DECLARE_TEST(boostmultiprec) {
   }
 
   CALL_SUBTEST_9(
-      (jacobisvd_thin_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
-                                  internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_9(
-      (jacobisvd_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
-                                  internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_10((bdcsvd_thin_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
-                                           internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_10((bdcsvd_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
-                                           internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
+      (jacobisvd_thin_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
+                                       internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
+  CALL_SUBTEST_10(
+      (bdcsvd_thin_full_options(Mat(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE),
+                                    internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
 
   CALL_SUBTEST_11((test_simplicial_cholesky_T<Real, int, ColMajor>()));
 }

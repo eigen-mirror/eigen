@@ -120,7 +120,7 @@ struct member_lpnorm {
   struct Cost
       : std::integral_constant<int, (Size + 5) * NumTraits<Scalar>::MulCost + (Size - 1) * NumTraits<Scalar>::AddCost> {
   };
-  EIGEN_DEVICE_FUNC member_lpnorm() {}
+  EIGEN_DEVICE_FUNC member_lpnorm() = default;
   template <typename XprType>
   EIGEN_DEVICE_FUNC inline ResultType operator()(const XprType& mat) const {
     return mat.template lpNorm<p>();
@@ -545,7 +545,7 @@ class VectorwiseOp {
         _expression(), isVertical ? factor : 1, isHorizontal ? factor : 1);
   }
 
-  /////////// Artithmetic operators ///////////
+  /////////// Arithmetic operators ///////////
 
   // The broadcast (compound-)assignments below bind the rhs through
   // `nested_eval<.., Dynamic>` so expressions like `colwise().sum()` are

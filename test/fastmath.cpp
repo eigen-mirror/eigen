@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include <Eigen/QR>
 
 void check(bool b, bool ref) {
   std::cout << b;
@@ -199,6 +200,93 @@ void check_complex_rowmajor_adjoint_product() {
   VERIFY_IS_APPROX(col_major_result, expected);
 }
 
+template <typename RealScalar>
+void check_complex_packet_arithmetic() {
+  typedef std::complex<RealScalar> Scalar;
+  typedef Matrix<Scalar, 2, 1> Vector2;
+
+  Vector2 values;
+  values << Scalar(RealScalar(0.53645928880954319), RealScalar(-0.60489662966980218)),
+      Scalar(RealScalar(0.25774142970757641), RealScalar(0.10793998506041591));
+  Scalar divisor(RealScalar(1.6611441458336193), RealScalar(-0.21123424512127231));
+  Scalar factor(RealScalar(1.2499121678643004), RealScalar(0.36146968008699221));
+
+  Vector2 quotient = values / divisor;
+  Vector2 expected_quotient;
+  expected_quotient << values.coeff(0) / divisor, values.coeff(1) / divisor;
+  VERIFY_IS_APPROX(quotient, expected_quotient);
+
+  Vector2 inverse = values.array().inverse();
+  Vector2 expected_inverse;
+  expected_inverse << Scalar(RealScalar(1)) / values.coeff(0), Scalar(RealScalar(1)) / values.coeff(1);
+  VERIFY_IS_APPROX(inverse, expected_inverse);
+
+  Vector2 product = values * factor;
+  Vector2 expected_product;
+  expected_product << values.coeff(0) * factor, values.coeff(1) * factor;
+  VERIFY_IS_APPROX(product, expected_product);
+
+  Vector2 conjugate_product = values.conjugate().cwiseProduct(Vector2::Constant(factor));
+  Vector2 expected_conjugate_product;
+  expected_conjugate_product << numext::conj(values.coeff(0)) * factor, numext::conj(values.coeff(1)) * factor;
+  VERIFY_IS_APPROX(conjugate_product, expected_conjugate_product);
+}
+
+template <typename RealScalar>
+void check_complex_packet_math_functions() {
+  typedef std::complex<RealScalar> Scalar;
+  typedef Matrix<Scalar, 4, 1> Vector4;
+
+  Vector4 values;
+  values << Scalar(RealScalar(0.53645928880954319), RealScalar(-0.60489662966980218)),
+      Scalar(RealScalar(0.25774142970757641), RealScalar(0.10793998506041591)),
+      Scalar(RealScalar(-0.83239073966000054), RealScalar(0.026801457199547407)),
+      Scalar(RealScalar(1.6611441458336193), RealScalar(-0.21123424512127231));
+
+  Vector4 sqrt_result = values.array().sqrt();
+  Vector4 log_result = values.array().log();
+  Vector4 exp_result = values.array().exp();
+
+  Vector4 expected_sqrt, expected_log, expected_exp;
+  for (Index i = 0; i < values.size(); ++i) {
+    expected_sqrt[i] = std::sqrt(values[i]);
+    expected_log[i] = std::log(values[i]);
+    expected_exp[i] = std::exp(values[i]);
+  }
+
+  VERIFY_IS_APPROX(sqrt_result, expected_sqrt);
+  VERIFY_IS_APPROX(log_result, expected_log);
+  VERIFY_IS_APPROX(exp_result, expected_exp);
+}
+
+template <typename RealScalar>
+void check_complex_householder_qr() {
+  typedef std::complex<RealScalar> Scalar;
+  typedef Matrix<Scalar, 3, 2> Matrix32;
+  typedef Matrix<Scalar, 2, 2> Matrix22;
+
+  Matrix32 mat;
+  mat << Scalar(RealScalar(0.59688070592806186), RealScalar(-0.21123424512127231)),
+      Scalar(RealScalar(0.83239073966000054), RealScalar(0.026801457199547407)),
+      Scalar(RealScalar(0.53645928880954319), RealScalar(-0.60489662966980218)),
+      Scalar(RealScalar(0.21393694076781777), RealScalar(0.43459380694554106)),
+      Scalar(RealScalar(0.25774142970757641), RealScalar(0.10793998506041591)),
+      Scalar(RealScalar(0.60835279200704262), RealScalar(-0.51422689790671194));
+
+  HouseholderQR<Matrix32> qr(mat);
+  Matrix32 q = qr.householderQ() * Matrix32::Identity();
+  Matrix22 r = qr.matrixQR().template topRows<2>().template triangularView<Upper>();
+  VERIFY_IS_APPROX(mat, q * r);
+}
+
+template <typename RealScalar>
+void check_complex_fastmath() {
+  check_complex_rowmajor_adjoint_product<RealScalar>();
+  check_complex_packet_arithmetic<RealScalar>();
+  check_complex_packet_math_functions<RealScalar>();
+  check_complex_householder_qr<RealScalar>();
+}
+
 EIGEN_DECLARE_TEST(fastmath) {
   std::cout << "*** float *** \n\n";
   check_inf_nan<float>(true);
@@ -211,6 +299,6 @@ EIGEN_DECLARE_TEST(fastmath) {
   check_inf_nan<double>(false);
   check_inf_nan<long double>(false);
 
-  CALL_SUBTEST_1(check_complex_rowmajor_adjoint_product<float>());
-  CALL_SUBTEST_2(check_complex_rowmajor_adjoint_product<double>());
+  CALL_SUBTEST_1(check_complex_fastmath<float>());
+  CALL_SUBTEST_2(check_complex_fastmath<double>());
 }

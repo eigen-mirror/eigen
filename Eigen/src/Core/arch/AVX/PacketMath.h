@@ -1504,7 +1504,7 @@ EIGEN_STRONG_INLINE Packet8f ploadu<Packet8f>(const float* from, uint8_t umask) 
 #endif
 }
 
-// Loads 4 floats from memory a returns the packet {a0, a0  a1, a1, a2, a2, a3, a3}
+// Loads 4 floats from memory a returns the packet {a0, a0, a1, a1, a2, a2, a3, a3}
 template <>
 EIGEN_STRONG_INLINE Packet8f ploaddup<Packet8f>(const float* from) {
   // TODO try to find a way to avoid the need of a temporary register
@@ -1557,7 +1557,7 @@ EIGEN_STRONG_INLINE Packet8ui ploaddup<Packet8ui>(const uint32_t* from) {
 #endif
 }
 
-// Loads 2 floats from memory a returns the packet {a0, a0  a0, a0, a1, a1, a1, a1}
+// Loads 2 floats from memory a returns the packet {a0, a0, a0, a0, a1, a1, a1, a1}
 template <>
 EIGEN_STRONG_INLINE Packet8f ploadquad<Packet8f>(const float* from) {
   Packet8f tmp = _mm256_castps128_ps256(_mm_broadcast_ss(from));

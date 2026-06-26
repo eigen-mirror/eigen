@@ -119,7 +119,7 @@ EIGEN_DEVICE_FUNC constexpr inline const LogReturnType log() const { return LogR
 
 /** \returns an expression of the coefficient-wise logarithm of 1 plus \c *this.
  *
- * In exact arithmetic, \c x.log() is equivalent to \c (x+1).log(),
+ * In exact arithmetic, \c x.log1p() is equivalent to \c (x+1).log(),
  * however, with finite precision, this function is much more accurate when \c x is close to zero.
  *
  * \sa <a href="group__CoeffwiseMathFunctions.html#cwisetable_log1p">Math functions</a>, log()
@@ -507,7 +507,7 @@ EIGEN_DEVICE_FUNC constexpr inline const ErfReturnType erf() const { return ErfR
  */
 EIGEN_DEVICE_FUNC constexpr inline const ErfcReturnType erfc() const { return ErfcReturnType(derived()); }
 
-/** \returns an expression of the coefficient-wise inverse of the CDF of the Normal distribution function
+/** \returns an expression of the coefficient-wise inverse of the CDF of the Normal distribution
  * function of *this.
  *
  * \specialfunctions_module

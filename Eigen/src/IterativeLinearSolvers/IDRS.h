@@ -64,7 +64,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
   typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
   const Index N = b.size();
-  S = S < x.rows() ? S : x.rows();
+  S = numext::mini(S, x.rows());
   const RealScalar tol = relres;
   const Index maxit = iter;
 
@@ -72,15 +72,11 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
 
   FullPivLU<DenseMatrixType> lu_solver;
 
-  DenseMatrixType P;
-  {
-    HouseholderQR<DenseMatrixType> qr(DenseMatrixType::Random(N, S));
-    P = (qr.householderQ() * DenseMatrixType::Identity(N, S));
-  }
+  DenseMatrixType P = internal::random_orthonormal_basis<DenseMatrixType>(N, S);
 
   const RealScalar normb = b.stableNorm();
 
-  if (internal::isApprox(normb, RealScalar(0))) {
+  if (normb == RealScalar(0)) {
     // Solution is the zero vector
     x.setZero();
     iter = 0;
@@ -125,7 +121,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   VectorType t(N), v(N);
   Scalar om = 1.;
 
-  // Main iteration loop, guild G-spaces:
+  // Main iteration loop, build G-spaces:
   iter = 0;
 
   while (normr > tolb && iter < maxit) {
@@ -158,7 +154,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       // M(k:s,k) = (G(:,k)'*P(:,k:s))';
       M.block(k, k, S - k, 1) = (G.col(k).adjoint() * P.rightCols(S - k)).adjoint();
 
-      if (internal::isApprox(M(k, k), Scalar(0))) {
+      if (M(k, k) == Scalar(0)) {
         return false;
       }
 
@@ -266,7 +262,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  * problems.
  *
  * This class allows to solve for A.x = b sparse linear problems. The vectors x and b can be either dense or sparse.
- * he Induced Dimension Reduction method, IDR(), is a robust and efficient short-recurrence Krylov subspace method for
+ * The Induced Dimension Reduction method, IDR(), is a robust and efficient short-recurrence Krylov subspace method for
  * solving large nonsymmetric systems of linear equations.
  *
  * For indefinite systems IDR(S) outperforms both BiCGStab and BiCGStab(L). Additionally, IDR(S) can handle matrices
@@ -276,7 +272,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  * converge the convergence for IDR(s) is typically much faster for difficult systems (for example indefinite problems).
  *
  * IDR(s) is a limited memory finite termination method. In exact arithmetic it converges in at most N+N/s iterations,
- * with N the system size.  It uses a fixed number of 4+3s vector. In comparison, BiCGSTAB terminates in 2N iterations
+ * with N the system size.  It uses a fixed number of 4+3s vectors. In comparison, BiCGSTAB terminates in 2N iterations
  * and uses 7 vectors. GMRES terminates in at most N iterations, and uses I+3 vectors, with I the number of iterations.
  * Restarting GMRES limits the memory consumption, but destroys the finite termination property.
  *
@@ -291,7 +287,7 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  *
  * The tolerance corresponds to the relative residual error: |Ax-b|/|b|
  *
- * \b Performance: when using sparse matrices, best performance is achied for a row-major sparse matrix format.
+ * \b Performance: when using sparse matrices, best performance is achieved for a row-major sparse matrix format.
  * Moreover, in this case multi-threading can be exploited if the user code is compiled with OpenMP enabled.
  * See \ref TopicMultiThreading for details.
  *
@@ -317,14 +313,14 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_S;
-  bool m_smoothing;
-  RealScalar m_angle;
-  bool m_residual;
+  Index m_S = 4;
+  bool m_smoothing = false;
+  RealScalar m_angle = RealScalar(0.7);
+  bool m_residual = false;
 
  public:
   /** Default constructor. */
-  IDRS() : m_S(4), m_smoothing(false), m_angle(RealScalar(0.7)), m_residual(false) {}
+  IDRS() = default;
 
   /**     Initialize the solver with matrix \a A for further \c Ax=b solving.
 
@@ -337,8 +333,7 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
           matrix A, or modify a copy of A.
   */
   template <typename MatrixDerived>
-  explicit IDRS(const EigenBase<MatrixDerived>& A)
-      : Base(A.derived()), m_S(4), m_smoothing(false), m_angle(RealScalar(0.7)), m_residual(false) {}
+  explicit IDRS(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:

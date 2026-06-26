@@ -250,7 +250,7 @@ void bdcsvd_impl<RealScalar_>::divide(Index firstCol, Index lastCol, Index first
 
   if (m_compU) {
     MatrixXr q1(m_naiveU.col(firstCol + k).segment(firstCol, k + 1));
-    // we shiftW Q1 to the right
+    // we shift Q1 to the right
     for (Index i = firstCol + k - 1; i >= firstCol; i--)
       m_naiveU.col(i + 1).segment(firstCol, k + 1) = m_naiveU.col(i).segment(firstCol, k + 1);
     // we shift q1 at the left with a factor c0
@@ -538,7 +538,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       } else {
         // We have a problem as shifting on the left or right give either a positive or negative value
         // at the middle of [left,right]...
-        // Instead of abbording or entering an infinite loop,
+        // Instead of aborting or entering an infinite loop,
         // let's just use the middle as the estimated zero-crossing:
         muCur = (right - left) * RealScalar(0.5);
         // we can test exact equality here, because shift comes from `... ? left : right`
@@ -572,7 +572,12 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
     else {
       // see equation (3.6)
       RealScalar dk = diag(k);
-      RealScalar prod = (singVals(lastIdx) + dk) * (mus(lastIdx) + (shifts(lastIdx) - dk));
+      // Materialize the close subtraction before adding the small correction.
+      // Unsafe FP reassociation may otherwise turn `mus + (shift - dk)` into
+      // `(mus + shift) - dk`, losing `mus` when `shift` and `dk` cancel.
+      RealScalar diff = shifts(lastIdx) - dk;
+      EIGEN_OPTIMIZATION_BARRIER(diff)
+      RealScalar prod = (singVals(lastIdx) + dk) * (mus(lastIdx) + diff);
 
       for (Index l = 0; l < m; ++l) {
         Index i = perm(l);
@@ -585,7 +590,9 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
             break;
           }
           Index j = i < k ? i : perm(l - 1);
-          prod *= ((singVals(j) + dk) / ((diag(i) + dk))) * ((mus(j) + (shifts(j) - dk)) / ((diag(i) - dk)));
+          diff = shifts(j) - dk;
+          EIGEN_OPTIMIZATION_BARRIER(diff)
+          prod *= ((singVals(j) + dk) / ((diag(i) + dk))) * ((mus(j) + diff) / ((diag(i) - dk)));
         }
       }
       RealScalar tmp = sqrt(prod);
@@ -610,7 +617,11 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
       U.col(k).setZero();
       for (Index l = 0; l < m; ++l) {
         Index i = perm(l);
-        U(i, k) = zhat(i) / (((diag(i) - shifts(k)) - mus(k))) / ((diag(i) + singVals[k]));
+        RealScalar diff = diag(i) - shifts(k);
+        EIGEN_OPTIMIZATION_BARRIER(diff)
+        diff -= mus(k);
+        EIGEN_OPTIMIZATION_BARRIER(diff)
+        U(i, k) = zhat(i) / diff / ((diag(i) + singVals[k]));
       }
       U(n, k) = Literal(0);
       U.col(k).normalize();
@@ -619,7 +630,11 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
         V.col(k).setZero();
         for (Index l = 1; l < m; ++l) {
           Index i = perm(l);
-          V(i, k) = diag(i) * zhat(i) / (((diag(i) - shifts(k)) - mus(k))) / ((diag(i) + singVals[k]));
+          RealScalar diff = diag(i) - shifts(k);
+          EIGEN_OPTIMIZATION_BARRIER(diff)
+          diff -= mus(k);
+          EIGEN_OPTIMIZATION_BARRIER(diff)
+          V(i, k) = diag(i) * zhat(i) / diff / ((diag(i) + singVals[k]));
         }
         V(0, k) = Literal(-1);
         V.col(k).normalize();

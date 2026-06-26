@@ -102,11 +102,43 @@ void mmtr(int size) {
   }
 }
 
+template <typename MatrixType>
+void mmtr_empty_product(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> LhsType;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RhsType;
+
+  LhsType lhs(size, 0);
+  RhsType rhs(0, size);
+
+  MatrixType dst = MatrixType::Random(size, size);
+  MatrixType ref = dst;
+
+  dst.template triangularView<Lower>() += lhs * rhs;
+  VERIFY_IS_APPROX(dst, ref);
+
+  dst.template triangularView<Upper>() -= lhs * rhs;
+  VERIFY_IS_APPROX(dst, ref);
+
+  dst.template triangularView<Lower>() = lhs * rhs;
+  ref.template triangularView<Lower>().setZero();
+  VERIFY_IS_APPROX(dst, ref);
+
+  dst = MatrixType::Random(size, size);
+  ref = dst;
+  dst.template selfadjointView<Lower>() = lhs * rhs;
+  ref.template triangularView<Lower>().setZero();
+  VERIFY_IS_APPROX(dst, ref);
+}
+
 EIGEN_DECLARE_TEST(product_mmtr) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((mmtr<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_2((mmtr<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_3((mmtr<std::complex<float> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2))));
     CALL_SUBTEST_4((mmtr<std::complex<double> >(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2))));
+
+    CALL_SUBTEST_5((mmtr_empty_product<MatrixXd>(48)));
+    CALL_SUBTEST_6((mmtr_empty_product<Matrix<double, Dynamic, Dynamic, RowMajor> >(48)));
   }
 }

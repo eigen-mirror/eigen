@@ -41,7 +41,8 @@ void parametrizedline(const LineType &_line) {
   VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(p0 + s0 * d0), RealScalar(1));
   VERIFY_IS_APPROX((l0.projection(p1) - p1).norm(), l0.distance(p1));
   VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(l0.projection(p1)), RealScalar(1));
-  VERIFY_IS_APPROX(Scalar(l0.distance((p0 + s0 * d0) + d0.unitOrthogonal() * s1)), s1);
+  VectorType orthogonal = d0.unitOrthogonal();
+  VERIFY_IS_APPROX(Scalar(LineType(VectorType::Zero(dim), d0).distance(orthogonal * s1)), s1);
 
   // casting
   const int Dim = LineType::AmbientDimAtCompileTime;

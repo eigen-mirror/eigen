@@ -387,7 +387,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T erfc_double_large(const T& x, const T& x
   const T x2_lo = twoprod_low(x, x, x2);
   // Here we use that
   //   exp(-x^2) = exp(-(x2+x2_lo)^2) ~= exp(-x2)*exp(-x2_lo) ~= exp(-x2)*(1-x2_lo)
-  // since x2_lo < kClamp *eps << 1 in the region we care about. This trick reduces the max error
+  // since x2_lo < kClamp * eps << 1 in the region we care about. This trick reduces the max error
   // from 258 ulps to below 7 ulps.
   const T exp2_hi = pexp(pnegate(x2));
   const T z = pnmadd(exp2_hi, x2_lo, exp2_hi);
@@ -466,7 +466,7 @@ struct generic_fast_erf {
 };
 
 /** \internal \returns the error function of \a a (coeff-wise)
-    This uses a 11/10-degree rational interpolantand is accurate to 3 ulp for
+    This uses a 11/10-degree rational interpolant and is accurate to 3 ulp for
     normalized floats.
 
     This implementation works on both scalars and SIMD "packets".
@@ -493,7 +493,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<float>::run(const T& x)
   T p = ppolevl<T, 5>::run(x2, alpha);
   p = pmul(x, p);
 
-  // Evaluate the denominator polynomial p.
+  // Evaluate the denominator polynomial q.
   T q = ppolevl<T, 5>::run(x2, beta);
   const T r = pdiv(p, q);
 

@@ -80,7 +80,7 @@ void zeroSizedVector() {
   if (VectorType::SizeAtCompileTime == Dynamic || VectorType::SizeAtCompileTime == 0) {
     zeroReduction(t1);
     VERIFY(t1.size() == 0);
-    VectorType t2(DenseIndex(0));  // DenseIndex disambiguates with 0-the-null-pointer (error with gcc 4.4 and MSVC8)
+    VectorType t2(DenseIndex(0));  // Select the size constructor.
     VERIFY(t2.size() == 0);
     zeroReduction(t2);
 

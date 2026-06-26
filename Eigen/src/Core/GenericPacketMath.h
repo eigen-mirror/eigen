@@ -222,7 +222,7 @@ struct vectorized_type_casting_traits {
 };
 
 /** \internal Wrapper to ensure that multiple packet types can map to the same
-    same underlying vector type. */
+    underlying vector type. */
 template <typename T, int unique_id = 0>
 struct eigen_packet_wrapper {
   EIGEN_ALWAYS_INLINE operator T&() { return m_val; }
@@ -747,7 +747,7 @@ EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) 
   return static_cast<Packet>(ldexp(a, static_cast<int>(exponent)));
 }
 
-/** \internal \returns the min of \a a and \a b  (coeff-wise) */
+/** \internal \returns the absolute difference of \a a and \a b  (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger, Packet>
 pabsdiff(const Packet& a, const Packet& b) {
@@ -1429,7 +1429,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const P
   return pmadd_impl<Packet>::pnmadd(a, b, c);
 }
 
-/** \internal \returns -((a * b + c) (coeff-wise) */
+/** \internal \returns -(a * b + c) (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pnmsub(a, b, c);
@@ -1448,8 +1448,9 @@ inline void pstore1(typename unpacket_traits<Packet>::type* to, const typename u
  * The pointer \a from must be aligned on a \a Alignment bytes boundary. */
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_traits<Packet>::type* from) {
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment) { return pload<Packet>(from); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= unpacket_traits<Packet>::alignment) {
+    return pload<Packet>(from);
+  } else {
     return ploadu<Packet>(from);
   }
 }
@@ -1459,8 +1460,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt(const typename unpacket_trai
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpacket_traits<Packet>::type* from,
                                                             const Index n, const Index offset = 0) {
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment) { return pload_partial<Packet>(from, n, offset); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= unpacket_traits<Packet>::alignment) {
+    return pload_partial<Packet>(from, n, offset);
+  } else {
     return ploadu_partial<Packet>(from, n, offset);
   }
 }
@@ -1469,8 +1471,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet ploadt_partial(const typename unpac
  * The pointer \a from must be aligned on a \a Alignment bytes boundary. */
 template <typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& from) {
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment) { pstore(to, from); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= unpacket_traits<Packet>::alignment) {
+    pstore(to, from);
+  } else {
     pstoreu(to, from);
   }
 }
@@ -1480,8 +1483,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret(Scalar* to, const Packet& fro
 template <typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void pstoret_partial(Scalar* to, const Packet& from, const Index n,
                                                            const Index offset = 0) {
-  EIGEN_IF_CONSTEXPR(Alignment >= unpacket_traits<Packet>::alignment) { pstore_partial(to, from, n, offset); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= unpacket_traits<Packet>::alignment) {
+    pstore_partial(to, from, n, offset);
+  } else {
     pstoreu_partial(to, from, n, offset);
   }
 }
@@ -1677,8 +1681,9 @@ template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
   constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  EIGEN_IF_CONSTEXPR(Alignment >= RequiredAlignment) { return ploadSegment<Packet>(from, begin, count); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= RequiredAlignment) {
+    return ploadSegment<Packet>(from, begin, count);
+  } else {
     return ploaduSegment<Packet>(from, begin, count);
   }
 }
@@ -1688,8 +1693,9 @@ Elements outside of the range [begin, begin + count) are not defined.*/
 template <typename Scalar, typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline void pstoretSegment(Scalar* to, const Packet& from, Index begin, Index count) {
   constexpr int RequiredAlignment = unpacket_traits<Packet>::alignment;
-  EIGEN_IF_CONSTEXPR(Alignment >= RequiredAlignment) { pstoreSegment<Scalar, Packet>(to, from, begin, count); }
-  else {
+  EIGEN_IF_CONSTEXPR (Alignment >= RequiredAlignment) {
+    pstoreSegment<Scalar, Packet>(to, from, begin, count);
+  } else {
     pstoreuSegment<Scalar, Packet>(to, from, begin, count);
   }
 }

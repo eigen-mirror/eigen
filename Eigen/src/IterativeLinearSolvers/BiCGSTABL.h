@@ -30,6 +30,9 @@
 #ifndef EIGEN_BICGSTABL_H
 #define EIGEN_BICGSTABL_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {
@@ -47,12 +50,10 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditioner &precond, Index &iters,
                typename Dest::RealScalar &tol_error, Index L) {
-  using numext::abs;
-  using numext::sqrt;
   typedef typename Dest::RealScalar RealScalar;
   typedef typename Dest::Scalar Scalar;
   const Index N = rhs.size();
-  L = L < x.rows() ? L : x.rows();
+  L = numext::mini(L, x.rows());
 
   Index k = 0;
 
@@ -76,8 +77,6 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
 
   VectorType x_prime = x;
 
-  // Redundant: x is already set to 0
-  // x.setZero();
   VectorType b_prime = rHat.col(0);
 
   // Other vectors and scalars initialization
@@ -90,7 +89,7 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
   bool bicg_convergence = false;
 
   const RealScalar normb = rhs.stableNorm();
-  if (internal::isApprox(normb, RealScalar(0))) {
+  if (normb == RealScalar(0)) {
     x.setZero();
     iters = 0;
     return true;
@@ -288,7 +287,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
+  Index m_L = 2;
 
  public:
   typedef MatrixType_ MatrixType;
@@ -297,7 +296,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   typedef Preconditioner_ Preconditioner;
 
   /** Default constructor. */
-  BiCGSTABL() : m_L(2) {}
+  BiCGSTABL() = default;
 
   /**
   Initialize the solver with matrix \a A for further \c Ax=b solving.
@@ -311,7 +310,7 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   matrix A, or modify a copy of A.
   */
   template <typename MatrixDerived>
-  explicit BiCGSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()), m_L(2) {}
+  explicit BiCGSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()) {}
 
   /** \internal */
   /** Loops over the number of columns of b and does the following:
@@ -320,11 +319,23 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs &b, Dest &x) const {
-    m_iterations = Base::maxIterations();
+    const Index max_iterations = Base::maxIterations();
+    m_iterations = max_iterations;
 
     m_error = Base::m_tolerance;
 
     bool ret = internal::bicgstabl(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, m_L);
+    Index total_iterations = m_iterations;
+    // The recursively updated residual may stop just above the requested tolerance.
+    // Restart from the current best iterate while there is still iteration budget.
+    while (ret && m_error > Base::m_tolerance && total_iterations < max_iterations) {
+      Index restart_iterations = max_iterations - total_iterations;
+      m_error = Base::m_tolerance;
+      ret = internal::bicgstabl(matrix(), b, x, Base::m_preconditioner, restart_iterations, m_error, m_L);
+      if (restart_iterations == 0) break;
+      total_iterations += restart_iterations;
+    }
+    m_iterations = total_iterations;
     m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
   }
 

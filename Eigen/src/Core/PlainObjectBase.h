@@ -171,8 +171,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * See DenseCoeffsBase<Derived,ReadOnlyAccessors>::coeff(Index) const for details. */
   EIGEN_DEVICE_FUNC constexpr const Scalar& coeff(Index rowId, Index colId) const {
-    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
-    else {  // column-major
+    EIGEN_IF_CONSTEXPR (Flags & RowMajorBit) {
+      return m_storage.data()[colId + rowId * m_storage.cols()];
+    } else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
     }
   }
@@ -188,8 +189,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    *
    * See DenseCoeffsBase<Derived,WriteAccessors>::coeffRef(Index,Index) const for details. */
   EIGEN_DEVICE_FUNC constexpr Scalar& coeffRef(Index rowId, Index colId) {
-    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
-    else {  // column-major
+    EIGEN_IF_CONSTEXPR (Flags & RowMajorBit) {
+      return m_storage.data()[colId + rowId * m_storage.cols()];
+    } else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
     }
   }
@@ -203,8 +205,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   /** This is the const version of coeffRef(Index,Index) which is thus synonym of coeff(Index,Index).
    * It is provided for convenience. */
   EIGEN_DEVICE_FUNC constexpr const Scalar& coeffRef(Index rowId, Index colId) const {
-    EIGEN_IF_CONSTEXPR(Flags & RowMajorBit) { return m_storage.data()[colId + rowId * m_storage.cols()]; }
-    else {  // column-major
+    EIGEN_IF_CONSTEXPR (Flags & RowMajorBit) {
+      return m_storage.data()[colId + rowId * m_storage.cols()];
+    } else {  // column-major
       return m_storage.data()[rowId + colId * m_storage.rows()];
     }
   }
@@ -303,8 +306,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 #ifdef EIGEN_INITIALIZE_COEFFS
     bool size_changed = size != this->size();
 #endif
-    EIGEN_IF_CONSTEXPR(RowsAtCompileTime == 1) { m_storage.resize(size, 1, size); }
-    else {
+    EIGEN_IF_CONSTEXPR (RowsAtCompileTime == 1) {
+      m_storage.resize(size, 1, size);
+    } else {
       m_storage.resize(size, size, 1);
     }
 #ifdef EIGEN_INITIALIZE_COEFFS
@@ -347,15 +351,13 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
         other.rows(), other.cols());
 #endif
     const Index othersize = other.rows() * other.cols();
-    EIGEN_IF_CONSTEXPR(RowsAtCompileTime == 1) {
+    EIGEN_IF_CONSTEXPR (RowsAtCompileTime == 1) {
       eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(1, othersize);
-    }
-    else EIGEN_IF_CONSTEXPR(ColsAtCompileTime == 1) {
+    } else EIGEN_IF_CONSTEXPR (ColsAtCompileTime == 1) {
       eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(othersize, 1);
-    }
-    else {
+    } else {
       resize(other.rows(), other.cols());
     }
   }
@@ -416,7 +418,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * conservativeResize(Index, NoChange_t).
    *
    * Matrices are resized relative to the top-left element. In case values need to be
-   * appended to the matrix they will copied from \c other.
+   * appended to the matrix they will be copied from \c other.
    */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void conservativeResizeLike(const DenseBase<OtherDerived>& other) {
@@ -442,7 +444,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   // Prevent user from trying to instantiate PlainObjectBase objects
-  // by making all its constructor protected. See bug 1074.
+  // by making all its constructors protected. See bug 1074.
  protected:
   EIGEN_DEVICE_FUNC constexpr PlainObjectBase() = default;
   /** \brief Move constructor */
@@ -458,7 +460,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(Index size, Index rows, Index cols)
       : m_storage(size, rows, cols) {}
 
-  /** \brief Construct a row of column vector with fixed size from an arbitrary number of coefficients.
+  /** \brief Construct a row or column vector with fixed size from an arbitrary number of coefficients.
    *
    * \only_for_vectors
    *
@@ -711,7 +713,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * \internal
    */
   // aliasing is dealt once in internal::call_assignment
-  // so at this stage we have to assume aliasing... and resising has to be done later.
+  // so at this stage we have to assume aliasing... and resizing has to be done later.
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC constexpr Derived& _set(const DenseBase<OtherDerived>& other) {
     internal::call_assignment(this->derived(), other.derived());

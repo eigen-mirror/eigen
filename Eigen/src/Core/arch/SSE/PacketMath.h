@@ -454,7 +454,7 @@ EIGEN_STRONG_INLINE Packet4ui pzero(const Packet4ui& /*a*/) {
 }
 
 // GCC generates a shufps instruction for _mm_set1_ps/_mm_load1_ps instead of the more efficient pshufd instruction.
-// However, using inrinsics for pset1 makes gcc to generate crappy code in some cases (see bug 203)
+// However, using intrinsics for pset1 makes gcc to generate crappy code in some cases (see bug 203)
 // Using inline assembly is also not an option because then gcc fails to reorder properly the instructions.
 // Therefore, we introduced the pload1 functions to be used in product kernels for which bug 203 does not apply.
 // Also note that with AVX, we want it to generate a vbroadcastss.
@@ -1444,7 +1444,7 @@ EIGEN_STRONG_INLINE Packet16b ploaddup<Packet16b>(const bool* from) {
 }
 
 // Loads 4 bools from memory and returns the packet
-// {b0, b0  b0, b0, b1, b1, b1, b1, b2, b2, b2, b2, b3, b3, b3, b3}
+// {b0, b0, b0, b0, b1, b1, b1, b1, b2, b2, b2, b2, b3, b3, b3, b3}
 template <>
 EIGEN_STRONG_INLINE Packet16b ploadquad<Packet16b>(const bool* from) {
   EIGEN_USING_STD(memcpy);

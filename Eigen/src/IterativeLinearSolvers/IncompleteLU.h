@@ -43,12 +43,12 @@ class IncompleteLU : public SparseSolverBase<IncompleteLU<Scalar_> > {
   template <typename MatrixType>
   IncompleteLU& compute(const MatrixType& mat) {
     m_lu = mat;
-    int size = mat.cols();
+    Index size = mat.cols();
     Vector diag(size);
-    for (int i = 0; i < size; ++i) {
+    for (Index i = 0; i < size; ++i) {
       typename FactorType::InnerIterator k_it(m_lu, i);
       for (; k_it && k_it.index() < i; ++k_it) {
-        int k = k_it.index();
+        Index k = k_it.index();
         k_it.valueRef() /= diag(k);
 
         typename FactorType::InnerIterator j_it(k_it);

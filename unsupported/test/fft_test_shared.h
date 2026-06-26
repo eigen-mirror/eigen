@@ -268,6 +268,56 @@ void test_inplace_complex(int nfft) {
   VERIFY((inv_ref - inout_inv).cwiseAbs().maxCoeff() < test_precision<T>());
 }
 
+// Regression for issue #675: zero-padding a fixed-size vector must not assume
+// a column block in the temporary contiguous FFT input.
+template <typename T>
+void test_fwd_padding(int nfft) {
+  typedef typename FFT<T>::Complex Complex;
+  typedef Matrix<T, 10, 1> FixedRealColumn;
+  typedef Matrix<T, 1, 10> FixedRealRow;
+  typedef Matrix<Complex, 10, 1> FixedComplexColumn;
+  typedef Matrix<Complex, 1, 10> FixedComplexRow;
+  typedef Matrix<T, Dynamic, 1> RealVector;
+  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+
+  FixedRealColumn real_column;
+  FixedComplexColumn complex_column;
+  for (int k = 0; k < real_column.size(); ++k) {
+    real_column[k] = (T)(rand() / (double)RAND_MAX - .5);
+    complex_column[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
+  }
+  FixedRealRow real_row = real_column.transpose();
+  FixedComplexRow complex_row = complex_column.transpose();
+
+  RealVector real_padded = RealVector::Zero(nfft);
+  real_padded.head(real_column.size()) = real_column;
+  ComplexVector complex_padded = ComplexVector::Zero(nfft);
+  complex_padded.head(complex_column.size()) = complex_column;
+
+  FFT<T> fft;
+  ComplexVector expected;
+  ComplexVector actual;
+
+  fft.fwd(expected, real_padded);
+  fft.fwd(actual, real_column, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+  fft.fwd(actual, real_row, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+
+  fft.fwd(expected, complex_padded);
+  fft.fwd(actual, complex_column, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+  fft.fwd(actual, complex_row, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+
+  fft.SetFlag(fft.HalfSpectrum);
+  fft.fwd(expected, real_padded);
+  fft.fwd(actual, real_column, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+  fft.fwd(actual, real_row, nfft);
+  VERIFY_IS_APPROX(actual, expected);
+}
+
 inline void test_return_by_value(int len) {
   VectorXf in;
   VectorXf in1;
@@ -340,6 +390,8 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_inplace_complex<double>(32));
   CALL_SUBTEST(test_inplace_complex<float>(256));
   CALL_SUBTEST(test_inplace_complex<double>(256));
+  CALL_SUBTEST(test_fwd_padding<float>(16));
+  CALL_SUBTEST(test_fwd_padding<double>(16));
   CALL_SUBTEST(test_complex<float>(32));
   CALL_SUBTEST(test_complex<double>(32));
   CALL_SUBTEST(test_complex<float>(256));

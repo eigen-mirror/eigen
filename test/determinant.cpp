@@ -92,14 +92,30 @@ void determinant_lu_fallback_reference(const MatrixType& m) {
 #endif
 }
 
-void determinant_non_finite_lu_fallback() {
-  Matrix<double, 5, 5> m = Matrix<double, 5, 5>::Identity();
-  m(0, 0) = std::numeric_limits<double>::quiet_NaN();
+template <typename MatrixType>
+void verify_non_finite_lu_determinant(MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  m.setIdentity();
+  m(0, 0) = Scalar(std::numeric_limits<RealScalar>::quiet_NaN());
   VERIFY((numext::isnan)(m.determinant()));
 
-  m = Matrix<double, 5, 5>::Identity();
-  m(0, 0) = std::numeric_limits<double>::infinity();
+  m.setIdentity();
+  m(0, 0) = Scalar(std::numeric_limits<RealScalar>::infinity());
   VERIFY((numext::isinf)(m.determinant()));
+}
+
+void determinant_non_finite_lu_fallback() {
+  Matrix<double, 5, 5> fixed;
+  verify_non_finite_lu_determinant(fixed);
+
+  MatrixXd dynamic(5, 5);
+  verify_non_finite_lu_determinant(dynamic);
+
+  std::vector<double> storage(25);
+  Map<Matrix<double, Dynamic, Dynamic> > mapped(storage.data(), 5, 5);
+  verify_non_finite_lu_determinant(mapped);
 }
 
 template <typename MatrixType>

@@ -39,6 +39,9 @@ and related methods. SIAM Journal on Scientific Computing, 34(5), A2576-A2598.
 #ifndef EIGEN_IDRSTABL_H
 #define EIGEN_IDRSTABL_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {
@@ -50,7 +53,6 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Setup and type definitions.
   */
   using numext::abs;
-  using numext::sqrt;
   typedef typename Dest::Scalar Scalar;
   typedef typename Dest::RealScalar RealScalar;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
@@ -143,7 +145,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
         1. The basis of dimension <S is sufficient to exactly solve the linear
         system. I.e. the current residual is in span{r,Ar,...A^{m-1}r}, where
         (m-1)<=S.
-        2. Two vectors vectors generated from r, Ar,... are (numerically)
+        2. Two vectors generated from r, Ar,... are (numerically)
         parallel.
 
         In case 1, the exact solution to the system can be obtained from the
@@ -194,7 +196,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Select an initial (N x S) matrix R0.
     1. Generate random R0, orthonormalize the result.
     2. This results in R0, however to save memory and compute we only need the
-    adjoint of R0. This is given by the matrix R_T.\ Additionally, the matrix
+    adjoint of R0. This is given by the matrix R_T. Additionally, the matrix
     (mat.adjoint()*R_tilde).adjoint()=R_tilde.adjoint()*mat by the
     anti-distributivity property of the adjoint. This results in AR_T, which is
     constant if R_T does not have to be regenerated and can be precomputed.
@@ -202,8 +204,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   */
 
   // Original IDRSTABL and Kensuke choose S random vectors:
-  const HouseholderQR<DenseMatrixType> qr(DenseMatrixType::Random(N, S));
-  DenseMatrixType R_T = (qr.householderQ() * DenseMatrixType::Identity(N, S)).adjoint();
+  DenseMatrixType R_T = internal::random_orthonormal_basis<DenseMatrixType>(N, S).adjoint();
   DenseMatrixType AR_T = DenseMatrixType(R_T * mat);
 
   // Pre-allocate sigma.
@@ -299,7 +300,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
         V.block(0, q - 1, N * (j + 1), 1).noalias() = u.reshaped().head(u.rows() * (j + 1));
       }
 
-      if (break_normalization == false) {
+      if (!break_normalization) {
         U = V;
       }
     }
@@ -418,8 +419,8 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   using Base::m_isInitialized;
   using Base::m_iterations;
   using Base::matrix;
-  Index m_L;
-  Index m_S;
+  Index m_L = 2;
+  Index m_S = 4;
 
  public:
   typedef MatrixType_ MatrixType;
@@ -429,7 +430,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
 
  public:
   /** Default constructor. */
-  IDRSTABL() : m_L(2), m_S(4) {}
+  IDRSTABL() = default;
 
   /**   Initialize the solver with matrix \a A for further \c Ax=b solving.
 
@@ -442,7 +443,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   matrix A, or modify a copy of A.
           */
   template <typename MatrixDerived>
-  explicit IDRSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()), m_L(2), m_S(4) {}
+  explicit IDRSTABL(const EigenBase<MatrixDerived> &A) : Base(A.derived()) {}
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:
@@ -466,7 +467,7 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
     m_L = L;
   }
   /** Sets the parameter S, indicating the dimension of the shadow residual
-   * space.. */
+   * space. */
   void setS(Index S) {
     eigen_assert(S >= 1 && "S needs to be positive");
     m_S = S;

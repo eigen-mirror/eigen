@@ -22,8 +22,8 @@ namespace Eigen {
  *
  * This class can be used as a preprocessing tool to accelerate the convergence of iterative methods
  *
- * This feature is  useful to limit the pivoting amount during LU/ILU factorization
- * The  scaling strategy as presented here preserves the symmetry of the problem
+ * This feature is useful to limit the pivoting amount during LU/ILU factorization
+ * The scaling strategy as presented here preserves the symmetry of the problem
  * NOTE It is assumed that the matrix does not have empty row or column,
  *
  * Example with key steps
@@ -55,15 +55,12 @@ class IterScaling {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::Index Index;
 
- public:
   IterScaling() { init(); }
 
   IterScaling(const MatrixType& matrix) {
     init();
     compute(matrix);
   }
-
-  ~IterScaling() {}
 
   /**
    * Compute the left and right diagonal matrices to scale the input matrix @p mat
@@ -82,11 +79,8 @@ class IterScaling {
     m_left.setOnes();
     m_right.setOnes();
     m_matrix = mat;
-    VectorXd Dr, Dc, DrRes, DcRes;  // Temporary Left and right scaling vectors
-    Dr.resize(m);
-    Dc.resize(n);
-    DrRes.resize(m);
-    DcRes.resize(n);
+    // Temporary left and right scaling vectors
+    VectorXd Dr(m), Dc(n), DrRes(m), DcRes(n);
     double EpsRow = 1.0, EpsCol = 1.0;
     int its = 0;
     do {  // Iterate until the infinite norm of each row and column is approximately 1
@@ -162,7 +156,6 @@ class IterScaling {
   }
 
   MatrixType m_matrix;
-  mutable ComputationInfo m_info;
   bool m_isInitialized;
   VectorXd m_left;   // Left scaling vector
   VectorXd m_right;  // Right scaling vector

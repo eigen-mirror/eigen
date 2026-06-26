@@ -241,7 +241,7 @@ struct simpl_chol_helper {
     }
   }
 
-  // Finalizes the non zero pattern of the L factor and allocates the memory for the factorization.
+  // Finalizes the non-zero pattern of the L factor and allocates the memory for the factorization.
   static void init_matrix(const StorageIndex size, const StorageIndex* nonZerosPerCol, CholMatrixType& L) {
     eigen_assert(L.outerIndexPtr()[0] == 0);
     std::partial_sum(nonZerosPerCol, nonZerosPerCol + size, L.outerIndexPtr() + 1);
@@ -376,8 +376,9 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
       Index p = Lp[k] + nonZerosPerCol[k]++;
       Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
       bool failed;
-      EIGEN_IF_CONSTEXPR(NonHermitian) { failed = d == RealScalar(0); }
-      else {
+      EIGEN_IF_CONSTEXPR (NonHermitian) {
+        failed = d == RealScalar(0);
+      } else {
         failed = numext::real(d) <= RealScalar(0);
       }
       if (failed) {

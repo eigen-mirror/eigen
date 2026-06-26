@@ -262,6 +262,86 @@ void redux_strided() {
   }
 }
 
+// Test reductions on expressions whose inner stride is NOT statically 1 (so they lose
+// compile-time vectorization) but ARE contiguous at runtime: a dynamic-inner-stride Map with
+// runtime stride 1, a row of a 1xN dynamic matrix, and a fully-packed dynamic-stride matrix Ref.
+// These exercise the runtime unit-stride fast path in redux_dispatch (Redux.h) and the matching
+// squaredNorm()/norm() fast path (squared_norm_impl in Dot.h). The last check confirms the
+// fallback path stays correct when the runtime inner stride is genuinely != 1.
+template <typename Scalar>
+void redux_runtime_contiguous() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index sizes[] = {1, 2, 7, 8, 9, 16, 17, 64, 255, 256, 257};
+  for (int si = 0; si < 11; ++si) {
+    const Index n = sizes[si];
+    Vec data = Vec::Random(2 * n);
+    Vec data_for_prod = Vec::Ones(2 * n) + Scalar(RealScalar(0.2)) * data;
+    Scalar rs(0), rp(1);
+    RealScalar rmin = numext::real(data(0)), rmax = numext::real(data(0)), rsqn(0);
+    for (Index k = 0; k < n; ++k) {
+      rs += data(k);
+      rp *= data_for_prod(k);
+      rmin = (std::min)(rmin, numext::real(data(k)));
+      rmax = (std::max)(rmax, numext::real(data(k)));
+      rsqn += numext::abs2(data(k));
+    }
+
+    // (a) dynamic-inner-stride Map with runtime stride 1 -> fast path.
+    Map<Vec, 0, InnerStride<Dynamic>> m(data.data(), n, InnerStride<Dynamic>(1));
+    VERIFY_IS_APPROX(m.sum(), rs);
+    VERIFY_IS_APPROX(m.mean(), rs / Scalar(RealScalar(n)));
+    VERIFY_IS_APPROX(m.real().minCoeff(), rmin);
+    VERIFY_IS_APPROX(m.real().maxCoeff(), rmax);
+    VERIFY_IS_APPROX(m.squaredNorm(), rsqn);  // squaredNorm/norm fast path (squared_norm_impl)
+    VERIFY_IS_APPROX(m.norm(), numext::sqrt(rsqn));
+    Map<Vec, 0, InnerStride<Dynamic>> mp(data_for_prod.data(), n, InnerStride<Dynamic>(1));
+    VERIFY_IS_APPROX(mp.prod(), rp);
+
+    // (a') an *aligned* dynamic-inner-stride Map with runtime stride 1 exercises the aligned-load
+    // fast path: the runtime-contiguous Map inherits evaluator<Derived>::Alignment, so an aligned
+    // source must reduce correctly and must not trip the Map alignment assertion. The data buffer
+    // comes from an Eigen Vec, which is allocated AlignedMax-aligned.
+    Map<Vec, AlignedMax, InnerStride<Dynamic>> ma(data.data(), n, InnerStride<Dynamic>(1));
+    VERIFY_IS_APPROX(ma.sum(), rs);
+    VERIFY_IS_APPROX(ma.real().minCoeff(), rmin);
+    VERIFY_IS_APPROX(ma.real().maxCoeff(), rmax);
+    VERIFY_IS_APPROX(ma.squaredNorm(), rsqn);
+    VERIFY_IS_APPROX(ma.norm(), numext::sqrt(rsqn));
+
+    // (b) a row of a 1xN dynamic matrix is contiguous at runtime (inner stride == 1).
+    Mat r = Mat::Random(1, n);
+    Scalar row_sum(0);
+    RealScalar row_sqn(0);
+    for (Index j = 0; j < n; ++j) {
+      row_sum += r(0, j);
+      row_sqn += numext::abs2(r(0, j));
+    }
+    VERIFY_IS_APPROX(r.row(0).sum(), row_sum);
+    VERIFY_IS_APPROX(r.row(0).squaredNorm(), row_sqn);
+
+    // (c) fully-packed dynamic-stride matrix Ref -> fast path; must match the dense result.
+    if (n >= 2) {
+      Mat M = Mat::Random(n, 3);
+      Ref<Mat, 0, Stride<Dynamic, Dynamic>> mref(M);
+      VERIFY_IS_APPROX(mref.sum(), M.sum());
+      VERIFY_IS_APPROX(mref.real().minCoeff(), M.real().minCoeff());
+    }
+
+    // (d) fallback: a genuinely strided (stride 2) dynamic Map must still reduce correctly.
+    Map<Vec, 0, InnerStride<Dynamic>> m2(data.data(), n, InnerStride<Dynamic>(2));
+    Scalar rs2(0);
+    RealScalar rsqn2(0);
+    for (Index k = 0; k < n; ++k) {
+      rs2 += data(2 * k);
+      rsqn2 += numext::abs2(data(2 * k));
+    }
+    VERIFY_IS_APPROX(m2.sum(), rs2);
+    VERIFY_IS_APPROX(m2.squaredNorm(), rsqn2);
+  }
+}
+
 EIGEN_DECLARE_TEST(redux) {
   // the max size cannot be too large, otherwise reduxion operations obviously generate large errors.
   int maxsize = (std::min)(100, EIGEN_TEST_MAX_SIZE);
@@ -342,4 +422,10 @@ EIGEN_DECLARE_TEST(redux) {
   CALL_SUBTEST_13(redux_strided<float>());
   CALL_SUBTEST_13(redux_strided<double>());
   CALL_SUBTEST_13(redux_strided<std::complex<float>>());
+
+  // Runtime unit-stride fast path (redux_dispatch in Redux.h).
+  CALL_SUBTEST_13(redux_runtime_contiguous<float>());
+  CALL_SUBTEST_13(redux_runtime_contiguous<double>());
+  CALL_SUBTEST_13(redux_runtime_contiguous<std::complex<float>>());
+  CALL_SUBTEST_13(redux_runtime_contiguous<std::complex<double>>());
 }

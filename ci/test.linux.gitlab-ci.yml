@@ -362,6 +362,73 @@ test:linux:arm:clang-14:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+##### SME ######################################################################
+
+.test:linux:sme:
+  extends: .test:linux
+  stage: test
+  # QEMU enables SME2 via `-cpu max,sme=on` (there is no separate sme2
+  # property); the multi-vector ops the kernel uses (svld1_f32_x4, the SME2
+  # FMOPA forms) are only emulated from QEMU 10.1 on. Ubuntu 24.04 ships
+  # 8.2.2 (base FEAT_SME only), so run the test stage on 26.04 (QEMU 10.2.x).
+  # The build stage stays on 24.04 -- it only cross-compiles and never invokes
+  # the emulator.
+  image: ubuntu:26.04
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sme
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+  # Inherit the 2xlarge runner from .test:linux (same cost under GitLab's
+  # open-source program). The qemu-user run is single-threaded per subtest,
+  # so this is about cost-neutral consistency, not speed.
+
+.test:linux:sme:gcc-14:default:
+  extends: .test:linux:sme
+  needs: [ build:linux:cross:sme:gcc-14:default ]
+  variables:
+    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-14
+    # Test stage only needs the aarch64 runtime (loader + libstdc++/libc under
+    # /usr/aarch64-linux-gnu, used via qemu's -L prefix) and qemu-user; the
+    # default-version cross g++ provides the libs on any release, and newer
+    # libstdc++ is ABI-compatible with the gcc-14-built binaries. On 25.10+
+    # the static qemu binaries are gone (qemu-user-static is now a virtual
+    # package), so install qemu-user and invoke the dynamic qemu-aarch64.
+    EIGEN_CI_CROSS_INSTALL: g++-aarch64-linux-gnu qemu-user
+
+# Each concrete SME test job must set QEMU_CPU explicitly; qemu otherwise
+# silently runs at its own default SME SVL instead of failing.
+.test:linux:sme:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default
+  variables:
+    # Run only product_sme from the prebuilt dir via the standard test flow.
+    EIGEN_CI_CTEST_REGEX: product_sme
+
+# SVL=128: architectural minimum; exercises the most sub-block passes per
+# logical block.
+test:linux:sme128:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme128=on,sme256=off,sme512=off,sme1024=off,sme2048=off
+
+# SVL=256: exercises runtime tiling geometry not covered by 512-bit tiles.
+test:linux:sme256:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme256=on,sme128=off,sme512=off,sme1024=off,sme2048=off
+
+# SVL=512: block matches the tile grid exactly; exercises the multi-vector-load
+# loop in sme_process.
+test:linux:sme512:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+
+# SVL=2048: architectural maximum; exercises predication down to the logical
+# block.
+test:linux:sme2048:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme2048=on,sme128=off,sme256=off,sme512=off,sme1024=off
+
 ##### aarch64 ##################################################################
 
 .test:linux:aarch64:
@@ -467,6 +534,70 @@ test:linux:loongarch64:gcc-14:default:unsupported:
   extends: .test:linux:loongarch64:gcc-14:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
+
+##### riscv64 ##################################################################
+
+.test:linux:riscv64:
+  extends: .test:linux
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
+  variables:
+    EIGEN_CI_TARGET_ARCH: riscv64
+    EIGEN_CI_SKIP_APT: "true"
+  tags:
+    - riscv
+  allow_failure: true
+
+.test:linux:riscv64:gcc-14:default:
+  extends: .test:linux:riscv64
+  needs: [ build:linux:riscv64:gcc-14:default ]
+  variables:
+    EIGEN_CI_INSTALL: g++-14
+
+test:linux:riscv64:gcc-14:default:official:
+  extends: .test:linux:riscv64:gcc-14:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:riscv64:gcc-14:default:unsupported:
+  extends: .test:linux:riscv64:gcc-14:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+
+.test:linux:riscv64:clang-18:default:
+  extends: .test:linux:riscv64
+  needs: [ build:linux:riscv64:clang-18:default ]
+  variables:
+    EIGEN_CI_INSTALL: clang-18 g++-14
+
+test:linux:riscv64:clang-18:default:official:
+  extends: .test:linux:riscv64:clang-18:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:riscv64:clang-18:default:unsupported:
+  extends: .test:linux:riscv64:clang-18:default
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+
+test:linux:riscv64:clang-18:default:smoketest:
+  extends: .test:linux:riscv64:clang-18:default
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
+  needs: [ build:linux:riscv64:clang-18:default:smoketest ]
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_CTEST_LABEL: smoketest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+test:linux:riscv64:gcc-14:default:smoketest:
+  extends: .test:linux:riscv64:gcc-14:default
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
+  needs: [ build:linux:riscv64:gcc-14:default:smoketest ]
+  variables:
+    EIGEN_CI_SKIP_APT: "true"
+    EIGEN_CI_CTEST_LABEL: smoketest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 ##### MR Smoke Tests ###########################################################
 

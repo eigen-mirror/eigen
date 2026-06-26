@@ -115,7 +115,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = TensorEvaluator<ArgType, Device>::BlockAccess,
     // Chipping of outer-most dimension is a trivial operation, because we can
-    // read and write directly from the underlying tensor using single offset.
+    // read and write directly from the underlying tensor using a single offset.
     IsOuterChipping = (Layout == ColMajor && DimId == NumInputDims - 1) || (Layout == RowMajor && DimId == 0),
     // Chipping inner-most dimension.
     IsInnerChipping = (Layout == ColMajor && DimId == 0) || (Layout == RowMajor && DimId == NumInputDims - 1),
@@ -156,13 +156,12 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
 
     m_stride = 1;
     m_inputStride = 1;
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = 0; i < m_dim.actualDim(); ++i) {
         m_stride *= input_dims[i];
         m_inputStride *= input_dims[i];
       }
-    }
-    else {
+    } else {
       for (int i = NumInputDims - 1; i > m_dim.actualDim(); --i) {
         m_stride *= input_dims[i];
         m_inputStride *= input_dims[i];
@@ -171,7 +170,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     m_inputStride *= input_dims[m_dim.actualDim()];
     m_inputOffset = m_stride * op.offset();
 
-    // Check if chipping is effectively inner or outer: products of dimensions
+    // Check if chipping is effectively inner or outer: product of dimensions
     // before or after the chipped dimension is `1`.
     Index after_chipped_dim_product = 1;
     for (int i = static_cast<int>(m_dim.actualDim()) + 1; i < NumInputDims; ++i) {
@@ -183,11 +182,10 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
       before_chipped_dim_product *= input_dims[i];
     }
 
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_isEffectivelyInnerChipping = before_chipped_dim_product == 1;
       m_isEffectivelyOuterChipping = after_chipped_dim_product == 1;
-    }
-    else {
+    } else {
       m_isEffectivelyInnerChipping = after_chipped_dim_product == 1;
       m_isEffectivelyOuterChipping = before_chipped_dim_product == 1;
     }

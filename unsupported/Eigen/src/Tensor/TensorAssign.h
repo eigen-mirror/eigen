@@ -65,7 +65,10 @@ class TensorAssignOp : public TensorBase<TensorAssignOp<LhsXprType, RhsXprType> 
   static constexpr int NumDims = Eigen::internal::traits<TensorAssignOp>::NumDimensions;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorAssignOp(LhsXprType& lhs, const RhsXprType& rhs)
-      : m_lhs_xpr(lhs), m_rhs_xpr(rhs) {}
+      : m_lhs_xpr(lhs), m_rhs_xpr(rhs) {
+    EIGEN_STATIC_ASSERT((internal::traits<LhsXprType>::NumDimensions == internal::traits<RhsXprType>::NumDimensions),
+                        Number_of_dimensions_must_match)
+  }
 
   /** \returns the nested expressions */
   EIGEN_DEVICE_FUNC internal::remove_all_t<typename LhsXprType::Nested>& lhsExpression() const {

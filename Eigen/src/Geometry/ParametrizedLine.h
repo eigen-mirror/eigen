@@ -65,8 +65,6 @@ class ParametrizedLine {
     return ParametrizedLine(p0, (p1 - p0).normalized());
   }
 
-  EIGEN_DEVICE_FUNC ~ParametrizedLine() {}
-
   /** \returns the dimension in which the line holds */
   EIGEN_DEVICE_FUNC inline Index dim() const { return m_direction.size(); }
 
@@ -196,7 +194,7 @@ EIGEN_DEVICE_FUNC inline ParametrizedLine<Scalar_, AmbientDim_, Options_>::Param
 template <typename Scalar_, int AmbientDim_, int Options_>
 EIGEN_DEVICE_FUNC inline typename ParametrizedLine<Scalar_, AmbientDim_, Options_>::VectorType
 ParametrizedLine<Scalar_, AmbientDim_, Options_>::pointAt(const Scalar_& t) const {
-  return origin() + (direction() * t);
+  return origin() + direction() * t;
 }
 
 /** \returns the parameter value of the intersection between \c *this and the given \a hyperplane

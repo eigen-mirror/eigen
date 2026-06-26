@@ -34,7 +34,6 @@ add_subdirectory(MatrixFunctions)
 add_subdirectory(SpecialFunctions)
 add_subdirectory(AutoDiff)
 add_subdirectory(Splines)
-add_subdirectory(IterativeSolvers)
 add_subdirectory(KroneckerProduct)
 
 # GPU benchmarks have their own CMake project (needs CUDAToolkit).

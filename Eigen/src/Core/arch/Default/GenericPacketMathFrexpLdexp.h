@@ -106,7 +106,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   // Unfortunately, 2^(278) cannot be represented using either one or two
   // finite normal floats, so we must split the scale factor into at least
   // three parts. It turns out to be faster to split 'exponent' into four
-  // factors, since [exponent>>2] is much faster to compute that [exponent/3].
+  // factors, since [exponent>>2] is much faster to compute than [exponent/3].
   //
   // Set e = min(max(exponent, -278), 278);
   //     b = floor(e/4);

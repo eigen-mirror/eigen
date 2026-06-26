@@ -46,9 +46,31 @@ void test_lscg_T() {
   CALL_SUBTEST(check_sparse_leastsquare_solving(lscg_rowmajor_I));
 }
 
+void test_lscg_extreme_rhs() {
+  const Matrix2d mat = Matrix2d::Identity();
+  const Vector2d direction = (Vector2d() << 1, -1).finished();
+  LeastSquaresConjugateGradient<Matrix2d, IdentityPreconditioner> solver(mat);
+  solver.setTolerance(1e-12);
+
+  for (double scale : {1e-200, 1e200}) {
+    const Vector2d rhs = scale * direction;
+    const Vector2d guess = 0.5 * rhs;
+    Vector2d x = solver.solve(rhs);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+
+    x = solver.solveWithGuess(rhs, guess);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(x.allFinite());
+    VERIFY_IS_APPROX(x / scale, direction);
+  }
+}
+
 EIGEN_DECLARE_TEST(lscg) {
   CALL_SUBTEST_1(test_lscg_T<double>());
   CALL_SUBTEST_2(test_lscg_T<std::complex<double> >());
   CALL_SUBTEST_3(test_least_square_diagonal_preconditioner_zero_columns<double>());
   CALL_SUBTEST_4(test_least_square_diagonal_preconditioner_zero_columns<std::complex<double> >());
+  CALL_SUBTEST_5(test_lscg_extreme_rhs());
 }

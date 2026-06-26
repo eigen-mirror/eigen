@@ -176,35 +176,28 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
   AccelerateImpl() {
     m_isInitialized = false;
 
-    EIGEN_IF_CONSTEXPR((UpLo_ & Symmetric) == Symmetric) {
+    EIGEN_IF_CONSTEXPR ((UpLo_ & Symmetric) == Symmetric) {
       m_sparseKind = SparseSymmetric;
       m_triType = (UpLo_ & Lower) ? SparseLowerTriangle : SparseUpperTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & UnitLower) == UnitLower) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & UnitLower) == UnitLower) {
       m_sparseKind = SparseUnitTriangular;
       m_triType = SparseLowerTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & UnitUpper) == UnitUpper) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & UnitUpper) == UnitUpper) {
       m_sparseKind = SparseUnitTriangular;
       m_triType = SparseUpperTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & StrictlyLower) == StrictlyLower) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & StrictlyLower) == StrictlyLower) {
       m_sparseKind = SparseTriangular;
       m_triType = SparseLowerTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & StrictlyUpper) == StrictlyUpper) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & StrictlyUpper) == StrictlyUpper) {
       m_sparseKind = SparseTriangular;
       m_triType = SparseUpperTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & Lower) == Lower) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & Lower) == Lower) {
       m_sparseKind = SparseTriangular;
       m_triType = SparseLowerTriangle;
-    }
-    else EIGEN_IF_CONSTEXPR((UpLo_ & Upper) == Upper) {
+    } else EIGEN_IF_CONSTEXPR ((UpLo_ & Upper) == Upper) {
       m_sparseKind = SparseTriangular;
       m_triType = SparseUpperTriangle;
-    }
-    else {
+    } else {
       m_sparseKind = SparseOrdinary;
       m_triType = (UpLo_ & Lower) ? SparseLowerTriangle : SparseUpperTriangle;
     }
@@ -213,8 +206,6 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
   }
 
   explicit AccelerateImpl(const MatrixType& matrix) : AccelerateImpl() { compute(matrix); }
-
-  ~AccelerateImpl() {}
 
   inline Index cols() const { return m_nCols; }
   inline Index rows() const { return m_nRows; }

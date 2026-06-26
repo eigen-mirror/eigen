@@ -18,6 +18,8 @@ namespace Eigen {
 
 namespace internal {
 
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
+
 //---------- float ----------
 struct Packet2cf {
   EIGEN_STRONG_INLINE Packet2cf() {}
@@ -467,6 +469,8 @@ EIGEN_STRONG_INLINE Packet1cd pnmsub(const Packet1cd& a, const Packet1cd& b, con
   return pnegate(pmadd(a, b, c));
 }
 #endif
+
+EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 }  // end namespace internal
 }  // end namespace Eigen
 

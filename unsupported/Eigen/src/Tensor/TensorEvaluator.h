@@ -64,7 +64,7 @@ struct TensorEvaluator {
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorEvaluator(const Derived& m, const Device& device)
-      : m_data(device.get((const_cast<TensorPointerType>(m.data())))), m_dims(m.dimensions()), m_device(device) {}
+      : m_data(device.get(const_cast<TensorPointerType>(m.data()))), m_dims(m.dimensions()), m_device(device) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dims; }
 
@@ -120,20 +120,18 @@ struct TensorEvaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(const array<DenseIndex, NumCoords>& coords) const {
     eigen_assert(m_data != NULL);
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
-    }
-    else {
+    } else {
       return m_data[m_dims.IndexOfRowMajor(coords)];
     }
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(const array<DenseIndex, NumCoords>& coords) const {
     eigen_assert(m_data != NULL);
-    EIGEN_IF_CONSTEXPR(static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
-    }
-    else {
+    } else {
       return m_data[m_dims.IndexOfRowMajor(coords)];
     }
   }

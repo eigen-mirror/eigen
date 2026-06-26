@@ -149,7 +149,7 @@ class Tridiagonalization {
    * reflections. The cost is \f$ 4n^3/3 \f$ flops, where \f$ n \f$ denotes
    * the size of the given matrix.
    *
-   * This method reuses of the allocated data in the Tridiagonalization
+   * This method reuses the allocated data in the Tridiagonalization
    * object, if the size of the matrix does not change.
    *
    * Example: \include Tridiagonalization_compute.cpp
@@ -316,7 +316,7 @@ namespace internal {
  *
  * \param[in,out] matA On input the selfadjoint matrix. Only the \b lower triangular part is referenced.
  *                     On output, the strict upper part is left unchanged, and the lower triangular part
- *                     represents the T and Q matrices in packed format has detailed below.
+ *                     represents the T and Q matrices in packed format as detailed below.
  * \param[out]    hCoeffs returned Householder coefficients (see below)
  *
  * On output, the tridiagonal selfadjoint matrix T is stored in the diagonal
@@ -553,7 +553,7 @@ struct tridiagonalization_inplace_selector;
  * The vectors \p diag and \p subdiag are not resized. The function
  * assumes that they are already of the correct size. The length of the
  * vector \p diag should equal the number of rows in \p mat, and the
- * length of the vector \p subdiag should be one left.
+ * length of the vector \p subdiag should be one less.
  *
  * This implementation contains an optimized path for 3-by-3 matrices
  * which is especially useful for plane fitting.

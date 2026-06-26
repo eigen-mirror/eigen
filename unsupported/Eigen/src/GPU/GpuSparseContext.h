@@ -352,7 +352,7 @@ class SparseContext {
 
     if (m == 0 || n == 0 || cached_nnz_ == 0) {
       // Empty A reduces SpMV to y <- beta*y; SparseContext owns no cuBLAS
-      // handle for the scale, so beta != 0 must be done by the caller.
+      // handle for the scale, so the beta != 0 case must be handled by the caller.
       eigen_assert(beta == Scalar(0) && "SpMV with empty A and beta != 0 is unsupported; scale d_y externally");
       if (d_y.rows() * d_y.cols() != y_size) d_y.resize(y_size, 1);
       d_y.setZero(stream_);

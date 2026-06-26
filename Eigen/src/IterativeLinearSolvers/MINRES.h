@@ -38,8 +38,8 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
 
   // Check for zero rhs
-  const RealScalar rhsNorm2(rhs.squaredNorm());
-  if (rhsNorm2 == 0) {
+  const RealScalar rhsNorm(rhs.stableNorm());
+  if (rhsNorm == 0) {
     x.setZero();
     iters = 0;
     tol_error = 0;
@@ -47,18 +47,26 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   }
 
   // initialize
-  const Index maxIters(iters);                                    // initialize maxIters to iters
-  const Index N(mat.cols());                                      // the size of the matrix
-  const RealScalar threshold2(tol_error * tol_error * rhsNorm2);  // convergence threshold (compared to residualNorm2)
+  const Index maxIters(iters);                      // initialize maxIters to iters
+  const Index N(mat.cols());                        // the size of the matrix
+  const RealScalar threshold(tol_error * rhsNorm);  // convergence threshold (compared to residualNorm)
 
   // Initialize preconditioned Lanczos
   VectorType v_old(N);                // will be initialized inside loop
   VectorType v(VectorType::Zero(N));  // initialize v
   VectorType v_new(rhs - mat * x);    // initialize v_new
-  RealScalar residualNorm2(v_new.squaredNorm());
+  RealScalar residualNorm(v_new.stableNorm());
+  if (residualNorm == 0 || residualNorm < threshold) {
+    iters = 0;
+    tol_error = residualNorm / rhsNorm;
+    return;
+  }
+
+  // Keep the quadratic Lanczos terms representable for very small or large residuals.
+  const RealScalar residualScale = internal::iterative_solver_scaling_factor(residualNorm);
+  v_new /= residualScale;
   VectorType w(N);                         // will be initialized inside loop
   VectorType w_new(precond.solve(v_new));  // initialize w_new
-                                           //            RealScalar beta; // will be initialized inside loop
   RealScalar beta_new2(v_new.dot(w_new));
   eigen_assert(beta_new2 >= 0.0 && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
   RealScalar beta_new(sqrt(beta_new2));
@@ -103,7 +111,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     const RealScalar r2 = s * alpha + c * c_old * beta;  // s, s_old, c and c_old are still from previous iteration
     const RealScalar r3 = s_old * beta;                  // s, s_old, c and c_old are still from previous iteration
     const RealScalar r1_hat = c * alpha - c_old * s * beta;
-    const RealScalar r1 = sqrt(std::pow(r1_hat, 2) + std::pow(beta_new, 2));
+    const RealScalar r1 = numext::hypot(r1_hat, beta_new);
     c_old = c;          // store for next iteration
     s_old = s;          // store for next iteration
     c = r1_hat / r1;    // new cosine
@@ -113,13 +121,13 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     p_oold = p_old;
     p_old = p;
     p.noalias() = (w - r2 * p_old - r3 * p_oold) / r1;  // IS NOALIAS REQUIRED?
-    x += beta_one * c * eta * p;
+    x += (residualScale * beta_one * c * eta) * p;
 
-    /* Update the squared residual. Note that this is the estimated residual.
-    The real residual |Ax-b|^2 may be slightly larger */
-    residualNorm2 *= s * s;
+    /* Update the estimated residual norm. Note that this is the estimated
+    residual; the real residual |Ax-b| may be slightly larger. */
+    residualNorm *= numext::abs(s);
 
-    if (residualNorm2 < threshold2) {
+    if (residualNorm < threshold) {
       break;
     }
 
@@ -129,7 +137,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
 
   /* Compute error. Note that this is the estimated error. The real
    error |Ax-b|/|b| may be slightly larger */
-  tol_error = std::sqrt(residualNorm2 / rhsNorm2);
+  tol_error = residualNorm / rhsNorm;
 }
 
 }  // namespace internal
@@ -220,9 +228,6 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
    */
   template <typename MatrixDerived>
   explicit MINRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
-
-  /** Destructor. */
-  ~MINRES() {}
 
   /** \internal */
   template <typename Rhs, typename Dest>

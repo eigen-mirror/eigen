@@ -172,8 +172,6 @@ struct linspaced_op {
 
 template <typename Scalar>
 struct equalspaced_op {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-
   EIGEN_DEVICE_FUNC constexpr equalspaced_op(const Scalar& start, const Scalar& step) : m_start(start), m_step(step) {}
   template <typename IndexType>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(IndexType i) const {

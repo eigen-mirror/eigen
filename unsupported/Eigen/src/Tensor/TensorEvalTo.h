@@ -112,8 +112,6 @@ struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_buffer(device.get(op.buffer())), m_expression(op.expression()) {}
 
-  EIGEN_STRONG_INLINE ~TensorEvaluator() {}
-
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType scalar) {

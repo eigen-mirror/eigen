@@ -9,8 +9,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#include "../../test/sparse_solver.h"
-#include <Eigen/IterativeSolvers>
+#include "sparse_solver.h"
+#include <Eigen/IterativeLinearSolvers>
 
 template <typename T>
 void test_bicgstabl_T() {
@@ -25,7 +25,15 @@ void test_bicgstabl_T() {
   CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_ilut));
 }
 
+void test_bicgstabl_solve_with_guess_restart() {
+  // Regression for a solveWithGuess case where the recursive residual reached
+  // the tolerance before the true residual did.
+  srand(555248885);
+  test_bicgstabl_T<double>();
+}
+
 EIGEN_DECLARE_TEST(bicgstabl) {
   CALL_SUBTEST_1(test_bicgstabl_T<double>());
   CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
+  CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart());
 }

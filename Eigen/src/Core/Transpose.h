@@ -89,13 +89,8 @@ class Transpose : public TransposeImpl<MatrixType, typename internal::traits<Mat
 
 namespace internal {
 
-template <typename MatrixType, bool HasDirectAccess = has_direct_access<MatrixType>::value>
-struct TransposeImpl_base {
-  typedef typename dense_xpr_base<Transpose<MatrixType> >::type type;
-};
-
 template <typename MatrixType>
-struct TransposeImpl_base<MatrixType, false> {
+struct TransposeImpl_base {
   typedef typename dense_xpr_base<Transpose<MatrixType> >::type type;
 };
 

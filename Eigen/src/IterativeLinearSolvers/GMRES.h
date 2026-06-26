@@ -131,22 +131,18 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
       v.tail(m - i).applyHouseholderOnTheLeft(H.col(i).tail(m - i - 1), tau.coeffRef(i), workspace.data());
     }
 
-    if (v.tail(m - k).norm() != 0.0) {
-      if (k <= restart) {
-        // generate new Householder vector
-        Ref<VectorType> Hk_tail = H.col(k).tail(m - k - 1);
-        v.tail(m - k).makeHouseholder(Hk_tail, tau.coeffRef(k), beta);
+    if (v.tail(m - k).norm() != 0.0 && k <= restart) {
+      // generate new Householder vector
+      Ref<VectorType> Hk_tail = H.col(k).tail(m - k - 1);
+      v.tail(m - k).makeHouseholder(Hk_tail, tau.coeffRef(k), beta);
 
-        // apply Householder reflection H_{k} to v
-        v.tail(m - k).applyHouseholderOnTheLeft(Hk_tail, tau.coeffRef(k), workspace.data());
-      }
+      // apply Householder reflection H_{k} to v
+      v.tail(m - k).applyHouseholderOnTheLeft(Hk_tail, tau.coeffRef(k), workspace.data());
     }
 
-    if (k > 1) {
-      for (Index i = 0; i < k - 1; ++i) {
-        // apply old Givens rotations to v
-        v.applyOnTheLeft(i, i + 1, G[i].adjoint());
-      }
+    // apply old Givens rotations to v
+    for (Index i = 0; i < k - 1; ++i) {
+      v.applyOnTheLeft(i, i + 1, G[i].adjoint());
     }
 
     if (k < m && v(k) != (Scalar)0) {
@@ -263,7 +259,7 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
   using Base::matrix;
 
  private:
-  Index m_restart;
+  Index m_restart = 30;
 
  public:
   using Base::_solve_impl;
@@ -289,14 +285,12 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
   template <typename MatrixDerived>
   explicit GMRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()), m_restart(30) {}
 
-  ~GMRES() {}
-
   /** Get the number of iterations after that a restart is performed.
    */
   Index get_restart() const { return m_restart; }
 
   /** Set the number of iterations after that a restart is performed.
-   *  \param restart   number of iterations for a restarti, default is 30.
+   *  \param restart   number of iterations for a restart, default is 30.
    */
   void set_restart(const Index restart) { m_restart = restart; }
 

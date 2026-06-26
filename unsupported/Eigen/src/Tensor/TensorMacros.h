@@ -20,8 +20,8 @@
  *
  *   becomes =>
  *
- *   template<typename TopoType,
- *           SFINAE_ENABLE_IF( isBanana<T>::value )
+ *   template<typename T,
+ *           EIGEN_SFINAE_ENABLE_IF( isBanana<T>::value )
  *   >
  *   void foo(){}
  */

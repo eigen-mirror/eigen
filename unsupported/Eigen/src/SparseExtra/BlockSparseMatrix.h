@@ -45,7 +45,7 @@ namespace Eigen {
  * It is thus required in this case to describe the layout of the matrix by calling
  * setBlockLayout(rowBlocks, colBlocks).
  *
- * In any of the previous case, the matrix can be filled by calling setFromTriplets().
+ * In any of the previous cases, the matrix can be filled by calling setFromTriplets().
  * A regular sparse matrix can be converted to a block sparse matrix and vice versa.
  * It is obviously required to describe the block layout beforehand by calling either
  * setBlockSize() for fixed-size blocks or setBlockLayout for variable-size blocks.
@@ -94,8 +94,9 @@ template <typename Iterator, bool IsColMajor>
 struct TripletComp {
   typedef typename Iterator::value_type Triplet;
   bool operator()(const Triplet& a, const Triplet& b) {
-    EIGEN_IF_CONSTEXPR(IsColMajor) { return ((a.col() == b.col() && a.row() < b.row()) || (a.col() < b.col())); }
-    else {
+    EIGEN_IF_CONSTEXPR (IsColMajor) {
+      return ((a.col() == b.col() && a.row() < b.row()) || (a.col() < b.col()));
+    } else {
       return ((a.row() == b.row() && a.col() < b.col()) || (a.row() < b.row()));
     }
   }
@@ -374,7 +375,7 @@ class BlockSparseMatrix
    * \brief Assignment from a sparse matrix with the same storage order
    *
    * Convert from a sparse matrix to block sparse matrix.
-   * \warning Before calling this function, tt is necessary to call
+   * \warning Before calling this function, it is necessary to call
    * either setBlockLayout() (matrices with variable-size blocks)
    * or setBlockSize() (for fixed-size blocks).
    */
@@ -452,7 +453,7 @@ class BlockSparseMatrix
    * with a simple call to coeffRef(bi,bj).
    *
    *
-   * \warning Before calling this function, tt is necessary to call
+   * \warning Before calling this function, it is necessary to call
    * either setBlockLayout() (matrices with variable-size blocks)
    * or setBlockSize() (for fixed-size blocks).
    *
@@ -542,9 +543,9 @@ class BlockSparseMatrix
    * \brief Allocate the internal array of pointers to blocks and their inner indices
    *
    * \note For fixed-size blocks, call setBlockSize() to set the block.
-   * And For variable-size blocks, call setBlockLayout() before using this function
+   * And for variable-size blocks, call setBlockLayout() before using this function
    *
-   * \param nonzerosblocks Number of nonzero blocks. The total number of nonzeros is
+   * \param nonzerosblocks Number of nonzero blocks. The total number of nonzeros
    * is computed in setBlockLayout() for variable-size blocks
    * \sa setBlockSize()
    */
@@ -753,7 +754,6 @@ class BlockSparseMatrix
   inline Index nonZeros() const { return m_nonzeros; }
 
   inline BlockScalarReturnType* valuePtr() { return static_cast<BlockScalarReturnType*>(m_values); }
-  //    inline Scalar *valuePtr(){ return m_values; }
   inline StorageIndex* innerIndexPtr() { return m_indices; }
   inline const StorageIndex* innerIndexPtr() const { return m_indices; }
   inline StorageIndex* outerIndexPtr() { return m_outerIndex; }
@@ -830,11 +830,11 @@ class BlockSparseMatrix
   Index m_nonzerosblocks;       // Total nonzeros blocks (lower than  m_innerBSize x m_outerBSize)
   Index m_nonzeros;             // Total nonzeros elements
   Scalar* m_values;             // Values stored block column after block column (size m_nonzeros)
-  StorageIndex* m_blockPtr;     // Pointer to the beginning of each block in m_values, size m_nonzeroblocks ... null for
-                                // fixed-size blocks
-  StorageIndex* m_indices;      // Inner block indices, size m_nonzerosblocks ... OK
-  StorageIndex* m_outerIndex;   // Starting pointer of each block column in m_indices (size m_outerBSize)... OK
-  Index m_blockSize;            // Size of a block for fixed-size blocks, otherwise -1
+  StorageIndex* m_blockPtr;    // Pointer to the beginning of each block in m_values, size m_nonzerosblocks ... null for
+                               // fixed-size blocks
+  StorageIndex* m_indices;     // Inner block indices, size m_nonzerosblocks ... OK
+  StorageIndex* m_outerIndex;  // Starting pointer of each block column in m_indices (size m_outerBSize)... OK
+  Index m_blockSize;           // Size of a block for fixed-size blocks, otherwise -1
 };
 
 template <typename Scalar_, int _BlockAtCompileTime, int Options_, typename StorageIndex_>

@@ -62,20 +62,14 @@ struct product_type {
     Depth = min_size_prefer_fixed(traits<Lhs_>::ColsAtCompileTime, traits<Rhs_>::RowsAtCompileTime)
   };
 
-  // the splitting into different lines of code here, introducing the _select enums and the typedef below,
-  // is to work around an internal compiler error with gcc 4.1 and 4.2.
- private:
-  enum {
-    rows_select = product_size_category<Rows, MaxRows>::value,
-    cols_select = product_size_category<Cols, MaxCols>::value,
-    depth_select = product_size_category<Depth, MaxDepth>::value
-  };
-  typedef product_type_selector<rows_select, cols_select, depth_select> selector;
-
- public:
-  static constexpr int value = selector::value;
+  static constexpr int value =
+      product_type_selector<product_size_category<Rows, MaxRows>::value, product_size_category<Cols, MaxCols>::value,
+                            product_size_category<Depth, MaxDepth>::value>::value;
 #ifdef EIGEN_DEBUG_PRODUCT
   static void debug() {
+    const int rows_select = product_size_category<Rows, MaxRows>::value;
+    const int cols_select = product_size_category<Cols, MaxCols>::value;
+    const int depth_select = product_size_category<Depth, MaxDepth>::value;
     EIGEN_DEBUG_VAR(Rows);
     EIGEN_DEBUG_VAR(Cols);
     EIGEN_DEBUG_VAR(Depth);
@@ -246,7 +240,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
-      // on, the other hand it is good for the cache to pack the vector anyways...
+      // on the other hand it is good for the cache to pack the vector anyways...
       EvalToDestAtCompileTime = (ActualDest::InnerStrideAtCompileTime == 1),
       ComplexByReal = (NumTraits<LhsScalar>::IsComplex) && (!NumTraits<RhsScalar>::IsComplex),
       MightCannotUseDest = ((!EvalToDestAtCompileTime) || ComplexByReal) && (ActualDest::MaxSizeAtCompileTime != 0)
@@ -258,7 +252,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 
     if (!MightCannotUseDest) {
       // shortcut if we are sure to be able to use dest directly,
-      // this ease the compiler to generate cleaner and more optimzized code for most common cases
+      // this eases the compiler to generate cleaner and more optimized code for most common cases
       general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
                                     RhsMapper, RhsBlasTraits::NeedToConjugate>::run(actualLhs.rows(), actualLhs.cols(),
                                                                                     LhsMapper(actualLhs.data(),
@@ -329,7 +323,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
-      // on, the other hand it is good for the cache to pack the vector anyways...
+      // on the other hand it is good for the cache to pack the vector anyways...
       DirectlyUseRhs =
           ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1 || ActualRhsTypeCleaned::MaxSizeAtCompileTime == 0
     };

@@ -1210,7 +1210,7 @@ struct scalar_logistic_op_impl {
   }
 };
 
-// Complex-valud implementation.
+// Complex-valued implementation.
 template <typename T>
 struct scalar_logistic_op_impl<T, std::enable_if_t<NumTraits<T>::IsComplex>> {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE T operator()(const T& x) const {
@@ -1237,7 +1237,7 @@ struct scalar_logistic_op : scalar_logistic_op_impl<T> {};
  * pexp_float. See the individual steps described in the code below.
  * Note that compared to pexp, we use an additional outer multiplicative
  * range reduction step using the identity exp(x) = exp(x/2)^2.
- * This prevert us from having to call ldexp on values that could produce
+ * This prevents us from having to call ldexp on values that could produce
  * a denormal result, which allows us to call the faster implementation in
  * pldexp_fast_impl<Packet>::run(p, m).
  * The final squaring, however, doubles the error bound on the final
@@ -1313,12 +1313,12 @@ struct scalar_logistic_op<float> {
     return pselect(zero_mask, cst_zero, pdiv(e, padd(cst_one, e)));
   }
 };
-#endif  // #ifndef EIGEN_GPU_COMPILE_PHASE
+#endif  // #ifndef EIGEN_GPUCC
 
 template <typename T>
 struct functor_traits<scalar_logistic_op<T>> {
   enum {
-    // The cost estimate for float here here is for the common(?) case where
+    // The cost estimate for float here is for the common(?) case where
     // all arguments are greater than -9.
     Cost = scalar_div_cost<T, packet_traits<T>::HasDiv>::value +
            (std::is_same<T, float>::value ? NumTraits<T>::AddCost * 15 + NumTraits<T>::MulCost * 11
