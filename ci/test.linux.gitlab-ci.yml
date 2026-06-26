@@ -394,20 +394,40 @@ test:linux:arm:clang-14:default:unsupported:
     # package), so install qemu-user and invoke the dynamic qemu-aarch64.
     EIGEN_CI_CROSS_INSTALL: g++-aarch64-linux-gnu qemu-user
 
-test:linux:sme:gcc-14:default:official:
+# Each concrete SME test job must set QEMU_CPU explicitly; qemu otherwise
+# silently runs at its own default SME SVL instead of failing.
+.test:linux:sme:gcc-14:default:official:
   extends: .test:linux:sme:gcc-14:default
   variables:
-    # Run only product_sme from the prebuilt dir via the standard test flow
-    # (ci/scripts/test.linux.script.sh -> ctest -R ... --build-noclean). ctest
-    # invokes each test under the CMAKE_CROSSCOMPILING_EMULATOR baked in at
-    # configure time (qemu-aarch64 -L /usr/aarch64-linux-gnu -cpu
-    # max,sme=on,sme512=on,...). The kernel is compiled for a fixed 512-bit
-    # streaming vector length, so QEMU is pinned to SVL=512 (only sme512
-    # enabled); otherwise the default streaming SVL differs and the fixed-512
-    # tile geometry miscomputes. The previous `./scripts/check.in product_sme`
-    # override ran from the repo root and called ./buildtests.sh, which only
-    # exists in ${EIGEN_CI_BUILDDIR}.
+    # Run only product_sme from the prebuilt dir via the standard test flow.
     EIGEN_CI_CTEST_REGEX: product_sme
+
+# SVL=128: architectural minimum; exercises the most sub-block passes per
+# logical block.
+test:linux:sme128:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme128=on,sme256=off,sme512=off,sme1024=off,sme2048=off
+
+# SVL=256: exercises runtime tiling geometry not covered by 512-bit tiles.
+test:linux:sme256:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme256=on,sme128=off,sme512=off,sme1024=off,sme2048=off
+
+# SVL=512: block matches the tile grid exactly; exercises the multi-vector-load
+# loop in sme_process.
+test:linux:sme512:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+
+# SVL=2048: architectural maximum; exercises predication down to the logical
+# block.
+test:linux:sme2048:gcc-14:default:official:
+  extends: .test:linux:sme:gcc-14:default:official
+  variables:
+    QEMU_CPU: max,sme=on,sme2048=on,sme128=off,sme256=off,sme512=off,sme1024=off
 
 ##### aarch64 ##################################################################
 

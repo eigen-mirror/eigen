@@ -454,17 +454,12 @@ extern "C" {
 #include <arm_neon.h>
 #include <arm_sme.h>
 
-// Since we depend on knowing SVE vector length at compile-time, we need
-// to ensure a fixed length is set
-#if defined __ARM_FEATURE_SVE_BITS
-#define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
-#else
-#error "Eigen requires a fixed SVE vector length for SME but EIGEN_ARM64_SVE_VL is not set."
-#endif
-
-#if EIGEN_ARM64_SVE_VL != 512
-// The current SME kernel is built for SVL=512
-#error "EIGEN_ARM64_USE_SME requires a vector length of 512 bits."
+// The SME GEMM kernel derives its ZA-tile geometry from the runtime streaming
+// vector length (svcntsw()).  It is therefore built in scalable (VLA) SVE mode,
+// without -msve-vector-bits=N, so svcntsw() reflects the actual hardware SVL.
+#if defined __ARM_FEATURE_SVE_BITS && (__ARM_FEATURE_SVE_BITS != 0)
+#error \
+    "EIGEN_ARM64_USE_SME must be built without -msve-vector-bits (scalable/VLA mode): a fixed SVE vector length pins the kernel to one runtime streaming SVL and silently miscomputes at any other."
 #endif
 
 #elif EIGEN_ARCH_RISCV

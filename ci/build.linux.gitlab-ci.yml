@@ -375,15 +375,18 @@ build:linux:cross:arm:clang-14:default:
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64-sme
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+    # The emulator baked in here deliberately has no -cpu argument: each test job
+    # selects its streaming SVL via qemu-user's QEMU_CPU environment variable
+    # instead (a command-line -cpu would silently override it).
+    #
     # EIGEN_CI_ADDITIONAL_ARGS is expanded *unquoted* into the cmake command
-    # line (ci/scripts/build.linux.script.sh), so each -D value must be a
-    # single shell word: multi-token flags use CMake's ';' list separator,
-    # with no spaces or embedded quotes (cf. the arm / generic-vector jobs).
-    # -msve-vector-bits=512 is required for Eigen's fixed-length PacketMath.
+    # line (ci/scripts/build.linux.script.sh), so each -D value must be a single
+    # shell word: multi-token flags use CMake's ';' list separator, with no
+    # spaces or embedded quotes (cf. the arm / generic-vector jobs).
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SME=ON
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2;-msve-vector-bits=512
-      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu;-cpu;max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2
+      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
     # SME ACLE (arm_sme.h, __arm_streaming, +sme2) requires GCC >= 14.
     # The build stage only cross-compiles and never invokes the emulator, so
     # no qemu here -- the test stage installs qemu-user.

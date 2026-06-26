@@ -232,8 +232,7 @@ ei_add_test(product_large)
 if(EIGEN_TEST_SME)
   # SME tests require -DEIGEN_ARM64_USE_SME to activate the SME backend in
   # ConfigureVectorization.h. The compiler must also provide
-  # -march=armv9.2-a+sme2 -msve-vector-bits=512 (or equivalent) via
-  # CMAKE_CXX_FLAGS.
+  # -march=armv9.2-a+sme2 (or equivalent) via CMAKE_CXX_FLAGS.
   ei_add_test(product_sme "-DEIGEN_ARM64_USE_SME" "")
 endif()
 ei_add_test(product_extra)

@@ -8,8 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // SME GEMM kernel tests.
-// Requires compiler flags: -march=armv9.2-a+sme2 -msve-vector-bits=512
-// and the define: -DEIGEN_ARM64_USE_SME
+// Requires compiler flags: -march=armv9.2-a+sme2 and -DEIGEN_ARM64_USE_SME.
 
 #include "product.h"
 
@@ -20,8 +19,8 @@
 #if !defined(EIGEN_VECTORIZE_SME)
 #error \
     "product_sme requires the SME backend.  Build with -march=armv9.2-a+sme2 " \
-    "-msve-vector-bits=512 -DEIGEN_ARM64_USE_SME (see -DEIGEN_TEST_SME=ON in " \
-    "test/CMakeLists.txt for the typical CMake invocation)."
+    "-DEIGEN_ARM64_USE_SME (see -DEIGEN_TEST_SME=ON in test/CMakeLists.txt for " \
+    "the typical CMake invocation)."
 #endif
 
 using SmeColMajorMatF = Matrix<float, Dynamic, Dynamic, ColMajor>;
@@ -89,9 +88,9 @@ static void test_deep_k_split() {
 }
 
 EIGEN_DECLARE_TEST(product_sme) {
-  // Square edge cases around the 2x2 tile-grid boundaries (MR=NR=32,
-  // ZA tiles are 16x16 fp32; sizes near 16, 17, 31, 32, 33, 64, 65
-  // exercise the VL-wide intra-tile splits and the MR/NR tails).
+  // Square edge cases around the block and tile boundaries (the block is
+  // kSmeMr x kSmeNr and a ZA tile is svlw x svlw, so the sizes below land
+  // just on/off the intra-tile splits and the block tails at SVL=512).
   CALL_SUBTEST_1(product(Matrix<float, Dynamic, Dynamic>(1, 1)));
   CALL_SUBTEST_1(product(Matrix<float, Dynamic, Dynamic>(15, 15)));
   CALL_SUBTEST_1(product(Matrix<float, Dynamic, Dynamic>(16, 16)));
@@ -122,7 +121,8 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(product(Matrix<float, Dynamic, Dynamic>(128, 3)));
   CALL_SUBTEST_1(product(Matrix<float, Dynamic, Dynamic>(3, 128)));
 
-  // Exercise the kc split path just above the SME heuristic's 2048 depth cap.
+  // Exercise the kc split path just above the SME blocking heuristic's depth
+  // cap (sme_max_kc in GeneralBlockPanelKernel.h).
   test_deep_k_split();
 
   // Random sizes
