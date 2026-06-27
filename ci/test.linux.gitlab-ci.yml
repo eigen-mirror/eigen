@@ -547,52 +547,52 @@ test:linux:loongarch64:gcc-14:default:unsupported:
     - riscv
   allow_failure: true
 
-.test:linux:riscv64:gcc-14:default:
+.test:linux:riscv64:gcc-15:default:
   extends: .test:linux:riscv64
-  needs: [ build:linux:riscv64:gcc-14:default ]
+  needs: [ build:linux:riscv64:gcc-15:default ]
   variables:
-    EIGEN_CI_INSTALL: g++-14
+    EIGEN_CI_INSTALL: g++-15
 
-test:linux:riscv64:gcc-14:default:official:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:official:
+  extends: .test:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:gcc-14:default:unsupported:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:unsupported:
+  extends: .test:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:linux:riscv64:clang-18:default:
+.test:linux:riscv64:clang-21:default:
   extends: .test:linux:riscv64
-  needs: [ build:linux:riscv64:clang-18:default ]
+  needs: [ build:linux:riscv64:clang-21:default ]
   variables:
-    EIGEN_CI_INSTALL: clang-18 g++-14
+    EIGEN_CI_INSTALL: clang-21 g++-15
 
-test:linux:riscv64:clang-18:default:official:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:official:
+  extends: .test:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:clang-18:default:unsupported:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:unsupported:
+  extends: .test:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-test:linux:riscv64:clang-18:default:smoketest:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:smoketest:
+  extends: .test:linux:riscv64:clang-21:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
-  needs: [ build:linux:riscv64:clang-18:default:smoketest ]
+  needs: [ build:linux:riscv64:clang-21:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-test:linux:riscv64:gcc-14:default:smoketest:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:smoketest:
+  extends: .test:linux:riscv64:gcc-15:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
-  needs: [ build:linux:riscv64:gcc-14:default:smoketest ]
+  needs: [ build:linux:riscv64:gcc-15:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest

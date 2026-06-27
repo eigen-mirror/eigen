@@ -477,39 +477,44 @@ build:linux:cross:loongarch64:gcc-14:default:
 # the runner is being brought up.
 
 # Eigen's RVV backend requires a compile-time-fixed vector length, so pin it to
-# the runner's 256-bit VLEN with zvl256b and -mrvv-vector-bits=zvl (gcc-14 rejects
+# the runner's 256-bit VLEN with zvl256b and -mrvv-vector-bits=zvl (gcc-15 rejects
 # a numeric -mrvv-vector-bits=256, accepting only "zvl"/"scalable"; "zvl" takes the
 # length from the Zvl*b march extension).  Zvfh enables half-precision
 # vectorization.  Set here so every riscv64 build below -- full builds and smoke
 # tests, gcc and clang -- is actually vectorized.
 .build:linux:riscv64:
   extends: .build:linux:cross
+  # Cross-compiles to riscv64 on an amd64 runner using the prebuilt image, which
+  # carries the riscv64 cross toolchain (g++-15-riscv64-linux-gnu / clang-21)
+  # plus cmake/ninja/git -- so apt is skipped entirely.
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_TARGET_ARCH: riscv64
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CROSS_TARGET_TRIPLE: riscv64-linux-gnu
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zvl256b_zfh_zvfh;-mrvv-vector-bits=zvl;-DEIGEN_RISCV64_USE_RVV10
   allow_failure: true
 
-build:linux:riscv64:gcc-14:default:
+build:linux:riscv64:gcc-15:default:
   extends: .build:linux:riscv64
   variables:
-    EIGEN_CI_C_COMPILER: gcc-14
-    EIGEN_CI_CXX_COMPILER: g++-14
-    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu
-    EIGEN_CI_CROSS_C_COMPILER: riscv64-linux-gnu-gcc-14
-    EIGEN_CI_CROSS_CXX_COMPILER: riscv64-linux-gnu-g++-14
+    EIGEN_CI_C_COMPILER: gcc-15
+    EIGEN_CI_CXX_COMPILER: g++-15
+    EIGEN_CI_CROSS_INSTALL: g++-15-riscv64-linux-gnu
+    EIGEN_CI_CROSS_C_COMPILER: riscv64-linux-gnu-gcc-15
+    EIGEN_CI_CROSS_CXX_COMPILER: riscv64-linux-gnu-g++-15
 
-build:linux:riscv64:clang-18:default:
+build:linux:riscv64:clang-21:default:
   extends: .build:linux:riscv64
   variables:
-    EIGEN_CI_INSTALL: clang-18
-    EIGEN_CI_C_COMPILER: clang-18
-    EIGEN_CI_CXX_COMPILER: clang++-18
-    EIGEN_CI_CROSS_INSTALL: g++-14-riscv64-linux-gnu clang-18
+    EIGEN_CI_INSTALL: clang-21
+    EIGEN_CI_C_COMPILER: clang-21
+    EIGEN_CI_CXX_COMPILER: clang++-21
+    EIGEN_CI_CROSS_INSTALL: g++-15-riscv64-linux-gnu clang-21
 
-build:linux:riscv64:gcc-14:default:smoketest:
-  extends: build:linux:riscv64:gcc-14:default
+build:linux:riscv64:gcc-15:default:smoketest:
+  extends: build:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
@@ -517,8 +522,8 @@ build:linux:riscv64:gcc-14:default:smoketest:
   tags:
     - saas-linux-medium-amd64
 
-build:linux:riscv64:clang-18:default:smoketest:
-  extends: build:linux:riscv64:clang-18:default
+build:linux:riscv64:clang-21:default:smoketest:
+  extends: build:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules:
