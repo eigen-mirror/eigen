@@ -166,6 +166,29 @@ void mixingtypes(int size = SizeAtCompileType) {
   VERIFY_IS_APPROX(sf * mf * mcf.adjoint(), (sf * mf).template cast<CF>().eval() * mcf.adjoint());
   VERIFY_IS_APPROX(sf * mcf * mf.adjoint(), sf * mcf * mf.template cast<CF>().adjoint());
 
+  // Mixed-type fixed-size compound products (noalias() += / -=) must fall back to the generic
+  // (scalar) path: the small-fixed packet cascade only engages when lhs and rhs share a scalar
+  // type, otherwise it would read a wrong-width packet out of an operand. See
+  // product_packet_cascade_traits::Enable (this previously failed to compile for fixed sizes).
+  {
+    Mat_cd acc = Mat_cd::Random(size, size), refcd = acc;
+    acc.noalias() += md * mcd;
+    refcd += md.template cast<CD>().eval() * mcd;
+    VERIFY_IS_APPROX(acc, refcd);
+    acc.noalias() -= mcd * md;
+    refcd -= mcd * md.template cast<CD>().eval();
+    VERIFY_IS_APPROX(acc, refcd);
+  }
+  {
+    Mat_cf acc = Mat_cf::Random(size, size), refcf = acc;
+    acc.noalias() += mf * mcf;
+    refcf += mf.template cast<CF>().eval() * mcf;
+    VERIFY_IS_APPROX(acc, refcf);
+    acc.noalias() -= mcf * mf;
+    refcf -= mcf * mf.template cast<CF>().eval();
+    VERIFY_IS_APPROX(acc, refcf);
+  }
+
   VERIFY_IS_APPROX(sf * mf * vcf, (sf * mf).template cast<CF>().eval() * vcf);
   VERIFY_IS_APPROX(scf * mf * vcf, (scf * mf.template cast<CF>()).eval() * vcf);
   VERIFY_IS_APPROX(sf * mcf * vf, sf * mcf * vf.template cast<CF>());
