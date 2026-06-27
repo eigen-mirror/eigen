@@ -27,6 +27,7 @@
   * Those solvers are accessible via the following classes:
   *  - ConjugateGradient for selfadjoint (hermitian) matrices,
   *  - LeastSquaresConjugateGradient for rectangular least-square problems,
+  *  - LSMR for rectangular least-square problems (Golub-Kahan bidiagonalization, optionally damped),
   *  - BiCGSTAB for general square matrices,
   *  - GMRES - a Householder GMRES implementation,
   *  - DGMRES - a deflated GMRES implementation,
@@ -103,6 +104,7 @@
 #include "src/IterativeLinearSolvers/BasicPreconditioners.h"
 #include "src/IterativeLinearSolvers/ConjugateGradient.h"
 #include "src/IterativeLinearSolvers/LeastSquareConjugateGradient.h"
+#include "src/IterativeLinearSolvers/LSMR.h"
 #include "src/IterativeLinearSolvers/BiCGSTAB.h"
 #include "src/IterativeLinearSolvers/IncompleteLUT.h"
 #include "src/IterativeLinearSolvers/IncompleteCholesky.h"
