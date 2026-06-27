@@ -30,9 +30,10 @@ namespace internal {
  *  \param precond   preconditioner used
  *  \param iters     on input: maximum number of iterations to perform
  *                   on output: number of iterations performed
- *  \param restart   number of iterations for a restart
- *  \param tol_error on input: relative residual tolerance
- *                   on output: residuum achieved
+ *  \param restart   number of iterations for a restart, capped by the problem size
+ *  \param tol_error on input: relative tolerance for the preconditioned residual, normalized by the preconditioned
+ *                   right-hand side
+ *                   on output: relative preconditioned residual achieved
  *
  * \sa IterativeMethods::bicgstab()
  *
@@ -58,7 +59,7 @@ namespace internal {
  */
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
-           const Index& restart, typename Dest::RealScalar& tol_error) {
+           const Index& restart_, typename Dest::RealScalar& tol_error) {
   using std::abs;
   using std::sqrt;
 
@@ -80,16 +81,23 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
   iters = 0;
 
   const Index m = mat.rows();
+  // A GMRES cycle cannot use more Krylov vectors than the problem dimension, so cap the internal workspace even if
+  // the user requests a larger restart value.
+  const Index restart = numext::mini(numext::maxi(restart_, Index(1)), m);
 
   // residual and preconditioned residual
   VectorType p0 = rhs - mat * x;
   VectorType r0 = precond.solve(p0);
 
   const RealScalar r0Norm = r0.norm();
+  // w(k) tracks the residual norm of the left-preconditioned system. Normalize it by the matching right-hand
+  // side, not by the initial residual, so solveWithGuess() uses the same relative-residual criterion as solve().
+  const RealScalar rhsNorm = numext::maxi((x.squaredNorm() == 0) ? r0Norm : precond.solve(rhs).norm(), considerAsZero);
+  const RealScalar threshold = numext::maxi(tol * rhsNorm, considerAsZero);
 
   // is initial guess already good enough?
-  if (r0Norm == 0) {
-    tol_error = 0;
+  if (r0Norm < threshold) {
+    tol_error = r0Norm / rhsNorm;
     return true;
   }
 
@@ -157,7 +165,7 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
     // insert coefficients into upper matrix triangle
     H.col(k - 1).head(k) = v.head(k);
 
-    tol_error = abs(w(k)) / r0Norm;
+    tol_error = abs(w(k)) / rhsNorm;
     bool stop = (k == m || tol_error < tol || iters == maxIters);
 
     if (stop || k == restart) {
@@ -226,6 +234,10 @@ struct traits<GMRES<MatrixType_, Preconditioner_> > {
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
  * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
  * and NumTraits<Scalar>::epsilon() for the tolerance.
+ *
+ * When a left preconditioner M is used, GMRES applies the stopping criterion to the preconditioned
+ * system M^{-1} A x = M^{-1} b. The reported error is therefore
+ * \f$\|M^{-1}(b-Ax)\| / \|M^{-1}b\|\f$.
  *
  * This class can be used as the direct solver classes. Here is a typical usage example:
  * \code
