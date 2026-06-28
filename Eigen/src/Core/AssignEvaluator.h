@@ -291,6 +291,7 @@ struct copy_using_evaluator_innervec_InnerUnrolling {
                             outer, Index_ + Offsets * PacketSize),
                         0)...};
     EIGEN_UNUSED_VARIABLE(unused);
+    EIGEN_UNUSED_VARIABLE(outer);
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void run(Kernel& kernel, Index outer) {

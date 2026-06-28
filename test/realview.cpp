@@ -129,8 +129,8 @@ void test_realview(const T&) {
   Index malloc_size = (rows * cols * sizeof(Scalar)) + sizeof(RealScalar);
   void* data1 = internal::aligned_malloc(malloc_size);
   void* data2 = internal::aligned_malloc(malloc_size);
-  Scalar* ptr1 = reinterpret_cast<Scalar*>(reinterpret_cast<uint8_t*>(data1) + sizeof(RealScalar));
-  Scalar* ptr2 = reinterpret_cast<Scalar*>(reinterpret_cast<uint8_t*>(data2) + sizeof(RealScalar));
+  Scalar* ptr1 = static_cast<Scalar*>(static_cast<void*>(static_cast<uint8_t*>(data1) + sizeof(RealScalar)));
+  Scalar* ptr2 = static_cast<Scalar*>(static_cast<void*>(static_cast<uint8_t*>(data2) + sizeof(RealScalar)));
   Map<T> C(ptr1, rows, cols), D(ptr2, rows, cols);
 
   C.setRandom();

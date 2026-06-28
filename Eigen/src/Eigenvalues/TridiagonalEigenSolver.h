@@ -269,6 +269,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
                     internal::is_same<typename SubdiagType::Scalar, Scalar>::value,
                 "diag and subdiag must have the solver's scalar type");
   const Index n = diag.size();
+  EIGEN_UNUSED_VARIABLE(n);
   eigen_assert(subdiag.size() == (n > 0 ? n - 1 : 0) && "sub-diagonal must have one fewer entry than the diagonal");
 
   m_diag = diag;
@@ -302,6 +303,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenve
                     internal::is_same<typename EivalsType::Scalar, Scalar>::value,
                 "diag, subdiag and eigenvalues must have the solver's scalar type");
   const Index n = diag.size();
+  EIGEN_UNUSED_VARIABLE(n);
   eigen_assert(subdiag.size() == (n > 0 ? n - 1 : 0) && "sub-diagonal must have one fewer entry than the diagonal");
   eigen_assert(eigenvalues.size() <= n && "cannot request more eigenvectors than the size of the matrix");
 
