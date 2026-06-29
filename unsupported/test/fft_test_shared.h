@@ -69,7 +69,13 @@ long double dif_rmse(const VT1 buf1, const VT2 buf2) {
   return sqrt(difpower / totalpower);
 }
 
-enum { StdVectorContainer, EigenVectorContainer };
+enum {
+  StdVectorContainer,
+  EigenVectorContainer,
+  EigenRowVectorContainer,
+  EigenArrayXContainer,
+  EigenRowArrayXContainer
+};
 
 template <int Container, typename Scalar>
 struct VectorType;
@@ -84,12 +90,27 @@ struct VectorType<EigenVectorContainer, Scalar> {
   typedef Matrix<Scalar, Dynamic, 1> type;
 };
 
-template <int Container, typename T>
+template <typename Scalar>
+struct VectorType<EigenRowVectorContainer, Scalar> {
+  typedef Matrix<Scalar, 1, Dynamic> type;
+};
+
+template <typename Scalar>
+struct VectorType<EigenArrayXContainer, Scalar> {
+  typedef Array<Scalar, Dynamic, 1> type;
+};
+
+template <typename Scalar>
+struct VectorType<EigenRowArrayXContainer, Scalar> {
+  typedef Array<Scalar, 1, Dynamic> type;
+};
+
+template <int ScalarContainer, int ComplexContainer, typename T>
 void test_scalar_generic(int nfft) {
   typedef typename FFT<T>::Complex Complex;
   typedef typename FFT<T>::Scalar Scalar;
-  typedef typename VectorType<Container, Scalar>::type ScalarVector;
-  typedef typename VectorType<Container, Complex>::type ComplexVector;
+  typedef typename VectorType<ScalarContainer, Scalar>::type ScalarVector;
+  typedef typename VectorType<ComplexContainer, Complex>::type ComplexVector;
 
   FFT<T> fft;
   ScalarVector tbuf(nfft);
@@ -136,20 +157,42 @@ void test_scalar_generic(int nfft) {
 
 template <typename T>
 void test_scalar(int nfft) {
-  test_scalar_generic<StdVectorContainer, T>(nfft);
-  // test_scalar_generic<EigenVectorContainer,T>(nfft);
+  // std:vector is a special case that does not interact with DenseBase types
+  test_scalar_generic<StdVectorContainer, StdVectorContainer, T>(nfft);
+
+  // All Dense types as dst and src in various combinations
+  test_scalar_generic<EigenVectorContainer, EigenVectorContainer, T>(nfft);
+  test_scalar_generic<EigenVectorContainer, EigenRowVectorContainer, T>(nfft);
+  test_scalar_generic<EigenVectorContainer, EigenArrayXContainer, T>(nfft);
+  test_scalar_generic<EigenVectorContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_scalar_generic<EigenRowVectorContainer, EigenVectorContainer, T>(nfft);
+  test_scalar_generic<EigenRowVectorContainer, EigenRowVectorContainer, T>(nfft);
+  test_scalar_generic<EigenRowVectorContainer, EigenArrayXContainer, T>(nfft);
+  test_scalar_generic<EigenRowVectorContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_scalar_generic<EigenArrayXContainer, EigenVectorContainer, T>(nfft);
+  test_scalar_generic<EigenArrayXContainer, EigenRowVectorContainer, T>(nfft);
+  test_scalar_generic<EigenArrayXContainer, EigenArrayXContainer, T>(nfft);
+  test_scalar_generic<EigenArrayXContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_scalar_generic<EigenRowArrayXContainer, EigenVectorContainer, T>(nfft);
+  test_scalar_generic<EigenRowArrayXContainer, EigenRowVectorContainer, T>(nfft);
+  test_scalar_generic<EigenRowArrayXContainer, EigenArrayXContainer, T>(nfft);
+  test_scalar_generic<EigenRowArrayXContainer, EigenRowArrayXContainer, T>(nfft);
 }
 
-template <int Container, typename T>
+template <int ContainerA, int ContainerB, typename T>
 void test_complex_generic(int nfft) {
   typedef typename FFT<T>::Complex Complex;
-  typedef typename VectorType<Container, Complex>::type ComplexVector;
+  typedef typename VectorType<ContainerA, Complex>::type ComplexVectorA;
+  typedef typename VectorType<ContainerB, Complex>::type ComplexVectorB;
 
   FFT<T> fft;
 
-  ComplexVector inbuf(nfft);
-  ComplexVector outbuf;
-  ComplexVector buf3;
+  ComplexVectorB inbuf(nfft);
+  ComplexVectorA outbuf;
+  ComplexVectorB buf3;
   for (int k = 0; k < nfft; ++k)
     inbuf[k] = Complex((T)(rand() / (double)RAND_MAX - .5), (T)(rand() / (double)RAND_MAX - .5));
   fft.fwd(outbuf, inbuf);
@@ -160,7 +203,7 @@ void test_complex_generic(int nfft) {
   VERIFY(T(dif_rmse(inbuf, buf3)) < test_precision<T>());  // gross check
 
   // verify that the Unscaled flag takes effect
-  ComplexVector buf4;
+  ComplexVectorA buf4;
   fft.SetFlag(fft.Unscaled);
   fft.inv(buf4, outbuf);
   for (int k = 0; k < nfft; ++k) buf4[k] *= T(1. / nfft);
@@ -205,8 +248,30 @@ void test_complex_strided(int nfft) {
 
 template <typename T>
 void test_complex(int nfft) {
-  test_complex_generic<StdVectorContainer, T>(nfft);
-  test_complex_generic<EigenVectorContainer, T>(nfft);
+  // std:vector is a special case that does not interact with DenseBase types
+  test_complex_generic<StdVectorContainer, StdVectorContainer, T>(nfft);
+
+  // All Dense types as dst and src in various combinations
+  test_complex_generic<EigenVectorContainer, EigenVectorContainer, T>(nfft);
+  test_complex_generic<EigenVectorContainer, EigenRowVectorContainer, T>(nfft);
+  test_complex_generic<EigenVectorContainer, EigenArrayXContainer, T>(nfft);
+  test_complex_generic<EigenVectorContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_complex_generic<EigenRowVectorContainer, EigenVectorContainer, T>(nfft);
+  test_complex_generic<EigenRowVectorContainer, EigenRowVectorContainer, T>(nfft);
+  test_complex_generic<EigenRowVectorContainer, EigenArrayXContainer, T>(nfft);
+  test_complex_generic<EigenRowVectorContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_complex_generic<EigenArrayXContainer, EigenVectorContainer, T>(nfft);
+  test_complex_generic<EigenArrayXContainer, EigenRowVectorContainer, T>(nfft);
+  test_complex_generic<EigenArrayXContainer, EigenArrayXContainer, T>(nfft);
+  test_complex_generic<EigenArrayXContainer, EigenRowArrayXContainer, T>(nfft);
+
+  test_complex_generic<EigenRowArrayXContainer, EigenVectorContainer, T>(nfft);
+  test_complex_generic<EigenRowArrayXContainer, EigenRowVectorContainer, T>(nfft);
+  test_complex_generic<EigenRowArrayXContainer, EigenArrayXContainer, T>(nfft);
+  test_complex_generic<EigenRowArrayXContainer, EigenRowArrayXContainer, T>(nfft);
+
   test_complex_strided<T>(nfft);
 }
 
