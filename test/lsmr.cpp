@@ -208,9 +208,15 @@ void test_lsmr_tolerances() {
   lsmr.setToleranceB(def);
   VERIFY_IS_EQUAL(lsmr.toleranceB(), def);
 
+  // Use a strongly overdetermined, inconsistent system (rows >> cols) so the
+  // minimum-residual ratio ||A x_LS - b|| / ||b|| stays well above btol. That
+  // keeps the residual stopping rule (istop 1, governed by btol) from firing,
+  // leaving the tight atol to drive convergence to the least-squares solution.
+  // A near-square system would let ||r||/||b|| dip below btol first, stopping
+  // LSMR early on an iterate that is nowhere near the QR solution.
   for (int k = 0; k < g_repeat; ++k) {
-    Index rows = internal::random<Index>(20, 80);
-    Index cols = internal::random<Index>(4, rows);
+    Index rows = internal::random<Index>(40, 80);
+    Index cols = internal::random<Index>(4, rows / 4);
     DenseMatrix A = DenseMatrix::Random(rows, cols);
     DenseVector b = DenseVector::Random(rows);
     DenseVector xref = A.householderQr().solve(b);
