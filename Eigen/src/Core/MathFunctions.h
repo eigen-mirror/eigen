@@ -926,6 +926,11 @@ struct copysign_impl<Scalar, false, true> {
   }
 };
 
+template <>
+struct copysign_impl<bool, false, true> {
+  EIGEN_DEVICE_FUNC static inline bool run(const bool& a, const bool&) { return a; }
+};
+
 template <typename Scalar>
 struct copysign_retval {
   typedef Scalar type;

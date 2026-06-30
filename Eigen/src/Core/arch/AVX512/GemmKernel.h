@@ -868,7 +868,10 @@ class gemm_class {
     for (; m >= max_a_unroll; m -= max_a_unroll) mloop<max_a_unroll, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);
 
     // m-remainders.
-    if (m & 32 && max_a_unroll > 32) mloop<32, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);
+    EIGEN_IF_CONSTEXPR (max_a_unroll > 32 && is_f32) {
+      constexpr int a_unroll32 = is_f32 ? 32 : 24;
+      if (m & 32) mloop<a_unroll32, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);
+    }
     if (m & 16 && max_a_unroll > 16) mloop<16, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);
     if (m & 8 && max_a_unroll > 8) mloop<8, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);
     if (m & 4 && max_a_unroll > 4) mloop<4, max_a_unroll, max_b_unroll>(ao, bo, co1, co2);

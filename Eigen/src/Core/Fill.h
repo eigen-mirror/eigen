@@ -121,7 +121,14 @@ template <typename Xpr>
 struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
   using Scalar = typename Xpr::Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
-    const std::ptrdiff_t num_bytes = dst.size() * static_cast<std::ptrdiff_t>(sizeof(Scalar));
+    Index size = dst.size();
+    EIGEN_IF_CONSTEXPR (Xpr::MaxSizeAtCompileTime != Dynamic) {
+      if (size > Xpr::MaxSizeAtCompileTime) {
+        eigen_internal_assert(false && "invalid dense object size");
+        return;
+      }
+    }
+    const std::ptrdiff_t num_bytes = size * static_cast<std::ptrdiff_t>(sizeof(Scalar));
     if (num_bytes <= 0) return;
     void* dst_ptr = static_cast<void*>(dst.data());
 #ifndef EIGEN_NO_DEBUG
