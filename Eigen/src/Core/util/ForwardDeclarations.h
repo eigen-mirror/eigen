@@ -29,7 +29,7 @@ template <typename T>
 struct traits<const T> : traits<T> {};
 
 template <typename Derived>
-struct has_direct_access : std::integral_constant<bool, (traits<Derived>::Flags & DirectAccessBit) != 0> {};
+struct has_direct_access : bool_constant<(traits<Derived>::Flags & DirectAccessBit) != 0> {};
 
 template <typename Derived>
 struct accessors_level {

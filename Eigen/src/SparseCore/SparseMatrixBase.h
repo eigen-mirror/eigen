@@ -44,7 +44,8 @@ class SparseMatrixBase : public EigenBase<Derived> {
    * For a \c SparseMatrix<Scalar,Options,IndexType> it is an alias of the third template parameter \c IndexType. */
   typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
 
-  typedef typename internal::add_const_on_value_type_if_arithmetic<typename internal::packet_traits<Scalar>::type>::type
+  typedef std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
+                             internal::add_const_on_value_type_t<PacketScalar>>
       PacketReturnType;
 
   typedef SparseMatrixBase StorageBaseType;
@@ -110,8 +111,8 @@ class SparseMatrixBase : public EigenBase<Derived> {
 
   /** \internal the return type of MatrixBase::adjoint() */
   typedef std::conditional_t<NumTraits<Scalar>::IsComplex,
-                             CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Eigen::Transpose<const Derived> >,
-                             Transpose<const Derived> >
+                             CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Eigen::Transpose<const Derived>>,
+                             Transpose<const Derived>>
       AdjointReturnType;
   typedef Transpose<Derived> TransposeReturnType;
   typedef Transpose<const Derived> ConstTransposeReturnType;
@@ -133,7 +134,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
   typedef std::conditional_t<HasDirectAccess_, const Scalar&, Scalar> CoeffReturnType;
 
   /** \internal Represents a matrix with all coefficients equal to one another*/
-  typedef CwiseNullaryOp<internal::scalar_constant_op<Scalar>, Matrix<Scalar, Dynamic, Dynamic> > ConstantReturnType;
+  typedef CwiseNullaryOp<internal::scalar_constant_op<Scalar>, Matrix<Scalar, Dynamic, Dynamic>> ConstantReturnType;
 
   /** type of the equivalent dense matrix */
   typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime> DenseMatrixType;
@@ -305,7 +306,7 @@ class SparseMatrixBase : public EigenBase<Derived> {
         }
       } else {
         SparseMatrix<Scalar, RowMajorBit, StorageIndex> trans = m;
-        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex> >&>(trans);
+        s << static_cast<const SparseMatrixBase<SparseMatrix<Scalar, RowMajorBit, StorageIndex>>&>(trans);
       }
     }
     return s;

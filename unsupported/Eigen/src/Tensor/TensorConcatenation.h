@@ -80,7 +80,7 @@ class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsX
 
   EIGEN_DEVICE_FUNC const Axis& axis() const { return m_axis; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorConcatenationOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorConcatenationOp)
  protected:
   typename LhsXprType::Nested m_lhs_xpr;
   typename RhsXprType::Nested m_rhs_xpr;

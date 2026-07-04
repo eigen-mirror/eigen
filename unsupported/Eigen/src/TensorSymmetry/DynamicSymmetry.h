@@ -122,7 +122,7 @@ class DynamicSGroup {
   }
 
   template <typename Index>
-  inline std::vector<Index> h_permute(std::size_t which, std::vector<Index> idx) const {
+  inline std::vector<Index> h_permute(std::size_t which, const std::vector<Index>& idx) const {
     std::vector<Index> result;
     result.reserve(idx.size());
     for (auto k : m_elements[which].representation) result.push_back(idx[k]);

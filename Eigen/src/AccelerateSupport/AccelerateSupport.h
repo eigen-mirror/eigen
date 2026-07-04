@@ -254,7 +254,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
   }
 
   void doAnalysis(AccelSparseMatrix& A) {
-    m_numericFactorization.reset(nullptr);
+    m_numericFactorization.reset();
 
     SparseSymbolicFactorOptions opts{};
     opts.control = SparseDefaultControl;
@@ -271,7 +271,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 
     updateInfoStatus(status);
 
-    if (status != SparseStatusOK) m_symbolicFactorization.reset(nullptr);
+    if (status != SparseStatusOK) m_symbolicFactorization.reset();
   }
 
   void doFactorization(AccelSparseMatrix& A) {
@@ -282,7 +282,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 
       status = m_numericFactorization->status;
 
-      if (status != SparseStatusOK) m_numericFactorization.reset(nullptr);
+      if (status != SparseStatusOK) m_numericFactorization.reset();
     }
 
     updateInfoStatus(status);

@@ -176,8 +176,6 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFixedSize() : m_storage() {}
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFixedSize(const Self& other) : Base(other), m_storage(other.m_storage) {}
-
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFixedSize(Self&& other) : m_storage(other.m_storage) {}
 
   template <typename OtherDerived>
@@ -195,7 +193,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
   // FIXME: check that the dimensions of other match the dimensions of *this.
   // Unfortunately this isn't possible yet when the rhs is an expression.
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(TensorFixedSize)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorFixedSize)
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool checkIndexRange(const array<Index, NumIndices>& /*indices*/) const {

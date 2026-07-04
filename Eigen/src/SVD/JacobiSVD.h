@@ -35,14 +35,13 @@ enum { PreconditionIfMoreColsThanRows, PreconditionIfMoreRowsThanCols };
 
 template <typename MatrixType, int QRPreconditioner, int Case>
 struct qr_preconditioner_should_do_anything
-    : std::integral_constant<bool,
-                             !((QRPreconditioner == NoQRPreconditioner) ||
-                               (Case == PreconditionIfMoreColsThanRows && MatrixType::RowsAtCompileTime != Dynamic &&
-                                MatrixType::ColsAtCompileTime != Dynamic &&
-                                MatrixType::ColsAtCompileTime <= MatrixType::RowsAtCompileTime) ||
-                               (Case == PreconditionIfMoreRowsThanCols && MatrixType::RowsAtCompileTime != Dynamic &&
-                                MatrixType::ColsAtCompileTime != Dynamic &&
-                                MatrixType::RowsAtCompileTime <= MatrixType::ColsAtCompileTime))> {};
+    : bool_constant<!((QRPreconditioner == NoQRPreconditioner) ||
+                      (Case == PreconditionIfMoreColsThanRows && MatrixType::RowsAtCompileTime != Dynamic &&
+                       MatrixType::ColsAtCompileTime != Dynamic &&
+                       MatrixType::ColsAtCompileTime <= MatrixType::RowsAtCompileTime) ||
+                      (Case == PreconditionIfMoreRowsThanCols && MatrixType::RowsAtCompileTime != Dynamic &&
+                       MatrixType::ColsAtCompileTime != Dynamic &&
+                       MatrixType::RowsAtCompileTime <= MatrixType::ColsAtCompileTime))> {};
 
 template <typename MatrixType, int Options, int QRPreconditioner, int Case,
           bool DoAnything = qr_preconditioner_should_do_anything<MatrixType, QRPreconditioner, Case>::value>

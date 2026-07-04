@@ -35,16 +35,14 @@ struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ true>> 
 
 template <typename Xpr, int BlockRows, int BlockCols>
 struct eigen_fill_helper<Block<Xpr, BlockRows, BlockCols, /*InnerPanel*/ false>>
-    : std::integral_constant<bool, eigen_fill_helper<Xpr>::value &&
-                                       (Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1))> {};
+    : bool_constant<eigen_fill_helper<Xpr>::value && (Xpr::IsRowMajor ? (BlockRows == 1) : (BlockCols == 1))> {};
 
 template <typename Xpr, int Options>
 struct eigen_fill_helper<Map<Xpr, Options, Stride<0, 0>>> : eigen_fill_helper<Xpr> {};
 
 template <typename Xpr, int Options, int OuterStride_>
 struct eigen_fill_helper<Map<Xpr, Options, Stride<OuterStride_, 0>>>
-    : std::integral_constant<bool, eigen_fill_helper<Xpr>::value &&
-                                       enum_eq_not_dynamic(OuterStride_, Xpr::InnerSizeAtCompileTime)> {};
+    : bool_constant<eigen_fill_helper<Xpr>::value && enum_eq_not_dynamic(OuterStride_, Xpr::InnerSizeAtCompileTime)> {};
 
 template <typename Xpr, int Options, int OuterStride_>
 struct eigen_fill_helper<Map<Xpr, Options, Stride<OuterStride_, 1>>>

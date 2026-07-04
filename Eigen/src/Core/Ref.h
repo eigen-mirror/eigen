@@ -56,7 +56,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch &&
                            AlignmentMatch && ScalarTypeMatch
     };
-    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
+    typedef bool_constant<MatchAtCompileTime> type;
   };
 };
 

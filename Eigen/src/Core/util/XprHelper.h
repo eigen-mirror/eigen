@@ -66,9 +66,8 @@ EIGEN_DEVICE_FUNC inline IndexDest convert_index(const IndexSrc& idx) {
 
 // true if both types are not valid index types
 template <typename RowIndices, typename ColIndices>
-struct valid_indexed_view_overload : std::integral_constant<bool, !(internal::is_valid_index_type<RowIndices>::value &&
-                                                                    internal::is_valid_index_type<ColIndices>::value)> {
-};
+struct valid_indexed_view_overload : bool_constant<!(internal::is_valid_index_type<RowIndices>::value &&
+                                                     internal::is_valid_index_type<ColIndices>::value)> {};
 
 // promote_scalar_arg is an helper used in operation between an expression and a scalar, like:
 //    expression * scalar
@@ -815,8 +814,8 @@ struct plain_constant_type {
 };
 
 template <typename ExpressionType>
-struct is_lvalue : std::integral_constant<bool, (!bool(std::is_const<ExpressionType>::value)) &&
-                                                    bool((traits<ExpressionType>::Flags & LvalueBit))> {};
+struct is_lvalue : bool_constant<(!bool(std::is_const<ExpressionType>::value)) &&
+                                 bool((traits<ExpressionType>::Flags & LvalueBit))> {};
 
 template <typename T>
 struct is_diagonal : std::false_type {};
@@ -844,9 +843,8 @@ struct glue_shapes<DenseShape, TriangularShape> {
 };
 
 template <typename T1, typename T2>
-struct possibly_same_dense
-    : std::integral_constant<bool, has_direct_access<T1>::value && has_direct_access<T2>::value &&
-                                       std::is_same<typename T1::Scalar, typename T2::Scalar>::value> {};
+struct possibly_same_dense : bool_constant<has_direct_access<T1>::value && has_direct_access<T2>::value &&
+                                           std::is_same<typename T1::Scalar, typename T2::Scalar>::value> {};
 
 template <typename T1, typename T2>
 EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2,

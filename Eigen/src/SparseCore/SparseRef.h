@@ -39,7 +39,7 @@ struct traits<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options_, Strid
                           ((PlainObjectType::Flags & RowMajorBit) == (Derived::Flags & RowMajorBit)),
       MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && StorageOrderMatch
     };
-    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
+    typedef bool_constant<MatchAtCompileTime> type;
   };
 };
 
@@ -61,7 +61,7 @@ struct traits<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options_, Strid
   template <typename Derived>
   struct match {
     enum { MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && Derived::IsVectorAtCompileTime };
-    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
+    typedef bool_constant<MatchAtCompileTime> type;
   };
 };
 

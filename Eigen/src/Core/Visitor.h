@@ -349,7 +349,7 @@ struct visitor_has_linear_access : std::false_type {};
 
 template <typename T>
 struct visitor_has_linear_access<T, decltype(functor_traits<T>::LinearAccess)>
-    : std::integral_constant<bool, static_cast<bool>(functor_traits<T>::LinearAccess)> {};
+    : bool_constant<static_cast<bool>(functor_traits<T>::LinearAccess)> {};
 
 template <typename Derived, typename Visitor, bool ShortCircuitEvaluation>
 struct visit_impl {

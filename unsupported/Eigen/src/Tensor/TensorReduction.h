@@ -41,9 +41,7 @@ struct traits<TensorReductionOp<Op, Dims, XprType, MakePointer_> > : traits<XprT
 
   template <class T>
   struct MakePointer {
-    // Intermediate typedef to workaround MSVC issue.
-    typedef MakePointer_<T> MakePointerT;
-    typedef typename MakePointerT::Type Type;
+    typedef typename MakePointer_<T>::Type Type;
   };
 };
 

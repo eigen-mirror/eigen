@@ -241,7 +241,7 @@ struct random_impl<bool> {
     if (y <= x) return x;
     return run();
   }
-  static EIGEN_DEVICE_FUNC inline bool run() { return getRandomBits<unsigned>(1) ? true : false; }
+  static EIGEN_DEVICE_FUNC inline bool run() { return getRandomBits<unsigned>(1) != 0; }
 };
 
 template <typename Scalar>

@@ -28,7 +28,7 @@ template <int Num>
 struct Abs<Num, false> : std::integral_constant<int, -Num> {};
 
 template <int Axis>
-struct IsValidAxis : std::integral_constant<bool, Axis != 0 && Abs<Axis>::value <= 3> {};
+struct IsValidAxis : bool_constant<Axis != 0 && Abs<Axis>::value <= 3> {};
 
 template <typename System, typename Other, int OtherRows = Other::RowsAtCompileTime,
           int OtherCols = Other::ColsAtCompileTime>
