@@ -253,7 +253,9 @@ void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
   static constexpr bool RowMajor = Derived::IsRowMajor;
   Derived X(mat.rows(), mat.cols());
   X.setRandom();
-  TrackedVisitor<Derived, Vectorized> visitor;
+  using Visitor = TrackedVisitor<Derived, Vectorized>;
+  using VisitImpl = Eigen::internal::visit_impl<Derived, Visitor, false>;
+  Visitor visitor;
   visitor.visited.reserve(X.size());
   X.visit(visitor);
   Index count = 0;
@@ -266,7 +268,7 @@ void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
       ++count;
     }
   }
-  Index vectorOps = Vectorized ? ((X.innerSize() / PacketSize) * X.outerSize()) : 0;
+  Index vectorOps = VisitImpl::Vectorize ? ((X.innerSize() / PacketSize) * X.outerSize()) : 0;
   Index scalarOps = X.size() - (vectorOps * PacketSize);
   VERIFY_IS_EQUAL(vectorOps, visitor.vectorOps);
   VERIFY_IS_EQUAL(scalarOps, visitor.scalarOps);

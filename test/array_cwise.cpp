@@ -233,8 +233,23 @@ struct ref_pow {
 };
 
 template <typename Base, typename Exponent>
+Base ref_pow_integer_base(Base base, Exponent exponent) {
+  // std::pow uses floating-point arithmetic and can round one ulp below the exact integer result before casting.
+  Base result(1);
+  while (exponent > Exponent(0)) {
+    if (exponent & Exponent(1)) result *= base;
+    exponent >>= 1;
+    if (exponent > Exponent(0)) base *= base;
+  }
+  return result;
+}
+
+template <typename Base, typename Exponent>
 struct ref_pow<Base, Exponent, true> {
   static Base run(Base base, Exponent exponent) {
+    if (NumTraits<Base>::IsInteger && (exponent > Exponent(0) || exponent == Exponent(0))) {
+      return ref_pow_integer_base(base, exponent);
+    }
     EIGEN_USING_STD(pow);
     return static_cast<Base>(pow(base, exponent));
   }
@@ -293,6 +308,10 @@ void float_pow_test_impl() {
               bool ref_is_neg = !(numext::isnan)(e) && (bool)numext::signbit(e);
               bool flip_sign = result_is_neg != ref_is_neg;
               if (flip_sign) e = -e;
+            } else if (e == Base(0)) {
+              // Implementations may disagree on the sign of pow(-0, positive non-integer).  The specified result is
+              // +0, so do not inherit a negative zero from the scalar reference.
+              e = numext::abs(e);
             }
 
             Base a = eigenPow(j);
