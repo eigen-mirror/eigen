@@ -523,7 +523,7 @@ struct bunch_kaufman<Lower> {
     typedef typename TranspositionType::StorageIndex StorageIndex;
     const Index n = mat.rows();
     const RealScalar alpha = bunch_kaufman_alpha<RealScalar>();
-    const bool is_complex = NumTraits<Scalar>::IsComplex;
+    constexpr bool is_complex = NumTraits<Scalar>::IsComplex;
 
     Index j = 0;
     while (j < nb) {
@@ -533,10 +533,10 @@ struct bunch_kaufman<Lower> {
       // W(jc:n, j) <- updated column jc = (column jc of A) minus the contributions of the panel columns
       // [k0, jc) already factorized (those are stored as L in mat, and L*D in W).
       W.col(j).segment(jc, h) = mat.col(jc).segment(jc, h);
-      if (is_complex) W.coeffRef(jc, j) = Scalar(numext::real(W.coeff(jc, j)));
+      EIGEN_IF_CONSTEXPR (is_complex) W.coeffRef(jc, j) = Scalar(numext::real(W.coeff(jc, j)));
       if (j > 0) {
         W.col(j).segment(jc, h).noalias() -= mat.block(jc, k0, h, j) * W.row(jc).head(j).adjoint();
-        if (is_complex) W.coeffRef(jc, j) = Scalar(numext::real(W.coeff(jc, j)));
+        EIGEN_IF_CONSTEXPR (is_complex) W.coeffRef(jc, j) = Scalar(numext::real(W.coeff(jc, j)));
       }
 
       Index kstep = 1;
@@ -561,10 +561,10 @@ struct bunch_kaufman<Lower> {
         const Index hr = imax - jc;
         if (hr > 0) W.col(j + 1).segment(jc, hr) = mat.row(imax).segment(jc, hr).adjoint();
         W.col(j + 1).segment(imax, n - imax) = mat.col(imax).segment(imax, n - imax);
-        if (is_complex) W.coeffRef(imax, j + 1) = Scalar(numext::real(W.coeff(imax, j + 1)));
+        EIGEN_IF_CONSTEXPR (is_complex) W.coeffRef(imax, j + 1) = Scalar(numext::real(W.coeff(imax, j + 1)));
         if (j > 0) {
           W.col(j + 1).segment(jc, n - jc).noalias() -= mat.block(jc, k0, n - jc, j) * W.row(imax).head(j).adjoint();
-          if (is_complex) W.coeffRef(imax, j + 1) = Scalar(numext::real(W.coeff(imax, j + 1)));
+          EIGEN_IF_CONSTEXPR (is_complex) W.coeffRef(imax, j + 1) = Scalar(numext::real(W.coeff(imax, j + 1)));
         }
 
         RealScalar rowmax(0);

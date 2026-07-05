@@ -289,7 +289,7 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, fal
     };
 
     Index size = mat.cols();
-    if (SkipDiag) size--;
+    EIGEN_IF_CONSTEXPR (SkipDiag) size--;
     Index depth = actualLhs.cols();
     eigen_assert(actualLhs.rows() == mat.rows() && actualRhs.cols() == mat.cols() &&
                  actualLhs.cols() == actualRhs.rows());

@@ -464,11 +464,11 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
             index >= m_dimensions[dim_index] - m_padding[dim_index].second);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isLeftPaddingCompileTimeZero(int dim_index) const {
+  static EIGEN_DEVICE_FUNC constexpr bool isLeftPaddingCompileTimeZero(int dim_index) {
     return internal::index_pair_first_statically_eq<PaddingDimensions>(dim_index, 0);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool isRightPaddingCompileTimeZero(int dim_index) const {
+  static EIGEN_DEVICE_FUNC constexpr bool isRightPaddingCompileTimeZero(int dim_index) {
     return internal::index_pair_second_statically_eq<PaddingDimensions>(dim_index, 0);
   }
 
@@ -525,14 +525,23 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     const Index firstPaddedRight = m_dimensions[0] - m_padding[0].second;
     const Index lastPaddedRight = m_outputStrides[1];
 
-    if (!isLeftPaddingCompileTimeZero(0) && lastIdx < lastPaddedLeft) {
-      // all the coefficients are in the padding zone.
-      return internal::pset1<PacketReturnType>(m_paddingValue);
-    } else if (!isRightPaddingCompileTimeZero(0) && firstIdx >= firstPaddedRight && lastIdx < lastPaddedRight) {
-      // all the coefficients are in the padding zone.
-      return internal::pset1<PacketReturnType>(m_paddingValue);
-    } else if ((isLeftPaddingCompileTimeZero(0) && isRightPaddingCompileTimeZero(0)) ||
-               (firstIdx >= lastPaddedLeft && lastIdx < firstPaddedRight)) {
+    EIGEN_IF_CONSTEXPR (!isLeftPaddingCompileTimeZero(0)) {
+      if (lastIdx < lastPaddedLeft) {
+        // all the coefficients are in the padding zone.
+        return internal::pset1<PacketReturnType>(m_paddingValue);
+      }
+    }
+    EIGEN_IF_CONSTEXPR (!isRightPaddingCompileTimeZero(0)) {
+      if (firstIdx >= firstPaddedRight && lastIdx < lastPaddedRight) {
+        // all the coefficients are in the padding zone.
+        return internal::pset1<PacketReturnType>(m_paddingValue);
+      }
+    }
+    EIGEN_IF_CONSTEXPR (isLeftPaddingCompileTimeZero(0) && isRightPaddingCompileTimeZero(0)) {
+      // all the coefficients are between the 2 padding zones.
+      inputIndex += (index - m_padding[0].first);
+      return m_impl.template packet<Unaligned>(inputIndex);
+    } else if (firstIdx >= lastPaddedLeft && lastIdx < firstPaddedRight) {
       // all the coefficients are between the 2 padding zones.
       inputIndex += (index - m_padding[0].first);
       return m_impl.template packet<Unaligned>(inputIndex);
@@ -578,15 +587,23 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     const Index firstPaddedRight = m_dimensions[NumDims - 1] - m_padding[NumDims - 1].second;
     const Index lastPaddedRight = m_outputStrides[NumDims - 1];
 
-    if (!isLeftPaddingCompileTimeZero(NumDims - 1) && lastIdx < lastPaddedLeft) {
-      // all the coefficients are in the padding zone.
-      return internal::pset1<PacketReturnType>(m_paddingValue);
-    } else if (!isRightPaddingCompileTimeZero(NumDims - 1) && firstIdx >= firstPaddedRight &&
-               lastIdx < lastPaddedRight) {
-      // all the coefficients are in the padding zone.
-      return internal::pset1<PacketReturnType>(m_paddingValue);
-    } else if ((isLeftPaddingCompileTimeZero(NumDims - 1) && isRightPaddingCompileTimeZero(NumDims - 1)) ||
-               (firstIdx >= lastPaddedLeft && lastIdx < firstPaddedRight)) {
+    EIGEN_IF_CONSTEXPR (!isLeftPaddingCompileTimeZero(NumDims - 1)) {
+      if (lastIdx < lastPaddedLeft) {
+        // all the coefficients are in the padding zone.
+        return internal::pset1<PacketReturnType>(m_paddingValue);
+      }
+    }
+    EIGEN_IF_CONSTEXPR (!isRightPaddingCompileTimeZero(NumDims - 1)) {
+      if (firstIdx >= firstPaddedRight && lastIdx < lastPaddedRight) {
+        // all the coefficients are in the padding zone.
+        return internal::pset1<PacketReturnType>(m_paddingValue);
+      }
+    }
+    EIGEN_IF_CONSTEXPR (isLeftPaddingCompileTimeZero(NumDims - 1) && isRightPaddingCompileTimeZero(NumDims - 1)) {
+      // all the coefficients are between the 2 padding zones.
+      inputIndex += (index - m_padding[NumDims - 1].first);
+      return m_impl.template packet<Unaligned>(inputIndex);
+    } else if (firstIdx >= lastPaddedLeft && lastIdx < firstPaddedRight) {
       // all the coefficients are between the 2 padding zones.
       inputIndex += (index - m_padding[NumDims - 1].first);
       return m_impl.template packet<Unaligned>(inputIndex);

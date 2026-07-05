@@ -1123,7 +1123,7 @@ struct GeneralVectorTensor {
 
       out_scratch_ptr += (Properties::LocalThreadSizeNC * Properties::LocalThreadSizeC);
     }
-    if (is_lhs_vec) {
+    EIGEN_IF_CONSTEXPR (is_lhs_vec) {
       nonContractId = linearLocalThreadId % Properties::LocalThreadSizeNC;
       contractId = linearLocalThreadId / Properties::LocalThreadSizeNC;
       outScratchIndex = nonContractId + contractId * Properties::LocalThreadSizeNC;

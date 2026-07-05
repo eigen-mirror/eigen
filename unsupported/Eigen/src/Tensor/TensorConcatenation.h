@@ -250,7 +250,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
     Index remaining = desc.offset();
     DSizes<Index, NumDims> out_coords;
-    if (IsColMajor) {
+    EIGEN_IF_CONSTEXPR (IsColMajor) {
       for (int i = NumDims - 1; i > 0; --i) {
         out_coords[i] = remaining / m_outputStrides[i];
         remaining -= out_coords[i] * m_outputStrides[i];

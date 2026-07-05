@@ -495,30 +495,33 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
     }
 
     // This is to allow syntax like VectorXi {{1, 2, 3, 4}}
-    if (ColsAtCompileTime == 1 && list.size() == 1) {
-      eigen_assert(list_size == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
-      resize(list_size, ColsAtCompileTime);
-      if (list.begin()->begin() != nullptr) {
-        Index index = 0;
-        for (const Scalar& e : *list.begin()) {
-          coeffRef(index++) = e;
+    EIGEN_IF_CONSTEXPR (ColsAtCompileTime == 1) {
+      if (list.size() == 1) {
+        eigen_assert(list_size == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
+        resize(list_size, ColsAtCompileTime);
+        if (list.begin()->begin() != nullptr) {
+          Index index = 0;
+          for (const Scalar& e : *list.begin()) {
+            coeffRef(index++) = e;
+          }
         }
+        return;
       }
-    } else {
-      eigen_assert(list.size() == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
-      eigen_assert(list_size == static_cast<size_t>(ColsAtCompileTime) || ColsAtCompileTime == Dynamic);
-      resize(list.size(), list_size);
+    }
 
-      Index row_index = 0;
-      for (const std::initializer_list<Scalar>& row : list) {
-        eigen_assert(list_size == row.size());
-        Index col_index = 0;
-        for (const Scalar& e : row) {
-          coeffRef(row_index, col_index) = e;
-          ++col_index;
-        }
-        ++row_index;
+    eigen_assert(list.size() == static_cast<size_t>(RowsAtCompileTime) || RowsAtCompileTime == Dynamic);
+    eigen_assert(list_size == static_cast<size_t>(ColsAtCompileTime) || ColsAtCompileTime == Dynamic);
+    resize(list.size(), list_size);
+
+    Index row_index = 0;
+    for (const std::initializer_list<Scalar>& row : list) {
+      eigen_assert(list_size == row.size());
+      Index col_index = 0;
+      for (const Scalar& e : row) {
+        coeffRef(row_index, col_index) = e;
+        ++col_index;
       }
+      ++row_index;
     }
   }
 
@@ -907,23 +910,25 @@ struct conservative_resize_like_impl {
     if (_this.rows() == rows && _this.cols() == cols) return;
     EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(Derived)
 
-    if (IsRelocatable &&
-        ((Derived::IsRowMajor && _this.cols() == cols) ||  // row-major and we change only the number of rows
-         (!Derived::IsRowMajor && _this.rows() == rows)))  // column-major and we change only the number of columns
-    {
+    EIGEN_IF_CONSTEXPR (IsRelocatable) {
+      if ((Derived::IsRowMajor && _this.cols() == cols) ||  // row-major and we change only the number of rows
+          (!Derived::IsRowMajor && _this.rows() == rows))   // column-major and we change only the number of columns
+      {
 #ifndef EIGEN_NO_DEBUG
-      internal::check_rows_cols_for_overflow<Derived::MaxSizeAtCompileTime, Derived::MaxRowsAtCompileTime,
-                                             Derived::MaxColsAtCompileTime>::run(rows, cols);
+        internal::check_rows_cols_for_overflow<Derived::MaxSizeAtCompileTime, Derived::MaxRowsAtCompileTime,
+                                               Derived::MaxColsAtCompileTime>::run(rows, cols);
 #endif
-      _this.derived().m_storage.conservativeResize(rows * cols, rows, cols);
-    } else {
-      // The storage order does not allow us to use reallocation.
-      Derived tmp(rows, cols);
-      const Index common_rows = numext::mini(rows, _this.rows());
-      const Index common_cols = numext::mini(cols, _this.cols());
-      tmp.block(0, 0, common_rows, common_cols) = _this.block(0, 0, common_rows, common_cols);
-      _this.derived().swap(tmp);
+        _this.derived().m_storage.conservativeResize(rows * cols, rows, cols);
+        return;
+      }
     }
+
+    // The storage order does not allow us to use reallocation.
+    Derived tmp(rows, cols);
+    const Index common_rows = numext::mini(rows, _this.rows());
+    const Index common_cols = numext::mini(cols, _this.cols());
+    tmp.block(0, 0, common_rows, common_cols) = _this.block(0, 0, common_rows, common_cols);
+    _this.derived().swap(tmp);
   }
 
   static void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {
@@ -937,26 +942,28 @@ struct conservative_resize_like_impl {
     EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(Derived)
     EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(OtherDerived)
 
-    if (IsRelocatable &&
-        ((Derived::IsRowMajor && _this.cols() == other.cols()) ||  // row-major and we change only the number of rows
-         (!Derived::IsRowMajor &&
-          _this.rows() == other.rows())))  // column-major and we change only the number of columns
-    {
-      const Index new_rows = other.rows() - _this.rows();
-      const Index new_cols = other.cols() - _this.cols();
-      _this.derived().m_storage.conservativeResize(other.size(), other.rows(), other.cols());
-      if (new_rows > 0)
-        _this.bottomRightCorner(new_rows, other.cols()) = other.bottomRows(new_rows);
-      else if (new_cols > 0)
-        _this.bottomRightCorner(other.rows(), new_cols) = other.rightCols(new_cols);
-    } else {
-      // The storage order does not allow us to use reallocation.
-      Derived tmp(other);
-      const Index common_rows = numext::mini(tmp.rows(), _this.rows());
-      const Index common_cols = numext::mini(tmp.cols(), _this.cols());
-      tmp.block(0, 0, common_rows, common_cols) = _this.block(0, 0, common_rows, common_cols);
-      _this.derived().swap(tmp);
+    EIGEN_IF_CONSTEXPR (IsRelocatable) {
+      if ((Derived::IsRowMajor && _this.cols() == other.cols()) ||  // row-major and we change only the number of rows
+          (!Derived::IsRowMajor &&
+           _this.rows() == other.rows()))  // column-major and we change only the number of columns
+      {
+        const Index new_rows = other.rows() - _this.rows();
+        const Index new_cols = other.cols() - _this.cols();
+        _this.derived().m_storage.conservativeResize(other.size(), other.rows(), other.cols());
+        if (new_rows > 0)
+          _this.bottomRightCorner(new_rows, other.cols()) = other.bottomRows(new_rows);
+        else if (new_cols > 0)
+          _this.bottomRightCorner(other.rows(), new_cols) = other.rightCols(new_cols);
+        return;
+      }
     }
+
+    // The storage order does not allow us to use reallocation.
+    Derived tmp(other);
+    const Index common_rows = numext::mini(tmp.rows(), _this.rows());
+    const Index common_cols = numext::mini(tmp.cols(), _this.cols());
+    tmp.block(0, 0, common_rows, common_cols) = _this.block(0, 0, common_rows, common_cols);
+    _this.derived().swap(tmp);
   }
 };
 
@@ -972,7 +979,7 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
   static void run(DenseBase<Derived>& _this, Index size) {
     const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : size;
     const Index new_cols = Derived::RowsAtCompileTime == 1 ? size : 1;
-    if (IsRelocatable)
+    EIGEN_IF_CONSTEXPR (IsRelocatable)
       _this.derived().m_storage.conservativeResize(size, new_rows, new_cols);
     else
       Base::run(_this.derived(), new_rows, new_cols);
@@ -985,7 +992,7 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
 
     const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : other.rows();
     const Index new_cols = Derived::RowsAtCompileTime == 1 ? other.cols() : 1;
-    if (IsRelocatable)
+    EIGEN_IF_CONSTEXPR (IsRelocatable)
       _this.derived().m_storage.conservativeResize(other.size(), new_rows, new_cols);
     else
       Base::run(_this.derived(), new_rows, new_cols);

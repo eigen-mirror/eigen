@@ -160,7 +160,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     if (shardByInnerDim(m, n, k, num_threads, num_threads_by_k)) {
       // We are in the scenario where it is more effective to shard by the
       // inner dimension.
-      if (IsEvalInSyncMode) {
+      EIGEN_IF_CONSTEXPR (IsEvalInSyncMode) {
         EvalShardedByInnerDimContext<DoneCallback> ctx(this, num_threads_by_k, buffer, m, n, k, std::move(done));
         ctx.template run<Alignment>();
       } else {
@@ -182,7 +182,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
             this->template evalProductSequential<lhs_c(), rhs_c(), rhs_r(), Unaligned>(buffer);
           },
           this->m_lhs_inner_dim_contiguous, this->m_rhs_inner_dim_contiguous, this->m_rhs_inner_dim_reordered);
-      if (!IsEvalInSyncMode) done();
+      EIGEN_IF_CONSTEXPR (!IsEvalInSyncMode) done();
       return;
     }
 
@@ -842,17 +842,19 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
       const Index nend = n * gn_ + gn(n);
       for (Index n1 = n * gn_; n1 < nend; n1++) {
-        if (!TensorContractionKernel::HasBeta && k == 0) {
-          // Zero the output memory in parallel, only if contraction kernel does
-          // not support `beta`. Otherwise we will pass beta 0.0 to the first
-          // call to the `TensorContractionKernel::invoke()`.
-          //
-          // On 10000x2x10000 mm zeroing can easily take half of time. Zero (bn
-          // x m) row. Safe to do here because all kernels that will write to
-          // this memory depend on completion of this task. Note: don't call
-          // device_.fill() here. device_.fill() blocks on thread pool
-          // worker thread, which can lead to underutilization and deadlocks.
-          std::fill_n(buffer_ + n1 * bn_ * m_, bn(n1) * m_, Scalar(0));
+        EIGEN_IF_CONSTEXPR (!TensorContractionKernel::HasBeta) {
+          if (k == 0) {
+            // Zero the output memory in parallel, only if contraction kernel does
+            // not support `beta`. Otherwise we will pass beta 0.0 to the first
+            // call to the `TensorContractionKernel::invoke()`.
+            //
+            // On 10000x2x10000 mm zeroing can easily take half of time. Zero (bn
+            // x m) row. Safe to do here because all kernels that will write to
+            // this memory depend on completion of this task. Note: don't call
+            // device_.fill() here. device_.fill() blocks on thread pool
+            // worker thread, which can lead to underutilization and deadlocks.
+            std::fill_n(buffer_ + n1 * bn_ * m_, bn(n1) * m_, Scalar(0));
+          }
         }
         kernel_.packRhs(&packed_rhs(n, k, n1, use_thread_local), rhs_.getSubMapper(k * bk_, n1 * bn_), bk(k), bn(n1));
       }

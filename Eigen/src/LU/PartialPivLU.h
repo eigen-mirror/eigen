@@ -398,7 +398,9 @@ struct generic_partial_lu_impl {
     const Index size = (std::min)(rows, cols);
 
     // if the matrix is too small, no blocking:
-    if (UnBlockedAtCompileTime || size <= UnBlockedBound) {
+    EIGEN_IF_CONSTEXPR (UnBlockedAtCompileTime) {
+      return unblocked_lu(lu, row_transpositions, nb_transpositions);
+    } else if (size <= UnBlockedBound) {
       return unblocked_lu(lu, row_transpositions, nb_transpositions);
     }
 

@@ -250,7 +250,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     typedef const_blas_data_mapper<RhsScalar, Index, RowMajor> RhsMapper;
     RhsScalar compatibleAlpha = get_factor<ResScalar, RhsScalar>::run(actualAlpha);
 
-    if (!MightCannotUseDest) {
+    EIGEN_IF_CONSTEXPR (!MightCannotUseDest) {
       // shortcut if we are sure to be able to use dest directly,
       // this eases the compiler to generate cleaner and more optimized code for most common cases
       general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
@@ -336,7 +336,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
         RhsScalar, actualRhsPtr, actualRhs.size(),
         DirectlyUseRhs ? const_cast<RhsScalar*>(actualRhs.data()) : static_rhs.data());
 
-    if (!DirectlyUseRhs) {
+    EIGEN_IF_CONSTEXPR (!DirectlyUseRhs) {
 #ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
       constexpr int Size = ActualRhsTypeCleaned::SizeAtCompileTime;
       Index size = actualRhs.size();

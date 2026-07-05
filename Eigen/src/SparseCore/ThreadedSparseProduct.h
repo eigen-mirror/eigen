@@ -257,7 +257,7 @@ class ThreadedSparseProduct {
     constexpr bool NativeIsRowMajor = IsRowMajor;
     constexpr bool UseMirror = NeedRowMajorView != NativeIsRowMajor;
 
-    if (UseMirror) {
+    EIGEN_IF_CONSTEXPR (UseMirror) {
       const MirrorType& m = ensure_mirror();
       run<Adjoint, Overwrite>(m.valuePtr(), m.innerIndexPtr(), m.outerIndexPtr(), m.innerNonZeroPtr(),
                               /*outerSize=*/m.outerSize(), m_adj_partition, x, y, alpha);

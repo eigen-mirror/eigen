@@ -162,11 +162,11 @@ class EulerSystem {
                               const typename EulerAngles<Scalar, EulerSystem>::Matrix3& mat) {
     res.angles() = mat.canonicalEulerAngles(AlphaAxisAbs - 1, BetaAxisAbs - 1, GammaAxisAbs - 1);
 
-    if (IsAlphaOpposite) res.alpha() = -res.alpha();
+    EIGEN_IF_CONSTEXPR (IsAlphaOpposite) res.alpha() = -res.alpha();
 
-    if (IsBetaOpposite) res.beta() = -res.beta();
+    EIGEN_IF_CONSTEXPR (IsBetaOpposite) res.beta() = -res.beta();
 
-    if (IsGammaOpposite) res.gamma() = -res.gamma();
+    EIGEN_IF_CONSTEXPR (IsGammaOpposite) res.gamma() = -res.gamma();
   }
 
   template <typename Scalar_, class _System>

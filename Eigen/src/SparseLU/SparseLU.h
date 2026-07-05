@@ -925,7 +925,7 @@ struct SparseLUMatrixUReturnType : internal::no_assignment_operator {
         Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<>> A(&(m_mapL.valuePtr()[luptr]), nsupc,
                                                                                   nsupc, OuterStride<>(lda));
         typename Dest::RowsBlockXpr U = X.derived().middleRows(fsupc, nsupc);
-        if (Conjugate)
+        EIGEN_IF_CONSTEXPR (Conjugate)
           U = A.adjoint().template triangularView<Lower>().solve(U);
         else
           U = A.transpose().template triangularView<Lower>().solve(U);

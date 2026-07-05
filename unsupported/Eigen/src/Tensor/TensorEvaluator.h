@@ -69,9 +69,11 @@ struct TensorEvaluator {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dims; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType dest) {
-    if (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization && dest) {
-      m_device.memcpy((void*)(m_device.get(dest)), m_device.get(m_data), m_dims.TotalSize() * sizeof(Scalar));
-      return false;
+    EIGEN_IF_CONSTEXPR (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization) {
+      if (dest) {
+        m_device.memcpy((void*)(m_device.get(dest)), m_device.get(m_data), m_dims.TotalSize() * sizeof(Scalar));
+        return false;
+      }
     }
     return true;
   }
@@ -236,9 +238,11 @@ struct TensorEvaluator<const Derived, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dims; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
-    if (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization && data) {
-      m_device.memcpy((void*)(m_device.get(data)), m_device.get(m_data), m_dims.TotalSize() * sizeof(Scalar));
-      return false;
+    EIGEN_IF_CONSTEXPR (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization) {
+      if (data) {
+        m_device.memcpy((void*)(m_device.get(data)), m_device.get(m_data), m_dims.TotalSize() * sizeof(Scalar));
+        return false;
+      }
     }
     return true;
   }
@@ -459,8 +463,10 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
     // block-materializing child's prepareStorage (assert in debug, corruption
     // in release). Drop the buffer in that case; the child falls back to
     // scratch and writeBlock still lands the converted values in the LHS.
-    if (!std::is_same<std::remove_const_t<Scalar>,
-                      std::remove_const_t<typename TensorEvaluator<ArgType, Device>::Scalar>>::value) {
+    constexpr bool ScalarTypesMatch =
+        std::is_same<std::remove_const_t<Scalar>,
+                     std::remove_const_t<typename TensorEvaluator<ArgType, Device>::Scalar>>::value;
+    EIGEN_IF_CONSTEXPR (!ScalarTypesMatch) {
       desc.DropDestinationBuffer();
     }
     return TensorBlock(m_argImpl.block(desc, scratch), m_functor);

@@ -982,7 +982,7 @@ template <>
 EIGEN_STRONG_INLINE void pbroadcast4<Packet4Xd>(const double* a, Packet4Xd& a0, Packet4Xd& a1, Packet4Xd& a2,
                                                 Packet4Xd& a3) {
   Packet4Xd aa;
-  if (EIGEN_RISCV64_RVV_VL >= 256) {
+  EIGEN_IF_CONSTEXPR (EIGEN_RISCV64_RVV_VL >= 256) {
     aa = __riscv_vlmul_ext_f64m4(__riscv_vle64_v_f64m1(a, 4));
   } else {
     aa = __riscv_vlmul_ext_f64m4(__riscv_vle64_v_f64m2(a, 4));

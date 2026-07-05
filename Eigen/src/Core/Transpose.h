@@ -283,15 +283,17 @@ struct inplace_transpose_selector<MatrixType, false, MatchPacketSize> {  // non 
     typedef typename MatrixType::Scalar Scalar;
     if (m.rows() == m.cols()) {
       const Index PacketSize = internal::packet_traits<Scalar>::size;
-      if (!NumTraits<Scalar>::IsComplex && m.rows() >= PacketSize) {
-        if ((m.rows() % PacketSize) == 0)
-          BlockedInPlaceTranspose<MatrixType, internal::evaluator<MatrixType>::Alignment>(m);
-        else
-          BlockedInPlaceTranspose<MatrixType, Unaligned>(m);
-      } else {
-        m.matrix().template triangularView<StrictlyUpper>().swap(
-            m.matrix().transpose().template triangularView<StrictlyUpper>());
+      EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+        if (m.rows() >= PacketSize) {
+          if ((m.rows() % PacketSize) == 0)
+            BlockedInPlaceTranspose<MatrixType, internal::evaluator<MatrixType>::Alignment>(m);
+          else
+            BlockedInPlaceTranspose<MatrixType, Unaligned>(m);
+          return;
+        }
       }
+      m.matrix().template triangularView<StrictlyUpper>().swap(
+          m.matrix().transpose().template triangularView<StrictlyUpper>());
     } else {
       m = m.transpose().eval();
     }
@@ -413,8 +415,9 @@ struct checkTransposeAliasing_impl<Derived, OtherDerived, false> {
 
 template <typename Dst, typename Src>
 EIGEN_DEVICE_FUNC inline void check_for_aliasing(const Dst& dst, const Src& src) {
-  if ((!Dst::IsVectorAtCompileTime) && dst.rows() > 1 && dst.cols() > 1)
-    internal::checkTransposeAliasing_impl<Dst, Src>::run(dst, src);
+  EIGEN_IF_CONSTEXPR (!Dst::IsVectorAtCompileTime) {
+    if (dst.rows() > 1 && dst.cols() > 1) internal::checkTransposeAliasing_impl<Dst, Src>::run(dst, src);
+  }
 }
 
 }  // end namespace internal

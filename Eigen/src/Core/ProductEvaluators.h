@@ -1453,7 +1453,7 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar coeff(Index idx) const {
-    if (AsScalarProduct)
+    EIGEN_IF_CONSTEXPR (AsScalarProduct)
       return m_diagImpl.coeff(0) * m_matImpl.coeff(idx);
     else
       return m_diagImpl.coeff(idx) * m_matImpl.coeff(idx);

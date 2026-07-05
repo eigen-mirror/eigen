@@ -74,7 +74,7 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
     //          [C, D]]
     Packet4f A, B, C, D;
 
-    if (!StorageOrdersMatch) {
+    EIGEN_IF_CONSTEXPR (!StorageOrdersMatch) {
       A = vec4f_unpacklo(L1, L2);
       B = vec4f_unpacklo(L3, L4);
       C = vec4f_unpackhi(L1, L2);
@@ -194,7 +194,7 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
 
     const double *data = matrix.data();
     const Index stride = matrix.innerStride();
-    if (StorageOrdersMatch) {
+    EIGEN_IF_CONSTEXPR (StorageOrdersMatch) {
       A1 = ploadt<Packet2d, MatrixAlignment>(data + stride * 0);
       B1 = ploadt<Packet2d, MatrixAlignment>(data + stride * 2);
       A2 = ploadt<Packet2d, MatrixAlignment>(data + stride * 4);

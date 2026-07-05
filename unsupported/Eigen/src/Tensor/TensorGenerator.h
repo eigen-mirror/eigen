@@ -213,7 +213,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
       coords[inner_dim] = initial_coords[inner_dim];
 
       // For the 1d tensor we need to generate only one inner-most dimension.
-      if (NumDims == 1) break;
+      EIGEN_IF_CONSTEXPR (NumDims == 1) break;
 
       // Update offset.
       for (i = 1; i < NumDims; ++i) {

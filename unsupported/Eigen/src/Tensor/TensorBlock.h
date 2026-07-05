@@ -349,7 +349,7 @@ class TensorBlockMapper {
     IndexType offset = 0;
     DSizes<IndexType, NumDims> dimensions;
 
-    if (NumDims == 0) return BlockDescriptor(offset, dimensions);
+    EIGEN_IF_CONSTEXPR (NumDims == 0) return BlockDescriptor(offset, dimensions);
 
     // Iterate outer -> inner dimensions.
     for (int i = NumDims - 1; i >= 0; --i) {
@@ -1136,7 +1136,7 @@ class TensorBlockIO {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE IndexType Copy(const Dst& dst, const Src& src,
                                                               const DimensionsMap& dst_to_src_dim_map) {
     // Copy single scalar value from `src` to `dst`.
-    if (NumDims == 0) {
+    EIGEN_IF_CONSTEXPR (NumDims == 0) {
       *(dst.data + dst.offset) = *(src.data + src.offset);
       return 1;
     }
@@ -1408,7 +1408,9 @@ class TensorBlockAssignment {
     IndexType output_inner_dim_size = NumDims == 0 ? 1 : target.dims[inner_dim_idx];
 
     // Target inner dimension stride must be '1'.
-    if (NumDims > 0) eigen_assert(target.strides[inner_dim_idx] == 1);
+    EIGEN_IF_CONSTEXPR (NumDims > 0) {
+      eigen_assert(target.strides[inner_dim_idx] == 1);
+    }
 
     // Squeeze multiple inner dims into one if they are contiguous in `target`.
     IndexType num_squeezed_dims = 0;

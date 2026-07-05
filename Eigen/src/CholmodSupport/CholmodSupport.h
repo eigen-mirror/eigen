@@ -117,12 +117,12 @@ template <typename Scalar_, int Options_, typename Index_, unsigned int UpLo>
 cholmod_sparse viewAsCholmod(const SparseSelfAdjointView<const SparseMatrix<Scalar_, Options_, Index_>, UpLo>& mat) {
   cholmod_sparse res = viewAsCholmod(Ref<SparseMatrix<Scalar_, Options_, Index_> >(mat.matrix().const_cast_derived()));
 
-  if (UpLo == Upper) res.stype = 1;
-  if (UpLo == Lower) res.stype = -1;
+  EIGEN_IF_CONSTEXPR (UpLo == Upper) res.stype = 1;
+  EIGEN_IF_CONSTEXPR (UpLo == Lower) res.stype = -1;
   // swap stype for rowmajor matrices (only works for real matrices)
   EIGEN_STATIC_ASSERT((Options_ & RowMajorBit) == 0 || NumTraits<Scalar_>::IsComplex == 0,
                       THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
-  if (Options_ & RowMajorBit) res.stype *= -1;
+  EIGEN_IF_CONSTEXPR (Options_ & RowMajorBit) res.stype *= -1;
 
   return res;
 }

@@ -111,7 +111,7 @@ selfadjoint_matrix_vector_product<Scalar, Index, StorageOrder, UpLo, ConjugateLh
       res[j + 3] += cjd.pmul(numext::real(A3[j + 3]), t3);
 
       // Handle the 4x4 diagonal block: off-diagonal cross terms
-      if (FirstTriangular) {
+      EIGEN_IF_CONSTEXPR (FirstTriangular) {
         // Upper triangle stored (A_k[l] for l <= k)
         res[j] += cj0.pmul(A1[j], t1) + cj0.pmul(A2[j], t2) + cj0.pmul(A3[j], t3);
         res[j + 1] += cj0.pmul(A2[j + 1], t2) + cj0.pmul(A3[j + 1], t3);
@@ -215,7 +215,7 @@ selfadjoint_matrix_vector_product<Scalar, Index, StorageOrder, UpLo, ConjugateLh
 
       res[j] += cjd.pmul(numext::real(A0[j]), t0);
       res[j + 1] += cjd.pmul(numext::real(A1[j + 1]), t1);
-      if (FirstTriangular) {
+      EIGEN_IF_CONSTEXPR (FirstTriangular) {
         res[j] += cj0.pmul(A1[j], t1);
         t3 += cj1.pmul(A1[j], rhs[j]);
       } else {
@@ -369,7 +369,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
     ei_declare_aligned_stack_constructed_variable(RhsScalar, actualRhsPtr, rhs.size(),
                                                   UseRhs ? const_cast<RhsScalar*>(rhs.data()) : static_rhs.data());
 
-    if (!EvalToDest) {
+    EIGEN_IF_CONSTEXPR (!EvalToDest) {
 #ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
       constexpr int Size = Dest::SizeAtCompileTime;
       Index size = dest.size();
@@ -378,7 +378,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
       MappedDest(actualDestPtr, dest.size()) = dest;
     }
 
-    if (!UseRhs) {
+    EIGEN_IF_CONSTEXPR (!UseRhs) {
 #ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
       constexpr int Size = ActualRhsTypeCleaned::SizeAtCompileTime;
       Index size = rhs.size();
@@ -397,7 +397,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
                                                    actualAlpha                              // scale factor
     );
 
-    if (!EvalToDest) dest = MappedDest(actualDestPtr, dest.size());
+    EIGEN_IF_CONSTEXPR (!EvalToDest) dest = MappedDest(actualDestPtr, dest.size());
   }
 };
 

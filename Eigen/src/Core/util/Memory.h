@@ -544,17 +544,20 @@ EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T* ptr, std::size_
  */
 template <int Alignment, typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
-  const Index ScalarSize = sizeof(Scalar);
-  const Index AlignmentSize = Alignment / ScalarSize;
-  const Index AlignmentMask = AlignmentSize - 1;
+  constexpr Index ScalarSize = sizeof(Scalar);
+  constexpr Index AlignmentSize = Alignment / ScalarSize;
+  constexpr Index AlignmentMask = AlignmentSize - 1;
 
-  if (AlignmentSize <= 1) {
+  EIGEN_IF_CONSTEXPR (AlignmentSize <= 1) {
     // Either the requested alignment if smaller than a scalar, or it exactly match a 1 scalar
     // so that all elements of the array have the same alignment.
     return 0;
-  } else if ((std::uintptr_t(array) & (sizeof(Scalar) - 1)) || (Alignment % ScalarSize) != 0) {
-    // The array is not aligned to the size of a single scalar, or the requested alignment is not a multiple of the
-    // scalar size. Consequently, no element of the array is well aligned.
+  } else EIGEN_IF_CONSTEXPR ((Alignment % ScalarSize) != 0) {
+    // The requested alignment is not a multiple of the scalar size. Consequently, no element of the array is well
+    // aligned.
+    return size;
+  } else if (std::uintptr_t(array) & (sizeof(Scalar) - 1)) {
+    // The array is not aligned to the size of a single scalar. Consequently, no element of the array is well aligned.
     return size;
   } else {
     Index first = (AlignmentSize - (Index((std::uintptr_t(array) / sizeof(Scalar))) & AlignmentMask)) & AlignmentMask;

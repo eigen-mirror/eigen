@@ -245,14 +245,24 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     double cost = 0;
-    if ((static_cast<int>(Layout) == static_cast<int>(ColMajor) && m_dim.actualDim() == 0) ||
-        (static_cast<int>(Layout) == static_cast<int>(RowMajor) && m_dim.actualDim() == NumInputDims - 1)) {
-      cost += TensorOpCost::MulCost<Index>() + TensorOpCost::AddCost<Index>();
-    } else if ((static_cast<int>(Layout) == static_cast<int>(ColMajor) && m_dim.actualDim() == NumInputDims - 1) ||
-               (static_cast<int>(Layout) == static_cast<int>(RowMajor) && m_dim.actualDim() == 0)) {
-      cost += TensorOpCost::AddCost<Index>();
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      if (m_dim.actualDim() == 0) {
+        cost += TensorOpCost::MulCost<Index>() + TensorOpCost::AddCost<Index>();
+      } else if (m_dim.actualDim() == NumInputDims - 1) {
+        cost += TensorOpCost::AddCost<Index>();
+      } else {
+        cost +=
+            3 * TensorOpCost::MulCost<Index>() + TensorOpCost::DivCost<Index>() + 3 * TensorOpCost::AddCost<Index>();
+      }
     } else {
-      cost += 3 * TensorOpCost::MulCost<Index>() + TensorOpCost::DivCost<Index>() + 3 * TensorOpCost::AddCost<Index>();
+      if (m_dim.actualDim() == NumInputDims - 1) {
+        cost += TensorOpCost::MulCost<Index>() + TensorOpCost::AddCost<Index>();
+      } else if (m_dim.actualDim() == 0) {
+        cost += TensorOpCost::AddCost<Index>();
+      } else {
+        cost +=
+            3 * TensorOpCost::MulCost<Index>() + TensorOpCost::DivCost<Index>() + 3 * TensorOpCost::AddCost<Index>();
+      }
     }
 
     return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, cost, vectorized, PacketSize);

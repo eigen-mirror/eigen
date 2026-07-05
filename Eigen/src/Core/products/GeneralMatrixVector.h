@@ -345,9 +345,13 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
                                                                              : (int)Traits::LhsPacketSize),
     HasSubPackets_ = (int)MinUsefulCols_ < (int)LhsPacketSize_
   };
-  if (HasSubPackets_ && cols >= MinUsefulCols_ && cols < LhsPacketSize_) {
-    run_small_cols(rows, cols, alhs, rhs, res, resIncr, alpha);
-    return;
+  EIGEN_IF_CONSTEXPR (HasSubPackets_) {
+    if (cols >= MinUsefulCols_) {
+      if (cols < LhsPacketSize_) {
+        run_small_cols(rows, cols, alhs, rhs, res, resIncr, alpha);
+        return;
+      }
+    }
   }
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function

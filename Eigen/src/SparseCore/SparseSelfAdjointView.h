@@ -321,7 +321,7 @@ inline void sparse_selfadjoint_time_dense_product(const SparseLhsType& lhs, cons
     for (Index j = 0; j < lhs.outerSize(); ++j) {
       LhsIterator i(lhsEval, j);
       // handle diagonal coeff
-      if (ProcessSecondHalf) {
+      EIGEN_IF_CONSTEXPR (ProcessSecondHalf) {
         while (i && i.index() < j) ++i;
         if (i && i.index() == j) {
           res.coeffRef(j, k) += alpha * i.value() * rhs.coeff(j, k);

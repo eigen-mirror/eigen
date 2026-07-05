@@ -270,7 +270,7 @@ typename Spline<Scalar_, Dim_, Degree_>::BasisVectorType Spline<Scalar_, Dim_, D
 
 template <typename Scalar_, int Dim_, int Degree_>
 DenseIndex Spline<Scalar_, Dim_, Degree_>::degree() const {
-  if (Degree_ == Dynamic)
+  EIGEN_IF_CONSTEXPR (Degree_ == Dynamic)
     return m_knots.size() - m_ctrls.cols() - 1;
   else
     return Degree_;

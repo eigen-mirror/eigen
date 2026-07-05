@@ -214,7 +214,7 @@ class AlignedBox {
   EIGEN_DEVICE_FUNC inline VectorType sample() const {
     VectorType r(dim());
     for (Index d = 0; d < dim(); ++d) {
-      if (!ScalarTraits::IsInteger) {
+      EIGEN_IF_CONSTEXPR (!ScalarTraits::IsInteger) {
         r[d] = m_min[d] + (m_max[d] - m_min[d]) * internal::random<Scalar>(Scalar(0), Scalar(1));
       } else
         r[d] = internal::random(m_min[d], m_max[d]);
