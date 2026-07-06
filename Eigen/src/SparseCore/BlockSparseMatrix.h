@@ -1350,21 +1350,26 @@ class BlockSparseTriangularView {
     eigen_assert(lhs.cols() == tri.m_matrix.rows() && "Dense * BlockSparseTriangularView: dimension mismatch");
     constexpr bool isRM = BSM::IsRowMajor;
     using ResultType = Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>;
-    ResultType result = ResultType::Zero(lhs.rows(), tri.m_matrix.cols());
-    for (Index out = 0; out < tri.m_matrix.m_blockOuterSize; ++out) {
-      for (Index id = tri.m_matrix.m_outerIndex(out); id < tri.m_matrix.m_outerIndex(out + 1); ++id) {
-        Index inner = tri.m_matrix.m_innerIndex(id);
+    // BSM befriends BlockSparseTriangularView, but GCC <= 11 and MSVC do not
+    // extend that friendship to the body of a friend function defined inside
+    // the view (CWG 1699), so only BSM's public interface may be used here.
+    const BSM& m = tri.m_matrix;
+    const StorageIndex* outerPtr = m.outerIndexPtr();
+    const StorageIndex* innerPtr = m.innerIndexPtr();
+    ResultType result = ResultType::Zero(lhs.rows(), m.cols());
+    for (Index out = 0; out < m.blockOuterSize(); ++out) {
+      for (Index id = outerPtr[out]; id < outerPtr[out + 1]; ++id) {
+        Index inner = innerPtr[id];
         Index bi = isRM ? out : inner;
         Index bj = isRM ? inner : out;
         if (IsUpper ? (bj < bi) : (bj > bi)) continue;
         constexpr int DiagMode = IsUpper ? Upper : Lower;
         if (!DiagIsTriangular && bi == bj)
           result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
-              lhs.template middleCols<BlockRows>(bi * BlockRows) *
-              tri.m_matrix.blockRef(id).template triangularView<DiagMode>();
+              lhs.template middleCols<BlockRows>(bi * BlockRows) * m.blockRef(id).template triangularView<DiagMode>();
         else
           result.template middleCols<BlockCols>(bj * BlockCols).noalias() +=
-              lhs.template middleCols<BlockRows>(bi * BlockRows) * tri.m_matrix.blockRef(id);
+              lhs.template middleCols<BlockRows>(bi * BlockRows) * m.blockRef(id);
       }
     }
     return result;

@@ -39,6 +39,33 @@ BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex> denseToBl
   return bsm;
 }
 
+template <bool HasSquareBlocks>
+struct BlockSparseIdentityTester {
+  template <int BlockRows, int BlockCols, int Options, typename Scalar, typename StorageIndex>
+  static void run(int, int, const BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>&,
+                  const Matrix<Scalar, Dynamic, Dynamic>&) {}
+};
+
+template <>
+struct BlockSparseIdentityTester<true> {
+  template <int BlockRows, int BlockCols, int Options, typename Scalar, typename StorageIndex>
+  static void run(int bRows, int bCols, const BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>& A,
+                  const Matrix<Scalar, Dynamic, Dynamic>& dA) {
+    using BSM = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
+    using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+
+    const int rows = bRows * BlockRows;
+    const int cols = bCols * BlockCols;
+    BSM Id(bRows, bCols);
+    Id.setIdentity();
+    VERIFY_IS_APPROX(DenseMat(Id.toSparse()), DenseMat::Identity(rows, cols));
+    if (bRows == bCols) {
+      VERIFY_IS_APPROX(DenseMat((Id * A).toSparse()), dA);
+      VERIFY_IS_APPROX(DenseMat((A * Id).toSparse()), dA);
+    }
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Core test driver templated on block size, storage order, and scalar type
 // ---------------------------------------------------------------------------
@@ -167,15 +194,8 @@ void test_block_sparse(int bRows, int bCols) {
   }
 
   // ---- setIdentity ----------------------------------------------------------
-  EIGEN_IF_CONSTEXPR (BlockRows == BlockCols) {
-    BSM Id(bRows, bCols);
-    Id.setIdentity();
-    VERIFY_IS_APPROX(DenseMat(Id.toSparse()), DenseMat::Identity(rows, cols));
-    if (bRows == bCols) {
-      VERIFY_IS_APPROX(DenseMat((Id * A).toSparse()), dA);
-      VERIFY_IS_APPROX(DenseMat((A * Id).toSparse()), dA);
-    }
-  }
+  BlockSparseIdentityTester<BlockRows == BlockCols>::template run<BlockRows, BlockCols, Options, Scalar, StorageIndex>(
+      bRows, bCols, A, dA);
 
   // ---- setFromTriplets with duplicate blocks (accumulation) ---------------
   {
