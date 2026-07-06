@@ -1,0 +1,54 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef EIGEN_STRUCTURED_MATRICES_MODULE_H
+#define EIGEN_STRUCTURED_MATRICES_MODULE_H
+
+#include "../../Eigen/Core"
+#include "../../Eigen/IterativeLinearSolvers"
+#include "FFT"
+
+namespace Eigen {
+
+/**
+ * \defgroup StructuredMatrices_Module StructuredMatrices module
+ *
+ * This module provides lightweight operator types for displacement-structured
+ * matrices together with fast, FFT-based matrix-vector products and direct
+ * solvers:
+ *   - \c Circulant : a circulant matrix, diagonalized by the DFT;
+ *   - \c Toeplitz  : a (possibly rectangular) Toeplitz matrix, multiplied in
+ *     O(n log n) via circulant embedding.
+ *
+ * The operator types derive from \c EigenBase and store only their generating
+ * vectors together with a precomputed DFT symbol that every product reuses.
+ * Because they expose \c operator* returning an Eigen product expression, they
+ * also plug directly into the matrix-free iterative solvers
+ * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
+ * matrix; and since they hook into the evaluator system, they can be assigned
+ * to a dense matrix when an explicit representation is needed.
+ *
+ * \code
+ * #include <unsupported/Eigen/StructuredMatrices>
+ * \endcode
+ */
+
+}  // namespace Eigen
+
+#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
+
+// IWYU pragma: begin_exports
+#include "src/StructuredMatrices/StructuredMatrixUtils.h"
+#include "src/StructuredMatrices/Circulant.h"
+#include "src/StructuredMatrices/Toeplitz.h"
+// IWYU pragma: end_exports
+
+#include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
+
+#endif  // EIGEN_STRUCTURED_MATRICES_MODULE_H
