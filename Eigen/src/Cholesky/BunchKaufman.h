@@ -478,25 +478,37 @@ struct bunch_kaufman<Lower> {
 
         const Index rs = n - k - 2;
         if (rs > 0) {
+          // Fused factor-column computation and trailing update, in a single pass over the lower
+          // triangle of A22 (the xSYTF2/xHETF2 strategy). For each trailing column j, first form the
+          // two unit lower factor entries of row j (the rows of U D^{-1}, in the scaled form above),
+          //   l0_j = (t*icjd)*(ak*u0_j - u1_j),   l1_j = (t*id)*(akm1*u1_j - u0_j),
+          // then update column j against the ORIGINAL pivot columns u = [u0 u1] (they carry the D
+          // scale, U = L*D, so no 1/det factor appears):
+          //   A22(i,j) -= u0_i*conj(l0_j) + u1_i*conj(l1_j),   i >= j.
+          // Rows < j of the pivot columns already hold L, rows >= j still hold U -- exactly the
+          // entries each column update needs, so no workspace is required. Compared with composing
+          // self-adjoint rank-1/rank-2 updates (syr + syr + syr2) this halves the flops and touches
+          // the trailing triangle once instead of three times.
           const RealScalar t = RealScalar(1) / denom;
-          auto A22 = mat.block(k + 2, k + 2, rs, rs);
+          const Scalar tic = t * icjd;
+          const Scalar tid = t * id;
           auto c0 = mat.col(k).tail(rs);
           auto c1 = mat.col(k + 1).tail(rs);
-          // Store the unit lower factor columns L = U D^{-1} (U = [c0 c1]) in scaled form:
-          //   L_k = t*(ak*u0 - u1)*icjd,  L_{k+1} = t*(akm1*u1 - u0)*id  (= the unscaled rows of U D^{-1}).
-          for (Index i = 0; i < rs; ++i) {
-            const Scalar u0 = c0.coeff(i);
-            const Scalar u1 = c1.coeff(i);
-            c0.coeffRef(i) = t * (ak * u0 - u1) * icjd;
-            c1.coeffRef(i) = t * (akm1 * u1 - u0) * id;
+          for (Index j = 0; j < rs; ++j) {
+            const Scalar u0 = c0.coeff(j);
+            const Scalar u1 = c1.coeff(j);
+            const Scalar l0 = tic * (ak * u0 - u1);
+            const Scalar l1 = tid * (akm1 * u1 - u0);
+            const Index len = rs - j;
+            mat.col(k + 2 + j).tail(len) -= numext::conj(l0) * c0.tail(len) + numext::conj(l1) * c1.tail(len);
+            c0.coeffRef(j) = l0;
+            c1.coeffRef(j) = l1;
+            // Keep the updated diagonal exactly real (the correction is Hermitian; roundoff would
+            // otherwise leave a tiny imaginary part).
+            EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+              mat.coeffRef(k + 2 + j, k + 2 + j) = Scalar(numext::real(mat.coeff(k + 2 + j, k + 2 + j)));
+            }
           }
-          // Trailing update A22 <- A22 - L D L^*  (== A22 - U D^{-1} U^*, since L = U D^{-1}), using the
-          // just-stored scaled L columns and the ORIGINAL block entries d11,d22,d21 as coefficients --
-          // so no 1/det factor (which would over/underflow) appears. Two rank-1 (syr) and one rank-2
-          // (syr2) self-adjoint updates.
-          A22.template selfadjointView<Lower>().rankUpdate(c0, -d11);
-          A22.template selfadjointView<Lower>().rankUpdate(c1, -d22);
-          A22.template selfadjointView<Lower>().rankUpdate(c0, c1, -numext::conj(d21));
         }
         // Move the 2x2 off-diagonal of D out of the L storage.
         subdiag.coeffRef(k) = d21;

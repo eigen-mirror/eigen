@@ -35,6 +35,12 @@ void verify_factorization(const MatrixType& A, const BKType& bk) {
 
   VERIFY_IS_APPROX(A, bk.reconstructedMatrix());
 
+  // The diagonal of D must be exactly real (not merely up to roundoff): the factorization
+  // re-realifies the trailing diagonal after each Hermitian update, like LAPACK xHETF2/xHETRF.
+  for (Index k = 0; k < n; ++k) {
+    VERIFY(numext::is_exactly_zero(numext::imag(bk.vectorD().coeff(k))));
+  }
+
   // Build D explicitly from vectorD() and subDiagonal() and reconstruct manually.
   MatrixType D = MatrixType::Zero(n, n);
   D.diagonal() = bk.vectorD();
