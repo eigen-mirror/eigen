@@ -27,8 +27,12 @@ typedef std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal
     NonConstRealReturnType;
 /** \internal the return type of imag() const */
 typedef CwiseUnaryOp<internal::scalar_imag_op<Scalar>, const Derived> ImagReturnType;
-/** \internal the return type of imag() */
-typedef CwiseUnaryView<internal::scalar_imag_ref_op<Scalar>, Derived> NonConstImagReturnType;
+/** \internal the return type of imag(). The imaginary part of a real-valued object is identically zero and not an
+ * lvalue, so for real scalars the non-const overload returns the same read-only zero expression as the const one
+ * instead of a writable view (whose functor would return a dangling reference to a temporary; see issue #3096). */
+typedef std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal::scalar_imag_ref_op<Scalar>, Derived>,
+                           ImagReturnType>
+    NonConstImagReturnType;
 
 typedef CwiseUnaryOp<internal::scalar_opposite_op<Scalar>, const Derived> NegativeReturnType;
 
@@ -161,6 +165,8 @@ EIGEN_DOC_UNARY_ADDONS(real, real part function)
 EIGEN_DEVICE_FUNC constexpr inline NonConstRealReturnType real() { return NonConstRealReturnType(derived()); }
 
 /// \returns a non const expression of the imaginary part of \c *this.
+/// For real-valued objects the imaginary part is identically zero and not writable; this then returns the
+/// same read-only zero expression as the const overload.
 ///
 EIGEN_DOC_UNARY_ADDONS(imag, imaginary part function)
 ///
