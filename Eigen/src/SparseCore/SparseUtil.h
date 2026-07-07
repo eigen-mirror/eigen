@@ -61,6 +61,17 @@ class SparseSymmetricPermutationProduct;
 
 namespace internal {
 
+/** \internal
+ * Compile-time test for whether a sparse expression exposes its storage directly
+ * through outerIndexPtr() / innerIndexPtr() / valuePtr() / innerNonZeroPtr()
+ * (the \ref CompressedAccessBit contract: SparseMatrix, SparseVector,
+ * Ref<Sparse>, Map<SparseMatrix>, ...). Such expressions can drive raw-pointer
+ * fast paths; anything else must be walked via InnerIterator.
+ */
+template <typename Derived>
+struct has_compressed_access : std::integral_constant<bool, (int(traits<Derived>::Flags) & CompressedAccessBit) != 0> {
+};
+
 template <typename T, int Rows, int Cols, int Flags>
 struct sparse_eval;
 

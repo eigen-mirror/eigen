@@ -58,6 +58,7 @@
 #include "src/SparseCore/SparseDenseProduct.h"
 #include "src/SparseCore/SparseSelfAdjointView.h"
 #include "src/SparseCore/SparseTriangularView.h"
+#include "src/SparseCore/TriangularReachSolver.h"
 #include "src/SparseCore/TriangularSolver.h"
 #include "src/SparseCore/SparsePermutation.h"
 #include "src/SparseCore/SparseFuzzy.h"
