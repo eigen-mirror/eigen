@@ -228,6 +228,94 @@ void test_matrix_free_gmres(Index n) {
   VERIFY_IS_APPROX((dense * x).eval(), b);
 }
 
+// Diagonally dominant (well-conditioned) Toeplitz: the look-ahead solver must agree
+// with a dense LU solve.
+template <typename Scalar>
+void test_levinson_wellcond(Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+
+  Vec c = Vec::Random(n), r = Vec::Random(n);
+  c[0] = r[0] = Scalar(RealScalar(2 * n));
+  Toeplitz<Scalar> T(c, r);
+  Mat dense = T;
+
+  Vec b = Vec::Random(n);
+  LookAheadLevinson<Scalar> lev(T);
+  VERIFY(lev.info() == Success);
+  Vec x = lev.solve(b);
+  VERIFY_IS_APPROX(x, dense.fullPivLu().solve(b).eval());
+
+  // Multiple right-hand sides.
+  Mat B = Mat::Random(n, 3);
+  VERIFY_IS_APPROX(lev.solve(B), dense.fullPivLu().solve(B).eval());
+}
+
+// Indefinite / ill-conditioned matrices that force look-ahead block steps. The
+// generators and required block sizes are from Chan & Hansen's test set; the true
+// solution is the all-ones vector.
+void test_levinson_lookahead() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  auto check = [](const Vec& c, const Vec& r, Index pmax) {
+    Toeplitz<double> T(c, r);
+    Vec xt = Vec::Ones(c.size());
+    Vec b = T * xt;
+    LookAheadLevinson<double> lev;
+    lev.setMaxBlockSize(pmax).compute(T);
+    VERIFY(lev.info() == Success);
+    Vec x = lev.solve(b);
+    VERIFY((x - xt).norm() <= 1e-9 * xt.norm());
+  };
+
+  Vec c1(6), r1(6);  // Sweet-1 (block size 2)
+  c1 << 4, 6, 71.0 / 15 + 5e-8, 5, 3, 1;
+  r1 << 4, 8, 1, 6, 2, 3;
+  check(c1, r1, 3);
+
+  Vec c2(6), r2(6);  // Sweet-2 (block size 2)
+  c2 << 8, 4, -34 + 5e-13, 5, 3, 1;
+  r2 << 8, 4, 1, 6, 2, 3;
+  check(c2, r2, 3);
+
+  Vec c3(13), r3(13);  // Sweet-3 (block size 6)
+  c3 << 5, 1, -3, 12.755, -19.656, 28.361, -7, -1, 2, 1, -6, 1, -0.5;
+  r3 << 5, -1, 6, 2, 5.697, 5.850, 3, -5, -2, -7, 1, 10, -15;
+  check(c3, r3, 6);
+
+  // shifted KMS: leading submatrices T_k with k = 1,4,7,... are singular, so the
+  // full order n must be a multiple of 3 for T_n itself to be non-singular.
+  for (Index n : {15, 30, 60}) {
+    Vec c(n), r(n);
+    c[0] = r[0] = 1e-14;
+    for (Index i = 1; i < n; ++i) c[i] = r[i] = std::pow(0.5, double(i - 1));
+    check(c, r, 3);
+  }
+}
+
+// Fixed-size Toeplitz operators also feed the solver.
+void test_levinson_fixed() {
+  typedef Matrix<double, 12, 1> Vec12;
+  Vec12 c = Vec12::Random(), r = Vec12::Random();
+  c[0] = r[0] = 24.0;
+  Toeplitz<double, 12, 12> T(c, r);
+  Matrix<double, 12, 12> dense = T;
+  Vec12 b = Vec12::Random();
+  LookAheadLevinson<double> lev(T);
+  VERIFY(lev.info() == Success);
+  VERIFY_IS_APPROX(lev.solve(b), dense.fullPivLu().solve(b).eval());
+}
+
+// A numerically singular Toeplitz must be reported through info().
+void test_levinson_singular() {
+  typedef Matrix<double, Dynamic, 1> Vec;
+  for (Index n : {4, 9}) {
+    Vec c = Vec::Ones(n), r = Vec::Ones(n);  // all-ones Toeplitz is rank 1 for n >= 2
+    LookAheadLevinson<double> lev(Toeplitz<double>(c, r));
+    VERIFY(lev.info() == NumericalIssue);
+  }
+}
+
 EIGEN_DECLARE_TEST(structured_matrices) {
   for (int i = 0; i < g_repeat; ++i) {
     // Circulant: direct path (small), FFT path (composite and prime sizes), edge cases.
@@ -273,5 +361,17 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_4((test_toeplitz_fixed<double, 4, 6>()));
     CALL_SUBTEST_4((test_toeplitz_fixed<double, 40, 24>()));
     CALL_SUBTEST_4((test_toeplitz_fixed<std::complex<float>, 6, 4>()));
+
+    // Look-ahead Levinson direct Toeplitz solver.
+    CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
+    CALL_SUBTEST_5((test_levinson_wellcond<double>(2)));
+    CALL_SUBTEST_5((test_levinson_wellcond<double>(20)));
+    CALL_SUBTEST_5((test_levinson_wellcond<double>(60)));
+    CALL_SUBTEST_5((test_levinson_wellcond<float>(40)));
+    CALL_SUBTEST_5((test_levinson_wellcond<std::complex<double>>(30)));
+    CALL_SUBTEST_5((test_levinson_wellcond<std::complex<float>>(24)));
+    CALL_SUBTEST_5(test_levinson_lookahead());
+    CALL_SUBTEST_5(test_levinson_fixed());
+    CALL_SUBTEST_5(test_levinson_singular());
   }
 }

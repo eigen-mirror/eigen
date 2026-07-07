@@ -11,6 +11,8 @@
 #define EIGEN_STRUCTURED_MATRICES_MODULE_H
 
 #include "../../Eigen/Core"
+#include "../../Eigen/LU"
+#include "../../Eigen/SVD"
 #include "../../Eigen/IterativeLinearSolvers"
 #include "FFT"
 
@@ -47,6 +49,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/StructuredMatrixUtils.h"
 #include "src/StructuredMatrices/Circulant.h"
 #include "src/StructuredMatrices/Toeplitz.h"
+#include "src/StructuredMatrices/LookAheadLevinson.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
