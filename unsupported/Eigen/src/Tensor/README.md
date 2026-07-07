@@ -2054,6 +2054,9 @@ the reshape view of b.
 Returns a view of the input tensor whose dimensions have been
 reordered according to the specified permutation.
 
+Pass the permutation as a concrete array object. A braced initializer list such as
+`input.shuffle({1, 2, 0})` cannot be used directly because the template parameter cannot be deduced from it.
+
 The argument `shuffle` is an array of `Index` values:
 * Its size is the rank of the input tensor.
 * It must contain a permutation of `[0, 1, ..., rank - 1]`.
@@ -2063,7 +2066,8 @@ The argument `shuffle` is an array of `Index` values:
 // Shuffle all dimensions to the left by 1.
 Tensor<float, 3> input(20, 30, 50);
 // ... set some values in input.
-Tensor<float, 3> output = input.shuffle({1, 2, 0});
+Eigen::array<Eigen::Index, 3> shuffle{{1, 2, 0}};
+Tensor<float, 3> output = input.shuffle(shuffle);
 
 eigen_assert(output.dimension(0) == 30);
 eigen_assert(output.dimension(1) == 50);
@@ -2088,7 +2092,8 @@ Let's rewrite the previous example to take advantage of this feature:
 Tensor<float, 3> input(20, 30, 50);
 input.setRandom();
 Tensor<float, 3> output(30, 50, 20);
-output.shuffle({2, 0, 1}) = input;
+Eigen::array<Eigen::Index, 3> unshuffle{{2, 0, 1}};
+output.shuffle(unshuffle) = input;
 ```
 
 ### (Operation) stride(const Strides& strides)

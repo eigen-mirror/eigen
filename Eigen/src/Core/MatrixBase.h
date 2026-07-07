@@ -536,7 +536,8 @@ inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& o
   return derived();
 }
 
-/** replaces \c *this by \c *this * \a other. It is equivalent to MatrixBase::operator*=().
+/** Calling \c A.applyOnTheRight(B) replaces \c A by the matrix product \f$ A B \f$.
+ * It is equivalent to MatrixBase::operator*=().
  *
  * Example: \include MatrixBase_applyOnTheRight.cpp
  * Output: \verbinclude MatrixBase_applyOnTheRight.out
@@ -547,7 +548,7 @@ inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& 
   other.derived().applyThisOnTheRight(derived());
 }
 
-/** replaces \c *this by \a other * \c *this.
+/** Calling \c A.applyOnTheLeft(B) replaces \c A by the matrix product \f$ B A \f$.
  *
  * Example: \include MatrixBase_applyOnTheLeft.cpp
  * Output: \verbinclude MatrixBase_applyOnTheLeft.out

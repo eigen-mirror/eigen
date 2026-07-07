@@ -101,7 +101,7 @@ EIGEN_DEVICE_FUNC constexpr inline const ImagReturnType imag() const { return Im
 /// \tparam  CustomUnaryOp Type of \a func
 /// \returns An expression of a custom coefficient-wise unary operator \a func of *this
 ///
-/// The function \c ptr_fun() from the C++ standard library can be used to make functors out of normal functions.
+/// A lambda can be used to adapt a normal function to the functor interface expected by this method.
 ///
 /// Example:
 /// \include class_CwiseUnaryOp_ptrfun.cpp
