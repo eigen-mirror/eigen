@@ -130,6 +130,103 @@ static EIGEN_ALWAYS_INLINE void scalar_tail_pack(float* EIGEN_RESTRICT dst_panel
   }
 }
 
+// ---------------------------------------------------------------------------
+// Generic (mapper-based) packing fallback.
+//
+// The streaming pack_lhs_*/pack_rhs_* helpers take &lhs(0,0) once and walk it by
+// raw pointer + lhs.stride(). That breaks for two DataMapper families:
+//   - TensorContractionSubMapper::operator() returns by value, so &lhs(0,0) is
+//     address-of-rvalue (a compile error, not just wrong results);
+//   - blas_data_mapper with Incr != 1 (inner-strided Maps, e.g. from
+//     TriangularSolverMatrix) can't be walked by stride() alone.
+// These fall back to element access via operator(), emitting the identical
+// depth-major panel layout so gebp_kernel can't tell the paths apart.
+// ---------------------------------------------------------------------------
+
+// True iff DataMapper exposes .incr() (the blas_data_mapper family); others are
+// unit-inner-stride by construction.
+template <typename DataMapper, typename EnableIf = void>
+struct sme_has_incr : std::false_type {};
+template <typename DataMapper>
+struct sme_has_incr<DataMapper, std::enable_if_t<(sizeof(decltype(std::declval<const DataMapper&>().incr())) > 0)>>
+    : std::true_type {};
+
+template <typename Index, typename DataMapper>
+EIGEN_ALWAYS_INLINE std::enable_if_t<sme_has_incr<DataMapper>::value, Index> sme_mapper_incr(const DataMapper& m) {
+  return static_cast<Index>(m.incr());
+}
+template <typename Index, typename DataMapper>
+EIGEN_ALWAYS_INLINE std::enable_if_t<!sme_has_incr<DataMapper>::value, Index> sme_mapper_incr(const DataMapper&) {
+  return Index(1);
+}
+
+// Whether operator()(i,j) returns an lvalue reference into caller storage (so
+// &m(0,0) + stride walking is valid). False for by-value mappers (Tensor's).
+template <typename DataMapper, typename Index>
+struct sme_mapper_has_direct_access {
+  static constexpr bool value = std::is_lvalue_reference<decltype(std::declval<const DataMapper&>()(
+      std::declval<Index>(), std::declval<Index>()))>::value;
+};
+
+// LHS fallback: pack via lhs(i,k), storage-order-agnostic, shared by both
+// gemm_pack_lhs specializations. Taken by mappers without direct lvalue access
+// (TensorContractionSubMapper returns by value) or with a non-unit inner
+// stride. Scalar for now; a follow-up will make this SME-based.
+template <typename Index, typename DataMapper, bool PanelMode>
+void sme_pack_lhs_fallback(float* dst_base, const DataMapper& lhs, Index depth, Index rows, Index dst_stride,
+                           Index dst_offset) {
+  constexpr int MR = kSmeMr;
+  const Index peeled_rows = (rows / MR) * MR;
+
+  for (Index i = 0; i < peeled_rows; i += MR) {
+    float* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * MR : dst_base + i * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index r = 0; r < MR; ++r) {
+        dst_panel[k * MR + r] = lhs(i + r, k);
+      }
+    }
+  }
+
+  if (peeled_rows < rows) {
+    const Index tail = rows - peeled_rows;
+    float* dst_panel =
+        PanelMode ? dst_base + peeled_rows * dst_stride + dst_offset * tail : dst_base + peeled_rows * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index r = 0; r < tail; ++r) {
+        dst_panel[k * tail + r] = lhs(peeled_rows + r, k);
+      }
+    }
+  }
+}
+
+// RHS fallback, mirroring sme_pack_lhs_fallback.
+template <typename Index, typename DataMapper, bool PanelMode>
+void sme_pack_rhs_fallback(float* dst_base, const DataMapper& rhs, Index depth, Index cols, Index dst_stride,
+                           Index dst_offset) {
+  constexpr int NR = kSmeNr;
+  const Index peeled_cols = (cols / NR) * NR;
+
+  for (Index j = 0; j < peeled_cols; j += NR) {
+    float* dst_panel = PanelMode ? dst_base + j * dst_stride + dst_offset * NR : dst_base + j * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index c = 0; c < NR; ++c) {
+        dst_panel[k * NR + c] = rhs(k, j + c);
+      }
+    }
+  }
+
+  if (peeled_cols < cols) {
+    const Index tail = cols - peeled_cols;
+    float* dst_panel =
+        PanelMode ? dst_base + peeled_cols * dst_stride + dst_offset * tail : dst_base + peeled_cols * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index c = 0; c < tail; ++c) {
+        dst_panel[k * tail + c] = rhs(k, peeled_cols + c);
+      }
+    }
+  }
+}
+
 /*****************************************************************************
  * gebp_traits specialization for SME  (float x float)
  *
@@ -142,6 +239,18 @@ static EIGEN_ALWAYS_INLINE void scalar_tail_pack(float* EIGEN_RESTRICT dst_panel
  * We provide custom gemm_pack_lhs/gemm_pack_rhs specializations for float,
  * so both ColMajor and RowMajor source matrices produce an identical,
  * simple packed format that the SME kernel consumes.
+ *
+ * Mixed-scalar products (e.g. MatrixXf * MatrixXcf) also instantiate
+ * gemm_pack_lhs<float, ...>, but with Pack1/nr from the generic
+ * gebp_traits<float, complex<float>> (mr=6, nr=4) and are consumed by the
+ * generic gebp_kernel, not the SME one. So the specializations below pin
+ * Pack1/nr_ to kSmeMr/kSmeNr: only the instantiation that feeds the SME
+ * gebp_kernel matches; mixed-scalar ones fall through to the generic template.
+ * This is load-bearing: it relies on no other float consumer instantiating the
+ * packer with mr == kSmeMr (holds today -- generic float traits give mr <= 12).
+ * The kernel side is self-checking (the SME gebp_kernel static_asserts
+ * mr/nr == kSmeMr/kSmeNr, so a float traits change breaks the build instead of
+ * silently mispairing packer and kernel); the packer side stays implicit.
  *****************************************************************************/
 
 template <>
@@ -163,8 +272,11 @@ class gebp_traits<float, float, false, false, Architecture::Target, GEBPPacketFu
  * Each depth step k writes exactly MR contiguous floats.
  *****************************************************************************/
 
-template <typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
+// Pack1 is pinned to kSmeMr (rather than left open) so this specialization
+// only matches consumers that actually feed the SME gebp_kernel -- see
+// "Mixed-scalar products" in the gebp_traits doc comment above.
+template <typename Index, typename DataMapper, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
+struct gemm_pack_lhs<float, Index, DataMapper, kSmeMr, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
   __arm_locally_streaming static void pack_lhs_colmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
@@ -188,13 +300,29 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, C
     }
   }
 
+  // Tag-dispatched so &lhs(0,0) is only compiled for direct-access mappers
+  // (see the "Generic (mapper-based) packing fallback" section above).
+  static void dispatch(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset,
+                       std::true_type /* direct access */) {
+    if (sme_mapper_incr<Index>(lhs) == 1) {
+      const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
+      pack_lhs_colmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
+    } else {
+      sme_pack_lhs_fallback<Index, DataMapper, PanelMode>(blockA, lhs, depth, rows, stride, offset);
+    }
+  }
+  static void dispatch(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset,
+                       std::false_type /* no direct access */) {
+    sme_pack_lhs_fallback<Index, DataMapper, PanelMode>(blockA, lhs, depth, rows, stride, offset);
+  }
+
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
                                     Index offset = 0) {
     if (PanelMode) {
       eigen_assert(stride >= depth && offset <= stride);
     }
-    const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
-    pack_lhs_colmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
+    dispatch(blockA, lhs, depth, rows, stride, offset,
+             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -206,8 +334,9 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, C
 // as a free transpose: load svlw rows as horizontal slices of a ZA.S tile,
 // then read vertical slices to produce depth-major output (see
 // sme_transpose_pack).
-template <typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
-struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
+// Pack1 pinned to kSmeMr -- see the ColMajor specialization above.
+template <typename Index, typename DataMapper, int Pack2, typename Packet, bool Conjugate, bool PanelMode>
+struct gemm_pack_lhs<float, Index, DataMapper, kSmeMr, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
   __arm_locally_streaming __arm_new("za") static void pack_lhs_rowmajor(Scalar* dst_base,
@@ -234,13 +363,28 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, C
     }
   }
 
+  // See the ColMajor specialization above for why this is tag-dispatched.
+  static void dispatch(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset,
+                       std::true_type /* direct access */) {
+    if (sme_mapper_incr<Index>(lhs) == 1) {
+      const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
+      pack_lhs_rowmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
+    } else {
+      sme_pack_lhs_fallback<Index, DataMapper, PanelMode>(blockA, lhs, depth, rows, stride, offset);
+    }
+  }
+  static void dispatch(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride, Index offset,
+                       std::false_type /* no direct access */) {
+    sme_pack_lhs_fallback<Index, DataMapper, PanelMode>(blockA, lhs, depth, rows, stride, offset);
+  }
+
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
                                     Index offset = 0) {
     if (PanelMode) {
       eigen_assert(stride >= depth && offset <= stride);
     }
-    const Scalar* src = (rows > 0 && depth > 0) ? &lhs(0, 0) : nullptr;
-    pack_lhs_rowmajor(blockA, src, lhs.stride(), depth, rows, stride, offset);
+    dispatch(blockA, lhs, depth, rows, stride, offset,
+             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -253,8 +397,11 @@ struct gemm_pack_lhs<float, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, C
  * read verticals to produce depth-major packed output.
  *****************************************************************************/
 
-template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMode> {
+// nr_ is pinned to kSmeNr (rather than left open) so this specialization
+// only matches consumers that actually feed the SME gebp_kernel -- see
+// "Mixed-scalar products" in the gebp_traits doc comment above.
+template <typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
+struct gemm_pack_rhs<float, Index, DataMapper, kSmeNr, ColMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
   __arm_locally_streaming __arm_new("za") static void pack_rhs_colmajor(Scalar* dst_base,
@@ -280,20 +427,37 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, ColMajor, Conjugate, PanelMo
     }
   }
 
+  // See gemm_pack_lhs's ColMajor specialization above for why this is
+  // tag-dispatched.
+  static void dispatch(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset,
+                       std::true_type /* direct access */) {
+    if (sme_mapper_incr<Index>(rhs) == 1) {
+      const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
+      pack_rhs_colmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
+    } else {
+      sme_pack_rhs_fallback<Index, DataMapper, PanelMode>(blockB, rhs, depth, cols, stride, offset);
+    }
+  }
+  static void dispatch(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset,
+                       std::false_type /* no direct access */) {
+    sme_pack_rhs_fallback<Index, DataMapper, PanelMode>(blockB, rhs, depth, cols, stride, offset);
+  }
+
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
                                     Index offset = 0) {
     if (PanelMode) {
       eigen_assert(stride >= depth && offset <= stride);
     }
-    const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
-    pack_rhs_colmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
+    dispatch(blockB, rhs, depth, cols, stride, offset,
+             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
 // RowMajor RHS packer -- streaming SVE copy (mirrors the ColMajor LHS packer).
 // Rows are contiguous in the source, so each depth-step is NR contiguous fp32.
-template <typename Index, typename DataMapper, int nr_, bool Conjugate, bool PanelMode>
-struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMode> {
+// nr_ pinned to kSmeNr -- see the ColMajor specialization above.
+template <typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
+struct gemm_pack_rhs<float, Index, DataMapper, kSmeNr, RowMajor, Conjugate, PanelMode> {
   typedef float Scalar;
 
   __arm_locally_streaming static void pack_rhs_rowmajor(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
@@ -315,13 +479,29 @@ struct gemm_pack_rhs<float, Index, DataMapper, nr_, RowMajor, Conjugate, PanelMo
     }
   }
 
+  // See gemm_pack_lhs's ColMajor specialization above for why this is
+  // tag-dispatched.
+  static void dispatch(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset,
+                       std::true_type /* direct access */) {
+    if (sme_mapper_incr<Index>(rhs) == 1) {
+      const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
+      pack_rhs_rowmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
+    } else {
+      sme_pack_rhs_fallback<Index, DataMapper, PanelMode>(blockB, rhs, depth, cols, stride, offset);
+    }
+  }
+  static void dispatch(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride, Index offset,
+                       std::false_type /* no direct access */) {
+    sme_pack_rhs_fallback<Index, DataMapper, PanelMode>(blockB, rhs, depth, cols, stride, offset);
+  }
+
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
                                     Index offset = 0) {
     if (PanelMode) {
       eigen_assert(stride >= depth && offset <= stride);
     }
-    const Scalar* src = (cols > 0 && depth > 0) ? &rhs(0, 0) : nullptr;
-    pack_rhs_rowmajor(blockB, src, rhs.stride(), depth, cols, stride, offset);
+    dispatch(blockB, rhs, depth, cols, stride, offset,
+             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -554,6 +734,7 @@ struct gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
                                     Index depth, Index cols, ResScalar alpha, Index strideA = -1, Index strideB = -1,
                                     Index offsetA = 0, Index offsetB = 0) {
     static_assert(!ConjugateLhs && !ConjugateRhs, "SME fp32 kernel does not support conjugation");
+    static_assert(mr == kSmeMr && nr == kSmeNr, "SME fp32 kernel expects kSmeMr/kSmeNr-sized packed panels");
 
     if (strideA == -1) strideA = depth;
     if (strideB == -1) strideB = depth;
@@ -566,6 +747,103 @@ struct gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
 
     sme_gebp_impl(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth, cols, alpha, strideA, strideB,
                   offsetA, offsetB);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Selfadjoint (SYMM) packers.
+//
+// product_selfadjoint_matrix packs the selfadjoint operand (stored as one
+// triangle) through symm_pack_lhs/symm_pack_rhs, which materialize the full
+// matrix as they pack. The generic ones emit packet-width sub-panels for the
+// generic gebp_kernel; the SME kernel needs uniform kSmeMr/kSmeNr-wide
+// depth-major panels (blockA + i*depth, width min(kSmeMr, rows-i)), and the
+// mismatch is silent and wrong. These do the same triangle mirroring but emit
+// the SME layout; complex SYMM still uses the generic packer.
+// ---------------------------------------------------------------------------
+
+// full(row,col) for a selfadjoint matrix stored (per the StorageOrder
+// product_selfadjoint_matrix derives) with valid data only for row >= col:
+// direct below the diagonal, conjugated above, real() on it (conj/real are
+// float identities, kept to mirror the generic packer).
+template <typename Index, typename DataMapper>
+EIGEN_ALWAYS_INLINE float sme_symm_full(const DataMapper& m, Index row, Index col) {
+  if (row == col) return numext::real(m(row, col));
+  if (row > col) return m(row, col);
+  return numext::conj(m(col, row));
+}
+
+// LHS: rows [0,rows) x depth [0,depth) (lhs is pre-offset to the diagonal block)
+// into kSmeMr-wide depth-major panels: blockA[k*width + r] = full(i+r, k).
+template <typename Index, typename DataMapper>
+void sme_symm_pack_lhs_panels(float* blockA, const DataMapper& lhs, Index depth, Index rows) {
+  constexpr int MR = kSmeMr;
+  const Index peeled_rows = (rows / MR) * MR;
+
+  for (Index i = 0; i < peeled_rows; i += MR) {
+    float* dst_panel = blockA + i * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index r = 0; r < MR; ++r) {
+        dst_panel[k * MR + r] = sme_symm_full<Index>(lhs, i + r, k);
+      }
+    }
+  }
+  if (peeled_rows < rows) {
+    const Index tail = rows - peeled_rows;
+    float* dst_panel = blockA + peeled_rows * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index r = 0; r < tail; ++r) {
+        dst_panel[k * tail + r] = sme_symm_full<Index>(lhs, peeled_rows + r, k);
+      }
+    }
+  }
+}
+
+// RHS: rows [k2,k2+depth) x cols [0,cols) into kSmeNr-wide panels:
+// blockB[k*width + c] = full(k2+k, j+c). rhs is not pre-offset (k2 is explicit).
+template <typename Index, typename DataMapper>
+void sme_symm_pack_rhs_panels(float* blockB, const DataMapper& rhs, Index depth, Index cols, Index k2) {
+  constexpr int NR = kSmeNr;
+  const Index peeled_cols = (cols / NR) * NR;
+
+  for (Index j = 0; j < peeled_cols; j += NR) {
+    float* dst_panel = blockB + j * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index c = 0; c < NR; ++c) {
+        dst_panel[k * NR + c] = sme_symm_full<Index>(rhs, k2 + k, j + c);
+      }
+    }
+  }
+  if (peeled_cols < cols) {
+    const Index tail = cols - peeled_cols;
+    float* dst_panel = blockB + peeled_cols * depth;
+    for (Index k = 0; k < depth; ++k) {
+      for (Index c = 0; c < tail; ++c) {
+        dst_panel[k * tail + c] = sme_symm_full<Index>(rhs, k2 + k, peeled_cols + c);
+      }
+    }
+  }
+}
+
+// symm_pack_lhs/rhs SME specializations: emit the uniform kSmeMr/kSmeNr panels
+// sme_gebp_impl reads. Pack1/nr pinned exactly as gemm_pack_lhs/rhs above.
+template <typename Index, int Pack2_dummy, int StorageOrder>
+struct symm_pack_lhs<float, Index, kSmeMr, Pack2_dummy, StorageOrder> {
+  typedef float Scalar;
+  EIGEN_DONT_INLINE void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
+    const_blas_data_mapper<Scalar, Index, StorageOrder> lhs(lhs_, lhsStride);
+    sme_symm_pack_lhs_panels<Index>(blockA, lhs, cols, rows);
+  }
+};
+
+template <typename Index, int StorageOrder>
+struct symm_pack_rhs<float, Index, kSmeNr, StorageOrder> {
+  typedef float Scalar;
+  // Note: generic symm_pack_rhs's "rows" is the depth extent (end_k = k2 + rows), not a row count.
+  EIGEN_DONT_INLINE void operator()(Scalar* blockB, const Scalar* rhs_, Index rhsStride, Index rows, Index cols,
+                                    Index k2) const {
+    const_blas_data_mapper<Scalar, Index, StorageOrder> rhs(rhs_, rhsStride);
+    sme_symm_pack_rhs_panels<Index>(blockB, rhs, rows, cols, k2);
   }
 };
 

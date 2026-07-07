@@ -391,11 +391,12 @@ build:linux:cross:arm:clang-14:default:
     # The build stage only cross-compiles and never invokes the emulator, so
     # no qemu here -- the test stage installs qemu-user.
     EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu
-    # Only product_sme is exercised (test job runs `ctest -R product_sme`),
-    # so build just that aggregate target rather than the whole `buildtests`
-    # suite -- the latter cross-compiles every test under the SME flags and
-    # blows the runner timeout.
-    EIGEN_CI_BUILD_TARGET: product_sme
+    # product_symm/product_trsolve/product_trmm/product_syrk/mixingtypes exercise
+    # the SME packers through their non-dense-GEMM consumers (selfadjoint,
+    # triangular-solve, triangular-product, rank-update, mixed-scalar) that
+    # product_sme can't reach. Explicit list, not `buildtests`: cross-building
+    # every test under the SME flags overruns the runner timeout.
+    EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk mixingtypes
   # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
   # program bills small and large runners the same, so don't downsize.
 
@@ -406,6 +407,27 @@ build:linux:cross:sme:gcc-14:default:
     EIGEN_CI_CXX_COMPILER: g++-14
     EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
     EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
+
+# Full nightly SME coverage: compile the *entire* test suite (buildtests, both
+# Official and Unsupported) under +sme2, not just the SME-relevant targets. This
+# is what treats SME "as any other platform": it catches any compile breakage
+# under the streaming-mode flags across the whole codebase -- e.g. the tensor-
+# contraction packer path that only surfaces once TensorContraction is built
+# with the SME backend active. Runs on the nightly schedule and on all-tests
+# MRs via the inherited .rules:libeigen:all-tests; the per-SVL subset build
+# above stays as the fast, cheap signal. Cross-building every test under the SME
+# flags is slow -- the raised timeout is a starting estimate; tune it once a
+# real run establishes the wall-clock (drop to BuildOfficial/BuildUnsupported
+# split builds if a single job overruns).
+build:linux:cross:sme:gcc-14:full:
+  extends: .build:linux:cross:sme
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
+    EIGEN_CI_BUILD_TARGET: buildtests
+  timeout: 2h
 
 
 
