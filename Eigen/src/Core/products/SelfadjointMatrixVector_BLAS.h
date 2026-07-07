@@ -86,7 +86,7 @@ EIGEN_BLAS_SYMV_SPECIALIZE(scomplex)
       const EIGTYPE* x_ptr;                                                                                        \
       char uplo = (IsRowMajor) ? (IsLower ? 'U' : 'L') : (IsLower ? 'L' : 'U');                                    \
       SYMVVector x_tmp;                                                                                            \
-      if (ConjugateRhs) {                                                                                          \
+      EIGEN_IF_CONSTEXPR (ConjugateRhs) {                                                                          \
         Map<const SYMVVector, 0> map_x(_rhs, size, 1);                                                             \
         x_tmp = map_x.conjugate();                                                                                 \
         x_ptr = x_tmp.data();                                                                                      \

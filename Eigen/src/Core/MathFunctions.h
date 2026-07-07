@@ -52,13 +52,8 @@ struct global_math_functions_filtering_base {
 };
 
 template <typename T>
-struct always_void {
-  typedef void type;
-};
-
-template <typename T>
-struct global_math_functions_filtering_base<
-    T, typename always_void<typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl>::type> {
+struct global_math_functions_filtering_base<T,
+                                            void_t<typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl>> {
   typedef typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl type;
 };
 
@@ -924,6 +919,11 @@ struct copysign_impl<Scalar, false, true> {
     const Scalar abs_a = a < Scalar(0) ? -a : a;
     return b < Scalar(0) ? -abs_a : abs_a;
   }
+};
+
+template <>
+struct copysign_impl<bool, false, true> {
+  EIGEN_DEVICE_FUNC static inline bool run(const bool& a, const bool&) { return a; }
 };
 
 template <typename Scalar>

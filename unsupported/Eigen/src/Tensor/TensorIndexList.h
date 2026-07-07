@@ -82,7 +82,7 @@ template <Index idx>
 struct is_compile_time_constant_impl<type2index<idx>> : std::true_type {};
 
 template <typename T>
-struct is_compile_time_constant : is_compile_time_constant_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
+using is_compile_time_constant = is_compile_time_constant_impl<std::remove_cv_t<std::remove_reference_t<T>>>;
 
 template <typename... T>
 struct IndexTuple;

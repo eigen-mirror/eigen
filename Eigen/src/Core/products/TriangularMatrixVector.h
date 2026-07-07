@@ -327,9 +327,11 @@ struct trmv_selector<Mode, ColMajor> {
         dest = MappedDest(actualDestPtr, dest.size());
     }
 
-    if (((Mode & UnitDiag) == UnitDiag) && !numext::is_exactly_one(lhs_alpha)) {
-      Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-      dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+    EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
+      if (!numext::is_exactly_one(lhs_alpha)) {
+        Index diagSize = (std::min)(lhs.rows(), lhs.cols());
+        dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+      }
     }
   }
 };
@@ -364,7 +366,7 @@ struct trmv_selector<Mode, RowMajor> {
                           ActualRhsTypeCleaned::MaxSizeAtCompileTime, !DirectlyUseRhs>
         static_rhs;  // Fixed-sized array.
     RhsScalar* buffer = nullptr;
-    if (!DirectlyUseRhs) {
+    EIGEN_IF_CONSTEXPR (!DirectlyUseRhs) {
       // Maybe used fixed-sized buffer, otherwise allocate.
       if (static_rhs.data() != nullptr) {
         buffer = static_rhs.data();
@@ -402,9 +404,11 @@ struct trmv_selector<Mode, RowMajor> {
                                                                                               dest.innerStride(),
                                                                                               actualAlpha);
 
-    if (((Mode & UnitDiag) == UnitDiag) && !numext::is_exactly_one(lhs_alpha)) {
-      Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-      dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+    EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
+      if (!numext::is_exactly_one(lhs_alpha)) {
+        Index diagSize = (std::min)(lhs.rows(), lhs.cols());
+        dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+      }
     }
   }
 };

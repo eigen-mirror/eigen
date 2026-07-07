@@ -480,7 +480,7 @@ struct ScanLauncher<Self, Reducer, Eigen::SyclDevice, vectorize> {
 
     Index non_scan_size = 1;
     Index panel_size = 1;
-    if (static_cast<int>(Self::Layout) == static_cast<int>(ColMajor)) {
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Self::Layout) == static_cast<int>(ColMajor)) {
       for (int i = 0; i < consume_dim; i++) {
         non_scan_size *= dims[i];
       }

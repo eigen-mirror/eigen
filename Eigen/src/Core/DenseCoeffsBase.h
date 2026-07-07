@@ -16,13 +16,6 @@
 
 namespace Eigen {
 
-namespace internal {
-template <typename T>
-struct add_const_on_value_type_if_arithmetic {
-  typedef std::conditional_t<is_arithmetic<T>::value, T, add_const_on_value_type_t<T>> type;
-};
-}  // namespace internal
-
 /** \brief Base class providing read-only coefficient access to matrices and arrays.
  * \ingroup Core_Module
  * \tparam Derived Type of the derived class
@@ -59,7 +52,8 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
                              std::conditional_t<internal::is_arithmetic<Scalar>::value, Scalar, const Scalar>>
       CoeffReturnType;
 
-  typedef typename internal::add_const_on_value_type_if_arithmetic<typename internal::packet_traits<Scalar>::type>::type
+  typedef std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
+                             internal::add_const_on_value_type_t<PacketScalar>>
       PacketReturnType;
 
   typedef EigenBase<Derived> Base;

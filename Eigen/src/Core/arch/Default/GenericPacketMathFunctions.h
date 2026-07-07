@@ -507,7 +507,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(biased_lo));
   y = pmul(pmul(y, pow2_hi), pow2_lo);
 
-  if (!IsFinite) {
+  EIGEN_IF_CONSTEXPR (!IsFinite) {
     // Handle NaN: exp(nan) = nan. Use pmax to propagate NaN from input.
     y = pmax(y, _x);
   }

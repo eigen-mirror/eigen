@@ -153,12 +153,12 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
       }
     }
 
-    if (NumReducedDims != 0) {
+    EIGEN_IF_CONSTEXPR (NumReducedDims != 0) {
       m_traceDim = m_reducedDims[0];
     }
 
     // Compute the output strides
-    if (NumOutputDims > 0) {
+    EIGEN_IF_CONSTEXPR (NumOutputDims > 0) {
       EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
@@ -173,7 +173,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
     }
 
     // Compute the input strides
-    if (NumInputDims > 0) {
+    EIGEN_IF_CONSTEXPR (NumInputDims > 0) {
       array<Index, NumInputDims> input_strides;
       EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
         input_strides[0] = 1;
@@ -222,7 +222,9 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
 
     // If trace is requested along all dimensions, starting index would be 0
     Index cur_index = 0;
-    if (NumOutputDims != 0) cur_index = firstInput(index);
+    EIGEN_IF_CONSTEXPR (NumOutputDims != 0) {
+      cur_index = firstInput(index);
+    }
     for (Index i = 0; i < m_traceDim; ++i) {
       result += m_impl.coeff(cur_index);
       cur_index += index_stride;

@@ -70,7 +70,10 @@ void verify_makeGivens(const Scalar& p, const Scalar& q) {
   Scalar rotated0 = rot.c() * p - rot.s() * q;
   Scalar rotated1 = rot.s() * p + rot.c() * q;
 
-  Scalar tol = NumTraits<Scalar>::epsilon() * (abs(r) + (std::numeric_limits<Scalar>::min)()) * Scalar(8);
+  // The check itself performs two rounded products and an addition/subtraction, sometimes at the safe-scaling
+  // overflow threshold. Keep the tolerance relative to r, but leave enough room for compiler-specific contraction and
+  // reassociation in the verification expression.
+  Scalar tol = NumTraits<Scalar>::epsilon() * (abs(r) + (std::numeric_limits<Scalar>::min)()) * Scalar(64);
   VERIFY(abs(rotated0 - r) <= tol);
   VERIFY(abs(rotated1) <= tol);
   VERIFY(r >= Scalar(0));

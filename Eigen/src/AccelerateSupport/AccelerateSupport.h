@@ -254,7 +254,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
   }
 
   void doAnalysis(AccelSparseMatrix& A) {
-    m_numericFactorization.reset(nullptr);
+    m_numericFactorization.reset();
 
     SparseSymbolicFactorOptions opts{};
     opts.control = SparseDefaultControl;
@@ -271,7 +271,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 
     updateInfoStatus(status);
 
-    if (status != SparseStatusOK) m_symbolicFactorization.reset(nullptr);
+    if (status != SparseStatusOK) m_symbolicFactorization.reset();
   }
 
   void doFactorization(AccelSparseMatrix& A) {
@@ -282,7 +282,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 
       status = m_numericFactorization->status;
 
-      if (status != SparseStatusOK) m_numericFactorization.reset(nullptr);
+      if (status != SparseStatusOK) m_numericFactorization.reset();
     }
 
     updateInfoStatus(status);
@@ -319,7 +319,7 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
 /** Computes the symbolic and numeric decomposition of matrix \a a */
 template <typename MatrixType_, int UpLo_, SparseFactorization_t Solver_, bool EnforceSquare_>
 void AccelerateImpl<MatrixType_, UpLo_, Solver_, EnforceSquare_>::compute(const MatrixType& a) {
-  if (EnforceSquare_) eigen_assert(a.rows() == a.cols());
+  EIGEN_IF_CONSTEXPR (EnforceSquare_) eigen_assert(a.rows() == a.cols());
 
   m_nRows = a.rows();
   m_nCols = a.cols();
@@ -344,7 +344,7 @@ void AccelerateImpl<MatrixType_, UpLo_, Solver_, EnforceSquare_>::compute(const 
  */
 template <typename MatrixType_, int UpLo_, SparseFactorization_t Solver_, bool EnforceSquare_>
 void AccelerateImpl<MatrixType_, UpLo_, Solver_, EnforceSquare_>::analyzePattern(const MatrixType& a) {
-  if (EnforceSquare_) eigen_assert(a.rows() == a.cols());
+  EIGEN_IF_CONSTEXPR (EnforceSquare_) eigen_assert(a.rows() == a.cols());
 
   m_nRows = a.rows();
   m_nCols = a.cols();
@@ -371,7 +371,7 @@ void AccelerateImpl<MatrixType_, UpLo_, Solver_, EnforceSquare_>::factorize(cons
   eigen_assert(m_symbolicFactorization && "You must first call analyzePattern()");
   eigen_assert(m_nRows == a.rows() && m_nCols == a.cols());
 
-  if (EnforceSquare_) eigen_assert(a.rows() == a.cols());
+  EIGEN_IF_CONSTEXPR (EnforceSquare_) eigen_assert(a.rows() == a.cols());
 
   AccelSparseMatrix A{};
   std::vector<long> columnStarts;

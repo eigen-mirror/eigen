@@ -391,7 +391,7 @@ class SparseContext {
   // Identity on cuSPARSE 12+ (descriptor is CSC of A); inverted on 11.x
   // (descriptor is CSR of A^T).
   static cusparseOperation_t descriptor_op(cusparseOperation_t user_op) {
-    if (!kUseCsrOfTranspose) return user_op;
+    EIGEN_IF_CONSTEXPR (!kUseCsrOfTranspose) return user_op;
     switch (user_op) {
       case CUSPARSE_OPERATION_NON_TRANSPOSE:
         return CUSPARSE_OPERATION_TRANSPOSE;
@@ -528,7 +528,7 @@ class SparseContext {
       constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
       constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
 
-      if (kUseCsrOfTranspose) {
+      EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
         // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
         // A^T share the same buffers, so register the data as CSR-of-A^T (dims
         // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
@@ -543,7 +543,7 @@ class SparseContext {
       cached_rows_ = m;
       cached_cols_ = n;
       cached_nnz_ = nnz;
-    } else if (kUseCsrOfTranspose) {
+    } else EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
       EIGEN_CUSPARSE_CHECK(cusparseCsrSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
     } else {
       EIGEN_CUSPARSE_CHECK(cusparseCscSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));

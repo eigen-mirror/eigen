@@ -135,7 +135,7 @@ struct triangular_solver_unroller<Lhs, Rhs, Mode, LoopIndex, Size, false> {
                                      .cwiseProduct(rhs.template segment<LoopIndex>(StartIndex))
                                      .sum();
 
-    if (!(Mode & UnitDiag)) rhs.coeffRef(DiagIndex) /= lhs.coeff(DiagIndex, DiagIndex);
+    EIGEN_IF_CONSTEXPR (!(Mode & UnitDiag)) rhs.coeffRef(DiagIndex) /= lhs.coeff(DiagIndex, DiagIndex);
 
     triangular_solver_unroller<Lhs, Rhs, Mode, LoopIndex + 1, Size>::run(lhs, rhs);
   }

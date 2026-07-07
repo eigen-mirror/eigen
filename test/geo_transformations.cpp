@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include <Eigen/Eigenvalues>
 #include <Eigen/Geometry>
 #include <Eigen/LU>
 #include <Eigen/SVD>
@@ -615,6 +616,20 @@ void transform_products() {
   VERIFY_IS_APPROX((ac * p).matrix(), a_m * p_m);
 }
 
+template <int>
+void permutation_transpose_product_issue_1322() {
+  Affine3d transform;
+  transform.setIdentity();
+
+  Matrix3d m = Vector3d(1.0, 2.0, 3.0).asDiagonal();
+  SelfAdjointEigenSolver<Matrix3d> solver(m);
+  const PermutationMatrix<3, 3> p(Vector3i::LinSpaced(0, 2).reverse());
+
+  const Vector3d expected = p.transpose().operator*(solver.eigenvalues());
+  const Vector3d result = p.transpose() * solver.eigenvalues();
+  VERIFY_IS_APPROX(result, expected);
+}
+
 template <typename Scalar, int Mode, int Options>
 void transformations_no_scale() {
   /* this test covers the following files:
@@ -723,6 +738,7 @@ EIGEN_DECLARE_TEST(geo_transformations) {
 
     CALL_SUBTEST_7((transform_products<double, 3, RowMajor | AutoAlign>()));
     CALL_SUBTEST_7((transform_products<float, 2, AutoAlign>()));
+    CALL_SUBTEST_7(permutation_transpose_product_issue_1322<0>());
 
     CALL_SUBTEST_8((transform_associativity<double, 2, ColMajor>(
         Rotation2D<double>(internal::random<double>() * double(EIGEN_PI)))));

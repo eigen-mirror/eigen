@@ -65,7 +65,7 @@ class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, Wr
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorRollOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorRollOp)
 
  protected:
   typename XprType::Nested m_xpr;
@@ -265,7 +265,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
       }
       coords[inner_dim] = initial_coords[inner_dim];
 
-      if (NumDims == 1) break;  // For the 1d tensor we need to generate only one inner-most dimension.
+      EIGEN_IF_CONSTEXPR (NumDims == 1) break;  // For the 1d tensor we need to generate only one inner-most dimension.
 
       // Update offset.
       for (i = 1; i < NumDims; ++i) {

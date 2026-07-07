@@ -399,8 +399,12 @@ test:linux:arm:clang-14:default:unsupported:
 .test:linux:sme:gcc-14:default:official:
   extends: .test:linux:sme:gcc-14:default
   variables:
-    # Run only product_sme from the prebuilt dir via the standard test flow.
-    EIGEN_CI_CTEST_REGEX: product_sme
+    # product_sme, product_symm, product_trsolve, product_trmm and product_syrk
+    # all drive the SVL-sensitive SME micro-kernel and packers (trmm packs in
+    # PanelMode with per-panel offsets; syrk consumes packed panels in mr-sized
+    # blocks through tribb_kernel), so they run at every SVL below (mixingtypes
+    # is added at one SVL only -- see the sme512 job).
+    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk
 
 # SVL=128: architectural minimum; exercises the most sub-block passes per
 # logical block.
@@ -416,11 +420,16 @@ test:linux:sme256:gcc-14:default:official:
     QEMU_CPU: max,sme=on,sme256=on,sme128=off,sme512=off,sme1024=off,sme2048=off
 
 # SVL=512: block matches the tile grid exactly; exercises the multi-vector-load
-# loop in sme_process.
+# loop in sme_process. Also adds mixingtypes, whose SME-relevant coverage
+# (pinned mixed-scalar products route to the generic, SVL-independent kernel)
+# needs only one SVL.
 test:linux:sme512:gcc-14:default:official:
   extends: .test:linux:sme:gcc-14:default:official
   variables:
     QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+    # mixingtypes_[0-9] excludes mixingtypes_generic_32/64 (not built here), which
+    # ctest would otherwise fail to find.
+    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk|mixingtypes_[0-9]
 
 # SVL=2048: architectural maximum; exercises predication down to the logical
 # block.
@@ -428,6 +437,34 @@ test:linux:sme2048:gcc-14:default:official:
   extends: .test:linux:sme:gcc-14:default:official
   variables:
     QEMU_CPU: max,sme=on,sme2048=on,sme128=off,sme256=off,sme512=off,sme1024=off
+
+# Full nightly SME test run: the complete Official + Unsupported ctest suite
+# against the full build above, at a single representative SVL (512: the logical
+# block matches the ZA tile grid exactly, exercising the multi-vector-load fast
+# path in sme_process). Cross-SVL geometry is already covered by the per-SVL
+# product_* subset jobs above, so one SVL is enough for the full run. Extends
+# ...:default (not ...:default:official) so no product_* CTEST_REGEX is
+# inherited -- these select by label instead. Official/Unsupported are split
+# into two jobs so they run in parallel and each stays under the qemu-user
+# (single-threaded) test-stage timeout; the timeout is a starting estimate to
+# tune against a real run. Inherits .rules:libeigen:all-tests, so it runs on the
+# nightly schedule and on all-tests-labelled MRs.
+.test:linux:sme512:gcc-14:full:
+  extends: .test:linux:sme:gcc-14:default
+  needs: [ build:linux:cross:sme:gcc-14:full ]
+  variables:
+    QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+  timeout: 2h
+
+test:linux:sme512:gcc-14:full:official:
+  extends: .test:linux:sme512:gcc-14:full
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:sme512:gcc-14:full:unsupported:
+  extends: .test:linux:sme512:gcc-14:full
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
 
 ##### aarch64 ##################################################################
 
@@ -547,52 +584,52 @@ test:linux:loongarch64:gcc-14:default:unsupported:
     - riscv
   allow_failure: true
 
-.test:linux:riscv64:gcc-14:default:
+.test:linux:riscv64:gcc-15:default:
   extends: .test:linux:riscv64
-  needs: [ build:linux:riscv64:gcc-14:default ]
+  needs: [ build:linux:riscv64:gcc-15:default ]
   variables:
-    EIGEN_CI_INSTALL: g++-14
+    EIGEN_CI_INSTALL: g++-15
 
-test:linux:riscv64:gcc-14:default:official:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:official:
+  extends: .test:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:gcc-14:default:unsupported:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:unsupported:
+  extends: .test:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-.test:linux:riscv64:clang-18:default:
+.test:linux:riscv64:clang-21:default:
   extends: .test:linux:riscv64
-  needs: [ build:linux:riscv64:clang-18:default ]
+  needs: [ build:linux:riscv64:clang-21:default ]
   variables:
-    EIGEN_CI_INSTALL: clang-18 g++-14
+    EIGEN_CI_INSTALL: clang-21 g++-15
 
-test:linux:riscv64:clang-18:default:official:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:official:
+  extends: .test:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:clang-18:default:unsupported:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:unsupported:
+  extends: .test:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
-test:linux:riscv64:clang-18:default:smoketest:
-  extends: .test:linux:riscv64:clang-18:default
+test:linux:riscv64:clang-21:default:smoketest:
+  extends: .test:linux:riscv64:clang-21:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
-  needs: [ build:linux:riscv64:clang-18:default:smoketest ]
+  needs: [ build:linux:riscv64:clang-21:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-test:linux:riscv64:gcc-14:default:smoketest:
-  extends: .test:linux:riscv64:gcc-14:default
+test:linux:riscv64:gcc-15:default:smoketest:
+  extends: .test:linux:riscv64:gcc-15:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
-  needs: [ build:linux:riscv64:gcc-14:default:smoketest ]
+  needs: [ build:linux:riscv64:gcc-15:default:smoketest ]
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest

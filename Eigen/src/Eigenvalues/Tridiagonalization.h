@@ -514,9 +514,11 @@ EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& matA, CoeffVectorT
   eigen_assert(matA.rows() == hCoeffs.size() + 1 || matA.rows() == 1);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
-  if ((MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) && matA.rows() >= 96) {
-    tridiagonalization_inplace_blocked(matA, hCoeffs);
-    return;
+  EIGEN_IF_CONSTEXPR (MatrixType::RowsAtCompileTime == Dynamic || MatrixType::ColsAtCompileTime == Dynamic) {
+    if (matA.rows() >= 96) {
+      tridiagonalization_inplace_blocked(matA, hCoeffs);
+      return;
+    }
   }
 #endif
   tridiagonalization_inplace_unblocked(matA, hCoeffs);

@@ -109,12 +109,12 @@ class IndexMapper {
         inputIndex += idx * m_inputStrides[d];
         p -= idx * m_gpuInputStrides[d];
       }
-      if (NumKernelDims < NumDims) {
+      EIGEN_IF_CONSTEXPR (NumKernelDims < NumDims) {
         inputIndex += p * m_inputStrides[NumKernelDims];
       }
     } else {
       std::ptrdiff_t limit = 0;
-      if (NumKernelDims < NumDims) {
+      EIGEN_IF_CONSTEXPR (NumKernelDims < NumDims) {
         limit = NumDims - NumKernelDims - 1;
       }
       for (int d = 0; d < limit; ++d) {
@@ -135,12 +135,12 @@ class IndexMapper {
         outputIndex += idx * m_outputStrides[d];
         p -= idx * m_gpuOutputStrides[d];
       }
-      if (NumKernelDims < NumDims) {
+      EIGEN_IF_CONSTEXPR (NumKernelDims < NumDims) {
         outputIndex += p * m_outputStrides[NumKernelDims];
       }
     } else {
       std::ptrdiff_t limit = 0;
-      if (NumKernelDims < NumDims) {
+      EIGEN_IF_CONSTEXPR (NumKernelDims < NumDims) {
         limit = NumDims - NumKernelDims - 1;
       }
       for (int d = 0; d < limit; ++d) {

@@ -71,9 +71,9 @@ ninja check_gpu                          # = buildtests_gpu + ctest -L gpu
 
 ### Common CMake knobs
 
-ISA / vectorization (turn on per-ISA test compile flags — see `CMakeLists.txt` and `cmake/EigenTesting.cmake` for the authoritative list):
+ISA / vectorization (turn on per-ISA test compile flags — see `CMakeLists.txt`, `test/CMakeLists.txt`, and `cmake/EigenTesting.cmake` for the authoritative list):
 - x86: `EIGEN_TEST_SSE2`, `EIGEN_TEST_SSE3`, `EIGEN_TEST_SSSE3`, `EIGEN_TEST_SSE4_1`, `EIGEN_TEST_SSE4_2`, `EIGEN_TEST_AVX`, `EIGEN_TEST_AVX2`, `EIGEN_TEST_AVX512`, `EIGEN_TEST_AVX512DQ`, `EIGEN_TEST_AVX512FP16`, `EIGEN_TEST_FMA`, `EIGEN_TEST_F16C`, `EIGEN_TEST_X87`, `EIGEN_TEST_32BIT`
-- ARM: `EIGEN_TEST_NEON`, `EIGEN_TEST_NEON64`
+- ARM: `EIGEN_TEST_NEON`, `EIGEN_TEST_NEON64`, `EIGEN_TEST_SME`
 - PowerPC: `EIGEN_TEST_VSX`, `EIGEN_TEST_ALTIVEC`
 - IBM Z (s390x): `EIGEN_TEST_Z13`, `EIGEN_TEST_Z14`
 - LoongArch: `EIGEN_TEST_LSX`
@@ -174,22 +174,23 @@ codespell --config setup.cfg                      # spell-check (also a CI job)
 
 An alternative SPDX-style header — `// SPDX-FileCopyrightText: The Eigen Authors` plus `// SPDX-License-Identifier: MPL-2.0`, with no individual `Copyright (C)` line — is also accepted and is in active use (e.g. files attributed to "The Eigen Authors" and some top-level umbrella headers). The `Copyright (C) <year> <name>` form above remains the dominant convention; either passes `reuse lint`.
 
-Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't carry inline headers are covered by path annotations in `REUSE.toml` — add the path if you're creating one.
+Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't carry inline headers are covered by path annotations in `REUSE.toml` — add the path if you're creating one. When adding headers to many files at once, `scripts/add_spdx_headers.py` inserts the right tag per path and is idempotent (files already carrying an `SPDX-License-Identifier` are left untouched).
 
 ## Module layout
 
 > **In-flight rename:** [MR 2522](https://gitlab.com/libeigen/eigen/-/merge_requests/2522) renames the top-level `unsupported/` directory to `contrib/`. Paths below track master (still `unsupported/`). When 2522 lands, substitute `contrib/` for `unsupported/` mechanically — it doesn't affect the canonical/forwarding-shim distinction on the `unsupported/Eigen/` bullet.
 
 - `Eigen/` — supported public headers. Each filename without an extension (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …) is the umbrella include for one module; implementation lives in `Eigen/src/<Module>/`. **Never include anything under `Eigen/src/...` directly** — that is a hard error (each implementation header includes `InternalHeaderCheck.h` to enforce it).
-- `Eigen/src/Core/arch/{SSE,AVX,AVX512,NEON,SVE,AltiVec,GPU,HIP,SYCL,LSX,RVV10,HVX,MSA,ZVector,clang,Default}/` — per-architecture packet-math (vectorization) backends. `GenericPacketMath.h` defines the `internal::p*` API each backend specializes. (PowerPC VSX support lives inside `AltiVec/`, no separate `VSX/` directory.)
+- `Eigen/src/Core/arch/<Backend>/` — per-architecture SIMD backends; the authoritative directory list lives in "SIMD / packet math layer" below. `GenericPacketMath.h` defines the `internal::p*` API each backend specializes.
 - `Eigen/src/Core/products/` — gemm/gemv kernels (`GeneralBlockPanelKernel.h`, triangular / self-adjoint variants, BLAS bridges in `*_BLAS.h`).
 - `Eigen/src/Core/util/` — meta-programming, macros, memory, `ForwardDeclarations.h`. `Macros.h` and `ConfigureVectorization.h` set the compile-time feature flags.
 - `Eigen/ThreadPool` (with `Eigen/src/ThreadPool/`) — work-stealing thread pool (`NonBlockingThreadPool`, `RunQueue`, `EventCount`, `ForkJoin`, `CoreThreadPoolDevice`). Originally developed for TensorFlow; now part of Core. It is the backend behind `EIGEN_GEMM_THREADPOOL` and the `ThreadPoolDevice` used by the Tensor module.
-- `unsupported/Eigen/` — modules with looser API-stability guarantees, but **not** low-traffic. The headliner is `Tensor` (umbrella `unsupported/Eigen/Tensor`, sources under `unsupported/Eigen/src/Tensor/`) — TensorFlow's core compute backend; treat as load-bearing (see agent guideline 13). Other modules: `TensorSymmetry`, `AutoDiff`, `Polynomials`, `MatrixFunctions`, `NNLS`, `FFT`, `GPU` (cuBLAS / cuSOLVER dispatch), `Splines`, `NumericalDiff`, etc. Tests go under `unsupported/test/`. Anything under `unsupported/Eigen/CXX11/` is **backward-compatibility forwarding shims only** — don't include those paths in new code or add new headers there.
+- `unsupported/Eigen/` — modules with looser API-stability guarantees, but **not** low-traffic. The headliner is `Tensor` (umbrella `unsupported/Eigen/Tensor`, sources under `unsupported/Eigen/src/Tensor/`) — TensorFlow's core compute backend; treat as load-bearing (see agent guideline 13). Other modules: `TensorSymmetry`, `AutoDiff`, `Polynomials`, `MatrixFunctions`, `NNLS`, `FFT`, `GPU` (cuBLAS / cuSOLVER dispatch), `Splines`, `NumericalDiff`, etc. Tests go under `unsupported/test/`. Anything under `unsupported/Eigen/CXX11/` is **backward-compatibility forwarding shims only** — don't include those paths in new code or add new headers there. Likewise `unsupported/Eigen/IterativeSolvers`: the solvers it used to hold (GMRES, DGMRES, MINRES, IDRS, IDRSTABL, BiCGSTABL) were promoted into the supported `Eigen/IterativeLinearSolvers` module, and the old header just forwards there with a deprecation warning.
 - `test/` — main test sources and `test/main.h` (the test framework: `VERIFY_*`, `CALL_SUBTEST_N`, `EIGEN_TEST_PART_N`, `EIGEN_DECLARE_TEST`).
 - `failtest/` — compile-failure tests.
 - `blas/`, `lapack/` — Eigen's BLAS/LAPACK shim libraries (`eigen_blas`, `eigen_lapack`), built only when `EIGEN_BUILD_BLAS` / `EIGEN_BUILD_LAPACK` are on. These get linked by sparse-solver tests (CHOLMOD, UMFPACK, KLU, SuperLU, …) when those packages are present.
 - `cmake/` — `EigenTesting.cmake`, `EigenConfigureTesting.cmake` define the `ei_add_test` / `ei_add_failtest` machinery. Also the `Find*.cmake` modules for optional backends.
+- `debug/` — GDB / LLDB pretty-printers and MSVC visualizers for Eigen types (`debug/gdb/`, `debug/lldb/`, `debug/msvc/`).
 - `ci/` — GitLab CI (`*.gitlab-ci.yml` per stage) and shell drivers under `ci/scripts/`.
 
 | Module | Header | Contents |
@@ -202,7 +203,7 @@ Top-level docs (`*.md`), generated files (`*.in`), and binary assets that can't 
 | Eigenvalues | `Eigen/Eigenvalues` | SelfAdjointEigenSolver, EigenSolver, ComplexEigenSolver |
 | Geometry | `Eigen/Geometry` | Quaternion, AngleAxis, Transform, Hyperplane, `cross()` |
 | Sparse | `Eigen/Sparse` | SparseMatrix, sparse solvers (SparseLU, SparseQR, SimplicialCholesky) |
-| IterativeLinearSolvers | `Eigen/IterativeLinearSolvers` | ConjugateGradient, BiCGSTAB, LeastSquaresConjugateGradient (additional iterative solvers — GMRES, DGMRES, IDRS, BiCGSTABL — live in `unsupported/Eigen/IterativeSolvers`) |
+| IterativeLinearSolvers | `Eigen/IterativeLinearSolvers` | ConjugateGradient, LeastSquaresConjugateGradient, BiCGSTAB, BiCGSTABL, GMRES, DGMRES, MINRES, IDRS, IDRSTABL, LSMR (`unsupported/Eigen/IterativeSolvers` is a deprecated forwarding shim to this header) |
 
 External backend umbrella headers (`Eigen/<Pkg>Support`): `AccelerateSupport`, `CholmodSupport`, `KLUSupport`, `MetisSupport`, `PaStiXSupport`, `PardisoSupport`, `SPQRSupport`, `SuperLUSupport`, `UmfPackSupport`. Intel MKL and AMD AOCL are *not* umbrella headers — activate them by defining `EIGEN_USE_MKL_ALL` / `EIGEN_USE_AOCL_ALL` (and friends like `EIGEN_USE_BLAS`, `EIGEN_USE_LAPACKE`, `EIGEN_USE_AOCL_VML`, `EIGEN_USE_AOCL_BLAS`) before including Core or Dense; glue in `Eigen/src/Core/util/MKL_support.h` and `AOCL_Support.h`. Convenience headers: `Eigen/Dense` = Core + all dense solvers; `Eigen/Eigen` = everything supported.
 
@@ -283,9 +284,9 @@ Vectorization is abstracted through a "packet" layer. Each scalar type maps to a
 - `GenericPacketMath.h` — generic scalar fallback API
 - `arch/Default/` — shared helpers (`GenericPacketMathFunctions.h`, `BFloat16.h`, `Half.h`)
 - x86: `arch/SSE/`, `arch/AVX/`, `arch/AVX512/`
-- ARM: `arch/NEON/`, `arch/SVE/`
+- ARM: `arch/NEON/`, `arch/SVE/`, `arch/SME/` (SME is a GEMM micro-kernel backend driven by the runtime streaming vector length, not packet math; test knob `EIGEN_TEST_SME`)
 - RISC-V: `arch/RVV10/` (scalable vector, multiple LMUL)
-- PowerPC: `arch/AltiVec/` (includes MMA support)
+- PowerPC: `arch/AltiVec/` (includes VSX and MMA support — no separate `VSX/` directory)
 - IBM Z: `arch/ZVector/`
 - Other: `arch/MSA/` (MIPS), `arch/LSX/` (Loongson), `arch/HVX/` (Qualcomm Hexagon)
 - GPU: `arch/GPU/` (CUDA), `arch/HIP/`, `arch/SYCL/`

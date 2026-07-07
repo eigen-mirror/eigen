@@ -273,19 +273,19 @@ EIGEN_STRONG_INLINE numext::int32_t predux_mul<PacketXi>(const PacketXi& a) {
   svint32_t half_prod;
 
   // Extract the high half of the vector. Depending on the VL more reductions need to be done
-  if (EIGEN_ARM64_SVE_VL >= 2048) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 2048) {
     half_prod = svtbl_s32(prod, svindex_u32(32, 1));
     prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 1024) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 1024) {
     half_prod = svtbl_s32(prod, svindex_u32(16, 1));
     prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 512) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 512) {
     half_prod = svtbl_s32(prod, svindex_u32(8, 1));
     prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 256) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 256) {
     half_prod = svtbl_s32(prod, svindex_u32(4, 1));
     prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
   }
@@ -629,19 +629,19 @@ EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
   svfloat32_t half_prod;
 
   // Extract the high half of the vector. Depending on the VL more reductions need to be done
-  if (EIGEN_ARM64_SVE_VL >= 2048) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 2048) {
     half_prod = svtbl_f32(prod, svindex_u32(32, 1));
     prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 1024) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 1024) {
     half_prod = svtbl_f32(prod, svindex_u32(16, 1));
     prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 512) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 512) {
     half_prod = svtbl_f32(prod, svindex_u32(8, 1));
     prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
   }
-  if (EIGEN_ARM64_SVE_VL >= 256) {
+  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 256) {
     half_prod = svtbl_f32(prod, svindex_u32(4, 1));
     prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
   }

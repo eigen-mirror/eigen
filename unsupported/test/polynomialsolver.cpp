@@ -106,11 +106,11 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
     //  2) the roots have distinct moduli
 
     // Test realRoots
-    std::vector<RealScalar> calc_realRoots;
-    psolve.realRoots(calc_realRoots, test_precision<RealScalar>());
-    VERIFY_IS_EQUAL(calc_realRoots.size(), (size_t)real_roots.size());
-
     const RealScalar psPrec = sqrt(test_precision<RealScalar>());
+
+    std::vector<RealScalar> calc_realRoots;
+    psolve.realRoots(calc_realRoots, psPrec);
+    VERIFY_IS_EQUAL(calc_realRoots.size(), (size_t)real_roots.size());
 
     for (size_t i = 0; i < calc_realRoots.size(); ++i) {
       bool found = false;
@@ -130,28 +130,28 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const ROOTS& roots, const R
 
     bool hasRealRoot;
     // Test absGreatestRealRoot
-    RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, test_precision<RealScalar>());
+    RealScalar r = psolve.absGreatestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().maxCoeff(), abs(r), psPrec));
     }
 
     // Test absSmallestRealRoot
-    r = psolve.absSmallestRealRoot(hasRealRoot, test_precision<RealScalar>());
+    r = psolve.absSmallestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().abs().minCoeff(), abs(r), psPrec));
     }
 
     // Test greatestRealRoot
-    r = psolve.greatestRealRoot(hasRealRoot, test_precision<RealScalar>());
+    r = psolve.greatestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().maxCoeff(), r, psPrec));
     }
 
     // Test smallestRealRoot
-    r = psolve.smallestRealRoot(hasRealRoot, test_precision<RealScalar>());
+    r = psolve.smallestRealRoot(hasRealRoot, psPrec);
     VERIFY(hasRealRoot == (real_roots.size() > 0));
     if (hasRealRoot) {
       VERIFY(internal::isApprox(real_roots.array().minCoeff(), r, psPrec));

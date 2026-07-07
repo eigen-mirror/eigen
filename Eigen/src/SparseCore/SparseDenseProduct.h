@@ -54,14 +54,14 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     Index n = lhs.outerSize();
 
     for (Index c = 0; c < rhs.cols(); ++c) {
-      runCol(lhsEval, lhs, rhs, res, alpha, n, c, std::integral_constant<bool, has_compressed_storage<Lhs>::value>());
+      runCol(lhsEval, lhs, rhs, res, alpha, n, c, bool_constant<has_compressed_storage<Lhs>::value>());
     }
   }
 
   // Direct pointer path: works for both compressed and non-compressed storage.
   static void runCol(const LhsEval& /*lhsEval*/, const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                      const ResScalar& alpha, Index n, Index c, std::true_type /* has_compressed_storage */) {
-    runColImpl(lhs, rhs, res, alpha, n, c, std::integral_constant<bool, bool(DenseRhsType::Flags & DirectAccessBit)>());
+    runColImpl(lhs, rhs, res, alpha, n, c, bool_constant<bool(DenseRhsType::Flags & DirectAccessBit)>());
   }
 
   template <typename RhsT>
@@ -181,7 +181,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   typedef typename LhsEval::InnerIterator LhsInnerIterator;
 
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res, const AlphaType& alpha) {
-    runImpl(lhs, rhs, res, alpha, std::integral_constant<bool, has_compressed_storage<Lhs>::value>());
+    runImpl(lhs, rhs, res, alpha, bool_constant<has_compressed_storage<Lhs>::value>());
   }
 
   // Direct pointer path: works for both compressed and non-compressed storage.
@@ -366,13 +366,11 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // It basically represents the minimal amount of work to be done to be worth it.
     if (threads > 1 && lhsEval.nonZerosEstimate() * rhs.cols() > 20000) {
 #pragma omp parallel for schedule(dynamic, (n + threads * 4 - 1) / (threads * 4)) num_threads(threads)
-      for (Index i = 0; i < n; ++i)
-        processRow(lhsEval, lhs, rhs, res, alpha, i, std::integral_constant<bool, IsCompressedLhs>());
+      for (Index i = 0; i < n; ++i) processRow(lhsEval, lhs, rhs, res, alpha, i, bool_constant<IsCompressedLhs>());
     } else
 #endif
     {
-      for (Index i = 0; i < n; ++i)
-        processRow(lhsEval, lhs, rhs, res, alpha, i, std::integral_constant<bool, IsCompressedLhs>());
+      for (Index i = 0; i < n; ++i) processRow(lhsEval, lhs, rhs, res, alpha, i, bool_constant<IsCompressedLhs>());
     }
   }
 
@@ -411,7 +409,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                   const typename Res::Scalar& alpha) {
-    runImpl(lhs, rhs, res, alpha, std::integral_constant<bool, has_compressed_storage<Lhs>::value>());
+    runImpl(lhs, rhs, res, alpha, bool_constant<has_compressed_storage<Lhs>::value>());
   }
 
   // Direct pointer path: works for both compressed and non-compressed storage.

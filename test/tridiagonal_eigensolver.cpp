@@ -64,7 +64,8 @@ void tridiagonal_eigensolver_bisection() {
     if (n >= 2 && radius > tiny) {
       const RealScalar vl = -RealScalar(0.3) * radius, vu = RealScalar(0.3) * radius;
       TridiagonalEigenSolver<RealScalar> bv;
-      bv.computeEigenvalues(diag, offdiag, EigenvalueRange::values(double(vl), double(vu)));
+      bv.computeEigenvalues(diag, offdiag,
+                            EigenvalueRange::values(static_cast<long double>(vl), static_cast<long double>(vu)));
       for (Index i = 0; i < bv.eigenvalues().size(); ++i)
         VERIFY(bv.eigenvalues()(i) >= vl - tol && bv.eigenvalues()(i) < vu + tol);
       const bool clean = (w.array() - vl).abs().minCoeff() > tol && (w.array() - vu).abs().minCoeff() > tol;

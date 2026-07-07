@@ -65,7 +65,7 @@ class TensorReshapingOp : public TensorBase<TensorReshapingOp<NewDimensions, Xpr
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorReshapingOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorReshapingOp)
 
  protected:
   typename XprType::Nested m_xpr;
@@ -301,7 +301,7 @@ class TensorSlicingOp : public TensorBase<TensorSlicingOp<StartIndices, Sizes, X
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorSlicingOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorSlicingOp)
 
  protected:
   typename XprType::Nested m_xpr;
@@ -435,33 +435,35 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     m_impl.evalSubExprsIfNeeded(NULL);
-    if (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization && data && m_impl.data()) {
-      Index contiguous_values = 1;
-      EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
-        for (int i = 0; i < NumDims; ++i) {
-          contiguous_values *= dimensions()[i];
-          if (dimensions()[i] != m_impl.dimensions()[i]) {
-            break;
+    EIGEN_IF_CONSTEXPR (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization) {
+      if (data && m_impl.data()) {
+        Index contiguous_values = 1;
+        EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+          for (int i = 0; i < NumDims; ++i) {
+            contiguous_values *= dimensions()[i];
+            if (dimensions()[i] != m_impl.dimensions()[i]) {
+              break;
+            }
+          }
+        } else {
+          for (int i = NumDims - 1; i >= 0; --i) {
+            contiguous_values *= dimensions()[i];
+            if (dimensions()[i] != m_impl.dimensions()[i]) {
+              break;
+            }
           }
         }
-      } else {
-        for (int i = NumDims - 1; i >= 0; --i) {
-          contiguous_values *= dimensions()[i];
-          if (dimensions()[i] != m_impl.dimensions()[i]) {
-            break;
+        // Use memcpy if it's going to be faster than using the regular evaluation.
+        const internal::MemcpyTriggerForSlicing<Index, Device, BlockAccess> trigger(m_device);
+        if (trigger(internal::array_prod(dimensions()), contiguous_values)) {
+          EvaluatorPointerType src = (EvaluatorPointerType)m_impl.data();
+          for (Index i = 0; i < internal::array_prod(dimensions()); i += contiguous_values) {
+            Index offset = srcCoeff(i);
+            m_device.memcpy((void*)(m_device.get(data + i)), m_device.get(src + offset),
+                            contiguous_values * sizeof(Scalar));
           }
+          return false;
         }
-      }
-      // Use memcpy if it's going to be faster than using the regular evaluation.
-      const internal::MemcpyTriggerForSlicing<Index, Device, BlockAccess> trigger(m_device);
-      if (trigger(internal::array_prod(dimensions()), contiguous_values)) {
-        EvaluatorPointerType src = (EvaluatorPointerType)m_impl.data();
-        for (Index i = 0; i < internal::array_prod(dimensions()); i += contiguous_values) {
-          Index offset = srcCoeff(i);
-          m_device.memcpy((void*)(m_device.get(data + i)), m_device.get(src + offset),
-                          contiguous_values * sizeof(Scalar));
-        }
-        return false;
       }
     }
     return true;
@@ -777,7 +779,7 @@ class TensorStridingSlicingOp
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorStridingSlicingOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorStridingSlicingOp)
 
  protected:
   typename XprType::Nested m_xpr;

@@ -206,7 +206,7 @@ struct functor_traits<equalspaced_op<Scalar>> {
 // and linear access is not possible. In all other cases, linear access is enabled.
 // Users should not have to deal with this structure.
 template <typename Functor>
-struct functor_has_linear_access : std::integral_constant<bool, !has_binary_operator<Functor>::value> {};
+using functor_has_linear_access = bool_constant<!has_binary_operator<Functor>::value>;
 
 // For unreliable compilers, let's specialize the has_*ary_operator
 // helpers so that at least built-in nullary functors work fine.

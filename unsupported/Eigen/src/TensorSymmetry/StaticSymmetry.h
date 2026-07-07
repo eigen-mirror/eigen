@@ -102,14 +102,14 @@ struct tensor_static_symgroup {
 };
 
 template <typename Index, std::size_t N, int... ii, int... jj>
-constexpr static std::array<Index, N> tensor_static_symgroup_index_permute(std::array<Index, N> idx,
+constexpr static std::array<Index, N> tensor_static_symgroup_index_permute(const std::array<Index, N>& idx,
                                                                            std::integer_sequence<int, ii...>,
                                                                            std::integer_sequence<int, jj...>) {
   return {{idx[ii]..., idx[sizeof...(ii) + jj]...}};
 }
 
 template <typename Index, int... ii>
-static inline std::vector<Index> tensor_static_symgroup_index_permute(std::vector<Index> idx,
+static inline std::vector<Index> tensor_static_symgroup_index_permute(const std::vector<Index>& idx,
                                                                       std::integer_sequence<int, ii...>) {
   std::vector<Index> result{{idx[ii]...}};
   std::size_t target_size = idx.size();

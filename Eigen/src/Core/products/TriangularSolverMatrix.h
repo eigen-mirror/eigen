@@ -60,7 +60,7 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
 
     Scalar a = (Mode & UnitDiag) ? Scalar(1) : Scalar(Scalar(1) / conj(tri(i, i)));
     for (Index j = 0; j < otherSize; ++j) {
-      if (TriStorageOrder == RowMajor) {
+      EIGEN_IF_CONSTEXPR (TriStorageOrder == RowMajor) {
         Scalar b(0);
         const Scalar* l = &tri(i, s);
         typename OtherMapper::LinearMapper r = other.getLinearMapper(s, j);

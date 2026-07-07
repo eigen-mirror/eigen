@@ -1218,26 +1218,12 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #define EIGEN_USING_STD(FUNC) using std::FUNC;
 #endif
 
-#if EIGEN_COMP_CLANG  // workaround clang bug (see http://forum.kde.org/viewtopic.php?f=74&t=102653)
-#define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                                           \
-  using Base::operator=;                                                                           \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) {                 \
-    Base::operator=(other);                                                                        \
-    return *this;                                                                                  \
-  }                                                                                                \
-  template <typename OtherDerived>                                                                 \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const DenseBase<OtherDerived>& other) { \
-    Base::operator=(other.derived());                                                              \
-    return *this;                                                                                  \
-  }
-#else
 #define EIGEN_INHERIT_ASSIGNMENT_EQUAL_OPERATOR(Derived)                           \
   using Base::operator=;                                                           \
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator=(const Derived& other) { \
     Base::operator=(other);                                                        \
     return *this;                                                                  \
   }
-#endif
 
 /**
  * \internal

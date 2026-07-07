@@ -440,7 +440,7 @@ class PastixLU : public PastixBase<PastixLU<MatrixType_> > {
   }
 
   void grabMatrix(const MatrixType &matrix, ColSpMatrix &out) {
-    if (IsStrSym)
+    EIGEN_IF_CONSTEXPR (IsStrSym)
       out = matrix;
     else {
       if (!m_structureIsUptodate) {

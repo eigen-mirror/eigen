@@ -115,22 +115,22 @@ struct vectorization_logic {
     HalfPacketSize = internal::unpacket_traits<HalfPacketType>::size
   };
   static void run() {
-    typedef Matrix<Scalar, PacketSize, 1> Vector1;
+    typedef Matrix<Scalar, PacketSize, 1> Vector1 EIGEN_UNUSED;
     typedef Matrix<Scalar, Dynamic, 1> VectorX;
     typedef Matrix<Scalar, Dynamic, Dynamic> MatrixXX;
     typedef Matrix<Scalar, PacketSize, PacketSize> Matrix11;
     typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 8 : 2 * PacketSize,
                    (Matrix11::Flags & RowMajorBit) ? 2 * PacketSize : 8>
-        Matrix22;
+        Matrix22 EIGEN_UNUSED;
     typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
                    (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16>
-        Matrix44;
+        Matrix44 EIGEN_UNUSED;
     typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
                    (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16,
                    DontAlign | EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION>
-        Matrix44u;
-    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, ColMajor> Matrix44c;
-    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, RowMajor> Matrix44r;
+        Matrix44u EIGEN_UNUSED;
+    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, ColMajor> Matrix44c EIGEN_UNUSED;
+    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, RowMajor> Matrix44r EIGEN_UNUSED;
 
     typedef Matrix<Scalar,
                    (PacketSize == 16  ? 8
@@ -157,7 +157,7 @@ struct vectorization_logic {
                     : PacketSize == 2 ? 2
                                       : /*PacketSize==1 ?*/ 1),
                    DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>
-        Matrix1u;
+        Matrix1u EIGEN_UNUSED;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
     typedef Matrix<Scalar,
@@ -171,7 +171,7 @@ struct vectorization_logic {
                     : PacketSize == 4 ? 2
                     : PacketSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
                                       : /*PacketSize==1 ?*/ 3)>
-        Matrix3;
+        Matrix3 EIGEN_UNUSED;
 
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
     VERIFY(test_assign(Vector1(), Vector1(), InnerVectorizedTraversal, CompleteUnrolling));
@@ -322,11 +322,11 @@ struct vectorization_logic_half {
                                  ? PacketSize
                                  : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar);
 
-    typedef Matrix<Scalar, MinVSize, 1> Vector1;
+    typedef Matrix<Scalar, MinVSize, 1> Vector1 EIGEN_UNUSED;
     typedef Matrix<Scalar, MinVSize, MinVSize> Matrix11;
-    typedef Matrix<Scalar, 5 * MinVSize, 7, ColMajor> Matrix57;
-    typedef Matrix<Scalar, 3 * MinVSize, 5, ColMajor> Matrix35;
-    typedef Matrix<Scalar, 5 * MinVSize, 7, DontAlign | ColMajor> Matrix57u;
+    typedef Matrix<Scalar, 5 * MinVSize, 7, ColMajor> Matrix57 EIGEN_UNUSED;
+    typedef Matrix<Scalar, 3 * MinVSize, 5, ColMajor> Matrix35 EIGEN_UNUSED;
+    typedef Matrix<Scalar, 5 * MinVSize, 7, DontAlign | ColMajor> Matrix57u EIGEN_UNUSED;
 
     typedef Matrix<Scalar,
                    (PacketSize == 16  ? 8
@@ -353,7 +353,7 @@ struct vectorization_logic_half {
                     : PacketSize == 2 ? 2
                                       : /*PacketSize==1 ?*/ 1),
                    DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>
-        Matrix1u;
+        Matrix1u EIGEN_UNUSED;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
     typedef Matrix<Scalar,
@@ -367,7 +367,7 @@ struct vectorization_logic_half {
                     : MinVSize == 4 ? 2
                     : MinVSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
                                     : /*PacketSize==1 ?*/ 3)>
-        Matrix3;
+        Matrix3 EIGEN_UNUSED;
 
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
     VERIFY(test_assign(Vector1(), Vector1(), InnerVectorizedTraversal, CompleteUnrolling));

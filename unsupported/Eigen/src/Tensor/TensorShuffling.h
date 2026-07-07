@@ -65,7 +65,7 @@ class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> 
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorShufflingOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorShufflingOp)
 
  protected:
   typename XprType::Nested m_xpr;

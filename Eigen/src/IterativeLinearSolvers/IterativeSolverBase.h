@@ -23,10 +23,7 @@ auto is_ref_compatible_test(T& matrix) -> decltype(Ref<const T>(matrix), std::tr
 std::false_type is_ref_compatible_test(...);
 
 template <typename MatrixType>
-struct is_ref_compatible_impl : decltype(is_ref_compatible_test(std::declval<MatrixType&>())) {};
-
-template <typename MatrixType>
-struct is_ref_compatible : std::integral_constant<bool, is_ref_compatible_impl<remove_all_t<MatrixType>>::value> {};
+using is_ref_compatible = decltype(is_ref_compatible_test(std::declval<remove_all_t<MatrixType>&>()));
 
 // Returns a \a rows x \a cols matrix whose columns are an orthonormal basis of a random subspace,
 // obtained by QR-orthonormalizing a random matrix. The IDR(s)-type solvers use this to build the

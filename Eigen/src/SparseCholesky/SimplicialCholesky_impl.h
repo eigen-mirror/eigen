@@ -353,7 +353,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
 
       /* the nonzero entry L(k,i) */
       Scalar l_ki;
-      if (DoLDLT)
+      EIGEN_IF_CONSTEXPR (DoLDLT)
         l_ki = yi / getDiag(m_diag[i]);
       else
         yi = l_ki = yi / Lx[Lp[i]];
@@ -366,7 +366,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
       Lx[p] = l_ki;
       ++nonZerosPerCol[i]; /* increment count of nonzeros in col i */
     }
-    if (DoLDLT) {
+    EIGEN_IF_CONSTEXPR (DoLDLT) {
       m_diag[k] = d;
       if (d == RealScalar(0)) {
         ok = false; /* failure, D(k,k) is zero */

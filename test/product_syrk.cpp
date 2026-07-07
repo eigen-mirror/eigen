@@ -165,7 +165,7 @@ void syrk_empty_update(Index size) {
 }
 
 EIGEN_DECLARE_TEST(product_syrk) {
-  typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMajorMatrixXd;
+  typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMajorMatrixXd EIGEN_UNUSED;
 
   for (int i = 0; i < g_repeat; i++) {
     int s;

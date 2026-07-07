@@ -396,15 +396,15 @@ EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet1Xh>(const Packet1Xh& a) {
   Packet1Xh prod = __riscv_vfmul_vv_f16m1(preverse(a), a, unpacket_traits<Packet1Xh>::size);
   Packet1Xh half_prod;
 
-  if (EIGEN_RISCV64_RVV_VL >= 1024) {
+  EIGEN_IF_CONSTEXPR (EIGEN_RISCV64_RVV_VL >= 1024) {
     half_prod = __riscv_vslidedown_vx_f16m1(prod, 16, unpacket_traits<Packet1Xh>::size);
     prod = __riscv_vfmul_vv_f16m1(prod, half_prod, unpacket_traits<Packet1Xh>::size);
   }
-  if (EIGEN_RISCV64_RVV_VL >= 512) {
+  EIGEN_IF_CONSTEXPR (EIGEN_RISCV64_RVV_VL >= 512) {
     half_prod = __riscv_vslidedown_vx_f16m1(prod, 8, unpacket_traits<Packet1Xh>::size);
     prod = __riscv_vfmul_vv_f16m1(prod, half_prod, unpacket_traits<Packet1Xh>::size);
   }
-  if (EIGEN_RISCV64_RVV_VL >= 256) {
+  EIGEN_IF_CONSTEXPR (EIGEN_RISCV64_RVV_VL >= 256) {
     half_prod = __riscv_vslidedown_vx_f16m1(prod, 4, unpacket_traits<Packet1Xh>::size);
     prod = __riscv_vfmul_vv_f16m1(prod, half_prod, unpacket_traits<Packet1Xh>::size);
   }

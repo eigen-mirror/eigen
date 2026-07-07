@@ -70,7 +70,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       ComputeCoprimes(i, &all_coprimes_.back());
     }
 #ifndef EIGEN_THREAD_LOCAL
-    init_barrier_.reset(new Barrier(num_threads_));
+    init_barrier_ = std::make_unique<Barrier>(num_threads_);
 #endif
     thread_data_.resize(num_threads_);
     for (int i = 0; i < num_threads_; i++) {
@@ -341,7 +341,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // Main worker thread loop.
   void WorkerLoop(int thread_id) {
 #ifndef EIGEN_THREAD_LOCAL
-    std::unique_ptr<PerThread> new_pt(new PerThread());
+    auto new_pt = std::make_unique<PerThread>();
     per_thread_map_mutex_.lock();
     bool insertOK = per_thread_map_.emplace(GlobalThreadIdHash(), std::move(new_pt)).second;
     eigen_plain_assert(insertOK);

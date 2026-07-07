@@ -351,7 +351,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // Other ways to index this element.
     Index otherIndex, patch2DIndex;
-    if (NumDims == 4) {
+    EIGEN_IF_CONSTEXPR (NumDims == 4) {
       otherIndex = 0;
       patch2DIndex = index / m_fastPatchStride;
     } else {
@@ -404,7 +404,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     // Use multiply+compare instead of a second TensorIntDivisor division
     // to check whether the last packet element is in the same region.
     Index otherIndex, patch2DIndex, patchRemainder0, patchRemainder1;
-    if (NumDims == 4) {
+    EIGEN_IF_CONSTEXPR (NumDims == 4) {
       otherIndex = 0;
       patch2DIndex = index / m_fastPatchStride;
       const Index patchBase = patch2DIndex * m_patchStride;

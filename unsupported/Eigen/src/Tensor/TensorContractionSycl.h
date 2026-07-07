@@ -1002,8 +1002,7 @@ struct GeneralVectorTensor {
 
   // Since the access layout for a vector can always be coalesced, when LHS is a vector, we pass false and false to make
   // sure that the !^ is true When RHS is a vector, we pass true and true to make sure that the !^ is true.
-  typedef BlockProperties<is_lhs_vec ? false : true, is_lhs_vec ? false : true, Vectorizable, PacketReturnType>
-      VecBlockProperties;
+  typedef BlockProperties<!is_lhs_vec, !is_lhs_vec, Vectorizable, PacketReturnType> VecBlockProperties;
 
   Scratch scratch;
   const VectorMapper vec;
@@ -1124,7 +1123,7 @@ struct GeneralVectorTensor {
 
       out_scratch_ptr += (Properties::LocalThreadSizeNC * Properties::LocalThreadSizeC);
     }
-    if (is_lhs_vec) {
+    EIGEN_IF_CONSTEXPR (is_lhs_vec) {
       nonContractId = linearLocalThreadId % Properties::LocalThreadSizeNC;
       contractId = linearLocalThreadId / Properties::LocalThreadSizeNC;
       outScratchIndex = nonContractId + contractId * Properties::LocalThreadSizeNC;

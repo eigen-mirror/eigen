@@ -349,6 +349,8 @@ struct scalar_product_traits {
 
 /** \internal Obtains a POD type suitable to use as storage for an object of a size
  * of at most Len bytes, aligned as specified by \c Align.
+ *
+ * Keep this helper instead of std::aligned_storage_t deprecated in C++23.
  */
 template <unsigned Len, unsigned Align>
 struct aligned_storage {
@@ -475,7 +477,7 @@ constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
 
 // true if T can be considered as an integral index (i.e., an integral type or enum)
 template <typename T>
-struct is_valid_index_type : std::integral_constant<bool, std::is_integral<T>::value || std::is_enum<T>::value> {};
+using is_valid_index_type = bool_constant<std::is_integral<T>::value || std::is_enum<T>::value>;
 
 template <typename A, typename B>
 constexpr void plain_enum_asserts(A, B) {

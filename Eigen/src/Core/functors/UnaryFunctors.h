@@ -323,6 +323,11 @@ struct functor_traits<scalar_real_ref_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_imag_ref_op {
+  // For a real Scalar, numext::imag_ref returns the temporary RealScalar(0) by value; binding it to the
+  // reference return types below would dangle (issue #3096). Real-valued objects get a read-only zero
+  // expression from imag() instead (see NonConstImagReturnType in CommonCwiseUnaryOps.inc).
+  static_assert(NumTraits<Scalar>::IsComplex,
+                "THE IMAGINARY PART OF A REAL-VALUED OBJECT IS NOT AN LVALUE. USE THE READ-ONLY imag() OVERLOAD.");
   typedef typename NumTraits<Scalar>::Real result_type;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type& operator()(Scalar& a) const {
     return numext::imag_ref(a);

@@ -39,7 +39,7 @@ struct traits<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options_, Strid
                           ((PlainObjectType::Flags & RowMajorBit) == (Derived::Flags & RowMajorBit)),
       MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && StorageOrderMatch
     };
-    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
+    typedef bool_constant<MatchAtCompileTime> type;
   };
 };
 
@@ -61,7 +61,7 @@ struct traits<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options_, Strid
   template <typename Derived>
   struct match {
     enum { MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && Derived::IsVectorAtCompileTime };
-    typedef std::conditional_t<MatchAtCompileTime, std::true_type, std::false_type> type;
+    typedef bool_constant<MatchAtCompileTime> type;
   };
 };
 
@@ -208,13 +208,15 @@ class Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideTy
  protected:
   template <typename Expression>
   void construct(const Expression& expr, std::true_type) {
-    if ((Options & int(StandardCompressedFormat)) && (!expr.isCompressed())) {
-      TPlainObjectType* obj = internal::construct_at(reinterpret_cast<TPlainObjectType*>(&m_storage), expr);
-      m_hasCopy = true;
-      Base::construct(*obj);
-    } else {
-      Base::construct(expr);
+    EIGEN_IF_CONSTEXPR (Options & int(StandardCompressedFormat)) {
+      if (!expr.isCompressed()) {
+        TPlainObjectType* obj = internal::construct_at(reinterpret_cast<TPlainObjectType*>(&m_storage), expr);
+        m_hasCopy = true;
+        Base::construct(*obj);
+        return;
+      }
     }
+    Base::construct(expr);
   }
 
   template <typename Expression>

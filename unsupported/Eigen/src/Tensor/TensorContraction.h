@@ -724,20 +724,24 @@ struct TensorContractionEvaluatorBase {
             buffer);
         return;
       }
-      if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
-        if (internal::GemvDirectDispatcher<types_match, RowMajor, false>::run(this, buffer)) {
-          return;
+      EIGEN_IF_CONSTEXPR (types_match) {
+        if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
+          if (internal::GemvDirectDispatcher<types_match, RowMajor, false>::run(this, buffer)) {
+            return;
+          }
         }
       }
     } else if (this->m_i_size == 1 && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
-      if (m_rhs_contracted_dims_leading) {
-        if (internal::GemvDirectDispatcher<types_match, RowMajor, true>::run(this, buffer)) {
-          return;
+      EIGEN_IF_CONSTEXPR (types_match) {
+        if (m_rhs_contracted_dims_leading) {
+          if (internal::GemvDirectDispatcher<types_match, RowMajor, true>::run(this, buffer)) {
+            return;
+          }
         }
-      }
-      if (m_rhs_contracted_dims_trailing) {
-        if (internal::GemvDirectDispatcher<types_match, ColMajor, true>::run(this, buffer)) {
-          return;
+        if (m_rhs_contracted_dims_trailing) {
+          if (internal::GemvDirectDispatcher<types_match, ColMajor, true>::run(this, buffer)) {
+            return;
+          }
         }
       }
     }
@@ -919,7 +923,7 @@ struct TensorContractionEvaluatorBase {
 
     // If a contraction kernel does not support beta, explicitly initialize
     // output buffer with zeroes.
-    if (!TensorContractionKernel::HasBeta) {
+    EIGEN_IF_CONSTEXPR (!TensorContractionKernel::HasBeta) {
       this->m_device.fill(buffer, buffer + m * n, Scalar(0));
     }
 

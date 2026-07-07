@@ -246,8 +246,12 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     if ((numext::maxi)(k, (numext::maxi)(m, n)) < 48) return;
 
 #ifdef EIGEN_VECTORIZE_SME
-    evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
-    return;
+    // Only float×float uses the SME kernel; other scalar pairs run the generic
+    // kernel below and would thrash L1/L2 with the SME-sized budgets.
+    if (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
+      evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
+      return;
+    }
 #endif
 
     typedef typename Traits::ResScalar ResScalar;
@@ -647,7 +651,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
-    loadRhsQuad_impl(b, dest, std::conditional_t<RhsPacketSize == 16, std::true_type, std::false_type>());
+    loadRhsQuad_impl(b, dest, bool_constant<RhsPacketSize == 16>());
   }
 
   EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const std::true_type&) const {
@@ -671,7 +675,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
                                 const LaneIdType&) const {
-    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, std::true_type, std::false_type>());
+    madd_impl(a, b, c, tmp, bool_constant<Vectorizable>());
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>
@@ -884,16 +888,16 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
                                ResPacketType& r) const {
     // assemble c
     ResPacketType tmp;
-    if ((!ConjLhs) && (!ConjRhs)) {
+    EIGEN_IF_CONSTEXPR ((!ConjLhs) && (!ConjRhs)) {
       tmp = pcplxflip(pconj(ResPacketType(c.second)));
       tmp = padd(ResPacketType(c.first), tmp);
-    } else if ((!ConjLhs) && (ConjRhs)) {
+    } else EIGEN_IF_CONSTEXPR ((!ConjLhs) && (ConjRhs)) {
       tmp = pconj(pcplxflip(ResPacketType(c.second)));
       tmp = padd(ResPacketType(c.first), tmp);
-    } else if ((ConjLhs) && (!ConjRhs)) {
+    } else EIGEN_IF_CONSTEXPR ((ConjLhs) && (!ConjRhs)) {
       tmp = pcplxflip(ResPacketType(c.second));
       tmp = padd(pconj(ResPacketType(c.first)), tmp);
-    } else if ((ConjLhs) && (ConjRhs)) {
+    } else {
       tmp = pcplxflip(ResPacketType(c.second));
       tmp = psub(pconj(ResPacketType(c.first)), tmp);
     }
@@ -978,7 +982,7 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
                                 const LaneIdType&) const {
-    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, std::true_type, std::false_type>());
+    madd_impl(a, b, c, tmp, bool_constant<Vectorizable>());
   }
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>

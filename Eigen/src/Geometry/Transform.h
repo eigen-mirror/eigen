@@ -232,10 +232,8 @@ class Transform {
   /** corresponding translation type */
   typedef Translation<Scalar, Dim> TranslationType;
 
-  // this intermediate enum is needed to avoid an ICE with gcc 3.4 and 4.0
-  enum { TransformTimeDiagonalMode = ((Mode == int(Isometry)) ? Affine : int(Mode)) };
   /** The return type of the product between a diagonal matrix and a transform */
-  typedef Transform<Scalar, Dim, TransformTimeDiagonalMode> TransformTimeDiagonalReturnType;
+  typedef Transform<Scalar, Dim, (Mode == int(Isometry)) ? int(Affine) : int(Mode)> TransformTimeDiagonalReturnType;
 
  protected:
   MatrixType m_matrix;
@@ -429,7 +427,7 @@ class Transform {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename internal::transform_right_product_impl<Transform,
                                                                                               OtherDerived>::ResultType
-  operator*(const EigenBase<OtherDerived>& other) const {
+  operator*(const MatrixBase<OtherDerived>& other) const {
     return internal::transform_right_product_impl<Transform, OtherDerived>::run(*this, other.derived());
   }
 
@@ -443,7 +441,7 @@ class Transform {
   template <typename OtherDerived>
   friend EIGEN_DEVICE_FUNC inline const typename internal::transform_left_product_impl<OtherDerived, Mode, Options,
                                                                                        Dim_, Dim_ + 1>::ResultType
-  operator*(const EigenBase<OtherDerived>& a, const Transform& b) {
+  operator*(const MatrixBase<OtherDerived>& a, const Transform& b) {
     return internal::transform_left_product_impl<OtherDerived, Mode, Options, Dim, HDim>::run(a.derived(), b);
   }
 
@@ -478,7 +476,7 @@ class Transform {
   }
 
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC inline Transform& operator*=(const EigenBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC inline Transform& operator*=(const MatrixBase<OtherDerived>& other) {
     return *this = *this * other;
   }
 
@@ -487,32 +485,6 @@ class Transform {
     return internal::transform_transform_product_impl<Transform, Transform>::run(*this, other);
   }
 
-#if EIGEN_COMP_ICC
- private:
-  // this intermediate structure permits to workaround a bug in ICC 11:
-  //   error: template instantiation resulted in unexpected function type of "Eigen::Transform<double, 3, 32, 0>
-  //             (const Eigen::Transform<double, 3, 2, 0> &) const"
-  //  (the meaning of a name may have changed since the template declaration -- the type of the template is:
-  // "Eigen::internal::transform_transform_product_impl<Eigen::Transform<double, 3, 32, 0>,
-  //     Eigen::Transform<double, 3, Mode, Options>, <expression>>::ResultType (const Eigen::Transform<double, 3, Mode,
-  //     Options> &) const")
-  //
-  template <int OtherMode, int OtherOptions>
-  struct icc_11_workaround {
-    typedef internal::transform_transform_product_impl<Transform, Transform<Scalar, Dim, OtherMode, OtherOptions> >
-        ProductType;
-    typedef typename ProductType::ResultType ResultType;
-  };
-
- public:
-  /** Concatenates two different transformations */
-  template <int OtherMode, int OtherOptions>
-  inline typename icc_11_workaround<OtherMode, OtherOptions>::ResultType operator*(
-      const Transform<Scalar, Dim, OtherMode, OtherOptions>& other) const {
-    typedef typename icc_11_workaround<OtherMode, OtherOptions>::ProductType ProductType;
-    return ProductType::run(*this, other);
-  }
-#else
   /** Concatenates two different transformations */
   template <int OtherMode, int OtherOptions>
   EIGEN_DEVICE_FUNC inline
@@ -522,7 +494,6 @@ class Transform {
     return internal::transform_transform_product_impl<Transform, Transform<Scalar, Dim, OtherMode, OtherOptions> >::run(
         *this, other);
   }
-#endif
 
   /** \sa MatrixBase::setIdentity() */
   EIGEN_DEVICE_FUNC void setIdentity() { m_matrix.setIdentity(); }
@@ -1270,7 +1241,7 @@ struct transform_construct_from_matrix<Other, AffineCompact, Options, Dim, HDim,
 };
 
 /**********************************************************
-***   Specializations of operator* with rhs EigenBase   ***
+***   Specializations of operator* with rhs MatrixBase  ***
 **********************************************************/
 
 template <int LhsMode, int RhsMode>

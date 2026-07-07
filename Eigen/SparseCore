@@ -40,6 +40,7 @@
 #include "src/SparseCore/AmbiVector.h"
 #include "src/SparseCore/SparseCompressedBase.h"
 #include "src/SparseCore/SparseMatrix.h"
+#include "src/SparseCore/BlockSparseMatrix.h"
 #include "src/SparseCore/SparseMap.h"
 #include "src/SparseCore/SparseVector.h"
 #include "src/SparseCore/SparseRef.h"

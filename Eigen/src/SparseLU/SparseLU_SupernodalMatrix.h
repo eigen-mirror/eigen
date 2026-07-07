@@ -290,7 +290,7 @@ void MappedSuperNodalMatrix<Scalar, Index_>::solveTransposedInPlace(MatrixBase<D
       Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> > A(&(Lval[luptr + nsupc]), nrow, nsupc,
                                                                                  OuterStride<>(lda));
       typename Dest::RowsBlockXpr U = X.derived().middleRows(fsupc, nsupc);
-      if (Conjugate)
+      EIGEN_IF_CONSTEXPR (Conjugate)
         U = U - A.adjoint() * work.topRows(nrow);
       else
         U = U - A.transpose() * work.topRows(nrow);
@@ -298,7 +298,7 @@ void MappedSuperNodalMatrix<Scalar, Index_>::solveTransposedInPlace(MatrixBase<D
       // Triangular solve (of transposed diagonal block)
       new (&A) Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> >(&(Lval[luptr]), nsupc, nsupc,
                                                                                         OuterStride<>(lda));
-      if (Conjugate)
+      EIGEN_IF_CONSTEXPR (Conjugate)
         U = A.adjoint().template triangularView<UnitUpper>().solve(U);
       else
         U = A.transpose().template triangularView<UnitUpper>().solve(U);

@@ -80,7 +80,7 @@ class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsX
 
   EIGEN_DEVICE_FUNC const Axis& axis() const { return m_axis; }
 
-  EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorConcatenationOp)
+  EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TensorConcatenationOp)
  protected:
   typename LhsXprType::Nested m_lhs_xpr;
   typename RhsXprType::Nested m_rhs_xpr;
@@ -250,7 +250,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
     Index remaining = desc.offset();
     DSizes<Index, NumDims> out_coords;
-    if (IsColMajor) {
+    EIGEN_IF_CONSTEXPR (IsColMajor) {
       for (int i = NumDims - 1; i > 0; --i) {
         out_coords[i] = remaining / m_outputStrides[i];
         remaining -= out_coords[i] * m_outputStrides[i];

@@ -196,6 +196,28 @@ void basicStuffComplex(const MatrixType& m) {
   VERIFY(!static_cast<const MatrixType&>(cm).imag().isZero());
 }
 
+// Regression test for issue #3096: reading imag() of a *non-const* real-valued object used to go
+// through the writable CwiseUnaryView, whose functor returns a dangling reference to a temporary
+// for real scalars (segfault with GCC, garbage with Clang). For real scalars the non-const imag()
+// overload must return the same read-only zero expression as the const one.
+template <typename MatrixType>
+void basicStuffRealImag(const MatrixType& m) {
+  typedef typename MatrixType::RealScalar RealScalar;
+
+  Index rows = m.rows();
+  Index cols = m.cols();
+
+  MatrixType m1 = MatrixType::Random(rows, cols);
+  // Non-const lvalue.
+  VERIFY_IS_EQUAL(m1.imag().cwiseAbs().sum(), RealScalar(0));
+  // Non-const expression wrappers (temporaries), the case that used to crash.
+  VERIFY((m1.array().imag() == RealScalar(0)).all());
+  VERIFY_IS_EQUAL(m1.block(0, 0, rows, cols).imag().cwiseAbs().sum(), RealScalar(0));
+  // real() of a real-valued object aliases the object itself, both in the const and non-const case.
+  VERIFY(m1.real().data() == m1.data());
+  VERIFY(static_cast<const MatrixType&>(m1).real().data() == m1.data());
+}
+
 template <typename SrcScalar, typename TgtScalar>
 struct casting_test {
   static void run() {
@@ -347,6 +369,11 @@ EIGEN_DECLARE_TEST(basicstuff) {
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_5(basicStuffComplex(
         MatrixXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+
+    CALL_SUBTEST_1(basicStuffRealImag(Matrix<float, 1, 1>()));
+    CALL_SUBTEST_2(basicStuffRealImag(Matrix4d()));
+    CALL_SUBTEST_7(basicStuffRealImag(
+        MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<unsigned char>());
