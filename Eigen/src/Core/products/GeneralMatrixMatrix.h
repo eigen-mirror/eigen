@@ -436,15 +436,17 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   typedef generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> lazyproduct;
 
+  // The runtime-size heuristic comes from bug 404 and was tuned with a
+  // helper program on Haswell. The rhs.rows() > 0 guard preserves the
+  // historical empty-product path through scaleAndAddTo().
+  template <typename Dst>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool useRuntimeCoeffBasedProduct(const Dst& dst, const Rhs& rhs) {
+    return rhs.rows() > 0 && (rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD;
+  }
+
   template <typename Dst>
   static void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=404 for a discussion and helper program
-    // to determine the following heuristic.
-    // EIGEN_GEMM_TO_COEFFBASED_THRESHOLD is typically defined to 20 in GeneralProduct.h,
-    // unless it has been specialized by the user or for a given architecture.
-    // Note that the condition rhs.rows()>0 was required because lazy product did not handle empty inputs
-    // correctly. It is unclear whether this guard is still necessary.
-    if ((rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD && rhs.rows() > 0)
+    if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>());
     else {
       dst.setZero();
@@ -454,7 +456,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   template <typename Dst>
   static void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    if ((rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD && rhs.rows() > 0)
+    if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>());
     else
       scaleAndAddTo(dst, lhs, rhs, Scalar(1));
@@ -462,7 +464,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
   template <typename Dst>
   static void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    if ((rhs.rows() + dst.rows() + dst.cols()) < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD && rhs.rows() > 0)
+    if (useRuntimeCoeffBasedProduct(dst, rhs))
       lazyproduct::eval_dynamic(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>());
     else
       scaleAndAddTo(dst, lhs, rhs, Scalar(-1));

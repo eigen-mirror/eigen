@@ -19,14 +19,22 @@ namespace Eigen {
 
 enum { Large = 2, Small = 3 };
 
-// Define the threshold value to fallback from the generic matrix-matrix product
-// implementation (heavy) to the lightweight coeff-based product one.
-// See generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
-// in products/GeneralMatrixMatrix.h for more details.
-// TODO This threshold should also be used in the compile-time selector below.
+// Runtime-size threshold for falling back from the generic matrix-matrix product
+// implementation (heavy) to the lightweight coeff-based product one. See
+// generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct> in
+// products/GeneralMatrixMatrix.h for more details.
 #ifndef EIGEN_GEMM_TO_COEFFBASED_THRESHOLD
 // This default value has been obtained on a Haswell architecture.
 #define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 20
+#endif
+
+// Fixed-size products can reach the GEMM product path even when the
+// coeff-based evaluator is still faster. Keep this threshold separate so
+// runtime-size dispatch preserves the historical heuristic above. This default
+// was tuned on the same Haswell system as the runtime threshold, and deliberately
+// tracks EIGEN_GEMM_TO_COEFFBASED_THRESHOLD unless specialized independently.
+#ifndef EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+#define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
 #endif
 
 namespace internal {
@@ -62,9 +70,14 @@ struct product_type {
     Depth = min_size_prefer_fixed(traits<Lhs_>::ColsAtCompileTime, traits<Rhs_>::RowsAtCompileTime)
   };
 
-  static constexpr int value =
+  static constexpr int ProductType =
       product_type_selector<product_size_category<Rows, MaxRows>::value, product_size_category<Cols, MaxCols>::value,
                             product_size_category<Depth, MaxDepth>::value>::value;
+  static constexpr bool FixedSizeCoeffBasedProduct =
+      ProductType == GemmProduct && Rows != Dynamic && Cols != Dynamic && Depth != Dynamic &&
+      (int(Rows) + int(Cols) + int(Depth) < EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD);
+
+  static constexpr int value = FixedSizeCoeffBasedProduct ? CoeffBasedProductMode : ProductType;
 #ifdef EIGEN_DEBUG_PRODUCT
   static void debug() {
     const int rows_select = product_size_category<Rows, MaxRows>::value;
@@ -76,6 +89,8 @@ struct product_type {
     EIGEN_DEBUG_VAR(rows_select);
     EIGEN_DEBUG_VAR(cols_select);
     EIGEN_DEBUG_VAR(depth_select);
+    EIGEN_DEBUG_VAR(ProductType);
+    EIGEN_DEBUG_VAR(FixedSizeCoeffBasedProduct);
     EIGEN_DEBUG_VAR(value);
   }
 #endif

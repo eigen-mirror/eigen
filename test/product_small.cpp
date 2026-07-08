@@ -274,6 +274,42 @@ void product_small_regressions() {
          ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)));
     VERIFY_IS_APPROX(B, C);
   }
+
+  {
+    typedef Eigen::Matrix<double, 10, 10> Matrix10;
+    typedef Eigen::Matrix<double, 13, 13> Matrix13;
+    typedef Eigen::Matrix<double, 14, 14> Matrix14;
+    VERIFY((internal::product_type<Matrix10, Matrix10>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<Matrix13, Matrix13>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<Matrix14, Matrix14>::value == GemmProduct));
+
+    Matrix10 A = Matrix10::Random();
+    Matrix10 B = Matrix10::Random();
+    Matrix10 C = Matrix10::Random();
+    Matrix10 ref = C;
+
+    C = A * B;
+    ref = A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() += A * B;
+    ref.noalias() += A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() -= A * B;
+    ref.noalias() -= A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() += (2.0 * A) * (B * 3.0);
+    ref.noalias() += 6.0 * A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+  }
 }
 
 // Test products at sizes near critical code-path transitions:
