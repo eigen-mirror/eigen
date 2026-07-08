@@ -250,6 +250,14 @@ void test_levinson_wellcond(Index n) {
   // Multiple right-hand sides.
   Mat B = Mat::Random(n, 3);
   VERIFY_IS_APPROX(lev.solve(B), dense.fullPivLu().solve(B).eval());
+
+  // Transposed and adjoint systems reuse the same factorization (persymmetry).
+  Vec xt = lev.transpose().solve(b);
+  VERIFY_IS_APPROX(xt, dense.transpose().fullPivLu().solve(b).eval());
+  Vec xa = lev.adjoint().solve(b);
+  VERIFY_IS_APPROX(xa, dense.adjoint().fullPivLu().solve(b).eval());
+  Mat Xt = lev.transpose().solve(B);
+  VERIFY_IS_APPROX(Xt, dense.transpose().fullPivLu().solve(B).eval());
 }
 
 // Indefinite / ill-conditioned matrices that force look-ahead block steps. The
@@ -257,7 +265,11 @@ void test_levinson_wellcond(Index n) {
 // solution is the all-ones vector.
 void test_levinson_lookahead() {
   typedef Matrix<double, Dynamic, 1> Vec;
-  auto check = [](const Vec& c, const Vec& r, Index pmax) {
+  // Loose bound for these deliberately ill-conditioned look-ahead cases (~1e-9);
+  // the look-ahead Levinson recursion is weakly stable, so the forward error is a
+  // large but bounded multiple of epsilon.
+  const double tol = 5e6 * NumTraits<double>::epsilon();
+  auto check = [tol](const Vec& c, const Vec& r, Index pmax) {
     Toeplitz<double> T(c, r);
     Vec xt = Vec::Ones(c.size());
     Vec b = T * xt;
@@ -265,7 +277,13 @@ void test_levinson_lookahead() {
     lev.setMaxBlockSize(pmax).compute(T);
     VERIFY(lev.info() == Success);
     Vec x = lev.solve(b);
-    VERIFY((x - xt).norm() <= 1e-9 * xt.norm());
+    VERIFY((x - xt).norm() <= tol * xt.norm());
+
+    // The transposed solve must track the same look-ahead block steps.
+    Matrix<double, Dynamic, Dynamic> dense = T;
+    Vec bt = dense.transpose() * xt;
+    Vec y = lev.transpose().solve(bt);
+    VERIFY((y - xt).norm() <= tol * xt.norm());
   };
 
   Vec c1(6), r1(6);  // Sweet-1 (block size 2)
