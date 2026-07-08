@@ -134,6 +134,8 @@ Test assertion macros (defined in `test/main.h`):
 - `VERIFY_IS_MUCH_SMALLER_THAN(a, b)`
 - `VERIFY_RAISES_ASSERT(expr)` — assert that `eigen_assert` fires
 
+**Test tolerances.** Prefer `VERIFY_IS_APPROX` / `VERIFY_IS_MUCH_SMALLER_THAN`: they compare against `test_precision<T>()`, a machine-epsilon multiple that already scales with the scalar type. When a custom or looser bound is unavoidable, make it a **named constant expressed as a multiple of `NumTraits<RealScalar>::epsilon()`** (times the problem size or a backward-error factor as appropriate) — never a bare literal like `1e-9`, which is opaque and precision-blind (it is below `eps` for `float`, so a `Scalar`-templated test would demand impossible accuracy). Check **residuals** (∝ `eps`) rather than forward errors (∝ `cond · eps`) where you can; and when the comparison's reference is itself the less-accurate side (e.g. a dense LU determinant checked against a closed form), scale the tolerance by the matrix conditioning rather than picking a fixed constant that is flaky across random draws.
+
 `failtest/` holds compile-failure tests: each has an `_ok` and `_ko` target — `_ok` must compile, `_ko` must fail to compile (driven via `-DEIGEN_SHOULD_FAIL_TO_BUILD`).
 
 ### Benchmarks
