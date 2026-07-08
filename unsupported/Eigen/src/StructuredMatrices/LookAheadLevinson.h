@@ -15,7 +15,20 @@
 
 namespace Eigen {
 
+template <typename Scalar_>
+class LookAheadLevinson;
+
 namespace internal {
+
+template <typename Scalar_>
+struct traits<LookAheadLevinson<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
+  using BaseTraits = traits<Matrix<Scalar_, Dynamic, Dynamic>>;
+  static constexpr int Flags = BaseTraits::Flags & RowMajorBit;
+  static constexpr int CoeffReadCost = Dynamic;
+};
 
 // Non-conjugating inner product sum_i a_i b_i. The look-ahead Levinson algorithm
 // is built on the persymmetry E_n T_n E_n = T_n^T, which uses the transpose (not
@@ -50,10 +63,15 @@ Matrix<Scalar, Dynamic, 1> structured_upshift(const Matrix<Scalar, Dynamic, 1>& 
  * a block step (up to \ref maxBlockSize) over it. As a by-product it produces an
  * estimate of the matrix condition number (\ref conditionEstimate).
  *
- * Usage follows the usual decomposition style:
+ * The class derives from \c SolverBase and follows the usual decomposition style;
+ * transposed and adjoint systems reuse the factorization of \c T through the
+ * persymmetry \f$ T^T = E T E \f$ (with \c E the exchange matrix), so all three
+ * solves below cost the same:
  * \code
- *   LookAheadLevinson<double> levinson(T);   // or levinson.compute(T);
- *   VectorXd x = levinson.solve(b);
+ *   LookAheadLevinson<double> levinson(T);      // or levinson.compute(T);
+ *   VectorXd x = levinson.solve(b);              // solve T   * x = b
+ *   VectorXd y = levinson.transpose().solve(b);  // solve T^T * y = b
+ *   VectorXd z = levinson.adjoint().solve(b);    // solve T^H * z = b
  * \endcode
  *
  * \tparam Scalar_ the scalar type, real or complex.
@@ -67,10 +85,11 @@ Matrix<Scalar, Dynamic, 1> structured_upshift(const Matrix<Scalar, Dynamic, 1>& 
  * \sa class Toeplitz
  */
 template <typename Scalar_>
-class LookAheadLevinson {
+class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
  public:
-  using Scalar = Scalar_;
-  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Base = SolverBase<LookAheadLevinson>;
+  friend class SolverBase<LookAheadLevinson>;
+  EIGEN_GENERIC_PUBLIC_INTERFACE(LookAheadLevinson)
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
@@ -94,29 +113,44 @@ class LookAheadLevinson {
     return *this;
   }
 
+  /** \returns the maximum look-ahead block size \f$ p_{\max} \f$. \sa setMaxBlockSize */
   Index maxBlockSize() const { return m_maxBlockSize; }
+
+  Index rows() const noexcept { return m_n; }
+  Index cols() const noexcept { return m_n; }
 
   /** Factorizes the square Toeplitz matrix \a T. \sa solve */
   template <int Rows_, int Cols_>
   LookAheadLevinson& compute(const Toeplitz<Scalar, Rows_, Cols_>& T);
 
-  /** \returns the solution \c x of \c T*x = \a b. \pre \ref compute has been called. */
+#ifdef EIGEN_PARSED_BY_DOXYGEN
+  /** \returns the solution \c x of \c T*x = \a b, as a lazily evaluated expression.
+   * Supports multiple right-hand sides. The transposed and adjoint systems are
+   * solved at the same cost, and with the same factorization, through
+   * \c transpose().solve(b) and \c adjoint().solve(b).
+   * \pre \ref compute has been called. */
   template <typename Rhs>
-  Matrix<Scalar, Dynamic, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    eigen_assert(m_isInitialized && "LookAheadLevinson is not initialized.");
-    eigen_assert(b.rows() == m_n && "right-hand side has the wrong number of rows");
-    const Index nrhs = b.cols();
-    DenseMatrix x = m_luInit.solve(b.topRows(m_k0));
-    for (const Step& s : m_steps) {
-      DenseMatrix rhs = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
-      DenseMatrix a = s.luGamma.solve(rhs);
-      DenseMatrix xn(s.k + s.p, nrhs);
-      xn.topRows(s.k) = x + s.EkYp * a;  // [E_k Y_p; I_p] a_p
-      xn.bottomRows(s.p) = a;
-      x = xn;
-    }
-    return x;
+  inline const Solve<LookAheadLevinson, Rhs> solve(const MatrixBase<Rhs>& b) const;
+#endif
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+  /** \internal Evaluates the solution of \c T*x = rhs into \a dst; called through
+   * the \c Solve expression returned by \c SolverBase::solve. */
+  template <typename RhsType, typename DstType>
+  void _solve_impl(const RhsType& rhs, DstType& dst) const {
+    dst = solveForward(rhs);
   }
+
+  /** \internal Persymmetry E T E = T^T (with E the exchange matrix) turns the
+   * transposed system T^T x = b into T (E x) = E b, so a transposed solve is a
+   * forward solve with row-reversed right-hand side and solution -- conjugated on
+   * the way in and out for the adjoint -- reusing the factorization of T as is. */
+  template <bool Conjugate, typename RhsType, typename DstType>
+  void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
+    const DenseMatrix reversed = rhs.template conjugateIf<Conjugate>().colwise().reverse();
+    dst = solveForward(reversed).colwise().reverse().template conjugateIf<Conjugate>();
+  }
+#endif
 
   /** \returns \c Success if the algorithm could skip all ill-conditioned leading
    * submatrices within the look-ahead range, \c NumericalIssue otherwise. */
@@ -133,6 +167,24 @@ class LookAheadLevinson {
   }
 
  private:
+  /** \internal \returns the solution of the forward system \c T*x = b by advancing
+   * x through the recorded steps of the factorization. */
+  template <typename Rhs>
+  DenseMatrix solveForward(const Rhs& b) const {
+    const Index nrhs = b.cols();
+    DenseMatrix x = m_luInit.solve(b.topRows(m_k0));
+    DenseMatrix rhs, a, xn;
+    for (const Step& s : m_steps) {
+      rhs = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
+      a = s.luGamma.solve(rhs);
+      xn.resize(s.k + s.p, nrhs);
+      xn.topRows(s.k) = x + s.EkYp * a;  // [E_k Y_p; I_p] a_p
+      xn.bottomRows(s.p) = a;
+      x = xn;
+    }
+    return x;
+  }
+
   // Per accepted block step, the b-independent data needed to advance x in solve().
   struct Step {
     Index k;            // order before the step
