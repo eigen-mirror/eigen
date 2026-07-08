@@ -113,6 +113,7 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
     return *this;
   }
 
+  /** \returns the maximum look-ahead block size \f$ p_{\max} \f$. \sa setMaxBlockSize */
   Index maxBlockSize() const { return m_maxBlockSize; }
 
   Index rows() const noexcept { return m_n; }
