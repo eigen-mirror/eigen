@@ -121,7 +121,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
   // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
   // The y=0 case is handled separately below.
-  RealPacket cisy_sign_one = por(pand(cisy, pset1<RealPacket>(RealScalar(-0.0))), pset1<RealPacket>(RealScalar(1)));
+  RealPacket cisy_sign_one = por(pand(cisy, psignmask<RealPacket>()), pset1<RealPacket>(RealScalar(1)));
   RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
   cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
 
@@ -205,7 +205,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
 
   // Step 4. Compute solution for inputs with negative real part:
   //         [|eta0|, sign(y0)*rho0, |eta1|, sign(y1)*rho1]
-  const RealPacket cst_imag_sign_mask = pset1<Packet>(Scalar(RealScalar(0.0), RealScalar(-0.0))).v;
+  // [+0.0, -0.0, ...]: the sign bit of the imaginary (odd) lanes only.
+  const RealPacket cst_imag_sign_mask = pandnot(psignmask<RealPacket>(), real_mask);
   RealPacket imag_signs = pand(a.v, cst_imag_sign_mask);
   Packet negative_real_result;
   // Notice that rho is positive, so taking its absolute value is a noop.

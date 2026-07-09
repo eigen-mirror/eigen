@@ -777,7 +777,7 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  const Packet sign_mask = pset1<Packet>(static_cast<Scalar>(-0.0));
+  const Packet sign_mask = psignmask<Packet>();
   Packet rint_a = generic_rint(a);
   // if rint(a) < a, then rint(a) == floor(a)
   Packet mask = pcmp_lt(rint_a, a);

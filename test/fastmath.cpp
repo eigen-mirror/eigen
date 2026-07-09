@@ -287,6 +287,52 @@ void check_complex_fastmath() {
   check_complex_householder_qr<RealScalar>();
 }
 
+// The packet implementations of these functions manipulate signs of non-zero values through a
+// -0.0 bitmask. Under fast-math flags compilers consider -0.0 and +0.0 interchangeable and may
+// substitute one such constant for the other (GCC's value numbering does this on RISC-V), which
+// silently zeroes the mask unless it is constructed from integer bits (see psignmask and
+// https://gitlab.com/libeigen/eigen/-/merge_requests/2698). Sign handling of *non-zero* inputs
+// and outputs is not relaxed by fast-math, so these checks must hold.
+template <typename Scalar>
+void check_sign_dependent_functions() {
+  typedef Array<Scalar, Dynamic, 1> ArrayType;
+  const Index n = 64;
+
+  ArrayType ya(n), xa(n);
+  for (Index i = 0; i < n; ++i) {
+    Scalar s = Scalar(1) + Scalar(i) / Scalar(n);
+    // All four quadrants.
+    ya[i] = (i & 1) ? s : -s;
+    xa[i] = (i & 2) ? Scalar(2) * s : Scalar(-2) * s;
+  }
+  // Cover the |x| == |y| special path of patan2 in all four quadrants.
+  ya[0] = Scalar(1), xa[0] = Scalar(1);
+  ya[1] = Scalar(1), xa[1] = Scalar(-1);
+  ya[2] = Scalar(-1), xa[2] = Scalar(1);
+  ya[3] = Scalar(-1), xa[3] = Scalar(-1);
+
+  const ArrayType atan2_result = ya.atan2(xa);
+  for (Index i = 0; i < n; ++i) {
+    VERIFY_IS_APPROX(atan2_result[i], std::atan2(ya[i], xa[i]));
+  }
+
+  // Mixed-sign inputs, no exact zeros, |w| up to ~3 to hit the small- and large-|x| branches.
+  // atanh and cbrt also use the sign mask but are not checked here: the atanh mask only
+  // affects the |x| == 1 -> +/-inf path, which is meaningless under -ffinite-math-only, and
+  // vectorized cbrt is currently broken under clang fast-math for unrelated reasons.
+  const ArrayType w = ArrayType::LinSpaced(n, Scalar(-3), Scalar(3)) + Scalar(0.017);
+  const ArrayType atan_result = w.atan();
+  const ArrayType sinh_result = w.sinh();
+  const ArrayType tanh_result = w.tanh();
+  const ArrayType asinh_result = w.asinh();
+  for (Index i = 0; i < n; ++i) {
+    VERIFY_IS_APPROX(atan_result[i], std::atan(w[i]));
+    VERIFY_IS_APPROX(sinh_result[i], std::sinh(w[i]));
+    VERIFY_IS_APPROX(tanh_result[i], std::tanh(w[i]));
+    VERIFY_IS_APPROX(asinh_result[i], std::asinh(w[i]));
+  }
+}
+
 EIGEN_DECLARE_TEST(fastmath) {
   std::cout << "*** float *** \n\n";
   check_inf_nan<float>(true);
@@ -301,4 +347,6 @@ EIGEN_DECLARE_TEST(fastmath) {
 
   CALL_SUBTEST_1(check_complex_fastmath<float>());
   CALL_SUBTEST_2(check_complex_fastmath<double>());
+  CALL_SUBTEST_3(check_sign_dependent_functions<float>());
+  CALL_SUBTEST_4(check_sign_dependent_functions<double>());
 }

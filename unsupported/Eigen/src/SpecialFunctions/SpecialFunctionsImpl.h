@@ -612,8 +612,7 @@ struct erf_impl<double> {
 
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T flipsign(const T& should_flipsign, const T& x) {
-  typedef typename unpacket_traits<T>::type Scalar;
-  const T sign_mask = pset1<T>(Scalar(-0.0));
+  const T sign_mask = psignmask<T>();
   T sign_bit = pand<T>(should_flipsign, sign_mask);
   return pxor<T>(sign_bit, x);
 }

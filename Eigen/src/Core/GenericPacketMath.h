@@ -819,7 +819,28 @@ EIGEN_DEVICE_FUNC inline Packet pset1(const typename unpacket_traits<Packet>::ty
 
 /** \internal \returns a packet with constant coefficients set from bits */
 template <typename Packet, typename BitsType>
-EIGEN_DEVICE_FUNC inline Packet pset1frombits(BitsType a);
+EIGEN_DEVICE_FUNC inline Packet pset1frombits(BitsType a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  return pset1<Packet>(numext::bit_cast<Scalar>(a));
+}
+
+/** \internal \returns a packet with all coefficients set to -0.0, i.e. with only the sign bit set.
+ *
+ * The mask is deliberately constructed from the integer sign-bit pattern via pset1frombits
+ * instead of the floating-point literal -Scalar(0): under fast-math flags (-ffast-math implies
+ * -fno-signed-zeros) compilers may treat -0.0 and +0.0 as interchangeable, and e.g. GCC's
+ * value numbering substitutes a splat of -0.0 with a nearby splat of +0.0, silently zeroing
+ * the mask and corrupting sign manipulation of non-zero values. Architectures that specialize
+ * pset1frombits keep the constant in the integer domain, where no floating-point
+ * simplification applies. See https://gitlab.com/libeigen/eigen/-/merge_requests/2698.
+ */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet psignmask() {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr Bits kSignBit = static_cast<Bits>(Bits(1) << (CHAR_BIT * sizeof(Scalar) - 1));
+  return pset1frombits<Packet, Bits>(kSignBit);
+}
 
 template <typename Scalar, std::enable_if_t<std::is_trivially_copyable<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC inline Scalar pload1_scalar(const Scalar* a) {
@@ -1589,7 +1610,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet patan2(const Packet& y, const Packe
   // See https://en.cppreference.com/w/cpp/numeric/math/atan2
   // for how corner cases are supposed to be handled according to the
   // IEEE floating-point standard (IEC 60559).
-  const Packet kSignMask = pset1<Packet>(-Scalar(0));
+  const Packet kSignMask = psignmask<Packet>();
   const Packet kZero = pzero(x);
   const Packet kOne = pset1<Packet>(Scalar(1));
   const Packet kPi = pset1<Packet>(Scalar(EIGEN_PI));

@@ -58,10 +58,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_decompose(const 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_and_sign(const Packet& x,
                                                                                        const Packet& abs_root) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-
   // Set sign.
-  const Packet sign_mask = pset1<Packet>(Scalar(-0.0));
+  const Packet sign_mask = psignmask<Packet>();
   const Packet x_sign = pand(sign_mask, x);
   Packet root = por(x_sign, abs_root);
 
