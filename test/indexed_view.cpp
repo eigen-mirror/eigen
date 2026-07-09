@@ -894,6 +894,32 @@ void check_expression_indices() {
   }
 }
 
+// Regression test for bug #3092: IndexedView nested in a comparison-based select expression.
+void check_indexed_view_select() {
+  ArrayXXd values(3, 4);
+  values << 0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11;
+
+  ArrayXi indices(5);
+  indices << 0, 1, 2, 1, 0;
+  ArrayXd condition = ArrayXd::Zero(5);
+
+  ArrayXd expected(5);
+  expected << 3, 4, 5, 4, 3;
+  ArrayXd result = (condition > 0.0).select(0.0, values(indices, 1));
+  VERIFY_IS_APPROX(result, expected);
+
+  result = (condition > 0.0).select(condition, values(indices, 1));
+  VERIFY_IS_APPROX(result, expected);
+
+  expected << 6, 7, 8, 7, 6;
+  result = (condition == 0.0).select(values(indices, 2), 0.0);
+  VERIFY_IS_APPROX(result, expected);
+
+  expected << 0, 1, 1, 1, 0;
+  result = (values(indices, 0) > 0.0).select(1.0, condition);
+  VERIFY_IS_APPROX(result, expected);
+}
+
 void check_aliasing() {
   Eigen::Vector<float, 5> z = {0.0f, 1.1f, 2.2f, 3.3f, 4.4f};
   std::vector<int> left_indices = {0, 1, 3, 4};
@@ -909,6 +935,7 @@ EIGEN_DECLARE_TEST(indexed_view) {
   }
   CALL_SUBTEST_1(check_tutorial_examples());
   CALL_SUBTEST_1(check_expression_indices());
+  CALL_SUBTEST_1(check_indexed_view_select());
   CALL_SUBTEST_1(check_aliasing());
 
   // static checks of some internals:

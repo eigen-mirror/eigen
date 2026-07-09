@@ -999,15 +999,25 @@ struct scalar_boolean_select_spec {
   using DummyArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>;
   using DummyXprType = CwiseTernaryOp<DummyTernaryOp, Arg1, Arg2, DummyArg3>;
 
-  // only use the typed comparison if it is vectorized
-  static constexpr bool UseTyped = functor_traits<scalar_cmp_op<Scalar, Scalar, cmp, true>>::PacketAccess;
-  using CondScalar = std::conditional_t<UseTyped, Scalar, bool>;
+  using PacketTernaryOp = scalar_boolean_select_op<Scalar, Scalar, Scalar>;
+  using PacketArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>;
+  using PacketXprType = CwiseTernaryOp<PacketTernaryOp, Arg1, Arg2, PacketArg3>;
 
-  using TernaryOp = scalar_boolean_select_op<Scalar, Scalar, CondScalar>;
-  using Arg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, UseTyped>, CmpLhsType, CmpRhsType>;
-  using XprType = CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>;
+  // Rebuild the comparison with a typed result only when the entire select expression can use packets. Otherwise,
+  // evaluate the original expression so indirect evaluators do not retain references into a temporary rewrite.
+  static constexpr bool UseTyped = (ternary_evaluator<PacketXprType>::Flags & PacketAccessBit) != 0;
+  using Arg3 = std::conditional_t<UseTyped, PacketArg3, DummyArg3>;
+  using XprType = std::conditional_t<UseTyped, PacketXprType, DummyXprType>;
 
   using Base = ternary_evaluator<XprType>;
+
+  EIGEN_DEVICE_FUNC constexpr static const DummyXprType& expression(const DummyXprType& xpr, std::false_type) {
+    return xpr;
+  }
+
+  EIGEN_DEVICE_FUNC constexpr static XprType expression(const DummyXprType& xpr, std::true_type) {
+    return XprType(xpr.arg1(), xpr.arg2(), Arg3(xpr.arg3().lhs(), xpr.arg3().rhs()));
+  }
 };
 
 // specialization for expressions like (a < b).select(c, d) to enable full vectorization
@@ -1018,11 +1028,9 @@ struct evaluator<CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, 
   using Helper = scalar_boolean_select_spec<Arg1, Arg2, Scalar, CmpLhsType, CmpRhsType, cmp>;
   using Base = typename Helper::Base;
   using DummyXprType = typename Helper::DummyXprType;
-  using Arg3 = typename Helper::Arg3;
-  using XprType = typename Helper::XprType;
 
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const DummyXprType& xpr)
-      : Base(XprType(xpr.arg1(), xpr.arg2(), Arg3(xpr.arg3().lhs(), xpr.arg3().rhs()))) {}
+      : Base(Helper::expression(xpr, std::integral_constant<bool, Helper::UseTyped>())) {}
 };
 
 // -------------------- CwiseBinaryOp --------------------
