@@ -269,6 +269,40 @@ void test_sparseqr_explicit_threshold_disables_lookahead() {
   VERIFY_IS_EQUAL(explicit_threshold_solver.colsPermutation().indices()(2), 2);
 }
 
+template <typename Scalar>
+void test_sparseqr_16bit_default_threshold(int n) {
+  // Factorize a well-conditioned, full-rank, diagonally dominant tridiagonal
+  // (4 on the diagonal, -1 off-diagonal) system with the default pivot
+  // threshold. The default threshold 20*(m+n)*max2Norm*epsilon used to be
+  // computed entirely in the 16-bit scalar type, where 20*(m+n)*epsilon
+  // exceeds 1 for m+n as small as 52 (half) or 7 (bfloat16) -- so every pivot
+  // was rejected and the reported rank collapsed to 0 with info()==Success.
+  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+
+  MatrixType A(n, n);
+  A.reserve(VectorXi::Constant(n, 3));
+  for (int j = 0; j < n; ++j) {
+    if (j > 0) A.insert(j - 1, j) = Scalar(-1);
+    A.insert(j, j) = Scalar(4);
+    if (j + 1 < n) A.insert(j + 1, j) = Scalar(-1);
+  }
+  A.makeCompressed();
+
+  SparseQR<MatrixType, COLAMDOrdering<int> > solver(A);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_EQUAL(solver.rank(), Index(n));
+
+  const DenseVector b = A * DenseVector::Ones(n);
+  const DenseVector x = solver.solve(b);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  // Check the relative residual in float: 16-bit norms of length-n vectors are
+  // unreliable. A is diagonally dominant with cond(A) <= 3, so a small
+  // residual also implies an accurate solution.
+  const VectorXf residual = (A * x - b).template cast<float>();
+  VERIFY(residual.norm() <= 0.05f * b.template cast<float>().norm());
+}
+
 EIGEN_DECLARE_TEST(sparseqr) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
@@ -279,4 +313,6 @@ EIGEN_DECLARE_TEST(sparseqr) {
   CALL_SUBTEST_5(test_sparseqr_tiny_independent_column());
   CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead());
   CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction());
+  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::half>(400));
+  CALL_SUBTEST_8(test_sparseqr_16bit_default_threshold<Eigen::bfloat16>(64));
 }

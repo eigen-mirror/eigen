@@ -98,6 +98,25 @@ bool areEqual(const Scalar* a, const Scalar* b, int size) {
   return true;
 }
 
+// Checks that each lane of `data` is a full bit mask: all bits set when `zero_mask[i]` is false, all
+// bits cleared when it is true. Packet comparisons must return all-ones masks on true lanes so that
+// the result can be consumed bitwise (pselect, pand, pandnot, ...); a lane that is merely nonzero
+// (e.g. a NaN produced by an arithmetic float-to-half conversion of the mask) is not enough.
+template <typename Scalar>
+bool areFullBitMasks(const Scalar* data, const bool* zero_mask, int size) {
+  for (int i = 0; i < size; ++i) {
+    const unsigned char expected = zero_mask[i] ? 0x00 : 0xff;
+    if (!(bits(data[i]) == expected).all()) {
+      std::cout << "Mask lane " << i << " should be all-" << (zero_mask[i] ? "zero" : "one")
+                << " bits, got bytes:" << std::hex;
+      for (std::size_t k = 0; k < sizeof(Scalar); ++k) std::cout << " 0x" << static_cast<int>(bits(data[i])[k]);
+      std::cout << std::dec << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
 template <typename Scalar>
 bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& precision) {
   for (int i = 0; i < size; ++i) {
@@ -141,6 +160,11 @@ bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTra
       data_mask[i] = numext::is_exactly_zero(data2[i]);                                                        \
     }                                                                                                          \
     VERIFY(test::areEqual(ref_mask, data_mask, PacketSize) && #POP);                                           \
+    /* Vectorized comparisons must produce all-ones bit masks on true lanes. Scalar fallbacks return */        \
+    /* Scalar(1) and bool packets store `true` (loading 0xff into a bool is UB), so those are exempt. */       \
+    if (internal::unpacket_traits<Packet>::vectorizable && !std::is_same<Scalar, bool>::value) {               \
+      VERIFY(test::areFullBitMasks(data2, ref_mask, PacketSize) && #POP);                                      \
+    }                                                                                                          \
   }
 
 // Checks component-wise for input of size N. All of data1, data2, and ref

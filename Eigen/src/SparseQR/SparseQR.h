@@ -449,9 +449,30 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
   RealScalar pivotThreshold;
   RealScalar max2Norm = RealScalar(0.0);
   if (m_useDefaultThreshold) {
-    for (int j = 0; j < n; j++) max2Norm = numext::maxi(max2Norm, m_pmat.col(j).norm());
-    if (max2Norm == RealScalar(0)) max2Norm = RealScalar(1);
-    pivotThreshold = RealScalar(20 * (m + n)) * max2Norm * NumTraits<RealScalar>::epsilon();
+    // For scalar types narrower than float (half, bfloat16), compute the default threshold in float:
+    // the squared column norms and the factor 20*(m+n) overflow a 16-bit type for moderate problem
+    // sizes, and 20*(m+n)*epsilon() exceeds 1 for m+n as small as 52 (half) or 7 (bfloat16), which
+    // would reject every pivot and collapse the reported rank to zero.
+    typedef typename std::conditional<(sizeof(RealScalar) < sizeof(float)), float, RealScalar>::type ThresholdReal;
+    if (EIGEN_CONST_CONDITIONAL((std::is_same<ThresholdReal, RealScalar>::value))) {
+      // ThresholdReal == RealScalar (float and wider scalars): keep the historical computation bit-for-bit.
+      for (int j = 0; j < n; j++) max2Norm = numext::maxi(max2Norm, m_pmat.col(j).norm());
+      if (max2Norm == RealScalar(0)) max2Norm = RealScalar(1);
+      pivotThreshold = RealScalar(20 * (m + n)) * max2Norm * NumTraits<RealScalar>::epsilon();
+    } else {
+      ThresholdReal maxColNorm = ThresholdReal(0);
+      for (int j = 0; j < n; j++) {
+        ThresholdReal colSquaredNorm = ThresholdReal(0);
+        for (typename QRMatrixType::InnerIterator it(m_pmat, j); it; ++it)
+          colSquaredNorm += numext::abs2(ThresholdReal(numext::real(it.value()))) +
+                            numext::abs2(ThresholdReal(numext::imag(it.value())));
+        maxColNorm = numext::maxi(maxColNorm, numext::sqrt(colSquaredNorm));
+      }
+      if (maxColNorm == ThresholdReal(0)) maxColNorm = ThresholdReal(1);
+      // Convert back to the narrow type only once, after the whole threshold has been formed in float.
+      pivotThreshold = RealScalar(ThresholdReal(20 * (m + n)) * maxColNorm * NumTraits<ThresholdReal>::epsilon());
+      max2Norm = RealScalar(maxColNorm);
+    }
   } else {
     pivotThreshold = m_threshold;
   }

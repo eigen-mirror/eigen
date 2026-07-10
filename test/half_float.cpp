@@ -127,6 +127,14 @@ void test_numtraits() {
 
   VERIFY(NumTraits<half>::IsSigned);
 
+  // The fp16 machine epsilon is 2^-10 = 0x1400, and NumTraits must agree with
+  // std::numeric_limits (NumTraits used to return 2^-13, making every
+  // epsilon-based threshold 8x too tight).
+  VERIFY_HALF_BITS_EQUAL(NumTraits<half>::epsilon(), 0x1400);
+  VERIFY_HALF_BITS_EQUAL(std::numeric_limits<half>::epsilon(), 0x1400);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(NumTraits<half>::epsilon()),
+                  numext::bit_cast<numext::uint16_t>(std::numeric_limits<half>::epsilon()));
+
   VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(std::numeric_limits<half>::infinity()),
                   numext::bit_cast<numext::uint16_t>(half(std::numeric_limits<float>::infinity())));
   // There is no guarantee that casting a 32-bit NaN to 16-bit has a precise

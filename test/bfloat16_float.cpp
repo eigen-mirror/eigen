@@ -181,6 +181,13 @@ void test_numtraits() {
 
   VERIFY(NumTraits<bfloat16>::IsSigned);
 
+  // The bfloat16 machine epsilon is 2^-7 = 0x3c00, and NumTraits must agree
+  // with std::numeric_limits.
+  VERIFY_BFLOAT16_BITS_EQUAL(NumTraits<bfloat16>::epsilon(), 0x3c00);
+  VERIFY_BFLOAT16_BITS_EQUAL(std::numeric_limits<bfloat16>::epsilon(), 0x3c00);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(NumTraits<bfloat16>::epsilon()),
+                  numext::bit_cast<numext::uint16_t>(std::numeric_limits<bfloat16>::epsilon()));
+
   VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(std::numeric_limits<bfloat16>::infinity()),
                   numext::bit_cast<numext::uint16_t>(bfloat16(std::numeric_limits<float>::infinity())));
   // There is no guarantee that casting a 32-bit NaN to bfloat16 has a precise

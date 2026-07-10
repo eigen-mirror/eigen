@@ -438,6 +438,31 @@ bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
   return true;
 }
 
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+// Host-side check that converting between Eigen::half and the vendor __half type preserves the
+// raw bits. This is a regression test for builds where Eigen::half stores a native fp16 type
+// (e.g. __fp16 on arm64): the host phase used to perform numeric value conversions instead of
+// bit reinterpretations, corrupting every raw-bit constant (NumTraits, numeric_limits, ...).
+void test_half_raw_bit_interop() {
+  const numext::uint16_t raw_bits[] = {0x0000, 0x3c00 /*1*/, 0x7c00 /*inf*/, 0x7e00 /*qNaN*/, 0xfbff /*lowest*/};
+  for (int i = 0; i < 5; ++i) {
+    const numext::uint16_t raw = raw_bits[i];
+    const Eigen::half h = numext::bit_cast<Eigen::half>(raw);
+    // Eigen::half -> __half must preserve the bits (sizeof(__half) == 2 on both CUDA and HIP).
+    // Call the conversion operator explicitly: a static_cast would be ambiguous because
+    // Eigen::half also converts to __half via operator float() and __half(float).
+    const __half v = h.operator __half();
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(v), raw);
+    // __half -> Eigen::half must preserve the bits as well.
+    const Eigen::half h2(v);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(h2), raw);
+  }
+  // Raw-bit constants must survive the host phase of a GPU build.
+  VERIFY((numext::isinf)(NumTraits<Eigen::half>::infinity()));
+  VERIFY((numext::isnan)(NumTraits<Eigen::half>::quiet_NaN()));
+}
+#endif
+
 template <typename Kernel, typename Input, typename Output>
 void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out) {
   Output out_ref, out_gpu;
@@ -509,6 +534,12 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   // numeric_limits
   CALL_SUBTEST(test_with_infs_nans(numeric_limits_test<Vector3f>(), 1, in, out));
+
+  // Eigen::half <-> __half raw-bit interop on the host.
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+  CALL_SUBTEST(test_half_raw_bit_interop());
+#endif
+
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
 

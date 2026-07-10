@@ -55,6 +55,33 @@ static void test_normal() {
   VERIFY(all_distinct);
 }
 
+template <typename Scalar>
+static void test_normal_all_finite(Eigen::Index size) {
+  // Regression test: the 16-bit uniform draw is exactly 0 with probability
+  // 2^-10 (half) / 2^-7 (bfloat16). Running the ratio-of-uniforms rejection
+  // in 16-bit arithmetic let log(0) = -inf poison the acceptance test and
+  // returned v / 0 = +/-inf (or 0/0 = NaN) at measurable rates.
+  Tensor<Scalar, 1> vec(size);
+  vec.template setRandom<Eigen::internal::NormalRandomGenerator<Scalar>>();
+  Eigen::Index num_not_finite = 0;
+  for (Eigen::Index i = 0; i < size; ++i) {
+    if (!(numext::isfinite)(vec(i))) ++num_not_finite;
+  }
+  VERIFY_IS_EQUAL(num_not_finite, Eigen::Index(0));
+}
+
+template <typename Scalar>
+static void test_uniform_range(Eigen::Index size) {
+  // All uniform draws must lie in [0, 1).
+  Tensor<Scalar, 1> vec(size);
+  vec.setRandom();
+  Eigen::Index num_out_of_range = 0;
+  for (Eigen::Index i = 0; i < size; ++i) {
+    if (!(vec(i) >= Scalar(0.0f) && vec(i) < Scalar(1.0f))) ++num_out_of_range;
+  }
+  VERIFY_IS_EQUAL(num_out_of_range, Eigen::Index(0));
+}
+
 struct MyGenerator {
   MyGenerator() {}
   MyGenerator(const MyGenerator&) {}
@@ -96,5 +123,9 @@ EIGEN_DECLARE_TEST(tensor_random) {
   CALL_SUBTEST((test_normal<Eigen::half>()));
   CALL_SUBTEST((test_default<Eigen::bfloat16>()));
   CALL_SUBTEST((test_normal<Eigen::bfloat16>()));
+  CALL_SUBTEST((test_normal_all_finite<Eigen::half>(Eigen::Index(1) << 21)));
+  CALL_SUBTEST((test_normal_all_finite<Eigen::bfloat16>(Eigen::Index(1) << 18)));
+  CALL_SUBTEST((test_uniform_range<Eigen::half>(Eigen::Index(1) << 16)));
+  CALL_SUBTEST((test_uniform_range<Eigen::bfloat16>(Eigen::Index(1) << 16)));
   CALL_SUBTEST(test_custom());
 }

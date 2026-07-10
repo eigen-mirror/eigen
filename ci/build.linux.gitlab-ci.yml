@@ -526,6 +526,13 @@ build:linux:riscv64:gcc-15:default:
     EIGEN_CI_CROSS_INSTALL: g++-15-riscv64-linux-gnu
     EIGEN_CI_CROSS_C_COMPILER: riscv64-linux-gnu-gcc-15
     EIGEN_CI_CROSS_CXX_COMPILER: riscv64-linux-gnu-g++-15
+    # Zvfbfmin+Zvfbfwma additionally enable the bfloat16 packets
+    # (PacketMathBF16.h), which are otherwise never compiled by CI.  gcc-only:
+    # clang 21 crashes mangling any function signature containing a
+    # fixed-length (riscv_rvv_vector_bits) RVV bfloat16 vector type; fixed in
+    # clang 22.
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=rv64gc_v_zvl256b_zfh_zvfh_zvfbfmin_zvfbfwma;-mrvv-vector-bits=zvl;-DEIGEN_RISCV64_USE_RVV10
 
 build:linux:riscv64:clang-21:default:
   extends: .build:linux:riscv64
