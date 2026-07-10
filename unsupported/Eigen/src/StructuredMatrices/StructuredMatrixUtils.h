@@ -26,10 +26,8 @@ namespace Eigen {
 
 namespace internal {
 
-// Evaluator shape of the structured operator types. Keying the operators on their
-// own shape (instead of DenseShape) routes dense assignment through the
-// EigenBase2EigenBase path (i.e. evalTo/addTo/subTo) and products through a single
-// generic_product_impl partial specialization covering every product tag.
+// A distinct shape routes assignment through evalTo/addTo/subTo and lets one
+// product specialization cover every product tag without colliding with DenseShape.
 struct StructuredShape {};
 
 // Below this dimension the FFT setup costs more than a plain O(n^2) evaluation,
@@ -109,8 +107,7 @@ std::vector<Index> structured_svd_permutation(const RealVectorType& mods) {
   for (Index k = 0; k < mods.size(); ++k) perm.push_back(k);
   std::stable_sort(perm.begin(), perm.end(), [&mods](Index a, Index b) {
     const RealScalar ka = mods[a], kb = mods[b];
-    // isgreater is the quiet branchless form of the NaN-last ordering: it is false
-    // whenever either side is NaN, and the second clause moves a in front of a NaN b.
+    // isgreater is quiet for NaNs; the second clause implements NaN-last ordering.
     return std::isgreater(ka, kb) || (!(numext::isnan)(ka) && (numext::isnan)(kb));
   });
   return perm;
@@ -264,6 +261,9 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
  * into the output after the back-transform. The scale is one whenever the
  * conservative intermediate bound cannot overflow, so results are bit-identical
  * for inputs of moderate magnitude; zero columns are never scaled.
+ * If \f$|x_i|<2^c\f$ and \f$|s_i|<2^s\f$, both transforms and the pointwise
+ * symbol product are bounded by
+ * \f[ 2^{c+s+2\lceil\log_2 p\rceil+1}. \f]
  *
  * Genuinely non-finite data must not go through the transforms: they mix every
  * input entry into every output entry, so a single special value would
@@ -285,25 +285,19 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
   eigen_assert(rhs.rows() <= p && outSize <= p);
 
   if (p == 1) {
-    // Degenerate 1x1 operator: the length-1 transform is the identity (and is not
-    // supported by the kissfft backend anyway).
+    // The length-one DFT is the identity and is unsupported by kissfft.
     dst.row(0) +=
         alpha * structured_scalar_part_impl<Scalar>::run(symbol.coeff(0) * rhs.row(0).template cast<Complex>());
     return;
   }
 
-  // Exponent budget of the power-of-two scaling: with the column scaled so that
-  // its magnitudes stay below 2^c, the intermediates are bounded by
-  // 2^(c + s + 2*ceil(log2(p)) + 1) -- each transform accumulates up to p
-  // addends and the complex multiplication by the symbol (magnitudes below 2^s)
-  // contributes one more bit -- which must stay below 2^max_exponent.
   int log2p = 0;
   for (Index t = p; t > 0; t /= 2) ++log2p;
   const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
   const int symbolExp = structured_exponent_bound(symbol);  // max|symbol| < 2^symbolExp
 
   auto&& fft = structured_fft_engine<RealScalar>();
-  ComplexVector xt = ComplexVector::Zero(p);  // the zero padding beyond rhs.rows() is never overwritten
+  ComplexVector xt = ComplexVector::Zero(p);
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
     int colExp;  // 0 for an all-zero column: no scaling

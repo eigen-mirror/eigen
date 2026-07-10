@@ -68,11 +68,11 @@ struct evaluator_traits<Circulant<Scalar_, Size_>> {
  * \class Circulant
  * \brief An \c n x \c n circulant matrix represented by its first column.
  *
- * A circulant matrix is the square matrix whose entry \c (i,j) equals
- * \c c[(i-j) mod n], where \c c is its first column. It is diagonalized by the
- * discrete Fourier transform: its eigenvalues -- the operator's \em symbol,
- * computed once at construction and reused by every product -- are the DFT of
- * \c c. This yields an O(n log n) matrix-vector product (\c operator*), an
+ * For first column \f$c\f$ and unitary DFT matrix \f$F\f$,
+ * \f[ C_{ij}=c_{(i-j)\bmod n}, \qquad C=F^*\operatorname{diag}(Fc)F. \f]
+ * Thus its eigenvalues -- the operator's \em symbol -- are \f$Fc\f$, computed
+ * once at construction and reused by every product. This yields an O(n log n)
+ * matrix-vector product (\c operator*), an
  * O(n log n) direct (pseudo-inverse) solve (\ref solve), and closed-form
  * factorizations: the eigendecomposition (\ref eigenvalues, \ref eigenvectors)
  * and the SVD (\ref singularValues, \ref matrixU, \ref matrixV) in the Fourier
@@ -272,8 +272,6 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       Circulant(pcol, ComplexVector(), ComplexVector()).directProduct(x, b.derived(), Scalar(1));
       return x;
     }
-    // Applying the circulant operator whose symbol is the (pseudo-)inverse of ours
-    // is exactly the (pseudo-)inverse operator.
     internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
     return x;
   }
@@ -478,9 +476,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       return;
     }
 
-    // Segment path: accumulate x_j times the j-th column of the operator, which
-    // is the generator rotated downwards by j. Only contiguous, forward segment
-    // operations are involved, so everything vectorizes.
+    // Column j is c rotated downward by j; split it into two contiguous segments.
     auto dstCol = dst.col(k);
     for (Index j = 0; j < n; ++j) {
       const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
@@ -563,9 +559,7 @@ Circulant<typename Derived::Scalar, Derived::SizeAtCompileTime> makeCirculant(co
 
 namespace internal {
 
-// The StructuredShape key makes this single partial specialization cover every
-// product tag (GEMV, GEMM, coeff-based, ...) without ambiguity against the stock
-// dense specializations, so products of any size and fixedness reach the fast path.
+// StructuredShape avoids ambiguity with the stock dense product specializations.
 template <typename Scalar_, int Size_, typename Rhs, int ProductTag>
 struct generic_product_impl<Circulant<Scalar_, Size_>, Rhs, StructuredShape, DenseShape, ProductTag>
     : structured_product_impl<Circulant<Scalar_, Size_>, Rhs> {};

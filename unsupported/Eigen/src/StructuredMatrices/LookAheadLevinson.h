@@ -30,16 +30,12 @@ struct traits<LookAheadLevinson<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dyna
   static constexpr int CoeffReadCost = Dynamic;
 };
 
-// Non-conjugating inner product sum_i a_i b_i. The look-ahead Levinson algorithm
-// is built on the persymmetry E_n T_n E_n = T_n^T, which uses the transpose (not
-// the adjoint), so every inner product here must be non-conjugating, including for
-// complex scalars: cwiseProduct + sum, not dot() (which conjugates its LHS).
+// Persymmetry E_n T_n E_n = T_n^T requires sum_i a_i b_i, not the conjugating dot().
 template <typename D1, typename D2>
 typename D1::Scalar structured_tdot(const MatrixBase<D1>& a, const MatrixBase<D2>& b) {
   return a.cwiseProduct(b).sum();
 }
 
-// Delta_k upshift: result[i] = v[i+1], result[k-1] = 0.
 template <typename Scalar>
 Matrix<Scalar, Dynamic, 1> structured_upshift(const Matrix<Scalar, Dynamic, 1>& v) {
   const Index k = v.size();
@@ -250,7 +246,6 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
   m_info = Success;
   m_normEst = c.cwiseAbs().sum() + r.cwiseAbs().sum();  // cheap upper bound on ||T||_2
 
-  // ---- init: start at the best-conditioned leading T_i, i = 1 .. min(pmax, n) ----
   Index k;
   DenseVector y, z;
   Scalar gamma(0);
@@ -270,7 +265,6 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
     m_sMin = best;
   }
 
-  // Previous-step bundle, used to build Y_p, Z_p at the next step.
   bool lastWasBlock = false;
   DenseVector yPrev, zPrev;
   Scalar gammaPrev(0);
@@ -300,12 +294,10 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
     }
   }
 
-  // ---- main loop ----
   while (k < n) {
     const Index pcap = numext::mini<Index>(m_maxBlockSize, n - k);
     const DenseVector Ek_y = y.reverse(), Ek_z = z.reverse();
 
-    // g_k, h_k (needed only to build Y_p, Z_p for p >= 2)
     DenseVector g_k, h_k;
     bool gh_ready = false;
     auto ensure_gh = [&]() {

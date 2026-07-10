@@ -56,9 +56,9 @@ struct evaluator_traits<Toeplitz<Scalar_, Rows_, Cols_>> {
  * \class Toeplitz
  * \brief An \c m x \c n Toeplitz matrix represented by its first column and row.
  *
- * A Toeplitz matrix has constant diagonals: entry \c (i,j) equals \c c[i-j] when
- * \c i>=j and \c r[j-i] otherwise, where \c c is its first column and \c r its
- * first row. The diagonal entry is taken from \c c, so \c r[0] is ignored.
+ * For first column \f$c\f$ and first row \f$r\f$,
+ * \f[ T_{ij}=\begin{cases}c_{i-j},&i\ge j,\\r_{j-i},&i<j.\end{cases} \f]
+ * The diagonal is taken from \f$c\f$, so \f$r_0\f$ is ignored.
  *
  * The matrix-vector product (\c operator*) is evaluated in O(n log n) by
  * embedding the Toeplitz matrix in a larger circulant matrix, whose DFT symbol is
@@ -292,10 +292,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
       return;
     }
 
-    // Segment path: accumulate x_j times the j-th column of the operator. Its
-    // head is a reversed slice of the row generator (entry i holds r[j-i]) and
-    // its tail the leading part of the column generator; both are segment
-    // operations that vectorize.
+    // Split each column at its diagonal into contiguous generator slices.
     auto dstCol = dst.col(k);
     for (Index j = 0; j < n; ++j) {
       const ProductScalar xj = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
@@ -343,8 +340,6 @@ Toeplitz<typename ColDerived::Scalar, ColDerived::SizeAtCompileTime, RowDerived:
 
 namespace internal {
 
-// Single product specialization covering every product tag; see the note in
-// Circulant.h.
 template <typename Scalar_, int Rows_, int Cols_, typename Rhs, int ProductTag>
 struct generic_product_impl<Toeplitz<Scalar_, Rows_, Cols_>, Rhs, StructuredShape, DenseShape, ProductTag>
     : structured_product_impl<Toeplitz<Scalar_, Rows_, Cols_>, Rhs> {};
