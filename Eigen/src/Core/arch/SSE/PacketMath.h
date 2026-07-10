@@ -1799,15 +1799,14 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   // Convert e to integer and swizzle to low-order bits.
   const Packet4i ei = vec4i_swizzle1(_mm_cvtpd_epi32(e), 0, 3, 1, 3);
 
-  // 4-way split + depth-3 multiply tree; see pldexp_generic for derivation.
+  // 4-way split, applied sequentially; see pldexp_generic for the derivation
+  // and for why the multiplies must not be re-associated.
   const Packet4i bias = _mm_set_epi32(0, 1023, 0, 1023);
   const Packet4i b = parithmetic_shift_right<2>(ei);                                  // floor(e/4)
   const Packet4i b_remainder = psub(psub(ei, b), padd(b, b));                         // e - 3b (depth 2)
   const Packet2d c1 = _mm_castsi128_pd(_mm_slli_epi64(padd(b, bias), 52));            // 2^b
   const Packet2d c2 = _mm_castsi128_pd(_mm_slli_epi64(padd(b_remainder, bias), 52));  // 2^(e - 3b)
-  const Packet2d c1_squared = pmul(c1, c1);
-  const Packet2d a_c1 = pmul(a, c1);
-  return pmul(pmul(a_c1, c1_squared), c2);  // a * 2^e
+  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);                                   // a * 2^e
 }
 
 // We specialize pldexp here, since the generic implementation uses Packet2l, which is not well

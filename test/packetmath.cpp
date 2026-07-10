@@ -1043,6 +1043,27 @@ void packetmath_real() {
       data1[i + PacketSize] = Scalar(-1 - (i % 8));  // -1, -2, ..., -8
     }
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // Exponents of the largest magnitude, |e| >= 2 * max_exponent.  In this
+    // region no product of the scale factors of the 4-way split fits in a
+    // finite Scalar, so the multiplies must be applied to 'a' sequentially --
+    // otherwise 0 * 2^e turns into 0 * inf = NaN and denormals scale to inf
+    // instead of their exact finite result.
+#if !EIGEN_ARCH_ARM
+    const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
+#else
+    // 32-bit ARM flushes denormal inputs to zero.
+    const Scalar tiny = (std::numeric_limits<Scalar>::min)();
+#endif
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = (i % 2) ? tiny : Scalar(0);
+      data1[i + PacketSize] = Scalar(2 * NumTraits<Scalar>::max_exponent() + (i % 4));
+    }
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = (i % 2) ? Scalar(1) : Scalar(0);
+      data1[i + PacketSize] = Scalar(-2 * NumTraits<Scalar>::max_exponent() - (i % 4));
+    }
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
   }
 
   for (int i = 0; i < size; ++i) {

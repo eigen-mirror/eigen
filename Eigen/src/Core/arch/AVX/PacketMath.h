@@ -1895,17 +1895,15 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // 4-way split + depth-3 multiply tree; see pldexp_generic for derivation
-  // (including why the first multiply must be a*c1, not a*c2).
+  // 4-way split, applied sequentially; see pldexp_generic for the derivation
+  // and for why the multiplies must not be re-associated.
   const Packet4i bias = pset1<Packet4i>(1023);
   const Packet4i b = parithmetic_shift_right<2>(e);                          // floor(e/4)
   const Packet4i b_remainder = psub(psub(e, b), padd(b, b));                 // e - 3b (depth 2)
   const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));            // 2^b
   const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));  // 2^(e-3b)
 
-  const Packet4d c1_squared = pmul(c1, c1);
-  const Packet4d a_c1 = pmul(a, c1);
-  return pmul(pmul(a_c1, c1_squared), c2);  // a * 2^e
+  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);  // a * 2^e
 }
 
 template <>

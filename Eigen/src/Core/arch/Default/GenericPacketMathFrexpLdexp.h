@@ -112,11 +112,16 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   //     b = floor(e/4);
   //     c1 = 2^b
   //     c2 = 2^(e - 3b)
-  //   out = a * c1^3 * c2  (= a * 2^e)
+  //   out = (((a * c1) * c1) * c1) * c2  (= a * 2^e)
   //
-  // Re-associate as (a * c1) * (c1 * c1) * c2 so c1*c1 runs in parallel with
-  // a*c1; the dependent-multiply chain is 3 deep instead of 4.  Multiplying
-  // by c1 (the downscale factor) first is required for safety: for negative
+  // The multiplication order is required for correctness: every partial
+  // product contains 'a', so the intermediates grow (or shrink) monotonically
+  // towards the final result and cannot spuriously over- or underflow. Do NOT
+  // re-associate the multiplies: any product of the scale factors alone
+  // overflows for |e| >= 2^ExponentBits (e.g. c1*c1 = 2^(2b) = inf for e = 256
+  // in single precision), turning pldexp(0, 256) into 0 * inf = NaN and
+  // scaling denormals to inf instead of their exact finite result. Multiplying
+  // by c1 (the downscale factor) before c2 also matters: for negative
   // exponents the remainder factor c2 = 2^(e-3b) can be > 1 (e.g. e=-1 ->
   // b=-1 -> c2=4), so a*c2 would overflow at |a| near max even when the
   // final ldexp result is finite.
@@ -135,9 +140,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
   const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  const Packet c1_squared = pmul(c1, c1);
-  const Packet a_c1 = pmul(a, c1);
-  return pmul(pmul(a_c1, c1_squared), c2);
+  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);                                                    // a * 2^e
 }
 
 // Explicitly multiplies

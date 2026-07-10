@@ -1483,7 +1483,8 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
   const Packet8d max_exponent = pset1<Packet8d>(2099.0);
   const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // 4-way split + depth-3 multiply tree; see pldexp_generic for derivation.
+  // 4-way split, applied sequentially; see pldexp_generic for the derivation
+  // and for why the multiplies must not be re-associated.
   // 2^b and 2^(e-3b) are built by widening the biased int32 exponent to int64
   // with vpmovsxdq and shifting into the double exponent field with vpsllq.
   const Packet8i bias = pset1<Packet8i>(1023);
@@ -1493,9 +1494,7 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
   const Packet8d c2 =
       _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
 
-  const Packet8d c1_squared = pmul(c1, c1);
-  const Packet8d a_c1 = pmul(a, c1);
-  return pmul(pmul(a_c1, c1_squared), c2);  // a * 2^e
+  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);  // a * 2^e
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ
