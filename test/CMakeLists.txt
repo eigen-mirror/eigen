@@ -385,6 +385,7 @@ if(COMPILER_SUPPORT_WNO_NAN_INF)
 endif()
 
 ei_add_test(fastmath "${EIGEN_FASTMATH_FLAGS}")
+ei_add_test(bdcsvd_fastmath "${EIGEN_FASTMATH_FLAGS}")
 
 # # ei_add_test(denseLM)
 

@@ -188,23 +188,54 @@ void bdcsvd_mixed_option_enum_regression() {
 #endif
 
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
-void bdcsvd_public_missing_predecessor() {
-  Matrix<double, 6, 6> matrix = Matrix<double, 6, 6>::Zero();
+void bdcsvd_extreme_scale_regressions() {
+  typedef Matrix<double, 6, 6> Matrix6d;
+  const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
+
+  const auto verify_decomposition = [kTolerance](const Matrix6d& matrix) {
+    BDCSVD<Matrix6d, ComputeFullU | ComputeFullV> svd;
+    svd.setSwitchSize(3);
+    svd.compute(matrix);
+
+    VERIFY(svd.info() == Success);
+
+    const Matrix6d reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
+    VERIFY((reconstruction - matrix).stableNorm() <= kTolerance * matrix.stableNorm());
+
+    const Matrix6d identity = Matrix6d::Identity();
+    VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).stableNorm() <= kTolerance);
+    VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).stableNorm() <= kTolerance);
+
+    // Also exercise the values-only path, which uses a compact m_naiveU and
+    // linear workspace during divide-and-conquer merges.
+    BDCSVD<Matrix6d> valuesOnlySvd;
+    valuesOnlySvd.setSwitchSize(3);
+    valuesOnlySvd.compute(matrix);
+    VERIFY(valuesOnlySvd.info() == Success);
+    VERIFY_IS_APPROX(valuesOnlySvd.singularValues(), svd.singularValues());
+  };
+
+  Matrix6d matrix = Matrix6d::Zero();
   const double kSubnormal1040 = std::numeric_limits<double>::denorm_min() * 17179869184.0;  // 2^-1040
   const double kSubnormal1060 = std::numeric_limits<double>::denorm_min() * 16384.0;        // 2^-1060
   const double kSmallestNormal = (std::numeric_limits<double>::min)();                      // 2^-1022
   const double kNormal1000 = kSmallestNormal * 4194304.0;                                   // 2^-1000
 
-  // `perm` filters subnormals below `considerZero`, but `perturbCol0` still
-  // treats exact subnormal entries as non-zero.
+  // The merge combines normal and subnormal couplings. Squaring the two
+  // coupling terms directly used to underflow, which later left perturbCol0
+  // without a predecessor and made the decomposition report NumericalIssue.
   matrix.diagonal() << kSubnormal1040, -kSubnormal1060, kSmallestNormal, 0.5, 1.0, kSmallestNormal;
   matrix.diagonal(1) << -kNormal1000, kNormal1000, kSubnormal1040, kSubnormal1060, -8.0;
+  verify_decomposition(matrix);
 
-  BDCSVD<Matrix<double, 6, 6>> svd;
-  svd.setSwitchSize(3);
-  svd.compute(matrix);
-
-  VERIFY(svd.info() == NumericalIssue);
+  // A singular-vector coefficient grows to about 2^570 here. Its squared
+  // norm overflows even though the vector has a finite, well-scaled
+  // normalization.
+  using std::ldexp;
+  matrix.setZero();
+  matrix.diagonal() << 0.0, 0.0, ldexp(1.0, -487), -1.0, 0.0, 0.0;
+  matrix.diagonal(1) << 0.0, ldexp(1.0, -453), -ldexp(1.0, -627), 0.0, 0.0;
+  verify_decomposition(matrix);
 }
 #endif
 
@@ -309,6 +340,6 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // Bidiagonal SVD hard test cases
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
-  CALL_SUBTEST_53((bdcsvd_public_missing_predecessor()));
+  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions()));
   CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
 }

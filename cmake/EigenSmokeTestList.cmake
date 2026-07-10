@@ -16,6 +16,7 @@ set(ei_smoke_test_list
   autodiff_scalar_1
   bandmatrix
   bdcsvd_9
+  bdcsvd_fastmath
   bessel_functions_1
   bfloat16_float
   blasutil_1
