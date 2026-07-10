@@ -135,10 +135,15 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** \internal Evaluates the solution of \c T*x = rhs into \a dst; called through
-   * the \c Solve expression returned by \c SolverBase::solve. */
+   * the \c Solve expression returned by \c SolverBase::solve. The copy must be
+   * coefficient-wise (noalias), never a move: when the Solve expression is
+   * evaluated inside a larger expression, \c evaluator<Solve> caches pointers
+   * into \a dst before calling this, and a move-assignment of the returned
+   * matrix (same plain type for a matrix right-hand side) would steal its buffer
+   * and leave those pointers dangling. */
   template <typename RhsType, typename DstType>
   void _solve_impl(const RhsType& rhs, DstType& dst) const {
-    dst = solveForward(rhs);
+    dst.noalias() = solveForward(rhs);
   }
 
   /** \internal Persymmetry E T E = T^T (with E the exchange matrix) turns the

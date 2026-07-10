@@ -34,7 +34,18 @@ namespace Eigen {
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
  * matrix; and since they hook into the evaluator system, they can be assigned
- * to a dense matrix when an explicit representation is needed.
+ * to a dense matrix when an explicit representation is needed. Like every
+ * matrix-free operator, they carry no coefficient storage the default
+ * preconditioners could read, so the iterative solvers must be instantiated
+ * with \c IdentityPreconditioner.
+ *
+ * Both operator types are closed under transposition (\c transpose(),
+ * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
+ * cached symbol), which in particular feeds the least-squares solvers \c LSMR
+ * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).
+ * \c Circulant additionally exposes its closed-form eigendecomposition and SVD
+ * in the Fourier basis, a pseudo-inverse (minimum-norm least-squares) solve,
+ * \c rank(), \c inverse() and \c determinant().
  *
  * \code
  * #include <unsupported/Eigen/StructuredMatrices>
