@@ -356,6 +356,10 @@ The `EIGEN_GEMM_THREADPOOL` backend is Eigen's own **work-stealing thread pool**
 - **Forward declarations**: `Eigen/src/Core/util/ForwardDeclarations.h` is the canonical entry point for "where is type X declared?". `internal::traits<T>` carries compile-time information (scalar type, dimensions, flags) without forward-declaration issues.
 - **Assertions**: use `eigen_assert(cond)` (defined in `Eigen/src/Core/util/Macros.h`), not raw `assert()` / `static_assert()` for runtime preconditions in library code. The test harness redefines `eigen_assert` so `VERIFY_RAISES_ASSERT(expr)` can verify failures, and it honors `EIGEN_NO_DEBUG` / `NDEBUG`. For internal-only invariants, `eigen_internal_assert(cond)` is gated on `EIGEN_INTERNAL_DEBUGGING`. For compile-time conditions, `EIGEN_STATIC_ASSERT(cond, MSG_TOKEN)` is preferred over plain `static_assert` because it integrates with Eigen's diagnostic-token machinery.
 
+### Comments
+
+Keep comments concise. Coding agents in particular should avoid lengthy commentary and comments that narrate what self-evident code does. Prefer comments that explain the mathematics, invariants, or reasoning behind an algorithm, especially where these are not obvious from the implementation. Use Doxygen's `\f$ ... \f$` for inline formulas or `\f[ ... \f]` for displayed formulas.
+
 ## Common pitfalls
 
 - **Aliasing**: `mat = mat * mat` is safe (auto-temporary), but `mat.noalias() = mat * mat` is **wrong**. Only use `.noalias()` when the destination doesn't appear on the right side.
