@@ -799,6 +799,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half expm1(const half& a) { return half(numext::expm1(float(a))); }
+// float covers the half range, so the single conversion back rounds correctly.
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ldexp(const half& a, int exponent) {
+  return half(numext::ldexp(float(a), exponent));
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log(const half& a) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return half(hlog(::__half(a)));

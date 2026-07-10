@@ -1895,8 +1895,7 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // 4-way split, applied sequentially; see pldexp_generic for the derivation
-  // and for why the multiplies must not be re-associated.
+  // Preserve the sequential 4-way split; see pldexp_generic.
   const Packet4i bias = pset1<Packet4i>(1023);
   const Packet4i b = parithmetic_shift_right<2>(e);                          // floor(e/4)
   const Packet4i b_remainder = psub(psub(e, b), padd(b, b));                 // e - 3b (depth 2)

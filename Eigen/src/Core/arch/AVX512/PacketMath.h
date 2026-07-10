@@ -1483,8 +1483,7 @@ EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d&
   const Packet8d max_exponent = pset1<Packet8d>(2099.0);
   const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // 4-way split, applied sequentially; see pldexp_generic for the derivation
-  // and for why the multiplies must not be re-associated.
+  // Preserve the sequential 4-way split; see pldexp_generic.
   // 2^b and 2^(e-3b) are built by widening the biased int32 exponent to int64
   // with vpmovsxdq and shifting into the double exponent field with vpsllq.
   const Packet8i bias = pset1<Packet8i>(1023);

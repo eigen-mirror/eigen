@@ -397,6 +397,38 @@ struct functor_traits<scalar_exp2_op<Scalar>> {
 
 /** \internal
  *
+ * \brief Multiplies a scalar by 2 raised to a fixed integer exponent.
+ *
+ * \sa class CwiseUnaryOp, ArrayBase::ldexp()
+ */
+template <typename Scalar>
+struct scalar_ldexp_op {
+  static_assert(!NumTraits<Scalar>::IsComplex && !NumTraits<Scalar>::IsInteger,
+                "ldexp is only defined for real floating-point scalar types");
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit scalar_ldexp_op(int exponent) : m_exponent(exponent) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    return numext::ldexp(a, m_exponent);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+    // pldexp clamps exponents, so a saturating conversion to Scalar is safe.
+    return internal::pldexp(a, pset1<Packet>(static_cast<Scalar>(m_exponent)));
+  }
+
+ private:
+  const int m_exponent;
+};
+template <typename Scalar>
+struct functor_traits<scalar_ldexp_op<Scalar>> {
+  enum {
+    // HasExp packets already require a tested pldexp implementation.
+    PacketAccess = packet_traits<Scalar>::HasExp,
+    Cost = 4 * NumTraits<Scalar>::MulCost
+  };
+};
+
+/** \internal
+ *
  * \brief Template functor to compute the exponential of a scalar - 1.
  *
  * \sa class CwiseUnaryOp, ArrayBase::expm1()

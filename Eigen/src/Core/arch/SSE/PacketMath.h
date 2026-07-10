@@ -1799,8 +1799,7 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   // Convert e to integer and swizzle to low-order bits.
   const Packet4i ei = vec4i_swizzle1(_mm_cvtpd_epi32(e), 0, 3, 1, 3);
 
-  // 4-way split, applied sequentially; see pldexp_generic for the derivation
-  // and for why the multiplies must not be re-associated.
+  // Preserve the sequential 4-way split; see pldexp_generic.
   const Packet4i bias = _mm_set_epi32(0, 1023, 0, 1023);
   const Packet4i b = parithmetic_shift_right<2>(ei);                                  // floor(e/4)
   const Packet4i b_remainder = psub(psub(ei, b), padd(b, b));                         // e - 3b (depth 2)

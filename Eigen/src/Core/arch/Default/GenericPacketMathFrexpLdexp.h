@@ -114,17 +114,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   //     c2 = 2^(e - 3b)
   //   out = (((a * c1) * c1) * c1) * c2  (= a * 2^e)
   //
-  // The multiplication order is required for correctness: every partial
-  // product contains 'a', so the intermediates grow (or shrink) monotonically
-  // towards the final result and cannot spuriously over- or underflow. Do NOT
-  // re-associate the multiplies: any product of the scale factors alone
-  // overflows for |e| >= 2^ExponentBits (e.g. c1*c1 = 2^(2b) = inf for e = 256
-  // in single precision), turning pldexp(0, 256) into 0 * inf = NaN and
-  // scaling denormals to inf instead of their exact finite result. Multiplying
-  // by c1 (the downscale factor) before c2 also matters: for negative
-  // exponents the remainder factor c2 = 2^(e-3b) can be > 1 (e.g. e=-1 ->
-  // b=-1 -> c2=4), so a*c2 would overflow at |a| near max even when the
-  // final ldexp result is finite.
+  // Every partial product must contain 'a'. Reassociating scale factors can
+  // overflow (for example c1*c1 at e=256 for float), making pldexp(0, 256)
+  // NaN and finite denormal results infinite. Apply c1 before c2 because c2
+  // may exceed one for negative exponents (e.g. c2=4 for e=-1), overflowing
+  // values near max even when the final result is finite.
   typedef typename unpacket_traits<Packet>::integer_packet PacketI;
   typedef typename unpacket_traits<Packet>::type Scalar;
   typedef typename unpacket_traits<PacketI>::type ScalarI;

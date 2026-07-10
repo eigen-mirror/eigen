@@ -199,6 +199,24 @@ EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
 }
 #endif
 
+/** \returns an expression of the coefficients of \a x multiplied by \f$ 2^{exponent} \f$.
+ *
+ * The scaling is exact: it directly adjusts the floating-point exponent, so it produces
+ * correct results (including denormals) even when \f$ 2^{exponent} \f$ itself is not
+ * representable as a scalar.
+ *
+ * \sa ArrayBase::ldexp()
+ *
+ * \relates ArrayBase
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC constexpr inline const CwiseUnaryOp<internal::scalar_ldexp_op<typename Derived::Scalar>,
+                                                      const Derived>
+ldexp(const Eigen::ArrayBase<Derived>& x, int exponent) {
+  return CwiseUnaryOp<internal::scalar_ldexp_op<typename Derived::Scalar>, const Derived>(
+      x.derived(), internal::scalar_ldexp_op<typename Derived::Scalar>(exponent));
+}
+
 /** \returns an expression of the coefficient-wise atan2(\a x, \a y). \a x and \a y must be of the same type.
  *
  * This function computes the coefficient-wise atan2().

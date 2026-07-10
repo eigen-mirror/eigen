@@ -224,6 +224,59 @@ void unary_ops_test() {
   */
 }
 
+template <typename Scalar>
+void ldexp_test() {
+  const std::vector<Scalar> vals = special_values<Scalar>();
+  // Exercise both packet and scalar tails.
+  const Index num_repeats = 2 * Index(internal::packet_traits<Scalar>::size) + 1;
+  Array<Scalar, Dynamic, 1> x(num_repeats * Index(vals.size()));
+  Index count = 0;
+  for (const Scalar& value : vals) {
+    for (Index repeat = 0; repeat < num_repeats; ++repeat) x(count++) = value;
+  }
+
+  const int digits = std::numeric_limits<Scalar>::digits;
+  const int max_exp = std::numeric_limits<Scalar>::max_exponent;
+  // Include denormals, saturation, and unrepresentable 2^e scale factors.
+  const int exponents[] = {0,
+                           1,
+                           -1,
+                           digits - 1,
+                           1 - digits,
+                           max_exp - 1,
+                           1 - max_exp,
+                           max_exp + digits,
+                           -(max_exp + digits),
+                           2 * max_exp,
+                           -2 * max_exp,
+                           (std::numeric_limits<int>::max)(),
+                           (std::numeric_limits<int>::min)()};
+
+  bool all_pass = true;
+  for (const int exponent : exponents) {
+    const Array<Scalar, Dynamic, 1> method_result = x.ldexp(exponent);
+    const Array<Scalar, Dynamic, 1> global_result = Eigen::ldexp(x, exponent);
+    for (Index i = 0; i < x.size(); ++i) {
+      // double covers every tested Scalar, so one conversion back gives the exact reference.
+      const double expected = static_cast<double>(static_cast<Scalar>(std::ldexp(static_cast<double>(x(i)), exponent)));
+#if EIGEN_ARCH_ARM
+      // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results.
+      if (expected != 0.0 && std::abs(expected) < static_cast<double>((std::numeric_limits<Scalar>::min)())) continue;
+#endif
+      for (const Scalar& result : {method_result(i), global_result(i)}) {
+        const double actual = static_cast<double>(result);
+        const bool success = (actual == expected && std::signbit(actual) == std::signbit(expected)) ||
+                             ((numext::isnan)(actual) && (numext::isnan)(expected));
+        all_pass &= success;
+        if (!success) {
+          std::cout << "ldexp(" << x(i) << "," << exponent << ") = " << result << " != " << expected << std::endl;
+        }
+      }
+    }
+  }
+  VERIFY(all_pass);
+}
+
 template <typename Base, typename Exponent, bool ExpIsInteger = NumTraits<Exponent>::IsInteger>
 struct ref_pow {
   static Base run(Base base, Exponent exponent) {
@@ -1428,6 +1481,12 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_20(int_pow_test());
     CALL_SUBTEST_21(mixed_pow_test());
     CALL_SUBTEST_22(signbit_tests());
+  }
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_34(ldexp_test<float>());
+    CALL_SUBTEST_35(ldexp_test<double>());
+    CALL_SUBTEST_36(ldexp_test<Eigen::half>());
+    CALL_SUBTEST_37(ldexp_test<Eigen::bfloat16>());
   }
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_23(typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));

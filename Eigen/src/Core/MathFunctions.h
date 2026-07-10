@@ -1680,6 +1680,37 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<double> exp2(const std::compl
 }
 #endif
 
+// Exact scaling by 2^exponent, including denormals and unrepresentable scale factors.
+// Results outside the finite range saturate to zero or infinity.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T ldexp(const T& x, int exponent) {
+  EIGEN_USING_STD(ldexp);
+  return static_cast<T>(ldexp(x, exponent));
+}
+
+#if defined(SYCL_DEVICE_ONLY)
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE cl::sycl::cl_float ldexp(const cl::sycl::cl_float& x, int exponent) {
+  return cl::sycl::ldexp(x, exponent);
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE cl::sycl::cl_double ldexp(const cl::sycl::cl_double& x, int exponent) {
+  return cl::sycl::ldexp(x, exponent);
+}
+#endif
+
+#if defined(EIGEN_GPUCC)
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float ldexp(const float& x, int exponent) {
+  return ::ldexpf(x, exponent);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double ldexp(const double& x, int exponent) {
+  return ::ldexp(x, exponent);
+}
+#endif
+
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(expm1, Scalar) expm1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(expm1, Scalar)::run(x);
