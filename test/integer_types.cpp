@@ -59,6 +59,11 @@ void integer_type_tests(const MatrixType& m) {
   SquareMatrixType square = RandomMatrix<SquareMatrixType>(rows, rows, Scalar(0), kMax);
   VectorType v1 = RandomMatrix<VectorType, Scalar>(rows, Index(1), Scalar(0), NumTraits<Scalar>::highest() / Scalar(2));
 
+  // The checks below require m1 != 2 * m1, m1 != m2, and v1 != 2 * v1, which random draws do not
+  // guarantee (in particular for 1x1 matrices); patch one entry to rule out the degenerate cases.
+  if (m1 == MatrixType::Zero(rows, cols) || m1 == m2) m1(0, 0) = m2(0, 0) + Scalar(1);
+  if (v1 == VectorType::Zero(rows)) v1(0) = Scalar(1);
+
   VERIFY_IS_APPROX(v1, v1);
   VERIFY_IS_NOT_APPROX(v1, 2 * v1);
   VERIFY_IS_APPROX(VectorType::Zero(rows), v1 - v1);
