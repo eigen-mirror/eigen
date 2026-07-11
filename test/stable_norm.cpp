@@ -8,12 +8,25 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 
 template <typename T>
 EIGEN_DONT_INLINE T copy(const T& x) {
   return x;
 }
+
+struct StableNormCountingOp {
+  explicit StableNormCountingOp(Index* counter) : count(counter) {}
+
+  EIGEN_DONT_INLINE double operator()(Index index) const {
+    ++*count;
+    return double(index + 1);
+  }
+
+  Index* count;
+};
 
 template <typename MatrixType>
 void stable_norm(const MatrixType& m) {
@@ -213,6 +226,382 @@ void test_empty() {
   VERIFY_IS_EQUAL(empty.stableNorm(), 0.0f);
 }
 
+template <typename RealScalar>
+void stable_normalize_extremes() {
+  typedef Matrix<RealScalar, 2, 1> Vector2;
+  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixX;
+  using std::signbit;
+  using std::sqrt;
+
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
+  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar infinity = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  const RealScalar inv_sqrt_two = RealScalar(1) / sqrt(RealScalar(2));
+
+  {
+    const Vector2 input = Vector2::Constant(highest);
+    const Vector2 expected = Vector2::Constant(inv_sqrt_two);
+    VERIFY_IS_APPROX(input.stableNormalized(), expected);
+    Vector2 actual = input;
+    actual.stableNormalize();
+    VERIFY_IS_APPROX(actual, expected);
+    VERIFY_IS_APPROX(actual.norm(), RealScalar(1));
+  }
+
+  {
+    Vector2 input;
+    input << highest, highest / RealScalar(2);
+    Vector2 expected;
+    expected << RealScalar(1), RealScalar(0.5);
+    expected.normalize();
+    VERIFY_IS_APPROX(input.stableNormalized(), expected);
+    input.stableNormalize();
+    VERIFY_IS_APPROX(input, expected);
+  }
+
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0)) {
+    const Vector2 input = Vector2::Constant(denorm);
+    const Vector2 expected = Vector2::Constant(inv_sqrt_two);
+    VERIFY_IS_APPROX(input.stableNormalized(), expected);
+    Vector2 actual = input;
+    actual.stableNormalize();
+    VERIFY_IS_APPROX(actual, expected);
+    VERIFY_IS_APPROX(actual.norm(), RealScalar(1));
+  }
+
+  {
+    Vector2 zero;
+    zero << RealScalar(0), -RealScalar(0);
+    const Vector2 normalized = zero.stableNormalized();
+    VERIFY_IS_EQUAL(normalized(0), RealScalar(0));
+    VERIFY_IS_EQUAL(normalized(1), -RealScalar(0));
+    VERIFY(!signbit(normalized(0)));
+    VERIFY(signbit(normalized(1)));
+    zero.stableNormalize();
+    VERIFY(!signbit(zero(0)));
+    VERIFY(signbit(zero(1)));
+  }
+
+  {
+    Vector2 input;
+    input << infinity, RealScalar(1);
+    const Vector2 normalized = input.stableNormalized();
+    VERIFY(isPlusInf(normalized(0)));
+    VERIFY_IS_EQUAL(normalized(1), RealScalar(1));
+    input.stableNormalize();
+    VERIFY(isPlusInf(input(0)));
+    VERIFY_IS_EQUAL(input(1), RealScalar(1));
+  }
+
+  {
+    Vector2 input;
+    input << nan, RealScalar(1);
+    const Vector2 normalized = input.stableNormalized();
+    VERIFY((numext::isnan)(normalized(0)));
+    VERIFY_IS_EQUAL(normalized(1), RealScalar(1));
+    input.stableNormalize();
+    VERIFY((numext::isnan)(input(0)));
+    VERIFY_IS_EQUAL(input(1), RealScalar(1));
+  }
+
+  {
+    Vector2 input;
+    input << RealScalar(1), nan;
+    const Vector2 normalized = input.stableNormalized();
+    VERIFY_IS_EQUAL(normalized(0), RealScalar(1));
+    VERIFY((numext::isnan)(normalized(1)));
+    input.stableNormalize();
+    VERIFY_IS_EQUAL(input(0), RealScalar(1));
+    VERIFY((numext::isnan)(input(1)));
+  }
+
+  {
+    VectorX empty_vector(0);
+    VERIFY_IS_EQUAL(empty_vector.stableNormalized().size(), 0);
+    empty_vector.stableNormalize();
+    VERIFY_IS_EQUAL(empty_vector.size(), 0);
+
+    MatrixX empty_rows(0, 3);
+    MatrixX empty_cols(3, 0);
+    VERIFY_IS_EQUAL(empty_rows.stableNormalized().size(), 0);
+    VERIFY_IS_EQUAL(empty_cols.stableNormalized().size(), 0);
+    empty_rows.stableNormalize();
+    empty_cols.stableNormalize();
+    VERIFY_IS_EQUAL(empty_rows.rows(), 0);
+    VERIFY_IS_EQUAL(empty_rows.cols(), 3);
+    VERIFY_IS_EQUAL(empty_cols.rows(), 3);
+    VERIFY_IS_EQUAL(empty_cols.cols(), 0);
+    VERIFY_IS_EQUAL(empty_rows.blueNorm(), RealScalar(0));
+    VERIFY_IS_EQUAL(empty_cols.blueNorm(), RealScalar(0));
+    VERIFY_IS_EQUAL(empty_rows.hypotNorm(), RealScalar(0));
+    VERIFY_IS_EQUAL(empty_cols.hypotNorm(), RealScalar(0));
+  }
+}
+
+template <typename RealScalar>
+void stable_normalize_complex_extremes() {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Complex, Dynamic, 1> VectorX;
+  using std::sqrt;
+
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
+  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar inv_sqrt_two = RealScalar(1) / sqrt(RealScalar(2));
+
+  {
+    VectorX input(1);
+    input(0) = Complex(highest, highest);
+    const Complex expected(inv_sqrt_two, inv_sqrt_two);
+    const VectorX normalized = input.stableNormalized();
+    VERIFY_IS_APPROX(normalized(0), expected);
+    input.stableNormalize();
+    VERIFY_IS_APPROX(input(0), expected);
+    VERIFY_IS_APPROX(input.norm(), RealScalar(1));
+  }
+
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0)) {
+    VectorX input(1);
+    input(0) = Complex(denorm, -denorm);
+    const Complex expected(inv_sqrt_two, -inv_sqrt_two);
+    VERIFY_IS_APPROX(input.stableNormalized()(0), expected);
+    input.stableNormalize();
+    VERIFY_IS_APPROX(input(0), expected);
+  }
+}
+
+template <typename RealScalar>
+void stable_norm_extreme_cross_product() {
+  typedef Matrix<RealScalar, 2, 1> Vector2;
+  using std::sqrt;
+
+  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar smallest = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
+  const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
+  const RealScalar values[] = {RealScalar(0),
+                               denorm,
+                               smallest,
+                               sqrt(smallest),
+                               epsilon,
+                               RealScalar(1),
+                               RealScalar(1) / epsilon,
+                               sqrt(highest) / RealScalar(2),
+                               highest / RealScalar(2),
+                               highest};
+  const int value_count = int(sizeof(values) / sizeof(values[0]));
+
+  for (int i = 0; i < value_count; ++i) {
+    for (int j = 0; j < value_count; ++j) {
+      Vector2 input;
+      input << values[i], values[j];
+      const RealScalar reference = numext::hypot(values[i], values[j]);
+      if ((numext::isinf)(reference)) {
+        VERIFY(isPlusInf(input.stableNorm()));
+        VERIFY(isPlusInf(input.blueNorm()));
+        VERIFY(isPlusInf(input.hypotNorm()));
+      } else {
+        VERIFY_IS_APPROX(input.stableNorm(), reference);
+        VERIFY_IS_APPROX(input.blueNorm(), reference);
+        VERIFY_IS_APPROX(input.hypotNorm(), reference);
+      }
+    }
+  }
+}
+
+template <typename RealScalar>
+void stable_norm_mixed_underflow() {
+  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
+  using std::abs;
+  using std::sqrt;
+
+  if (std::numeric_limits<RealScalar>::has_denorm != std::denorm_present) return;
+
+  const Index size = 4096;
+  const RealScalar large = sqrt((std::numeric_limits<RealScalar>::min)());
+  const RealScalar small = sqrt(std::numeric_limits<RealScalar>::denorm_min()) * RealScalar(0.5);
+  VectorX input = VectorX::Constant(size, small);
+  input(0) = large;
+
+  const RealScalar reference = numext::hypot(large, sqrt(RealScalar(size - 1)) * small);
+  const RealScalar relative_error = abs(input.stableNorm() - reference) / reference;
+  // Leave room for the SIMD reduction order while still detecting the roughly
+  // 512-epsilon loss caused by squaring this block without scaling.
+  const RealScalar tolerance = RealScalar(128) * NumTraits<RealScalar>::epsilon();
+  VERIFY(relative_error <= tolerance);
+}
+
+template <typename RealScalar>
+void stable_norm_denormal_rounding() {
+  typedef Matrix<RealScalar, 2, 1> Vector2;
+  const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
+  if (std::numeric_limits<RealScalar>::has_denorm != std::denorm_present || !(denorm > RealScalar(0))) return;
+
+  // sqrt(2) * denorm_min rounds back to denorm_min.  An approximate check at
+  // this scale can accept zero because its own error calculation underflows.
+  const Vector2 input = Vector2::Constant(denorm);
+  VERIFY_IS_EQUAL(input.stableNorm(), denorm);
+  VERIFY_IS_EQUAL(input.blueNorm(), denorm);
+  VERIFY_IS_EQUAL(input.hypotNorm(), denorm);
+}
+
+template <typename Scalar>
+void stable_norm_low_precision() {
+  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using std::abs;
+  using std::sqrt;
+
+  const Index size = 65536;
+  const Scalar value(0.001f);
+  const float value_as_float = static_cast<float>(value);
+  const float reference = sqrt(static_cast<float>(size)) * abs(value_as_float);
+  const float relative_tolerance = 8.0f * static_cast<float>(NumTraits<Scalar>::epsilon());
+  VectorX input = VectorX::Constant(size, value);
+
+  const float stable_norm = static_cast<float>(input.stableNorm());
+  const float blue_norm = static_cast<float>(input.blueNorm());
+  const float hypot_norm = static_cast<float>(input.hypotNorm());
+  VERIFY(abs(stable_norm - reference) <= relative_tolerance * reference);
+  VERIFY(abs(blue_norm - reference) <= relative_tolerance * reference);
+  VERIFY(abs(hypot_norm - reference) <= relative_tolerance * reference);
+
+  const VectorX normalized = input.stableNormalized();
+  const float promoted_norm = normalized.template cast<float>().norm();
+  VERIFY(abs(promoted_norm - 1.0f) <= relative_tolerance);
+  input.stableNormalize();
+  const float promoted_in_place_norm = input.template cast<float>().norm();
+  VERIFY(abs(promoted_in_place_norm - 1.0f) <= relative_tolerance);
+}
+
+template <typename RealScalar>
+void stable_norm_complex_low_precision() {
+  typedef std::complex<RealScalar> Complex;
+  typedef Matrix<Complex, 1, 1> Vector1;
+  using std::abs;
+
+  Vector1 input;
+  input(0) = Complex(RealScalar(3), RealScalar(4));
+  const float tolerance = 8.0f * static_cast<float>(NumTraits<RealScalar>::epsilon());
+  const Complex normalized = input.stableNormalized()(0);
+  VERIFY(abs(static_cast<float>(normalized.real()) - 0.6f) <= tolerance);
+  VERIFY(abs(static_cast<float>(normalized.imag()) - 0.8f) <= tolerance);
+  input.stableNormalize();
+  VERIFY(abs(static_cast<float>(input(0).real()) - 0.6f) <= tolerance);
+  VERIFY(abs(static_cast<float>(input(0).imag()) - 0.8f) <= tolerance);
+}
+
+void stable_normalize_promoted_factor() {
+  typedef Matrix<half, Dynamic, 1> VectorX;
+  using std::abs;
+
+  // The combined normalization factor is just below half's first subnormal,
+  // while every final coefficient is representable.  Applying the factor in
+  // float before converting each result must therefore not produce zeros.
+  const Index size = 4194305;
+  const half value(16384.0f);
+  const float tolerance = 8.0f * static_cast<float>(NumTraits<half>::epsilon());
+  VectorX input = VectorX::Constant(size, value);
+
+  const VectorX normalized = input.stableNormalized();
+  VERIFY(static_cast<float>(normalized(0)) > 0.0f);
+  VERIFY(abs(normalized.template cast<float>().norm() - 1.0f) <= tolerance);
+
+  input.stableNormalize();
+  VERIFY(static_cast<float>(input(0)) > 0.0f);
+  VERIFY(abs(input.template cast<float>().norm() - 1.0f) <= tolerance);
+}
+
+void stable_normalize_no_malloc() {
+  VectorXd input = VectorXd::Constant(2, (std::numeric_limits<double>::max)());
+  const Vector2d expected = Vector2d::Constant(1.0 / std::sqrt(2.0));
+
+  internal::set_is_malloc_allowed(false);
+  input.stableNormalize();
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_APPROX(input, expected);
+}
+
+void stable_norm_expression_and_stride() {
+  const Index size = 31;
+  Index evaluation_count = 0;
+  const auto expression = VectorXd::NullaryExpr(size, StableNormCountingOp(&evaluation_count));
+  const double expected = std::sqrt(double(size) * double(size + 1) * double(2 * size + 1) / 6.0);
+  VERIFY_IS_APPROX(expression.stableNorm(), expected);
+  VERIFY_IS_EQUAL(evaluation_count, size);
+  evaluation_count = 0;
+  const VectorXd expression_normalized = expression.stableNormalized();
+  VERIFY_IS_APPROX(expression_normalized.norm(), 1.0);
+  VERIFY_IS_EQUAL(evaluation_count, size);
+
+  VectorXd storage = VectorXd::Zero(2 * size);
+  for (Index i = 0; i < size; ++i) storage(2 * i) = double(i + 1);
+  typedef InnerStride<Dynamic> VectorStride;
+  Map<VectorXd, Unaligned, VectorStride> strided(storage.data(), size, VectorStride(2));
+  VERIFY_IS_APPROX(strided.stableNorm(), expected);
+  strided.stableNormalize();
+  VERIFY_IS_APPROX(strided.norm(), 1.0);
+  for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(storage(2 * i + 1), 0.0);
+
+  RowVectorXd packed_storage = RowVectorXd::LinSpaced(size, 1.0, double(size));
+  Map<RowVectorXd, Unaligned, VectorStride> runtime_packed(packed_storage.data(), size, VectorStride(1));
+  VERIFY_IS_APPROX(runtime_packed.stableNorm(), expected);
+  const RowVectorXd normalized = runtime_packed.stableNormalized();
+  VERIFY_IS_EQUAL(normalized.rows(), 1);
+  VERIFY_IS_EQUAL(normalized.cols(), size);
+  VERIFY_IS_APPROX(normalized.norm(), 1.0);
+  runtime_packed.stableNormalize();
+  VERIFY_IS_APPROX(runtime_packed.norm(), 1.0);
+
+  // Flattening must preserve total size for fixed rows and multi-column matrices.
+  typedef Matrix<double, 1, 4> FixedRowVector;
+  FixedRowVector fixed_row_storage;
+  fixed_row_storage << 1.0, 2.0, 3.0, 4.0;
+  Map<FixedRowVector, Unaligned, VectorStride> fixed_row(fixed_row_storage.data(), VectorStride(1));
+  const double fixed_row_norm = std::sqrt(30.0);
+  const FixedRowVector expected_fixed_row = fixed_row_storage / fixed_row_norm;
+  VERIFY_IS_APPROX(fixed_row.stableNorm(), fixed_row_norm);
+  const FixedRowVector fixed_row_normalized = fixed_row.stableNormalized();
+  VERIFY_IS_APPROX(fixed_row_normalized, expected_fixed_row);
+  VERIFY_IS_APPROX(fixed_row_normalized.norm(), 1.0);
+  fixed_row.stableNormalize();
+  VERIFY_IS_APPROX(fixed_row, expected_fixed_row);
+  VERIFY_IS_APPROX(fixed_row.norm(), 1.0);
+
+  typedef Stride<Dynamic, Dynamic> MatrixStride;
+  typedef Matrix<double, 2, 3> FixedMatrix;
+  FixedMatrix fixed_matrix_storage;
+  fixed_matrix_storage << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0;
+  Map<FixedMatrix, Unaligned, MatrixStride> fixed_matrix(fixed_matrix_storage.data(),
+                                                         MatrixStride(FixedMatrix::RowsAtCompileTime, 1));
+  const double fixed_matrix_norm = std::sqrt(91.0);
+  const FixedMatrix expected_fixed_matrix = fixed_matrix_storage / fixed_matrix_norm;
+  VERIFY_IS_APPROX(fixed_matrix.stableNorm(), fixed_matrix_norm);
+  const FixedMatrix fixed_matrix_normalized = fixed_matrix.stableNormalized();
+  VERIFY_IS_APPROX(fixed_matrix_normalized, expected_fixed_matrix);
+  VERIFY_IS_APPROX(fixed_matrix_normalized.norm(), 1.0);
+  fixed_matrix.stableNormalize();
+  VERIFY_IS_APPROX(fixed_matrix, expected_fixed_matrix);
+  VERIFY_IS_APPROX(fixed_matrix.norm(), 1.0);
+
+  const double padding_value = 42.0;
+  VectorXd matrix_storage = VectorXd::Constant(20, padding_value);
+  Map<Matrix<double, Dynamic, Dynamic>, Unaligned, MatrixStride> gapped_matrix(matrix_storage.data(), 3, 4,
+                                                                               MatrixStride(5, 1));
+  gapped_matrix.setRandom();
+  VERIFY_IS_APPROX(gapped_matrix.stableNorm(), gapped_matrix.norm());
+  MatrixXd packed_matrix = gapped_matrix;
+  VERIFY_IS_APPROX(gapped_matrix.stableNormalized(), packed_matrix.stableNormalized());
+  gapped_matrix.stableNormalize();
+  packed_matrix.stableNormalize();
+  VERIFY_IS_APPROX(gapped_matrix, packed_matrix);
+  for (Index outer = 0; outer < gapped_matrix.outerSize(); ++outer) {
+    for (Index inner = gapped_matrix.innerSize(); inner < gapped_matrix.outerStride(); ++inner) {
+      VERIFY_IS_EQUAL(matrix_storage(outer * gapped_matrix.outerStride() + inner), padding_value);
+    }
+  }
+}
+
 template <typename Scalar>
 void test_hypot() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -350,4 +739,21 @@ EIGEN_DECLARE_TEST(stable_norm) {
   CALL_SUBTEST_7(stable_norm_block_boundary<double>());
   CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<float> >());
   CALL_SUBTEST_8(stable_norm_complex_infinity<std::complex<double> >());
+  CALL_SUBTEST_9(stable_normalize_extremes<float>());
+  CALL_SUBTEST_9(stable_normalize_extremes<double>());
+  CALL_SUBTEST_10(stable_normalize_complex_extremes<float>());
+  CALL_SUBTEST_10(stable_normalize_complex_extremes<double>());
+  CALL_SUBTEST_11(stable_norm_extreme_cross_product<float>());
+  CALL_SUBTEST_11(stable_norm_extreme_cross_product<double>());
+  CALL_SUBTEST_11(stable_norm_mixed_underflow<float>());
+  CALL_SUBTEST_11(stable_norm_mixed_underflow<double>());
+  CALL_SUBTEST_11(stable_norm_denormal_rounding<float>());
+  CALL_SUBTEST_11(stable_norm_denormal_rounding<double>());
+  CALL_SUBTEST_12(stable_norm_low_precision<half>());
+  CALL_SUBTEST_12(stable_norm_low_precision<bfloat16>());
+  CALL_SUBTEST_12(stable_norm_complex_low_precision<half>());
+  CALL_SUBTEST_12(stable_norm_complex_low_precision<bfloat16>());
+  CALL_SUBTEST_12(stable_normalize_promoted_factor());
+  CALL_SUBTEST_13(stable_norm_expression_and_stride());
+  CALL_SUBTEST_13(stable_normalize_no_malloc());
 }

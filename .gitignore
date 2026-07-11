@@ -10,6 +10,8 @@ save
 *.qm
 core
 core.*
+# Keep the benchmark source directory visible on case-insensitive filesystems.
+!benchmarks/Core/
 *.bak
 *~
 *.build*
