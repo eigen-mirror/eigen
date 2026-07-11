@@ -2,7 +2,7 @@
 
 Guidance for AI coding agents (Claude Code, Cursor, Copilot Workspace, Aider, OpenAI Codex, etc.) working in this repository. Human contributors should start from [`README.md`](README.md) and the project sites it links to (<https://eigen.tuxfamily.org>, <https://libeigen.gitlab.io>, and the upstream repo at <https://gitlab.com/libeigen/eigen>); this file is the agent-facing condensation.
 
-If your tool also reads its own per-tool config file, treat that as a thin pointer and rely on this file for substance.
+Per-tool config files (e.g. `CLAUDE.md`) import or point to this file rather than duplicating it; put shared guidance here and only tool-specific notes there.
 
 ## Agent guidelines (read first)
 
