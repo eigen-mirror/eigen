@@ -317,19 +317,21 @@ void check_sign_dependent_functions() {
   }
 
   // Mixed-sign inputs, no exact zeros, |w| up to ~3 to hit the small- and large-|x| branches.
-  // atanh and cbrt also use the sign mask but are not checked here: the atanh mask only
-  // affects the |x| == 1 -> +/-inf path, which is meaningless under -ffinite-math-only, and
-  // vectorized cbrt is currently broken under clang fast-math for unrelated reasons.
   const ArrayType w = ArrayType::LinSpaced(n, Scalar(-3), Scalar(3)) + Scalar(0.017);
+  const ArrayType w_unit = w / Scalar(3.2);  // in (-1, 1) for atanh
   const ArrayType atan_result = w.atan();
   const ArrayType sinh_result = w.sinh();
   const ArrayType tanh_result = w.tanh();
   const ArrayType asinh_result = w.asinh();
+  const ArrayType atanh_result = w_unit.atanh();
+  const ArrayType cbrt_result = w.cbrt();
   for (Index i = 0; i < n; ++i) {
     VERIFY_IS_APPROX(atan_result[i], std::atan(w[i]));
     VERIFY_IS_APPROX(sinh_result[i], std::sinh(w[i]));
     VERIFY_IS_APPROX(tanh_result[i], std::tanh(w[i]));
     VERIFY_IS_APPROX(asinh_result[i], std::asinh(w[i]));
+    VERIFY_IS_APPROX(atanh_result[i], std::atanh(w_unit[i]));
+    VERIFY_IS_APPROX(cbrt_result[i], std::cbrt(w[i]));
   }
 }
 

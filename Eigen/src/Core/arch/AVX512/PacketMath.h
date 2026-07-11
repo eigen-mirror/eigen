@@ -391,7 +391,9 @@ EIGEN_STRONG_INLINE Packet8l pzero(const Packet8l& /*a*/) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16f peven_mask(const Packet16f& /*a*/) {
-  return _mm512_castsi512_ps(_mm512_set_epi32(0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1));
+  Packet16f r = _mm512_castsi512_ps(_mm512_set_epi32(0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 template <>
 EIGEN_STRONG_INLINE Packet16i peven_mask(const Packet16i& /*a*/) {
@@ -399,7 +401,9 @@ EIGEN_STRONG_INLINE Packet16i peven_mask(const Packet16i& /*a*/) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet8d peven_mask(const Packet8d& /*a*/) {
-  return _mm512_castsi512_pd(_mm512_set_epi32(0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1));
+  Packet8d r = _mm512_castsi512_pd(_mm512_set_epi32(0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, -1, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 template <>
 EIGEN_STRONG_INLINE Packet8l peven_mask(const Packet8l& /*a*/) {
@@ -891,12 +895,16 @@ EIGEN_STRONG_INLINE Packet8l ptrue<Packet8l>(const Packet8l& /*a*/) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16f ptrue<Packet16f>(const Packet16f& a) {
-  return _mm512_castsi512_ps(ptrue<Packet16i>(_mm512_castps_si512(a)));
+  Packet16f r = _mm512_castsi512_ps(ptrue<Packet16i>(_mm512_castps_si512(a)));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d ptrue<Packet8d>(const Packet8d& a) {
-  return _mm512_castsi512_pd(ptrue<Packet16i>(_mm512_castpd_si512(a)));
+  Packet8d r = _mm512_castsi512_pd(ptrue<Packet16i>(_mm512_castpd_si512(a)));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>

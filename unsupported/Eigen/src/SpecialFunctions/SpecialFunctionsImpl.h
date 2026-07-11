@@ -610,22 +610,44 @@ struct erf_impl<double> {
 
 // TODO: Add a cheaper approximation for float.
 
+template <typename T, bool IsScalar = is_scalar<T>::value>
+struct flipsign_impl;
+
+template <typename T>
+struct flipsign_impl<T, false> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T run(const T& should_flipsign, const T& x) {
+    const T sign_mask = psignmask<T>();
+    const T sign_bit = pand<T>(should_flipsign, sign_mask);
+    return pxor<T>(sign_bit, x);
+  }
+};
+
+template <typename T>
+struct flipsign_impl<T, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T run(const T& should_flipsign, const T& x) {
+    return should_flipsign == T(0) ? x : -x;
+  }
+};
+
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T flipsign(const T& should_flipsign, const T& x) {
-  const T sign_mask = psignmask<T>();
-  T sign_bit = pand<T>(should_flipsign, sign_mask);
-  return pxor<T>(sign_bit, x);
+  return flipsign_impl<T>::run(should_flipsign, x);
 }
 
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double flipsign<double>(const double& should_flipsign, const double& x) {
-  return should_flipsign == 0 ? x : -x;
-}
+template <typename T, bool IsScalar = is_scalar<T>::value>
+struct ndtri_negative_infinity_impl;
 
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float flipsign<float>(const float& should_flipsign, const float& x) {
-  return should_flipsign == 0 ? x : -x;
-}
+template <typename T>
+struct ndtri_negative_infinity_impl<T, false> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T run(const T& positive_infinity) {
+    return por(psignmask<T>(), positive_infinity);
+  }
+};
+
+template <typename T>
+struct ndtri_negative_infinity_impl<T, true> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T run(const T& positive_infinity) { return -positive_infinity; }
+};
 
 // We split this computation in to two so that in the scalar path
 // only one branch is evaluated (due to our template specialization of pselect
@@ -707,8 +729,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_lt_exp_neg_two(const T& b,
 
 template <typename T, typename ScalarType>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T generic_ndtri(const T& a) {
-  const T maxnum = pset1<T>(NumTraits<ScalarType>::infinity());
-  const T neg_maxnum = pset1<T>(-NumTraits<ScalarType>::infinity());
+  const T maxnum = pinf<T>();
+  const T neg_maxnum = ndtri_negative_infinity_impl<T>::run(maxnum);
 
   const T zero = pset1<T>(ScalarType(0));
   const T one = pset1<T>(ScalarType(1));

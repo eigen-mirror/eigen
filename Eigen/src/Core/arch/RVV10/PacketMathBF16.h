@@ -93,8 +93,10 @@ EIGEN_STRONG_INLINE Packet1Xbf F32ToBf16(const Packet2Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf ptrue<Packet1Xbf>(const Packet1Xbf& /*a*/) {
-  return __riscv_vreinterpret_bf16m1(
+  Packet1Xbf r = __riscv_vreinterpret_bf16m1(
       __riscv_vmv_v_x_u16m1(static_cast<numext::uint16_t>(0xffffu), unpacket_traits<Packet1Xbf>::size));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>
@@ -445,8 +447,10 @@ EIGEN_STRONG_INLINE Packet2Xbf F32ToBf16(const Packet4Xf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf ptrue<Packet2Xbf>(const Packet2Xbf& /*a*/) {
-  return __riscv_vreinterpret_bf16m2(
+  Packet2Xbf r = __riscv_vreinterpret_bf16m2(
       __riscv_vmv_v_x_u16m2(static_cast<numext::uint16_t>(0xffffu), unpacket_traits<Packet2Xbf>::size));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>

@@ -377,10 +377,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
     const Packet& x, const Packet& y) {
   typedef typename unpacket_traits<Packet>::type Scalar;
 
-  const Packet cst_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
+  const Packet cst_inf = pinf<Packet>();
   const Packet cst_zero = pset1<Packet>(Scalar(0));
   const Packet cst_one = pset1<Packet>(Scalar(1));
-  const Packet cst_nan = pset1<Packet>(NumTraits<Scalar>::quiet_NaN());
+  const Packet cst_nan = pnan<Packet>();
 
   const Packet x_abs = pabs(x);
   Packet result = generic_pow_impl(x_abs, y);
@@ -573,8 +573,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet handle_nonint_nonint_errors(const P
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_zero = pzero(x);
   const Packet cst_one = pset1<Packet>(Scalar(1));
-  const Packet cst_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
-  const Packet cst_nan = pset1<Packet>(NumTraits<Scalar>::quiet_NaN());
+  const Packet cst_inf = pinf<Packet>();
+  const Packet cst_nan = pnan<Packet>();
 
   const Packet abs_x = pabs(x);
 

@@ -1740,6 +1740,23 @@ void packetmath_complex() {
     }
   }
 
+  // Test pisnan.
+  {
+    const Scalar values[4] = {Scalar(one, one), Scalar(nan, zero), Scalar(zero, nan), Scalar(nan, nan)};
+    const bool expect_nan[4] = {false, true, true, true};
+    // The scalar instantiation must remain callable with plain std::complex arguments.
+    for (int i = 0; i < 4; ++i) {
+      VERIFY(numext::is_exactly_zero(internal::pisnan(values[i])) == !expect_nan[i] && "scalar pisnan");
+    }
+    for (int i = 0; i < size; ++i) data1[i] = values[i % 4];
+    for (int j = 0; j < size; j += PacketSize) {
+      internal::pstore(data2 + j, internal::pisnan(internal::pload<Packet>(data1 + j)));
+    }
+    for (int i = 0; i < size; ++i) {
+      VERIFY(numext::is_exactly_zero(data2[i]) == !expect_nan[i % 4] && "pisnan");
+    }
+  }
+
   // Multiplication and Division.
   {
     std::array<RealScalar, 8> special_values = {zero, one, inf, nan, -zero, -one, -inf, -nan};

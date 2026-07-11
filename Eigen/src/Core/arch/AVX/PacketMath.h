@@ -758,7 +758,9 @@ EIGEN_STRONG_INLINE Packet8ui pzero(const Packet8ui& /*a*/) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8f peven_mask(const Packet8f& /*a*/) {
-  return _mm256_castsi256_ps(_mm256_set_epi32(0, -1, 0, -1, 0, -1, 0, -1));
+  Packet8f r = _mm256_castsi256_ps(_mm256_set_epi32(0, -1, 0, -1, 0, -1, 0, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 template <>
 EIGEN_STRONG_INLINE Packet8i peven_mask(const Packet8i& /*a*/) {
@@ -770,7 +772,9 @@ EIGEN_STRONG_INLINE Packet8ui peven_mask(const Packet8ui& /*a*/) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4d peven_mask(const Packet4d& /*a*/) {
-  return _mm256_castsi256_pd(_mm256_set_epi32(0, 0, -1, -1, 0, 0, -1, -1));
+  Packet4d r = _mm256_castsi256_pd(_mm256_set_epi32(0, 0, -1, -1, 0, 0, -1, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>
@@ -1250,9 +1254,13 @@ EIGEN_STRONG_INLINE Packet8f ptrue<Packet8f>(const Packet8f& a) {
 #ifdef EIGEN_VECTORIZE_AVX2
   // vpcmpeqd has lower latency than the more general vcmpps
   const __m256i b = _mm256_castps_si256(a);
-  return _mm256_castsi256_ps(_mm256_cmpeq_epi32(b, b));
+  Packet8f r = _mm256_castsi256_ps(_mm256_cmpeq_epi32(b, b));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 #else
-  return _mm256_cmp_ps(a, a, _CMP_TRUE_UQ);
+  Packet8f r = _mm256_cmp_ps(a, a, _CMP_TRUE_UQ);
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 #endif
 }
 
@@ -1261,9 +1269,13 @@ EIGEN_STRONG_INLINE Packet4d ptrue<Packet4d>(const Packet4d& a) {
 #ifdef EIGEN_VECTORIZE_AVX2
   // vpcmpeqq has lower latency than the more general vcmppd
   const __m256i b = _mm256_castpd_si256(a);
-  return _mm256_castsi256_pd(_mm256_cmpeq_epi64(b, b));
+  Packet4d r = _mm256_castsi256_pd(_mm256_cmpeq_epi64(b, b));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 #else
-  return _mm256_cmp_pd(a, a, _CMP_TRUE_UQ);
+  Packet4d r = _mm256_cmp_pd(a, a, _CMP_TRUE_UQ);
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 #endif
 }
 

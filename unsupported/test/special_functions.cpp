@@ -407,10 +407,45 @@ void array_special_functions() {
   }
 }
 
+template <typename Scalar>
+void scalar_ndtri() {
+  const Scalar sign_mask = internal::psignmask<Scalar>();
+  VERIFY_IS_EQUAL(sign_mask, Scalar(0));
+  VERIFY((std::signbit)(sign_mask));
+
+  const Scalar packet_inf = internal::pinf<Scalar>();
+  const Scalar packet_nan = internal::pnan<Scalar>();
+  VERIFY((numext::isinf)(packet_inf));
+  VERIFY(packet_inf > Scalar(0));
+  VERIFY((numext::isnan)(packet_nan));
+
+  const Scalar expected_quartile = Scalar(0.6744897501960817432L);
+  const Scalar lower_quartile = numext::ndtri(Scalar(0.25L));
+  const Scalar upper_quartile = numext::ndtri(Scalar(0.75L));
+  VERIFY_IS_APPROX(lower_quartile, -expected_quartile);
+  VERIFY_IS_APPROX(upper_quartile, expected_quartile);
+
+  // These exactly complementary binary values exercise the scalar flipsign path in the tail approximation.
+  const Scalar lower_tail = numext::ndtri(Scalar(0.125L));
+  const Scalar upper_tail = numext::ndtri(Scalar(0.875L));
+  VERIFY(lower_tail < Scalar(0));
+  VERIFY(upper_tail > Scalar(0));
+  VERIFY_IS_APPROX(lower_tail, -upper_tail);
+
+  VERIFY_IS_EQUAL(numext::ndtri(Scalar(0.5L)), Scalar(0));
+  const Scalar negative_inf = numext::ndtri(Scalar(0));
+  const Scalar positive_inf = numext::ndtri(Scalar(1));
+  VERIFY((numext::isinf)(negative_inf));
+  VERIFY((numext::isinf)(positive_inf));
+  VERIFY(negative_inf < Scalar(0));
+  VERIFY(positive_inf > Scalar(0));
+}
+
 EIGEN_DECLARE_TEST(special_functions) {
   CALL_SUBTEST_1(array_special_functions<ArrayXf>());
   CALL_SUBTEST_2(array_special_functions<ArrayXd>());
+  CALL_SUBTEST_3(scalar_ndtri<long double>());
   // TODO(cantonios): half/bfloat16 don't have enough precision to reproduce results above.
-  // CALL_SUBTEST_3(array_special_functions<ArrayX<Eigen::half>>());
-  // CALL_SUBTEST_4(array_special_functions<ArrayX<Eigen::bfloat16>>());
+  // CALL_SUBTEST_4(array_special_functions<ArrayX<Eigen::half>>());
+  // CALL_SUBTEST_5(array_special_functions<ArrayX<Eigen::bfloat16>>());
 }

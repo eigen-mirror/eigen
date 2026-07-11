@@ -384,6 +384,15 @@ if(COMPILER_SUPPORT_WNO_NAN_INF)
   set(EIGEN_FASTMATH_FLAGS "${EIGEN_FASTMATH_FLAGS} -Wno-nan-infinity-disabled")
 endif()
 
+if(COMPILER_SUPPORT_FASTMATH)
+  ei_add_test(packetmath_fastmath "-O2 ${EIGEN_FASTMATH_FLAGS}")
+elseif(COMPILER_SUPPORT_FPFAST)
+  ei_add_test(packetmath_fastmath "${EIGEN_FASTMATH_FLAGS}")
+endif()
+if(COMPILER_SUPPORT_FASTMATH AND COMPILER_SUPPORTS_VECTOR_EXTENSIONS)
+  ei_add_test(packetmath_fastmath_generic_16 "-O2 ${EIGEN_FASTMATH_FLAGS} -Werror")
+endif()
+
 ei_add_test(fastmath "${EIGEN_FASTMATH_FLAGS}")
 ei_add_test(bdcsvd_fastmath "${EIGEN_FASTMATH_FLAGS}")
 

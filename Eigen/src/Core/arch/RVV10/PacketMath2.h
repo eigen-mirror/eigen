@@ -291,7 +291,9 @@ EIGEN_STRONG_INLINE Packet4Xf __riscv_vreinterpret_v_u64m4_f32m4(const Packet4Xu
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xf ptrue<Packet2Xf>(const Packet2Xf& /*a*/) {
-  return __riscv_vreinterpret_f32m2(__riscv_vmv_v_x_u32m2(0xffffffffu, unpacket_traits<Packet2Xf>::size));
+  Packet2Xf r = __riscv_vreinterpret_f32m2(__riscv_vmv_v_x_u32m2(0xffffffffu, unpacket_traits<Packet2Xf>::size));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>
@@ -930,7 +932,10 @@ EIGEN_STRONG_INLINE
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xd ptrue<Packet2Xd>(const Packet2Xd& /*a*/) {
-  return __riscv_vreinterpret_f64m2(__riscv_vmv_v_x_u64m2(0xffffffffffffffffu, unpacket_traits<Packet2Xd>::size));
+  Packet2Xd r =
+      __riscv_vreinterpret_f64m2(__riscv_vmv_v_x_u64m2(0xffffffffffffffffu, unpacket_traits<Packet2Xd>::size));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>

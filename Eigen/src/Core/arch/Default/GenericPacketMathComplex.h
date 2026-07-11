@@ -59,8 +59,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename Scalar::value_type RealScalar;
   typedef typename unpacket_traits<Packet>::as_real RealPacket;
 
   // Real part
@@ -71,7 +69,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   // Imag part
   RealPacket ximg = patan2(x.v, x_flip);  // atan2(a, b), atan2(b, a)
 
-  const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
+  const RealPacket cst_pos_inf = pinf<RealPacket>();
   RealPacket x_abs = pabs(x.v);
   RealPacket is_x_pos_inf = pcmp_eq(x_abs, cst_pos_inf);
   RealPacket is_y_pos_inf = pcplxflip(Packet(is_x_pos_inf)).v;
@@ -103,8 +101,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   RealPacket cisy = psincos_selector<RealPacket>(y);
   cisy = pcplxflip(Packet(cisy)).v;  // cos(y) + i * sin(y)
 
-  const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
-  const RealPacket cst_neg_inf = pset1<RealPacket>(-NumTraits<RealScalar>::infinity());
+  const RealPacket cst_pos_inf = pinf<RealPacket>();
+  const RealPacket cst_neg_inf = por(psignmask<RealPacket>(), pinf<RealPacket>());
 
   // If x is -inf, we know that cossin(y) is bounded,
   //   so the result is (0, +/-0), where the sign of the imaginary part comes
@@ -223,7 +221,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   // * If z is (x,-∞), the result is (+∞,-∞) even if x is NaN
   // * If z is (-∞,y), the result is (0*|y|,+∞) for finite or NaN y
   // * If z is (+∞,y), the result is (+∞,0*|y|) for finite or NaN y
-  const RealPacket cst_pos_inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
+  const RealPacket cst_pos_inf = pinf<RealPacket>();
   Packet is_inf;
   is_inf.v = pcmp_eq(a_abs, cst_pos_inf);
   Packet is_real_inf;

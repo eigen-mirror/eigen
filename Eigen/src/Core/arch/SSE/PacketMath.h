@@ -413,7 +413,9 @@ EIGEN_STRONG_INLINE Packet2d pset1frombits<Packet2d>(uint64_t from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f peven_mask(const Packet4f& /*a*/) {
-  return _mm_castsi128_ps(_mm_set_epi32(0, -1, 0, -1));
+  Packet4f r = _mm_castsi128_ps(_mm_set_epi32(0, -1, 0, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l peven_mask(const Packet2l& /*a*/) {
@@ -429,7 +431,9 @@ EIGEN_STRONG_INLINE Packet4ui peven_mask(const Packet4ui& /*a*/) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d peven_mask(const Packet2d& /*a*/) {
-  return _mm_castsi128_pd(_mm_set_epi32(0, 0, -1, -1));
+  Packet2d r = _mm_castsi128_pd(_mm_set_epi32(0, 0, -1, -1));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>
@@ -771,12 +775,16 @@ EIGEN_STRONG_INLINE Packet16b ptrue<Packet16b>(const Packet16b& /*a*/) {
 template <>
 EIGEN_STRONG_INLINE Packet4f ptrue<Packet4f>(const Packet4f& a) {
   Packet4i b = _mm_castps_si128(a);
-  return _mm_castsi128_ps(_mm_cmpeq_epi32(b, b));
+  Packet4f r = _mm_castsi128_ps(_mm_cmpeq_epi32(b, b));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ptrue<Packet2d>(const Packet2d& a) {
   Packet4i b = _mm_castpd_si128(a);
-  return _mm_castsi128_pd(_mm_cmpeq_epi32(b, b));
+  Packet2d r = _mm_castsi128_pd(_mm_cmpeq_epi32(b, b));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 template <>

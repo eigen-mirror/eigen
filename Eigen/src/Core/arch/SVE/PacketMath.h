@@ -517,7 +517,9 @@ EIGEN_STRONG_INLINE PacketXf pround<PacketXf>(const PacketXf& a) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ptrue<PacketXf>(const PacketXf& /*a*/) {
-  return svreinterpret_f32_u32(svdup_n_u32_x(svptrue_b32(), 0xffffffffu));
+  PacketXf r = svreinterpret_f32_u32(svdup_n_u32_x(svptrue_b32(), 0xffffffffu));
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
+  return r;
 }
 
 // Logical Operations are not supported for float, so reinterpret casts
