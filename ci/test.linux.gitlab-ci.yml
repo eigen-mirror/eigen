@@ -483,9 +483,13 @@ test:linux:sme512:gcc-14:full:unsupported:
   extends: .test:linux:sme512:gcc-14:full
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
-    # Threaded tests are useless under single-threaded TCG; same exclusion as
-    # .test:linux:qemu.
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
+    # tensor_thread_pool: threaded tests are useless under single-threaded TCG
+    # (same exclusion as .test:linux:qemu). FFT: overruns even the raised 3000s
+    # timeout under TCG at EIGEN_REPEAT=2; it is kissfft-based scalar/complex
+    # code with no SVE/SME-specific paths, and every native job covers it.
+    # Raising the timeout past ~3600s is not an option: a single silent test
+    # would trip the runner's 1h no-log-output kill.
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
 ##### aarch64 ##################################################################
 

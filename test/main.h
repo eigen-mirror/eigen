@@ -132,8 +132,15 @@ struct imag {};
 // _res is defined by resolv.h
 #define _res FORBIDDEN_IDENTIFIER
 
-// Unit tests calling Eigen's blas library must preserve the default blocking size
-// to avoid troubles.
+// Shrink the cache model used by computeProductBlockingSizes so that test-sized
+// products (see EIGEN_TEST_MAX_SIZE) exercise multi-pass GEMM blocking; with real
+// cache sizes nothing in the suite would ever block. Any new architecture-specific
+// blocking heuristic must honor this macro, or the blocking sentinels in
+// product_extra.cpp (compute_block_size) will fail on that target.
+// Exception: tests linking the eigen_blas/eigen_lapack shim libraries (the
+// *_support sparse-solver tests) must opt out via EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS.
+// Those libraries are compiled without this macro, and mixing the two configurations
+// in one binary is an ODR violation on the inline blocking/kernel code.
 #ifndef EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
 #define EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
 #endif

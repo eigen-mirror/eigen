@@ -127,6 +127,19 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
  * \sa setCpuCacheSizes */
 
 #ifdef EIGEN_VECTORIZE_SME
+// Overridable SME packed-panel budgets. The defaults are empirically tuned
+// fp32 working-set limits for Apple M4 — heuristic budgets, not generic ARM64
+// cache defaults; redefine them to retune for other SME implementations.
+#ifndef EIGEN_SME_MAX_KC
+#define EIGEN_SME_MAX_KC 2048
+#endif
+#ifndef EIGEN_SME_PACKED_RHS_BUDGET_BYTES
+#define EIGEN_SME_PACKED_RHS_BUDGET_BYTES (32 * 1024 * 1024)
+#endif
+#ifndef EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES
+#define EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES (7 * 1024 * 1024)
+#endif
+
 template <typename LhsScalar, typename RhsScalar, typename Index>
 void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   typedef gebp_traits<LhsScalar, RhsScalar> Traits;
@@ -134,11 +147,19 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   const Index mr = static_cast<Index>(Traits::mr);
   const Index nr = static_cast<Index>(Traits::nr);
 
-  // Empirically tuned fp32 SME packed-panel budgets for Apple M4. These are
-  // heuristic working-set limits, not generic ARM64 cache defaults
-  constexpr Index sme_max_kc = static_cast<Index>(2048);
-  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(32 * 1024 * 1024);
-  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(7 * 1024 * 1024);
+#ifdef EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS
+  // Fixed scaled-down budgets so that test-sized products (see
+  // EIGEN_TEST_MAX_SIZE) exercise multi-pass blocking along all three
+  // dimensions. Like the l1/l2/l3 reduction applied to the generic heuristic
+  // below, this intentionally overrides any user-configured budgets.
+  constexpr Index sme_max_kc = static_cast<Index>(128);
+  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(128 * 1024);
+  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(128 * 1024);
+#else
+  constexpr Index sme_max_kc = static_cast<Index>(EIGEN_SME_MAX_KC);
+  constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(EIGEN_SME_PACKED_RHS_BUDGET_BYTES);
+  constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES);
+#endif
 
   // Keep kc large enough to amortize SME setup and accumulation, but cap very
   // deep products to avoid too many result store passes.
