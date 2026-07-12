@@ -18,6 +18,15 @@
 
 namespace Eigen {
 
+namespace internal {
+// Keep mixed arithmetic and enum operands within the existing implicit-conversion boundary.
+template <typename OtherScalar, typename Scalar>
+struct is_scalar_operand
+    : bool_constant<std::is_same<OtherScalar, Scalar>::value ||
+                    ((std::is_arithmetic<OtherScalar>::value || std::is_enum<OtherScalar>::value) &&
+                     std::is_convertible<OtherScalar, Scalar>::value)> {};
+}  // namespace internal
+
 /** \class TensorBase
   * \ingroup Tensor_Module
   *
@@ -360,24 +369,10 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_sum_op<Scalar> >, const Derived>
-    operator+ (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_sum_op<Scalar> >(lhs));
-    }
-
-    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::bind2nd_op<internal::scalar_difference_op<Scalar,Scalar> >, const Derived>
     operator- (Scalar rhs) const {
       EIGEN_STATIC_ASSERT((NumTraits<Scalar>::IsSigned || std::is_same<Scalar, const std::complex<float> >::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
       return unaryExpr(internal::bind2nd_op<internal::scalar_difference_op<Scalar,Scalar> >(rhs));
-    }
-
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_difference_op<Scalar> >, const Derived>
-    operator- (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_difference_op<Scalar> >(lhs));
     }
 
     EIGEN_DEVICE_FUNC
@@ -387,23 +382,9 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_product_op<Scalar> >, const Derived>
-    operator* (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_product_op<Scalar> >(lhs));
-    }
-
-    EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::bind2nd_op<internal::scalar_quotient_op<Scalar,Scalar> >, const Derived>
     operator/ (Scalar rhs) const {
       return unaryExpr(internal::bind2nd_op<internal::scalar_quotient_op<Scalar,Scalar> >(rhs));
-    }
-
-    EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE friend
-    const TensorCwiseUnaryOp<internal::bind1st_op<internal::scalar_quotient_op<Scalar> >, const Derived>
-    operator/ (Scalar lhs, const Derived& rhs) {
-      return rhs.unaryExpr(internal::bind1st_op<internal::scalar_quotient_op<Scalar> >(lhs));
     }
 
     EIGEN_DEVICE_FUNC
@@ -411,6 +392,13 @@ class TensorBase<Derived, ReadOnlyAccessors>
     operator% (Scalar rhs) const {
       EIGEN_STATIC_ASSERT(NumTraits<Scalar>::IsInteger, YOU_MADE_A_PROGRAMMING_MISTAKE_TRY_MOD);
       return unaryExpr(internal::scalar_mod_op<Scalar>(rhs));
+    }
+
+    template <typename OtherScalar, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<OtherScalar, Scalar>::value))>
+    EIGEN_DEVICE_FUNC
+    EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<internal::scalar_mod_op<Scalar>, const Derived>
+    operator% (OtherScalar rhs) const {
+      return operator%(static_cast<Scalar>(rhs));
     }
 
     template <int NanPropagation=PropagateFast>
@@ -612,6 +600,23 @@ class TensorBase<Derived, ReadOnlyAccessors>
     operator!=(Scalar threshold) const {
       return operator!=(constant(threshold));
     }
+
+    // Exact matches keep rank-0 reductions' mixed-scalar comparisons from becoming ambiguous with built-ins.
+#define EIGEN_FORWARD_SCALAR_CMP(op, tag)                                                                             \
+  template <typename OtherScalar, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<OtherScalar, Scalar>::value))>  \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const                                                                         \
+      TensorCwiseBinaryOp<internal::scalar_cmp_op<Scalar, Scalar, internal::cmp_##tag>, const Derived,                \
+                          const TensorCwiseNullaryOp<internal::scalar_constant_op<Scalar>, const Derived> >           \
+  op(OtherScalar threshold) const {                                                                                   \
+    return op(static_cast<Scalar>(threshold));                                                                        \
+  }
+    EIGEN_FORWARD_SCALAR_CMP(operator<, LT)
+    EIGEN_FORWARD_SCALAR_CMP(operator<=, LE)
+    EIGEN_FORWARD_SCALAR_CMP(operator>, GT)
+    EIGEN_FORWARD_SCALAR_CMP(operator>=, GE)
+    EIGEN_FORWARD_SCALAR_CMP(operator==, EQ)
+    EIGEN_FORWARD_SCALAR_CMP(operator!=, NEQ)
+#undef EIGEN_FORWARD_SCALAR_CMP
 
     // Predicates.
     EIGEN_DEVICE_FUNC
@@ -1240,6 +1245,26 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     }
 };
 #endif // EIGEN_PARSED_BY_DOXYGEN
+
+// Exact matches keep rank-0 reductions' mixed-scalar arithmetic from becoming ambiguous with built-ins.
+// Namespace scope avoids hidden-friend ADL pollution of NumTraits enum arithmetic on MSVC 14.29.
+#define EIGEN_FORWARD_SCALAR_BINOP(op, name)                                                                           \
+  template <typename OtherScalar, typename Derived,                                                                   \
+            EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<                                                       \
+                                    OtherScalar, typename internal::traits<Derived>::Scalar>::value))>                 \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<                                                       \
+      internal::bind1st_op<internal::scalar_##name##_op<typename internal::traits<Derived>::Scalar> >, const Derived>  \
+  op(OtherScalar lhs, const TensorBase<Derived, ReadOnlyAccessors>& rhs) {                                              \
+    typedef typename internal::traits<Derived>::Scalar Scalar;                                                         \
+    return rhs.derived().unaryExpr(                                                                                    \
+        internal::bind1st_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(lhs)));                        \
+  }
+EIGEN_FORWARD_SCALAR_BINOP(operator+, sum)
+EIGEN_FORWARD_SCALAR_BINOP(operator-, difference)
+EIGEN_FORWARD_SCALAR_BINOP(operator*, product)
+EIGEN_FORWARD_SCALAR_BINOP(operator/, quotient)
+#undef EIGEN_FORWARD_SCALAR_BINOP
+
 } // end namespace Eigen
 
 #endif // EIGEN_TENSOR_TENSOR_BASE_H

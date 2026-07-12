@@ -55,6 +55,110 @@ static void test_trivial_reductions() {
 }
 
 template <typename Scalar, int DataLayout>
+static void test_scalar_reduction_conversion() {
+  using TensorType = Tensor<Scalar, 4, DataLayout>;
+  using PartialReductionDims = array<ptrdiff_t, 2>;
+  using FullReduction = decltype(std::declval<const TensorType&>().sum());
+  using PartialReduction = decltype(std::declval<const TensorType&>().sum(std::declval<const PartialReductionDims&>()));
+
+  static_assert(std::is_convertible<FullReduction, Scalar>::value, "full reductions should convert to scalars");
+  static_assert(!std::is_convertible<PartialReduction, Scalar>::value,
+                "partial reductions should not convert to scalars");
+
+  TensorType tensor(2, 2, 2, 2);
+  Scalar expected_sum(0);
+  Scalar expected_prod(1);
+  Scalar expected_min = NumTraits<Scalar>::highest();
+  Scalar expected_max = NumTraits<Scalar>::lowest();
+  for (int i = 0; i < tensor.size(); ++i) {
+    // Bound the product so the half test does not overflow.
+    const Scalar value = static_cast<Scalar>((i % 3) + 1);
+    tensor(i) = value;
+    expected_sum += value;
+    expected_prod *= value;
+    expected_min = numext::mini(expected_min, value);
+    expected_max = numext::maxi(expected_max, value);
+  }
+
+  const Scalar sum = tensor.sum();
+  array<ptrdiff_t, 4> reduction_axis4 = {0, 1, 2, 3};
+  const Scalar sum_from_dims = tensor.sum(reduction_axis4);
+  const Scalar prod = tensor.prod();
+  const Scalar smallest = tensor.minimum();
+  const Scalar largest = tensor.maximum();
+  const Scalar mean = tensor.mean();
+  const Scalar expected_mean = expected_sum / static_cast<Scalar>(tensor.size());
+
+  if (NumTraits<Scalar>::IsInteger) {
+    VERIFY_IS_EQUAL(sum, expected_sum);
+    VERIFY_IS_EQUAL(sum_from_dims, expected_sum);
+    VERIFY_IS_EQUAL(prod, expected_prod);
+    VERIFY_IS_EQUAL(smallest, expected_min);
+    VERIFY_IS_EQUAL(largest, expected_max);
+    VERIFY_IS_EQUAL(mean, expected_mean);
+  } else {
+    VERIFY_IS_APPROX(sum, expected_sum);
+    VERIFY_IS_APPROX(sum_from_dims, expected_sum);
+    VERIFY_IS_APPROX(prod, expected_prod);
+    VERIFY_IS_APPROX(smallest, expected_min);
+    VERIFY_IS_APPROX(largest, expected_max);
+    VERIFY_IS_APPROX(mean, expected_mean);
+  }
+}
+
+template <typename Scalar, int DataLayout>
+static void test_scalar_reduction_mixed_operators() {
+  // Mixed scalar operations must stay lazy despite the reduction's implicit scalar conversion.
+  Tensor<Scalar, 2, DataLayout> tensor(3, 4);
+  tensor.setConstant(Scalar(2));
+
+  // Scalar-left overloads must not pollute ADL for NumTraits enums.
+  static_assert(NumTraits<Scalar>::MulCost + 1 > 0, "NumTraits enum arithmetic should not be ambiguous");
+
+  static_assert(!std::is_same<decltype(tensor.sum() > 0), bool>::value,
+                "scalar comparisons on a full reduction should stay lazy expressions");
+  static_assert(!std::is_arithmetic<decltype(2 * tensor.sum())>::value,
+                "scalar arithmetic on a full reduction should stay lazy expressions");
+
+  const Tensor<bool, 0, DataLayout> gt = tensor.sum() > 0;
+  VERIFY(gt());
+  const Tensor<bool, 0, DataLayout> eq = tensor.sum() == 24;
+  VERIFY(eq());
+  const Tensor<bool, 0, DataLayout> lt = tensor.sum() < 1L;
+  VERIFY(!lt());
+  const Tensor<bool, 0, DataLayout> ge = tensor.sum() >= 0.0f;
+  VERIFY(ge());
+  const Tensor<bool, 0, DataLayout> le = tensor.sum() <= 100u;
+  VERIFY(le());
+  const Tensor<bool, 0, DataLayout> ne = tensor.sum() != 0;
+  VERIFY(ne());
+  const Tensor<Scalar, 0, DataLayout> twice = 2 * tensor.sum();
+  VERIFY_IS_EQUAL(twice(), Scalar(48));
+  const Tensor<Scalar, 0, DataLayout> plus_one = 1 + tensor.sum();
+  VERIFY_IS_EQUAL(plus_one(), Scalar(25));
+  const Tensor<Scalar, 0, DataLayout> from_25 = 25 - tensor.sum();
+  VERIFY_IS_EQUAL(from_25(), Scalar(1));
+  const Tensor<Scalar, 0, DataLayout> ratio = 48 / tensor.sum();
+  VERIFY_IS_EQUAL(ratio(), Scalar(2));
+  const Tensor<Scalar, 0, DataLayout> scaled = 2.0 * tensor.sum();
+  VERIFY_IS_EQUAL(scaled(), Scalar(48));
+
+  // Unscoped enums must remain valid scalar operands.
+  enum MixedOpsTestEnum { kEnumTwo = 2 };
+  const Tensor<bool, 0, DataLayout> gt_enum = tensor.sum() > kEnumTwo;
+  VERIFY(gt_enum());
+  const Tensor<Scalar, 0, DataLayout> twice_enum = kEnumTwo * tensor.sum();
+  VERIFY_IS_EQUAL(twice_enum(), Scalar(48));
+}
+
+static void test_scalar_reduction_mixed_operators_mod() {
+  Tensor<int, 2> tensor(3, 4);
+  tensor.setConstant(2);
+  const Tensor<int, 0> rem = tensor.sum() % 5L;
+  VERIFY_IS_EQUAL(rem(), 4);
+}
+
+template <typename Scalar, int DataLayout>
 static void test_simple_reductions() {
   Tensor<Scalar, 4, DataLayout> tensor(2, 3, 5, 7);
   tensor.setRandom();
@@ -561,6 +665,13 @@ void test_sum_accuracy() {
 EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST(test_trivial_reductions<ColMajor>());
   CALL_SUBTEST(test_trivial_reductions<RowMajor>());
+  CALL_SUBTEST((test_scalar_reduction_conversion<int, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_conversion<int, RowMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_conversion<Eigen::half, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<float, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<double, ColMajor>()));
+  CALL_SUBTEST((test_scalar_reduction_mixed_operators<int, RowMajor>()));
+  CALL_SUBTEST(test_scalar_reduction_mixed_operators_mod());
   CALL_SUBTEST((test_simple_reductions<float, ColMajor>()));
   CALL_SUBTEST((test_simple_reductions<float, RowMajor>()));
   CALL_SUBTEST((test_simple_reductions<Eigen::half, ColMajor>()));

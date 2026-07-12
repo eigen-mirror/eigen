@@ -519,6 +519,16 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dims& dims() const { return m_dims; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Op& reducer() const { return m_reducer; }
 
+  // Rank 0 guarantees one coefficient, so only rank-0 reductions convert directly to a scalar.
+  template <int NumDims = internal::traits<TensorReductionOp>::NumDimensions, EIGEN_SFINAE_ENABLE_IF(NumDims == 0)>
+  EIGEN_STRONG_INLINE operator CoeffReturnType() const {
+    TensorEvaluator<const TensorReductionOp, DefaultDevice> evaluator(*this, DefaultDevice());
+    evaluator.evalSubExprsIfNeeded(NULL);
+    const CoeffReturnType result = evaluator.coeff(0);
+    evaluator.cleanup();
+    return result;
+  }
+
  protected:
   typename XprType::Nested m_expr;
   const Dims m_dims;

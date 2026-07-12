@@ -28,9 +28,9 @@ int main() {
   b.setConstant(1.0f);
   Eigen::Tensor<float, 2> c = a + b;
 
-  // Reduce: compute the sum of all elements.
-  Eigen::Tensor<float, 0> total = c.sum();
-  std::cout << "Sum of all elements: " << total() << "\n";
+  // A full reduction can initialize its exact scalar result type.
+  const float total = c.sum();
+  std::cout << "Sum of all elements: " << total << "\n";
 
   // Reshape and broadcast.
   Eigen::Tensor<float, 2> d = c.reshape(Eigen::array<Eigen::Index, 2>{{1, 12}})
@@ -1627,9 +1627,12 @@ std::cout << "b" << endl << b << endl << endl;
 ```
 #### Reduction along all dimensions
 
-As a special case, if you pass no parameter to a reduction operation the
-original tensor is reduced along *all* its dimensions.  The result is a
-scalar, represented as a zero-dimension tensor.
+The no-argument overloads of `sum()`, `mean()`, `prod()`, `maximum()`,
+`minimum()`, `all()`, and `any()` reduce the original tensor along *all* its
+dimensions.  The result is a rank-0 `TensorReductionOp`, which can be assigned
+directly to its exact scalar result type.  The dimension-taking overloads of
+these operations, as well as `reduce()`, provide the same conversion when the
+reduction dimensions contain every dimension of the input.
 
 ```cpp
 Eigen::Tensor<float, 3> a(2, 3, 4);
@@ -1639,16 +1642,49 @@ a.setValues({{{0.0f, 1.0f, 2.0f, 3.0f},
               {{12.0f, 13.0f, 14.0f, 15.0f},
               {19.0f, 18.0f, 17.0f, 16.0f},
               {20.0f, 21.0f, 22.0f, 23.0f}}});
-// Reduce along all dimensions using the sum() operator.
-Eigen::Tensor<float, 0> b = a.sum();
+// An exact scalar target evaluates the rank-0 reduction immediately.
+const float b = a.sum();
 std::cout << "b\n" << b;
 
 // b
 // 276
 ```
-You can extract the scalar directly by casting the expression and extract the first and only coefficient:
+A scalar target of the reduction result's exact type must be supplied by the
+context.  A bare `auto` declaration supplies no target and therefore keeps the
+lazy reduction expression:
+
 ```cpp
-float sum = static_cast<Eigen::Tensor<float, 0>>(a.sum())();
+// auto preserves the expression type; the scalar cast forces evaluation.
+auto sum_expression = a.sum();
+const auto sum = static_cast<float>(a.sum());
+```
+
+For example, a reduction with a `float` result cannot convert directly to
+`double`.  First evaluate it as `float`, as in the `static_cast` above, and then
+convert the resulting scalar to `double`.  Reductions such as `all()` and
+`any()` have `bool` as their exact scalar result type, regardless of the input
+tensor's scalar type.
+
+The conversion is available only when the reduction removes every dimension;
+partial reductions remain tensor expressions.  It evaluates immediately on
+the default device, and each conversion evaluates the expression again.  Store
+the result when it will be used more than once.
+
+The conversion applies to the full reduction itself.  Expressions such as
+`2 * a.sum()` and `a.sum() > 0` remain lazy rank-0 tensor expressions.  For
+ordinary scalar arithmetic or comparisons, evaluate the reduction first:
+
+```cpp
+const float sum = a.sum();
+const float twice_sum = 2 * sum;
+const bool positive = sum > 0;
+```
+
+To evaluate on a specific device, retain a rank-0 tensor result:
+
+```cpp
+Eigen::Tensor<float, 0> result;
+result.device(device) = a.sum();
 ```
 
 ### (Operation) sum(const Dimensions& reduction_dims)
@@ -2863,11 +2899,14 @@ layout.
 
 Scalar values are often represented by tensors of size 1 and rank 0.
 
-For example `Tensor<T, N>::maximum()` returns a `Tensor<T, 0>`.
+For example, the no-argument `Tensor<T, N>::maximum()` returns a rank-0
+`TensorReductionOp`.  Such reduction expressions can be assigned directly to
+their exact scalar result type, as explained in **Reduction along all
+dimensions**.
 
-Similarly, the inner product of 2 1d tensors (through contractions) returns a 0d tensor.
-
-The scalar value can be extracted as explained in **Reduction along all dimensions**.
+Other rank-0 expressions, such as `argmax()` or the inner product of two rank-1
+tensors computed through contraction, must still be evaluated into a rank-0
+`Tensor` before accessing their scalar coefficient with `operator()`.
 
 
 ## Limitations
