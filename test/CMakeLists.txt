@@ -365,6 +365,7 @@ ei_add_test(threads_eventcount "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(threads_runqueue "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(threads_non_blocking_thread_pool "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(threads_fork_join "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
+ei_add_test(assignment_threaded "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 add_executable(bug1213 bug1213.cpp bug1213_main.cpp)
 target_link_libraries(bug1213 Eigen3::Eigen)
 
