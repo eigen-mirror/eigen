@@ -12,6 +12,7 @@
 #define EIGEN_TEST_PRODUCT_H
 
 #include "main.h"
+#include "product_test_helpers.h"
 #include <Eigen/QR>
 
 template <typename Derived1, typename Derived2>

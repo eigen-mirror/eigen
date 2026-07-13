@@ -2,7 +2,12 @@
 
 Use this guide when adding or changing tests. The checked-out source is authoritative:
 
-- [`test/main.h`](../test/main.h) defines the test framework and assertion helpers.
+- [`test/main.h`](../test/main.h) configures and runs the test framework and aggregates the shared helpers.
+- [`test/numerical_test_helpers.h`](../test/numerical_test_helpers.h) defines numerical comparison, assertion, and
+  tolerance helpers.
+- [`test/product_test_helpers.h`](../test/product_test_helpers.h) defines matrix-product error bounds.
+- [`test/random_matrix_helper.h`](../test/random_matrix_helper.h) and
+  [`test/type_test_helpers.h`](../test/type_test_helpers.h) define random-matrix and type utilities.
 - [`cmake/EigenTesting.cmake`](../cmake/EigenTesting.cmake) defines test registration and splitting.
 - [`test/CMakeLists.txt`](../test/CMakeLists.txt) and
   [`unsupported/test/CMakeLists.txt`](../unsupported/test/CMakeLists.txt) register the suites.
@@ -59,9 +64,12 @@ Eigen currently uses its own framework, not GoogleTest:
 2. Include `main.h`, then the public umbrella header for tests of public behavior. A focused test of a private utility
    may include its implementation header only when that matches an established nearby pattern; never present such a
    path as a user include.
-3. Use `VERIFY`, `VERIFY_IS_EQUAL`, `VERIFY_IS_APPROX`, and the other helpers defined in `test/main.h`.
+3. Use `VERIFY`, `VERIFY_IS_EQUAL`, `VERIFY_IS_APPROX`, and the other helpers exposed through `test/main.h`.
 4. End with `EIGEN_DECLARE_TEST(<name>) { ... }`.
 5. Register the source with `ei_add_test(<name>)` in the matching `CMakeLists.txt`, then reconfigure.
+
+Keep `test/main.h` limited to framework configuration, registration, shared-helper aggregation, and the test driver.
+Put reusable utilities in a narrowly named helper header; include it from `main.h` only when most tests need it.
 
 For compile-failure coverage, use the established `failtest/` pattern. Its `_ok` target must compile and its `_ko`
 target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.

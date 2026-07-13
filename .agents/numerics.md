@@ -14,8 +14,8 @@ are the source of truth; this file defines the review standard rather than an al
   generally does not promise correctly rounded elementary functions, so Eigen's documented or established ULP
   budget is the relevant target.
 - Do not use `VERIFY_IS_APPROX` as the acceptance criterion for a newly designed numerical kernel. Its defaults in
-  [`test/main.h`](../test/main.h) are deliberately loose test-framework tolerances, not machine-epsilon or ULP
-  bounds.
+  [`test/numerical_test_helpers.h`](../test/numerical_test_helpers.h) are deliberately loose test-framework
+  tolerances, not machine-epsilon or ULP bounds.
 - Scale coverage with the change. A narrow fix needs focused regression cases and nearby coverage; a new algorithm
   or shared kernel needs broad conditioning, scalar-type, and backend coverage.
 

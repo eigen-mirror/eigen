@@ -240,4 +240,23 @@ VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar
 
 }  // end namespace Eigen
 
+template <typename DataContainer>
+void setRandomDataInRange(DataContainer& data_container, typename DataContainer::Scalar min_value,
+                          typename DataContainer::Scalar max_value) {
+  for (Eigen::Index i = 0; i < data_container.size(); ++i) {
+    data_container.data()[i] = Eigen::internal::random<typename DataContainer::Scalar>(min_value, max_value);
+  }
+}
+
+template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
+MatrixType RandomMatrix(Eigen::Index rows, Eigen::Index cols, Scalar min, Scalar max) {
+  MatrixType M(rows, cols);
+  for (Eigen::Index i = 0; i < rows; ++i) {
+    for (Eigen::Index j = 0; j < cols; ++j) {
+      M(i, j) = Eigen::internal::random<Scalar>(min, max);
+    }
+  }
+  return M;
+}
+
 #endif  // EIGEN_RANDOM_MATRIX_HELPER
