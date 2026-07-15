@@ -79,7 +79,7 @@ struct evaluator_traits<Hankel<Scalar_, Rows_, Cols_>> {
  * the default preconditioners read individual coefficients through \c col() or
  * \c InnerIterator, which the structured operators do not expose.
  *
- * The class is closed under \ref transpose, \ref conjugate and \ref adjoint: the
+ * The class is closed under \ref transpose, \ref conjugate and \ref adjoint. The
  * transpose is the Hankel matrix of the same sequence with the dimensions
  * swapped, and its symbol is obtained from the cached one by a diagonal phase
  * multiplication instead of a new FFT.
