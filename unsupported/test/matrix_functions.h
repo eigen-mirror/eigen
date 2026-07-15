@@ -20,40 +20,63 @@ struct processTriangularMatrix {
   static void run(MatrixType&, MatrixType&, const MatrixType&) {}
 };
 
-// For real matrices, ensure all eigenvalues have positive real parts
-// (needed for matrix log) and cap the condition number.
+// For real matrices, ensure all eigenvalues have positive real parts (needed for
+// the matrix logarithm and fractional powers to stay off the branch cut on the
+// negative real axis) and cap the condition number. The quasi-triangular Schur
+// factor T is modified block by block: a 2x2 block must stay a genuine complex
+// conjugate pair, so it is negated and scaled as a unit. Touching a single
+// diagonal entry of a 2x2 block could flip its discriminant and split it into
+// real -- possibly negative -- eigenvalues, which would reintroduce the branch
+// cut this routine is meant to avoid.
 template <typename MatrixType>
 struct processTriangularMatrix<MatrixType, 0> {
   typedef typename MatrixType::Scalar Scalar;
   static void run(MatrixType& m, MatrixType& T, const MatrixType& U) {
     using std::abs;
+    using std::sqrt;
     const Index size = m.cols();
-    Scalar maxDiag(0);
 
+    // First pass: give every eigenvalue a positive real part and record the
+    // largest eigenvalue magnitude.
+    Scalar maxMag(0);
     for (Index i = 0; i < size; ++i) {
       if (i == size - 1 || numext::is_exactly_zero(T.coeff(i + 1, i))) {
-        // 1x1 block (real eigenvalue): make positive.
+        // 1x1 block (real eigenvalue): make it positive.
         T.coeffRef(i, i) = abs(T.coeff(i, i));
+        maxMag = (std::max)(maxMag, T.coeff(i, i));
       } else {
-        // 2x2 block (complex conjugate pair): eigenvalues are T(i,i) ± bi.
-        // Negate the block if the real part is negative so that the matrix
-        // log is well-defined (avoids the branch cut on the negative real axis).
-        if (T.coeff(i, i) < Scalar(0)) {
-          T.coeffRef(i, i) = -T.coeff(i, i);
-          T.coeffRef(i + 1, i + 1) = -T.coeff(i + 1, i + 1);
-          T.coeffRef(i, i + 1) = -T.coeff(i, i + 1);
-          T.coeffRef(i + 1, i) = -T.coeff(i + 1, i);
+        // 2x2 block (complex conjugate pair a ± bi, real part
+        // a = (T(i,i) + T(i+1,i+1)) / 2). Negate the whole block when its real
+        // part is negative; this keeps it a valid conjugate pair while moving it
+        // off the branch cut. Checking a single diagonal entry (as before) misses
+        // blocks whose real part is negative only because the other entry is.
+        if (T.coeff(i, i) + T.coeff(i + 1, i + 1) < Scalar(0)) {
+          T.template block<2, 2>(i, i) *= Scalar(-1);
         }
+        // |eigenvalue|^2 equals the block determinant a^2 + b^2.
+        const Scalar det = T.template block<2, 2>(i, i).determinant();
+        maxMag = (std::max)(maxMag, sqrt(abs(det)));
         ++i;
       }
-      maxDiag = (std::max)(maxDiag, abs(T.coeff(i, i)));
     }
-    // Clamp small eigenvalues to limit condition number. Matrix power and
-    // matrix function tests lose too many digits on ill-conditioned matrices.
-    if (maxDiag > Scalar(0)) {
-      Scalar minAllowed = maxDiag / Scalar(100);
+
+    // Second pass: lift eigenvalues that are too small to cap the condition
+    // number; tests lose too many digits on ill-conditioned matrices. A 2x2 block
+    // is scaled as a unit so it remains a conjugate pair.
+    if (maxMag > Scalar(0)) {
+      const Scalar minAllowed = maxMag / Scalar(100);
       for (Index i = 0; i < size; ++i) {
-        if (abs(T.coeff(i, i)) < minAllowed) T.coeffRef(i, i) = minAllowed;
+        if (i == size - 1 || numext::is_exactly_zero(T.coeff(i + 1, i))) {
+          if (T.coeff(i, i) < minAllowed) T.coeffRef(i, i) = minAllowed;
+        } else {
+          const Scalar det = T.template block<2, 2>(i, i).determinant();
+          const Scalar mag = sqrt(abs(det));
+          if (mag > Scalar(0) && mag < minAllowed) {
+            const Scalar s = minAllowed / mag;
+            T.template block<2, 2>(i, i) *= s;
+          }
+          ++i;
+        }
       }
     }
     m = U * T * U.transpose();

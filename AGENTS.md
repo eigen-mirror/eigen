@@ -107,6 +107,12 @@ coefficient access, reductions, or `.eval()`.
   `mat = mat * mat` is protected by product evaluation; `mat.noalias() = mat * mat` is wrong.
 - Prefer Eigen expressions when they express the operation clearly and avoid repeated evaluation. Keep a scalar loop
   when it represents control flow better, avoids an unnecessary temporary, or has measured performance benefits.
+- Prefer block and view expressions when a uniform operation or existing Eigen method applies to a submatrix; for
+  example, scale a 2-by-2 block or call its `determinant()` instead of spelling out its coefficients. Preserve known
+  extents with fixed-size accessors such as `block<Rows, Cols>(i, j)`; in dependent template code, write
+  `m.template block<Rows, Cols>(i, j)`. Use runtime extents only when they are genuinely dynamic, and use individual
+  coefficient access when entries require different operations. Blocks remain lazy, non-owning views, so the lifetime
+  and overlap rules above still apply.
 - The two arms of `?:` must have a common C++ type; distinct Eigen expression types often do not. Use `if`/`else` when
   necessary.
 

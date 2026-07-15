@@ -60,6 +60,11 @@ rank-deficient, clustered/repeated spectra, extreme scaling, and the matrix prop
 families include Hilbert, Vandermonde, Wilkinson, Toeplitz/KMS, banded, defective or near-defective, and barely
 positive-definite matrices. Check error/status reporting as well as successful results.
 
+For uniform transformations and built-in operations on small structured submatrices, use fixed-size block expressions,
+such as `T.template block<2, 2>(i, i).determinant()`, so the mathematical structure and compile-time dimensions remain
+explicit. This is especially useful for Schur blocks, pivots, and small panels; use coefficient access instead when the
+entries require distinct formulas.
+
 Where LAPACK has a counterpart, require comparable backward stability, conditioning behavior, pivoting robustness,
 and test-category coverage. Do not require identical internal steps, pivot order, eigenvector signs/phases, or
 roundoff-level output. Higham's *Accuracy and Stability of Numerical Algorithms* and Golub and Van Loan's *Matrix
