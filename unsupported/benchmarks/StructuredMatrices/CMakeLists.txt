@@ -3,5 +3,6 @@
 
 eigen_add_benchmark(bench_structured_circulant bench_structured_circulant.cpp)
 eigen_add_benchmark(bench_structured_toeplitz bench_structured_toeplitz.cpp)
+eigen_add_benchmark(bench_structured_hankel bench_structured_hankel.cpp)
 eigen_add_benchmark(bench_structured_levinson bench_structured_levinson.cpp)
 eigen_add_benchmark(bench_structured_transpose bench_structured_transpose.cpp)
