@@ -12,6 +12,8 @@
 #define EIGEN_TRIDIAGONAL_INVERSE_ITERATION_H
 
 #include "./SelfAdjointEigenSolver.h"
+// For tridiagonal_sturm_count_below(), used to assign eigenvalues to disconnected blocks.
+#include "./TridiagonalBisection.h"
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -45,6 +47,9 @@ struct inverse_iteration_rng {
     z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
     z = z ^ (z >> 31);
     // Top 32 bits give a uniform integer in [0, 2^32); map to [0, 1) and then to (-1, 1).
+    // RealScalar must be float or wider: a narrower scalar overflows RealScalar(hi) to infinity
+    // (inf * 0 = NaN start vectors), which is why TridiagonalEigenSolver computes scalars narrower
+    // than float in float (see its ComputeScalar) and none of this code ever runs on them.
     const numext::uint32_t hi = numext::uint32_t(z >> 32);
     const RealScalar u = RealScalar(hi) * (RealScalar(1) / RealScalar(4294967296.0));
     return RealScalar(2) * u - RealScalar(1);
@@ -278,8 +283,17 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
       // Scale the right-hand side so the near-singular solve neither overflows nor underflows.
       const RealScalar bmax = b.cwiseAbs().maxCoeff();
       if (numext::is_exactly_zero(bmax)) break;  // degenerate iterate; cannot grow -> not converged
-      const RealScalar scl = RealScalar(n) * onenrm * numext::maxi(eps, numext::abs(lu_d[n - 1])) / bmax;
-      b *= scl;
+      const RealScalar target = RealScalar(n) * onenrm * numext::maxi(eps, numext::abs(lu_d[n - 1]));
+      const RealScalar scl = target / bmax;
+      if (EIGEN_PREDICT_TRUE(scl >= (std::numeric_limits<RealScalar>::min)())) {
+        b *= scl;
+      } else {
+        // scl underflowed (huge iterate from a shift within ~pivmin of an exact eigenvalue). A
+        // subnormal or flushed-to-zero scale would zero the iterate on flush-to-zero hardware
+        // (ARMv7 NEON), so scale in two in-range steps instead.
+        b /= bmax;
+        b *= target;
+      }
       tridiagonal_lagts<RealScalar>(lu_d.data(), lu_rcp.data(), lu_du.data(), lu_dl.data(), lu_du2.data(), piv.data(),
                                     b.data(), n);
 
@@ -312,25 +326,16 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
 
 /** \internal
  *
- * Computes eigenvectors of a real symmetric tridiagonal matrix T by inverse iteration, given a set
- * of already-computed eigenvalues (LAPACK's xSTEIN driver, built on tridiagonal_lagtf() /
- * tridiagonal_lagts()). For each requested eigenvalue \f$ \lambda_j \f$ the routine factors
- * \f$ T - \lambda_j I \f$ and applies a few steps of inverse iteration from a deterministic
- * pseudo-random start, reorthogonalizing (modified Gram-Schmidt) against the eigenvectors of any
- * tightly clustered neighbours so that a degenerate cluster yields an orthonormal basis.
+ * Inverse-iteration driver for a numerically \e connected symmetric tridiagonal matrix T -- one
+ * with no negligible couplings, so a single normalization scale and perturbation floor are valid
+ * for every row (LAPACK's xSTEIN core, built on tridiagonal_lagtf() / tridiagonal_lagts()). For
+ * each requested eigenvalue \f$ \lambda_j \f$ the routine factors \f$ T - \lambda_j I \f$ and
+ * applies a few steps of inverse iteration from a deterministic pseudo-random start,
+ * reorthogonalizing (modified Gram-Schmidt) against the eigenvectors of any tightly clustered
+ * neighbours so that a degenerate cluster yields an orthonormal basis.
  *
- * The eigenvalues are assumed sorted in non-decreasing order (as produced by spectral bisection or
- * the QR algorithm). The whole matrix is treated as a single block: an eigenvalue belonging to a
- * disconnected diagonal block (separated by a zero off-diagonal) factors to a near-singular U only
- * on its own block, so the iterate is automatically supported there; reorthogonalization across
- * blocks is harmless because those eigenvectors are already orthogonal.
- *
- * \a eivals may be an arbitrary subset of the spectrum (e.g. a bisection range): exactly one column
- * is produced per supplied eigenvalue. Reorthogonalization only ever runs among the supplied
- * eigenvalues, so the output columns are mutually orthonormal but are not orthogonalized against
- * cluster members omitted from \a eivals. A subset that splits a numerically degenerate cluster
- * therefore returns an arbitrary (still orthonormal) basis of the requested slice rather than a
- * canonical one; pass the whole cluster when that distinction matters.
+ * Callers go through tridiagonal_inverse_iteration(), which first splits the matrix at negligible
+ * couplings and dispatches each numerically disconnected block here with its own scale.
  *
  * \param[in]  diag    diagonal of T (length \c n).
  * \param[in]  subdiag sub-diagonal of T (length \c n-1).
@@ -341,8 +346,8 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
  *          (0 on full success); the caller maps a non-zero count to ComputationInfo::NoConvergence.
  */
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
-Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
-                                    EivecType& eivecs) {
+Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
+                                              EivecType& eivecs) {
   typedef typename DiagType::Scalar RealScalar;
   EIGEN_STATIC_ASSERT(NumTraits<RealScalar>::IsInteger == 0 && NumTraits<RealScalar>::IsComplex == 0,
                       THIS_FUNCTION_IS_NOT_FOR_INTEGER_OR_COMPLEX_TYPES)
@@ -397,7 +402,12 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     for (Index j = 0; j < m; ++j) {
       RealScalar xj = eivals[j] / scale;
       if (j > 0) {
-        const RealScalar pertol = RealScalar(10) * numext::abs(eps * xj);
+        // The xSTEIN nudge 10*eps*|xj| separates coincident shifts so their factorizations differ.
+        // Capped at a fraction of the cluster threshold: at low precision (bfloat16: 10*eps ~ 0.08)
+        // the un-capped nudge can push a shift across a cluster boundary into a neighbouring
+        // eigenspace. Shifts the cap leaves coincident still yield an orthonormal basis, via the
+        // per-cluster Gram-Schmidt on independent random starts.
+        const RealScalar pertol = numext::mini(RealScalar(10) * numext::abs(eps * xj), RealScalar(0.25) * ortol);
         if (xj - xjm < pertol) xj = xjm + pertol;
       }
       if (j == 0 || numext::abs(xj - xjm) > ortol) gpind = j;
@@ -427,7 +437,7 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     // minimum such work to give each thread before adding one: m*n / kMinTaskSize threads, capped at
     // the pool size. The value is measured -- at m*n = 2*kMinTaskSize (the two-thread point) inverse
     // iteration is already ~2x faster than serial, with the gain growing to the core count for larger n.
-    const double work = m * n;
+    const double work = double(m) * double(n);
     const double kMinTaskSize = 2048.0;
     const Index work_threads = Index(work / kMinTaskSize);
     nthreads = int(numext::maxi(Index(1), numext::mini(work_threads, Index(Eigen::nbThreads()))));
@@ -452,6 +462,213 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   {
     nonconv = tridiagonal_inverse_iteration_block<RealScalar>(sdiag_p, ssub_p, xj_p, cl_p, n, onenrm, dtpcrt, maxits,
                                                               extra, eivecs, 0, m);
+  }
+  return nonconv;
+}
+
+/** \internal
+ *
+ * Computes eigenvectors of a real symmetric tridiagonal matrix T by inverse iteration, given a set
+ * of already-computed eigenvalues (LAPACK's xSTEIN driver). The matrix is first split at negligible
+ * couplings into numerically disconnected diagonal blocks (xSTEBZ's splitting criterion, applied to
+ * the normalized matrix so it is scale-invariant), and each block is processed independently by
+ * tridiagonal_inverse_iteration_connected() with its own normalization scale and perturbation
+ * floor. Blocks at very different scales require this: a single global floor \f$ eps \|T\| \f$
+ * swamps the pivots of any block much smaller than \f$ \|T\| \f$ and returns arbitrary mixtures of
+ * its eigenvectors. Eigenvector components outside the owning block are exactly zero.
+ *
+ * Each requested eigenvalue is assigned to a block by capacity: per-block Sturm counts over the
+ * value interval bracketing each group of coincident requests (bounded by the midpoints to the
+ * neighbouring distinct requested values, widened by a rounding tolerance at the subset's edges)
+ * say how many of the block's eigenvalues that group may claim, and the group's copies are
+ * distributed to blocks in index order within that capacity. This reconstructs the
+ * eigenvalue-to-block pairing that LAPACK's xSTEIN receives explicitly (IBLOCK) from xSTEBZ,
+ * without requiring the caller to supply it. A request that exceeds every block's capacity
+ * (eigenvalues that belong to no block) is assigned best-effort and surfaces through the
+ * non-convergence count.
+ *
+ * The eigenvalues are assumed sorted in non-decreasing order (as produced by spectral bisection or
+ * the QR algorithm).
+ *
+ * \a eivals may be an arbitrary subset of the spectrum (e.g. a bisection range): exactly one column
+ * is produced per supplied eigenvalue. Reorthogonalization only ever runs among the supplied
+ * eigenvalues, so the output columns are mutually orthonormal but are not orthogonalized against
+ * cluster members omitted from \a eivals. A subset that splits a numerically degenerate cluster
+ * therefore returns an arbitrary (still orthonormal) basis of the requested slice rather than a
+ * canonical one; pass the whole cluster when that distinction matters.
+ *
+ * \param[in]  diag    diagonal of T (length \c n).
+ * \param[in]  subdiag sub-diagonal of T (length \c n-1).
+ * \param[in]  eivals  the eigenvalues whose eigenvectors are wanted, non-decreasing (length \c m).
+ * \param[out] eivecs  filled with the \c m eigenvectors as its columns (must be sized \c n x \c m);
+ *                     column \c j is a unit-norm eigenvector for \c eivals[j].
+ * \returns the number of eigenvectors that did not converge within the inverse-iteration step limit
+ *          (0 on full success); the caller maps a non-zero count to ComputationInfo::NoConvergence.
+ */
+template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
+Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
+                                    EivecType& eivecs) {
+  typedef typename DiagType::Scalar RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  const Index n = diag.size();
+  const Index m = eivals.size();
+  if (n == 0 || m == 0) return 0;
+
+  // Split at negligible couplings (cf. xSTEBZ): |e_k| <= eps * sqrt(|d_k|) * sqrt(|d_k+1|). The
+  // geometric-mean form is scale-invariant on its own (both sides scale linearly) and needs no
+  // additive floor: a floor expressed at any single scale falsely splits strongly connected blocks
+  // living far below that scale. Taking square roots before multiplying keeps every intermediate in
+  // range, so the comparison stays exact down to subnormal entries; a zero coupling always splits.
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  Matrix<Index, Dynamic, 1> bstart(n + 1);  // block b spans rows [bstart(b), bstart(b+1))
+  Index nblocks = 1;
+  bstart(0) = 0;
+  if (n > 1) {
+    const Array<bool, Dynamic, 1> split = (subdiag.array().abs() <= eps * (diag.head(n - 1).array().abs().sqrt() *
+                                                                           diag.tail(n - 1).array().abs().sqrt()));
+    for (Index k = 0; k + 1 < n; ++k)
+      if (split(k)) bstart(nblocks++) = k + 1;
+  }
+  bstart(nblocks) = n;
+
+  if (nblocks == 1) return tridiagonal_inverse_iteration_connected(diag, subdiag, eivals, eivecs);
+
+  // Per-block normalized data (block-local scale) for the assignment Sturm counts, and the
+  // per-block localization tolerance btol: the count's rounding-displacement bound at the block's
+  // own scale. The subset-edge windows below are widened by btol so that a requested value equal to
+  // a block eigenvalue (up to that block's rounding) is found, without a window at any other
+  // block's scale swallowing well-separated foreign eigenvalues -- a tolerance expressed at the
+  // global scale would hand a small block's eigenvalue to whichever block comes first.
+  const RealScalar safemin = numext::maxi(RealScalar(1) / NumTraits<RealScalar>::highest(),
+                                          (RealScalar(1) + eps) * (std::numeric_limits<RealScalar>::min)());
+  VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks);
+  for (Index b = 0; b < nblocks; ++b) {
+    const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
+    RealScalar s = diag.segment(b0, nb).cwiseAbs().maxCoeff();
+    if (nb > 1) s = numext::maxi(s, subdiag.segment(b0, nb - 1).cwiseAbs().maxCoeff());
+    if (numext::is_exactly_zero(s)) s = RealScalar(1);
+    bscale(b) = s;
+    alpha_all.segment(b0, nb) = diag.segment(b0, nb) / s;
+    RealScalar max_bsq = RealScalar(0);
+    if (nb > 1) {
+      beta_sq_all.segment(b0, nb - 1) = (subdiag.segment(b0, nb - 1) / s).array().square();
+      max_bsq = beta_sq_all.segment(b0, nb - 1).maxCoeff();
+    }
+    bpivmin(b) = safemin * numext::maxi(max_bsq, RealScalar(1));
+    // Normalized block rows are bounded by 3 in magnitude, which bounds the block's infinity norm.
+    btol(b) = RealScalar(2.1) * (RealScalar(3) * RealScalar(nb) * eps + RealScalar(4) * safemin) * s;
+  }
+
+  // Assign each requested eigenvalue to a block by capacity. Groups are runs of exactly-equal
+  // requested values; a block's capacity for a group is its Sturm count over the group's value
+  // interval, bounded by the midpoints to the neighbouring distinct values and, at the subset's
+  // edges, widened by a tolerance. The edge tolerance is tiered: the per-block btol first, so that
+  // exactly supplied eigenvalues can only be claimed by the block that owns them, and -- when the
+  // edge group still cannot cover its copies -- the matrix-scale gtol, which admits requested
+  // values whose error is at the scale of the whole matrix (e.g. the staged bisection's output for
+  // a block much smaller than the matrix norm). The intervals partition the requested span and
+  // adjacent intervals share their boundary evaluation, so each block eigenvalue is counted exactly
+  // once even at count knife-edges. A copy its own interval cannot supply is carried into the next
+  // interval; copies left at the end pair up with the blocks holding leftover span capacity (a
+  // miscount that let a block absorb a foreign copy freed exactly one such slot elsewhere).
+  RealScalar gscale = bscale.maxCoeff();
+  const RealScalar gtol = RealScalar(2.1) * (RealScalar(3) * RealScalar(n) * eps + RealScalar(4) * safemin) * gscale;
+  Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
+      below_edge(nblocks), carry(m), carry_next(m);
+  assigned.setZero();
+  // Sturm count over block b of its eigenvalues strictly below the unnormalized shift x (normalized
+  // by the block's own scale, as the block's alpha/beta data is).
+  auto count_below = [&](Index b, RealScalar x) -> Index {
+    const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
+    return tridiagonal_sturm_count_below<RealScalar>(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b),
+                                                     x / bscale(b));
+  };
+  for (Index b = 0; b < nblocks; ++b) below_prev(b) = count_below(b, eivals[0] - btol(b));
+  below_edge = below_prev;
+  Index ncarry = 0;
+  Index g_begin = 0;
+  while (g_begin < m) {
+    Index g_end = g_begin + 1;
+    while (g_end < m && !(eivals[g_begin] < eivals[g_end])) ++g_end;
+    // Upper boundary: midpoint to the next distinct value, or the per-block widened edge at the end.
+    const bool first = (g_begin == 0);
+    const bool last = (g_end >= m);
+    const RealScalar mid_bound =
+        last ? RealScalar(0) : RealScalar(0.5) * eivals[g_end - 1] + RealScalar(0.5) * eivals[g_end];
+    bool widened = false;
+    while (true) {
+      Index total = 0;
+      for (Index b = 0; b < nblocks; ++b) {
+        const RealScalar bound = last ? eivals[m - 1] + (widened ? gtol : btol(b)) : mid_bound;
+        below_cur(b) = count_below(b, bound);
+        caps(b) = numext::maxi(Index(0), below_cur(b) - below_prev(b));
+        total += caps(b);
+      }
+      // Retry an edge group once with the matrix-scale tolerance if the block-scale windows left it
+      // short; interior deficits are handled by the carry chain instead.
+      if (widened || !(first || last) || total >= g_end - g_begin + (last ? ncarry : 0)) break;
+      widened = true;
+      if (first) {
+        for (Index b = 0; b < nblocks; ++b) below_prev(b) = count_below(b, eivals[0] - gtol);
+        below_edge = below_prev;
+      }
+    }
+    // The group's own copies first, then the carried ones; whatever finds no capacity carries on.
+    Index ncarry_next = 0;
+    for (Index pass = 0; pass < 2; ++pass) {
+      const Index count = (pass == 0) ? g_end - g_begin : ncarry;
+      for (Index c = 0; c < count; ++c) {
+        const Index j = (pass == 0) ? g_begin + c : carry(c);
+        Index chosen = -1;
+        for (Index b = 0; b < nblocks && chosen < 0; ++b)
+          if (caps(b) > 0) chosen = b;
+        if (chosen < 0) {
+          carry_next(ncarry_next++) = j;
+          continue;
+        }
+        --caps(chosen);
+        ++assigned(chosen);
+        blockof(j) = chosen;
+      }
+    }
+    carry.swap(carry_next);
+    ncarry = ncarry_next;
+    below_prev = below_cur;
+    g_begin = g_end;
+  }
+  // Leftover copies: first blocks with leftover span capacity, then any block with spare rows.
+  for (Index c = 0; c < ncarry; ++c) {
+    const Index j = carry(c);
+    Index chosen = -1;
+    for (Index b = 0; b < nblocks && chosen < 0; ++b)
+      if (below_cur(b) - below_edge(b) - assigned(b) > 0) chosen = b;
+    if (chosen < 0)
+      for (Index b = 0; b < nblocks && chosen < 0; ++b)
+        if (bstart(b + 1) - bstart(b) - assigned(b) > 0) chosen = b;
+    if (chosen < 0) chosen = 0;
+    ++assigned(chosen);
+    blockof(j) = chosen;
+  }
+
+  // Run each block independently and scatter its columns; rows outside the block stay exactly zero.
+  eivecs.setZero();
+  Index nonconv = 0;
+  VectorType wloc;
+  Matrix<RealScalar, Dynamic, Dynamic> vloc;
+  Matrix<Index, Dynamic, 1> colmap(m);
+  for (Index b = 0; b < nblocks; ++b) {
+    const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
+    Index mb = 0;
+    for (Index j = 0; j < m; ++j)
+      if (blockof(j) == b) colmap(mb++) = j;
+    if (mb == 0) continue;
+    wloc.resize(mb);
+    for (Index k = 0; k < mb; ++k) wloc(k) = eivals[colmap(k)];
+    vloc.resize(nb, mb);
+    const VectorType bdiag = diag.segment(b0, nb);
+    const VectorType bsub = subdiag.segment(b0, nb > 1 ? nb - 1 : 0);
+    nonconv += tridiagonal_inverse_iteration_connected(bdiag, bsub, wloc, vloc);
+    for (Index k = 0; k < mb; ++k) eivecs.col(colmap(k)).segment(b0, nb) = vloc.col(k);
   }
   return nonconv;
 }

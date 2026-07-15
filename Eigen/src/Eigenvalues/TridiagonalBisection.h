@@ -28,7 +28,10 @@ namespace Eigen {
  *    half-open range [il, iu) (i.e. the (iu - il) smallest starting at il),
  *  - values(vl, vu): the eigenvalues lying in the half-open interval [vl, vu)
  *    (lower-closed, upper-open, like indices(); an eigenvalue exactly equal to
- *    vl is selected, one equal to vu is not).
+ *    vl is selected, one equal to vu is not). Endpoint membership is resolved
+ *    against the computed eigenvalue approximations, so an eigenvalue within
+ *    roughly \c n*eps*||T|| of an endpoint -- but not exactly on it -- may
+ *    resolve to either side of that endpoint.
  *
  * In every mode the computed eigenvalues are returned in non-decreasing order.
  */
@@ -67,7 +70,7 @@ namespace internal {
  * zero and overflow, every pivot that drops to or below \c pivmin is treated as
  * a (small) negative pivot, counted, and clamped to \c -pivmin. The same guard
  * is applied to every pivot including the first, so the scalar tail produces
- * results bit-identical to the vectorized body.
+ * counts identical to the vectorized body.
  *
  * \param[in] alpha     diagonal of T, length \c n.
  * \param[in] beta_sq   squared off-diagonal of T, \f$ \beta_i^2 \f$, length \c n-1.
@@ -76,21 +79,30 @@ namespace internal {
  *                      e.g. \c safemin * max_i beta_i^2 (floored to \c safemin).
  * \param[in] eval_points  the \c num_points shift values at which to evaluate.
  * \param[out] count    on output \c count[j] is the number of eigenvalues of T
- *                      less than \c eval_points[j]. Must have room for
- *                      \c num_points entries.
+ *                      less than \c eval_points[j], as an exact integer. Must
+ *                      have room for \c num_points entries.
  */
-// Evaluates the Sturm count for \c kUnroll packets of shift points at once, fully unrolled so
-// the per-lane state (x, q, running count) stays in vector registers. See tridiagonal_sturm_counts().
+// Evaluates the Sturm count for \c kUnroll packets of shift points at once, fully unrolled so the
+// per-lane state (x, q, running count) stays in vector registers. The in-register count accumulates
+// in RealScalar (one padd per row, no cross-lane traffic) and is flushed into the exact int64 output
+// every kFlushPeriod rows -- comfortably before it could reach 2^digits, where RealScalar stops
+// representing consecutive integers (float: 2^24) -- so the stored counts are exact for any n. The
+// row loop is chunked on the flush period rather than testing per row, keeping the hot inner loop
+// unchanged; matrices with n below the period (the usual case) run it exactly once.
+// See tridiagonal_sturm_counts().
 template <int kUnroll, typename RealScalar>
 EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const RealScalar* beta_sq, Index n,
-                                                 RealScalar pivmin, const RealScalar* eval_points, RealScalar* count,
-                                                 Index start) {
+                                                 RealScalar pivmin, const RealScalar* eval_points,
+                                                 numext::int64_t* count, Index start) {
   typedef typename packet_traits<RealScalar>::type Packet;
   constexpr int kPacketSize = unpacket_traits<Packet>::size;
+  constexpr int kFlushShift = NumTraits<RealScalar>::digits() - 2 < 30 ? NumTraits<RealScalar>::digits() - 2 : 30;
+  constexpr Index kFlushPeriod = Index(1) << kFlushShift;
   const Packet pivmin_p = pset1<Packet>(pivmin);
   const Packet neg_pivmin_p = pset1<Packet>(-pivmin);
   const Packet one_p = pset1<Packet>(RealScalar(1));
 
+  numext::int64_t* cnt = count + start;
   Packet x[kUnroll], q[kUnroll], c[kUnroll];
   const Packet alpha_0 = pset1<Packet>(alpha[0]);
   EIGEN_UNROLL_LOOP
@@ -101,25 +113,53 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
     c[k] = pand(one_p, mask);
     q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
   }
-  for (Index i = 1; i < n; ++i) {
-    const Packet alpha_i = pset1<Packet>(alpha[i]);
-    const Packet beta_sq_im1 = pset1<Packet>(beta_sq[i - 1]);
+  // Convert the in-register lane counts to the exact int64 output: overwrite on the first flush,
+  // add into the previously flushed partials thereafter.
+  auto store_counts = [&](bool accumulate) {
     EIGEN_UNROLL_LOOP
     for (int k = 0; k < kUnroll; ++k) {
-      // q = (alpha_i - beta_{i-1}^2 / q) - x.
-      q[k] = psub(psub(alpha_i, pdiv(beta_sq_im1, q[k])), x[k]);
-      const Packet mask = pcmp_le(q[k], pivmin_p);
-      c[k] = padd(c[k], pand(one_p, mask));
-      q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
+      RealScalar buf[kPacketSize];
+      pstoreu(buf, c[k]);
+      EIGEN_UNROLL_LOOP
+      for (int l = 0; l < kPacketSize; ++l) {
+        if (accumulate)
+          cnt[k * kPacketSize + l] += numext::int64_t(buf[l]);
+        else
+          cnt[k * kPacketSize + l] = numext::int64_t(buf[l]);
+      }
     }
+  };
+  bool flushed = false;
+  Index i = 1;
+  while (true) {
+    const Index i_end = numext::mini(n, i + kFlushPeriod);
+    for (; i < i_end; ++i) {
+      const Packet alpha_i = pset1<Packet>(alpha[i]);
+      const Packet beta_sq_im1 = pset1<Packet>(beta_sq[i - 1]);
+      EIGEN_UNROLL_LOOP
+      for (int k = 0; k < kUnroll; ++k) {
+        // q = (alpha_i - beta_{i-1}^2 / q) - x.
+        q[k] = psub(psub(alpha_i, pdiv(beta_sq_im1, q[k])), x[k]);
+        const Packet mask = pcmp_le(q[k], pivmin_p);
+        c[k] = padd(c[k], pand(one_p, mask));
+        q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
+      }
+    }
+    if (i >= n) break;
+    // Flush the in-register counts (exact: at most kFlushPeriod + 1 increments so far) into the
+    // integer output and restart the accumulators. Only reached for n above the flush period.
+    store_counts(flushed);
+    EIGEN_UNROLL_LOOP
+    for (int k = 0; k < kUnroll; ++k) c[k] = pzero(c[k]);
+    flushed = true;
   }
-  EIGEN_UNROLL_LOOP
-  for (int k = 0; k < kUnroll; ++k) pstoreu(count + start + k * kPacketSize, c[k]);
+  // Final conversion to the exact integer counts (adding any flushed partials).
+  store_counts(flushed);
 }
 
 template <typename RealScalar>
 void tridiagonal_sturm_counts(const RealScalar* alpha, const RealScalar* beta_sq, Index n, RealScalar pivmin,
-                              const RealScalar* eval_points, RealScalar* count, Index num_points) {
+                              const RealScalar* eval_points, numext::int64_t* count, Index num_points) {
   typedef typename packet_traits<RealScalar>::type Packet;
   constexpr Index kPacketSize = Index(unpacket_traits<Packet>::size);
   // num_points is a point count and so never negative; clearing the sign bit makes that explicit to
@@ -141,19 +181,20 @@ void tridiagonal_sturm_counts(const RealScalar* alpha, const RealScalar* beta_sq
   for (; p + 1 <= full; p += 1)
     tridiagonal_sturm_block<1>(alpha, beta_sq, n, pivmin, eval_points, count, p * kPacketSize);
 
-  // Scalar tail for the remaining (< kPacketSize) points. Bit-identical to the packet path above.
+  // Scalar tail for the remaining (< kPacketSize) points. The pivot recurrence is bit-identical to
+  // the packet path above; the count accumulates directly in the exact integer type.
   for (Index j = full * kPacketSize; j < num_points; ++j) {
     const RealScalar xj = eval_points[j];
     RealScalar qj = alpha[0] - xj;
-    RealScalar cj = RealScalar(0);
+    numext::int64_t cj = 0;
     if (qj <= pivmin) {
-      cj += RealScalar(1);
+      ++cj;
       qj = numext::mini(qj, -pivmin);
     }
     for (Index i = 1; i < n; ++i) {
       qj = (alpha[i] - beta_sq[i - 1] / qj) - xj;
       if (qj <= pivmin) {
-        cj += RealScalar(1);
+        ++cj;
         qj = numext::mini(qj, -pivmin);
       }
     }
@@ -188,14 +229,16 @@ void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta
                                  RealScalar bracket_lo, RealScalar bracket_hi, Index t_lo, Index t_hi, int max_iters,
                                  RealScalar abs_tol, RealScalar* out) {
   typedef Array<RealScalar, Dynamic, 1> ArrayType;
+  typedef Array<numext::int64_t, Dynamic, 1> CountArrayType;
   const Index m = t_hi - t_lo;
   if (m <= 0) return;
 
   // The eigenvalue with 0-based index i is the value where count(x) crosses from <= i to > i.
+  // Counts and targets are exact 64-bit integers (see tridiagonal_sturm_counts()).
   ArrayType lower = ArrayType::Constant(m, bracket_lo);
   ArrayType upper = ArrayType::Constant(m, bracket_hi);
-  const ArrayType targets = ArrayType::LinSpaced(m, RealScalar(t_lo), RealScalar(t_hi - 1));
-  ArrayType counts(m);
+  const CountArrayType targets = CountArrayType::LinSpaced(m, t_lo, t_hi - 1);
+  CountArrayType counts(m);
   ArrayType mid = RealScalar(0.5) * (lower + upper);
 
   // Each eigenvalue is recorded the iteration it first converges, using a per-element criterion that
@@ -216,7 +259,8 @@ void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta
   // to offset the bookkeeping), so the scratch is allocated only then.
   constexpr int kPacketSize = unpacket_traits<typename packet_traits<RealScalar>::type>::size;
   bool deduplicate = (m >= 64 * Index(kPacketSize));
-  ArrayType distinct, counts_distinct;
+  ArrayType distinct;
+  CountArrayType counts_distinct;
   if (deduplicate) {
     distinct.resize(m);
     counts_distinct.resize(m);
@@ -230,8 +274,8 @@ void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta
       for (Index i = 1; i < m; ++i)
         if (midp[i] != midp[i - 1]) distp[nd++] = midp[i];
       tridiagonal_sturm_counts<RealScalar>(alpha, beta_sq, n, pivmin, distp, counts_distinct.data(), nd);
-      const RealScalar* cdp = counts_distinct.data();
-      RealScalar* cp = counts.data();
+      const numext::int64_t* cdp = counts_distinct.data();
+      numext::int64_t* cp = counts.data();
       Index g = 0;
       cp[0] = cdp[g];
       for (Index i = 1; i < m; ++i) {
@@ -266,12 +310,11 @@ void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta
  * Returns the number of eigenvalues of the (normalized) symmetric tridiagonal matrix T that are
  * strictly less than \c x, evaluated by the same pivot recurrence as tridiagonal_sturm_counts() but
  * counting only strictly-negative pivots. This translates the endpoints of a half-open value range
- * [vl, vu) into eigenvalue indices [count(vl), count(vu)): counting strictly-below makes an
- * eigenvalue that lands exactly on an endpoint count as not-below, so it is kept at the closed lower
- * end and dropped at the open upper end. (The batch evaluator above instead counts a pivot at the
- * floor as below, which on its own would yield (vl, vu]; the two differ only when an endpoint
- * coincides with an eigenvalue to within the pivot floor \c pivmin, where the choice is anyway
- * numerically ambiguous.)
+ * [vl, vu) into a target index range. The count is only reliable when \c x is farther from every
+ * eigenvalue than the recurrence's rounding displacement (~ \c n*eps*||T||): tridiagonal_bisection()
+ * therefore evaluates it at endpoints widened outward by that bound -- yielding a guaranteed
+ * superset of [vl, vu) -- and resolves exact endpoint membership afterwards, against the converged
+ * eigenvalues themselves.
  *
  * As in the batch evaluator, a pivot whose magnitude reaches the floor \c pivmin is replaced by
  * +/- pivmin, keeping its sign, so the following division cannot overflow.
@@ -373,7 +416,11 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // relative tolerance (it stops once b - a < RELFAC * ulp * max(|a|, |b|), RELFAC = 2), here
   // specialized to the matrix norm tnorm and folded together with any absolute tolerance the caller
   // requested.
-  abs_tol = numext::maxi(abs_tol, eps * tnorm);
+  // The 2*pivmin floor mirrors xSTEBZ/xLAEBZ (which converge on max(abstol, pivmin, reltol*...)):
+  // below the pivot floor the Sturm counts are meaningless anyway, and stopping there keeps the
+  // bracket midpoints out of the subnormal range, where hardware with flush-to-zero packet
+  // arithmetic (ARMv7 NEON) would evaluate them inconsistently between the packet and scalar paths.
+  abs_tol = numext::maxi(abs_tol, numext::maxi(eps * tnorm, RealScalar(2) * pivmin));
   // Widen the Gershgorin bracket so that, despite rounding in the Sturm recurrence, count() really does
   // reach 0 at lambda_min and n at lambda_max. The n*eps*tnorm term bounds the worst-case count error
   // accumulated over the n recurrence steps; the 2*pivmin term covers the pivot floor. The 2.1 prefactor
@@ -387,22 +434,47 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // Determine the target indices [t_lo, t_hi) and the search bracket.
   Index t_lo = 0, t_hi = n;
   RealScalar bracket_lo = lambda_min, bracket_hi = lambda_max;
+  bool value_filter = false;
+  RealScalar vl_n = RealScalar(0), vu_n = RealScalar(0);
+  RealScalar end_tol_lo = RealScalar(0), end_tol_hi = RealScalar(0);
   if (range.kind == EigenvalueRange::ByIndex) {
     eigen_assert(range.il >= 0 && range.il <= range.iu && range.iu <= n && "invalid eigenvalue index range");
     t_lo = range.il;
     t_hi = range.iu;
   } else if (range.kind == EigenvalueRange::ByValue) {
     eigen_assert(range.vl <= range.vu && "invalid eigenvalue value range");
-    const RealScalar vl = RealScalar(range.vl) / scale;
-    const RealScalar vu = RealScalar(range.vu) / scale;
-    // The eigenvalues in [vl, vu) are exactly those with indices in [t_lo, t_hi), where t_lo and t_hi
-    // count the eigenvalues strictly below each endpoint. Counting strictly-below puts an eigenvalue
-    // that coincides with an endpoint inside the interval at the closed lower end and outside it at the
-    // open upper end (see tridiagonal_sturm_count_below()).
-    t_lo = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, vl);
-    t_hi = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, vu);
-    bracket_lo = numext::maxi(lambda_min, vl);
-    bracket_hi = numext::mini(lambda_max, vu);
+    vl_n = RealScalar(range.vl) / scale;
+    vu_n = RealScalar(range.vu) / scale;
+    // A Sturm count taken exactly at an endpoint is unreliable when an eigenvalue sits there: the
+    // rounded terminal pivot's sign is arbitrary, so an eigenvalue equal to vl could be silently
+    // dropped, or one equal to vu kept, breaking the documented half-open [vl, vu) semantics.
+    // Instead, count at endpoints widened outward by a bound on the count's rounding displacement
+    // (the same form as the Gershgorin expansion above, per endpoint magnitude, plus the convergence
+    // tolerance) -- a guaranteed superset of [vl, vu) -- converge that superset, and resolve
+    // endpoint membership against the *converged* eigenvalues after the bisection (see below).
+    // An infinite endpoint (given as such, or a finite long double that narrowed to infinity in
+    // RealScalar) means unbounded on that side: the count is trivial there, and the tolerance
+    // arithmetic must not run (inf - inf = NaN would empty the result).
+    if ((numext::isfinite)(vl_n)) {
+      end_tol_lo =
+          RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vl_n)) + RealScalar(2) * pivmin) +
+          abs_tol;
+      t_lo = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin,
+                                                       vl_n - RealScalar(2) * end_tol_lo);
+      bracket_lo = numext::maxi(lambda_min, vl_n - RealScalar(2) * end_tol_lo);
+    } else {
+      t_lo = (vl_n < RealScalar(0)) ? 0 : n;
+    }
+    if ((numext::isfinite)(vu_n)) {
+      end_tol_hi =
+          RealScalar(2.1) * (RealScalar(n) * eps * numext::maxi(tnorm, numext::abs(vu_n)) + RealScalar(2) * pivmin) +
+          abs_tol;
+      t_hi = tridiagonal_sturm_count_below<RealScalar>(alpha.data(), beta_sq.data(), n, pivmin, vu_n + end_tol_hi);
+      bracket_hi = numext::mini(lambda_max, vu_n + RealScalar(2) * end_tol_hi);
+    } else {
+      t_hi = (vu_n > RealScalar(0)) ? n : 0;
+    }
+    value_filter = true;
   }
 
   const Index m = t_hi - t_lo;
@@ -425,7 +497,8 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   if (omp_get_num_threads() == 1) {
     constexpr Index kPacketSize = Index(unpacket_traits<typename packet_traits<RealScalar>::type>::size);
     // One work unit ~ one Sturm step (a packet division); kMinTaskSize is the minimum per thread.
-    const double work = m * n * max_iters;
+    // Multiply in double: the product overflows a 32-bit Index for matrices well within reach.
+    const double work = double(m) * double(n) * double(max_iters);
     const double kMinTaskSize = 131072.0;
     const Index work_threads = Index(work / kMinTaskSize);
     const Index point_threads = m / (8 * kPacketSize);
@@ -450,9 +523,34 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
                                             max_iters, abs_tol, out);
   }
 
+  // Enforce the documented non-decreasing order. Under uniform IEEE arithmetic the independent
+  // brackets already yield sorted midpoints, but on hardware with non-uniform subnormal handling
+  // (ARMv7, where NEON packet lanes flush to zero while the scalar VFP tail does not) neighbouring
+  // targets refined through the two paths can disagree by ~pivmin at the subnormal boundary. The
+  // cumulative max restores the invariant at O(m) cost and is a no-op for already-sorted output.
+  for (Index j = 1; j < m; ++j) out[j] = numext::maxi(out[j], out[j - 1]);
+
+  // ByValue: resolve endpoint membership against the converged eigenvalues. Comparing against both
+  // endpoints shifted DOWN by the endpoint tolerance gives every eigenvalue within that tolerance of
+  // an endpoint the documented closed/open treatment of the endpoint itself: an eigenvalue equal to
+  // vl is deterministically kept and one equal to vu deterministically dropped, however the rounded
+  // Sturm counts at the endpoints came out. Eigenvalues near (but not on) an endpoint may resolve to
+  // either side, as with LAPACK xSTEBZ, whose endpoint counts carry the same rounding ambiguity.
+  Index m_out = m;
+  if (value_filter) {
+    // Infinite endpoints pass through unshifted: every finite eigenvalue satisfies >= -inf / < +inf.
+    const RealScalar keep_lo = (numext::isfinite)(vl_n) ? vl_n - end_tol_lo : vl_n;
+    const RealScalar keep_hi = (numext::isfinite)(vu_n) ? vu_n - end_tol_hi : vu_n;
+    Index k = 0;
+    for (Index j = 0; j < m; ++j)
+      if (out[j] >= keep_lo && out[j] < keep_hi) out[k++] = out[j];
+    m_out = k;
+    if (m_out != m) eivalues.derived().resize(m_out);
+  }
+
   // Undo the normalization.
-  eivalues = (mid_all * scale).matrix();
-  return m;
+  eivalues = (mid_all.head(m_out) * scale).matrix();
+  return m_out;
 }
 
 }  // namespace internal
