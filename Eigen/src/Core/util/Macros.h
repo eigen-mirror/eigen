@@ -1426,9 +1426,9 @@ EIGEN_DEVICE_FUNC constexpr bool all(T t, Ts... ts) {
 // Notice: Use this macro with caution. The code in the if body should still
 // compile with C++14.
 #if defined(EIGEN_HAS_CXX17_IFCONSTEXPR)
-#define EIGEN_IF_CONSTEXPR(X) if constexpr (X)
+#define EIGEN_IF_CONSTEXPR(...) if constexpr (__VA_ARGS__)
 #else
-#define EIGEN_IF_CONSTEXPR(X) if (X)
+#define EIGEN_IF_CONSTEXPR(...) if (__VA_ARGS__)
 #endif
 
 #endif  // EIGEN_MACROS_H

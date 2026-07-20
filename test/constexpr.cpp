@@ -102,3 +102,21 @@ EIGEN_DECLARE_TEST(constexpr_global) {
   static_assert(global_mat.coeff(0, 0) == 1);
 }
 #endif  // __cpp_constexpr >= 201907L
+
+// Check that preprocessor correctly parses and expands EIGEN_IF_CONSTEXPR arguments containing commas
+EIGEN_DECLARE_TEST(constexpr_if) {
+  int true_branch_executed = 0;
+  int false_branch_executed = 0;
+  EIGEN_IF_CONSTEXPR (std::is_same<int, int>::value) {
+    true_branch_executed++;
+  } else {
+    false_branch_executed++;
+  }
+  EIGEN_IF_CONSTEXPR (std::is_same<int, float>::value) {
+    true_branch_executed++;
+  } else {
+    false_branch_executed++;
+  }
+  VERIFY_IS_EQUAL(true_branch_executed, 1);
+  VERIFY_IS_EQUAL(false_branch_executed, 1);
+}
