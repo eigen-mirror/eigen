@@ -23,6 +23,7 @@
 #define VERIFY_IS_NOT_APPROX_OR_LESS_THAN(a, b) VERIFY(!test_isApproxOrLessThan(a, b))
 #define VERIFY_IS_CWISE_EQUAL(a, b) VERIFY(verifyIsCwiseApprox(a, b, true))
 #define VERIFY_IS_CWISE_APPROX(a, b) VERIFY(verifyIsCwiseApprox(a, b, false))
+#define VERIFY_IS_APPROX_SCALED(a, b, scale) VERIFY(verifyIsApproxScaled(a, b, scale))
 
 #define VERIFY_IS_UNITARY(a) VERIFY(test_isUnitary(a))
 
@@ -254,6 +255,32 @@ inline bool verifyIsCwiseApprox(const Type1& a, const Type2& b, bool exact) {
     std::cerr << ", relative error is: " << test_relative_error(a, b) << std::endl;
   }
   return ret;
+}
+
+// Largest coefficient magnitude of a matrix or of an array expression.
+template <typename Derived>
+typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const MatrixBase<Derived>& m) {
+  return m.cwiseAbs().maxCoeff();
+}
+template <typename Derived>
+typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const ArrayBase<Derived>& a) {
+  return a.abs().maxCoeff();
+}
+
+// Matrix and array counterpart of test_isApproxWithRef: compares two expressions that are mathematically equal but
+// whose evaluations differ by rounding proportional to `scale` rather than to the result. verifyIsApprox measures the
+// error relative to the result, which no implementation can meet once the result is formed by cancellation.
+template <typename Type1, typename Type2>
+inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
+                                 const typename NumTraits<typename Type1::Scalar>::Real& scale) {
+  typedef typename NumTraits<typename Type1::Scalar>::Real RealScalar;
+  const RealScalar error = max_abs_coeff((a - b).eval());
+  const RealScalar tolerance = test_precision<typename Type1::Scalar>() * scale;
+  if (!(error <= tolerance)) {
+    std::cerr << "Difference " << error << " too large wrt tolerance " << tolerance << std::endl;
+    return false;
+  }
+  return true;
 }
 
 // The idea behind this function is to compare the two scalars a and b where

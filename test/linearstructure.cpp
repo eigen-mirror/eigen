@@ -15,34 +15,6 @@ static bool g_called;
 
 #include "main.h"
 
-// Largest coefficient magnitude of a matrix or of an array expression.
-template <typename Derived>
-typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const MatrixBase<Derived>& m) {
-  return m.cwiseAbs().maxCoeff();
-}
-template <typename Derived>
-typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const ArrayBase<Derived>& a) {
-  return a.abs().maxCoeff();
-}
-
-// Compares two expressions that are mathematically equal but whose evaluations differ by rounding
-// proportional to `scale` rather than to the result. VERIFY_IS_APPROX measures the error relative to the
-// result, which no implementation can meet once the result is formed by cancellation.
-template <typename Type1, typename Type2>
-bool verify_is_approx_scaled(const Type1& a, const Type2& b,
-                             const typename NumTraits<typename Type1::Scalar>::Real& scale) {
-  typedef typename NumTraits<typename Type1::Scalar>::Real RealScalar;
-  const RealScalar error = max_abs_coeff((a - b).eval());
-  const RealScalar tolerance = test_precision<typename Type1::Scalar>() * scale;
-  if (!(error <= tolerance)) {
-    std::cerr << "Difference " << error << " too large wrt tolerance " << tolerance << std::endl;
-    return false;
-  }
-  return true;
-}
-
-#define VERIFY_IS_APPROX_SCALED(a, b, scale) VERIFY(verify_is_approx_scaled(a, b, scale))
-
 template <typename MatrixType>
 void linearStructure(const MatrixType& m) {
   using std::abs;
