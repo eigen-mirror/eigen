@@ -463,6 +463,72 @@ static void test_minmax_nan_propagation() {
   test_minmax_nan_propagation_templ<double>();
 }
 
+// A scalar operand whose type differs from the tensor's Scalar (e.g. a double literal against a
+// float tensor, or an int against a float tensor) must bind to the scalar operators through an
+// implicit conversion rather than being deduced as a broken tensor-tensor expression.
+static void test_mixed_scalar_arithmetic() {
+  Tensor<float, 2> in(2, 2);
+  in.setConstant(2.0f);
+
+  Tensor<float, 2> out = in + 0.5;  // double literal
+  VERIFY_IS_EQUAL(out(0, 0), 2.5f);
+  out = 0.5 + in;
+  VERIFY_IS_EQUAL(out(0, 0), 2.5f);
+  out = in - 0.5;
+  VERIFY_IS_EQUAL(out(0, 0), 1.5f);
+  out = in * 2;  // int literal
+  VERIFY_IS_EQUAL(out(0, 0), 4.0f);
+  out = in / 0.5;
+  VERIFY_IS_EQUAL(out(0, 0), 4.0f);
+  out = in.cwiseMax(0.5);
+  VERIFY_IS_EQUAL(out(0, 0), 2.0f);
+  out = in.cwiseMin(0.5);
+  VERIFY_IS_EQUAL(out(0, 0), 0.5f);
+
+  // In-place compound assignment with a differing scalar type.
+  out = in;
+  out += 0.5;
+  VERIFY_IS_EQUAL(out(0, 0), 2.5f);
+  out -= 0.5;
+  VERIFY_IS_EQUAL(out(0, 0), 2.0f);
+  out *= 2;  // int literal
+  VERIFY_IS_EQUAL(out(0, 0), 4.0f);
+  out /= 0.5;
+  VERIFY_IS_EQUAL(out(0, 0), 8.0f);
+
+  // Tensor-tensor operators must keep working through the constrained overloads.
+  Tensor<float, 2> other(2, 2);
+  other.setConstant(3.0f);
+  out = in + other;
+  VERIFY_IS_EQUAL(out(0, 0), 5.0f);
+  out += other;
+  VERIFY_IS_EQUAL(out(0, 0), 8.0f);
+  out = in.cwiseMax(other);
+  VERIFY_IS_EQUAL(out(0, 0), 3.0f);
+}
+
+// A scalar on the left of a comparison reflects to the member comparison: scalar < tensor is
+// tensor > scalar, etc. The scalar type may differ from the tensor Scalar.
+static void test_scalar_lhs_comparison() {
+  Tensor<float, 1> v(5);
+  for (int i = 0; i < 5; ++i) v(i) = float(i);  // 0, 1, 2, 3, 4
+
+  Tensor<bool, 1> lt = (2.0 < v);   // true where v > 2
+  Tensor<bool, 1> le = (2.0 <= v);  // true where v >= 2
+  Tensor<bool, 1> gt = (2.0 > v);   // true where v < 2
+  Tensor<bool, 1> ge = (2.0 >= v);  // true where v <= 2
+  Tensor<bool, 1> eq = (3.0 == v);  // true where v == 3
+  Tensor<bool, 1> ne = (3.0 != v);  // true where v != 3
+  for (int i = 0; i < 5; ++i) {
+    VERIFY_IS_EQUAL(lt(i), v(i) > 2.0f);
+    VERIFY_IS_EQUAL(le(i), v(i) >= 2.0f);
+    VERIFY_IS_EQUAL(gt(i), v(i) < 2.0f);
+    VERIFY_IS_EQUAL(ge(i), v(i) <= 2.0f);
+    VERIFY_IS_EQUAL(eq(i), v(i) == 3.0f);
+    VERIFY_IS_EQUAL(ne(i), v(i) != 3.0f);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_expr) {
   CALL_SUBTEST(test_1d());
   CALL_SUBTEST(test_2d());
@@ -474,4 +540,6 @@ EIGEN_DECLARE_TEST(tensor_expr) {
   CALL_SUBTEST(test_select());
   CALL_SUBTEST(test_clip());
   CALL_SUBTEST(test_minmax_nan_propagation());
+  CALL_SUBTEST(test_mixed_scalar_arithmetic());
+  CALL_SUBTEST(test_scalar_lhs_comparison());
 }

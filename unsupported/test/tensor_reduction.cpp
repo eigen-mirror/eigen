@@ -632,6 +632,44 @@ static void test_dynamic_innermost_dims() {
   }
 }
 
+template <int DataLayout>
+static void test_mixed_type_scalar_arithmetic() {
+  Tensor<float, 2, DataLayout> in(2, 2);
+  in.setConstant(1.0f);
+  Tensor<float, 0, DataLayout> result;
+
+  // Mixed type: double OP TensorReductionOp<float>
+  result = 0.5 * in.sum();
+  VERIFY_IS_EQUAL(result(), 2.0f);
+  result = 0.5 + in.sum();
+  VERIFY_IS_EQUAL(result(), 4.5f);
+  result = 0.5 - in.sum();
+  VERIFY_IS_EQUAL(result(), -3.5f);
+  result = 2.0 / in.sum();
+  VERIFY_IS_EQUAL(result(), 0.5f);
+
+  // Mixed type: TensorReductionOp<float> OP double
+  result = in.sum() * 0.5;
+  VERIFY_IS_EQUAL(result(), 2.0f);
+  result = in.sum() + 0.5;
+  VERIFY_IS_EQUAL(result(), 4.5f);
+  result = in.sum() - 0.5;
+  VERIFY_IS_EQUAL(result(), 3.5f);
+  result = in.sum() / 0.5;
+  VERIFY_IS_EQUAL(result(), 8.0f);
+
+  // Mixed type: TensorReductionOp<float> OP int
+  result = in.sum() * 2;
+  VERIFY_IS_EQUAL(result(), 8.0f);
+
+  // Reductions on both sides must keep using the tensor-tensor operators rather than the
+  // scalar overloads reachable through the rank-0 conversion to Scalar.
+  result = in.sum() * in.sum();
+  VERIFY_IS_EQUAL(result(), 16.0f);
+  result = in.sum() - in.maximum();
+  VERIFY_IS_EQUAL(result(), 3.0f);
+}
+
 template <typename ScalarType, int num_elements, int max_mean>
 void test_sum_accuracy() {
   Tensor<double, 1> double_tensor(num_elements);
@@ -701,4 +739,6 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   // we can reduce without overflow.
   CALL_SUBTEST((test_sum_accuracy<Eigen::half, 4 * 1024, 16>()));
   CALL_SUBTEST((test_sum_accuracy<Eigen::half, 10 * 1024 * 1024, 0>()));
+  CALL_SUBTEST(test_mixed_type_scalar_arithmetic<ColMajor>());
+  CALL_SUBTEST(test_mixed_type_scalar_arithmetic<RowMajor>());
 }

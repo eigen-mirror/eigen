@@ -529,6 +529,32 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
     return result;
   }
 
+#if !defined(EIGEN_PARSED_BY_DOXYGEN)
+  // Exact-match friends keep mixed-scalar arithmetic from being ambiguous between the tensor
+  // operators and built-in arithmetic on the scalar conversion above. is_scalar_operand keeps
+  // reduction-with-reduction arithmetic on the tensor-tensor path, which the conversion to
+  // Scalar would otherwise make ambiguous as well.
+#define EIGEN_TENSOR_REDUCTION_SCALAR_BINOP(op, name)                                                            \
+  template <typename T, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<T, Scalar>::value))>                 \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend const TensorCwiseUnaryOp<                                         \
+      internal::bind1st_op<internal::scalar_##name##_op<Scalar> >, const TensorReductionOp>                      \
+  op(const T& lhs, const TensorReductionOp& rhs) {                                                               \
+    return rhs.unaryExpr(internal::bind1st_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(lhs))); \
+  }                                                                                                              \
+  template <typename T, EIGEN_SFINAE_ENABLE_IF((internal::is_scalar_operand<T, Scalar>::value))>                 \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE friend const TensorCwiseUnaryOp<                                         \
+      internal::bind2nd_op<internal::scalar_##name##_op<Scalar> >, const TensorReductionOp>                      \
+  op(const TensorReductionOp& lhs, const T& rhs) {                                                               \
+    return lhs.unaryExpr(internal::bind2nd_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(rhs))); \
+  }
+
+  EIGEN_TENSOR_REDUCTION_SCALAR_BINOP(operator+, sum)
+  EIGEN_TENSOR_REDUCTION_SCALAR_BINOP(operator-, difference)
+  EIGEN_TENSOR_REDUCTION_SCALAR_BINOP(operator*, product)
+  EIGEN_TENSOR_REDUCTION_SCALAR_BINOP(operator/, quotient)
+#undef EIGEN_TENSOR_REDUCTION_SCALAR_BINOP
+#endif
+
  protected:
   typename XprType::Nested m_expr;
   const Dims m_dims;
