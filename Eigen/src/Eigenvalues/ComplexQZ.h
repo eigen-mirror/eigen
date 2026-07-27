@@ -125,7 +125,10 @@ class ComplexQZ {
             computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * n),
         m_computeQZ(computeQZ),
-        m_maxIters(maxIters) {}
+        m_maxIters(maxIters),
+        m_global_iter(0),
+        m_isInitialized(false),
+        m_info(InvalidInput) {}
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -141,7 +144,10 @@ class ComplexQZ {
   ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(A.rows()),
         m_maxIters(maxIters),
+        m_global_iter(0),
+        m_isInitialized(false),
         m_computeQZ(computeQZ),
+        m_info(InvalidInput),
         m_S(A.rows(), A.cols()),
         m_T(A.rows(), A.cols()),
         m_Q(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
@@ -175,7 +181,10 @@ class ComplexQZ {
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; }
+  ComputationInfo info() const {
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
+    return m_info;
+  }
 
   /** \brief number of performed QZ steps
    */
