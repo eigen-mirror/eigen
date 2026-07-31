@@ -33,6 +33,18 @@ int ref_ctz(T val) {
 }
 
 template <typename T>
+int ref_popcount(T val) {
+  constexpr int num_bits = sizeof(T) * CHAR_BIT;
+  T lsb_mask = T(1);
+  int n = 0;
+  for (int i = 0; i < num_bits; ++i) {
+    n += (val & lsb_mask) != 0;
+    val >>= 1;
+  }
+  return n;
+}
+
+template <typename T>
 void test_clz_ctz() {
   T step = sizeof(T) <= 2 ? T(1) : (Eigen::NumTraits<T>::highest() / (T(1) << 16));
   T iters = Eigen::NumTraits<T>::highest() / step;
@@ -45,7 +57,16 @@ void test_clz_ctz() {
     int expected_ctz = ref_ctz(val);
     int actual_ctz = Eigen::internal::ctz(val);
     VERIFY(expected_ctz == actual_ctz);
+
+    int expected_popcount = ref_popcount(val);
+    int actual_popcount = Eigen::internal::popcount(val);
+    VERIFY(expected_popcount == actual_popcount);
   }
+
+  // The loop above stops one step short of `NumTraits<T>::highest()`; check extrema
+  // explicitly for `popcount`.
+  VERIFY(Eigen::internal::popcount(T(0)) == 0);
+  VERIFY(Eigen::internal::popcount(Eigen::NumTraits<T>::highest()) == int(sizeof(T) * CHAR_BIT));
 }
 
 template <typename T>
@@ -59,6 +80,10 @@ void test_clz_ctz_random() {
     int expected_ctz = ref_ctz(val);
     int actual_ctz = Eigen::internal::ctz(val);
     VERIFY(expected_ctz == actual_ctz);
+
+    int expected_popcount = ref_popcount(val);
+    int actual_popcount = Eigen::internal::popcount(val);
+    VERIFY(expected_popcount == actual_popcount);
   }
 }
 
