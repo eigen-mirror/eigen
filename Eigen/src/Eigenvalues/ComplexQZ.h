@@ -175,7 +175,10 @@ class ComplexQZ {
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
    */
-  ComputationInfo info() const { return m_info; }
+  ComputationInfo info() const {
+    eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
+    return m_info;
+  }
 
   /** \brief number of performed QZ steps
    */
@@ -187,10 +190,10 @@ class ComplexQZ {
  private:
   Index m_n;
   const unsigned int m_maxIters;
-  unsigned int m_global_iter;
-  bool m_isInitialized;
+  unsigned int m_global_iter = 0;
+  bool m_isInitialized = false;
   bool m_computeQZ;
-  ComputationInfo m_info;
+  ComputationInfo m_info = InvalidInput;
   MatrixType m_S, m_T, m_Q, m_Z;
   RealScalar m_normOfT, m_normOfS;
   Vec m_ws;
