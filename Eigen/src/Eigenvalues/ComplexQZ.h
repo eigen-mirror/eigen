@@ -238,6 +238,7 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
 
   m_isInitialized = true;
   m_global_iter = 0;
+  m_info = Success;
 
   // This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
   hessenbergTriangular(A, B);
@@ -367,6 +368,7 @@ void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const Spar
   eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
   m_isInitialized = true;
   m_global_iter = 0;
+  m_info = Success;
   hessenbergTriangularSparse(A, B);
 
   // We assume that we already have that A is upper-Hessenberg and B is
@@ -407,7 +409,10 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
     }
   }
 
-  m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
+  // Preserve NumericalIssue if set
+  if (m_info != NumericalIssue) {
+    m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
+  }
 }
 
 template <typename MatrixType_>
