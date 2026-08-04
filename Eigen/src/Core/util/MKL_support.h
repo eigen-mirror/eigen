@@ -34,6 +34,9 @@
 #ifndef EIGEN_MKL_SUPPORT_H
 #define EIGEN_MKL_SUPPORT_H
 
+/* Eigen/Core includes this header well before Meta.h, so <cstdint> is not yet available for EIGEN_BLAS_INT. */
+#include <cstdint>
+
 #ifdef EIGEN_USE_MKL_ALL
 #ifndef EIGEN_USE_BLAS
 #define EIGEN_USE_BLAS
@@ -116,6 +119,33 @@
 #endif
 #endif
 
+/* Integer width of the external BLAS interface.
+ *
+ * Fortran BLAS passes every dimension and stride by pointer, so a width mismatch between Eigen and the linked library
+ * is invisible to both the compiler and the linker and silently corrupts arguments at run time. Define
+ * EIGEN_64BIT_BLAS to select the 64-bit-integer ("ILP64") interface. It is an ABI-affecting macro and must be
+ * consistent across all translation units.
+ */
+#if defined(EIGEN_64BIT_BLAS)
+#define EIGEN_BLAS_INT std::int64_t
+#else
+#define EIGEN_BLAS_INT int
+#endif
+
+/* Suffix appended to external BLAS symbol names, for libraries that expose the 64-bit interface under decorated names
+ * rather than in a separate library: reference LAPACK built with BUILD_INDEX64_EXT_API and oneMKL >= 2025 use _64
+ * (dgemm_64_), as does OpenBLAS built with SYMBOLSUFFIX=64_. Libraries that keep the undecorated names in a separate
+ * ILP64 build (oneMKL *_ilp64, plain OpenBLAS INTERFACE64=1) need only EIGEN_64BIT_BLAS.
+ */
+#ifndef EIGEN_BLAS_SYMBOL_SUFFIX
+#define EIGEN_BLAS_SYMBOL_SUFFIX
+#endif
+/* EIGEN_BLAS_POSTFIX is the suffix plus the Fortran trailing underscore (_ by default, _64_ for a _64 build).
+ * Both go through EIGEN_CAT rather than bare ##, which would suppress expansion of the argument.
+ */
+#define EIGEN_BLAS_POSTFIX EIGEN_CAT(EIGEN_BLAS_SYMBOL_SUFFIX, _)
+#define EIGEN_BLAS_SYM(NAME) EIGEN_CAT(NAME, EIGEN_BLAS_POSTFIX)
+
 #if defined(EIGEN_USE_BLAS) && !defined(EIGEN_USE_MKL)
 #include "../../misc/blas.h"
 #endif
@@ -123,17 +153,10 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
-namespace Eigen {
-
-typedef std::complex<double> dcomplex;
-typedef std::complex<float> scomplex;
-
-#if defined(EIGEN_USE_MKL)
-typedef MKL_INT BlasIndex;
-#else
-typedef int BlasIndex;
-#endif
-
-}  // end namespace Eigen
+/* dcomplex, scomplex, and BlasIndex are used by both the BLAS and LAPACKE backends, so they live in a
+ * backend-neutral header. It is included here, after the integer-width macros above are set, because BlasIndex
+ * depends on them.
+ */
+#include "BlasTypes.h"
 
 #endif  // EIGEN_MKL_SUPPORT_H

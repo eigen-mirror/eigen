@@ -111,10 +111,10 @@ EIGEN_BLAS_GEMM_SPECIALIZATION(float, f, float, sgemm)
 EIGEN_BLAS_GEMM_SPECIALIZATION(dcomplex, cd, MKL_Complex16, zgemm)
 EIGEN_BLAS_GEMM_SPECIALIZATION(scomplex, cf, MKL_Complex8, cgemm)
 #else
-EIGEN_BLAS_GEMM_SPECIALIZATION(double, d, double, dgemm_)
-EIGEN_BLAS_GEMM_SPECIALIZATION(float, f, float, sgemm_)
-EIGEN_BLAS_GEMM_SPECIALIZATION(dcomplex, cd, double, zgemm_)
-EIGEN_BLAS_GEMM_SPECIALIZATION(scomplex, cf, float, cgemm_)
+EIGEN_BLAS_GEMM_SPECIALIZATION(double, d, double, EIGEN_BLAS_SYM(dgemm))
+EIGEN_BLAS_GEMM_SPECIALIZATION(float, f, float, EIGEN_BLAS_SYM(sgemm))
+EIGEN_BLAS_GEMM_SPECIALIZATION(dcomplex, cd, double, EIGEN_BLAS_SYM(zgemm))
+EIGEN_BLAS_GEMM_SPECIALIZATION(scomplex, cf, float, EIGEN_BLAS_SYM(cgemm))
 #endif
 
 // If OpenBLAS with BUILD_BFLOAT16=1 support is available,
@@ -123,9 +123,10 @@ EIGEN_BLAS_GEMM_SPECIALIZATION(scomplex, cf, float, cgemm_)
 
 extern "C" {
 // OpenBLAS prototype.
-void sbgemm_(const char* trans_a, const char* trans_b, const int* M, const int* N, const int* K, const float* alpha,
-             const Eigen::bfloat16* A, const int* lda, const Eigen::bfloat16* B, const int* ldb, const float* beta,
-             float* C, const int* ldc);
+void EIGEN_BLAS_SYM(sbgemm)(const char* trans_a, const char* trans_b, const EIGEN_BLAS_INT* M, const EIGEN_BLAS_INT* N,
+                            const EIGEN_BLAS_INT* K, const float* alpha, const Eigen::bfloat16* A,
+                            const EIGEN_BLAS_INT* lda, const Eigen::bfloat16* B, const EIGEN_BLAS_INT* ldb,
+                            const float* beta, float* C, const EIGEN_BLAS_INT* ldc);
 }  // extern "C"
 
 template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>
@@ -188,8 +189,9 @@ struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, Co
     // Evaluate to a temporary intermediate array.
     r_tmp.resize(m, n);
 
-    sbgemm_(&transa, &transb, &m, &n, &k, (const float*)&numext::real_ref(falpha), a, &lda, b, &ldb,
-            (const float*)&numext::real_ref(fbeta), r_tmp.data(), &ldc);
+    EIGEN_BLAS_SYM(sbgemm)
+    (&transa, &transb, &m, &n, &k, (const float*)&numext::real_ref(falpha), a, &lda, b, &ldb,
+     (const float*)&numext::real_ref(fbeta), r_tmp.data(), &ldc);
 
     // Cast to the output.
     Map<MatrixXbf16, 0, OuterStride<> > result(res, m, n, OuterStride<>(resStride));

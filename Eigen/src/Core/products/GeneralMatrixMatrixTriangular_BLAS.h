@@ -102,8 +102,8 @@ EIGEN_BLAS_RANKUPDATE_SPECIALIZE(float)
 EIGEN_BLAS_RANKUPDATE_R(double, double, dsyrk)
 EIGEN_BLAS_RANKUPDATE_R(float, float, ssyrk)
 #else
-EIGEN_BLAS_RANKUPDATE_R(double, double, dsyrk_)
-EIGEN_BLAS_RANKUPDATE_R(float, float, ssyrk_)
+EIGEN_BLAS_RANKUPDATE_R(double, double, EIGEN_BLAS_SYM(dsyrk))
+EIGEN_BLAS_RANKUPDATE_R(float, float, EIGEN_BLAS_SYM(ssyrk))
 #endif
 
 #undef EIGEN_BLAS_RANKUPDATE_SPECIALIZE

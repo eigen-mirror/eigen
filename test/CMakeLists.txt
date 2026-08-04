@@ -20,10 +20,91 @@ endif()
 
 # TODO do the same for EXTERNAL_LAPACK
 option(EIGEN_TEST_EXTERNAL_BLAS "Use external BLAS library for testsuite" OFF)
+option(EIGEN_TEST_EXTERNAL_BLAS_INT64 "Use the 64-bit integer (ILP64) interface of the external BLAS" OFF)
+set(EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX "" CACHE STRING
+    "Symbol suffix of the external BLAS 64-bit interface, e.g. _64 for dgemm_64_")
+# Check that the BLAS integer width Eigen is configured for is the one the linked library actually uses.
+# Fortran BLAS takes every dimension by pointer, so a mismatch is invisible to the compiler and the linker and
+# only shows up as corrupted arguments at run time.
+#
+# The probe calls dgemm passing one 8-byte slot for every integer argument, holding 1 in its low word and -1 in
+# its high word. A 32-bit callee reads 1 and computes 3*5; a 64-bit callee reads a negative extent and bails out
+# through xerbla without touching memory. Detection is by output rather than exit status, because the reference
+# xerbla ends in a Fortran STOP, which skips the rest of main and still exits 0.
+function(eigen_check_external_blas_integer_size)
+  if(CMAKE_CROSSCOMPILING)
+    message(STATUS "External BLAS: cross-compiling, BLAS integer width not checked")
+    return()
+  endif()
+  set(probe_dir "${CMAKE_CURRENT_BINARY_DIR}/eigen_blas_int_probe")
+  set(probe_src "${probe_dir}/probe.cpp")
+  # Bracket argument: the suffix arrives as a compile definition, so nothing here needs escaping.
+  file(WRITE "${probe_src}" [==[
+#include <cstdint>
+#include <cstdio>
+#define EIGEN_PROBE_CAT2(a, b) a##b
+#define EIGEN_PROBE_CAT(a, b) EIGEN_PROBE_CAT2(a, b)
+#define EIGEN_PROBE_DGEMM EIGEN_PROBE_CAT(EIGEN_PROBE_CAT(dgemm, EIGEN_PROBE_SUFFIX), _)
+extern "C" void EIGEN_PROBE_DGEMM(const void*, const void*, const void*, const void*, const void*, const double*,
+                                  const double*, const void*, const double*, const void*, const double*, double*,
+                                  const void*);
+int main() {
+  std::int64_t slot = std::int64_t(1) | (std::int64_t(0xFFFFFFFF) << 32);
+  double alpha = 1.0, beta = 0.0, a[1] = {3.0}, b[1] = {5.0}, c[1] = {-999.0};
+  std::printf("EIGEN_PROBE_RAN\n");
+  std::fflush(stdout);
+  EIGEN_PROBE_DGEMM("N", "N", &slot, &slot, &slot, &alpha, a, &slot, b, &slot, &beta, c, &slot);
+  if (c[0] == 15.0) {
+    std::printf("EIGEN_PROBE_IS32\n");
+    std::fflush(stdout);
+  }
+  return 0;
+}
+]==])
+  try_run(probe_run probe_built "${probe_dir}" "${probe_src}"
+          COMPILE_DEFINITIONS "-DEIGEN_PROBE_SUFFIX=${EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX}"
+          LINK_LIBRARIES ${BLAS_LIBRARIES}
+          COMPILE_OUTPUT_VARIABLE probe_build_output
+          RUN_OUTPUT_VARIABLE probe_output)
+  if(NOT probe_built)
+    message(FATAL_ERROR
+            "External BLAS: could not link dgemm${EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX}_ against "
+            "${BLAS_LIBRARIES}. Check EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX.\n${probe_build_output}")
+  endif()
+  if(NOT probe_output MATCHES "EIGEN_PROBE_RAN")
+    message(WARNING "External BLAS: integer-width probe did not run; BLAS integer width not checked")
+    return()
+  endif()
+  if(probe_output MATCHES "EIGEN_PROBE_IS32")
+    set(library_is_int64 FALSE)
+  else()
+    set(library_is_int64 TRUE)
+  endif()
+  if(library_is_int64 AND NOT EIGEN_TEST_EXTERNAL_BLAS_INT64)
+    message(FATAL_ERROR "External BLAS: ${BLAS_LIBRARIES} uses 64-bit integers. Set "
+                        "EIGEN_TEST_EXTERNAL_BLAS_INT64=ON, or point BLAS_LIBRARIES at an LP64 library.")
+  elseif(NOT library_is_int64 AND EIGEN_TEST_EXTERNAL_BLAS_INT64)
+    message(FATAL_ERROR "External BLAS: ${BLAS_LIBRARIES} uses 32-bit integers. Set "
+                        "EIGEN_TEST_EXTERNAL_BLAS_INT64=OFF, or point BLAS_LIBRARIES at an ILP64 library.")
+  endif()
+  if(library_is_int64)
+    message(STATUS "External BLAS: confirmed 64-bit (ILP64) integer interface")
+  else()
+    message(STATUS "External BLAS: confirmed 32-bit (LP64) integer interface")
+  endif()
+endfunction()
+
 if(EIGEN_TEST_EXTERNAL_BLAS)
   find_package(BLAS REQUIRED)
   message(STATUS "BLAS_COMPILER_FLAGS: ${BLAS_COMPILER_FLAGS}")
   add_definitions("-DEIGEN_USE_BLAS") # is adding  ${BLAS_COMPILER_FLAGS} necessary?
+  if(EIGEN_TEST_EXTERNAL_BLAS_INT64)
+    add_definitions("-DEIGEN_64BIT_BLAS")
+  endif()
+  if(NOT EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX STREQUAL "")
+    add_definitions("-DEIGEN_BLAS_SYMBOL_SUFFIX=${EIGEN_TEST_EXTERNAL_BLAS_SYMBOL_SUFFIX}")
+  endif()
+  eigen_check_external_blas_integer_size()
   list(APPEND EXTERNAL_LIBS "${BLAS_LIBRARIES}")
 endif()
 
