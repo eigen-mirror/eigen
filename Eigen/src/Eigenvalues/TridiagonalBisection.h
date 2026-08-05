@@ -114,11 +114,12 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
     q[k] = pselect(mask, pmin(q[k], neg_pivmin_p), q[k]);
   }
   // Convert the in-register lane counts to the exact int64 output: overwrite on the first flush,
-  // add into the previously flushed partials thereafter.
+  // add into the previously flushed partials thereafter. The scratch buffer lives outside the lambda:
+  // MSVC captures kPacketSize instead of reading it as a constant, rejecting the bound inside.
+  RealScalar buf[kPacketSize];
   auto store_counts = [&](bool accumulate) {
     EIGEN_UNROLL_LOOP
     for (int k = 0; k < kUnroll; ++k) {
-      RealScalar buf[kPacketSize];
       pstoreu(buf, c[k]);
       EIGEN_UNROLL_LOOP
       for (int l = 0; l < kPacketSize; ++l) {
