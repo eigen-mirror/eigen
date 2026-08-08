@@ -1352,21 +1352,11 @@ EIGEN_STRONG_INLINE Packet16b pload<Packet16b>(const bool* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return _mm_load_si128(reinterpret_cast<const __m128i*>(from));
 }
 
-#if EIGEN_COMP_MSVC
 template <>
 EIGEN_STRONG_INLINE Packet4f ploadu<Packet4f>(const float* from) {
   EIGEN_DEBUG_UNALIGNED_LOAD
   return _mm_loadu_ps(from);
 }
-#else
-// NOTE: with the code below, MSVC's compiler crashes!
-
-template <>
-EIGEN_STRONG_INLINE Packet4f ploadu<Packet4f>(const float* from) {
-  EIGEN_DEBUG_UNALIGNED_LOAD
-  return _mm_loadu_ps(from);
-}
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet2d ploadu<Packet2d>(const double* from) {
@@ -1567,60 +1557,6 @@ EIGEN_STRONG_INLINE Packet16b preverse(const Packet16b& a) {
 #endif
 }
 
-#if EIGEN_COMP_MSVC_STRICT && EIGEN_OS_WIN64
-// The temporary variable fixes an internal compilation error in vs <= 2008 and a wrong-result bug in vs 2010
-// Direct of the struct members fixed bug #62.
-template <>
-EIGEN_STRONG_INLINE float pfirst<Packet4f>(const Packet4f& a) {
-  return a.m128_f32[0];
-}
-template <>
-EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) {
-  return a.m128d_f64[0];
-}
-template <>
-EIGEN_STRONG_INLINE int64_t pfirst<Packet2l>(const Packet2l& a) {
-  int64_t x = _mm_extract_epi64_0(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE int pfirst<Packet4i>(const Packet4i& a) {
-  int x = _mm_cvtsi128_si32(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE uint32_t pfirst<Packet4ui>(const Packet4ui& a) {
-  uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a));
-  return x;
-}
-#elif EIGEN_COMP_MSVC_STRICT
-// The temporary variable fixes an internal compilation error in vs <= 2008 and a wrong-result bug in vs 2010
-template <>
-EIGEN_STRONG_INLINE float pfirst<Packet4f>(const Packet4f& a) {
-  float x = _mm_cvtss_f32(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE double pfirst<Packet2d>(const Packet2d& a) {
-  double x = _mm_cvtsd_f64(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE int64_t pfirst<Packet2l>(const Packet2l& a) {
-  int64_t x = _mm_extract_epi64_0(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE int pfirst<Packet4i>(const Packet4i& a) {
-  int x = _mm_cvtsi128_si32(a);
-  return x;
-}
-template <>
-EIGEN_STRONG_INLINE uint32_t pfirst<Packet4ui>(const Packet4ui& a) {
-  uint32_t x = numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a));
-  return x;
-}
-#else
 template <>
 EIGEN_STRONG_INLINE float pfirst<Packet4f>(const Packet4f& a) {
   return _mm_cvtss_f32(a);
@@ -1641,7 +1577,6 @@ template <>
 EIGEN_STRONG_INLINE uint32_t pfirst<Packet4ui>(const Packet4ui& a) {
   return numext::bit_cast<uint32_t>(_mm_cvtsi128_si32(a));
 }
-#endif
 template <>
 EIGEN_STRONG_INLINE bool pfirst<Packet16b>(const Packet16b& a) {
   int x = _mm_cvtsi128_si32(a);

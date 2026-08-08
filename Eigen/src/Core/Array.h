@@ -65,30 +65,6 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   using Base::coeff;
   using Base::coeffRef;
 
-  /**
-   * The usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived>& other) {
-    return Base::operator=(other);
-  }
-
-  /** Set all the entries to \a value.
-   * \sa DenseBase::setConstant(), DenseBase::fill()
-   */
-  /* This overload is needed because the usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
-    Base::setConstant(value);
-    return *this;
-  }
-
   /** Copies the value of the expression \a other into \c *this with automatic resizing.
    *
    * *this might be resized to match the dimensions of \a other. If *this was a null matrix (not already initialized),
@@ -101,6 +77,14 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const DenseBase<OtherDerived>& other) {
     return Base::_set(other);
+  }
+
+  /** Set all the entries to \a value.
+   * \sa DenseBase::setConstant(), DenseBase::fill()
+   */
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
+    Base::setConstant(value);
+    return *this;
   }
 
   /**
@@ -256,6 +240,9 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #ifdef EIGEN_ARRAY_PLUGIN
 #include EIGEN_ARRAY_PLUGIN
 #endif
+
+  // NVHPC requires inherited assignment operators to be introduced after the local overloads.
+  using Base::operator=;
 
  private:
   template <typename MatrixType, typename OtherDerived, bool SwapPointers>

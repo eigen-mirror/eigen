@@ -141,6 +141,21 @@ void check_negate() {
 }
 
 template <typename T>
+void check_complex_exp() {
+  using Complex = std::complex<T>;
+  const T inf = std::numeric_limits<T>::infinity();
+  const T nan = std::numeric_limits<T>::quiet_NaN();
+
+  const Complex finite_inf = numext::exp(Complex(T(1), inf));
+  VERIFY((numext::isnan)(finite_inf.real()));
+  VERIFY((numext::isnan)(finite_inf.imag()));
+
+  const Complex inf_nan = numext::exp(Complex(inf, nan));
+  VERIFY((numext::isinf)(inf_nan.real()));
+  VERIFY((numext::isnan)(inf_nan.imag()));
+}
+
+template <typename T>
 std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, T> random_abs2_input() {
   const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
   return internal::random<T>(-safeAbs2Input, safeAbs2Input);
@@ -463,6 +478,9 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_negate<long double>());
     CALL_SUBTEST(check_negate<std::complex<float>>());
     CALL_SUBTEST(check_negate<std::complex<double>>());
+
+    CALL_SUBTEST(check_complex_exp<float>());
+    CALL_SUBTEST(check_complex_exp<double>());
 
     CALL_SUBTEST(check_abs<bool>());
     CALL_SUBTEST(check_abs<signed char>());

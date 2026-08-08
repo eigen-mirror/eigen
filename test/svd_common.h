@@ -214,27 +214,14 @@ struct svd_solver_checks_if<MatrixType, Options, SVDType, true> {
   }
 };
 
-// work around stupid msvc error when constructing at compile time an expression that involves
-// a division by zero, even if the numeric type has floating point
-template <typename Scalar>
-EIGEN_DONT_INLINE Scalar zero() {
-  return Scalar(0);
-}
-
-// workaround aggressive optimization in ICC
-template <typename T>
-EIGEN_DONT_INLINE T sub(T a, T b) {
-  return a - b;
-}
-
 // This function verifies we don't iterate infinitely on nan/inf values,
 // and that info() returns InvalidInput.
 template <typename MatrixType>
 void svd_inf_nan() {
   SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) svd;
   typedef typename MatrixType::Scalar Scalar;
-  Scalar some_inf = Scalar(1) / zero<Scalar>();
-  VERIFY(sub(some_inf, some_inf) != sub(some_inf, some_inf));
+  const Scalar some_inf = (std::numeric_limits<Scalar>::infinity)();
+  VERIFY((numext::isinf)(some_inf));
   svd.compute(MatrixType::Constant(10, 10, some_inf));
   VERIFY(svd.info() == InvalidInput);
 

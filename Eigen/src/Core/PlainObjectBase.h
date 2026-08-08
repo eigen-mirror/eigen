@@ -775,10 +775,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
                                        ((!std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value ||
                                          Base::SizeAtCompileTime == Dynamic)),
                                    T>* = 0) {
-    // NOTE MSVC 2008 complains if we directly put bool(NumTraits<T>::IsInteger) as the EIGEN_STATIC_ASSERT argument.
-    const bool is_integer_alike = internal::is_valid_index_type<T>::value;
-    EIGEN_UNUSED_VARIABLE(is_integer_alike);
-    EIGEN_STATIC_ASSERT(is_integer_alike, FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
+    EIGEN_STATIC_ASSERT(internal::is_valid_index_type<T>::value, FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
     resize(size);
   }
 

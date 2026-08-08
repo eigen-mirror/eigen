@@ -1629,8 +1629,8 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T exp(const T& x) {
   return exp(x);
 }
 
-// MSVC screws up some edge-cases for std::exp(complex).
-#ifdef EIGEN_COMP_MSVC
+// MSVC before 19.31 screws up some edge-cases for std::exp(complex).
+#if EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1931
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<RealScalar> exp(const std::complex<RealScalar>& x) {
   EIGEN_USING_STD(exp);

@@ -219,6 +219,34 @@ void check_const_correctness(const PlainObjectType &) {
   VERIFY(!(Ref<ConstPlainObjectType, Aligned>::Flags & LvalueBit));
 }
 
+void test_ref_alignment_matching() {
+  using PlainObject = Matrix<float, Dynamic, 1, DontAlign>;
+  using UnalignedMap = Map<PlainObject, Unaligned>;
+  using Aligned8Map = Map<PlainObject, Aligned8>;
+  using Aligned16Map = Map<PlainObject, Aligned16>;
+  using Aligned32Map = Map<PlainObject, Aligned32>;
+  using UnalignedRefTraits = internal::traits<Ref<PlainObject, Unaligned>>;
+  using Aligned16RefTraits = internal::traits<Ref<PlainObject, Aligned16>>;
+
+  static_assert(int(internal::traits<PlainObject>::Alignment) == int(Unaligned),
+                "the test plain object must not provide an alignment guarantee");
+  static_assert(UnalignedRefTraits::template match<UnalignedMap>::AlignmentMatch,
+                "an unaligned Ref must accept an unaligned source");
+  static_assert(!Aligned16RefTraits::template match<UnalignedMap>::AlignmentMatch,
+                "an aligned Ref must reject a source without an alignment guarantee");
+  static_assert(!Aligned16RefTraits::template match<Aligned8Map>::AlignmentMatch,
+                "the source alignment must satisfy the Ref alignment");
+  static_assert(Aligned16RefTraits::template match<Aligned16Map>::AlignmentMatch,
+                "a Ref must accept a source with matching alignment");
+  static_assert(Aligned16RefTraits::template match<Aligned32Map>::AlignmentMatch,
+                "a Ref must accept a source with stronger alignment");
+
+  alignas(16) float data[8] = {};
+  Aligned16Map map(data, 8);
+  Ref<PlainObject, Aligned16> ref(map);
+  VERIFY(ref.data() == data);
+}
+
 template <typename B>
 EIGEN_DONT_INLINE void call_ref_1(Ref<VectorXf> a, const B &b) {
   VERIFY_IS_EQUAL(a, b);
@@ -407,4 +435,5 @@ EIGEN_DECLARE_TEST(ref) {
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Vector3d()));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
+  CALL_SUBTEST_10(test_ref_alignment_matching());
 }

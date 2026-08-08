@@ -17,14 +17,6 @@ struct FooReturnType {
   typedef int ReturnType;
 };
 
-struct MyInterface {
-  virtual void func() = 0;
-  virtual ~MyInterface() {}
-};
-struct MyImpl : public MyInterface {
-  void func() {}
-};
-
 using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
 using Eigen::internal::arg_prod;
@@ -315,18 +307,6 @@ EIGEN_DECLARE_TEST(meta) {
     VERIFY((!std::is_convertible<decltype(A * B), float>::value));
     VERIFY((std::is_convertible<decltype(A * B), MatrixXf>::value));
   }
-
-#if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
-    (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
-  // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // a fix in the c++ standard changes std::is_convertible behavior for abstract classes.
-  // So the following tests are expected to fail with recent compilers.
-
-  STATIC_CHECK((!std::is_convertible<MyInterface, MyImpl>::value));
-  STATIC_CHECK((!std::is_convertible<MyImpl, MyInterface>::value));
-  STATIC_CHECK((std::is_convertible<MyImpl, const MyInterface&>::value));
-
-#endif
 
   {
     VERIFY((std::is_convertible<decltype(fix<3>()), int>::value));

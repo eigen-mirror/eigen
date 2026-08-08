@@ -356,16 +356,7 @@ class TriangularView
     return Solve<TriangularView, Other>(*this, other.derived());
   }
 
-// workaround MSVC ICE
-#if EIGEN_COMP_MSVC
-  template <int Side, typename Other>
-  EIGEN_DEVICE_FUNC inline const internal::triangular_solve_retval<Side, TriangularView, Other> solve(
-      const MatrixBase<Other>& other) const {
-    return Base::template solve<Side>(other);
-  }
-#else
   using Base::solve;
-#endif
 
   /** \returns a selfadjoint view of the referenced triangular part which must be either \c #Upper or \c #Lower.
    *

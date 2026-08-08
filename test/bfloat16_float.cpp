@@ -129,17 +129,15 @@ void test_conversion() {
   VERIFY_IS_EQUAL(static_cast<float>(-bfloat16(3.0f)), -3.0f);
   VERIFY_IS_EQUAL(static_cast<float>(-bfloat16(-4.5f)), 4.5f);
 
-#if !EIGEN_COMP_MSVC
-  // Visual Studio errors out on divisions by 0
-  VERIFY((numext::isnan)(static_cast<float>(bfloat16(0.0 / 0.0))));
-  VERIFY((numext::isinf)(static_cast<float>(bfloat16(1.0 / 0.0))));
-  VERIFY((numext::isinf)(static_cast<float>(bfloat16(-1.0 / 0.0))));
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double infinity = std::numeric_limits<double>::infinity();
+  VERIFY((numext::isnan)(static_cast<float>(bfloat16(nan))));
+  VERIFY((numext::isinf)(static_cast<float>(bfloat16(infinity))));
+  VERIFY((numext::isinf)(static_cast<float>(bfloat16(-infinity))));
 
-  // Visual Studio errors out on divisions by 0
-  VERIFY((numext::isnan)(bfloat16(0.0 / 0.0)));
-  VERIFY((numext::isinf)(bfloat16(1.0 / 0.0)));
-  VERIFY((numext::isinf)(bfloat16(-1.0 / 0.0)));
-#endif
+  VERIFY((numext::isnan)(bfloat16(nan)));
+  VERIFY((numext::isinf)(bfloat16(infinity)));
+  VERIFY((numext::isinf)(bfloat16(-infinity)));
 
   // NaNs and infinities.
   VERIFY(!(numext::isinf)(static_cast<float>(bfloat16(3.38e38f))));  // Largest finite number.
@@ -244,19 +242,19 @@ void test_comparison() {
   VERIFY(bfloat16(1.0f) != bfloat16(2.0f));
 
   // Comparisons with NaNs and infinities.
-#if !EIGEN_COMP_MSVC
-  // Visual Studio errors out on divisions by 0
-  VERIFY(!(bfloat16(0.0 / 0.0) == bfloat16(0.0 / 0.0)));
-  VERIFY(bfloat16(0.0 / 0.0) != bfloat16(0.0 / 0.0));
+  const bfloat16 nan(std::numeric_limits<double>::quiet_NaN());
+  const bfloat16 infinity(std::numeric_limits<double>::infinity());
+  const bfloat16 negative_infinity(-std::numeric_limits<double>::infinity());
+  VERIFY(!(nan == nan));
+  VERIFY(nan != nan);
 
-  VERIFY(!(bfloat16(1.0) == bfloat16(0.0 / 0.0)));
-  VERIFY(!(bfloat16(1.0) < bfloat16(0.0 / 0.0)));
-  VERIFY(!(bfloat16(1.0) > bfloat16(0.0 / 0.0)));
-  VERIFY(bfloat16(1.0) != bfloat16(0.0 / 0.0));
+  VERIFY(!(bfloat16(1.0) == nan));
+  VERIFY(!(bfloat16(1.0) < nan));
+  VERIFY(!(bfloat16(1.0) > nan));
+  VERIFY(bfloat16(1.0) != nan);
 
-  VERIFY(bfloat16(1.0) < bfloat16(1.0 / 0.0));
-  VERIFY(bfloat16(1.0) > bfloat16(-1.0 / 0.0));
-#endif
+  VERIFY(bfloat16(1.0) < infinity);
+  VERIFY(bfloat16(1.0) > negative_infinity);
 }
 
 void test_basic_functions() {

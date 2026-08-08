@@ -43,15 +43,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
                          (int(InnerStrideAtCompileTime) == 0 && int(Derived::InnerStrideAtCompileTime) == 1),
       OuterStrideMatch = IsVectorAtCompileTime || int(OuterStrideAtCompileTime) == int(Dynamic) ||
                          int(OuterStrideAtCompileTime) == int(Derived::OuterStrideAtCompileTime),
-      // NOTE, this indirection of evaluator<Derived>::Alignment is needed
-      // to work around an MSVC bug related to the instantiation
-      // of has_*ary_operator in evaluator<CwiseNullaryOp>.
-      // This line is surprisingly very sensitive. For instance, simply adding parenthesis
-      // as "DerivedAlignment = (int(evaluator<Derived>::Alignment))," will make MSVC fail...
-      DerivedAlignment = int(evaluator<Derived>::Alignment),
-      AlignmentMatch = (int(traits<PlainObjectType>::Alignment) == int(Unaligned)) ||
-                       (DerivedAlignment >= int(Alignment)),  // FIXME the first condition is not very clear, it should
-                                                              // be replaced by the required alignment
+      AlignmentMatch = int(evaluator<Derived>::Alignment) >= int(Alignment),
       ScalarTypeMatch = std::is_same<typename PlainObjectType::Scalar, typename Derived::Scalar>::value,
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch &&
                            AlignmentMatch && ScalarTypeMatch
