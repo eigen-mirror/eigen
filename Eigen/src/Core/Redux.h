@@ -241,9 +241,23 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
 
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
-    eigen_assert(xpr.size() > 0 && "you are using an empty matrix");
-    Scalar res = eval.coeff(0);
-    for (Index k = 1; k < xpr.size(); ++k) res = func(res, eval.coeff(k));
+    const Index size = xpr.size();
+    eigen_assert(size > 0 && "you are using an empty matrix");
+    if (size < 4) {
+      Scalar res = eval.coeff(0);
+      for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
+      return res;
+    }
+
+    // Grouping shortens the dependency chain and lets small terms combine before reaching the accumulator.
+    Scalar res = func(func(eval.coeff(0), eval.coeff(1)), func(eval.coeff(2), eval.coeff(3)));
+    const Index unrolledEnd = size - size % 4;
+    Index k = 4;
+    for (; k < unrolledEnd; k += 4) {
+      const Scalar next = func(func(eval.coeff(k), eval.coeff(k + 1)), func(eval.coeff(k + 2), eval.coeff(k + 3)));
+      res = func(res, next);
+    }
+    for (; k < size; ++k) res = func(res, eval.coeff(k));
     return res;
   }
 };
