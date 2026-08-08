@@ -7,7 +7,7 @@
 extern "C" {
 
 /* EIGEN_BLAS_SYM applies EIGEN_BLAS_SYMBOL_SUFFIX; both come from Core/util/MKL_support.h, this header's only
- * includer. The declarations here must stay in step with the call sites in Core/products/*_BLAS.h.
+ * includer. The declarations here must stay in step with the BLAS call sites under Core/products.
  */
 #define BLASFUNC(FUNC) EIGEN_BLAS_SYM(FUNC)
 

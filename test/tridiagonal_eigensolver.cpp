@@ -13,18 +13,24 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 
+template <typename Packet>
+EIGEN_DONT_INLINE Packet packet_product_runtime(const Packet& lhs, const Packet& rhs) {
+  return internal::pmul(lhs, rhs);
+}
+
 // Some SIMD units flush subnormal operands and results to zero regardless of any library-side care
 // (ARMv7 NEON is hard-wired FTZ while its scalar VFP unit honors subnormals). Sections that feed
 // genuinely subnormal data through vectorized kernels cannot even observe their inputs on such
-// hardware, so they are gated on this runtime probe of the packet path. The volatile load keeps the
-// compiler from constant-folding the product with IEEE semantics.
+// hardware, so they are gated on this runtime probe of the packet path. The volatile load prevents
+// constant folding, while the EIGEN_DONT_INLINE wrapper prevents Clang from scalarizing the packet
+// product and applying scalar IEEE semantics.
 template <typename RealScalar>
 bool packet_path_flushes_subnormals() {
   typedef typename internal::packet_traits<RealScalar>::type Packet;
   volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
   const RealScalar tiny = vtiny;
   const RealScalar half_tiny =
-      internal::pfirst(internal::pmul(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
+      internal::pfirst(packet_product_runtime(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
   return numext::is_exactly_zero(half_tiny);
 }
 

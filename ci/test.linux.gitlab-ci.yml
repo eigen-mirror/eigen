@@ -205,7 +205,8 @@ test:linux:x86-64:clang-19:cxx20:nightly:unsupported:
 .test:linux:x86-64:clang-19:default:asan-ubsan:
   extends: .test:linux:x86-64
   variables:
-    EIGEN_CI_INSTALL: clang-19 llvm-19
+    EIGEN_CI_INSTALL: clang-19 llvm-19 libclang-rt-19-dev
+    LD_LIBRARY_PATH: /usr/lib/llvm-19/lib/clang/19/lib/linux
     ASAN_OPTIONS: detect_leaks=0:print_stacktrace=1
     UBSAN_OPTIONS: print_stacktrace=1
     ASAN_SYMBOLIZER_PATH: /usr/lib/llvm-19/bin/llvm-symbolizer

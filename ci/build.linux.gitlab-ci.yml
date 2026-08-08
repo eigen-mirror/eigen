@@ -165,9 +165,10 @@ build:linux:docs:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_CROSS_INSTALL: g++-14-x86-64-linux-gnu clang-19 libclang-rt-19-dev
+    # Statically linked sanitizer runtimes make the test artifacts exceed GitLab's 1 GB upload limit.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-fsanitize=address,undefined;-fno-omit-frame-pointer;-fno-sanitize-recover=undefined
-      -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-fsanitize=address,undefined
+      -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-fsanitize=address,undefined;-shared-libsan
 
 build:linux:cross:x86-64:clang-19:default:asan-ubsan:official:
   extends: .build:linux:cross:x86-64:clang-19:default:asan-ubsan
