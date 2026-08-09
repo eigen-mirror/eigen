@@ -35,6 +35,14 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
   return C;
 }
 
+// The sweeps below compare an optimized product against ref_prod() with verifyProduct() rather than
+// VERIFY_IS_APPROX. Both sides accumulate k terms in the working precision, so each carries rounding
+// proportional to the magnitude of the summands, i.e. to |A|*|B| -- not to the result. Measuring the
+// error relative to the result, as VERIFY_IS_APPROX does, is meaningless once the sum cancels: at
+// bfloat16 precision a 10-term dot product can lose every significant digit, and the apparent
+// relative error then swings by several times the tolerance from one seed to the next while the
+// underlying discrepancy stays around one epsilon of |A|*|B|.
+
 template <typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
 std::enable_if_t<!((Rows == 1 && Depth != 1 && OA == ColMajor) || (Depth == 1 && Rows != 1 && OA == RowMajor) ||
                    (Cols == 1 && Depth != 1 && OB == RowMajor) || (Depth == 1 && Cols != 1 && OB == ColMajor) ||
@@ -331,7 +339,7 @@ void product_transition_sizes() {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }
@@ -350,7 +358,7 @@ void product_sweep(int max_m, int max_k, int max_n) {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }

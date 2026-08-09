@@ -276,6 +276,12 @@ inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
   typedef typename NumTraits<typename Type1::Scalar>::Real RealScalar;
   const RealScalar error = max_abs_coeff((a - b).eval());
   const RealScalar tolerance = test_precision<typename Type1::Scalar>() * scale;
+  // An infinite or NaN bound would admit any result, so treat it as a failure of the caller rather
+  // than as a passing comparison.
+  if (!((numext::isfinite)(tolerance))) {
+    std::cerr << "Invalid tolerance " << tolerance << " for scale " << scale << std::endl;
+    return false;
+  }
   if (!(error <= tolerance)) {
     std::cerr << "Difference " << error << " too large wrt tolerance " << tolerance << std::endl;
     return false;

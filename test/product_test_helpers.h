@@ -49,16 +49,28 @@ typename NumTraits<Scalar>::Real product_tolerance(Index inner_dim, int num_prod
 
 // Overload 2: Absolute error bound for arbitrary matrices.
 // Returns lambda * sqrt(k) * epsilon * num_products * || |A|*|B| ||_F.
+//
+// || |A|*|B| ||_F is accumulated in double with an explicit loop rather than formed as
+// (A.cwiseAbs() * B.cwiseAbs()).norm(): a bound built with the product implementation would inherit
+// that implementation's defects, and one that overflowed to infinity would admit any result at all.
 template <typename DerivedA, typename DerivedB>
 typename NumTraits<typename DerivedA::Scalar>::Real product_error_bound(const MatrixBase<DerivedA>& A,
                                                                         const MatrixBase<DerivedB>& B,
                                                                         int num_products = 1, double lambda = 5) {
   using Scalar = typename DerivedA::Scalar;
   using Real = typename NumTraits<Scalar>::Real;
-  Index k = A.cols();
-  Real abs_prod_norm = (A.cwiseAbs() * B.cwiseAbs()).norm();
-  const Real lambda_real(lambda);
-  return lambda_real * numext::sqrt(Real(k)) * NumTraits<Scalar>::epsilon() * Real(num_products) * abs_prod_norm;
+  const Index k = A.cols();
+  double squared_norm = 0.0;
+  for (Index i = 0; i < A.rows(); ++i)
+    for (Index j = 0; j < B.cols(); ++j) {
+      double sum = 0.0;
+      for (Index l = 0; l < k; ++l)
+        sum += static_cast<double>(numext::abs(A.coeff(i, l))) * static_cast<double>(numext::abs(B.coeff(l, j)));
+      squared_norm += sum * sum;
+    }
+  const double bound = lambda * numext::sqrt(double(k)) * static_cast<double>(NumTraits<Scalar>::epsilon()) *
+                       double(num_products) * numext::sqrt(squared_norm);
+  return static_cast<Real>(bound);
 }
 
 // Verify that two computations of A*B agree within the Higham-Mary bound.
@@ -69,7 +81,8 @@ inline bool verifyProduct(const MatrixBase<D1>& actual, const MatrixBase<D2>& ex
   using Real = typename NumTraits<typename DA::Scalar>::Real;
   Real bound = product_error_bound(A, B, num_products, lambda);
   Real error = (actual - expected).norm();
-  if (error > bound) {
+  // Negated so that a NaN error fails rather than slipping through the comparison.
+  if (!(error <= bound)) {
     std::cerr << "Product verification failed: error " << error << " exceeds bound " << bound << std::endl;
     return false;
   }
