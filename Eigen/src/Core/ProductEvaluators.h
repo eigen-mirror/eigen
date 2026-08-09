@@ -589,10 +589,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_run_packet_cascade(const Func
 template <typename Func, typename Dst, typename Lhs, typename Rhs>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_packet_assign(std::true_type, const Func& func, Dst& dst,
                                                                  const Lhs& lhs, const Rhs& rhs) {
-  using ProdXpr = Product<Lhs, Rhs, LazyProduct>;
-  using ProdEval = product_evaluator<ProdXpr, CoeffBasedProductMode, DenseShape, DenseShape>;
+  using ProdEval = product_evaluator<Product<Lhs, Rhs, LazyProduct>, CoeffBasedProductMode, DenseShape, DenseShape>;
   using Traits = product_packet_cascade_traits<ProdEval, Dst>;
-  const ProdEval prodEval{ProdXpr(lhs, rhs)};
+  const ProdEval prodEval(lhs, rhs);
   product_run_packet_cascade<Traits>(func, dst, prodEval);
 }
 template <typename Func, typename Dst, typename Lhs, typename Rhs>
@@ -702,6 +701,11 @@ struct etor_product_coeff_impl;
 template <int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 
+struct product_empty_packet_evaluator {
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_empty_packet_evaluator(const Xpr&) {}
+};
+
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape, DenseShape>
     : evaluator_base<Product<Lhs, Rhs, LazyProduct>> {
@@ -710,13 +714,16 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   using CoeffReturnType = typename XprType::CoeffReturnType;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_evaluator(const XprType& xpr)
-      : m_lhs(xpr.lhs()),
-        m_rhs(xpr.rhs()),
-        m_lhsImpl(m_lhs),  // FIXME the creation of the evaluator objects should result in a no-op, but check that!
-        m_rhsImpl(m_rhs),  //       Moreover, they are only useful for the packet path, so we could completely disable
-                           //       them when not needed, or perhaps declare them on the fly on the packet method... We
-                           //       have experiment to check what's best.
-        m_innerDim(xpr.lhs().cols()) {
+      : product_evaluator(xpr.lhs(), xpr.rhs()) {}
+
+  // Also construct directly from the product operands so packet-cascade callers
+  // do not have to materialize a temporary Product expression first.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE product_evaluator(const Lhs& lhs, const Rhs& rhs)
+      : m_lhs(lhs),
+        m_rhs(rhs),
+        m_lhsImpl(m_lhs),  // Real evaluator objects for packet products; empty placeholders for scalar-only products.
+        m_rhsImpl(m_rhs),
+        m_innerDim(lhs.cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::MulCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::AddCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
@@ -789,6 +796,10 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                // TODO: enable vectorization for mixed types
                                | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
                                (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
+  using LhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), LhsEtorType, product_empty_packet_evaluator>;
+  using RhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), RhsEtorType, product_empty_packet_evaluator>;
 
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
@@ -871,8 +882,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   add_const_on_value_type_t<LhsNested> m_lhs;
   add_const_on_value_type_t<RhsNested> m_rhs;
 
-  LhsEtorType m_lhsImpl;
-  RhsEtorType m_rhsImpl;
+  LhsPacketEtorType m_lhsImpl;
+  RhsPacketEtorType m_rhsImpl;
 
   variable_if_dynamic<Index, InnerSize> m_innerDim;
 };
