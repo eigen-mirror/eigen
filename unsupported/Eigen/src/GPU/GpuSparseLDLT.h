@@ -47,8 +47,18 @@ class SparseLDLT : public internal::SparseSolverBase<Scalar_, SparseLDLT<Scalar_
 
   SparseLDLT() = default;
 
+  /** Borrow \p ctx's stream so solves chain with other work on the same
+   * Context. \p ctx must outlive this object. */
+  explicit SparseLDLT(Context& ctx) : Base(ctx) {}
+
   template <typename InputType>
   explicit SparseLDLT(const SparseMatrixBase<InputType>& A) {
+    this->compute(A);
+  }
+
+  /** Borrow \p ctx's stream and factor A immediately. */
+  template <typename InputType>
+  SparseLDLT(Context& ctx, const SparseMatrixBase<InputType>& A) : Base(ctx) {
     this->compute(A);
   }
 

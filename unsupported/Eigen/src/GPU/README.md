@@ -60,8 +60,10 @@ VectorXd x = llt.solve(b);              VectorXd x = llt.solve(b);
 ```
 
 The GPU version reads like CPU Eigen with explicit upload/download for dense
-operations, and an almost identical API for sparse solvers. Unsupported
-expressions are compile errors.
+operations, and an almost identical API for sparse solvers. Expressions can
+copy-initialize a `DeviceMatrix` directly (as above), scalar factors accept
+plain literals (`2 * d_A`, `d_A / 2`, `-d_A`), and unsupported expressions are
+compile errors.
 
 **Standalone module.** `unsupported/Eigen/GPU` does not modify or depend on Eigen's Core
 expression template system (`MatrixBase`, `CwiseBinaryOp`, etc.).
@@ -218,7 +220,8 @@ d_C = d_A * d_B.transpose();
 
 // Scaled and accumulated
 d_C += 2.0 * d_A * d_B;             // alpha=2, beta=1
-d_C.device(ctx) -= d_A * d_B;       // alpha=-1, beta=1 (GEMM requires explicit context for -=)
+d_C -= d_A * d_B;                   // alpha=-1, beta=1
+d_C.device(ctx) -= d_A * d_B;       // same, on an explicit stream
 
 // Triangular solve (TRSM)
 d_X = d_A.triangularView<Lower>().solve(d_B);
@@ -248,23 +251,37 @@ d_r.setZero();                         // cudaMemsetAsync
 auto alpha = absNew / dot_val;         // device-side division via NPP
 d_x += alpha * d_p;                    // DeviceScalar * DeviceMatrix (axpy with device pointer)
 
-// Matrix add/subtract (cuBLAS geam)
+// Matrix add/subtract/scale (cuBLAS geam)
 gpu::DeviceMatrix<double> d_C = d_A + d_B;       // C = A + B
 d_C = d_A + 2.0 * d_B;                          // C = A + 2*B
 d_C = d_A - d_B;                                 // C = A - B
+d_C = 2 * d_A - 3 * d_B;                        // scaled both sides, int literals fine
+d_C = -d_A;                                      // unary minus
+d_C = d_A / 2.0;                                 // divide by scalar
+d_C = 0.5 * d_C;                                 // in-place rescale (aliasing-safe)
 ```
 
 ### Dense solvers (cuSOLVER)
 
-**One-shot expression syntax** -- Convenient, re-factorizes each time:
+**One-shot expression syntax** -- "one-shot" means factorization and solve
+run as a single fused call with no persistent factorization object; each
+evaluation re-factorizes:
 
 ```cpp
 // Cholesky solve (potrf + potrs)
-d_X = d_A.llt().solve(d_B);
+gpu::DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
 
 // LU solve (getrf + getrs)
 d_Y = d_A.lu().solve(d_B);
 ```
+
+Scratch for the one-shot form (factor copy, cuSOLVER workspace, info words)
+lives in the `gpu::Context` and grows monotonically — repeated one-shot solves
+perform no per-call allocations. In debug builds each call verifies the
+factorization status (one stream synchronization); release builds
+(`EIGEN_NO_DEBUG`/`NDEBUG`) skip the check *and* the sync, making the
+expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LU` classes
+and `info()` when numerical failure must be detected.
 
 **Cached factorization** -- Factor once, solve many times:
 
@@ -274,7 +291,15 @@ llt.compute(d_A);                    // factorize (async)
 if (llt.info() != Success) { ... }   // lazy sync on first info() call
 auto d_X1 = llt.solve(d_B1);        // reuses factor (async)
 auto d_X2 = llt.solve(d_B2);        // reuses factor (async)
+auto d_X3 = llt.solve(std::move(d_B3));  // in-place: consumes RHS, no copy/alloc
 MatrixXd X2 = d_X2.toHost();
+
+// Bind a solver to an existing Context: work runs on ctx's stream with its
+// handles, so it chains with GEMM/SpMV on the same Context without
+// cross-stream event waits. All five dense solvers (LLT, LU, QR, SVD,
+// SelfAdjointEigenSolver) support this.
+gpu::Context ctx;
+gpu::LLT<double> llt_ctx(ctx, d_A);
 
 // LU with transpose solve
 gpu::LU<double> lu;
@@ -310,7 +335,10 @@ auto d_V = es.d_eigenvectors();           // DeviceMatrix view of eigenvectors
 ```
 
 The cached API keeps the factored matrix on device, avoiding redundant
-host-device transfers and re-factorizations. All solvers also accept host
+host-device transfers and re-factorizations. All five solvers accept
+`compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
+copy (for QR/SVD with m < n the internal transpose still copies), and all five
+can bind to a `gpu::Context` to share its stream and handles. All solvers also accept host
 matrices directly as a convenience (e.g., `gpu::LLT<double> llt(A)` or
 `qr.solve(B)`), which handles upload/download internally. The `d_*` accessors
 on `gpu::SVD` and `gpu::SelfAdjointEigenSolver` return non-owning
@@ -345,6 +373,13 @@ VectorXd x = ldlt.solve(b);
 // Sparse LU (general non-symmetric)
 gpu::SparseLU<double> lu(A);
 VectorXd x = lu.solve(b);
+
+// Bind to an existing Context (same stream as SpMV / cuBLAS work) and solve
+// with a device-resident RHS — result stays on device, no host sync:
+gpu::Context ctx;
+gpu::SparseLLT<double> llt_ctx(ctx, A);
+auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 ```
 
 ### FFT (cuFFT)
@@ -370,6 +405,15 @@ MatrixXcf B = fft.fwd2(A);         // 2D forward
 MatrixXcf C = fft.inv2(B);         // 2D inverse (scaled by 1/(rows*cols))
 
 // Plans are cached and reused across calls with the same size/type.
+
+// Device-resident transforms: DeviceMatrix in/out, no host transfer, no sync.
+gpu::DeviceMatrix<std::complex<float>> d_X, d_y;
+fft.fwd(d_x, d_X);                  // 1D C2C forward (d_x: complex column vector)
+fft.inv(d_X, d_y);                  // 1D C2C inverse (scaled by 1/n)
+fft.fwd(d_r, d_R);                  // 1D R2C (d_r: real column vector)
+fft.invReal(d_R, d_s, n);           // 1D C2R (input preserved)
+fft.fwd2(d_A, d_B);                 // 2D C2C forward
+fft.inv2(d_B, d_C);                 // 2D C2C inverse
 ```
 
 ### Sparse matrix-vector multiply (cuSPARSE)
@@ -390,12 +434,21 @@ spmv.multiply(A, x, y, 1.0, 0.0,            // y = A^H * x (Hermitian SpMV)
 MatrixXd Y = spmv.multiplyMat(A, X);                      // Y = A * X
 MatrixXd Z = spmv.multiplyMat(A, X, gpu::GpuOp::Trans);   // Z = A^T * X
 
-// Device-resident SpMV (sparse matrix cached on device)
+// Device-resident SpMV / SpMM (sparse matrix cached on device)
 gpu::Context ctx;
 gpu::SparseContext<double> spmv_dev(ctx);   // share gpu::Context for same-stream
 auto d_A = spmv_dev.deviceView(A);          // upload sparse matrix once
-d_y = d_A * d_x;                            // operator syntax, stays on device
+d_y = d_A * d_x;                            // SpMV, stays on device
+d_Y = d_A * d_X;                            // SpMM when the RHS has > 1 column
 ```
+
+Host-input calls re-upload the sparse values *and* index arrays on every call
+(host pointer identity cannot detect a pattern rewritten in place or assigned
+into the same allocations, so the structure is never assumed unchanged). The
+cuSPARSE descriptors and workspace-size queries are cached across calls with
+matching shapes; `deviceView()` is the upload-once path. A `DeviceSparseView`
+carries a generation counter — using a view after any later upload through its
+context asserts instead of silently multiplying by the wrong matrix.
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
@@ -480,27 +533,35 @@ Mandatory sync points:
 - `info()` -- Must read the factorization status
 - `DeviceScalar` implicit conversion -- Downloads scalar from device
 
+Debug-only sync points (compiled out under `EIGEN_NO_DEBUG`/`NDEBUG`): every
+solver `solve()` and accessor verifies `info() == Success` via `eigen_assert`,
+which forces one stream synchronization the first time after each
+`compute()`/`factorize()`. Release builds perform no such check — call
+`info()` explicitly where failure detection matters. `gpu::SVD`'s device
+solve additionally downloads the singular values once per (truncation,
+lambda) setting to build its cached inverse diagonal.
+
 **Cross-stream safety** is automatic. `DeviceMatrix` tracks write completion
 via CUDA events. When a matrix written on stream A is read on stream B, the
 module automatically inserts `cudaStreamWaitEvent`. Same-stream operations
 skip the wait (CUDA guarantees in-order execution within a stream).
 
-**Lifetime of cached factorizations.** A `gpu::LLT` / `gpu::LU` object owns
-its CUDA stream, library handle, and the cached factor on device. Destroying
-the factorization object while a `solve()` it issued is still in flight is
-*correct* but not actually async: `cudaStreamDestroy` returns immediately,
-but the destructor of the cached factor calls `cudaFree`, which is fully
-device-synchronous and stalls until the in-flight `potrs`/`getrs` retires.
-For genuine async pipelining keep the factorization object alive until you
-have drained its results (e.g. via `toHost()` or by binding consumption to
-an explicit `gpu::Context` that outlives both producer and consumer):
+**Device memory allocation is stream-ordered.** All module allocations go
+through `cudaMallocAsync` / `cudaFreeAsync` on devices that support memory
+pools (detected at runtime; `cudaMalloc`/`cudaFree` fallback otherwise, or
+force the fallback with `EIGEN_GPU_NO_STREAM_ORDERED_ALLOC` — required when
+borrowing `cudaStreamNonBlocking` streams, which do not synchronize with the
+legacy stream the allocator uses for ordering). Consequences:
 
-```cpp
-gpu::LLT<double> llt(d_A);             // factor stays on device
-auto h_x = d_X = llt.solve(d_B).toHostAsync(stream);
-h_x.get();                             // sync: factor + result complete
-// llt may now be destroyed without stalling the device
-```
+- Allocating/destroying `DeviceMatrix` temporaries no longer performs a
+  device-wide synchronization; freed blocks recycle through the driver pool
+  (the pool's release threshold is raised so steady-state loops reallocate at
+  user-space speed).
+- Destroying a solver (or `DeviceMatrix`) with work still in flight is safe
+  *and* async: the stream-ordered free waits for previously enqueued work
+  without stalling the host.
+- `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
+  reuse the existing allocation (contents are still discarded).
 
 ## Reference
 
@@ -521,7 +582,7 @@ noted otherwise).
 | `C = alpha * A * B` | `cublasLtMatmul` | alpha from LHS |
 | `C = A * (alpha * B)` | `cublasLtMatmul` | alpha from RHS |
 | `C += A * B` | `cublasLtMatmul` | alpha=1, beta=1 |
-| `C.device(ctx) -= A * B` | `cublasLtMatmul` | alpha=-1, beta=1 |
+| `C -= A * B` | `cublasLtMatmul` | alpha=-1, beta=1 |
 | `X = A.llt().solve(B)` | `cusolverDnXpotrf` + `Xpotrs` | uplo, n, nrhs |
 | `X = A.llt<Upper>().solve(B)` | same | uplo=Upper |
 | `X = A.lu().solve(B)` | `cusolverDnXgetrf` + `Xgetrs` | n, nrhs |
@@ -532,6 +593,8 @@ noted otherwise).
 | `C = A + alpha * B` | `cublasXgeam` | alpha=1, beta from scaled |
 | `C = A - B` | `cublasXgeam` | alpha=1, beta=-1 |
 | `C = A - alpha * B` | `cublasXgeam` | alpha=1, beta=-scaled |
+| `C = alpha * A + beta * B` | `cublasXgeam` | both sides scaled |
+| `C = alpha * A`, `C = -A`, `C = A / alpha` | `cublasXgeam` | beta=0, aliasing-safe |
 | `x += alpha * y` | `cublasXaxpy` | alpha (host scalar) |
 | `x += dAlpha * y` | `cublasXaxpy` | alpha (DeviceScalar, device pointer mode) |
 | `x -= alpha * y` | `cublasXaxpy` | alpha negated |
@@ -540,6 +603,7 @@ noted otherwise).
 | `x.norm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
 | `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
+| `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
 
 ### `DeviceMatrix<Scalar>`
 
@@ -552,6 +616,9 @@ one column.
 DeviceMatrix<Scalar>()                                   // Empty (0x0)
 DeviceMatrix<Scalar>(Index n)                            // Allocate column vector (n x 1)
 DeviceMatrix<Scalar>(rows, cols)                         // Allocate uninitialized
+DeviceMatrix<Scalar>(expr)                               // Copy-init from any supported expression
+                                                         // (GEMM, geam/scaled, LLT/LU solve, TRSM,
+                                                         //  SYMM, SpMV/SpMM)
 
 // Upload / download / pointer adoption
 static DeviceMatrix fromHost(matrix, stream=nullptr)           // -> DeviceMatrix (syncs)
@@ -568,7 +635,8 @@ Index   cols()
 size_t  sizeInBytes()
 bool    empty()
 Scalar* data()                                           // Raw device pointer
-void    resize(Index rows, Index cols)                   // Discard contents, reallocate
+void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
+                                                         // when it is already large enough
 
 // Expression builders (return lightweight views, evaluated on assignment)
 AdjointView       adjoint()                              // GEMM with ConjTrans
@@ -658,7 +726,11 @@ Caches the Cholesky factor on device for repeated solves.
 
 ```cpp
 gpu::LLT()                                                // Default construct, then call compute()
+gpu::LLT(Context& ctx)                                    // Bind to ctx's stream + handles
 gpu::LLT(const EigenBase<D>& A)                           // Convenience: upload + factorize
+gpu::LLT(const DeviceMatrix& d_A)                         // Convenience: D2D copy + factorize
+gpu::LLT(DeviceMatrix&& d_A)                              // Convenience: adopt + factorize
+gpu::LLT(Context& ctx, ...)                               // Bind + factorize in one step
 
 gpu::LLT&            compute(const EigenBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
@@ -666,6 +738,7 @@ gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
+DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc
 
 ComputationInfo    info()                                // Lazy sync on first call: Success or NumericalIssue
 Index              rows() / cols()
@@ -729,6 +802,9 @@ DeviceMatrix       d_matrixVT()                          // -> DeviceMatrix view
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (pseudoinverse)
 PlainMatrix        solve(const MatrixBase<D>& B, Index k)       // Truncated (top k triplets)
 PlainMatrix        solve(const MatrixBase<D>& B, RealScalar l)  // Tikhonov regularized
+DeviceMatrix       solve(const DeviceMatrix& d_B)        // Device-resident pseudoinverse solve
+DeviceMatrix       solve(const DeviceMatrix& d_B, Index k)      // Truncated, device-resident
+DeviceMatrix       solve(const DeviceMatrix& d_B, RealScalar l) // Tikhonov, device-resident
 
 Index              rank(RealScalar threshold = -1)
 ComputationInfo    info()                                // Lazy sync
@@ -796,11 +872,16 @@ gpu::SparseLLT&      factorize(const SparseMatrixBase<D>& A)       // Numeric fa
 gpu::SparseLLT&      compute(const SparseMatrixBase<D>& A)         // analyzePattern + factorize
 
 DenseMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
+DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
 
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
 ```
+
+All three cuDSS solvers also accept a `gpu::Context&` as first constructor
+argument to borrow its stream (`gpu::SparseLLT<double> llt(ctx)` or
+`llt(ctx, A)`).
 
 ### `gpu::SparseLDLT<Scalar, UpLo>` -- Sparse LDL^T (cuDSS)
 
@@ -838,6 +919,13 @@ RealVector         invReal(const MatrixBase<D>& X, Index n)  // C2R inverse, sca
 ComplexMatrix      fwd2(const MatrixBase<D>& A)         // 2D C2C forward
 ComplexMatrix      inv2(const MatrixBase<D>& A)         // 2D C2C inverse, scaled by 1/(rows*cols)
 
+// Device-resident transforms (DeviceMatrix in/out, async, no host transfer)
+void               fwd(const DeviceMatrix<Complex>&, DeviceMatrix<Complex>&)      // 1D C2C
+void               inv(const DeviceMatrix<Complex>&, DeviceMatrix<Complex>&)      // 1D C2C inverse
+void               fwd(const DeviceMatrix<Scalar>&, DeviceMatrix<Complex>&)       // 1D R2C
+void               invReal(const DeviceMatrix<Complex>&, DeviceMatrix<Scalar>&, Index nfft)  // 1D C2R
+void               fwd2 / inv2(const DeviceMatrix<Complex>&, DeviceMatrix<Complex>&)  // 2D C2C
+
 cudaStream_t       stream()             // borrowed from the bound Context
 gpu::Context&      context()            // the bound Context
 std::size_t        plan_cache_capacity() // configured capacity
@@ -867,12 +955,17 @@ DenseVector        multiplyT(A, x)                                      // y = A
 DenseVector        multiplyAdjoint(A, x)                                // y = A^H * x
 DenseMatrix        multiplyMat(A, X, op=GpuOp::NoTrans)                 // Y = op(A) * X (SpMM)
 
-// DeviceMatrix in/out (sparse matrix re-uploaded each call)
+// DeviceMatrix in/out (sparse matrix re-uploaded per call)
 void               multiply(A, d_x, d_y)                                // SpMV with device vectors
-void               multiply(A, d_x, d_y, alpha, beta, op)
+void               multiply(A, d_x, d_y, alpha, beta, op=GpuOp::NoTrans)
 
 // Device-resident sparse matrix (upload once, reuse)
 DeviceSparseView   deviceView(A)                                        // Upload sparse matrix, return view
+uint64_t           uploadGeneration()                                   // Generation of the cached upload
+
+// Advanced: run SpMV/SpMM against the already-uploaded matrix
+void               spmv_device_exec(d_x, d_y, alpha=1, beta=0, op=GpuOp::NoTrans)
+void               spmm_device_exec(d_X, d_Y, alpha=1, beta=0, op=GpuOp::NoTrans)
 
 cudaStream_t       stream()
 ```
@@ -883,7 +976,9 @@ Returned by `gpu::SparseContext::deviceView()`. Holds a sparse matrix on device
 for repeated SpMV without re-uploading.
 
 ```cpp
-SpMVExpr           operator*(const DeviceMatrix& d_x)    // d_y = view * d_x (evaluated on assignment)
+SpMVExpr           operator*(const DeviceMatrix& d_x)    // d_y = view * d_x (evaluated on assignment;
+                                                         // dispatches to SpMM when d_x has > 1 column)
+uint64_t           generation()                          // Upload generation (stale views assert)
 ```
 
 ### Aliasing
@@ -1003,8 +1098,8 @@ ctest --test-dir build -R '^cudss_' --output-on-failure
   dispatch and device-side Eigen expression templates (Core + Tensor) running
   inside CUDA kernels. Raw-pointer + `Map` / `TensorMap` as the zero-copy
   interop surface.
-- **Per-stream CUDA memory pools.** Currently all streams in a `GpuContext`
-  share the default device memory pool. Attaching a dedicated
-  `cudaMemPool_t` per stream (`cudaDeviceSetMempool` /
-  `cudaMallocFromPoolAsync`) can reduce cross-stream allocator contention for
-  workloads that fan out many concurrent solves.
+- **Per-stream CUDA memory pools.** Allocation is now stream-ordered through
+  the device's default memory pool. Attaching a dedicated `cudaMemPool_t` per
+  stream (`cudaDeviceSetMempool` / `cudaMallocFromPoolAsync`) could further
+  reduce cross-stream allocator contention for workloads that fan out many
+  concurrent solves.

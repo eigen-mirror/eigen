@@ -150,6 +150,14 @@ void test_plan_reuse() {
   }
 }
 
+void test_device_invalid_fft_size() {
+  using Complex = std::complex<float>;
+  gpu::FFT<float> fft;
+  gpu::DeviceMatrix<Complex> input;
+  gpu::DeviceMatrix<float> output;
+  VERIFY_RAISES_ASSERT(fft.invReal(input, output, Index(-1)));
+}
+
 // ---- LRU eviction + user-configurable capacity ------------------------------
 // Constructs an FFT with an explicit small plan-cache capacity (also exercising
 // the user-configurable constructor), pushes 2 * capacity distinct shapes
@@ -232,10 +240,54 @@ void test_explicit_context(Index n) {
   VERIFY((y - x).norm() / x.norm() < tol);
 }
 
+// ---- Device-resident transforms -------------------------------------------------
+
+template <typename Scalar>
+void test_device_transforms(Index n) {
+  using Complex = std::complex<Scalar>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using RVec = Matrix<Scalar, Dynamic, 1>;
+
+  gpu::Context ctx;
+  gpu::FFT<Scalar> fft(ctx);
+
+  // 1D C2C: device path matches the host path; roundtrip returns the input.
+  CVec x = CVec::Random(n);
+  CVec X_host = fft.fwd(x);
+  auto d_x = gpu::DeviceMatrix<Complex>::fromHost(x, ctx.stream());
+  gpu::DeviceMatrix<Complex> d_X, d_y;
+  fft.fwd(d_x, d_X);
+  VERIFY_IS_APPROX(d_X.toHost(), X_host);
+  fft.inv(d_X, d_y);
+  VERIFY_IS_APPROX(d_y.toHost(), x);
+
+  // 1D R2C / C2R roundtrip; the C2R input is preserved (staged via scratch).
+  RVec r = RVec::Random(n);
+  auto d_r = gpu::DeviceMatrix<Scalar>::fromHost(r, ctx.stream());
+  gpu::DeviceMatrix<Complex> d_R;
+  fft.fwd(d_r, d_R);
+  VERIFY_IS_EQUAL(d_R.rows(), n / 2 + 1);
+  Matrix<Complex, Dynamic, Dynamic> R_before = d_R.toHost();
+  gpu::DeviceMatrix<Scalar> d_s;
+  fft.invReal(d_R, d_s, n);
+  VERIFY_IS_APPROX(d_s.toHost(), r);
+  VERIFY_IS_APPROX(d_R.toHost(), R_before);
+
+  // 2D C2C roundtrip.
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  CMat A = CMat::Random(n / 2, n / 4 + 1);
+  auto d_A = gpu::DeviceMatrix<Complex>::fromHost(A, ctx.stream());
+  gpu::DeviceMatrix<Complex> d_B, d_C;
+  fft.fwd2(d_A, d_B);
+  fft.inv2(d_B, d_C);
+  VERIFY_IS_APPROX(d_C.toHost(), A);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_device_transforms<Scalar>(64));
   CALL_SUBTEST(test_c2c_roundtrip<Scalar>(64));
   CALL_SUBTEST(test_c2c_roundtrip<Scalar>(256));
   CALL_SUBTEST(test_c2c_roundtrip<Scalar>(1000));  // non-power-of-2
@@ -255,5 +307,6 @@ EIGEN_DECLARE_TEST(gpu_cufft) {
   gpu_test::require_cufft_context();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
+  CALL_SUBTEST_1(test_device_invalid_fft_size());
   CALL_SUBTEST_2(test_scalar<double>());
 }

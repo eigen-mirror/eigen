@@ -26,13 +26,10 @@
 
 #include <functional>
 
+#include "./FwdDecl.h"
+
 namespace Eigen {
 namespace gpu {
-
-// Forward declarations.
-template <typename Scalar_>
-class DeviceMatrix;
-class Context;
 
 // ---- LLT solve expression ---------------------------------------------------
 // d_A.llt().solve(d_B) -> LltSolveExpr -> cusolverDnXpotrf + cusolverDnXpotrs

@@ -43,8 +43,7 @@ class DeviceScalar {
   using Scalar = Scalar_;
 
   /** Allocate uninitialized device scalar. Contents are undefined until written
-   * (e.g., by cuBLAS dot/nrm2 with POINTER_MODE_DEVICE). Consistent with
-   * DeviceMatrix(rows, cols) which also does not zero-initialize. */
+   * (e.g., by cuBLAS dot/nrm2 with POINTER_MODE_DEVICE). */
   explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar)), stream_(stream) {}
 
   DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) {

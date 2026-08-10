@@ -647,10 +647,97 @@ void test_syrk(Index n, Index k) {
   VERIFY((C_lower - C_ref_lower).norm() < tol);
 }
 
+// ---- Expression sugar: copy-init, operator-=, scalar operators --------------
+
+template <typename Scalar>
+void test_expression_sugar(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+  Mat C0 = Mat::Random(m, n);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+
+  const RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * RealScalar(A.norm() * B.norm());
+
+  // Copy-initialization straight from a GEMM expression (README headline syntax).
+  gpu::DeviceMatrix<Scalar> d_C = d_A * d_B;
+  VERIFY((d_C.toHost() - A * B).norm() < tol);
+
+  // Plain operator-= on GEMM (no .device(ctx) needed).
+  auto d_E = gpu::DeviceMatrix<Scalar>::fromHost(C0);
+  d_E -= d_A * d_B;
+  VERIFY((d_E.toHost() - (C0 - A * B)).norm() < tol);
+
+  // Scalar sugar: int literals, matrix * scalar, division, unary minus.
+  Mat S = Mat::Random(m, n);
+  auto d_S = gpu::DeviceMatrix<Scalar>::fromHost(S);
+  gpu::DeviceMatrix<Scalar> d_F = 2 * d_S;
+  VERIFY_IS_APPROX(d_F.toHost(), Mat(Scalar(2) * S));
+
+  gpu::DeviceMatrix<Scalar> d_G = d_S * Scalar(3);
+  VERIFY_IS_APPROX(d_G.toHost(), Mat(Scalar(3) * S));
+
+  gpu::DeviceMatrix<Scalar> d_H = d_S / 2;
+  VERIFY_IS_APPROX(d_H.toHost(), Mat(S / Scalar(2)));
+
+  gpu::DeviceMatrix<Scalar> d_I = -d_S;
+  VERIFY_IS_APPROX(d_I.toHost(), Mat(-S));
+
+  // Scaled ± Scaled and Scaled ± Matrix combinations (geam quadrant).
+  Mat T = Mat::Random(m, n);
+  auto d_T = gpu::DeviceMatrix<Scalar>::fromHost(T);
+  gpu::DeviceMatrix<Scalar> d_J = 2 * d_S - d_T;
+  VERIFY_IS_APPROX(d_J.toHost(), Mat(Scalar(2) * S - T));
+
+  gpu::DeviceMatrix<Scalar> d_K = 2 * d_S + 3 * d_T;
+  VERIFY_IS_APPROX(d_K.toHost(), Mat(Scalar(2) * S + Scalar(3) * T));
+
+  gpu::DeviceMatrix<Scalar> d_L = -(2 * d_S) - 3 * d_T;
+  VERIFY_IS_APPROX(d_L.toHost(), Mat(Scalar(-2) * S - Scalar(3) * T));
+
+  // In-place rescale via assignment (geam with beta=0, aliasing-safe).
+  d_L = Scalar(0.5) * d_L;
+  VERIFY_IS_APPROX(d_L.toHost(), Mat(Scalar(-1) * S - Scalar(1.5) * T));
+
+  // .device(ctx) with geam expressions.
+  gpu::Context ctx;
+  gpu::DeviceMatrix<Scalar> d_M;
+  d_M.device(ctx) = d_S + 2 * d_T;
+  VERIFY_IS_APPROX(d_M.toHost(), Mat(S + Scalar(2) * T));
+}
+
+template <typename Scalar>
+void test_solve_expr_copy_init(Index n, Index nrhs) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = make_spd<Mat>(n);
+  Mat B = Mat::Random(n, nrhs);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+
+  // Copy-initialization from one-shot solver expressions.
+  gpu::DeviceMatrix<Scalar> d_X = d_A.llt().solve(d_B);
+  Mat X = d_X.toHost();
+  VERIFY((A * X - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());
+
+  gpu::DeviceMatrix<Scalar> d_Y = d_A.lu().solve(d_B);
+  Mat Y = d_Y.toHost();
+  VERIFY((A * Y - B).norm() / B.norm() < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_expression_sugar<Scalar>(64, 48, 32));
+  CALL_SUBTEST(test_solve_expr_copy_init<Scalar>(64, 4));
+
   CALL_SUBTEST(test_gemm_basic<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_basic<Scalar>(128, 64, 32));
   CALL_SUBTEST(test_gemm_basic<Scalar>(1, 1, 1));

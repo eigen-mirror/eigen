@@ -39,6 +39,11 @@ class SelfAdjointEigenSolver {
 
   SelfAdjointEigenSolver() = default;
 
+  /** Bind to \p ctx: run on its stream with its cuSOLVER/cuBLAS handles, so
+   * solver work chains with other work on the same Context without
+   * cross-stream event waits. \p ctx must outlive this object. */
+  explicit SelfAdjointEigenSolver(Context& ctx) : solver_ctx_(ctx) {}
+
   /** \param options  Eigen::ComputeEigenvectors (default) or Eigen::EigenvaluesOnly. */
   template <typename InputType>
   explicit SelfAdjointEigenSolver(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
@@ -46,6 +51,24 @@ class SelfAdjointEigenSolver {
   }
 
   explicit SelfAdjointEigenSolver(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
+    compute(d_A, options);
+  }
+
+  /** Decompose a device-resident A immediately (adopt, no copy). */
+  explicit SelfAdjointEigenSolver(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
+    compute(std::move(d_A), options);
+  }
+
+  /** Bind to \p ctx and decompose A immediately. */
+  template <typename InputType>
+  SelfAdjointEigenSolver(Context& ctx, const EigenBase<InputType>& A, int options = ComputeEigenvectors)
+      : solver_ctx_(ctx) {
+    compute(A, options);
+  }
+
+  /** Bind to \p ctx and decompose a device-resident A (D2D copy). */
+  SelfAdjointEigenSolver(Context& ctx, const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors)
+      : solver_ctx_(ctx) {
     compute(d_A, options);
   }
 
@@ -85,29 +108,30 @@ class SelfAdjointEigenSolver {
 
   template <typename InputType>
   SelfAdjointEigenSolver& compute(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
+    // Route through the adopting overload: the freshly uploaded matrix is
+    // decomposed in place (syevd overwrites its input) — no second device copy.
     return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream_), options);
   }
 
   SelfAdjointEigenSolver& compute(const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors) {
-    eigen_assert(d_A.rows() == d_A.cols() && "SelfAdjointEigenSolver requires a square matrix");
-    eigen_assert((options == ComputeEigenvectors || options == EigenvaluesOnly) &&
-                 "options must be ComputeEigenvectors or EigenvaluesOnly");
-    compute_eigenvectors_ = (options == ComputeEigenvectors);
-    n_ = d_A.rows();
+    if (!begin_compute(d_A, options)) return *this;
 
-    if (n_ == 0) {
-      solver_ctx_.info_ = Success;
-      solver_ctx_.info_synced_ = true;
-      return *this;
-    }
-
-    d_A.waitReady(solver_ctx_.stream_);
-    lda_ = n_;
     const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar);
-
-    d_A_ = internal::DeviceBuffer(mat_bytes);
+    internal::ensure_sized(d_A_, mat_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_A_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+
+    factorize();
+    return *this;
+  }
+
+  /** Decompose a device matrix (move): the buffer is adopted and overwritten
+   * in place by syevd — no copy. */
+  SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
+    if (!begin_compute(d_A, options)) return *this;
+
+    d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
+                                         static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
 
     factorize();
     return *this;
@@ -120,14 +144,9 @@ class SelfAdjointEigenSolver {
   Index cols() const { return n_; }
   Index rows() const { return n_; }
 
-  // TODO: Add device-side accessors (deviceEigenvalues(), deviceEigenvectors())
-  // returning DeviceMatrix views of the internal buffers, so users can chain
-  // GPU operations without round-tripping through host memory.
-
   /** Eigenvalues in ascending order. Downloads from device. */
   RealVector eigenvalues() const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success);
+    eigen_assert(solver_ctx_.info() == Success);
     RealVector W(n_);
     if (n_ > 0) {
       EIGEN_CUDA_RUNTIME_CHECK(
@@ -139,8 +158,7 @@ class SelfAdjointEigenSolver {
   /** Eigenvectors (columns). Downloads from device.
    * Requires ComputeEigenvectors mode. */
   PlainMatrix eigenvectors() const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success);
+    eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
     if (n_ > 0) {
@@ -157,19 +175,20 @@ class SelfAdjointEigenSolver {
   // view borrows the pointer: destruction does not free; this solver must outlive any
   // view derived from it. Both accessors are pure metadata — zero kernel launches.
 
-  /** Eigenvalues as an n × 1 view on this solver's stream. */
+  /** Eigenvalues as an n × 1 view on this solver's stream. No host sync in
+   * release builds — the recorded event orders downstream consumers after
+   * syevd; debug builds verify the factorization status. */
   DeviceMatrix<RealScalar> d_eigenvalues() const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success);
+    eigen_assert(solver_ctx_.info() == Success);
     auto v = DeviceMatrix<RealScalar>::view(static_cast<RealScalar*>(d_W_.get()), n_, 1);
     v.recordReady(solver_ctx_.stream_);
     return v;
   }
 
-  /** Eigenvectors (columns) as an n × n view on this solver's stream. */
+  /** Eigenvectors (columns) as an n × n view on this solver's stream. Same
+   * synchronization contract as d_eigenvalues(). */
   DeviceMatrix<Scalar> d_eigenvectors() const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success);
+    eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(compute_eigenvectors_ && "d_eigenvectors() requires ComputeEigenvectors option");
     auto v = DeviceMatrix<Scalar>::view(static_cast<Scalar*>(d_A_.get()), n_, n_);
     v.recordReady(solver_ctx_.stream_);
@@ -180,11 +199,29 @@ class SelfAdjointEigenSolver {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_A_;  // overwritten with eigenvectors by syevd
-  internal::DeviceBuffer d_W_;  // eigenvalues (RealScalar, length n)
+  internal::DeviceBuffer d_A_;  // grow-only; overwritten with eigenvectors by syevd
+  internal::DeviceBuffer d_W_;  // grow-only; eigenvalues (RealScalar, length n)
   bool compute_eigenvectors_ = true;
   int64_t n_ = 0;
   int64_t lda_ = 0;
+
+  // Common compute() prologue: validate, record shape, reset info, wait on
+  // input. Returns false (and clears stale buffers) for empty input.
+  bool begin_compute(const DeviceMatrix<Scalar>& d_A, int options) {
+    eigen_assert(d_A.rows() == d_A.cols() && "SelfAdjointEigenSolver requires a square matrix");
+    eigen_assert((options == ComputeEigenvectors || options == EigenvaluesOnly) &&
+                 "options must be ComputeEigenvectors or EigenvaluesOnly");
+    compute_eigenvectors_ = (options == ComputeEigenvectors);
+    n_ = d_A.rows();
+    if (!solver_ctx_.begin_compute(n_ != 0)) {
+      d_A_ = internal::DeviceBuffer();
+      d_W_ = internal::DeviceBuffer();
+      return false;
+    }
+    lda_ = n_;
+    d_A.waitReady(solver_ctx_.stream_);
+    return true;
+  }
 
   void factorize() {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
@@ -192,7 +229,7 @@ class SelfAdjointEigenSolver {
 
     solver_ctx_.mark_pending();
 
-    d_W_ = internal::DeviceBuffer(static_cast<size_t>(n_) * sizeof(RealScalar));
+    internal::ensure_sized(d_W_, static_cast<size_t>(n_) * sizeof(RealScalar));
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 
@@ -212,8 +249,7 @@ class SelfAdjointEigenSolver {
                                           dev_ws, host_ws > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws,
                                           solver_ctx_.scratch_info()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solver_ctx_.info_word(), solver_ctx_.scratch_info(), sizeof(int),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    solver_ctx_.enqueue_info_copy();
   }
 };
 

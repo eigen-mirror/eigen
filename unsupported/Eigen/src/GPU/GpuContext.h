@@ -34,9 +34,46 @@
 #include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
 #include <cusparse.h>
+#include <vector>
 
 namespace Eigen {
 namespace gpu {
+
+namespace internal {
+
+// cuSOLVER writes the factorization/solve status words to device memory in
+// every build, so d_info must exist even under EIGEN_NO_DEBUG. Only the
+// pinned host mirror is debug-only: it feeds the oneshot_check_info assert,
+// which release builds compile out.
+constexpr size_t kOneShotInfoBytes = 2 * sizeof(int);
+#ifdef EIGEN_NO_DEBUG
+constexpr size_t kOneShotHostInfoBytes = 0;
+#else
+constexpr size_t kOneShotHostInfoBytes = kOneShotInfoBytes;
+#endif
+// Grow-only scratch shared by the one-shot solver expressions
+// (d_A.llt().solve(d_B), d_A.lu().solve(d_B)), so repeated one-shot solves on
+// a Context perform no per-call device or pinned-host allocations. Holds only
+// CUDA-runtime types (no cuSOLVER types) to keep the lazy-linking property of
+// Context. Used by dispatch_llt_solve / dispatch_lu_solve in DeviceDispatch.h.
+struct OneShotSolverScratch {
+  DeviceBuffer d_factor;
+  DeviceBuffer d_ipiv;
+  DeviceBuffer d_workspace;
+  DeviceBuffer d_info{kOneShotInfoBytes};          // 2 ints: {factorization, solve}
+  PinnedHostBuffer h_info{kOneShotHostInfoBytes};  // debug-build info check only
+  std::vector<char> h_workspace;
+};
+
+inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
+  if (needed > buf.size()) {
+    // Replacing an in-use buffer is safe: device_free is stream-ordered
+    // (or fully synchronous on the cudaMalloc fallback path), so the free
+    // waits for previously enqueued work touching the old buffer.
+    buf = DeviceBuffer(needed);
+  }
+}
+}  // namespace internal
 
 /** \ingroup GPU_Module
  * \class Context
@@ -121,7 +158,7 @@ class Context {
   }
 
   /** cuBLASLt handle (lazy-initialized on first GEMM call). */
-  cublasLtHandle_t cublasLtHandle() const {
+  cublasLtHandle_t cublasLtHandle() {
     if (!cublas_lt_) {
       EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
     }
@@ -130,11 +167,16 @@ class Context {
 
   /** Workspace buffer for cublasLtMatmul (grown lazily by cublaslt_gemm).
    * Not thread-safe — all GEMM calls must be on this context's stream. */
-  internal::DeviceBuffer* gemmWorkspace() const { return &gemm_workspace_; }
+  internal::DeviceBuffer* gemmWorkspace() { return &gemm_workspace_; }
 
   /** Plan cache for cublasLtMatmul (caches descriptors and selected algorithm
    * by shape to avoid per-call overhead). Same thread-safety as workspace. */
-  internal::CublasLtPlanCache* gemmPlanCache() const { return &gemm_plan_cache_; }
+  internal::CublasLtPlanCache* gemmPlanCache() { return &gemm_plan_cache_; }
+
+  /** Grow-only scratch for the one-shot solver expressions
+   * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
+   * the GEMM workspace: all uses must be on this context's stream. */
+  internal::OneShotSolverScratch* oneshotSolverScratch() { return &oneshot_solver_scratch_; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
@@ -148,7 +190,7 @@ class Context {
   void setCublasLtMaxWorkspaceBytes(std::size_t bytes) { cublaslt_max_workspace_bytes_ = bytes; }
 
   /** cuSPARSE handle (lazy-initialized on first call). */
-  cusparseHandle_t cusparseHandle() const {
+  cusparseHandle_t cusparseHandle() {
     if (!cusparse_) {
       cusparseStatus_t s1 = cusparseCreate(&cusparse_);
       eigen_assert(s1 == CUSPARSE_STATUS_SUCCESS && "cusparseCreate failed");
@@ -169,11 +211,12 @@ class Context {
   cublasHandle_t cublas_ = nullptr;
   cusolverDnHandle_t cusolver_ = nullptr;
   cusolverStatus_t (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
-  mutable cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
-  mutable cusparseHandle_t cusparse_ = nullptr;   // lazy
-  mutable cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
-  mutable internal::DeviceBuffer gemm_workspace_;  // lazy
-  mutable internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
+  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
+  cusparseHandle_t cusparse_ = nullptr;   // lazy
+  cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
+  internal::DeviceBuffer gemm_workspace_;  // lazy
+  internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
+  internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
   bool owns_stream_ = true;
 

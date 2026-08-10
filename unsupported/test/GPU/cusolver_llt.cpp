@@ -200,8 +200,38 @@ void test_chaining(Eigen::Index n) {
   VERIFY((h_Y - h_Y_ref).norm() < tol);
 }
 
+// ---- Context binding + in-place (rvalue) solve --------------------------------
+
+template <typename Scalar>
+void test_context_bound_solver(Index n, Index nrhs) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat M = Mat::Random(n, n);
+  Mat A = M.adjoint() * M + Mat::Identity(n, n) * Scalar(n);
+  Mat B = Mat::Random(n, nrhs);
+
+  gpu::Context ctx;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::LLT<Scalar> llt(ctx, d_A);
+  VERIFY(llt.info() == Success);
+  VERIFY(llt.stream() == ctx.stream());
+
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_X = llt.solve(d_B);
+  Mat X = d_X.toHost();
+  VERIFY((A * X - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());
+
+  // In-place rvalue solve: consumes the RHS, no copy/allocation.
+  gpu::DeviceMatrix<Scalar> d_X2 = llt.solve(std::move(d_B));
+  Mat X2 = d_X2.toHost();
+  VERIFY((A * X2 - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());
+  VERIFY(d_B.data() == nullptr);  // moved-from
+}
+
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_context_bound_solver<Scalar>(64, 4));
   CALL_SUBTEST((test_potrf<Scalar, Eigen::Lower>(1)));
   CALL_SUBTEST((test_potrf<Scalar, Eigen::Lower>(64)));
   CALL_SUBTEST((test_potrf<Scalar, Eigen::Lower>(256)));

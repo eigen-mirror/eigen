@@ -56,10 +56,30 @@ class LU {
 
   LU() = default;
 
+  /** Bind to \p ctx: run on its stream with its cuSOLVER/cuBLAS handles, so
+   * solver work chains with other work on the same Context without
+   * cross-stream event waits. \p ctx must outlive this object. */
+  explicit LU(Context& ctx) : solver_ctx_(ctx) {}
+
   template <typename InputType>
   explicit LU(const EigenBase<InputType>& A) {
     compute(A);
   }
+
+  /** Factor a device-resident A immediately (D2D copy). */
+  explicit LU(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
+
+  /** Factor a device-resident A immediately (adopt, no copy). */
+  explicit LU(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
+
+  /** Bind to \p ctx and factor A immediately. */
+  template <typename InputType>
+  LU(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+    compute(A);
+  }
+
+  /** Bind to \p ctx and factor a device-resident A (D2D copy). */
+  LU(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
   ~LU() = default;
 
@@ -69,11 +89,9 @@ class LU {
   LU(LU&& o) noexcept
       : solver_ctx_(std::move(o.solver_ctx_)),
         d_lu_(std::move(o.d_lu_)),
-        lu_alloc_size_(o.lu_alloc_size_),
         d_ipiv_(std::move(o.d_ipiv_)),
         n_(o.n_),
         lda_(o.lda_) {
-    o.lu_alloc_size_ = 0;
     o.n_ = 0;
     o.lda_ = 0;
   }
@@ -82,11 +100,9 @@ class LU {
     if (this != &o) {
       solver_ctx_ = std::move(o.solver_ctx_);
       d_lu_ = std::move(o.d_lu_);
-      lu_alloc_size_ = o.lu_alloc_size_;
       d_ipiv_ = std::move(o.d_ipiv_);
       n_ = o.n_;
       lda_ = o.lda_;
-      o.lu_alloc_size_ = 0;
       o.n_ = 0;
       o.lda_ = 0;
     }
@@ -133,8 +149,7 @@ class LU {
 
     lda_ = static_cast<int64_t>(d_A.rows());
     d_A.waitReady(solver_ctx_.stream_);
-    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()));
-    lu_alloc_size_ = matrixBytes();
+    d_lu_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), matrixBytes());
 
     factorize();
     return *this;
@@ -149,11 +164,13 @@ class LU {
    */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B, GpuOp op = GpuOp::NoTrans) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "LU::solve called on a failed or uninitialized factorization");
+    // Debug builds verify the factorization (info() synchronizes the stream on
+    // the first call after compute()); release builds skip both the check and
+    // the sync — use info() explicitly when failure must be detected.
+    eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
 
-    const PlainMatrix rhs(B);
+    const Ref<const PlainMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
     internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
@@ -173,13 +190,13 @@ class LU {
     return X;
   }
 
-  /** Solve op(A) * X = B with device-resident RHS. Returns immediately after
-   * enqueuing the solve; the sync_info()/info_ check at entry forces a host
-   * wait on the factorization status so a singular A causes a clean assert
-   * rather than a silently-bad result. */
+  /** Solve op(A) * X = B with device-resident RHS. Fully asynchronous: returns
+   * immediately after enqueuing the solve. Debug builds verify the
+   * factorization status first (one host sync on the first solve after
+   * compute()); release builds do not — use info() when failure must be
+   * detected. */
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B, GpuOp op = GpuOp::NoTrans) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "LU::solve called on a failed or uninitialized factorization");
+    eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream_);
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
@@ -187,6 +204,19 @@ class LU {
     internal::DeviceBuffer d_x(matrixBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_x.get(), d_B.data(), matrixBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+    return solve_impl(nrhs, ldb, op, std::move(d_x));
+  }
+
+  /** Solve in place: consumes \p d_B and returns it holding the solution —
+   * no RHS copy and no allocation (getrs overwrites its RHS). */
+  DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B, GpuOp op = GpuOp::NoTrans) const {
+    eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
+    eigen_assert(d_B.rows() == n_);
+    d_B.waitReady(solver_ctx_.stream_);
+    const int64_t nrhs = static_cast<int64_t>(d_B.cols());
+    const int64_t ldb = static_cast<int64_t>(d_B.rows());
+    internal::DeviceBuffer d_x =
+        internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb));
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
 
@@ -199,21 +229,14 @@ class LU {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_lu_;
-  size_t lu_alloc_size_ = 0;
-  internal::DeviceBuffer d_ipiv_;
+  internal::DeviceBuffer d_lu_;    // grow-only
+  internal::DeviceBuffer d_ipiv_;  // grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;
 
   bool begin_compute(Index rows) {
     n_ = rows;
-    solver_ctx_.info_ = InvalidInput;
-    if (n_ == 0) {
-      solver_ctx_.info_ = Success;
-      solver_ctx_.info_synced_ = true;
-      return false;
-    }
-    return true;
+    return solver_ctx_.begin_compute(n_ != 0);
   }
 
   size_t matrixBytes() const { return matrixBytes(n_, lda_); }
@@ -222,13 +245,7 @@ class LU {
     return static_cast<size_t>(ld) * static_cast<size_t>(cols) * sizeof(Scalar);
   }
 
-  void allocate_lu_storage() {
-    size_t needed = matrixBytes();
-    if (needed > lu_alloc_size_) {
-      d_lu_ = internal::DeviceBuffer(needed);
-      lu_alloc_size_ = needed;
-    }
-  }
+  void allocate_lu_storage() { internal::ensure_sized(d_lu_, matrixBytes()); }
 
   // Solve in place on `d_x` (which already holds B), then re-wrap as a typed
   // DeviceMatrix carrying shape and a ready event. The release/adopt hop hands
@@ -254,7 +271,7 @@ class LU {
 
     solver_ctx_.mark_pending();
 
-    d_ipiv_ = internal::DeviceBuffer(ipiv_bytes);
+    internal::ensure_sized(d_ipiv_, ipiv_bytes);
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
     EIGEN_CUSOLVER_CHECK(cusolverDnXgetrf_bufferSize(solver_ctx_.cusolver_, solver_ctx_.params_.p, n_, n_, dtype,
@@ -268,8 +285,7 @@ class LU {
         static_cast<int64_t*>(d_ipiv_.get()), dtype, solver_ctx_.scratch_workspace(), dev_ws_bytes,
         host_ws_bytes > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws_bytes, solver_ctx_.scratch_info()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solver_ctx_.info_word(), solver_ctx_.scratch_info(), sizeof(int),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    solver_ctx_.enqueue_info_copy();
   }
 };
 

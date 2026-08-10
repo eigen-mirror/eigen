@@ -36,6 +36,19 @@ namespace internal {
     EIGEN_UNUSED_VARIABLE(_s);                                            \
   } while (0)
 
+// ---- Data-type argument for descriptor creation -------------------------------
+// cuDSS 0.8 changed cudssMatrixCreateDn/Csr from cudaDataType_t to the
+// value-compatible cudssDataType_t (CUDSS_R_32F == CUDA_R_32F, ...). Map the
+// module's cudaDataType_t traits through this alias so both API generations
+// compile.
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+using cudss_value_type_t = cudssDataType_t;
+#else
+using cudss_value_type_t = cudaDataType_t;
+#endif
+
+constexpr cudss_value_type_t to_cudss_data_type(cudaDataType_t t) { return static_cast<cudss_value_type_t>(t); }
+
 // ---- Scalar → cudssMatrixType_t for SPD/HPD ---------------------------------
 
 template <typename Scalar>

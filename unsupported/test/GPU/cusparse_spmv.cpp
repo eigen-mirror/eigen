@@ -189,6 +189,60 @@ void test_identity(Index n) {
   VERIFY((y - x).norm() < tol);
 }
 
+// ---- Pattern replacement at unchanged host pointers -------------------------
+
+// Regression test: assigning a different same-shape/same-nnz sparsity pattern
+// to the same SparseMatrix reuses its index allocations, so every host
+// pointer the context saw before is unchanged. A structure cache keyed on
+// pointer identity silently keeps the stale device indices and computes with
+// the old pattern (here: returns x itself instead of the permuted x).
+template <typename Scalar>
+void test_pattern_replacement(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A(n, n);
+  A.setIdentity();
+  A.makeCompressed();
+  Vec x = Vec::Random(n);
+
+  gpu::SparseContext<Scalar> ctx;
+  Vec y1 = ctx.multiply(A, x);
+  RealScalar tol = NumTraits<Scalar>::epsilon();
+  VERIFY((y1 - x).norm() < tol);
+
+  // Warm-up repeat: arms any structure cache keyed on the host arrays before
+  // the pattern is replaced.
+  Vec y1b = ctx.multiply(A, x);
+  VERIFY((y1b - x).norm() < tol);
+
+  // Value-only update at unchanged structure is picked up (values are
+  // re-uploaded on every host-input call).
+  A.coeffRef(0, 0) = Scalar(2);
+  Vec y1c = ctx.multiply(A, x);
+  Vec y1c_ref = A * x;
+  VERIFY((y1c - y1c_ref).norm() < tol);
+
+  // Replace the pattern with a cyclic permutation: one entry per column at
+  // row (j+1) % n, all values 1, so shape and nnz match the identity and the
+  // result differs from x only through the *index* arrays.
+  const int* inner_before = A.innerIndexPtr();
+  SpMat P(n, n);
+  P.reserve(VectorXi::Constant(n, 1));
+  for (Index j = 0; j < n; ++j) P.insert((j + 1) % n, j) = Scalar(1);
+  P.makeCompressed();
+  A = P;
+  // Precondition this regression relies on: the assignment reused A's index
+  // storage. If SparseMatrix assignment ever stops doing so, rewrite the
+  // pattern in place (e.g. through innerIndexPtr()) to keep the coverage.
+  VERIFY(A.innerIndexPtr() == inner_before);
+
+  Vec y2 = ctx.multiply(A, x);
+  Vec y2_ref = A * x;
+  VERIFY((y2 - y2_ref).norm() < tol);
+}
+
 // ---- Context reuse ----------------------------------------------------------
 
 template <typename Scalar>
@@ -324,10 +378,54 @@ void test_deviceview_overwrite(Index n) {
   VERIFY((y2_gpu - y2_cpu).norm() / (y2_cpu.norm() + RealScalar(1)) < tol);
 }
 
+// ---- Device-resident SpMM + GpuOp device multiply -----------------------------
+
+template <typename Scalar>
+void test_device_spmm(Index n, Index nrhs) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Mat X = Mat::Random(n, nrhs);
+
+  gpu::Context gctx;
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto view = ctx.deviceView(A);
+  VERIFY(view.generation() == ctx.uploadGeneration());
+
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_Y = view * d_X;  // nrhs > 1 -> SpMM
+  Mat Y_ref = A * X;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((d_Y.toHost() - Y_ref).norm() / (Y_ref.norm() + RealScalar(1)) < tol);
+}
+
+template <typename Scalar>
+void test_device_multiply_gpuop(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Vec x = Vec::Random(n);
+
+  gpu::Context gctx;
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_y;
+  ctx.multiply(A, d_x, d_y, Scalar(1), Scalar(0), gpu::GpuOp::Trans);
+  Vec y_ref = A.transpose() * x;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((d_y.toHost() - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
 void test_scalar() {
+  CALL_SUBTEST(test_device_spmm<Scalar>(64, 5));
+  CALL_SUBTEST(test_device_multiply_gpuop<Scalar>(64));
   CALL_SUBTEST(test_spmv<Scalar>(64, 64));
   CALL_SUBTEST(test_spmv<Scalar>(128, 64));  // non-square
   CALL_SUBTEST(test_spmv<Scalar>(64, 128));  // wide
@@ -344,6 +442,7 @@ void test_scalar() {
   CALL_SUBTEST(test_spmm<Scalar>(64, 64, 4));
   CALL_SUBTEST(test_spmm_transpose<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_identity<Scalar>(64));
+  CALL_SUBTEST(test_pattern_replacement<Scalar>(64));
   CALL_SUBTEST(test_reuse<Scalar>(64));
   CALL_SUBTEST(test_empty<Scalar>());
   CALL_SUBTEST(test_spmv_device<Scalar>(64));

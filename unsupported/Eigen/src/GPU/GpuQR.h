@@ -43,12 +43,29 @@ class QR {
 
   QR() = default;
 
+  /** Bind to \p ctx: run on its stream with its cuSOLVER/cuBLAS handles, so
+   * solver work chains with other work on the same Context without
+   * cross-stream event waits. \p ctx must outlive this object. */
+  explicit QR(Context& ctx) : solver_ctx_(ctx) {}
+
   template <typename InputType>
   explicit QR(const EigenBase<InputType>& A) {
     compute(A);
   }
 
   explicit QR(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
+
+  /** Factor a device-resident A immediately (adopt when m >= n, no copy). */
+  explicit QR(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
+
+  /** Bind to \p ctx and factor A immediately. */
+  template <typename InputType>
+  QR(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+    compute(A);
+  }
+
+  /** Bind to \p ctx and factor a device-resident A (D2D copy). */
+  QR(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
 
   ~QR() = default;
 
@@ -90,40 +107,38 @@ class QR {
 
   template <typename InputType>
   QR& compute(const EigenBase<InputType>& A) {
-    // Upload to device, then delegate. The wide-matrix transpose runs on the
-    // GPU (via cublasXgeam) inside the device-input path; no host transpose.
+    // Upload to device, then delegate to the adopting overload — the freshly
+    // uploaded matrix is factored in place (geqrf overwrites its input), so no
+    // second device copy is made. The wide-matrix transpose runs on the GPU
+    // (via cublasXgeam) inside the device-input path; no host transpose.
     return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream_));
   }
 
   QR& compute(const DeviceMatrix<Scalar>& d_A) {
-    m_ = d_A.rows();
-    n_ = d_A.cols();
-
-    if (m_ == 0 || n_ == 0) {
-      solver_ctx_.info_ = Success;
-      solver_ctx_.info_synced_ = true;
-      return *this;
-    }
-
-    transposed_ = (m_ < n_);
-    d_A.waitReady(solver_ctx_.stream_);
-    lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
-    const size_t mat_bytes = static_cast<size_t>(lda_) * static_cast<size_t>(factor_cols()) * sizeof(Scalar);
-    const size_t tau_bytes = static_cast<size_t>(k()) * sizeof(Scalar);
-
-    d_qr_ = internal::DeviceBuffer(mat_bytes);
-    d_tau_ = internal::DeviceBuffer(tau_bytes);
+    if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
-      // Transpose-on-device via cuBLAS geam: d_qr_ = A^H.
-      Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-          solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_), internal::to_blas_int(m_),
-          &alpha_one, d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
-          internal::to_blas_int(n_), static_cast<Scalar*>(d_qr_.get()), internal::to_blas_int(n_)));
+      transpose_into_factor(d_A);
     } else {
+      const size_t mat_bytes = factorBytes();
+      allocate_factor_storage(mat_bytes);
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+    }
+
+    factorize();
+    return *this;
+  }
+
+  /** Factor a device matrix (move). For m >= n the buffer is adopted and
+   * factored in place — no copy; for m < n a transposed copy is unavoidable. */
+  QR& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (!begin_compute(d_A)) return *this;
+
+    if (transposed_) {
+      transpose_into_factor(d_A);
+    } else {
+      d_qr_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
     }
 
     factorize();
@@ -137,11 +152,13 @@ class QR {
    * For m  < n (underdetermined):          minimum-norm  X = Q R^{-H} B (||X|| minimized). */
   template <typename Rhs>
   PlainMatrix solve(const MatrixBase<Rhs>& B) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "QR::solve called on a failed or uninitialized factorization");
+    // Debug builds verify the factorization (info() synchronizes the stream on
+    // the first call after compute()); release builds skip both the check and
+    // the sync — use info() explicitly when failure must be detected.
+    eigen_assert(solver_ctx_.info() == Success && "QR::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == m_);
 
-    const PlainMatrix rhs(B);
+    const Ref<const PlainMatrix> rhs(B.derived());
     const Index nrhs = rhs.cols();
 
     if (!transposed_) {
@@ -150,10 +167,10 @@ class QR {
     return solve_underdetermined_host(rhs, nrhs);
   }
 
-  /** Solve with device-resident RHS. Returns n × nrhs DeviceMatrix. */
+  /** Solve with device-resident RHS. Returns n × nrhs DeviceMatrix. Fully
+   * asynchronous; debug builds verify the factorization status first. */
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success && "QR::solve called on a failed or uninitialized factorization");
+    eigen_assert(solver_ctx_.info() == Success && "QR::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == m_);
     d_B.waitReady(solver_ctx_.stream_);
 
@@ -173,8 +190,7 @@ class QR {
 
   /** Upper-triangular factor R (k × n) of A = Q R. Available only for m >= n. */
   PlainMatrix matrixR() const {
-    solver_ctx_.sync_info();
-    eigen_assert(solver_ctx_.info_ == Success);
+    eigen_assert(solver_ctx_.info() == Success);
     eigen_assert(!transposed_ && "matrixR() not available when m < n (we factored A^H internally)");
     PlainMatrix qr_full(m_, n_);
     if (m_ > 0 && n_ > 0) {
@@ -188,8 +204,8 @@ class QR {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_qr_;   // QR factors (reflectors below diag, R above)
-  internal::DeviceBuffer d_tau_;  // Householder scalars (length k)
+  internal::DeviceBuffer d_qr_;   // grow-only; QR factors (reflectors below diag, R above)
+  internal::DeviceBuffer d_tau_;  // grow-only; Householder scalars (length k)
   int64_t m_ = 0;                 // original A.rows()
   int64_t n_ = 0;                 // original A.cols()
   int64_t lda_ = 0;               // factor leading dim = max(m_, n_)
@@ -200,10 +216,42 @@ class QR {
   int64_t factor_cols() const { return transposed_ ? m_ : n_; }
   int64_t k() const { return (std::min)(m_, n_); }
 
+  size_t factorBytes() const { return static_cast<size_t>(lda_) * static_cast<size_t>(factor_cols()) * sizeof(Scalar); }
+
+  // Common compute() prologue: record shape, reset info, wait on the input.
+  // Returns false (and clears stale factors) for empty input.
+  bool begin_compute(const DeviceMatrix<Scalar>& d_A) {
+    m_ = d_A.rows();
+    n_ = d_A.cols();
+    if (!solver_ctx_.begin_compute(m_ != 0 && n_ != 0)) {
+      d_qr_ = internal::DeviceBuffer();
+      d_tau_ = internal::DeviceBuffer();
+      return false;
+    }
+    transposed_ = (m_ < n_);
+    lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
+    d_A.waitReady(solver_ctx_.stream_);
+    return true;
+  }
+
+  void allocate_factor_storage(size_t mat_bytes) { internal::ensure_sized(d_qr_, mat_bytes); }
+
+  // Wide input (m < n): factor A^H, produced on device via cuBLAS geam.
+  void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
+    allocate_factor_storage(factorBytes());
+    Scalar alpha_one(1), beta_zero(0);
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
+        solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_), internal::to_blas_int(m_), &alpha_one,
+        d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
+        internal::to_blas_int(n_), static_cast<Scalar*>(d_qr_.get()), internal::to_blas_int(n_)));
+  }
+
   void factorize() {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
 
     solver_ctx_.mark_pending();
+
+    internal::ensure_sized(d_tau_, static_cast<size_t>(k()) * sizeof(Scalar));
 
     const int64_t fm = factor_rows();
     const int64_t fn = factor_cols();
@@ -219,8 +267,7 @@ class QR {
                                           host_ws > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws,
                                           solver_ctx_.scratch_info()));
 
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solver_ctx_.info_word(), solver_ctx_.scratch_info(), sizeof(int),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+    solver_ctx_.enqueue_info_copy();
   }
 
   // Apply Q (op = CUBLAS_OP_N) or Q^H (op = CUBLAS_OP_T/C) to a device buffer in-place.

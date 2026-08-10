@@ -18,6 +18,15 @@
 // Can borrow a Context for same-stream execution with BLAS-1 ops (zero
 // event overhead in iterative solvers like CG).
 //
+// Caching: host-input calls re-upload the values *and* index arrays on every
+// call. Host pointer identity cannot detect a sparsity pattern rewritten in
+// place or assigned into the same allocations (SparseMatrix reuses them for
+// same-shape assignments), so the structure is never assumed unchanged. What
+// is cached are the cuSPARSE descriptors (sparse descriptor keyed on
+// dimensions + nonzero count, dense descriptors keyed on shape) and the
+// SpMV/SpMM workspace-size queries. For repeated products with no re-upload
+// at all, use deviceView().
+//
 // Thread safety: not thread-safe. Concurrent multiply* calls on a single
 // SparseContext race on the cuSPARSE handle, the bound stream, and the
 // cached device buffers. Use one SparseContext per thread.
@@ -38,7 +47,9 @@
 //   VectorXd y = sparse_ctx.multiply(A, x);
 //
 //   // Device-resident (no host roundtrip):
-//   sparse_ctx.multiply(A, d_x, d_y);                 // DeviceMatrix in/out
+//   auto d_A = sparse_ctx.deviceView(A);              // upload once
+//   d_y = d_A * d_x;                                  // SpMV, stays on device
+//   d_Y = d_A * d_X;                                  // SpMM when X has >1 column
 
 #ifndef EIGEN_GPU_SPARSE_CONTEXT_H
 #define EIGEN_GPU_SPARSE_CONTEXT_H
@@ -46,19 +57,17 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include <cstdint>
+
 #include "./CuSparseSupport.h"
+#include "./FwdDecl.h"
 
 namespace Eigen {
 namespace gpu {
 
-// Forward declarations.
-template <typename Scalar_>
-class SparseContext;
-template <typename Scalar_>
-class DeviceSparseView;
-
-/** SpMV expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
- * Evaluated by DeviceMatrix::operator=(SpMVExpr). */
+/** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
+ * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
+ * when the dense operand has one column, cusparseSpMM otherwise. */
 template <typename Scalar_>
 class SpMVExpr {
  public:
@@ -75,31 +84,39 @@ class SpMVExpr {
 /** Device-resident sparse matrix view. Returned by SparseContext::deviceView().
  * Lightweight handle referencing the context's cached device data.
  *
- * \warning One SparseContext caches one sparse matrix at a time.
- * Creating a second deviceView on the same context overwrites the first.
+ * \warning One SparseContext caches one sparse matrix at a time. Any later
+ * upload through the same context — a second deviceView() or any host-input
+ * multiply — replaces the cached data and invalidates earlier views; a stale
+ * view is caught by an assert at evaluation time via a generation counter.
  * For multiple simultaneous sparse matrices, use separate SparseContext
  * instances (they can share a Context for same-stream execution).
  *
- * Supports `d_y = d_A * d_x` via SpMVExpr. */
+ * Supports `d_y = d_A * d_x` (SpMV) and `d_Y = d_A * d_X` (SpMM). */
 template <typename Scalar_>
 class DeviceSparseView {
  public:
   using Scalar = Scalar_;
   using SpMat = SparseMatrix<Scalar, ColMajor, int>;
 
-  DeviceSparseView(SparseContext<Scalar>& ctx, Index rows, Index cols) : ctx_(ctx), rows_(rows), cols_(cols) {}
+  DeviceSparseView(SparseContext<Scalar>& ctx, Index rows, Index cols, uint64_t generation)
+      : ctx_(ctx), rows_(rows), cols_(cols), generation_(generation) {}
 
-  /** SpMV expression: d_A * d_x. Evaluated by DeviceMatrix::operator=. */
+  /** Sparse product expression: d_A * d_x. Evaluated by DeviceMatrix::operator=. */
   SpMVExpr<Scalar> operator*(const DeviceMatrix<Scalar>& x) const { return SpMVExpr<Scalar>(*this, x); }
 
   Index rows() const { return rows_; }
   Index cols() const { return cols_; }
   const SparseContext<Scalar>& context() const { return ctx_; }
 
+  /** Upload generation this view was created against. Used to detect stale
+   * views after the context has cached a different matrix. */
+  uint64_t generation() const { return generation_; }
+
  private:
   SparseContext<Scalar>& ctx_;
   Index rows_;
   Index cols_;
+  uint64_t generation_;
 };
 
 template <typename Scalar_>
@@ -126,7 +143,8 @@ class SparseContext {
       : stream_(ctx.stream()), handle_(ctx.cusparseHandle()), owns_stream_(false), owns_handle_(false) {}
 
   ~SparseContext() {
-    destroy_descriptors_unchecked();
+    destroy_spmat_descriptor(/*checked=*/false);
+    destroy_dense_descriptors();
     if (owns_handle_ && handle_) (void)cusparseDestroy(handle_);
     if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
@@ -138,32 +156,32 @@ class SparseContext {
 
   /** Upload a sparse matrix to device and return a lightweight view.
    * The sparse data is uploaded immediately and cached in this context.
-   * The returned view can be used for repeated SpMV without re-uploading.
+   * The returned view can be used for repeated SpMV/SpMM without re-uploading.
    * If the matrix values change, call deviceView() again to re-upload.
    *
-   * \warning One context caches one matrix. Calling deviceView() again
-   * overwrites the previous upload. For multiple simultaneous matrices,
-   * use separate SparseContext instances sharing the same Context.
+   * \warning One context caches one matrix. Any later upload — another
+   * deviceView() or any host-input multiply — overwrites the previous upload
+   * and invalidates earlier views (asserted at evaluation time). For multiple
+   * simultaneous matrices, use separate SparseContext instances sharing the
+   * same Context.
    *
-   * Supports `d_y = d_A * d_x` expression syntax. */
+   * Supports `d_y = d_A * d_x` (SpMV) and `d_Y = d_A * d_X` (SpMM). */
   DeviceSparseView<Scalar> deviceView(const SpMat& A) {
     eigen_assert(A.isCompressed());
     upload_sparse(A);
-    return DeviceSparseView<Scalar>(*this, A.rows(), A.cols());
+    return DeviceSparseView<Scalar>(*this, A.rows(), A.cols(), generation_);
   }
+
+  /** Generation counter of the currently cached sparse matrix. Bumped on
+   * every sparse upload (deviceView() or a host-input multiply). */
+  uint64_t uploadGeneration() const { return generation_; }
 
   // ---- SpMV: y = A * x (host vectors) --------------------------------------
 
   /** Compute y = A * x. Returns y as a new dense vector. */
   template <typename InputType, typename Rhs>
   DenseVector multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
-    const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat mat(input);
-    DenseVector y(mat.rows());
-    y.setZero();
-    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
-    return y;
+    return multiply_host_return(A, x, GpuOp::NoTrans);
   }
 
   /** Compute y = alpha * op(A) * x + beta * y (in-place, host vectors). */
@@ -171,27 +189,32 @@ class SparseContext {
   void multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
                 Scalar alpha = Scalar(1), Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) {
     const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat mat(input);
-    multiply_host_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op_for_scalar<Scalar>(op));
+    internal::check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    SpMat storage;
+    const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
+    multiply_host_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op<Scalar>(op));
   }
 
   // ---- SpMV: y = A * x (DeviceMatrix, no host roundtrip) -------------------
 
-  /** Compute d_y = A * d_x. Device-resident, no host transfer.
-   * Sparse matrix A is uploaded to device (cached). Dense vectors stay on device. */
+  /** Compute d_y = A * d_x. Device-resident dense vectors, no host transfer
+   * for x/y. The sparse matrix (values and index arrays) is re-uploaded on
+   * each call; for a fully device-resident sparse matrix use deviceView(). */
   template <typename InputType>
   void multiply(const SparseMatrixBase<InputType>& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y) {
-    const SpMat mat(A.derived());
-    multiply_device_impl(mat, d_x, d_y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
+    multiply(A, d_x, d_y, Scalar(1), Scalar(0), GpuOp::NoTrans);
   }
 
   /** Compute d_y = alpha * op(A) * d_x + beta * d_y (DeviceMatrix, in-place). */
   template <typename InputType>
   void multiply(const SparseMatrixBase<InputType>& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y,
-                Scalar alpha, Scalar beta, cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE) {
-    const SpMat mat(A.derived());
-    multiply_device_impl(mat, d_x, d_y, alpha, beta, op);
+                Scalar alpha, Scalar beta, GpuOp op = GpuOp::NoTrans) {
+    const InputType& input = A.derived();
+    internal::check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    SpMat storage;
+    const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
+    upload_sparse(mat);
+    spmv_device_exec(d_x, d_y, alpha, beta, op);
   }
 
   // ---- SpMV transpose -------------------------------------------------------
@@ -199,13 +222,7 @@ class SparseContext {
   /** Compute y = A^T * x (host vectors). */
   template <typename InputType, typename Rhs>
   DenseVector multiplyT(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
-    const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat mat(input);
-    DenseVector y(mat.cols());
-    y.setZero();
-    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), CUSPARSE_OPERATION_TRANSPOSE);
-    return y;
+    return multiply_host_return(A, x, GpuOp::Trans);
   }
 
   // ---- SpMV adjoint: y = A^H * x -------------------------------------------
@@ -213,14 +230,7 @@ class SparseContext {
   /** Compute y = A^H * x (conjugate transpose). For real Scalar this is equivalent to multiplyT. */
   template <typename InputType, typename Rhs>
   DenseVector multiplyAdjoint(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
-    const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat mat(input);
-    DenseVector y(mat.cols());
-    y.setZero();
-    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0),
-                       internal::to_cusparse_op_for_scalar<Scalar>(GpuOp::ConjTrans));
-    return y;
+    return multiply_host_return(A, x, GpuOp::ConjTrans);
   }
 
   // ---- SpMM: Y = op(A) * X (multiple RHS) ----------------------------------
@@ -229,11 +239,12 @@ class SparseContext {
   template <typename InputType, typename Rhs>
   DenseMatrix multiplyMat(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& X, GpuOp op = GpuOp::NoTrans) {
     const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat mat(input);
+    internal::check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    SpMat storage;
+    const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
     const DenseMatrix rhs(X.derived());
 
-    const cusparseOperation_t cu_op = internal::to_cusparse_op_for_scalar<Scalar>(op);
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
     const Index m = (op == GpuOp::NoTrans) ? mat.rows() : mat.cols();
     const Index k = (op == GpuOp::NoTrans) ? mat.cols() : mat.rows();
     eigen_assert(k == rhs.rows());
@@ -260,24 +271,54 @@ class SparseContext {
   internal::DeviceBuffer d_outerPtr_;
   internal::DeviceBuffer d_innerIdx_;
   internal::DeviceBuffer d_values_;
-  size_t d_outerPtr_size_ = 0;
-  size_t d_innerIdx_size_ = 0;
-  size_t d_values_size_ = 0;
 
   // Cached device buffers for host-API dense vectors (grow-only).
   internal::DeviceBuffer d_x_;
   internal::DeviceBuffer d_y_;
-  size_t d_x_size_ = 0;
-  size_t d_y_size_ = 0;
 
   mutable internal::DeviceBuffer d_workspace_;
-  mutable size_t d_workspace_size_ = 0;
 
   // Cached cuSPARSE sparse matrix descriptor.
   cusparseSpMatDescr_t spmat_desc_ = nullptr;
   Index cached_rows_ = -1;
   Index cached_cols_ = -1;
   Index cached_nnz_ = -1;
+
+  // Bumped on every sparse upload; DeviceSparseViews record it at creation so
+  // a stale view (its data replaced by a later upload) asserts at evaluation.
+  uint64_t generation_ = 0;
+
+  // Cached dense-vector/matrix descriptors, re-pointed per call and recreated
+  // only when the shape changes.
+  mutable cusparseDnVecDescr_t x_vec_desc_ = nullptr;
+  mutable cusparseDnVecDescr_t y_vec_desc_ = nullptr;
+  mutable int64_t x_vec_size_ = -1;
+  mutable int64_t y_vec_size_ = -1;
+  mutable cusparseDnMatDescr_t x_mat_desc_ = nullptr;
+  mutable cusparseDnMatDescr_t y_mat_desc_ = nullptr;
+  mutable int64_t x_mat_rows_ = -1, x_mat_cols_ = -1;
+  mutable int64_t y_mat_rows_ = -1, y_mat_cols_ = -1;
+
+  // Cached workspace-size query results, indexed by cusparseOperation_t.
+  // Invalidated when the sparse descriptor or a dense-descriptor shape changes.
+  static constexpr size_t kWsUnknown = static_cast<size_t>(-1);
+  mutable size_t spmv_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
+  mutable size_t spmm_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
+
+  // ---- Input binding ---------------------------------------------------------
+
+  // Shared host-input SpMV entry: y = op(A) * x into a fresh vector.
+  template <typename InputType, typename Rhs>
+  DenseVector multiply_host_return(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x, GpuOp op) {
+    const InputType& input = A.derived();
+    internal::check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    SpMat storage;
+    const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
+    DenseVector y((op == GpuOp::NoTrans) ? mat.rows() : mat.cols());
+    y.setZero();
+    multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), internal::to_cusparse_op<Scalar>(op));
+    return y;
+  }
 
   // ---- SpMV with host vectors (upload/download per call) --------------------
 
@@ -305,16 +346,18 @@ class SparseContext {
 
     upload_sparse(A);
 
-    ensure_buffer(d_x_, d_x_size_, static_cast<size_t>(x_size) * sizeof(Scalar));
-    const DenseVector x_tmp(x);
+    ensure_buffer(d_x_, static_cast<size_t>(x_size) * sizeof(Scalar));
+    // Ref binds in place when x is already a contiguous vector; only genuine
+    // expressions are evaluated into the Ref's internal temporary.
+    const Ref<const DenseVector> x_ref(x);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x_.get(), x_tmp.data(), x_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
+        cudaMemcpyAsync(d_x_.get(), x_ref.data(), x_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
 
-    ensure_buffer(d_y_, d_y_size_, static_cast<size_t>(y_size) * sizeof(Scalar));
+    ensure_buffer(d_y_, static_cast<size_t>(y_size) * sizeof(Scalar));
     if (beta != Scalar(0)) {
-      const DenseVector y_tmp(y);
+      const Ref<const DenseVector> y_ref(y);
       EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_y_.get(), y_tmp.data(), y_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
+          cudaMemcpyAsync(d_y_.get(), y_ref.data(), y_size * sizeof(Scalar), cudaMemcpyHostToDevice, stream_));
     }
 
     exec_spmv(x_size, y_size, d_x_.get(), d_y_.get(), alpha, beta, op);
@@ -324,29 +367,21 @@ class SparseContext {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
   }
 
-  // ---- SpMV with DeviceMatrix (no host transfer) ----------------------------
-
-  // Called by public multiply(A, d_x, d_y) — always re-uploads A.
-  void multiply_device_impl(const SpMat& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha,
-                            Scalar beta, cusparseOperation_t op) {
-    upload_sparse(A);
-    spmv_device_exec(d_x, d_y, alpha, beta, op);
-  }
-
  public:
   /** Execute SpMV using the already-uploaded sparse matrix (no re-upload).
    * Used by SpMVExpr (d_y = d_A * d_x) for cached deviceView() paths.
    * The sparse matrix must have been uploaded via deviceView() or multiply(). */
   void spmv_device_exec(const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha = Scalar(1),
-                        Scalar beta = Scalar(0), cusparseOperation_t op = CUSPARSE_OPERATION_NON_TRANSPOSE) const {
+                        Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
     // cuSPARSE SpMV: y must not alias x (undefined behavior).
     eigen_assert(d_x.data() != d_y.data() && "SpMV: output aliases input vector");
 
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
     const Index m = cached_rows_;
     const Index n = cached_cols_;
-    const Index x_size = (op == CUSPARSE_OPERATION_NON_TRANSPOSE) ? n : m;
-    const Index y_size = (op == CUSPARSE_OPERATION_NON_TRANSPOSE) ? m : n;
+    const Index x_size = (cu_op == CUSPARSE_OPERATION_NON_TRANSPOSE) ? n : m;
+    const Index y_size = (cu_op == CUSPARSE_OPERATION_NON_TRANSPOSE) ? m : n;
 
     eigen_assert(d_x.rows() * d_x.cols() == x_size);
 
@@ -369,9 +404,45 @@ class SparseContext {
     d_y.waitReady(stream_);
 
     exec_spmv(x_size, y_size, const_cast<void*>(static_cast<const void*>(d_x.data())), static_cast<void*>(d_y.data()),
-              alpha, beta, op);
+              alpha, beta, cu_op);
 
     d_y.recordReady(stream_);
+  }
+
+  /** Execute SpMM (d_Y = alpha * op(A) * d_X + beta * d_Y) using the
+   * already-uploaded sparse matrix. d_X / d_Y are device-resident dense
+   * column-major matrices. Used by SpMVExpr when the RHS has > 1 column. */
+  void spmm_device_exec(const DeviceMatrix<Scalar>& d_X, DeviceMatrix<Scalar>& d_Y, Scalar alpha = Scalar(1),
+                        Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
+    eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
+    eigen_assert(d_X.data() != d_Y.data() && "SpMM: output aliases input matrix");
+
+    const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
+    const bool transposed = (cu_op != CUSPARSE_OPERATION_NON_TRANSPOSE);
+    const Index m_op = transposed ? cached_cols_ : cached_rows_;
+    const Index k_op = transposed ? cached_rows_ : cached_cols_;
+    const Index n = d_X.cols();
+
+    eigen_assert(d_X.rows() == k_op);
+
+    if (m_op == 0 || n == 0 || cached_nnz_ == 0) {
+      eigen_assert(beta == Scalar(0) && "SpMM with empty A and beta != 0 is unsupported; scale d_Y externally");
+      if (d_Y.rows() != m_op || d_Y.cols() != n) d_Y.resize(m_op, n);
+      d_Y.setZero(stream_);
+      return;
+    }
+
+    if (d_Y.rows() != m_op || d_Y.cols() != n) {
+      d_Y.resize(m_op, n);
+    }
+
+    d_X.waitReady(stream_);
+    d_Y.waitReady(stream_);
+
+    exec_spmm(m_op, k_op, n, const_cast<void*>(static_cast<const void*>(d_X.data())), static_cast<void*>(d_Y.data()),
+              alpha, beta, cu_op);
+
+    d_Y.recordReady(stream_);
   }
 
  private:
@@ -405,29 +476,107 @@ class SparseContext {
     }
   }
 
+  static int op_index(cusparseOperation_t op) {
+    switch (op) {
+      case CUSPARSE_OPERATION_TRANSPOSE:
+        return 1;
+      case CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE:
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  void invalidate_ws_caches() const {
+    for (int i = 0; i < 3; ++i) {
+      spmv_ws_size_[i] = kWsUnknown;
+      spmm_ws_size_[i] = kWsUnknown;
+    }
+  }
+
+  // ---- Cached dense descriptors ----------------------------------------------
+
+  // Recreate the descriptor when the size changes; otherwise just re-point it
+  // at the new device buffer (cusparseDnVecSetValues is a host-side pointer
+  // update, no GPU work).
+  void update_dnvec(cusparseDnVecDescr_t& desc, int64_t& cur_size, int64_t size, void* ptr) const {
+    if (!desc || cur_size != size) {
+      if (desc) EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(desc));
+      EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&desc, size, ptr, internal::cuda_data_type<Scalar>::value));
+      cur_size = size;
+      invalidate_ws_caches();
+    } else {
+      EIGEN_CUSPARSE_CHECK(cusparseDnVecSetValues(desc, ptr));
+    }
+  }
+
+  void update_dnmat(cusparseDnMatDescr_t& desc, int64_t& cur_rows, int64_t& cur_cols, int64_t rows, int64_t cols,
+                    void* ptr) const {
+    if (!desc || cur_rows != rows || cur_cols != cols) {
+      if (desc) EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(desc));
+      // Column-major with ld = rows.
+      EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&desc, rows, cols, rows, ptr, internal::cuda_data_type<Scalar>::value,
+                                               CUSPARSE_ORDER_COL));
+      cur_rows = rows;
+      cur_cols = cols;
+      invalidate_ws_caches();
+    } else {
+      EIGEN_CUSPARSE_CHECK(cusparseDnMatSetValues(desc, ptr));
+    }
+  }
+
+  void destroy_dense_descriptors() {
+    if (x_vec_desc_) (void)cusparseDestroyDnVec(x_vec_desc_);
+    if (y_vec_desc_) (void)cusparseDestroyDnVec(y_vec_desc_);
+    if (x_mat_desc_) (void)cusparseDestroyDnMat(x_mat_desc_);
+    if (y_mat_desc_) (void)cusparseDestroyDnMat(y_mat_desc_);
+    x_vec_desc_ = y_vec_desc_ = nullptr;
+    x_mat_desc_ = y_mat_desc_ = nullptr;
+  }
+
   // ---- Shared SpMV execution ------------------------------------------------
 
   void exec_spmv(Index x_size, Index y_size, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
     constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
     const cusparseOperation_t cu_op = descriptor_op(op);
-    cusparseDnVecDescr_t x_desc = nullptr, y_desc = nullptr;
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&x_desc, x_size, d_x_ptr, dtype));
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&y_desc, y_size, d_y_ptr, dtype));
+    update_dnvec(x_vec_desc_, x_vec_size_, x_size, d_x_ptr);
+    update_dnvec(y_vec_desc_, y_vec_size_, y_size, d_y_ptr);
 
-    size_t ws_size = 0;
-    EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, cu_op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
-                                                 CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
-    ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
+    size_t& ws_size = spmv_ws_size_[op_index(cu_op)];
+    if (ws_size == kWsUnknown) {
+      EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_,
+                                                   dtype, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
+    }
+    ensure_buffer(d_workspace_, ws_size);
 
-    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_desc, &beta, y_desc, dtype,
+    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_, dtype,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
-
-    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(x_desc));
-    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(y_desc));
   }
 
-  // ---- SpMM implementation --------------------------------------------------
+  // ---- Shared SpMM execution --------------------------------------------------
+
+  void exec_spmm(Index m_op, Index k_op, Index n, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
+                 cusparseOperation_t op) const {
+    constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
+    const cusparseOperation_t cu_op = descriptor_op(op);
+    // X is k_op x n, Y is m_op x n (column-major, post-op shapes).
+    update_dnmat(x_mat_desc_, x_mat_rows_, x_mat_cols_, k_op, n, d_x_ptr);
+    update_dnmat(y_mat_desc_, y_mat_rows_, y_mat_cols_, m_op, n, d_y_ptr);
+
+    size_t& ws_size = spmm_ws_size_[op_index(cu_op)];
+    if (ws_size == kWsUnknown) {
+      EIGEN_CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
+                                                   spmat_desc_, x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg,
+                                                   &ws_size));
+    }
+    ensure_buffer(d_workspace_, ws_size);
+
+    EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
+                                      x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg, d_workspace_.get()));
+  }
+
+  // ---- SpMM implementation (host in/out) -------------------------------------
 
   void spmm_impl(const SpMat& A, const DenseMatrix& X, DenseMatrix& Y, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) {
@@ -455,46 +604,20 @@ class SparseContext {
     // Upload X to device. X is k_op x n, Y is m_op x n (column-major).
     const size_t x_bytes = static_cast<size_t>(k_op) * static_cast<size_t>(n) * sizeof(Scalar);
     const size_t y_bytes = static_cast<size_t>(m_op) * static_cast<size_t>(n) * sizeof(Scalar);
-    ensure_buffer(d_x_, d_x_size_, x_bytes);
-    ensure_buffer(d_y_, d_y_size_, y_bytes);
+    ensure_buffer(d_x_, x_bytes);
+    ensure_buffer(d_y_, y_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_x_.get(), X.data(), x_bytes, cudaMemcpyHostToDevice, stream_));
     if (beta != Scalar(0)) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_y_.get(), Y.data(), y_bytes, cudaMemcpyHostToDevice, stream_));
     }
 
-    constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
-    const cusparseOperation_t cu_op = descriptor_op(op);
-    cusparseDnMatDescr_t x_desc = nullptr, y_desc = nullptr;
-    // Eigen is column-major, so ld = rows.
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&x_desc, k_op, n, k_op, d_x_.get(), dtype, CUSPARSE_ORDER_COL));
-    EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&y_desc, m_op, n, m_op, d_y_.get(), dtype, CUSPARSE_ORDER_COL));
-
-    size_t ws_size = 0;
-    EIGEN_CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
-                                                 x_desc, &beta, y_desc, dtype, kSpMMAlg, &ws_size));
-    ensure_buffer(d_workspace_, d_workspace_size_, ws_size);
-
-    EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_, x_desc,
-                                      &beta, y_desc, dtype, kSpMMAlg, d_workspace_.get()));
+    exec_spmm(m_op, k_op, n, d_x_.get(), d_y_.get(), alpha, beta, op);
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
-
-    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(x_desc));
-    EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(y_desc));
   }
 
   // ---- Helpers --------------------------------------------------------------
-
-  static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
-    const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
-    eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
-                 "gpu::SparseContext currently uses int StorageIndex; matrix dimensions or nonzeros exceed int range");
-    EIGEN_UNUSED_VARIABLE(rows);
-    EIGEN_UNUSED_VARIABLE(cols);
-    EIGEN_UNUSED_VARIABLE(nnz);
-    EIGEN_UNUSED_VARIABLE(max_storage_index);
-  }
 
   void upload_sparse(const SpMat& A) {
     // cuSPARSE 12.0+ accepts CSC directly. On cuSPARSE 11.x, cusparseSpMM
@@ -512,70 +635,69 @@ class SparseContext {
     const size_t inner_bytes = static_cast<size_t>(nnz) * sizeof(StorageIndex);
     const size_t val_bytes = static_cast<size_t>(nnz) * sizeof(Scalar);
 
-    ensure_buffer(d_outerPtr_, d_outerPtr_size_, outer_bytes);
-    ensure_buffer(d_innerIdx_, d_innerIdx_size_, inner_bytes);
-    ensure_buffer(d_values_, d_values_size_, val_bytes);
-
+    // Values *and* index arrays are re-uploaded unconditionally: host pointer
+    // identity cannot detect a same-shape/same-nnz pattern rewritten in place
+    // or assigned into the same allocations (SparseMatrix reuses them), so a
+    // structure cache keyed on pointers would silently serve stale indices.
+    // Only the cuSPARSE descriptor and the workspace-size queries are cached,
+    // keyed on (rows, cols, nnz). Every upload invalidates outstanding
+    // DeviceSparseViews via the generation counter.
+    ++generation_;
+    ensure_buffer(d_values_, val_bytes);
+    ensure_buffer(d_outerPtr_, outer_bytes);
+    ensure_buffer(d_innerIdx_, inner_bytes);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), host_values, val_bytes, cudaMemcpyHostToDevice, stream_));
 
-    if (m != cached_rows_ || n != cached_cols_ || nnz != cached_nnz_) {
-      destroy_descriptors_checked();
+    // Same shape and nnz: the grow-only device buffers cannot have been
+    // reallocated, so the existing descriptor still points at the freshly
+    // written data.
+    if (m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_) return;
 
-      constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
-      constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
+    destroy_spmat_descriptor(/*checked=*/true);
 
-      EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
-        // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
-        // A^T share the same buffers, so register the data as CSR-of-A^T (dims
-        // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
-        EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
-                                               val_type));
-      } else {
-        EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                               d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO,
-                                               val_type));
-      }
-      cached_rows_ = m;
-      cached_cols_ = n;
-      cached_nnz_ = nnz;
-    } else EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
-      EIGEN_CUSPARSE_CHECK(cusparseCsrSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
+    constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
+    constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
+
+    EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
+      // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
+      // A^T share the same buffers, so register the data as CSR-of-A^T (dims
+      // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
+      EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
     } else {
-      EIGEN_CUSPARSE_CHECK(cusparseCscSetPointers(spmat_desc_, d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get()));
+      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
     }
+    cached_rows_ = m;
+    cached_cols_ = n;
+    cached_nnz_ = nnz;
   }
 
-  // Destructor-only cleanup: there is no useful recovery path for failures.
-  void destroy_descriptors_unchecked() {
+  // Destroy the sparse-matrix descriptor and reset the cache identity.
+  // `checked` selects assert-on-failure (mid-lifetime rebuilds) vs swallow
+  // (noexcept destructor).
+  void destroy_spmat_descriptor(bool checked) {
     if (spmat_desc_) {
-      (void)cusparseDestroySpMat(spmat_desc_);
+      cusparseStatus_t s = cusparseDestroySpMat(spmat_desc_);
+      eigen_assert((!checked || s == CUSPARSE_STATUS_SUCCESS) && "cusparseDestroySpMat failed");
+      EIGEN_UNUSED_VARIABLE(s);
+      EIGEN_UNUSED_VARIABLE(checked);
       spmat_desc_ = nullptr;
     }
     cached_rows_ = -1;
     cached_cols_ = -1;
     cached_nnz_ = -1;
+    invalidate_ws_caches();
   }
 
-  void destroy_descriptors_checked() {
-    if (spmat_desc_) {
-      EIGEN_CUSPARSE_CHECK(cusparseDestroySpMat(spmat_desc_));
-      spmat_desc_ = nullptr;
-    }
-    cached_rows_ = -1;
-    cached_cols_ = -1;
-    cached_nnz_ = -1;
-  }
-
-  void ensure_buffer(internal::DeviceBuffer& buf, size_t& current_size, size_t needed) const {
-    if (needed > current_size) {
+  void ensure_buffer(internal::DeviceBuffer& buf, size_t needed) const {
+    if (needed > buf.size()) {
       if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       buf = internal::DeviceBuffer(needed);
-      current_size = needed;
     }
   }
 };
@@ -585,10 +707,22 @@ class SparseContext {
 
 template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const SpMVExpr<Scalar_>& expr) {
-  // Use spmv_device_exec — the sparse matrix was already uploaded by deviceView().
-  // No re-upload on repeated SpMV with the same view.
-  expr.view().context().spmv_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
+  // Uses the sparse matrix already uploaded by deviceView() — no re-upload on
+  // repeated products with the same view. A stale view (the context has since
+  // uploaded again, replacing the cached data) is caught here.
+  eigen_assert(expr.view().generation() == expr.view().context().uploadGeneration() &&
+               "DeviceSparseView is stale: its SparseContext has since uploaded another sparse matrix");
+  if (expr.x().cols() <= 1) {
+    expr.view().context().spmv_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
+  } else {
+    expr.view().context().spmm_device_exec(expr.x(), *this, Scalar_(1), Scalar_(0), GpuOp::NoTrans);
+  }
   return *this;
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(const SpMVExpr<Scalar_>& expr) : DeviceMatrix() {
+  *this = expr;
 }
 
 }  // namespace gpu

@@ -27,6 +27,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include "./CuSparseSupport.h"
 #include "./CuDssSupport.h"
 
 namespace Eigen {
@@ -53,12 +54,18 @@ class SparseSolverBase {
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  SparseSolverBase() { init_context(); }
+  SparseSolverBase() { init_context(/*stream=*/nullptr, /*borrow_stream=*/false); }
+
+  /** Borrow \p ctx's stream: solver work runs on the same stream as the
+   * caller's other GPU operations (device-resident solves chain with SpMV /
+   * cuBLAS work without cross-stream event waits). The cuDSS handle itself is
+   * always owned by this solver. \p ctx must outlive this object. */
+  explicit SparseSolverBase(Context& ctx) { init_context(ctx.stream(), /*borrow_stream=*/true); }
 
   ~SparseSolverBase() {
     destroy_cudss_objects();
     if (handle_) (void)cudssDestroy(handle_);
-    if (stream_) (void)cudaStreamDestroy(stream_);
+    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
   SparseSolverBase(const SparseSolverBase&) = delete;
@@ -81,12 +88,10 @@ class SparseSolverBase {
   template <typename InputType>
   Derived& analyzePattern(const SparseMatrixBase<InputType>& A) {
     const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat csc(input);
-    eigen_assert(csc.rows() == csc.cols() && "GpuSparseSolver requires a square matrix");
-    eigen_assert(csc.isCompressed() && "GpuSparseSolver requires a compressed sparse matrix");
+    check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    eigen_assert(input.rows() == input.cols() && "GpuSparseSolver requires a square matrix");
 
-    n_ = csc.rows();
+    n_ = input.rows();
     info_ = InvalidInput;
     analysis_done_ = false;
 
@@ -98,15 +103,21 @@ class SparseSolverBase {
     }
 
     // For symmetric solvers, ColMajor CSC can be reinterpreted as CSR with
-    // swapped triangle view (zero copy). For general solvers, we must convert
-    // to actual RowMajor CSR so cuDSS sees the correct matrix, not A^T.
+    // swapped triangle view — zero copy, except that Hermitian matrix types
+    // need the value array conjugated (see csc_upload_values). For general
+    // solvers, we must convert to actual RowMajor CSR so cuDSS sees the
+    // correct matrix, not A^T.
     if (Derived::needs_csr_conversion()) {
-      const CsrMat csr(csc);
+      const CsrMat csr(input);
       nnz_ = csr.nonZeros();
-      upload_csr(csr);
+      upload_compressed(csr.outerIndexPtr(), csr.innerIndexPtr(), csr.valuePtr());
     } else {
+      // Bind by reference when the input is already a compressed CSC matrix —
+      // no host copy.
+      SpMat storage;
+      const SpMat& csc = bind_sparse<SpMat>(input, storage);
       nnz_ = csc.nonZeros();
-      upload_csr_from_csc(csc);
+      upload_compressed(csc.outerIndexPtr(), csc.innerIndexPtr(), csc_upload_values(csc.valuePtr(), nnz_));
     }
     create_cudss_matrix();
 
@@ -139,26 +150,31 @@ class SparseSolverBase {
       return derived();
     }
 
-    // Convert to the same format used in analyzePattern.
-    // Both temporaries must outlive the async memcpy (pageable H2D is actually
+    // Convert to the same format used in analyzePattern. When the input is
+    // already a compressed CSC matrix (symmetric solvers), it is bound by
+    // reference — no host copy or conversion on refactorize (Hermitian types
+    // re-conjugate the value array; the pattern stays zero-copy).
+    // The temporaries must outlive the async memcpy (pageable H2D is actually
     // synchronous w.r.t. the host, but keep them alive for clarity).
     const InputType& input = A.derived();
-    check_storage_index_bounds(input.rows(), input.cols(), input.nonZeros());
-    const SpMat csc(input);
-    eigen_assert(csc.rows() == n_ && csc.cols() == n_);
+    check_storage_index_bounds<StorageIndex>(input.rows(), input.cols(), input.nonZeros());
+    eigen_assert(input.rows() == n_ && input.cols() == n_);
 
     const Scalar* value_ptr;
     Index value_nnz;
     CsrMat csr_tmp;
+    SpMat csc_storage;
     if (Derived::needs_csr_conversion()) {
-      csr_tmp = CsrMat(csc);
+      csr_tmp = CsrMat(input);
       value_ptr = csr_tmp.valuePtr();
       value_nnz = csr_tmp.nonZeros();
     } else {
-      value_ptr = csc.valuePtr();
+      const SpMat& csc = bind_sparse<SpMat>(input, csc_storage);
+      value_ptr = csc_upload_values(csc.valuePtr(), csc.nonZeros());
       value_nnz = csc.nonZeros();
     }
     eigen_assert(value_nnz == nnz_);
+    EIGEN_UNUSED_VARIABLE(value_nnz);
 
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_values_.get(), value_ptr, static_cast<size_t>(nnz_) * sizeof(Scalar),
                                              cudaMemcpyHostToDevice, stream_));
@@ -175,39 +191,56 @@ class SparseSolverBase {
 
   // ---- Solve ----------------------------------------------------------------
 
-  /** Solve A * X = B. Returns X as a dense matrix.
+  /** Solve A * X = B (host → host). Returns X as a dense matrix.
    * Supports single or multiple right-hand sides. */
   template <typename Rhs>
   DenseMatrix solve(const MatrixBase<Rhs>& B) const {
-    sync_info();
-    eigen_assert(info_ == Success && "GpuSparseSolver::solve requires a successful factorization");
+    // Debug builds verify the factorization (info() synchronizes on the first
+    // call after factorize()); release builds skip both the check and the
+    // sync — use info() explicitly when failure must be detected.
+    eigen_assert(info() == Success && "GpuSparseSolver::solve requires a successful factorization");
     eigen_assert(B.rows() == n_);
 
-    const DenseMatrix rhs(B);
-    const int64_t nrhs = static_cast<int64_t>(rhs.cols());
+    if (n_ == 0) return DenseMatrix(0, B.cols());
 
-    if (n_ == 0) return DenseMatrix(0, rhs.cols());
+    const Ref<const DenseMatrix> rhs(B.derived());
+    const int64_t nrhs = static_cast<int64_t>(rhs.cols());
 
     // Reuse cached d_b/d_x scratch to avoid cudaMalloc/cudaFree per solve.
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
-    ensure_solve_buffer(d_b_solve_, d_b_solve_size_, rhs_bytes);
-    ensure_solve_buffer(d_x_solve_, d_x_solve_size_, rhs_bytes);
+    ensure_solve_buffer(d_b_solve_, rhs_bytes);
+    ensure_solve_buffer(d_x_solve_, rhs_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
 
-    constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
-    cudssMatrix_t b_cudss = nullptr, x_cudss = nullptr;
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b_cudss, n_, nrhs, n_, d_b_solve_.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
-    EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x_cudss, n_, nrhs, n_, d_x_solve_.get(), dtype, CUDSS_LAYOUT_COL_MAJOR));
-
-    EIGEN_CUDSS_CHECK(cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_cudss, b_cudss));
+    update_solve_descriptors(nrhs, d_b_solve_.get(), d_x_solve_.get());
+    EIGEN_CUDSS_CHECK(
+        cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_solve_cudss_, b_solve_cudss_));
 
     DenseMatrix X(n_, rhs.cols());
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_x_solve_.get(), rhs_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
 
-    EIGEN_CUDSS_CHECK(cudssMatrixDestroy(b_cudss));
-    EIGEN_CUDSS_CHECK(cudssMatrixDestroy(x_cudss));
+    return X;
+  }
 
+  /** Solve A * X = B with device-resident RHS. Returns an n × nrhs
+   * DeviceMatrix that stays on device — no H2D/D2H transfer and no host
+   * synchronization (debug builds verify the factorization status first,
+   * which syncs once after each factorize()). Chain the result directly into
+   * SpMV / cuBLAS work, e.g. for iterative refinement. */
+  DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
+    eigen_assert(info() == Success && "GpuSparseSolver::solve requires a successful factorization");
+    eigen_assert(d_B.rows() == n_);
+
+    const int64_t nrhs = static_cast<int64_t>(d_B.cols());
+    DeviceMatrix<Scalar> X(n_, d_B.cols());
+    if (n_ == 0 || nrhs == 0) return X;
+
+    d_B.waitReady(stream_);
+    update_solve_descriptors(nrhs, const_cast<Scalar*>(d_B.data()), X.data());
+    EIGEN_CUDSS_CHECK(
+        cudssExecute(handle_, CUDSS_PHASE_SOLVE, config_, data_, d_A_cudss_, x_solve_cudss_, b_solve_cudss_));
+    X.recordReady(stream_);
     return X;
   }
 
@@ -225,6 +258,7 @@ class SparseSolverBase {
  protected:
   // ---- CUDA / cuDSS handles -------------------------------------------------
   cudaStream_t stream_ = nullptr;
+  bool owns_stream_ = true;
   cudssHandle_t handle_ = nullptr;
   cudssConfig_t config_ = nullptr;
   cudssData_t data_ = nullptr;
@@ -237,11 +271,20 @@ class SparseSolverBase {
   DeviceBuffer d_colIdx_;
   DeviceBuffer d_values_;
 
+  // Host staging for the conjugated value array (Hermitian zero-copy path
+  // only; see csc_upload_values). Kept as a member so it outlives the async
+  // H2D copy.
+  DenseVector conj_values_;
+
   // ---- Cached scratch for solve() (mutable so const solve() can grow them) --
   mutable DeviceBuffer d_b_solve_;
   mutable DeviceBuffer d_x_solve_;
-  mutable size_t d_b_solve_size_ = 0;
-  mutable size_t d_x_solve_size_ = 0;
+
+  // Cached cuDSS dense descriptors for solve, re-pointed per call and
+  // recreated only when nrhs changes.
+  mutable cudssMatrix_t b_solve_cudss_ = nullptr;
+  mutable cudssMatrix_t x_solve_cudss_ = nullptr;
+  mutable int64_t solve_desc_nrhs_ = -1;
 
   // ---- State ----------------------------------------------------------------
   int64_t n_ = 0;
@@ -254,19 +297,53 @@ class SparseSolverBase {
   Derived& derived() { return static_cast<Derived&>(*this); }
   const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-  void init_context() {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
+  void init_context(cudaStream_t stream, bool borrow_stream) {
+    if (borrow_stream) {
+      // nullptr is CUDA's valid legacy default stream, so ownership cannot be
+      // inferred from the stream value.
+      stream_ = stream;
+      owns_stream_ = false;
+    } else {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
+      owns_stream_ = true;
+    }
     EIGEN_CUDSS_CHECK(cudssCreate(&handle_));
     EIGEN_CUDSS_CHECK(cudssSetStream(handle_, stream_));
     EIGEN_CUDSS_CHECK(cudssConfigCreate(&config_));
   }
 
-  void ensure_solve_buffer(DeviceBuffer& buf, size_t& current_size, size_t needed) const {
-    if (needed > current_size) {
+  void ensure_solve_buffer(DeviceBuffer& buf, size_t needed) const {
+    if (needed > buf.size()) {
       if (buf) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
       buf = DeviceBuffer(needed);
-      current_size = needed;
     }
+  }
+
+  // Recreate the solve descriptors when nrhs changes; otherwise just re-point
+  // them (cudssMatrixSetValues is a host-side pointer update).
+  void update_solve_descriptors(int64_t nrhs, void* b_ptr, void* x_ptr) const {
+    constexpr cudss_value_type_t dtype = to_cudss_data_type(cuda_data_type<Scalar>::value);
+    if (!b_solve_cudss_ || solve_desc_nrhs_ != nrhs) {
+      destroy_solve_descriptors();
+      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&b_solve_cudss_, n_, nrhs, n_, b_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+      EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&x_solve_cudss_, n_, nrhs, n_, x_ptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
+      solve_desc_nrhs_ = nrhs;
+    } else {
+      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(b_solve_cudss_, b_ptr));
+      EIGEN_CUDSS_CHECK(cudssMatrixSetValues(x_solve_cudss_, x_ptr));
+    }
+  }
+
+  void destroy_solve_descriptors() const {
+    if (b_solve_cudss_) {
+      (void)cudssMatrixDestroy(b_solve_cudss_);
+      b_solve_cudss_ = nullptr;
+    }
+    if (x_solve_cudss_) {
+      (void)cudssMatrixDestroy(x_solve_cudss_);
+      x_solve_cudss_ = nullptr;
+    }
+    solve_desc_nrhs_ = -1;
   }
 
   void sync_info() const {
@@ -282,6 +359,7 @@ class SparseSolverBase {
 
   // Destructor-only cleanup: there is no useful recovery path for failures.
   void destroy_cudss_objects() {
+    destroy_solve_descriptors();
     if (d_A_cudss_) {
       (void)cudssMatrixDestroy(d_A_cudss_);
       d_A_cudss_ = nullptr;
@@ -304,22 +382,20 @@ class SparseSolverBase {
     }
   }
 
-  // Upload CSR from a RowMajor sparse matrix (native CSR).
-  void upload_csr(const CsrMat& csr) { upload_compressed(csr.outerIndexPtr(), csr.innerIndexPtr(), csr.valuePtr()); }
-
-  // Upload CSC arrays reinterpreted as CSR (for symmetric matrices: CSC(A) = CSR(A^T) = CSR(A)).
-  void upload_csr_from_csc(const SpMat& csc) {
-    upload_compressed(csc.outerIndexPtr(), csc.innerIndexPtr(), csc.valuePtr());
+  // The zero-copy CSC-as-CSR reinterpretation hands cuDSS the stored triangle
+  // of A^T. Real symmetric types are unaffected (A^T = A), but the Hermitian
+  // types need the triangle of A, whose entries are the conjugates of A^T's.
+  static constexpr bool needs_value_conjugation() {
+    return Derived::cudss_matrix_type() == CUDSS_MTYPE_HPD || Derived::cudss_matrix_type() == CUDSS_MTYPE_HERMITIAN;
   }
 
-  static void check_storage_index_bounds(Index rows, Index cols, Index nnz) {
-    const Index max_storage_index = static_cast<Index>((std::numeric_limits<StorageIndex>::max)());
-    eigen_assert(rows <= max_storage_index && cols <= max_storage_index && nnz <= max_storage_index &&
-                 "gpu sparse solvers currently use int StorageIndex; matrix dimensions or nonzeros exceed int range");
-    EIGEN_UNUSED_VARIABLE(rows);
-    EIGEN_UNUSED_VARIABLE(cols);
-    EIGEN_UNUSED_VARIABLE(nnz);
-    EIGEN_UNUSED_VARIABLE(max_storage_index);
+  // Value array for the zero-copy CSC-as-CSR path: conjugated into
+  // conj_values_ for Hermitian matrix types, passed through otherwise. The
+  // pattern arrays remain zero-copy either way.
+  const Scalar* csc_upload_values(const Scalar* values, Index nnz) {
+    if (!needs_value_conjugation()) return values;
+    conj_values_ = Map<const DenseVector>(values, nnz).conjugate();
+    return conj_values_.data();
   }
 
   void upload_compressed(const StorageIndex* outer, const StorageIndex* inner, const Scalar* values) {
@@ -339,25 +415,35 @@ class SparseSolverBase {
   void create_cudss_matrix() {
     if (d_A_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_A_cudss_));
 
-    constexpr cudaDataType_t idx_type = cudss_index_type<StorageIndex>::value;
-    constexpr cudaDataType_t val_type = cuda_data_type<Scalar>::value;
+    constexpr cudss_value_type_t idx_type = to_cudss_data_type(cudss_index_type<StorageIndex>::value);
+    constexpr cudss_value_type_t val_type = to_cudss_data_type(cuda_data_type<Scalar>::value);
     constexpr cudssMatrixType_t mtype = Derived::cudss_matrix_type();
     constexpr cudssMatrixViewType_t mview = Derived::cudss_matrix_view();
 
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+    // cuDSS 0.8 split the index type into separate offset/index type params.
+    EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&d_A_cudss_, n_, n_, nnz_, d_rowPtr_.get(),
+                                           /*rowEnd=*/nullptr, d_colIdx_.get(), d_values_.get(), idx_type, idx_type,
+                                           val_type, mtype, mview, CUDSS_BASE_ZERO));
+#else
     EIGEN_CUDSS_CHECK(cudssMatrixCreateCsr(&d_A_cudss_, n_, n_, nnz_, d_rowPtr_.get(),
                                            /*rowEnd=*/nullptr, d_colIdx_.get(), d_values_.get(), idx_type, val_type,
                                            mtype, mview, CUDSS_BASE_ZERO));
+#endif
   }
 
-  // TODO: expose a fill-reducing reordering choice. cuDSS's
-  // CUDSS_CONFIG_REORDERING_ALG accepts CUDSS_ALG_1/2/3, but their mapping to
-  // specific algorithms (AMD, METIS, RCM, ...) is not currently documented as
-  // stable across cuDSS releases, so we leave the cuDSS default in place.
+  // TODO: expose a fill-reducing reordering choice. Since cuDSS 0.8,
+  // cudssReorderingAlg_t names the algorithms explicitly
+  // (CUDSS_REORDERING_ALG_{DEFAULT, BTF_COLAMD, COLAMD, AMD,
+  // NESTED_DISSECTION, NONE}), so this is now straightforward to expose; for
+  // now the cuDSS default is left in place.
 
   void create_placeholder_dense() {
+    // A new analysis may change n_, so the cached solve descriptors are stale.
+    destroy_solve_descriptors();
     if (d_x_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_x_cudss_));
     if (d_b_cudss_) EIGEN_CUDSS_CHECK(cudssMatrixDestroy(d_b_cudss_));
-    constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
+    constexpr cudss_value_type_t dtype = to_cudss_data_type(cuda_data_type<Scalar>::value);
     EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_x_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
     EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_b_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
   }

@@ -53,6 +53,9 @@ eigen_add_gpu_benchmark(bench_solvers_float bench_solvers.cpp DEFINITIONS SCALAR
 eigen_add_gpu_benchmark(bench_gemm bench_gemm.cpp LIBRARIES CUDA::cublasLt)
 eigen_add_gpu_benchmark(bench_gemm_float bench_gemm.cpp LIBRARIES CUDA::cublasLt DEFINITIONS SCALAR=float)
 
+# Overhead micro-benchmarks: per-call allocation, hidden syncs, host-side copies.
+eigen_add_gpu_benchmark(bench_overhead bench_overhead.cpp LIBRARIES CUDA::cublasLt CUDA::cusparse)
+
 # Chaining benchmarks: async pipeline efficiency, host-roundtrip vs device chain.
 eigen_add_gpu_benchmark(bench_chaining bench_chaining.cpp)
 eigen_add_gpu_benchmark(bench_chaining_float bench_chaining.cpp DEFINITIONS SCALAR=float)

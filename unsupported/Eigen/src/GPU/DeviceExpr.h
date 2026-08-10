@@ -27,6 +27,7 @@
 #include "./InternalHeaderCheck.h"
 
 #include "./CuBlasSupport.h"
+#include "./FwdDecl.h"
 
 namespace Eigen {
 namespace gpu {
@@ -35,11 +36,30 @@ namespace internal {
 // Forward declaration — specializations follow below, after the class definitions.
 template <typename Expr>
 struct device_expr_traits;
+
+// Shorthand for the scalar type of a device expression.
+template <typename Expr>
+using scalar_type_t = typename device_expr_traits<Expr>::scalar_type;
 }  // namespace internal
 
-// Forward declaration.
-template <typename Scalar_>
-class DeviceMatrix;
+namespace internal {
+// Identifies gpu::DeviceScalar so the generic scalar-times-matrix overloads
+// below can exclude it (DeviceScalar has dedicated device-pointer overloads
+// and is implicitly convertible to its host scalar, which would otherwise
+// make the overload sets ambiguous).
+template <typename T>
+struct is_device_scalar : std::false_type {};
+template <typename S>
+struct is_device_scalar<DeviceScalar<S>> : std::true_type {};
+
+// SFINAE gate for scalar factors: any type convertible to the expression's
+// scalar (so `2 * d_A` and `2.0 * d_cplx` work), except DeviceScalar.
+template <typename T, typename S>
+using require_host_scalar_convertible_t =
+    typename std::enable_if<std::is_convertible<T, S>::value && !is_device_scalar<typename std::decay<T>::type>::value,
+                            int>::type;
+
+}  // namespace internal
 
 // ---- AdjointView: marks ConjTrans -------------------------------------------
 // Returned by DeviceMatrix::adjoint(). Maps to cublasXgemm transA/B = C.
@@ -75,7 +95,7 @@ class TransposeView {
 template <typename Inner>
 class Scaled {
  public:
-  using Scalar = typename internal::device_expr_traits<Inner>::scalar_type;
+  using Scalar = internal::scalar_type_t<Inner>;
   Scaled(Scalar alpha, const Inner& inner) : alpha_(alpha), inner_(inner) {}
   Scalar scalar() const { return alpha_; }
   const Inner& inner() const { return inner_; }
@@ -91,8 +111,8 @@ class Scaled {
 template <typename Lhs, typename Rhs>
 class GemmExpr {
  public:
-  using Scalar = typename internal::device_expr_traits<Lhs>::scalar_type;
-  static_assert(std::is_same<Scalar, typename internal::device_expr_traits<Rhs>::scalar_type>::value,
+  using Scalar = internal::scalar_type_t<Lhs>;
+  static_assert(std::is_same<Scalar, internal::scalar_type_t<Rhs>>::value,
                 "DeviceMatrix GEMM: LHS and RHS must have the same scalar type");
 
   GemmExpr(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) {}
@@ -101,8 +121,8 @@ class GemmExpr {
 
  private:
   // Stored by reference — like Eigen's CPU expression templates, these must
-  // not be captured with auto (the references will dangle). Use .eval() or
-  // assign to a DeviceMatrix immediately.
+  // not be captured with auto (the references will dangle). Assign to (or
+  // construct) a DeviceMatrix immediately.
   const Lhs& lhs_;
   const Rhs& rhs_;
 };
@@ -111,20 +131,62 @@ class GemmExpr {
 // Defined after device_expr_traits so it can accept any supported view pair.
 
 // ---- Scalar * Matrix / View -> Scaled ---------------------------------------
+// The scalar factor accepts any type convertible to the matrix scalar (int
+// and double literals included), in either operand order. Division by a
+// scalar and unary minus fold into the same Scaled wrapper.
 
-template <typename S>
-Scaled<DeviceMatrix<S>> operator*(S alpha, const DeviceMatrix<S>& m) {
-  return {alpha, m};
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<DeviceMatrix<S>> operator*(T alpha, const DeviceMatrix<S>& m) {
+  return {static_cast<S>(alpha), m};
+}
+
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<DeviceMatrix<S>> operator*(const DeviceMatrix<S>& m, T alpha) {
+  return {static_cast<S>(alpha), m};
+}
+
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<DeviceMatrix<S>> operator/(const DeviceMatrix<S>& m, T alpha) {
+  return {S(1) / static_cast<S>(alpha), m};
 }
 
 template <typename S>
-Scaled<AdjointView<S>> operator*(S alpha, const AdjointView<S>& m) {
-  return {alpha, m};
+Scaled<DeviceMatrix<S>> operator-(const DeviceMatrix<S>& m) {
+  return {S(-1), m};
 }
 
-template <typename S>
-Scaled<TransposeView<S>> operator*(S alpha, const TransposeView<S>& m) {
-  return {alpha, m};
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<AdjointView<S>> operator*(T alpha, const AdjointView<S>& m) {
+  return {static_cast<S>(alpha), m};
+}
+
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<AdjointView<S>> operator*(const AdjointView<S>& m, T alpha) {
+  return {static_cast<S>(alpha), m};
+}
+
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<TransposeView<S>> operator*(T alpha, const TransposeView<S>& m) {
+  return {static_cast<S>(alpha), m};
+}
+
+template <typename T, typename S, internal::require_host_scalar_convertible_t<T, S> = 0>
+Scaled<TransposeView<S>> operator*(const TransposeView<S>& m, T alpha) {
+  return {static_cast<S>(alpha), m};
+}
+
+// Rescale / negate an already-scaled expression: T * (alpha * m), -(alpha * m).
+template <typename T, typename Inner,
+          internal::require_host_scalar_convertible_t<T, internal::scalar_type_t<Inner>> = 0>
+Scaled<Inner> operator*(T alpha, const Scaled<Inner>& s) {
+  using S = internal::scalar_type_t<Inner>;
+  return {static_cast<S>(alpha) * s.scalar(), s.inner()};
+}
+
+template <typename Inner>
+Scaled<Inner> operator-(const Scaled<Inner>& s) {
+  using S = internal::scalar_type_t<Inner>;
+  return {S(-1) * s.scalar(), s.inner()};
 }
 
 namespace internal {
@@ -166,7 +228,7 @@ struct device_expr_traits<TransposeView<Scalar>> {
 
 template <typename Inner>
 struct device_expr_traits<Scaled<Inner>> {
-  using scalar_type = typename device_expr_traits<Inner>::scalar_type;
+  using scalar_type = scalar_type_t<Inner>;
   static constexpr GpuOp op = device_expr_traits<Inner>::op;
   static constexpr bool is_device_expr = true;
   static const DeviceMatrix<scalar_type>& matrix(const Scaled<Inner>& x) {
@@ -264,6 +326,23 @@ DeviceAddExpr<S> operator-(const DeviceMatrix<S>& a, const DeviceMatrix<S>& b) {
 template <typename S>
 DeviceAddExpr<S> operator-(const DeviceMatrix<S>& a, const Scaled<DeviceMatrix<S>>& b) {
   return {S(1), a, -b.scalar(), b.inner()};
+}
+
+// Scaled<DeviceMatrix> - DeviceMatrix → DeviceAddExpr (alpha=scaled, beta=-1)
+template <typename S>
+DeviceAddExpr<S> operator-(const Scaled<DeviceMatrix<S>>& a, const DeviceMatrix<S>& b) {
+  return {a.scalar(), a.inner(), S(-1), b};
+}
+
+// Scaled<DeviceMatrix> ± Scaled<DeviceMatrix> → DeviceAddExpr
+template <typename S>
+DeviceAddExpr<S> operator+(const Scaled<DeviceMatrix<S>>& a, const Scaled<DeviceMatrix<S>>& b) {
+  return {a.scalar(), a.inner(), b.scalar(), b.inner()};
+}
+
+template <typename S>
+DeviceAddExpr<S> operator-(const Scaled<DeviceMatrix<S>>& a, const Scaled<DeviceMatrix<S>>& b) {
+  return {a.scalar(), a.inner(), -b.scalar(), b.inner()};
 }
 
 }  // namespace gpu

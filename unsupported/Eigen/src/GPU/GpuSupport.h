@@ -61,6 +61,68 @@ inline int to_blas_int(int64_t v) {
   return static_cast<int>(v);
 }
 
+// ---- Stream-ordered device allocation ----------------------------------------
+// cudaMallocAsync / cudaFreeAsync (CUDA 11.2+) allocate from a stream-ordered
+// memory pool: both are cheap enqueues instead of the device-wide
+// synchronization performed by cudaMalloc / cudaFree. All module allocations
+// go through device_malloc / device_free on the *legacy default stream*:
+// legacy-stream ordering guarantees that work enqueued later on any blocking
+// stream observes the allocation, and that a free waits for all previously
+// enqueued work on blocking streams — the same lifetime guarantees callers
+// got from cudaMalloc / cudaFree, minus the host stalls.
+//
+// Caveat: streams created with cudaStreamNonBlocking do not synchronize with
+// the legacy stream. When borrowing such a stream (gpu::Context(stream)),
+// define EIGEN_GPU_NO_STREAM_ORDERED_ALLOC to fall back to cudaMalloc/cudaFree.
+//
+// Support is detected once per process (attribute of the device current at
+// first use); unsupported configurations fall back to cudaMalloc/cudaFree.
+
+inline bool device_supports_memory_pools() {
+#ifdef EIGEN_GPU_NO_STREAM_ORDERED_ALLOC
+  return false;
+#else
+  static const bool supported = [] {
+    int device = 0;
+    if (cudaGetDevice(&device) != cudaSuccess) return false;
+    int v = 0;
+    if (cudaDeviceGetAttribute(&v, cudaDevAttrMemoryPoolsSupported, device) != cudaSuccess) return false;
+    if (v == 0) return false;
+    // Keep freed memory in the pool instead of trimming at every stream
+    // synchronize — repeated alloc/free cycles (temporaries in loops) then
+    // recycle at user-space speed.
+    cudaMemPool_t pool = nullptr;
+    if (cudaDeviceGetDefaultMemPool(&pool, device) == cudaSuccess) {
+      // The attribute value type is cuuint64_t; use a same-size stand-in to
+      // avoid requiring the driver-API header.
+      unsigned long long threshold = ~0ULL;
+      (void)cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold, &threshold);
+    }
+    return true;
+  }();
+  return supported;
+#endif
+}
+
+inline void* device_malloc(size_t bytes) {
+  void* p = nullptr;
+  if (device_supports_memory_pools()) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMallocAsync(&p, bytes, /*legacy default stream*/ nullptr));
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+  }
+  return p;
+}
+
+inline void device_free(void* p) noexcept {
+  if (!p) return;
+  if (device_supports_memory_pools()) {
+    (void)cudaFreeAsync(p, /*legacy default stream*/ nullptr);
+  } else {
+    (void)cudaFree(p);
+  }
+}
+
 // ---- Custom deleters for CUDA-allocated memory ------------------------------
 // Used with std::unique_ptr to give CUDA allocations RAII semantics with no
 // hand-rolled move/dtor boilerplate.
@@ -71,7 +133,7 @@ struct CudaFreeDeleter {
   // smart-pointer machinery as owning storage, without changing the type.
   bool borrow = false;
   void operator()(void* p) const noexcept {
-    if (p && !borrow) (void)cudaFree(p);
+    if (p && !borrow) device_free(p);
   }
 };
 
@@ -95,8 +157,25 @@ struct DeviceBufferPool {
     size_t bytes;
   };
 
+  // Lifetime marker for the thread-local pool. thread_local destruction runs
+  // in reverse construction order, so a long-lived object holding pooled
+  // buffers (e.g. the thread-local gpu::Context, or a static) can be
+  // destroyed *after* the pool. The marker is trivially destructible — it
+  // stays readable during TLS teardown — letting the deleter fall back to a
+  // direct device_free once the pool is gone instead of touching a destroyed
+  // vector.
+  enum class State : signed char { kNotConstructed = 0, kAlive = 1, kDestroyed = 2 };
+
+  static State& threadState() {
+    thread_local State state = State::kNotConstructed;
+    return state;
+  }
+
+  DeviceBufferPool() { threadState() = State::kAlive; }
+
   ~DeviceBufferPool() {
-    for (auto& e : free_list_) (void)cudaFree(e.ptr);
+    for (auto& e : free_list_) device_free(e.ptr);
+    threadState() = State::kDestroyed;
   }
 
   void* allocate(size_t bytes) {
@@ -108,16 +187,14 @@ struct DeviceBufferPool {
         return p;
       }
     }
-    void* p = nullptr;
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
-    return p;
+    return device_malloc(bytes);
   }
 
   void deallocate(void* p, size_t bytes) {
     if (free_list_.size() < kMaxPoolSize) {
       free_list_.push_back({p, bytes});
     } else {
-      (void)cudaFree(p);
+      device_free(p);
     }
   }
 
@@ -131,16 +208,17 @@ struct DeviceBufferPool {
 };
 
 // Stateful deleter that returns small buffers to the thread-local pool and
-// cudaFree's larger ones. size==0 means "always cudaFree" (for adopted ptrs).
+// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
 struct PooledCudaFreeDeleter {
   size_t size = 0;
 
   void operator()(void* p) const noexcept {
     if (!p) return;
-    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold) {
+    if (size > 0 && size <= DeviceBufferPool<>::kSmallBufferThreshold &&
+        DeviceBufferPool<>::threadState() == DeviceBufferPool<>::State::kAlive) {
       DeviceBufferPool<>::threadLocal().deallocate(p, size);
     } else {
-      (void)cudaFree(p);
+      device_free(p);
     }
   }
 };
@@ -151,34 +229,58 @@ class DeviceBuffer {
  public:
   DeviceBuffer() = default;
 
-  explicit DeviceBuffer(size_t bytes) {
+  explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
     if (bytes > 0) {
       void* p = nullptr;
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold) {
+      // Bypass the pool once its thread_local has been destroyed (allocation
+      // from a static/TLS destructor); the matching deleter then also takes
+      // the direct device_free path.
+      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
+          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
         p = DeviceBufferPool<>::threadLocal().allocate(bytes);
       } else {
-        EIGEN_CUDA_RUNTIME_CHECK(cudaMalloc(&p, bytes));
+        p = device_malloc(bytes);
       }
       ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
     }
   }
 
+  // Explicit moves so a moved-from buffer reports size() == 0 (callers use
+  // size() for grow-only reuse decisions; a stale size on a null buffer would
+  // suppress the reallocation).
+  DeviceBuffer(DeviceBuffer&& o) noexcept : ptr_(std::move(o.ptr_)), bytes_(o.bytes_) { o.bytes_ = 0; }
+  DeviceBuffer& operator=(DeviceBuffer&& o) noexcept {
+    if (this != &o) {
+      ptr_ = std::move(o.ptr_);
+      bytes_ = o.bytes_;
+      o.bytes_ = 0;
+    }
+    return *this;
+  }
+
   void* get() const noexcept { return ptr_.get(); }
-  void* release() noexcept { return ptr_.release(); }
+  void* release() noexcept {
+    bytes_ = 0;
+    return ptr_.release();
+  }
   explicit operator bool() const noexcept { return static_cast<bool>(ptr_); }
 
-  size_t size() const noexcept { return ptr_.get_deleter().size; }
+  /** Logical allocation size in bytes, tracked for adopted pointers as well. */
+  size_t size() const noexcept { return bytes_; }
 
-  // Adopt an existing device pointer. Caller relinquishes ownership.
-  // Adopted buffers bypass the pool on destruction (deleter size == 0).
-  static DeviceBuffer adopt(void* p) noexcept {
+  // Adopt an existing device pointer of `bytes` usable bytes. Caller
+  // relinquishes ownership. Adopted buffers bypass the pool on destruction
+  // (deleter size == 0).
+  static DeviceBuffer adopt(void* p, size_t bytes) noexcept {
     DeviceBuffer b;
     b.ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{});
+    b.bytes_ = p ? bytes : 0;
     return b;
   }
 
  private:
   std::unique_ptr<void, PooledCudaFreeDeleter> ptr_;
+  size_t bytes_ = 0;
 };
 
 // ---- RAII: pinned host buffer -----------------------------------------------

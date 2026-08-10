@@ -89,11 +89,6 @@ if(TARGET CUDA::cusparse)
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 endif()
 
-option(EIGEN_TEST_CUSPARSE "Test cuSPARSE integration" OFF)
-if(EIGEN_TEST_CUSPARSE AND TARGET CUDA::cusparse)
-  ei_add_gpu_test(cusparse EXTRA_LIBS CUDA::cusparse)
-endif()
-
 # cuDSS sparse direct solvers -- distributed separately from the CUDA Toolkit.
 option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
 if(EIGEN_TEST_CUDSS)

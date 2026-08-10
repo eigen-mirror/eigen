@@ -23,13 +23,10 @@
 
 #include <functional>
 
+#include "./FwdDecl.h"
+
 namespace Eigen {
 namespace gpu {
-
-template <typename Scalar_>
-class DeviceMatrix;
-template <typename Scalar_, int UpLo_>
-class TrsmExpr;
 
 // ---- TriangularView --------------------------------------------------------
 // d_A.triangularView<Lower>() -> view with .solve(d_B)
