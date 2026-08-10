@@ -453,7 +453,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     // the squared column norms and the factor 20*(m+n) overflow a 16-bit type for moderate problem
     // sizes, and 20*(m+n)*epsilon() exceeds 1 for m+n as small as 52 (half) or 7 (bfloat16), which
     // would reject every pivot and collapse the reported rank to zero.
-    typedef typename std::conditional<(sizeof(RealScalar) < sizeof(float)), float, RealScalar>::type ThresholdReal;
+    using ThresholdReal = std::conditional_t<(sizeof(RealScalar) < sizeof(float)), float, RealScalar>;
     if (EIGEN_CONST_CONDITIONAL((std::is_same<ThresholdReal, RealScalar>::value))) {
       // ThresholdReal == RealScalar (float and wider scalars): keep the historical computation bit-for-bit.
       for (int j = 0; j < n; j++) max2Norm = numext::maxi(max2Norm, m_pmat.col(j).norm());

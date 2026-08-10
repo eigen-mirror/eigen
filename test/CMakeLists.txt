@@ -521,12 +521,6 @@ if (EIGEN_TEST_CUSTOM_CXX_FLAGS)
 endif()
 ei_add_property(EIGEN_TESTING_SUMMARY "Sparse lib flags:  ${SPARSE_LIBS}\n")
 
-option(EIGEN_TEST_EIGEN2 "Run whole Eigen2 test suite against EIGEN2_SUPPORT" OFF)
-mark_as_advanced(EIGEN_TEST_EIGEN2)
-if(EIGEN_TEST_EIGEN2)
-  message(WARNING "The Eigen2 test suite has been removed")
-endif()
-
 # boost MP unit test
 find_package(Boost 1.53.0 CONFIG)
 if(Boost_FOUND)

@@ -19,13 +19,6 @@ Matrix<T, 2, 1> angleToVec(T a) {
   return Matrix<T, 2, 1>(std::cos(a), std::sin(a));
 }
 
-// This permits to workaround a bug in clang/llvm code generation.
-template <typename T>
-EIGEN_DONT_INLINE void dont_over_optimize(T& x) {
-  volatile typename T::Scalar tmp = x(0);
-  x(0) = tmp;
-}
-
 template <typename Scalar, int Mode, int Options>
 void non_projective_only() {
   /* this test covers the following files:
@@ -232,7 +225,6 @@ void transformations() {
   VERIFY_IS_APPROX(t3.matrix(), t4.matrix());
 
   v3 = Vector3::Random();
-  dont_over_optimize(v3);
   for (int k = 0; k < 3; ++k) {
     if (numext::abs(v3(k)) < NumTraits<Scalar>::epsilon()) v3(k) = NumTraits<Scalar>::epsilon();
   }

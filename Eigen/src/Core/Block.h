@@ -392,20 +392,6 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
 
   EIGEN_DEVICE_FUNC constexpr StorageIndex startCol() const noexcept { return m_startCol.value(); }
 
-#ifndef __SUNPRO_CC
-  // Historical workaround for SunStudio's handling of the access specifier here.
- protected:
-#endif
-
-#ifndef EIGEN_PARSED_BY_DOXYGEN
-  /** \internal used by allowAligned() */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockImpl_dense(XprType& xpr, const Scalar* data, Index blockRows,
-                                                        Index blockCols)
-      : Base(data, blockRows, blockCols), m_xpr(xpr) {
-    init();
-  }
-#endif
-
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init() {
     m_outerStride =

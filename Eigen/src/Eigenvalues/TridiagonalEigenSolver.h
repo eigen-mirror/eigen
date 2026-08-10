@@ -253,8 +253,7 @@ class TridiagonalEigenSolver {
   // epsilon cannot represent consecutive integer counts beyond ~1/eps (a 257-element bfloat16
   // identity would report an eigenvalue of "5.19"), and intermediates such as the coincident-shift
   // perturbation quantize away. Results are rounded back to Scalar on output.
-  typedef typename std::conditional<(NumTraits<Scalar>::digits() < NumTraits<float>::digits()), float, Scalar>::type
-      ComputeScalar;
+  using ComputeScalar = std::conditional_t<(NumTraits<Scalar>::digits() < NumTraits<float>::digits()), float, Scalar>;
 
   void computeEigenvectorsImpl();
 

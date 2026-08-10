@@ -336,13 +336,6 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
     return *this;
   }
 
-#ifndef EIGEN_PARSED_BY_DOXYGEN
-  template <typename Lhs, typename Rhs>
-  inline SparseVector& operator=(const SparseSparseProduct<Lhs, Rhs>& product) {
-    return Base::operator=(product);
-  }
-#endif
-
 #ifndef EIGEN_NO_IO
   friend std::ostream& operator<<(std::ostream& s, const SparseVector& m) {
     for (Index i = 0; i < m.nonZeros(); ++i) s << "(" << m.m_data.value(i) << "," << m.m_data.index(i) << ") ";

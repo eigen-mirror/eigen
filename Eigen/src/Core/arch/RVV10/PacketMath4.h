@@ -281,8 +281,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xi, N>& kernel) {
 
 template <typename Packet = Packet4Xi>
 EIGEN_STRONG_INLINE
-    typename std::enable_if_t<std::is_same<Packet, Packet4Xi>::value && (unpacket_traits<Packet4Xi>::size % 8) == 0,
-                              Packet2Xi>
+    std::enable_if_t<std::is_same<Packet, Packet4Xi>::value && (unpacket_traits<Packet4Xi>::size % 8) == 0, Packet2Xi>
     predux_half(const Packet4Xi& a) {
   return __riscv_vadd_vv_i32m2(__riscv_vget_v_i32m4_i32m2(a, 0), __riscv_vget_v_i32m4_i32m2(a, 1),
                                unpacket_traits<Packet2Xi>::size);
@@ -666,8 +665,7 @@ EIGEN_STRONG_INLINE Packet4Xf pldexp<Packet4Xf>(const Packet4Xf& a, const Packet
 
 template <typename Packet = Packet4Xf>
 EIGEN_STRONG_INLINE
-    typename std::enable_if_t<std::is_same<Packet, Packet4Xf>::value && (unpacket_traits<Packet4Xf>::size % 8) == 0,
-                              Packet2Xf>
+    std::enable_if_t<std::is_same<Packet, Packet4Xf>::value && (unpacket_traits<Packet4Xf>::size % 8) == 0, Packet2Xf>
     predux_half(const Packet4Xf& a) {
   return __riscv_vfadd_vv_f32m2(__riscv_vget_v_f32m4_f32m2(a, 0), __riscv_vget_v_f32m4_f32m2(a, 1),
                                 unpacket_traits<Packet2Xf>::size);
@@ -932,8 +930,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xl, N>& kernel) {
 
 template <typename Packet = Packet4Xl>
 EIGEN_STRONG_INLINE
-    typename std::enable_if_t<std::is_same<Packet, Packet4Xl>::value && (unpacket_traits<Packet4Xl>::size % 8) == 0,
-                              Packet2Xl>
+    std::enable_if_t<std::is_same<Packet, Packet4Xl>::value && (unpacket_traits<Packet4Xl>::size % 8) == 0, Packet2Xl>
     predux_half(const Packet4Xl& a) {
   return __riscv_vadd_vv_i64m2(__riscv_vget_v_i64m4_i64m2(a, 0), __riscv_vget_v_i64m4_i64m2(a, 1),
                                unpacket_traits<Packet2Xl>::size);
@@ -1318,8 +1315,7 @@ EIGEN_STRONG_INLINE Packet4Xd pldexp<Packet4Xd>(const Packet4Xd& a, const Packet
 
 template <typename Packet = Packet4Xd>
 EIGEN_STRONG_INLINE
-    typename std::enable_if_t<std::is_same<Packet, Packet4Xd>::value && (unpacket_traits<Packet4Xd>::size % 8) == 0,
-                              Packet2Xd>
+    std::enable_if_t<std::is_same<Packet, Packet4Xd>::value && (unpacket_traits<Packet4Xd>::size % 8) == 0, Packet2Xd>
     predux_half(const Packet4Xd& a) {
   return __riscv_vfadd_vv_f64m2(__riscv_vget_v_f64m4_f64m2(a, 0), __riscv_vget_v_f64m4_f64m2(a, 1),
                                 unpacket_traits<Packet2Xd>::size);
@@ -1583,8 +1579,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4Xs, N>& kernel) {
 
 template <typename Packet = Packet4Xs>
 EIGEN_STRONG_INLINE
-    typename std::enable_if_t<std::is_same<Packet, Packet4Xs>::value && (unpacket_traits<Packet4Xs>::size % 8) == 0,
-                              Packet2Xs>
+    std::enable_if_t<std::is_same<Packet, Packet4Xs>::value && (unpacket_traits<Packet4Xs>::size % 8) == 0, Packet2Xs>
     predux_half(const Packet4Xs& a) {
   return __riscv_vadd_vv_i16m2(__riscv_vget_v_i16m4_i16m2(a, 0), __riscv_vget_v_i16m4_i16m2(a, 1),
                                unpacket_traits<Packet2Xs>::size);

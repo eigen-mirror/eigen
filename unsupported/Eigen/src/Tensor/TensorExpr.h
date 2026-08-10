@@ -278,9 +278,6 @@ struct traits<TensorSelectOp<IfXprType, ThenXprType, ElseXprType> > : traits<The
                                         typename traits<ElseXprType>::StorageKind>::ret StorageKind;
   typedef
       typename promote_index_type<typename traits<ElseXprType>::Index, typename traits<ThenXprType>::Index>::type Index;
-  typedef typename IfXprType::Nested IfNested;
-  typedef typename ThenXprType::Nested ThenNested;
-  typedef typename ElseXprType::Nested ElseNested;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename ThenXprType::Scalar, Scalar>::val,

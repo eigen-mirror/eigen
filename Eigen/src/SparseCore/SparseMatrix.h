@@ -963,19 +963,6 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   EIGEN_DEPRECATED EIGEN_DONT_INLINE Scalar& insertCompressed(Index row, Index col);
 
   /** \internal
-   * A vector object that is equal to 0 everywhere but v at the position i */
-  class SingletonVector {
-    StorageIndex m_index;
-    StorageIndex m_value;
-
-   public:
-    typedef StorageIndex value_type;
-    SingletonVector(Index i, Index v) : m_index(convert_index(i)), m_value(convert_index(v)) {}
-
-    StorageIndex operator[](Index i) const { return i == m_index ? m_value : 0; }
-  };
-
-  /** \internal
    * \sa insert(Index,Index) */
   EIGEN_DEPRECATED EIGEN_DONT_INLINE Scalar& insertUncompressed(Index row, Index col);
 

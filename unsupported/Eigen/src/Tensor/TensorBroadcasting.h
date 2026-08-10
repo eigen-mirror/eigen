@@ -49,7 +49,7 @@ template <typename Dims>
 struct is_input_scalar : std::false_type {};
 template <>
 struct is_input_scalar<Sizes<>> : std::true_type {};
-template <typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t... Indices>
 struct is_input_scalar<Sizes<Indices...>> : bool_constant<Sizes<Indices...>::total_size == 1> {};
 
 }  // end namespace internal

@@ -44,9 +44,6 @@ add_custom_target(check_gpu COMMAND "ctest" ${EIGEN_CTEST_ARGS}
                                             "-L" "gpu")
 add_dependencies(check_gpu buildtests_gpu)
 
-# check whether /bin/bash exists (disabled as not used anymore)
-# find_file(EIGEN_BIN_BASH_EXISTS "/bin/bash" PATHS "/" NO_DEFAULT_PATH)
-
 # This call activates testing and generates the DartConfiguration.tcl
 include(CTest)
 
@@ -87,4 +84,3 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 elseif(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
 endif()
-

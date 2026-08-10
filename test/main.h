@@ -233,8 +233,6 @@ class EigenTest {
   void EIGEN_CAT(test_, X)()
 }  // namespace Eigen
 
-#define TRACK std::cerr << __FILE__ << " " << __LINE__ << std::endl
-
 #define EIGEN_DEFAULT_IO_FORMAT IOFormat(4, 0, "  ", "\n", "", "", "", "")
 
 #if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
@@ -337,10 +335,6 @@ static std::vector<std::string> eigen_assert_list;
 
 #ifndef VERIFY_RAISES_ASSERT
 #define VERIFY_RAISES_ASSERT(a) std::cout << "Can't VERIFY_RAISES_ASSERT( " #a " ) with exceptions disabled\n";
-#endif
-
-#if !defined(__CUDACC__) && !defined(__HIPCC__) && !defined(SYCL_DEVICE_ONLY)
-#define EIGEN_USE_CUSTOM_ASSERT
 #endif
 
 #else  // EIGEN_NO_ASSERTION_CHECKING

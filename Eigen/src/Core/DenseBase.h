@@ -411,13 +411,6 @@ class DenseBase
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const NestByValue<Derived> nestByValue() const;
-  EIGEN_DEVICE_FUNC inline const ForceAlignedAccess<Derived> forceAlignedAccess() const;
-  EIGEN_DEVICE_FUNC inline ForceAlignedAccess<Derived> forceAlignedAccess();
-  template <bool Enable>
-  EIGEN_DEVICE_FUNC inline const std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&>
-  forceAlignedAccessIf() const;
-  template <bool Enable>
-  EIGEN_DEVICE_FUNC inline std::conditional_t<Enable, ForceAlignedAccess<Derived>, Derived&> forceAlignedAccessIf();
 
   EIGEN_DEVICE_FUNC Scalar sum() const;
   EIGEN_DEVICE_FUNC Scalar mean() const;

@@ -54,8 +54,6 @@ class SparseSelfAdjointView;
 template <typename MatrixType>
 class SparseView;
 
-template <typename Lhs, typename Rhs>
-class SparseSparseProduct;
 template <typename MatrixType, int UpLo>
 class SparseSymmetricPermutationProduct;
 

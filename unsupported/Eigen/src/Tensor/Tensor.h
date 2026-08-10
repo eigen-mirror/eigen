@@ -341,7 +341,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
     resize(internal::customIndices2Array<Index, NumIndices>(dimensions));
   }
 
-  template <typename std::ptrdiff_t... Indices>
+  template <std::ptrdiff_t... Indices>
   EIGEN_DEVICE_FUNC void resize(const Sizes<Indices...>& dimensions) {
     array<Index, NumIndices> dims;
     for (int i = 0; i < NumIndices; ++i) {

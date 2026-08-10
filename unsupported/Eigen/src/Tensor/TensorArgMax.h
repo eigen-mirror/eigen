@@ -193,7 +193,6 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
   typedef array<Index, NumDims> StrideDims;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
-  typedef StorageMemory<PairType, Device> PairStorageMem;
 
   enum {
     IsAligned = false,

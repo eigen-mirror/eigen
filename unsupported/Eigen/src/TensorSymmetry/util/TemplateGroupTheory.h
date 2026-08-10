@@ -435,7 +435,6 @@ template <template <typename, typename> class Multiply, template <typename, type
           typename generators, int initial_global_flags = 0>
 struct enumerate_group_elements_noid {
   typedef dimino_first_step_elements<Multiply, Equality, id, generators> first_step;
-  typedef typename first_step::type first_step_elements;
 
   typedef dimino_add_remaining_generators<Multiply, Equality, id, typename first_step::generators_done,
                                           typename first_step::next_generators,  // remaining_generators

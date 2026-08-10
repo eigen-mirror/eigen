@@ -83,7 +83,7 @@ struct fixed_size_tensor_index_extraction_helper<Index, 0> {
  *
  * \sa Tensor
  */
-template <typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t... Indices>
 struct Sizes {
   typedef std::integer_sequence<std::ptrdiff_t, Indices...> Base;
   const Base t = Base();
@@ -130,7 +130,7 @@ struct Sizes {
 };
 
 namespace internal {
-template <typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t... Indices>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_prod(const Sizes<Indices...>&) {
   return Sizes<Indices...>::total_size;
 }
@@ -220,7 +220,7 @@ struct DSizes : array<DenseIndex, NumDims> {
     }
   }
 
-  template <typename std::ptrdiff_t... Indices>
+  template <std::ptrdiff_t... Indices>
   EIGEN_DEVICE_FUNC DSizes(const Sizes<Indices...>& a) {
     for (int i = 0; i < NumDims; ++i) {
       (*this)[i] = a[i];
@@ -271,15 +271,15 @@ template <typename DenseIndex, int NumDims>
 struct array_size<DSizes<DenseIndex, NumDims>> {
   static constexpr ptrdiff_t value = NumDims;
 };
-template <typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t... Indices>
 struct array_size<const Sizes<Indices...>> {
   static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
-template <typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t... Indices>
 struct array_size<Sizes<Indices...>> {
   static constexpr std::ptrdiff_t value = Sizes<Indices...>::count;
 };
-template <std::ptrdiff_t n, typename std::ptrdiff_t... Indices>
+template <std::ptrdiff_t n, std::ptrdiff_t... Indices>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<Indices...>&) {
   return dget<n, typename Sizes<Indices...>::Base>::value;
 }

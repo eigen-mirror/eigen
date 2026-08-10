@@ -433,9 +433,6 @@ struct TensorContractionEvaluatorBase {
   using EvalRightArgType =
       std::conditional_t<static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType>;
 
-  using LeftEvaluatorType = TensorEvaluator<EvalLeftArgType, Device>;
-  using RightEvaluatorType = TensorEvaluator<EvalRightArgType, Device>;
-
   static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
   static constexpr int RDims =

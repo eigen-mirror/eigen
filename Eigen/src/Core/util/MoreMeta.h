@@ -126,17 +126,6 @@ struct get<0, std::integer_sequence<T, a, as...>> {
   constexpr static T value = a;
 };
 
-/* always get type, regardless of dummy; good for parameter pack expansion */
-
-template <typename T, T dummy, typename t>
-struct id_numeric {
-  typedef t type;
-};
-template <typename dummy, typename t>
-struct id_type {
-  typedef t type;
-};
-
 /* equality checking, flagged version */
 
 template <typename a, typename b>

@@ -689,15 +689,6 @@ template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, LazyCoeffBasedProductMode>
     : generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> {};
 
-// Case 2: Evaluate coeff by coeff
-//
-// This is mostly taken from CoeffBasedProduct.h
-// The main difference is that we add an extra argument to the etor_product_*_impl::run() function
-// for the inner dimension of the product, because evaluator object do not know their size.
-
-template <int Traversal, int UnrollingIndex, typename Lhs, typename Rhs, typename RetScalar>
-struct etor_product_coeff_impl;
-
 template <int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 

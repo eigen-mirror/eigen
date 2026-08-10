@@ -1270,14 +1270,6 @@ void packetmath_real() {
   }
 }
 
-#define CAST_CHECK_CWISE1_IF(COND, REFOP, POP, SCALAR, REFTYPE)                                  \
-  if (COND) {                                                                                    \
-    test::packet_helper<COND, Packet> h;                                                         \
-    for (int i = 0; i < PacketSize; ++i) ref[i] = SCALAR(REFOP(static_cast<REFTYPE>(data1[i]))); \
-    h.store(data2, POP(h.load(data1)));                                                          \
-    VERIFY(test::areApprox(ref, data2, PacketSize) && #POP);                                     \
-  }
-
 template <typename Scalar>
 Scalar propagate_nan_max(const Scalar& a, const Scalar& b) {
   if ((numext::isnan)(a)) return a;

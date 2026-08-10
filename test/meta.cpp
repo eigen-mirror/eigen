@@ -30,8 +30,6 @@ using Eigen::internal::contained_in_list_gf;
 // Eigen::internal::get is intentionally left fully-qualified below: test/main.h
 // does `using namespace Eigen;`, and Eigen/src/Core/StructuredBindings.h defines
 // free functions `Eigen::get` that would otherwise clash with this metafunction.
-using Eigen::internal::id_numeric;
-using Eigen::internal::id_type;
 using Eigen::internal::is_same_gf;
 using Eigen::internal::mconcat;
 using Eigen::internal::skip;
@@ -173,29 +171,6 @@ static void test_get() {
   VERIFY_IS_EQUAL(((int)Eigen::internal::get<5, il>::value), 42);
 }
 
-static void test_id_helper(dummy_a a, dummy_a b, dummy_a c) {
-  (void)a;
-  (void)b;
-  (void)c;
-}
-
-template <int... ii>
-static void test_id_numeric() {
-  test_id_helper(typename id_numeric<int, ii, dummy_a>::type()...);
-}
-
-template <typename... tt>
-static void test_id_type() {
-  test_id_helper(typename id_type<tt, dummy_a>::type()...);
-}
-
-static void test_id() {
-  // don't call VERIFY here, just assume it works if it compiles
-  // (otherwise it will complain that it can't find the function)
-  test_id_numeric<1, 4, 6>();
-  test_id_type<dummy_a, dummy_b, dummy_c>();
-}
-
 static void test_is_same_gf() {
   VERIFY((!is_same_gf<dummy_a, dummy_b>::value));
   VERIFY((!!is_same_gf<dummy_a, dummy_a>::value));
@@ -321,7 +296,6 @@ EIGEN_DECLARE_TEST(meta) {
   CALL_SUBTEST(test_concat());
   CALL_SUBTEST(test_slice());
   CALL_SUBTEST(test_get());
-  CALL_SUBTEST(test_id());
   CALL_SUBTEST(test_is_same_gf());
   CALL_SUBTEST(test_apply_op());
   CALL_SUBTEST(test_contained_in_list());
