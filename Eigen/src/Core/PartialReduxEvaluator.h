@@ -131,8 +131,18 @@ struct packetwise_segment_redux_impl {
                                           Index count) {
     if (size == 0) return packetwise_redux_empty_value<PacketType>(func);
 
+    const Index size4 = 1 + numext::round_down(size - 1, 4);
     PacketType p = eval.template packetSegmentByOuterInner<Unaligned, PacketType>(0, 0, begin, count);
-    for (Index i = 1; i < size; ++i)
+    // Grouping exposes independent packet ops and shortens the dependency chain.
+    for (Index i = 1; i < size4; i += 4)
+      p = func.packetOp(
+          p,
+          func.packetOp(
+              func.packetOp(eval.template packetSegmentByOuterInner<Unaligned, PacketType>(i + 0, 0, begin, count),
+                            eval.template packetSegmentByOuterInner<Unaligned, PacketType>(i + 1, 0, begin, count)),
+              func.packetOp(eval.template packetSegmentByOuterInner<Unaligned, PacketType>(i + 2, 0, begin, count),
+                            eval.template packetSegmentByOuterInner<Unaligned, PacketType>(i + 3, 0, begin, count))));
+    for (Index i = size4; i < size; ++i)
       p = func.packetOp(p, eval.template packetSegmentByOuterInner<Unaligned, PacketType>(i, 0, begin, count));
     return p;
   }

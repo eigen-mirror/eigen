@@ -60,6 +60,12 @@ struct functor_traits<scalar_sum_op<LhsScalar, RhsScalar>> {
   };
 };
 
+// Addition commutes for arithmetic and complex scalars. A user-defined Scalar may define a
+// non-commutative operator+ (e.g. concatenation), so it keeps the order-preserving default.
+template <typename Scalar>
+struct functor_is_commutative<scalar_sum_op<Scalar, Scalar>>
+    : bool_constant<is_arithmetic<Scalar>::value || NumTraits<Scalar>::IsComplex> {};
+
 template <>
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(const bool& a,
                                                                                            const bool& b) const {
@@ -99,6 +105,12 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
     // TODO: vectorize mixed product
   };
 };
+
+// Multiplication commutes for arithmetic and complex scalars, but not for every user-defined
+// Scalar (e.g. quaternion-like or matrix-like types).
+template <typename Scalar>
+struct functor_is_commutative<scalar_product_op<Scalar, Scalar>>
+    : bool_constant<is_arithmetic<Scalar>::value || NumTraits<Scalar>::IsComplex> {};
 
 // Same as scalar_product_op, but its scalar path uses pmul instead of operator*. For complex scalars
 // pmul is Eigen's explicit (non-Annex-G) complex multiply, so this avoids std::complex::operator*,
@@ -189,6 +201,15 @@ struct functor_traits<scalar_min_op<LhsScalar, RhsScalar, NaNPropagation>> {
   };
 };
 
+// min/max commute for arithmetic scalars only: PropagateNumbers and PropagateNaN treat NaN
+// operands symmetrically, PropagateFast leaves NaN results unspecified, and -0.0/+0.0 ties may
+// already resolve either way in the packet reduction paths. A custom scalar is excluded even
+// though it compares with operator<, because the generic std::min/std::max keep the first
+// operand when values compare equivalent, and equivalent custom values may be observably
+// distinct (e.g. carry a payload the comparison ignores).
+template <typename Scalar, int NaNPropagation>
+struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>> : is_arithmetic<Scalar> {};
+
 /** \internal
  * \brief Template functor to compute the max of two scalars
  *
@@ -217,6 +238,9 @@ struct functor_traits<scalar_max_op<LhsScalar, RhsScalar, NaNPropagation>> {
     PacketAccess = std::is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasMax
   };
 };
+
+template <typename Scalar, int NaNPropagation>
+struct functor_is_commutative<scalar_max_op<Scalar, Scalar, NaNPropagation>> : is_arithmetic<Scalar> {};
 
 /** \internal
  * \brief Template functors for comparison of two scalars

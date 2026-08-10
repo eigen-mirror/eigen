@@ -262,6 +262,242 @@ void redux_strided() {
   }
 }
 
+// redux() documents that its functor must be associative; it is not required to be commutative.
+// An implementation may therefore re-associate, but must not reorder the operands. These two
+// functors are associative and non-commutative: each projects onto one end of the operand
+// sequence, so together they pin both ends of the traversal order. Independent per-lane
+// accumulators, for instance, leave keep_first intact but move keep_last onto whichever lane
+// happens to end last. Sizes straddle the unrolled block, its ragged tail, and the fallback.
+struct keep_first_op {
+  template <typename Scalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& /*b*/) const {
+    return a;
+  }
+};
+
+struct keep_last_op {
+  template <typename Scalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& /*a*/, const Scalar& b) const {
+    return b;
+  }
+};
+
+template <typename Scalar>
+void redux_operand_order() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  // Sizes straddle the small-size fallback, the ordered-tree cutoff, and its ragged tail.
+  const Index sizes[] = {1, 2, 5, 7, 8, 9, 15, 16, 17, 23, 24, 31, 32, 33, 64, 129, 191, 192, 193, 250};
+  keep_first_op first;
+  keep_last_op last;
+  for (int si = 0; si < 20; ++si) {
+    const Index n = sizes[si];
+    // Distinct values so that any reordering is observable.
+    Vec v(n);
+    for (Index i = 0; i < n; ++i) v.coeffRef(i) = Scalar(i + 1);
+    // LinearTraversal: operands run 0 .. n-1.
+    VERIFY_IS_EQUAL(v.redux(first), v.coeff(0));
+    VERIFY_IS_EQUAL(v.redux(last), v.coeff(n - 1));
+
+    // DefaultTraversal: a non-inner-panel block drops LinearAccessBit, and is traversed
+    // outer-then-inner, so the operands run from (0,0) to (innerSize-1, outerSize-1).
+    Mat m(n + 1, n + 1);
+    for (Index c = 0; c < n + 1; ++c)
+      for (Index r = 0; r < n + 1; ++r) m.coeffRef(r, c) = Scalar(c * (n + 1) + r + 1);
+    Block<Mat, Dynamic, Dynamic, false> b(m, 1, 1, n, n);
+    VERIFY_IS_EQUAL(b.redux(first), b.coeff(0, 0));
+    VERIFY_IS_EQUAL(b.redux(last), b.coeff(n - 1, n - 1));
+  }
+}
+
+// A functor marked commutative via internal::functor_is_commutative: reductions may reorder its
+// operands. Values are integers (exactly representable for every tested Scalar), so a reordered
+// reduction must still match the serial reference bit-for-bit.
+template <typename Scalar>
+struct marked_commutative_sum_op {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a, const Scalar& b) const { return a + b; }
+};
+
+namespace Eigen {
+namespace internal {
+template <typename Scalar>
+struct functor_is_commutative<marked_commutative_sum_op<Scalar>> : std::true_type {};
+}  // namespace internal
+}  // namespace Eigen
+
+template <typename Scalar>
+void redux_commutative() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const Index sizes[] = {1, 2, 7, 8, 9, 15, 16, 17, 24, 31, 32, 33, 63, 64, 65, 129, 192, 250};
+  marked_commutative_sum_op<Scalar> op;
+  for (int si = 0; si < 18; ++si) {
+    const Index n = sizes[si];
+    Vec v(n);
+    Scalar vref(0);
+    for (Index i = 0; i < n; ++i) {
+      v.coeffRef(i) = Scalar(i % 9 + 1);
+      vref = vref + v.coeff(i);
+    }
+    VERIFY_IS_EQUAL(v.redux(op), vref);
+
+    Mat m(n + 1, n + 1);
+    m.setZero();
+    Scalar bref(0);
+    for (Index c = 1; c < n + 1; ++c)
+      for (Index r = 1; r < n + 1; ++r) {
+        m.coeffRef(r, c) = Scalar((r * 3 + c) % 7 + 1);
+        bref = bref + m.coeff(r, c);
+      }
+    Block<Mat, Dynamic, Dynamic, false> b(m, 1, 1, n, n);
+    VERIFY_IS_EQUAL(b.redux(op), bref);
+  }
+}
+
+// min/max are marked commutative, so the reordering reduction paths may see their NaN operands
+// in any order. The reordered result must still honor each NaN mode's contract: PropagateNaN
+// returns NaN if any operand is NaN, PropagateNumbers returns the min/max of the non-NaN
+// operands (NaN only when all are NaN). PropagateFast leaves NaN results unspecified, so it is
+// only checked on NaN-free data. Strided expressions have no packet access, which forces the
+// scalar reduction paths: a strided vector Map takes LinearTraversal, a strided matrix Map takes
+// DefaultTraversal. NaN positions cover the first lane, other lanes, the unrolled-region end,
+// and the serial tail.
+template <typename Scalar>
+void redux_minmax_nan() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const Scalar kNaN = std::numeric_limits<Scalar>::quiet_NaN();
+  const Index sizes[] = {2, 3, 7, 8, 9, 15, 16, 17, 31, 33, 64, 129, 250};
+  for (int si = 0; si < 13; ++si) {
+    const Index n = sizes[si];
+
+    // Strided vector view: LinearTraversal without packet access.
+    Vec backing(2 * n);
+    backing.setZero();
+    Map<Vec, 0, InnerStride<2>> v(backing.data(), n, InnerStride<2>(2));
+    for (Index i = 0; i < n; ++i) v.coeffRef(i) = Scalar((i * 7) % 13) - Scalar(6);
+    const Scalar refMin = v.minCoeff();  // reference from NaN-free data
+    const Scalar refMax = v.maxCoeff();
+
+    // NaN-free: all modes must agree with the reference.
+    VERIFY_IS_EQUAL((v.template minCoeff<PropagateNaN>()), refMin);
+    VERIFY_IS_EQUAL((v.template maxCoeff<PropagateNaN>()), refMax);
+    VERIFY_IS_EQUAL((v.template minCoeff<PropagateNumbers>()), refMin);
+    VERIFY_IS_EQUAL((v.template maxCoeff<PropagateNumbers>()), refMax);
+
+    const Index nanPositions[] = {0, 1, 7, 8, n / 2, n - 9, n - 2, n - 1};
+    for (int pi = 0; pi < 8; ++pi) {
+      const Index p = nanPositions[pi];
+      if (p < 0 || p >= n) continue;
+      const Scalar saved = v.coeff(p);
+      v.coeffRef(p) = kNaN;
+      // Reference over the remaining numbers, computed serially.
+      Scalar numMin = NumTraits<Scalar>::highest(), numMax = NumTraits<Scalar>::lowest();
+      bool allNaN = true;
+      for (Index i = 0; i < n; ++i) {
+        if ((numext::isnan)(v.coeff(i))) continue;
+        allNaN = false;
+        numMin = numext::mini(numMin, v.coeff(i));
+        numMax = numext::maxi(numMax, v.coeff(i));
+      }
+      VERIFY((numext::isnan)(v.template minCoeff<PropagateNaN>()));
+      VERIFY((numext::isnan)(v.template maxCoeff<PropagateNaN>()));
+      if (!allNaN) {
+        VERIFY_IS_EQUAL((v.template minCoeff<PropagateNumbers>()), numMin);
+        VERIFY_IS_EQUAL((v.template maxCoeff<PropagateNumbers>()), numMax);
+      }
+      v.coeffRef(p) = saved;
+    }
+
+    // Two NaNs in different lanes, and every coefficient NaN.
+    if (n >= 2) {
+      const Scalar s0 = v.coeff(0), s1 = v.coeff(n - 1);
+      v.coeffRef(0) = kNaN;
+      v.coeffRef(n - 1) = kNaN;
+      VERIFY((numext::isnan)(v.template minCoeff<PropagateNaN>()));
+      if (n > 2) {
+        Scalar numMin = NumTraits<Scalar>::highest();
+        for (Index i = 1; i < n - 1; ++i) numMin = numext::mini(numMin, v.coeff(i));
+        VERIFY_IS_EQUAL((v.template minCoeff<PropagateNumbers>()), numMin);
+      }
+      v.coeffRef(0) = s0;
+      v.coeffRef(n - 1) = s1;
+    }
+    v.setConstant(kNaN);
+    VERIFY((numext::isnan)(v.template minCoeff<PropagateNaN>()));
+    VERIFY((numext::isnan)(v.template minCoeff<PropagateNumbers>()));
+    VERIFY((numext::isnan)(v.template maxCoeff<PropagateNaN>()));
+    VERIFY((numext::isnan)(v.template maxCoeff<PropagateNumbers>()));
+
+    // Strided matrix view: DefaultTraversal without packet access. NaN in the interior.
+    if (n >= 3) {
+      Mat mbacking(2 * n, n);
+      mbacking.setZero();
+      Map<Mat, 0, Stride<Dynamic, 2>> m(mbacking.data(), n, n, Stride<Dynamic, 2>(2 * n, 2));
+      for (Index c = 0; c < n; ++c)
+        for (Index r = 0; r < n; ++r) m.coeffRef(r, c) = Scalar((r * 5 + c * 3) % 11) - Scalar(5);
+      const Scalar mrefMin = m.minCoeff();
+      VERIFY_IS_EQUAL((m.template minCoeff<PropagateNaN>()), mrefMin);
+      VERIFY_IS_EQUAL((m.template minCoeff<PropagateNumbers>()), mrefMin);
+      m.coeffRef(n / 2, n / 2) = kNaN;
+      Scalar numMin = NumTraits<Scalar>::highest(), numMax = NumTraits<Scalar>::lowest();
+      for (Index c = 0; c < n; ++c)
+        for (Index r = 0; r < n; ++r) {
+          if ((numext::isnan)(m.coeff(r, c))) continue;
+          numMin = numext::mini(numMin, m.coeff(r, c));
+          numMax = numext::maxi(numMax, m.coeff(r, c));
+        }
+      VERIFY((numext::isnan)(m.template minCoeff<PropagateNaN>()));
+      VERIFY((numext::isnan)(m.template maxCoeff<PropagateNaN>()));
+      VERIFY_IS_EQUAL((m.template minCoeff<PropagateNumbers>()), numMin);
+      VERIFY_IS_EQUAL((m.template maxCoeff<PropagateNumbers>()), numMax);
+    }
+  }
+}
+
+// A custom scalar whose comparison ignores its tag, so equivalent values are observably
+// distinct. The generic std::min/std::max keep the first operand of a tie, and custom scalars
+// are excluded from the min/max commutativity opt-in, so minCoeff()/maxCoeff() must return the
+// first extremum in traversal order.
+struct TaggedScalar {
+  double v;
+  int tag;
+  TaggedScalar() : v(0), tag(0) {}
+  TaggedScalar(double v_, int tag_) : v(v_), tag(tag_) {}
+  bool operator<(const TaggedScalar& other) const { return v < other.v; }
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<TaggedScalar> : GenericNumTraits<TaggedScalar> {};
+}  // namespace Eigen
+
+void redux_custom_scalar_min_ties() {
+  typedef Matrix<TaggedScalar, Dynamic, 1> Vec;
+  STATIC_CHECK(
+      !(internal::functor_is_commutative<internal::scalar_min_op<TaggedScalar, TaggedScalar, PropagateFast>>::value));
+  // Sizes on both sides of the ordered-tree cutoff, extrema in different unroll regions.
+  const Index sizes[] = {10, 33, 250, 1000};
+  for (int si = 0; si < 4; ++si) {
+    const Index n = sizes[si];
+    Vec x(n);
+    for (Index i = 0; i < n; ++i) x.coeffRef(i) = TaggedScalar(double(i % 17), int(i));
+    // Two equal minima (v == -1): the first in traversal order must win.
+    x.coeffRef(2) = TaggedScalar(-1.0, 2);
+    x.coeffRef(n - 2) = TaggedScalar(-1.0, int(n - 2));
+    VERIFY_IS_EQUAL(x.minCoeff().tag, 2);
+    // Two equal maxima (v == 100).
+    x.coeffRef(3) = TaggedScalar(100.0, 3);
+    x.coeffRef(n - 3) = TaggedScalar(100.0, int(n - 3));
+    VERIFY_IS_EQUAL(x.maxCoeff().tag, 3);
+    // All coefficients equivalent: the very first must win.
+    Vec y(n);
+    for (Index i = 0; i < n; ++i) y.coeffRef(i) = TaggedScalar(5.0, int(i));
+    VERIFY_IS_EQUAL(y.minCoeff().tag, 0);
+    VERIFY_IS_EQUAL(y.maxCoeff().tag, 0);
+  }
+}
+
 // Test reductions on expressions whose inner stride is NOT statically 1 (so they lose
 // compile-time vectorization) but ARE contiguous at runtime: a dynamic-inner-stride Map with
 // runtime stride 1, a row of a 1xN dynamic matrix, and a fully-packed dynamic-stride matrix Ref.
@@ -422,6 +658,22 @@ EIGEN_DECLARE_TEST(redux) {
   CALL_SUBTEST_13(redux_strided<float>());
   CALL_SUBTEST_13(redux_strided<double>());
   CALL_SUBTEST_13(redux_strided<std::complex<float>>());
+
+  // Operand order must survive the scalar unrolled paths (associative, non-commutative functor).
+  CALL_SUBTEST_13(redux_operand_order<float>());
+  CALL_SUBTEST_13(redux_operand_order<double>());
+  CALL_SUBTEST_13(redux_operand_order<int>());
+
+  // Functors marked commutative may be reordered but must stay exact on integer values.
+  CALL_SUBTEST_13(redux_commutative<int>());
+  CALL_SUBTEST_13(redux_commutative<double>());
+
+  // min/max NaN contracts must survive reordered scalar reductions.
+  CALL_SUBTEST_13(redux_minmax_nan<float>());
+  CALL_SUBTEST_13(redux_minmax_nan<double>());
+
+  // Custom scalars stay on the order-preserving path: first extremum wins ties.
+  CALL_SUBTEST_13(redux_custom_scalar_min_ties());
 
   // Runtime unit-stride fast path (redux_dispatch in Redux.h).
   CALL_SUBTEST_13(redux_runtime_contiguous<float>());

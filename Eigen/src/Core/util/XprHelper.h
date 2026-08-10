@@ -195,6 +195,14 @@ struct functor_traits {
   enum { Cost = 10, PacketAccess = false, IsRepeatable = false };
 };
 
+// Marks a binary functor as commutative: f(a, b) == f(b, a). Reductions may then reorder
+// operands, not merely re-associate them, which enables faster accumulation. Deliberately a
+// separate trait rather than a functor_traits member: user code specializes functor_traits
+// wholesale, so a new member there would break every existing specialization. The default is
+// conservative; operand order is preserved unless a functor opts in.
+template <typename Func>
+struct functor_is_commutative : std::false_type {};
+
 // estimates the cost of lazily evaluating a generic functor by unwinding the expression
 template <typename Xpr>
 struct nested_functor_cost {

@@ -413,6 +413,50 @@ struct UserReducer {
   const float offset_;
 };
 
+// A reducer that transforms each value it accepts (sum of squares), with reducer_traits
+// declaring PacketAccess. Its reduce() cannot merge two partial accumulators — feeding a partial
+// sum back through reduce() would square it — so the scalar unrolled path must not engage: the
+// gate is reducer_can_reorder_accumulators, which such a reducer does not opt into, not
+// PacketAccess. long double has no packets, which forces the scalar path while the declared
+// PacketAccess stays true.
+struct SquaredSumReducer {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const long double t, long double* accum) const { *accum += t * t; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE long double initialize() const { return 0; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE long double finalize(const long double accum) const { return accum; }
+};
+
+namespace Eigen {
+namespace internal {
+template <typename Device>
+struct reducer_traits<SquaredSumReducer, Device> {
+  enum { Cost = 1, PacketAccess = true, IsStateful = false, IsExactlyAssociative = true };
+};
+}  // namespace internal
+}  // namespace Eigen
+
+template <int DataLayout>
+static void test_value_transforming_reducer() {
+  // The opt-ins that let the unrolled path interleave operands, pinned at both ends: a reducer
+  // that transforms each value, and one that carries state, must stay out however they declare
+  // PacketAccess.
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::SumReducer<float>>::value));
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::MinReducer<float>>::value));
+  STATIC_CHECK((!internal::reducer_can_reorder_accumulators<SquaredSumReducer>::value));
+  STATIC_CHECK((!internal::reducer_can_reorder_accumulators<internal::MeanReducer<float>>::value));
+
+  Tensor<long double, 1, DataLayout> t(12);
+  long double expected = 0;
+  for (int i = 0; i < 12; ++i) {
+    t(i) = static_cast<long double>(i + 1);
+    expected += t(i) * t(i);
+  }
+  array<ptrdiff_t, 1> reduction_axis;
+  reduction_axis[0] = 0;
+  SquaredSumReducer reducer;
+  Tensor<long double, 0, DataLayout> result = t.reduce(reduction_axis, reducer);
+  VERIFY_IS_EQUAL(result(), expected);  // 1^2 + ... + 12^2 = 650, exact in long double
+}
+
 template <int DataLayout>
 static void test_user_defined_reductions() {
   Tensor<float, 2, DataLayout> tensor(5, 7);
@@ -720,6 +764,8 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST(test_full_reductions<RowMajor>());
   CALL_SUBTEST(test_user_defined_reductions<ColMajor>());
   CALL_SUBTEST(test_user_defined_reductions<RowMajor>());
+  CALL_SUBTEST(test_value_transforming_reducer<ColMajor>());
+  CALL_SUBTEST(test_value_transforming_reducer<RowMajor>());
   CALL_SUBTEST(test_tensor_maps<ColMajor>());
   CALL_SUBTEST(test_tensor_maps<RowMajor>());
   CALL_SUBTEST(test_static_dims<ColMajor>());

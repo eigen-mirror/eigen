@@ -220,6 +220,16 @@ template <typename Func, typename Evaluator, int Traversal = redux_traits<Func, 
           int Unrolling = redux_traits<Func, Evaluator>::Unrolling>
 struct redux_impl;
 
+// Cutoffs below which the plain serial loop beats the wider unrolled bodies, measured on x86-64
+// with GCC 13 and Clang 18. The linear path serves both contiguous data (vectorizes, profits
+// from ~24) and strided data (loads dominate, profits only from ~64); 32 is where neither side
+// loses measurably.
+constexpr Index kReduxCommutativeCutoff = 32;       // independent accumulators, linear traversal
+constexpr Index kReduxCommutativeInnerCutoff = 16;  // independent accumulators, outer/inner traversal
+// GCC auto-vectorizes the ordered tree through a shuffle network whose setup only amortizes on
+// long runs; Clang keeps it scalar, where the shorter dependency chain pays from small sizes.
+constexpr Index kReduxOrderedTreeCutoff = EIGEN_COMP_GNUC_STRICT ? 192 : 16;
+
 template <typename Func, typename Evaluator>
 struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
   typedef typename Evaluator::Scalar Scalar;
@@ -227,11 +237,65 @@ struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
+    const Index innerSize = xpr.innerSize();
+    const Index outerSize = xpr.outerSize();
+    EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
+      if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+    } else {
+      if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+    }
     Scalar res = eval.coeffByOuterInner(0, 0);
-    for (Index i = 1; i < xpr.innerSize(); ++i) res = func(res, eval.coeffByOuterInner(0, i));
-    for (Index i = 1; i < xpr.outerSize(); ++i)
-      for (Index j = 0; j < xpr.innerSize(); ++j) res = func(res, eval.coeffByOuterInner(i, j));
+    for (Index j = 1; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(0, j));
+    for (Index i = 1; i < outerSize; ++i)
+      for (Index j = 0; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(i, j));
     return res;
+  }
+
+  // Commutativity lets coefficients split across eight independent accumulators: the dependency
+  // chain drops to size/8 and each stride-8 stream vectorizes without cross-lane shuffles. The
+  // accumulators persist across outer slices; only the ragged inner tail of each slice joins a0.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar runCommutative(const Evaluator& eval, const Func& func,
+                                                                     Index innerSize, Index outerSize) {
+    Scalar a0 = eval.coeffByOuterInner(0, 0), a1 = eval.coeffByOuterInner(0, 1);
+    Scalar a2 = eval.coeffByOuterInner(0, 2), a3 = eval.coeffByOuterInner(0, 3);
+    Scalar a4 = eval.coeffByOuterInner(0, 4), a5 = eval.coeffByOuterInner(0, 5);
+    Scalar a6 = eval.coeffByOuterInner(0, 6), a7 = eval.coeffByOuterInner(0, 7);
+    const Index unrolledEnd = innerSize - innerSize % 8;
+    for (Index i = 0; i < outerSize; ++i) {
+      Index j = (i == 0) ? 8 : 0;
+      for (; j < unrolledEnd; j += 8) {
+        a0 = func(a0, eval.coeffByOuterInner(i, j + 0));
+        a1 = func(a1, eval.coeffByOuterInner(i, j + 1));
+        a2 = func(a2, eval.coeffByOuterInner(i, j + 2));
+        a3 = func(a3, eval.coeffByOuterInner(i, j + 3));
+        a4 = func(a4, eval.coeffByOuterInner(i, j + 4));
+        a5 = func(a5, eval.coeffByOuterInner(i, j + 5));
+        a6 = func(a6, eval.coeffByOuterInner(i, j + 6));
+        a7 = func(a7, eval.coeffByOuterInner(i, j + 7));
+      }
+      for (; j < innerSize; ++j) a0 = func(a0, eval.coeffByOuterInner(i, j));
+    }
+    return func(func(func(a0, a1), func(a2, a3)), func(func(a4, a5), func(a6, a7)));
+  }
+
+  // Associativity alone: contiguous groups of four combine in traversal order through a pairwise
+  // tree, shortening the dependency chain to size/4 without reordering any operands.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar runOrderedTree(const Evaluator& eval, const Func& func,
+                                                                     Index innerSize, Index outerSize) {
+    const Index unrolledEnd = innerSize - innerSize % 4;
+    Scalar res = reduce4(eval, func, 0, 0);
+    for (Index i = 0; i < outerSize; ++i) {
+      Index j = (i == 0) ? 4 : 0;
+      for (; j < unrolledEnd; j += 4) res = func(res, reduce4(eval, func, i, j));
+      for (; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(i, j));
+    }
+    return res;
+  }
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar reduce4(const Evaluator& eval, const Func& func, Index outer,
+                                                              Index inner) {
+    return func(func(eval.coeffByOuterInner(outer, inner + 0), eval.coeffByOuterInner(outer, inner + 1)),
+                func(eval.coeffByOuterInner(outer, inner + 2), eval.coeffByOuterInner(outer, inner + 3)));
   }
 };
 
@@ -243,19 +307,48 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     const Index size = xpr.size();
     eigen_assert(size > 0 && "you are using an empty matrix");
-    if (size < 4) {
-      Scalar res = eval.coeff(0);
-      for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
-      return res;
+    EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
+      if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+    } else {
+      if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
     }
+    Scalar res = eval.coeff(0);
+    for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
+    return res;
+  }
 
-    // Grouping shortens the dependency chain and lets small terms combine before reaching the accumulator.
+  // Commutativity lets coefficients split across eight independent accumulators: the dependency
+  // chain drops to size/8 and each stride-8 stream vectorizes without cross-lane shuffles.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar runCommutative(const Evaluator& eval, const Func& func,
+                                                                     Index size) {
+    Scalar a0 = eval.coeff(0), a1 = eval.coeff(1), a2 = eval.coeff(2), a3 = eval.coeff(3);
+    Scalar a4 = eval.coeff(4), a5 = eval.coeff(5), a6 = eval.coeff(6), a7 = eval.coeff(7);
+    const Index unrolledEnd = size - size % 8;
+    Index k = 8;
+    for (; k < unrolledEnd; k += 8) {
+      a0 = func(a0, eval.coeff(k + 0));
+      a1 = func(a1, eval.coeff(k + 1));
+      a2 = func(a2, eval.coeff(k + 2));
+      a3 = func(a3, eval.coeff(k + 3));
+      a4 = func(a4, eval.coeff(k + 4));
+      a5 = func(a5, eval.coeff(k + 5));
+      a6 = func(a6, eval.coeff(k + 6));
+      a7 = func(a7, eval.coeff(k + 7));
+    }
+    Scalar res = func(func(func(a0, a1), func(a2, a3)), func(func(a4, a5), func(a6, a7)));
+    for (; k < size; ++k) res = func(res, eval.coeff(k));
+    return res;
+  }
+
+  // Associativity alone: contiguous groups of four combine in traversal order through a pairwise
+  // tree, shortening the dependency chain to size/4 without reordering any operands.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar runOrderedTree(const Evaluator& eval, const Func& func,
+                                                                     Index size) {
     Scalar res = func(func(eval.coeff(0), eval.coeff(1)), func(eval.coeff(2), eval.coeff(3)));
     const Index unrolledEnd = size - size % 4;
     Index k = 4;
     for (; k < unrolledEnd; k += 4) {
-      const Scalar next = func(func(eval.coeff(k), eval.coeff(k + 1)), func(eval.coeff(k + 2), eval.coeff(k + 3)));
-      res = func(res, next);
+      res = func(res, func(func(eval.coeff(k), eval.coeff(k + 1)), func(eval.coeff(k + 2), eval.coeff(k + 3))));
     }
     for (; k < size; ++k) res = func(res, eval.coeff(k));
     return res;
@@ -493,7 +586,10 @@ struct redux_dispatch<Func, Evaluator, XprType, true> {
 /** \returns the result of a full redux operation on the whole matrix or vector using \a func
  *
  * The template parameter \a BinaryOp is the type of the functor \a func which must be
- * an associative operator.
+ * an associative operator. Coefficients are combined in traversal order, though possibly
+ * re-associated into groups. If \c Eigen::internal::functor_is_commutative<BinaryOp> is
+ * specialized to derive from \c std::true_type, the implementation may also reorder operands,
+ * which enables a faster reduction; Eigen's own sum, product, min and max functors opt in.
  *
  * \warning the matrix must be not empty, otherwise an assertion is triggered.
  *

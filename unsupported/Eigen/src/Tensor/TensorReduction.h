@@ -164,11 +164,42 @@ template <typename Self, typename Op,
 struct InnerMostDimReducer {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Self::CoeffReturnType reduce(
       const Self& self, typename Self::Index firstIndex, typename Self::Index numValuesToReduce, Op& reducer) {
-    typename Self::CoeffReturnType accum = reducer.initialize();
-    for (typename Self::Index j = 0; j < numValuesToReduce; ++j) {
-      reducer.reduce(self.m_impl.coeff(firstIndex + j), &accum);
+    using Index = typename Self::Index;
+    typename Self::CoeffReturnType accum0 = reducer.initialize();
+    Index j = 0;
+    // The accumulators take interleaved operands and are merged by feeding one back through
+    // reduce(), so this needs a pure combine that is also associative and commutative;
+    // reducer_can_reorder_accumulators marks the reducers that guarantee both.
+    EIGEN_IF_CONSTEXPR (reducer_can_reorder_accumulators<Op>::value) {
+      if (numValuesToReduce >= 8) {
+        typename Self::CoeffReturnType accum1 = reducer.initialize(), accum2 = reducer.initialize();
+        typename Self::CoeffReturnType accum3 = reducer.initialize(), accum4 = reducer.initialize();
+        typename Self::CoeffReturnType accum5 = reducer.initialize(), accum6 = reducer.initialize();
+        typename Self::CoeffReturnType accum7 = reducer.initialize();
+        const Index unrolledEnd = numValuesToReduce - numValuesToReduce % 8;
+        for (; j < unrolledEnd; j += 8) {
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 0), &accum0);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 1), &accum1);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 2), &accum2);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 3), &accum3);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 4), &accum4);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 5), &accum5);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 6), &accum6);
+          reducer.reduce(self.m_impl.coeff(firstIndex + j + 7), &accum7);
+        }
+        reducer.reduce(accum1, &accum0);
+        reducer.reduce(accum2, &accum0);
+        reducer.reduce(accum3, &accum0);
+        reducer.reduce(accum4, &accum0);
+        reducer.reduce(accum5, &accum0);
+        reducer.reduce(accum6, &accum0);
+        reducer.reduce(accum7, &accum0);
+      }
     }
-    return reducer.finalize(accum);
+    for (; j < numValuesToReduce; ++j) {
+      reducer.reduce(self.m_impl.coeff(firstIndex + j), &accum0);
+    }
+    return reducer.finalize(accum0);
   }
 };
 
