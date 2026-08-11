@@ -63,11 +63,15 @@ static void test_static_reshape() {
 
 template <typename>
 static void test_reshape_in_expr() {
-  MatrixXf m1(2, 3 * 5 * 7 * 11);
-  MatrixXf m2(3 * 5 * 7 * 11, 13);
+  // The TensorMaps below alias the matrix data as default-layout (col-major)
+  // tensors, so pin the matrices to ColMajor: MatrixXf would not match under
+  // EIGEN_DEFAULT_TO_ROW_MAJOR.
+  typedef Matrix<float, Dynamic, Dynamic, ColMajor> Mtx;
+  Mtx m1(2, 3 * 5 * 7 * 11);
+  Mtx m2(3 * 5 * 7 * 11, 13);
   m1.setRandom();
   m2.setRandom();
-  MatrixXf m3 = m1 * m2;
+  Mtx m3 = m1 * m2;
 
   TensorMap<Tensor<float, 5>> tensor1(m1.data(), 2, 3, 5, 7, 11);
   TensorMap<Tensor<float, 5>> tensor2(m2.data(), 3, 5, 7, 11, 13);
@@ -78,7 +82,7 @@ static void test_reshape_in_expr() {
   Tensor<float, 2> tensor3(2, 13);
   tensor3 = tensor1.reshape(newDims1).contract(tensor2.reshape(newDims2), contract_along);
 
-  Map<MatrixXf> res(tensor3.data(), 2, 13);
+  Map<Mtx> res(tensor3.data(), 2, 13);
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 13; ++j) {
       VERIFY_IS_APPROX(res(i, j), m3(i, j));
@@ -536,12 +540,19 @@ static void test_empty_slice() {
   CALL_SUBTEST_PART(PART)((NAME<bool, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, RowMajor>()))
 
+// The type/layout sweeps reach CALL_SUBTEST_N through CALL_SUBTESTS_TYPES_LAYOUTS,
+// which the configure-time suffix scan cannot see; list the parts explicitly.
+// EIGEN_SUFFIXES;1;2;3;4;5;6;7
 EIGEN_DECLARE_TEST(tensor_morphing) {
   CALL_SUBTEST_1(test_simple_reshape<void>());
   CALL_SUBTEST_1(test_static_reshape<void>());
   CALL_SUBTEST_1(test_reshape_as_lvalue<void>());
   CALL_SUBTEST_1(test_reshape_in_expr<void>());
   CALL_SUBTEST_1(test_const_slice<float>());
+  // test_slice_in_expr uses a matrix product, so it cannot join the
+  // bool-sweeping CALL_SUBTESTS_TYPES_LAYOUTS batches below.
+  CALL_SUBTEST_1((test_slice_in_expr<float, ColMajor>()));
+  CALL_SUBTEST_1((test_slice_in_expr<float, RowMajor>()));
 
   CALL_SUBTESTS_TYPES_LAYOUTS(2, test_simple_slice);
   CALL_SUBTESTS_TYPES_LAYOUTS(3, test_slice_as_lvalue);
