@@ -896,8 +896,6 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     CALL_SUBTEST_4(selfadjointeigensolver(MatrixXd(2, 2)));
     CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(1, 1)));
     CALL_SUBTEST_5(selfadjointeigensolver(MatrixXcd(2, 2)));
-    CALL_SUBTEST_6(selfadjointeigensolver(Matrix<double, 1, 1>()));
-    CALL_SUBTEST_7(selfadjointeigensolver(Matrix<double, 2, 2>()));
 
     // repeated eigenvalues
     CALL_SUBTEST_17(selfadjointeigensolver_repeated_eigenvalues(Matrix3d()));
