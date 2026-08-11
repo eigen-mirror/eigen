@@ -2,6 +2,11 @@
 //
 // Tests vectorwise reductions (sum, mean, norm, minCoeff, maxCoeff) and
 // broadcasting arithmetic (rowwise += vec, colwise -= vec, rowwise *= vec).
+// The BroadcastSubExp pair isolates Eigen's packet path through the Replicate
+// evaluator: the scalar fallback calls libm exp per element, so unlike the
+// plain add/mul broadcasts it cannot be rescued by compiler auto-vectorization.
+// The PerCol variant performs the same operation with an explicit column loop
+// and serves as an upper-bound reference.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
@@ -158,6 +163,42 @@ static void BM_RowwiseBroadcastMul(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar) * 2);
 }
 
+// Broadcast feeding a transcendental (softmax-style normalization):
+// out = exp(m - v replicated across columns).
+template <typename Scalar>
+static void BM_ColwiseBroadcastSubExp(benchmark::State& state) {
+  const Index rows = state.range(0);
+  const Index cols = state.range(1);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Mat m = Mat::Random(rows, cols);
+  Vec v = Vec::Random(rows);
+  Mat out(rows, cols);
+  for (auto _ : state) {
+    out = (m.colwise() - v).array().exp();
+    benchmark::DoNotOptimize(out.data());
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar) * 2);
+}
+
+// Same operation with an explicit per-column loop: upper-bound reference for
+// BM_ColwiseBroadcastSubExp.
+template <typename Scalar>
+static void BM_PerColBroadcastSubExp(benchmark::State& state) {
+  const Index rows = state.range(0);
+  const Index cols = state.range(1);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Mat m = Mat::Random(rows, cols);
+  Vec v = Vec::Random(rows);
+  Mat out(rows, cols);
+  for (auto _ : state) {
+    for (Index j = 0; j < cols; ++j) out.col(j) = (m.col(j) - v).array().exp();
+    benchmark::DoNotOptimize(out.data());
+  }
+  state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar) * 2);
+}
+
 // --- Size configurations ---
 // clang-format off
 // Square matrices; tall-thin (many rows, few cols); short-wide (few rows, many cols).
@@ -176,6 +217,8 @@ BENCHMARK(BM_RowwiseNorm<float>) BROADCAST_SIZES ->Name("RowwiseNorm_float");
 BENCHMARK(BM_RowwiseBroadcastAdd<float>) BROADCAST_SIZES ->Name("RowwiseBroadcastAdd_float");
 BENCHMARK(BM_ColwiseBroadcastAdd<float>) BROADCAST_SIZES ->Name("ColwiseBroadcastAdd_float");
 BENCHMARK(BM_RowwiseBroadcastMul<float>) BROADCAST_SIZES ->Name("RowwiseBroadcastMul_float");
+BENCHMARK(BM_ColwiseBroadcastSubExp<float>) BROADCAST_SIZES ->Name("ColwiseBroadcastSubExp_float");
+BENCHMARK(BM_PerColBroadcastSubExp<float>) BROADCAST_SIZES ->Name("PerColBroadcastSubExp_float");
 
 // --- Register: double ---
 BENCHMARK(BM_ColwiseSum<double>) BROADCAST_SIZES ->Name("ColwiseSum_double");
@@ -188,6 +231,8 @@ BENCHMARK(BM_RowwiseNorm<double>) BROADCAST_SIZES ->Name("RowwiseNorm_double");
 BENCHMARK(BM_RowwiseBroadcastAdd<double>) BROADCAST_SIZES ->Name("RowwiseBroadcastAdd_double");
 BENCHMARK(BM_ColwiseBroadcastAdd<double>) BROADCAST_SIZES ->Name("ColwiseBroadcastAdd_double");
 BENCHMARK(BM_RowwiseBroadcastMul<double>) BROADCAST_SIZES ->Name("RowwiseBroadcastMul_double");
+BENCHMARK(BM_ColwiseBroadcastSubExp<double>) BROADCAST_SIZES ->Name("ColwiseBroadcastSubExp_double");
+BENCHMARK(BM_PerColBroadcastSubExp<double>) BROADCAST_SIZES ->Name("PerColBroadcastSubExp_double");
 
 #undef BROADCAST_SIZES
 // clang-format on

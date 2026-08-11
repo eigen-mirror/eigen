@@ -1547,7 +1547,15 @@ struct unary_evaluator<Replicate<ArgType, RowFactor, ColFactor>>
   enum {
     CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,
     LinearAccessMask = XprType::IsVectorAtCompileTime ? LinearAccessBit : 0,
-    Flags = (evaluator<ArgTypeNestedCleaned>::Flags & (HereditaryBits | LinearAccessMask) & ~RowMajorBit) |
+    // The packet paths below load from a single copy of the nested expression, so they are valid
+    // exactly when a packet cannot cross a replication boundary: the inner (storage-order)
+    // direction must not be replicated. The outer coordinate's modulo then maps any packet into
+    // the nested expression unchanged. When the inner direction is replicated, serving a packet
+    // would need a broadcast (or a wrap-around load) the methods below do not perform.
+    InnerFactor = traits<XprType>::IsRowMajor ? ColFactor : RowFactor,
+    MaskPacketAccessBit = InnerFactor == 1 ? PacketAccessBit : 0,
+    Flags = (evaluator<ArgTypeNestedCleaned>::Flags & (HereditaryBits | LinearAccessMask | MaskPacketAccessBit) &
+             ~RowMajorBit) |
             (traits<XprType>::Flags & RowMajorBit),
 
     Alignment = evaluator<ArgTypeNestedCleaned>::Alignment
