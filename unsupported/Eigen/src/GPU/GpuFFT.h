@@ -8,38 +8,17 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU FFT via cuFFT.
+// GPU FFT via cuFFT: 1D and 2D C2C, R2C, and C2R transforms with plan caching.
 //
-// FFT class with plan caching. Supports 1D and 2D transforms:
-// C2C (complex-to-complex), R2C (real-to-complex), C2R (complex-to-real).
+// The stream and cuBLAS handle come from a bound gpu::Context, which defaults to
+// Context::threadLocal() so an FFT shares a stream with the thread's other GPU
+// work; pass an explicit Context to bind elsewhere.
 //
-// Stream and cuBLAS handle come from a gpu::Context — the default
-// constructor binds to Context::threadLocal() so an FFT instance shares a
-// stream with other GPU operations on the same thread by default. Pass an
-// explicit Context to bind to a different stream.
+// Inverse transforms are scaled by 1/n (1D) or 1/(n*m) (2D), so inv(fwd(x)) == x
+// as in Eigen's CPU FFT.
 //
-// Inverse transforms are scaled by 1/n (1D) or 1/(n*m) (2D) so that
-// inv(fwd(x)) == x, matching Eigen's FFT convention.
-//
-// cuFFT plans are cached by (size, type) in a bounded LRU. On overflow the
-// least-recently-used plan is destroyed via cufftDestroy. The capacity
-// defaults to kDefaultCufftPlanCacheCapacity and can be overridden at
-// construction.
-//
-// Thread safety: not thread-safe. Concurrent fwd/inv calls on a single FFT
-// instance race on the cached plans and the bound Context. Use one FFT
-// instance per thread.
-//
-// Usage:
-//   FFT<float> fft;                  // shares the thread-local Context
-//   VectorXcf X = fft.fwd(x);        // 1D C2C or R2C
-//   VectorXcf y = fft.inv(X);        // 1D C2C inverse
-//   VectorXf  r = fft.invReal(X, n); // 1D C2R inverse
-//   MatrixXcf B = fft.fwd2(A);       // 2D C2C forward
-//   MatrixXcf C = fft.inv2(B);       // 2D C2C inverse
-//
-//   gpu::Context ctx;
-//   FFT<float> fft2(ctx);            // shares ctx's stream/cuBLAS
+// Not thread-safe: concurrent fwd/inv calls on one instance race on the cached
+// plans and the bound Context. Use one FFT per thread.
 
 #ifndef EIGEN_GPU_FFT_H
 #define EIGEN_GPU_FFT_H
@@ -53,7 +32,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 // Default capacity of the per-FFT-instance cuFFT plan cache. Override by
 // passing a capacity to the FFT constructor.
 static constexpr std::size_t kDefaultCufftPlanCacheCapacity = 16;
@@ -98,8 +76,6 @@ class FFT {
 
   FFT(const FFT&) = delete;
   FFT& operator=(const FFT&) = delete;
-
-  // ---- 1D Complex-to-Complex ------------------------------------------------
 
   /** Forward 1D C2C FFT. */
   template <typename Derived, std::enable_if_t<NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
@@ -150,8 +126,6 @@ class FFT {
     return result;
   }
 
-  // ---- 1D Real-to-Complex ---------------------------------------------------
-
   /** Forward 1D R2C FFT. Returns n/2+1 complex values (half-spectrum). */
   template <typename Derived, std::enable_if_t<!NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
   ComplexVector fwd(const MatrixBase<Derived>& x) {
@@ -174,8 +148,6 @@ class FFT {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
-
-  // ---- 1D Complex-to-Real ---------------------------------------------------
 
   /** Inverse 1D C2R FFT. Input is n/2+1 complex values, output is nfft real values.
    * Scaled by 1/nfft. Caller must specify nfft (original real signal length). */
@@ -207,8 +179,6 @@ class FFT {
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx_->stream()));
     return result;
   }
-
-  // ---- 2D Complex-to-Complex ------------------------------------------------
 
   /** Forward 2D C2C FFT. Input and output are rows x cols complex matrices. */
   template <typename Derived>
@@ -263,7 +233,6 @@ class FFT {
     return result;
   }
 
-  // ---- Device-resident transforms --------------------------------------------
   // DeviceMatrix in / DeviceMatrix out: no host transfer and no host
   // synchronization. Cross-stream safety follows the DeviceMatrix event
   // protocol (waitReady before reading, recordReady after enqueuing). 1D
@@ -353,8 +322,6 @@ class FFT {
     d_B.recordReady(ctx_->stream());
   }
 
-  // ---- Accessors ------------------------------------------------------------
-
   /** The CUDA stream borrowed from the bound Context. */
   cudaStream_t stream() const { return ctx_->stream(); }
 
@@ -439,7 +406,6 @@ class FFT {
     return plans_.insert(key, internal::CufftPlan(plan))->get();
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

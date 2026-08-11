@@ -8,11 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Dispatch functions that map DeviceMatrix expressions to NVIDIA library calls.
-//
-// dispatch_gemm()  — GemmExpr → cublasLtMatmul (with cublasGemmEx fallback)
-//
-// Each function documents the exact library call and parameters.
+// Dispatch functions mapping DeviceMatrix expressions to NVIDIA library calls,
+// plus the DeviceMatrix members that need a complete gpu::Context.
 
 #ifndef EIGEN_GPU_DEVICE_DISPATCH_H
 #define EIGEN_GPU_DEVICE_DISPATCH_H
@@ -33,15 +30,10 @@
 namespace Eigen {
 namespace gpu {
 namespace internal {
-
 template <typename Scalar>
 bool aliases_device_memory(const DeviceMatrix<Scalar>& a, const DeviceMatrix<Scalar>& b) {
   return a.data() != nullptr && a.data() == b.data();
 }
-
-// ---- GEMM dispatch ----------------------------------------------------------
-// GemmExpr<Lhs, Rhs> → cublasLtMatmul via cublaslt_gemm (with shape-keyed plan
-// cache and cublasGemmEx fallback).
 
 template <typename Lhs, typename Rhs>
 void dispatch_gemm(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExpr<Lhs, Rhs>& expr,
@@ -53,7 +45,7 @@ void dispatch_gemm(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const Ge
   const DeviceMatrix<Scalar>& A = traits_lhs::matrix(expr.lhs());
   const DeviceMatrix<Scalar>& B = traits_rhs::matrix(expr.rhs());
 
-  // cuBLAS GEMM: C must not alias A or B (undefined behavior).
+  // cuBLAS leaves C aliasing A or B undefined.
   eigen_assert(!aliases_device_memory(dst, A) && "GEMM: output aliases left operand (use a temporary)");
   eigen_assert(!aliases_device_memory(dst, B) && "GEMM: output aliases right operand (use a temporary)");
 
@@ -89,10 +81,10 @@ void dispatch_gemm(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const Ge
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
-  // cuBLAS reads alpha and beta through host pointers. Store them in an array
-  // to prevent the compiler from eliding their stack slots — clang and MSVC
-  // at -O1+ otherwise optimise away the stores for complex types, leaving
-  // cuBLAS with a dangling pointer.
+  // cuBLAS reads alpha and beta through host pointers. Holding them in an array
+  // keeps the compiler from eliding their stack slots — at -O1+ clang and MSVC
+  // otherwise drop the stores for complex types, leaving cuBLAS with a dangling
+  // pointer.
   Scalar scalars[2] = {alpha_local, beta_val};
   cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda, B.data(),
                 ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
@@ -305,7 +297,7 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  // See dispatch_gemm: array prevents compiler from eliding host-pointer stack slots.
+  // The array keeps the host-pointer stack slots alive; see dispatch_gemm.
   Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
   EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(),
@@ -351,7 +343,6 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
   dst.recordReady(ctx.stream());
 }
 
-// ---- geam dispatch ------------------------------------------------------------
 // DeviceAddExpr → cublasXgeam: dst = alpha * A + beta * B. Safe when dst
 // aliases A and/or B (geam supports in-place operation with equal leading
 // dimensions, which always holds here since DeviceMatrix is fully dense).
@@ -377,7 +368,6 @@ void dispatch_geam(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<
     dst.recordReady(ctx.stream());
   }
 }
-
 }  // namespace internal
 
 template <typename Scalar_>
@@ -454,8 +444,8 @@ class Assignment {
   Context& ctx_;
 };
 
-// Out-of-line definitions: these depend on Context::threadLocal(), which
-// requires the full Context definition unavailable in DeviceMatrix.h.
+// The definitions below call Context::threadLocal(), so they cannot live in
+// DeviceMatrix.h, where Context is still incomplete.
 
 template <typename Scalar_>
 template <typename Lhs, typename Rhs>
@@ -511,7 +501,6 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const Scaled<DeviceMatri
   return *this;
 }
 
-// ---- Converting constructors (declared in DeviceMatrix.h) --------------------
 // Enable copy-initialization straight from an expression, e.g.
 //   DeviceMatrix<double> d_C = d_A * d_B;
 // Each default-constructs and delegates to the matching operator=.
@@ -562,12 +551,9 @@ void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A,
   internal::dispatch_syrk(Context::threadLocal(), matrix(), expr, alpha, beta);
 }
 
-// ---- Helper: scoped CUBLAS_POINTER_MODE_DEVICE ------------------------------
-// Saves the current pointer mode, switches to device, runs the callable,
-// then restores the original mode. Used by dot, norm, operator*=(DeviceScalar),
-// and operator+=(DeviceScaledDevice).
-
 namespace internal {
+// Runs `f` with the handle temporarily in CUBLAS_POINTER_MODE_DEVICE, restoring
+// the caller's mode afterwards.
 template <typename F>
 void with_device_pointer_mode(cublasHandle_t h, F&& f) {
   cublasPointerMode_t prev;
@@ -578,19 +564,13 @@ void with_device_pointer_mode(cublasHandle_t h, F&& f) {
 }
 }  // namespace internal
 
-// ---- DeviceMatrix BLAS-1 out-of-line definitions ----------------------------
-// Defined here because they need the full Context definition.
-// All methods take an explicit Context& so callers can ensure same-stream
-// execution (zero event overhead when all operations share one context).
-//
-// Reduction methods (dot, norm, squaredNorm) use CUBLAS_POINTER_MODE_DEVICE:
-// the scalar result is written to device memory and stays there until read
-// via DeviceScalar's implicit conversion to Scalar (which syncs).
+// The reductions below (dot, norm, squaredNorm) run under
+// CUBLAS_POINTER_MODE_DEVICE: the scalar result is written to device memory and
+// stays there until DeviceScalar's conversion to Scalar syncs and reads it.
 
 namespace internal {
-// BLAS-1 cuBLAS wrappers take int counts. Index is ptrdiff_t on 64-bit
-// systems, so guard against silent truncation for matrices with > INT_MAX
-// elements.
+// The BLAS-1 wrappers take int counts, while Index is ptrdiff_t on 64-bit hosts,
+// so guard against silent truncation past INT_MAX elements.
 inline int blas1_int_size(Index rows, Index cols) {
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   eigen_assert(total <= static_cast<int64_t>((std::numeric_limits<int>::max)()) &&
@@ -620,14 +600,14 @@ DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(
 }
 
 namespace internal {
-// Real: dot(x,x) returns DeviceScalar<Scalar> which IS DeviceScalar<RealScalar>.
-// Move-construct without any sync.
+// For real Scalar, dot(x,x) already has type DeviceScalar<RealScalar>, so a move
+// suffices and nothing syncs.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
     DeviceScalar<Scalar>&& d, cudaStream_t) {
   return std::move(d);
 }
-// Complex: must sync to extract the real part (DeviceScalar arithmetic is real-only).
+// Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
 template <typename Scalar, typename RealScalar>
 std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
     DeviceScalar<Scalar>&& d, cudaStream_t stream) {
@@ -637,9 +617,9 @@ std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScal
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
-  // Use dot(x,x) instead of nrm2()^2: dot kernel is ~4.5x faster than nrm2
-  // (nrm2 uses a numerically careful scaled-sum-of-squares algorithm that is
-  // unnecessary for CG convergence checks).
+  // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster, since nrm2
+  // runs a scaled sum of squares whose overflow protection convergence checks do
+  // not need.
   using RealScalar = typename NumTraits<Scalar_>::Real;
   return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
 }
@@ -709,8 +689,6 @@ void DeviceMatrix<Scalar_>::copyFrom(Context& ctx, const DeviceMatrix& other) {
     recordReady(ctx.stream());
   }
 }
-
-// ---- BLAS-1 operator overloads for CG compatibility -------------------------
 
 // this += alpha * x  (axpy)
 template <typename Scalar_>
@@ -848,7 +826,6 @@ template <typename Scalar_>
 void DeviceMatrix<Scalar_>::setZero() {
   setZero(Context::threadLocal());
 }
-
 }  // namespace gpu
 }  // namespace Eigen
 

@@ -8,15 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU self-adjoint eigenvalue decomposition using cuSOLVER.
-//
-// Wraps cusolverDnXsyevd (symmetric/Hermitian divide-and-conquer).
-// Stores eigenvalues and eigenvectors on device.
-//
-// Usage:
-//   SelfAdjointEigenSolver<double> es(A);
-//   VectorXd eigenvals = es.eigenvalues();
-//   MatrixXd eigenvecs = es.eigenvectors();
+// GPU self-adjoint eigenvalue decomposition using cuSOLVER's divide-and-conquer
+// cusolverDnXsyevd. Eigenvalues and eigenvectors stay on device.
 
 #ifndef EIGEN_GPU_EIGENSOLVER_H
 #define EIGEN_GPU_EIGENSOLVER_H
@@ -28,7 +21,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 template <typename Scalar_>
 class SelfAdjointEigenSolver {
  public:
@@ -104,8 +96,6 @@ class SelfAdjointEigenSolver {
     return *this;
   }
 
-  // ---- Factorization -------------------------------------------------------
-
   template <typename InputType>
   SelfAdjointEigenSolver& compute(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
     // Route through the adopting overload: the freshly uploaded matrix is
@@ -137,8 +127,6 @@ class SelfAdjointEigenSolver {
     return *this;
   }
 
-  // ---- Accessors -----------------------------------------------------------
-
   ComputationInfo info() const { return solver_ctx_.info(); }
 
   Index cols() const { return n_; }
@@ -169,7 +157,6 @@ class SelfAdjointEigenSolver {
     return V;
   }
 
-  // ---- Device-side accessors (zero-copy views; chain into cuBLAS without D2D) ---------
   //
   // These return non-owning DeviceMatrix views over this solver's internal storage. The
   // view borrows the pointer: destruction does not free; this solver must outlive any
@@ -233,7 +220,6 @@ class SelfAdjointEigenSolver {
 
     const cusolverEigMode_t jobz = compute_eigenvectors_ ? CUSOLVER_EIG_MODE_VECTOR : CUSOLVER_EIG_MODE_NOVECTOR;
 
-    // Use lower triangle (standard convention).
     constexpr cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER;
 
     size_t dev_ws = 0, host_ws = 0;
@@ -252,7 +238,6 @@ class SelfAdjointEigenSolver {
     solver_ctx_.enqueue_info_copy();
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

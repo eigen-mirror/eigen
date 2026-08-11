@@ -8,8 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// cuFFT support utilities: error-checking macro, scalar-to-cufftType traits,
-// a plan RAII wrapper, and type-dispatched execution helpers.
+// cuFFT-specific support types.
 
 #ifndef EIGEN_GPU_CUFFT_SUPPORT_H
 #define EIGEN_GPU_CUFFT_SUPPORT_H
@@ -24,16 +23,12 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// ---- Error checking ---------------------------------------------------------
-
 #define EIGEN_CUFFT_CHECK(x)                                       \
   do {                                                             \
     cufftResult _r = (x);                                          \
     eigen_assert(_r == CUFFT_SUCCESS && "cuFFT call failed: " #x); \
     EIGEN_UNUSED_VARIABLE(_r);                                     \
   } while (0)
-
-// ---- Scalar → cufftType traits ----------------------------------------------
 
 template <typename Scalar>
 struct cufft_c2c_type;
@@ -71,11 +66,9 @@ struct cufft_c2r_type<double> {
   static constexpr cufftType value = CUFFT_Z2D;
 };
 
-// ---- Plan RAII wrapper ------------------------------------------------------
-
-// Move-only owner of a cufftHandle. Used as the Value type of an LruCache so
-// that eviction destroys the plan via the wrapper's destructor — no callback
-// machinery in the cache itself.
+// Move-only owner of a cufftHandle. Used as an LruCache Value type so eviction
+// destroys the plan through this destructor, with no callback machinery in the
+// cache itself.
 class CufftPlan {
  public:
   CufftPlan() = default;
@@ -110,9 +103,6 @@ class CufftPlan {
   bool owns_ = false;
 };
 
-// ---- Type-dispatched cuFFT execution ----------------------------------------
-
-// C2C
 inline cufftResult cufftExecC2C_dispatch(cufftHandle plan, std::complex<float>* in, std::complex<float>* out,
                                          int direction) {
   return cufftExecC2C(plan, reinterpret_cast<cufftComplex*>(in), reinterpret_cast<cufftComplex*>(out), direction);
@@ -123,7 +113,6 @@ inline cufftResult cufftExecC2C_dispatch(cufftHandle plan, std::complex<double>*
                       direction);
 }
 
-// R2C
 inline cufftResult cufftExecR2C_dispatch(cufftHandle plan, float* in, std::complex<float>* out) {
   return cufftExecR2C(plan, in, reinterpret_cast<cufftComplex*>(out));
 }
@@ -131,7 +120,6 @@ inline cufftResult cufftExecR2C_dispatch(cufftHandle plan, double* in, std::comp
   return cufftExecD2Z(plan, in, reinterpret_cast<cufftDoubleComplex*>(out));
 }
 
-// C2R
 inline cufftResult cufftExecC2R_dispatch(cufftHandle plan, std::complex<float>* in, float* out) {
   return cufftExecC2R(plan, reinterpret_cast<cufftComplex*>(in), out);
 }

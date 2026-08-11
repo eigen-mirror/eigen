@@ -8,14 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// cuSOLVER-specific support types:
-//   - cuSOLVER error-checking macro
-//   - RAII wrapper for cusolverDnParams
-//   - Scalar → cudaDataType_t mapping
-//   - UpLo → cublasFillMode_t mapping
-//
-// Generic CUDA runtime utilities (DeviceBuffer, EIGEN_CUDA_RUNTIME_CHECK)
-// are in GpuSupport.h.
+// cuSOLVER-specific support types. Generic CUDA runtime utilities (DeviceBuffer,
+// EIGEN_CUDA_RUNTIME_CHECK) live in GpuSupport.h.
 
 #ifndef EIGEN_GPU_CUSOLVER_SUPPORT_H
 #define EIGEN_GPU_CUSOLVER_SUPPORT_H
@@ -31,10 +25,8 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// ---- Error-checking macros --------------------------------------------------
-
-// cuSOLVER does not ship a cusolverGetErrorString() in the public API, so we
-// stringify the codes ourselves. Keeps failed asserts actionable.
+// cuSOLVER's public API has no cusolverGetErrorString(), so failed asserts would
+// otherwise carry a bare numeric code.
 inline const char* cusolver_status_name(cusolverStatus_t s) {
   switch (s) {
     case CUSOLVER_STATUS_SUCCESS:
@@ -77,22 +69,19 @@ inline bool report_cusolver_failure(cusolverStatus_t s, const char* expr, const 
                  ::Eigen::gpu::internal::report_cusolver_failure(_s, #expr, __FILE__, __LINE__)); \
   } while (0)
 
-// ---- RAII: cusolverDnParams -------------------------------------------------
-
 struct CusolverParams {
   cusolverDnParams_t p = nullptr;
 
   CusolverParams() { EIGEN_CUSOLVER_CHECK(cusolverDnCreateParams(&p)); }
 
   ~CusolverParams() {
-    if (p) (void)cusolverDnDestroyParams(p);  // destructor: can't propagate
+    if (p) (void)cusolverDnDestroyParams(p);  // noexcept context: cannot propagate
   }
 
-  // Move-only.
   CusolverParams(CusolverParams&& o) noexcept : p(o.p) { o.p = nullptr; }
   CusolverParams& operator=(CusolverParams&& o) noexcept {
     if (this != &o) {
-      if (p) (void)cusolverDnDestroyParams(p);  // swallow: noexcept context (mirrors dtor)
+      if (p) (void)cusolverDnDestroyParams(p);  // noexcept context: cannot propagate
       p = o.p;
       o.p = nullptr;
     }
@@ -103,15 +92,12 @@ struct CusolverParams {
   CusolverParams& operator=(const CusolverParams&) = delete;
 };
 
-// ---- Scalar → cudaDataType_t ------------------------------------------------
-// Alias for backward compatibility. The canonical trait is cuda_data_type<> in GpuSupport.h.
+// Alias kept for compatibility; cuda_data_type<> in GpuSupport.h is canonical.
 template <typename Scalar>
 using cusolver_data_type = cuda_data_type<Scalar>;
 
-// ---- UpLo → cublasFillMode_t ------------------------------------------------
-// cuSOLVER always interprets the matrix as column-major. Callers pass the
+// cuSOLVER always interprets the matrix as column-major, so callers must pass the
 // triangle that holds the data in column-major layout.
-
 template <int UpLo>
 struct cusolver_fill_mode;
 
@@ -124,11 +110,8 @@ struct cusolver_fill_mode<Upper> {
   static constexpr cublasFillMode_t value = CUBLAS_FILL_MODE_UPPER;
 };
 
-// ---- Type-specific cuSOLVER wrappers ----------------------------------------
-// cuSOLVER does not provide generic X variants for ormqr/unmqr. These overloaded
-// wrappers dispatch to the correct type-specific function.
-// For real types: ormqr (orthogonal Q). For complex types: unmqr (unitary Q).
-
+// cuSOLVER ships no generic X variant for ormqr/unmqr, so these overloads supply
+// one: real → ormqr (orthogonal Q), complex → unmqr (unitary Q).
 inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t side, cublasOperation_t trans, int m,
                                          int n, int k, const float* A, int lda, const float* tau, float* C, int ldc,
                                          float* work, int lwork, int* info) {
@@ -156,7 +139,6 @@ inline cusolverStatus_t cusolverDnXormqr(cusolverDnHandle_t h, cublasSideMode_t 
                           reinterpret_cast<cuDoubleComplex*>(work), lwork, info);
 }
 
-// Buffer size wrappers for ormqr/unmqr.
 inline cusolverStatus_t cusolverDnXormqr_bufferSize(cusolverDnHandle_t h, cublasSideMode_t side,
                                                     cublasOperation_t trans, int m, int n, int k, const float* A,
                                                     int lda, const float* tau, const float* C, int ldc, int* lwork) {

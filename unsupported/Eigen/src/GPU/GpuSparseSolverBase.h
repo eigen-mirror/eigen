@@ -8,18 +8,15 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Common base for GPU sparse direct solvers (LLT, LDLT, LU) via cuDSS.
+// Common base for the GPU sparse direct solvers (LLT, LDLT, LU) via cuDSS.
 //
-// All three solver types share the same three-phase workflow
-// (analyzePattern → factorize → solve) and differ only in the
-// cudssMatrixType_t and cudssMatrixViewType_t passed to cuDSS.
-// This CRTP base implements the entire workflow; derived classes
-// provide the matrix type/view via static constexpr members.
+// All three share one analyzePattern → factorize → solve workflow and differ only
+// in the cudssMatrixType_t and cudssMatrixViewType_t they pass to cuDSS, so this
+// CRTP base implements the workflow and derived classes supply the two types.
 //
-// Thread safety: not thread-safe. Concurrent calls (including concurrent
-// solve() calls on the same instance, even though solve() is const) race
-// on the cuDSS handle, the bound stream, and the cached scratch buffers.
-// Use one solver instance per thread, matching Eigen::SimplicialLLT.
+// Not thread-safe: concurrent calls race on the cuDSS handle, the bound stream,
+// and the cached scratch buffers. This includes concurrent solve() calls on one
+// instance, const though solve() is. Use one solver per thread.
 
 #ifndef EIGEN_GPU_SPARSE_SOLVER_BASE_H
 #define EIGEN_GPU_SPARSE_SOLVER_BASE_H
@@ -33,7 +30,6 @@
 namespace Eigen {
 namespace gpu {
 namespace internal {
-
 /** CRTP base for GPU sparse direct solvers.
  *
  * \tparam Scalar_  Element type (passed explicitly to avoid incomplete-type issues with CRTP).
@@ -70,8 +66,6 @@ class SparseSolverBase {
 
   SparseSolverBase(const SparseSolverBase&) = delete;
   SparseSolverBase& operator=(const SparseSolverBase&) = delete;
-
-  // ---- Factorization --------------------------------------------------------
 
   /** Symbolic analysis + numeric factorization. */
   template <typename InputType>
@@ -189,8 +183,6 @@ class SparseSolverBase {
     return derived();
   }
 
-  // ---- Solve ----------------------------------------------------------------
-
   /** Solve A * X = B (host → host). Returns X as a dense matrix.
    * Supports single or multiple right-hand sides. */
   template <typename Rhs>
@@ -244,8 +236,6 @@ class SparseSolverBase {
     return X;
   }
 
-  // ---- Accessors ------------------------------------------------------------
-
   ComputationInfo info() const {
     sync_info();
     return info_;
@@ -256,7 +246,6 @@ class SparseSolverBase {
   cudaStream_t stream() const { return stream_; }
 
  protected:
-  // ---- CUDA / cuDSS handles -------------------------------------------------
   cudaStream_t stream_ = nullptr;
   bool owns_stream_ = true;
   cudssHandle_t handle_ = nullptr;
@@ -266,7 +255,6 @@ class SparseSolverBase {
   cudssMatrix_t d_x_cudss_ = nullptr;
   cudssMatrix_t d_b_cudss_ = nullptr;
 
-  // ---- Device buffers for CSR arrays ----------------------------------------
   DeviceBuffer d_rowPtr_;
   DeviceBuffer d_colIdx_;
   DeviceBuffer d_values_;
@@ -276,7 +264,6 @@ class SparseSolverBase {
   // H2D copy.
   DenseVector conj_values_;
 
-  // ---- Cached scratch for solve() (mutable so const solve() can grow them) --
   mutable DeviceBuffer d_b_solve_;
   mutable DeviceBuffer d_x_solve_;
 
@@ -286,7 +273,6 @@ class SparseSolverBase {
   mutable cudssMatrix_t x_solve_cudss_ = nullptr;
   mutable int64_t solve_desc_nrhs_ = -1;
 
-  // ---- State ----------------------------------------------------------------
   int64_t n_ = 0;
   int64_t nnz_ = 0;
   mutable ComputationInfo info_ = InvalidInput;
@@ -448,7 +434,6 @@ class SparseSolverBase {
     EIGEN_CUDSS_CHECK(cudssMatrixCreateDn(&d_b_cudss_, n_, 1, n_, nullptr, dtype, CUDSS_LAYOUT_COL_MAJOR));
   }
 };
-
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

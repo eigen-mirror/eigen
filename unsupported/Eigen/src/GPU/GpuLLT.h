@@ -8,21 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU Cholesky (LLT) decomposition using cuSOLVER.
-//
-// Unlike Eigen's CPU LLT<MatrixType>, gpu::LLT keeps the factored Cholesky
-// factor in device memory for the lifetime of the object. Multiple solves
-// against the same factor therefore only transfer the RHS and solution
-// vectors, not the factor itself.
-//
-// Requires CUDA 11.0+ (cusolverDnXpotrf / cusolverDnXpotrs generic API).
-// Requires CUDA 11.4+ (cusolverDnX generic API + cudaMallocAsync).
-//
-// Usage:
-//   gpu::LLT<double> llt(A);            // upload A, potrf, L stays on device
-//   if (llt.info() != Success) { ... }
-//   MatrixXd x1 = llt.solve(b1);        // potrs, only b1 transferred
-//   MatrixXd x2 = llt.solve(b2);        // L already on device
+// GPU Cholesky (LLT) decomposition using cuSOLVER. Requires CUDA 11.4+ for the
+// cusolverDnX generic API.
 
 #ifndef EIGEN_GPU_LLT_H
 #define EIGEN_GPU_LLT_H
@@ -34,7 +21,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 /** \ingroup GPU_Module
  * \class LLT
  * \brief GPU Cholesky (LL^T) decomposition via cuSOLVER
@@ -59,8 +45,6 @@ class LLT {
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   static constexpr int UpLo = UpLo_;
-
-  // ---- Construction / destruction ------------------------------------------
 
   /** Default constructor. Does not factorize; call compute() before solve(). */
   LLT() = default;
@@ -116,8 +100,6 @@ class LLT {
     return *this;
   }
 
-  // ---- Factorization -------------------------------------------------------
-
   /** Compute the Cholesky factorization of A (host matrix). */
   template <typename InputType>
   LLT& compute(const EigenBase<InputType>& A) {
@@ -161,8 +143,6 @@ class LLT {
     factorize();
     return *this;
   }
-
-  // ---- Solve ---------------------------------------------------------------
 
   /** Solve A * X = B using the cached Cholesky factor (host → host). */
   template <typename Rhs>
@@ -221,8 +201,6 @@ class LLT {
     internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb));
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
-
-  // ---- Accessors -----------------------------------------------------------
 
   ComputationInfo info() const { return solver_ctx_.info(); }
   Index rows() const { return n_; }
@@ -286,7 +264,6 @@ class LLT {
     solver_ctx_.enqueue_info_copy();
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

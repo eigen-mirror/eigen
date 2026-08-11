@@ -8,14 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU sparse LU factorization via cuDSS.
-//
-// For general (non-symmetric) sparse matrices. Uses pivoting.
-// Same three-phase workflow as SparseLLT.
-//
-// Usage:
-//   SparseLU<double> lu(A);          // analyze + factorize
-//   VectorXd x = lu.solve(b);           // solve
+// GPU sparse LU factorization via cuDSS, with pivoting, for general
+// (non-symmetric) matrices.
 
 #ifndef EIGEN_GPU_SPARSE_LU_H
 #define EIGEN_GPU_SPARSE_LU_H

@@ -8,19 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU partial-pivoting LU decomposition using cuSOLVER.
-//
-// Wraps cusolverDnXgetrf (factorization) and cusolverDnXgetrs (solve).
-// The factored LU matrix and pivot array are kept in device memory for the
-// lifetime of the object, so repeated solves only transfer the RHS/solution.
-//
-// Requires CUDA 11.0+ (cusolverDnX generic API).
-//
-// Usage:
-//   gpu::LU<double> lu(A);            // upload A, getrf, LU+ipiv on device
-//   if (lu.info() != Success) { ... }
-//   MatrixXd x = lu.solve(b);         // getrs NoTrans, only b transferred
-//   MatrixXd xt = lu.solve(b, gpu::GpuOp::Trans);   // A^T x = b
+// GPU partial-pivoting LU decomposition using cuSOLVER, wrapping
+// cusolverDnXgetrf and cusolverDnXgetrs.
 
 #ifndef EIGEN_GPU_LU_H
 #define EIGEN_GPU_LU_H
@@ -32,7 +21,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 /** \ingroup GPU_Module
  * \class LU
  * \brief GPU LU decomposition with partial pivoting via cuSOLVER
@@ -51,8 +39,6 @@ class LU {
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-
-  // ---- Construction / destruction ------------------------------------------
 
   LU() = default;
 
@@ -109,8 +95,6 @@ class LU {
     return *this;
   }
 
-  // ---- Factorization -------------------------------------------------------
-
   /** Compute the LU factorization of A (host matrix, must be square). */
   template <typename InputType>
   LU& compute(const EigenBase<InputType>& A) {
@@ -154,8 +138,6 @@ class LU {
     factorize();
     return *this;
   }
-
-  // ---- Solve ---------------------------------------------------------------
 
   /** Solve op(A) * X = B using the cached LU factorization (host → host).
    *
@@ -219,8 +201,6 @@ class LU {
         internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), matrixBytes(nrhs, ldb));
     return solve_impl(nrhs, ldb, op, std::move(d_x));
   }
-
-  // ---- Accessors -----------------------------------------------------------
 
   ComputationInfo info() const { return solver_ctx_.info(); }
   Index rows() const { return n_; }
@@ -288,7 +268,6 @@ class LU {
     solver_ctx_.enqueue_info_copy();
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

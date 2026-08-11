@@ -9,12 +9,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // GPU sparse Cholesky (LL^T / LL^H) via cuDSS.
-//
-// Usage:
-//   SparseLLT<double> llt(A);        // analyze + factorize
-//   VectorXd x = llt.solve(b);          // solve
-//   llt.analyzePattern(A);              // or separate phases
-//   llt.factorize(A_new);              // reuse symbolic analysis
 
 #ifndef EIGEN_GPU_SPARSE_LLT_H
 #define EIGEN_GPU_SPARSE_LLT_H

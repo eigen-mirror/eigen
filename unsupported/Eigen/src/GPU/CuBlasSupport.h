@@ -8,11 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// cuBLAS-specific support types:
-//   - Error-checking macro
-//   - Operation enum and mapping to cublasOperation_t
-//
-// Generic CUDA runtime utilities (DeviceBuffer, cuda_data_type) are in GpuSupport.h.
+// cuBLAS-specific support types. Generic CUDA runtime utilities (DeviceBuffer,
+// cuda_data_type) live in GpuSupport.h.
 
 #ifndef EIGEN_GPU_CUBLAS_SUPPORT_H
 #define EIGEN_GPU_CUBLAS_SUPPORT_H
@@ -31,8 +28,6 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// ---- Error-checking macro ---------------------------------------------------
-
 #define EIGEN_CUBLAS_CHECK(expr)                                       \
   do {                                                                 \
     cublasStatus_t _s = (expr);                                        \
@@ -50,19 +45,15 @@ constexpr cublasOperation_t to_cublas_op(GpuOp op) {
   }
 }
 
-// ---- Scalar → cublasComputeType_t -------------------------------------------
-// cublasLtMatmul requires a compute type (separate from the data type).
-//
-// Precision policy:
-//   - Default: tensor core algorithms enabled via cublasLtMatmul heuristics.
-//     For double, cuBLAS may use Ozaki emulation on sm_80+ tensor cores.
-//   - EIGEN_CUDA_TF32: opt-in to TF32 for float (~2x faster, 10-bit mantissa).
-//   - EIGEN_NO_CUDA_TENSOR_OPS: disables all tensor core usage. Uses pedantic
-//     compute types. For bit-exact reproducibility.
-
-// Single-precision (real or complex) and double-precision (real or complex) each
-// pick their compute type from one set of preprocessor switches; specializations
-// just dispatch to the right precision tag.
+// cublasLtMatmul takes a compute type separate from the data type, which selects
+// the precision policy:
+//   - Default: tensor-core algorithms via the cublasLtMatmul heuristics. For
+//     double, cuBLAS may use Ozaki emulation on sm_80+ tensor cores.
+//   - EIGEN_CUDA_TF32: TF32 for float (~2x faster, 10-bit mantissa).
+//   - EIGEN_NO_CUDA_TENSOR_OPS: pedantic compute types, no tensor cores, for
+//     bit-exact reproducibility.
+// Real and complex of the same precision share a compute type, so the
+// specializations below just dispatch to a precision tag.
 namespace cuda_compute_type_detail {
 #if defined(EIGEN_NO_CUDA_TENSOR_OPS)
 constexpr cublasComputeType_t kFloat = CUBLAS_COMPUTE_32F_PEDANTIC;
@@ -96,20 +87,6 @@ struct cuda_compute_type<std::complex<double>> {
   static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
 };
 
-// ---- cublasLt GEMM dispatch -------------------------------------------------
-// Wraps cublasLtMatmul with descriptor setup, heuristic algorithm selection,
-// and a small per-context plan cache. Supports 64-bit dimensions natively.
-//
-// The workspace buffer (DeviceBuffer*) is grown lazily to match the selected
-// algorithm's actual requirement. Growth is monotonic.
-//
-// EIGEN_NO_CUDA_TENSOR_OPS: pedantic compute types prevent cublasLt from
-// selecting tensor core algorithms, matching the previous cublasGemmEx behavior.
-//
-// Thread safety: the workspace buffer and plan cache are not thread-safe. All
-// GEMM calls sharing them must be on the same CUDA stream (guaranteed by
-// gpu::Context's single-stream design and by each solver owning its own stream).
-
 #define EIGEN_CUBLASLT_CHECK(expr)                                       \
   do {                                                                   \
     cublasStatus_t _s = (expr);                                          \
@@ -124,7 +101,7 @@ struct cuda_compute_type<std::complex<double>> {
 #endif
 static constexpr size_t kCublasLtMaxWorkspaceBytes = EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES;
 
-// cublasGemmEx fallback algorithm hint (used when cublasLt heuristic returns no results).
+// Algorithm hint for the cublasGemmEx fallback path.
 constexpr cublasGemmAlgo_t cuda_gemm_algo() {
 #ifdef EIGEN_NO_CUDA_TENSOR_OPS
   return CUBLAS_GEMM_DEFAULT;
@@ -133,16 +110,10 @@ constexpr cublasGemmAlgo_t cuda_gemm_algo() {
 #endif
 }
 
-// ---- cublasLt plan cache ----------------------------------------------------
-// Caches matmul descriptors, matrix layouts, and the selected algorithm for
-// repeated GEMM calls with the same (m, n, k, dtype, transA, transB) shape.
-// Eliminates per-call descriptor creation and heuristic lookup overhead, which
-// can be 5-35% of total time for small/medium matrices.
-//
-// Backed by Eigen::internal::LruCache. GEMM shapes in typical workloads (CG
-// iteration, chained solves) have very low cardinality (usually 1-3 distinct
-// shapes), so the cache is small.
-
+// Per-call descriptor creation and heuristic lookup cost 5-35% of total GEMM time
+// for small and medium matrices, so plans are cached by shape. Typical workloads
+// (CG iteration, chained solves) touch only 1-3 distinct shapes, hence the small
+// capacity.
 static constexpr std::size_t kCublasLtPlanCacheCapacity = 8;
 
 struct CublasLtPlanKey {
@@ -174,20 +145,15 @@ struct CublasLtPlanKeyHash {
   }
 };
 
-// Move-only RAII wrapper for a cached cuBLASLt matmul plan: the descriptor,
-// three matrix layouts, and the heuristic-selected algorithm. Destruction
-// destroys all cuBLASLt handles, so the cache can manage entry lifetime via
-// LruCache's eviction.
-//
-// Move-only because each instance uniquely owns four cuBLASLt handles
-// (matmul_desc and three matrix layouts); copying would alias the handles
-// and cause double-destroy.
+// A cached cuBLASLt matmul plan: the descriptor, three matrix layouts, and the
+// heuristic-selected algorithm. Destruction releases all four cuBLASLt handles,
+// so LruCache eviction is enough to manage entry lifetime. Move-only, since
+// copying would alias the handles and double-destroy them.
 class CublasLtPlanEntry {
  public:
-  // Build descriptors and run the heuristic. If the heuristic returns no
-  // usable algorithm, use_cublaslt stays false and the caller takes the
-  // cublasGemmEx fallback path. `max_workspace_bytes` is the heuristic's
-  // workspace ceiling — see gpu::Context::setCublasLtMaxWorkspaceBytes().
+  // If the heuristic returns no usable algorithm, use_cublaslt stays false and
+  // the caller takes the cublasGemmEx fallback path. `max_workspace_bytes` is the
+  // heuristic's ceiling — see gpu::Context::setCublasLtMaxWorkspaceBytes().
   CublasLtPlanEntry(cublasLtHandle_t lt_handle, const CublasLtPlanKey& key, cublasComputeType_t compute,
                     cudaDataType_t alpha_type, std::size_t max_workspace_bytes) {
     EIGEN_CUBLASLT_CHECK(cublasLtMatmulDescCreate(&matmul_desc, compute, alpha_type));
@@ -263,7 +229,6 @@ class CublasLtPlanEntry {
     return *this;
   }
 
-  // Public read-side state for cublaslt_gemm().
   cublasLtMatmulDesc_t matmul_desc = nullptr;
   cublasLtMatrixLayout_t layout_A = nullptr;
   cublasLtMatrixLayout_t layout_B = nullptr;
@@ -283,10 +248,11 @@ class CublasLtPlanEntry {
 
 using CublasLtPlanCache = Eigen::internal::LruCache<CublasLtPlanKey, CublasLtPlanEntry, CublasLtPlanKeyHash>;
 
-// cublasLtMatmul GEMM with shape-keyed plan cache and lazy workspace.
-//
-// Falls back to cublasGemmEx for shapes/types where the cublasLt heuristic
-// returns no results.
+// cublasLtMatmul with a shape-keyed plan cache, falling back to cublasGemmEx for
+// shapes and types the cublasLt heuristic cannot serve. Dimensions are 64-bit on
+// the cublasLt path. `workspace` grows monotonically to the selected algorithm's
+// requirement; neither it nor `plan_cache` is thread-safe, so all calls sharing
+// them must run on one stream.
 template <typename Scalar>
 void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cublasOperation_t transA,
                    cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
@@ -297,8 +263,8 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
   constexpr cudaDataType_t alpha_type = cuda_data_type<Scalar>::value;
 
-  // Look up or create a cached plan for this shape (key includes leading dims so
-  // strided views — e.g. SVD's thin VT/U slices — get distinct cache entries).
+  // The key carries the leading dimensions so that strided views — e.g. SVD's
+  // thin VT/U slices — get distinct cache entries.
   const CublasLtPlanKey key{m, n, k, lda, ldb, ldc, dtype, transA, transB};
   CublasLtPlanEntry* entry = plan_cache->find(key);
   if (!entry) {
@@ -317,8 +283,7 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
                                         beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace->get(),
                                         needed, stream));
   } else {
-    // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
-    // cublasGemmEx takes int dimensions; cublaslt_gemm itself supports int64_t.
+    // cublasGemmEx takes int dimensions, unlike the cublasLt path above.
     eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
                  "cublasGemmEx fallback: dimensions exceed int range");
     EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_handle, transA, transB, static_cast<int>(m), static_cast<int>(n),
@@ -328,12 +293,8 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   }
 }
 
-// ---- Type-specific cuBLAS wrappers ------------------------------------------
-// cuBLAS uses separate functions per type (Sgemm, Dgemm, etc.).
-// These overloaded wrappers allow calling cublasXgemm/cublasXtrsm/etc.
-// with any supported scalar type.
-
-// GEMM wrappers
+// cuBLAS exposes one entry point per scalar type (Sgemm, Dgemm, ...). The
+// cublasX* overloads below recover a type-generic interface over them.
 inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
                                   int k, const float* alpha, const float* A, int lda, const float* B, int ldb,
                                   const float* beta, float* C, int ldc) {
@@ -348,13 +309,12 @@ static_assert(sizeof(cuComplex) == sizeof(std::complex<float>), "cuComplex and s
 static_assert(sizeof(cuDoubleComplex) == sizeof(std::complex<double>),
               "cuDoubleComplex and std::complex<double> layout mismatch");
 
-// Complex scalar args (alpha, beta) are type-punned from std::complex<T>*
-// to cuComplex*/cuDoubleComplex*.  A reinterpret_cast violates strict
-// aliasing: when inlined, clang/MSVC can elide the caller's store (the
-// compiler no longer sees a read through the original type), causing
-// segfaults.  We use memcpy — the standard-blessed type-pun — for scalars.
-// Device array pointers (A, B, C) are opaque to the host compiler, so
-// reinterpret_cast is safe there.
+// Complex alpha/beta are type-punned from std::complex<T>* to
+// cuComplex*/cuDoubleComplex*. reinterpret_cast violates strict aliasing here:
+// once inlined, clang/MSVC no longer see a read through the original type and
+// elide the caller's store, which segfaults. std::memcpy is the standard-blessed
+// pun. Device array pointers (A, B, C) are never dereferenced by the host
+// compiler, so reinterpret_cast is safe for them.
 inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
                                   int k, const std::complex<float>* alpha, const std::complex<float>* A, int lda,
                                   const std::complex<float>* B, int ldb, const std::complex<float>* beta,
@@ -376,7 +336,6 @@ inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cu
                      reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
-// TRSM wrappers
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
                                   cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const float* alpha,
                                   const float* A, int lda, float* B, int ldb) {
@@ -406,7 +365,7 @@ inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cubla
                      reinterpret_cast<cuDoubleComplex*>(B), ldb);
 }
 
-// SYMM wrappers (real → symm, complex → hemm)
+// SYMM: real → symm, complex → hemm.
 inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
                                   const float* alpha, const float* A, int lda, const float* B, int ldb,
                                   const float* beta, float* C, int ldc) {
@@ -438,7 +397,7 @@ inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cubla
                      reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
-// GEAM wrappers: C = alpha * op(A) + beta * op(B)
+// GEAM: C = alpha * op(A) + beta * op(B).
 inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
                                   const float* alpha, const float* A, int lda, const float* beta, const float* B,
                                   int ldb, float* C, int ldc) {
@@ -470,7 +429,7 @@ inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cu
                      reinterpret_cast<const cuDoubleComplex*>(B), ldb, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
-// SYRK wrappers (real → syrk, complex → herk)
+// SYRK: real → syrk, complex → herk.
 inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
                                   const float* alpha, const float* A, int lda, const float* beta, float* C, int ldc) {
   return cublasSsyrk(h, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
@@ -493,9 +452,8 @@ inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cubla
                      reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
-// SCAL wrappers: x = alpha * x.
-// For complex x, alpha is real-valued (Csscal/Zdscal) — this matches the
-// 1/n inverse-FFT scaling pattern, where the scale is intrinsically real.
+// SCAL: x = alpha * x, with real alpha even for complex x (Csscal/Zdscal), as
+// needed by the intrinsically real 1/n inverse-FFT scaling.
 inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, float* x, int incx) {
   return cublasSscal(h, n, alpha, x, incx);
 }
@@ -509,8 +467,8 @@ inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, 
   return cublasZdscal(h, n, alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
 }
 
-// By-value alpha overloads: convenience for callers that hold the scale as a
-// scalar rather than a host pointer (e.g. inverse-FFT 1/n normalization).
+// By-value alpha, for callers holding the scale as a scalar rather than a host
+// pointer (e.g. inverse-FFT 1/n normalization).
 inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, float* x, int incx) {
   return cublasSscal(h, n, &alpha, x, incx);
 }
@@ -524,9 +482,9 @@ inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, std::co
   return cublasZdscal(h, n, &alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
 }
 
-// DGMM wrappers: C = A * diag(x)  (side=RIGHT) or C = diag(x) * A  (side=LEFT).
-// Useful for applying a diagonal scaling without materialising diag(x) as a
-// dense matrix. cuBLAS docs guarantee in-place is safe when C == A.
+// DGMM: C = A * diag(x) (side=RIGHT) or C = diag(x) * A (side=LEFT), applying a
+// diagonal scaling without materialising diag(x). cuBLAS documents C == A as
+// safe.
 inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const float* A, int lda,
                                   const float* x, int incx, float* C, int ldc) {
   return cublasSdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
@@ -546,13 +504,11 @@ inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m
                      reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(C), ldc);
 }
 
-// ---- cuBLAS Level-1 wrappers ------------------------------------------------
-// Type-dispatched wrappers for BLAS-1 vector operations: dot, axpy, nrm2, scal, copy.
-// These work with CUBLAS_POINTER_MODE_HOST or CUBLAS_POINTER_MODE_DEVICE depending
-// on the caller's configuration. For device pointer mode, scalar result pointers
-// (dot, nrm2) must point to device memory.
+// The BLAS-1 wrappers below honour whichever pointer mode the caller set on the
+// handle; under CUBLAS_POINTER_MODE_DEVICE the dot/nrm2 result pointers must
+// address device memory.
 
-// dot: result = x^T * y (real) or x^H * y (complex conjugate dot)
+// dot: result = x^T * y (real) or x^H * y (complex, conjugating x).
 inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const float* x, int incx, const float* y, int incy,
                                  float* result) {
   return cublasSdot(h, n, x, incx, y, incy, result);
@@ -572,7 +528,7 @@ inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const std::complex<dou
                      reinterpret_cast<const cuDoubleComplex*>(y), incy, reinterpret_cast<cuDoubleComplex*>(result));
 }
 
-// nrm2: result = ||x||_2 (always returns real)
+// nrm2: result = ||x||_2, always real.
 inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const float* x, int incx, float* result) {
   return cublasSnrm2(h, n, x, incx, result);
 }
@@ -586,7 +542,7 @@ inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const std::complex<do
   return cublasDznrm2(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx, result);
 }
 
-// axpy: y += alpha * x
+// axpy: y += alpha * x.
 inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const float* alpha, const float* x, int incx, float* y,
                                   int incy) {
   return cublasSaxpy(h, n, alpha, x, incx, y, incy);
@@ -609,8 +565,7 @@ inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const std::complex<do
                      incy);
 }
 
-// SCAL with complex alpha on complex vectors (Cscal/Zscal). The real-alpha
-// overloads (Sscal/Dscal/Csscal/Zdscal) live above with the FFT-scaling forms.
+// SCAL with complex alpha (Cscal/Zscal); the real-alpha forms are above.
 inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<float>* alpha, std::complex<float>* x,
                                   int incx) {
   cuComplex a;
@@ -624,7 +579,7 @@ inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<do
   return cublasZscal(h, n, &a, reinterpret_cast<cuDoubleComplex*>(x), incx);
 }
 
-// copy: y = x
+// copy: y = x.
 inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const float* x, int incx, float* y, int incy) {
   return cublasScopy(h, n, x, incx, y, incy);
 }

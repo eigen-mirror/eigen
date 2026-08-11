@@ -8,12 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// BLAS Level 3 expression types for gpu::DeviceMatrix (beyond GEMM):
-//   TrsmExpr           -> cublasXtrsm   (triangular solve)
-//   SymmExpr           -> cublasXsymm   (symmetric multiply, real)
-//                      -> cublasXhemm   (Hermitian multiply, complex)
-//   SyrkExpr           -> cublasXsyrk   (symmetric rank-k update, real)
-//                      -> cublasXherk   (Hermitian rank-k update, complex)
+// BLAS Level 3 expression types for gpu::DeviceMatrix beyond GEMM: triangular
+// solve, self-adjoint multiply, and rank-k update.
 
 #ifndef EIGEN_GPU_DEVICE_BLAS_EXPR_H
 #define EIGEN_GPU_DEVICE_BLAS_EXPR_H
@@ -28,9 +24,7 @@
 namespace Eigen {
 namespace gpu {
 
-// ---- TriangularView --------------------------------------------------------
-// d_A.triangularView<Lower>() -> view with .solve(d_B)
-
+/** d_A.triangularView<Lower>(), whose solve() builds a TrsmExpr. */
 template <typename Scalar_, int UpLo_>
 class TriangularView {
  public:
@@ -40,15 +34,13 @@ class TriangularView {
   explicit TriangularView(const DeviceMatrix<Scalar>& m) : mat_(m) {}
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
 
-  /** Build a TRSM solve expression. */
   TrsmExpr<Scalar, UpLo_> solve(const DeviceMatrix<Scalar>& rhs) const { return {mat_, rhs}; }
 
  private:
   std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
-// ---- TrsmExpr: triangularView<UpLo>().solve(B) -> cublasXtrsm --------------
-
+/** triangularView<UpLo>().solve(B), dispatched to cublasXtrsm. */
 template <typename Scalar_, int UpLo_>
 class TrsmExpr {
  public:
@@ -64,9 +56,7 @@ class TrsmExpr {
   std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
-// ---- SelfAdjointView -------------------------------------------------------
-// d_A.selfadjointView<Lower>() -> view that can multiply: view * d_B
-
+/** d_A.selfadjointView<Lower>(), which supports view * d_B and rankUpdate(). */
 template <typename Scalar_, int UpLo_>
 class SelfAdjointView {
  public:
@@ -78,16 +68,15 @@ class SelfAdjointView {
   const DeviceMatrix<Scalar>& matrix() const { return mat_; }
   DeviceMatrix<Scalar>& matrix() { return mat_; }
 
-  /** Rank-k update: C.selfadjointView<Lower>().rankUpdate(A, alpha)
-   * computes C = alpha * A * A^H + C (lower triangle only).
-   * Maps to cublasXsyrk (real) or cublasXherk (complex). */
+  /** C = alpha * A * A^H + C, writing only the UpLo triangle. Maps to
+   * cublasXsyrk (real) or cublasXherk (complex). */
   void rankUpdate(const DeviceMatrix<Scalar>& A, RealScalar alpha = RealScalar(1));
 
  private:
   std::reference_wrapper<DeviceMatrix<Scalar>> mat_;
 };
 
-// Const variant for multiplication only (no rankUpdate).
+/** Const variant, supporting multiplication but not rankUpdate. */
 template <typename Scalar_, int UpLo_>
 class ConstSelfAdjointView {
  public:
@@ -101,8 +90,8 @@ class ConstSelfAdjointView {
   std::reference_wrapper<const DeviceMatrix<Scalar>> mat_;
 };
 
-// ---- SymmExpr: selfadjointView<UpLo>() * B -> cublasXsymm/Xhemm -----------
-
+/** selfadjointView<UpLo>() * B, dispatched to cublasXsymm (real) or
+ * cublasXhemm (complex). */
 template <typename Scalar_, int UpLo_>
 class SymmExpr {
  public:
@@ -118,7 +107,6 @@ class SymmExpr {
   std::reference_wrapper<const DeviceMatrix<Scalar>> B_;
 };
 
-// operator*: SelfAdjointView * Matrix -> SymmExpr (mutable and const variants)
 template <typename S, int UpLo>
 SymmExpr<S, UpLo> operator*(const SelfAdjointView<S, UpLo>& a, const DeviceMatrix<S>& b) {
   return {a.matrix(), b};
@@ -128,9 +116,8 @@ SymmExpr<S, UpLo> operator*(const ConstSelfAdjointView<S, UpLo>& a, const Device
   return {a.matrix(), b};
 }
 
-// ---- SyrkExpr: rankUpdate(A) -> cublasXsyrk/Xherk --------------------------
-// C.rankUpdate(A) computes C += A * A^H (or A^H * A depending on convention).
-
+/** C.rankUpdate(A), i.e. C += A * A^H, dispatched to cublasXsyrk (real) or
+ * cublasXherk (complex). */
 template <typename Scalar_, int UpLo_>
 class SyrkExpr {
  public:

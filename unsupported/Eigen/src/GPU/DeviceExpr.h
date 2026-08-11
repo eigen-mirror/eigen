@@ -31,7 +31,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 namespace internal {
 // Forward declaration — specializations follow below, after the class definitions.
 template <typename Expr>
@@ -61,7 +60,6 @@ using require_host_scalar_convertible_t =
 
 }  // namespace internal
 
-// ---- AdjointView: marks ConjTrans -------------------------------------------
 // Returned by DeviceMatrix::adjoint(). Maps to cublasXgemm transA/B = C.
 
 template <typename Scalar_>
@@ -75,7 +73,6 @@ class AdjointView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// ---- TransposeView: marks Trans ---------------------------------------------
 // Returned by DeviceMatrix::transpose(). Maps to cublasXgemm transA/B = T.
 
 template <typename Scalar_>
@@ -89,7 +86,6 @@ class TransposeView {
   const DeviceMatrix<Scalar>& mat_;
 };
 
-// ---- Scaled: alpha * expr ---------------------------------------------------
 // Returned by operator*(Scalar, DeviceMatrix/View). Carries the scalar factor.
 
 template <typename Inner>
@@ -105,7 +101,6 @@ class Scaled {
   const Inner& inner_;
 };
 
-// ---- GemmExpr: lhs * rhs -> cublasXgemm ------------------------------------
 // Returned by operator*(lhs_expr, rhs_expr). Dispatches to cuBLAS GEMM.
 
 template <typename Lhs, typename Rhs>
@@ -127,10 +122,8 @@ class GemmExpr {
   const Rhs& rhs_;
 };
 
-// ---- Free operator* overloads that produce GemmExpr -------------------------
 // Defined after device_expr_traits so it can accept any supported view pair.
 
-// ---- Scalar * Matrix / View -> Scaled ---------------------------------------
 // The scalar factor accepts any type convertible to the matrix scalar (int
 // and double literals included), in either operand order. Division by a
 // scalar and unary minus fold into the same Scaled wrapper.
@@ -190,9 +183,6 @@ Scaled<Inner> operator-(const Scaled<Inner>& s) {
 }
 
 namespace internal {
-
-// ---- Traits: extract operation info from expression types -------------------
-
 // Default: a DeviceMatrix is NoTrans.
 template <typename T>
 struct device_expr_traits {
@@ -236,7 +226,6 @@ struct device_expr_traits<Scaled<Inner>> {
   }
   static scalar_type alpha(const Scaled<Inner>& x) { return x.scalar() * device_expr_traits<Inner>::alpha(x.inner()); }
 };
-
 }  // namespace internal
 
 template <typename Lhs, typename Rhs,
@@ -247,7 +236,6 @@ GemmExpr<Lhs, Rhs> operator*(const Lhs& a, const Rhs& b) {
   return {a, b};
 }
 
-// ---- DeviceScaledDevice: DeviceScalar * DeviceMatrix → device-pointer axpy ---
 // Like Scaled but carries a DeviceScalar (device pointer) instead of
 // a host scalar. operator+= dispatches to cuBLAS axpy with POINTER_MODE_DEVICE.
 
@@ -270,7 +258,6 @@ DeviceScaledDevice<S> operator*(const DeviceScalar<S>& alpha, const DeviceMatrix
   return {alpha, m};
 }
 
-// ---- DeviceAddExpr: a + b → cublasXgeam -------------------------------------
 // Captures `DeviceMatrix + Scaled<DeviceMatrix>` (and reverse).
 // Dispatched to geam: C = alpha * A + beta * B.
 //
@@ -344,7 +331,6 @@ template <typename S>
 DeviceAddExpr<S> operator-(const Scaled<DeviceMatrix<S>>& a, const Scaled<DeviceMatrix<S>>& b) {
   return {a.scalar(), a.inner(), -b.scalar(), b.inner()};
 }
-
 }  // namespace gpu
 }  // namespace Eigen
 

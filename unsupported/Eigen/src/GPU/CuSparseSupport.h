@@ -8,7 +8,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// cuSPARSE support utilities: error-checking macro and operation conversion helpers.
+// cuSPARSE-specific support types.
 
 #ifndef EIGEN_GPU_CUSPARSE_SUPPORT_H
 #define EIGEN_GPU_CUSPARSE_SUPPORT_H

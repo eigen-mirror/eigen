@@ -8,11 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// cuDSS support utilities: error checking macro, type mapping.
-//
-// cuDSS is NVIDIA's sparse direct solver library, supporting Cholesky (LL^T),
-// LDL^T, and LU factorization on GPU. It requires CUDA 12.0+ and is
-// distributed separately from the CUDA Toolkit.
+// cuDSS-specific support types. cuDSS is NVIDIA's sparse direct solver library
+// (Cholesky, LDL^T, LU); it requires CUDA 12.0+ and ships separately from the
+// CUDA Toolkit.
 
 #ifndef EIGEN_GPU_CUDSS_SUPPORT_H
 #define EIGEN_GPU_CUDSS_SUPPORT_H
@@ -26,9 +24,6 @@
 namespace Eigen {
 namespace gpu {
 namespace internal {
-
-// ---- Error checking ---------------------------------------------------------
-
 #define EIGEN_CUDSS_CHECK(x)                                              \
   do {                                                                    \
     cudssStatus_t _s = (x);                                               \
@@ -36,7 +31,6 @@ namespace internal {
     EIGEN_UNUSED_VARIABLE(_s);                                            \
   } while (0)
 
-// ---- Data-type argument for descriptor creation -------------------------------
 // cuDSS 0.8 changed cudssMatrixCreateDn/Csr from cudaDataType_t to the
 // value-compatible cudssDataType_t (CUDSS_R_32F == CUDA_R_32F, ...). Map the
 // module's cudaDataType_t traits through this alias so both API generations
@@ -48,8 +42,6 @@ using cudss_value_type_t = cudaDataType_t;
 #endif
 
 constexpr cudss_value_type_t to_cudss_data_type(cudaDataType_t t) { return static_cast<cudss_value_type_t>(t); }
-
-// ---- Scalar → cudssMatrixType_t for SPD/HPD ---------------------------------
 
 template <typename Scalar>
 struct cudss_spd_type;
@@ -71,15 +63,10 @@ struct cudss_spd_type<std::complex<double>> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_HPD;
 };
 
-// ---- Scalar → cudssMatrixType_t for symmetric (real) / Hermitian (complex) --
-// Real:    SYMMETRIC (A = A^T)
-// Complex: HERMITIAN (A = A^H)
-//
-// cuDSS also supports CUDSS_MTYPE_SYMMETRIC for complex matrices (A = A^T,
-// no conjugation), but the LDLT solver here matches Eigen's SimplicialLDLT
-// semantic, which is Hermitian for complex. Complex symmetric (non-Hermitian)
-// would need a separate trait + solver mode and is not currently exposed.
-
+// Real → SYMMETRIC (A = A^T), complex → HERMITIAN (A = A^H). cuDSS also accepts
+// CUDSS_MTYPE_SYMMETRIC for complex (A = A^T, no conjugation), but SparseLDLT
+// implements Eigen's SimplicialLDLT semantics, which are Hermitian for complex.
+// Complex symmetric would need a separate trait and solver mode.
 template <typename Scalar>
 struct cudss_hermitian_type;
 
@@ -100,8 +87,6 @@ struct cudss_hermitian_type<std::complex<double>> {
   static constexpr cudssMatrixType_t value = CUDSS_MTYPE_HERMITIAN;
 };
 
-// ---- StorageIndex → cudaDataType_t ------------------------------------------
-
 template <typename StorageIndex>
 struct cudss_index_type;
 
@@ -114,14 +99,11 @@ struct cudss_index_type<int64_t> {
   static constexpr cudaDataType_t value = CUDA_R_64I;
 };
 
-// ---- UpLo → cudssMatrixViewType_t -------------------------------------------
-// For symmetric matrices stored as CSC (ColMajor), cuDSS sees CSR of A^T.
-// Since A = A^T, the data is the same, but the triangle view must be swapped.
-
+// A symmetric matrix stored as CSC (ColMajor) reaches cuDSS as CSR of A^T. The
+// data is identical since A = A^T, but the triangle view must be swapped.
 template <int UpLo, int StorageOrder>
 struct cudss_view_type;
 
-// ColMajor (CSC) passed as CSR: lower ↔ upper swap.
 template <>
 struct cudss_view_type<Lower, ColMajor> {
   static constexpr cudssMatrixViewType_t value = CUDSS_MVIEW_UPPER;
@@ -131,7 +113,6 @@ struct cudss_view_type<Upper, ColMajor> {
   static constexpr cudssMatrixViewType_t value = CUDSS_MVIEW_LOWER;
 };
 
-// RowMajor (CSR) passed directly: no swap needed.
 template <>
 struct cudss_view_type<Lower, RowMajor> {
   static constexpr cudssMatrixViewType_t value = CUDSS_MVIEW_LOWER;
@@ -140,9 +121,7 @@ template <>
 struct cudss_view_type<Upper, RowMajor> {
   static constexpr cudssMatrixViewType_t value = CUDSS_MVIEW_UPPER;
 };
-
 }  // namespace internal
-
 }  // namespace gpu
 }  // namespace Eigen
 

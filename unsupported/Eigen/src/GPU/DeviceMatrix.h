@@ -8,28 +8,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Typed RAII wrapper for a dense matrix in GPU device memory.
+// Typed RAII wrapper for a dense column-major matrix in GPU device memory.
 //
-// gpu::DeviceMatrix<Scalar> holds a column-major matrix on the GPU with tracked
-// dimensions and leading dimension. It can be passed to GPU solvers
-// (gpu::LLT, gpu::LU, cuBLAS expressions) without host round-trips.
-//
-// Cross-stream safety is automatic: an internal CUDA event tracks when the
-// last write completed. Consumers on a different stream wait on that event
-// before reading.
-//
-// Usage:
-//   auto d_A = gpu::DeviceMatrix<double>::fromHost(A);     // upload (sync)
-//   gpu::LLT<double> llt;
-//   llt.compute(d_A);                                // factor on device
-//   auto d_X = llt.solve(d_B);                       // async, no sync
-//   MatrixXd X = d_X.toHost();                       // download + block
-//
-// Async variants:
-//   auto d_A = gpu::DeviceMatrix<double>::fromHostAsync(A.data(), n, n, stream);
-//   auto transfer = d_X.toHostAsync(stream);         // enqueue D2H
-//   // ... overlap with other work ...
-//   MatrixXd X = transfer.get();                     // block + retrieve
+// Cross-stream safety is automatic: an internal CUDA event records when the last
+// write completed, and consumers on a different stream wait on it before reading.
 
 #ifndef EIGEN_GPU_DEVICE_MATRIX_H
 #define EIGEN_GPU_DEVICE_MATRIX_H
@@ -44,10 +26,6 @@
 
 namespace Eigen {
 namespace gpu {
-
-// --------------------------------------------------------------------------
-// HostTransfer — future-like wrapper for an async device-to-host transfer.
-// --------------------------------------------------------------------------
 
 /** \ingroup GPU_Module
  * \class HostTransfer
@@ -64,12 +42,10 @@ class HostTransfer {
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   /** Block until the transfer completes and return the host matrix.
-   * Idempotent: subsequent calls return the same matrix without re-syncing.
-   * On first call, copies from pinned staging buffer into a regular matrix. */
+   * Idempotent: subsequent calls return the same matrix without re-syncing. */
   PlainMatrix& get() {
     if (!synced_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaEventSynchronize(event_));
-      // Copy from pinned staging buffer into the regular (pageable) host matrix.
       if (pinned_buf_ && host_buf_.size() > 0) {
         std::memcpy(host_buf_.data(), pinned_buf_.get(), static_cast<size_t>(host_buf_.size()) * sizeof(Scalar));
       }
@@ -127,10 +103,6 @@ class HostTransfer {
   bool synced_ = false;
 };
 
-// --------------------------------------------------------------------------
-// Matrix — typed RAII wrapper for a dense matrix in device memory.
-// --------------------------------------------------------------------------
-
 /** \ingroup GPU_Module
  * \class DeviceMatrix
  * \brief RAII wrapper for a dense column-major matrix in GPU device memory.
@@ -141,25 +113,22 @@ class HostTransfer {
  * An internal CUDA event records when the data was last written, enabling
  * safe cross-stream consumption without user-visible synchronization.
  *
- * Each method has a synchronous and an asynchronous variant:
- *  - fromHost() / fromHostAsync(): upload from host
- *  - toHost() / toHostAsync(): download to host
+ * Transfers come in synchronous and asynchronous variants: fromHost() /
+ * fromHostAsync() and toHost() / toHostAsync().
  */
 template <typename Scalar_>
 class DeviceMatrix {
  public:
   using Scalar = Scalar_;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  using PlainObject = DeviceMatrix;  // owning type (for CG template compatibility)
+  using PlainObject = DeviceMatrix;  // owning type, as generic solver code expects
   using PlainMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-
-  // ---- Construction / destruction ------------------------------------------
 
   /** Default: empty (0x0, no allocation). */
   DeviceMatrix() = default;
 
-  /** Allocate uninitialized column vector of given size.
-   * Matches Matrix<Scalar,Dynamic,1>(n) for CG template compatibility. */
+  /** Allocate an uninitialized column vector, mirroring
+   * Matrix<Scalar,Dynamic,1>(n) so generic solver code compiles unchanged. */
   explicit DeviceMatrix(Index n) : rows_(n), cols_(1) {
     eigen_assert(n >= 0);
     allocate(sizeInBytes());
@@ -171,14 +140,10 @@ class DeviceMatrix {
     allocate(sizeInBytes());
   }
 
-  // ---- Converting constructors from expression types -------------------------
-  // Allow copy-initialization directly from a device expression, mirroring the
-  // Eigen CPU idiom:
-  //   DeviceMatrix<double> d_C = d_A * d_B;
-  //   DeviceMatrix<double> d_X = d_A.llt().solve(d_B);
-  // Each delegates to the corresponding operator= using the thread-local
-  // Context. Defined out-of-line in DeviceDispatch.h (GpuSparseContext.h for
-  // the SpMV expression), where Context is complete.
+  // Copy-initialization from a device expression, mirroring the Eigen CPU idiom
+  // `DeviceMatrix<double> d_C = d_A * d_B;`. Each delegates to the corresponding
+  // operator= on the thread-local Context, and is defined out-of-line in
+  // DeviceDispatch.h — GpuSparseContext.h for SpMV — where Context is complete.
 
   template <typename Lhs, typename Rhs>
   DeviceMatrix(const GemmExpr<Lhs, Rhs>& expr);
@@ -200,8 +165,6 @@ class DeviceMatrix {
     // in-flight kernel that may still be touching it.
     if (ready_event_) (void)cudaEventDestroy(ready_event_);
   }
-
-  // ---- Move-only -----------------------------------------------------------
 
   DeviceMatrix(DeviceMatrix&& o) noexcept
       : data_(std::move(o.data_)),
@@ -240,8 +203,6 @@ class DeviceMatrix {
   DeviceMatrix(const DeviceMatrix&) = delete;
   DeviceMatrix& operator=(const DeviceMatrix&) = delete;
 
-  // ---- Upload from host ----------------------------------------------------
-
   /** Upload a host Eigen matrix to device memory (synchronous).
    *
    * Copies to device via cudaMemcpyAsync on \p stream and synchronizes before
@@ -268,8 +229,7 @@ class DeviceMatrix {
   /** Upload from a raw host pointer to device memory (asynchronous).
    *
    * Enqueues an async H2D copy on \p stream and records an internal event.
-   * The caller must keep \p host_data alive until the transfer completes
-   * (check via the internal event or synchronize the stream).
+   * The caller must keep \p host_data alive until the transfer completes.
    *
    * \param host_data  Pointer to contiguous column-major host data.
    * \param rows       Number of rows.
@@ -287,8 +247,6 @@ class DeviceMatrix {
     }
     return dm;
   }
-
-  // ---- Download to host ----------------------------------------------------
 
   /** Download device matrix to host memory (synchronous).
    *
@@ -311,8 +269,8 @@ class DeviceMatrix {
   /** Enqueue an async device-to-host transfer and return a future.
    *
    * Waits on the internal ready event (if any) to ensure the device data is
-   * valid, then enqueues the D2H copy on \p stream. Returns a HostTransfer
-   * future; call .get() to block and retrieve the host matrix.
+   * valid, then enqueues the D2H copy on \p stream. Call HostTransfer::get() to
+   * block and retrieve the host matrix.
    *
    * \param stream CUDA stream for the transfer (default: stream 0).
    */
@@ -321,20 +279,16 @@ class DeviceMatrix {
     internal::PinnedHostBuffer pinned_buf(sizeInBytes());
     if (sizeInBytes() > 0) {
       waitReady(stream);
-      // DMA into pinned staging buffer for truly async transfer.
       EIGEN_CUDA_RUNTIME_CHECK(
           cudaMemcpyAsync(pinned_buf.get(), data_.get(), sizeInBytes(), cudaMemcpyDeviceToHost, stream));
     }
-    // Record a transfer-complete event.
     cudaEvent_t transfer_event;
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventCreateWithFlags(&transfer_event, cudaEventDisableTiming));
     EIGEN_CUDA_RUNTIME_CHECK(cudaEventRecord(transfer_event, stream));
     return HostTransfer<Scalar>(std::move(host_buf), std::move(pinned_buf), transfer_event);
   }
 
-  // ---- Device-to-device copy -----------------------------------------------
-
-  /** Deep copy on device. Fully async — records event on the result, no sync.
+  /** Deep copy on device. Fully async — records an event on the result, no sync.
    *
    * \param stream CUDA stream for the D2D copy (default: stream 0).
    */
@@ -348,8 +302,6 @@ class DeviceMatrix {
     }
     return result;
   }
-
-  // ---- Resize (destructive) ------------------------------------------------
 
   /** Discard contents and resize to (rows x cols). Contents are undefined
    * afterwards. Keeps the existing allocation when it is large enough
@@ -380,8 +332,6 @@ class DeviceMatrix {
     allocate(bytes);
   }
 
-  // ---- Accessors -----------------------------------------------------------
-
   Scalar* data() { return data_.get(); }
   const Scalar* data() const { return data_.get(); }
   Index rows() const { return rows_; }
@@ -390,8 +340,6 @@ class DeviceMatrix {
 
   /** Size of the device allocation in bytes. */
   size_t sizeInBytes() const { return static_cast<size_t>(rows_) * static_cast<size_t>(cols_) * sizeof(Scalar); }
-
-  // ---- Event synchronization (public for library dispatch interop) ---------
 
   /** Record that device data is ready after work on \p stream. */
   void recordReady(cudaStream_t stream) {
@@ -409,24 +357,19 @@ class DeviceMatrix {
     }
   }
 
-  // ---- Expression methods (dispatch to cuBLAS/cuSOLVER) --------------------
-
-  /** Adjoint view for GEMM dispatch. Maps to cublasXgemm with ConjTrans. */
+  /** Adjoint view: maps to a GEMM operand with ConjTrans. */
   AdjointView<Scalar> adjoint() const { return AdjointView<Scalar>(*this); }
 
-  /** Transpose view for GEMM dispatch. Maps to cublasXgemm with Trans. */
+  /** Transpose view: maps to a GEMM operand with Trans. */
   TransposeView<Scalar> transpose() const { return TransposeView<Scalar>(*this); }
 
-  /** Bind this matrix to a Context for expression assignment.
-   * Returns an Assignment proxy: `d_C.device(ctx) = d_A * d_B;` */
+  /** Bind this matrix to a Context for expression assignment:
+   * `d_C.device(ctx) = d_A * d_B;` */
   Assignment<Scalar> device(Context& ctx) { return Assignment<Scalar>(*this, ctx); }
 
-  /** Assign from a GEMM expression using the thread-local default Context.
-   * Defined out-of-line after Context is fully declared (see DeviceDispatch.h). */
   template <typename Lhs, typename Rhs>
   DeviceMatrix& operator=(const GemmExpr<Lhs, Rhs>& expr);
 
-  /** Accumulate from a GEMM expression using the thread-local default Context. */
   template <typename Lhs, typename Rhs>
   DeviceMatrix& operator+=(const GemmExpr<Lhs, Rhs>& expr);
 
@@ -446,11 +389,9 @@ class DeviceMatrix {
   /** LU view: d_A.lu().solve(d_B) → LuSolveExpr. */
   LUView<Scalar> lu() const { return LUView<Scalar>(*this); }
 
-  /** Assign from an LLT solve expression (thread-local default context). */
   template <int UpLo>
   DeviceMatrix& operator=(const LltSolveExpr<Scalar, UpLo>& expr);
 
-  /** Assign from an LU solve expression (thread-local default context). */
   DeviceMatrix& operator=(const LuSolveExpr<Scalar>& expr);
 
   /** Triangular view: d_A.triangularView<Lower>().solve(d_B) → TrsmExpr. */
@@ -471,34 +412,26 @@ class DeviceMatrix {
     return ConstSelfAdjointView<Scalar, UpLo>(*this);
   }
 
-  /** Assign from a TRSM expression (thread-local default context). */
   template <int UpLo>
   DeviceMatrix& operator=(const TrsmExpr<Scalar, UpLo>& expr);
 
-  /** Assign from a SYMM expression (thread-local default context). */
   template <int UpLo>
   DeviceMatrix& operator=(const SymmExpr<Scalar, UpLo>& expr);
 
-  // ---- BLAS Level-1 operations ----------------------------------------------
-  // DeviceMatrix is always dense (lda == rows), so a vector is simply a
-  // DeviceMatrix with cols == 1. These BLAS-1 methods operate on the flat
-  // rows*cols element array, making them work for both vectors and matrices.
-  //
-  // All methods take an explicit Context& for stream/handle control.
-  // When everything uses the same context, event waits are skipped (same-stream).
-  // Defined out-of-line in DeviceDispatch.h (needs Context).
+  // A DeviceMatrix is always dense (lda == rows) and a vector is one with
+  // cols == 1, so the BLAS-1 methods below simply run over the flat rows*cols
+  // array and serve both. Passing an explicit Context& lets callers keep every
+  // operation on one stream, which elides the cross-stream event waits.
 
-  /** Dot product: this^H * other. Returns DeviceScalar — the result stays
-   * on device until read via implicit conversion to Scalar (which syncs).
-   * When used with `auto`, no sync occurs until the value is needed. */
+  /** Dot product: this^H * other. The result stays on device until read through
+   * DeviceScalar's conversion to Scalar, which syncs. */
   DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other) const;
 
-  /** Squared L2 norm via dot(x, x). Returns DeviceScalar (no sync until read).
-   * For real types, the result stays on device. For complex types, falls back
-   * to host sync (DeviceScalar arithmetic is real-only). */
+  /** Squared L2 norm via dot(x, x). For real types the result stays on device;
+   * for complex it syncs, since DeviceScalar arithmetic is real-only. */
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
 
-  /** L2 norm. Returns DeviceScalar (no host sync). */
+  /** L2 norm, without a host sync. */
   DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
 
   /** Set all elements to zero. */
@@ -514,22 +447,20 @@ class DeviceMatrix {
   /** Deep copy: this = other (cuBLAS copy). Resizes if needed. */
   void copyFrom(Context& ctx, const DeviceMatrix& other);
 
-  // Convenience overloads using the thread-local default Context.
   DeviceScalar<Scalar> dot(const DeviceMatrix& other) const;
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm() const;
   DeviceScalar<typename NumTraits<Scalar>::Real> norm() const;
   void setZero();
 
-  // ---- BLAS-1 operator overloads for CG/iterative solver compatibility ------
-  // These allow CG code like `x += alpha * p` to work with DeviceMatrix.
-  // `alpha * DeviceMatrix` already returns `Scaled<DeviceMatrix<Scalar>>`
-  // (defined in DeviceExpr.h). These operators dispatch to cuBLAS axpy/scal.
-  // Defined out-of-line in DeviceDispatch.h.
+  // The operators below let iterative-solver code written against Matrix — say
+  // `x += alpha * p` — compile unchanged against DeviceMatrix, dispatching to
+  // cuBLAS axpy/scal. `alpha * DeviceMatrix` yields Scaled<DeviceMatrix<Scalar>>
+  // from DeviceExpr.h.
 
-  /** this += alpha * x (cuBLAS axpy). For `x += alpha * p`. */
+  /** this += alpha * x (cuBLAS axpy). */
   DeviceMatrix& operator+=(const Scaled<DeviceMatrix>& expr);
 
-  /** this -= alpha * x (cuBLAS axpy with negated alpha). For `r -= alpha * tmp`. */
+  /** this -= alpha * x (cuBLAS axpy with negated alpha). */
   DeviceMatrix& operator-=(const Scaled<DeviceMatrix>& expr);
 
   /** this += x (cuBLAS axpy with alpha=1). */
@@ -538,14 +469,13 @@ class DeviceMatrix {
   /** this -= x (cuBLAS axpy with alpha=-1). */
   DeviceMatrix& operator-=(const DeviceMatrix& other);
 
-  /** this *= alpha (cuBLAS scal, host pointer mode). For `p *= beta`. */
+  /** this *= alpha (cuBLAS scal, host pointer mode). */
   DeviceMatrix& operator*=(Scalar alpha);
 
-  /** this *= alpha (cuBLAS scal, device pointer mode). Avoids host sync. */
+  /** this *= alpha (cuBLAS scal, device pointer mode). Avoids a host sync. */
   DeviceMatrix& operator*=(const DeviceScalar<Scalar>& alpha);
 
-  /** Element-wise product: result[i] = this[i] * other[i].
-   * Returns a new DeviceMatrix. Defined out-of-line in DeviceDispatch.h. */
+  /** Element-wise product: result[i] = this[i] * other[i]. */
   DeviceMatrix cwiseProduct(Context& ctx, const DeviceMatrix& other) const;
 
   /** In-place element-wise product: this[i] = a[i] * b[i].
@@ -568,21 +498,16 @@ class DeviceMatrix {
    * Also covers unary minus: d_C = -d_A. Safe when d_C aliases d_A. */
   DeviceMatrix& operator=(const Scaled<DeviceMatrix>& expr);
 
-  /** No-op — all DeviceMatrix operations are implicitly noalias.
+  /** No-op — every DeviceMatrix assignment is already implicitly noalias.
    *
-   * Unlike Eigen's Matrix, where omitting .noalias() triggers a copy to a
-   * temporary for safety, DeviceMatrix dispatches directly to NVIDIA library
-   * calls which have no built-in aliasing protection. Every assignment
-   * (`d_C = d_A * d_B`, `d_y = d_A * d_x`, etc.) behaves as if .noalias()
-   * were specified. The caller must ensure operands don't alias the
-   * destination for GEMM and SpMV. geam (`d_C = d_A + alpha * d_B`) is
-   * safe with aliasing. Debug asserts catch violations.
+   * Eigen's Matrix falls back to a temporary when .noalias() is omitted, but
+   * DeviceMatrix dispatches straight to NVIDIA library calls, which offer no
+   * aliasing protection. For GEMM and SpMV the caller must therefore keep the
+   * operands clear of the destination; geam (`d_C = d_A + alpha * d_B`) is safe
+   * under aliasing. Debug asserts catch violations.
    *
-   * This method exists so that `tmp.noalias() = mat * p` compiles for both
-   * Matrix and DeviceMatrix. */
+   * The method exists so `tmp.noalias() = mat * p` compiles for both types. */
   DeviceMatrix& noalias() { return *this; }
-
-  // ---- Ownership transfer ---------------------------------------------------
 
   /** Adopt an existing device pointer. Caller relinquishes ownership. */
   static DeviceMatrix adopt(Scalar* device_ptr, Index rows, Index cols) {
@@ -597,11 +522,10 @@ class DeviceMatrix {
   /** Construct a non-owning view over an existing device pointer.
    *
    * The pointer is *borrowed*: destruction does not free, and the underlying
-   * storage must outlive this view. Use this to chain decomposition outputs
-   * (e.g. `svd.d_matrixU()`) into downstream cuBLAS expressions without an
-   * intervening D2D copy. The view supports the full read interface (toHost,
-   * gemm operands, adjoint(), etc.). Do not assign through a view: the borrowed
-   * pointer would be silently replaced and the underlying owner left intact. */
+   * storage must outlive this view. This chains decomposition outputs (e.g.
+   * `svd.d_matrixU()`) into downstream cuBLAS expressions without an intervening
+   * D2D copy, and supports the full read interface. Do not assign through a view:
+   * the borrowed pointer would be silently replaced, leaving the owner intact. */
   static DeviceMatrix view(Scalar* device_ptr, Index rows, Index cols) {
     DeviceMatrix dm;
     dm.data_ =
@@ -626,8 +550,6 @@ class DeviceMatrix {
   }
 
  private:
-  // ---- Private helpers -------------------------------------------------------
-
   // Fresh owning allocation of `bytes` (no-op for empty). Also resets the
   // deleter so a previously borrowed (view) deleter cannot leak the new
   // owned pointer.
@@ -647,8 +569,6 @@ class DeviceMatrix {
 
   void retainBuffer(internal::DeviceBuffer&& buffer) { retained_buffer_ = std::move(buffer); }
 
-  // ---- Data members --------------------------------------------------------
-
   std::unique_ptr<Scalar, internal::CudaFreeDeleter> data_;
   Index rows_ = 0;
   Index cols_ = 0;
@@ -657,7 +577,6 @@ class DeviceMatrix {
   cudaStream_t ready_stream_ = nullptr;     // stream that recorded ready_event_ (for same-stream skip)
   internal::DeviceBuffer retained_buffer_;  // internal: keeps async aux buffers alive
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

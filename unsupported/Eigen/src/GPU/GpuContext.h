@@ -8,22 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Unified GPU execution context.
-//
-// gpu::Context owns a CUDA stream and NVIDIA library handles (cuBLAS
-// eagerly, cuSOLVER / cuBLASLt / cuSPARSE lazily on first use). It is the
-// entry point for all GPU operations on gpu::DeviceMatrix.
-//
-// The cuSOLVER handle is created on the first call to cusolverHandle()
-// so that translation units which only use cuFFT or cuBLAS paths (e.g.
-// the cufft test) do not pull cusolverDn* symbols into the link.
-//
-// Usage:
-//   gpu::Context ctx;                        // explicit context
-//   d_C.device(ctx) = d_A * d_B;            // GEMM on ctx's stream
-//
-//   d_C = d_A * d_B;                        // thread-local default context
-//   gpu::Context& ctx = gpu::Context::threadLocal();
+// Unified GPU execution context: a CUDA stream plus the NVIDIA library handles
+// used by gpu::DeviceMatrix operations.
 
 #ifndef EIGEN_GPU_CONTEXT_H
 #define EIGEN_GPU_CONTEXT_H
@@ -79,16 +65,16 @@ inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
  * \class Context
  * \brief Unified GPU execution context owning a CUDA stream and library handles.
  *
- * Each Context instance creates a dedicated CUDA stream and a cuBLAS handle
- * bound to that stream. The cuSOLVER handle is created on first use via
- * cusolverHandle(); translation units that never call it do not require
- * cuSOLVER at link time. cuBLASLt and cuSPARSE handles are similarly lazy.
- * Multiple contexts enable concurrent execution on independent streams.
+ * Each Context creates a dedicated CUDA stream and an eager cuBLAS handle bound
+ * to it; multiple contexts run concurrently on independent streams. The
+ * cuSOLVER, cuBLASLt, and cuSPARSE handles are created on first use, so a
+ * translation unit that never touches cuSOLVER (the cuFFT test, say) does not
+ * need it at link time. threadLocal() supplies a lazily-created default for
+ * simple single-stream usage.
  *
- * A lazily-created thread-local default is available via threadLocal() for
- * simple single-stream usage. A single Context is not thread-safe — use one
- * per thread, or external synchronization, since cuBLAS / cuSOLVER handles
- * are not thread-safe per handle and lazy-init of secondary handles is racy.
+ * A Context is not thread-safe: the library handles are not thread-safe per
+ * handle and the lazy initialization above is racy, so use one per thread or
+ * synchronize externally.
  */
 class Context {
  public:
@@ -114,7 +100,6 @@ class Context {
     if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
   }
 
-  // Non-copyable, non-movable (owns library handles).
   Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
   Context(Context&&) = delete;
@@ -189,7 +174,7 @@ class Context {
    * re-selection under the new cap. */
   void setCublasLtMaxWorkspaceBytes(std::size_t bytes) { cublaslt_max_workspace_bytes_ = bytes; }
 
-  /** cuSPARSE handle (lazy-initialized on first call). */
+  /** cuSPARSE handle, created on first use. */
   cusparseHandle_t cusparseHandle() {
     if (!cusparse_) {
       cusparseStatus_t s1 = cusparseCreate(&cusparse_);

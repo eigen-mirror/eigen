@@ -8,22 +8,11 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU SVD decomposition using cuSOLVER (divide-and-conquer).
+// GPU SVD using cuSOLVER's divide-and-conquer cusolverDnXgesvd. U, S, and VT
+// stay on device; solve() forms X = V * diag(D) * U^H * B with cuBLAS GEMM.
 //
-// Wraps cusolverDnXgesvd. Stores U, S, VT on device. Solve uses
-// cuBLAS GEMM: X = VT^H * diag(D) * U^H * B.
-//
-// cuSOLVER returns VT (not V). We store and expose VT directly.
-//
-// Usage:
-//   SVD<double> svd(A, ComputeThinU | ComputeThinV);
-//   VectorXd S = svd.singularValues();
-//   MatrixXd U = svd.matrixU();       // m×k or m×m
-//   MatrixXd V = svd.matrixV();         // n×k or n×n (matches JacobiSVD)
-//   MatrixXd VT = svd.matrixVT();      // k×n or n×n (this is V^T)
-//   MatrixXd X = svd.solve(B);        // pseudoinverse
-//   MatrixXd X = svd.solve(B, k);     // truncated (top k triplets)
-//   MatrixXd X = svd.solve(B, 0.1);   // Tikhonov regularized
+// cuSOLVER returns VT rather than V, so VT is what is stored; matrixV() adjoints
+// it to match JacobiSVD and BDCSVD.
 
 #ifndef EIGEN_GPU_SVD_H
 #define EIGEN_GPU_SVD_H
@@ -35,7 +24,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 template <typename Scalar_>
 class SVD {
  public:
@@ -133,8 +121,6 @@ class SVD {
     return *this;
   }
 
-  // ---- Factorization -------------------------------------------------------
-
   template <typename InputType>
   SVD& compute(const EigenBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV) {
     // Upload to device, then delegate to the adopting overload — the freshly
@@ -176,8 +162,6 @@ class SVD {
     factorize();
     return *this;
   }
-
-  // ---- Accessors -----------------------------------------------------------
 
   ComputationInfo info() const { return solver_ctx_.info(); }
 
@@ -245,7 +229,6 @@ class SVD {
     }
   }
 
-  // ---- Device-side accessors (zero-copy views; chain into cuBLAS without D2D) ---------
   //
   // These return non-owning DeviceMatrix views over the SVD's internal device storage.
   // The view borrows the pointer: destruction does not free; the SVD object must outlive
@@ -332,8 +315,6 @@ class SVD {
     }
     return (S.array() > threshold).count();
   }
-
-  // ---- Solve ---------------------------------------------------------------
 
   /** Pseudoinverse solve: X = V * diag(1/S) * U^H * B. */
   template <typename Rhs>
@@ -659,7 +640,6 @@ class SVD {
     return X;
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

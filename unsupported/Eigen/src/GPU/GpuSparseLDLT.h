@@ -8,14 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU sparse LDL^T / LDL^H factorization via cuDSS.
-//
-// For symmetric indefinite (or Hermitian indefinite) sparse matrices.
-// Same three-phase workflow as SparseLLT.
-//
-// Usage:
-//   SparseLDLT<double> ldlt(A);      // analyze + factorize
-//   VectorXd x = ldlt.solve(b);         // solve
+// GPU sparse LDL^T / LDL^H factorization via cuDSS, for symmetric indefinite and
+// Hermitian indefinite matrices.
 
 #ifndef EIGEN_GPU_SPARSE_LDLT_H
 #define EIGEN_GPU_SPARSE_LDLT_H

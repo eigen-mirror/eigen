@@ -8,15 +8,13 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU sparse matrix-vector multiply (SpMV) and sparse matrix-dense matrix
-// multiply (SpMM) via cuSPARSE.
+// GPU sparse matrix-vector (SpMV) and sparse matrix-dense matrix (SpMM) multiply
+// via cuSPARSE.
 //
-// SparseContext manages cuSPARSE descriptors and device buffers. It accepts
-// Eigen SparseMatrix<Scalar, ColMajor> (CSC) and performs SpMV/SpMM on the GPU.
-// RowMajor input is implicitly converted to ColMajor.
-//
-// Can borrow a Context for same-stream execution with BLAS-1 ops (zero
-// event overhead in iterative solvers like CG).
+// SparseContext owns the cuSPARSE descriptors and device buffers. It takes
+// SparseMatrix<Scalar, ColMajor> (CSC), implicitly converting RowMajor input, and
+// can borrow a gpu::Context so that sparse products share a stream with BLAS-1
+// operations — which removes the cross-stream event waits in solvers like CG.
 //
 // Caching: host-input calls re-upload the values *and* index arrays on every
 // call. Host pointer identity cannot detect a sparsity pattern rewritten in
@@ -27,29 +25,8 @@
 // SpMV/SpMM workspace-size queries. For repeated products with no re-upload
 // at all, use deviceView().
 //
-// Thread safety: not thread-safe. Concurrent multiply* calls on a single
-// SparseContext race on the cuSPARSE handle, the bound stream, and the
-// cached device buffers. Use one SparseContext per thread.
-//
-// Usage:
-//   // Standalone (own stream):
-//   gpu::SparseContext<double> ctx;
-//   VectorXd y = ctx.multiply(A, x);                  // y = A * x
-//   ctx.multiply(A, x, y, 2.0, 1.0);                  // y = 2*A*x + y
-//   ctx.multiply(A, x, y, 1.0, 0.0, gpu::GpuOp::ConjTrans);  // y = A^H * x
-//   VectorXd z = ctx.multiplyT(A, x);                 // z = A^T * x
-//   VectorXcd w = ctx.multiplyAdjoint(A, x);          // w = A^H * x (complex)
-//   MatrixXd Y = ctx.multiplyMat(A, X);               // Y = A * X (multiple RHS)
-//
-//   // Shared context (same stream as BLAS-1 ops):
-//   gpu::Context gpu_ctx;
-//   gpu::SparseContext<double> sparse_ctx(gpu_ctx);
-//   VectorXd y = sparse_ctx.multiply(A, x);
-//
-//   // Device-resident (no host roundtrip):
-//   auto d_A = sparse_ctx.deviceView(A);              // upload once
-//   d_y = d_A * d_x;                                  // SpMV, stays on device
-//   d_Y = d_A * d_X;                                  // SpMM when X has >1 column
+// Not thread-safe: concurrent multiply* calls on one instance race on the
+// cuSPARSE handle, the bound stream, and the cached buffers. Use one per thread.
 
 #ifndef EIGEN_GPU_SPARSE_CONTEXT_H
 #define EIGEN_GPU_SPARSE_CONTEXT_H
@@ -152,8 +129,6 @@ class SparseContext {
   SparseContext(const SparseContext&) = delete;
   SparseContext& operator=(const SparseContext&) = delete;
 
-  // ---- Device sparse view (for expression syntax: d_y = d_A * d_x) ----------
-
   /** Upload a sparse matrix to device and return a lightweight view.
    * The sparse data is uploaded immediately and cached in this context.
    * The returned view can be used for repeated SpMV/SpMM without re-uploading.
@@ -176,8 +151,6 @@ class SparseContext {
    * every sparse upload (deviceView() or a host-input multiply). */
   uint64_t uploadGeneration() const { return generation_; }
 
-  // ---- SpMV: y = A * x (host vectors) --------------------------------------
-
   /** Compute y = A * x. Returns y as a new dense vector. */
   template <typename InputType, typename Rhs>
   DenseVector multiply(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
@@ -194,8 +167,6 @@ class SparseContext {
     const SpMat& mat = internal::bind_sparse<SpMat>(input, storage);
     multiply_host_impl(mat, x.derived(), y.derived(), alpha, beta, internal::to_cusparse_op<Scalar>(op));
   }
-
-  // ---- SpMV: y = A * x (DeviceMatrix, no host roundtrip) -------------------
 
   /** Compute d_y = A * d_x. Device-resident dense vectors, no host transfer
    * for x/y. The sparse matrix (values and index arrays) is re-uploaded on
@@ -217,23 +188,17 @@ class SparseContext {
     spmv_device_exec(d_x, d_y, alpha, beta, op);
   }
 
-  // ---- SpMV transpose -------------------------------------------------------
-
   /** Compute y = A^T * x (host vectors). */
   template <typename InputType, typename Rhs>
   DenseVector multiplyT(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
     return multiply_host_return(A, x, GpuOp::Trans);
   }
 
-  // ---- SpMV adjoint: y = A^H * x -------------------------------------------
-
   /** Compute y = A^H * x (conjugate transpose). For real Scalar this is equivalent to multiplyT. */
   template <typename InputType, typename Rhs>
   DenseVector multiplyAdjoint(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x) {
     return multiply_host_return(A, x, GpuOp::ConjTrans);
   }
-
-  // ---- SpMM: Y = op(A) * X (multiple RHS) ----------------------------------
 
   /** Compute Y = op(A) * X where X is a dense matrix (multiple RHS). Returns Y. */
   template <typename InputType, typename Rhs>
@@ -256,8 +221,6 @@ class SparseContext {
     spmm_impl(mat, rhs, Y, Scalar(1), Scalar(0), cu_op);
     return Y;
   }
-
-  // ---- Accessors ------------------------------------------------------------
 
   cudaStream_t stream() const { return stream_; }
 
@@ -305,8 +268,6 @@ class SparseContext {
   mutable size_t spmv_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
   mutable size_t spmm_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
 
-  // ---- Input binding ---------------------------------------------------------
-
   // Shared host-input SpMV entry: y = op(A) * x into a fresh vector.
   template <typename InputType, typename Rhs>
   DenseVector multiply_host_return(const SparseMatrixBase<InputType>& A, const MatrixBase<Rhs>& x, GpuOp op) {
@@ -319,8 +280,6 @@ class SparseContext {
     multiply_host_impl(mat, x.derived(), y, Scalar(1), Scalar(0), internal::to_cusparse_op<Scalar>(op));
     return y;
   }
-
-  // ---- SpMV with host vectors (upload/download per call) --------------------
 
   template <typename RhsDerived, typename DestDerived>
   void multiply_host_impl(const SpMat& A, const RhsDerived& x, DestDerived& y, Scalar alpha, Scalar beta,
@@ -494,8 +453,6 @@ class SparseContext {
     }
   }
 
-  // ---- Cached dense descriptors ----------------------------------------------
-
   // Recreate the descriptor when the size changes; otherwise just re-point it
   // at the new device buffer (cusparseDnVecSetValues is a host-side pointer
   // update, no GPU work).
@@ -534,8 +491,6 @@ class SparseContext {
     x_mat_desc_ = y_mat_desc_ = nullptr;
   }
 
-  // ---- Shared SpMV execution ------------------------------------------------
-
   void exec_spmv(Index x_size, Index y_size, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
     constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
@@ -553,8 +508,6 @@ class SparseContext {
     EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_, dtype,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
   }
-
-  // ---- Shared SpMM execution --------------------------------------------------
 
   void exec_spmm(Index m_op, Index k_op, Index n, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
@@ -575,8 +528,6 @@ class SparseContext {
     EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
                                       x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg, d_workspace_.get()));
   }
-
-  // ---- SpMM implementation (host in/out) -------------------------------------
 
   void spmm_impl(const SpMat& A, const DenseMatrix& X, DenseMatrix& Y, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) {
@@ -616,8 +567,6 @@ class SparseContext {
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(Y.data(), d_y_.get(), y_bytes, cudaMemcpyDeviceToHost, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
   }
-
-  // ---- Helpers --------------------------------------------------------------
 
   void upload_sparse(const SpMat& A) {
     // cuSPARSE 12.0+ accepts CSC directly. On cuSPARSE 11.x, cusparseSpMM
@@ -702,7 +651,6 @@ class SparseContext {
   }
 };
 
-// ---- DeviceMatrix::operator=(SpMVExpr) out-of-line definition ----------------
 // Defined here because it needs the full SparseContext definition.
 
 template <typename Scalar_>
@@ -724,7 +672,6 @@ template <typename Scalar_>
 DeviceMatrix<Scalar_>::DeviceMatrix(const SpMVExpr<Scalar_>& expr) : DeviceMatrix() {
   *this = expr;
 }
-
 }  // namespace gpu
 }  // namespace Eigen
 

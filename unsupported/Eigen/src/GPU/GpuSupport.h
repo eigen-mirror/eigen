@@ -8,12 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Generic CUDA runtime support shared across all GPU library integrations
-// (cuSOLVER and cuBLAS):
-//   - Error-checking macros
-//   - RAII device buffer
-//
-// Only depends on <cuda_runtime.h>. No NVIDIA library headers.
+// Generic CUDA runtime support shared by all GPU library integrations.
+// Depends only on <cuda_runtime.h>; no NVIDIA library headers.
 
 #ifndef EIGEN_GPU_SUPPORT_H
 #define EIGEN_GPU_SUPPORT_H
@@ -29,39 +25,29 @@
 
 namespace Eigen {
 namespace gpu {
-
-// ---- Generic operation flag -------------------------------------------------
-// Public flag for transpose/adjoint in BLAS-, solver-, and sparse-style calls.
-// Each library's support header maps this to its own enum (cublasOperation_t,
-// cusparseOperation_t, etc.) via a small to_<lib>_op() helper.
-
+// Transpose/adjoint flag for BLAS-, solver-, and sparse-style calls. Each
+// library's support header maps it to its own enum (cublasOperation_t,
+// cusparseOperation_t, ...) via a to_<lib>_op() helper.
 enum class GpuOp { NoTrans, Trans, ConjTrans };
 
 namespace internal {
-
-// ---- Error-checking macros --------------------------------------------------
-// These abort (via eigen_assert) on failure. Not for use in destructors.
-
+// Aborts via eigen_assert on failure, so it must not be used in destructors.
 #define EIGEN_CUDA_RUNTIME_CHECK(expr)                             \
   do {                                                             \
     cudaError_t _e = (expr);                                       \
     eigen_assert(_e == cudaSuccess && "CUDA runtime call failed"); \
   } while (0)
 
-// ---- Bounds-checked narrowing for cuBLAS/cuSOLVER int parameters ------------
 // cuBLAS and the legacy cuSOLVER APIs take dimensions and leading dimensions as
-// `int` (32-bit signed). Modern GPUs can host allocations whose dimensions
-// exceed INT_MAX, and Eigen's Index is 64-bit by default. Use this helper at
-// every narrowing call site so an out-of-range value triggers an assert
-// instead of silently overflowing the BLAS argument.
-
+// 32-bit `int`, while Eigen's Index is 64-bit by default and GPU allocations can
+// exceed INT_MAX in one dimension. Narrow through this helper at every such call
+// site so an out-of-range value asserts instead of silently overflowing.
 inline int to_blas_int(int64_t v) {
   eigen_assert(v >= 0 && v <= static_cast<int64_t>((std::numeric_limits<int>::max)()) &&
                "dimension exceeds the int range supported by cuBLAS / cuSOLVER");
   return static_cast<int>(v);
 }
 
-// ---- Stream-ordered device allocation ----------------------------------------
 // cudaMallocAsync / cudaFreeAsync (CUDA 11.2+) allocate from a stream-ordered
 // memory pool: both are cheap enqueues instead of the device-wide
 // synchronization performed by cudaMalloc / cudaFree. All module allocations
@@ -75,8 +61,7 @@ inline int to_blas_int(int64_t v) {
 // the legacy stream. When borrowing such a stream (gpu::Context(stream)),
 // define EIGEN_GPU_NO_STREAM_ORDERED_ALLOC to fall back to cudaMalloc/cudaFree.
 //
-// Support is detected once per process (attribute of the device current at
-// first use); unsupported configurations fall back to cudaMalloc/cudaFree.
+// Support is detected once per process, from the device current at first use.
 
 inline bool device_supports_memory_pools() {
 #ifdef EIGEN_GPU_NO_STREAM_ORDERED_ALLOC
@@ -123,10 +108,6 @@ inline void device_free(void* p) noexcept {
   }
 }
 
-// ---- Custom deleters for CUDA-allocated memory ------------------------------
-// Used with std::unique_ptr to give CUDA allocations RAII semantics with no
-// hand-rolled move/dtor boilerplate.
-
 struct CudaFreeDeleter {
   // When `borrow == true`, the unique_ptr does not free the pointer. Used by
   // DeviceMatrix::view() to wrap a non-owning device pointer with the same
@@ -143,10 +124,8 @@ struct CudaFreeHostDeleter {
   }
 };
 
-// ---- Thread-local pool of small device buffers ------------------------------
-// Recycles allocations up to kSmallBufferThreshold bytes (e.g., DeviceScalar)
-// to avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
-
+// Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
+// avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
 template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
 struct DeviceBufferPool {
   static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
@@ -223,8 +202,6 @@ struct PooledCudaFreeDeleter {
   }
 };
 
-// ---- RAII: device buffer ----------------------------------------------------
-
 class DeviceBuffer {
  public:
   DeviceBuffer() = default;
@@ -283,10 +260,8 @@ class DeviceBuffer {
   size_t bytes_ = 0;
 };
 
-// ---- RAII: pinned host buffer -----------------------------------------------
-// For async D2H copies (cudaMemcpyAsync requires pinned host memory for true
-// asynchrony and to avoid compute-sanitizer warnings).
-
+// cudaMemcpyAsync only overlaps with compute when the host side is pinned, so
+// async D2H staging goes through this buffer.
 class PinnedHostBuffer {
  public:
   PinnedHostBuffer() = default;
@@ -306,10 +281,8 @@ class PinnedHostBuffer {
   std::unique_ptr<void, CudaFreeHostDeleter> ptr_;
 };
 
-// ---- Scalar → cudaDataType_t ------------------------------------------------
-// Shared by cuBLAS and cuSOLVER. cudaDataType_t is defined in library_types.h
-// which is included transitively by cuda_runtime.h.
-
+// cudaDataType_t lives in library_types.h, pulled in transitively by
+// cuda_runtime.h, so this trait needs no NVIDIA library header of its own.
 template <typename Scalar>
 struct cuda_data_type;
 
@@ -329,7 +302,6 @@ template <>
 struct cuda_data_type<std::complex<double>> {
   static constexpr cudaDataType_t value = CUDA_C_64F;
 };
-
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

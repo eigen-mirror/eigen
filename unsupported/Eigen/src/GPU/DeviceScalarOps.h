@@ -8,9 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Device-resident scalar and element-wise operations via NPP signals.
-// Header-only — no custom CUDA kernels needed. Uses nppsDiv, nppsMul,
-// nppsMulC from the NPP library (CUDA::npps, part of the CUDA toolkit).
+// Device-resident scalar and element-wise operations built on the NPP signal
+// primitives (CUDA::npps), which keeps the module header-only: no custom CUDA
+// kernels to compile.
 
 #ifndef EIGEN_GPU_DEVICE_SCALAR_OPS_H
 #define EIGEN_GPU_DEVICE_SCALAR_OPS_H
@@ -24,22 +24,19 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// ---- NppStreamContext helper ------------------------------------------------
-
+// NPP requires nCudaDeviceId and the device attributes to match the device that
+// owns `stream`. Re-querying per call is cheap next to the NPP launch itself and
+// keeps multi-device and borrowed-stream callers correct.
 inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
-  // NPP requires nCudaDeviceId / device attributes to match the device that
-  // owns 'stream' at this call. We query each time (cheap relative to the NPP
-  // launch itself) so multi-device or borrowed-stream callers stay correct.
   NppStreamContext ctx = {};
   ctx.hStream = stream;
 #if CUDART_VERSION >= 12080
-  // cudaStreamGetDevice (added in CUDA 12.8) returns the device that owns the
-  // stream regardless of the calling thread's current device — safe for
-  // borrowed streams.
+  // cudaStreamGetDevice reports the stream's owning device irrespective of the
+  // calling thread's current device.
   EIGEN_CUDA_RUNTIME_CHECK(cudaStreamGetDevice(stream, &ctx.nCudaDeviceId));
 #else
-  // Older CUDA runtimes lack cudaStreamGetDevice. Callers using borrowed
-  // streams from a different device must cudaSetDevice() first.
+  // Without cudaStreamGetDevice (pre-CUDA 12.8), a caller borrowing a stream from
+  // another device must cudaSetDevice() first.
   EIGEN_CUDA_RUNTIME_CHECK(cudaGetDevice(&ctx.nCudaDeviceId));
 #endif
   EIGEN_CUDA_RUNTIME_CHECK(cudaDeviceGetAttribute(&ctx.nCudaDevAttrComputeCapabilityMajor,
@@ -60,20 +57,19 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
   return ctx;
 }
 
-// ---- Scalar division: c = a / b (device-resident, async) --------------------
-
+// c = a / b. The operands are swapped because NPP computes
+// pDst[i] = pSrc2[i] / pSrc1[i].
 inline void device_scalar_div(const float* a, const float* b, float* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_32f_Ctx(b, a, c, 1, npp_ctx);  // NPP: pDst[i] = pSrc2[i] / pSrc1[i]
+  nppsDiv_32f_Ctx(b, a, c, 1, npp_ctx);
 }
 
 inline void device_scalar_div(const double* a, const double* b, double* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_64f_Ctx(b, a, c, 1, npp_ctx);  // NPP: pDst[i] = pSrc2[i] / pSrc1[i]
+  nppsDiv_64f_Ctx(b, a, c, 1, npp_ctx);
 }
 
-// ---- Scalar negation: c = -a (device-resident, async) -----------------------
-
+// c = -a.
 inline void device_scalar_neg(const float* a, float* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
   nppsMulC_32f_Ctx(a, -1.0f, c, 1, npp_ctx);
@@ -84,8 +80,7 @@ inline void device_scalar_neg(const double* a, double* c, cudaStream_t stream) {
   nppsMulC_64f_Ctx(a, -1.0, c, 1, npp_ctx);
 }
 
-// ---- Element-wise vector multiply: c[i] = a[i] * b[i] ----------------------
-
+// c[i] = a[i] * b[i].
 inline void device_cwiseProduct(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
   nppsMul_32f_Ctx(a, b, c, static_cast<size_t>(n), npp_ctx);
@@ -96,11 +91,10 @@ inline void device_cwiseProduct(const double* a, const double* b, double* c, int
   nppsMul_64f_Ctx(a, b, c, static_cast<size_t>(n), npp_ctx);
 }
 
-// ---- Element-wise vector division: c[i] = a[i] / b[i] ----------------------
-
+// c[i] = a[i] / b[i], with operands swapped as in device_scalar_div.
 inline void device_cwiseQuotient(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_32f_Ctx(b, a, c, static_cast<size_t>(n), npp_ctx);  // NPP: dst = src2 / src1
+  nppsDiv_32f_Ctx(b, a, c, static_cast<size_t>(n), npp_ctx);
 }
 
 inline void device_cwiseQuotient(const double* a, const double* b, double* c, int n, cudaStream_t stream) {

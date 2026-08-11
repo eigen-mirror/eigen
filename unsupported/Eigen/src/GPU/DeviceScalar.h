@@ -10,20 +10,11 @@
 
 // Device-resident scalar for deferred host synchronization.
 //
-// DeviceScalar<Scalar> wraps a single value in device memory. Reductions
-// (dot, nrm2) write results directly to device memory via
-// CUBLAS_POINTER_MODE_DEVICE, deferring host sync until the value is read.
-//
-// Implicit conversion to Scalar triggers cudaStreamSynchronize + download.
-// In CG, this reduces 3 syncs/iter to effectively 1: the first conversion
-// syncs the stream, subsequent conversions in the same expression just
-// download (the stream is already flushed).
-//
-// Usage:
-//   auto dot_val = d_x.dot(d_y);       // DeviceScalar, no sync
-//   auto norm_val = d_r.squaredNorm();  // DeviceScalar, no sync
-//   Scalar alpha = absNew / dot_val;    // sync here (both values downloaded)
-//   d_x += alpha * d_p;                 // host-scalar axpy (as before)
+// Reductions (dot, nrm2) write their result straight to device memory under
+// CUBLAS_POINTER_MODE_DEVICE, so no host sync happens until the value is read.
+// Conversion to Scalar is that read. Because the first conversion flushes the
+// stream, later conversions in the same expression only download: a CG iteration
+// costs one sync rather than three.
 
 #ifndef EIGEN_GPU_DEVICE_SCALAR_H
 #define EIGEN_GPU_DEVICE_SCALAR_H
@@ -42,8 +33,8 @@ class DeviceScalar {
  public:
   using Scalar = Scalar_;
 
-  /** Allocate uninitialized device scalar. Contents are undefined until written
-   * (e.g., by cuBLAS dot/nrm2 with POINTER_MODE_DEVICE). */
+  /** Allocate an uninitialized device scalar. Contents are undefined until
+   * written, e.g. by cuBLAS dot/nrm2 under POINTER_MODE_DEVICE. */
   explicit DeviceScalar(cudaStream_t stream = nullptr) : d_val_(sizeof(Scalar)), stream_(stream) {}
 
   DeviceScalar(Scalar host_val, cudaStream_t stream) : d_val_(sizeof(Scalar)), stream_(stream) {
@@ -64,8 +55,7 @@ class DeviceScalar {
   DeviceScalar(const DeviceScalar&) = delete;
   DeviceScalar& operator=(const DeviceScalar&) = delete;
 
-  /** Download from device. Synchronizes the stream on first call;
-   * subsequent calls in the same expression are cheap (stream already flushed). */
+  /** Download from device, synchronizing the stream. */
   Scalar get() const {
     Scalar result;
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&result, d_val_.get(), sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
@@ -73,22 +63,18 @@ class DeviceScalar {
     return result;
   }
 
-  /** Implicit conversion — allows `Scalar alpha = deviceScalar` and
-   * `if (deviceScalar < threshold)`. Triggers sync. */
+  /** Implicit conversion, enabling `Scalar alpha = deviceScalar` and
+   * `if (deviceScalar < threshold)`. Triggers a sync. */
   operator Scalar() const { return get(); }
 
   Scalar* devicePtr() { return static_cast<Scalar*>(d_val_.get()); }
   const Scalar* devicePtr() const { return static_cast<const Scalar*>(d_val_.get()); }
   cudaStream_t stream() const { return stream_; }
 
-  // ---- Device-side arithmetic (no host sync) ---------------------------------
-  // Uses NPP from DeviceScalarOps.h. All results stay on device.
-  // Currently supports real types only (float, double). Complex types
-  // fall back to implicit conversion (host sync) for division.
-  //
-  // Note: DeviceScalar has no cross-stream readiness tracking. All
-  // operations must be on the same CUDA stream. This is the natural
-  // pattern in iterative solvers where one GpuContext owns all work.
+  // The arithmetic below keeps results on device via the NPP helpers in
+  // DeviceScalarOps.h, and covers real types only; complex division falls back to
+  // the implicit conversion and its host sync. Unlike DeviceMatrix, DeviceScalar
+  // tracks no cross-stream readiness, so all operands must share one stream.
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
     eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");

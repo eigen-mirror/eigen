@@ -8,20 +8,13 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// GPU QR decomposition using cuSOLVER.
+// GPU QR decomposition using cuSOLVER, wrapping cusolverDnXgeqrf, cusolverDnXormqr
+// (apply Q), and cublasXtrsm (triangular solve on R). Q is never formed
+// explicitly.
 //
-// Wraps cusolverDnXgeqrf (factorization), cusolverDnXormqr (apply Q),
-// and cublasXtrsm (triangular solve on R). Q is never formed explicitly.
-//
-// Handles both shapes transparently:
-//   m >= n (overdetermined or square): factor A = Q R; least-squares solve.
-//   m  < n (underdetermined):           factor A^H = Q R internally; min-norm solve.
-//
-// Usage:
-//   QR<double> qr(A);              // upload A, geqrf (transparent transpose if m<n)
-//   if (qr.info() != Success) { ... }
-//   MatrixXd X = qr.solve(B);      // least-squares (m>=n) or min-norm (m<n)
-//   MatrixXd R = qr.matrixR();     // upper-triangular factor (m>=n only)
+// Both shapes are handled transparently: for m >= n the factorization is
+// A = Q R and solve() is least-squares; for m < n it is A^H = Q R internally and
+// solve() is minimum-norm.
 
 #ifndef EIGEN_GPU_QR_H
 #define EIGEN_GPU_QR_H
@@ -33,7 +26,6 @@
 
 namespace Eigen {
 namespace gpu {
-
 template <typename Scalar_>
 class QR {
  public:
@@ -103,8 +95,6 @@ class QR {
     return *this;
   }
 
-  // ---- Factorization -------------------------------------------------------
-
   template <typename InputType>
   QR& compute(const EigenBase<InputType>& A) {
     // Upload to device, then delegate to the adopting overload — the freshly
@@ -145,8 +135,6 @@ class QR {
     return *this;
   }
 
-  // ---- Solve ---------------------------------------------------------------
-
   /** Solve A * X = B.
    * For m >= n (over-/exactly-determined): least-squares X = R^{-1} Q^H B (residual A^H r ≈ 0).
    * For m  < n (underdetermined):          minimum-norm  X = Q R^{-H} B (||X|| minimized). */
@@ -180,8 +168,6 @@ class QR {
     return solve_underdetermined_device(d_B);
   }
 
-  // ---- Accessors -----------------------------------------------------------
-
   ComputationInfo info() const { return solver_ctx_.info(); }
 
   Index rows() const { return m_; }
@@ -209,9 +195,9 @@ class QR {
   int64_t m_ = 0;                 // original A.rows()
   int64_t n_ = 0;                 // original A.cols()
   int64_t lda_ = 0;               // factor leading dim = max(m_, n_)
-  bool transposed_ = false;       // true iff m_ < n_ (we factored A^H instead of A)
+  bool transposed_ = false;       // true iff m_ < n_, i.e. A^H was factored
 
-  // Factor matrix dimensions (we always factor a "tall" matrix: rows >= cols).
+  // The factored matrix is always tall: rows >= cols.
   int64_t factor_rows() const { return transposed_ ? n_ : m_; }
   int64_t factor_cols() const { return transposed_ ? m_ : n_; }
   int64_t k() const { return (std::min)(m_, n_); }
@@ -270,9 +256,9 @@ class QR {
     solver_ctx_.enqueue_info_copy();
   }
 
-  // Apply Q (op = CUBLAS_OP_N) or Q^H (op = CUBLAS_OP_T/C) to a device buffer in-place.
-  // For real types Q^H = Q^T -> CUBLAS_OP_T. For complex -> CUBLAS_OP_C.
-  // Workspace lives in solver_ctx_.scratch (grows but never shrinks): no per-call malloc/free.
+  // Applies Q (CUBLAS_OP_N) or Q^H (CUBLAS_OP_T for real, CUBLAS_OP_C for complex)
+  // in place. Workspace comes from solver_ctx_'s grow-only scratch, so there is no
+  // per-call malloc/free.
   void apply_Q(cublasOperation_t op, void* d_B, int64_t ldb, int64_t nrhs) const {
     const int im = internal::to_blas_int(factor_rows());
     const int in = internal::to_blas_int(nrhs);
@@ -297,8 +283,6 @@ class QR {
     constexpr cublasOperation_t trans = NumTraits<Scalar>::IsComplex ? CUBLAS_OP_C : CUBLAS_OP_T;
     apply_Q(trans, d_B, ldb, nrhs);
   }
-
-  // ---- Solve helpers (overdetermined: m >= n) ------------------------------
 
   PlainMatrix solve_overdetermined_host(const PlainMatrix& rhs) const {
     const Index nrhs = rhs.cols();
@@ -352,7 +336,6 @@ class QR {
     return result;
   }
 
-  // ---- Solve helpers (underdetermined: m < n) ------------------------------
   //
   // We factored A^H = Q R, so A = R^H Q^H. Solving A X = B for X with min ||X||:
   //   z = R^{-H} B            (m × nrhs, occupies top m rows of an n × nrhs buffer)
@@ -408,9 +391,8 @@ class QR {
 
   static cublasOperation_t trsm_op_conj_trans() { return NumTraits<Scalar>::IsComplex ? CUBLAS_OP_C : CUBLAS_OP_T; }
 
-  // Triangular solve on R: X := op(R)^{-1} B (in-place on B).
-  // op = CUBLAS_OP_N        for the m>=n branch (R X = (Q^H B)[:k,:])
-  // op = CUBLAS_OP_T or _C  for the m<n branch  (R^H z = B)
+  // X := op(R)^{-1} B, in place on B. The m >= n branch passes CUBLAS_OP_N to
+  // solve R X = (Q^H B)[:k,:]; the m < n branch passes OP_T/OP_C to solve R^H z = B.
   void trsm_R(void* d_B, int64_t ldb, int64_t nrhs, cublasOperation_t op) const {
     Scalar alpha(1);
     EIGEN_CUBLAS_CHECK(internal::cublasXtrsm(
@@ -419,7 +401,6 @@ class QR {
         internal::to_blas_int(lda_), static_cast<Scalar*>(d_B), internal::to_blas_int(ldb)));
   }
 };
-
 }  // namespace gpu
 }  // namespace Eigen
 

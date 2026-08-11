@@ -8,11 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Shared context for GPU solvers (GpuLLT, GpuLU, GpuQR, GpuSVD, etc.).
-//
-// Owns a CUDA stream, cuSOLVER handle, cuBLAS handle, scratch buffer,
-// and info word. Each solver holds a GpuSolverContext by composition
-// and delegates lifecycle/scratch management to it.
+// Shared context for the dense GPU solvers. Each solver holds one by composition
+// and delegates handle lifetime and scratch management to it.
 
 #ifndef EIGEN_GPU_SOLVER_CONTEXT_H
 #define EIGEN_GPU_SOLVER_CONTEXT_H
@@ -201,7 +198,7 @@ struct GpuSolverContext {
     return reinterpret_cast<int*>(static_cast<char*>(d_scratch_.get()) + d_scratch_.size() - kInfoBytes);
   }
 
-  // Mark a factorization as pending (info not yet available).
+  // Mark a factorization as pending: its info word is not yet available.
   void mark_pending() {
     info_synced_ = false;
     info_ = InvalidInput;
@@ -226,7 +223,7 @@ struct GpuSolverContext {
         cudaMemcpyAsync(&info_word(), scratch_info(), sizeof(int), cudaMemcpyDeviceToHost, stream_));
   }
 
-  // Synchronize the stream and interpret the info word. No-op if already synced.
+  // Synchronize the stream and interpret the info word; no-op once synced.
   void sync_info() {
     if (!info_synced_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
