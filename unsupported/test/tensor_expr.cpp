@@ -507,6 +507,18 @@ static void test_mixed_scalar_arithmetic() {
   VERIFY_IS_EQUAL(out(0, 0), 3.0f);
 }
 
+template <typename Scalar>
+static void test_const_tensor_map_scalar_arithmetic() {
+  Tensor<Scalar, 1> storage(2);
+  storage.setConstant(Scalar(2));
+  const TensorMap<const Tensor<Scalar, 1>> input(storage.data(), storage.dimensions());
+  const Scalar scale = Scalar(3);
+
+  Tensor<Scalar, 1> output = scale * input;
+  VERIFY_IS_EQUAL(output(0), Scalar(6));
+  VERIFY_IS_EQUAL(output(1), Scalar(6));
+}
+
 // A scalar on the left of a comparison reflects to the member comparison: scalar < tensor is
 // tensor > scalar, etc. The scalar type may differ from the tensor Scalar.
 static void test_scalar_lhs_comparison() {
@@ -541,5 +553,7 @@ EIGEN_DECLARE_TEST(tensor_expr) {
   CALL_SUBTEST(test_clip());
   CALL_SUBTEST(test_minmax_nan_propagation());
   CALL_SUBTEST(test_mixed_scalar_arithmetic());
+  CALL_SUBTEST(test_const_tensor_map_scalar_arithmetic<Eigen::half>());
+  CALL_SUBTEST(test_const_tensor_map_scalar_arithmetic<Eigen::bfloat16>());
   CALL_SUBTEST(test_scalar_lhs_comparison());
 }

@@ -19,10 +19,12 @@
 namespace Eigen {
 
 namespace internal {
-// Keep mixed arithmetic and enum operands within the existing implicit-conversion boundary.
+// Const TensorMap expressions expose a const-qualified Scalar. Ignore cv-qualifiers for an exact scalar match, while
+// keeping mixed arithmetic and enum operands within the existing implicit-conversion boundary.
 template <typename OtherScalar, typename Scalar>
 struct is_scalar_operand
-    : bool_constant<std::is_same<OtherScalar, Scalar>::value ||
+    : bool_constant<std::is_same<typename std::remove_cv<OtherScalar>::type,
+                                 typename std::remove_cv<Scalar>::type>::value ||
                     ((std::is_arithmetic<OtherScalar>::value || std::is_enum<OtherScalar>::value) &&
                      std::is_convertible<OtherScalar, Scalar>::value)> {};
 }  // namespace internal
