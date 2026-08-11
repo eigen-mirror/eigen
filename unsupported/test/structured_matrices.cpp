@@ -1325,6 +1325,15 @@ void test_circulant_rank_boundaries() {
   }
 }
 
+// True where a subnormal result survives: under flush-to-zero -- NVHPC's default
+// -fast, for one -- it is an exact zero instead. The volatile operands keep the
+// compiler from folding the probe under IEEE semantics the run time does not use.
+bool subnormals_survive() {
+  volatile double vtiny = (std::numeric_limits<double>::min)();
+  volatile double vhalf = 0.5;
+  return !numext::is_exactly_zero(vtiny * vhalf);
+}
+
 // A finite complex symbol entry near the overflow threshold has a
 // non-representable modulus. The rank threshold used to be computed from the raw
 // moduli, turning it into infinity: the rank was under-reported and solve()
@@ -1332,8 +1341,19 @@ void test_circulant_rank_boundaries() {
 // frame.
 void test_circulant_rank_complex_boundary() {
   typedef std::complex<double> Complex;
+  typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<Complex, Dynamic, 1> CVec;
   const double mx = (std::numeric_limits<double>::max)();
+
+  // The length-one shortcut has no FFTs, but its pointwise division still needs
+  // scaling: a huge right-hand side over the balanced O(1) symbol overflows before
+  // the symbol exponent is folded back, though the result itself is moderate.
+  const Vec oneCol = Vec::Constant(1, 0.75 * mx);
+  const Vec oneB = Vec::Constant(1, 0.25 * mx);
+  const Vec oneX = Circulant<double>(oneCol).solve(oneB);
+  const double oneExpected = oneB[0] / oneCol[0];
+  VERIFY(oneX.allFinite());
+  VERIFY(numext::abs(oneX[0] / oneExpected - 1.0) <= 16 * NumTraits<double>::epsilon());
 
   // n = 2: the symbol is exactly [c0 + c1, c0 - c1], so pick the generator from
   // the desired spectrum. |s0| overflows while both of its components are finite.
@@ -1354,6 +1374,28 @@ void test_circulant_rank_complex_boundary() {
   VERIFY(b.allFinite());
   CVec x = C.solve(b);
   VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
+
+  // A large right-hand side in the smaller retained mode must be scaled for the
+  // division's amplification as well as for the transforms: the quotient is
+  // moderate, but the balanced-frame division overflows without it.
+  const double h = 0.25 * mx;
+  CVec largeB(2);
+  largeB << Complex(h), Complex(-h);
+  const CVec largeX = C.solve(largeB);
+  const double expected = h / numext::real(C.symbol()[1]);
+  CVec expectedX(2);
+  expectedX << Complex(expected), Complex(-expected);
+  VERIFY(largeX.allFinite());
+  VERIFY(((largeX - expectedX).cwiseAbs().maxCoeff() / expected) <= 32 * NumTraits<double>::epsilon());
+
+  // The reciprocal of an entry near the overflow boundary is subnormal but
+  // representable, and must not collapse to zero: formed as conj(z)/|z|^2, or by
+  // Smith's algorithm, it overflows to exactly zero and drops the mode. Gated on
+  // flush-to-zero, where that entry is not representable at all -- which is why
+  // solve() divides by the symbol rather than multiplying by its reciprocal.
+  const CVec sinv = C.inverse().symbol();
+  VERIFY(sinv.allFinite());
+  if (subnormals_survive()) VERIFY_IS_EQUAL((sinv.array() == Complex(0)).count(), 0);
 
   // A genuinely negligible second entry still truncates in the scaled frame.
   CVec c2(2);

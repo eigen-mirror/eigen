@@ -247,12 +247,15 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     const ComplexVector s = symbol();
     RealVector mods;
     RealScalar tol;
-    scaledModuli(s, mods, tol);
+    int es = 0;
+    scaledModuli(s, mods, tol, &es);
     // Strictly-below-threshold entries are zeroed, matching SVDBase::rank(), so a
     // smallest-normal 1x1 operator stays invertible. NaN moduli fail the
     // comparison and land in the inverted set, so a NaN input propagates to the
     // output instead of being silently zeroed.
-    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.cwiseInverse());
+    // Wrapped in a lambda: a call through the function's address cannot inline.
+    const auto reciprocal = [](const Complex& z) { return internal::structured_scaled_reciprocal(z); };
+    const ComplexVector sinv = (mods.array() < tol).select(Complex(0), s.unaryExpr(reciprocal));
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
     if (!b.allFinite()) {
@@ -272,7 +275,25 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
       Circulant(pcol, ComplexVector(), ComplexVector()).directProduct(x, b.derived(), Scalar(1));
       return x;
     }
-    internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
+    // The reciprocal of the largest symbol entry is about 2^-es: subnormal, hence
+    // lost under flush-to-zero, only for a symbol at the top of the exponent range.
+    // Dividing by the symbol keeps that mode normal but costs a complex division
+    // per entry, so it is reserved for that band.
+    constexpr Index kSubnormalReciprocal = -(Index(std::numeric_limits<RealScalar>::min_exponent) - 1) - 2;
+    if (es <= kSubnormalReciprocal) {
+      internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
+      return x;
+    }
+    // ldexp per component rather than a multiply by 2^-es: for a near-boundary
+    // symbol that constant is itself subnormal, and reads as zero under
+    // flush-to-zero. The apply folds es back into the output scaling.
+    const ComplexVector sb = s.unaryExpr([es](const Complex& z) { return internal::structured_ldexp_clamped(z, -es); });
+    // mods and tol are already in a balanced frame, so rebalancing the symbol
+    // leaves the threshold comparison unchanged.
+    internal::structured_symbol_divide<RealVector, RealScalar> divide{&mods, tol};
+    internal::structured_fft_apply(
+        x, sb, n, b.derived(), Scalar(1),
+        [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); }, divide, es);
     return x;
   }
 
@@ -296,7 +317,8 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * pseudo-inverse solve of a rank-deficient operator. */
   Circulant inverse() const {
     const Index n = rows();
-    const ComplexVector sinv = symbol().cwiseInverse();
+    const ComplexVector sinv =
+        symbol().unaryExpr([](const Complex& z) { return internal::structured_scaled_reciprocal(z); });
     GeneratorType col(n);
     if (n == 1) {
       col = internal::structured_scalar_part_impl<Scalar>::run(sinv);
@@ -506,12 +528,17 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * of such a symbol can sit below the smallest normal number. Entries at or
    * above the threshold, in particular a smallest-normal entry of a moderate
    * symbol, are inverted (their reciprocals are finite). */
-  static void scaledModuli(const ComplexVector& s, RealVector& mods, RealScalar& tol) {
+  static void scaledModuli(const ComplexVector& s, RealVector& mods, RealScalar& tol, int* frameExp = nullptr) {
     const int e = numext::maxi(internal::structured_exponent_bound(s), 0);
-    const RealScalar down = std::ldexp(RealScalar(1), -e);
-    mods = (s * down).cwiseAbs();
+    if (frameExp) *frameExp = e;
+    // Two exact factors, as in structured_fft_apply(): a single 2^-e is itself
+    // subnormal once the frame exceeds the exponent range, and reads as zero under
+    // flush-to-zero -- collapsing every scaled modulus, and the threshold with
+    // them. Neither factor exceeds one, so no intermediate underflows on its own.
+    const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+    mods = ((s * down1) * down2).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
-                       (std::numeric_limits<RealScalar>::min)() * down);
+                       ((std::numeric_limits<RealScalar>::min)() * down1) * down2);
   }
 
   /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column
