@@ -1812,20 +1812,23 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_structured_nonfinite_product<double>(12)));
     CALL_SUBTEST_8((test_structured_nonfinite_product<std::complex<double>>(40)));
 
-    // Look-ahead Levinson direct Toeplitz solver.
+    // Look-ahead Levinson direct Toeplitz solver, one subtest per scalar type:
+    // each type pulls in its own FullPivLU reference solves for vector and matrix
+    // right-hand sides, which together made this the most memory-hungry
+    // translation unit in the test suite.
     CALL_SUBTEST_5((test_levinson_wellcond<double>(1)));
     CALL_SUBTEST_5((test_levinson_wellcond<double>(2)));
     CALL_SUBTEST_5((test_levinson_wellcond<double>(20)));
     CALL_SUBTEST_5((test_levinson_wellcond<double>(60)));
-    CALL_SUBTEST_5((test_levinson_wellcond<float>(40)));
-    CALL_SUBTEST_5((test_levinson_wellcond<std::complex<double>>(30)));
-    CALL_SUBTEST_5((test_levinson_wellcond<std::complex<float>>(24)));
-    CALL_SUBTEST_5(test_levinson_lookahead());
-    CALL_SUBTEST_5(test_levinson_fixed());
-    CALL_SUBTEST_5(test_levinson_singular());
-    CALL_SUBTEST_5((test_levinson_solve_in_expression<double>(1)));
-    CALL_SUBTEST_5((test_levinson_solve_in_expression<double>(24)));
-    CALL_SUBTEST_5((test_levinson_solve_in_expression<std::complex<double>>(16)));
+    CALL_SUBTEST_11((test_levinson_wellcond<float>(40)));
+    CALL_SUBTEST_12((test_levinson_wellcond<std::complex<double>>(30)));
+    CALL_SUBTEST_12((test_levinson_solve_in_expression<std::complex<double>>(16)));
+    CALL_SUBTEST_13(test_levinson_lookahead());
+    CALL_SUBTEST_13(test_levinson_fixed());
+    CALL_SUBTEST_13(test_levinson_singular());
+    CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(1)));
+    CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(24)));
+    CALL_SUBTEST_14((test_levinson_wellcond<std::complex<float>>(24)));
 
     // Hankel: products across dispatch tiers, transposition family (validating the
     // phase-multiplication symbol reuse on rectangular FFT-tier operators), the

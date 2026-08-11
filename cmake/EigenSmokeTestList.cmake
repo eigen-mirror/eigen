@@ -141,6 +141,7 @@ set(ei_smoke_test_list
   stl_iterators_1
   structured_matrices_1
   structured_matrices_5
+  structured_matrices_13
   swap_1
   symbolic_index_1
   triangular_1
