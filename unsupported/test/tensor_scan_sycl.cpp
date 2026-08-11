@@ -26,7 +26,8 @@ typedef Tensor<float, 1>::DimensionPair DimPair;
 template <typename DataType, int DataLayout, typename IndexType>
 void test_sycl_cumsum(const Eigen::SyclDevice& sycl_device, IndexType m_size, IndexType k_size, IndexType n_size,
                       int consume_dim, bool exclusive) {
-  static const DataType error_threshold = 1e-4f;
+  // Scans accumulate float rounding error over up to 2049 elements; 1024 * eps bounds the resulting drift.
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   std::cout << "Testing for (" << m_size << "," << k_size << "," << n_size << " consume_dim : " << consume_dim << ")"
             << std::endl;
   Tensor<DataType, 3, DataLayout, IndexType> t_input(m_size, k_size, n_size);

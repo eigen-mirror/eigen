@@ -23,7 +23,7 @@ T expfn(T x, int) {
 }
 
 template <typename T>
-void test2dRotation(double tol) {
+void test2dRotation(T tol) {
   Matrix<T, 2, 2> A, B, C;
   T angle;
 
@@ -34,16 +34,16 @@ void test2dRotation(double tol) {
 
     C = (angle * A).matrixFunction(expfn);
     std::cout << "test2dRotation: i = " << i << "   error funm = " << relerr(C, B);
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
 
     C = (angle * A).exp();
     std::cout << "   error expm = " << relerr(C, B) << "\n";
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
   }
 }
 
 template <typename T>
-void test2dHyperbolicRotation(double tol) {
+void test2dHyperbolicRotation(T tol) {
   Matrix<std::complex<T>, 2, 2> A, B, C;
   std::complex<T> imagUnit(0, 1);
   T angle, ch, sh;
@@ -57,16 +57,16 @@ void test2dHyperbolicRotation(double tol) {
 
     C = A.matrixFunction(expfn);
     std::cout << "test2dHyperbolicRotation: i = " << i << "   error funm = " << relerr(C, B);
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
 
     C = A.exp();
     std::cout << "   error expm = " << relerr(C, B) << "\n";
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
   }
 }
 
 template <typename T>
-void testPascal(double tol) {
+void testPascal(T tol) {
   for (int size = 1; size < 20; size++) {
     Matrix<T, Dynamic, Dynamic> A(size, size), B(size, size), C(size, size);
     A.setZero();
@@ -77,16 +77,17 @@ void testPascal(double tol) {
 
     C = A.matrixFunction(expfn);
     std::cout << "testPascal: size = " << size << "   error funm = " << relerr(C, B);
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
 
     C = A.exp();
     std::cout << "   error expm = " << relerr(C, B) << "\n";
-    VERIFY(C.isApprox(B, static_cast<T>(tol)));
+    VERIFY(C.isApprox(B, tol));
   }
 }
 
 template <typename MatrixType>
-void randomTest(const MatrixType& m, double tol) {
+void randomTest(const MatrixType& m,
+                const typename NumTraits<typename internal::traits<MatrixType>::Scalar>::Real& tol) {
   /* this test covers the following files:
      Inverse.h
   */
@@ -94,18 +95,16 @@ void randomTest(const MatrixType& m, double tol) {
   typename MatrixType::Index cols = m.cols();
   MatrixType m1(rows, cols), m2(rows, cols), identity = MatrixType::Identity(rows, cols);
 
-  typedef typename NumTraits<typename internal::traits<MatrixType>::Scalar>::Real RealScalar;
-
   for (int i = 0; i < g_repeat; i++) {
     m1 = MatrixType::Random(rows, cols);
 
     m2 = m1.matrixFunction(expfn) * (-m1).matrixFunction(expfn);
     std::cout << "randomTest: error funm = " << relerr(identity, m2);
-    VERIFY(identity.isApprox(m2, static_cast<RealScalar>(tol)));
+    VERIFY(identity.isApprox(m2, tol));
 
     m2 = m1.exp() * (-m1).exp();
     std::cout << "   error expm = " << relerr(identity, m2) << "\n";
-    VERIFY(identity.isApprox(m2, static_cast<RealScalar>(tol)));
+    VERIFY(identity.isApprox(m2, tol));
   }
 }
 
@@ -141,24 +140,33 @@ void testCustomComplexScalingPath() {
 }
 
 EIGEN_DECLARE_TEST(matrix_exponential) {
-  CALL_SUBTEST_2(test2dRotation<double>(1e-13));
-  CALL_SUBTEST_1(test2dRotation<float>(2e-5));
-  CALL_SUBTEST_8(test2dRotation<long double>(1e-13));
-  CALL_SUBTEST_2(test2dHyperbolicRotation<double>(1e-14));
-  CALL_SUBTEST_1(test2dHyperbolicRotation<float>(1e-5));
-  CALL_SUBTEST_8(test2dHyperbolicRotation<long double>(1e-14));
-  CALL_SUBTEST_6(testPascal<float>(1e-6));
-  CALL_SUBTEST_5(testPascal<double>(1e-15));
-  CALL_SUBTEST_2(randomTest(Matrix2d(), 1e-13));
-  CALL_SUBTEST_7(randomTest(Matrix<double, 3, 3, RowMajor>(), 1e-13));
-  CALL_SUBTEST_3(randomTest(Matrix4cd(), 1e-13));
+  // matrixFunction() dominates the largest cases. The factors retain at least 1.6x headroom over the largest relative
+  // errors observed in extended GCC and Clang test runs.
+  //
+  // test2dRotation's matrix has eigenvalues +-i*angle, so for angle <= matrix_function_separation / 2 both lie in one
+  // cluster and matrixFunction() evaluates a single 2x2 block through MatrixFunctionAtomic, whose Taylor series stops
+  // after a fixed 1.1 * rows + 10 terms. The residual is then about angle^13 / 13! <= 1.1e-28 in absolute terms and
+  // does not shrink with the scalar precision. That floor is far below epsilon for float, double and x87 80-bit long
+  // double, but dominates where long double is binary128 (aarch64, riscv64, loongarch64, s390x) or IBM double-double
+  // (ppc64le), so the long double bound takes the larger of the rounding and truncation terms.
+  CALL_SUBTEST_2(test2dRotation<double>(256 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(test2dRotation<float>(128 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_8(test2dRotation<long double>((numext::maxi)(256 * NumTraits<long double>::epsilon(), 4e-28L)));
+  CALL_SUBTEST_2(test2dHyperbolicRotation<double>(32 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(test2dHyperbolicRotation<float>(32 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_8(test2dHyperbolicRotation<long double>(32 * NumTraits<long double>::epsilon()));
+  CALL_SUBTEST_6(testPascal<float>(4 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_5(testPascal<double>(4 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_2(randomTest(Matrix2d(), 384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_7(randomTest(Matrix<double, 3, 3, RowMajor>(), 384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_3(randomTest(Matrix4cd(), 384 * NumTraits<std::complex<double>>::epsilon()));
   CALL_SUBTEST_3((testComplexScalingPath<ColMajor>()));
   CALL_SUBTEST_3((testComplexScalingPath<RowMajor>()));
   CALL_SUBTEST_3(testCustomComplexScalingPath());
-  CALL_SUBTEST_4(randomTest(MatrixXd(8, 8), 1e-13));
-  CALL_SUBTEST_1(randomTest(Matrix2f(), 1e-4));
-  CALL_SUBTEST_5(randomTest(Matrix3cf(), 1e-4));
-  CALL_SUBTEST_1(randomTest(Matrix4f(), 1e-4));
-  CALL_SUBTEST_6(randomTest(MatrixXf(8, 8), 1e-4));
-  CALL_SUBTEST_9(randomTest(Matrix<long double, Dynamic, Dynamic>(7, 7), 1e-13));
+  CALL_SUBTEST_4(randomTest(MatrixXd(8, 8), 384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(randomTest(Matrix2f(), 384 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_5(randomTest(Matrix3cf(), 384 * NumTraits<std::complex<float>>::epsilon()));
+  CALL_SUBTEST_1(randomTest(Matrix4f(), 384 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_6(randomTest(MatrixXf(8, 8), 384 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_9(randomTest(Matrix<long double, Dynamic, Dynamic>(7, 7), 384 * NumTraits<long double>::epsilon()));
 }

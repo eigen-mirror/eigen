@@ -327,7 +327,8 @@ void test_gpu_contraction() {
   gpuMemcpy(t_result.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
 
   for (DenseIndex i = 0; i < t_result.size(); i++) {
-    if (fabs(t_result.data()[i] - m_result.data()[i]) >= 1e-4f) {
+    // Absolute slack for accumulation-order differences between device and host contractions.
+    if (fabs(t_result.data()[i] - m_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected at index " << i << ": " << t_result.data()[i] << " vs " << m_result.data()[i]
                 << std::endl;
       assert(false);

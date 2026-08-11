@@ -16,7 +16,7 @@ void test2dRotation(const T& tol) {
   T angle, c, s;
 
   A << 0, 1, -1, 0;
-  MatrixPower<Matrix<T, 2, 2> > Apow(A);
+  MatrixPower<Matrix<T, 2, 2>> Apow(A);
 
   for (int i = 0; i <= 20; ++i) {
     angle = std::pow(T(10), T(i - 10) / T(5.));
@@ -37,7 +37,7 @@ void test2dHyperbolicRotation(const T& tol) {
   std::complex<T> ish(0, std::sinh((T)1));
 
   A << ch, ish, -ish, ch;
-  MatrixPower<Matrix<std::complex<T>, 2, 2> > Apow(A);
+  MatrixPower<Matrix<std::complex<T>, 2, 2>> Apow(A);
 
   for (int i = 0; i <= 20; ++i) {
     angle = std::ldexp(static_cast<T>(i - 10), -1);
@@ -107,7 +107,7 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   typedef typename MatrixType::RealScalar RealScalar;
   const int IsComplex = NumTraits<typename internal::traits<MatrixType>::Scalar>::IsComplex;
   typedef std::conditional_t<IsComplex, TriangularView<MatrixType, Upper>, const MatrixType&> TriangularType;
-  std::conditional_t<IsComplex, ComplexSchur<MatrixType>, RealSchur<MatrixType> > schur;
+  std::conditional_t<IsComplex, ComplexSchur<MatrixType>, RealSchur<MatrixType>> schur;
   MatrixType T;
 
   // MatrixPower uses its own Schur decomposition while the reference uses
@@ -164,53 +164,57 @@ typedef Matrix<long double, 3, 3> Matrix3e;
 typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
 
 EIGEN_DECLARE_TEST(matrix_power) {
-  CALL_SUBTEST_2(test2dRotation<double>(1e-13));
-  CALL_SUBTEST_1(test2dRotation<float>(2e-5f));
-  CALL_SUBTEST_9(test2dRotation<long double>(1e-13L));
-  CALL_SUBTEST_2(test2dHyperbolicRotation<double>(1e-14));
-  CALL_SUBTEST_1(test2dHyperbolicRotation<float>(1e-5f));
-  CALL_SUBTEST_9(test2dHyperbolicRotation<long double>(1e-14L));
+  // Factors are the smallest powers of two above the worst relative error seen over ~50k randomized trials per
+  // instantiation (4x that maximum). testGeneral is dominated by the A^(x+y) = A^x A^y and (A^x)^y identities,
+  // whose error has a heavy tail for near-defective random matrices, so those factors are large. testLogThenExp's
+  // bound is floored by test_precision * n^2, so its factor only documents the typical error.
+  CALL_SUBTEST_2(test2dRotation<double>(128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(test2dRotation<float>(256 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_9(test2dRotation<long double>(128 * NumTraits<long double>::epsilon()));
+  CALL_SUBTEST_2(test2dHyperbolicRotation<double>(32 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(test2dHyperbolicRotation<float>(64 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_9(test2dHyperbolicRotation<long double>(64 * NumTraits<long double>::epsilon()));
 
-  CALL_SUBTEST_10(test3dRotation<double>(2e-13));
-  CALL_SUBTEST_11(test3dRotation<float>(2e-5f));
-  CALL_SUBTEST_12(test3dRotation<long double>(1e-13L));
+  CALL_SUBTEST_10(test3dRotation<double>(512 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_11(test3dRotation<float>(512 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_12(test3dRotation<long double>(512 * NumTraits<long double>::epsilon()));
 
-  CALL_SUBTEST_2(testGeneral(Matrix2d(), 2e-13));
-  CALL_SUBTEST_7(testGeneral(Matrix3dRowMajor(), 1e-13));
-  CALL_SUBTEST_3(testGeneral(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testGeneral(MatrixXd(8, 8), 3e-12));
-  CALL_SUBTEST_1(testGeneral(Matrix2f(), 1e-4f));
-  CALL_SUBTEST_5(testGeneral(Matrix3cf(), 1e-4f));
-  CALL_SUBTEST_8(testGeneral(Matrix4f(), 1e-4f));
-  CALL_SUBTEST_6(testGeneral(MatrixXf(2, 2), 1e-3f));  // see bug 614
-  CALL_SUBTEST_9(testGeneral(MatrixXe(7, 7), 1e-12L));
-  CALL_SUBTEST_10(testGeneral(Matrix3d(), 2e-13));
-  CALL_SUBTEST_11(testGeneral(Matrix3f(), 1e-4f));
-  CALL_SUBTEST_12(testGeneral(Matrix3e(), 1e-13L));
+  CALL_SUBTEST_2(testGeneral(Matrix2d(), 2048 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_7(testGeneral(Matrix3dRowMajor(), 4096 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_3(testGeneral(Matrix4cd(), 4096 * NumTraits<std::complex<double>>::epsilon()));
+  CALL_SUBTEST_4(testGeneral(MatrixXd(8, 8), 16384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(testGeneral(Matrix2f(), 2048 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_5(testGeneral(Matrix3cf(), 1024 * NumTraits<std::complex<float>>::epsilon()));
+  CALL_SUBTEST_8(testGeneral(Matrix4f(), 16384 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_6(testGeneral(MatrixXf(2, 2), 2048 * NumTraits<float>::epsilon()));  // see bug 614
+  CALL_SUBTEST_9(testGeneral(MatrixXe(7, 7), 16384 * NumTraits<long double>::epsilon()));
+  CALL_SUBTEST_10(testGeneral(Matrix3d(), 32768 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_11(testGeneral(Matrix3f(), 32768 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_12(testGeneral(Matrix3e(), 4096 * NumTraits<long double>::epsilon()));
 
-  CALL_SUBTEST_2(testSingular(Matrix2d(), 2e-13));
-  CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 1e-13));
-  CALL_SUBTEST_3(testSingular(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 3e-12));
-  CALL_SUBTEST_1(testSingular(Matrix2f(), 1e-4f));
-  CALL_SUBTEST_5(testSingular(Matrix3cf(), 1e-4f));
-  CALL_SUBTEST_8(testSingular(Matrix4f(), 1e-4f));
-  CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 1e-3f));
-  CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 1e-12L));
-  CALL_SUBTEST_10(testSingular(Matrix3d(), 2e-13));
-  CALL_SUBTEST_11(testSingular(Matrix3f(), 1e-4f));
-  CALL_SUBTEST_12(testSingular(Matrix3e(), 1e-13L));
+  CALL_SUBTEST_2(testSingular(Matrix2d(), 8 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
+  CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(testSingular(Matrix2f(), 8 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_5(testSingular(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
+  CALL_SUBTEST_8(testSingular(Matrix4f(), 256 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 8 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
+  CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 
-  CALL_SUBTEST_2(testLogThenExp(Matrix2d(), 2e-13));
-  CALL_SUBTEST_7(testLogThenExp(Matrix3dRowMajor(), 1e-13));
-  CALL_SUBTEST_3(testLogThenExp(Matrix4cd(), 1e-13));
-  CALL_SUBTEST_4(testLogThenExp(MatrixXd(8, 8), 3e-12));
-  CALL_SUBTEST_1(testLogThenExp(Matrix2f(), 1e-4f));
-  CALL_SUBTEST_5(testLogThenExp(Matrix3cf(), 1e-4f));
-  CALL_SUBTEST_8(testLogThenExp(Matrix4f(), 1e-4f));
-  CALL_SUBTEST_6(testLogThenExp(MatrixXf(2, 2), 1e-3f));
-  CALL_SUBTEST_9(testLogThenExp(MatrixXe(7, 7), 1e-12L));
-  CALL_SUBTEST_10(testLogThenExp(Matrix3d(), 2e-13));
-  CALL_SUBTEST_11(testLogThenExp(Matrix3f(), 1e-4f));
-  CALL_SUBTEST_12(testLogThenExp(Matrix3e(), 1e-13L));
+  CALL_SUBTEST_2(testLogThenExp(Matrix2d(), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_7(testLogThenExp(Matrix3dRowMajor(), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_3(testLogThenExp(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
+  CALL_SUBTEST_4(testLogThenExp(MatrixXd(8, 8), 64 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(testLogThenExp(Matrix2f(), 64 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_5(testLogThenExp(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
+  CALL_SUBTEST_8(testLogThenExp(Matrix4f(), 64 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_6(testLogThenExp(MatrixXf(2, 2), 64 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_9(testLogThenExp(MatrixXe(7, 7), 64 * NumTraits<long double>::epsilon()));
+  CALL_SUBTEST_10(testLogThenExp(Matrix3d(), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_11(testLogThenExp(Matrix3f(), 128 * NumTraits<float>::epsilon()));
+  CALL_SUBTEST_12(testLogThenExp(Matrix3e(), 128 * NumTraits<long double>::epsilon()));
 }

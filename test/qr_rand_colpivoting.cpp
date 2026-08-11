@@ -533,8 +533,9 @@ void rqr_literature_matrices() {
   typedef typename MatrixType::RealScalar RealScalar;
   typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
 
-  // 1. Hilbert (n = 10): full rank in theory; cond ~ 1e13 in double. Round-
-  // trip must hold to within cond(A) * eps; we use a generous bound.
+  // 1. Hilbert (n = 10): full rank in theory; cond ~ 1e13 in double. The
+  // Q*R*P^-1 reconstruction is backward stable, so the round-trip error is
+  // O(eps) independent of the conditioning.
   {
     const Index n = 10;
     MatrixType H(n, n);
@@ -546,7 +547,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (H - Q * R * qr.colsPermutation().inverse()).norm() / H.norm();
-    VERIFY(err < RealScalar(1e-10));
+    VERIFY(err < RealScalar(16) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(H);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }
@@ -570,7 +571,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (V - Q * R * qr.colsPermutation().inverse()).norm() / V.norm();
-    VERIFY(err < RealScalar(1e-9));
+    VERIFY(err < RealScalar(16) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(V);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }
@@ -599,7 +600,7 @@ void rqr_literature_matrices() {
     MatrixType R = qr.matrixQR().template triangularView<Upper>();
     MatrixType Q = qr.householderQ();
     RealScalar err = (A - Q * R * qr.colsPermutation().inverse()).norm() / A.norm();
-    VERIFY(err < RealScalar(1e-10));
+    VERIFY(err < RealScalar(16) * NumTraits<RealScalar>::epsilon());
     ColPivHouseholderQR<MatrixType> cp(A);
     VERIFY_IS_EQUAL(qr.rank(), cp.rank());
   }

@@ -208,12 +208,14 @@ void test_multithread_contraction() {
   t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
   m_result = m_left * m_right;
 
+  // The tensor contraction and the matrix product sum the k=1147 terms in different orders; their results differ
+  // by a small multiple of eps, covered here as absolute slack before the relative check.
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
     VERIFY(&t_result.data()[i] != &m_result.data()[i]);
-    if (fabsf(t_result(i) - m_result(i)) < 1e-4f) {
+    if (fabsf(t_result(i) - m_result(i)) < 128 * NumTraits<float>::epsilon()) {
       continue;
     }
-    if (Eigen::internal::isApprox(t_result(i), m_result(i), 1e-4f)) {
+    if (Eigen::internal::isApprox(t_result(i), m_result(i), 128 * NumTraits<float>::epsilon())) {
       continue;
     }
     std::cout << "mismatch detected at index " << i << ": " << t_result(i) << " vs " << m_result(i) << std::endl;
@@ -250,7 +252,7 @@ void test_multithread_gemv_transpose() {
       Matrix<float, Dynamic, 1> m_result = m_left.transpose() * m_right;
 
       for (int j = 0; j < N; ++j) {
-        VERIFY(internal::isApprox(t_result(j), m_result(j), 1e-4f));
+        VERIFY(internal::isApprox(t_result(j), m_result(j), 16 * NumTraits<float>::epsilon()));
       }
     }
   }
@@ -284,7 +286,7 @@ void test_contraction_corner_cases() {
 
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
     assert(!(numext::isnan)(t_result.data()[i]));
-    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 1e-4f) {
+    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 256 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected at index " << i << " : " << t_result.data()[i] << " vs " << m_result.data()[i]
                 << std::endl;
       assert(false);
@@ -300,7 +302,7 @@ void test_contraction_corner_cases() {
   m_result = m_left.transpose() * m_right;
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
     assert(!(numext::isnan)(t_result.data()[i]));
-    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 1e-4f) {
+    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 256 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected: " << t_result.data()[i] << " vs " << m_result.data()[i] << std::endl;
       assert(false);
     }
@@ -318,7 +320,7 @@ void test_contraction_corner_cases() {
   m_result = m_left.transpose() * m_right;
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
     assert(!(numext::isnan)(t_result.data()[i]));
-    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 1e-4f) {
+    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 256 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected: " << t_result.data()[i] << " vs " << m_result.data()[i] << std::endl;
       assert(false);
     }
@@ -336,7 +338,7 @@ void test_contraction_corner_cases() {
   m_result = m_left.transpose() * m_right;
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
     assert(!(numext::isnan)(t_result.data()[i]));
-    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 1e-4f) {
+    if (fabsf(t_result.data()[i] - m_result.data()[i]) >= 256 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected: " << t_result.data()[i] << " vs " << m_result.data()[i] << std::endl;
       assert(false);
     }
@@ -375,7 +377,7 @@ void test_multithread_contraction_agrees_with_singlethread() {
   for (ptrdiff_t i = 0; i < st_result.size(); i++) {
     // if both of the values are very small, then do nothing (because the test will fail
     // due to numerical precision issues when values are small)
-    if (numext::abs(st_result.data()[i] - tp_result.data()[i]) >= 1e-4f) {
+    if (numext::abs(st_result.data()[i] - tp_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
       VERIFY_IS_APPROX(st_result.data()[i], tp_result.data()[i]);
     }
   }
@@ -470,7 +472,7 @@ void test_async_multithread_contraction_agrees_with_singlethread() {
   for (ptrdiff_t i = 0; i < st_result.size(); i++) {
     // if both of the values are very small, then do nothing (because the test
     // will fail due to numerical precision issues when values are small)
-    if (numext::abs(st_result.data()[i] - tp_result.data()[i]) >= 1e-4f) {
+    if (numext::abs(st_result.data()[i] - tp_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
       VERIFY_IS_APPROX(st_result.data()[i], tp_result.data()[i]);
     }
   }
@@ -666,7 +668,7 @@ void test_full_contraction() {
   VERIFY(dimensions_match(st_result.dimensions(), tp_result.dimensions()));
   // if both of the values are very small, then do nothing (because the test will fail
   // due to numerical precision issues when values are small)
-  if (numext::abs(st_result() - tp_result()) >= 1e-4f) {
+  if (numext::abs(st_result() - tp_result()) >= 1024 * NumTraits<float>::epsilon()) {
     VERIFY_IS_APPROX(st_result(), tp_result());
   }
 }

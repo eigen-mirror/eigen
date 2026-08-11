@@ -199,11 +199,16 @@ void check_sparse_inverse() {
 
   const MatrixType sparseInv = Eigen::SparseInverse<Scalar>().compute(A.sparseView()).inverse();
 
+  // The two inverses are computed independently (SparseLU solve against the identity vs the Takahashi
+  // recurrence), so entrywise and summed deviations scale with n * eps for this 1000x1000 matrix. The input is
+  // deterministic, but the deviation still moves by a factor of three with the accumulation order that the compiler,
+  // the ISA and the buffer alignment happen to produce, so these factors are the smallest powers of two at or above
+  // the long-standing 1e-11 and 1e-10 bounds rather than a tight fit to a single host.
   Scalar sumdiff = 0;  // Check the diff only of the non-zero elements
   for (Eigen::Index j = 0; j < A.cols(); j++) {
     for (typename MatrixType::InnerIterator iter(sparseInv, j); iter; ++iter) {
       const Scalar diff = std::abs(inv(iter.row(), iter.col()) - iter.value());
-      VERIFY_IS_APPROX_OR_LESS_THAN(diff, 1e-11);
+      VERIFY_IS_APPROX_OR_LESS_THAN(diff, Scalar(65536) * NumTraits<Scalar>::epsilon());
 
       if (iter.value() != 0) {
         sumdiff += diff;
@@ -211,7 +216,7 @@ void check_sparse_inverse() {
     }
   }
 
-  VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, 1e-10);
+  VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, Scalar(524288) * NumTraits<Scalar>::epsilon());
 
   RowMatrixType DU = slu.matrixU().toSparse();
   Matrix<Scalar, Dynamic, 1> invD = DU.diagonal().cwiseInverse();

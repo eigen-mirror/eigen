@@ -257,7 +257,8 @@ void bdcsvd_fast_math_regression_1588() {
 
   MatrixXd reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
   const double relative_error = (reconstruction - matrix).norm() / matrix.norm();
-  VERIFY(relative_error < 1e-10);
+  // Deterministic input (fixed seed); the reconstruction is backward stable, so the relative error stays near eps.
+  VERIFY(relative_error < 64 * NumTraits<double>::epsilon());
 }
 #endif
 

@@ -292,7 +292,10 @@ void test_gpu_contractions() {
 
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < cols; ++j) {
-      if (numext::abs(full_prec(i, j) - bfloat16_prec(i, j)) > Eigen::bfloat16(1e-2f)) {
+      // 2 * eps_bfloat16 of absolute slack covers the typical accumulated rounding error of the 23-term bfloat16
+      // dot product before falling back to the relative check.
+      if (numext::abs(full_prec(i, j) - bfloat16_prec(i, j)) >
+          Eigen::bfloat16(2.f) * NumTraits<Eigen::bfloat16>::epsilon()) {
         VERIFY_IS_APPROX(full_prec(i, j), bfloat16_prec(i, j));
       }
     }

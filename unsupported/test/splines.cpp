@@ -85,7 +85,8 @@ void eval_spline3d() {
 
   for (int i = 0; i < u.size(); ++i) {
     Vector3d pt = spline(u(i));
-    VERIFY((pt - pts.col(i)).norm() < 1e-14);
+    // The reference points are tabulated to 15 significant digits, so agreement is limited to a small multiple of eps.
+    VERIFY((pt - pts.col(i)).norm() < 64 * NumTraits<double>::epsilon());
   }
 }
 
@@ -106,7 +107,7 @@ void eval_spline3d_onbrks() {
 
   for (int i = 0; i < u.size(); ++i) {
     Vector3d pt = spline(u(i));
-    VERIFY((pt - pts.col(i)).norm() < 1e-14);
+    VERIFY((pt - pts.col(i)).norm() < 16 * NumTraits<double>::epsilon());
   }
 }
 
@@ -127,7 +128,7 @@ void eval_closed_spline2d() {
 
   for (int i = 0; i < u.size(); ++i) {
     Vector2d pt = spline(u(i));
-    VERIFY((pt - pts.col(i)).norm() < 1e-14);
+    VERIFY((pt - pts.col(i)).norm() < 16 * NumTraits<double>::epsilon());
   }
 }
 
@@ -148,7 +149,7 @@ void check_global_interpolation2d() {
     for (Eigen::DenseIndex i = 0; i < points.cols(); ++i) {
       PointType pt = spline(chord_lengths(i));
       PointType ref = points.col(i);
-      VERIFY((pt - ref).matrix().norm() < 1e-14);
+      VERIFY((pt - ref).matrix().norm() < 32 * NumTraits<double>::epsilon());
     }
   }
 
@@ -159,7 +160,7 @@ void check_global_interpolation2d() {
     for (Eigen::DenseIndex i = 0; i < points.cols(); ++i) {
       PointType pt = spline(chord_lengths(i));
       PointType ref = points.col(i);
-      VERIFY((pt - ref).matrix().norm() < 1e-14);
+      VERIFY((pt - ref).matrix().norm() < 32 * NumTraits<double>::epsilon());
     }
   }
 }

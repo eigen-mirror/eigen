@@ -193,7 +193,11 @@ void test_nnls_handles_dependent_columns() {
   //
   // ACT
   //
-  const double tolerance = 1e-8;
+  // The default-constructed solver stops when the gradient falls below
+  // dummy_precision(); the independent A^T*(A*x-b) recomputation in the check
+  // can exceed that by a small factor, larger here because the dependent
+  // columns make the problem degenerate.
+  const double tolerance = 32 * NumTraits<double>::dummy_precision();
   NNLS<MatrixXd> nnls(A);
   const VectorXd &x = nnls.solve(b);
 
@@ -222,7 +226,9 @@ void test_nnls_handles_wide_matrix() {
   //
   // ACT
   //
-  const double tolerance = 1e-8;
+  // As above, the check tolerance tracks the solver's dummy_precision() stopping
+  // criterion plus the small slack from recomputing the gradient independently.
+  const double tolerance = 2 * NumTraits<double>::dummy_precision();
   NNLS<MatrixXd> nnls(A);
   const VectorXd &x = nnls.solve(b);
 
@@ -369,7 +375,8 @@ void test_nnls_with_half_precision() {
   const VecX x = nnls.solve(b);
 
   VERIFY_IS_EQUAL(nnls.info(), ComputationInfo::Success);
-  verify_nnls_optimality(A, b, x, half(1e-1));
+  // The half-precision QR and the half(1e-2) solver tolerance leak a few tens of eps of gradient.
+  verify_nnls_optimality(A, b, x, half(64) * NumTraits<half>::epsilon());
 }
 
 void test_nnls_special_case_solves_in_zero_iterations() {

@@ -254,7 +254,9 @@ void test_gpu_contractions(const Eigen::SyclDevice& sycl_device) {
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < cols; ++j) {
       std::cout << "Checking contract " << i << " " << j << full_prec(i, j) << " " << half_prec(i, j) << std::endl;
-      if (numext::abs(full_prec(i, j) - half_prec(i, j)) > Eigen::half(1e-2f)) {
+      // 16 * eps_half of absolute slack covers the typical accumulated rounding error of the 23-term half dot
+      // product before falling back to the relative check.
+      if (numext::abs(full_prec(i, j) - half_prec(i, j)) > Eigen::half(16.f) * NumTraits<Eigen::half>::epsilon()) {
         VERIFY_IS_APPROX(full_prec(i, j), half_prec(i, j));
       }
     }

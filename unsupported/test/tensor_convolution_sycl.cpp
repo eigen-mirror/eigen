@@ -30,7 +30,8 @@ using Eigen::array;
 using Eigen::SyclDevice;
 using Eigen::Tensor;
 using Eigen::TensorMap;
-static const float error_threshold = 1e-4f;
+// Absolute slack for accumulation-order differences between device and host float convolutions.
+static const float error_threshold = 1024 * NumTraits<float>::epsilon();
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_larg_expr1D(const Eigen::SyclDevice& sycl_device) {

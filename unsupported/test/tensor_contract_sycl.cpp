@@ -35,7 +35,8 @@ using Eigen::TensorMap;
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void static test_sycl_contraction(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  // Absolute slack for accumulation-order differences between device and host float contractions.
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   // with these dimensions, the output has 300 * 140 elements, which is
   // more than 30 * 1024, which is the number of threads in blocks on
   // a 15 SM GK110 GPU
@@ -129,7 +130,7 @@ void test_sycl_contraction_sizes(const Device &sycl_device) {
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void static test_no_out_of_bounds(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Tensor<DataType, 2, DataLayout, IndexType> t_left(m_size, k_size);
   Tensor<DataType, 2, DataLayout, IndexType> t_right(k_size, n_size);
   Tensor<DataType, 2, DataLayout, IndexType> t_result(m_size, n_size);
@@ -224,7 +225,7 @@ void test_scalar(const Device &sycl_device, IndexType m_size, IndexType k_size, 
   // more than 30 * 1024, which is the number of threads in blocks on
   // a 15 SM GK110 GPU
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Tensor<DataType, 2, DataLayout, IndexType> t_left(m_size, k_size);
   Tensor<DataType, 2, DataLayout, IndexType> t_right(k_size, n_size);
   Tensor<DataType, 0, DataLayout, IndexType> t_result;
@@ -271,7 +272,7 @@ template <int DataLayout, typename DataType, typename IndexType, typename Device
 void contraction_batch(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size,
                        IndexType m_batch, IndexType start, IndexType limit) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   typedef Eigen::array<IndexType, 3> TensorDim;
   typedef Eigen::Tensor<DataType, 3, DataLayout, IndexType> TensorType;
   TensorDim left_dims = {{m_batch, k_size, m_size}};
@@ -335,7 +336,7 @@ void contraction_batch(const Device &sycl_device, IndexType m_size, IndexType k_
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_rhs_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{m_size, k_size}};
   Eigen::array<IndexType, 2> right_dims = {{n_size, k_size}};
   Eigen::array<IndexType, 2> res_dims = {{m_size, n_size}};
@@ -392,7 +393,7 @@ void contraction_rhs_transposed(const Device &sycl_device, IndexType m_size, Ind
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_lhs_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{k_size, m_size}};
   Eigen::array<IndexType, 2> right_dims = {{k_size, n_size}};
   Eigen::array<IndexType, 2> res_dims = {{m_size, n_size}};
@@ -445,7 +446,7 @@ void contraction_lhs_transposed(const Device &sycl_device, IndexType m_size, Ind
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_both_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
   typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
-  static const DataType error_threshold = DataType(1e-4);
+  static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{k_size, m_size}};
   Eigen::array<IndexType, 2> right_dims = {{n_size, k_size}};
   Eigen::array<IndexType, 2> res_dims = {{m_size, n_size}};

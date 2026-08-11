@@ -53,10 +53,11 @@ void test_gpu_cumsum(int m_size, int k_size, int n_size) {
 
   gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
-    if (numext::abs(t_result(i) - t_result_gpu(i)) < 1e-4f) {
+    // Scans accumulate float rounding error; 1024 * eps of absolute slack covers it before the relative check.
+    if (numext::abs(t_result(i) - t_result_gpu(i)) < 1024 * NumTraits<float>::epsilon()) {
       continue;
     }
-    if (Eigen::internal::isApprox(t_result(i), t_result_gpu(i), 1e-4f)) {
+    if (Eigen::internal::isApprox(t_result(i), t_result_gpu(i), 1024 * NumTraits<float>::epsilon())) {
       continue;
     }
     std::cout << "mismatch detected at index " << i << ": " << t_result(i) << " vs " << t_result_gpu(i) << std::endl;
