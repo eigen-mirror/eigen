@@ -230,9 +230,17 @@ void test_realview() {
   test_realview_readwrite<std::complex<float>, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readwrite<double, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readwrite<std::complex<double>, Rows, Cols, MaxRows, MaxCols>();
+  test_realview_readonly<TestComplex, Rows, Cols, MaxRows, MaxCols>();
+}
+
+// packet_traits<long double>::size is 1 on every supported target, so RealView's
+// vectorized paths are unreachable for it and repeating it over the shape matrix
+// only re-instantiates the same scalar fallback. Cover it on the fully dynamic
+// and fully fixed shapes, which are the two storage layouts it can distinguish.
+template <int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
+void test_realview_long_double() {
   test_realview_readwrite<long double, Rows, Cols, MaxRows, MaxCols>();
   test_realview_readwrite<std::complex<long double>, Rows, Cols, MaxRows, MaxCols>();
-  test_realview_readonly<TestComplex, Rows, Cols, MaxRows, MaxCols>();
 }
 
 EIGEN_DECLARE_TEST(realview) {
@@ -249,5 +257,7 @@ EIGEN_DECLARE_TEST(realview) {
     CALL_SUBTEST_10((test_realview<1, 1>()));
     CALL_SUBTEST_11(test_edge_cases(std::complex<float>()));
     CALL_SUBTEST_12(test_edge_cases(std::complex<double>()));
+    CALL_SUBTEST_13((test_realview_long_double<Dynamic, Dynamic, Dynamic, Dynamic>()));
+    CALL_SUBTEST_13((test_realview_long_double<17, 19, 17, 19>()));
   }
 }
