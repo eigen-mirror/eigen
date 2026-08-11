@@ -38,13 +38,24 @@ fallback_jobs="-j${EIGEN_CI_FALLBACK_JOBS:-2}"
 # build in batches so that memory-hungry compilations (like bdcsvd with
 # nvc++) are spread out instead of all running at once.  Ninja ignores the
 # command-line target order and schedules by its dependency graph, so we
-# must feed it small batches to actually influence scheduling.
+# must feed it batches to actually influence scheduling.
 #
-# Batch size defaults to 2 * njobs (enough work to keep all cores busy
-# without scheduling too many memory-hungry targets simultaneously).
-# Override with EIGEN_CI_BUILD_BATCH_SIZE for fine-grained control.
-default_batch=$((njobs * 2))
-default_batch=$((default_batch > 48 ? default_batch : 48))
+# Every batch is a barrier, so the batch has to hold enough work to keep all
+# cores busy until the slowest target in it finishes.  Per-target compile times
+# are heavily right-skewed (median around 10s, worst case several minutes), so a
+# batch only a small multiple of njobs drains almost immediately and then runs
+# down to a single straggler.  Measured runner occupancy on the 2026-08-02
+# nightly, at the old depth of max(2 * njobs, 48):
+#
+#   32 vCPU, batch 64   depth 1.9x   39% busy
+#    8 vCPU, batch 48   depth 4.8x   66% busy
+#    4 vCPU, batch 48   depth 8.0x   78% busy
+#
+# Peak concurrency, and hence peak memory, is set by -j and is unchanged by the
+# batch size; the batch only controls which targets may co-run.  Override with
+# EIGEN_CI_BUILD_BATCH_SIZE for fine-grained control.
+default_batch=$((njobs * 8))
+default_batch=$((default_batch > 96 ? default_batch : 96))
 batch_size=${EIGEN_CI_BUILD_BATCH_SIZE:-${default_batch}}
 shuffled=false
 # The batch path resolves a target's dependency graph via `ninja -t query`,
