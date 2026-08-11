@@ -550,7 +550,7 @@ build:linux:riscv64:gcc-15:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
 
 build:linux:riscv64:clang-21:default:smoketest:
   extends: build:linux:riscv64:clang-21:default
@@ -559,7 +559,7 @@ build:linux:riscv64:clang-21:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
 
 ######## MR Smoke Tests ########################################################
 # aarch64 targets are cross-compiled via g++-10-aarch64-linux-gnu / clang-14.
@@ -574,7 +574,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: build:linux:cross:x86-64:clang-14:default
@@ -585,7 +585,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: build:linux:cross:aarch64:gcc-10:default
@@ -596,7 +596,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
 
 build:linux:aarch64:clang-14:default:smoketest:
   extends: build:linux:cross:aarch64:clang-14:default
@@ -607,4 +607,4 @@ build:linux:aarch64:clang-14:default:smoketest:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
-    - saas-linux-medium-amd64
+    - saas-linux-large-amd64
