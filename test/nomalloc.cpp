@@ -241,8 +241,8 @@ EIGEN_DECLARE_TEST(nomalloc) {
 
   // Check decomposition modules with dynamic matrices that have a known compile-time max size (ctms)
   CALL_SUBTEST_4(ctms_decompositions<float>());
-  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<float>());
-  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
+  CALL_SUBTEST_9(selfadjoint_eigensolver_large_fixed_no_malloc<float>());
+  CALL_SUBTEST_10(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
 
   CALL_SUBTEST_5(test_zerosized());
 

@@ -403,8 +403,8 @@ void unwind_test(const BaseXpr&) {
 EIGEN_DECLARE_TEST(block) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(block(Matrix<float, 1, 1>()));
-    CALL_SUBTEST_1(block(Matrix<float, 1, Dynamic>(internal::random(2, 50))));
-    CALL_SUBTEST_1(block(Matrix<float, Dynamic, 1>(internal::random(2, 50))));
+    CALL_SUBTEST_10(block(Matrix<float, 1, Dynamic>(internal::random(2, 50))));
+    CALL_SUBTEST_11(block(Matrix<float, Dynamic, 1>(internal::random(2, 50))));
     CALL_SUBTEST_2(block(Matrix4d()));
     CALL_SUBTEST_3(block(MatrixXcf(internal::random(2, 50), internal::random(2, 50))));
     CALL_SUBTEST_4(block(MatrixXi(internal::random(2, 50), internal::random(2, 50))));
