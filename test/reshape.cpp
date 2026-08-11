@@ -188,6 +188,116 @@ void reshape4x4(const MatType& m0) {
   }
 }
 
+// A direct-access reshape with unit inner stride is the nested expression's buffer with a new
+// shape, and an expression-sourced reshape whose enumeration order matches the nested evaluator's
+// forwards the nested linear accesses one-to-one. Both must preserve the nested evaluator's packet
+// access and alignment; without them, copies through Reshaped silently fall back to scalar
+// traversal.
+template <typename Scalar>
+void check_reshaped_evaluator_flags() {
+  // Storage orders are pinned so the checks keep their meaning under EIGEN_DEFAULT_TO_ROW_MAJOR.
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> Mat;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
+  typedef Matrix<Scalar, Dynamic, 1, ColMajor> Vec;
+  enum { BasePacket = int(internal::evaluator<Mat>::Flags) & PacketAccessBit };
+
+  // Direct access with unit inner stride: packet access and alignment carry over.
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Mat, Dynamic, 1, ColMajor> >::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Mat, Dynamic, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Mat, 1, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+  // Vector-shaped reshape of a row-major expression: the canonical storage order differs from the
+  // nested one, but the view is still contiguous.
+  STATIC_CHECK((int(internal::evaluator<Reshaped<RowMat, Dynamic, 1, RowMajor> >::Flags) & PacketAccessBit) ==
+               (int(internal::evaluator<RowMat>::Flags) & PacketAccessBit));
+  STATIC_CHECK(int(internal::evaluator<Reshaped<Mat, Dynamic, 1, ColMajor> >::Alignment) ==
+               int(internal::evaluator<Mat>::Alignment));
+
+  // Expression source with matching enumeration order: linear accesses and packets forward to the
+  // nested evaluator, so matrix-shaped reshapes gain linear access as well.
+  typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Mat, const Mat> Sum;
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Flags) & LinearAccessBit) ==
+               LinearAccessBit);
+  STATIC_CHECK(int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Alignment) ==
+               int(internal::evaluator<Sum>::Alignment));
+  // A vector-shaped expression source forwards in either enumeration order.
+  typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Vec, const Vec> VecSum;
+  STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) ==
+               int(BasePacket));
+
+  // No packet access: cross-order reshape (no direct access),
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Mat, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) == 0);
+  // a cross-order expression source (a genuine element permutation),
+  STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) == 0);
+  // and a non-unit inner stride.
+  typedef Map<Vec, 0, InnerStride<2> > StridedVec;
+  STATIC_CHECK((int(internal::evaluator<Reshaped<StridedVec, Dynamic, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
+               0);
+}
+
+// Exercise the (possibly vectorized) assignment kernels with sizes that have partial-packet tails.
+template <typename Scalar>
+void reshape_copies(Index rows, Index cols) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  Mat m = Mat::Random(rows, cols);
+
+  Vec v = m.reshaped();
+  for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(v(k), m(k % rows, k / rows));
+
+  Mat r = m.reshaped(cols, rows);
+  for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(r(k % cols, k / cols), m(k % rows, k / rows));
+
+  Mat d(rows, cols);
+  d.reshaped() = v;
+  VERIFY_IS_EQUAL(d, m);
+
+  Vec w = Vec::Random(m.size());
+  Vec expected = w + v;
+  w += m.reshaped();
+  VERIFY_IS_EQUAL(w, expected);
+
+  RowMat rm = RowMat::Random(rows, cols);
+  Vec rv = rm.template reshaped<AutoOrder>();
+  for (Index k = 0; k < rm.size(); ++k) VERIFY_IS_EQUAL(rv(k), rm(k / cols, k % cols));
+
+  // Expression-sourced reshapes forward the nested evaluator's linear accesses and packets.
+  Mat a = Mat::Random(rows, cols), b = Mat::Random(rows, cols);
+  Mat s = a + b;
+  Vec ev = (a + b).reshaped();
+  for (Index k = 0; k < s.size(); ++k) VERIFY_IS_EQUAL(ev(k), s(k % rows, k / rows));
+
+  Mat er = (a + b).reshaped(cols, rows);
+  for (Index k = 0; k < s.size(); ++k) VERIFY_IS_EQUAL(er(k % cols, k / cols), s(k % rows, k / rows));
+
+  VERIFY_IS_APPROX((a + b).reshaped().sum(), s.sum());
+
+  // Linear scalar accesses into a matrix-shaped row-major reshape must forward the index as-is.
+  RowMat ra = RowMat::Random(rows, cols), rb = RowMat::Random(rows, cols);
+  RowMat rer = (ra + rb).template reshaped<RowMajor>(cols, rows);
+  for (Index k = 0; k < rer.size(); ++k) {
+    VERIFY_IS_EQUAL(rer(k / rows, k % rows), ra(k / cols, k % cols) + rb(k / cols, k % cols));
+  }
+
+  // A reshaped lvalue expression without direct access exercises the forwarded packet writes.
+  Vec vr(m.size());
+  vr.reverse().reshaped(rows, cols) = m;
+  for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(vr(m.size() - 1 - k), m(k % rows, k / rows));
+
+  RowMat rvr(rows, cols);
+  RowMat rw = RowMat::Random(cols, rows);
+  rvr.reverse().template reshaped<RowMajor>(cols, rows) = rw;
+  for (Index k = 0; k < rw.size(); ++k) {
+    const Index reversed = rw.size() - 1 - k;
+    VERIFY_IS_EQUAL(rvr(reversed / cols, reversed % cols), rw(k / rows, k % rows));
+  }
+}
+
 template <typename BlockType>
 void reshape_block(const BlockType& M) {
   auto dense = M.eval();
@@ -226,6 +336,18 @@ EIGEN_DECLARE_TEST(reshape) {
   CALL_SUBTEST_3(reshape4x4(rmx));
   CALL_SUBTEST_4(reshape4x4(rm4));
   CALL_SUBTEST_5(reshape_block(rm4.col(1)));
+
+  CALL_SUBTEST_6(check_reshaped_evaluator_flags<float>());
+  CALL_SUBTEST_6(check_reshaped_evaluator_flags<double>());
+  CALL_SUBTEST_6(check_reshaped_evaluator_flags<int>());
+
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_7(reshape_copies<float>(17, 13));
+    CALL_SUBTEST_7(reshape_copies<float>(1, 19));
+    CALL_SUBTEST_7(reshape_copies<double>(16, 8));
+    CALL_SUBTEST_7(reshape_copies<double>(5, 7));
+    CALL_SUBTEST_7(reshape_copies<int>(13, 11));
+  }
 
   TEST_SET_BUT_UNUSED_VARIABLE(mx);
   TEST_SET_BUT_UNUSED_VARIABLE(m4);
