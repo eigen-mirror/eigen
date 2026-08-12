@@ -23,8 +23,6 @@ struct traits<TensorPatchOp<PatchDim, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,11 +31,6 @@ struct traits<TensorPatchOp<PatchDim, XprType> > : public traits<XprType> {
 template <typename PatchDim, typename XprType>
 struct eval<TensorPatchOp<PatchDim, XprType>, Eigen::Dense> {
   typedef const TensorPatchOp<PatchDim, XprType>& type;
-};
-
-template <typename PatchDim, typename XprType>
-struct nested<TensorPatchOp<PatchDim, XprType>, 1, typename eval<TensorPatchOp<PatchDim, XprType> >::type> {
-  typedef TensorPatchOp<PatchDim, XprType> type;
 };
 
 }  // end namespace internal
@@ -53,7 +46,7 @@ class TensorPatchOp : public TensorBase<TensorPatchOp<PatchDim, XprType>, ReadOn
   typedef typename Eigen::internal::traits<TensorPatchOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorPatchOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorPatchOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorPatchOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorPatchOp>::Index Index;
 

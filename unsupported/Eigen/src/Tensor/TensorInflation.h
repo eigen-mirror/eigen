@@ -23,8 +23,6 @@ struct traits<TensorInflationOp<Strides, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,11 +31,6 @@ struct traits<TensorInflationOp<Strides, XprType> > : public traits<XprType> {
 template <typename Strides, typename XprType>
 struct eval<TensorInflationOp<Strides, XprType>, Eigen::Dense> {
   typedef const TensorInflationOp<Strides, XprType>& type;
-};
-
-template <typename Strides, typename XprType>
-struct nested<TensorInflationOp<Strides, XprType>, 1, typename eval<TensorInflationOp<Strides, XprType> >::type> {
-  typedef TensorInflationOp<Strides, XprType> type;
 };
 
 }  // end namespace internal
@@ -53,7 +46,7 @@ class TensorInflationOp : public TensorBase<TensorInflationOp<Strides, XprType>,
   typedef typename Eigen::internal::traits<TensorInflationOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorInflationOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorInflationOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorInflationOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorInflationOp>::Index Index;
 

@@ -23,10 +23,6 @@ struct traits<TensorAssignOp<LhsXprType, RhsXprType> > {
   typedef typename traits<LhsXprType>::StorageKind StorageKind;
   typedef
       typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
-  typedef typename LhsXprType::Nested LhsNested;
-  typedef typename RhsXprType::Nested RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr std::size_t NumDimensions = internal::traits<LhsXprType>::NumDimensions;
   static constexpr int Layout = internal::traits<LhsXprType>::Layout;
   typedef typename traits<LhsXprType>::PointerType PointerType;
@@ -37,11 +33,6 @@ struct traits<TensorAssignOp<LhsXprType, RhsXprType> > {
 template <typename LhsXprType, typename RhsXprType>
 struct eval<TensorAssignOp<LhsXprType, RhsXprType>, Eigen::Dense> {
   typedef const TensorAssignOp<LhsXprType, RhsXprType>& type;
-};
-
-template <typename LhsXprType, typename RhsXprType>
-struct nested<TensorAssignOp<LhsXprType, RhsXprType>, 1, typename eval<TensorAssignOp<LhsXprType, RhsXprType> >::type> {
-  typedef TensorAssignOp<LhsXprType, RhsXprType> type;
 };
 
 }  // end namespace internal
@@ -58,7 +49,7 @@ class TensorAssignOp : public TensorBase<TensorAssignOp<LhsXprType, RhsXprType> 
   typedef typename Eigen::internal::traits<TensorAssignOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename LhsXprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorAssignOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorAssignOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorAssignOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorAssignOp>::Index Index;
 

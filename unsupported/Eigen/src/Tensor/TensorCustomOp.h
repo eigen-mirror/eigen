@@ -22,21 +22,15 @@ struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::StorageKind StorageKind;
   typedef typename XprType::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = traits<XprType>::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
+  enum { Flags = 0 };
 };
 
 template <typename CustomUnaryFunc, typename XprType>
 struct eval<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Eigen::Dense> {
   typedef const TensorCustomUnaryOp<CustomUnaryFunc, XprType> EIGEN_DEVICE_REF type;
-};
-
-template <typename CustomUnaryFunc, typename XprType>
-struct nested<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
-  typedef TensorCustomUnaryOp<CustomUnaryFunc, XprType> type;
 };
 
 }  // end namespace internal
@@ -52,7 +46,7 @@ class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFun
   typedef typename internal::traits<TensorCustomUnaryOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename internal::nested<TensorCustomUnaryOp>::type Nested;
+  typedef typename internal::ref_selector<TensorCustomUnaryOp>::non_const_type Nested;
   typedef typename internal::traits<TensorCustomUnaryOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorCustomUnaryOp>::Index Index;
 
@@ -166,25 +160,17 @@ struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
                                         typename traits<RhsXprType>::StorageKind>::ret StorageKind;
   typedef
       typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
-  typedef typename LhsXprType::Nested LhsNested;
-  typedef typename RhsXprType::Nested RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
   static constexpr int Layout = traits<LhsXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                              typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>
       PointerType;
+  enum { Flags = 0 };
 };
 
 template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
 struct eval<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>, Eigen::Dense> {
   typedef const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>& type;
-};
-
-template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
-struct nested<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
-  typedef TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> type;
 };
 
 }  // end namespace internal
@@ -196,7 +182,7 @@ class TensorCustomBinaryOp
   typedef typename internal::traits<TensorCustomBinaryOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename internal::traits<TensorCustomBinaryOp>::CoeffReturnType CoeffReturnType;
-  typedef typename internal::nested<TensorCustomBinaryOp>::type Nested;
+  typedef typename internal::ref_selector<TensorCustomBinaryOp>::non_const_type Nested;
   typedef typename internal::traits<TensorCustomBinaryOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorCustomBinaryOp>::Index Index;
 

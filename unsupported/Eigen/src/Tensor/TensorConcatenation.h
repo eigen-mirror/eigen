@@ -25,10 +25,6 @@ struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>> {
                                         typename traits<RhsXprType>::StorageKind>::ret StorageKind;
   typedef
       typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
-  typedef typename LhsXprType::Nested LhsNested;
-  typedef typename RhsXprType::Nested RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
   static constexpr int Layout = traits<LhsXprType>::Layout;
   enum { Flags = 0 };
@@ -40,12 +36,6 @@ struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>> {
 template <typename Axis, typename LhsXprType, typename RhsXprType>
 struct eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, Eigen::Dense> {
   typedef const TensorConcatenationOp<Axis, LhsXprType, RhsXprType>& type;
-};
-
-template <typename Axis, typename LhsXprType, typename RhsXprType>
-struct nested<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, 1,
-              typename eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>>::type> {
-  typedef TensorConcatenationOp<Axis, LhsXprType, RhsXprType> type;
 };
 
 }  // end namespace internal
@@ -62,7 +52,7 @@ class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsX
   typedef typename internal::traits<TensorConcatenationOp>::Scalar Scalar;
   typedef typename internal::traits<TensorConcatenationOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorConcatenationOp>::Index Index;
-  typedef typename internal::nested<TensorConcatenationOp>::type Nested;
+  typedef typename internal::ref_selector<TensorConcatenationOp>::type Nested;
   typedef typename internal::promote_storage_type<typename LhsXprType::CoeffReturnType,
                                                   typename RhsXprType::CoeffReturnType>::ret CoeffReturnType;
   typedef typename NumTraits<Scalar>::Real RealScalar;

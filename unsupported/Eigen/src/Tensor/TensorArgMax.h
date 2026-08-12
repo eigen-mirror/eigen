@@ -24,8 +24,6 @@ struct traits<TensorIndexPairOp<XprType>> : public traits<XprType> {
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
   typedef Pair<Index, typename XprTraits::Scalar> Scalar;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
 };
@@ -33,11 +31,6 @@ struct traits<TensorIndexPairOp<XprType>> : public traits<XprType> {
 template <typename XprType>
 struct eval<TensorIndexPairOp<XprType>, Eigen::Dense> {
   typedef const TensorIndexPairOp<XprType> EIGEN_DEVICE_REF type;
-};
-
-template <typename XprType>
-struct nested<TensorIndexPairOp<XprType>, 1, typename eval<TensorIndexPairOp<XprType>>::type> {
-  typedef TensorIndexPairOp<XprType> type;
 };
 
 }  // end namespace internal
@@ -52,7 +45,7 @@ class TensorIndexPairOp : public TensorBase<TensorIndexPairOp<XprType>, ReadOnly
  public:
   typedef typename Eigen::internal::traits<TensorIndexPairOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename Eigen::internal::nested<TensorIndexPairOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorIndexPairOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorIndexPairOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorIndexPairOp>::Index Index;
   typedef Pair<Index, typename XprType::CoeffReturnType> CoeffReturnType;
@@ -130,8 +123,6 @@ struct traits<TensorPairReducerOp<ReduceOp, Dims, XprType>> : public traits<XprT
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
   typedef Index Scalar;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
 };
@@ -141,12 +132,6 @@ struct eval<TensorPairReducerOp<ReduceOp, Dims, XprType>, Eigen::Dense> {
   typedef const TensorPairReducerOp<ReduceOp, Dims, XprType> EIGEN_DEVICE_REF type;
 };
 
-template <typename ReduceOp, typename Dims, typename XprType>
-struct nested<TensorPairReducerOp<ReduceOp, Dims, XprType>, 1,
-              typename eval<TensorPairReducerOp<ReduceOp, Dims, XprType>>::type> {
-  typedef TensorPairReducerOp<ReduceOp, Dims, XprType> type;
-};
-
 }  // end namespace internal
 
 template <typename ReduceOp, typename Dims, typename XprType>
@@ -154,7 +139,7 @@ class TensorPairReducerOp : public TensorBase<TensorPairReducerOp<ReduceOp, Dims
  public:
   typedef typename Eigen::internal::traits<TensorPairReducerOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename Eigen::internal::nested<TensorPairReducerOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorPairReducerOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorPairReducerOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorPairReducerOp>::Index Index;
   typedef Index CoeffReturnType;

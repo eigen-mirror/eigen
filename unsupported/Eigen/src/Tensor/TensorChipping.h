@@ -23,8 +23,6 @@ struct traits<TensorChippingOp<DimId, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - 1;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,11 +31,6 @@ struct traits<TensorChippingOp<DimId, XprType> > : public traits<XprType> {
 template <DenseIndex DimId, typename XprType>
 struct eval<TensorChippingOp<DimId, XprType>, Eigen::Dense> {
   typedef const TensorChippingOp<DimId, XprType> EIGEN_DEVICE_REF type;
-};
-
-template <DenseIndex DimId, typename XprType>
-struct nested<TensorChippingOp<DimId, XprType>, 1, typename eval<TensorChippingOp<DimId, XprType> >::type> {
-  typedef TensorChippingOp<DimId, XprType> type;
 };
 
 template <DenseIndex DimId>
@@ -69,7 +62,7 @@ class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
   typedef typename Eigen::internal::traits<TensorChippingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorChippingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorChippingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorChippingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorChippingOp>::Index Index;
 

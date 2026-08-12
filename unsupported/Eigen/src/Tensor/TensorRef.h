@@ -109,7 +109,7 @@ class TensorRefBase : public TensorBase<Derived> {
  public:
   typedef typename traits<Derived>::PlainObjectType PlainObjectType;
   typedef typename PlainObjectType::Base Base;
-  typedef typename Eigen::internal::nested<Derived>::type Nested;
+  typedef typename Eigen::internal::ref_selector<Derived>::type Nested;
   typedef typename traits<PlainObjectType>::StorageKind StorageKind;
   typedef typename traits<PlainObjectType>::Index Index;
   typedef typename traits<PlainObjectType>::Scalar Scalar;

@@ -68,8 +68,6 @@ struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>> : public traits<
       OutputScalar;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
@@ -78,12 +76,6 @@ struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>> : public traits<
 template <typename FFT, typename XprType, int FFTResultType, int FFTDirection>
 struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense> {
   typedef const TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>& type;
-};
-
-template <typename FFT, typename XprType, int FFTResultType, int FFTDirection>
-struct nested<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, 1,
-              typename eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>>::type> {
-  typedef TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection> type;
 };
 
 }  // end namespace internal
@@ -113,7 +105,7 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
   typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
       OutputScalar;
   typedef OutputScalar CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorFFTOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorFFTOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorFFTOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorFFTOp>::Index Index;
 

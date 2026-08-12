@@ -23,8 +23,6 @@ struct traits<TensorScanOp<Op, XprType> > : public traits<XprType> {
   typedef typename XprType::Scalar Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -35,10 +33,6 @@ struct eval<TensorScanOp<Op, XprType>, Eigen::Dense> {
   typedef const TensorScanOp<Op, XprType>& type;
 };
 
-template <typename Op, typename XprType>
-struct nested<TensorScanOp<Op, XprType>, 1, typename eval<TensorScanOp<Op, XprType> >::type> {
-  typedef TensorScanOp<Op, XprType> type;
-};
 }  // end namespace internal
 
 /**
@@ -52,7 +46,7 @@ class TensorScanOp : public TensorBase<TensorScanOp<Op, XprType>, ReadOnlyAccess
   typedef typename Eigen::internal::traits<TensorScanOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorScanOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorScanOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorScanOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorScanOp>::Index Index;
 

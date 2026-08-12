@@ -149,41 +149,33 @@ struct eval<const TensorRef<PlainObjectType>, Eigen::Dense> {
   typedef const TensorRef<PlainObjectType> EIGEN_DEVICE_REF type;
 };
 
-// TODO: nested<> does not exist anymore in Eigen/Core, and should be removed in favor of ref_selector.
-template <typename T, int n = 1, typename PlainObject = void>
-struct nested {
-  typedef typename ref_selector<T>::type type;
+template <typename T>
+struct tensor_ref_selector {
+  typedef const T EIGEN_DEVICE_REF type;
+  typedef T EIGEN_DEVICE_REF non_const_type;
 };
 
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
-struct nested<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
-  typedef const Tensor<Scalar_, NumIndices_, Options_, IndexType_> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >
+    : tensor_ref_selector<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {};
 
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
-struct nested<const Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
-  typedef const Tensor<Scalar_, NumIndices_, Options_, IndexType_> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<const Tensor<Scalar_, NumIndices_, Options_, IndexType_> >
+    : tensor_ref_selector<const Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {};
 
 template <typename Scalar_, typename Dimensions, int Options, typename IndexType_>
-struct nested<TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> > {
-  typedef const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> >
+    : tensor_ref_selector<TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> > {};
 
 template <typename Scalar_, typename Dimensions, int Options, typename IndexType_>
-struct nested<const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> > {
-  typedef const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> >
+    : tensor_ref_selector<const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> > {};
 
 template <typename PlainObjectType>
-struct nested<TensorRef<PlainObjectType> > {
-  typedef const TensorRef<PlainObjectType> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<TensorRef<PlainObjectType> > : tensor_ref_selector<TensorRef<PlainObjectType> > {};
 
 template <typename PlainObjectType>
-struct nested<const TensorRef<PlainObjectType> > {
-  typedef const TensorRef<PlainObjectType> EIGEN_DEVICE_REF type;
-};
+struct ref_selector<const TensorRef<PlainObjectType> > : tensor_ref_selector<const TensorRef<PlainObjectType> > {};
 
 }  // end namespace internal
 

@@ -31,7 +31,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
  public:
   typedef TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> Self;
   typedef TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> > Base;
-  typedef typename Eigen::internal::nested<Self>::type Nested;
+  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
   typedef typename internal::traits<Self>::StorageKind StorageKind;
   typedef typename internal::traits<Self>::Index Index;
   typedef Scalar_ Scalar;

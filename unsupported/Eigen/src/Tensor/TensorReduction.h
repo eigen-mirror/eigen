@@ -34,7 +34,6 @@ struct traits<TensorReductionOp<Op, Dims, XprType, MakePointer_> > : traits<XprT
   typedef typename XprTraits::Scalar Scalar;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -48,12 +47,6 @@ struct traits<TensorReductionOp<Op, Dims, XprType, MakePointer_> > : traits<XprT
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 struct eval<TensorReductionOp<Op, Dims, XprType, MakePointer_>, Eigen::Dense> {
   typedef const TensorReductionOp<Op, Dims, XprType, MakePointer_>& type;
-};
-
-template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
-struct nested<TensorReductionOp<Op, Dims, XprType, MakePointer_>, 1,
-              typename eval<TensorReductionOp<Op, Dims, XprType, MakePointer_> >::type> {
-  typedef TensorReductionOp<Op, Dims, XprType, MakePointer_> type;
 };
 
 template <typename OutputDims>
@@ -537,7 +530,7 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   typedef typename Eigen::internal::traits<TensorReductionOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorReductionOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorReductionOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorReductionOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorReductionOp>::Index Index;
 

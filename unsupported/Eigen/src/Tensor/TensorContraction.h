@@ -28,11 +28,6 @@ struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKern
                                                     typename traits<RhsXprType>::StorageKind>::ret;
   using Index =
       typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type;
-  using LhsNested = typename LhsXprType::Nested;
-  using RhsNested = typename RhsXprType::Nested;
-  using LhsNested_ = std::remove_reference_t<LhsNested>;
-  using RhsNested_ = std::remove_reference_t<RhsNested>;
-
   // From NumDims below.
   static constexpr int NumDimensions =
       traits<LhsXprType>::NumDimensions + traits<RhsXprType>::NumDimensions - 2 * array_size<Dimensions>::value;
@@ -47,12 +42,6 @@ struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKern
 template <typename Dimensions, typename LhsXprType, typename RhsXprType, typename OutputKernelType>
 struct eval<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType>, Eigen::Dense> {
   using type = const TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType>&;
-};
-
-template <typename Dimensions, typename LhsXprType, typename RhsXprType, typename OutputKernelType>
-struct nested<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType>, 1,
-              typename eval<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType>>::type> {
-  using type = TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType>;
 };
 
 template <typename Indices_, typename LeftArgType_, typename RightArgType_, typename OutputKernelType_,
@@ -348,7 +337,7 @@ class TensorContractionOp
   using Scalar = typename Eigen::internal::traits<TensorContractionOp>::Scalar;
   using CoeffReturnType = typename internal::gebp_traits<typename LhsXprType::CoeffReturnType,
                                                          typename RhsXprType::CoeffReturnType>::ResScalar;
-  using Nested = typename Eigen::internal::nested<TensorContractionOp>::type;
+  using Nested = typename Eigen::internal::ref_selector<TensorContractionOp>::type;
   using StorageKind = typename Eigen::internal::traits<TensorContractionOp>::StorageKind;
   using Index = typename Eigen::internal::traits<TensorContractionOp>::Index;
 

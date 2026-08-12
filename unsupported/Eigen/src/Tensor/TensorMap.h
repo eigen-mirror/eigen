@@ -36,9 +36,9 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   typedef TensorMap<PlainObjectType, Options_, MakePointer_> Self;
   typedef TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> > Base;
 #ifdef EIGEN_USE_SYCL
-  typedef std::remove_reference_t<typename Eigen::internal::nested<Self>::type> Nested;
+  typedef std::remove_reference_t<typename Eigen::internal::ref_selector<Self>::type> Nested;
 #else
-  typedef typename Eigen::internal::nested<Self>::type Nested;
+  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
 #endif
   typedef typename internal::traits<PlainObjectType>::StorageKind StorageKind;
   typedef typename internal::traits<PlainObjectType>::Index Index;

@@ -23,8 +23,6 @@ struct traits<TensorReshapingOp<NewDimensions, XprType>> : public traits<XprType
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<NewDimensions>::value;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,12 +31,6 @@ struct traits<TensorReshapingOp<NewDimensions, XprType>> : public traits<XprType
 template <typename NewDimensions, typename XprType>
 struct eval<TensorReshapingOp<NewDimensions, XprType>, Eigen::Dense> {
   typedef const TensorReshapingOp<NewDimensions, XprType> EIGEN_DEVICE_REF type;
-};
-
-template <typename NewDimensions, typename XprType>
-struct nested<TensorReshapingOp<NewDimensions, XprType>, 1,
-              typename eval<TensorReshapingOp<NewDimensions, XprType>>::type> {
-  typedef TensorReshapingOp<NewDimensions, XprType> type;
 };
 
 }  // end namespace internal
@@ -54,7 +46,7 @@ class TensorReshapingOp : public TensorBase<TensorReshapingOp<NewDimensions, Xpr
   typedef TensorBase<TensorReshapingOp<NewDimensions, XprType>, WriteAccessors> Base;
   typedef typename Eigen::internal::traits<TensorReshapingOp>::Scalar Scalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorReshapingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorReshapingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorReshapingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorReshapingOp>::Index Index;
 
@@ -262,8 +254,6 @@ struct traits<TensorSlicingOp<StartIndices, Sizes, XprType>> : public traits<Xpr
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<StartIndices>::value;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -274,12 +264,6 @@ struct eval<TensorSlicingOp<StartIndices, Sizes, XprType>, Eigen::Dense> {
   typedef const TensorSlicingOp<StartIndices, Sizes, XprType> EIGEN_DEVICE_REF type;
 };
 
-template <typename StartIndices, typename Sizes, typename XprType>
-struct nested<TensorSlicingOp<StartIndices, Sizes, XprType>, 1,
-              typename eval<TensorSlicingOp<StartIndices, Sizes, XprType>>::type> {
-  typedef TensorSlicingOp<StartIndices, Sizes, XprType> type;
-};
-
 }  // end namespace internal
 
 template <typename StartIndices, typename Sizes, typename XprType>
@@ -288,7 +272,7 @@ class TensorSlicingOp : public TensorBase<TensorSlicingOp<StartIndices, Sizes, X
   typedef TensorBase<TensorSlicingOp<StartIndices, Sizes, XprType>> Base;
   typedef typename Eigen::internal::traits<TensorSlicingOp>::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorSlicingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorSlicingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorSlicingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorSlicingOp>::Index Index;
 
@@ -738,8 +722,6 @@ struct traits<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprTyp
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = array_size<StartIndices>::value;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -748,12 +730,6 @@ struct traits<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprTyp
 template <typename StartIndices, typename StopIndices, typename Strides, typename XprType>
 struct eval<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType>, Eigen::Dense> {
   typedef const TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType> EIGEN_DEVICE_REF type;
-};
-
-template <typename StartIndices, typename StopIndices, typename Strides, typename XprType>
-struct nested<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType>, 1,
-              typename eval<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType>>::type> {
-  typedef TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType> type;
 };
 
 }  // end namespace internal
@@ -765,7 +741,7 @@ class TensorStridingSlicingOp
   typedef TensorBase<TensorStridingSlicingOp<StartIndices, StopIndices, Strides, XprType>> Base;
   typedef typename internal::traits<TensorStridingSlicingOp>::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename internal::nested<TensorStridingSlicingOp>::type Nested;
+  typedef typename internal::ref_selector<TensorStridingSlicingOp>::type Nested;
   typedef typename internal::traits<TensorStridingSlicingOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorStridingSlicingOp>::Index Index;
 

@@ -23,8 +23,6 @@ struct traits<TensorEvalToOp<XprType, MakePointer_> > {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename MakePointer_<Scalar>::Type PointerType;
@@ -41,11 +39,6 @@ struct eval<TensorEvalToOp<XprType, MakePointer_>, Eigen::Dense> {
   typedef const TensorEvalToOp<XprType, MakePointer_>& type;
 };
 
-template <typename XprType, template <class> class MakePointer_>
-struct nested<TensorEvalToOp<XprType, MakePointer_>, 1, typename eval<TensorEvalToOp<XprType, MakePointer_> >::type> {
-  typedef TensorEvalToOp<XprType, MakePointer_> type;
-};
-
 }  // end namespace internal
 
 template <typename XprType, template <class> class MakePointer_>
@@ -55,7 +48,7 @@ class TensorEvalToOp : public TensorBase<TensorEvalToOp<XprType, MakePointer_>, 
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
   typedef typename MakePointer_<CoeffReturnType>::Type PointerType;
-  typedef typename Eigen::internal::nested<TensorEvalToOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorEvalToOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorEvalToOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorEvalToOp>::Index Index;
 

@@ -23,8 +23,6 @@ struct traits<TensorLayoutSwapOp<XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = (traits<XprType>::Layout == ColMajor) ? RowMajor : ColMajor;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,11 +31,6 @@ struct traits<TensorLayoutSwapOp<XprType> > : public traits<XprType> {
 template <typename XprType>
 struct eval<TensorLayoutSwapOp<XprType>, Eigen::Dense> {
   typedef const TensorLayoutSwapOp<XprType>& type;
-};
-
-template <typename XprType>
-struct nested<TensorLayoutSwapOp<XprType>, 1, typename eval<TensorLayoutSwapOp<XprType> >::type> {
-  typedef TensorLayoutSwapOp<XprType> type;
 };
 
 }  // end namespace internal
@@ -71,7 +64,7 @@ class TensorLayoutSwapOp : public TensorBase<TensorLayoutSwapOp<XprType>, WriteA
   typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorLayoutSwapOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorLayoutSwapOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::Index Index;
 

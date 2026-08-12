@@ -22,8 +22,6 @@ struct traits<TensorRollOp<RollDimensions, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -32,11 +30,6 @@ struct traits<TensorRollOp<RollDimensions, XprType> > : public traits<XprType> {
 template <typename RollDimensions, typename XprType>
 struct eval<TensorRollOp<RollDimensions, XprType>, Eigen::Dense> {
   typedef const TensorRollOp<RollDimensions, XprType>& type;
-};
-
-template <typename RollDimensions, typename XprType>
-struct nested<TensorRollOp<RollDimensions, XprType>, 1, typename eval<TensorRollOp<RollDimensions, XprType> >::type> {
-  typedef TensorRollOp<RollDimensions, XprType> type;
 };
 
 }  // end namespace internal
@@ -54,7 +47,7 @@ class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, Wr
   typedef typename Eigen::internal::traits<TensorRollOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorRollOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorRollOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorRollOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorRollOp>::Index Index;
 

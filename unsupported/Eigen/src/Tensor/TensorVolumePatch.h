@@ -19,8 +19,6 @@ struct traits<TensorVolumePatchOp<Planes, Rows, Cols, XprType> > : public traits
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -29,12 +27,6 @@ struct traits<TensorVolumePatchOp<Planes, Rows, Cols, XprType> > : public traits
 template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
 struct eval<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, Eigen::Dense> {
   typedef const TensorVolumePatchOp<Planes, Rows, Cols, XprType>& type;
-};
-
-template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
-struct nested<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, 1,
-              typename eval<TensorVolumePatchOp<Planes, Rows, Cols, XprType> >::type> {
-  typedef TensorVolumePatchOp<Planes, Rows, Cols, XprType> type;
 };
 
 }  // end namespace internal
@@ -60,7 +52,7 @@ class TensorVolumePatchOp : public TensorBase<TensorVolumePatchOp<Planes, Rows, 
   typedef typename Eigen::internal::traits<TensorVolumePatchOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorVolumePatchOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorVolumePatchOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorVolumePatchOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorVolumePatchOp>::Index Index;
 

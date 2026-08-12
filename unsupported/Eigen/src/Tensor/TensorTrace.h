@@ -24,8 +24,6 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
   enum {
@@ -37,11 +35,6 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
 template <typename Dims, typename XprType>
 struct eval<TensorTraceOp<Dims, XprType>, Eigen::Dense> {
   typedef const TensorTraceOp<Dims, XprType>& type;
-};
-
-template <typename Dims, typename XprType>
-struct nested<TensorTraceOp<Dims, XprType>, 1, typename eval<TensorTraceOp<Dims, XprType> >::type> {
-  typedef TensorTraceOp<Dims, XprType> type;
 };
 
 }  // end namespace internal
@@ -57,7 +50,7 @@ class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> > {
   typedef typename Eigen::internal::traits<TensorTraceOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorTraceOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorTraceOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorTraceOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorTraceOp>::Index Index;
 

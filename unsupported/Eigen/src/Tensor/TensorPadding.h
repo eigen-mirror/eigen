@@ -23,8 +23,6 @@ struct traits<TensorPaddingOp<PaddingDimensions, XprType> > : public traits<XprT
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,12 +31,6 @@ struct traits<TensorPaddingOp<PaddingDimensions, XprType> > : public traits<XprT
 template <typename PaddingDimensions, typename XprType>
 struct eval<TensorPaddingOp<PaddingDimensions, XprType>, Eigen::Dense> {
   typedef const TensorPaddingOp<PaddingDimensions, XprType>& type;
-};
-
-template <typename PaddingDimensions, typename XprType>
-struct nested<TensorPaddingOp<PaddingDimensions, XprType>, 1,
-              typename eval<TensorPaddingOp<PaddingDimensions, XprType> >::type> {
-  typedef TensorPaddingOp<PaddingDimensions, XprType> type;
 };
 
 }  // end namespace internal
@@ -56,7 +48,7 @@ class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, Xpr
   typedef typename Eigen::internal::traits<TensorPaddingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorPaddingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorPaddingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorPaddingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorPaddingOp>::Index Index;
 

@@ -199,10 +199,6 @@ struct traits<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> > {
                                         typename traits<KernelXprType>::StorageKind>::ret StorageKind;
   typedef typename promote_index_type<typename traits<InputXprType>::Index, typename traits<KernelXprType>::Index>::type
       Index;
-  typedef typename InputXprType::Nested LhsNested;
-  typedef typename KernelXprType::Nested RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
   static constexpr int NumDimensions = traits<InputXprType>::NumDimensions;
   static constexpr int Layout = traits<InputXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename InputXprType::Scalar, Scalar>::val,
@@ -215,12 +211,6 @@ struct traits<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> > {
 template <typename Dimensions, typename InputXprType, typename KernelXprType>
 struct eval<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>, Eigen::Dense> {
   typedef const TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>& type;
-};
-
-template <typename Dimensions, typename InputXprType, typename KernelXprType>
-struct nested<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>, 1,
-              typename eval<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> >::type> {
-  typedef TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> type;
 };
 
 }  // end namespace internal
@@ -236,7 +226,7 @@ class TensorConvolutionOp
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename internal::promote_storage_type<typename InputXprType::CoeffReturnType,
                                                   typename KernelXprType::CoeffReturnType>::ret CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorConvolutionOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorConvolutionOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorConvolutionOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorConvolutionOp>::Index Index;
 

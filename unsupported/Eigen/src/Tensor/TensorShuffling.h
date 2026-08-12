@@ -23,8 +23,6 @@ struct traits<TensorShufflingOp<Shuffle, XprType> > : public traits<XprType> {
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,11 +31,6 @@ struct traits<TensorShufflingOp<Shuffle, XprType> > : public traits<XprType> {
 template <typename Shuffle, typename XprType>
 struct eval<TensorShufflingOp<Shuffle, XprType>, Eigen::Dense> {
   typedef const TensorShufflingOp<Shuffle, XprType>& type;
-};
-
-template <typename Shuffle, typename XprType>
-struct nested<TensorShufflingOp<Shuffle, XprType>, 1, typename eval<TensorShufflingOp<Shuffle, XprType> >::type> {
-  typedef TensorShufflingOp<Shuffle, XprType> type;
 };
 
 }  // end namespace internal
@@ -54,7 +47,7 @@ class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> 
   typedef typename Eigen::internal::traits<TensorShufflingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorShufflingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorShufflingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorShufflingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorShufflingOp>::Index Index;
 

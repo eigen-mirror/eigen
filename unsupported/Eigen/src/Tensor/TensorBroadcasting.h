@@ -23,8 +23,6 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType>
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -37,12 +35,6 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType>
 template <typename Broadcast, typename XprType>
 struct eval<TensorBroadcastingOp<Broadcast, XprType>, Eigen::Dense> {
   typedef const TensorBroadcastingOp<Broadcast, XprType> EIGEN_DEVICE_REF type;
-};
-
-template <typename Broadcast, typename XprType>
-struct nested<TensorBroadcastingOp<Broadcast, XprType>, 1,
-              typename eval<TensorBroadcastingOp<Broadcast, XprType>>::type> {
-  typedef TensorBroadcastingOp<Broadcast, XprType> type;
 };
 
 template <typename Dims>
@@ -63,7 +55,7 @@ class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, X
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorBroadcastingOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorBroadcastingOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Index Index;
 

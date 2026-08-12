@@ -70,7 +70,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
  public:
   typedef Tensor<Scalar_, NumIndices_, Options_, IndexType_> Self;
   typedef TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > Base;
-  typedef typename Eigen::internal::nested<Self>::type Nested;
+  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
   typedef typename internal::traits<Self>::StorageKind StorageKind;
   typedef typename internal::traits<Self>::Index Index;
   typedef Scalar_ Scalar;

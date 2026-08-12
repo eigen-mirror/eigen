@@ -23,8 +23,6 @@ struct traits<TensorReverseOp<ReverseDimensions, XprType> > : public traits<XprT
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
@@ -33,12 +31,6 @@ struct traits<TensorReverseOp<ReverseDimensions, XprType> > : public traits<XprT
 template <typename ReverseDimensions, typename XprType>
 struct eval<TensorReverseOp<ReverseDimensions, XprType>, Eigen::Dense> {
   typedef const TensorReverseOp<ReverseDimensions, XprType>& type;
-};
-
-template <typename ReverseDimensions, typename XprType>
-struct nested<TensorReverseOp<ReverseDimensions, XprType>, 1,
-              typename eval<TensorReverseOp<ReverseDimensions, XprType> >::type> {
-  typedef TensorReverseOp<ReverseDimensions, XprType> type;
 };
 
 }  // end namespace internal
@@ -56,7 +48,7 @@ class TensorReverseOp : public TensorBase<TensorReverseOp<ReverseDimensions, Xpr
   typedef typename Eigen::internal::traits<TensorReverseOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::nested<TensorReverseOp>::type Nested;
+  typedef typename Eigen::internal::ref_selector<TensorReverseOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorReverseOp>::StorageKind StorageKind;
   typedef typename Eigen::internal::traits<TensorReverseOp>::Index Index;
 

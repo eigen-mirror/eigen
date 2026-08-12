@@ -23,8 +23,6 @@ struct traits<TensorConversionOp<TargetType, XprType> > {
   typedef TargetType Scalar;
   typedef typename traits<XprType>::StorageKind StorageKind;
   typedef typename traits<XprType>::Index Index;
-  typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = traits<XprType>::Layout;
   enum { Flags = 0 };
@@ -34,12 +32,6 @@ struct traits<TensorConversionOp<TargetType, XprType> > {
 template <typename TargetType, typename XprType>
 struct eval<TensorConversionOp<TargetType, XprType>, Eigen::Dense> {
   typedef const TensorConversionOp<TargetType, XprType>& type;
-};
-
-template <typename TargetType, typename XprType>
-struct nested<TensorConversionOp<TargetType, XprType>, 1,
-              typename eval<TensorConversionOp<TargetType, XprType> >::type> {
-  typedef TensorConversionOp<TargetType, XprType> type;
 };
 
 }  // end namespace internal
@@ -169,7 +161,7 @@ class TensorConversionOp : public TensorBase<TensorConversionOp<TargetType, XprT
   typedef typename internal::traits<TensorConversionOp>::Scalar Scalar;
   typedef typename internal::traits<TensorConversionOp>::StorageKind StorageKind;
   typedef typename internal::traits<TensorConversionOp>::Index Index;
-  typedef typename internal::nested<TensorConversionOp>::type Nested;
+  typedef typename internal::ref_selector<TensorConversionOp>::type Nested;
   typedef Scalar CoeffReturnType;
   typedef typename NumTraits<Scalar>::Real RealScalar;
 
