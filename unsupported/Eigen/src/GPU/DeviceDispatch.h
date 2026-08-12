@@ -17,9 +17,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
-#include <climits>
 #include <cstdint>
-#include <limits>
 
 #include "./DeviceExpr.h"
 #include "./DeviceBlasExpr.h"
@@ -238,10 +236,8 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
   eigen_assert(A.rows() == A.cols() && "TRSM requires a square triangular matrix");
   eigen_assert(B.rows() == A.rows() && "TRSM: RHS rows must match matrix size");
 
-  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && "cublasXtrsm dimensions exceed int range");
-
-  const int n = static_cast<int>(A.rows());
-  const int nrhs = static_cast<int>(B.cols());
+  const int64_t n = A.rows();
+  const int64_t nrhs = B.cols();
 
   if (n == 0 || nrhs == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
@@ -263,8 +259,7 @@ void dispatch_trsm(Context& ctx, DeviceMatrix<Scalar>& dst, const TrsmExpr<Scala
   Scalar alpha(1);
 
   EIGEN_CUBLAS_CHECK(cublasXtrsm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, n, nrhs,
-                                 &alpha, A.data(), static_cast<int>(A.rows()), dst.data(),
-                                 static_cast<int>(dst.rows())));
+                                 &alpha, A.data(), A.rows(), dst.data(), dst.rows()));
 
   dst.recordReady(ctx.stream());
 }
@@ -276,11 +271,9 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
 
   eigen_assert(A.rows() == A.cols() && "SYMM requires a square matrix");
   eigen_assert(B.rows() == A.rows() && "SYMM: RHS rows must match matrix size");
-  eigen_assert(A.rows() <= INT_MAX && B.cols() <= INT_MAX && B.rows() <= INT_MAX &&
-               "cublasXsymm dimensions exceed int range");
 
-  const int m = static_cast<int>(A.rows());
-  const int n = static_cast<int>(B.cols());
+  const int64_t m = A.rows();
+  const int64_t n = B.cols();
 
   if (m == 0 || n == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
@@ -300,9 +293,8 @@ void dispatch_symm(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scala
   // The array keeps the host-pointer stack slots alive; see dispatch_gemm.
   Scalar scalars[2] = {Scalar(1), Scalar(0)};
 
-  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(),
-                                 static_cast<int>(A.rows()), B.data(), static_cast<int>(B.rows()), &scalars[1],
-                                 dst.data(), static_cast<int>(dst.rows())));
+  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(), A.rows(),
+                                 B.data(), B.rows(), &scalars[1], dst.data(), dst.rows()));
 
   dst.recordReady(ctx.stream());
 }
@@ -313,10 +305,8 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
   using RealScalar = typename NumTraits<Scalar>::Real;
   const DeviceMatrix<Scalar>& A = expr.matrix();
 
-  eigen_assert(A.rows() <= INT_MAX && A.cols() <= INT_MAX && "cublasXsyrk dimensions exceed int range");
-
-  const int n = static_cast<int>(A.rows());
-  const int k = static_cast<int>(A.cols());
+  const int64_t n = A.rows();
+  const int64_t k = A.cols();
 
   if (n == 0) {
     if (!dst.empty()) dst.waitReady(ctx.stream());
@@ -337,8 +327,8 @@ void dispatch_syrk(Context& ctx, DeviceMatrix<Scalar>& dst, const SyrkExpr<Scala
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
 
-  EIGEN_CUBLAS_CHECK(cublasXsyrk(ctx.cublasHandle(), uplo, CUBLAS_OP_N, n, k, &alpha_val, A.data(),
-                                 static_cast<int>(A.rows()), &beta_val, dst.data(), static_cast<int>(dst.rows())));
+  EIGEN_CUBLAS_CHECK(cublasXsyrk(ctx.cublasHandle(), uplo, CUBLAS_OP_N, n, k, &alpha_val, A.data(), A.rows(), &beta_val,
+                                 dst.data(), dst.rows()));
 
   dst.recordReady(ctx.stream());
 }
@@ -352,8 +342,8 @@ void dispatch_geam(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<
   const DeviceMatrix<Scalar>& A = expr.A();
   const DeviceMatrix<Scalar>& B = expr.B();
   eigen_assert(A.rows() == B.rows() && A.cols() == B.cols());
-  const int m = to_blas_int(A.rows());
-  const int n = to_blas_int(A.cols());
+  const int64_t m = A.rows();
+  const int64_t n = A.cols();
   // Wait on dst before resize — resize may free the old buffer while another
   // stream is still reading it.
   if (!dst.empty()) dst.waitReady(ctx.stream());
@@ -569,21 +559,14 @@ void with_device_pointer_mode(cublasHandle_t h, F&& f) {
 // stays there until DeviceScalar's conversion to Scalar syncs and reads it.
 
 namespace internal {
-// The BLAS-1 wrappers take int counts, while Index is ptrdiff_t on 64-bit hosts,
-// so guard against silent truncation past INT_MAX elements.
-inline int blas1_int_size(Index rows, Index cols) {
-  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  eigen_assert(total <= static_cast<int64_t>((std::numeric_limits<int>::max)()) &&
-               "cuBLAS BLAS-1 length exceeds int range");
-  return static_cast<int>(total);
-}
+inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(rows) * static_cast<int64_t>(cols); }
 }  // namespace internal
 
 template <typename Scalar_>
 DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
                                                                                 const DeviceMatrix& other) const {
-  const int n = internal::blas1_int_size(rows_, cols_);
-  eigen_assert(n == internal::blas1_int_size(other.rows_, other.cols_));
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
   if (n > 0) {
     // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
     // zero first would be a wasted H2D transfer per reduction.
@@ -627,7 +610,7 @@ DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNo
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  const int n = internal::blas1_int_size(rows_, cols_);
+  const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
     DeviceScalar<RealScalar> result(ctx.stream());
@@ -656,8 +639,8 @@ void DeviceMatrix<Scalar_>::setZero(Context& ctx) {
 
 template <typename Scalar_>
 void DeviceMatrix<Scalar_>::addScaled(Context& ctx, Scalar alpha, const DeviceMatrix& x) {
-  const int n = internal::blas1_int_size(rows_, cols_);
-  eigen_assert(n == internal::blas1_int_size(x.rows_, x.cols_));
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  eigen_assert(n == internal::blas1_size(x.rows_, x.cols_));
   if (n > 0) {
     waitReady(ctx.stream());
     x.waitReady(ctx.stream());
@@ -668,7 +651,7 @@ void DeviceMatrix<Scalar_>::addScaled(Context& ctx, Scalar alpha, const DeviceMa
 
 template <typename Scalar_>
 void DeviceMatrix<Scalar_>::scale(Context& ctx, Scalar alpha) {
-  const int n = internal::blas1_int_size(rows_, cols_);
+  const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     waitReady(ctx.stream());
     EIGEN_CUBLAS_CHECK(internal::cublasXscal(ctx.cublasHandle(), n, &alpha, data_.get(), 1));
@@ -682,7 +665,7 @@ void DeviceMatrix<Scalar_>::copyFrom(Context& ctx, const DeviceMatrix& other) {
   // stream is still reading it.
   if (!empty()) waitReady(ctx.stream());
   resize(other.rows_, other.cols_);
-  const int n = internal::blas1_int_size(rows_, cols_);
+  const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     other.waitReady(ctx.stream());
     EIGEN_CUBLAS_CHECK(internal::cublasXcopy(ctx.cublasHandle(), n, other.data_.get(), 1, data_.get(), 1));
@@ -730,7 +713,7 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(Scalar alpha) {
 // this *= alpha  (scal, device pointer — avoids host sync)
 template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(const DeviceScalar<Scalar>& alpha) {
-  const int n = internal::blas1_int_size(rows_, cols_);
+  const int64_t n = internal::blas1_size(rows_, cols_);
   if (n > 0) {
     auto& ctx = Context::threadLocal();
     waitReady(ctx.stream());
@@ -745,9 +728,9 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(const DeviceScalar<Scal
 // this += DeviceScalar * x  (axpy with CUBLAS_POINTER_MODE_DEVICE)
 template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator+=(const DeviceScaledDevice<Scalar_>& expr) {
-  const int n = internal::blas1_int_size(rows_, cols_);
+  const int64_t n = internal::blas1_size(rows_, cols_);
   const auto& x = expr.matrix();
-  eigen_assert(n == internal::blas1_int_size(x.rows_, x.cols_));
+  eigen_assert(n == internal::blas1_size(x.rows_, x.cols_));
   if (n > 0) {
     auto& ctx = Context::threadLocal();
     waitReady(ctx.stream());
@@ -779,8 +762,8 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceAddExpr<Scal
 // cwiseProduct (allocating).
 template <typename Scalar_>
 DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& other) const {
-  const int n = internal::blas1_int_size(rows_, cols_);
-  eigen_assert(n == internal::blas1_int_size(other.rows_, other.cols_));
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
   DeviceMatrix result(rows_, cols_);
   if (n > 0) {
     waitReady(ctx.stream());
@@ -794,8 +777,8 @@ DeviceMatrix<Scalar_> DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const De
 // In-place cwiseProduct: this = a .* b (reuses this buffer, no allocation).
 template <typename Scalar_>
 void DeviceMatrix<Scalar_>::cwiseProduct(Context& ctx, const DeviceMatrix& a, const DeviceMatrix& b) {
-  const int n = internal::blas1_int_size(a.rows_, a.cols_);
-  eigen_assert(n == internal::blas1_int_size(b.rows_, b.cols_));
+  const int64_t n = internal::blas1_size(a.rows_, a.cols_);
+  eigen_assert(n == internal::blas1_size(b.rows_, b.cols_));
   if (!empty()) waitReady(ctx.stream());
   resize(a.rows_, a.cols_);
   if (n > 0) {

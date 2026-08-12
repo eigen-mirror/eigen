@@ -267,11 +267,9 @@ class SVD {
     DeviceMatrix<Scalar> result(n_, vtrows_stored);
     if (n_ > 0 && vtrows_stored > 0) {
       Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-          solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_),
-          internal::to_blas_int(vtrows_stored), &alpha_one, static_cast<const Scalar*>(d_VT_.get()),
-          internal::to_blas_int(vtrows_stored), &beta_zero, static_cast<const Scalar*>(nullptr),
-          internal::to_blas_int(n_), result.data(), internal::to_blas_int(n_)));
+      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, n_, vtrows_stored,
+                                               &alpha_one, static_cast<const Scalar*>(d_VT_.get()), vtrows_stored,
+                                               &beta_zero, static_cast<const Scalar*>(nullptr), n_, result.data(), n_));
       result.recordReady(solver_ctx_.stream_);
     }
     return result;
@@ -296,11 +294,9 @@ class SVD {
     DeviceMatrix<Scalar> result(ucols, m_);
     if (ucols > 0 && m_ > 0) {
       Scalar alpha_one(1), beta_zero(0);
-      EIGEN_CUBLAS_CHECK(
-          internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(ucols),
-                                internal::to_blas_int(m_), &alpha_one, static_cast<const Scalar*>(d_U_.get()),
-                                internal::to_blas_int(m_), &beta_zero, static_cast<const Scalar*>(nullptr),
-                                internal::to_blas_int(ucols), result.data(), internal::to_blas_int(ucols)));
+      EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, ucols, m_, &alpha_one,
+                                               static_cast<const Scalar*>(d_U_.get()), m_, &beta_zero,
+                                               static_cast<const Scalar*>(nullptr), ucols, result.data(), ucols));
       result.recordReady(solver_ctx_.stream_);
     }
     return result;
@@ -409,10 +405,9 @@ class SVD {
     d_A_ = internal::DeviceBuffer(mat_bytes);
     // geam: C(m×n) = alpha * op(A) + beta * op(B). beta=0, B=nullptr.
     Scalar alpha_one(1), beta_zero(0);
-    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-        solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(m_), internal::to_blas_int(n_), &alpha_one,
-        d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
-        internal::to_blas_int(m_), static_cast<Scalar*>(d_A_.get()), internal::to_blas_int(m_)));
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, m_, n_, &alpha_one,
+                                             d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
+                                             m_, static_cast<Scalar*>(d_A_.get()), m_));
   }
 
   // Swap U↔V flags for the transposed case.
@@ -552,9 +547,8 @@ class SVD {
     }
 
     // Step 2: tmp = diag(D) * tmp on device via cublasXdgmm.
-    EIGEN_CUBLAS_CHECK(internal::cublasXdgmm(
-        solver_ctx_.cublas_, CUBLAS_SIDE_LEFT, internal::to_blas_int(kk), internal::to_blas_int(nrhs), tmp_dev,
-        internal::to_blas_int(kk), static_cast<const Scalar*>(d_D_.get()), 1, tmp_dev, internal::to_blas_int(kk)));
+    EIGEN_CUBLAS_CHECK(internal::cublasXdgmm(solver_ctx_.cublas_, CUBLAS_SIDE_LEFT, kk, nrhs, tmp_dev, kk,
+                                             static_cast<const Scalar*>(d_D_.get()), 1, tmp_dev, kk));
 
     // Step 3: X = V_orig * tmp  (n_orig × nrhs).
     if (!transposed_) {

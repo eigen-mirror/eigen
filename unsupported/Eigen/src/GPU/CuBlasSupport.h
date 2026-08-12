@@ -20,7 +20,6 @@
 #include "./GpuSupport.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
-#include <climits>
 #include <cstring>
 #include <utility>
 
@@ -44,6 +43,22 @@ constexpr cublasOperation_t to_cublas_op(GpuOp op) {
       return CUBLAS_OP_N;
   }
 }
+
+// cuBLAS 12.0 added `_64` entry points taking int64_t dimensions across the
+// whole wrapped surface, so one wrapper body serves both:
+// EIGEN_CUBLAS_FN(cublasSgemm)(..., to_blas_dim(m), ...) becomes
+// cublasSgemm_64(..., m, ...) there (the plain `_64` names are cublas_v2.h
+// aliases for the real `_v2_64` symbols) and cublasSgemm(..., to_blas_int(m),
+// ...) on older cuBLAS. to_blas_dim is separate from to_blas_int, which must
+// keep narrowing for the cuSOLVER and cuFFT sites that have no `_64` API.
+
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 120000
+#define EIGEN_CUBLAS_FN(name) name##_64
+inline int64_t to_blas_dim(int64_t v) { return v; }
+#else
+#define EIGEN_CUBLAS_FN(name) name
+inline int to_blas_dim(int64_t v) { return to_blas_int(v); }
+#endif
 
 // cublasLtMatmul takes a compute type separate from the data type, which selects
 // the precision policy:
@@ -283,27 +298,26 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
                                         beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace->get(),
                                         needed, stream));
   } else {
-    // cublasGemmEx takes int dimensions, unlike the cublasLt path above.
-    eigen_assert(m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX && ldb <= INT_MAX && ldc <= INT_MAX &&
-                 "cublasGemmEx fallback: dimensions exceed int range");
-    EIGEN_CUBLAS_CHECK(cublasGemmEx(cublas_handle, transA, transB, static_cast<int>(m), static_cast<int>(n),
-                                    static_cast<int>(k), alpha, A, dtype, static_cast<int>(lda), B, dtype,
-                                    static_cast<int>(ldb), beta, C, dtype, static_cast<int>(ldc), compute,
-                                    cuda_gemm_algo()));
+    // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.
+    EIGEN_CUBLAS_CHECK(EIGEN_CUBLAS_FN(cublasGemmEx)(
+        cublas_handle, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), alpha, A, dtype,
+        to_blas_dim(lda), B, dtype, to_blas_dim(ldb), beta, C, dtype, to_blas_dim(ldc), compute, cuda_gemm_algo()));
   }
 }
 
 // cuBLAS exposes one entry point per scalar type (Sgemm, Dgemm, ...). The
 // cublasX* overloads below recover a type-generic interface over them.
-inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  int k, const float* alpha, const float* A, int lda, const float* B, int ldb,
-                                  const float* beta, float* C, int ldc) {
-  return cublasSgemm(h, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, int64_t k, const float* alpha, const float* A, int64_t lda, const float* B,
+                                  int64_t ldb, const float* beta, float* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasSgemm)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), alpha, A,
+                                      to_blas_dim(lda), B, to_blas_dim(ldb), beta, C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  int k, const double* alpha, const double* A, int lda, const double* B, int ldb,
-                                  const double* beta, double* C, int ldc) {
-  return cublasDgemm(h, transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, int64_t k, const double* alpha, const double* A, int64_t lda,
+                                  const double* B, int64_t ldb, const double* beta, double* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasDgemm)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), alpha, A,
+                                      to_blas_dim(lda), B, to_blas_dim(ldb), beta, C, to_blas_dim(ldc));
 }
 static_assert(sizeof(cuComplex) == sizeof(std::complex<float>), "cuComplex and std::complex<float> layout mismatch");
 static_assert(sizeof(cuDoubleComplex) == sizeof(std::complex<double>),
@@ -315,193 +329,227 @@ static_assert(sizeof(cuDoubleComplex) == sizeof(std::complex<double>),
 // elide the caller's store, which segfaults. std::memcpy is the standard-blessed
 // pun. Device array pointers (A, B, C) are never dereferenced by the host
 // compiler, so reinterpret_cast is safe for them.
-inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  int k, const std::complex<float>* alpha, const std::complex<float>* A, int lda,
-                                  const std::complex<float>* B, int ldb, const std::complex<float>* beta,
-                                  std::complex<float>* C, int ldc) {
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, int64_t k, const std::complex<float>* alpha, const std::complex<float>* A,
+                                  int64_t lda, const std::complex<float>* B, int64_t ldb,
+                                  const std::complex<float>* beta, std::complex<float>* C, int64_t ldc) {
   cuComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasCgemm(h, transA, transB, m, n, k, &a, reinterpret_cast<const cuComplex*>(A), lda,
-                     reinterpret_cast<const cuComplex*>(B), ldb, &b, reinterpret_cast<cuComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasCgemm)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), &a,
+                                      reinterpret_cast<const cuComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<const cuComplex*>(B), to_blas_dim(ldb), &b,
+                                      reinterpret_cast<cuComplex*>(C), to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  int k, const std::complex<double>* alpha, const std::complex<double>* A, int lda,
-                                  const std::complex<double>* B, int ldb, const std::complex<double>* beta,
-                                  std::complex<double>* C, int ldc) {
+inline cublasStatus_t cublasXgemm(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, int64_t k, const std::complex<double>* alpha,
+                                  const std::complex<double>* A, int64_t lda, const std::complex<double>* B,
+                                  int64_t ldb, const std::complex<double>* beta, std::complex<double>* C, int64_t ldc) {
   cuDoubleComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasZgemm(h, transA, transB, m, n, k, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
-                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasZgemm)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), to_blas_dim(k), &a,
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<const cuDoubleComplex*>(B), to_blas_dim(ldb), &b,
+                                      reinterpret_cast<cuDoubleComplex*>(C), to_blas_dim(ldc));
 }
 
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const float* alpha,
-                                  const float* A, int lda, float* B, int ldb) {
-  return cublasStrsm(h, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+                                  cublasOperation_t trans, cublasDiagType_t diag, int64_t m, int64_t n,
+                                  const float* alpha, const float* A, int64_t lda, float* B, int64_t ldb) {
+  return EIGEN_CUBLAS_FN(cublasStrsm)(h, side, uplo, trans, diag, to_blas_dim(m), to_blas_dim(n), alpha, A,
+                                      to_blas_dim(lda), B, to_blas_dim(ldb));
 }
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const double* alpha,
-                                  const double* A, int lda, double* B, int ldb) {
-  return cublasDtrsm(h, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+                                  cublasOperation_t trans, cublasDiagType_t diag, int64_t m, int64_t n,
+                                  const double* alpha, const double* A, int64_t lda, double* B, int64_t ldb) {
+  return EIGEN_CUBLAS_FN(cublasDtrsm)(h, side, uplo, trans, diag, to_blas_dim(m), to_blas_dim(n), alpha, A,
+                                      to_blas_dim(lda), B, to_blas_dim(ldb));
 }
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
-                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
-                                  std::complex<float>* B, int ldb) {
+                                  cublasOperation_t trans, cublasDiagType_t diag, int64_t m, int64_t n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int64_t lda,
+                                  std::complex<float>* B, int64_t ldb) {
   cuComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasCtrsm(h, side, uplo, trans, diag, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda,
-                     reinterpret_cast<cuComplex*>(B), ldb);
+  return EIGEN_CUBLAS_FN(cublasCtrsm)(h, side, uplo, trans, diag, to_blas_dim(m), to_blas_dim(n), &a,
+                                      reinterpret_cast<const cuComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<cuComplex*>(B), to_blas_dim(ldb));
 }
 inline cublasStatus_t cublasXtrsm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo,
-                                  cublasOperation_t trans, cublasDiagType_t diag, int m, int n,
-                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
-                                  std::complex<double>* B, int ldb) {
+                                  cublasOperation_t trans, cublasDiagType_t diag, int64_t m, int64_t n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int64_t lda,
+                                  std::complex<double>* B, int64_t ldb) {
   cuDoubleComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasZtrsm(h, side, uplo, trans, diag, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
-                     reinterpret_cast<cuDoubleComplex*>(B), ldb);
+  return EIGEN_CUBLAS_FN(cublasZtrsm)(h, side, uplo, trans, diag, to_blas_dim(m), to_blas_dim(n), &a,
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<cuDoubleComplex*>(B), to_blas_dim(ldb));
 }
 
 // SYMM: real → symm, complex → hemm.
-inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
-                                  const float* alpha, const float* A, int lda, const float* B, int ldb,
-                                  const float* beta, float* C, int ldc) {
-  return cublasSsymm(h, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int64_t m, int64_t n,
+                                  const float* alpha, const float* A, int64_t lda, const float* B, int64_t ldb,
+                                  const float* beta, float* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasSsymm)(h, side, uplo, to_blas_dim(m), to_blas_dim(n), alpha, A, to_blas_dim(lda), B,
+                                      to_blas_dim(ldb), beta, C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
-                                  const double* alpha, const double* A, int lda, const double* B, int ldb,
-                                  const double* beta, double* C, int ldc) {
-  return cublasDsymm(h, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int64_t m, int64_t n,
+                                  const double* alpha, const double* A, int64_t lda, const double* B, int64_t ldb,
+                                  const double* beta, double* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasDsymm)(h, side, uplo, to_blas_dim(m), to_blas_dim(n), alpha, A, to_blas_dim(lda), B,
+                                      to_blas_dim(ldb), beta, C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
-                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
-                                  const std::complex<float>* B, int ldb, const std::complex<float>* beta,
-                                  std::complex<float>* C, int ldc) {
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int64_t m, int64_t n,
+                                  const std::complex<float>* alpha, const std::complex<float>* A, int64_t lda,
+                                  const std::complex<float>* B, int64_t ldb, const std::complex<float>* beta,
+                                  std::complex<float>* C, int64_t ldc) {
   cuComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasChemm(h, side, uplo, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda,
-                     reinterpret_cast<const cuComplex*>(B), ldb, &b, reinterpret_cast<cuComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasChemm)(
+      h, side, uplo, to_blas_dim(m), to_blas_dim(n), &a, reinterpret_cast<const cuComplex*>(A), to_blas_dim(lda),
+      reinterpret_cast<const cuComplex*>(B), to_blas_dim(ldb), &b, reinterpret_cast<cuComplex*>(C), to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int m, int n,
-                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
-                                  const std::complex<double>* B, int ldb, const std::complex<double>* beta,
-                                  std::complex<double>* C, int ldc) {
+inline cublasStatus_t cublasXsymm(cublasHandle_t h, cublasSideMode_t side, cublasFillMode_t uplo, int64_t m, int64_t n,
+                                  const std::complex<double>* alpha, const std::complex<double>* A, int64_t lda,
+                                  const std::complex<double>* B, int64_t ldb, const std::complex<double>* beta,
+                                  std::complex<double>* C, int64_t ldc) {
   cuDoubleComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasZhemm(h, side, uplo, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda,
-                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, &b, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasZhemm)(h, side, uplo, to_blas_dim(m), to_blas_dim(n), &a,
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<const cuDoubleComplex*>(B), to_blas_dim(ldb), &b,
+                                      reinterpret_cast<cuDoubleComplex*>(C), to_blas_dim(ldc));
 }
 
 // GEAM: C = alpha * op(A) + beta * op(B).
-inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  const float* alpha, const float* A, int lda, const float* beta, const float* B,
-                                  int ldb, float* C, int ldc) {
-  return cublasSgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, const float* alpha, const float* A, int64_t lda, const float* beta,
+                                  const float* B, int64_t ldb, float* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasSgeam)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), alpha, A, to_blas_dim(lda),
+                                      beta, B, to_blas_dim(ldb), C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  const double* alpha, const double* A, int lda, const double* beta, const double* B,
-                                  int ldb, double* C, int ldc) {
-  return cublasDgeam(h, transA, transB, m, n, alpha, A, lda, beta, B, ldb, C, ldc);
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, const double* alpha, const double* A, int64_t lda, const double* beta,
+                                  const double* B, int64_t ldb, double* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasDgeam)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), alpha, A, to_blas_dim(lda),
+                                      beta, B, to_blas_dim(ldb), C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  const std::complex<float>* alpha, const std::complex<float>* A, int lda,
-                                  const std::complex<float>* beta, const std::complex<float>* B, int ldb,
-                                  std::complex<float>* C, int ldc) {
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, const std::complex<float>* alpha, const std::complex<float>* A,
+                                  int64_t lda, const std::complex<float>* beta, const std::complex<float>* B,
+                                  int64_t ldb, std::complex<float>* C, int64_t ldc) {
   cuComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasCgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuComplex*>(A), lda, &b,
-                     reinterpret_cast<const cuComplex*>(B), ldb, reinterpret_cast<cuComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasCgeam)(
+      h, transA, transB, to_blas_dim(m), to_blas_dim(n), &a, reinterpret_cast<const cuComplex*>(A), to_blas_dim(lda),
+      &b, reinterpret_cast<const cuComplex*>(B), to_blas_dim(ldb), reinterpret_cast<cuComplex*>(C), to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int m, int n,
-                                  const std::complex<double>* alpha, const std::complex<double>* A, int lda,
-                                  const std::complex<double>* beta, const std::complex<double>* B, int ldb,
-                                  std::complex<double>* C, int ldc) {
+inline cublasStatus_t cublasXgeam(cublasHandle_t h, cublasOperation_t transA, cublasOperation_t transB, int64_t m,
+                                  int64_t n, const std::complex<double>* alpha, const std::complex<double>* A,
+                                  int64_t lda, const std::complex<double>* beta, const std::complex<double>* B,
+                                  int64_t ldb, std::complex<double>* C, int64_t ldc) {
   cuDoubleComplex a, b;
   std::memcpy(&a, alpha, sizeof(a));
   std::memcpy(&b, beta, sizeof(b));
-  return cublasZgeam(h, transA, transB, m, n, &a, reinterpret_cast<const cuDoubleComplex*>(A), lda, &b,
-                     reinterpret_cast<const cuDoubleComplex*>(B), ldb, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+  return EIGEN_CUBLAS_FN(cublasZgeam)(h, transA, transB, to_blas_dim(m), to_blas_dim(n), &a,
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda), &b,
+                                      reinterpret_cast<const cuDoubleComplex*>(B), to_blas_dim(ldb),
+                                      reinterpret_cast<cuDoubleComplex*>(C), to_blas_dim(ldc));
 }
 
 // SYRK: real → syrk, complex → herk.
-inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
-                                  const float* alpha, const float* A, int lda, const float* beta, float* C, int ldc) {
-  return cublasSsyrk(h, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int64_t n,
+                                  int64_t k, const float* alpha, const float* A, int64_t lda, const float* beta,
+                                  float* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasSsyrk)(h, uplo, trans, to_blas_dim(n), to_blas_dim(k), alpha, A, to_blas_dim(lda), beta,
+                                      C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
-                                  const double* alpha, const double* A, int lda, const double* beta, double* C,
-                                  int ldc) {
-  return cublasDsyrk(h, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int64_t n,
+                                  int64_t k, const double* alpha, const double* A, int64_t lda, const double* beta,
+                                  double* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasDsyrk)(h, uplo, trans, to_blas_dim(n), to_blas_dim(k), alpha, A, to_blas_dim(lda), beta,
+                                      C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
-                                  const float* alpha, const std::complex<float>* A, int lda, const float* beta,
-                                  std::complex<float>* C, int ldc) {
-  return cublasCherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuComplex*>(A), lda, beta,
-                     reinterpret_cast<cuComplex*>(C), ldc);
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int64_t n,
+                                  int64_t k, const float* alpha, const std::complex<float>* A, int64_t lda,
+                                  const float* beta, std::complex<float>* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasCherk)(h, uplo, trans, to_blas_dim(n), to_blas_dim(k), alpha,
+                                      reinterpret_cast<const cuComplex*>(A), to_blas_dim(lda), beta,
+                                      reinterpret_cast<cuComplex*>(C), to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int n, int k,
-                                  const double* alpha, const std::complex<double>* A, int lda, const double* beta,
-                                  std::complex<double>* C, int ldc) {
-  return cublasZherk(h, uplo, trans, n, k, alpha, reinterpret_cast<const cuDoubleComplex*>(A), lda, beta,
-                     reinterpret_cast<cuDoubleComplex*>(C), ldc);
+inline cublasStatus_t cublasXsyrk(cublasHandle_t h, cublasFillMode_t uplo, cublasOperation_t trans, int64_t n,
+                                  int64_t k, const double* alpha, const std::complex<double>* A, int64_t lda,
+                                  const double* beta, std::complex<double>* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasZherk)(h, uplo, trans, to_blas_dim(n), to_blas_dim(k), alpha,
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda), beta,
+                                      reinterpret_cast<cuDoubleComplex*>(C), to_blas_dim(ldc));
 }
 
 // SCAL: x = alpha * x, with real alpha even for complex x (Csscal/Zdscal), as
 // needed by the intrinsically real 1/n inverse-FFT scaling.
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, float* x, int incx) {
-  return cublasSscal(h, n, alpha, x, incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const float* alpha, float* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasSscal)(h, to_blas_dim(n), alpha, x, to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, double* x, int incx) {
-  return cublasDscal(h, n, alpha, x, incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const double* alpha, double* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasDscal)(h, to_blas_dim(n), alpha, x, to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const float* alpha, std::complex<float>* x, int incx) {
-  return cublasCsscal(h, n, alpha, reinterpret_cast<cuComplex*>(x), incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const float* alpha, std::complex<float>* x,
+                                  int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasCsscal)(h, to_blas_dim(n), alpha, reinterpret_cast<cuComplex*>(x), to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const double* alpha, std::complex<double>* x, int incx) {
-  return cublasZdscal(h, n, alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const double* alpha, std::complex<double>* x,
+                                  int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasZdscal)(h, to_blas_dim(n), alpha, reinterpret_cast<cuDoubleComplex*>(x),
+                                       to_blas_dim(incx));
 }
 
 // By-value alpha, for callers holding the scale as a scalar rather than a host
 // pointer (e.g. inverse-FFT 1/n normalization).
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, float* x, int incx) {
-  return cublasSscal(h, n, &alpha, x, incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, float alpha, float* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasSscal)(h, to_blas_dim(n), &alpha, x, to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, double* x, int incx) {
-  return cublasDscal(h, n, &alpha, x, incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, double alpha, double* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasDscal)(h, to_blas_dim(n), &alpha, x, to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, float alpha, std::complex<float>* x, int incx) {
-  return cublasCsscal(h, n, &alpha, reinterpret_cast<cuComplex*>(x), incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, float alpha, std::complex<float>* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasCsscal)(h, to_blas_dim(n), &alpha, reinterpret_cast<cuComplex*>(x), to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, double alpha, std::complex<double>* x, int incx) {
-  return cublasZdscal(h, n, &alpha, reinterpret_cast<cuDoubleComplex*>(x), incx);
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, double alpha, std::complex<double>* x, int64_t incx) {
+  return EIGEN_CUBLAS_FN(cublasZdscal)(h, to_blas_dim(n), &alpha, reinterpret_cast<cuDoubleComplex*>(x),
+                                       to_blas_dim(incx));
 }
 
 // DGMM: C = A * diag(x) (side=RIGHT) or C = diag(x) * A (side=LEFT), applying a
 // diagonal scaling without materialising diag(x). cuBLAS documents C == A as
 // safe.
-inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const float* A, int lda,
-                                  const float* x, int incx, float* C, int ldc) {
-  return cublasSdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int64_t m, int64_t n, const float* A,
+                                  int64_t lda, const float* x, int64_t incx, float* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasSdgmm)(h, side, to_blas_dim(m), to_blas_dim(n), A, to_blas_dim(lda), x,
+                                      to_blas_dim(incx), C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const double* A, int lda,
-                                  const double* x, int incx, double* C, int ldc) {
-  return cublasDdgmm(h, side, m, n, A, lda, x, incx, C, ldc);
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int64_t m, int64_t n, const double* A,
+                                  int64_t lda, const double* x, int64_t incx, double* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasDdgmm)(h, side, to_blas_dim(m), to_blas_dim(n), A, to_blas_dim(lda), x,
+                                      to_blas_dim(incx), C, to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<float>* A,
-                                  int lda, const std::complex<float>* x, int incx, std::complex<float>* C, int ldc) {
-  return cublasCdgmm(h, side, m, n, reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<const cuComplex*>(x),
-                     incx, reinterpret_cast<cuComplex*>(C), ldc);
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int64_t m, int64_t n,
+                                  const std::complex<float>* A, int64_t lda, const std::complex<float>* x, int64_t incx,
+                                  std::complex<float>* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasCdgmm)(h, side, to_blas_dim(m), to_blas_dim(n), reinterpret_cast<const cuComplex*>(A),
+                                      to_blas_dim(lda), reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<cuComplex*>(C), to_blas_dim(ldc));
 }
-inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m, int n, const std::complex<double>* A,
-                                  int lda, const std::complex<double>* x, int incx, std::complex<double>* C, int ldc) {
-  return cublasZdgmm(h, side, m, n, reinterpret_cast<const cuDoubleComplex*>(A), lda,
-                     reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(C), ldc);
+inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int64_t m, int64_t n,
+                                  const std::complex<double>* A, int64_t lda, const std::complex<double>* x,
+                                  int64_t incx, std::complex<double>* C, int64_t ldc) {
+  return EIGEN_CUBLAS_FN(cublasZdgmm)(h, side, to_blas_dim(m), to_blas_dim(n),
+                                      reinterpret_cast<const cuDoubleComplex*>(A), to_blas_dim(lda),
+                                      reinterpret_cast<const cuDoubleComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<cuDoubleComplex*>(C), to_blas_dim(ldc));
 }
 
 // The BLAS-1 wrappers below honour whichever pointer mode the caller set on the
@@ -509,91 +557,99 @@ inline cublasStatus_t cublasXdgmm(cublasHandle_t h, cublasSideMode_t side, int m
 // address device memory.
 
 // dot: result = x^T * y (real) or x^H * y (complex, conjugating x).
-inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const float* x, int incx, const float* y, int incy,
-                                 float* result) {
-  return cublasSdot(h, n, x, incx, y, incy, result);
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int64_t n, const float* x, int64_t incx, const float* y,
+                                 int64_t incy, float* result) {
+  return EIGEN_CUBLAS_FN(cublasSdot)(h, to_blas_dim(n), x, to_blas_dim(incx), y, to_blas_dim(incy), result);
 }
-inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const double* x, int incx, const double* y, int incy,
-                                 double* result) {
-  return cublasDdot(h, n, x, incx, y, incy, result);
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int64_t n, const double* x, int64_t incx, const double* y,
+                                 int64_t incy, double* result) {
+  return EIGEN_CUBLAS_FN(cublasDdot)(h, to_blas_dim(n), x, to_blas_dim(incx), y, to_blas_dim(incy), result);
 }
-inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const std::complex<float>* x, int incx,
-                                 const std::complex<float>* y, int incy, std::complex<float>* result) {
-  return cublasCdotc(h, n, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<const cuComplex*>(y), incy,
-                     reinterpret_cast<cuComplex*>(result));
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int64_t n, const std::complex<float>* x, int64_t incx,
+                                 const std::complex<float>* y, int64_t incy, std::complex<float>* result) {
+  return EIGEN_CUBLAS_FN(cublasCdotc)(h, to_blas_dim(n), reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<const cuComplex*>(y), to_blas_dim(incy),
+                                      reinterpret_cast<cuComplex*>(result));
 }
-inline cublasStatus_t cublasXdot(cublasHandle_t h, int n, const std::complex<double>* x, int incx,
-                                 const std::complex<double>* y, int incy, std::complex<double>* result) {
-  return cublasZdotc(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx,
-                     reinterpret_cast<const cuDoubleComplex*>(y), incy, reinterpret_cast<cuDoubleComplex*>(result));
+inline cublasStatus_t cublasXdot(cublasHandle_t h, int64_t n, const std::complex<double>* x, int64_t incx,
+                                 const std::complex<double>* y, int64_t incy, std::complex<double>* result) {
+  return EIGEN_CUBLAS_FN(cublasZdotc)(h, to_blas_dim(n), reinterpret_cast<const cuDoubleComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<const cuDoubleComplex*>(y), to_blas_dim(incy),
+                                      reinterpret_cast<cuDoubleComplex*>(result));
 }
 
 // nrm2: result = ||x||_2, always real.
-inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const float* x, int incx, float* result) {
-  return cublasSnrm2(h, n, x, incx, result);
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int64_t n, const float* x, int64_t incx, float* result) {
+  return EIGEN_CUBLAS_FN(cublasSnrm2)(h, to_blas_dim(n), x, to_blas_dim(incx), result);
 }
-inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const double* x, int incx, double* result) {
-  return cublasDnrm2(h, n, x, incx, result);
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int64_t n, const double* x, int64_t incx, double* result) {
+  return EIGEN_CUBLAS_FN(cublasDnrm2)(h, to_blas_dim(n), x, to_blas_dim(incx), result);
 }
-inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const std::complex<float>* x, int incx, float* result) {
-  return cublasScnrm2(h, n, reinterpret_cast<const cuComplex*>(x), incx, result);
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int64_t n, const std::complex<float>* x, int64_t incx,
+                                  float* result) {
+  return EIGEN_CUBLAS_FN(cublasScnrm2)(h, to_blas_dim(n), reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
+                                       result);
 }
-inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int n, const std::complex<double>* x, int incx, double* result) {
-  return cublasDznrm2(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx, result);
+inline cublasStatus_t cublasXnrm2(cublasHandle_t h, int64_t n, const std::complex<double>* x, int64_t incx,
+                                  double* result) {
+  return EIGEN_CUBLAS_FN(cublasDznrm2)(h, to_blas_dim(n), reinterpret_cast<const cuDoubleComplex*>(x),
+                                       to_blas_dim(incx), result);
 }
 
 // axpy: y += alpha * x.
-inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const float* alpha, const float* x, int incx, float* y,
-                                  int incy) {
-  return cublasSaxpy(h, n, alpha, x, incx, y, incy);
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const float* alpha, const float* x, int64_t incx,
+                                  float* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasSaxpy)(h, to_blas_dim(n), alpha, x, to_blas_dim(incx), y, to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const double* alpha, const double* x, int incx, double* y,
-                                  int incy) {
-  return cublasDaxpy(h, n, alpha, x, incx, y, incy);
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const double* alpha, const double* x, int64_t incx,
+                                  double* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasDaxpy)(h, to_blas_dim(n), alpha, x, to_blas_dim(incx), y, to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const std::complex<float>* alpha,
-                                  const std::complex<float>* x, int incx, std::complex<float>* y, int incy) {
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const std::complex<float>* alpha,
+                                  const std::complex<float>* x, int64_t incx, std::complex<float>* y, int64_t incy) {
   cuComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasCaxpy(h, n, &a, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<cuComplex*>(y), incy);
+  return EIGEN_CUBLAS_FN(cublasCaxpy)(h, to_blas_dim(n), &a, reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<cuComplex*>(y), to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int n, const std::complex<double>* alpha,
-                                  const std::complex<double>* x, int incx, std::complex<double>* y, int incy) {
+inline cublasStatus_t cublasXaxpy(cublasHandle_t h, int64_t n, const std::complex<double>* alpha,
+                                  const std::complex<double>* x, int64_t incx, std::complex<double>* y, int64_t incy) {
   cuDoubleComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasZaxpy(h, n, &a, reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(y),
-                     incy);
+  return EIGEN_CUBLAS_FN(cublasZaxpy)(h, to_blas_dim(n), &a, reinterpret_cast<const cuDoubleComplex*>(x),
+                                      to_blas_dim(incx), reinterpret_cast<cuDoubleComplex*>(y), to_blas_dim(incy));
 }
 
 // SCAL with complex alpha (Cscal/Zscal); the real-alpha forms are above.
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<float>* alpha, std::complex<float>* x,
-                                  int incx) {
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const std::complex<float>* alpha, std::complex<float>* x,
+                                  int64_t incx) {
   cuComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasCscal(h, n, &a, reinterpret_cast<cuComplex*>(x), incx);
+  return EIGEN_CUBLAS_FN(cublasCscal)(h, to_blas_dim(n), &a, reinterpret_cast<cuComplex*>(x), to_blas_dim(incx));
 }
-inline cublasStatus_t cublasXscal(cublasHandle_t h, int n, const std::complex<double>* alpha, std::complex<double>* x,
-                                  int incx) {
+inline cublasStatus_t cublasXscal(cublasHandle_t h, int64_t n, const std::complex<double>* alpha,
+                                  std::complex<double>* x, int64_t incx) {
   cuDoubleComplex a;
   std::memcpy(&a, alpha, sizeof(a));
-  return cublasZscal(h, n, &a, reinterpret_cast<cuDoubleComplex*>(x), incx);
+  return EIGEN_CUBLAS_FN(cublasZscal)(h, to_blas_dim(n), &a, reinterpret_cast<cuDoubleComplex*>(x), to_blas_dim(incx));
 }
 
 // copy: y = x.
-inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const float* x, int incx, float* y, int incy) {
-  return cublasScopy(h, n, x, incx, y, incy);
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int64_t n, const float* x, int64_t incx, float* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasScopy)(h, to_blas_dim(n), x, to_blas_dim(incx), y, to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const double* x, int incx, double* y, int incy) {
-  return cublasDcopy(h, n, x, incx, y, incy);
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int64_t n, const double* x, int64_t incx, double* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasDcopy)(h, to_blas_dim(n), x, to_blas_dim(incx), y, to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const std::complex<float>* x, int incx,
-                                  std::complex<float>* y, int incy) {
-  return cublasCcopy(h, n, reinterpret_cast<const cuComplex*>(x), incx, reinterpret_cast<cuComplex*>(y), incy);
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int64_t n, const std::complex<float>* x, int64_t incx,
+                                  std::complex<float>* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasCcopy)(h, to_blas_dim(n), reinterpret_cast<const cuComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<cuComplex*>(y), to_blas_dim(incy));
 }
-inline cublasStatus_t cublasXcopy(cublasHandle_t h, int n, const std::complex<double>* x, int incx,
-                                  std::complex<double>* y, int incy) {
-  return cublasZcopy(h, n, reinterpret_cast<const cuDoubleComplex*>(x), incx, reinterpret_cast<cuDoubleComplex*>(y),
-                     incy);
+inline cublasStatus_t cublasXcopy(cublasHandle_t h, int64_t n, const std::complex<double>* x, int64_t incx,
+                                  std::complex<double>* y, int64_t incy) {
+  return EIGEN_CUBLAS_FN(cublasZcopy)(h, to_blas_dim(n), reinterpret_cast<const cuDoubleComplex*>(x), to_blas_dim(incx),
+                                      reinterpret_cast<cuDoubleComplex*>(y), to_blas_dim(incy));
 }
 
 }  // namespace internal

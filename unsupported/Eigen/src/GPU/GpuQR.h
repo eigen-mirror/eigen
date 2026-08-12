@@ -226,10 +226,9 @@ class QR {
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
     allocate_factor_storage(factorBytes());
     Scalar alpha_one(1), beta_zero(0);
-    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(
-        solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, internal::to_blas_int(n_), internal::to_blas_int(m_), &alpha_one,
-        d_A.data(), internal::to_blas_int(d_A.rows()), &beta_zero, static_cast<const Scalar*>(nullptr),
-        internal::to_blas_int(n_), static_cast<Scalar*>(d_qr_.get()), internal::to_blas_int(n_)));
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, n_, m_, &alpha_one,
+                                             d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
+                                             n_, static_cast<Scalar*>(d_qr_.get()), n_));
   }
 
   void factorize() {
@@ -396,9 +395,8 @@ class QR {
   void trsm_R(void* d_B, int64_t ldb, int64_t nrhs, cublasOperation_t op) const {
     Scalar alpha(1);
     EIGEN_CUBLAS_CHECK(internal::cublasXtrsm(
-        solver_ctx_.cublas_, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op, CUBLAS_DIAG_NON_UNIT,
-        internal::to_blas_int(k()), internal::to_blas_int(nrhs), &alpha, static_cast<const Scalar*>(d_qr_.get()),
-        internal::to_blas_int(lda_), static_cast<Scalar*>(d_B), internal::to_blas_int(ldb)));
+        solver_ctx_.cublas_, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op, CUBLAS_DIAG_NON_UNIT, k(), nrhs, &alpha,
+        static_cast<const Scalar*>(d_qr_.get()), lda_, static_cast<Scalar*>(d_B), ldb));
   }
 };
 }  // namespace gpu

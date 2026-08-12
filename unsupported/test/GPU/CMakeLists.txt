@@ -60,6 +60,7 @@ endfunction()
 # DeviceMatrix core: CUDA runtime + cuBLAS + cuSOLVER (for BLAS-1 ops via GpuContext).
 ei_add_gpu_test(device_matrix
   EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
+ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
