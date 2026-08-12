@@ -265,7 +265,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
 
         // Obtain the update coefficients beta implicitly
         // beta=lu_sigma.solve(AR_T * u.block(N * (j - 1), 0, N, 1)
-        u.reshaped().head(u.rows() * j) -= U.topRows(N * j) * lu_solver.solve(AR_T * precond.solve(u.col(j - 1)));
+        u.leftCols(j).reshaped() -= U.topRows(N * j) * lu_solver.solve(AR_T * precond.solve(u.col(j - 1)));
 
         // u=[u;Au_{j-1}]
         u.col(j).noalias() = mat * precond.solve(u.col(j - 1));
@@ -283,7 +283,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
             auto v = V.col(i).segment(N * j, N);
             Scalar h = v.squaredNorm();
             h = v.dot(u.col(j)) / h;
-            u.reshaped().head(u.rows() * (j + 1)) -= h * V.block(0, i, N * (j + 1), 1);
+            u.leftCols(j + 1).reshaped() -= h * V.col(i).head(N * (j + 1));
           }
         }
         // Normalize u and assign to a column of V
@@ -297,7 +297,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
           u.leftCols(j + 1) /= normalization_constant;
         }
 
-        V.block(0, q - 1, N * (j + 1), 1).noalias() = u.reshaped().head(u.rows() * (j + 1));
+        V.col(q - 1).head(N * (j + 1)).noalias() = u.leftCols(j + 1).reshaped();
       }
 
       if (!break_normalization) {

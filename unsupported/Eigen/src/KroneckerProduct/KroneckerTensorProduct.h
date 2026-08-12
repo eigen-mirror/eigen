@@ -164,7 +164,7 @@ void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
       for (RhsInnerIterator itB(rhs1, kB); itB; ++itB) nnzB(Dest::IsRowMajor ? itB.row() : itB.col())++;
 
     Matrix<int, Dynamic, Dynamic, ColMajor> nnzAB = nnzB * nnzA.transpose();
-    dst.reserve(VectorXi::Map(nnzAB.data(), nnzAB.size()));
+    dst.reserve(nnzAB.reshaped());
   }
 
   for (Index kA = 0; kA < m_A.outerSize(); ++kA) {
