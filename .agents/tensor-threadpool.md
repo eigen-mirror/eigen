@@ -71,6 +71,19 @@ alive until synchronous evaluation returns or asynchronous completion is signale
 reduction, and device code have `ThreadPoolDevice`-specific paths; a serial `DefaultDevice` test alone is insufficient.
 See `unsupported/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
 
+## Evaluator capability flags and cost
+
+Evaluator capabilities are independent claims the executor combines: vectorization follows `PacketAccess`, tiling
+follows `BlockAccess && PreferBlockAccess`. Widening a flag widens a contract, and the execution paths treat evaluator
+state differently — threaded coefficient evaluation copies the evaluator per worker range, while tiled evaluation
+shares one evaluator across concurrent block tasks, so a functor with mutable state races there even though its
+coefficient and packet paths are correct. A capability may legitimately depend on the `Device`; prefer the
+conservative answer for stateful or unannotated user functors (see rule 6 in the root `AGENTS.md`).
+
+`costPerCoeff()` drives thread-count selection and must describe the path actually taken: when a packet path is
+conditional, mirror that condition in the cost and charge nested work as scalar where the packet path gathers lane by
+lane (`TensorStriding.h` is the reference).
+
 ## Scheduling changes
 
 - Preserve the `ThreadPoolInterface` contract, including `Schedule`, `ScheduleWithHint`, `CurrentThreadId`,

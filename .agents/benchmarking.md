@@ -33,6 +33,9 @@ do not assume they validate `unsupported/benchmarks` changes.
 
 - Benchmark the user-visible operation affected by the change, with representative scalar types, sizes, shapes,
   storage layouts, sparsity, and thread counts. Include transition sizes where a kernel or blocking strategy changes.
+- Confirm the registered arguments actually reach the changed code — a size that falls off the fast path, or no case
+  at all for the affected configuration, measures something else while looking green. Check hand-written
+  `bytes_per_second`/items multipliers against the operation; a miscount silently rescales every reported rate.
 - Keep allocation, input generation, validation, and unrelated setup outside the timed region. Prevent dead-code
   elimination with Google Benchmark's `DoNotOptimize` and `ClobberMemory` where appropriate.
 - Validate results outside the measured loop. A faster incorrect kernel is not a useful result.
@@ -66,6 +69,11 @@ function small and deterministic.
    drift. Use the same benchmark filter and arguments for each pair.
 5. Re-run suspicious or noisy cases. Treat changes smaller than the observed run-to-run variation as inconclusive,
    not as wins or regressions.
+
+When the machine cannot be made quiet enough for the effect size, deterministic counters are the honest measurement:
+callgrind instruction counts, allocation counts (e.g. `-Wl,--wrap=malloc`), with identical result checksums across
+both variants. Report them as counter measurements naming the tool, not as timings; that plus a statement that wall
+clock was inconclusive is a complete performance claim, where an unqualified ratio from a loaded host is not.
 
 Never infer a general speedup from one convenient size or one warm run. State the tested domain, include regressions
 as well as improvements, and keep numerical accuracy results separate from performance measurements.

@@ -26,6 +26,12 @@ interface used by evaluators.
   in ULPs against an appropriate scalar or higher-precision reference; test NaN, infinities, signed zero, subnormals,
   and domain boundaries explicitly where the platform exposes those IEEE-754 behaviors.
 
+A missing specialization is not always a compile error: some generic fallbacks in
+`Eigen/src/Core/GenericPacketMath.h` are semantically the identity or a single-lane version of the real operation, so
+a backend without the specialization computes silently wrong results rather than failing to build. Before calling a
+`p*` operation from code every backend instantiates, confirm the backends that will reach it implement it (SYCL's
+packet surface is the usual gap), and keep a scalar fallback for those that do not.
+
 The current source tree and `test/CMakeLists.txt` are authoritative for supported backends and configuration options;
 do not copy an architecture inventory into documentation.
 
@@ -73,6 +79,13 @@ This is a host-side NVIDIA-library wrapper selected explicitly with `Eigen::gpu`
 evaluation or packet fusion. Define `EIGEN_USE_GPU` before including `<unsupported/Eigen/GPU>`, and consult
 `unsupported/Eigen/src/GPU/README.md`. Its tests under `unsupported/test/GPU/` are intentionally host-compiled `.cpp`
 files.
+
+Asynchrony makes otherwise-ordinary refactors unsafe in this module. Freeing, reusing, or destroying memory, streams,
+events, and handles must respect stream order — synchronize or event-fence first, and treat a wait removed by a
+cleanup as correct only if it was redundant on every ownership mode (a borrowed handle's no-op deleter supplies none
+of the synchronization an owned one's teardown does). Do not encode a mode in a value the user can legitimately pass:
+a null stream is a valid stream with build-configurable meaning, not a "none" sentinel. Caches keyed on host identity
+(pointer, extent, nnz) are spoofable because reassignment reuses allocations; key on content or a generation counter.
 
 ## Validation
 

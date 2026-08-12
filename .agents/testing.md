@@ -89,6 +89,40 @@ target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.
 
 `ctest -R '^<name>$'` does not match split parts. Use `ctest -R '<name>'` for every part or anchor one generated name.
 
+After changing subtest registration, reconfigure and read back the generated target list. Two failure modes are
+silent: a subtest function whose `CALL_SUBTEST` call was dropped still compiles and looks like coverage, and a part
+reached only through a dispatch macro is not built under `EIGEN_SPLIT_LARGE_TESTS=ON` unless an `EIGEN_SUFFIXES`
+marker lists it.
+
+## Coverage That Can Fail
+
+A test that passes when the change is reverted is not coverage. Establish that it fails at the parent commit, or when
+that is impractical, that it reaches the new code by construction.
+
+- Reach a new fast path through the public entry that selects it, with inputs that actually take it — not only through
+  a direct call to the new method. Pin the selection with a `STATIC_CHECK` on the flag or trait where one exists, in
+  both directions: a type that must opt in and one that must stay out.
+- Cover the branches the change adds, not just one convenient shape: sizes that are not a multiple of the packet or
+  block dimension, complex scalars where conjugation is otherwise a no-op, both storage orders, and the uncompressed
+  or strided variants of an input type.
+- Verify the complete result against an independent reference; skipping coefficients the test setup did not write
+  hides corruption in exactly those places.
+- Exercise the customization points users are documented to have (custom scalars, functors without declared traits),
+  not only the built-in specializations that happen to satisfy a new precondition.
+
+## Configurations The Test Suite Cannot See
+
+- In the default host-test configuration, no test compiles an `EIGEN_NO_DEBUG` code path: `test/main.h` undefines
+  `NDEBUG`, and `Macros.h` derives `EIGEN_NO_DEBUG` from it. (HIP/SYCL device compilation and an explicit
+  `-DEIGEN_NO_DEBUG` define it independently.) Behavior that depends on the macro needs a dedicated `-DEIGEN_NO_DEBUG`
+  test target or a standalone `-DNDEBUG` check. Conversely, an `eigen_assert` body is only type-checked where
+  assertions are enabled, so it can call members its argument type does not have and still compile in every release
+  build.
+- Run an `EIGEN_DEFAULT_TO_ROW_MAJOR` build when layout is in play, and pin the layout explicitly where a test aliases
+  one object's storage through a view whose default layout is fixed.
+- Cover `EIGEN_TEST_NO_EXPLICIT_VECTORIZATION`, `EIGEN_UNALIGNED_VECTORIZE=0`, or a narrower
+  `EIGEN_DEFAULT_DENSE_INDEX_TYPE` when the change reasons about packets, alignment, or index width.
+
 ## Numerical Assertions
 
 `VERIFY_IS_APPROX` is a convenient broad comparison, not a machine-epsilon guarantee. `test_precision<T>()` uses
@@ -98,6 +132,12 @@ target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.
 For numerical kernels, add explicit named bounds based on epsilon, dimension, conditioning, or a backward-error
 model as appropriate. Check NaN, infinity, and signed zero explicitly when their distinction matters. Follow
 [`numerics.md`](numerics.md) for solver, packet, and scalar-math coverage.
+
+Two ways a comparison silently accepts everything, both of which have shipped here: a tolerance computed by the
+operation under test (a bound formed as `(A.cwiseAbs() * B.cwiseAbs())` goes through the product code being tested —
+accumulate it independently instead), and a comparison that admits non-finite values (`error <= tolerance` holds for
+two infinities, and `if (error > bound)` never fires for a NaN error — assert the negation and reject a non-finite
+tolerance).
 
 Run reproducible failures directly with a fixed seed and repeat count:
 

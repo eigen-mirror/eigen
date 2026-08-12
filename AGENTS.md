@@ -16,6 +16,7 @@ default.
 
 | Work area | Additional guidance |
 |---|---|
+| Any new or rewritten code | [`.agents/conventions.md`](.agents/conventions.md) |
 | Tests and CMake test targets | [`.agents/testing.md`](.agents/testing.md) |
 | Numerical kernels, decompositions, solvers, accuracy | [`.agents/numerics.md`](.agents/numerics.md) |
 | Performance changes and benchmarks | [`.agents/benchmarking.md`](.agents/benchmarking.md) |
@@ -33,7 +34,8 @@ default.
    Eigen's MPL-2.0 distribution. Do not copy, paraphrase, or translate code from proprietary, NDA-covered, internal, or
    incompatibly licensed sources. Published papers, standards, textbooks, and algorithm descriptions may inform an
    independent implementation; cite them inline when they materially inform it. A citation does not make copied code
-   permissible. Never invent an attribution for AI-generated code.
+   permissible. Never invent an attribution for AI-generated code; a `Co-Authored-By` trailer naming the model that
+   actually produced the change is accurate attribution, not an invented one, and is permitted.
 3. **Respect the header-only and C++14 contracts.** Supported headers must compile as C++14 unless a guarded backend has
    a documented newer requirement. User code, examples, and public-behavior tests include umbrella headers such as
    `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `unsupported/Eigen/src/`. Focused tests of private
@@ -46,18 +48,28 @@ default.
 5. **Preserve Eigen annotations and style.** Do not drop `EIGEN_DEVICE_FUNC` from coefficient-level or device-callable
    functions. Do not replace `EIGEN_STRONG_INLINE` with `inline`, reorder includes, normalize Eigen macro layout, or
    apply broad `modernize-*` or `cppcoreguidelines-*` rewrites. The repository's conventions and `.clang-format` take
-   precedence over generic C++ advice.
-6. **Ship verification with behavior.** New functionality includes focused tests. Bug fixes include a regression test
+   precedence over generic C++ advice. This protects code you are not otherwise changing; it does not license writing
+   new code in a superseded form. Write new declarations in the form
+   [`.agents/conventions.md`](.agents/conventions.md) records.
+6. **Gate a fast path on the property it needs.** State the exact precondition a new specialization, capability flag,
+   or enable condition depends on and test for that, not for an adjacent capability, an overload's existence, or a
+   property the built-in types merely happen to share. New opt-in traits default to the conservative answer;
+   user-specializable extension points must stay correct while unannotated.
+7. **Ship verification with behavior.** New functionality includes focused tests. Bug fixes include a regression test
    that fails without the fix when practical. Performance-sensitive changes include an appropriate benchmark. Scale
-   broader coverage to the affected scalar types, storage orders, backends, and public contracts.
-7. **Treat external writes as deliberate actions.** Unless the user already asked for them, pause after the local commit
+   broader coverage to the affected scalar types, storage orders, backends, and public contracts. Confirm the new test
+   fails at the parent commit when practical; otherwise demonstrate that it reaches the changed path by construction.
+   See [`.agents/testing.md`](.agents/testing.md).
+8. **Treat external writes as deliberate actions.** Unless the user already asked for them, pause after the local commit
    before pushing, opening or updating a merge request, commenting on an issue, or making another external-system write.
 
 ## Standard workflow
 
 1. Inspect `git status --short`, the current branch, and the diff. Separate pre-existing work from the requested change.
 2. As applicable, read the public header, implementation, nearby tests, registration in `CMakeLists.txt`, and relevant
-   task guides before deciding on an implementation. Search with `rg` or `rg --files`.
+   task guides before deciding on an implementation. Search with `rg` or `rg --files`. Before writing a helper, check
+   `numext`, `NumTraits`, `MathFunctions.h`, `Meta.h`, `XprHelper.h`, and the `test/*_helpers.h` headers for an existing
+   one; if it exists but lacks needed hardening, fix it there rather than adding a local copy.
 3. Keep the patch within the owning module and established patterns. Avoid opportunistic refactors and generated or
    metadata churn.
 4. Add or update applicable tests and benchmarks in the same patch. Test public behavior through its umbrella header so
@@ -68,6 +80,14 @@ default.
    build directories for materially different CMake configurations.
 7. Review `git diff --check`, `git diff`, and `git status --short`. Report the exact validation run and any unavailable
    compiler, ISA, GPU, dependency, or downstream coverage.
+
+## Responding to review
+
+A posted code suggestion is a sketch that has not been compiled; verify it like your own work before adopting it —
+including the C++14 baseline, `Matrix`/`Array` and expression-type mismatches, and numerically deliberate groupings.
+Address every thread: apply the suggestion or explain the deviation, naming the commit that resolved it. Keep the
+response within the comment's scope; a defect it exposes in shared code belongs in its own commit or merge request.
+After each round, re-verify that the merge request description and commit messages still describe the current head.
 
 ## Repository essentials
 
@@ -115,6 +135,8 @@ coefficient access, reductions, or `.eval()`.
   and overlap rules above still apply.
 - The two arms of `?:` must have a common C++ type; distinct Eigen expression types often do not. Use `if`/`else` when
   necessary.
+- Declare dynamically sized matrix and vector workspaces outside the loop that fills them: a plain object named inside
+  the loop body allocates on every iteration, as does every subexpression that materializes a temporary into it.
 
 ### Scalar, index, and storage genericity
 
@@ -122,6 +144,8 @@ Use `Eigen::Index` for dimensions and counts, but remember that its underlying t
 scalar properties and Eigen's `numext` helpers when custom-scalar or device support matters. Do not store sizes or loop
 counts in `Scalar`, hard-code `float`/`double` without an API reason, or narrow to a vendor API's `int` without checking
 the range. Test real, complex, integer, and narrow/custom scalar types according to the operation's documented domain.
+An algebraic property that holds for the built-in types — commutativity, exactness, tie behavior of `min`/`max` — is
+not a property of every `Scalar`; establish it per scalar category and leave custom scalars on the conservative path.
 
 Propagate storage-order and expression flags deliberately. `RowMajorBit`, fixed versus dynamic dimensions, alignment,
 and vectorization eligibility affect evaluators and fast paths. Eigen alignment depends on configuration and
@@ -170,6 +194,8 @@ Before declaring the task complete:
 - New public implementation is reachable through the intended umbrella header.
 - New files have correct REUSE metadata and no generated or local-tool files are staged.
 - Changed source files pass `clang-format-17`; `git diff --check` is clean.
+- Documentation describing the changed behavior — the Doxygen block above a changed declaration, the module `README`,
+  and nearby comments naming a value or precondition the change moved — is updated with it.
 - Focused regression tests pass, with broader tests or benchmarks run when the risk warrants them.
 - Numerical, aliasing, scalar, storage-order, device, threading, and ABI implications have been considered where
   relevant.
