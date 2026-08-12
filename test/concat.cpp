@@ -673,7 +673,8 @@ void test_concat_single_row_col() {
 template <typename Scalar>
 void test_concat_row_major() {
   typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
-  typedef Matrix<Scalar, Dynamic, Dynamic> ColMajorMatrix;
+  // Explicit ColMajor so the mixed-order cases below stay mixed under EIGEN_DEFAULT_TO_ROW_MAJOR.
+  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMajorMatrix;
   typedef Matrix<Scalar, 3, 3, RowMajor> FixedRowMajor33;
 
   // RowMajor + RowMajor
@@ -711,6 +712,54 @@ void test_concat_row_major() {
     ColMajorMatrix expected(5, 4);
     expected.topRows(3) = a;
     expected.bottomRows(2) = b;
+    VERIFY_IS_APPROX(expected, result);
+  }
+
+  // Mixed storage-order operands with the destination matching the Concat's claimed order, so
+  // the packet path engages. Regression: packets used to be loaded along the mismatched
+  // operand's own inner direction, producing wrong results.
+  {
+    RowMajorMatrix a = RowMajorMatrix::Random(3, 11);
+    ColMajorMatrix b = ColMajorMatrix::Random(2, 11);
+    RowMajorMatrix result = vcat(a, b);
+    RowMajorMatrix expected(5, 11);
+    expected.topRows(3) = a;
+    expected.bottomRows(2) = b;
+    VERIFY_IS_APPROX(expected, result);
+
+    STATIC_CHECK(!(internal::evaluator<std::decay_t<decltype(vcat(a, b))>>::Flags & PacketAccessBit));
+    // With matching operand orders the Concat keeps packet access exactly when the operand
+    // evaluators have it; comparing against the operand's own flag keeps this valid on backends
+    // where this Scalar is not vectorizable.
+    RowMajorMatrix c(2, 11);
+    STATIC_CHECK((internal::evaluator<std::decay_t<decltype(vcat(a, c))>>::Flags & PacketAccessBit) ==
+                 (internal::evaluator<RowMajorMatrix>::Flags & PacketAccessBit));
+  }
+  {
+    ColMajorMatrix a = ColMajorMatrix::Random(5, 8);
+    RowMajorMatrix b = RowMajorMatrix::Random(9, 8);
+    ColMajorMatrix result = vcat(a, b);
+    ColMajorMatrix expected(14, 8);
+    expected.topRows(5) = a;
+    expected.bottomRows(9) = b;
+    VERIFY_IS_APPROX(expected, result);
+  }
+  {
+    ColMajorMatrix a = ColMajorMatrix::Random(9, 3);
+    RowMajorMatrix b = RowMajorMatrix::Random(9, 4);
+    ColMajorMatrix result = hcat(a, b);
+    ColMajorMatrix expected(9, 7);
+    expected.leftCols(3) = a;
+    expected.rightCols(4) = b;
+    VERIFY_IS_APPROX(expected, result);
+  }
+  {
+    RowMajorMatrix a = RowMajorMatrix::Random(6, 5);
+    ColMajorMatrix b = ColMajorMatrix::Random(6, 7);
+    RowMajorMatrix result = hcat(a, b);
+    RowMajorMatrix expected(6, 12);
+    expected.leftCols(5) = a;
+    expected.rightCols(7) = b;
     VERIFY_IS_APPROX(expected, result);
   }
 
