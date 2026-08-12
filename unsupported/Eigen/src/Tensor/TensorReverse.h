@@ -197,7 +197,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     // load (plus a preverse when the inner dim is reversed).
     constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
     const Index inner_size = m_dimensions[inner_dim];
-    const Index inner_pos = index - (index / inner_size) * inner_size;
+    const Index inner_pos = index % inner_size;
     if (inner_pos + PacketSize <= inner_size) {
       if (m_reverse[inner_dim]) {
         const Index input_index = reverseIndex(index + PacketSize - 1);
@@ -407,7 +407,24 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    // This code is adapted from TensorMorphing.h
+    // Fast path, mirroring packet() in the rvalue evaluator: when the whole
+    // packet stays inside a single inner-most slice of the input, replace
+    // PacketSize coeffRef() calls (each paying a full reverseIndex walk) with
+    // one packet store (plus a preverse when the inner dim is reversed).
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const Index inner_size = this->m_dimensions[inner_dim];
+    const Index inner_pos = index % inner_size;
+    if (inner_pos + PacketSize <= inner_size) {
+      if (this->m_reverse[inner_dim]) {
+        const Index input_index = this->reverseIndex(index + PacketSize - 1);
+        this->m_impl.template writePacket<Unaligned>(input_index, internal::preverse(x));
+      } else {
+        this->m_impl.template writePacket<Unaligned>(this->reverseIndex(index), x);
+      }
+      return;
+    }
+
+    // Slow path: the packet crosses an inner-slice boundary.
     EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP

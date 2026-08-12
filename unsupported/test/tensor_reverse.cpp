@@ -210,6 +210,49 @@ static void test_packet_reverse() {
   }
 }
 
+template <typename T, int DataLayout>
+static void test_reverse_write_packet_paths() {
+  // Writes through a reversed destination hit the lvalue writePacket fast
+  // path (contiguous store, preverse when the inner dimension is reversed).
+  // Sizes with partial-packet tails; sweep all 8 reverse-flag combinations.
+  Tensor<T, 3, DataLayout> src(17, 5, 7);
+  src.setRandom();
+
+  for (int mask = 0; mask < 8; ++mask) {
+    array<bool, 3> rev{{(mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0}};
+
+    Tensor<T, 3, DataLayout> dst(17, 5, 7);
+    dst.setZero();
+    dst.reverse(rev) = src;
+
+    for (Index i = 0; i < 17; ++i) {
+      for (Index j = 0; j < 5; ++j) {
+        for (Index k = 0; k < 7; ++k) {
+          const Index di = rev[0] ? 16 - i : i;
+          const Index dj = rev[1] ? 4 - j : j;
+          const Index dk = rev[2] ? 6 - k : k;
+          VERIFY_IS_EQUAL(dst(di, dj, dk), src(i, j, k));
+        }
+      }
+    }
+
+    // Also through an expression source, so the RHS runs its packet path.
+    Tensor<T, 3, DataLayout> dst2(17, 5, 7);
+    dst2.setZero();
+    dst2.reverse(rev) = src * src.constant(T(2));
+    for (Index i = 0; i < 17; ++i) {
+      for (Index j = 0; j < 5; ++j) {
+        for (Index k = 0; k < 7; ++k) {
+          const Index di = rev[0] ? 16 - i : i;
+          const Index dj = rev[1] ? 4 - j : j;
+          const Index dk = rev[2] ? 6 - k : k;
+          VERIFY_IS_EQUAL(dst2(di, dj, dk), T(2) * src(i, j, k));
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST(test_simple_reverse<ColMajor>());
   CALL_SUBTEST(test_simple_reverse<RowMajor>());
@@ -219,4 +262,8 @@ EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST(test_expr_reverse<RowMajor>(false));
   CALL_SUBTEST(test_packet_reverse<ColMajor>());
   CALL_SUBTEST(test_packet_reverse<RowMajor>());
+  CALL_SUBTEST((test_reverse_write_packet_paths<float, ColMajor>()));
+  CALL_SUBTEST((test_reverse_write_packet_paths<float, RowMajor>()));
+  CALL_SUBTEST((test_reverse_write_packet_paths<double, ColMajor>()));
+  CALL_SUBTEST((test_reverse_write_packet_paths<double, RowMajor>()));
 }

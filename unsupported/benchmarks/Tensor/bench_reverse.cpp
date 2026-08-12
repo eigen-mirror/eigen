@@ -87,6 +87,64 @@ static void BM_Reverse_3D_Inner(benchmark::State& state) {
 //   64x64    = 16 KB (L1)
 //   256x256  = 256 KB (L2)
 //   1024x1024 = 4 MB (LLC / DRAM)
+// --- Writes through a reversed destination (lvalue writePacket path) ---
+static void BM_ReverseWrite_Inner(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(M, N);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  array<bool, 2> dim_rev = {true, false};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src;
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  // Validate outside the timed loop.
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(M - 1 - i, j) != src(i, j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+static void BM_ReverseWrite_Outer(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(M, N);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  array<bool, 2> dim_rev = {false, true};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src;
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(i, N - 1 - j) != src(i, j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
 // clang-format off
 #define REVERSE_SIZES \
   ->Args({64, 64})->Args({256, 256})->Args({1024, 1024})
@@ -100,3 +158,5 @@ BENCHMARK(BM_Reverse_Inner) REVERSE_SIZES;
 BENCHMARK(BM_Reverse_Outer) REVERSE_SIZES;
 BENCHMARK(BM_Reverse_All) REVERSE_SIZES;
 BENCHMARK(BM_Reverse_3D_Inner) REVERSE_3D_SIZES;
+BENCHMARK(BM_ReverseWrite_Inner) REVERSE_SIZES;
+BENCHMARK(BM_ReverseWrite_Outer) REVERSE_SIZES;
