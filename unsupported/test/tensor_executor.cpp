@@ -13,6 +13,7 @@
 #include "main.h"
 
 #include <Eigen/Tensor>
+#include "../Eigen/SpecialFunctions"
 
 using Eigen::ColMajor;
 using Eigen::RowMajor;
@@ -131,6 +132,45 @@ void test_execute_broadcasting(Device d) {
 
   for (Index i = 0; i < dst.dimensions().TotalSize(); ++i) {
     VERIFY_IS_EQUAL(dst.coeff(i), golden.coeff(i));
+  }
+}
+
+template <int Layout>
+void test_execute_ternary_tiled(DefaultDevice default_device, ThreadPoolDevice thread_pool_device) {
+  constexpr Index Rows = 47;
+  constexpr Index Cols = 53;
+
+  Tensor<float, 2, Layout> a(1, Cols);
+  Tensor<float, 2, Layout> b(1, Cols);
+  Tensor<float, 2, Layout> x(Rows, Cols);
+  a.setRandom();
+  b.setRandom();
+  x.setRandom();
+  a = a.abs() + a.constant(0.5f);
+  b = b.abs() + b.constant(0.5f);
+  x = (x + x.constant(1.0f)) * x.constant(0.5f);
+
+  const Eigen::array<Index, 2> broadcasts = {Rows, 1};
+  const auto expr = Eigen::betainc(a.broadcast(broadcasts), b.broadcast(broadcasts), x);
+
+  Tensor<float, 2, Layout> golden(Rows, Cols);
+  DefaultAssign(golden, expr);
+
+  Tensor<float, 2, Layout> default_result(Rows, Cols);
+  using Assign = TensorAssignOp<decltype(default_result), const decltype(expr)>;
+  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
+                "ternary expressions with broadcasts must enable tiled evaluation");
+  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::On,
+                "ternary expressions with broadcasts must enable threaded tiled evaluation");
+
+  default_result.device(default_device) = expr;
+
+  Tensor<float, 2, Layout> threaded_result(Rows, Cols);
+  threaded_result.device(thread_pool_device) = expr;
+
+  for (Index i = 0; i < Rows * Cols; ++i) {
+    VERIFY_IS_EQUAL(default_result.coeff(i), golden.coeff(i));
+    VERIFY_IS_EQUAL(threaded_result.coeff(i), golden.coeff(i));
   }
 }
 
@@ -699,6 +739,9 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 3);
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 4);
   CALL_SUBTEST_COMBINATIONS(7, test_execute_shuffle_lvalue, float, 5);
+
+  CALL_SUBTEST_8((test_execute_ternary_tiled<ColMajor>(default_device, tp_device)));
+  CALL_SUBTEST_8((test_execute_ternary_tiled<RowMajor>(default_device, tp_device)));
 
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 2);
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 3);

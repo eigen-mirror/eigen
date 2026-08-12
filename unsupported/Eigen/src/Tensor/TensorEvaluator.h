@@ -608,7 +608,8 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
                 TensorEvaluator<Arg3Type, Device>::IsAligned,
     PacketAccess = TensorEvaluator<Arg1Type, Device>::PacketAccess && TensorEvaluator<Arg2Type, Device>::PacketAccess &&
                    TensorEvaluator<Arg3Type, Device>::PacketAccess && internal::functor_traits<TernaryOp>::PacketAccess,
-    BlockAccess = false,
+    BlockAccess = TensorEvaluator<Arg1Type, Device>::BlockAccess && TensorEvaluator<Arg2Type, Device>::BlockAccess &&
+                  TensorEvaluator<Arg3Type, Device>::BlockAccess,
     PreferBlockAccess = TensorEvaluator<Arg1Type, Device>::PreferBlockAccess ||
                         TensorEvaluator<Arg2Type, Device>::PreferBlockAccess ||
                         TensorEvaluator<Arg3Type, Device>::PreferBlockAccess,
@@ -651,9 +652,36 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
   typedef typename TensorEvaluator<Arg1Type, Device>::Dimensions Dimensions;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
+  static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  typedef typename TensorEvaluator<const Arg1Type, Device>::TensorBlock Arg1TensorBlock;
+  typedef typename TensorEvaluator<const Arg2Type, Device>::TensorBlock Arg2TensorBlock;
+  typedef typename TensorEvaluator<const Arg3Type, Device>::TensorBlock Arg3TensorBlock;
+
+  // Rebuilds the ternary expression over the arguments' block expressions,
+  // carrying the functor; mirrors TensorSelectOpBlockFactory.
+  struct TensorCwiseTernaryOpBlockFactory {
+    TernaryOp func;
+
+    template <typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
+    struct XprType {
+      typedef TensorCwiseTernaryOp<TernaryOp, const Arg1XprType, const Arg2XprType, const Arg3XprType> type;
+    };
+
+    template <typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
+    typename XprType<Arg1XprType, Arg2XprType, Arg3XprType>::type expr(const Arg1XprType& arg1, const Arg2XprType& arg2,
+                                                                       const Arg3XprType& arg3) const {
+      return typename XprType<Arg1XprType, Arg2XprType, Arg3XprType>::type(arg1, arg2, arg3, func);
+    }
+  };
+
+  typedef internal::TensorTernaryExprBlock<TensorCwiseTernaryOpBlockFactory, Arg1TensorBlock, Arg2TensorBlock,
+                                           Arg3TensorBlock>
+      TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const {
@@ -686,6 +714,24 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
     const double functor_cost = internal::functor_traits<TernaryOp>::Cost;
     return m_arg1Impl.costPerCoeff(vectorized) + m_arg2Impl.costPerCoeff(vectorized) +
            m_arg3Impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, functor_cost, vectorized, PacketSize);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    static constexpr double functor_cost = internal::functor_traits<TernaryOp>::Cost;
+    return internal::TensorBlockResourceRequirements::merge(
+               m_arg1Impl.getResourceRequirements(),
+               internal::TensorBlockResourceRequirements::merge(m_arg2Impl.getResourceRequirements(),
+                                                                m_arg3Impl.getResourceRequirements()))
+        .addCostPerCoeff({0, 0, functor_cost / PacketSize});
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    // The forwarded destination buffer might alias one of the inputs; drop it
+    // like the binary evaluator does.
+    desc.DropDestinationBuffer();
+    return TensorBlock(m_arg1Impl.block(desc, scratch), m_arg2Impl.block(desc, scratch),
+                       m_arg3Impl.block(desc, scratch), TensorCwiseTernaryOpBlockFactory{m_functor});
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }

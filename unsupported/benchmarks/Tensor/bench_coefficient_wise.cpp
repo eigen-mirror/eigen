@@ -6,6 +6,7 @@
 #define EIGEN_USE_THREADS
 
 #include <benchmark/benchmark.h>
+#include <unsupported/Eigen/SpecialFunctions>
 #include <unsupported/Eigen/Tensor>
 #include <unsupported/Eigen/ThreadPool>
 
@@ -114,6 +115,47 @@ static void BM_FMA(benchmark::State& state) {
     d = a * b + c;
     benchmark::DoNotOptimize(d.data());
     benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar) * 4);
+}
+
+// --- Ternary op (betainc) with broadcast parameters ---
+// The ternary node's block support decides whether the parameter broadcasts
+// run tiled (bulk row copies) or on the per-packet index-remapping path.
+static void BM_BetaincBroadcast(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> a_row(1, N);
+  Tensor<Scalar, 2> b_row(1, N);
+  Tensor<Scalar, 2> x(M, N);
+  a_row.setRandom();
+  b_row.setRandom();
+  x.setRandom();
+  // betainc requires a > 0, b > 0 and x in [0, 1].
+  a_row = a_row.abs() + a_row.constant(Scalar(0.5));
+  b_row = b_row.abs() + b_row.constant(Scalar(0.5));
+  x = (x + x.constant(Scalar(1))) * x.constant(Scalar(0.5));
+
+  Eigen::array<Index, 2> bcast = {M, 1};
+
+  Tensor<Scalar, 2> result(M, N);
+  for (auto _ : state) {
+    result = Eigen::betainc(a_row.broadcast(bcast), b_row.broadcast(bcast), x);
+    benchmark::DoNotOptimize(result.data());
+    benchmark::ClobberMemory();
+  }
+
+  // Validate samples against scalar evaluation outside the timed loop.
+  const Eigen::array<int, 3> sample_rows = {0, M / 2, M - 1};
+  for (int i : sample_rows) {
+    for (int j = 0; j < N; ++j) {
+      const Scalar ref = numext::betainc(a_row(0, j), b_row(0, j), x(i, j));
+      if (result(i, j) != ref) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
   }
   state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar) * 4);
 }
@@ -231,6 +273,7 @@ BENCHMARK(BM_Sqrt) CWISE_SIZES;
 BENCHMARK(BM_Add) CWISE_SIZES;
 BENCHMARK(BM_Mul) CWISE_SIZES;
 BENCHMARK(BM_FMA) CWISE_SIZES;
+BENCHMARK(BM_BetaincBroadcast) CWISE_SIZES;
 BENCHMARK(BM_ReLU_Rank4) RANK4_SIZES;
 BENCHMARK(BM_Add_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Mul_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();

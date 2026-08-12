@@ -10,6 +10,7 @@
 // clang-format off
 #include "main.h"
 #include <Eigen/Tensor>
+#include "../Eigen/SpecialFunctions"
 // clang-format on
 
 using Eigen::internal::TensorBlockDescriptor;
@@ -430,6 +431,25 @@ static void test_eval_tensor_cast() {
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.template cast<int>().template cast<T>(),
                                            [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_ternary() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> a(dims);
+  Tensor<T, NumDims, Layout> b(dims);
+  Tensor<T, NumDims, Layout> x(dims);
+  // betainc requires a > 0, b > 0 and x in [0, 1].
+  a.setRandom();
+  b.setRandom();
+  x.setRandom();
+  a = a.abs() + a.constant(T(0.5));
+  b = b.abs() + b.constant(T(0.5));
+  x = (x + x.constant(T(1))) * x.constant(T(0.5));
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(Eigen::betainc(a, b, x),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 20); });
+  VerifyBlockEvaluator<T, NumDims, Layout>(Eigen::betainc(a, b, x), [&dims]() { return FixedSizeBlock(dims); });
 }
 
 template <typename T, int NumDims, int Layout>
@@ -996,6 +1016,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
+  CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_ternary);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_chipping);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(4, test_eval_tensor_concatenation);
