@@ -453,6 +453,87 @@ static void test_eval_tensor_ternary() {
 }
 
 template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_nullary() {
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.constant(T(7)),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.constant(T(7)), [&dims]() { return FixedSizeBlock(dims); });
+
+  // Nullary leaf composed under a block-capable binary expression.
+  VerifyBlockEvaluator<T, NumDims, Layout>(input * input.constant(T(1)),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+}
+
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_random_nullary() {
+  // Random generators advance their state on every call, so block and linear
+  // evaluation produce different (equally distributed) values; only
+  // distribution properties can be checked.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> input(dims);
+
+  using Device = DefaultDevice;
+  auto d = Device();
+
+  auto expr = input.random();
+  auto eval = TensorEvaluator<const decltype(expr), Device>(expr, d);
+  eval.evalSubExprsIfNeeded(nullptr);
+
+  auto materialize = [&](TensorBlockParams<NumDims> block_params) {
+    typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+    TensorBlockScratch scratch(d);
+    auto tensor_block = eval.block(block_params.desc, scratch);
+    Tensor<T, NumDims, Layout> block(block_params.desc.dimensions());
+    auto b_expr = tensor_block.expr();
+    using BlockAssign = TensorAssignOp<decltype(block), const decltype(b_expr)>;
+    using BlockExecutor = TensorExecutor<const BlockAssign, Device, false, internal::TiledEvaluation::Off>;
+    BlockExecutor::run(BlockAssign(block, b_expr), d);
+    tensor_block.cleanup();
+    return block;
+  };
+
+  // A block at a random offset only permits a range check: for 1-D dims the
+  // clamped block can be as small as a single element.
+  Tensor<T, NumDims, Layout> offset_block = materialize(RandomBlock<Layout>(dims, 5, 10));
+  for (Index i = 0; i < offset_block.size(); ++i) {
+    VERIFY(offset_block.coeff(i) >= T(0) && offset_block.coeff(i) < T(1));
+  }
+
+  // The full tensor always has >= 10 elements; all of them collapsing to one
+  // value means the generator was not actually invoked per element.
+  Tensor<T, NumDims, Layout> block = materialize(FixedSizeBlock(dims));
+  bool all_equal = true;
+  for (Index i = 0; i < block.size(); ++i) {
+    VERIFY(block.coeff(i) >= T(0) && block.coeff(i) < T(1));
+    all_equal = all_equal && (block.coeff(i) == block.coeff(0));
+  }
+  VERIFY(!all_equal);
+}
+
+// A zero-argument operator() alone does not imply index independence: when an
+// indexed overload also exists, nullary_wrapper dispatches to it, so blocks
+// must be materialized with true tensor-linear indices rather than served
+// lazily with indices restarting at each block origin.
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_indexed_nullary() {
+  struct BothOverloads {
+    T operator()() const { return T(-1); }
+    T operator()(Index i) const { return static_cast<T>(i); }
+  };
+
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  Tensor<T, NumDims, Layout> input(dims);
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.nullaryExpr(BothOverloads()),
+                                           [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.nullaryExpr(BothOverloads()),
+                                           [&dims]() { return FixedSizeBlock(dims); });
+}
+
+template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_select() {
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims);
@@ -1015,6 +1096,9 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, RowMajor>()));
   CALL_SUBTEST_PART(2)((test_eval_contract_pad_composition<float, ColMajor>()));
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_cast);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_nullary);
+  CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_random_nullary);
+  CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_indexed_nullary);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_select);
   CALL_SUBTESTS_DIMS_LAYOUTS(3, test_eval_tensor_ternary);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(3, test_eval_tensor_padding);

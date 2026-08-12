@@ -16,6 +16,22 @@
 
 namespace Eigen {
 
+namespace internal {
+
+// Whether functor_traits declare the functor repeatable: pure calls that may
+// be re-evaluated freely and invoked from concurrent threads. The primary
+// functor_traits template defaults IsRepeatable to false, but specializations
+// for custom functors routinely omit the member, so absence must also map to
+// the conservative default.
+template <typename Functor, typename = void>
+struct tensor_functor_is_repeatable : std::false_type {};
+
+template <typename Functor>
+struct tensor_functor_is_repeatable<Functor, void_t<decltype(functor_traits<Functor>::IsRepeatable)>>
+    : bool_constant<functor_traits<Functor>::IsRepeatable> {};
+
+}  // namespace internal
+
 // Generic evaluator
 /**
  * \ingroup Tensor_Module
@@ -325,6 +341,28 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
+  static constexpr int NumDims = internal::array_size<Dimensions>::value;
+  typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
+
+  // Only functors whose functor_traits declare IsRepeatable (e.g. the
+  // scalar_constant_op behind constant(), cwiseMax(Scalar) and clip()) are
+  // known to be pure; unannotated custom functors conservatively default to
+  // non-repeatable, like the random generators whose calls advance PRNG state.
+  static constexpr bool RepeatableFunctor = internal::tensor_functor_is_repeatable<NullaryOp>::value;
+
+  // nullary_wrapper dispatches to an indexed operator() whenever one exists,
+  // even if a zero-argument overload is also present.
+  static constexpr bool IndexDependentFunctor =
+      internal::has_unary_operator<NullaryOp, Index>::value || internal::has_binary_operator<NullaryOp, Index>::value;
+
+  // A lazy block rebuilds the nullary expression over the block's local
+  // extent with a copy of the functor, so it is only correct for repeatable
+  // functors evaluated through the zero-argument overload: an index-dependent
+  // functor would see indices restart at the block origin, and a
+  // non-repeatable one would restart its state per block. Repeatable indexed
+  // functors are instead materialized with their true tensor-linear indices.
+  static constexpr bool IndexIndependentFunctor =
+      RepeatableFunctor && !IndexDependentFunctor && internal::has_nullary_operator<NullaryOp, Index>::value;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -334,14 +372,51 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
                    && (PacketType<CoeffReturnType, Device>::size > 1)
 #endif
         ,
-    BlockAccess = false,
+    // A nullary leaf can serve any block; without this, a single constant()
+    // in an expression disables tiled evaluation for the whole tree. Never
+    // *prefer* block access on its own account, though. Blocks are declined
+    // when they could change behavior relative to coefficient evaluation. In
+    // particular, non-repeatable functors never serve blocks: even on a
+    // single-threaded device, block traversal permutes their call sequence
+    // relative to linear coefficient order.
+    BlockAccess = NumDims > 0 && internal::is_arithmetic<ScalarNoConst>::value &&
+                  (IndexIndependentFunctor || (IndexDependentFunctor && RepeatableFunctor)),
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  // Lazy block for index-independent functors: rebuilds the nullary
+  // expression over the block extent. The nested map exists only to give the
+  // expression its dimensions; the nullary evaluator never touches its
+  // argument's data.
+  class TensorNullaryBlock {
+   public:
+    typedef TensorMap<const Tensor<ScalarNoConst, NumDims, Layout, Index>> ArgXprType;
+    typedef TensorCwiseNullaryOp<NullaryOp, const ArgXprType> XprType;
+    typedef typename internal::XprScalar<XprType>::type Scalar;
+
+    TensorNullaryBlock(const NullaryOp& functor, const DSizes<Index, NumDims>& dimensions)
+        : m_functor(functor), m_dimensions(dimensions) {}
+
+    constexpr internal::TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
+    XprType expr() const {
+      return XprType(ArgXprType(static_cast<const ScalarNoConst*>(nullptr), m_dimensions), m_functor);
+    }
+    const Scalar* data() const { return nullptr; }
+    void cleanup() {}
+
+   private:
+    NullaryOp m_functor;
+    DSizes<Index, NumDims> m_dimensions;
+  };
+
+  typedef internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> MaterializedTensorBlock;
+  typedef std::conditional_t<IndexIndependentFunctor, TensorNullaryBlock, MaterializedTensorBlock> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_argImpl.dimensions(); }
@@ -371,6 +446,120 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     // containing many constants (e.g. Horner polynomials) as compute-bound
     // rather than memory-bound.
     return TensorOpCost(0, 0, 0, vectorized, PacketType<CoeffReturnType, Device>::size);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    return internal::TensorBlockResourceRequirements::any();
+  }
+
+  // Fills `count` elements of an inner run, whose tensor-linear indices are
+  // tensor_index .. tensor_index + count - 1. Specialized on the functor's
+  // packet support so that packetOp is only instantiated when it exists.
+  template <typename Self, bool Vectorizable>
+  struct NullaryBlockFill {
+    static EIGEN_STRONG_INLINE void Run(const Self& self, ScalarNoConst* buffer, Index tensor_index, Index count) {
+      for (Index i = 0; i < count; ++i) {
+        buffer[i] = self.m_wrapper(self.m_functor, tensor_index + i);
+      }
+    }
+  };
+
+  template <typename Self>
+  struct NullaryBlockFill<Self, true> {
+    static EIGEN_STRONG_INLINE void Run(const Self& self, ScalarNoConst* buffer, Index tensor_index, Index count) {
+      Index i = 0;
+      for (; i + PacketSize <= count; i += PacketSize) {
+        internal::pstoreu(buffer + i,
+                          self.m_wrapper.template packetOp<PacketReturnType, Index>(self.m_functor, tensor_index + i));
+      }
+      for (; i < count; ++i) {
+        buffer[i] = self.m_wrapper(self.m_functor, tensor_index + i);
+      }
+    }
+  };
+
+  template <typename Self, bool IndexIndependent>
+  struct NullaryBlockImpl {
+    // Index-independent functors: return a lazy block; the consumer folds the
+    // functor into its own (vectorized) evaluation loop.
+    static EIGEN_STRONG_INLINE TensorBlock Run(const Self& self, TensorBlockDesc& desc, TensorBlockScratch&) {
+      return TensorBlock(self.m_functor, desc.dimensions());
+    }
+  };
+
+  template <typename Self>
+  struct NullaryBlockImpl<Self, false> {
+    // Index-dependent functors: materialize the block by calling the functor
+    // with the block elements' true tensor-linear indices, so the values
+    // match linear evaluation semantics. Along the inner dimension a block
+    // row is contiguous in linear-index space, so each run is one
+    // packet-sized sweep.
+    static TensorBlock Run(const Self& self, TensorBlockDesc& desc, TensorBlockScratch& scratch) {
+      constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+      typedef NullaryBlockFill<Self, bool(PacketAccess)> Fill;
+
+      if (desc.size() == 0) {
+        return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
+      }
+
+      // Strides of the full tensor in linear-index space.
+      const Dimensions& dims = self.m_argImpl.dimensions();
+      array<Index, NumDims> tensor_strides;
+      EIGEN_IF_CONSTEXPR (is_col_major) {
+        tensor_strides[0] = 1;
+        for (int i = 1; i < NumDims; ++i) tensor_strides[i] = tensor_strides[i - 1] * dims[i - 1];
+      } else {
+        tensor_strides[NumDims - 1] = 1;
+        for (int i = NumDims - 2; i >= 0; --i) tensor_strides[i] = tensor_strides[i + 1] * dims[i + 1];
+      }
+
+      // Block iteration state, inner-most dimension first.
+      struct BlockIteratorState {
+        Index size;
+        Index count;
+        Index tensor_stride;
+        Index tensor_span;
+      };
+      array<BlockIteratorState, NumDims> it;
+      for (int i = 0; i < NumDims; ++i) {
+        const int dim = is_col_major ? i : NumDims - 1 - i;
+        const Index size = desc.dimension(dim);
+        const Index stride = tensor_strides[dim];
+        it[i] = {/*size=*/size, /*count=*/0, /*tensor_stride=*/stride, /*tensor_span=*/stride * (size - 1)};
+      }
+      eigen_assert(it[0].tensor_stride == 1);
+
+      const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
+      ScalarNoConst* block_buffer = block_storage.data();
+
+      const Index inner_size = it[0].size;
+      Index tensor_index = desc.offset();
+      Index offset = 0;
+      for (;;) {
+        Fill::Run(self, block_buffer + offset, tensor_index, inner_size);
+        offset += inner_size;
+
+        // Advance the odometer over the outer dimensions.
+        int i = 1;
+        for (; i < NumDims; ++i) {
+          if (++it[i].count < it[i].size) {
+            tensor_index += it[i].tensor_stride;
+            break;
+          }
+          it[i].count = 0;
+          tensor_index -= it[i].tensor_span;
+        }
+        if (i == NumDims) break;
+      }
+
+      return block_storage.AsTensorMaterializedBlock();
+    }
+  };
+
+  EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                        bool /*root_of_expr_ast*/ = false) const {
+    typedef TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> Self;
+    return NullaryBlockImpl<Self, IndexIndependentFunctor>::Run(*this, desc, scratch);
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }

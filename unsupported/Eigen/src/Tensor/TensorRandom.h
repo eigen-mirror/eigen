@@ -188,7 +188,8 @@ struct functor_traits<UniformRandomGenerator<Scalar> > {
   enum {
     // Rough estimate for floating point, multiplied by ceil(sizeof(T) / sizeof(float)).
     Cost = 12 * NumTraits<Scalar>::AddCost * ((sizeof(Scalar) + sizeof(float) - 1) / sizeof(float)),
-    PacketAccess = UniformRandomGenerator<Scalar>::PacketAccess
+    PacketAccess = UniformRandomGenerator<Scalar>::PacketAccess,
+    IsRepeatable = false
   };
 };
 
@@ -303,7 +304,8 @@ struct functor_traits<NormalRandomGenerator<Scalar> > {
     // 15 mul, 8 add, 1.5 logs
     Cost = 3 * functor_traits<UniformRandomGenerator<Scalar> >::Cost + 15 * NumTraits<Scalar>::AddCost +
            8 * NumTraits<Scalar>::AddCost + 3 * functor_traits<scalar_log_op<Scalar> >::Cost / 2,
-    PacketAccess = NormalRandomGenerator<Scalar>::PacketAccess
+    PacketAccess = NormalRandomGenerator<Scalar>::PacketAccess,
+    IsRepeatable = false
   };
 };
 
