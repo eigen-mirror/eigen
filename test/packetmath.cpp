@@ -520,6 +520,49 @@ struct packetmath_minus_zero_add_test<Scalar, Packet, std::enable_if_t<!NumTrait
   }
 };
 
+template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_integer_predicates_test {
+  static void run() {}
+};
+
+// Integer scalars have no NaN or infinity: pisnan/pisinf must be all-false and pisfinite
+// all-true for every input, including |a| == 2^(digits-1), whose bit pattern matches the
+// constant synthesized by pinf<Packet>().
+template <typename Scalar, typename Packet>
+struct packetmath_integer_predicates_test<
+    Scalar, Packet, std::enable_if_t<NumTraits<Scalar>::IsInteger && !std::is_same<Scalar, bool>::value>> {
+  static void run() {
+    const int PacketSize = internal::unpacket_traits<Packet>::size;
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar res[PacketSize];
+    // "True" is Scalar(1) in the scalar mask convention and all-ones bits in the packet one;
+    // ptrue of the tested Packet type yields the right one either way (the runner also
+    // instantiates Packet = Scalar).
+    const Scalar scalar_true = internal::ptrue(Scalar(0));
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar lane_true[PacketSize];
+    internal::pstore(lane_true, internal::ptrue(internal::pset1<Packet>(Scalar(0))));
+    const Scalar values[] = {Scalar(0),
+                             Scalar(1),
+                             static_cast<Scalar>(-1),
+                             Scalar(Scalar(1) << (std::numeric_limits<Scalar>::digits - 1)),
+                             NumTraits<Scalar>::highest(),
+                             NumTraits<Scalar>::lowest()};
+    const int num_values = sizeof(values) / sizeof(values[0]);
+    for (int i = 0; i < num_values; ++i) {
+      VERIFY(numext::is_exactly_zero(internal::pisnan(values[i])) && "scalar integer pisnan");
+      VERIFY(numext::is_exactly_zero(internal::pisinf(values[i])) && "scalar integer pisinf");
+      VERIFY(internal::pisfinite(values[i]) == scalar_true && "scalar integer pisfinite");
+    }
+    for (int i = 0; i < PacketSize; ++i) data[i] = values[i % num_values];
+    internal::pstore(res, internal::pisnan(internal::pload<Packet>(data)));
+    for (int i = 0; i < PacketSize; ++i) VERIFY(numext::is_exactly_zero(res[i]) && "integer pisnan");
+    internal::pstore(res, internal::pisinf(internal::pload<Packet>(data)));
+    for (int i = 0; i < PacketSize; ++i) VERIFY(numext::is_exactly_zero(res[i]) && "integer pisinf");
+    internal::pstore(res, internal::pisfinite(internal::pload<Packet>(data)));
+    for (int i = 0; i < PacketSize; ++i) VERIFY(res[i] == lane_true[i] && "integer pisfinite");
+  }
+};
+
 // Ensure optimization barrier compiles and doesn't modify contents.
 // Only applies to raw types, so will not work for std::complex, Eigen::half
 // or Eigen::bfloat16. For those you would need to refer to an underlying
@@ -827,6 +870,7 @@ void packetmath() {
   packetmath_boolean_mask_ops<Scalar, Packet>();
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
+  packetmath_integer_predicates_test<Scalar, Packet>::run();
 
   CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {

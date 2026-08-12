@@ -184,10 +184,27 @@ static void test_isfinite() {
   }
 }
 
+// Integer scalars have no NaN or infinity; every value must classify as finite, including
+// |x| >= 2^30, whose bit pattern the vectorized predicates used to misread as infinity.
+static void test_predicates_integer() {
+  Tensor<int, 1> mat(8);
+  mat.setValues({0, 1, -1, 1 << 30, -(1 << 30), 2147483647, -2147483647 - 1, 42});
+  Tensor<bool, 1> nan(8), inf(8), finite(8);
+  nan = (mat.isnan)();
+  inf = (mat.isinf)();
+  finite = (mat.isfinite)();
+  for (int i = 0; i < 8; ++i) {
+    VERIFY(!nan(i));
+    VERIFY(!inf(i));
+    VERIFY(finite(i));
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_comparisons) {
   CALL_SUBTEST(test_orderings());
   CALL_SUBTEST(test_equality());
   CALL_SUBTEST(test_isnan());
   CALL_SUBTEST(test_isinf());
   CALL_SUBTEST(test_isfinite());
+  CALL_SUBTEST(test_predicates_integer());
 }

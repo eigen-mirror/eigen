@@ -183,7 +183,11 @@ struct scalar_carg_op {
 template <typename Scalar>
 struct functor_traits<scalar_carg_op<Scalar>> {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  enum { Cost = functor_traits<scalar_atan2_op<RealScalar>>::Cost, PacketAccess = packet_traits<RealScalar>::HasATan };
+  enum {
+    Cost = functor_traits<scalar_atan2_op<RealScalar>>::Cost,
+    // The generic pcarg lowers to patan2, whose quotient-based reduction needs pdiv.
+    PacketAccess = packet_traits<RealScalar>::HasATan && packet_traits<RealScalar>::HasDiv
+  };
 };
 
 /** \internal
@@ -1130,7 +1134,7 @@ struct scalar_isfinite_op<Scalar, true> {
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
-    return pcmp_lt(pabs(a), pinf<Packet>());
+    return pisfinite(a);
   }
 };
 template <typename Scalar, bool UseTypedPredicate>
@@ -1359,7 +1363,9 @@ struct functor_traits<scalar_logistic_op<T>> {
     Cost = scalar_div_cost<T, packet_traits<T>::HasDiv>::value +
            (std::is_same<T, float>::value ? NumTraits<T>::AddCost * 15 + NumTraits<T>::MulCost * 11
                                           : NumTraits<T>::AddCost * 2 + functor_traits<scalar_exp_op<T>>::Cost),
+    // Both packet paths branch with pcmp_*/pselect.
     PacketAccess = !NumTraits<T>::IsComplex && packet_traits<T>::HasAdd && packet_traits<T>::HasDiv &&
+                   packet_traits<T>::HasCmp &&
                    (std::is_same<T, float>::value
                         ? packet_traits<T>::HasMul && packet_traits<T>::HasMax && packet_traits<T>::HasMin
                         : packet_traits<T>::HasNegate && packet_traits<T>::HasExp)

@@ -1179,14 +1179,23 @@ EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
 // fast-math flags clang turns into a poison constant that deletes any expression it flows
 // into.
 template <typename Packet, bool IsComplex = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex,
-          bool IsScalar = is_scalar<Packet>::value>
+          bool IsScalar = is_scalar<Packet>::value,
+          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
 struct pisnan_impl {
   // Equivalent to !(a == a).
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pcmp_lt_or_nan(a, a); }
 };
 
-template <typename Packet>
-struct pisnan_impl<Packet, true, false> {
+// Integer scalars have no NaN; the answer is the all-false mask. The generic path is unusable
+// here: pcmp_lt_or_nan has no meaningful integer semantics (and its generic form does not even
+// compile for integer SIMD packets).
+template <typename Packet, bool IsScalar>
+struct pisnan_impl<Packet, false, IsScalar, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pzero(a); }
+};
+
+template <typename Packet, bool IsInteger>
+struct pisnan_impl<Packet, true, false, IsInteger> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
     using RealPacket = typename unpacket_traits<Packet>::as_real;
     // A NaN in either the real or the imaginary lane marks the whole complex element.
@@ -1197,8 +1206,8 @@ struct pisnan_impl<Packet, true, false> {
 
 // Scalar complex arguments have no wrapped real packet; combine the per-component results in the
 // value domain, where the scalar mask convention is Scalar(1)/Scalar(0).
-template <typename Scalar>
-struct pisnan_impl<Scalar, true, true> {
+template <typename Scalar, bool IsInteger>
+struct pisnan_impl<Scalar, true, true, IsInteger> {
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& a) {
     using RealScalar = typename NumTraits<Scalar>::Real;
     const RealScalar nan_mask =
@@ -1213,10 +1222,42 @@ EIGEN_DEVICE_FUNC inline Packet pisnan(const Packet& a) {
   return pisnan_impl<Packet>::run(a);
 }
 
+template <typename Packet, bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+struct pisinf_impl {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pcmp_eq(pabs(a), pinf<Packet>()); }
+};
+
+// Integer scalars have no infinity; the answer is the all-false mask. The generic path is wrong
+// for them: pinf() synthesizes its bit pattern from numeric_limits digits, which for int32 yields
+// 2^30, so |a| == 2^30 would read as "inf".
+template <typename Packet>
+struct pisinf_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pzero(a); }
+};
+
 /** \internal \returns isinf(a) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pisinf(const Packet& a) {
-  return pcmp_eq(pabs(a), pinf<Packet>());
+  return pisinf_impl<Packet>::run(a);
+}
+
+template <typename Packet, bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+struct pisfinite_impl {
+  // |a| < inf is a single comparison that is false for both NaN and infinities.
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pcmp_lt(pabs(a), pinf<Packet>()); }
+};
+
+// Integer scalars are always finite; the answer is the all-true mask (safe for integer packets,
+// where all-ones is not a NaN bit pattern).
+template <typename Packet>
+struct pisfinite_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return ptrue(a); }
+};
+
+/** \internal \returns isfinite(a) */
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pisfinite(const Packet& a) {
+  return pisfinite_impl<Packet>::run(a);
 }
 
 /** \internal \returns the sine of \a a (coeff-wise) */

@@ -1350,6 +1350,30 @@ void typed_logicals_test(const ArrayType& m) {
   typed_logicals_test_impl<ArrayType>::run(m);
 }
 
+// Integer scalars are always finite, so isFiniteTyped() must be true (nonzero) everywhere. Only
+// truthiness is checked: the exact nonzero value differs between the vectorized path (all-ones
+// mask) and the scalar path (1). Regression: the vectorized path used to compare |x| against a
+// synthesized "infinity" bit pattern, misclassifying |x| >= 2^(digits-1) for signed types and
+// everything for unsigned ones.
+template <typename ArrayType>
+void integer_typed_predicates_test(const ArrayType& m) {
+  typedef typename ArrayType::Scalar Scalar;
+  Index rows = m.rows();
+  Index cols = m.cols();
+  const Scalar values[] = {Scalar(0),
+                           Scalar(1),
+                           static_cast<Scalar>(-1),
+                           Scalar(Scalar(1) << (std::numeric_limits<Scalar>::digits - 1)),
+                           NumTraits<Scalar>::highest(),
+                           NumTraits<Scalar>::lowest()};
+  const Index num_values = sizeof(values) / sizeof(values[0]);
+  ArrayType m1(rows, cols);
+  for (Index i = 0; i < m1.size(); ++i) m1.coeffRef(i) = values[i % num_values];
+  // Materialize so the vectorized assignment path engages.
+  ArrayType finite = m1.isFiniteTyped();
+  VERIFY((finite != Scalar(0)).all());
+}
+
 template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1490,6 +1514,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
   }
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_23(typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayXX<int64_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayX<uint32_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_24(typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
