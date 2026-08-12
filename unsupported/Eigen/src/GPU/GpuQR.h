@@ -101,7 +101,7 @@ class QR {
     // uploaded matrix is factored in place (geqrf overwrites its input), so no
     // second device copy is made. The wide-matrix transpose runs on the GPU
     // (via cublasXgeam) inside the device-input path; no host transpose.
-    return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream_));
+    return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream()));
   }
 
   QR& compute(const DeviceMatrix<Scalar>& d_A) {
@@ -113,7 +113,7 @@ class QR {
       const size_t mat_bytes = factorBytes();
       allocate_factor_storage(mat_bytes);
       EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+          cudaMemcpyAsync(d_qr_.get(), d_A.data(), mat_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     }
 
     factorize();
@@ -160,7 +160,7 @@ class QR {
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
     eigen_assert(solver_ctx_.info() == Success && "QR::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == m_);
-    d_B.waitReady(solver_ctx_.stream_);
+    d_B.waitReady(solver_ctx_.stream());
 
     if (!transposed_) {
       return solve_overdetermined_device(d_B);
@@ -172,7 +172,7 @@ class QR {
 
   Index rows() const { return m_; }
   Index cols() const { return n_; }
-  cudaStream_t stream() const { return solver_ctx_.stream_; }
+  cudaStream_t stream() const { return solver_ctx_.stream(); }
 
   /** Upper-triangular factor R (k × n) of A = Q R. Available only for m >= n. */
   PlainMatrix matrixR() const {
@@ -216,7 +216,7 @@ class QR {
     }
     transposed_ = (m_ < n_);
     lda_ = static_cast<int64_t>(transposed_ ? n_ : m_);
-    d_A.waitReady(solver_ctx_.stream_);
+    d_A.waitReady(solver_ctx_.stream());
     return true;
   }
 
@@ -226,7 +226,7 @@ class QR {
   void transpose_into_factor(const DeviceMatrix<Scalar>& d_A) {
     allocate_factor_storage(factorBytes());
     Scalar alpha_one(1), beta_zero(0);
-    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublas_, CUBLAS_OP_C, CUBLAS_OP_N, n_, m_, &alpha_one,
+    EIGEN_CUBLAS_CHECK(internal::cublasXgeam(solver_ctx_.cublasHandle(), CUBLAS_OP_C, CUBLAS_OP_N, n_, m_, &alpha_one,
                                              d_A.data(), d_A.rows(), &beta_zero, static_cast<const Scalar*>(nullptr),
                                              n_, static_cast<Scalar*>(d_qr_.get()), n_));
   }
@@ -241,16 +241,16 @@ class QR {
     const int64_t fm = factor_rows();
     const int64_t fn = factor_cols();
     size_t dev_ws = 0, host_ws = 0;
-    EIGEN_CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(solver_ctx_.cusolver_, solver_ctx_.params_.p, fm, fn, dtype,
+    EIGEN_CUSOLVER_CHECK(cusolverDnXgeqrf_bufferSize(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, fm, fn, dtype,
                                                      d_qr_.get(), lda_, dtype, d_tau_.get(), dtype, &dev_ws, &host_ws));
 
     solver_ctx_.ensure_scratch(dev_ws);
     solver_ctx_.h_workspace_.resize(host_ws);
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXgeqrf(solver_ctx_.cusolver_, solver_ctx_.params_.p, fm, fn, dtype, d_qr_.get(),
-                                          lda_, dtype, d_tau_.get(), dtype, solver_ctx_.scratch_workspace(), dev_ws,
-                                          host_ws > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws,
-                                          solver_ctx_.scratch_info()));
+    EIGEN_CUSOLVER_CHECK(
+        cusolverDnXgeqrf(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, fm, fn, dtype, d_qr_.get(), lda_, dtype,
+                         d_tau_.get(), dtype, solver_ctx_.scratch_workspace(), dev_ws,
+                         host_ws > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws, solver_ctx_.scratch_info()));
 
     solver_ctx_.enqueue_info_copy();
   }
@@ -267,13 +267,13 @@ class QR {
 
     int lwork = 0;
     EIGEN_CUSOLVER_CHECK(internal::cusolverDnXormqr_bufferSize(
-        solver_ctx_.cusolver_, CUBLAS_SIDE_LEFT, op, im, in, ik, static_cast<const Scalar*>(d_qr_.get()), ilda,
+        solver_ctx_.cusolverHandle(), CUBLAS_SIDE_LEFT, op, im, in, ik, static_cast<const Scalar*>(d_qr_.get()), ilda,
         static_cast<const Scalar*>(d_tau_.get()), static_cast<const Scalar*>(d_B), ildb, &lwork));
 
     solver_ctx_.ensure_scratch(static_cast<size_t>(lwork) * sizeof(Scalar));
 
     EIGEN_CUSOLVER_CHECK(internal::cusolverDnXormqr(
-        solver_ctx_.cusolver_, CUBLAS_SIDE_LEFT, op, im, in, ik, static_cast<const Scalar*>(d_qr_.get()), ilda,
+        solver_ctx_.cusolverHandle(), CUBLAS_SIDE_LEFT, op, im, in, ik, static_cast<const Scalar*>(d_qr_.get()), ilda,
         static_cast<const Scalar*>(d_tau_.get()), static_cast<Scalar*>(d_B), ildb,
         static_cast<Scalar*>(solver_ctx_.scratch_workspace()), lwork, solver_ctx_.scratch_info()));
   }
@@ -289,7 +289,7 @@ class QR {
 
     internal::DeviceBuffer d_B(b_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_B.get(), rhs.data(), b_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_B.get(), rhs.data(), b_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream()));
 
     apply_QH(d_B.get(), m_, nrhs);
     trsm_R(d_B.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
@@ -298,14 +298,14 @@ class QR {
     if (m_ == n_) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(X.data(), d_B.get(),
                                                static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                               cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+                                               cudaMemcpyDeviceToHost, solver_ctx_.stream()));
     } else {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(X.data(), static_cast<size_t>(n_) * sizeof(Scalar), d_B.get(),
                                                  static_cast<size_t>(m_) * sizeof(Scalar),
                                                  static_cast<size_t>(n_) * sizeof(Scalar), static_cast<size_t>(nrhs),
-                                                 cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+                                                 cudaMemcpyDeviceToHost, solver_ctx_.stream()));
     }
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
     return X;
   }
 
@@ -315,7 +315,7 @@ class QR {
 
     internal::DeviceBuffer d_work(b_bytes);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_work.get(), d_B.data(), b_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_work.get(), d_B.data(), b_bytes, cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
 
     apply_QH(d_work.get(), m_, nrhs);
     trsm_R(d_work.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
@@ -323,15 +323,15 @@ class QR {
     if (m_ == n_) {
       DeviceMatrix<Scalar> result =
           DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_work.release()), n_, static_cast<Index>(nrhs));
-      result.recordReady(solver_ctx_.stream_);
+      result.recordReady(solver_ctx_.stream());
       return result;
     }
     DeviceMatrix<Scalar> result(n_, static_cast<Index>(nrhs));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(result.data(), static_cast<size_t>(n_) * sizeof(Scalar), d_work.get(),
                                                static_cast<size_t>(m_) * sizeof(Scalar),
                                                static_cast<size_t>(n_) * sizeof(Scalar), static_cast<size_t>(nrhs),
-                                               cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
-    result.recordReady(solver_ctx_.stream_);
+                                               cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
+    result.recordReady(solver_ctx_.stream());
     return result;
   }
 
@@ -345,14 +345,14 @@ class QR {
 
     internal::DeviceBuffer d_X(x_bytes);
     // Zero the full n × nrhs buffer; B will overwrite the top m × nrhs block.
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
     // 2D copy: B (m × nrhs, leading dim m) into top of d_X (leading dim n).
     if (m_ > 0 && nrhs > 0) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(d_X.get(), static_cast<size_t>(n_) * sizeof(Scalar), rhs.data(),
                                                  static_cast<size_t>(m_) * sizeof(Scalar),
                                                  static_cast<size_t>(m_) * sizeof(Scalar), static_cast<size_t>(nrhs),
-                                                 cudaMemcpyHostToDevice, solver_ctx_.stream_));
+                                                 cudaMemcpyHostToDevice, solver_ctx_.stream()));
     }
 
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
@@ -360,8 +360,8 @@ class QR {
 
     PlainMatrix X(n_, nrhs);
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(X.data(), d_X.get(), x_bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream_));
+        cudaMemcpyAsync(X.data(), d_X.get(), x_bytes, cudaMemcpyDeviceToHost, solver_ctx_.stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
     return X;
   }
 
@@ -370,13 +370,13 @@ class QR {
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
     internal::DeviceBuffer d_X(x_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream_));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
     if (m_ > 0 && nrhs > 0) {
       EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(d_X.get(), static_cast<size_t>(n_) * sizeof(Scalar), d_B.data(),
                                                  static_cast<size_t>(m_) * sizeof(Scalar),
                                                  static_cast<size_t>(m_) * sizeof(Scalar), static_cast<size_t>(nrhs),
-                                                 cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+                                                 cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     }
 
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
@@ -384,7 +384,7 @@ class QR {
 
     DeviceMatrix<Scalar> result =
         DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_X.release()), n_, static_cast<Index>(nrhs));
-    result.recordReady(solver_ctx_.stream_);
+    result.recordReady(solver_ctx_.stream());
     return result;
   }
 
@@ -395,8 +395,8 @@ class QR {
   void trsm_R(void* d_B, int64_t ldb, int64_t nrhs, cublasOperation_t op) const {
     Scalar alpha(1);
     EIGEN_CUBLAS_CHECK(internal::cublasXtrsm(
-        solver_ctx_.cublas_, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op, CUBLAS_DIAG_NON_UNIT, k(), nrhs, &alpha,
-        static_cast<const Scalar*>(d_qr_.get()), lda_, static_cast<Scalar*>(d_B), ldb));
+        solver_ctx_.cublasHandle(), CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, op, CUBLAS_DIAG_NON_UNIT, k(), nrhs,
+        &alpha, static_cast<const Scalar*>(d_qr_.get()), lda_, static_cast<Scalar*>(d_B), ldb));
   }
 };
 }  // namespace gpu

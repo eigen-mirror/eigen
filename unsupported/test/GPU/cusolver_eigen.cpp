@@ -267,12 +267,22 @@ void test_eigen_move(Index n) {
   RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
   VERIFY((V * W.asDiagonal() * V.adjoint() - A).norm() < tol);
 
-  gpu::SelfAdjointEigenSolver<Scalar> assigned;
+  // Overwrite a Context-bound solver without querying its pending status
+  // first. Move assignment must retire its asynchronous info copy before
+  // releasing the pinned host destination.
+  Mat pending_random = Mat::Random(n, n);
+  Mat pending_input = pending_random + pending_random.adjoint();
+  gpu::Context ctx;
+  gpu::SelfAdjointEigenSolver<Scalar> assigned(ctx, pending_input);
   assigned = std::move(moved);
   VERIFY_IS_EQUAL(assigned.info(), Success);
   V = assigned.eigenvectors();
   W = assigned.eigenvalues();
   VERIFY((V * W.asDiagonal() * V.adjoint() - A).norm() < tol);
+
+  // The borrowed Context remains usable after its old solver state is retired.
+  gpu::SelfAdjointEigenSolver<Scalar> context_solver(ctx, pending_input);
+  VERIFY_IS_EQUAL(context_solver.info(), Success);
 }
 
 // ---- Empty matrix -----------------------------------------------------------

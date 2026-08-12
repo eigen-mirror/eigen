@@ -60,6 +60,22 @@ inline int64_t to_blas_dim(int64_t v) { return v; }
 inline int to_blas_dim(int64_t v) { return to_blas_int(v); }
 #endif
 
+// RAII cuBLAS / cuBLASLt handles; the ownership flag supports handles borrowed from a gpu::Context.
+struct CublasHandleDeleter {
+  bool owns = true;
+  void operator()(cublasHandle_t h) const noexcept {
+    if (owns && h) (void)cublasDestroy(h);
+  }
+};
+using UniqueCublasHandle = std::unique_ptr<std::remove_pointer_t<cublasHandle_t>, CublasHandleDeleter>;
+
+struct CublasLtHandleDeleter {
+  void operator()(cublasLtHandle_t h) const noexcept {
+    if (h) (void)cublasLtDestroy(h);
+  }
+};
+using UniqueCublasLtHandle = std::unique_ptr<std::remove_pointer_t<cublasLtHandle_t>, CublasLtHandleDeleter>;
+
 // cublasLtMatmul takes a compute type separate from the data type, which selects
 // the precision policy:
 //   - Default: tensor-core algorithms via the cublasLtMatmul heuristics. For
@@ -272,7 +288,7 @@ template <typename Scalar>
 void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cublasOperation_t transA,
                    cublasOperation_t transB, int64_t m, int64_t n, int64_t k, const Scalar* alpha, const Scalar* A,
                    int64_t lda, const Scalar* B, int64_t ldb, const Scalar* beta, Scalar* C, int64_t ldc,
-                   DeviceBuffer* workspace, CublasLtPlanCache* plan_cache, std::size_t max_workspace_bytes,
+                   DeviceBuffer& workspace, CublasLtPlanCache& plan_cache, std::size_t max_workspace_bytes,
                    cudaStream_t stream) {
   constexpr cudaDataType_t dtype = cuda_data_type<Scalar>::value;
   constexpr cublasComputeType_t compute = cuda_compute_type<Scalar>::value;
@@ -281,21 +297,21 @@ void cublaslt_gemm(cublasLtHandle_t lt_handle, cublasHandle_t cublas_handle, cub
   // The key carries the leading dimensions so that strided views — e.g. SVD's
   // thin VT/U slices — get distinct cache entries.
   const CublasLtPlanKey key{m, n, k, lda, ldb, ldc, dtype, transA, transB};
-  CublasLtPlanEntry* entry = plan_cache->find(key);
+  CublasLtPlanEntry* entry = plan_cache.find(key);
   if (!entry) {
-    entry = plan_cache->insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type, max_workspace_bytes));
+    entry = plan_cache.insert(key, CublasLtPlanEntry(lt_handle, key, compute, alpha_type, max_workspace_bytes));
   }
 
   if (entry->use_cublaslt) {
     const size_t needed = entry->workspace_size;
-    if (needed > workspace->size()) {
+    if (needed > workspace.size()) {
       // Sync only when freeing an existing buffer that may be in use.
-      if (workspace->get()) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
-      *workspace = DeviceBuffer(needed);
+      if (workspace.get()) EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+      workspace = DeviceBuffer(needed);
     }
 
     EIGEN_CUBLASLT_CHECK(cublasLtMatmul(lt_handle, entry->matmul_desc, alpha, A, entry->layout_A, B, entry->layout_B,
-                                        beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace->get(),
+                                        beta, C, entry->layout_C, C, entry->layout_C, &entry->algo, workspace.get(),
                                         needed, stream));
   } else {
     // Fallback: cublasGemmEx for shapes/types that cublasLt cannot handle.

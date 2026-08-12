@@ -712,8 +712,9 @@ cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the 
 cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
 
-internal::DeviceBuffer*       gemmWorkspace()              // cublasLtMatmul scratch (lazy-grown per context)
-internal::CublasLtPlanCache*  gemmPlanCache()              // shape-keyed plan cache (per context, ~8-entry LRU)
+internal::DeviceBuffer&          gemmWorkspace()            // cublasLtMatmul scratch (lazy-grown per context)
+internal::CublasLtPlanCache&     gemmPlanCache()            // shape-keyed plan cache (per context, ~8-entry LRU)
+internal::OneShotSolverScratch&  oneshotSolverScratch()     // LLT/LU expression scratch (lazy-grown per context)
 ```
 
 Non-copyable, non-movable (owns library handles). Translation units that

@@ -41,7 +41,7 @@ constexpr size_t kOneShotHostInfoBytes = kOneShotInfoBytes;
 // (d_A.llt().solve(d_B), d_A.lu().solve(d_B)), so repeated one-shot solves on
 // a Context perform no per-call device or pinned-host allocations. Holds only
 // CUDA-runtime types (no cuSOLVER types) to keep the lazy-linking property of
-// Context. Used by dispatch_llt_solve / dispatch_lu_solve in DeviceDispatch.h.
+// Context. Used by the one-shot solve dispatches in DeviceDispatch.h.
 struct OneShotSolverScratch {
   DeviceBuffer d_factor;
   DeviceBuffer d_ipiv;
@@ -80,25 +80,19 @@ class Context {
  public:
   /** Create a new context with a dedicated CUDA stream. */
   Context() {
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream_));
+    cudaStream_t s = nullptr;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
+    stream_ = internal::UniqueStream(s);
     init_cublas();
   }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
    * The caller retains ownership of the stream — this context will not destroy it. */
-  explicit Context(cudaStream_t stream) : stream_(stream), owns_stream_(false) { init_cublas(); }
-
-  ~Context() {
-    // Indirect calls keep cusolverDnDestroy / cusparseDestroy out of TUs that
-    // never call cusolverHandle() / cusparseHandle() (e.g. the cufft test).
-    if (cusparse_destroyer_) (void)cusparse_destroyer_(cusparse_);
-    if (cusolver_destroyer_) (void)cusolver_destroyer_(cusolver_);
-    // Release plan-cache descriptors before tearing down the cuBLASLt handle.
-    gemm_plan_cache_.clear();
-    if (cublas_lt_) (void)cublasLtDestroy(cublas_lt_);
-    if (cublas_) (void)cublasDestroy(cublas_);
-    if (owns_stream_ && stream_) (void)cudaStreamDestroy(stream_);
+  explicit Context(cudaStream_t stream) : stream_(stream, internal::CudaStreamDeleter{/*owns=*/false}) {
+    init_cublas();
   }
+
+  ~Context() = default;
 
   Context(const Context&) = delete;
   Context& operator=(const Context&) = delete;
@@ -116,7 +110,10 @@ class Context {
    * CUDA context has already been torn down. These errors are harmless and are
    * suppressed in the destructor, but they can produce noise in test output.
    * To avoid this, call cudaDeviceReset() only after all Context instances
-   * (including thread-local ones) have been destroyed. */
+   * (including thread-local ones) have been destroyed — or create and own a
+   * Context and install it with setThreadLocal(): the lazily-created default
+   * is then never constructed, and teardown order is fully under application
+   * control. */
   static Context& threadLocal() {
     Context* override = tl_override_ptr();
     if (override) return *override;
@@ -129,39 +126,42 @@ class Context {
    * Pass nullptr to restore the lazily-created default. */
   static void setThreadLocal(Context* ctx) { tl_override_ptr() = ctx; }
 
-  cudaStream_t stream() const { return stream_; }
-  cublasHandle_t cublasHandle() const { return cublas_; }
+  cudaStream_t stream() const { return stream_.get(); }
+  cublasHandle_t cublasHandle() const { return cublas_.get(); }
 
   /** Returns the cuSOLVER handle, creating it on first call. */
   cusolverDnHandle_t cusolverHandle() {
     if (!cusolver_) {
-      EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&cusolver_));
-      EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(cusolver_, stream_));
-      cusolver_destroyer_ = &destroyCusolver;
+      cusolverDnHandle_t h = nullptr;
+      EIGEN_CUSOLVER_CHECK(cusolverDnCreate(&h));
+      cusolver_ = LazyCusolverHandle(h, &destroyCusolver);
+      EIGEN_CUSOLVER_CHECK(cusolverDnSetStream(h, stream_.get()));
     }
-    return cusolver_;
+    return cusolver_.get();
   }
 
   /** cuBLASLt handle (lazy-initialized on first GEMM call). */
   cublasLtHandle_t cublasLtHandle() {
     if (!cublas_lt_) {
-      EIGEN_CUBLAS_CHECK(cublasLtCreate(&cublas_lt_));
+      cublasLtHandle_t h = nullptr;
+      EIGEN_CUBLAS_CHECK(cublasLtCreate(&h));
+      cublas_lt_ = internal::UniqueCublasLtHandle(h);
     }
-    return cublas_lt_;
+    return cublas_lt_.get();
   }
 
   /** Workspace buffer for cublasLtMatmul (grown lazily by cublaslt_gemm).
    * Not thread-safe — all GEMM calls must be on this context's stream. */
-  internal::DeviceBuffer* gemmWorkspace() { return &gemm_workspace_; }
+  internal::DeviceBuffer& gemmWorkspace() { return gemm_workspace_; }
 
   /** Plan cache for cublasLtMatmul (caches descriptors and selected algorithm
    * by shape to avoid per-call overhead). Same thread-safety as workspace. */
-  internal::CublasLtPlanCache* gemmPlanCache() { return &gemm_plan_cache_; }
+  internal::CublasLtPlanCache& gemmPlanCache() { return gemm_plan_cache_; }
 
   /** Grow-only scratch for the one-shot solver expressions
    * (d_A.llt().solve(d_B), d_A.lu().solve(d_B)). Same thread-safety rules as
    * the GEMM workspace: all uses must be on this context's stream. */
-  internal::OneShotSolverScratch* oneshotSolverScratch() { return &oneshot_solver_scratch_; }
+  internal::OneShotSolverScratch& oneshotSolverScratch() { return oneshot_solver_scratch_; }
 
   /** Workspace ceiling passed to the cublasLtMatmul heuristic at plan-creation time.
    * Defaults to internal::kCublasLtMaxWorkspaceBytes (compile-time configurable via
@@ -170,40 +170,45 @@ class Context {
 
   /** Override the workspace ceiling for future plan-cache misses on this context.
    * The cap is consulted at plan-creation time only; pre-existing cached plans
-   * keep the cap they were built with. Call gemmPlanCache()->clear() to force
+   * keep the cap they were built with. Call gemmPlanCache().clear() to force
    * re-selection under the new cap. */
   void setCublasLtMaxWorkspaceBytes(std::size_t bytes) { cublaslt_max_workspace_bytes_ = bytes; }
 
   /** cuSPARSE handle, created on first use. */
   cusparseHandle_t cusparseHandle() {
     if (!cusparse_) {
-      cusparseStatus_t s1 = cusparseCreate(&cusparse_);
+      cusparseHandle_t h = nullptr;
+      cusparseStatus_t s1 = cusparseCreate(&h);
       eigen_assert(s1 == CUSPARSE_STATUS_SUCCESS && "cusparseCreate failed");
       EIGEN_UNUSED_VARIABLE(s1);
-      cusparseStatus_t s2 = cusparseSetStream(cusparse_, stream_);
+      cusparse_ = LazyCusparseHandle(h, &destroyCusparse);
+      cusparseStatus_t s2 = cusparseSetStream(h, stream_.get());
       eigen_assert(s2 == CUSPARSE_STATUS_SUCCESS && "cusparseSetStream failed");
       EIGEN_UNUSED_VARIABLE(s2);
-      cusparse_destroyer_ = &destroyCusparse;
     }
-    return cusparse_;
+    return cusparse_.get();
   }
 
  private:
   static cusolverStatus_t destroyCusolver(cusolverDnHandle_t h) { return cusolverDnDestroy(h); }
   static cusparseStatus_t destroyCusparse(cusparseHandle_t h) { return cusparseDestroy(h); }
 
-  cudaStream_t stream_ = nullptr;
-  cublasHandle_t cublas_ = nullptr;
-  cusolverDnHandle_t cusolver_ = nullptr;
-  cusolverStatus_t (*cusolver_destroyer_)(cusolverDnHandle_t) = nullptr;
-  cublasLtHandle_t cublas_lt_ = nullptr;  // lazy
-  cusparseHandle_t cusparse_ = nullptr;   // lazy
-  cusparseStatus_t (*cusparse_destroyer_)(cusparseHandle_t) = nullptr;
-  internal::DeviceBuffer gemm_workspace_;  // lazy
+  // Function-pointer deleters keep cusolverDnDestroy / cusparseDestroy referenced only by TUs that create handles.
+  using LazyCusolverHandle =
+      std::unique_ptr<std::remove_pointer_t<cusolverDnHandle_t>, cusolverStatus_t (*)(cusolverDnHandle_t)>;
+  using LazyCusparseHandle =
+      std::unique_ptr<std::remove_pointer_t<cusparseHandle_t>, cusparseStatus_t (*)(cusparseHandle_t)>;
+
+  // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
+  internal::UniqueStream stream_;
+  internal::UniqueCublasHandle cublas_;
+  LazyCusolverHandle cusolver_{nullptr, nullptr};
+  LazyCusparseHandle cusparse_{nullptr, nullptr};
+  internal::UniqueCublasLtHandle cublas_lt_;  // lazy
+  internal::DeviceBuffer gemm_workspace_;     // lazy
   internal::CublasLtPlanCache gemm_plan_cache_{internal::kCublasLtPlanCacheCapacity};
   internal::OneShotSolverScratch oneshot_solver_scratch_;  // grow-only
   std::size_t cublaslt_max_workspace_bytes_ = internal::kCublasLtMaxWorkspaceBytes;
-  bool owns_stream_ = true;
 
   static Context*& tl_override_ptr() {
     thread_local Context* ptr = nullptr;
@@ -211,8 +216,10 @@ class Context {
   }
 
   void init_cublas() {
-    EIGEN_CUBLAS_CHECK(cublasCreate(&cublas_));
-    EIGEN_CUBLAS_CHECK(cublasSetStream(cublas_, stream_));
+    cublasHandle_t h = nullptr;
+    EIGEN_CUBLAS_CHECK(cublasCreate(&h));
+    cublas_ = internal::UniqueCublasHandle(h);
+    EIGEN_CUBLAS_CHECK(cublasSetStream(h, stream_.get()));
   }
 };
 

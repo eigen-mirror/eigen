@@ -110,7 +110,7 @@ class LLT {
     lda_ = static_cast<int64_t>(mat.rows());
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_factor_.get(), mat.data(), factorBytes(), cudaMemcpyHostToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_factor_.get(), mat.data(), factorBytes(), cudaMemcpyHostToDevice, solver_ctx_.stream()));
 
     factorize();
     return *this;
@@ -122,10 +122,10 @@ class LLT {
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.rows());
-    d_A.waitReady(solver_ctx_.stream_);
+    d_A.waitReady(solver_ctx_.stream());
     allocate_factor_storage();
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_factor_.get(), d_A.data(), factorBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_factor_.get(), d_A.data(), factorBytes(), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
 
     factorize();
     return *this;
@@ -137,7 +137,7 @@ class LLT {
     if (!begin_compute(d_A.rows())) return *this;
 
     lda_ = static_cast<int64_t>(d_A.rows());
-    d_A.waitReady(solver_ctx_.stream_);
+    d_A.waitReady(solver_ctx_.stream());
     d_factor_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()), factorBytes());
 
     factorize();
@@ -158,16 +158,16 @@ class LLT {
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream()));
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, std::move(d_x));
 
     PlainMatrix X(n_, B.cols());
     int solve_info = 0;
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(X.data(), d_X.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToHost, solver_ctx_.stream_));
+        cudaMemcpyAsync(X.data(), d_X.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToHost, solver_ctx_.stream()));
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(&solve_info, solver_ctx_.scratch_info(), sizeof(int),
-                                             cudaMemcpyDeviceToHost, solver_ctx_.stream_));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream_));
+                                             cudaMemcpyDeviceToHost, solver_ctx_.stream()));
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(solver_ctx_.stream()));
 
     eigen_assert(solve_info == 0 && "cusolverDnXpotrs reported an error");
     return X;
@@ -181,12 +181,12 @@ class LLT {
   DeviceMatrix<Scalar> solve(const DeviceMatrix<Scalar>& d_B) const {
     eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
-    d_B.waitReady(solver_ctx_.stream_);
+    d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
     EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream_));
+        cudaMemcpyAsync(d_x.get(), d_B.data(), rhsBytes(nrhs, ldb), cudaMemcpyDeviceToDevice, solver_ctx_.stream()));
     return solve_impl(nrhs, ldb, std::move(d_x));
   }
 
@@ -195,7 +195,7 @@ class LLT {
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B) const {
     eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
-    d_B.waitReady(solver_ctx_.stream_);
+    d_B.waitReady(solver_ctx_.stream());
     const int64_t nrhs = static_cast<int64_t>(d_B.cols());
     const int64_t ldb = static_cast<int64_t>(d_B.rows());
     internal::DeviceBuffer d_x = internal::DeviceBuffer::adopt(static_cast<void*>(d_B.release()), rhsBytes(nrhs, ldb));
@@ -205,7 +205,7 @@ class LLT {
   ComputationInfo info() const { return solver_ctx_.info(); }
   Index rows() const { return n_; }
   Index cols() const { return n_; }
-  cudaStream_t stream() const { return solver_ctx_.stream_; }
+  cudaStream_t stream() const { return solver_ctx_.stream(); }
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
@@ -234,12 +234,12 @@ class LLT {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     constexpr cublasFillMode_t uplo = internal::cusolver_fill_mode<UpLo_>::value;
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, nrhs, dtype,
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrs(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, uplo, n_, nrhs, dtype,
                                           d_factor_.get(), lda_, dtype, d_x.get(), ldb, solver_ctx_.scratch_info()));
 
     DeviceMatrix<Scalar> result =
         DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
-    result.recordReady(solver_ctx_.stream_);
+    result.recordReady(solver_ctx_.stream());
     return result;
   }
 
@@ -250,13 +250,14 @@ class LLT {
     solver_ctx_.mark_pending();
 
     size_t dev_ws_bytes = 0, host_ws_bytes = 0;
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, dtype,
-                                                     d_factor_.get(), lda_, dtype, &dev_ws_bytes, &host_ws_bytes));
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf_bufferSize(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, uplo, n_,
+                                                     dtype, d_factor_.get(), lda_, dtype, &dev_ws_bytes,
+                                                     &host_ws_bytes));
 
     solver_ctx_.ensure_scratch(dev_ws_bytes);
     solver_ctx_.h_workspace_.resize(host_ws_bytes);
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(solver_ctx_.cusolver_, solver_ctx_.params_.p, uplo, n_, dtype,
+    EIGEN_CUSOLVER_CHECK(cusolverDnXpotrf(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, uplo, n_, dtype,
                                           d_factor_.get(), lda_, dtype, solver_ctx_.scratch_workspace(), dev_ws_bytes,
                                           host_ws_bytes > 0 ? solver_ctx_.h_workspace_.data() : nullptr, host_ws_bytes,
                                           solver_ctx_.scratch_info()));
