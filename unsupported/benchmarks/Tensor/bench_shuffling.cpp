@@ -90,6 +90,110 @@ static void BM_Shuffle4D_NCHW_to_NHWC(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * N * C * H * H * sizeof(Scalar) * 2);
 }
 
+// --- Expression-sourced shuffles (packet path) ---
+// An expression argument has no raw buffer, so the shuffle cannot use its
+// block path and serves packets instead. Permutations that preserve the
+// inner dimension load whole packets from one inner run; inner-shuffled
+// permutations gather, but still compute the index mapping once per packet.
+static void BM_ShuffleExprInnerPreserved(benchmark::State& state) {
+  const int D0 = state.range(0);
+  const int D1 = state.range(1);
+  const int D2 = state.range(2);
+
+  Tensor<Scalar, 3> A(D0, D1, D2);
+  A.setRandom();
+
+  // Permutation (0, 2, 1): the inner (first, ColMajor) dimension stays.
+  Eigen::array<int, 3> perm = {0, 2, 1};
+
+  Tensor<Scalar, 3> B;
+  for (auto _ : state) {
+    B = (A + A.constant(Scalar(1))).shuffle(perm);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  // Validate outside the timed loop.
+  for (int i = 0; i < D0; ++i) {
+    for (int j = 0; j < D2; ++j) {
+      for (int k = 0; k < D1; ++k) {
+        if (B(i, j, k) != A(i, k, j) + Scalar(1)) {
+          state.SkipWithError("validation failed");
+          return;
+        }
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * D0 * D1 * D2 * sizeof(Scalar) * 2);
+}
+
+static void BM_ShuffleExprInnerShuffled(benchmark::State& state) {
+  const int D0 = state.range(0);
+  const int D1 = state.range(1);
+  const int D2 = state.range(2);
+
+  Tensor<Scalar, 3> A(D0, D1, D2);
+  A.setRandom();
+
+  // Permutation (2, 0, 1): the inner dimension changes.
+  Eigen::array<int, 3> perm = {2, 0, 1};
+
+  Tensor<Scalar, 3> B;
+  for (auto _ : state) {
+    B = (A + A.constant(Scalar(1))).shuffle(perm);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < D2; ++i) {
+    for (int j = 0; j < D0; ++j) {
+      for (int k = 0; k < D1; ++k) {
+        if (B(i, j, k) != A(j, k, i) + Scalar(1)) {
+          state.SkipWithError("validation failed");
+          return;
+        }
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * D0 * D1 * D2 * sizeof(Scalar) * 2);
+}
+
+// Lvalue: packet writes through a shuffled destination.
+static void BM_ShuffleWrite(benchmark::State& state) {
+  const int D0 = state.range(0);
+  const int D1 = state.range(1);
+  const int D2 = state.range(2);
+
+  // Destination shuffled with inner-preserving permutation (0, 2, 1).
+  Eigen::array<int, 3> perm = {0, 2, 1};
+
+  Tensor<Scalar, 3> src(D0, D2, D1);
+  src.setRandom();
+  Tensor<Scalar, 3> dst(D0, D1, D2);
+  dst.setZero();
+  Eigen::array<Index, 3> no_strides = {1, 1, 1};
+
+  for (auto _ : state) {
+    // Unit striding disables block evaluation while preserving packet access,
+    // forcing the shuffled lvalue's writePacket path.
+    dst.shuffle(perm) = src.stride(no_strides);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < D0; ++i) {
+    for (int j = 0; j < D2; ++j) {
+      for (int k = 0; k < D1; ++k) {
+        if (dst(i, k, j) != src(i, j, k)) {
+          state.SkipWithError("validation failed");
+          return;
+        }
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * D0 * D1 * D2 * sizeof(Scalar) * 2);
+}
+
 // --- ThreadPool variants ---
 
 static void BM_Shuffle2D_ThreadPool(benchmark::State& state) {
@@ -164,6 +268,9 @@ static void BM_Shuffle4D_NCHW_to_NHWC_ThreadPool(benchmark::State& state) {
 BENCHMARK(BM_Shuffle2D) SHUFFLE_2D_SIZES;
 BENCHMARK(BM_ShuffleIdentity) SHUFFLE_2D_SIZES;
 BENCHMARK(BM_Shuffle3D) SHUFFLE_3D_SIZES;
+BENCHMARK(BM_ShuffleExprInnerPreserved) SHUFFLE_3D_SIZES;
+BENCHMARK(BM_ShuffleExprInnerShuffled) SHUFFLE_3D_SIZES;
+BENCHMARK(BM_ShuffleWrite) SHUFFLE_3D_SIZES;
 BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC) SHUFFLE_4D_SIZES;
 BENCHMARK(BM_Shuffle2D_ThreadPool) SHUFFLE_2D_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Shuffle4D_NCHW_to_NHWC_ThreadPool) SHUFFLE_4D_THREADPOOL_SIZES->UseRealTime();

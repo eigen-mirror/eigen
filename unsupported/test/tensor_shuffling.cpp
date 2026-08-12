@@ -278,6 +278,70 @@ static void test_shuffling_through_cast() {
   }
 }
 
+template <typename T, int DataLayout>
+static void test_shuffling_packet_paths() {
+  // Sizes with partial-packet tails; expression-sourced reads so the packet
+  // path (not the block path) is exercised, sweeping permutations that
+  // preserve and that shuffle the inner dimension.
+  Tensor<T, 3, DataLayout> tensor(17, 5, 7);
+  tensor.setRandom();
+
+  const ptrdiff_t perms[][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {2, 1, 0}, {1, 2, 0}, {2, 0, 1}};
+  for (const auto& p : perms) {
+    array<ptrdiff_t, 3> shuffle{{p[0], p[1], p[2]}};
+
+    // Expression-sourced: the argument has no raw buffer, so the shuffle
+    // cannot use its block path and must serve packets.
+    Tensor<T, 3, DataLayout> result = (tensor * tensor.constant(T(2))).shuffle(shuffle);
+    for (Index i = 0; i < result.dimension(0); ++i) {
+      for (Index j = 0; j < result.dimension(1); ++j) {
+        for (Index k = 0; k < result.dimension(2); ++k) {
+          array<Index, 3> out_idx{{i, j, k}};
+          array<Index, 3> in_idx;
+          in_idx[p[0]] = i;
+          in_idx[p[1]] = j;
+          in_idx[p[2]] = k;
+          VERIFY_IS_EQUAL(result(out_idx), T(2) * tensor(in_idx[0], in_idx[1], in_idx[2]));
+        }
+      }
+    }
+
+    // Lvalue: writePacket through the shuffled destination.
+    Tensor<T, 3, DataLayout> dst(17, 5, 7);
+    dst.setZero();
+    array<Index, 3> dst_dims{{17, 5, 7}};
+    Tensor<T, 3, DataLayout> src(dst_dims[p[0]], dst_dims[p[1]], dst_dims[p[2]]);
+    src.setRandom();
+    array<Index, 3> no_strides{{1, 1, 1}};
+    // Unit striding keeps packet access but disables block evaluation.
+    dst.shuffle(shuffle) = src.stride(no_strides);
+    for (Index i = 0; i < src.dimension(0); ++i) {
+      for (Index j = 0; j < src.dimension(1); ++j) {
+        for (Index k = 0; k < src.dimension(2); ++k) {
+          array<Index, 3> in_idx;
+          in_idx[p[0]] = i;
+          in_idx[p[1]] = j;
+          in_idx[p[2]] = k;
+          VERIFY_IS_EQUAL(src(i, j, k), dst(in_idx[0], in_idx[1], in_idx[2]));
+        }
+      }
+    }
+  }
+}
+
+template <typename T, int DataLayout>
+static void test_identity_shuffling_without_impl_packet_access() {
+  Tensor<T, 3, DataLayout> tensor(17, 5, 7);
+  tensor.setRandom();
+  const Eigen::TensorRef<const Tensor<T, 3, DataLayout>> ref(tensor);
+  array<ptrdiff_t, 3> identity{{0, 1, 2}};
+
+  Tensor<T, 3, DataLayout> result = ref.shuffle(identity);
+  for (Index i = 0; i < result.size(); ++i) {
+    VERIFY_IS_EQUAL(result.coeff(i), tensor.coeff(i));
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_shuffling) {
   CALL_SUBTEST(test_simple_shuffling<ColMajor>());
   CALL_SUBTEST(test_simple_shuffling<RowMajor>());
@@ -291,4 +355,10 @@ EIGEN_DECLARE_TEST(tensor_shuffling) {
   CALL_SUBTEST(test_empty_shuffling<RowMajor>());
   CALL_SUBTEST(test_shuffling_through_cast<ColMajor>());
   CALL_SUBTEST(test_shuffling_through_cast<RowMajor>());
+  CALL_SUBTEST((test_shuffling_packet_paths<float, ColMajor>()));
+  CALL_SUBTEST((test_shuffling_packet_paths<float, RowMajor>()));
+  CALL_SUBTEST((test_shuffling_packet_paths<double, ColMajor>()));
+  CALL_SUBTEST((test_shuffling_packet_paths<double, RowMajor>()));
+  CALL_SUBTEST((test_identity_shuffling_without_impl_packet_access<float, ColMajor>()));
+  CALL_SUBTEST((test_identity_shuffling_without_impl_packet_access<float, RowMajor>()));
 }
