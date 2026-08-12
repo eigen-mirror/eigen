@@ -112,6 +112,104 @@ static void BM_Stride(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * outM * outN * sizeof(Scalar));
 }
 
+// --- Strided slice ---
+// Covers the packet fast paths of the strided-slice evaluator: contiguous
+// inner loads (inner stride 1), reversed inner loads (inner stride -1), and
+// the scalar gather fallback (non-unit inner stride).
+static void BM_StridedSliceRead(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const Index s0 = state.range(2);
+  const Index s1 = state.range(3);
+
+  Tensor<Scalar, 2> A(M, N);
+  A.setRandom();
+
+  const Eigen::array<Index, 2> start = {s0 > 0 ? 1 : M - 2, s1 > 0 ? 1 : N - 2};
+  const Eigen::array<Index, 2> stop = {s0 > 0 ? M - 1 : 0, s1 > 0 ? N - 1 : 0};
+  const Eigen::array<Index, 2> strides = {s0, s1};
+
+  Tensor<Scalar, 2> B;
+  for (auto _ : state) {
+    B = A.stridedSlice(start, stop, strides);
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  // Validate outside the timed loop.
+  for (Index i = 0; i < B.dimension(0); ++i) {
+    for (Index j = 0; j < B.dimension(1); ++j) {
+      if (B(i, j) != A(start[0] + i * s0, start[1] + j * s1)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * B.size() * sizeof(Scalar));
+}
+
+// Strided slice feeding a packet-math kernel the compiler cannot rescue by
+// auto-vectorizing the scalar loop.
+static void BM_StridedSliceExp(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  A.setRandom();
+
+  const Eigen::array<Index, 2> start = {1, 1};
+  const Eigen::array<Index, 2> stop = {M - 1, N - 1};
+  const Eigen::array<Index, 2> strides = {1, 1};
+
+  Tensor<Scalar, 2> B;
+  for (auto _ : state) {
+    B = A.stridedSlice(start, stop, strides).exp();
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (Index i = 0; i < B.dimension(0); ++i) {
+    for (Index j = 0; j < B.dimension(1); ++j) {
+      const Scalar expected = std::exp(A(1 + i, 1 + j));
+      if (std::abs(B(i, j) - expected) > 1e-4f * std::abs(expected)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * B.size() * sizeof(Scalar));
+}
+
+static void BM_StridedSliceWrite(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  const Eigen::array<Index, 2> start = {1, 1};
+  const Eigen::array<Index, 2> stop = {M - 1, N - 1};
+  const Eigen::array<Index, 2> strides = {1, 1};
+
+  Tensor<Scalar, 2> A(M - 2, N - 2);
+  A.setRandom();
+  Tensor<Scalar, 2> B(M, N);
+  B.setZero();
+
+  for (auto _ : state) {
+    B.stridedSlice(start, stop, strides) = A;
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (Index i = 0; i < A.dimension(0); ++i) {
+    for (Index j = 0; j < A.dimension(1); ++j) {
+      if (B(1 + i, 1 + j) != A(i, j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * A.size() * sizeof(Scalar));
+}
+
 // --- ThreadPool variants ---
 
 static void BM_Slice_ThreadPool(benchmark::State& state) {
@@ -185,6 +283,11 @@ static void BM_Pad_ThreadPool(benchmark::State& state) {
   ->Args({256, 256, 2})->Args({256, 256, 4}) \
   ->Args({1024, 1024, 2})->Args({1024, 1024, 4})
 
+#define STRIDED_SLICE_SIZES \
+  ->Args({256, 256, 1, 1})->Args({1024, 1024, 1, 1})   /* contiguous inner */ \
+  ->Args({256, 256, -1, -1})->Args({1024, 1024, -1, -1}) /* reversed inner */ \
+  ->Args({256, 256, 2, 2})->Args({1024, 1024, 2, 2})   /* gather fallback */
+
 #define MORPH_THREADPOOL_SIZES \
   ->Args({256, 256, 1})->Args({256, 256, 2})->Args({256, 256, 4}) \
   ->Args({256, 256, 8})->Args({256, 256, 12})->Args({256, 256, 16}) \
@@ -197,5 +300,8 @@ BENCHMARK(BM_Slice) MORPH_SIZES;
 BENCHMARK(BM_Chip) CHIP_SIZES;
 BENCHMARK(BM_Pad) PAD_SIZES;
 BENCHMARK(BM_Stride) STRIDE_SIZES;
+BENCHMARK(BM_StridedSliceRead) STRIDED_SLICE_SIZES;
+BENCHMARK(BM_StridedSliceExp) MORPH_SIZES;
+BENCHMARK(BM_StridedSliceWrite) MORPH_SIZES;
 BENCHMARK(BM_Slice_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Pad_ThreadPool) MORPH_THREADPOOL_SIZES->UseRealTime();

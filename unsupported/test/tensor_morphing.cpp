@@ -456,6 +456,109 @@ static void test_strided_slice_write() {
 }
 
 template <typename T, int DataLayout>
+static void test_strided_slice_packet_access() {
+  typedef Tensor<T, 2, DataLayout> Tensor2;
+  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+
+  // The strided-slice evaluators forward the nested evaluator's packet
+  // access; the packet methods below are exercised through the executor.
+  typedef Eigen::TensorStridingSlicingOp<const Index2, const Index2, const Index2, const Tensor2> SliceOp;
+  typedef TensorEvaluator<const SliceOp, DefaultDevice> SliceEval;
+  typedef TensorEvaluator<const Tensor2, DefaultDevice> ArgEval;
+  static_assert(int(SliceEval::PacketAccess) == int(ArgEval::PacketAccess),
+                "strided slice must forward the nested evaluator's packet access");
+
+  // Sizes with partial-packet tails for every packet size in use.
+  Tensor2 tensor(31, 37);
+  tensor.setRandom();
+
+  // Stride patterns covering, in each storage order: the identity fast path,
+  // contiguous inner loads, reversed (-1) inner loads, and the non-unit and
+  // boundary-crossing gather fallback.
+  const Eigen::DenseIndex stride_patterns[][2] = {{1, 1}, {1, 2}, {2, 1}, {-1, 1}, {1, -1}, {-2, 3}, {3, -2}, {-1, -1}};
+
+  for (const auto& sp : stride_patterns) {
+    const Index2 strides(sp[0], sp[1]);
+    const Index2 start(sp[0] > 0 ? 1 : 29, sp[1] > 0 ? 2 : 35);
+    const Index2 stop(sp[0] > 0 ? 30 : 0, sp[1] > 0 ? 36 : 1);
+
+    // Reads through the packet path.
+    Tensor2 slice = tensor.stridedSlice(start, stop, strides);
+    for (Eigen::DenseIndex i = 0; i < slice.dimension(0); ++i) {
+      for (Eigen::DenseIndex j = 0; j < slice.dimension(1); ++j) {
+        VERIFY_IS_EQUAL(slice(i, j), tensor(start[0] + i * strides[0], start[1] + j * strides[1]));
+      }
+    }
+
+    // Expression-sourced reads (no direct data access in the argument).
+    Tensor2 expr_slice = (tensor * tensor.constant(T(2))).stridedSlice(start, stop, strides);
+    for (Eigen::DenseIndex i = 0; i < expr_slice.dimension(0); ++i) {
+      for (Eigen::DenseIndex j = 0; j < expr_slice.dimension(1); ++j) {
+        VERIFY_IS_EQUAL(expr_slice(i, j), T(2) * tensor(start[0] + i * strides[0], start[1] + j * strides[1]));
+      }
+    }
+
+    // Writes through the packet path, against a scalar-loop reference.
+    Tensor2 dst_ref = tensor;
+    Tensor2 dst = tensor;
+    Tensor2 src(slice.dimension(0), slice.dimension(1));
+    src.setRandom();
+    dst.stridedSlice(start, stop, strides) = src;
+    for (Eigen::DenseIndex i = 0; i < src.dimension(0); ++i) {
+      for (Eigen::DenseIndex j = 0; j < src.dimension(1); ++j) {
+        dst_ref(start[0] + i * strides[0], start[1] + j * strides[1]) = src(i, j);
+      }
+    }
+    for (Eigen::DenseIndex i = 0; i < dst.dimension(0); ++i) {
+      for (Eigen::DenseIndex j = 0; j < dst.dimension(1); ++j) {
+        VERIFY_IS_EQUAL(dst(i, j), dst_ref(i, j));
+      }
+    }
+  }
+
+  // Full-range unit-stride slice: the identity fast path.
+  {
+    const Eigen::array<Eigen::DenseIndex, 2> strides = {{1, 1}};
+    const Eigen::array<Eigen::DenseIndex, 2> start = {{0, 0}};
+    const Eigen::array<Eigen::DenseIndex, 2> stop = {{31, 37}};
+    Tensor2 slice = tensor.stridedSlice(start, stop, strides);
+    Tensor2 destination(31, 37);
+    destination.setZero();
+    destination.stridedSlice(start, stop, strides) = tensor;
+    for (Eigen::DenseIndex i = 0; i < 31; ++i) {
+      for (Eigen::DenseIndex j = 0; j < 37; ++j) {
+        VERIFY_IS_EQUAL(slice(i, j), tensor(i, j));
+        VERIFY_IS_EQUAL(destination(i, j), tensor(i, j));
+      }
+    }
+  }
+}
+
+template <typename = void>
+static void test_strided_slice_packet_cost() {
+  typedef Tensor<float, 2> Tensor2;
+  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+
+  Tensor2 tensor(32, 32);
+  tensor.setRandom();
+  const Index2 start(0, 0);
+  const Index2 stop(32, 32);
+  const Index2 strides(2, 2);
+  auto expression = tensor.exp();
+  auto slice = expression.stridedSlice(start, stop, strides);
+
+  DefaultDevice device;
+  TensorEvaluator<const decltype(expression), DefaultDevice> expression_evaluator(expression, device);
+  TensorEvaluator<const decltype(slice), DefaultDevice> slice_evaluator(slice, device);
+  const TensorOpCost scalar_expression_cost = expression_evaluator.costPerCoeff(false);
+  const TensorOpCost packet_slice_cost = slice_evaluator.costPerCoeff(true);
+
+  // A gathered packet evaluates the nested expression coefficient by
+  // coefficient and must not receive the nested evaluator's packet discount.
+  VERIFY(packet_slice_cost.compute_cycles() >= scalar_expression_cost.compute_cycles());
+}
+
+template <typename T, int DataLayout>
 static void test_composition() {
   Eigen::Tensor<T, 2, DataLayout> matrix(7, 11);
   matrix.setRandom();
@@ -542,7 +645,7 @@ static void test_empty_slice() {
 
 // The type/layout sweeps reach CALL_SUBTEST_N through CALL_SUBTESTS_TYPES_LAYOUTS,
 // which the configure-time suffix scan cannot see; list the parts explicitly.
-// EIGEN_SUFFIXES;1;2;3;4;5;6;7
+// EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
 EIGEN_DECLARE_TEST(tensor_morphing) {
   CALL_SUBTEST_1(test_simple_reshape<void>());
   CALL_SUBTEST_1(test_static_reshape<void>());
@@ -560,4 +663,10 @@ EIGEN_DECLARE_TEST(tensor_morphing) {
   CALL_SUBTESTS_TYPES_LAYOUTS(5, test_strided_slice_write);
   CALL_SUBTESTS_TYPES_LAYOUTS(6, test_strided_slice);
   CALL_SUBTESTS_TYPES_LAYOUTS(7, test_composition);
+
+  CALL_SUBTEST_8((test_strided_slice_packet_access<float, ColMajor>()));
+  CALL_SUBTEST_8((test_strided_slice_packet_access<float, RowMajor>()));
+  CALL_SUBTEST_8((test_strided_slice_packet_access<double, ColMajor>()));
+  CALL_SUBTEST_8((test_strided_slice_packet_access<double, RowMajor>()));
+  CALL_SUBTEST_8(test_strided_slice_packet_cost<>());
 }

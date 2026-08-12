@@ -797,6 +797,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
   typedef Strides Dimensions;
@@ -806,7 +807,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     // Alignment can't be guaranteed at compile time since it depends on the
     // slice offsets and sizes.
     IsAligned = false,
-    PacketAccess = false,
+    PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     RawAccess = false
@@ -904,31 +905,100 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     }
   }
 
+  template <int LoadMode>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
+    EIGEN_STATIC_ASSERT((PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(index + PacketSize - 1 < internal::array_prod(dimensions()));
+
+    if (m_is_identity) {
+      return m_impl.template packet<LoadMode>(index);
+    }
+
+    // A packet that stays inside one inner-most slice is an arithmetic
+    // progression in the input: compute the index mapping once per packet and
+    // step by the inner stride, instead of once per coefficient. With inner
+    // stride +/-1 the progression is a contiguous run served by a single
+    // packet load. The two-endpoint distance test used by TensorSlicingOp and
+    // TensorStridingOp is unsound here: with a negative inner stride the
+    // interior of a packet can be permuted even though the endpoints are
+    // PacketSize-1 apart.
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const Index inner_size = m_dimensions[inner_dim];
+    Index inner_pos;
+    const Index base = srcCoeffInner(index, inner_pos);
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+    if (inner_pos + PacketSize <= inner_size) {
+      const Index inner_stride = m_inputStrides[inner_dim];
+      if (inner_stride == 1) {
+        return m_impl.template packet<Unaligned>(base);
+      } else EIGEN_IF_CONSTEXPR (!std::is_same<internal::remove_all_t<Device>, SyclDevice>::value) {
+        // SYCL packets do not implement preverse; use the scalar gather below.
+        if (inner_stride == -1) {
+          return internal::preverse(m_impl.template packet<Unaligned>(base - (PacketSize - 1)));
+        }
+      }
+      EIGEN_UNROLL_LOOP
+      for (int i = 0; i < PacketSize; ++i) {
+        values[i] = m_impl.coeff(base + i * inner_stride);
+      }
+      return internal::pload<PacketReturnType>(values);
+    }
+
+    // The packet crosses an inner-slice boundary: assemble it scalar by
+    // scalar.
+    EIGEN_UNROLL_LOOP
+    for (int i = 0; i < PacketSize; ++i) {
+      values[i] = coeff(index + i);
+    }
+    return internal::pload<PacketReturnType>(values);
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, m_is_identity ? 1 : NumDims);
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const bool packets_stay_in_inner =
+        m_is_identity || (m_dimensions[inner_dim] >= PacketSize && m_dimensions[inner_dim] % PacketSize == 0);
+    const Index inner_stride = m_inputStrides[inner_dim];
+    const bool packetizes_arg =
+        m_is_identity || (packets_stay_in_inner &&
+                          (inner_stride == 1 ||
+                           (inner_stride == -1 && !std::is_same<internal::remove_all_t<Device>, SyclDevice>::value)));
+    return m_impl.costPerCoeff(vectorized && packetizes_arg) +
+           TensorOpCost(0, 0, m_is_identity ? 1 : NumDims, vectorized && packets_stay_in_inner, PacketSize);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Storage::Type data() const { return NULL; }
 
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {
+  // Computes the input index of output index `index` and, as a by-product of
+  // the same fast-divisor walk, the output's inner-dimension coordinate. The
+  // packet paths use the latter to test whether a whole packet stays inside
+  // one inner-most slice without spending an extra division on it.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeffInner(Index index, Index& inner_pos) const {
     Index inputIndex = 0;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
-      for (int i = NumDims - 1; i >= 0; --i) {
+      for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fastOutputStrides[i];
         inputIndex += idx * m_inputStrides[i] + m_offsets[i];
         index -= idx * m_outputStrides[i];
       }
+      inputIndex += index * m_inputStrides[0] + m_offsets[0];
     } else {
       EIGEN_UNROLL_LOOP
-      for (int i = 0; i < NumDims; ++i) {
+      for (int i = 0; i < NumDims - 1; ++i) {
         const Index idx = index / m_fastOutputStrides[i];
         inputIndex += idx * m_inputStrides[i] + m_offsets[i];
         index -= idx * m_outputStrides[i];
       }
+      inputIndex += index * m_inputStrides[NumDims - 1] + m_offsets[NumDims - 1];
     }
+    inner_pos = index;
     return inputIndex;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {
+    Index inner_pos;
+    return srcCoeffInner(index, inner_pos);
   }
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index clamp(Index value, Index min, Index max) {
@@ -962,7 +1032,7 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
 
   enum {
     IsAligned = false,
-    PacketAccess = false,
+    PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
     CoordAccess = TensorEvaluator<ArgType, Device>::CoordAccess,
@@ -986,6 +1056,52 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
       return this->m_impl.coeffRef(index);
     } else {
       return this->m_impl.coeffRef(this->srcCoeff(index));
+    }
+  }
+
+  template <int StoreMode>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
+    EIGEN_STATIC_ASSERT((Base::PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
+    eigen_assert(index + Base::PacketSize - 1 < internal::array_prod(this->dimensions()));
+
+    if (this->m_is_identity) {
+      this->m_impl.template writePacket<StoreMode>(index, x);
+      return;
+    }
+
+    // Mirrors packet() in the rvalue evaluator above: within one inner-most
+    // slice the packet is an arithmetic progression in the input, so the
+    // index mapping is computed once per packet; inner stride +/-1 becomes a
+    // single (possibly reversed) packet store.
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    const Index inner_size = this->m_dimensions[inner_dim];
+    Index inner_pos;
+    const Index base = this->srcCoeffInner(index, inner_pos);
+    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) CoeffReturnType values[Base::PacketSize];
+    if (inner_pos + Base::PacketSize <= inner_size) {
+      const Index inner_stride = this->m_inputStrides[inner_dim];
+      if (inner_stride == 1) {
+        this->m_impl.template writePacket<Unaligned>(base, x);
+        return;
+      } else EIGEN_IF_CONSTEXPR (!std::is_same<internal::remove_all_t<Device>, SyclDevice>::value) {
+        // SYCL packets do not implement preverse; use the scalar scatter below.
+        if (inner_stride == -1) {
+          this->m_impl.template writePacket<Unaligned>(base - (Base::PacketSize - 1), internal::preverse(x));
+          return;
+        }
+      }
+      internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
+      EIGEN_UNROLL_LOOP
+      for (int i = 0; i < Base::PacketSize; ++i) {
+        this->m_impl.coeffRef(base + i * inner_stride) = values[i];
+      }
+      return;
+    }
+
+    internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
+    EIGEN_UNROLL_LOOP
+    for (int i = 0; i < Base::PacketSize; ++i) {
+      this->coeffRef(index + i) = values[i];
     }
   }
 };

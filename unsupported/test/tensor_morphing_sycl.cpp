@@ -289,6 +289,64 @@ static void test_strided_slice_write_sycl(const Eigen::SyclDevice& sycl_device) 
   sycl_device.deallocate(gpu_data3);
 }
 
+template <typename DataType, int DataLayout, typename IndexType>
+static void test_strided_slice_reverse_packet_sycl(const Eigen::SyclDevice& sycl_device) {
+  typedef Tensor<DataType, 2, DataLayout, IndexType> Tensor2;
+  typedef Eigen::DSizes<IndexType, 2> Index2;
+
+  const array<IndexType, 2> input_range = {{31, 37}};
+  const array<IndexType, 2> slice_range = {{29, 34}};
+  constexpr bool IsColMajor = static_cast<int>(DataLayout) == static_cast<int>(ColMajor);
+  const Index2 strides(IsColMajor ? -1 : 1, IsColMajor ? 1 : -1);
+  const Index2 start(IsColMajor ? 29 : 1, IsColMajor ? 2 : 35);
+  const Index2 stop(IsColMajor ? 0 : 30, IsColMajor ? 36 : 1);
+
+  Tensor2 input(input_range);
+  Tensor2 slice(slice_range);
+  Tensor2 src(slice_range);
+  Tensor2 dst(input_range);
+  Tensor2 dst_ref(input_range);
+  input.setRandom();
+  src.setRandom();
+  dst = input;
+  dst_ref = input;
+
+  DataType* gpu_input_data = static_cast<DataType*>(sycl_device.allocate(input.size() * sizeof(DataType)));
+  DataType* gpu_slice_data = static_cast<DataType*>(sycl_device.allocate(slice.size() * sizeof(DataType)));
+  DataType* gpu_dst_data = static_cast<DataType*>(sycl_device.allocate(dst.size() * sizeof(DataType)));
+  TensorMap<Tensor2> gpu_input(gpu_input_data, input_range);
+  TensorMap<Tensor2> gpu_slice(gpu_slice_data, slice_range);
+  TensorMap<Tensor2> gpu_dst(gpu_dst_data, input_range);
+
+  sycl_device.memcpyHostToDevice(gpu_input_data, input.data(), input.size() * sizeof(DataType));
+  gpu_slice.device(sycl_device) = gpu_input.stridedSlice(start, stop, strides);
+  sycl_device.memcpyDeviceToHost(slice.data(), gpu_slice_data, slice.size() * sizeof(DataType));
+  for (IndexType i = 0; i < slice.dimension(0); ++i) {
+    for (IndexType j = 0; j < slice.dimension(1); ++j) {
+      VERIFY_IS_EQUAL(slice(i, j), input(start[0] + i * strides[0], start[1] + j * strides[1]));
+    }
+  }
+
+  sycl_device.memcpyHostToDevice(gpu_slice_data, src.data(), src.size() * sizeof(DataType));
+  sycl_device.memcpyHostToDevice(gpu_dst_data, dst.data(), dst.size() * sizeof(DataType));
+  gpu_dst.stridedSlice(start, stop, strides).device(sycl_device) = gpu_slice;
+  sycl_device.memcpyDeviceToHost(dst.data(), gpu_dst_data, dst.size() * sizeof(DataType));
+  for (IndexType i = 0; i < src.dimension(0); ++i) {
+    for (IndexType j = 0; j < src.dimension(1); ++j) {
+      dst_ref(start[0] + i * strides[0], start[1] + j * strides[1]) = src(i, j);
+    }
+  }
+  for (IndexType i = 0; i < dst.dimension(0); ++i) {
+    for (IndexType j = 0; j < dst.dimension(1); ++j) {
+      VERIFY_IS_EQUAL(dst(i, j), dst_ref(i, j));
+    }
+  }
+
+  sycl_device.deallocate(gpu_input_data);
+  sycl_device.deallocate(gpu_slice_data);
+  sycl_device.deallocate(gpu_dst_data);
+}
+
 template <typename OutIndex, typename DSizes>
 Eigen::array<OutIndex, DSizes::count> To32BitDims(const DSizes& in) {
   Eigen::array<OutIndex, DSizes::count> out;
@@ -360,6 +418,8 @@ void sycl_morphing_test_per_device(dev_Selector s) {
   test_reshape_as_lvalue<DataType, ColMajor, int64_t>(sycl_device);
   test_strided_slice_write_sycl<DataType, ColMajor, int64_t>(sycl_device);
   test_strided_slice_write_sycl<DataType, RowMajor, int64_t>(sycl_device);
+  test_strided_slice_reverse_packet_sycl<DataType, ColMajor, int64_t>(sycl_device);
+  test_strided_slice_reverse_packet_sycl<DataType, RowMajor, int64_t>(sycl_device);
   test_strided_slice_as_rhs_sycl<DataType, ColMajor, int64_t>(sycl_device);
   test_strided_slice_as_rhs_sycl<DataType, RowMajor, int64_t>(sycl_device);
   run_eigen<float, RowMajor, long, int>(sycl_device);
