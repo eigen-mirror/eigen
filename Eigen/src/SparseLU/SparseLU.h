@@ -71,7 +71,7 @@ class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conj
 
  private:
   SparseLUType* m_sparseLU = nullptr;
-  SparseLUTransposeView& operator=(const SparseLUTransposeView&);
+  SparseLUTransposeView& operator=(const SparseLUTransposeView&) = delete;
 };
 
 /** \ingroup SparseLU_Module
@@ -504,8 +504,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   Index m_nnzL, m_nnzU;          // Nonzeros in L and U factors
   Index m_detPermR, m_detPermC;  // Determinants of the permutation matrices
  private:
-  // Disable copy constructor
-  SparseLU(const SparseLU&);
+  SparseLU(const SparseLU&) = delete;
 };  // End class SparseLU
 
 // Functions needed by the analysis phase

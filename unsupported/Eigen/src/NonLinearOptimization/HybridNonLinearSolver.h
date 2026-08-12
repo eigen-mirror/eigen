@@ -114,7 +114,7 @@ class HybridNonLinearSolver {
   Scalar actred, prered;
   FVectorType wa1, wa2, wa3, wa4;
 
-  HybridNonLinearSolver &operator=(const HybridNonLinearSolver &);
+  HybridNonLinearSolver &operator=(const HybridNonLinearSolver &) = delete;
 };
 
 template <typename FunctorType, typename Scalar>

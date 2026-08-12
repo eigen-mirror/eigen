@@ -119,7 +119,7 @@ class NumericalDiff : public Functor_ {
  private:
   Scalar epsfcn;
 
-  NumericalDiff& operator=(const NumericalDiff&);
+  NumericalDiff& operator=(const NumericalDiff&) = delete;
 };
 
 }  // end namespace Eigen

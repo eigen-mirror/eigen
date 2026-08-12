@@ -522,7 +522,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
  private:
   // No assignment (copies are needed by the kernels)
-  TensorEvaluator &operator=(const TensorEvaluator &);
+  TensorEvaluator &operator=(const TensorEvaluator &) = delete;
   TensorEvaluator<InputArgType, Eigen::SyclDevice> m_inputImpl;
   KernelArgType m_kernelArg;
   TensorEvaluator<KernelArgType, Eigen::SyclDevice> m_kernelImpl;

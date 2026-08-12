@@ -120,7 +120,7 @@ class LevenbergMarquardt {
   Scalar ratio;
   Scalar pnorm, xnorm, fnorm1, actred, dirder, prered;
 
-  LevenbergMarquardt &operator=(const LevenbergMarquardt &);
+  LevenbergMarquardt &operator=(const LevenbergMarquardt &) = delete;
 };
 
 template <typename FunctorType, typename Scalar>

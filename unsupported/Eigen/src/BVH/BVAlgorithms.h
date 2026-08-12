@@ -53,7 +53,7 @@ struct intersector_helper1 {
   Intersector &intersector;
 
  private:
-  intersector_helper1 &operator=(const intersector_helper1 &);
+  intersector_helper1 &operator=(const intersector_helper1 &) = delete;
 };
 
 template <typename Volume2, typename Object2, typename Object1, typename Intersector>
@@ -65,7 +65,7 @@ struct intersector_helper2 {
   Intersector &intersector;
 
  private:
-  intersector_helper2 &operator=(const intersector_helper2 &);
+  intersector_helper2 &operator=(const intersector_helper2 &) = delete;
 };
 
 }  // end namespace internal
@@ -190,7 +190,7 @@ struct minimizer_helper1 {
   Minimizer &minimizer;
 
  private:
-  minimizer_helper1 &operator=(const minimizer_helper1 &);
+  minimizer_helper1 &operator=(const minimizer_helper1 &) = delete;
 };
 
 template <typename Volume2, typename Object2, typename Object1, typename Minimizer>
@@ -203,7 +203,7 @@ struct minimizer_helper2 {
   Minimizer &minimizer;
 
  private:
-  minimizer_helper2 &operator=(const minimizer_helper2 &);
+  minimizer_helper2 &operator=(const minimizer_helper2 &) = delete;
 };
 
 }  // end namespace internal
