@@ -74,34 +74,25 @@ struct take<0, type_list<>> {
   typedef type_list<> type;
 };
 
-template <int n, typename... tt>
-struct h_skip_helper_type;
-template <int n, typename t, typename... tt>
-struct h_skip_helper_type<n, t, tt...> : h_skip_helper_type<n - 1, tt...> {};
-template <typename t, typename... tt>
-struct h_skip_helper_type<0, t, tt...> {
-  typedef type_list<t, tt...> type;
-};
-template <int n>
-struct h_skip_helper_type<n> {
-  typedef type_list<> type;
-};
-template <>
-struct h_skip_helper_type<0> {
-  typedef type_list<> type;
-};
-
-template <int n>
-struct h_skip {
-  template <typename... tt>
-  constexpr static typename h_skip_helper_type<n, tt...>::type helper(type_list<tt...>) {
-    return typename h_skip_helper_type<n, tt...>::type();
-  }
-};
-
 template <int n, typename a>
-struct skip {
-  typedef decltype(h_skip<n>::helper(a())) type;
+struct skip;
+
+template <int n, typename a, typename... as>
+struct skip<n, type_list<a, as...>> : skip<n - 1, type_list<as...>> {};
+
+template <typename a, typename... as>
+struct skip<0, type_list<a, as...>> {
+  typedef type_list<a, as...> type;
+};
+
+template <int n>
+struct skip<n, type_list<>> {
+  typedef type_list<> type;
+};
+
+template <>
+struct skip<0, type_list<>> {
+  typedef type_list<> type;
 };
 
 template <int start, int count, typename a>
@@ -135,33 +126,20 @@ struct is_same_gf : std::is_same<a, b> {
 
 /* apply_op to list */
 
-template <bool from_left,  // false
-          template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper {
-  typedef type_list<typename op<values, additional_param>::type...> type;
-};
+template <template <typename, typename> class op, typename additional_param, typename a>
+struct apply_op_from_left;
+
 template <template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper<true, op, additional_param, values...> {
+struct apply_op_from_left<op, additional_param, type_list<values...>> {
   typedef type_list<typename op<additional_param, values>::type...> type;
 };
 
-template <bool from_left, template <typename, typename> class op, typename additional_param>
-struct h_apply_op {
-  template <typename... values>
-  constexpr static typename h_apply_op_helper<from_left, op, additional_param, values...>::type helper(
-      type_list<values...>) {
-    return typename h_apply_op_helper<from_left, op, additional_param, values...>::type();
-  }
-};
-
 template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_left {
-  typedef decltype(h_apply_op<true, op, additional_param>::helper(a())) type;
-};
+struct apply_op_from_right;
 
-template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_right {
-  typedef decltype(h_apply_op<false, op, additional_param>::helper(a())) type;
+template <template <typename, typename> class op, typename additional_param, typename... values>
+struct apply_op_from_right<op, additional_param, type_list<values...>> {
+  typedef type_list<typename op<values, additional_param>::type...> type;
 };
 
 /* see if an element is in a list */

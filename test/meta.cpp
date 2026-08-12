@@ -147,6 +147,7 @@ static void test_slice() {
   VERIFY((std::is_same<typename skip<4, tl>::type, type_list<dummy_c, dummy_c>>::value));
   VERIFY((std::is_same<typename skip<5, tl>::type, type_list<dummy_c>>::value));
   VERIFY((std::is_same<typename skip<6, tl>::type, type_list<>>::value));
+  VERIFY((std::is_same<typename skip<7, tl>::type, type_list<>>::value));
 
   VERIFY((std::is_same<typename slice<0, 3, tl>::type, typename take<3, tl>::type>::value));
   VERIFY((std::is_same<typename slice<1, 3, tl>::type, type_list<dummy_a, dummy_b, dummy_b>>::value));
@@ -184,6 +185,8 @@ static void test_apply_op() {
                          type_list<dummy_e, dummy_c, dummy_d>>::value));
   VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, tl>::type,
                          type_list<dummy_e, dummy_d, dummy_b>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_left<dummy_op, dummy_a, type_list<>>::type, type_list<>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, type_list<>>::type, type_list<>>::value));
 }
 
 static void test_contained_in_list() {
