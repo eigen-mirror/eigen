@@ -9,8 +9,24 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_TENSOR_MODULE_H
+// A later inclusion can complete a device type after its backend macro is
+// enabled. Backend evaluation still requires the macro before including Eigen.
+#if !defined(EIGEN_TENSOR_MODULE_H) || (defined(EIGEN_USE_THREADS) && !defined(EIGEN_TENSOR_MODULE_THREADS_LOADED)) || \
+    (defined(EIGEN_USE_GPU) && !defined(EIGEN_TENSOR_MODULE_GPU_LOADED)) ||                                            \
+    (defined(EIGEN_USE_SYCL) && !defined(EIGEN_TENSOR_MODULE_SYCL_LOADED))
 #define EIGEN_TENSOR_MODULE_H
+
+// Record caller-provided backend macros before any included header can change
+// them, so later inclusions detect only backends newly enabled by the caller.
+#ifdef EIGEN_USE_THREADS
+#define EIGEN_TENSOR_MODULE_THREADS_LOADED
+#endif
+#ifdef EIGEN_USE_GPU
+#define EIGEN_TENSOR_MODULE_GPU_LOADED
+#endif
+#ifdef EIGEN_USE_SYCL
+#define EIGEN_TENSOR_MODULE_SYCL_LOADED
+#endif
 
 #include "../../Eigen/Core"
 
@@ -140,4 +156,4 @@
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
 
-#endif  // EIGEN_TENSOR_MODULE_H
+#endif  // Tensor module or newly enabled backend

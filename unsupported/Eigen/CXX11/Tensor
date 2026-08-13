@@ -2,9 +2,6 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_UNSUPPORTED_CXX11_TENSOR_FORWARD_H
-#define EIGEN_UNSUPPORTED_CXX11_TENSOR_FORWARD_H
-
+// Forward every inclusion so the Tensor module can detect a newly enabled
+// backend and complete its device type.
 #include "../Tensor"  // IWYU pragma: export
-
-#endif  // EIGEN_UNSUPPORTED_CXX11_TENSOR_FORWARD_H
