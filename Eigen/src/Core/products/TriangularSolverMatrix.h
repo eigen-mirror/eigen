@@ -43,8 +43,8 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
-  typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> TriMapper;
-  typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> OtherMapper;
+  using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
+  using OtherMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
   TriMapper tri(_tri, triStride);
   OtherMapper other(_other, otherStride, otherIncr);
 
@@ -85,9 +85,9 @@ EIGEN_STRONG_INLINE void trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageO
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> LhsMapper;
-  typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> RhsMapper;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using LhsMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   LhsMapper lhs(_other, otherStride, otherIncr);
   RhsMapper rhs(_tri, triStride);
 
@@ -215,12 +215,12 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
   }
 #endif
 
-  typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> TriMapper;
-  typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> OtherMapper;
+  using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
+  using OtherMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
   TriMapper tri(_tri, triStride);
   OtherMapper other(_other, otherStride, otherIncr);
 
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
 
   enum { SmallPanelWidth = plain_enum_max(Traits::mr, Traits::nr), IsLower = (Mode & Lower) == Lower };
 
@@ -348,12 +348,12 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
   }
 #endif
 
-  typedef blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride> LhsMapper;
-  typedef const_blas_data_mapper<Scalar, Index, TriStorageOrder> RhsMapper;
+  using LhsMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   LhsMapper lhs(_other, otherStride, otherIncr);
   RhsMapper rhs(_tri, triStride);
 
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
   enum {
     RhsStorageOrder = TriStorageOrder,
     SmallPanelWidth = plain_enum_max(Traits::mr, Traits::nr),

@@ -19,9 +19,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, int UpLo_>
 struct traits<BunchKaufman<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -74,8 +74,8 @@ inline Index bunch_kaufman_blocksize();
 template <typename MatrixType_, int UpLo_>
 class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<BunchKaufman> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<BunchKaufman>;
   friend class SolverBase<BunchKaufman>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(BunchKaufman)
@@ -85,13 +85,13 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
     UpLo = UpLo_
   };
 
-  typedef Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1> TmpVectorType;
+  using TmpVectorType = Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1>;
   // Panel workspace for the blocked algorithm (only allocated for large dynamic-sized problems).
-  typedef Matrix<Scalar, Dynamic, Dynamic> WorkspaceType;
-  typedef Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime> TranspositionType;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime> PermutationType;
+  using WorkspaceType = Matrix<Scalar, Dynamic, Dynamic>;
+  using TranspositionType = Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime>;
+  using PermutationType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime>;
 
-  typedef internal::BunchKaufman_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::BunchKaufman_Traits<MatrixType, UpLo>;
 
   /** \brief Default Constructor.
    *
@@ -351,7 +351,7 @@ struct bunch_kaufman<Lower> {
   // the first column of the pivot block (== kk for a 1x1 pivot, == kk-1 for a 2x2 pivot).
   template <typename MatrixType>
   static void apply_symmetric_pivot(MatrixType& mat, Index kfirst, Index kk, Index kp, Index kstep) {
-    typedef typename MatrixType::Scalar Scalar;
+    using Scalar = typename MatrixType::Scalar;
     const Index n = mat.rows();
     const Index s = n - kp - 1;
     if (s > 0) mat.col(kk).tail(s).swap(mat.col(kp).tail(s));
@@ -381,9 +381,9 @@ struct bunch_kaufman<Lower> {
   template <typename MatrixType, typename TranspositionType, typename SubDiagType>
   static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag, Index k0 = 0) {
     using numext::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex StorageIndex;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using StorageIndex = typename TranspositionType::StorageIndex;
     const Index n = mat.rows();
     const RealScalar alpha = bunch_kaufman_alpha<RealScalar>();
     Index info = 0;
@@ -530,9 +530,9 @@ struct bunch_kaufman<Lower> {
   static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W, TranspositionType& transpositions,
                               SubDiagType& subdiag, Index& info) {
     using numext::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex StorageIndex;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using StorageIndex = typename TranspositionType::StorageIndex;
     const Index n = mat.rows();
     const RealScalar alpha = bunch_kaufman_alpha<RealScalar>();
     constexpr bool is_complex = NumTraits<Scalar>::IsComplex;
@@ -719,16 +719,16 @@ struct bunch_kaufman<Upper> {
 
 template <typename MatrixType>
 struct BunchKaufman_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, UnitLower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, UnitLower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
 };
 
 template <typename MatrixType>
 struct BunchKaufman_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower> MatrixL;
-  typedef const TriangularView<const MatrixType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower>;
+  using MatrixU = const TriangularView<const MatrixType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
 };

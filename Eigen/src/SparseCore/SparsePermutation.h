@@ -164,11 +164,11 @@ namespace internal {
 
 template <int ProductTag>
 struct product_promote_storage_type<Sparse, PermutationStorage, ProductTag> {
-  typedef Sparse ret;
+  using ret = Sparse;
 };
 template <int ProductTag>
 struct product_promote_storage_type<PermutationStorage, Sparse, ProductTag> {
-  typedef Sparse ret;
+  using ret = Sparse;
 };
 
 // TODO, the following two overloads are only needed to define the right temporary type through
@@ -178,9 +178,9 @@ struct product_promote_storage_type<PermutationStorage, Sparse, ProductTag> {
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, PermutationShape, SparseShape>
     : public evaluator<typename permutation_matrix_product<Rhs, OnTheLeft, false, SparseShape>::ReturnType> {
-  typedef Product<Lhs, Rhs, AliasFreeProduct> XprType;
-  typedef typename permutation_matrix_product<Rhs, OnTheLeft, false, SparseShape>::ReturnType PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<Lhs, Rhs, AliasFreeProduct>;
+  using PlainObject = typename permutation_matrix_product<Rhs, OnTheLeft, false, SparseShape>::ReturnType;
+  using Base = evaluator<PlainObject>;
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
@@ -196,9 +196,9 @@ struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, Permut
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, AliasFreeProduct>, ProductTag, SparseShape, PermutationShape>
     : public evaluator<typename permutation_matrix_product<Lhs, OnTheRight, false, SparseShape>::ReturnType> {
-  typedef Product<Lhs, Rhs, AliasFreeProduct> XprType;
-  typedef typename permutation_matrix_product<Lhs, OnTheRight, false, SparseShape>::ReturnType PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<Lhs, Rhs, AliasFreeProduct>;
+  using PlainObject = typename permutation_matrix_product<Lhs, OnTheRight, false, SparseShape>::ReturnType;
+  using Base = evaluator<PlainObject>;
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 

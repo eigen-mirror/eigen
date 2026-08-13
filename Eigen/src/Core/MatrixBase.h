@@ -53,14 +53,14 @@ template <typename Derived>
 class MatrixBase : public DenseBase<Derived> {
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  typedef MatrixBase StorageBaseType;
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using StorageBaseType = MatrixBase;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using StorageIndex = typename internal::traits<Derived>::StorageIndex;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
-  typedef DenseBase<Derived> Base;
+  using Base = DenseBase<Derived>;
   using Base::ColsAtCompileTime;
   using Base::Flags;
   using Base::IsVectorAtCompileTime;
@@ -85,42 +85,41 @@ class MatrixBase : public DenseBase<Derived> {
   using Base::operator*=;
   using Base::operator/=;
 
-  typedef typename Base::CoeffReturnType CoeffReturnType;
-  typedef typename Base::ConstTransposeReturnType ConstTransposeReturnType;
-  typedef typename Base::RowXpr RowXpr;
-  typedef typename Base::ColXpr ColXpr;
+  using CoeffReturnType = typename Base::CoeffReturnType;
+  using ConstTransposeReturnType = typename Base::ConstTransposeReturnType;
+  using RowXpr = typename Base::RowXpr;
+  using ColXpr = typename Base::ColXpr;
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** type of the equivalent square matrix */
-  typedef Matrix<Scalar, internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime),
-                 internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)>
-      SquareMatrixType;
+  using SquareMatrixType = Matrix<Scalar, internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime),
+                                  internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)>;
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
   /** \returns the size of the main diagonal, which is min(rows(),cols()).
    * \sa rows(), cols(), SizeAtCompileTime. */
   EIGEN_DEVICE_FUNC constexpr Index diagonalSize() const { return (numext::mini)(rows(), cols()); }
 
-  typedef typename Base::PlainObject PlainObject;
+  using PlainObject = typename Base::PlainObject;
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** \internal Represents a matrix with all coefficients equal to one another*/
-  typedef CwiseNullaryOp<internal::scalar_constant_op<Scalar>, PlainObject> ConstantReturnType;
+  using ConstantReturnType = CwiseNullaryOp<internal::scalar_constant_op<Scalar>, PlainObject>;
   /** \internal the return type of MatrixBase::adjoint() */
-  typedef std::conditional_t<NumTraits<Scalar>::IsComplex,
-                             CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, ConstTransposeReturnType>,
-                             ConstTransposeReturnType>
-      AdjointReturnType;
+  using AdjointReturnType =
+      std::conditional_t<NumTraits<Scalar>::IsComplex,
+                         CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, ConstTransposeReturnType>,
+                         ConstTransposeReturnType>;
   /** \internal Return type of eigenvalues() */
-  typedef Matrix<internal::make_complex_t<Scalar>, internal::traits<Derived>::ColsAtCompileTime, 1, ColMajor>
-      EigenvaluesReturnType;
+  using EigenvaluesReturnType =
+      Matrix<internal::make_complex_t<Scalar>, internal::traits<Derived>::ColsAtCompileTime, 1, ColMajor>;
   /** \internal the return type of identity */
-  typedef CwiseNullaryOp<internal::scalar_identity_op<Scalar>, PlainObject> IdentityReturnType;
+  using IdentityReturnType = CwiseNullaryOp<internal::scalar_identity_op<Scalar>, PlainObject>;
   /** \internal the return type of unit vectors */
-  typedef Block<const CwiseNullaryOp<internal::scalar_identity_op<Scalar>, SquareMatrixType>,
-                internal::traits<Derived>::RowsAtCompileTime, internal::traits<Derived>::ColsAtCompileTime>
-      BasisReturnType;
+  using BasisReturnType =
+      Block<const CwiseNullaryOp<internal::scalar_identity_op<Scalar>, SquareMatrixType>,
+            internal::traits<Derived>::RowsAtCompileTime, internal::traits<Derived>::ColsAtCompileTime>;
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
 #define EIGEN_CURRENT_STORAGE_BASE_CLASS Eigen::MatrixBase
@@ -198,10 +197,10 @@ class MatrixBase : public DenseBase<Derived> {
   EIGEN_DEVICE_FUNC constexpr const AdjointReturnType adjoint() const;
   EIGEN_DEVICE_FUNC void adjointInPlace();
 
-  typedef Diagonal<Derived> DiagonalReturnType;
+  using DiagonalReturnType = Diagonal<Derived>;
   EIGEN_DEVICE_FUNC constexpr DiagonalReturnType diagonal();
 
-  typedef Diagonal<const Derived> ConstDiagonalReturnType;
+  using ConstDiagonalReturnType = Diagonal<const Derived>;
   EIGEN_DEVICE_FUNC constexpr const ConstDiagonalReturnType diagonal() const;
 
   template <int Index>
@@ -215,11 +214,11 @@ class MatrixBase : public DenseBase<Derived> {
 
   template <unsigned int Mode>
   struct TriangularViewReturnType {
-    typedef TriangularView<Derived, Mode> Type;
+    using Type = TriangularView<Derived, Mode>;
   };
   template <unsigned int Mode>
   struct ConstTriangularViewReturnType {
-    typedef const TriangularView<const Derived, Mode> Type;
+    using Type = const TriangularView<const Derived, Mode>;
   };
 
   template <unsigned int Mode>
@@ -229,11 +228,11 @@ class MatrixBase : public DenseBase<Derived> {
 
   template <unsigned int UpLo>
   struct SelfAdjointViewReturnType {
-    typedef SelfAdjointView<Derived, UpLo> Type;
+    using Type = SelfAdjointView<Derived, UpLo>;
   };
   template <unsigned int UpLo>
   struct ConstSelfAdjointViewReturnType {
-    typedef const SelfAdjointView<const Derived, UpLo> Type;
+    using Type = const SelfAdjointView<const Derived, UpLo>;
   };
 
   template <unsigned int UpLo>
@@ -424,15 +423,16 @@ class MatrixBase : public DenseBase<Derived> {
         : ColsAtCompileTime == 1 ? Vertical
                                  : Horizontal
   };
-  typedef Homogeneous<Derived, HomogeneousReturnTypeDirection> HomogeneousReturnType;
+  using HomogeneousReturnType = Homogeneous<Derived, HomogeneousReturnTypeDirection>;
   EIGEN_DEVICE_FUNC inline HomogeneousReturnType homogeneous() const;
 
   enum { SizeMinusOne = SizeAtCompileTime == Dynamic ? Dynamic : SizeAtCompileTime - 1 };
-  typedef Block<const Derived, internal::traits<Derived>::ColsAtCompileTime == 1 ? SizeMinusOne : 1,
-                internal::traits<Derived>::ColsAtCompileTime == 1 ? 1 : SizeMinusOne>
-      ConstStartMinusOne;
-  typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(ConstStartMinusOne, Scalar,
-                                                 internal::scalar_quotient_op) HNormalizedReturnType;
+  using ConstStartMinusOne = Block<const Derived, internal::traits<Derived>::ColsAtCompileTime == 1 ? SizeMinusOne : 1,
+                                   internal::traits<Derived>::ColsAtCompileTime == 1 ? 1 : SizeMinusOne>;
+  using HNormalizedReturnType =
+      CwiseBinaryOp<internal::scalar_quotient_op<typename internal::traits<ConstStartMinusOne>::Scalar, Scalar>,
+                    const ConstStartMinusOne,
+                    const typename internal::plain_constant_type<ConstStartMinusOne, Scalar>::type>;
   EIGEN_DEVICE_FUNC inline const HNormalizedReturnType hnormalized() const;
 
   ////////// Householder module ///////////
@@ -464,7 +464,7 @@ class MatrixBase : public DenseBase<Derived> {
 
   ///////// MatrixFunctions module /////////
 
-  typedef typename internal::stem_function<Scalar>::type StemFunction;
+  using StemFunction = typename internal::stem_function<Scalar>::type;
 #define EIGEN_MATRIX_FUNCTION(ReturnType, Name, Description)                                                        \
   /** \returns an expression of the matrix Description of \c *this. \brief This function requires the <a            \
    * href="unsupported/group__MatrixFunctions__Module.html"> unsupported MatrixFunctions module</a>. To compute the \

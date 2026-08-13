@@ -139,7 +139,7 @@ struct bfloat16_base : public __bfloat16_raw {
 
 // Class definition.
 struct bfloat16 : public bfloat16_impl::bfloat16_base {
-  typedef bfloat16_impl::__bfloat16_raw __bfloat16_raw;
+  using __bfloat16_raw = bfloat16_impl::__bfloat16_raw;
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bfloat16() {}
 

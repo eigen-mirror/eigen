@@ -59,8 +59,8 @@ struct product_size_category {
 
 template <typename Lhs, typename Rhs>
 struct product_type {
-  typedef remove_all_t<Lhs> Lhs_;
-  typedef remove_all_t<Rhs> Rhs_;
+  using Lhs_ = remove_all_t<Lhs>;
+  using Rhs_ = remove_all_t<Rhs>;
   enum {
     MaxRows = traits<Lhs_>::MaxRowsAtCompileTime,
     Rows = traits<Lhs_>::RowsAtCompileTime,
@@ -233,17 +233,17 @@ template <>
 struct gemv_dense_selector<OnTheRight, ColMajor, true> {
   template <typename Lhs, typename Rhs, typename Dest>
   static inline void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Rhs::Scalar RhsScalar;
-    typedef typename Dest::Scalar ResScalar;
+    using LhsScalar = typename Lhs::Scalar;
+    using RhsScalar = typename Rhs::Scalar;
+    using ResScalar = typename Dest::Scalar;
 
-    typedef internal::blas_traits<Lhs> LhsBlasTraits;
-    typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-    typedef internal::blas_traits<Rhs> RhsBlasTraits;
-    typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
+    using LhsBlasTraits = internal::blas_traits<Lhs>;
+    using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+    using RhsBlasTraits = internal::blas_traits<Rhs>;
+    using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
 
-    typedef Map<Matrix<ResScalar, Dynamic, 1>, plain_enum_min(AlignedMax, internal::packet_traits<ResScalar>::size)>
-        MappedDest;
+    using MappedDest =
+        Map<Matrix<ResScalar, Dynamic, 1>, plain_enum_min(AlignedMax, internal::packet_traits<ResScalar>::size)>;
 
     ActualLhsType actualLhs = LhsBlasTraits::extract(lhs);
     ActualRhsType actualRhs = RhsBlasTraits::extract(rhs);
@@ -251,7 +251,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     ResScalar actualAlpha = combine_scalar_factors(alpha, lhs, rhs);
 
     // make sure Dest is a compile-time vector type (bug 1166)
-    typedef std::conditional_t<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr> ActualDest;
+    using ActualDest = std::conditional_t<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr>;
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
@@ -261,8 +261,8 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
       MightCannotUseDest = ((!EvalToDestAtCompileTime) || ComplexByReal) && (ActualDest::MaxSizeAtCompileTime != 0)
     };
 
-    typedef const_blas_data_mapper<LhsScalar, Index, ColMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar, Index, RowMajor> RhsMapper;
+    using LhsMapper = const_blas_data_mapper<LhsScalar, Index, ColMajor>;
+    using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RowMajor>;
     RhsScalar compatibleAlpha = get_factor<ResScalar, RhsScalar>::run(actualAlpha);
 
     EIGEN_IF_CONSTEXPR (!MightCannotUseDest) {
@@ -321,15 +321,15 @@ template <>
 struct gemv_dense_selector<OnTheRight, RowMajor, true> {
   template <typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Rhs::Scalar RhsScalar;
-    typedef typename Dest::Scalar ResScalar;
+    using LhsScalar = typename Lhs::Scalar;
+    using RhsScalar = typename Rhs::Scalar;
+    using ResScalar = typename Dest::Scalar;
 
-    typedef internal::blas_traits<Lhs> LhsBlasTraits;
-    typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-    typedef internal::blas_traits<Rhs> RhsBlasTraits;
-    typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-    typedef internal::remove_all_t<ActualRhsType> ActualRhsTypeCleaned;
+    using LhsBlasTraits = internal::blas_traits<Lhs>;
+    using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+    using RhsBlasTraits = internal::blas_traits<Rhs>;
+    using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
+    using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
     std::add_const_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
     std::add_const_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
@@ -360,8 +360,8 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
       Map<typename ActualRhsTypeCleaned::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     }
 
-    typedef const_blas_data_mapper<LhsScalar, Index, RowMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar, Index, ColMajor> RhsMapper;
+    using LhsMapper = const_blas_data_mapper<LhsScalar, Index, RowMajor>;
+    using RhsMapper = const_blas_data_mapper<RhsScalar, Index, ColMajor>;
     general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
                                   RhsMapper, RhsBlasTraits::NeedToConjugate>::
         run(actualLhs.rows(), actualLhs.cols(), LhsMapper(actualLhs.data(), actualLhs.outerStride()),

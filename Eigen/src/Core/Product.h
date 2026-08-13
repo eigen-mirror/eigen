@@ -23,18 +23,19 @@ namespace internal {
 
 template <typename Lhs, typename Rhs, int Option>
 struct traits<Product<Lhs, Rhs, Option>> {
-  typedef remove_all_t<Lhs> LhsCleaned;
-  typedef remove_all_t<Rhs> RhsCleaned;
-  typedef traits<LhsCleaned> LhsTraits;
-  typedef traits<RhsCleaned> RhsTraits;
+  using LhsCleaned = remove_all_t<Lhs>;
+  using RhsCleaned = remove_all_t<Rhs>;
+  using LhsTraits = traits<LhsCleaned>;
+  using RhsTraits = traits<RhsCleaned>;
 
-  typedef MatrixXpr XprKind;
+  using XprKind = MatrixXpr;
 
-  typedef typename ScalarBinaryOpTraits<typename LhsTraits::Scalar, typename RhsTraits::Scalar>::ReturnType Scalar;
-  typedef typename product_promote_storage_type<typename LhsTraits::StorageKind, typename RhsTraits::StorageKind,
-                                                internal::product_type<Lhs, Rhs>::value>::ret StorageKind;
-  typedef typename promote_index_type<typename LhsTraits::StorageIndex, typename RhsTraits::StorageIndex>::type
-      StorageIndex;
+  using Scalar = typename ScalarBinaryOpTraits<typename LhsTraits::Scalar, typename RhsTraits::Scalar>::ReturnType;
+  using StorageKind =
+      typename product_promote_storage_type<typename LhsTraits::StorageKind, typename RhsTraits::StorageKind,
+                                            internal::product_type<Lhs, Rhs>::value>::ret;
+  using StorageIndex =
+      typename promote_index_type<typename LhsTraits::StorageIndex, typename RhsTraits::StorageIndex>::type;
 
   enum {
     RowsAtCompileTime = LhsTraits::RowsAtCompileTime,
@@ -201,20 +202,20 @@ class Product
                              typename internal::traits<Lhs_>::StorageKind, typename internal::traits<Rhs_>::StorageKind,
                              internal::product_type<Lhs_, Rhs_>::value>::ret> {
  public:
-  typedef Lhs_ Lhs;
-  typedef Rhs_ Rhs;
+  using Lhs = Lhs_;
+  using Rhs = Rhs_;
 
-  typedef
+  using Base =
       typename ProductImpl<Lhs, Rhs, Option,
                            typename internal::product_promote_storage_type<
                                typename internal::traits<Lhs>::StorageKind, typename internal::traits<Rhs>::StorageKind,
-                               internal::product_type<Lhs, Rhs>::value>::ret>::Base Base;
+                               internal::product_type<Lhs, Rhs>::value>::ret>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Product)
 
-  typedef typename internal::ref_selector<Lhs>::type LhsNested;
-  typedef typename internal::ref_selector<Rhs>::type RhsNested;
-  typedef internal::remove_all_t<LhsNested> LhsNestedCleaned;
-  typedef internal::remove_all_t<RhsNested> RhsNestedCleaned;
+  using LhsNested = typename internal::ref_selector<Lhs>::type;
+  using RhsNested = typename internal::ref_selector<Rhs>::type;
+  using LhsNestedCleaned = internal::remove_all_t<LhsNested>;
+  using RhsNestedCleaned = internal::remove_all_t<RhsNested>;
 
   using TransposeReturnType = typename internal::product_transpose_helper<Lhs, Rhs, Option>::TransposeType;
   using AdjointReturnType = typename internal::product_transpose_helper<Lhs, Rhs, Option>::AdjointType;
@@ -251,12 +252,12 @@ class dense_product_base : public internal::dense_xpr_base<Product<Lhs, Rhs, Opt
 template <typename Lhs, typename Rhs, int Option>
 class dense_product_base<Lhs, Rhs, Option, InnerProduct>
     : public internal::dense_xpr_base<Product<Lhs, Rhs, Option>>::type {
-  typedef Product<Lhs, Rhs, Option> ProductXpr;
-  typedef typename internal::dense_xpr_base<ProductXpr>::type Base;
+  using ProductXpr = Product<Lhs, Rhs, Option>;
+  using Base = typename internal::dense_xpr_base<ProductXpr>::type;
 
  public:
   using Base::derived;
-  typedef typename Base::Scalar Scalar;
+  using Scalar = typename Base::Scalar;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE operator const Scalar() const {
     return internal::evaluator<ProductXpr>(derived()).coeff(0, 0);
@@ -269,15 +270,15 @@ class dense_product_base<Lhs, Rhs, Option, InnerProduct>
 template <typename Lhs, typename Rhs, int Option, typename StorageKind>
 class ProductImpl : public internal::generic_xpr_base<Product<Lhs, Rhs, Option>, MatrixXpr, StorageKind>::type {
  public:
-  typedef typename internal::generic_xpr_base<Product<Lhs, Rhs, Option>, MatrixXpr, StorageKind>::type Base;
+  using Base = typename internal::generic_xpr_base<Product<Lhs, Rhs, Option>, MatrixXpr, StorageKind>::type;
 };
 
 template <typename Lhs, typename Rhs, int Option>
 class ProductImpl<Lhs, Rhs, Option, Dense> : public internal::dense_product_base<Lhs, Rhs, Option> {
-  typedef Product<Lhs, Rhs, Option> Derived;
+  using Derived = Product<Lhs, Rhs, Option>;
 
  public:
-  typedef typename internal::dense_product_base<Lhs, Rhs, Option> Base;
+  using Base = typename internal::dense_product_base<Lhs, Rhs, Option>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
  protected:
   enum {

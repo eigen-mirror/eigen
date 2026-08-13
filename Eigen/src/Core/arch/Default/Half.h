@@ -161,7 +161,7 @@ struct __half_raw {
 // CUDA GPU compile phase.
 
 #elif defined(SYCL_DEVICE_ONLY)
-typedef cl::sycl::half __half_raw;
+using __half_raw = cl::sycl::half;
 #endif
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw raw_uint16_to_half(numext::uint16_t x);
@@ -198,7 +198,7 @@ struct half : public half_impl::half_base {
   // Use the same base class for the following two scenarios
   // * when compiling without GPU support enabled
   // * during host compile phase when compiling with GPU support enabled
-  typedef half_impl::__half_raw __half_raw;
+  using __half_raw = half_impl::__half_raw;
 #elif defined(EIGEN_HIPCC)
   // Nothing to do here
   // HIP fp16 header file has a definition for __half_raw

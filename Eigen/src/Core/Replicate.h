@@ -19,11 +19,11 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType, int RowFactor, int ColFactor>
 struct traits<Replicate<MatrixType, RowFactor, ColFactor> > : traits<MatrixType> {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename traits<MatrixType>::StorageKind StorageKind;
-  typedef typename traits<MatrixType>::XprKind XprKind;
-  typedef typename ref_selector<MatrixType>::type MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNested_;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageKind = typename traits<MatrixType>::StorageKind;
+  using XprKind = typename traits<MatrixType>::XprKind;
+  using MatrixTypeNested = typename ref_selector<MatrixType>::type;
+  using MatrixTypeNested_ = std::remove_reference_t<MatrixTypeNested>;
   enum {
     RowsAtCompileTime = RowFactor == Dynamic || int(MatrixType::RowsAtCompileTime) == Dynamic
                             ? Dynamic
@@ -63,13 +63,13 @@ struct traits<Replicate<MatrixType, RowFactor, ColFactor> > : traits<MatrixType>
  */
 template <typename MatrixType, int RowFactor, int ColFactor>
 class Replicate : public internal::dense_xpr_base<Replicate<MatrixType, RowFactor, ColFactor> >::type {
-  typedef typename internal::traits<Replicate>::MatrixTypeNested MatrixTypeNested;
-  typedef typename internal::traits<Replicate>::MatrixTypeNested_ MatrixTypeNested_;
+  using MatrixTypeNested = typename internal::traits<Replicate>::MatrixTypeNested;
+  using MatrixTypeNested_ = typename internal::traits<Replicate>::MatrixTypeNested_;
 
  public:
-  typedef typename internal::dense_xpr_base<Replicate>::type Base;
+  using Base = typename internal::dense_xpr_base<Replicate>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(Replicate)
-  typedef internal::remove_all_t<MatrixType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<MatrixType>;
 
   template <typename OriginalMatrixType>
   EIGEN_DEVICE_FUNC constexpr inline explicit Replicate(const OriginalMatrixType& matrix)

@@ -20,9 +20,9 @@ namespace internal {
 
 template <typename MatrixType_, int UpLo_>
 struct traits<LLT<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -70,8 +70,8 @@ struct LLT_Traits;
 template <typename MatrixType_, int UpLo_>
 class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<LLT> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<LLT>;
   friend class SolverBase<LLT>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(LLT)
@@ -79,7 +79,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
 
   enum { PacketSize = internal::packet_traits<Scalar>::size, AlignmentMask = int(PacketSize) - 1, UpLo = UpLo_ };
 
-  typedef internal::LLT_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::LLT_Traits<MatrixType, UpLo>;
 
   /**
    * \brief Default Constructor.
@@ -223,13 +223,13 @@ template <typename MatrixType, typename VectorType>
 static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
                                    const typename MatrixType::RealScalar& sigma) {
   using std::sqrt;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::ColXpr ColXpr;
-  typedef internal::remove_all_t<ColXpr> ColXprCleaned;
-  typedef typename ColXprCleaned::SegmentReturnType ColXprSegment;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ColXpr = typename MatrixType::ColXpr;
+  using ColXprCleaned = internal::remove_all_t<ColXpr>;
+  using ColXprSegment = typename ColXprCleaned::SegmentReturnType;
   using TempVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1, 0, MatrixType::MaxRowsAtCompileTime, 1>;
-  typedef typename TempVectorType::SegmentReturnType TempVecSegment;
+  using TempVecSegment = typename TempVectorType::SegmentReturnType;
 
   Index n = mat.cols();
   eigen_assert(mat.rows() == n && vec.size() == n);
@@ -284,7 +284,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
 
 template <typename Scalar>
 struct llt_inplace<Scalar, Lower> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename MatrixType>
   static Index unblocked(MatrixType& mat) {
     using std::sqrt;
@@ -347,7 +347,7 @@ struct llt_inplace<Scalar, Lower> {
 
 template <typename Scalar>
 struct llt_inplace<Scalar, Upper> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   template <typename MatrixType>
   static EIGEN_STRONG_INLINE Index unblocked(MatrixType& mat) {
@@ -368,8 +368,8 @@ struct llt_inplace<Scalar, Upper> {
 
 template <typename MatrixType>
 struct LLT_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, Lower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, Upper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, Lower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, Upper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
   static bool inplace_decomposition(MatrixType& m) {
@@ -379,8 +379,8 @@ struct LLT_Traits<MatrixType, Lower> {
 
 template <typename MatrixType>
 struct LLT_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, Lower> MatrixL;
-  typedef const TriangularView<const MatrixType, Upper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, Lower>;
+  using MatrixU = const TriangularView<const MatrixType, Upper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
   static bool inplace_decomposition(MatrixType& m) {

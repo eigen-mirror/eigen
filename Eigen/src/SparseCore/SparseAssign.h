@@ -50,12 +50,12 @@ namespace internal {
 
 template <>
 struct storage_kind_to_evaluator_kind<Sparse> {
-  typedef IteratorBased Kind;
+  using Kind = IteratorBased;
 };
 
 template <>
 struct storage_kind_to_shape<Sparse> {
-  typedef SparseShape Shape;
+  using Shape = SparseShape;
 };
 
 struct Sparse2Sparse {};
@@ -63,19 +63,19 @@ struct Sparse2Dense {};
 
 template <>
 struct AssignmentKind<SparseShape, SparseShape> {
-  typedef Sparse2Sparse Kind;
+  using Kind = Sparse2Sparse;
 };
 template <>
 struct AssignmentKind<SparseShape, SparseTriangularShape> {
-  typedef Sparse2Sparse Kind;
+  using Kind = Sparse2Sparse;
 };
 template <>
 struct AssignmentKind<DenseShape, SparseShape> {
-  typedef Sparse2Dense Kind;
+  using Kind = Sparse2Dense;
 };
 template <>
 struct AssignmentKind<DenseShape, SparseTriangularShape> {
-  typedef Sparse2Dense Kind;
+  using Kind = Sparse2Dense;
 };
 
 template <typename XprType>
@@ -189,9 +189,9 @@ Index sparse_assignment_reserve_size(const SrcXprType &src, SrcEvaluatorType &sr
 
 template <typename DstXprType, typename SrcXprType>
 void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
-  typedef typename DstXprType::Scalar Scalar;
-  typedef internal::evaluator<DstXprType> DstEvaluatorType;
-  typedef internal::evaluator<SrcXprType> SrcEvaluatorType;
+  using Scalar = typename DstXprType::Scalar;
+  using DstEvaluatorType = internal::evaluator<DstXprType>;
+  using SrcEvaluatorType = internal::evaluator<SrcXprType>;
 
   SrcEvaluatorType srcEvaluator(src);
 
@@ -336,7 +336,7 @@ EIGEN_CATCH_ASSIGN_DENSE_OP_SPARSE(sub_assign_op, scalar_difference_op, add_assi
 // NOTE we need to specialize it for Sparse2Sparse to avoid ambiguous specialization error
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scalar, Scalar>, Sparse2Sparse> {
-  typedef Solve<DecType, RhsType> SrcXprType;
+  using SrcXprType = Solve<DecType, RhsType>;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
@@ -350,13 +350,13 @@ struct Diagonal2Sparse {};
 
 template <>
 struct AssignmentKind<SparseShape, DiagonalShape> {
-  typedef Diagonal2Sparse Kind;
+  using Kind = Diagonal2Sparse;
 };
 
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Sparse> {
-  typedef typename DstXprType::StorageIndex StorageIndex;
-  typedef typename DstXprType::Scalar Scalar;
+  using StorageIndex = typename DstXprType::StorageIndex;
+  using Scalar = typename DstXprType::Scalar;
 
   template <int Options, typename AssignFunc>
   static void run(SparseMatrix<Scalar, Options, StorageIndex> &dst, const SrcXprType &src, const AssignFunc &func) {

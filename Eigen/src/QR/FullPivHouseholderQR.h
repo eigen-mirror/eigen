@@ -21,9 +21,9 @@ namespace internal {
 
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<FullPivHouseholderQR<MatrixType_, PermutationIndex_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
@@ -32,7 +32,7 @@ struct FullPivHouseholderQRMatrixQReturnType;
 
 template <typename MatrixType, typename PermutationIndex>
 struct traits<FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex> > {
-  typedef typename MatrixType::PlainObject ReturnType;
+  using ReturnType = typename MatrixType::PlainObject;
 };
 
 }  // end namespace internal
@@ -65,9 +65,9 @@ template <typename MatrixType_, typename PermutationIndex_>
 class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_, PermutationIndex_> >,
                              public RankRevealingBase<FullPivHouseholderQR<MatrixType_, PermutationIndex_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<FullPivHouseholderQR> Base;
-  typedef RankRevealingBase<FullPivHouseholderQR> RankRevealingBase_;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<FullPivHouseholderQR>;
+  using RankRevealingBase_ = RankRevealingBase<FullPivHouseholderQR>;
   friend class SolverBase<FullPivHouseholderQR>;
   friend class RankRevealingBase<FullPivHouseholderQR>;
   using RankRevealingBase_::dimensionOfKernel;
@@ -79,22 +79,22 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
   using RankRevealingBase_::rank;
   using RankRevealingBase_::setThreshold;
   using RankRevealingBase_::threshold;
-  typedef PermutationIndex_ PermutationIndex;
+  using PermutationIndex = PermutationIndex_;
   EIGEN_GENERIC_PUBLIC_INTERFACE(FullPivHouseholderQR)
 
   enum {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef internal::FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex> MatrixQReturnType;
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef Matrix<PermutationIndex, 1, internal::min_size_prefer_dynamic(ColsAtCompileTime, RowsAtCompileTime), RowMajor,
-                 1, internal::min_size_prefer_fixed(MaxColsAtCompileTime, MaxRowsAtCompileTime)>
-      IntDiagSizeVectorType;
-  typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationType;
-  typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
-  typedef typename internal::plain_col_type<MatrixType>::type ColVectorType;
-  typedef typename MatrixType::PlainObject PlainObject;
+  using MatrixQReturnType = internal::FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex>;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using IntDiagSizeVectorType =
+      Matrix<PermutationIndex, 1, internal::min_size_prefer_dynamic(ColsAtCompileTime, RowsAtCompileTime), RowMajor, 1,
+             internal::min_size_prefer_fixed(MaxColsAtCompileTime, MaxRowsAtCompileTime)>;
+  using PermutationType = PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex>;
+  using RowVectorType = typename internal::plain_row_type<MatrixType>::type;
+  using ColVectorType = typename internal::plain_col_type<MatrixType>::type;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /** \brief Reports whether the QR factorization was successful.
    *
@@ -408,8 +408,8 @@ void FullPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
 
   for (Index k = 0; k < size; ++k) {
     Index row_of_biggest_in_corner, col_of_biggest_in_corner;
-    typedef internal::scalar_score_coeff_op<Scalar> Scoring;
-    typedef typename Scoring::result_type Score;
+    using Scoring = internal::scalar_score_coeff_op<Scalar>;
+    using Score = typename Scoring::result_type;
 
     Score score = m_qr.bottomRightCorner(rows - k, cols - k)
                       .unaryExpr(Scoring())
@@ -531,8 +531,8 @@ struct Assignment<DstXprType, Inverse<FullPivHouseholderQR<MatrixType, Permutati
                   internal::assign_op<typename DstXprType::Scalar,
                                       typename FullPivHouseholderQR<MatrixType, PermutationIndex>::Scalar>,
                   Dense2Dense> {
-  typedef FullPivHouseholderQR<MatrixType, PermutationIndex> QrType;
-  typedef Inverse<QrType> SrcXprType;
+  using QrType = FullPivHouseholderQR<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<QrType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename QrType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));
@@ -549,11 +549,10 @@ template <typename MatrixType, typename PermutationIndex>
 struct FullPivHouseholderQRMatrixQReturnType
     : public ReturnByValue<FullPivHouseholderQRMatrixQReturnType<MatrixType, PermutationIndex> > {
  public:
-  typedef typename FullPivHouseholderQR<MatrixType, PermutationIndex>::IntDiagSizeVectorType IntDiagSizeVectorType;
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef Matrix<typename MatrixType::Scalar, 1, MatrixType::RowsAtCompileTime, RowMajor, 1,
-                 MatrixType::MaxRowsAtCompileTime>
-      WorkVectorType;
+  using IntDiagSizeVectorType = typename FullPivHouseholderQR<MatrixType, PermutationIndex>::IntDiagSizeVectorType;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using WorkVectorType = Matrix<typename MatrixType::Scalar, 1, MatrixType::RowsAtCompileTime, RowMajor, 1,
+                                MatrixType::MaxRowsAtCompileTime>;
 
   FullPivHouseholderQRMatrixQReturnType(const MatrixType& qr, const HCoeffsType& hCoeffs,
                                         const IntDiagSizeVectorType& rowsTranspositions)

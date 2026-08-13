@@ -26,8 +26,8 @@ namespace internal {
 template <typename Scalar_, typename StorageIndex_>
 class AmbiVector {
  public:
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
 
   explicit AmbiVector(Index size)
       : m_buffer(0), m_zero(0), m_size(0), m_end(0), m_allocatedSize(0), m_allocatedElements(0), m_mode(-1) {
@@ -252,8 +252,8 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeff(Index i) {
 template <typename Scalar_, typename StorageIndex_>
 class AmbiVector<Scalar_, StorageIndex_>::Iterator {
  public:
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   /** Default constructor
    * \param vec the vector on which we iterate

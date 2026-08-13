@@ -21,9 +21,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_>
 struct traits<HouseholderQR<MatrixType_>> : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -59,8 +59,8 @@ struct traits<HouseholderQR<MatrixType_>> : traits<MatrixType_> {
 template <typename MatrixType_>
 class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<HouseholderQR> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<HouseholderQR>;
   friend class SolverBase<HouseholderQR>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(HouseholderQR)
@@ -68,13 +68,13 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime, (MatrixType::Flags & RowMajorBit) ? RowMajor : ColMajor,
-                 MaxRowsAtCompileTime, MaxRowsAtCompileTime>
-      MatrixQType;
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
-  typedef HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>
-      HouseholderSequenceType;
+  using MatrixQType =
+      Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime, (MatrixType::Flags & RowMajorBit) ? RowMajor : ColMajor,
+             MaxRowsAtCompileTime, MaxRowsAtCompileTime>;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using RowVectorType = typename internal::plain_row_type<MatrixType>::type;
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>;
 
   /** \brief Reports whether the QR factorization was successful.
    *
@@ -356,15 +356,15 @@ namespace internal {
 /** \internal */
 template <typename MatrixQR, typename HCoeffs>
 void householder_qr_inplace_unblocked(MatrixQR& mat, HCoeffs& hCoeffs, typename MatrixQR::Scalar* tempData = 0) {
-  typedef typename MatrixQR::Scalar Scalar;
-  typedef typename MatrixQR::RealScalar RealScalar;
+  using Scalar = typename MatrixQR::Scalar;
+  using RealScalar = typename MatrixQR::RealScalar;
   Index rows = mat.rows();
   Index cols = mat.cols();
   Index size = (std::min)(rows, cols);
 
   eigen_assert(hCoeffs.size() == size);
 
-  typedef Matrix<Scalar, MatrixQR::ColsAtCompileTime, 1> TempType;
+  using TempType = Matrix<Scalar, MatrixQR::ColsAtCompileTime, 1>;
   TempType tempVector;
   if (tempData == 0) {
     tempVector.resize(cols);
@@ -401,8 +401,8 @@ void householder_qr_inplace_unblocked(MatrixQR& mat, HCoeffs& hCoeffs, typename 
 template <typename MatrixQR, typename HCoeffs, typename VectorQR>
 void householder_qr_inplace_update(MatrixQR& mat, HCoeffs& hCoeffs, const VectorQR& newColumn,
                                    typename MatrixQR::Index k, typename MatrixQR::Scalar* tempData) {
-  typedef typename MatrixQR::Index Index;
-  typedef typename MatrixQR::RealScalar RealScalar;
+  using Index = typename MatrixQR::Index;
+  using RealScalar = typename MatrixQR::RealScalar;
   Index rows = mat.rows();
 
   eigen_assert(k < mat.cols());
@@ -432,14 +432,14 @@ template <typename MatrixQR, typename HCoeffs, typename MatrixQRScalar = typenam
 struct householder_qr_inplace_blocked {
   // This is specialized for LAPACK-supported Scalar types in HouseholderQR_LAPACKE.h
   static void run(MatrixQR& mat, HCoeffs& hCoeffs, Index maxBlockSize = 32, typename MatrixQR::Scalar* tempData = 0) {
-    typedef typename MatrixQR::Scalar Scalar;
-    typedef Block<MatrixQR, Dynamic, Dynamic> BlockType;
+    using Scalar = typename MatrixQR::Scalar;
+    using BlockType = Block<MatrixQR, Dynamic, Dynamic>;
 
     Index rows = mat.rows();
     Index cols = mat.cols();
     Index size = (std::min)(rows, cols);
 
-    typedef Matrix<Scalar, Dynamic, 1, ColMajor, MatrixQR::MaxColsAtCompileTime, 1> TempType;
+    using TempType = Matrix<Scalar, Dynamic, 1, ColMajor, MatrixQR::MaxColsAtCompileTime, 1>;
     TempType tempVector;
     if (tempData == 0) {
       tempVector.resize(cols);

@@ -22,9 +22,9 @@ namespace internal {
 // Vector3 version (default)
 template <typename Derived, typename OtherDerived, int Size>
 struct cross_impl {
-  typedef typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
-                                        typename internal::traits<OtherDerived>::Scalar>::ReturnType Scalar;
-  typedef Matrix<Scalar, MatrixBase<Derived>::RowsAtCompileTime, MatrixBase<Derived>::ColsAtCompileTime> return_type;
+  using Scalar = typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
+                                               typename internal::traits<OtherDerived>::Scalar>::ReturnType;
+  using return_type = Matrix<Scalar, MatrixBase<Derived>::RowsAtCompileTime, MatrixBase<Derived>::ColsAtCompileTime>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const MatrixBase<Derived>& first,
                                                                const MatrixBase<OtherDerived>& second) {
@@ -44,9 +44,9 @@ struct cross_impl {
 // Vector2 version
 template <typename Derived, typename OtherDerived>
 struct cross_impl<Derived, OtherDerived, 2> {
-  typedef typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
-                                        typename internal::traits<OtherDerived>::Scalar>::ReturnType Scalar;
-  typedef Scalar return_type;
+  using Scalar = typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
+                                               typename internal::traits<OtherDerived>::Scalar>::ReturnType;
+  using return_type = Scalar;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE return_type run(const MatrixBase<Derived>& first,
                                                                const MatrixBase<OtherDerived>& second) {
@@ -126,8 +126,8 @@ EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::PlainObject MatrixBase<De
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 4)
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 4)
 
-  typedef typename internal::nested_eval<Derived, 2>::type DerivedNested;
-  typedef typename internal::nested_eval<OtherDerived, 2>::type OtherDerivedNested;
+  using DerivedNested = typename internal::nested_eval<Derived, 2>::type;
+  using OtherDerivedNested = typename internal::nested_eval<OtherDerived, 2>::type;
   DerivedNested lhs(derived());
   OtherDerivedNested rhs(other.derived());
 
@@ -175,10 +175,10 @@ namespace internal {
 
 template <typename Derived, int Size = Derived::SizeAtCompileTime>
 struct unitOrthogonal_selector {
-  typedef typename plain_matrix_type<Derived>::type VectorType;
-  typedef typename traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, 2, 1> Vector2;
+  using VectorType = typename plain_matrix_type<Derived>::type;
+  using Scalar = typename traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector2 = Matrix<Scalar, 2, 1>;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp = VectorType::Zero(src.size());
     Index maxi = 0;
@@ -195,9 +195,9 @@ struct unitOrthogonal_selector {
 
 template <typename Derived>
 struct unitOrthogonal_selector<Derived, 3> {
-  typedef typename plain_matrix_type<Derived>::type VectorType;
-  typedef typename traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using VectorType = typename plain_matrix_type<Derived>::type;
+  using Scalar = typename traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp;
     /* Let us compute the crossed product of *this with a vector
@@ -230,7 +230,7 @@ struct unitOrthogonal_selector<Derived, 3> {
 
 template <typename Derived>
 struct unitOrthogonal_selector<Derived, 2> {
-  typedef typename plain_matrix_type<Derived>::type VectorType;
+  using VectorType = typename plain_matrix_type<Derived>::type;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     return VectorType(-numext::conj(src.y()), numext::conj(src.x())).normalized();
   }

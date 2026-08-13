@@ -45,23 +45,23 @@ namespace Eigen {
 namespace internal {
 template <typename Scalar_>
 struct traits<AngleAxis<Scalar_> > {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
 };
 }  // namespace internal
 
 template <typename Scalar_>
 class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
-  typedef RotationBase<AngleAxis<Scalar_>, 3> Base;
+  using Base = RotationBase<AngleAxis<Scalar_>, 3>;
 
  public:
   using Base::operator*;
 
   enum { Dim = 3 };
   /** the scalar type of the coefficients */
-  typedef Scalar_ Scalar;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Quaternion<Scalar> QuaternionType;
+  using Scalar = Scalar_;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using QuaternionType = Quaternion<Scalar>;
 
  protected:
   Vector3 m_axis;
@@ -178,10 +178,10 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
 
 /** \ingroup Geometry_Module
  * single precision angle-axis type */
-typedef AngleAxis<float> AngleAxisf;
+using AngleAxisf = AngleAxis<float>;
 /** \ingroup Geometry_Module
  * double precision angle-axis type */
-typedef AngleAxis<double> AngleAxisd;
+using AngleAxisd = AngleAxis<double>;
 
 /** Set \c *this from a \b unit quaternion.
  *

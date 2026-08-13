@@ -20,9 +20,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<ColPivHouseholderQR<MatrixType_, PermutationIndex_>> : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
@@ -55,9 +55,9 @@ template <typename MatrixType_, typename PermutationIndex_>
 class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, PermutationIndex_>>,
                             public RankRevealingBase<ColPivHouseholderQR<MatrixType_, PermutationIndex_>> {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<ColPivHouseholderQR> Base;
-  typedef RankRevealingBase<ColPivHouseholderQR> RankRevealingBase_;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<ColPivHouseholderQR>;
+  using RankRevealingBase_ = RankRevealingBase<ColPivHouseholderQR>;
   friend class SolverBase<ColPivHouseholderQR>;
   friend class RankRevealingBase<ColPivHouseholderQR>;
   using RankRevealingBase_::dimensionOfKernel;
@@ -69,21 +69,21 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
   using RankRevealingBase_::rank;
   using RankRevealingBase_::setThreshold;
   using RankRevealingBase_::threshold;
-  typedef PermutationIndex_ PermutationIndex;
+  using PermutationIndex = PermutationIndex_;
   EIGEN_GENERIC_PUBLIC_INTERFACE(ColPivHouseholderQR)
 
   enum {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationType;
-  typedef typename internal::plain_row_type<MatrixType, PermutationIndex>::type IntRowVectorType;
-  typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
-  typedef typename internal::plain_row_type<MatrixType, RealScalar>::type RealRowVectorType;
-  typedef HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>
-      HouseholderSequenceType;
-  typedef typename MatrixType::PlainObject PlainObject;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using PermutationType = PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex>;
+  using IntRowVectorType = typename internal::plain_row_type<MatrixType, PermutationIndex>::type;
+  using RowVectorType = typename internal::plain_row_type<MatrixType>::type;
+  using RealRowVectorType = typename internal::plain_row_type<MatrixType, RealScalar>::type;
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>;
+  using PlainObject = typename MatrixType::PlainObject;
 
  private:
   void init(Index rows, Index cols) {
@@ -528,8 +528,8 @@ struct Assignment<DstXprType, Inverse<ColPivHouseholderQR<MatrixType, Permutatio
                   internal::assign_op<typename DstXprType::Scalar,
                                       typename ColPivHouseholderQR<MatrixType, PermutationIndex>::Scalar>,
                   Dense2Dense> {
-  typedef ColPivHouseholderQR<MatrixType, PermutationIndex> QrType;
-  typedef Inverse<QrType> SrcXprType;
+  using QrType = ColPivHouseholderQR<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<QrType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename QrType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));

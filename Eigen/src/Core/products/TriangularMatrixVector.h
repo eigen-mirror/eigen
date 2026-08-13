@@ -24,7 +24,7 @@ struct triangular_matrix_vector_product;
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
 struct triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScalar, ConjRhs, ColMajor, Version> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   static constexpr bool IsLower = (Mode & Lower) == Lower;
   static constexpr bool HasUnitDiag = (Mode & UnitDiag) == UnitDiag;
   static constexpr bool HasZeroDiag = (Mode & ZeroDiag) == ZeroDiag;
@@ -44,8 +44,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
   Index rows = IsLower ? _rows : (std::min)(_rows, _cols);
   Index cols = IsLower ? (std::min)(_rows, _cols) : _cols;
 
-  typedef const_blas_data_mapper<LhsScalar, Index, ColMajor> LhsMapper;
-  typedef const_blas_data_mapper<RhsScalar, Index, RowMajor> RhsMapper;
+  using LhsMapper = const_blas_data_mapper<LhsScalar, Index, ColMajor>;
+  using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RowMajor>;
 
   conj_if<ConjLhs> cjl;
   conj_if<ConjRhs> cjr;
@@ -147,7 +147,7 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
 struct triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScalar, ConjRhs, RowMajor, Version> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   static constexpr bool IsLower = (Mode & Lower) == Lower;
   static constexpr bool HasUnitDiag = (Mode & UnitDiag) == UnitDiag;
   static constexpr bool HasZeroDiag = (Mode & ZeroDiag) == ZeroDiag;
@@ -167,8 +167,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
   Index rows = IsLower ? _rows : diagSize;
   Index cols = IsLower ? diagSize : _cols;
 
-  typedef const_blas_data_mapper<LhsScalar, Index, RowMajor> LhsMapper;
-  typedef const_blas_data_mapper<RhsScalar, Index, RowMajor> RhsMapper;
+  using LhsMapper = const_blas_data_mapper<LhsScalar, Index, RowMajor>;
+  using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RowMajor>;
 
   conj_if<ConjLhs> cjl;
   conj_if<ConjRhs> cjr;
@@ -261,17 +261,17 @@ template <int Mode>
 struct trmv_selector<Mode, ColMajor> {
   template <typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Rhs::Scalar RhsScalar;
-    typedef typename Dest::Scalar ResScalar;
+    using LhsScalar = typename Lhs::Scalar;
+    using RhsScalar = typename Rhs::Scalar;
+    using ResScalar = typename Dest::Scalar;
 
-    typedef internal::blas_traits<Lhs> LhsBlasTraits;
-    typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-    typedef internal::blas_traits<Rhs> RhsBlasTraits;
-    typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
+    using LhsBlasTraits = internal::blas_traits<Lhs>;
+    using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+    using RhsBlasTraits = internal::blas_traits<Rhs>;
+    using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
     constexpr int Alignment = (std::min)(int(AlignedMax), int(internal::packet_traits<ResScalar>::size));
 
-    typedef Map<Matrix<ResScalar, Dynamic, 1>, Alignment> MappedDest;
+    using MappedDest = Map<Matrix<ResScalar, Dynamic, 1>, Alignment>;
 
     add_const_on_value_type_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
     add_const_on_value_type_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
@@ -340,15 +340,15 @@ template <int Mode>
 struct trmv_selector<Mode, RowMajor> {
   template <typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Rhs::Scalar RhsScalar;
-    typedef typename Dest::Scalar ResScalar;
+    using LhsScalar = typename Lhs::Scalar;
+    using RhsScalar = typename Rhs::Scalar;
+    using ResScalar = typename Dest::Scalar;
 
-    typedef internal::blas_traits<Lhs> LhsBlasTraits;
-    typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-    typedef internal::blas_traits<Rhs> RhsBlasTraits;
-    typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-    typedef internal::remove_all_t<ActualRhsType> ActualRhsTypeCleaned;
+    using LhsBlasTraits = internal::blas_traits<Lhs>;
+    using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+    using RhsBlasTraits = internal::blas_traits<Rhs>;
+    using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
+    using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
     std::add_const_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
     std::add_const_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);

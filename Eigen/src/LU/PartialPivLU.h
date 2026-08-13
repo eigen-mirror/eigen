@@ -20,10 +20,10 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<PartialPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ StorageIndex;
-  typedef traits<MatrixType_> BaseTraits;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = PermutationIndex_;
+  using BaseTraits = traits<MatrixType_>;
   enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = Dynamic };
 };
 
@@ -66,8 +66,8 @@ struct traits<PartialPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType
 template <typename MatrixType_, typename PermutationIndex_>
 class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationIndex_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<PartialPivLU> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<PartialPivLU>;
   friend class SolverBase<PartialPivLU>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(PartialPivLU)
@@ -76,9 +76,9 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
   using PermutationIndex = PermutationIndex_;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex> PermutationType;
-  typedef Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex> TranspositionType;
-  typedef typename MatrixType::PlainObject PlainObject;
+  using PermutationType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex>;
+  using TranspositionType = Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /** \brief Reports whether the LU factorization was successful.
    *
@@ -310,10 +310,10 @@ struct generic_partial_lu_impl {
   // Remaining rows and columns at compile-time:
   static constexpr int RRows = SizeAtCompileTime == 2 ? 1 : Dynamic;
   static constexpr int RCols = SizeAtCompileTime == 2 ? 1 : Dynamic;
-  typedef Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, StorageOrder> MatrixType;
-  typedef Ref<MatrixType> MatrixTypeRef;
-  typedef Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder> > BlockType;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using MatrixType = Matrix<Scalar, ActualSizeAtCompileTime, ActualSizeAtCompileTime, StorageOrder>;
+  using MatrixTypeRef = Ref<MatrixType>;
+  using BlockType = Ref<Matrix<Scalar, Dynamic, Dynamic, StorageOrder>>;
+  using RealScalar = typename MatrixType::RealScalar;
 
   /** \internal performs the LU decomposition in-place of the matrix \a lu
    * using an unblocked algorithm.
@@ -326,8 +326,8 @@ struct generic_partial_lu_impl {
    * \returns The index of the first pivot which is exactly zero if any, or a negative number otherwise.
    */
   static Index unblocked_lu(MatrixTypeRef& lu, PivIndex* row_transpositions, PivIndex& nb_transpositions) {
-    typedef scalar_score_coeff_op<Scalar> Scoring;
-    typedef typename Scoring::result_type Score;
+    using Scoring = scalar_score_coeff_op<Scalar>;
+    using Score = typename Scoring::result_type;
     const Index rows = lu.rows();
     const Index cols = lu.cols();
     const Index size = (std::min)(rows, cols);
@@ -490,13 +490,13 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions,
  */
 template <typename Derived>
 typename traits<Derived>::Scalar partial_lu_determinant(const Derived& m) {
-  typedef typename traits<Derived>::Scalar Scalar;
+  using Scalar = typename traits<Derived>::Scalar;
   if (m.rows() == 0) return Scalar(1);
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
-  typedef typename plain_matrix_type<Derived>::type PlainObject;
-  typedef Transpositions<PlainObject::RowsAtCompileTime, PlainObject::MaxRowsAtCompileTime, DefaultPermutationIndex>
-      TranspositionType;
+  using PlainObject = typename plain_matrix_type<Derived>::type;
+  using TranspositionType =
+      Transpositions<PlainObject::RowsAtCompileTime, PlainObject::MaxRowsAtCompileTime, DefaultPermutationIndex>;
 
   eigen_assert(m.rows() < NumTraits<DefaultPermutationIndex>::highest());
   PlainObject lu(m);
@@ -565,8 +565,8 @@ struct Assignment<
     DstXprType, Inverse<PartialPivLU<MatrixType, PermutationIndex> >,
     internal::assign_op<typename DstXprType::Scalar, typename PartialPivLU<MatrixType, PermutationIndex>::Scalar>,
     Dense2Dense> {
-  typedef PartialPivLU<MatrixType, PermutationIndex> LuType;
-  typedef Inverse<LuType> SrcXprType;
+  using LuType = PartialPivLU<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<LuType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename LuType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));

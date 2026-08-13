@@ -27,7 +27,7 @@ namespace internal {
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_halley_iteration_step(const Packet& x_k,
                                                                                       const Packet& y) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   Packet x_k_cb = pmul(x_k, pmul(x_k, x_k));
   Packet denom = pmadd(pset1<Packet>(Scalar(2)), x_k_cb, y);
   Packet num = psub(x_k_cb, y);
@@ -39,7 +39,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_halley_iteration
 // interval [0.125,1].
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_decompose(const Packet& x, Packet& e_div3) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   // Extract the significand s in the range [0.5,1) and exponent e, such that
   // x = 2^e * s.
   Packet e, s;
@@ -100,7 +100,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
 // This is accurate to 2 ULP.
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
   // Decompose the input such that x^(1/3) = y^(1/3) * 2^e_div3, and y is in the
@@ -131,7 +131,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Pac
 // This is accurate to 1 ULP.
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
   // Decompose the input such that x^(1/3) = y^(1/3) * 2^e_div3, and y is in the
@@ -318,7 +318,7 @@ struct accurate_log2<double> {
 // easier to specialize or turn off for specific types and/or backends.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, const Packet& y) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   // Split x into exponent e_x and mantissa m_x.
   Packet e_x;
   Packet m_x = pfrexp(x, e_x);
@@ -375,7 +375,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, c
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<Packet>::value, Packet> generic_pow(
     const Packet& x, const Packet& y) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
 
   const Packet cst_inf = pinf<Packet>();
   const Packet cst_zero = pset1<Packet>(Scalar(0));
@@ -671,7 +671,7 @@ struct unary_pow_impl;
 
 template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
 struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     const bool exponent_is_integer = (numext::isfinite)(exponent) && numext::round(exponent) == exponent;
     if (exponent_is_integer) {
@@ -691,7 +691,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, false, ExponentIsSigned> {
 
 template <typename Packet, typename ScalarExponent, bool ExponentIsSigned>
 struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     return unary_pow::int_pow(x, exponent);
   }
@@ -699,7 +699,7 @@ struct unary_pow_impl<Packet, ScalarExponent, false, true, ExponentIsSigned> {
 
 template <typename Packet, typename ScalarExponent>
 struct unary_pow_impl<Packet, ScalarExponent, true, true, true> {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     if (exponent < ScalarExponent(0)) {
       return unary_pow::handle_negative_exponent(x, exponent);
@@ -711,7 +711,7 @@ struct unary_pow_impl<Packet, ScalarExponent, true, true, true> {
 
 template <typename Packet, typename ScalarExponent>
 struct unary_pow_impl<Packet, ScalarExponent, true, true, false> {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& x, const ScalarExponent& exponent) {
     return unary_pow::int_pow(x, exponent);
   }

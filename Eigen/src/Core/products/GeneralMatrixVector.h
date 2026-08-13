@@ -27,7 +27,7 @@ namespace internal {
 
 template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEBPPacketFull>
 class gemv_traits {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
   typedef typename packet_conditional<                                                                     \
@@ -48,9 +48,9 @@ class gemv_traits {
     ResPacketSize = Vectorizable ? unpacket_traits<ResPacket_>::size : 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, RhsPacket_, RhsScalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, RhsPacket_, RhsScalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
 };
 
 /* Optimized col-major matrix * vector product:
@@ -70,23 +70,23 @@ template <typename Index, typename LhsScalar, typename LhsMapper, bool Conjugate
           typename RhsMapper, bool ConjugateRhs, int Version>
 struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLhs, RhsScalar, RhsMapper,
                                      ConjugateRhs, Version> {
-  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf> HalfTraits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter> QuarterTraits;
+  using Traits = gemv_traits<LhsScalar, RhsScalar>;
+  using HalfTraits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf>;
+  using QuarterTraits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter>;
 
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
-  typedef typename Traits::LhsPacket LhsPacket;
-  typedef typename Traits::RhsPacket RhsPacket;
-  typedef typename Traits::ResPacket ResPacket;
+  using LhsPacket = typename Traits::LhsPacket;
+  using RhsPacket = typename Traits::RhsPacket;
+  using ResPacket = typename Traits::ResPacket;
 
-  typedef typename HalfTraits::LhsPacket LhsPacketHalf;
-  typedef typename HalfTraits::RhsPacket RhsPacketHalf;
-  typedef typename HalfTraits::ResPacket ResPacketHalf;
+  using LhsPacketHalf = typename HalfTraits::LhsPacket;
+  using RhsPacketHalf = typename HalfTraits::RhsPacket;
+  using ResPacketHalf = typename HalfTraits::ResPacket;
 
-  typedef typename QuarterTraits::LhsPacket LhsPacketQuarter;
-  typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
-  typedef typename QuarterTraits::ResPacket ResPacketQuarter;
+  using LhsPacketQuarter = typename QuarterTraits::LhsPacket;
+  using RhsPacketQuarter = typename QuarterTraits::RhsPacket;
+  using ResPacketQuarter = typename QuarterTraits::ResPacket;
 
   EIGEN_DEVICE_FUNC inline static void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
                                            ResScalar* res, Index resIncr, RhsScalar alpha);
@@ -288,23 +288,23 @@ template <typename Index, typename LhsScalar, typename LhsMapper, bool Conjugate
           typename RhsMapper, bool ConjugateRhs, int Version>
 struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLhs, RhsScalar, RhsMapper,
                                      ConjugateRhs, Version> {
-  typedef gemv_traits<LhsScalar, RhsScalar> Traits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf> HalfTraits;
-  typedef gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter> QuarterTraits;
+  using Traits = gemv_traits<LhsScalar, RhsScalar>;
+  using HalfTraits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketHalf>;
+  using QuarterTraits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketQuarter>;
 
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
-  typedef typename Traits::LhsPacket LhsPacket;
-  typedef typename Traits::RhsPacket RhsPacket;
-  typedef typename Traits::ResPacket ResPacket;
+  using LhsPacket = typename Traits::LhsPacket;
+  using RhsPacket = typename Traits::RhsPacket;
+  using ResPacket = typename Traits::ResPacket;
 
-  typedef typename HalfTraits::LhsPacket LhsPacketHalf;
-  typedef typename HalfTraits::RhsPacket RhsPacketHalf;
-  typedef typename HalfTraits::ResPacket ResPacketHalf;
+  using LhsPacketHalf = typename HalfTraits::LhsPacket;
+  using RhsPacketHalf = typename HalfTraits::RhsPacket;
+  using ResPacketHalf = typename HalfTraits::ResPacket;
 
-  typedef typename QuarterTraits::LhsPacket LhsPacketQuarter;
-  typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
-  typedef typename QuarterTraits::ResPacket ResPacketQuarter;
+  using LhsPacketQuarter = typename QuarterTraits::LhsPacket;
+  using RhsPacketQuarter = typename QuarterTraits::RhsPacket;
+  using ResPacketQuarter = typename QuarterTraits::ResPacket;
 
   EIGEN_DEVICE_FUNC static inline void run(Index rows, Index cols, const LhsMapper& lhs, const RhsMapper& rhs,
                                            ResScalar* res, Index resIncr, ResScalar alpha);

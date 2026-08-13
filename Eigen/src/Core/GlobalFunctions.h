@@ -182,9 +182,10 @@ EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
                                               EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar,
                                                                             typename Derived::Scalar)>::type,
     Derived, internal::scalar_pow_op) pow(const Scalar& x, const Eigen::ArrayBase<Derived>& exponents) {
-  typedef typename internal::promote_scalar_arg<
-      typename Derived::Scalar, Scalar,
-      EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar, typename Derived::Scalar)>::type PromotedScalar;
+  using PromotedScalar =
+      typename internal::promote_scalar_arg<typename Derived::Scalar, Scalar,
+                                            EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar,
+                                                                          typename Derived::Scalar)>::type;
   return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedScalar, Derived, internal::scalar_pow_op)(
       typename internal::plain_constant_type<Derived, PromotedScalar>::type(
           exponents.derived().rows(), exponents.derived().cols(), internal::scalar_constant_op<PromotedScalar>(x)),

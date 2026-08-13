@@ -19,9 +19,9 @@ namespace Eigen {
 template <typename Environment>
 class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
  public:
-  typedef typename Environment::EnvThread Thread;
-  typedef typename Environment::Task Task;
-  typedef RunQueue<Task, 1024> Queue;
+  using Thread = typename Environment::EnvThread;
+  using Task = typename Environment::Task;
+  using Queue = RunQueue<Task, 1024>;
 
   struct PerThread {
     ThreadPoolTempl* pool = nullptr;  // Parent pool, or null for normal threads.
@@ -581,7 +581,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   }
 };
 
-typedef ThreadPoolTempl<StlThreadEnvironment> ThreadPool;
+using ThreadPool = ThreadPoolTempl<StlThreadEnvironment>;
 
 }  // namespace Eigen
 

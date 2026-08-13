@@ -43,17 +43,17 @@ namespace internal {
 // One solution is to increase ABI version using -fabi-version=4 (or greater).
 // Otherwise, we workaround this inconvenience by wrapping 128bit types into the following helper
 // structure:
-typedef eigen_packet_wrapper<__m128> Packet4f;
-typedef eigen_packet_wrapper<__m128d> Packet2d;
+using Packet4f = eigen_packet_wrapper<__m128>;
+using Packet2d = eigen_packet_wrapper<__m128d>;
 #else
-typedef __m128 Packet4f;
-typedef __m128d Packet2d;
+using Packet4f = __m128;
+using Packet2d = __m128d;
 #endif
 
-typedef eigen_packet_wrapper<__m128i, 0> Packet4i;
-typedef eigen_packet_wrapper<__m128i, 1> Packet16b;
-typedef eigen_packet_wrapper<__m128i, 4> Packet4ui;
-typedef eigen_packet_wrapper<__m128i, 5> Packet2l;
+using Packet4i = eigen_packet_wrapper<__m128i, 0>;
+using Packet16b = eigen_packet_wrapper<__m128i, 1>;
+using Packet4ui = eigen_packet_wrapper<__m128i, 4>;
+using Packet2l = eigen_packet_wrapper<__m128i, 5>;
 
 template <>
 struct is_arithmetic<__m128> : std::true_type {};
@@ -160,8 +160,8 @@ EIGEN_ALWAYS_INLINE int64_t _mm_extract_epi64_1(const __m128i& a) {
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet4f type;
-  typedef Packet4f half;
+  using type = Packet4f;
+  using half = Packet4f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -200,8 +200,8 @@ struct packet_traits<float> : default_packet_traits {
 };
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet2d type;
-  typedef Packet2d half;
+  using type = Packet2d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -234,8 +234,8 @@ struct packet_traits<double> : default_packet_traits {
 };
 template <>
 struct packet_traits<int> : default_packet_traits {
-  typedef Packet4i type;
-  typedef Packet4i half;
+  using type = Packet4i;
+  using half = Packet4i;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -248,8 +248,8 @@ struct packet_traits<int> : default_packet_traits {
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
-  typedef Packet4ui type;
-  typedef Packet4ui half;
+  using type = Packet4ui;
+  using half = Packet4ui;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -262,8 +262,8 @@ struct packet_traits<uint32_t> : default_packet_traits {
 };
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
-  typedef Packet2l type;
-  typedef Packet2l half;
+  using type = Packet2l;
+  using half = Packet2l;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -276,8 +276,8 @@ struct packet_traits<int64_t> : default_packet_traits {
 #endif
 template <>
 struct packet_traits<bool> : default_packet_traits {
-  typedef Packet16b type;
-  typedef Packet16b half;
+  using type = Packet16b;
+  using half = Packet16b;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -297,9 +297,9 @@ struct packet_traits<bool> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4f> {
-  typedef float type;
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
+  using type = float;
+  using half = Packet4f;
+  using integer_packet = Packet4i;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -310,9 +310,9 @@ struct unpacket_traits<Packet4f> {
 };
 template <>
 struct unpacket_traits<Packet2d> {
-  typedef double type;
-  typedef Packet2d half;
-  typedef Packet2l integer_packet;
+  using type = double;
+  using half = Packet2d;
+  using integer_packet = Packet2l;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -323,8 +323,8 @@ struct unpacket_traits<Packet2d> {
 };
 template <>
 struct unpacket_traits<Packet2l> {
-  typedef int64_t type;
-  typedef Packet2l half;
+  using type = int64_t;
+  using half = Packet2l;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -335,8 +335,8 @@ struct unpacket_traits<Packet2l> {
 };
 template <>
 struct unpacket_traits<Packet4i> {
-  typedef int type;
-  typedef Packet4i half;
+  using type = int;
+  using half = Packet4i;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -347,8 +347,8 @@ struct unpacket_traits<Packet4i> {
 };
 template <>
 struct unpacket_traits<Packet4ui> {
-  typedef uint32_t type;
-  typedef Packet4ui half;
+  using type = uint32_t;
+  using half = Packet4ui;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -359,8 +359,8 @@ struct unpacket_traits<Packet4ui> {
 };
 template <>
 struct unpacket_traits<Packet16b> {
-  typedef bool type;
-  typedef Packet16b half;
+  using type = bool;
+  using half = Packet16b;
   enum {
     size = 16,
     alignment = Aligned16,
@@ -1680,9 +1680,9 @@ EIGEN_STRONG_INLINE void pstore1<Packet2d>(double* to, const double& a) {
 }
 
 #if EIGEN_COMP_PGI && EIGEN_COMP_PGI < 1900
-typedef const void* SsePrefetchPtrType;
+using SsePrefetchPtrType = const void*;
 #else
-typedef const char* SsePrefetchPtrType;
+using SsePrefetchPtrType = const char*;
 #endif
 
 #ifndef EIGEN_VECTORIZE_AVX

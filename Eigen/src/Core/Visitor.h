@@ -306,10 +306,10 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
 template <typename XprType>
 class visitor_evaluator {
  public:
-  typedef evaluator<XprType> Evaluator;
-  typedef typename XprType::Scalar Scalar;
+  using Evaluator = evaluator<XprType>;
+  using Scalar = typename XprType::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
 
   static constexpr bool PacketAccess = static_cast<bool>(Evaluator::Flags & PacketAccessBit);
   static constexpr bool LinearAccess = static_cast<bool>(Evaluator::Flags & LinearAccessBit);

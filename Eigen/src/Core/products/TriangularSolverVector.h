@@ -32,11 +32,11 @@ template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool
 struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, RowMajor> {
   enum { IsLower = ((Mode & Lower) == Lower) };
   static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
-    typedef Map<const Matrix<LhsScalar, Dynamic, Dynamic, RowMajor>, 0, OuterStride<> > LhsMap;
+    using LhsMap = Map<const Matrix<LhsScalar, Dynamic, Dynamic, RowMajor>, 0, OuterStride<> >;
     const LhsMap lhs(_lhs, size, size, OuterStride<>(lhsStride));
 
-    typedef const_blas_data_mapper<LhsScalar, Index, RowMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar, Index, ColMajor> RhsMapper;
+    using LhsMapper = const_blas_data_mapper<LhsScalar, Index, RowMajor>;
+    using RhsMapper = const_blas_data_mapper<RhsScalar, Index, ColMajor>;
 
     std::conditional_t<Conjugate, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
                        const LhsMap&>
@@ -80,10 +80,10 @@ template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool
 struct triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mode, Conjugate, ColMajor> {
   enum { IsLower = ((Mode & Lower) == Lower) };
   static void run(Index size, const LhsScalar* _lhs, Index lhsStride, RhsScalar* rhs) {
-    typedef Map<const Matrix<LhsScalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> > LhsMap;
+    using LhsMap = Map<const Matrix<LhsScalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> >;
     const LhsMap lhs(_lhs, size, size, OuterStride<>(lhsStride));
-    typedef const_blas_data_mapper<LhsScalar, Index, ColMajor> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar, Index, ColMajor> RhsMapper;
+    using LhsMapper = const_blas_data_mapper<LhsScalar, Index, ColMajor>;
+    using RhsMapper = const_blas_data_mapper<RhsScalar, Index, ColMajor>;
     std::conditional_t<Conjugate, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
                        const LhsMap&>
         cjLhs(lhs);

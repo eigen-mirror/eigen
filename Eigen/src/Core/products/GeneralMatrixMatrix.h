@@ -99,9 +99,9 @@ template <typename Index, typename LhsScalar, int LhsStorageOrder, bool Conjugat
           int RhsStorageOrder, bool ConjugateRhs, int ResInnerStride>
 struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, ConjugateLhs, RhsScalar, RhsStorageOrder,
                                      ConjugateRhs, RowMajor, ResInnerStride> {
-  typedef gebp_traits<RhsScalar, LhsScalar> Traits;
+  using Traits = gebp_traits<RhsScalar, LhsScalar>;
 
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   static EIGEN_STRONG_INLINE void run(Index rows, Index cols, Index depth, const LhsScalar* lhs, Index lhsStride,
                                       const RhsScalar* rhs, Index rhsStride, ResScalar* res, Index resIncr,
                                       Index resStride, ResScalar alpha, level3_blocking<RhsScalar, LhsScalar>& blocking,
@@ -120,18 +120,18 @@ template <typename Index, typename LhsScalar, int LhsStorageOrder, bool Conjugat
           int RhsStorageOrder, bool ConjugateRhs, int ResInnerStride>
 struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, ConjugateLhs, RhsScalar, RhsStorageOrder,
                                      ConjugateRhs, ColMajor, ResInnerStride> {
-  typedef gebp_traits<LhsScalar, RhsScalar> Traits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar>;
 
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   static void run(Index rows, Index cols, Index depth, const LhsScalar* lhs_, Index lhsStride, const RhsScalar* rhs_,
                   Index rhsStride, ResScalar* res_, Index resIncr, Index resStride, ResScalar alpha,
                   level3_blocking<LhsScalar, RhsScalar>& blocking, GemmParallelInfo<Index>* info = 0) {
     // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
     if (numext::is_exactly_zero(alpha)) return;
 
-    typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
-    typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
-    typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+    using LhsMapper = const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder>;
+    using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder>;
+    using ResMapper = blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride>;
     LhsMapper lhs(lhs_, lhsStride);
     RhsMapper rhs(rhs_, rhsStride);
     ResMapper res(res_, resStride, resIncr);
@@ -232,9 +232,9 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       // adjacent row panels of a ColMajor result. Other kernels keep Eigen's
       // default LHS-first order.
 #ifdef EIGEN_VECTORIZE_SME
-      typedef gemm_pack_rhs_first_loop_policy SequentialGemmLoop;
+      using SequentialGemmLoop = gemm_pack_rhs_first_loop_policy;
 #else
-      typedef gemm_pack_lhs_first_loop_policy SequentialGemmLoop;
+      using SequentialGemmLoop = gemm_pack_lhs_first_loop_policy;
 #endif
 
       SequentialGemmLoop::run(rows, cols, depth, kc, mc, nc, lhs, rhs, res, pack_lhs, pack_rhs, gebp, blockA, blockB,
@@ -267,7 +267,7 @@ struct gemm_functor {
               m_actualAlpha, m_blocking, info);
   }
 
-  typedef typename Gemm::Traits Traits;
+  using Traits = typename Gemm::Traits;
 
  protected:
   const Lhs& m_lhs;
@@ -283,8 +283,8 @@ class gemm_blocking_space;
 
 template <typename LhsScalar_, typename RhsScalar_>
 class level3_blocking {
-  typedef LhsScalar_ LhsScalar;
-  typedef RhsScalar_ RhsScalar;
+  using LhsScalar = LhsScalar_;
+  using RhsScalar = RhsScalar_;
 
  protected:
   LhsScalar* m_blockA = nullptr;
@@ -316,8 +316,8 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     ActualRows = Transpose ? MaxCols : MaxRows,
     ActualCols = Transpose ? MaxRows : MaxCols
   };
-  typedef std::conditional_t<Transpose, RhsScalar_, LhsScalar_> LhsScalar;
-  typedef std::conditional_t<Transpose, LhsScalar_, RhsScalar_> RhsScalar;
+  using LhsScalar = std::conditional_t<Transpose, RhsScalar_, LhsScalar_>;
+  using RhsScalar = std::conditional_t<Transpose, LhsScalar_, RhsScalar_>;
   enum { SizeA = ActualRows * MaxDepth, SizeB = ActualCols * MaxDepth };
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES >= EIGEN_DEFAULT_ALIGN_BYTES
@@ -358,8 +358,8 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
     : public level3_blocking<std::conditional_t<StorageOrder == RowMajor, RhsScalar_, LhsScalar_>,
                              std::conditional_t<StorageOrder == RowMajor, LhsScalar_, RhsScalar_>> {
   enum { Transpose = StorageOrder == RowMajor };
-  typedef std::conditional_t<Transpose, RhsScalar_, LhsScalar_> LhsScalar;
-  typedef std::conditional_t<Transpose, LhsScalar_, RhsScalar_> RhsScalar;
+  using LhsScalar = std::conditional_t<Transpose, RhsScalar_, LhsScalar_>;
+  using RhsScalar = std::conditional_t<Transpose, LhsScalar_, RhsScalar_>;
 
   Index m_sizeA;
   Index m_sizeB;
@@ -420,21 +420,21 @@ namespace internal {
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
-  typedef typename Lhs::Scalar LhsScalar;
-  typedef typename Rhs::Scalar RhsScalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using LhsScalar = typename Lhs::Scalar;
+  using RhsScalar = typename Rhs::Scalar;
 
-  typedef internal::blas_traits<Lhs> LhsBlasTraits;
-  typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-  typedef internal::remove_all_t<ActualLhsType> ActualLhsTypeCleaned;
+  using LhsBlasTraits = internal::blas_traits<Lhs>;
+  using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+  using ActualLhsTypeCleaned = internal::remove_all_t<ActualLhsType>;
 
-  typedef internal::blas_traits<Rhs> RhsBlasTraits;
-  typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-  typedef internal::remove_all_t<ActualRhsType> ActualRhsTypeCleaned;
+  using RhsBlasTraits = internal::blas_traits<Rhs>;
+  using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
+  using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
   enum { MaxDepthAtCompileTime = min_size_prefer_fixed(Lhs::MaxColsAtCompileTime, Rhs::MaxRowsAtCompileTime) };
 
-  typedef generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> lazyproduct;
+  using lazyproduct = generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode>;
 
   // The runtime-size heuristic comes from bug 404 and was tuned with a
   // helper program on Haswell. The rhs.rows() > 0 guard preserves the
@@ -492,19 +492,18 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemmProduct>
 
     Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
 
-    typedef internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, LhsScalar, RhsScalar,
-                                          Dest::MaxRowsAtCompileTime, Dest::MaxColsAtCompileTime, MaxDepthAtCompileTime>
-        BlockingType;
+    using BlockingType =
+        internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, LhsScalar, RhsScalar,
+                                      Dest::MaxRowsAtCompileTime, Dest::MaxColsAtCompileTime, MaxDepthAtCompileTime>;
 
-    typedef internal::gemm_functor<
+    using GemmFunctor = internal::gemm_functor<
         Scalar, Index,
         internal::general_matrix_matrix_product<
             Index, LhsScalar, (ActualLhsTypeCleaned::Flags & RowMajorBit) ? RowMajor : ColMajor,
             bool(LhsBlasTraits::NeedToConjugate), RhsScalar,
             (ActualRhsTypeCleaned::Flags & RowMajorBit) ? RowMajor : ColMajor, bool(RhsBlasTraits::NeedToConjugate),
             (Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Dest::InnerStrideAtCompileTime>,
-        ActualLhsTypeCleaned, ActualRhsTypeCleaned, Dest, BlockingType>
-        GemmFunctor;
+        ActualLhsTypeCleaned, ActualRhsTypeCleaned, Dest, BlockingType>;
 
     BlockingType blocking(dst.rows(), dst.cols(), lhs.cols(), 1, true);
     internal::parallelize_gemm<(Dest::MaxRowsAtCompileTime > 32 || Dest::MaxRowsAtCompileTime == Dynamic)>(

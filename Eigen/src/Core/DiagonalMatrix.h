@@ -33,11 +33,11 @@ namespace Eigen {
 template <typename Derived>
 class DiagonalBase : public EigenBase<Derived> {
  public:
-  typedef typename internal::traits<Derived>::DiagonalVectorType DiagonalVectorType;
-  typedef typename DiagonalVectorType::Scalar Scalar;
-  typedef typename DiagonalVectorType::RealScalar RealScalar;
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
+  using DiagonalVectorType = typename internal::traits<Derived>::DiagonalVectorType;
+  using Scalar = typename DiagonalVectorType::Scalar;
+  using RealScalar = typename DiagonalVectorType::RealScalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using StorageIndex = typename internal::traits<Derived>::StorageIndex;
 
   enum {
     RowsAtCompileTime = DiagonalVectorType::SizeAtCompileTime,
@@ -48,11 +48,11 @@ class DiagonalBase : public EigenBase<Derived> {
     Flags = NoPreferredStorageOrderBit
   };
 
-  typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, 0, MaxRowsAtCompileTime, MaxColsAtCompileTime>
-      DenseMatrixType;
-  typedef DenseMatrixType DenseType;
-  typedef DiagonalMatrix<Scalar, DiagonalVectorType::SizeAtCompileTime, DiagonalVectorType::MaxSizeAtCompileTime>
-      PlainObject;
+  using DenseMatrixType =
+      Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, 0, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
+  using DenseType = DenseMatrixType;
+  using PlainObject =
+      DiagonalMatrix<Scalar, DiagonalVectorType::SizeAtCompileTime, DiagonalVectorType::MaxSizeAtCompileTime>;
 
   /** \returns a const reference to the derived object. */
   EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
@@ -164,8 +164,8 @@ namespace internal {
 template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime>
 struct traits<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>>
     : traits<Matrix<Scalar_, SizeAtCompileTime, SizeAtCompileTime, 0, MaxSizeAtCompileTime, MaxSizeAtCompileTime>> {
-  typedef Matrix<Scalar_, SizeAtCompileTime, 1, 0, MaxSizeAtCompileTime, 1> DiagonalVectorType;
-  typedef DiagonalShape StorageKind;
+  using DiagonalVectorType = Matrix<Scalar_, SizeAtCompileTime, 1, 0, MaxSizeAtCompileTime, 1>;
+  using StorageKind = DiagonalShape;
   enum { Flags = LvalueBit | NoPreferredStorageOrderBit | NestByRefBit };
 };
 }  // namespace internal
@@ -173,11 +173,11 @@ template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime>
 class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompileTime, MaxSizeAtCompileTime>> {
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  typedef typename internal::traits<DiagonalMatrix>::DiagonalVectorType DiagonalVectorType;
-  typedef const DiagonalMatrix& Nested;
-  typedef Scalar_ Scalar;
-  typedef typename internal::traits<DiagonalMatrix>::StorageKind StorageKind;
-  typedef typename internal::traits<DiagonalMatrix>::StorageIndex StorageIndex;
+  using DiagonalVectorType = typename internal::traits<DiagonalMatrix>::DiagonalVectorType;
+  using Nested = const DiagonalMatrix&;
+  using Scalar = Scalar_;
+  using StorageKind = typename internal::traits<DiagonalMatrix>::StorageKind;
+  using StorageIndex = typename internal::traits<DiagonalMatrix>::StorageIndex;
 #endif
 
  protected:
@@ -257,11 +257,11 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
   }
 #endif
 
-  typedef DiagonalWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, DiagonalVectorType>>
-      InitializeReturnType;
+  using InitializeReturnType =
+      DiagonalWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, DiagonalVectorType>>;
 
-  typedef DiagonalWrapper<const CwiseNullaryOp<internal::scalar_zero_op<Scalar>, DiagonalVectorType>>
-      ZeroInitializeReturnType;
+  using ZeroInitializeReturnType =
+      DiagonalWrapper<const CwiseNullaryOp<internal::scalar_zero_op<Scalar>, DiagonalVectorType>>;
 
   /** Initializes a diagonal matrix of size SizeAtCompileTime with coefficients set to zero */
   EIGEN_DEVICE_FUNC static const ZeroInitializeReturnType Zero() { return DiagonalVectorType::Zero().asDiagonal(); }
@@ -305,11 +305,11 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
 namespace internal {
 template <typename DiagonalVectorType_>
 struct traits<DiagonalWrapper<DiagonalVectorType_>> {
-  typedef DiagonalVectorType_ DiagonalVectorType;
-  typedef typename DiagonalVectorType::Scalar Scalar;
-  typedef typename DiagonalVectorType::StorageIndex StorageIndex;
-  typedef DiagonalShape StorageKind;
-  typedef typename traits<DiagonalVectorType>::XprKind XprKind;
+  using DiagonalVectorType = DiagonalVectorType_;
+  using Scalar = typename DiagonalVectorType::Scalar;
+  using StorageIndex = typename DiagonalVectorType::StorageIndex;
+  using StorageKind = DiagonalShape;
+  using XprKind = typename traits<DiagonalVectorType>::XprKind;
   enum {
     RowsAtCompileTime = DiagonalVectorType::SizeAtCompileTime,
     ColsAtCompileTime = DiagonalVectorType::SizeAtCompileTime,
@@ -324,8 +324,8 @@ template <typename DiagonalVectorType_>
 class DiagonalWrapper : public DiagonalBase<DiagonalWrapper<DiagonalVectorType_>>, internal::no_assignment_operator {
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  typedef DiagonalVectorType_ DiagonalVectorType;
-  typedef DiagonalWrapper Nested;
+  using DiagonalVectorType = DiagonalVectorType_;
+  using Nested = DiagonalWrapper;
 #endif
 
   /** Constructor from expression of diagonal coefficients to wrap. */
@@ -389,8 +389,8 @@ bool MatrixBase<Derived>::isDiagonal(const RealScalar& prec) const {
 template <typename Derived>
 template <int DiagIndex_>
 EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<Derived, DiagIndex_>> MatrixBase<Derived>::diagonalView() {
-  typedef Diagonal<Derived, DiagIndex_> DiagType;
-  typedef DiagonalWrapper<DiagType> ReturnType;
+  using DiagType = Diagonal<Derived, DiagIndex_>;
+  using ReturnType = DiagonalWrapper<DiagType>;
   DiagType diag(this->derived());
   return ReturnType(diag);
 }
@@ -400,8 +400,8 @@ template <typename Derived>
 template <int DiagIndex_>
 EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<const Derived, DiagIndex_>> MatrixBase<Derived>::diagonalView()
     const {
-  typedef Diagonal<const Derived, DiagIndex_> DiagType;
-  typedef DiagonalWrapper<DiagType> ReturnType;
+  using DiagType = Diagonal<const Derived, DiagIndex_>;
+  using ReturnType = DiagonalWrapper<DiagType>;
   DiagType diag(this->derived());
   return ReturnType(diag);
 }
@@ -410,8 +410,8 @@ EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<const Derived, DiagIndex_>>
 template <typename Derived>
 EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<Derived, DynamicIndex>> MatrixBase<Derived>::diagonalView(
     Index index) {
-  typedef Diagonal<Derived, DynamicIndex> DiagType;
-  typedef DiagonalWrapper<DiagType> ReturnType;
+  using DiagType = Diagonal<Derived, DynamicIndex>;
+  using ReturnType = DiagonalWrapper<DiagType>;
   DiagType diag(this->derived(), index);
   return ReturnType(diag);
 }
@@ -420,8 +420,8 @@ EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<Derived, DynamicIndex>> Mat
 template <typename Derived>
 EIGEN_DEVICE_FUNC constexpr DiagonalWrapper<Diagonal<const Derived, DynamicIndex>> MatrixBase<Derived>::diagonalView(
     Index index) const {
-  typedef Diagonal<const Derived, DynamicIndex> DiagType;
-  typedef DiagonalWrapper<DiagType> ReturnType;
+  using DiagType = Diagonal<const Derived, DynamicIndex>;
+  using ReturnType = DiagonalWrapper<DiagType>;
   DiagType diag(this->derived(), index);
   return ReturnType(diag);
 }
@@ -430,14 +430,14 @@ namespace internal {
 
 template <>
 struct storage_kind_to_shape<DiagonalShape> {
-  typedef DiagonalShape Shape;
+  using Shape = DiagonalShape;
 };
 
 struct Diagonal2Dense {};
 
 template <>
 struct AssignmentKind<DenseShape, DiagonalShape> {
-  typedef Diagonal2Dense Kind;
+  using Kind = Diagonal2Dense;
 };
 
 // Diagonal matrix to Dense assignment

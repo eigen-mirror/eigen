@@ -31,9 +31,9 @@ namespace Eigen {
 template <typename Derived>
 class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
  public:
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
 
   // Explanation for this CoeffReturnType typedef.
   // - This is the return type of the coeff() method.
@@ -48,15 +48,14 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   // - The is_arithmetic check is required since "const int", "const double", etc. will cause warnings on some systems
   // while the declaration of "const T", where T is a non arithmetic type does not. Always returning "const Scalar&" is
   // not possible, since the underlying expressions might not offer a valid address the reference could be referring to.
-  typedef std::conditional_t<bool(internal::traits<Derived>::Flags&(LvalueBit | DirectAccessBit)), const Scalar&,
-                             std::conditional_t<internal::is_arithmetic<Scalar>::value, Scalar, const Scalar>>
-      CoeffReturnType;
+  using CoeffReturnType =
+      std::conditional_t<bool(internal::traits<Derived>::Flags&(LvalueBit | DirectAccessBit)), const Scalar&,
+                         std::conditional_t<internal::is_arithmetic<Scalar>::value, Scalar, const Scalar>>;
 
-  typedef std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
-                             internal::add_const_on_value_type_t<PacketScalar>>
-      PacketReturnType;
+  using PacketReturnType = std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
+                                              internal::add_const_on_value_type_t<PacketScalar>>;
 
-  typedef EigenBase<Derived> Base;
+  using Base = EigenBase<Derived>;
   using Base::cols;
   using Base::derived;
   using Base::rows;
@@ -205,7 +204,7 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
 
   template <int LoadMode>
   EIGEN_STRONG_INLINE PacketReturnType packet(Index row, Index col) const {
-    typedef typename internal::packet_traits<Scalar>::type DefaultPacketType;
+    using DefaultPacketType = typename internal::packet_traits<Scalar>::type;
     eigen_internal_assert(row >= 0 && row < rows() && col >= 0 && col < cols());
     return internal::evaluator<Derived>(derived()).template packet<LoadMode, DefaultPacketType>(row, col);
   }
@@ -230,7 +229,7 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
   EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     EIGEN_STATIC_ASSERT(internal::evaluator<Derived>::Flags & LinearAccessBit,
                         THIS_COEFFICIENT_ACCESSOR_TAKING_ONE_ACCESS_IS_ONLY_FOR_EXPRESSIONS_ALLOWING_LINEAR_ACCESS)
-    typedef typename internal::packet_traits<Scalar>::type DefaultPacketType;
+    using DefaultPacketType = typename internal::packet_traits<Scalar>::type;
     eigen_internal_assert(index >= 0 && index < size());
     return internal::evaluator<Derived>(derived()).template packet<LoadMode, DefaultPacketType>(index);
   }
@@ -271,12 +270,12 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
 template <typename Derived>
 class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived, ReadOnlyAccessors> {
  public:
-  typedef DenseCoeffsBase<Derived, ReadOnlyAccessors> Base;
+  using Base = DenseCoeffsBase<Derived, ReadOnlyAccessors>;
 
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   using Base::coeff;
   using Base::colIndexByOuterInner;
@@ -423,9 +422,9 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
 template <typename Derived>
 class DenseCoeffsBase<Derived, DirectAccessors> : public DenseCoeffsBase<Derived, ReadOnlyAccessors> {
  public:
-  typedef DenseCoeffsBase<Derived, ReadOnlyAccessors> Base;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Base = DenseCoeffsBase<Derived, ReadOnlyAccessors>;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   using Base::cols;
   using Base::derived;
@@ -476,9 +475,9 @@ class DenseCoeffsBase<Derived, DirectAccessors> : public DenseCoeffsBase<Derived
 template <typename Derived>
 class DenseCoeffsBase<Derived, DirectWriteAccessors> : public DenseCoeffsBase<Derived, WriteAccessors> {
  public:
-  typedef DenseCoeffsBase<Derived, WriteAccessors> Base;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Base = DenseCoeffsBase<Derived, WriteAccessors>;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   using Base::cols;
   using Base::derived;
@@ -546,8 +545,8 @@ static inline Index first_aligned(const DenseBase<Derived>& m) {
 
 template <typename Derived>
 static inline Index first_default_aligned(const DenseBase<Derived>& m) {
-  typedef typename Derived::Scalar Scalar;
-  typedef typename packet_traits<Scalar>::type DefaultPacketType;
+  using Scalar = typename Derived::Scalar;
+  using DefaultPacketType = typename packet_traits<Scalar>::type;
   return internal::first_aligned<int(unpacket_traits<DefaultPacketType>::alignment), Derived>(m);
 }
 

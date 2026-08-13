@@ -21,7 +21,7 @@ enum SimplicialCholeskyMode { SimplicialCholeskyLLT, SimplicialCholeskyLDLT };
 namespace internal {
 template <typename CholMatrixType, typename InputMatrixType>
 struct simplicial_cholesky_grab_input {
-  typedef CholMatrixType const* ConstCholMatrixPtr;
+  using ConstCholMatrixPtr = const CholMatrixType*;
   static void run(const InputMatrixType& input, ConstCholMatrixPtr& pmat, CholMatrixType& tmp) {
     tmp = input;
     pmat = &tmp;
@@ -30,7 +30,7 @@ struct simplicial_cholesky_grab_input {
 
 template <typename MatrixType>
 struct simplicial_cholesky_grab_input<MatrixType, MatrixType> {
-  typedef MatrixType const* ConstMatrixPtr;
+  using ConstMatrixPtr = const MatrixType*;
   static void run(const MatrixType& input, ConstMatrixPtr& pmat, MatrixType& /*tmp*/) { pmat = &input; }
 };
 
@@ -81,21 +81,21 @@ struct simplicial_cholesky_amd_dispatch<true> {
  */
 template <typename Derived>
 class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
-  typedef SparseSolverBase<Derived> Base;
+  using Base = SparseSolverBase<Derived>;
   using Base::m_isInitialized;
 
  public:
-  typedef typename internal::traits<Derived>::MatrixType MatrixType;
-  typedef typename internal::traits<Derived>::OrderingType OrderingType;
+  using MatrixType = typename internal::traits<Derived>::MatrixType;
+  using OrderingType = typename internal::traits<Derived>::OrderingType;
   enum { UpLo = internal::traits<Derived>::UpLo };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename internal::traits<Derived>::DiagonalScalar DiagonalScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef CholMatrixType const* ConstCholMatrixPtr;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using DiagonalScalar = typename internal::traits<Derived>::DiagonalScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using ConstCholMatrixPtr = const CholMatrixType*;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
@@ -298,15 +298,15 @@ namespace internal {
 
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 struct traits<SimplicialLLT<MatrixType_, UpLo_, Ordering_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Ordering_ OrderingType;
+  using MatrixType = MatrixType_;
+  using OrderingType = Ordering_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar DiagonalScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef TriangularView<const CholMatrixType, Eigen::Lower> MatrixL;
-  typedef TriangularView<const typename CholMatrixType::AdjointReturnType, Eigen::Upper> MatrixU;
+  using Scalar = typename MatrixType::Scalar;
+  using DiagonalScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using MatrixL = TriangularView<const CholMatrixType, Eigen::Lower>;
+  using MatrixU = TriangularView<const typename CholMatrixType::AdjointReturnType, Eigen::Upper>;
   static inline MatrixL getL(const CholMatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const CholMatrixType& m) { return MatrixU(m.adjoint()); }
   static inline DiagonalScalar getDiag(Scalar x) { return numext::real(x); }
@@ -315,15 +315,15 @@ struct traits<SimplicialLLT<MatrixType_, UpLo_, Ordering_> > {
 
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 struct traits<SimplicialLDLT<MatrixType_, UpLo_, Ordering_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Ordering_ OrderingType;
+  using MatrixType = MatrixType_;
+  using OrderingType = Ordering_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar DiagonalScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef TriangularView<const CholMatrixType, Eigen::UnitLower> MatrixL;
-  typedef TriangularView<const typename CholMatrixType::AdjointReturnType, Eigen::UnitUpper> MatrixU;
+  using Scalar = typename MatrixType::Scalar;
+  using DiagonalScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using MatrixL = TriangularView<const CholMatrixType, Eigen::UnitLower>;
+  using MatrixU = TriangularView<const typename CholMatrixType::AdjointReturnType, Eigen::UnitUpper>;
   static inline MatrixL getL(const CholMatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const CholMatrixType& m) { return MatrixU(m.adjoint()); }
   static inline DiagonalScalar getDiag(Scalar x) { return numext::real(x); }
@@ -332,15 +332,15 @@ struct traits<SimplicialLDLT<MatrixType_, UpLo_, Ordering_> > {
 
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 struct traits<SimplicialNonHermitianLLT<MatrixType_, UpLo_, Ordering_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Ordering_ OrderingType;
+  using MatrixType = MatrixType_;
+  using OrderingType = Ordering_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::Scalar DiagonalScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef TriangularView<const CholMatrixType, Eigen::Lower> MatrixL;
-  typedef TriangularView<const typename CholMatrixType::ConstTransposeReturnType, Eigen::Upper> MatrixU;
+  using Scalar = typename MatrixType::Scalar;
+  using DiagonalScalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using MatrixL = TriangularView<const CholMatrixType, Eigen::Lower>;
+  using MatrixU = TriangularView<const typename CholMatrixType::ConstTransposeReturnType, Eigen::Upper>;
   static inline MatrixL getL(const CholMatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const CholMatrixType& m) { return MatrixU(m.transpose()); }
   static inline DiagonalScalar getDiag(Scalar x) { return x; }
@@ -349,15 +349,15 @@ struct traits<SimplicialNonHermitianLLT<MatrixType_, UpLo_, Ordering_> > {
 
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 struct traits<SimplicialNonHermitianLDLT<MatrixType_, UpLo_, Ordering_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Ordering_ OrderingType;
+  using MatrixType = MatrixType_;
+  using OrderingType = Ordering_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::Scalar DiagonalScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef TriangularView<const CholMatrixType, Eigen::UnitLower> MatrixL;
-  typedef TriangularView<const typename CholMatrixType::ConstTransposeReturnType, Eigen::UnitUpper> MatrixU;
+  using Scalar = typename MatrixType::Scalar;
+  using DiagonalScalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using MatrixL = TriangularView<const CholMatrixType, Eigen::UnitLower>;
+  using MatrixU = TriangularView<const typename CholMatrixType::ConstTransposeReturnType, Eigen::UnitUpper>;
   static inline MatrixL getL(const CholMatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const CholMatrixType& m) { return MatrixU(m.transpose()); }
   static inline DiagonalScalar getDiag(Scalar x) { return x; }
@@ -366,11 +366,11 @@ struct traits<SimplicialNonHermitianLDLT<MatrixType_, UpLo_, Ordering_> > {
 
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 struct traits<SimplicialCholesky<MatrixType_, UpLo_, Ordering_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Ordering_ OrderingType;
+  using MatrixType = MatrixType_;
+  using OrderingType = Ordering_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar DiagonalScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using DiagonalScalar = typename MatrixType::RealScalar;
   static inline DiagonalScalar getDiag(Scalar x) { return numext::real(x); }
   static inline Scalar getSymm(Scalar x) { return numext::conj(x); }
 };
@@ -400,17 +400,17 @@ struct traits<SimplicialCholesky<MatrixType_, UpLo_, Ordering_> > {
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, UpLo_, Ordering_> > {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef SimplicialCholeskyBase<SimplicialLLT> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, Index> CholMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef internal::traits<SimplicialLLT> Traits;
-  typedef typename Traits::MatrixL MatrixL;
-  typedef typename Traits::MatrixU MatrixU;
+  using Base = SimplicialCholeskyBase<SimplicialLLT>;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, Index>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using Traits = internal::traits<SimplicialLLT>;
+  using MatrixL = typename Traits::MatrixL;
+  using MatrixU = typename Traits::MatrixU;
 
  public:
   /** Default constructor */
@@ -483,17 +483,17 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_, UpLo_, Ordering_> > {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef SimplicialCholeskyBase<SimplicialLDLT> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef internal::traits<SimplicialLDLT> Traits;
-  typedef typename Traits::MatrixL MatrixL;
-  typedef typename Traits::MatrixU MatrixU;
+  using Base = SimplicialCholeskyBase<SimplicialLDLT>;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using Traits = internal::traits<SimplicialLDLT>;
+  using MatrixL = typename Traits::MatrixL;
+  using MatrixU = typename Traits::MatrixU;
 
  public:
   /** Default constructor */
@@ -570,17 +570,17 @@ template <typename MatrixType_, int UpLo_, typename Ordering_>
 class SimplicialNonHermitianLLT
     : public SimplicialCholeskyBase<SimplicialNonHermitianLLT<MatrixType_, UpLo_, Ordering_> > {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef SimplicialCholeskyBase<SimplicialNonHermitianLLT> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef internal::traits<SimplicialNonHermitianLLT> Traits;
-  typedef typename Traits::MatrixL MatrixL;
-  typedef typename Traits::MatrixU MatrixU;
+  using Base = SimplicialCholeskyBase<SimplicialNonHermitianLLT>;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using Traits = internal::traits<SimplicialNonHermitianLLT>;
+  using MatrixL = typename Traits::MatrixL;
+  using MatrixU = typename Traits::MatrixU;
 
  public:
   /** Default constructor */
@@ -655,17 +655,17 @@ template <typename MatrixType_, int UpLo_, typename Ordering_>
 class SimplicialNonHermitianLDLT
     : public SimplicialCholeskyBase<SimplicialNonHermitianLDLT<MatrixType_, UpLo_, Ordering_> > {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef SimplicialCholeskyBase<SimplicialNonHermitianLDLT> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef internal::traits<SimplicialNonHermitianLDLT> Traits;
-  typedef typename Traits::MatrixL MatrixL;
-  typedef typename Traits::MatrixU MatrixU;
+  using Base = SimplicialCholeskyBase<SimplicialNonHermitianLDLT>;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using Traits = internal::traits<SimplicialNonHermitianLDLT>;
+  using MatrixL = typename Traits::MatrixL;
+  using MatrixU = typename Traits::MatrixU;
 
  public:
   /** Default constructor */
@@ -727,16 +727,16 @@ class SimplicialNonHermitianLDLT
 template <typename MatrixType_, int UpLo_, typename Ordering_>
 class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<MatrixType_, UpLo_, Ordering_> > {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef SimplicialCholeskyBase<SimplicialCholesky> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> CholMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef internal::traits<SimplicialLDLT<MatrixType, UpLo> > LDLTTraits;
-  typedef internal::traits<SimplicialLLT<MatrixType, UpLo> > LLTTraits;
+  using Base = SimplicialCholeskyBase<SimplicialCholesky>;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using CholMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using LDLTTraits = internal::traits<SimplicialLDLT<MatrixType, UpLo>>;
+  using LLTTraits = internal::traits<SimplicialLLT<MatrixType, UpLo>>;
 
  public:
   SimplicialCholesky() : Base(), m_LDLT(true) {}

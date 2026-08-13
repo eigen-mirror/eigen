@@ -26,8 +26,8 @@ EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Packet& x, const Packet& y) {
-  typedef typename unpacket_traits<Packet>::as_real RealPacket;
-  typedef typename unpacket_traits<RealPacket>::type RealScalar;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  using RealScalar = typename unpacket_traits<RealPacket>::type;
   // In the following we annotate the code for the case where the inputs
   // are a pair length-2 SIMD vectors representing a single pair of complex
   // numbers x = a + i*b, y = c + i*d.
@@ -59,7 +59,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
 
   // Real part
   RealPacket x_flip = pcplxflip(x).v;  // b, a
@@ -81,9 +81,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::as_real RealPacket;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename Scalar::value_type RealScalar;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using RealScalar = typename Scalar::value_type;
   const RealPacket even_mask = peven_mask(a.v);
   const RealPacket odd_mask = pcplxflip(Packet(even_mask)).v;
 
@@ -133,9 +133,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename Scalar::value_type RealScalar;
-  typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using RealScalar = typename Scalar::value_type;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
 
   // Computes the principal sqrt of the complex numbers in the input.
   //
@@ -248,9 +248,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
 // Implemented using the hypot(a,b) algorithm from https://doi.org/10.48550/arXiv.1904.09481
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet phypot_complex(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename Scalar::value_type RealScalar;
-  typedef typename unpacket_traits<Packet>::as_real RealPacket;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using RealScalar = typename Scalar::value_type;
+  using RealPacket = typename unpacket_traits<Packet>::as_real;
 
   const RealPacket cst_zero_rp = pset1<RealPacket>(static_cast<RealScalar>(0.0));
   const RealPacket cst_minus_one_rp = pset1<RealPacket>(static_cast<RealScalar>(-1.0));

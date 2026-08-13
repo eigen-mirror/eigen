@@ -78,49 +78,49 @@ struct eval<T, Sparse> : sparse_eval<T, traits<T>::RowsAtCompileTime, traits<T>:
 
 template <typename T, int Cols, int Flags>
 struct sparse_eval<T, 1, Cols, Flags> {
-  typedef typename traits<T>::Scalar Scalar_;
-  typedef typename traits<T>::StorageIndex StorageIndex_;
+  using Scalar_ = typename traits<T>::Scalar;
+  using StorageIndex_ = typename traits<T>::StorageIndex;
 
  public:
-  typedef SparseVector<Scalar_, RowMajor, StorageIndex_> type;
+  using type = SparseVector<Scalar_, RowMajor, StorageIndex_>;
 };
 
 template <typename T, int Rows, int Flags>
 struct sparse_eval<T, Rows, 1, Flags> {
-  typedef typename traits<T>::Scalar Scalar_;
-  typedef typename traits<T>::StorageIndex StorageIndex_;
+  using Scalar_ = typename traits<T>::Scalar;
+  using StorageIndex_ = typename traits<T>::StorageIndex;
 
  public:
-  typedef SparseVector<Scalar_, ColMajor, StorageIndex_> type;
+  using type = SparseVector<Scalar_, ColMajor, StorageIndex_>;
 };
 
 // TODO: consider unifying with plain_matrix_type<T, Sparse>.
 template <typename T, int Rows, int Cols, int Flags>
 struct sparse_eval {
-  typedef typename traits<T>::Scalar Scalar_;
-  typedef typename traits<T>::StorageIndex StorageIndex_;
+  using Scalar_ = typename traits<T>::Scalar;
+  using StorageIndex_ = typename traits<T>::StorageIndex;
   enum { Options_ = ((Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
 
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  using type = SparseMatrix<Scalar_, Options_, StorageIndex_>;
 };
 
 template <typename T, int Flags>
 struct sparse_eval<T, 1, 1, Flags> {
-  typedef typename traits<T>::Scalar Scalar_;
+  using Scalar_ = typename traits<T>::Scalar;
 
  public:
-  typedef Matrix<Scalar_, 1, 1> type;
+  using type = Matrix<Scalar_, 1, 1>;
 };
 
 template <typename T>
 struct plain_matrix_type<T, Sparse> {
-  typedef typename traits<T>::Scalar Scalar_;
-  typedef typename traits<T>::StorageIndex StorageIndex_;
+  using Scalar_ = typename traits<T>::Scalar;
+  using StorageIndex_ = typename traits<T>::StorageIndex;
   enum { Options_ = ((evaluator<T>::Flags & RowMajorBit) == RowMajorBit) ? RowMajor : ColMajor };
 
  public:
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> type;
+  using type = SparseMatrix<Scalar_, Options_, StorageIndex_>;
 };
 
 template <typename T>
@@ -129,13 +129,13 @@ struct plain_object_eval<T, Sparse>
 
 template <typename Decomposition, typename RhsType>
 struct solve_traits<Decomposition, RhsType, Sparse> {
-  typedef typename sparse_eval<RhsType, RhsType::RowsAtCompileTime, RhsType::ColsAtCompileTime,
-                               traits<RhsType>::Flags>::type PlainObject;
+  using PlainObject = typename sparse_eval<RhsType, RhsType::RowsAtCompileTime, RhsType::ColsAtCompileTime,
+                                           traits<RhsType>::Flags>::type;
 };
 
 template <typename Derived>
 struct generic_xpr_base<Derived, MatrixXpr, Sparse> {
-  typedef SparseMatrixBase<Derived> type;
+  using type = SparseMatrixBase<Derived>;
 };
 
 struct SparseTriangularShape {
@@ -147,11 +147,11 @@ struct SparseSelfAdjointShape {
 
 template <>
 struct glue_shapes<SparseShape, SelfAdjointShape> {
-  typedef SparseSelfAdjointShape type;
+  using type = SparseSelfAdjointShape;
 };
 template <>
 struct glue_shapes<SparseShape, TriangularShape> {
-  typedef SparseTriangularShape type;
+  using type = SparseTriangularShape;
 };
 
 // return type of SparseCompressedBase::lower_bound;

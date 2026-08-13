@@ -22,8 +22,8 @@ namespace internal {
 
 template <typename Arg1, typename Arg2>
 struct binary_op_base {
-  typedef Arg1 first_argument_type;
-  typedef Arg2 second_argument_type;
+  using first_argument_type = Arg1;
+  using second_argument_type = Arg2;
 };
 
 /** \internal
@@ -33,7 +33,7 @@ struct binary_op_base {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_sum_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_sum_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_sum_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_sum_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
@@ -79,7 +79,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_product_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
@@ -153,7 +153,7 @@ template <typename LhsScalar, typename RhsScalar>
 struct scalar_conj_product_op : binary_op_base<LhsScalar, RhsScalar> {
   enum { Conj = NumTraits<LhsScalar>::IsComplex };
 
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_conj_product_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_conj_product_op>::ReturnType;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
     return conj_helper<LhsScalar, RhsScalar, Conj, false>().pmul(a, b);
@@ -179,7 +179,7 @@ struct functor_traits<scalar_conj_product_op<LhsScalar, RhsScalar>> {
  */
 template <typename LhsScalar, typename RhsScalar, int NaNPropagation>
 struct scalar_min_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_min_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_min_op>::ReturnType;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
     return internal::pmin<NaNPropagation>(a, b);
   }
@@ -217,7 +217,7 @@ struct functor_is_commutative<scalar_min_op<Scalar, Scalar, NaNPropagation>> : i
  */
 template <typename LhsScalar, typename RhsScalar, int NaNPropagation>
 struct scalar_max_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_max_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_max_op>::ReturnType;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const LhsScalar& a, const RhsScalar& b) const {
     return internal::pmax<NaNPropagation>(a, b);
   }
@@ -379,11 +379,11 @@ struct functor_traits<scalar_hypot_op<Scalar, Scalar>> {
  */
 template <typename Scalar, typename Exponent>
 struct scalar_pow_op : binary_op_base<Scalar, Exponent> {
-  typedef typename ScalarBinaryOpTraits<Scalar, Exponent, scalar_pow_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<Scalar, Exponent, scalar_pow_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_pow_op() {
-    typedef Scalar LhsScalar;
-    typedef Exponent RhsScalar;
+    using LhsScalar = Scalar;
+    using RhsScalar = Exponent;
     EIGEN_SCALAR_BINARY_OP_PLUGIN
   }
 #endif
@@ -415,7 +415,7 @@ struct functor_traits<scalar_pow_op<Scalar, Exponent>> {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_difference_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_difference_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
@@ -464,7 +464,7 @@ struct maybe_raise_div_by_zero<Packet, true> {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_quotient_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_quotient_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_quotient_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_quotient_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
@@ -479,7 +479,7 @@ struct scalar_quotient_op : binary_op_base<LhsScalar, RhsScalar> {
 };
 template <typename LhsScalar, typename RhsScalar>
 struct functor_traits<scalar_quotient_op<LhsScalar, RhsScalar>> {
-  typedef typename scalar_quotient_op<LhsScalar, RhsScalar>::result_type result_type;
+  using result_type = typename scalar_quotient_op<LhsScalar, RhsScalar>::result_type;
   enum {
     PacketAccess = std::is_same<LhsScalar, RhsScalar>::value && packet_traits<LhsScalar>::HasDiv &&
                    packet_traits<RhsScalar>::HasDiv,
@@ -693,7 +693,7 @@ struct functor_traits<scalar_bitwise_xor_op<Scalar>> {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_absolute_difference_op : binary_op_base<LhsScalar, RhsScalar> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_absolute_difference_op>::ReturnType result_type;
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_absolute_difference_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_absolute_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
 #endif
@@ -747,9 +747,9 @@ struct functor_traits<scalar_atan2_op<LhsScalar, RhsScalar>> {
 // value. They are analogues to the removed std::binder1st/binder2nd and are also compatible with packetOp.
 template <typename BinaryOp>
 struct bind1st_op : BinaryOp {
-  typedef typename BinaryOp::first_argument_type first_argument_type;
-  typedef typename BinaryOp::second_argument_type second_argument_type;
-  typedef typename BinaryOp::result_type result_type;
+  using first_argument_type = typename BinaryOp::first_argument_type;
+  using second_argument_type = typename BinaryOp::second_argument_type;
+  using result_type = typename BinaryOp::result_type;
 
   EIGEN_DEVICE_FUNC constexpr explicit bind1st_op(const first_argument_type& val) : m_value(val) {}
 
@@ -769,9 +769,9 @@ struct functor_traits<bind1st_op<BinaryOp>> : functor_traits<BinaryOp> {};
 
 template <typename BinaryOp>
 struct bind2nd_op : BinaryOp {
-  typedef typename BinaryOp::first_argument_type first_argument_type;
-  typedef typename BinaryOp::second_argument_type second_argument_type;
-  typedef typename BinaryOp::result_type result_type;
+  using first_argument_type = typename BinaryOp::first_argument_type;
+  using second_argument_type = typename BinaryOp::second_argument_type;
+  using result_type = typename BinaryOp::result_type;
 
   EIGEN_DEVICE_FUNC constexpr explicit bind2nd_op(const second_argument_type& val) : m_value(val) {}
 

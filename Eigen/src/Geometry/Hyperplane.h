@@ -40,15 +40,15 @@ class Hyperplane {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_,
                                                              AmbientDim_ == Dynamic ? Dynamic : AmbientDim_ + 1)
   enum { AmbientDimAtCompileTime = AmbientDim_, Options = Options_ };
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
-  typedef Matrix<Scalar, AmbientDimAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, Index(AmbientDimAtCompileTime) == Dynamic ? Dynamic : Index(AmbientDimAtCompileTime) + 1, 1,
-                 Options>
-      Coefficients;
-  typedef Block<Coefficients, AmbientDimAtCompileTime, 1> NormalReturnType;
-  typedef const Block<const Coefficients, AmbientDimAtCompileTime, 1> ConstNormalReturnType;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
+  using VectorType = Matrix<Scalar, AmbientDimAtCompileTime, 1>;
+  using Coefficients =
+      Matrix<Scalar, Index(AmbientDimAtCompileTime) == Dynamic ? Dynamic : Index(AmbientDimAtCompileTime) + 1, 1,
+             Options>;
+  using NormalReturnType = Block<Coefficients, AmbientDimAtCompileTime, 1>;
+  using ConstNormalReturnType = const Block<const Coefficients, AmbientDimAtCompileTime, 1>;
 
   /** Default constructor without initialization */
   EIGEN_DEVICE_FUNC inline Hyperplane() {}

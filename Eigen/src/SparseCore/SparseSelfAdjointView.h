@@ -59,14 +59,14 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
     ColsAtCompileTime = internal::traits<SparseSelfAdjointView>::ColsAtCompileTime
   };
 
-  typedef EigenBase<SparseSelfAdjointView> Base;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
-  typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<MatrixTypeNested> MatrixTypeNested_;
-  typedef SparseMatrix<Scalar, (MatrixTypeNested_::Flags & RowMajorBit) ? RowMajor : ColMajor, StorageIndex>
-      PlainObject;
+  using Base = EigenBase<SparseSelfAdjointView>;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  using MatrixTypeNested = typename internal::ref_selector<MatrixType>::non_const_type;
+  using MatrixTypeNested_ = internal::remove_all_t<MatrixTypeNested>;
+  using PlainObject =
+      SparseMatrix<Scalar, (MatrixTypeNested_::Flags & RowMajorBit) ? RowMajor : ColMajor, StorageIndex>;
 
   explicit inline SparseSelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {
     eigen_assert(rows() == cols() && "SelfAdjointView is only for squared matrices");
@@ -234,25 +234,25 @@ namespace internal {
 //      make it work)
 template <typename MatrixType, unsigned int Mode>
 struct evaluator_traits<SparseSelfAdjointView<MatrixType, Mode> > {
-  typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
-  typedef SparseSelfAdjointShape Shape;
+  using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
+  using Shape = SparseSelfAdjointShape;
 };
 
 struct SparseSelfAdjoint2Sparse {};
 
 template <>
 struct AssignmentKind<SparseShape, SparseSelfAdjointShape> {
-  typedef SparseSelfAdjoint2Sparse Kind;
+  using Kind = SparseSelfAdjoint2Sparse;
 };
 template <>
 struct AssignmentKind<SparseSelfAdjointShape, SparseShape> {
-  typedef Sparse2Sparse Kind;
+  using Kind = Sparse2Sparse;
 };
 
 template <typename DstXprType, typename SrcXprType, typename Functor>
 struct Assignment<DstXprType, SrcXprType, Functor, SparseSelfAdjoint2Sparse> {
-  typedef typename DstXprType::StorageIndex StorageIndex;
-  typedef internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar> AssignOpType;
+  using StorageIndex = typename DstXprType::StorageIndex;
+  using AssignOpType = internal::assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>;
 
   template <typename DestScalar, int StorageOrder>
   static void run(SparseMatrix<DestScalar, StorageOrder, StorageIndex>& dst, const SrcXprType& src,
@@ -300,11 +300,11 @@ inline void sparse_selfadjoint_time_dense_product(const SparseLhsType& lhs, cons
                                                   const AlphaType& alpha) {
   EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
-  typedef typename internal::nested_eval<SparseLhsType, DenseRhsType::MaxColsAtCompileTime>::type SparseLhsTypeNested;
-  typedef internal::remove_all_t<SparseLhsTypeNested> SparseLhsTypeNestedCleaned;
-  typedef evaluator<SparseLhsTypeNestedCleaned> LhsEval;
-  typedef typename LhsEval::InnerIterator LhsIterator;
-  typedef typename SparseLhsType::Scalar LhsScalar;
+  using SparseLhsTypeNested = typename internal::nested_eval<SparseLhsType, DenseRhsType::MaxColsAtCompileTime>::type;
+  using SparseLhsTypeNestedCleaned = internal::remove_all_t<SparseLhsTypeNested>;
+  using LhsEval = evaluator<SparseLhsTypeNestedCleaned>;
+  using LhsIterator = typename LhsEval::InnerIterator;
+  using LhsScalar = typename SparseLhsType::Scalar;
 
   enum {
     LhsIsRowMajor = (LhsEval::Flags & RowMajorBit) == RowMajorBit,
@@ -355,9 +355,9 @@ struct generic_product_impl<LhsView, Rhs, SparseSelfAdjointShape, DenseShape, Pr
                                 generic_product_impl<LhsView, Rhs, SparseSelfAdjointShape, DenseShape, ProductType> > {
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const LhsView& lhsView, const Rhs& rhs, const typename Dest::Scalar& alpha) {
-    typedef typename LhsView::MatrixTypeNested_ Lhs;
-    typedef typename nested_eval<Lhs, Dynamic>::type LhsNested;
-    typedef typename nested_eval<Rhs, Dynamic>::type RhsNested;
+    using Lhs = typename LhsView::MatrixTypeNested_;
+    using LhsNested = typename nested_eval<Lhs, Dynamic>::type;
+    using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
     LhsNested lhsNested(lhsView.matrix());
     RhsNested rhsNested(rhs);
 
@@ -371,9 +371,9 @@ struct generic_product_impl<Lhs, RhsView, DenseShape, SparseSelfAdjointShape, Pr
                                 generic_product_impl<Lhs, RhsView, DenseShape, SparseSelfAdjointShape, ProductType> > {
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const RhsView& rhsView, const typename Dest::Scalar& alpha) {
-    typedef typename RhsView::MatrixTypeNested_ Rhs;
-    typedef typename nested_eval<Lhs, Dynamic>::type LhsNested;
-    typedef typename nested_eval<Rhs, Dynamic>::type RhsNested;
+    using Rhs = typename RhsView::MatrixTypeNested_;
+    using LhsNested = typename nested_eval<Lhs, Dynamic>::type;
+    using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhsView.matrix());
 
@@ -390,9 +390,9 @@ struct generic_product_impl<Lhs, RhsView, DenseShape, SparseSelfAdjointShape, Pr
 template <typename LhsView, typename Rhs, int ProductTag>
 struct product_evaluator<Product<LhsView, Rhs, DefaultProduct>, ProductTag, SparseSelfAdjointShape, SparseShape>
     : public evaluator<typename Product<typename Rhs::PlainObject, Rhs, DefaultProduct>::PlainObject> {
-  typedef Product<LhsView, Rhs, DefaultProduct> XprType;
-  typedef typename XprType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<LhsView, Rhs, DefaultProduct>;
+  using PlainObject = typename XprType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   product_evaluator(const XprType& xpr) : m_lhs(xpr.lhs()), m_result(xpr.rows(), xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
@@ -408,9 +408,9 @@ struct product_evaluator<Product<LhsView, Rhs, DefaultProduct>, ProductTag, Spar
 template <typename Lhs, typename RhsView, int ProductTag>
 struct product_evaluator<Product<Lhs, RhsView, DefaultProduct>, ProductTag, SparseShape, SparseSelfAdjointShape>
     : public evaluator<typename Product<Lhs, typename Lhs::PlainObject, DefaultProduct>::PlainObject> {
-  typedef Product<Lhs, RhsView, DefaultProduct> XprType;
-  typedef typename XprType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<Lhs, RhsView, DefaultProduct>;
+  using PlainObject = typename XprType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   product_evaluator(const XprType& xpr) : m_rhs(xpr.rhs()), m_result(xpr.rows(), xpr.cols()) {
     ::new (static_cast<Base*>(this)) Base(m_result);
@@ -435,12 +435,12 @@ void permute_symm_to_fullsymm(
     const MatrixType& mat,
     SparseMatrix<typename MatrixType::Scalar, DestOrder, typename MatrixType::StorageIndex>& _dest,
     const typename MatrixType::StorageIndex* perm) {
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef SparseMatrix<Scalar, DestOrder, StorageIndex> Dest;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
-  typedef evaluator<MatrixType> MatEval;
-  typedef typename evaluator<MatrixType>::InnerIterator MatIterator;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using Scalar = typename MatrixType::Scalar;
+  using Dest = SparseMatrix<Scalar, DestOrder, StorageIndex>;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  using MatEval = evaluator<MatrixType>;
+  using MatIterator = typename evaluator<MatrixType>::InnerIterator;
 
   MatEval matEval(mat);
   Dest& dest(_dest.derived());
@@ -511,12 +511,12 @@ template <int SrcMode_, int DstMode_, bool NonHermitian, typename MatrixType, in
 void permute_symm_to_symm(const MatrixType& mat,
                           SparseMatrix<typename MatrixType::Scalar, DstOrder, typename MatrixType::StorageIndex>& _dest,
                           const typename MatrixType::StorageIndex* perm) {
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef typename MatrixType::Scalar Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using Scalar = typename MatrixType::Scalar;
   SparseMatrix<Scalar, DstOrder, StorageIndex>& dest(_dest.derived());
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
-  typedef evaluator<MatrixType> MatEval;
-  typedef typename evaluator<MatrixType>::InnerIterator MatIterator;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  using MatEval = evaluator<MatrixType>;
+  using MatIterator = typename evaluator<MatrixType>::InnerIterator;
 
   enum {
     SrcOrder = MatrixType::IsRowMajor ? RowMajor : ColMajor,
@@ -578,20 +578,20 @@ struct traits<SparseSymmetricPermutationProduct<MatrixType, Mode> > : traits<Mat
 template <typename MatrixType, int Mode>
 class SparseSymmetricPermutationProduct : public EigenBase<SparseSymmetricPermutationProduct<MatrixType, Mode> > {
  public:
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
   enum {
     RowsAtCompileTime = internal::traits<SparseSymmetricPermutationProduct>::RowsAtCompileTime,
     ColsAtCompileTime = internal::traits<SparseSymmetricPermutationProduct>::ColsAtCompileTime
   };
 
  protected:
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> Perm;
+  using Perm = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
 
  public:
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
-  typedef typename MatrixType::Nested MatrixTypeNested;
-  typedef internal::remove_all_t<MatrixTypeNested> NestedExpression;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  using MatrixTypeNested = typename MatrixType::Nested;
+  using NestedExpression = internal::remove_all_t<MatrixTypeNested>;
 
   SparseSymmetricPermutationProduct(const MatrixType& mat, const Perm& perm) : m_matrix(mat), m_perm(perm) {}
 
@@ -611,8 +611,8 @@ namespace internal {
 template <typename DstXprType, typename MatrixType, int Mode, typename Scalar>
 struct Assignment<DstXprType, SparseSymmetricPermutationProduct<MatrixType, Mode>,
                   internal::assign_op<Scalar, typename MatrixType::Scalar>, Sparse2Sparse> {
-  typedef SparseSymmetricPermutationProduct<MatrixType, Mode> SrcXprType;
-  typedef typename DstXprType::StorageIndex DstIndex;
+  using SrcXprType = SparseSymmetricPermutationProduct<MatrixType, Mode>;
+  using DstIndex = typename DstXprType::StorageIndex;
   template <int Options>
   static void run(SparseMatrix<Scalar, Options, DstIndex>& dst, const SrcXprType& src,
                   const internal::assign_op<Scalar, typename MatrixType::Scalar>&) {

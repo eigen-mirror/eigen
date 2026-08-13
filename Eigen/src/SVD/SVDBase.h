@@ -59,9 +59,9 @@ void check_svd_options_assertions(unsigned int computationOptions, Index rows, I
 
 template <typename Derived>
 struct traits<SVDBase<Derived> > : traits<Derived> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -122,10 +122,10 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
   template <typename Derived_>
   friend struct internal::solve_assertion;
 
-  typedef typename internal::traits<Derived>::MatrixType MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
-  typedef typename Eigen::internal::traits<SVDBase>::StorageIndex StorageIndex;
+  using MatrixType = typename internal::traits<Derived>::MatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using StorageIndex = typename Eigen::internal::traits<SVDBase>::StorageIndex;
 
   static constexpr bool ShouldComputeFullU = internal::traits<Derived>::ShouldComputeFullU;
   static constexpr bool ShouldComputeThinU = internal::traits<Derived>::ShouldComputeThinU;
@@ -149,14 +149,14 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
   EIGEN_STATIC_ASSERT(!(ShouldComputeFullU && ShouldComputeThinU), "SVDBase: Cannot request both full and thin U")
   EIGEN_STATIC_ASSERT(!(ShouldComputeFullV && ShouldComputeThinV), "SVDBase: Cannot request both full and thin V")
 
-  typedef
+  using MatrixUType =
       typename internal::make_proper_matrix_type<Scalar, RowsAtCompileTime, MatrixUColsAtCompileTime, MatrixOptions,
-                                                 MaxRowsAtCompileTime, MatrixUMaxColsAtCompileTime>::type MatrixUType;
-  typedef
+                                                 MaxRowsAtCompileTime, MatrixUMaxColsAtCompileTime>::type;
+  using MatrixVType =
       typename internal::make_proper_matrix_type<Scalar, ColsAtCompileTime, MatrixVColsAtCompileTime, MatrixOptions,
-                                                 MaxColsAtCompileTime, MatrixVMaxColsAtCompileTime>::type MatrixVType;
+                                                 MaxColsAtCompileTime, MatrixVMaxColsAtCompileTime>::type;
 
-  typedef typename internal::plain_diag_type<MatrixType, RealScalar>::type SingularValuesType;
+  using SingularValuesType = typename internal::plain_diag_type<MatrixType, RealScalar>::type;
 
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }

@@ -24,25 +24,25 @@ class CompleteOrthogonalDecompositionImpl;
 template <typename MatrixType_, typename PermutationIndex_, template <typename, typename> class RankRevealingQR_>
 struct traits<CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, RankRevealingQR_>>
     : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<CompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>> : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<RandCompleteOrthogonalDecomposition<MatrixType_, PermutationIndex_>> : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
@@ -67,26 +67,26 @@ template <typename MatrixType_, typename PermutationIndex_, template <typename, 
 class CompleteOrthogonalDecompositionImpl
     : public SolverBase<CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, RankRevealingQR_>> {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<CompleteOrthogonalDecompositionImpl> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<CompleteOrthogonalDecompositionImpl>;
 
   template <typename Derived>
   friend struct internal::solve_assertion;
-  typedef PermutationIndex_ PermutationIndex;
+  using PermutationIndex = PermutationIndex_;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CompleteOrthogonalDecompositionImpl)
   enum {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationType;
-  typedef typename internal::plain_row_type<MatrixType, Index>::type IntRowVectorType;
-  typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
-  typedef typename internal::plain_row_type<MatrixType, RealScalar>::type RealRowVectorType;
-  typedef HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>
-      HouseholderSequenceType;
-  typedef typename MatrixType::PlainObject PlainObject;
-  typedef RankRevealingQR_<MatrixType, PermutationIndex> RankRevealingQRType;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using PermutationType = PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex>;
+  using IntRowVectorType = typename internal::plain_row_type<MatrixType, Index>::type;
+  using RowVectorType = typename internal::plain_row_type<MatrixType>::type;
+  using RealRowVectorType = typename internal::plain_row_type<MatrixType, RealScalar>::type;
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>;
+  using PlainObject = typename MatrixType::PlainObject;
+  using RankRevealingQRType = RankRevealingQR_<MatrixType, PermutationIndex>;
 
  public:
   CompleteOrthogonalDecompositionImpl() : m_cpqr(), m_zCoeffs(), m_temp() {}
@@ -416,7 +416,8 @@ template <typename MatrixType_, typename PermutationIndex_>
 class CompleteOrthogonalDecomposition
     : public internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, ColPivHouseholderQR> {
  public:
-  typedef internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, ColPivHouseholderQR> Base;
+  using Base =
+      internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, Eigen::ColPivHouseholderQR>;
   using typename Base::RealScalar;
 
   CompleteOrthogonalDecomposition() : Base() {}
@@ -483,7 +484,8 @@ template <typename MatrixType_, typename PermutationIndex_>
 class RandCompleteOrthogonalDecomposition
     : public internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, RandColPivHouseholderQR> {
  public:
-  typedef internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, RandColPivHouseholderQR> Base;
+  using Base =
+      internal::CompleteOrthogonalDecompositionImpl<MatrixType_, PermutationIndex_, Eigen::RandColPivHouseholderQR>;
   using typename Base::RealScalar;
 
   RandCompleteOrthogonalDecomposition() : Base() {}
@@ -546,13 +548,12 @@ struct Assignment<DstXprType, Inverse<CompleteOrthogonalDecomposition<MatrixType
                   internal::assign_op<typename DstXprType::Scalar,
                                       typename CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>::Scalar>,
                   Dense2Dense> {
-  typedef CompleteOrthogonalDecomposition<MatrixType, PermutationIndex> CodType;
-  typedef Inverse<CodType> SrcXprType;
+  using CodType = CompleteOrthogonalDecomposition<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<CodType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
-    typedef Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime, 0,
-                   CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>
-        IdentityMatrixType;
+    using IdentityMatrixType = Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime,
+                                      0, CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>;
     dst = src.nestedExpression().solve(IdentityMatrixType::Identity(src.cols(), src.cols()));
   }
 };
@@ -568,13 +569,12 @@ struct Assignment<DstXprType, Inverse<RandCompleteOrthogonalDecomposition<Matrix
                   internal::assign_op<typename DstXprType::Scalar, typename RandCompleteOrthogonalDecomposition<
                                                                        MatrixType, PermutationIndex>::Scalar>,
                   Dense2Dense> {
-  typedef RandCompleteOrthogonalDecomposition<MatrixType, PermutationIndex> CodType;
-  typedef Inverse<CodType> SrcXprType;
+  using CodType = RandCompleteOrthogonalDecomposition<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<CodType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename CodType::Scalar>&) {
-    typedef Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime, 0,
-                   CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>
-        IdentityMatrixType;
+    using IdentityMatrixType = Matrix<typename CodType::Scalar, CodType::RowsAtCompileTime, CodType::RowsAtCompileTime,
+                                      0, CodType::MaxRowsAtCompileTime, CodType::MaxRowsAtCompileTime>;
     dst = src.nestedExpression().solve(IdentityMatrixType::Identity(src.cols(), src.cols()));
   }
 };

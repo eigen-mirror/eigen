@@ -19,11 +19,11 @@ namespace Eigen {
 namespace internal {
 template <typename ViewOp, typename MatrixType, typename StrideType>
 struct traits<CwiseUnaryView<ViewOp, MatrixType, StrideType> > : traits<MatrixType> {
-  typedef typename result_of<ViewOp(typename traits<MatrixType>::Scalar&)>::type1 ScalarRef;
+  using ScalarRef = typename result_of<ViewOp(typename traits<MatrixType>::Scalar&)>::type1;
   static_assert(std::is_reference<ScalarRef>::value, "Views must return a reference type.");
-  typedef remove_cvref_t<ScalarRef> Scalar;
-  typedef typename MatrixType::Nested MatrixTypeNested;
-  typedef remove_all_t<MatrixTypeNested> MatrixTypeNested_;
+  using Scalar = remove_cvref_t<ScalarRef>;
+  using MatrixTypeNested = typename MatrixType::Nested;
+  using MatrixTypeNested_ = remove_all_t<MatrixTypeNested>;
   enum {
     FlagsLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
     Flags =
@@ -53,15 +53,15 @@ template <typename ViewOp, typename XprType, typename StrideType, typename Stora
           bool Mutable = !std::is_const<XprType>::value>
 class CwiseUnaryViewImpl : public generic_xpr_base<CwiseUnaryView<ViewOp, XprType, StrideType> >::type {
  public:
-  typedef typename generic_xpr_base<CwiseUnaryView<ViewOp, XprType, StrideType> >::type Base;
+  using Base = typename generic_xpr_base<CwiseUnaryView<ViewOp, XprType, StrideType>>::type;
 };
 
 template <typename ViewOp, typename MatrixType, typename StrideType>
 class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false>
     : public dense_xpr_base<CwiseUnaryView<ViewOp, MatrixType, StrideType> >::type {
  public:
-  typedef CwiseUnaryView<ViewOp, MatrixType, StrideType> Derived;
-  typedef typename dense_xpr_base<CwiseUnaryView<ViewOp, MatrixType, StrideType> >::type Base;
+  using Derived = CwiseUnaryView<ViewOp, MatrixType, StrideType>;
+  using Base = typename dense_xpr_base<CwiseUnaryView<ViewOp, MatrixType, StrideType>>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
@@ -96,8 +96,8 @@ template <typename ViewOp, typename MatrixType, typename StrideType>
 class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, true>
     : public CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false> {
  public:
-  typedef CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false> Base;
-  typedef CwiseUnaryView<ViewOp, MatrixType, StrideType> Derived;
+  using Base = CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false>;
+  using Derived = CwiseUnaryView<ViewOp, MatrixType, StrideType>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(CwiseUnaryViewImpl)
 
@@ -136,11 +136,11 @@ template <typename ViewOp, typename MatrixType, typename StrideType>
 class CwiseUnaryView : public internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
                                                            typename internal::traits<MatrixType>::StorageKind> {
  public:
-  typedef typename internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
-                                                typename internal::traits<MatrixType>::StorageKind>::Base Base;
+  using Base = typename internal::CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType,
+                                                     typename internal::traits<MatrixType>::StorageKind>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseUnaryView)
-  typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<MatrixType> NestedExpression;
+  using MatrixTypeNested = typename internal::ref_selector<MatrixType>::non_const_type;
+  using NestedExpression = internal::remove_all_t<MatrixType>;
 
   explicit EIGEN_DEVICE_FUNC constexpr inline CwiseUnaryView(MatrixType& mat, const ViewOp& func = ViewOp())
       : m_matrix(mat), m_functor(func) {}

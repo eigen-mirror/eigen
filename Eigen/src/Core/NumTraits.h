@@ -32,7 +32,7 @@ struct default_digits_impl<T, false, false>  // Floating point
   EIGEN_DEVICE_FUNC constexpr static int run() {
     using std::ceil;
     using std::log2;
-    typedef typename NumTraits<T>::Real Real;
+    using Real = typename NumTraits<T>::Real;
     return int(ceil(-log2(NumTraits<Real>::epsilon())));
   }
 };
@@ -57,7 +57,7 @@ struct default_digits10_impl<T, false, false>  // Floating point
   EIGEN_DEVICE_FUNC constexpr static int run() {
     using std::floor;
     using std::log10;
-    typedef typename NumTraits<T>::Real Real;
+    using Real = typename NumTraits<T>::Real;
     return int(floor((internal::default_digits_impl<Real>::run() - 1) * log10(2)));
   }
 };
@@ -82,7 +82,7 @@ struct default_max_digits10_impl<T, false, false>  // Floating point
   EIGEN_DEVICE_FUNC constexpr static int run() {
     using std::ceil;
     using std::log10;
-    typedef typename NumTraits<T>::Real Real;
+    using Real = typename NumTraits<T>::Real;
     return int(ceil(internal::default_digits_impl<Real>::run() * log10(2) + 1));
   }
 };
@@ -198,10 +198,10 @@ struct GenericNumTraits {
     MulCost = 1
   };
 
-  typedef T Real;
-  typedef std::conditional_t<IsInteger, std::conditional_t<sizeof(T) <= 2, float, double>, T> NonInteger;
-  typedef T Nested;
-  typedef T Literal;
+  using Real = T;
+  using NonInteger = std::conditional_t<IsInteger, std::conditional_t<sizeof(T) <= 2, float, double>, T>;
+  using Nested = T;
+  using Literal = T;
 
   EIGEN_DEVICE_FUNC constexpr static Real epsilon() { return numext::numeric_limits<T>::epsilon(); }
 
@@ -260,8 +260,8 @@ struct NumTraits<long double> : GenericNumTraits<long double> {
 
 template <typename Real_>
 struct NumTraits<std::complex<Real_> > : GenericNumTraits<std::complex<Real_> > {
-  typedef Real_ Real;
-  typedef typename NumTraits<Real_>::Literal Literal;
+  using Real = Real_;
+  using Literal = typename NumTraits<Real_>::Literal;
   enum {
     IsComplex = 1,
     IsSigned = NumTraits<Real_>::IsSigned,
@@ -279,13 +279,13 @@ struct NumTraits<std::complex<Real_> > : GenericNumTraits<std::complex<Real_> > 
 
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct NumTraits<Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols> > {
-  typedef Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols> ArrayType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Array<RealScalar, Rows, Cols, Options, MaxRows, MaxCols> Real;
-  typedef typename NumTraits<Scalar>::NonInteger NonIntegerScalar;
-  typedef Array<NonIntegerScalar, Rows, Cols, Options, MaxRows, MaxCols> NonInteger;
-  typedef ArrayType& Nested;
-  typedef typename NumTraits<Scalar>::Literal Literal;
+  using ArrayType = Array<Scalar, Rows, Cols, Options, MaxRows, MaxCols>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Real = Array<RealScalar, Rows, Cols, Options, MaxRows, MaxCols>;
+  using NonIntegerScalar = typename NumTraits<Scalar>::NonInteger;
+  using NonInteger = Array<NonIntegerScalar, Rows, Cols, Options, MaxRows, MaxCols>;
+  using Nested = ArrayType&;
+  using Literal = typename NumTraits<Scalar>::Literal;
 
   enum {
     IsComplex = NumTraits<Scalar>::IsComplex,

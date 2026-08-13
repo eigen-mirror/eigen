@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-typedef CwiseUnaryOp<internal::scalar_ldexp_op<Scalar>, const Derived> LdexpReturnType;
-typedef CwiseUnaryOp<internal::scalar_isfinite_op<Scalar, true>, const Derived> IsFiniteTypedReturnType;
+using LdexpReturnType = CwiseUnaryOp<internal::scalar_ldexp_op<Scalar>, const Derived>;
+using IsFiniteTypedReturnType = CwiseUnaryOp<internal::scalar_isfinite_op<Scalar, true>, const Derived>;
 
 /** \returns an expression of the coefficient-wise absolute value of \c *this
  *
@@ -347,7 +347,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(trunc, internal::scalar_trunc_op, TruncReturnType)
 
 template <int N>
 struct ShiftRightXpr {
-  typedef CwiseUnaryOp<internal::scalar_shift_right_op<Scalar, N>, const Derived> Type;
+  using Type = CwiseUnaryOp<internal::scalar_shift_right_op<Scalar, N>, const Derived>;
 };
 
 /** \returns an expression of \c *this with the \a Scalar type arithmetically
@@ -364,7 +364,7 @@ EIGEN_DEVICE_FUNC constexpr typename ShiftRightXpr<N>::Type shiftRight() const {
 
 template <int N>
 struct ShiftLeftXpr {
-  typedef CwiseUnaryOp<internal::scalar_shift_left_op<Scalar, N>, const Derived> Type;
+  using Type = CwiseUnaryOp<internal::scalar_shift_left_op<Scalar, N>, const Derived>;
 };
 
 /** \returns an expression of \c *this with the \a Scalar type logically

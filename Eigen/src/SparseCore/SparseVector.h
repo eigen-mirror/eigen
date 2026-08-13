@@ -32,10 +32,10 @@ namespace Eigen {
 namespace internal {
 template <typename Scalar_, int Options_, typename StorageIndex_>
 struct traits<SparseVector<Scalar_, Options_, StorageIndex_> > {
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef Sparse StorageKind;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using StorageKind = Sparse;
+  using XprKind = MatrixXpr;
   enum {
     IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
 
@@ -61,7 +61,7 @@ struct sparse_vector_assign_selector;
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_> > {
-  typedef SparseCompressedBase<SparseVector> Base;
+  using Base = SparseCompressedBase<SparseVector>;
   using Base::convert_index;
 
  public:
@@ -69,7 +69,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, +=)
   EIGEN_SPARSE_INHERIT_ASSIGNMENT_OPERATOR(SparseVector, -=)
 
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
+  using Storage = internal::CompressedStorage<Scalar, StorageIndex>;
   enum { IsColVector = internal::traits<SparseVector>::IsColVector };
 
   enum { Options = Options_ };
@@ -122,8 +122,8 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   }
 
  public:
-  typedef typename Base::InnerIterator InnerIterator;
-  typedef typename Base::ReverseInnerIterator ReverseInnerIterator;
+  using InnerIterator = typename Base::InnerIterator;
+  using ReverseInnerIterator = typename Base::ReverseInnerIterator;
 
   inline void setZero() { m_data.clear(); }
 
@@ -400,10 +400,10 @@ namespace internal {
 
 template <typename Scalar_, int Options_, typename Index_>
 struct evaluator<SparseVector<Scalar_, Options_, Index_> > : evaluator_base<SparseVector<Scalar_, Options_, Index_> > {
-  typedef SparseVector<Scalar_, Options_, Index_> SparseVectorType;
-  typedef evaluator_base<SparseVectorType> Base;
-  typedef typename SparseVectorType::InnerIterator InnerIterator;
-  typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;
+  using SparseVectorType = SparseVector<Scalar_, Options_, Index_>;
+  using Base = evaluator_base<SparseVectorType>;
+  using InnerIterator = typename SparseVectorType::InnerIterator;
+  using ReverseInnerIterator = typename SparseVectorType::ReverseInnerIterator;
 
   enum { CoeffReadCost = NumTraits<Scalar_>::ReadCost, Flags = SparseVectorType::Flags };
 
@@ -423,7 +423,7 @@ template <typename Dest, typename Src>
 struct sparse_vector_assign_selector<Dest, Src, SVA_Inner> {
   static void run(Dest& dst, const Src& src) {
     eigen_internal_assert(src.innerSize() == src.size());
-    typedef internal::evaluator<Src> SrcEvaluatorType;
+    using SrcEvaluatorType = internal::evaluator<Src>;
     SrcEvaluatorType srcEval(src);
     for (typename SrcEvaluatorType::InnerIterator it(srcEval, 0); it; ++it) dst.insert(it.index()) = it.value();
   }
@@ -433,7 +433,7 @@ template <typename Dest, typename Src>
 struct sparse_vector_assign_selector<Dest, Src, SVA_Outer> {
   static void run(Dest& dst, const Src& src) {
     eigen_internal_assert(src.outerSize() == src.size());
-    typedef internal::evaluator<Src> SrcEvaluatorType;
+    using SrcEvaluatorType = internal::evaluator<Src>;
     SrcEvaluatorType srcEval(src);
     for (Index i = 0; i < src.size(); ++i) {
       typename SrcEvaluatorType::InnerIterator it(srcEval, i);
@@ -459,7 +459,7 @@ struct sparse_vector_assign_selector<Dest, Src, SVA_RuntimeSwitch> {
 template <typename Scalar, int Options, typename StorageIndex>
 class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
  public:
-  typedef SparseVector<Scalar, Options, StorageIndex> SparseMat;
+  using SparseMat = SparseVector<Scalar, Options, StorageIndex>;
 
   struct Header {
     typename SparseMat::Index size;

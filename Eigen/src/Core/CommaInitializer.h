@@ -30,7 +30,7 @@ namespace Eigen {
  */
 template <typename XprType>
 struct CommaInitializer {
-  typedef typename XprType::Scalar Scalar;
+  using Scalar = typename XprType::Scalar;
 
   EIGEN_DEVICE_FUNC constexpr CommaInitializer(XprType& xpr, const Scalar& s)
       : m_xpr(xpr), m_row(0), m_col(1), m_currentBlockRows(1) {

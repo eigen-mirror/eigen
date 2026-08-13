@@ -48,13 +48,13 @@ namespace internal {
 
 template <typename T, typename dummy = void>
 struct global_math_functions_filtering_base {
-  typedef T type;
+  using type = T;
 };
 
 template <typename T>
 struct global_math_functions_filtering_base<T,
                                             void_t<typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl>> {
-  typedef typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl type;
+  using type = typename T::Eigen_BaseClassForSpecializationOfGlobalMathFuncImpl;
 };
 
 #define EIGEN_MATHFUNC_IMPL(func, scalar) \
@@ -66,13 +66,13 @@ struct global_math_functions_filtering_base<T,
 
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct real_default_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static constexpr RealScalar run(const Scalar& x) { return x; }
 };
 
 template <typename Scalar>
 struct real_default_impl<Scalar, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     using std::real;
     return real(x);
@@ -85,7 +85,7 @@ struct real_impl : real_default_impl<Scalar> {};
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename T>
 struct real_impl<std::complex<T>> {
-  typedef T RealScalar;
+  using RealScalar = T;
   EIGEN_DEVICE_FUNC static inline T run(const std::complex<T>& x) { return x.real(); }
 };
 #endif
@@ -96,13 +96,13 @@ struct real_impl<std::complex<T>> {
 
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct imag_default_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar&) { return RealScalar(0); }
 };
 
 template <typename Scalar>
 struct imag_default_impl<Scalar, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     using std::imag;
     return imag(x);
@@ -115,7 +115,7 @@ struct imag_impl : imag_default_impl<Scalar> {};
 #if defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename T>
 struct imag_impl<std::complex<T>> {
-  typedef T RealScalar;
+  using RealScalar = T;
   EIGEN_DEVICE_FUNC static inline T run(const std::complex<T>& x) { return x.imag(); }
 };
 #endif
@@ -126,7 +126,7 @@ struct imag_impl<std::complex<T>> {
 
 template <typename Scalar>
 struct real_ref_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar& run(Scalar& x) { return reinterpret_cast<RealScalar*>(&x)[0]; }
   EIGEN_DEVICE_FUNC static inline const RealScalar& run(const Scalar& x) {
     return reinterpret_cast<const RealScalar*>(&x)[0];
@@ -139,7 +139,7 @@ struct real_ref_impl {
 
 template <typename Scalar, bool IsComplex>
 struct imag_ref_default_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar& run(Scalar& x) { return reinterpret_cast<RealScalar*>(&x)[1]; }
   EIGEN_DEVICE_FUNC static inline const RealScalar& run(const Scalar& x) {
     return reinterpret_cast<const RealScalar*>(&x)[1];
@@ -148,7 +148,7 @@ struct imag_ref_default_impl {
 
 template <typename Scalar>
 struct imag_ref_default_impl<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr static inline RealScalar run(Scalar&) { return RealScalar(0); }
   EIGEN_DEVICE_FUNC constexpr static inline RealScalar run(const Scalar&) { return RealScalar(0); }
 };
@@ -217,14 +217,14 @@ struct conj_impl : conj_default_impl<Scalar, IsComplex> {};
 
 template <typename Scalar, bool IsComplex>
 struct abs2_impl_default {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return x * x; }
 };
 
 template <typename Scalar>
 struct abs2_impl_default<Scalar, true>  // IsComplex
 {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     return numext::real(x) * numext::real(x) + numext::imag(x) * numext::imag(x);
   }
@@ -232,7 +232,7 @@ struct abs2_impl_default<Scalar, true>  // IsComplex
 
 template <typename Scalar>
 struct abs2_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     return abs2_impl_default<Scalar, NumTraits<Scalar>::IsComplex>::run(x);
   }
@@ -285,7 +285,7 @@ struct norm1_default_impl;
 
 template <typename Scalar>
 struct norm1_default_impl<Scalar, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     EIGEN_USING_STD(abs);
     return abs(numext::real(x)) + abs(numext::imag(x));
@@ -330,7 +330,7 @@ struct cast_impl<OldType, bool> {
 template <typename OldType, typename NewType>
 struct cast_impl<OldType, NewType, std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
   EIGEN_DEVICE_FUNC static inline NewType run(const OldType& x) {
-    typedef typename NumTraits<NewType>::Real NewReal;
+    using NewReal = typename NumTraits<NewType>::Real;
     return static_cast<NewType>(static_cast<NewReal>(x));
   }
 };
@@ -358,7 +358,7 @@ struct arg_default_impl;
 
 template <typename Scalar>
 struct arg_default_impl<Scalar, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     // There is no official ::arg on device in CUDA/HIP, so we always need to use std::arg.
     using std::arg;
@@ -369,7 +369,7 @@ struct arg_default_impl<Scalar, true> {
 // Must be non-complex floating-point type (e.g. half/bfloat16).
 template <typename Scalar>
 struct arg_default_impl<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     return (x < Scalar(0)) ? RealScalar(EIGEN_PI) : RealScalar(0);
   }
@@ -377,7 +377,7 @@ struct arg_default_impl<Scalar, false> {
 #else
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct arg_default_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     return (x < RealScalar(0)) ? RealScalar(EIGEN_PI) : RealScalar(0);
   }
@@ -385,7 +385,7 @@ struct arg_default_impl {
 
 template <typename Scalar>
 struct arg_default_impl<Scalar, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     EIGEN_USING_STD(arg);
     return arg(x);
@@ -407,7 +407,7 @@ namespace std_fallback {
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline Scalar expm1(const Scalar& x) {
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_USING_STD(exp);
   Scalar u = exp(x);
@@ -465,7 +465,7 @@ namespace std_fallback {
 template <typename Scalar>
 EIGEN_DEVICE_FUNC inline Scalar log1p(const Scalar& x) {
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_USING_STD(log);
   Scalar x1p = RealScalar(1) + x;
   Scalar log_1p = log_impl<Scalar>::run(x1p);
@@ -502,8 +502,8 @@ struct log1p_impl<std::complex<RealScalar>> {
 template <typename ScalarX, typename ScalarY,
           bool IsInteger = NumTraits<ScalarX>::IsInteger && NumTraits<ScalarY>::IsInteger>
 struct pow_impl {
-  typedef typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType
-      result_type;
+  using result_type =
+      typename ScalarBinaryOpTraits<ScalarX, ScalarY, internal::scalar_pow_op<ScalarX, ScalarY>>::ReturnType;
   static EIGEN_DEVICE_FUNC inline result_type run(const ScalarX& x, const ScalarY& y) {
     EIGEN_USING_STD(pow);
     return pow(x, y);
@@ -512,7 +512,7 @@ struct pow_impl {
 
 template <typename ScalarX, typename ScalarY>
 struct pow_impl<ScalarX, ScalarY, true> {
-  typedef ScalarX result_type;
+  using result_type = ScalarX;
   static EIGEN_DEVICE_FUNC inline ScalarX run(ScalarX x, ScalarY y) {
     ScalarX res(1);
     eigen_assert(!NumTraits<ScalarY>::IsSigned || y >= 0);
@@ -2029,7 +2029,7 @@ struct scalar_fuzzy_default_impl {};
 
 template <typename Scalar>
 struct scalar_fuzzy_default_impl<Scalar, false, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename OtherScalar>
   EIGEN_DEVICE_FUNC static inline bool isMuchSmallerThan(const Scalar& x, const OtherScalar& y,
                                                          const RealScalar& prec) {
@@ -2045,7 +2045,7 @@ struct scalar_fuzzy_default_impl<Scalar, false, false> {
 
 template <typename Scalar>
 struct scalar_fuzzy_default_impl<Scalar, false, true> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename OtherScalar>
   EIGEN_DEVICE_FUNC static inline bool isMuchSmallerThan(const Scalar& x, const Scalar&, const RealScalar&) {
     return x == Scalar(0);
@@ -2058,7 +2058,7 @@ struct scalar_fuzzy_default_impl<Scalar, false, true> {
 
 template <typename Scalar>
 struct scalar_fuzzy_default_impl<Scalar, true, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename OtherScalar>
   EIGEN_DEVICE_FUNC static inline bool isMuchSmallerThan(const Scalar& x, const OtherScalar& y,
                                                          const RealScalar& prec) {
@@ -2100,7 +2100,7 @@ EIGEN_DEVICE_FUNC inline bool isApproxOrLessThan(
 
 template <>
 struct scalar_fuzzy_impl<bool> {
-  typedef bool RealScalar;
+  using RealScalar = bool;
 
   template <typename OtherScalar>
   EIGEN_DEVICE_FUNC static inline bool isMuchSmallerThan(const bool& x, const bool&, const bool&) {

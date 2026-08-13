@@ -97,7 +97,7 @@ class ForkJoinScheduler {
   // Schedules `right_thunk`, runs `left_thunk`, and runs other tasks until `right_thunk` has finished.
   template <typename LeftType, typename RightType, typename ThreadPoolEnv>
   static void ForkJoin(LeftType&& left_thunk, RightType&& right_thunk, ThreadPoolTempl<ThreadPoolEnv>* thread_pool) {
-    typedef typename ThreadPoolTempl<ThreadPoolEnv>::Task Task;
+    using Task = typename ThreadPoolTempl<ThreadPoolEnv>::Task;
     std::atomic<bool> right_done(false);
     auto execute_right = [&right_thunk, &right_done]() {
       std::forward<RightType>(right_thunk)();

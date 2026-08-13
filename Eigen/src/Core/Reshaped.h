@@ -50,9 +50,9 @@ namespace internal {
 
 template <typename XprType, int Rows, int Cols, int Order>
 struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType> {
-  typedef typename traits<XprType>::Scalar Scalar;
-  typedef typename traits<XprType>::StorageKind StorageKind;
-  typedef typename traits<XprType>::XprKind XprKind;
+  using Scalar = typename traits<XprType>::Scalar;
+  using StorageKind = typename traits<XprType>::StorageKind;
+  using XprKind = typename traits<XprType>::XprKind;
   enum {
     MatrixRows = traits<XprType>::RowsAtCompileTime,
     MatrixCols = traits<XprType>::ColsAtCompileTime,
@@ -102,11 +102,11 @@ class ReshapedImpl;
 
 template <typename XprType, int Rows, int Cols, int Order>
 class Reshaped : public ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind> {
-  typedef ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind> Impl;
+  using Impl = ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind>;
 
  public:
   // typedef typename Impl::Base Base;
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Reshaped)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reshaped)
 
@@ -134,12 +134,11 @@ template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl<XprType, Rows, Cols, Order, Dense>
     : public internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
                                           internal::traits<Reshaped<XprType, Rows, Cols, Order> >::HasDirectAccess> {
-  typedef internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
-                                       internal::traits<Reshaped<XprType, Rows, Cols, Order> >::HasDirectAccess>
-      Impl;
+  using Impl = internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
+                                            internal::traits<Reshaped<XprType, Rows, Cols, Order>>::HasDirectAccess>;
 
  public:
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl)
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr) : Impl(xpr) {}
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr, Index reshapeRows, Index reshapeCols)
@@ -152,15 +151,15 @@ namespace internal {
 template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
     : public internal::dense_xpr_base<Reshaped<XprType, Rows, Cols, Order> >::type {
-  typedef Reshaped<XprType, Rows, Cols, Order> ReshapedType;
+  using ReshapedType = Reshaped<XprType, Rows, Cols, Order>;
 
  public:
-  typedef typename internal::dense_xpr_base<ReshapedType>::type Base;
+  using Base = typename internal::dense_xpr_base<ReshapedType>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
-  typedef typename internal::ref_selector<XprType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using MatrixTypeNested = typename internal::ref_selector<XprType>::non_const_type;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   class InnerIterator;
 
@@ -198,11 +197,11 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
 /** \internal Internal implementation of dense Reshaped in the direct access case. */
 template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl_dense<XprType, Rows, Cols, Order, true> : public MapBase<Reshaped<XprType, Rows, Cols, Order> > {
-  typedef Reshaped<XprType, Rows, Cols, Order> ReshapedType;
-  typedef typename internal::ref_selector<XprType>::non_const_type XprTypeNested;
+  using ReshapedType = Reshaped<XprType, Rows, Cols, Order>;
+  using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
 
  public:
-  typedef MapBase<ReshapedType> Base;
+  using Base = MapBase<ReshapedType>;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
@@ -238,10 +237,10 @@ struct reshaped_evaluator;
 template <typename ArgType, int Rows, int Cols, int Order>
 struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
     : reshaped_evaluator<ArgType, Rows, Cols, Order, traits<Reshaped<ArgType, Rows, Cols, Order> >::HasDirectAccess> {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
-  typedef typename XprType::Scalar Scalar;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
+  using Scalar = typename XprType::Scalar;
   // TODO: should check for smaller packet types
-  typedef typename packet_traits<Scalar>::type PacketScalar;
+  using PacketScalar = typename packet_traits<Scalar>::type;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
@@ -281,7 +280,7 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
     // evaluator's accesses element-for-element, so its alignment carries over.
     Alignment = evaluator<ArgType>::Alignment
   };
-  typedef reshaped_evaluator<ArgType, Rows, Cols, Order, HasDirectAccess> reshaped_evaluator_type;
+  using reshaped_evaluator_type = reshaped_evaluator<ArgType, Rows, Cols, Order, HasDirectAccess>;
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType& xpr) : reshaped_evaluator_type(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -290,7 +289,7 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
 template <typename ArgType, int Rows, int Cols, int Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ false>
     : evaluator_base<Reshaped<ArgType, Rows, Cols, Order> > {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost /* TODO + cost of index computations */,
@@ -312,10 +311,10 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
 
-  typedef std::pair<Index, Index> RowCol;
+  using RowCol = std::pair<Index, Index>;
 
   // The n-th element of the reshape in `Order` enumeration; under ForwardLinearAccess this is also
   // the nested evaluator's linear index of that element.
@@ -484,8 +483,8 @@ template <typename ArgType, int Rows, int Cols, int Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ true>
     : mapbase_evaluator<Reshaped<ArgType, Rows, Cols, Order>,
                         typename Reshaped<ArgType, Rows, Cols, Order>::PlainObject> {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
-  typedef typename XprType::Scalar Scalar;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
+  using Scalar = typename XprType::Scalar;
 
   // Packets come from the mapbase_evaluator machinery, not from linear forwarding.
   enum { ForwardLinearAccess = false };

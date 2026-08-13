@@ -50,10 +50,10 @@ namespace Eigen {
  */
 template <typename MatrixType_>
 class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixType_> {
-  typedef SelfAdjointEigenSolver<MatrixType_> Base;
+  using Base = SelfAdjointEigenSolver<MatrixType_>;
 
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
 
   /** \brief Default constructor for fixed-size matrices.
    *

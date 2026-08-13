@@ -40,7 +40,7 @@ namespace internal {
 template <typename Scalar, int Dim, int Mode>
 struct uniformscaling_times_affine_returntype {
   enum { NewMode = int(Mode) == int(Isometry) ? Affine : Mode };
-  typedef Transform<Scalar, Dim, NewMode> type;
+  using type = Transform<Scalar, Dim, NewMode>;
 };
 }  // namespace internal
 
@@ -48,7 +48,7 @@ template <typename Scalar_>
 class UniformScaling {
  public:
   /** the scalar type of the coefficients */
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
 
  protected:
   Scalar m_factor;
@@ -171,13 +171,13 @@ inline typename DiagonalWrapper<const Derived>::PlainObject Scaling(MatrixBase<D
 }
 
 /** \deprecated */
-typedef DiagonalMatrix<float, 2> AlignedScaling2f;
+using AlignedScaling2f = DiagonalMatrix<float, 2>;
 /** \deprecated */
-typedef DiagonalMatrix<double, 2> AlignedScaling2d;
+using AlignedScaling2d = DiagonalMatrix<double, 2>;
 /** \deprecated */
-typedef DiagonalMatrix<float, 3> AlignedScaling3f;
+using AlignedScaling3f = DiagonalMatrix<float, 3>;
 /** \deprecated */
-typedef DiagonalMatrix<double, 3> AlignedScaling3d;
+using AlignedScaling3d = DiagonalMatrix<double, 3>;
 //@}
 
 template <typename Scalar>

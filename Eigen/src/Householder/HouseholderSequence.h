@@ -62,9 +62,9 @@ namespace internal {
 
 template <typename VectorsType, typename CoeffsType, int Side>
 struct traits<HouseholderSequence<VectorsType, CoeffsType, Side> > {
-  typedef typename VectorsType::Scalar Scalar;
-  typedef typename VectorsType::StorageIndex StorageIndex;
-  typedef typename VectorsType::StorageKind StorageKind;
+  using Scalar = typename VectorsType::Scalar;
+  using StorageIndex = typename VectorsType::StorageIndex;
+  using StorageKind = typename VectorsType::StorageKind;
   enum {
     RowsAtCompileTime =
         Side == OnTheLeft ? traits<VectorsType>::RowsAtCompileTime : traits<VectorsType>::ColsAtCompileTime,
@@ -81,13 +81,13 @@ struct HouseholderSequenceShape {};
 template <typename VectorsType, typename CoeffsType, int Side>
 struct evaluator_traits<HouseholderSequence<VectorsType, CoeffsType, Side> >
     : public evaluator_traits_base<HouseholderSequence<VectorsType, CoeffsType, Side> > {
-  typedef HouseholderSequenceShape Shape;
+  using Shape = HouseholderSequenceShape;
 };
 
 template <typename VectorsType, typename CoeffsType, int Side>
 struct hseq_side_dependent_impl {
-  typedef Block<const VectorsType, Dynamic, 1> EssentialVectorType;
-  typedef HouseholderSequence<VectorsType, CoeffsType, OnTheLeft> HouseholderSequenceType;
+  using EssentialVectorType = Block<const VectorsType, Dynamic, 1>;
+  using HouseholderSequenceType = HouseholderSequence<VectorsType, CoeffsType, OnTheLeft>;
   static EIGEN_DEVICE_FUNC inline const EssentialVectorType essentialVector(const HouseholderSequenceType& h, Index k) {
     Index start = k + 1 + h.m_shift;
     return Block<const VectorsType, Dynamic, 1>(h.m_vectors, start, k, h.rows() - start, 1);
@@ -96,8 +96,8 @@ struct hseq_side_dependent_impl {
 
 template <typename VectorsType, typename CoeffsType>
 struct hseq_side_dependent_impl<VectorsType, CoeffsType, OnTheRight> {
-  typedef Transpose<Block<const VectorsType, 1, Dynamic> > EssentialVectorType;
-  typedef HouseholderSequence<VectorsType, CoeffsType, OnTheRight> HouseholderSequenceType;
+  using EssentialVectorType = Transpose<Block<const VectorsType, 1, Dynamic>>;
+  using HouseholderSequenceType = HouseholderSequence<VectorsType, CoeffsType, OnTheRight>;
   static inline const EssentialVectorType essentialVector(const HouseholderSequenceType& h, Index k) {
     Index start = k + 1 + h.m_shift;
     return Block<const VectorsType, 1, Dynamic>(h.m_vectors, k, start, 1, h.rows() - start).transpose();
@@ -106,18 +106,17 @@ struct hseq_side_dependent_impl<VectorsType, CoeffsType, OnTheRight> {
 
 template <typename OtherScalarType, typename MatrixType>
 struct matrix_type_times_scalar_type {
-  typedef typename ScalarBinaryOpTraits<OtherScalarType, typename MatrixType::Scalar>::ReturnType ResultScalar;
-  typedef Matrix<ResultScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, 0,
-                 MatrixType::MaxRowsAtCompileTime, MatrixType::MaxColsAtCompileTime>
-      Type;
+  using ResultScalar = typename ScalarBinaryOpTraits<OtherScalarType, typename MatrixType::Scalar>::ReturnType;
+  using Type = Matrix<ResultScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, 0,
+                      MatrixType::MaxRowsAtCompileTime, MatrixType::MaxColsAtCompileTime>;
 };
 
 }  // end namespace internal
 
 template <typename VectorsType, typename CoeffsType, int Side>
 class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, CoeffsType, Side> > {
-  typedef typename internal::hseq_side_dependent_impl<VectorsType, CoeffsType, Side>::EssentialVectorType
-      EssentialVectorType;
+  using EssentialVectorType =
+      typename internal::hseq_side_dependent_impl<VectorsType, CoeffsType, Side>::EssentialVectorType;
 
  public:
   enum {
@@ -126,31 +125,28 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     MaxRowsAtCompileTime = internal::traits<HouseholderSequence>::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = internal::traits<HouseholderSequence>::MaxColsAtCompileTime
   };
-  typedef typename internal::traits<HouseholderSequence>::Scalar Scalar;
+  using Scalar = typename internal::traits<HouseholderSequence>::Scalar;
 
-  typedef HouseholderSequence<
+  using ConjugateReturnType = HouseholderSequence<
       std::conditional_t<NumTraits<Scalar>::IsComplex,
                          internal::remove_all_t<typename VectorsType::ConjugateReturnType>, VectorsType>,
       std::conditional_t<NumTraits<Scalar>::IsComplex, internal::remove_all_t<typename CoeffsType::ConjugateReturnType>,
                          CoeffsType>,
-      Side>
-      ConjugateReturnType;
+      Side>;
 
-  typedef HouseholderSequence<
+  using AdjointReturnType = HouseholderSequence<
       VectorsType,
       std::conditional_t<NumTraits<Scalar>::IsComplex, internal::remove_all_t<typename CoeffsType::ConjugateReturnType>,
                          CoeffsType>,
-      Side>
-      AdjointReturnType;
+      Side>;
 
-  typedef HouseholderSequence<
+  using TransposeReturnType = HouseholderSequence<
       std::conditional_t<NumTraits<Scalar>::IsComplex,
                          internal::remove_all_t<typename VectorsType::ConjugateReturnType>, VectorsType>,
-      CoeffsType, Side>
-      TransposeReturnType;
+      CoeffsType, Side>;
 
-  typedef HouseholderSequence<std::add_const_t<VectorsType>, std::add_const_t<CoeffsType>, Side>
-      ConstHouseholderSequence;
+  using ConstHouseholderSequence =
+      HouseholderSequence<std::add_const_t<VectorsType>, std::add_const_t<CoeffsType>, Side>;
 
   /** \brief Constructor.
    * \param[in]  v      %Matrix containing the essential parts of the Householder vectors
@@ -234,7 +230,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
    */
   template <bool Cond>
   EIGEN_DEVICE_FUNC inline std::conditional_t<Cond, ConjugateReturnType, ConstHouseholderSequence> conjugateIf() const {
-    typedef std::conditional_t<Cond, ConjugateReturnType, ConstHouseholderSequence> ReturnType;
+    using ReturnType = std::conditional_t<Cond, ConjugateReturnType, ConstHouseholderSequence>;
     return ReturnType(m_vectors.template conjugateIf<Cond>(), m_coeffs.template conjugateIf<Cond>());
   }
 
@@ -337,7 +333,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
       Index bs = end - k;
       Index start = k + m_shift;
 
-      typedef Block<internal::remove_all_t<VectorsType>, Dynamic, Dynamic> SubVectorsType;
+      using SubVectorsType = Block<internal::remove_all_t<VectorsType>, Dynamic, Dynamic>;
       SubVectorsType sub_vecs1(m_vectors.const_cast_derived(), Side == OnTheRight ? k : start,
                                Side == OnTheRight ? start : k, Side == OnTheRight ? bs : m_vectors.rows() - start,
                                Side == OnTheRight ? m_vectors.cols() - start : bs);
@@ -371,7 +367,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
         Index bs = end - k;
         Index start = k + m_shift;
 
-        typedef Block<internal::remove_all_t<VectorsType>, Dynamic, Dynamic> SubVectorsType;
+        using SubVectorsType = Block<internal::remove_all_t<VectorsType>, Dynamic, Dynamic>;
         SubVectorsType sub_vecs1(m_vectors.const_cast_derived(), Side == OnTheRight ? k : start,
                                  Side == OnTheRight ? start : k, Side == OnTheRight ? bs : m_vectors.rows() - start,
                                  Side == OnTheRight ? m_vectors.cols() - start : bs);

@@ -182,29 +182,29 @@ EIGEN_DEVICE_FUNC constexpr Index get_runtime_value(const T &x) {
 // By default, no cleanup:
 template <typename T, int DynamicKey = Dynamic, typename EnableIf = void>
 struct cleanup_index_type {
-  typedef T type;
+  using type = T;
 };
 
 // Convert any integral type (e.g., short, int, unsigned int, etc.) to Eigen::Index
 template <typename T, int DynamicKey>
 struct cleanup_index_type<T, DynamicKey, std::enable_if_t<std::is_integral<T>::value>> {
-  typedef Index type;
+  using type = Index;
 };
 
 // If VariableAndFixedInt does not match DynamicKey, then we turn it to a pure compile-time value:
 template <int N, int DynamicKey>
 struct cleanup_index_type<VariableAndFixedInt<N>, DynamicKey> {
-  typedef FixedInt<N> type;
+  using type = FixedInt<N>;
 };
 // If VariableAndFixedInt matches DynamicKey, then we turn it to a pure runtime-value (aka Index):
 template <int DynamicKey>
 struct cleanup_index_type<VariableAndFixedInt<DynamicKey>, DynamicKey> {
-  typedef Index type;
+  using type = Index;
 };
 
 template <int N, int DynamicKey>
 struct cleanup_index_type<std::integral_constant<int, N>, DynamicKey> {
-  typedef FixedInt<N> type;
+  using type = FixedInt<N>;
 };
 
 }  // end namespace internal

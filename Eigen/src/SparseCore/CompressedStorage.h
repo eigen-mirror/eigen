@@ -25,8 +25,8 @@ namespace internal {
 template <typename Scalar_, typename StorageIndex_>
 class CompressedStorage {
  public:
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
 
   CompressedStorage() = default;
 

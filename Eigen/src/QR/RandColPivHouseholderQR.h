@@ -21,9 +21,9 @@ namespace internal {
 
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<RandColPivHouseholderQR<MatrixType_, PermutationIndex_>> : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ PermutationIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using PermutationIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
@@ -31,7 +31,7 @@ struct traits<RandColPivHouseholderQR<MatrixType_, PermutationIndex_>> : traits<
 template <typename Derived, typename Engine>
 EIGEN_STRONG_INLINE std::enable_if_t<!NumTraits<typename Derived::Scalar>::IsComplex> fill_gaussian(
     MatrixBase<Derived>& mat, Engine& engine) {
-  typedef typename Derived::Scalar Scalar;
+  using Scalar = typename Derived::Scalar;
   std::normal_distribution<Scalar> dist(Scalar(0), Scalar(1));
   for (Index j = 0; j < mat.cols(); ++j)
     for (Index i = 0; i < mat.rows(); ++i) mat.coeffRef(i, j) = dist(engine);
@@ -42,8 +42,8 @@ EIGEN_STRONG_INLINE std::enable_if_t<!NumTraits<typename Derived::Scalar>::IsCom
 template <typename Derived, typename Engine>
 EIGEN_STRONG_INLINE std::enable_if_t<NumTraits<typename Derived::Scalar>::IsComplex> fill_gaussian(
     MatrixBase<Derived>& mat, Engine& engine) {
-  typedef typename Derived::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename Derived::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   std::normal_distribution<RealScalar> dist(RealScalar(0), RealScalar(1));
   for (Index j = 0; j < mat.cols(); ++j)
     for (Index i = 0; i < mat.rows(); ++i) mat.coeffRef(i, j) = Scalar(dist(engine), dist(engine));
@@ -130,9 +130,9 @@ template <typename MatrixType_, typename PermutationIndex_>
 class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<MatrixType_, PermutationIndex_>>,
                                 public RankRevealingBase<RandColPivHouseholderQR<MatrixType_, PermutationIndex_>> {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<RandColPivHouseholderQR> Base;
-  typedef RankRevealingBase<RandColPivHouseholderQR> RankRevealingBase_;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<RandColPivHouseholderQR>;
+  using RankRevealingBase_ = RankRevealingBase<RandColPivHouseholderQR>;
   friend class SolverBase<RandColPivHouseholderQR>;
   friend class RankRevealingBase<RandColPivHouseholderQR>;
   using RankRevealingBase_::dimensionOfKernel;
@@ -144,21 +144,21 @@ class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<Matrix
   using RankRevealingBase_::rank;
   using RankRevealingBase_::setThreshold;
   using RankRevealingBase_::threshold;
-  typedef PermutationIndex_ PermutationIndex;
+  using PermutationIndex = PermutationIndex_;
   EIGEN_GENERIC_PUBLIC_INTERFACE(RandColPivHouseholderQR)
 
   enum {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationType;
-  typedef typename internal::plain_row_type<MatrixType, PermutationIndex>::type IntRowVectorType;
-  typedef typename internal::plain_row_type<MatrixType>::type RowVectorType;
-  typedef typename internal::plain_row_type<MatrixType, RealScalar>::type RealRowVectorType;
-  typedef HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>
-      HouseholderSequenceType;
-  typedef typename MatrixType::PlainObject PlainObject;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using PermutationType = PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex>;
+  using IntRowVectorType = typename internal::plain_row_type<MatrixType, PermutationIndex>::type;
+  using RowVectorType = typename internal::plain_row_type<MatrixType>::type;
+  using RealRowVectorType = typename internal::plain_row_type<MatrixType, RealScalar>::type;
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, internal::remove_all_t<typename HCoeffsType::ConjugateReturnType>>;
+  using PlainObject = typename MatrixType::PlainObject;
 
  private:
   // Default `m_blockSize == 0` means: let computeInPlace pick a size
@@ -559,14 +559,14 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     return;
   }
 
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> WorkMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> WorkVector;
+  using WorkMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using WorkVector = Matrix<Scalar, Dynamic, 1>;
   // Dynamic-sized Ref types so that a fixed-size MatrixType (e.g.
   // Matrix<float, 8, 10>) and its run-time-sized blocks can both be
   // wrapped without tripping Ref's compile-time-size check.
-  typedef Ref<WorkMatrix, 0, OuterStride<>> WorkMatrixRef;
-  typedef Ref<WorkVector> HCoeffsRef;
-  typedef Transpositions<Dynamic, Dynamic, PermutationIndex> IpivType;
+  using WorkMatrixRef = Ref<WorkMatrix, 0, OuterStride<>>;
+  using HCoeffsRef = Ref<WorkVector>;
+  using IpivType = Transpositions<Dynamic, Dynamic, PermutationIndex>;
 
   // Hoisted workspaces — allocated once per compute() call. Worst-case
   // sizes are computed from the first iteration (n_remain = cols,
@@ -791,8 +791,8 @@ struct Assignment<DstXprType, Inverse<RandColPivHouseholderQR<MatrixType, Permut
                   internal::assign_op<typename DstXprType::Scalar,
                                       typename RandColPivHouseholderQR<MatrixType, PermutationIndex>::Scalar>,
                   Dense2Dense> {
-  typedef RandColPivHouseholderQR<MatrixType, PermutationIndex> QrType;
-  typedef Inverse<QrType> SrcXprType;
+  using QrType = RandColPivHouseholderQR<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<QrType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename QrType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));

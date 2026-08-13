@@ -94,7 +94,7 @@ template <int kUnroll, typename RealScalar>
 EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const RealScalar* beta_sq, Index n,
                                                  RealScalar pivmin, const RealScalar* eval_points,
                                                  numext::int64_t* count, Index start) {
-  typedef typename packet_traits<RealScalar>::type Packet;
+  using Packet = typename packet_traits<RealScalar>::type;
   constexpr int kPacketSize = unpacket_traits<Packet>::size;
   constexpr int kFlushShift = NumTraits<RealScalar>::digits() - 2 < 30 ? NumTraits<RealScalar>::digits() - 2 : 30;
   constexpr Index kFlushPeriod = Index(1) << kFlushShift;
@@ -161,7 +161,7 @@ EIGEN_STRONG_INLINE void tridiagonal_sturm_block(const RealScalar* alpha, const 
 template <typename RealScalar>
 void tridiagonal_sturm_counts(const RealScalar* alpha, const RealScalar* beta_sq, Index n, RealScalar pivmin,
                               const RealScalar* eval_points, numext::int64_t* count, Index num_points) {
-  typedef typename packet_traits<RealScalar>::type Packet;
+  using Packet = typename packet_traits<RealScalar>::type;
   constexpr Index kPacketSize = Index(unpacket_traits<Packet>::size);
   // num_points is a point count and so never negative; clearing the sign bit makes that explicit to
   // the compiler, which lets the division by the power-of-two kPacketSize lower to a shift (and tidies
@@ -229,8 +229,8 @@ template <typename RealScalar>
 void tridiagonal_bisection_block(const RealScalar* alpha, const RealScalar* beta_sq, Index n, RealScalar pivmin,
                                  RealScalar bracket_lo, RealScalar bracket_hi, Index t_lo, Index t_hi, int max_iters,
                                  RealScalar abs_tol, RealScalar* out) {
-  typedef Array<RealScalar, Dynamic, 1> ArrayType;
-  typedef Array<numext::int64_t, Dynamic, 1> CountArrayType;
+  using ArrayType = Array<RealScalar, Dynamic, 1>;
+  using CountArrayType = Array<numext::int64_t, Dynamic, 1>;
   const Index m = t_hi - t_lo;
   if (m <= 0) return;
 
@@ -362,8 +362,8 @@ Index tridiagonal_sturm_count_below(const RealScalar* alpha, const RealScalar* b
 template <typename DiagType, typename SubdiagType, typename EivalType>
 Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, const EigenvalueRange& range,
                             typename DiagType::Scalar abs_tol, EivalType& eivalues) {
-  typedef typename DiagType::Scalar RealScalar;
-  typedef Array<RealScalar, Dynamic, 1> ArrayType;
+  using RealScalar = typename DiagType::Scalar;
+  using ArrayType = Array<RealScalar, Dynamic, 1>;
   EIGEN_STATIC_ASSERT(NumTraits<RealScalar>::IsInteger == 0 && NumTraits<RealScalar>::IsComplex == 0,
                       THIS_FUNCTION_IS_NOT_FOR_INTEGER_OR_COMPLEX_TYPES)
 

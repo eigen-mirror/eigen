@@ -142,7 +142,7 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
 
 template <typename LhsScalar, typename RhsScalar, typename Index>
 void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
-  typedef gebp_traits<LhsScalar, RhsScalar> Traits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar>;
 
   const Index mr = static_cast<Index>(Traits::mr);
   const Index nr = static_cast<Index>(Traits::nr);
@@ -184,7 +184,7 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
 
 template <typename LhsScalar, typename RhsScalar, int KcFactor, typename Index>
 void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index num_threads = 1) {
-  typedef gebp_traits<LhsScalar, RhsScalar> Traits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar>;
 
   // Explanations:
   // Let's recall that the product algorithms form mc x kc vertical panels A' on the lhs and
@@ -206,7 +206,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
 #endif
 
   if (num_threads > 1) {
-    typedef typename Traits::ResScalar ResScalar;
+    using ResScalar = typename Traits::ResScalar;
     enum {
       kdiv = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
       ksub = Traits::mr * (Traits::nr * sizeof(ResScalar)),
@@ -275,7 +275,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     }
 #endif
 
-    typedef typename Traits::ResScalar ResScalar;
+    using ResScalar = typename Traits::ResScalar;
     enum {
       k_peeling = 8,
       k_div = KcFactor * (Traits::mr * sizeof(LhsScalar) + Traits::nr * sizeof(RhsScalar)),
@@ -442,7 +442,7 @@ struct RhsPanelHelper {
       (std::max)(int(EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS) - registers_taken, 0);
 
  public:
-  typedef std::conditional_t<remaining_registers >= 4, RhsPacketx4, RhsPacket> type;
+  using type = std::conditional_t<remaining_registers >= 4, RhsPacketx4, RhsPacket>;
 };
 
 template <typename Packet>
@@ -456,17 +456,17 @@ struct QuadPacket {
 
 template <int N, typename T1, typename T2, typename T3>
 struct packet_conditional {
-  typedef T3 type;
+  using type = T3;
 };
 
 template <typename T1, typename T2, typename T3>
 struct packet_conditional<GEBPPacketFull, T1, T2, T3> {
-  typedef T1 type;
+  using type = T1;
 };
 
 template <typename T1, typename T2, typename T3>
 struct packet_conditional<GEBPPacketHalf, T1, T2, T3> {
-  typedef T2 type;
+  using type = T2;
 };
 
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
@@ -502,9 +502,9 @@ struct packet_conditional<GEBPPacketHalf, T1, T2, T3> {
 template <typename LhsScalar_, typename RhsScalar_, bool ConjLhs_, bool ConjRhs_, int Arch, int PacketSize_>
 class gebp_traits {
  public:
-  typedef LhsScalar_ LhsScalar;
-  typedef RhsScalar_ RhsScalar;
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using LhsScalar = LhsScalar_;
+  using RhsScalar = RhsScalar_;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -540,13 +540,13 @@ class gebp_traits {
     RhsProgress = 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, RhsPacket_, RhsScalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, RhsPacket_, RhsScalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
+  using LhsPacket4Packing = LhsPacket;
 
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
-  typedef ResPacket AccPacket;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
+  using AccPacket = ResPacket;
 
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
@@ -615,9 +615,9 @@ class gebp_traits {
 template <typename RealScalar, bool ConjLhs_, int Arch, int PacketSize_>
 class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, PacketSize_> {
  public:
-  typedef std::complex<RealScalar> LhsScalar;
-  typedef RealScalar RhsScalar;
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using LhsScalar = std::complex<RealScalar>;
+  using RhsScalar = RealScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -644,14 +644,14 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
     RhsProgress = 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, RhsPacket_, RhsScalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, RhsPacket_, RhsScalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
+  using LhsPacket4Packing = LhsPacket;
 
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
 
-  typedef ResPacket AccPacket;
+  using AccPacket = ResPacket;
 
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
@@ -757,8 +757,8 @@ DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
                      !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) {
   // Workaround: reduce real packets to half size by reinterpreting as complex.
   DoublePacket<typename unpacket_traits<Packet>::half> res;
-  typedef std::complex<typename unpacket_traits<Packet>::type> Cplx;
-  typedef typename packet_traits<Cplx>::type CplxPacket;
+  using Cplx = std::complex<typename unpacket_traits<Packet>::type>;
+  using CplxPacket = typename packet_traits<Cplx>::type;
   res.first = predux_half(CplxPacket(a.first)).v;
   res.second = predux_half(CplxPacket(a.second)).v;
   return res;
@@ -776,7 +776,7 @@ template <typename Scalar, typename RealPacket>
 void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
                             std::enable_if_t<unpacket_traits<RealPacket>::size == 16>* = 0) {
   // Workaround: load quad elements by reinterpreting real packets as complex.
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};
   RealScalar i[4] = {numext::imag(b[0]), numext::imag(b[0]), numext::imag(b[1]), numext::imag(b[1])};
   dest.first = ploadquad<RealPacket>(r);
@@ -785,17 +785,17 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
 
 template <typename Packet>
 struct unpacket_traits<DoublePacket<Packet>> {
-  typedef DoublePacket<typename unpacket_traits<Packet>::half> half;
+  using half = DoublePacket<typename unpacket_traits<Packet>::half>;
   enum { size = 2 * unpacket_traits<Packet>::size };
 };
 
 template <typename RealScalar, bool ConjLhs_, bool ConjRhs_, int Arch, int PacketSize_>
 class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Arch, PacketSize_> {
  public:
-  typedef std::complex<RealScalar> Scalar;
-  typedef std::complex<RealScalar> LhsScalar;
-  typedef std::complex<RealScalar> RhsScalar;
-  typedef std::complex<RealScalar> ResScalar;
+  using Scalar = std::complex<RealScalar>;
+  using LhsScalar = std::complex<RealScalar>;
+  using RhsScalar = std::complex<RealScalar>;
+  using ResScalar = std::complex<RealScalar>;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -820,16 +820,16 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
     RhsProgress = 1
   };
 
-  typedef DoublePacket<RealPacket> DoublePacketType;
+  using DoublePacketType = DoublePacket<RealPacket>;
 
-  typedef std::conditional_t<Vectorizable, ScalarPacket, Scalar> LhsPacket4Packing;
-  typedef std::conditional_t<Vectorizable, RealPacket, Scalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, DoublePacketType, Scalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ScalarPacket, Scalar> ResPacket;
-  typedef std::conditional_t<Vectorizable, DoublePacketType, Scalar> AccPacket;
+  using LhsPacket4Packing = std::conditional_t<Vectorizable, ScalarPacket, Scalar>;
+  using LhsPacket = std::conditional_t<Vectorizable, RealPacket, Scalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, DoublePacketType, Scalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ScalarPacket, Scalar>;
+  using AccPacket = std::conditional_t<Vectorizable, DoublePacketType, Scalar>;
 
   // this actually holds 8 packets!
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
 
   EIGEN_STRONG_INLINE void initAcc(Scalar& p) const { p = Scalar(0); }
 
@@ -933,10 +933,10 @@ class gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, 
 template <typename RealScalar, bool ConjRhs_, int Arch, int PacketSize_>
 class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, PacketSize_> {
  public:
-  typedef std::complex<RealScalar> Scalar;
-  typedef RealScalar LhsScalar;
-  typedef Scalar RhsScalar;
-  typedef Scalar ResScalar;
+  using Scalar = std::complex<RealScalar>;
+  using LhsScalar = RealScalar;
+  using RhsScalar = Scalar;
+  using ResScalar = Scalar;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -966,12 +966,12 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
     RhsProgress = 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, RhsPacket_, RhsScalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
-  typedef ResPacket AccPacket;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, RhsPacket_, RhsScalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
+  using LhsPacket4Packing = LhsPacket;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
+  using AccPacket = ResPacket;
 
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
@@ -1047,37 +1047,37 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel {
-  typedef gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target> Traits;
-  typedef gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target, GEBPPacketHalf>
-      HalfTraits;
-  typedef gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target, GEBPPacketQuarter>
-      QuarterTraits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target>;
+  using HalfTraits =
+      gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target, GEBPPacketHalf>;
+  using QuarterTraits =
+      gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target, GEBPPacketQuarter>;
 
-  typedef typename Traits::ResScalar ResScalar;
-  typedef typename Traits::LhsPacket LhsPacket;
-  typedef typename Traits::RhsPacket RhsPacket;
-  typedef typename Traits::ResPacket ResPacket;
-  typedef typename Traits::AccPacket AccPacket;
-  typedef typename Traits::RhsPacketx4 RhsPacketx4;
+  using ResScalar = typename Traits::ResScalar;
+  using LhsPacket = typename Traits::LhsPacket;
+  using RhsPacket = typename Traits::RhsPacket;
+  using ResPacket = typename Traits::ResPacket;
+  using AccPacket = typename Traits::AccPacket;
+  using RhsPacketx4 = typename Traits::RhsPacketx4;
 
-  typedef gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target> SwappedTraits;
+  using SwappedTraits = gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target>;
 
-  typedef typename SwappedTraits::LhsPacket SLhsPacket;
-  typedef typename SwappedTraits::RhsPacket SRhsPacket;
-  typedef typename SwappedTraits::ResPacket SResPacket;
-  typedef typename SwappedTraits::AccPacket SAccPacket;
+  using SLhsPacket = typename SwappedTraits::LhsPacket;
+  using SRhsPacket = typename SwappedTraits::RhsPacket;
+  using SResPacket = typename SwappedTraits::ResPacket;
+  using SAccPacket = typename SwappedTraits::AccPacket;
 
-  typedef typename HalfTraits::LhsPacket LhsPacketHalf;
-  typedef typename HalfTraits::RhsPacket RhsPacketHalf;
-  typedef typename HalfTraits::ResPacket ResPacketHalf;
-  typedef typename HalfTraits::AccPacket AccPacketHalf;
+  using LhsPacketHalf = typename HalfTraits::LhsPacket;
+  using RhsPacketHalf = typename HalfTraits::RhsPacket;
+  using ResPacketHalf = typename HalfTraits::ResPacket;
+  using AccPacketHalf = typename HalfTraits::AccPacket;
 
-  typedef typename QuarterTraits::LhsPacket LhsPacketQuarter;
-  typedef typename QuarterTraits::RhsPacket RhsPacketQuarter;
-  typedef typename QuarterTraits::ResPacket ResPacketQuarter;
-  typedef typename QuarterTraits::AccPacket AccPacketQuarter;
+  using LhsPacketQuarter = typename QuarterTraits::LhsPacket;
+  using RhsPacketQuarter = typename QuarterTraits::RhsPacket;
+  using ResPacketQuarter = typename QuarterTraits::ResPacket;
+  using AccPacketQuarter = typename QuarterTraits::AccPacket;
 
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using LinearMapper = typename DataMapper::LinearMapper;
 
   enum {
     Vectorizable = Traits::Vectorizable,
@@ -1100,14 +1100,14 @@ template <typename LhsScalar, typename RhsScalar, typename Index, typename DataM
           int SwappedLhsProgress =
               gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target>::LhsProgress>
 struct last_row_process_16_packets {
-  typedef gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target> Traits;
-  typedef gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target> SwappedTraits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target>;
+  using SwappedTraits = gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target>;
 
-  typedef typename Traits::ResScalar ResScalar;
-  typedef typename SwappedTraits::LhsPacket SLhsPacket;
-  typedef typename SwappedTraits::RhsPacket SRhsPacket;
-  typedef typename SwappedTraits::ResPacket SResPacket;
-  typedef typename SwappedTraits::AccPacket SAccPacket;
+  using ResScalar = typename Traits::ResScalar;
+  using SLhsPacket = typename SwappedTraits::LhsPacket;
+  using SRhsPacket = typename SwappedTraits::RhsPacket;
+  using SResPacket = typename SwappedTraits::ResPacket;
+  using SAccPacket = typename SwappedTraits::AccPacket;
 
   EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
@@ -1128,22 +1128,22 @@ struct last_row_process_16_packets {
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs, bool ConjugateRhs>
 struct last_row_process_16_packets<LhsScalar, RhsScalar, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs, 16> {
-  typedef gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target> Traits;
-  typedef gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target> SwappedTraits;
+  using Traits = gebp_traits<LhsScalar, RhsScalar, ConjugateLhs, ConjugateRhs, Architecture::Target>;
+  using SwappedTraits = gebp_traits<RhsScalar, LhsScalar, ConjugateRhs, ConjugateLhs, Architecture::Target>;
 
-  typedef typename Traits::ResScalar ResScalar;
-  typedef typename SwappedTraits::LhsPacket SLhsPacket;
-  typedef typename SwappedTraits::RhsPacket SRhsPacket;
-  typedef typename SwappedTraits::ResPacket SResPacket;
-  typedef typename SwappedTraits::AccPacket SAccPacket;
+  using ResScalar = typename Traits::ResScalar;
+  using SLhsPacket = typename SwappedTraits::LhsPacket;
+  using SRhsPacket = typename SwappedTraits::RhsPacket;
+  using SResPacket = typename SwappedTraits::ResPacket;
+  using SAccPacket = typename SwappedTraits::AccPacket;
 
   EIGEN_STRONG_INLINE void operator()(const DataMapper& res, SwappedTraits& straits, const LhsScalar* blA,
                                       const RhsScalar* blB, Index depth, const Index endk, Index i, Index j2,
                                       ResScalar alpha, SAccPacket& C0) const {
-    typedef typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half SResPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SLhsPacket>::half>::half SLhsPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SRhsPacket>::half>::half SRhsPacketQuarter;
-    typedef typename unpacket_traits<typename unpacket_traits<SAccPacket>::half>::half SAccPacketQuarter;
+    using SResPacketQuarter = typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half;
+    using SLhsPacketQuarter = typename unpacket_traits<typename unpacket_traits<SLhsPacket>::half>::half;
+    using SRhsPacketQuarter = typename unpacket_traits<typename unpacket_traits<SRhsPacket>::half>::half;
+    using SAccPacketQuarter = typename unpacket_traits<typename unpacket_traits<SAccPacket>::half>::half;
 
     SResPacketQuarter R = res.template gatherPacket<SResPacketQuarter>(i, j2);
     SResPacketQuarter alphav = pset1<SResPacketQuarter>(alpha);
@@ -1881,7 +1881,7 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate, PanelMode> {
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using LinearMapper = typename DataMapper::LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
                                     Index offset = 0) const;
 };
@@ -1891,8 +1891,8 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, ColMajor, Conjugate,
                                      PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
                                                             Index rows, Index stride, Index offset) const {
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
+  using HalfPacket = typename unpacket_traits<Packet>::half;
+  using QuarterPacket = typename unpacket_traits<typename unpacket_traits<Packet>::half>::half;
   enum {
     PacketSize = unpacket_traits<Packet>::size,
     HalfPacketSize = unpacket_traits<HalfPacket>::size,
@@ -2039,7 +2039,7 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
 template <typename Scalar, typename Index, typename DataMapper, int Pack1, int Pack2, typename Packet, bool Conjugate,
           bool PanelMode>
 struct gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate, PanelMode> {
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using LinearMapper = typename DataMapper::LinearMapper;
   EIGEN_DONT_INLINE void operator()(Scalar* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride = 0,
                                     Index offset = 0) const;
 };
@@ -2049,8 +2049,8 @@ template <typename Scalar, typename Index, typename DataMapper, int Pack1, int P
 EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Packet, RowMajor, Conjugate,
                                      PanelMode>::operator()(Scalar* blockA, const DataMapper& lhs, Index depth,
                                                             Index rows, Index stride, Index offset) const {
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
+  using HalfPacket = typename unpacket_traits<Packet>::half;
+  using QuarterPacket = typename unpacket_traits<typename unpacket_traits<Packet>::half>::half;
   enum {
     PacketSize = unpacket_traits<Packet>::size,
     HalfPacketSize = unpacket_traits<HalfPacket>::size,
@@ -2172,8 +2172,8 @@ EIGEN_DONT_INLINE void gemm_pack_lhs<Scalar, Index, DataMapper, Pack1, Pack2, Pa
 //  .  .  .  .    .  .  .  .    .  .
 template <typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Conjugate, PanelMode> {
-  typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using Packet = typename packet_traits<Scalar>::type;
+  using LinearMapper = typename DataMapper::LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size };
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
                                     Index offset = 0) const;
@@ -2368,10 +2368,10 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, nr, ColMajor, Co
 // this version is optimized for row major matrices
 template <typename Scalar, typename Index, typename DataMapper, int nr, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMode> {
-  typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using Packet = typename packet_traits<Scalar>::type;
+  using HalfPacket = typename unpacket_traits<Packet>::half;
+  using QuarterPacket = typename unpacket_traits<typename unpacket_traits<Packet>::half>::half;
+  using LinearMapper = typename DataMapper::LinearMapper;
   enum {
     PacketSize = packet_traits<Scalar>::size,
     HalfPacketSize = unpacket_traits<HalfPacket>::size,

@@ -20,11 +20,11 @@ namespace Eigen {
 namespace internal {
 template <typename XprType_, int BlockRows, int BlockCols, bool InnerPanel_>
 struct traits<Block<XprType_, BlockRows, BlockCols, InnerPanel_>> : traits<XprType_> {
-  typedef typename traits<XprType_>::Scalar Scalar;
-  typedef typename traits<XprType_>::StorageKind StorageKind;
-  typedef typename traits<XprType_>::XprKind XprKind;
-  typedef typename ref_selector<XprType_>::type XprTypeNested;
-  typedef std::remove_reference_t<XprTypeNested> XprTypeNested_;
+  using Scalar = typename traits<XprType_>::Scalar;
+  using StorageKind = typename traits<XprType_>::StorageKind;
+  using XprKind = typename traits<XprType_>::XprKind;
+  using XprTypeNested = typename ref_selector<XprType_>::type;
+  using XprTypeNested_ = std::remove_reference_t<XprTypeNested>;
   enum {
     MatrixRows = traits<XprType_>::RowsAtCompileTime,
     MatrixCols = traits<XprType_>::ColsAtCompileTime,
@@ -109,16 +109,16 @@ class BlockImpl;
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 class Block
     : public BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind> {
-  typedef BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind> Impl;
+  using Impl = BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, typename internal::traits<XprType>::StorageKind>;
   using BlockHelper = internal::block_xpr_helper<Block>;
 
  public:
   // typedef typename Impl::Base Base;
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Block)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Block)
 
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   /** Column or Row constructor
    */
@@ -170,11 +170,11 @@ class Block
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 class BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, Dense>
     : public internal::BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel> {
-  typedef internal::BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel> Impl;
-  typedef typename XprType::StorageIndex StorageIndex;
+  using Impl = internal::BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel>;
+  using StorageIndex = typename XprType::StorageIndex;
 
  public:
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl)
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE BlockImpl(XprType& xpr, Index i) : Impl(xpr, i) {}
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE BlockImpl(XprType& xpr, Index startRow, Index startCol)
@@ -189,11 +189,11 @@ namespace internal {
 /** \internal Internal implementation of dense Blocks in the general case. */
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel, bool HasDirectAccess>
 class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows, BlockCols, InnerPanel>>::type {
-  typedef Block<XprType, BlockRows, BlockCols, InnerPanel> BlockType;
-  typedef typename internal::ref_selector<XprType>::non_const_type XprTypeNested;
+  using BlockType = Block<XprType, BlockRows, BlockCols, InnerPanel>;
+  using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
 
  public:
-  typedef typename internal::dense_xpr_base<BlockType>::type Base;
+  using Base = typename internal::dense_xpr_base<BlockType>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(BlockType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl_dense)
 
@@ -306,8 +306,8 @@ class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel>
 class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
     : public MapBase<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
-  typedef Block<XprType, BlockRows, BlockCols, InnerPanel> BlockType;
-  typedef typename internal::ref_selector<XprType>::non_const_type XprTypeNested;
+  using BlockType = Block<XprType, BlockRows, BlockCols, InnerPanel>;
+  using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
   enum { XprTypeIsRowMajor = (int(traits<XprType>::Flags) & RowMajorBit) != 0 };
 
   /** \internal Returns base+offset (unless base is null, in which case returns null).
@@ -319,7 +319,7 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   }
 
  public:
-  typedef MapBase<BlockType> Base;
+  using Base = MapBase<BlockType>;
   EIGEN_DENSE_PUBLIC_INTERFACE(BlockType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(BlockImpl_dense)
 

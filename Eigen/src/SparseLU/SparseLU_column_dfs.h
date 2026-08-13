@@ -42,8 +42,8 @@ class SparseLUImpl;
 
 template <typename IndexVector, typename ScalarVector>
 struct column_dfs_traits : no_assignment_operator {
-  typedef typename ScalarVector::Scalar Scalar;
-  typedef typename IndexVector::Scalar StorageIndex;
+  using Scalar = typename ScalarVector::Scalar;
+  using StorageIndex = typename IndexVector::Scalar;
   column_dfs_traits(Index jcol, Index& jsuper, typename SparseLUImpl<Scalar, StorageIndex>::GlobalLU_t& glu,
                     SparseLUImpl<Scalar, StorageIndex>& luImpl)
       : m_jcol(jcol), m_jsuper_ref(jsuper), m_glu(glu), m_luImpl(luImpl) {}

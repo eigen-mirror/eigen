@@ -73,7 +73,7 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices>> : traits<XprType> {
             FlagsLinearAccessBit
   };
 
-  typedef Block<XprType, RowsAtCompileTime, ColsAtCompileTime, IsInnerPannel> BlockType;
+  using BlockType = Block<XprType, RowsAtCompileTime, ColsAtCompileTime, IsInnerPannel>;
 };
 
 template <typename XprType, typename RowIndices, typename ColIndices, typename StorageKind, bool DirectAccess>
@@ -125,10 +125,9 @@ class IndexedView
                                        (internal::traits<IndexedView<XprType, RowIndices, ColIndices>>::Flags &
                                         DirectAccessBit) != 0> {
  public:
-  typedef typename internal::IndexedViewImpl<
+  using Base = typename internal::IndexedViewImpl<
       XprType, RowIndices, ColIndices, typename internal::traits<XprType>::StorageKind,
-      (internal::traits<IndexedView<XprType, RowIndices, ColIndices>>::Flags & DirectAccessBit) != 0>
-      Base;
+      (internal::traits<IndexedView<XprType, RowIndices, ColIndices>>::Flags & DirectAccessBit) != 0>;
   EIGEN_GENERIC_PUBLIC_INTERFACE(IndexedView)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedView)
 
@@ -142,10 +141,10 @@ namespace internal {
 template <typename XprType, typename RowIndices, typename ColIndices, typename StorageKind, bool DirectAccess>
 class IndexedViewImpl : public internal::generic_xpr_base<IndexedView<XprType, RowIndices, ColIndices>>::type {
  public:
-  typedef typename internal::generic_xpr_base<IndexedView<XprType, RowIndices, ColIndices>>::type Base;
-  typedef typename internal::ref_selector<XprType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
-  typedef typename XprType::Scalar Scalar;
+  using Base = typename internal::generic_xpr_base<IndexedView<XprType, RowIndices, ColIndices>>::type;
+  using MatrixTypeNested = typename internal::ref_selector<XprType>::non_const_type;
+  using NestedExpression = internal::remove_all_t<XprType>;
+  using Scalar = typename XprType::Scalar;
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(IndexedViewImpl)
 
@@ -245,7 +244,7 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
 template <typename ArgType, typename RowIndices, typename ColIndices>
 struct unary_evaluator<IndexedView<ArgType, RowIndices, ColIndices>, IndexBased>
     : evaluator_base<IndexedView<ArgType, RowIndices, ColIndices>> {
-  typedef IndexedView<ArgType, RowIndices, ColIndices> XprType;
+  using XprType = IndexedView<ArgType, RowIndices, ColIndices>;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost /* TODO + cost of row/col index */,
@@ -266,8 +265,8 @@ struct unary_evaluator<IndexedView<ArgType, RowIndices, ColIndices>, IndexBased>
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     eigen_assert(m_xpr.rowIndices()[row] >= 0 && m_xpr.rowIndices()[row] < m_xpr.nestedExpression().rows() &&

@@ -20,9 +20,9 @@ namespace Eigen {
 namespace internal {
 template <typename UnaryOp, typename XprType>
 struct traits<CwiseUnaryOp<UnaryOp, XprType> > : traits<XprType> {
-  typedef typename result_of<UnaryOp(const typename XprType::Scalar&)>::type Scalar;
-  typedef typename XprType::Nested XprTypeNested;
-  typedef std::remove_reference_t<XprTypeNested> XprTypeNested_;
+  using Scalar = typename result_of<UnaryOp(const typename XprType::Scalar&)>::type;
+  using XprTypeNested = typename XprType::Nested;
+  using XprTypeNested_ = std::remove_reference_t<XprTypeNested>;
   enum { Flags = XprTypeNested_::Flags & RowMajorBit };
 };
 }  // namespace internal
@@ -53,10 +53,10 @@ template <typename UnaryOp, typename XprType>
 class CwiseUnaryOp : public CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>,
                      internal::no_assignment_operator {
  public:
-  typedef typename CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>::Base Base;
+  using Base = typename CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseUnaryOp)
-  typedef typename internal::ref_selector<XprType>::type XprTypeNested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using XprTypeNested = typename internal::ref_selector<XprType>::type;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit CwiseUnaryOp(const XprType& xpr,
                                                                         const UnaryOp& func = UnaryOp())
@@ -88,7 +88,7 @@ class CwiseUnaryOp : public CwiseUnaryOpImpl<UnaryOp, XprType, typename internal
 template <typename UnaryOp, typename XprType, typename StorageKind>
 class CwiseUnaryOpImpl : public internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType> >::type {
  public:
-  typedef typename internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType> >::type Base;
+  using Base = typename internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType>>::type;
 };
 
 }  // end namespace Eigen

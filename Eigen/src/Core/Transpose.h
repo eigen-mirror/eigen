@@ -20,8 +20,8 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType>
 struct traits<Transpose<MatrixType>> : public traits<MatrixType> {
-  typedef typename ref_selector<MatrixType>::type MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNestedPlain;
+  using MatrixTypeNested = typename ref_selector<MatrixType>::type;
+  using MatrixTypeNestedPlain = std::remove_reference_t<MatrixTypeNested>;
   enum {
     RowsAtCompileTime = MatrixType::ColsAtCompileTime,
     ColsAtCompileTime = MatrixType::RowsAtCompileTime,
@@ -56,11 +56,11 @@ class TransposeImpl;
 template <typename MatrixType>
 class Transpose : public TransposeImpl<MatrixType, typename internal::traits<MatrixType>::StorageKind> {
  public:
-  typedef typename internal::ref_selector<MatrixType>::non_const_type MatrixTypeNested;
+  using MatrixTypeNested = typename internal::ref_selector<MatrixType>::non_const_type;
 
-  typedef typename TransposeImpl<MatrixType, typename internal::traits<MatrixType>::StorageKind>::Base Base;
+  using Base = typename TransposeImpl<MatrixType, typename internal::traits<MatrixType>::StorageKind>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Transpose)
-  typedef internal::remove_all_t<MatrixType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<MatrixType>;
 
   EIGEN_DEVICE_FUNC constexpr explicit EIGEN_STRONG_INLINE Transpose(MatrixType& matrix) : m_matrix(matrix) {}
 
@@ -91,7 +91,7 @@ namespace internal {
 
 template <typename MatrixType>
 struct TransposeImpl_base {
-  typedef typename dense_xpr_base<Transpose<MatrixType>>::type type;
+  using type = typename dense_xpr_base<Transpose<MatrixType>>::type;
 };
 
 }  // end namespace internal
@@ -100,13 +100,13 @@ struct TransposeImpl_base {
 template <typename XprType, typename StorageKind>
 class TransposeImpl : public internal::generic_xpr_base<Transpose<XprType>>::type {
  public:
-  typedef typename internal::generic_xpr_base<Transpose<XprType>>::type Base;
+  using Base = typename internal::generic_xpr_base<Transpose<XprType>>::type;
 };
 
 template <typename MatrixType>
 class TransposeImpl<MatrixType, Dense> : public internal::TransposeImpl_base<MatrixType>::type {
  public:
-  typedef typename internal::TransposeImpl_base<MatrixType>::type Base;
+  using Base = typename internal::TransposeImpl_base<MatrixType>::type;
   using Base::coeffRef;
   EIGEN_DENSE_PUBLIC_INTERFACE(Transpose<MatrixType>)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(TransposeImpl)
@@ -118,7 +118,7 @@ class TransposeImpl<MatrixType, Dense> : public internal::TransposeImpl_base<Mat
     return derived().nestedExpression().outerStride();
   }
 
-  typedef std::conditional_t<internal::is_lvalue<MatrixType>::value, Scalar, const Scalar> ScalarWithConstIfNotLvalue;
+  using ScalarWithConstIfNotLvalue = std::conditional_t<internal::is_lvalue<MatrixType>::value, Scalar, const Scalar>;
 
   template <typename T = MatrixType, typename = internal::void_t<decltype(std::declval<T&>().data())>>
   EIGEN_DEVICE_FUNC constexpr ScalarWithConstIfNotLvalue* data() {
@@ -226,8 +226,8 @@ struct inplace_transpose_selector<MatrixType, true, false> {  // square matrix
 template <typename MatrixType>
 struct inplace_transpose_selector<MatrixType, true, true> {  // PacketSize x PacketSize
   static void run(MatrixType& m) {
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename internal::packet_traits<typename MatrixType::Scalar>::type Packet;
+    using Scalar = typename MatrixType::Scalar;
+    using Packet = typename internal::packet_traits<typename MatrixType::Scalar>::type;
     const Index PacketSize = internal::packet_traits<Scalar>::size;
     const Index Alignment = internal::evaluator<MatrixType>::Alignment;
     PacketBlock<Packet> A;
@@ -240,8 +240,8 @@ struct inplace_transpose_selector<MatrixType, true, true> {  // PacketSize x Pac
 
 template <typename MatrixType, Index Alignment>
 void BlockedInPlaceTranspose(MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename internal::packet_traits<typename MatrixType::Scalar>::type Packet;
+  using Scalar = typename MatrixType::Scalar;
+  using Packet = typename internal::packet_traits<typename MatrixType::Scalar>::type;
   const Index PacketSize = internal::packet_traits<Scalar>::size;
   eigen_assert(m.rows() == m.cols());
   int row_start = 0;
@@ -280,7 +280,7 @@ void BlockedInPlaceTranspose(MatrixType& m) {
 template <typename MatrixType, bool MatchPacketSize>
 struct inplace_transpose_selector<MatrixType, false, MatchPacketSize> {  // non square or dynamic matrix
   static void run(MatrixType& m) {
-    typedef typename MatrixType::Scalar Scalar;
+    using Scalar = typename MatrixType::Scalar;
     if (m.rows() == m.cols()) {
       const Index PacketSize = internal::packet_traits<Scalar>::size;
       EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {

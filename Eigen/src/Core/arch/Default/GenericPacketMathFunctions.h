@@ -47,7 +47,7 @@ namespace internal {
 // Sollya's fpminimax, giving faithfully-rounded results (max 1 ULP for log).
 template <typename Packet>
 EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const PacketI cst_min_normal = pset1<PacketI>(0x00800000);
   const PacketI cst_mant_mask = pset1<PacketI>(0x007fffff);
@@ -219,7 +219,7 @@ struct plog_range_reduce_double {
 template <typename Packet>
 struct plog_range_reduce_double<Packet, true> {
   EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
-    typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
     // 2^-1022: smallest positive normal double.
     const PacketI cst_min_normal = pset1<PacketI>(static_cast<int64_t>(0x0010000000000000LL));
     // Lower 52-bit mask (IEEE mantissa field).
@@ -409,7 +409,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(
  */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  using ScalarType = typename unpacket_traits<Packet>::type;
   const Packet one = pset1<Packet>(ScalarType(1));
   Packet xp1 = padd(x, one);
   Packet small_mask = pcmp_eq(xp1, one);
@@ -424,7 +424,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const P
  */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  using ScalarType = typename unpacket_traits<Packet>::type;
   const Packet one = pset1<Packet>(ScalarType(1));
   const Packet neg_one = pset1<Packet>(ScalarType(-1));
   Packet u = pexp(x);
@@ -448,7 +448,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
@@ -590,7 +590,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
 //
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
   constexpr int digits = std::numeric_limits<Scalar>::digits;
   constexpr Scalar max_cap = Scalar(max_exponent + 1);
@@ -707,9 +707,9 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
                                            unpacket_traits<Packet>::vectorizable>> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
-    typedef typename Scalar::value_type RealScalar;
-    typedef typename unpacket_traits<Packet>::as_real RealPacket;
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using RealScalar = typename Scalar::value_type;
+    using RealPacket = typename unpacket_traits<Packet>::as_real;
 
     // Step 1. Compute (for each element z = x + i*y in a)
     //     l = abs(z) = sqrt(x^2 + y^2).

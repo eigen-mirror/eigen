@@ -23,8 +23,8 @@ namespace internal {
 
 template <typename XprType>
 struct traits<Inverse<XprType> > : traits<typename XprType::PlainObject> {
-  typedef typename XprType::PlainObject PlainObject;
-  typedef traits<PlainObject> BaseTraits;
+  using PlainObject = typename XprType::PlainObject;
+  using BaseTraits = traits<PlainObject>;
   enum { Flags = BaseTraits::Flags & RowMajorBit };
 };
 
@@ -43,12 +43,12 @@ struct traits<Inverse<XprType> > : traits<typename XprType::PlainObject> {
 template <typename XprType>
 class Inverse : public InverseImpl<XprType, typename internal::traits<XprType>::StorageKind> {
  public:
-  typedef typename XprType::StorageIndex StorageIndex;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename internal::ref_selector<XprType>::type XprTypeNested;
-  typedef internal::remove_all_t<XprTypeNested> XprTypeNestedCleaned;
-  typedef typename internal::ref_selector<Inverse>::type Nested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using StorageIndex = typename XprType::StorageIndex;
+  using Scalar = typename XprType::Scalar;
+  using XprTypeNested = typename internal::ref_selector<XprType>::type;
+  using XprTypeNestedCleaned = internal::remove_all_t<XprTypeNested>;
+  using Nested = typename internal::ref_selector<Inverse>::type;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   explicit EIGEN_DEVICE_FUNC constexpr Inverse(const XprType& xpr) : m_xpr(xpr) {}
 
@@ -65,8 +65,8 @@ class Inverse : public InverseImpl<XprType, typename internal::traits<XprType>::
 template <typename XprType, typename StorageKind>
 class InverseImpl : public internal::generic_xpr_base<Inverse<XprType> >::type {
  public:
-  typedef typename internal::generic_xpr_base<Inverse<XprType> >::type Base;
-  typedef typename XprType::Scalar Scalar;
+  using Base = typename internal::generic_xpr_base<Inverse<XprType>>::type;
+  using Scalar = typename XprType::Scalar;
 
  private:
   Scalar coeff(Index row, Index col) const;
@@ -87,9 +87,9 @@ namespace internal {
  */
 template <typename ArgType>
 struct unary_evaluator<Inverse<ArgType> > : public evaluator<typename Inverse<ArgType>::PlainObject> {
-  typedef Inverse<ArgType> InverseType;
-  typedef typename InverseType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using InverseType = Inverse<ArgType>;
+  using PlainObject = typename InverseType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 

@@ -35,11 +35,11 @@ namespace Eigen {
 template <typename Derived>
 class SkewSymmetricBase : public EigenBase<Derived> {
  public:
-  typedef typename internal::traits<Derived>::SkewSymmetricVectorType SkewSymmetricVectorType;
-  typedef typename SkewSymmetricVectorType::Scalar Scalar;
-  typedef typename SkewSymmetricVectorType::RealScalar RealScalar;
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
+  using SkewSymmetricVectorType = typename internal::traits<Derived>::SkewSymmetricVectorType;
+  using Scalar = typename SkewSymmetricVectorType::Scalar;
+  using RealScalar = typename SkewSymmetricVectorType::RealScalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using StorageIndex = typename internal::traits<Derived>::StorageIndex;
 
   enum {
     RowsAtCompileTime = SkewSymmetricVectorType::SizeAtCompileTime,
@@ -50,10 +50,10 @@ class SkewSymmetricBase : public EigenBase<Derived> {
     Flags = NoPreferredStorageOrderBit
   };
 
-  typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, 0, MaxRowsAtCompileTime, MaxColsAtCompileTime>
-      DenseMatrixType;
-  typedef DenseMatrixType DenseType;
-  typedef SkewSymmetricMatrix3<Scalar> PlainObject;
+  using DenseMatrixType =
+      Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, 0, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
+  using DenseType = DenseMatrixType;
+  using PlainObject = SkewSymmetricMatrix3<Scalar>;
 
   /** \returns a const reference to the derived object. */
   EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
@@ -230,8 +230,8 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 namespace internal {
 template <typename Scalar_>
 struct traits<SkewSymmetricMatrix3<Scalar_>> : traits<Matrix<Scalar_, 3, 3, 0, 3, 3>> {
-  typedef Matrix<Scalar_, 3, 1, 0, 3, 1> SkewSymmetricVectorType;
-  typedef SkewSymmetricShape StorageKind;
+  using SkewSymmetricVectorType = Matrix<Scalar_, 3, 1, 0, 3, 1>;
+  using StorageKind = SkewSymmetricShape;
   enum { Flags = LvalueBit | NoPreferredStorageOrderBit | NestByRefBit };
 };
 }  // namespace internal
@@ -239,11 +239,11 @@ template <typename Scalar_>
 class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scalar_>> {
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  typedef typename internal::traits<SkewSymmetricMatrix3>::SkewSymmetricVectorType SkewSymmetricVectorType;
-  typedef const SkewSymmetricMatrix3& Nested;
-  typedef Scalar_ Scalar;
-  typedef typename internal::traits<SkewSymmetricMatrix3>::StorageKind StorageKind;
-  typedef typename internal::traits<SkewSymmetricMatrix3>::StorageIndex StorageIndex;
+  using SkewSymmetricVectorType = typename internal::traits<SkewSymmetricMatrix3>::SkewSymmetricVectorType;
+  using Nested = const SkewSymmetricMatrix3&;
+  using Scalar = Scalar_;
+  using StorageKind = typename internal::traits<SkewSymmetricMatrix3>::StorageKind;
+  using StorageIndex = typename internal::traits<SkewSymmetricMatrix3>::StorageIndex;
 #endif
 
  protected:
@@ -296,8 +296,8 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
   }
 #endif
 
-  typedef SkewSymmetricWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, SkewSymmetricVectorType>>
-      InitializeReturnType;
+  using InitializeReturnType =
+      SkewSymmetricWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, SkewSymmetricVectorType>>;
 
   /** Initializes a skew symmetric matrix with coefficients set to zero */
   EIGEN_DEVICE_FUNC static InitializeReturnType Zero() { return SkewSymmetricVectorType::Zero().asSkewSymmetric(); }
@@ -323,11 +323,11 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
 namespace internal {
 template <typename SkewSymmetricVectorType_>
 struct traits<SkewSymmetricWrapper<SkewSymmetricVectorType_>> {
-  typedef SkewSymmetricVectorType_ SkewSymmetricVectorType;
-  typedef typename SkewSymmetricVectorType::Scalar Scalar;
-  typedef typename SkewSymmetricVectorType::StorageIndex StorageIndex;
-  typedef SkewSymmetricShape StorageKind;
-  typedef typename traits<SkewSymmetricVectorType>::XprKind XprKind;
+  using SkewSymmetricVectorType = SkewSymmetricVectorType_;
+  using Scalar = typename SkewSymmetricVectorType::Scalar;
+  using StorageIndex = typename SkewSymmetricVectorType::StorageIndex;
+  using StorageKind = SkewSymmetricShape;
+  using XprKind = typename traits<SkewSymmetricVectorType>::XprKind;
   enum {
     RowsAtCompileTime = SkewSymmetricVectorType::SizeAtCompileTime,
     ColsAtCompileTime = SkewSymmetricVectorType::SizeAtCompileTime,
@@ -343,8 +343,8 @@ class SkewSymmetricWrapper : public SkewSymmetricBase<SkewSymmetricWrapper<SkewS
                              internal::no_assignment_operator {
  public:
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  typedef SkewSymmetricVectorType_ SkewSymmetricVectorType;
-  typedef SkewSymmetricWrapper Nested;
+  using SkewSymmetricVectorType = SkewSymmetricVectorType_;
+  using Nested = SkewSymmetricWrapper;
 #endif
 
   /** Constructor from expression of coefficients to wrap. */
@@ -390,14 +390,14 @@ namespace internal {
 
 template <>
 struct storage_kind_to_shape<SkewSymmetricShape> {
-  typedef SkewSymmetricShape Shape;
+  using Shape = SkewSymmetricShape;
 };
 
 struct SkewSymmetric2Dense {};
 
 template <>
 struct AssignmentKind<DenseShape, SkewSymmetricShape> {
-  typedef SkewSymmetric2Dense Kind;
+  using Kind = SkewSymmetric2Dense;
 };
 
 // SkewSymmetric matrix to Dense assignment

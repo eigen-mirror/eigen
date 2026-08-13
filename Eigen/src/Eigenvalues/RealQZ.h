@@ -61,7 +61,7 @@ namespace Eigen {
 template <typename MatrixType_>
 class RealQZ {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
@@ -69,12 +69,12 @@ class RealQZ {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
+  using Scalar = typename MatrixType::Scalar;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
 
-  typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> EigenvalueType;
-  typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ColumnVectorType;
+  using EigenvalueType = Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
+  using ColumnVectorType = Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
 
   /** \brief Default constructor.
    *
@@ -198,10 +198,10 @@ class RealQZ {
   Scalar m_normOfT, m_normOfS;
   Index m_global_iter;
 
-  typedef Matrix<Scalar, 3, 1> Vector3s;
-  typedef Matrix<Scalar, 2, 1> Vector2s;
-  typedef Matrix<Scalar, 2, 2> Matrix2s;
-  typedef JacobiRotation<Scalar> JRs;
+  using Vector3s = Matrix<Scalar, 3, 1>;
+  using Vector2s = Matrix<Scalar, 2, 1>;
+  using Matrix2s = Matrix<Scalar, 2, 2>;
+  using JRs = JacobiRotation<Scalar>;
 
   void hessenbergTriangular();
   void computeNorms();

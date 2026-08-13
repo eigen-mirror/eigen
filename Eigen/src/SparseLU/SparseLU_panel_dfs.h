@@ -40,7 +40,7 @@ namespace internal {
 
 template <typename IndexVector>
 struct panel_dfs_traits {
-  typedef typename IndexVector::Scalar StorageIndex;
+  using StorageIndex = typename IndexVector::Scalar;
   panel_dfs_traits(Index jcol, StorageIndex* marker) : m_jcol(jcol), m_marker(marker) {}
   bool update_segrep(Index krep, StorageIndex jj) {
     if (m_marker[krep] < m_jcol) {

@@ -51,9 +51,9 @@ namespace Eigen {
 template <typename MatrixType_>
 class IterScaling {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::Index Index;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using Index = typename MatrixType::Index;
 
   IterScaling() { init(); }
 

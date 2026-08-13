@@ -43,7 +43,7 @@ struct functor_traits<scalar_opposite_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_abs_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
     return numext::abs(a);
   }
@@ -64,7 +64,7 @@ struct functor_traits<scalar_abs_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_score_coeff_op : scalar_abs_op<Scalar> {
-  typedef void Score_is_abs;
+  using Score_is_abs = void;
 };
 template <typename Scalar>
 struct functor_traits<scalar_score_coeff_op<Scalar>> : functor_traits<scalar_abs_op<Scalar>> {};
@@ -72,7 +72,7 @@ struct functor_traits<scalar_score_coeff_op<Scalar>> : functor_traits<scalar_abs
 /* Avoid recomputing abs when we know the score and they are the same. Not a true Eigen functor.  */
 template <typename Scalar, typename = void>
 struct abs_knowing_score {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   template <typename Score>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a, const Score&) const {
     return numext::abs(a);
@@ -80,7 +80,7 @@ struct abs_knowing_score {
 };
 template <typename Scalar>
 struct abs_knowing_score<Scalar, typename scalar_score_coeff_op<Scalar>::Score_is_abs> {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   template <typename Scal>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scal&, const result_type& a) const {
     return a;
@@ -94,7 +94,7 @@ struct abs_knowing_score<Scalar, typename scalar_score_coeff_op<Scalar>::Score_i
  */
 template <typename Scalar>
 struct scalar_abs2_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
     return numext::abs2(a);
   }
@@ -147,7 +147,7 @@ struct functor_traits<scalar_conjugate_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_arg_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
     return numext::arg(a);
   }
@@ -197,7 +197,7 @@ struct functor_traits<scalar_carg_op<Scalar>> {
  */
 template <typename Scalar, typename NewType>
 struct scalar_cast_op {
-  typedef NewType result_type;
+  using result_type = NewType;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE NewType operator()(const Scalar& a) const {
     return cast<Scalar, NewType>(a);
   }
@@ -273,7 +273,7 @@ struct functor_traits<scalar_shift_left_op<Scalar, N>> {
  */
 template <typename Scalar>
 struct scalar_real_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
     return numext::real(a);
   }
@@ -290,7 +290,7 @@ struct functor_traits<scalar_real_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_imag_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {
     return numext::imag(a);
   }
@@ -307,7 +307,7 @@ struct functor_traits<scalar_imag_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_real_ref_op {
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const result_type& operator()(const Scalar& a) const {
     return numext::real_ref(a);
   }
@@ -332,7 +332,7 @@ struct scalar_imag_ref_op {
   // expression from imag() instead (see NonConstImagReturnType in CommonCwiseUnaryOps.inc).
   static_assert(NumTraits<Scalar>::IsComplex,
                 "THE IMAGINARY PART OF A REAL-VALUED OBJECT IS NOT AN LVALUE. USE THE READ-ONLY imag() OVERLOAD.");
-  typedef typename NumTraits<Scalar>::Real result_type;
+  using result_type = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type& operator()(Scalar& a) const {
     return numext::imag_ref(a);
   }
@@ -1377,11 +1377,10 @@ template <typename Scalar, typename ExponentScalar, bool IsBaseInteger = NumTrai
           bool IsBaseComplex = NumTraits<Scalar>::IsComplex,
           bool IsExponentComplex = NumTraits<ExponentScalar>::IsComplex>
 struct scalar_unary_pow_op {
-  typedef typename internal::promote_scalar_arg<
+  using PromotedExponent = typename internal::promote_scalar_arg<
       Scalar, ExponentScalar,
-      internal::has_ReturnType<ScalarBinaryOpTraits<Scalar, ExponentScalar, scalar_unary_pow_op>>::value>::type
-      PromotedExponent;
-  typedef typename ScalarBinaryOpTraits<Scalar, PromotedExponent, scalar_unary_pow_op>::ReturnType result_type;
+      internal::has_ReturnType<ScalarBinaryOpTraits<Scalar, ExponentScalar, scalar_unary_pow_op>>::value>::type;
+  using result_type = typename ScalarBinaryOpTraits<Scalar, PromotedExponent, scalar_unary_pow_op>::ReturnType;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE scalar_unary_pow_op(const ExponentScalar& exponent)
       : m_exponent(exponent) {}
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type operator()(const Scalar& a) const {

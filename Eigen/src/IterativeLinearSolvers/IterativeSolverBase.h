@@ -49,10 +49,10 @@ class generic_matrix_wrapper;
 template <typename MatrixType>
 class generic_matrix_wrapper<MatrixType, false> {
  public:
-  typedef Ref<const MatrixType> ActualMatrixType;
+  using ActualMatrixType = Ref<const MatrixType>;
   template <int UpLo>
   struct ConstSelfAdjointViewReturnType {
-    typedef typename ActualMatrixType::template ConstSelfAdjointViewReturnType<UpLo>::Type Type;
+    using Type = typename ActualMatrixType::template ConstSelfAdjointViewReturnType<UpLo>::Type;
   };
 
   enum { MatrixFree = false };
@@ -87,10 +87,10 @@ class generic_matrix_wrapper<MatrixType, false> {
 template <typename MatrixType>
 class generic_matrix_wrapper<MatrixType, true> {
  public:
-  typedef MatrixType ActualMatrixType;
+  using ActualMatrixType = MatrixType;
   template <int UpLo>
   struct ConstSelfAdjointViewReturnType {
-    typedef ActualMatrixType Type;
+    using Type = ActualMatrixType;
   };
 
   enum { MatrixFree = true };
@@ -117,15 +117,15 @@ class generic_matrix_wrapper<MatrixType, true> {
 template <typename Derived>
 class IterativeSolverBase : public SparseSolverBase<Derived> {
  protected:
-  typedef SparseSolverBase<Derived> Base;
+  using Base = SparseSolverBase<Derived>;
   using Base::m_isInitialized;
 
  public:
-  typedef typename internal::traits<Derived>::MatrixType MatrixType;
-  typedef typename internal::traits<Derived>::Preconditioner Preconditioner;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using MatrixType = typename internal::traits<Derived>::MatrixType;
+  using Preconditioner = typename internal::traits<Derived>::Preconditioner;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using RealScalar = typename MatrixType::RealScalar;
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
@@ -290,7 +290,7 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
     Index rhsCols = b.cols();
     Index size = b.rows();
     DestDerived& dest(aDest.derived());
-    typedef typename DestDerived::Scalar DestScalar;
+    using DestScalar = typename DestDerived::Scalar;
     Eigen::Matrix<DestScalar, Dynamic, 1> tb(size);
     Eigen::Matrix<DestScalar, Dynamic, 1> tx(cols());
     // We do not directly fill dest because sparse expressions have to be free of aliasing issue.
@@ -360,8 +360,8 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
     m_tolerance = NumTraits<Scalar>::epsilon();
   }
 
-  typedef internal::generic_matrix_wrapper<MatrixType> MatrixWrapper;
-  typedef typename MatrixWrapper::ActualMatrixType ActualMatrixType;
+  using MatrixWrapper = internal::generic_matrix_wrapper<MatrixType>;
+  using ActualMatrixType = typename MatrixWrapper::ActualMatrixType;
 
   const ActualMatrixType& matrix() const { return m_matrixWrapper.matrix(); }
 

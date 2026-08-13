@@ -55,7 +55,7 @@ namespace Eigen {
 template <int OuterStrideAtCompileTime_, int InnerStrideAtCompileTime_>
 class Stride {
  public:
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
   enum { InnerStrideAtCompileTime = InnerStrideAtCompileTime_, OuterStrideAtCompileTime = OuterStrideAtCompileTime_ };
 
   /** Default constructor, for use when strides are fixed at compile time */
@@ -91,7 +91,7 @@ class Stride {
  * See class Map for some examples */
 template <int Value>
 class InnerStride : public Stride<0, Value> {
-  typedef Stride<0, Value> Base;
+  using Base = Stride<0, Value>;
 
  public:
   EIGEN_DEVICE_FUNC constexpr InnerStride() = default;
@@ -102,7 +102,7 @@ class InnerStride : public Stride<0, Value> {
  * See class Map for some examples */
 template <int Value>
 class OuterStride : public Stride<Value, 0> {
-  typedef Stride<Value, 0> Base;
+  using Base = Stride<Value, 0>;
 
  public:
   EIGEN_DEVICE_FUNC constexpr OuterStride() = default;

@@ -58,7 +58,7 @@ namespace Eigen {
 template <typename MatrixType_>
 class RealSchur {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
@@ -66,12 +66,12 @@ class RealSchur {
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
+  using Scalar = typename MatrixType::Scalar;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
 
-  typedef Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> EigenvalueType;
-  typedef Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1> ColumnVectorType;
+  using EigenvalueType = Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
+  using ColumnVectorType = Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
 
   /** \brief Default constructor.
    *
@@ -227,7 +227,7 @@ class RealSchur {
   bool m_matUisUptodate;
   Index m_maxIters;
 
-  typedef Matrix<Scalar, 3, 1> Vector3s;
+  using Vector3s = Matrix<Scalar, 3, 1>;
 
   Scalar computeNormOfT();
   Index findSmallSubdiagEntry(Index iu, const Scalar& considerAsZero);

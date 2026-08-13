@@ -82,7 +82,7 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
 template <typename MatrixType_>
 class SelfAdjointEigenSolver {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum {
     Size = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
@@ -91,10 +91,10 @@ class SelfAdjointEigenSolver {
   };
 
   /** \brief Scalar type for matrices of type \p MatrixType_. */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
+  using Scalar = typename MatrixType::Scalar;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
 
-  typedef Matrix<Scalar, Size, Size, ColMajor, MaxColsAtCompileTime, MaxColsAtCompileTime> EigenvectorsType;
+  using EigenvectorsType = Matrix<Scalar, Size, Size, ColMajor, MaxColsAtCompileTime, MaxColsAtCompileTime>;
 
   /** \brief Real scalar type for \p MatrixType_.
    *
@@ -102,7 +102,7 @@ class SelfAdjointEigenSolver {
    * \c double), and the type of the real part of \c Scalar if #Scalar is
    * complex.
    */
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   friend struct internal::direct_selfadjoint_eigenvalues<SelfAdjointEigenSolver, Size, NumTraits<Scalar>::IsComplex>;
 
@@ -111,10 +111,10 @@ class SelfAdjointEigenSolver {
    * This is a column vector with entries of type #RealScalar.
    * The length of the vector is the size of \p MatrixType_.
    */
-  typedef typename internal::plain_col_type<MatrixType, Scalar>::type VectorType;
-  typedef typename internal::plain_col_type<MatrixType, RealScalar>::type RealVectorType;
-  typedef Tridiagonalization<MatrixType> TridiagonalizationType;
-  typedef typename TridiagonalizationType::SubDiagonalType SubDiagonalType;
+  using VectorType = typename internal::plain_col_type<MatrixType, Scalar>::type;
+  using RealVectorType = typename internal::plain_col_type<MatrixType, RealScalar>::type;
+  using TridiagonalizationType = Tridiagonalization<MatrixType>;
+  using SubDiagonalType = typename TridiagonalizationType::SubDiagonalType;
 
   /** \brief Default constructor for fixed-size matrices.
    *
@@ -534,14 +534,14 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
                                                               const Index maxIterations, bool computeEigenvectors,
                                                               MatrixType& eivec) {
   ComputationInfo info;
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index n = diag.size();
   Index end = n - 1;
   Index start = 0;
   Index iter = 0;  // total number of iterations
 
-  typedef typename DiagType::RealScalar RealScalar;
+  using RealScalar = typename DiagType::RealScalar;
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
   const RealScalar precision_inv = RealScalar(1) / NumTraits<RealScalar>::epsilon();
 
@@ -657,10 +657,10 @@ struct direct_selfadjoint_eigenvalues {
 
 template <typename SolverType>
 struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
-  typedef typename SolverType::MatrixType MatrixType;
-  typedef typename SolverType::RealVectorType VectorType;
-  typedef typename SolverType::Scalar Scalar;
-  typedef typename SolverType::EigenvectorsType EigenvectorsType;
+  using MatrixType = typename SolverType::MatrixType;
+  using VectorType = typename SolverType::RealVectorType;
+  using Scalar = typename SolverType::Scalar;
+  using EigenvectorsType = typename SolverType::EigenvectorsType;
 
   /** \internal
    * Computes the roots of the characteristic polynomial of \a m.
@@ -827,10 +827,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 // 2x2 direct eigenvalues decomposition, code from Hauke Heibel
 template <typename SolverType>
 struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
-  typedef typename SolverType::MatrixType MatrixType;
-  typedef typename SolverType::RealVectorType VectorType;
-  typedef typename SolverType::Scalar Scalar;
-  typedef typename SolverType::EigenvectorsType EigenvectorsType;
+  using MatrixType = typename SolverType::MatrixType;
+  using VectorType = typename SolverType::RealVectorType;
+  using Scalar = typename SolverType::Scalar;
+  using EigenvectorsType = typename SolverType::EigenvectorsType;
 
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
     EIGEN_USING_STD(sqrt);

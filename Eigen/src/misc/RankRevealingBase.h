@@ -28,8 +28,8 @@ namespace Eigen {
 template <typename Derived>
 class RankRevealingBase {
  public:
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   RankRevealingBase()
       : m_usePrescribedThreshold(false),

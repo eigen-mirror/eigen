@@ -30,28 +30,27 @@ namespace Eigen {
 template <typename Derived>
 class SparseMatrixBase : public EigenBase<Derived> {
  public:
-  typedef typename internal::traits<Derived>::Scalar Scalar;
+  using Scalar = typename internal::traits<Derived>::Scalar;
 
   /** The numeric type of the expression's coefficients, e.g. float, double, int or std::complex<float>, etc.
    *
    * It is an alias for the Scalar type */
-  typedef Scalar value_type;
+  using value_type = Scalar;
 
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
 
   /** The integer type used to \b store indices within a SparseMatrix.
    * For a \c SparseMatrix<Scalar,Options,IndexType> it is an alias of the third template parameter \c IndexType. */
-  typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
+  using StorageIndex = typename internal::traits<Derived>::StorageIndex;
 
-  typedef std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
-                             internal::add_const_on_value_type_t<PacketScalar>>
-      PacketReturnType;
+  using PacketReturnType = std::conditional_t<internal::is_arithmetic<PacketScalar>::value, PacketScalar,
+                                              internal::add_const_on_value_type_t<PacketScalar>>;
 
-  typedef SparseMatrixBase StorageBaseType;
+  using StorageBaseType = SparseMatrixBase;
 
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
-  typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
+  using ScalarVector = Matrix<Scalar, Dynamic, 1>;
 
   template <typename OtherDerived>
   Derived& operator=(const EigenBase<OtherDerived>& other);
@@ -110,15 +109,15 @@ class SparseMatrixBase : public EigenBase<Derived> {
   };
 
   /** \internal the return type of MatrixBase::adjoint() */
-  typedef std::conditional_t<NumTraits<Scalar>::IsComplex,
-                             CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Eigen::Transpose<const Derived>>,
-                             Transpose<const Derived>>
-      AdjointReturnType;
-  typedef Transpose<Derived> TransposeReturnType;
-  typedef Transpose<const Derived> ConstTransposeReturnType;
+  using AdjointReturnType =
+      std::conditional_t<NumTraits<Scalar>::IsComplex,
+                         CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, Eigen::Transpose<const Derived>>,
+                         Transpose<const Derived>>;
+  using TransposeReturnType = Transpose<Derived>;
+  using ConstTransposeReturnType = Transpose<const Derived>;
 
   // FIXME: storage order may not match evaluator storage order.
-  typedef SparseMatrix<Scalar, Flags & RowMajorBit ? RowMajor : ColMajor, StorageIndex> PlainObject;
+  using PlainObject = SparseMatrix<Scalar, Flags & RowMajorBit ? RowMajor : ColMajor, StorageIndex>;
 
   /** This is the "real scalar" type; if the \a Scalar type is already real numbers
    * (e.g. int, float or double) then \a RealScalar is just the same as \a Scalar. If
@@ -126,28 +125,27 @@ class SparseMatrixBase : public EigenBase<Derived> {
    *
    * \sa class NumTraits
    */
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** \internal the return type of coeff()
    */
-  typedef std::conditional_t<HasDirectAccess_, const Scalar&, Scalar> CoeffReturnType;
+  using CoeffReturnType = std::conditional_t<HasDirectAccess_, const Scalar&, Scalar>;
 
   /** \internal Represents a matrix with all coefficients equal to one another*/
-  typedef CwiseNullaryOp<internal::scalar_constant_op<Scalar>, Matrix<Scalar, Dynamic, Dynamic>> ConstantReturnType;
+  using ConstantReturnType = CwiseNullaryOp<internal::scalar_constant_op<Scalar>, Matrix<Scalar, Dynamic, Dynamic>>;
 
   /** type of the equivalent dense matrix */
-  typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime> DenseMatrixType;
+  using DenseMatrixType = Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime>;
   /** type of the equivalent square matrix */
-  typedef Matrix<Scalar, internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime),
-                 internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)>
-      SquareMatrixType;
+  using SquareMatrixType = Matrix<Scalar, internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime),
+                                  internal::max_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime)>;
 
   inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
   inline Derived& derived() { return *static_cast<Derived*>(this); }
   inline Derived& const_cast_derived() const { return *static_cast<Derived*>(const_cast<SparseMatrixBase*>(this)); }
 
-  typedef EigenBase<Derived> Base;
+  using Base = EigenBase<Derived>;
 
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
@@ -333,11 +331,10 @@ class SparseMatrixBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   struct CwiseProductDenseReturnType {
-    typedef CwiseBinaryOp<
+    using Type = CwiseBinaryOp<
         internal::scalar_product_op<typename ScalarBinaryOpTraits<
             typename internal::traits<Derived>::Scalar, typename internal::traits<OtherDerived>::Scalar>::ReturnType>,
-        const Derived, const OtherDerived>
-        Type;
+        const Derived, const OtherDerived>;
   };
 
   template <typename OtherDerived>
@@ -388,11 +385,11 @@ class SparseMatrixBase : public EigenBase<Derived> {
 
   template <unsigned int UpLo>
   struct SelfAdjointViewReturnType {
-    typedef SparseSelfAdjointView<Derived, UpLo> Type;
+    using Type = SparseSelfAdjointView<Derived, UpLo>;
   };
   template <unsigned int UpLo>
   struct ConstSelfAdjointViewReturnType {
-    typedef const SparseSelfAdjointView<const Derived, UpLo> Type;
+    using Type = const SparseSelfAdjointView<const Derived, UpLo>;
   };
 
   template <unsigned int UpLo>

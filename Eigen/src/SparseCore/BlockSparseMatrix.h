@@ -1795,7 +1795,7 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
         else {
           // Materialize block×rhs_seg into a small fixed-size stack buffer, then
           // scale by alpha.  Keeps the B×B block as a plain Map for vectorization.
-          typedef Matrix<Scalar, BR, Rhs::ColsAtCompileTime> TmpType;
+          using TmpType = Matrix<Scalar, BR, Rhs::ColsAtCompileTime>;
           TmpType tmp(BR, rhs.cols());
           tmp.noalias() = lhs.blockRef(id) * rhs_seg;
           dst_seg.noalias() += alpha * tmp;
@@ -1834,7 +1834,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
         else if (am1)
           dst_seg.noalias() -= lhs_seg * rhs.blockRef(id);
         else {
-          typedef Matrix<Scalar, Lhs::RowsAtCompileTime, BC> TmpType;
+          using TmpType = Matrix<Scalar, Lhs::RowsAtCompileTime, BC>;
           TmpType tmp(lhs.rows(), BC);
           tmp.noalias() = lhs_seg * rhs.blockRef(id);
           dst_seg.noalias() += alpha * tmp;

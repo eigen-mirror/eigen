@@ -20,13 +20,13 @@ namespace internal {
 
 template <int Direction, typename LhsType, typename RhsType>
 struct traits<Concat<Direction, LhsType, RhsType>> : traits<LhsType> {
-  typedef typename LhsType::Scalar Scalar;
-  typedef typename traits<LhsType>::StorageKind StorageKind;
-  typedef typename traits<LhsType>::XprKind XprKind;
-  typedef typename ref_selector<LhsType>::type LhsTypeNested;
-  typedef typename ref_selector<RhsType>::type RhsTypeNested;
-  typedef std::remove_reference_t<LhsTypeNested> LhsTypeNested_;
-  typedef std::remove_reference_t<RhsTypeNested> RhsTypeNested_;
+  using Scalar = typename LhsType::Scalar;
+  using StorageKind = typename traits<LhsType>::StorageKind;
+  using XprKind = typename traits<LhsType>::XprKind;
+  using LhsTypeNested = typename ref_selector<LhsType>::type;
+  using RhsTypeNested = typename ref_selector<RhsType>::type;
+  using LhsTypeNested_ = std::remove_reference_t<LhsTypeNested>;
+  using RhsTypeNested_ = std::remove_reference_t<RhsTypeNested>;
   enum {
     // For vertical concat (stacking rows): rows add up, cols must match
     // For horizontal concat (stacking cols): cols add up, rows must match
@@ -85,16 +85,16 @@ struct traits<Concat<Direction, LhsType, RhsType>> : traits<LhsType> {
  */
 template <int Direction, typename LhsType, typename RhsType>
 class Concat : public internal::dense_xpr_base<Concat<Direction, LhsType, RhsType>>::type {
-  typedef typename internal::traits<Concat>::LhsTypeNested LhsTypeNested;
-  typedef typename internal::traits<Concat>::RhsTypeNested RhsTypeNested;
-  typedef typename internal::traits<Concat>::LhsTypeNested_ LhsTypeNested_;
-  typedef typename internal::traits<Concat>::RhsTypeNested_ RhsTypeNested_;
+  using LhsTypeNested = typename internal::traits<Concat>::LhsTypeNested;
+  using RhsTypeNested = typename internal::traits<Concat>::RhsTypeNested;
+  using LhsTypeNested_ = typename internal::traits<Concat>::LhsTypeNested_;
+  using RhsTypeNested_ = typename internal::traits<Concat>::RhsTypeNested_;
 
  public:
-  typedef typename internal::dense_xpr_base<Concat>::type Base;
+  using Base = typename internal::dense_xpr_base<Concat>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(Concat)
-  typedef internal::remove_all_t<LhsType> LhsNestedExpression;
-  typedef internal::remove_all_t<RhsType> RhsNestedExpression;
+  using LhsNestedExpression = internal::remove_all_t<LhsType>;
+  using RhsNestedExpression = internal::remove_all_t<RhsType>;
 
   template <typename OriginalLhsType, typename OriginalRhsType>
   EIGEN_DEVICE_FUNC constexpr inline Concat(const OriginalLhsType& lhs, const OriginalRhsType& rhs)
@@ -142,13 +142,13 @@ namespace internal {
 
 template <int Direction, typename LhsType, typename RhsType>
 struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Direction, LhsType, RhsType>> {
-  typedef Concat<Direction, LhsType, RhsType> XprType;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  using XprType = Concat<Direction, LhsType, RhsType>;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
 
-  typedef typename nested_eval<LhsType, 1>::type LhsNested;
-  typedef typename nested_eval<RhsType, 1>::type RhsNested;
-  typedef remove_all_t<LhsNested> LhsNestedCleaned;
-  typedef remove_all_t<RhsNested> RhsNestedCleaned;
+  using LhsNested = typename nested_eval<LhsType, 1>::type;
+  using RhsNested = typename nested_eval<RhsType, 1>::type;
+  using LhsNestedCleaned = remove_all_t<LhsNested>;
+  using RhsNestedCleaned = remove_all_t<RhsNested>;
 
   enum {
     CoeffReadCost = plain_enum_max(evaluator<LhsNestedCleaned>::CoeffReadCost,
@@ -265,7 +265,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
   }
 
  protected:
-  typedef typename XprType::Scalar Scalar;
+  using Scalar = typename XprType::Scalar;
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetBoundary(Index row, Index col) const {

@@ -25,7 +25,7 @@ namespace Eigen {
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs> {
   static void run(Index size, Scalar* mat, Index stride, const Scalar* vecX, const Scalar* vecY, const Scalar& alpha) {
-    typedef typename internal::packet_traits<Scalar>::type Packet;
+    using Packet = typename internal::packet_traits<Scalar>::type;
     const Index PacketSize = internal::unpacket_traits<Packet>::size;
 
     internal::conj_if<ConjRhs> cjy;
@@ -141,10 +141,10 @@ struct selfadjoint_product_selector;
 template <typename MatrixType, typename OtherType, int UpLo>
 struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, true> {
   static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
-    typedef typename MatrixType::Scalar Scalar;
-    typedef internal::blas_traits<OtherType> OtherBlasTraits;
-    typedef typename OtherBlasTraits::DirectLinearAccessType ActualOtherType;
-    typedef internal::remove_all_t<ActualOtherType> ActualOtherType_;
+    using Scalar = typename MatrixType::Scalar;
+    using OtherBlasTraits = internal::blas_traits<OtherType>;
+    using ActualOtherType = typename OtherBlasTraits::DirectLinearAccessType;
+    using ActualOtherType_ = internal::remove_all_t<ActualOtherType>;
     internal::add_const_on_value_type_t<ActualOtherType> actualOther = OtherBlasTraits::extract(other.derived());
 
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
@@ -176,10 +176,10 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, true> {
 template <typename MatrixType, typename OtherType, int UpLo>
 struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, false> {
   static void run(MatrixType& mat, const OtherType& other, const typename MatrixType::Scalar& alpha) {
-    typedef typename MatrixType::Scalar Scalar;
-    typedef internal::blas_traits<OtherType> OtherBlasTraits;
-    typedef typename OtherBlasTraits::DirectLinearAccessType ActualOtherType;
-    typedef internal::remove_all_t<ActualOtherType> ActualOtherType_;
+    using Scalar = typename MatrixType::Scalar;
+    using OtherBlasTraits = internal::blas_traits<OtherType>;
+    using ActualOtherType = typename OtherBlasTraits::DirectLinearAccessType;
+    using ActualOtherType_ = internal::remove_all_t<ActualOtherType>;
     internal::add_const_on_value_type_t<ActualOtherType> actualOther = OtherBlasTraits::extract(other.derived());
 
     Scalar actualAlpha = alpha * OtherBlasTraits::extractScalarFactor(other.derived());
@@ -194,10 +194,10 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, false> {
     eigen_assert(actualOther.rows() == size);
     if (size == 0 || depth == 0) return;
 
-    typedef internal::gemm_blocking_space<IsRowMajor ? RowMajor : ColMajor, Scalar, Scalar,
-                                          MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime,
-                                          ActualOtherType_::MaxColsAtCompileTime>
-        BlockingType;
+    using BlockingType =
+        internal::gemm_blocking_space<IsRowMajor ? RowMajor : ColMajor, Scalar, Scalar,
+                                      MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime,
+                                      ActualOtherType_::MaxColsAtCompileTime>;
 
     BlockingType blocking(size, size, depth, 1, false);
 

@@ -38,7 +38,7 @@ namespace Eigen {
 template <typename Scalar>
 class JacobiRotation {
  public:
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   /** Default constructor without any initialization. */
   EIGEN_DEVICE_FUNC JacobiRotation() {}
@@ -345,8 +345,8 @@ template <typename Scalar, typename OtherScalar, int SizeAtCompileTime, int MinA
 struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTime, MinAlignment,
                                             true /* vectorizable */> {
   static inline void run(Scalar* x, Index incrx, Scalar* y, Index incry, Index size, OtherScalar c, OtherScalar s) {
-    typedef typename packet_traits<Scalar>::type Packet;
-    typedef typename packet_traits<OtherScalar>::type OtherPacket;
+    using Packet = typename packet_traits<Scalar>::type;
+    using OtherPacket = typename packet_traits<OtherScalar>::type;
 
     constexpr int RequiredAlignment =
         (std::max<int>)(unpacket_traits<Packet>::alignment, unpacket_traits<OtherPacket>::alignment);
@@ -445,7 +445,7 @@ struct apply_rotation_in_the_plane_selector<Scalar, OtherScalar, SizeAtCompileTi
 template <typename VectorX, typename VectorY, typename OtherScalar>
 EIGEN_DEVICE_FUNC void inline apply_rotation_in_the_plane(DenseBase<VectorX>& xpr_x, DenseBase<VectorY>& xpr_y,
                                                           const JacobiRotation<OtherScalar>& j) {
-  typedef typename VectorX::Scalar Scalar;
+  using Scalar = typename VectorX::Scalar;
   constexpr bool Vectorizable = (int(evaluator<VectorX>::Flags) & int(evaluator<VectorY>::Flags) & PacketAccessBit) &&
                                 (int(packet_traits<Scalar>::size) == int(packet_traits<OtherScalar>::size));
 

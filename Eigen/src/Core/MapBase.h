@@ -41,7 +41,7 @@ namespace Eigen {
 template <typename Derived>
 class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Derived>::type {
  public:
-  typedef typename internal::dense_xpr_base<Derived>::type Base;
+  using Base = typename internal::dense_xpr_base<Derived>::type;
   enum {
     RowsAtCompileTime = internal::traits<Derived>::RowsAtCompileTime,
     ColsAtCompileTime = internal::traits<Derived>::ColsAtCompileTime,
@@ -49,11 +49,11 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
     SizeAtCompileTime = Base::SizeAtCompileTime
   };
 
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::conditional_t<bool(internal::is_lvalue<Derived>::value), Scalar*, const Scalar*> PointerType;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using PointerType = std::conditional_t<bool(internal::is_lvalue<Derived>::value), Scalar*, const Scalar*>;
 
   using Base::derived;
   //    using Base::RowsAtCompileTime;
@@ -82,7 +82,7 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
   // bug 217 - compile error on ICC 11.1
   using Base::operator=;
 
-  typedef typename Base::CoeffReturnType CoeffReturnType;
+  using CoeffReturnType = typename Base::CoeffReturnType;
 
   /** \copydoc DenseBase::rows() */
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept { return m_rows.value(); }
@@ -210,15 +210,15 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
  */
 template <typename Derived>
 class MapBase<Derived, WriteAccessors> : public MapBase<Derived, ReadOnlyAccessors> {
-  typedef MapBase<Derived, ReadOnlyAccessors> ReadOnlyMapBase;
+  using ReadOnlyMapBase = MapBase<Derived, ReadOnlyAccessors>;
 
  public:
-  typedef MapBase<Derived, ReadOnlyAccessors> Base;
+  using Base = MapBase<Derived, ReadOnlyAccessors>;
 
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::PacketScalar PacketScalar;
-  typedef typename Base::StorageIndex StorageIndex;
-  typedef typename Base::PointerType PointerType;
+  using Scalar = typename Base::Scalar;
+  using PacketScalar = typename Base::PacketScalar;
+  using StorageIndex = typename Base::StorageIndex;
+  using PointerType = typename Base::PointerType;
 
   using Base::coeff;
   using Base::coeffRef;
@@ -232,7 +232,7 @@ class MapBase<Derived, WriteAccessors> : public MapBase<Derived, ReadOnlyAccesso
   using Base::outerStride;
   using Base::rowStride;
 
-  typedef std::conditional_t<internal::is_lvalue<Derived>::value, Scalar, const Scalar> ScalarWithConstIfNotLvalue;
+  using ScalarWithConstIfNotLvalue = std::conditional_t<internal::is_lvalue<Derived>::value, Scalar, const Scalar>;
 
   EIGEN_DEVICE_FUNC constexpr const Scalar* data() const { return this->m_data; }
   EIGEN_DEVICE_FUNC constexpr ScalarWithConstIfNotLvalue* data() {

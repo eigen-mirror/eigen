@@ -64,7 +64,7 @@ template <typename NullaryOp, typename PlainObjectType>
 class CwiseNullaryOp : public internal::dense_xpr_base<CwiseNullaryOp<NullaryOp, PlainObjectType> >::type,
                        internal::no_assignment_operator {
  public:
-  typedef typename internal::dense_xpr_base<CwiseNullaryOp>::type Base;
+  using Base = typename internal::dense_xpr_base<CwiseNullaryOp>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(CwiseNullaryOp)
 
   EIGEN_DEVICE_FUNC constexpr CwiseNullaryOp(Index rows, Index cols, const NullaryOp& func = NullaryOp())

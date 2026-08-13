@@ -30,12 +30,12 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 EIGEN_DONT_INLINE void conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
                                           Index& iters, typename Dest::RealScalar& tol_error) {
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
   // Use Dest's plain (owning) type as VectorType. For CPU Matrix/Map this
   // resolves to Matrix<Scalar,Dynamic,1>. For GPU DeviceMatrix, PlainObject
   // is DeviceMatrix itself (already owning).
-  typedef typename Dest::PlainObject VectorType;
+  using VectorType = typename Dest::PlainObject;
 
   RealScalar tol = tol_error;
   Index maxIters = iters;
@@ -103,8 +103,8 @@ namespace internal {
 
 template <typename MatrixType_, int UpLo_, typename Preconditioner_>
 struct traits<ConjugateGradient<MatrixType_, UpLo_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -160,7 +160,7 @@ struct traits<ConjugateGradient<MatrixType_, UpLo_, Preconditioner_> > {
 template <typename MatrixType_, int UpLo_, typename Preconditioner_>
 class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixType_, UpLo_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<ConjugateGradient> Base;
+  using Base = IterativeSolverBase<ConjugateGradient>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -168,10 +168,10 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
   using Base::matrix;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
   enum { UpLo = UpLo_ };
 
@@ -195,19 +195,19 @@ class ConjugateGradient : public IterativeSolverBase<ConjugateGradient<MatrixTyp
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
-    typedef typename Base::MatrixWrapper MatrixWrapper;
-    typedef typename Base::ActualMatrixType ActualMatrixType;
+    using MatrixWrapper = typename Base::MatrixWrapper;
+    using ActualMatrixType = typename Base::ActualMatrixType;
     enum {
       TransposeInput = (!MatrixWrapper::MatrixFree) && (UpLo == (Lower | Upper)) && (!MatrixType::IsRowMajor) &&
                        (!NumTraits<Scalar>::IsComplex)
     };
-    typedef std::conditional_t<TransposeInput, Transpose<const ActualMatrixType>, ActualMatrixType const&>
-        RowMajorWrapper;
+    using RowMajorWrapper =
+        std::conditional_t<TransposeInput, Transpose<const ActualMatrixType>, ActualMatrixType const&>;
     EIGEN_STATIC_ASSERT(internal::check_implication(MatrixWrapper::MatrixFree, UpLo == (Lower | Upper)),
                         MATRIX_FREE_CONJUGATE_GRADIENT_IS_COMPATIBLE_WITH_UPPER_UNION_LOWER_MODE_ONLY);
-    typedef std::conditional_t<UpLo == (Lower | Upper), RowMajorWrapper,
-                               typename MatrixWrapper::template ConstSelfAdjointViewReturnType<UpLo>::Type>
-        SelfAdjointWrapper;
+    using SelfAdjointWrapper =
+        std::conditional_t<UpLo == (Lower | Upper), RowMajorWrapper,
+                           typename MatrixWrapper::template ConstSelfAdjointViewReturnType<UpLo>::Type>;
 
     m_iterations = Base::maxIterations();
     m_error = Base::m_tolerance;

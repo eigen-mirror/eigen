@@ -34,53 +34,53 @@
 
 namespace Eigen {
 namespace numext {
-typedef std::uint8_t uint8_t;
-typedef std::int8_t int8_t;
-typedef std::uint16_t uint16_t;
-typedef std::int16_t int16_t;
-typedef std::uint32_t uint32_t;
-typedef std::int32_t int32_t;
-typedef std::uint64_t uint64_t;
-typedef std::int64_t int64_t;
+using uint8_t = std::uint8_t;
+using int8_t = std::int8_t;
+using uint16_t = std::uint16_t;
+using int16_t = std::int16_t;
+using uint32_t = std::uint32_t;
+using int32_t = std::int32_t;
+using uint64_t = std::uint64_t;
+using int64_t = std::int64_t;
 
 template <size_t Size>
 struct get_integer_by_size {
-  typedef void signed_type;
-  typedef void unsigned_type;
+  using signed_type = void;
+  using unsigned_type = void;
 };
 template <>
 struct get_integer_by_size<1> {
-  typedef int8_t signed_type;
-  typedef uint8_t unsigned_type;
+  using signed_type = int8_t;
+  using unsigned_type = uint8_t;
 };
 template <>
 struct get_integer_by_size<2> {
-  typedef int16_t signed_type;
-  typedef uint16_t unsigned_type;
+  using signed_type = int16_t;
+  using unsigned_type = uint16_t;
 };
 template <>
 struct get_integer_by_size<4> {
-  typedef int32_t signed_type;
-  typedef uint32_t unsigned_type;
+  using signed_type = int32_t;
+  using unsigned_type = uint32_t;
 };
 template <>
 struct get_integer_by_size<8> {
-  typedef int64_t signed_type;
-  typedef uint64_t unsigned_type;
+  using signed_type = int64_t;
+  using unsigned_type = uint64_t;
 };
 }  // namespace numext
 }  // namespace Eigen
 
 namespace Eigen {
 
-typedef EIGEN_DEFAULT_DENSE_INDEX_TYPE DenseIndex;
+using DenseIndex = std::ptrdiff_t;
 
 /**
  * \brief The Index type as used for the API.
  * \details To change this, \c \#define the preprocessor symbol \c EIGEN_DEFAULT_DENSE_INDEX_TYPE.
  * \sa \blank \ref TopicPreprocessorDirectives, StorageIndex.
  */
-typedef EIGEN_DEFAULT_DENSE_INDEX_TYPE Index;
+using Index = std::ptrdiff_t;
 
 namespace internal {
 
@@ -110,27 +110,27 @@ using std::true_type;
 
 template <typename T>
 struct remove_all {
-  typedef T type;
+  using type = T;
 };
 template <typename T>
 struct remove_all<const T> {
-  typedef typename remove_all<T>::type type;
+  using type = typename remove_all<T>::type;
 };
 template <typename T>
 struct remove_all<T const&> {
-  typedef typename remove_all<T>::type type;
+  using type = typename remove_all<T>::type;
 };
 template <typename T>
 struct remove_all<T&> {
-  typedef typename remove_all<T>::type type;
+  using type = typename remove_all<T>::type;
 };
 template <typename T>
 struct remove_all<T const*> {
-  typedef typename remove_all<T>::type type;
+  using type = typename remove_all<T>::type;
 };
 template <typename T>
 struct remove_all<T*> {
-  typedef typename remove_all<T>::type type;
+  using type = typename remove_all<T>::type;
 };
 
 template <typename T>
@@ -164,23 +164,23 @@ using void_t = void;
 
 template <typename T>
 struct add_const_on_value_type {
-  typedef const T type;
+  using type = const T;
 };
 template <typename T>
 struct add_const_on_value_type<T&> {
-  typedef T const& type;
+  using type = const T&;
 };
 template <typename T>
 struct add_const_on_value_type<T*> {
-  typedef T const* type;
+  using type = const T*;
 };
 template <typename T>
 struct add_const_on_value_type<T* const> {
-  typedef T const* const type;
+  using type = const T* const;
 };
 template <typename T>
 struct add_const_on_value_type<T const* const> {
-  typedef T const* const type;
+  using type = const T* const;
 };
 
 template <typename T>
@@ -284,14 +284,14 @@ struct result_of;
 
 template <typename F, typename... ArgTypes>
 struct result_of<F(ArgTypes...)> {
-  typedef std::invoke_result_t<F, ArgTypes...> type1;
-  typedef remove_cvref_t<type1> type;
+  using type1 = std::invoke_result_t<F, ArgTypes...>;
+  using type = remove_cvref_t<type1>;
 };
 #else
 template <typename T>
 struct result_of {
-  typedef std::result_of_t<T> type1;
-  typedef remove_cvref_t<type1> type;
+  using type1 = std::result_of_t<T>;
+  using type = remove_cvref_t<type1>;
 };
 #endif
 

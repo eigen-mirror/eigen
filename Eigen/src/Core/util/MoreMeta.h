@@ -27,7 +27,7 @@ struct type_list {
 template <typename t, typename... tt>
 struct type_list<t, tt...> {
   constexpr static int count = sizeof...(tt) + 1;
-  typedef t first_type;
+  using first_type = t;
 };
 
 /* list manipulation: concatenate */
@@ -37,14 +37,14 @@ struct concat;
 
 template <typename... as, typename... bs>
 struct concat<type_list<as...>, type_list<bs...>> {
-  typedef type_list<as..., bs...> type;
+  using type = type_list<as..., bs...>;
 };
 
 template <typename... p>
 struct mconcat;
 template <typename a>
 struct mconcat<a> {
-  typedef a type;
+  using type = a;
 };
 template <typename a, typename b>
 struct mconcat<a, b> : concat<a, b> {};
@@ -61,17 +61,17 @@ struct take<n, type_list<a, as...>> : concat<type_list<a>, typename take<n - 1, 
 
 template <int n>
 struct take<n, type_list<>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <typename a, typename... as>
 struct take<0, type_list<a, as...>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <>
 struct take<0, type_list<>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <int n, typename a>
@@ -82,17 +82,17 @@ struct skip<n, type_list<a, as...>> : skip<n - 1, type_list<as...>> {};
 
 template <typename a, typename... as>
 struct skip<0, type_list<a, as...>> {
-  typedef type_list<a, as...> type;
+  using type = type_list<a, as...>;
 };
 
 template <int n>
 struct skip<n, type_list<>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <>
 struct skip<0, type_list<>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <int start, int count, typename a>
@@ -107,7 +107,7 @@ template <int n, typename a, typename... as>
 struct get<n, type_list<a, as...>> : get<n - 1, type_list<as...>> {};
 template <typename a, typename... as>
 struct get<0, type_list<a, as...>> {
-  typedef a type;
+  using type = a;
 };
 
 template <typename T, int n, T a, T... as>
@@ -131,7 +131,7 @@ struct apply_op_from_left;
 
 template <template <typename, typename> class op, typename additional_param, typename... values>
 struct apply_op_from_left<op, additional_param, type_list<values...>> {
-  typedef type_list<typename op<additional_param, values>::type...> type;
+  using type = type_list<typename op<additional_param, values>::type...>;
 };
 
 template <template <typename, typename> class op, typename additional_param, typename a>
@@ -139,7 +139,7 @@ struct apply_op_from_right;
 
 template <template <typename, typename> class op, typename additional_param, typename... values>
 struct apply_op_from_right<op, additional_param, type_list<values...>> {
-  typedef type_list<typename op<values, additional_param>::type...> type;
+  using type = type_list<typename op<values, additional_param>::type...>;
 };
 
 /* see if an element is in a list */

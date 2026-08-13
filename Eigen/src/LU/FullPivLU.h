@@ -19,9 +19,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<FullPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef PermutationIndex_ StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = PermutationIndex_;
   enum { Flags = 0 };
 };
 
@@ -64,9 +64,9 @@ template <typename MatrixType_, typename PermutationIndex_>
 class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
                   public RankRevealingBase<FullPivLU<MatrixType_, PermutationIndex_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<FullPivLU> Base;
-  typedef RankRevealingBase<FullPivLU> RankRevealingBase_;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<FullPivLU>;
+  using RankRevealingBase_ = RankRevealingBase<FullPivLU>;
   friend class SolverBase<FullPivLU>;
   friend class RankRevealingBase<FullPivLU>;
   using RankRevealingBase_::dimensionOfKernel;
@@ -85,11 +85,11 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
   using PermutationIndex = PermutationIndex_;
-  typedef typename internal::plain_row_type<MatrixType, PermutationIndex>::type IntRowVectorType;
-  typedef typename internal::plain_col_type<MatrixType, PermutationIndex>::type IntColVectorType;
-  typedef PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex> PermutationQType;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex> PermutationPType;
-  typedef typename MatrixType::PlainObject PlainObject;
+  using IntRowVectorType = typename internal::plain_row_type<MatrixType, PermutationIndex>::type;
+  using IntColVectorType = typename internal::plain_col_type<MatrixType, PermutationIndex>::type;
+  using PermutationQType = PermutationMatrix<ColsAtCompileTime, MaxColsAtCompileTime, PermutationIndex>;
+  using PermutationPType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime, PermutationIndex>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /** \brief Reports whether the LU factorization was successful.
    *
@@ -382,8 +382,8 @@ void FullPivLU<MatrixType, PermutationIndex>::computeInPlace() {
 
     // biggest coefficient in the remaining bottom-right corner (starting at row k, col k)
     Index row_of_biggest_in_corner, col_of_biggest_in_corner;
-    typedef internal::scalar_score_coeff_op<Scalar> Scoring;
-    typedef typename Scoring::result_type Score;
+    using Scoring = internal::scalar_score_coeff_op<Scalar>;
+    using Score = typename Scoring::result_type;
     Score biggest_in_corner;
     biggest_in_corner = m_lu.bottomRightCorner(rows - k, cols - k)
                             .unaryExpr(Scoring())
@@ -684,8 +684,8 @@ struct Assignment<
     DstXprType, Inverse<FullPivLU<MatrixType, PermutationIndex> >,
     internal::assign_op<typename DstXprType::Scalar, typename FullPivLU<MatrixType, PermutationIndex>::Scalar>,
     Dense2Dense> {
-  typedef FullPivLU<MatrixType, PermutationIndex> LuType;
-  typedef Inverse<LuType> SrcXprType;
+  using LuType = FullPivLU<MatrixType, PermutationIndex>;
+  using SrcXprType = Inverse<LuType>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<typename DstXprType::Scalar, typename MatrixType::Scalar>&) {
     dst = src.nestedExpression().solve(MatrixType::Identity(src.rows(), src.cols()));

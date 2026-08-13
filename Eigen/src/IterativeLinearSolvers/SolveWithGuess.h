@@ -43,11 +43,11 @@ template <typename Decomposition, typename RhsType, typename GuessType>
 class SolveWithGuess : public internal::generic_xpr_base<SolveWithGuess<Decomposition, RhsType, GuessType>, MatrixXpr,
                                                          typename internal::traits<RhsType>::StorageKind>::type {
  public:
-  typedef typename internal::traits<SolveWithGuess>::Scalar Scalar;
-  typedef typename internal::traits<SolveWithGuess>::PlainObject PlainObject;
-  typedef typename internal::generic_xpr_base<SolveWithGuess<Decomposition, RhsType, GuessType>, MatrixXpr,
-                                              typename internal::traits<RhsType>::StorageKind>::type Base;
-  typedef typename internal::ref_selector<SolveWithGuess>::type Nested;
+  using Scalar = typename internal::traits<SolveWithGuess>::Scalar;
+  using PlainObject = typename internal::traits<SolveWithGuess>::PlainObject;
+  using Base = typename internal::generic_xpr_base<SolveWithGuess<Decomposition, RhsType, GuessType>, MatrixXpr,
+                                                   typename internal::traits<RhsType>::StorageKind>::type;
+  using Nested = typename internal::ref_selector<SolveWithGuess>::type;
 
   SolveWithGuess(const Decomposition &dec, const RhsType &rhs, const GuessType &guess)
       : m_dec(dec), m_rhs(rhs), m_guess(guess) {}
@@ -75,9 +75,9 @@ namespace internal {
 template <typename Decomposition, typename RhsType, typename GuessType>
 struct evaluator<SolveWithGuess<Decomposition, RhsType, GuessType> >
     : public evaluator<typename SolveWithGuess<Decomposition, RhsType, GuessType>::PlainObject> {
-  typedef SolveWithGuess<Decomposition, RhsType, GuessType> SolveType;
-  typedef typename SolveType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using SolveType = SolveWithGuess<Decomposition, RhsType, GuessType>;
+  using PlainObject = typename SolveType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   evaluator(const SolveType &solve) : m_result(solve.rows(), solve.cols()) {
     internal::construct_at<Base>(this, m_result);
@@ -95,7 +95,7 @@ struct evaluator<SolveWithGuess<Decomposition, RhsType, GuessType> >
 template <typename DstXprType, typename DecType, typename RhsType, typename GuessType, typename Scalar>
 struct Assignment<DstXprType, SolveWithGuess<DecType, RhsType, GuessType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
-  typedef SolveWithGuess<DecType, RhsType, GuessType> SrcXprType;
+  using SrcXprType = SolveWithGuess<DecType, RhsType, GuessType>;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();

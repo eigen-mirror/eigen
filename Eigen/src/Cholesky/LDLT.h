@@ -22,9 +22,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, int UpLo_>
 struct traits<LDLT<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -63,8 +63,8 @@ enum SignMatrix { PositiveSemiDef, NegativeSemiDef, ZeroSign, Indefinite };
 template <typename MatrixType_, int UpLo_>
 class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<LDLT> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<LDLT>;
   friend class SolverBase<LDLT>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(LDLT)
@@ -73,12 +73,12 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime,
     UpLo = UpLo_
   };
-  typedef Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1> TmpMatrixType;
+  using TmpMatrixType = Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1>;
 
-  typedef Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime> TranspositionType;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime> PermutationType;
+  using TranspositionType = Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime>;
+  using PermutationType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime>;
 
-  typedef internal::LDLT_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::LDLT_Traits<MatrixType, UpLo>;
 
   /** \brief Default Constructor.
    *
@@ -292,9 +292,9 @@ struct ldlt_inplace<Lower> {
   template <typename MatrixType, typename TranspositionType, typename Workspace>
   static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
     using std::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex IndexType;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using IndexType = typename TranspositionType::StorageIndex;
     eigen_assert(mat.rows() == mat.cols());
     const Index size = mat.rows();
     bool found_zero_pivot = false;
@@ -405,8 +405,8 @@ struct ldlt_inplace<Lower> {
   static bool updateInPlace(MatrixType& mat, MatrixBase<WDerived>& w,
                             const typename MatrixType::RealScalar& sigma = 1) {
     using numext::isfinite;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
 
     const Index size = mat.rows();
     eigen_assert(mat.cols() == size && w.size() == size);
@@ -464,16 +464,16 @@ struct ldlt_inplace<Upper> {
 
 template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, UnitLower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, UnitLower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
 };
 
 template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower> MatrixL;
-  typedef const TriangularView<const MatrixType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower>;
+  using MatrixU = const TriangularView<const MatrixType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
 };
@@ -514,7 +514,7 @@ template <typename MatrixType, int UpLo_>
 template <typename Derived>
 LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
     const MatrixBase<Derived>& w, const typename LDLT<MatrixType, UpLo_>::RealScalar& sigma) {
-  typedef typename TranspositionType::StorageIndex IndexType;
+  using IndexType = typename TranspositionType::StorageIndex;
   const Index size = w.rows();
   if (m_isInitialized) {
     eigen_assert(m_matrix.rows() == size);

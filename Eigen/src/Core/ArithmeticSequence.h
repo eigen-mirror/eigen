@@ -21,7 +21,7 @@ namespace internal {
 // Helper to cleanup the type of the increment:
 template <typename T>
 struct cleanup_seq_incr {
-  typedef typename cleanup_index_type<T, DynamicIndex>::type type;
+  using type = typename cleanup_index_type<T, DynamicIndex>::type;
 };
 
 }  // namespace internal
@@ -156,7 +156,7 @@ auto seq(FirstType f, LastType l) {
 
 template <typename FirstType, typename LastType, typename IncrType>
 auto seq(FirstType f, LastType l, IncrType incr) {
-  typedef typename internal::cleanup_seq_incr<IncrType>::type CleanedIncrType;
+  using CleanedIncrType = typename internal::cleanup_seq_incr<IncrType>::type;
   return seqN(typename internal::cleanup_index_type<FirstType>::type(f),
               (typename internal::cleanup_index_type<LastType>::type(l) -
                typename internal::cleanup_index_type<FirstType>::type(f) + CleanedIncrType(incr)) /

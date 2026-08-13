@@ -36,7 +36,7 @@ namespace internal {
 template <typename Vector, typename RealScalar>
 typename Vector::Scalar omega(const Vector& t, const Vector& s, RealScalar angle) {
   using numext::abs;
-  typedef typename Vector::Scalar Scalar;
+  using Scalar = typename Vector::Scalar;
   const RealScalar ns = s.stableNorm();
   const RealScalar nt = t.stableNorm();
   const Scalar ts = t.dot(s);
@@ -59,10 +59,10 @@ template <typename MatrixType, typename Rhs, typename Dest, typename Preconditio
 bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& precond, Index& iter,
           typename Dest::RealScalar& relres, Index S, bool smoothing, typename Dest::RealScalar angle,
           bool replacement) {
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   const Index N = b.size();
   S = numext::mini(S, x.rows());
   const RealScalar tol = relres;
@@ -251,8 +251,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -301,13 +301,13 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
 template <typename MatrixType_, typename Preconditioner_>
 class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  private:
-  typedef IterativeSolverBase<IDRS> Base;
+  using Base = IterativeSolverBase<IDRS>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;

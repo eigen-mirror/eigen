@@ -1063,7 +1063,7 @@ struct diagonal_product_segment_impl<OnTheRight> {
 
 template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
 struct triangular_diagonal_product_impl {
-  typedef typename MatrixType::Scalar MatrixScalar;
+  using MatrixScalar = typename MatrixType::Scalar;
 
   template <typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
@@ -1138,7 +1138,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, TriangularShape, ProductTag>
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
@@ -1152,7 +1152,7 @@ struct generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
@@ -1330,7 +1330,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SelfAdjointShape, ProductTag>
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
   // The "Dense ?= scalar * Product" rewriting rule folds an outer alpha into the
   // SelfAdjointView via SelfAdjointView::operator*(scalar), whose nested
   // expression becomes (matrix * alpha). For complex alpha this is no longer
@@ -1341,9 +1341,8 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   using ActualLhsMatrix = decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>())
                                        .template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>());
   using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
-  typedef selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType,
-                                            typename Rhs::DiagonalVectorType>
-      Kernel;
+  using Kernel =
+      selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType, typename Rhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualLhsMatrix actualLhsMatrix(const typename Lhs::MatrixType& matrix) {
     return LhsBlasTraits::extract(matrix).template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>();
@@ -1373,15 +1372,15 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
   // See note on the SelfAdjointShape, DiagonalShape specialization above for why
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
   using ActualRhsMatrix = decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>())
                                        .template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>());
   using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
-  typedef selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>
-      Kernel;
+  using Kernel =
+      selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualRhsMatrix actualRhsMatrix(const typename Rhs::MatrixType& matrix) {
     return RhsBlasTraits::extract(matrix).template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>();

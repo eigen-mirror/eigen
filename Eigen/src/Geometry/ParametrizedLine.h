@@ -37,10 +37,10 @@ class ParametrizedLine {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_, AmbientDim_)
   enum { AmbientDimAtCompileTime = AmbientDim_, Options = Options_ };
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
-  typedef Matrix<Scalar, AmbientDimAtCompileTime, 1, Options> VectorType;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
+  using VectorType = Matrix<Scalar, AmbientDimAtCompileTime, 1, Options>;
 
   /** Default constructor without initialization */
   EIGEN_DEVICE_FUNC inline ParametrizedLine() {}

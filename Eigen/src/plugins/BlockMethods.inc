@@ -12,67 +12,67 @@
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 
 /// \internal expression type of a column
-typedef Block<Derived, internal::traits<Derived>::RowsAtCompileTime, 1, !IsRowMajor> ColXpr;
-typedef const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, 1, !IsRowMajor> ConstColXpr;
+using ColXpr = Block<Derived, internal::traits<Derived>::RowsAtCompileTime, 1, !IsRowMajor>;
+using ConstColXpr = const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, 1, !IsRowMajor>;
 /// \internal expression type of a row
-typedef Block<Derived, 1, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> RowXpr;
-typedef const Block<const Derived, 1, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> ConstRowXpr;
+using RowXpr = Block<Derived, 1, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
+using ConstRowXpr = const Block<const Derived, 1, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
 /// \internal expression type of a block of whole columns
-typedef Block<Derived, internal::traits<Derived>::RowsAtCompileTime, Dynamic, !IsRowMajor> ColsBlockXpr;
-typedef const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, Dynamic, !IsRowMajor>
-    ConstColsBlockXpr;
+using ColsBlockXpr = Block<Derived, internal::traits<Derived>::RowsAtCompileTime, Dynamic, !IsRowMajor>;
+using ConstColsBlockXpr =
+    const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, Dynamic, !IsRowMajor>;
 /// \internal expression type of a block of whole rows
-typedef Block<Derived, Dynamic, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> RowsBlockXpr;
-typedef const Block<const Derived, Dynamic, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> ConstRowsBlockXpr;
+using RowsBlockXpr = Block<Derived, Dynamic, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
+using ConstRowsBlockXpr = const Block<const Derived, Dynamic, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
 /// \internal expression type of a block of whole columns
 template <int N>
 struct NColsBlockXpr {
-  typedef Block<Derived, internal::traits<Derived>::RowsAtCompileTime, N, !IsRowMajor> Type;
+  using Type = Block<Derived, internal::traits<Derived>::RowsAtCompileTime, N, !IsRowMajor>;
 };
 template <int N>
 struct ConstNColsBlockXpr {
-  typedef const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, N, !IsRowMajor> Type;
+  using Type = const Block<const Derived, internal::traits<Derived>::RowsAtCompileTime, N, !IsRowMajor>;
 };
 /// \internal expression type of a block of whole rows
 template <int N>
 struct NRowsBlockXpr {
-  typedef Block<Derived, N, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> Type;
+  using Type = Block<Derived, N, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
 };
 template <int N>
 struct ConstNRowsBlockXpr {
-  typedef const Block<const Derived, N, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor> Type;
+  using Type = const Block<const Derived, N, internal::traits<Derived>::ColsAtCompileTime, IsRowMajor>;
 };
 /// \internal expression of a block
-typedef Block<Derived> BlockXpr;
-typedef const Block<const Derived> ConstBlockXpr;
+using BlockXpr = Block<Derived>;
+using ConstBlockXpr = const Block<const Derived>;
 /// \internal expression of a block of fixed sizes
 template <int Rows, int Cols>
 struct FixedBlockXpr {
-  typedef Block<Derived, Rows, Cols> Type;
+  using Type = Block<Derived, Rows, Cols>;
 };
 template <int Rows, int Cols>
 struct ConstFixedBlockXpr {
-  typedef Block<const Derived, Rows, Cols> Type;
+  using Type = Block<const Derived, Rows, Cols>;
 };
 
-typedef VectorBlock<Derived> SegmentReturnType;
-typedef const VectorBlock<const Derived> ConstSegmentReturnType;
+using SegmentReturnType = VectorBlock<Derived>;
+using ConstSegmentReturnType = const VectorBlock<const Derived>;
 template <int Size>
 struct FixedSegmentReturnType {
-  typedef VectorBlock<Derived, Size> Type;
+  using Type = VectorBlock<Derived, Size>;
 };
 template <int Size>
 struct ConstFixedSegmentReturnType {
-  typedef const VectorBlock<const Derived, Size> Type;
+  using Type = const VectorBlock<const Derived, Size>;
 };
 
 /// \internal inner-vector
-typedef std::conditional_t<IsRowMajor, RowXpr, ColXpr> InnerVectorReturnType;
-typedef std::conditional_t<IsRowMajor, ConstRowXpr, ConstColXpr> ConstInnerVectorReturnType;
+using InnerVectorReturnType = std::conditional_t<IsRowMajor, RowXpr, ColXpr>;
+using ConstInnerVectorReturnType = std::conditional_t<IsRowMajor, ConstRowXpr, ConstColXpr>;
 
 /// \internal set of inner-vectors
-typedef std::conditional_t<IsRowMajor, RowsBlockXpr, ColsBlockXpr> InnerVectorsReturnType;
-typedef std::conditional_t<IsRowMajor, ConstRowsBlockXpr, ConstColsBlockXpr> ConstInnerVectorsReturnType;
+using InnerVectorsReturnType = std::conditional_t<IsRowMajor, RowsBlockXpr, ColsBlockXpr>;
+using ConstInnerVectorsReturnType = std::conditional_t<IsRowMajor, ConstRowsBlockXpr, ConstColsBlockXpr>;
 
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 

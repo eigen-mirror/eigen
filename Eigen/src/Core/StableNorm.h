@@ -159,8 +159,8 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
   Index n = vec.size();
   if (EIGEN_PREDICT_FALSE(n == 1)) return numext::abs(vec.coeff(0));
 
-  typedef typename VectorType::RealScalar RealScalar;
-  typedef typename stable_norm_accumulator<RealScalar>::type Accumulator;
+  using RealScalar = typename VectorType::RealScalar;
+  using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
   Accumulator scale(0);
   Accumulator invScale(1);
   Accumulator ssq(0);  // sum of squares
@@ -175,8 +175,8 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
                                                  std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
   using std::sqrt;
 
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename stable_norm_accumulator<RealScalar>::type Accumulator;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
   Accumulator scale(0);
   Accumulator invScale(1);
   Accumulator ssq(0);  // sum of squares
@@ -227,9 +227,9 @@ struct blue_norm_accumulate_scalar<Scalar, Accumulator, true> {
 
 template <typename Derived>
 inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(const EigenBase<Derived>& _vec) {
-  typedef typename Derived::RealScalar RealScalar;
-  typedef typename stable_norm_accumulator<RealScalar>::type Accumulator;
-  typedef typename traits<Derived>::Scalar Scalar;
+  using RealScalar = typename Derived::RealScalar;
+  using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
+  using Scalar = typename traits<Derived>::Scalar;
   using std::pow;
   using std::sqrt;
 
@@ -305,7 +305,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
  */
 template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::stableNorm() const {
-  typedef typename internal::nested_eval<Derived, 2>::type Nested;
+  using Nested = typename internal::nested_eval<Derived, 2>::type;
   Nested nested(derived());
   return internal::stable_norm_impl(nested);
 }
@@ -332,7 +332,7 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
  */
 template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
-  typedef typename internal::stable_norm_accumulator<RealScalar>::type Accumulator;
+  using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
   if (size() == 0) return RealScalar(0);
   // Component reduction avoids rounded complex magnitudes and permits promoted accumulation.
   return RealScalar(

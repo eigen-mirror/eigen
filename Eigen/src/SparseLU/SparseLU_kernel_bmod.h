@@ -45,7 +45,7 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index seg
                                                                  ScalarVector& tempv, ScalarVector& lusup, Index& luptr,
                                                                  const Index lda, const Index nrow, IndexVector& lsub,
                                                                  const Index lptr, const Index no_zeros) {
-  typedef typename ScalarVector::Scalar Scalar;
+  using Scalar = typename ScalarVector::Scalar;
   // First, copy U[*,j] segment from dense(*) to tempv(*)
   // The result of triangular solve is in tempv[*];
   // The result of matrix-vector update is in dense[*]
@@ -106,8 +106,8 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<1>::run(const Index /*segsize*/, BlockScal
                                               ScalarVector& /*tempv*/, ScalarVector& lusup, Index& luptr,
                                               const Index lda, const Index nrow, IndexVector& lsub, const Index lptr,
                                               const Index no_zeros) {
-  typedef typename ScalarVector::Scalar Scalar;
-  typedef typename IndexVector::Scalar StorageIndex;
+  using Scalar = typename ScalarVector::Scalar;
+  using StorageIndex = typename IndexVector::Scalar;
   Scalar f = dense(lsub(lptr + no_zeros));
   luptr += lda * no_zeros + no_zeros + 1;
   const Scalar* a(lusup.data() + luptr);

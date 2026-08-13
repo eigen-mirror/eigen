@@ -241,7 +241,7 @@ struct random_impl<bool> {
 
 template <typename Scalar>
 struct random_default_impl<Scalar, true, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   using Impl = random_impl<RealScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits) {
     return Scalar(Impl::run(x.real(), y.real(), numRandomBits), Impl::run(x.imag(), y.imag(), numRandomBits));

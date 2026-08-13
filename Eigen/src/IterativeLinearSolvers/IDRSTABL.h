@@ -53,10 +53,10 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Setup and type definitions.
   */
   using numext::abs;
-  typedef typename Dest::Scalar Scalar;
-  typedef typename Dest::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  using Scalar = typename Dest::Scalar;
+  using RealScalar = typename Dest::RealScalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   const Index N = x.rows();
 
@@ -365,8 +365,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -413,7 +413,7 @@ struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
 template <typename MatrixType_, typename Preconditioner_>
 class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner_>> {
  protected:
-  typedef IterativeSolverBase<IDRSTABL> Base;
+  using Base = IterativeSolverBase<IDRSTABL>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -423,10 +423,10 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   Index m_S = 4;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  public:
   /** Default constructor. */

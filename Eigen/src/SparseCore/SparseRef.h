@@ -29,7 +29,7 @@ class SparseRefBase;
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options_, typename StrideType_>
 struct traits<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options_, StrideType_>>
     : public traits<SparseMatrix<MatScalar, MatOptions, MatIndex>> {
-  typedef SparseMatrix<MatScalar, MatOptions, MatIndex> PlainObjectType;
+  using PlainObjectType = SparseMatrix<MatScalar, MatOptions, MatIndex>;
   enum { Options = Options_, Flags = traits<PlainObjectType>::Flags | CompressedAccessBit | NestByRefBit };
 
   template <typename Derived>
@@ -39,7 +39,7 @@ struct traits<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options_, Strid
                           ((PlainObjectType::Flags & RowMajorBit) == (Derived::Flags & RowMajorBit)),
       MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && StorageOrderMatch
     };
-    typedef bool_constant<MatchAtCompileTime> type;
+    using type = bool_constant<MatchAtCompileTime>;
   };
 };
 
@@ -55,13 +55,13 @@ struct traits<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options_,
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options_, typename StrideType_>
 struct traits<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options_, StrideType_>>
     : public traits<SparseVector<MatScalar, MatOptions, MatIndex>> {
-  typedef SparseVector<MatScalar, MatOptions, MatIndex> PlainObjectType;
+  using PlainObjectType = SparseVector<MatScalar, MatOptions, MatIndex>;
   enum { Options = Options_, Flags = traits<PlainObjectType>::Flags | CompressedAccessBit | NestByRefBit };
 
   template <typename Derived>
   struct match {
     enum { MatchAtCompileTime = (Derived::Flags & CompressedAccessBit) && Derived::IsVectorAtCompileTime };
-    typedef bool_constant<MatchAtCompileTime> type;
+    using type = bool_constant<MatchAtCompileTime>;
   };
 };
 
@@ -80,7 +80,7 @@ struct traits<SparseRefBase<Derived>> : public traits<Derived> {};
 template <typename Derived>
 class SparseRefBase : public SparseMapBase<Derived> {
  public:
-  typedef SparseMapBase<Derived> Base;
+  using Base = SparseMapBase<Derived>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseRefBase)
 
   SparseRefBase()
@@ -130,14 +130,14 @@ class Ref<SparseMatrixType, Options>
                                                      // correctly via CRTP.
 #endif
 {
-  typedef internal::traits<Ref> Traits;
+  using Traits = internal::traits<Ref>;
   template <int OtherOptions>
   inline Ref(const SparseMatrix<MatScalar, OtherOptions, MatIndex>& expr);
   template <int OtherOptions>
   inline Ref(const Map<SparseMatrix<MatScalar, OtherOptions, MatIndex>>& expr);
 
  public:
-  typedef internal::SparseRefBase<Ref> Base;
+  using Base = internal::SparseRefBase<Ref>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(Ref)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
@@ -178,11 +178,11 @@ class Ref<SparseMatrixType, Options>
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 class Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>
     : public internal::SparseRefBase<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>> {
-  typedef SparseMatrix<MatScalar, MatOptions, MatIndex> TPlainObjectType;
-  typedef internal::traits<Ref> Traits;
+  using TPlainObjectType = SparseMatrix<MatScalar, MatOptions, MatIndex>;
+  using Traits = internal::traits<Ref>;
 
  public:
-  typedef internal::SparseRefBase<Ref> Base;
+  using Base = internal::SparseRefBase<Ref>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(Ref)
 
   template <typename Derived>
@@ -249,13 +249,13 @@ template <typename SparseVectorType>
 class Ref<SparseVectorType> : public SparseMapBase<Derived, WriteAccessors>
 #endif
 {
-  typedef SparseVector<MatScalar, MatOptions, MatIndex> PlainObjectType;
-  typedef internal::traits<Ref> Traits;
+  using PlainObjectType = SparseVector<MatScalar, MatOptions, MatIndex>;
+  using Traits = internal::traits<Ref>;
   template <int OtherOptions>
   inline Ref(const SparseVector<MatScalar, OtherOptions, MatIndex>& expr);
 
  public:
-  typedef internal::SparseRefBase<Ref> Base;
+  using Base = internal::SparseRefBase<Ref>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(Ref)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
@@ -287,11 +287,11 @@ class Ref<SparseVectorType> : public SparseMapBase<Derived, WriteAccessors>
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 class Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>
     : public internal::SparseRefBase<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>> {
-  typedef SparseVector<MatScalar, MatOptions, MatIndex> TPlainObjectType;
-  typedef internal::traits<Ref> Traits;
+  using TPlainObjectType = SparseVector<MatScalar, MatOptions, MatIndex>;
+  using Traits = internal::traits<Ref>;
 
  public:
-  typedef internal::SparseRefBase<Ref> Base;
+  using Base = internal::SparseRefBase<Ref>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(Ref)
 
   template <typename Derived>
@@ -339,8 +339,8 @@ namespace internal {
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 struct evaluator<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>
     : evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
-  typedef evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> Base;
-  typedef Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
+  using Base = evaluator<SparseCompressedBase<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>;
+  using XprType = Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>;
   evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
@@ -348,9 +348,9 @@ struct evaluator<Ref<SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, Str
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 struct evaluator<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>
     : evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
-  typedef evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>
-      Base;
-  typedef Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
+  using Base =
+      evaluator<SparseCompressedBase<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>;
+  using XprType = Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Options, StrideType>;
   evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
@@ -358,8 +358,8 @@ struct evaluator<Ref<const SparseMatrix<MatScalar, MatOptions, MatIndex>, Option
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 struct evaluator<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>
     : evaluator<SparseCompressedBase<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
-  typedef evaluator<SparseCompressedBase<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> Base;
-  typedef Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
+  using Base = evaluator<SparseCompressedBase<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>;
+  using XprType = Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>;
   evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };
@@ -367,9 +367,9 @@ struct evaluator<Ref<SparseVector<MatScalar, MatOptions, MatIndex>, Options, Str
 template <typename MatScalar, int MatOptions, typename MatIndex, int Options, typename StrideType>
 struct evaluator<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>
     : evaluator<SparseCompressedBase<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>> {
-  typedef evaluator<SparseCompressedBase<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>
-      Base;
-  typedef Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType> XprType;
+  using Base =
+      evaluator<SparseCompressedBase<Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>>>;
+  using XprType = Ref<const SparseVector<MatScalar, MatOptions, MatIndex>, Options, StrideType>;
   evaluator() = default;
   explicit evaluator(const XprType& mat) : Base(mat) {}
 };

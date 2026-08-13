@@ -50,10 +50,10 @@ namespace Eigen {
 namespace internal {
 template <typename Scalar_, int Options_, typename StorageIndex_>
 struct traits<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef Sparse StorageKind;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using StorageKind = Sparse;
+  using XprKind = MatrixXpr;
   enum {
     RowsAtCompileTime = Dynamic,
     ColsAtCompileTime = Dynamic,
@@ -67,14 +67,14 @@ struct traits<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int DiagIndex>
 struct traits<Diagonal<SparseMatrix<Scalar_, Options_, StorageIndex_>, DiagIndex>> {
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> MatrixType;
-  typedef typename ref_selector<MatrixType>::type MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNested_;
+  using MatrixType = SparseMatrix<Scalar_, Options_, StorageIndex_>;
+  using MatrixTypeNested = typename ref_selector<MatrixType>::type;
+  using MatrixTypeNested_ = std::remove_reference_t<MatrixTypeNested>;
 
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef StorageIndex_ StorageIndex;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using StorageIndex = StorageIndex_;
+  using XprKind = MatrixXpr;
 
   enum {
     RowsAtCompileTime = Dynamic,
@@ -120,7 +120,7 @@ struct functor_traits<sparse_reserve_op<Scalar>> {
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
-  typedef SparseCompressedBase<SparseMatrix> Base;
+  using Base = SparseCompressedBase<SparseMatrix>;
   using Base::convert_index;
   friend class SparseVector<Scalar_, 0, StorageIndex_>;
   template <typename, typename, typename, typename, typename>
@@ -133,21 +133,21 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   using Base::operator+=;
   using Base::operator-=;
 
-  typedef Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex>> Map;
-  typedef Diagonal<SparseMatrix> DiagonalReturnType;
-  typedef Diagonal<const SparseMatrix> ConstDiagonalReturnType;
-  typedef typename Base::InnerIterator InnerIterator;
-  typedef typename Base::ReverseInnerIterator ReverseInnerIterator;
+  using Map = Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex>>;
+  using DiagonalReturnType = Diagonal<SparseMatrix>;
+  using ConstDiagonalReturnType = Diagonal<const SparseMatrix>;
+  using InnerIterator = typename Base::InnerIterator;
+  using ReverseInnerIterator = typename Base::ReverseInnerIterator;
 
   using Base::IsRowMajor;
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
+  using Storage = internal::CompressedStorage<Scalar, StorageIndex>;
   enum { Options = Options_ };
 
-  typedef typename Base::IndexVector IndexVector;
-  typedef typename Base::ScalarVector ScalarVector;
+  using IndexVector = typename Base::IndexVector;
+  using ScalarVector = typename Base::ScalarVector;
 
  protected:
-  typedef SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex> TransposedSparseMatrix;
+  using TransposedSparseMatrix = SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
 
   Index m_outerSize;
   Index m_innerSize;
@@ -1752,8 +1752,8 @@ namespace internal {
 template <typename Scalar_, int Options_, typename StorageIndex_>
 struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
     : evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> {
-  typedef evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> Base;
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
+  using Base = evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>>;
+  using SparseMatrixType = SparseMatrix<Scalar_, Options_, StorageIndex_>;
   evaluator() = default;
   explicit evaluator(const SparseMatrixType& mat) : Base(mat) {}
 };
@@ -1766,7 +1766,7 @@ struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
 template <typename Scalar, int Options, typename StorageIndex>
 class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
  public:
-  typedef SparseMatrix<Scalar, Options, StorageIndex> SparseMat;
+  using SparseMat = SparseMatrix<Scalar, Options, StorageIndex>;
 
   struct Header {
     typename SparseMat::Index rows;

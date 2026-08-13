@@ -109,8 +109,8 @@ struct default_packet_traits {
 
 template <typename T>
 struct packet_traits : default_packet_traits {
-  typedef T type;
-  typedef T half;
+  using type = T;
+  using half = T;
   enum {
     Vectorizable = 0,
     size = 1,
@@ -140,9 +140,9 @@ struct default_unpacket_traits {
 
 template <typename T>
 struct unpacket_traits : default_unpacket_traits {
-  typedef T type;
-  typedef T half;
-  typedef typename numext::get_integer_by_size<sizeof(T)>::signed_type integer_packet;
+  using type = T;
+  using half = T;
+  using integer_packet = typename numext::get_integer_by_size<sizeof(T)>::signed_type;
   enum {
     size = 1,
     alignment = alignof(T),
@@ -785,7 +785,7 @@ EIGEN_DEVICE_FUNC inline Packet pload_partial(const typename unpacket_traits<Pac
                                               const Index offset = 0) {
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_ALIGN_MAX Scalar elements[packet_size] = {Scalar(0)};
   for (Index i = offset; i < numext::mini(n + offset, packet_size); i++) {
     elements[i] = from[i - offset];
@@ -806,7 +806,7 @@ EIGEN_DEVICE_FUNC inline Packet ploadu_partial(const typename unpacket_traits<Pa
                                                const Index offset = 0) {
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_ALIGN_MAX Scalar elements[packet_size] = {Scalar(0)};
   for (Index i = offset; i < numext::mini(n + offset, packet_size); i++) {
     elements[i] = from[i - offset];
@@ -1036,7 +1036,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet plset(const typename unpacket_trait
      where x is the value of all 1-bits. */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet peven_mask(const Packet& /*a*/) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   if (is_scalar<Packet>::value) {
     // The scalar "mask" is numeric: true is represented by the value one.
     return pset1<Packet>(Scalar(1));
@@ -1479,7 +1479,7 @@ predux_half(const Packet& a) {
 // Slow generic implementation of Packet reduction.
 template <typename Packet, typename Op>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op op) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   const size_t n = unpacket_traits<Packet>::size;
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar elements[n];
   pstoreu<Scalar>(elements, a);
@@ -1500,21 +1500,21 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux(const Pac
 /** \internal \returns the product of the elements of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_mul(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmul<Scalar>)));
 }
 
 /** \internal \returns the min of the elements of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_min(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmin<Scalar>)));
 }
 
 /** \internal \returns the max of the elements of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmax<Scalar>)));
 }
 
@@ -1568,7 +1568,7 @@ EIGEN_DEVICE_FUNC inline bool predux_any(const Packet& a) {
   //  - bits full of ones (NaN for floats),
   //  - or first bit equals to 1 (1 for ints, smallest denormal for floats).
   // For all these cases, taking the sum is just fine, and this boils down to a no-op for scalars.
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   return numext::not_equal_strict(predux(a), Scalar(0));
 }
 
@@ -1755,7 +1755,7 @@ template <typename Packet>
 struct psignbit_impl<Packet, false, false> {
   // generic implementation if not specialized in PacketMath.h
   // slower than arithmetic shift
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static Packet run(const Packet& a) {
     const Packet cst_pos_one = pset1<Packet>(Scalar(1));
     const Packet cst_neg_one = pset1<Packet>(Scalar(-1));
@@ -1782,7 +1782,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet patan2(const Packet& y, const Packe
 /** \internal \returns the 2-argument arc tangent of \a y and \a x (coeff-wise) */
 template <typename Packet, std::enable_if_t<!is_scalar<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet patan2(const Packet& y, const Packet& x) {
-  typedef typename internal::unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename internal::unpacket_traits<Packet>::type;
 
   // See https://en.cppreference.com/w/cpp/numeric/math/atan2
   // for how corner cases are supposed to be handled according to the

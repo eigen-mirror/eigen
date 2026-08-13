@@ -22,8 +22,8 @@ template <typename BinaryOp, typename Lhs, typename Rhs>
 struct traits<CwiseBinaryOp<BinaryOp, Lhs, Rhs>> {
   // we must not inherit from traits<Lhs> since it has
   // the potential to cause problems with MSVC
-  typedef remove_all_t<Lhs> Ancestor;
-  typedef typename traits<Ancestor>::XprKind XprKind;
+  using Ancestor = remove_all_t<Lhs>;
+  using XprKind = typename traits<Ancestor>::XprKind;
   enum {
     RowsAtCompileTime = traits<Ancestor>::RowsAtCompileTime,
     ColsAtCompileTime = traits<Ancestor>::ColsAtCompileTime,
@@ -33,15 +33,15 @@ struct traits<CwiseBinaryOp<BinaryOp, Lhs, Rhs>> {
 
   // even though we require Lhs and Rhs to have the same scalar type (see CwiseBinaryOp constructor),
   // we still want to handle the case when the result type is different.
-  typedef typename result_of<BinaryOp(const typename Lhs::Scalar&, const typename Rhs::Scalar&)>::type Scalar;
-  typedef typename cwise_promote_storage_type<typename traits<Lhs>::StorageKind, typename traits<Rhs>::StorageKind,
-                                              BinaryOp>::ret StorageKind;
-  typedef typename promote_index_type<typename traits<Lhs>::StorageIndex, typename traits<Rhs>::StorageIndex>::type
-      StorageIndex;
-  typedef typename Lhs::Nested LhsNested;
-  typedef typename Rhs::Nested RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
+  using Scalar = typename result_of<BinaryOp(const typename Lhs::Scalar&, const typename Rhs::Scalar&)>::type;
+  using StorageKind = typename cwise_promote_storage_type<typename traits<Lhs>::StorageKind,
+                                                          typename traits<Rhs>::StorageKind, BinaryOp>::ret;
+  using StorageIndex =
+      typename promote_index_type<typename traits<Lhs>::StorageIndex, typename traits<Rhs>::StorageIndex>::type;
+  using LhsNested = typename Lhs::Nested;
+  using RhsNested = typename Rhs::Nested;
+  using LhsNested_ = std::remove_reference_t<LhsNested>;
+  using RhsNested_ = std::remove_reference_t<RhsNested>;
   enum {
     Flags = cwise_promote_storage_order<typename traits<Lhs>::StorageKind, typename traits<Rhs>::StorageKind,
                                         LhsNested_::Flags & RowMajorBit, RhsNested_::Flags & RowMajorBit>::value
@@ -79,24 +79,23 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
                                                    typename internal::traits<RhsType>::StorageKind, BinaryOp>::ret>,
                       internal::no_assignment_operator {
  public:
-  typedef internal::remove_all_t<BinaryOp> Functor;
-  typedef internal::remove_all_t<LhsType> Lhs;
-  typedef internal::remove_all_t<RhsType> Rhs;
+  using Functor = internal::remove_all_t<BinaryOp>;
+  using Lhs = internal::remove_all_t<LhsType>;
+  using Rhs = internal::remove_all_t<RhsType>;
 
-  typedef typename CwiseBinaryOpImpl<
+  using Base = typename CwiseBinaryOpImpl<
       BinaryOp, LhsType, RhsType,
       typename internal::cwise_promote_storage_type<typename internal::traits<LhsType>::StorageKind,
-                                                    typename internal::traits<Rhs>::StorageKind, BinaryOp>::ret>::Base
-      Base;
+                                                    typename internal::traits<Rhs>::StorageKind, BinaryOp>::ret>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseBinaryOp)
 
   EIGEN_CHECK_BINARY_COMPATIBILITY(BinaryOp, typename Lhs::Scalar, typename Rhs::Scalar)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
 
-  typedef typename internal::ref_selector<LhsType>::type LhsNested;
-  typedef typename internal::ref_selector<RhsType>::type RhsNested;
-  typedef std::remove_reference_t<LhsNested> LhsNested_;
-  typedef std::remove_reference_t<RhsNested> RhsNested_;
+  using LhsNested = typename internal::ref_selector<LhsType>::type;
+  using RhsNested = typename internal::ref_selector<RhsType>::type;
+  using LhsNested_ = std::remove_reference_t<LhsNested>;
+  using RhsNested_ = std::remove_reference_t<RhsNested>;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CwiseBinaryOp(const Lhs& aLhs, const Rhs& aRhs,
                                                                 const BinaryOp& func = BinaryOp())
@@ -132,7 +131,7 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
 template <typename BinaryOp, typename Lhs, typename Rhs, typename StorageKind>
 class CwiseBinaryOpImpl : public internal::generic_xpr_base<CwiseBinaryOp<BinaryOp, Lhs, Rhs>>::type {
  public:
-  typedef typename internal::generic_xpr_base<CwiseBinaryOp<BinaryOp, Lhs, Rhs>>::type Base;
+  using Base = typename internal::generic_xpr_base<CwiseBinaryOp<BinaryOp, Lhs, Rhs>>::type;
 };
 
 /** replaces \c *this by \c *this - \a other.

@@ -14,27 +14,27 @@
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 
 /** \internal the return type of conjugate() */
-typedef std::conditional_t<NumTraits<Scalar>::IsComplex,
-                           const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, const Derived>, const Derived&>
-    ConjugateReturnType;
+using ConjugateReturnType =
+    std::conditional_t<NumTraits<Scalar>::IsComplex,
+                       const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, const Derived>, const Derived&>;
 /** \internal the return type of real() const */
-typedef std::conditional_t<NumTraits<Scalar>::IsComplex,
-                           const CwiseUnaryOp<internal::scalar_real_op<Scalar>, const Derived>, const Derived&>
-    RealReturnType;
+using RealReturnType =
+    std::conditional_t<NumTraits<Scalar>::IsComplex,
+                       const CwiseUnaryOp<internal::scalar_real_op<Scalar>, const Derived>, const Derived&>;
 /** \internal the return type of real() */
-typedef std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal::scalar_real_ref_op<Scalar>, Derived>,
-                           Derived&>
-    NonConstRealReturnType;
+using NonConstRealReturnType =
+    std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal::scalar_real_ref_op<Scalar>, Derived>,
+                       Derived&>;
 /** \internal the return type of imag() const */
-typedef CwiseUnaryOp<internal::scalar_imag_op<Scalar>, const Derived> ImagReturnType;
+using ImagReturnType = CwiseUnaryOp<internal::scalar_imag_op<Scalar>, const Derived>;
 /** \internal the return type of imag(). The imaginary part of a real-valued object is identically zero and not an
  * lvalue, so for real scalars the non-const overload returns the same read-only zero expression as the const one
  * instead of a writable view (whose functor would return a dangling reference to a temporary; see issue #3096). */
-typedef std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal::scalar_imag_ref_op<Scalar>, Derived>,
-                           ImagReturnType>
-    NonConstImagReturnType;
+using NonConstImagReturnType =
+    std::conditional_t<NumTraits<Scalar>::IsComplex, CwiseUnaryView<internal::scalar_imag_ref_op<Scalar>, Derived>,
+                       ImagReturnType>;
 
-typedef CwiseUnaryOp<internal::scalar_opposite_op<Scalar>, const Derived> NegativeReturnType;
+using NegativeReturnType = CwiseUnaryOp<internal::scalar_opposite_op<Scalar>, const Derived>;
 
 #endif  // not EIGEN_PARSED_BY_DOXYGEN
 
@@ -46,8 +46,8 @@ EIGEN_DEVICE_FUNC constexpr inline const NegativeReturnType operator-() const { 
 
 template <class NewType>
 struct CastXpr {
-  typedef typename internal::cast_return_type<
-      Derived, const CwiseUnaryOp<internal::core_cast_op<Scalar, NewType>, const Derived> >::type Type;
+  using Type = typename internal::cast_return_type<
+      Derived, const CwiseUnaryOp<internal::core_cast_op<Scalar, NewType>, const Derived>>::type;
 };
 
 /// \returns an expression of \c *this with the \a Scalar type casted to

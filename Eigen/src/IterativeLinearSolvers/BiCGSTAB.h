@@ -32,9 +32,9 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
               typename Dest::RealScalar& tol_error) {
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
   Index maxIters = iters;
 
   Index n = mat.cols();
@@ -129,8 +129,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<BiCGSTAB<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -169,7 +169,7 @@ struct traits<BiCGSTAB<MatrixType_, Preconditioner_> > {
 template <typename MatrixType_, typename Preconditioner_>
 class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<BiCGSTAB> Base;
+  using Base = IterativeSolverBase<BiCGSTAB>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -177,10 +177,10 @@ class BiCGSTAB : public IterativeSolverBase<BiCGSTAB<MatrixType_, Preconditioner
   using Base::matrix;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  public:
   /** Default constructor. */

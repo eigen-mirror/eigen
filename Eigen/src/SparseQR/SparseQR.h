@@ -28,18 +28,18 @@ struct SparseQR_QProduct;
 namespace internal {
 template <typename SparseQRType>
 struct traits<SparseQRMatrixQReturnType<SparseQRType> > {
-  typedef typename SparseQRType::MatrixType ReturnType;
-  typedef typename ReturnType::StorageIndex StorageIndex;
-  typedef typename ReturnType::StorageKind StorageKind;
+  using ReturnType = typename SparseQRType::MatrixType;
+  using StorageIndex = typename ReturnType::StorageIndex;
+  using StorageKind = typename ReturnType::StorageKind;
   enum { RowsAtCompileTime = Dynamic, ColsAtCompileTime = Dynamic };
 };
 template <typename SparseQRType>
 struct traits<SparseQRMatrixQTransposeReturnType<SparseQRType> > {
-  typedef typename SparseQRType::MatrixType ReturnType;
+  using ReturnType = typename SparseQRType::MatrixType;
 };
 template <typename SparseQRType, typename Derived>
 struct traits<SparseQR_QProduct<SparseQRType, Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 }  // End namespace internal
 
@@ -94,20 +94,20 @@ struct traits<SparseQR_QProduct<SparseQRType, Derived> > {
 template <typename MatrixType_, typename OrderingType_>
 class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > {
  protected:
-  typedef SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > Base;
+  using Base = SparseSolverBase<SparseQR<MatrixType_, OrderingType_>>;
   using Base::m_isInitialized;
 
  public:
   using Base::_solve_impl;
-  typedef MatrixType_ MatrixType;
-  typedef OrderingType_ OrderingType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> QRMatrixType;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
-  typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
+  using MatrixType = MatrixType_;
+  using OrderingType = OrderingType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using QRMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
+  using ScalarVector = Matrix<Scalar, Dynamic, 1>;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
@@ -719,8 +719,8 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
 
 template <typename SparseQRType, typename Derived>
 struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived> > {
-  typedef typename SparseQRType::QRMatrixType MatrixType;
-  typedef typename SparseQRType::Scalar Scalar;
+  using MatrixType = typename SparseQRType::QRMatrixType;
+  using Scalar = typename SparseQRType::Scalar;
   // Get the references
   SparseQR_QProduct(const SparseQRType& qr, const Derived& other, bool transpose)
       : m_qr(qr), m_other(other), m_transpose(transpose) {}
@@ -772,8 +772,8 @@ struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived
 
 template <typename SparseQRType>
 struct SparseQRMatrixQReturnType : public EigenBase<SparseQRMatrixQReturnType<SparseQRType> > {
-  typedef typename SparseQRType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Scalar = typename SparseQRType::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
   enum { RowsAtCompileTime = Dynamic, ColsAtCompileTime = Dynamic };
   explicit SparseQRMatrixQReturnType(const SparseQRType& qr) : m_qr(qr) {}
   template <typename Derived>
@@ -808,17 +808,17 @@ namespace internal {
 
 template <typename SparseQRType>
 struct evaluator_traits<SparseQRMatrixQReturnType<SparseQRType> > {
-  typedef typename SparseQRType::MatrixType MatrixType;
-  typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
-  typedef SparseShape Shape;
+  using MatrixType = typename SparseQRType::MatrixType;
+  using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
+  using Shape = SparseShape;
 };
 
 template <typename DstXprType, typename SparseQRType>
 struct Assignment<DstXprType, SparseQRMatrixQReturnType<SparseQRType>,
                   internal::assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Sparse2Sparse> {
-  typedef SparseQRMatrixQReturnType<SparseQRType> SrcXprType;
-  typedef typename DstXprType::Scalar Scalar;
-  typedef typename DstXprType::StorageIndex StorageIndex;
+  using SrcXprType = SparseQRMatrixQReturnType<SparseQRType>;
+  using Scalar = typename DstXprType::Scalar;
+  using StorageIndex = typename DstXprType::StorageIndex;
   static void run(DstXprType& dst, const SrcXprType& src, const internal::assign_op<Scalar, Scalar>& /*func*/) {
     typename DstXprType::PlainObject idMat(src.rows(), src.cols());
     idMat.setIdentity();
@@ -831,9 +831,9 @@ struct Assignment<DstXprType, SparseQRMatrixQReturnType<SparseQRType>,
 template <typename DstXprType, typename SparseQRType>
 struct Assignment<DstXprType, SparseQRMatrixQReturnType<SparseQRType>,
                   internal::assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Sparse2Dense> {
-  typedef SparseQRMatrixQReturnType<SparseQRType> SrcXprType;
-  typedef typename DstXprType::Scalar Scalar;
-  typedef typename DstXprType::StorageIndex StorageIndex;
+  using SrcXprType = SparseQRMatrixQReturnType<SparseQRType>;
+  using Scalar = typename DstXprType::Scalar;
+  using StorageIndex = typename DstXprType::StorageIndex;
   static void run(DstXprType& dst, const SrcXprType& src, const internal::assign_op<Scalar, Scalar>& /*func*/) {
     dst = src.m_qr.matrixQ() * DstXprType::Identity(src.m_qr.rows(), src.m_qr.rows());
   }

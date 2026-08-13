@@ -289,7 +289,7 @@ MatrixBase<Derived>::norm() const {
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename MatrixBase<Derived>::PlainObject MatrixBase<Derived>::normalized()
     const {
-  typedef typename internal::nested_eval<Derived, 2>::type Nested_;
+  using Nested_ = typename internal::nested_eval<Derived, 2>::type;
   Nested_ n(derived());
   RealScalar z = n.squaredNorm();
   // NOTE: after extensive benchmarking, this conditional does not impact performance, at least on recent x86 CPU
@@ -435,7 +435,7 @@ namespace internal {
 
 template <typename Derived, int p>
 struct lpNorm_selector {
-  typedef typename NumTraits<typename traits<Derived>::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
     EIGEN_USING_STD(pow)
     return pow(m.cwiseAbs().array().pow(p).sum(), RealScalar(1) / p);
@@ -460,7 +460,7 @@ struct lpNorm_selector<Derived, 2> {
 
 template <typename Derived>
 struct lpNorm_selector<Derived, Infinity> {
-  typedef typename NumTraits<typename traits<Derived>::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
     if (Derived::SizeAtCompileTime == 0 || (Derived::SizeAtCompileTime == Dynamic && m.size() == 0))
       return RealScalar(0);

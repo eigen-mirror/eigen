@@ -20,8 +20,8 @@ namespace internal {
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
-  typedef ArrayXpr XprKind;
-  typedef ArrayBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> XprBase;
+  using XprKind = ArrayXpr;
+  using XprBase = ArrayBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>;
 };
 }  // namespace internal
 
@@ -48,11 +48,11 @@ struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
  public:
-  typedef PlainObjectBase<Array> Base;
+  using Base = PlainObjectBase<Array>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Array)
 
   enum { Options = Options_ };
-  typedef typename Base::PlainObject PlainObject;
+  using PlainObject = typename Base::PlainObject;
 
  protected:
   template <typename Derived, typename OtherDerived, bool IsVector>

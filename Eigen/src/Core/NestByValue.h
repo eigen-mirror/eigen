@@ -39,7 +39,7 @@ struct traits<NestByValue<ExpressionType> > : public traits<ExpressionType> {
 template <typename ExpressionType>
 class NestByValue : public internal::dense_xpr_base<NestByValue<ExpressionType> >::type {
  public:
-  typedef typename internal::dense_xpr_base<NestByValue>::type Base;
+  using Base = typename internal::dense_xpr_base<NestByValue>::type;
   static constexpr bool HasDirectAccess = internal::has_direct_access<ExpressionType>::value;
 
   EIGEN_DENSE_PUBLIC_INTERFACE(NestByValue)
@@ -81,7 +81,7 @@ namespace internal {
 // Evaluator of NestByValue<> -> forwards to the evaluator of the nested expression
 template <typename ArgType>
 struct evaluator<NestByValue<ArgType> > : public evaluator<ArgType> {
-  typedef evaluator<ArgType> Base;
+  using Base = evaluator<ArgType>;
 
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const NestByValue<ArgType>& xpr) : Base(xpr.nestedExpression()) {}
 };

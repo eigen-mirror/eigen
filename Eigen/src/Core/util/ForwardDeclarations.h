@@ -408,9 +408,9 @@ class Reverse;
 
 #if defined(EIGEN_USE_LAPACKE) && EIGEN_HAS_LAPACK_INT
 // Lapacke interface requires StorageIndex to be lapack_int
-typedef lapack_int DefaultPermutationIndex;
+using DefaultPermutationIndex = lapack_int;
 #else
-typedef int DefaultPermutationIndex;
+using DefaultPermutationIndex = int;
 #endif
 
 // Plain static_assert (not EIGEN_STATIC_ASSERT): like the MKL_INT guard it must not be suppressible.
@@ -509,8 +509,8 @@ class MatrixComplexPowerReturnValue;
 namespace internal {
 template <typename Scalar>
 struct stem_function {
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef ComplexScalar type(ComplexScalar, int);
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using type = ComplexScalar(ComplexScalar, int);
 };
 }  // namespace internal
 

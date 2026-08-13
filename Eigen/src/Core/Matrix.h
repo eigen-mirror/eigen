@@ -22,7 +22,7 @@ template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, in
 struct traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
  private:
   constexpr static int size = internal::size_at_compile_time(Rows_, Cols_);
-  typedef typename find_best_packet<Scalar_, size>::type PacketScalar;
+  using PacketScalar = typename find_best_packet<Scalar_, size>::type;
   enum {
     row_major_bit = Options_ & RowMajor ? RowMajorBit : 0,
     is_dynamic_size_storage = MaxRows_ == Dynamic || MaxCols_ == Dynamic,
@@ -37,10 +37,10 @@ struct traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
   };
 
  public:
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef Eigen::Index StorageIndex;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using StorageIndex = Eigen::Index;
+  using XprKind = MatrixXpr;
   enum {
     RowsAtCompileTime = Rows_,
     ColsAtCompileTime = Cols_,
@@ -190,13 +190,13 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   /** \brief Base class typedef.
    * \sa PlainObjectBase
    */
-  typedef PlainObjectBase<Matrix> Base;
+  using Base = PlainObjectBase<Matrix>;
 
   enum { Options = Options_ };
 
   EIGEN_DENSE_PUBLIC_INTERFACE(Matrix)
 
-  typedef typename Base::PlainObject PlainObject;
+  using PlainObject = typename Base::PlainObject;
 
   using Base::base;
   using Base::coeffRef;

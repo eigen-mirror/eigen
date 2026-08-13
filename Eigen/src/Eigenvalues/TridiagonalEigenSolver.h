@@ -76,17 +76,17 @@ template <typename Scalar_>
 class TridiagonalEigenSolver {
  public:
   /** \brief Scalar type of the matrix; must be real. */
-  typedef Scalar_ Scalar;
-  typedef Scalar RealScalar;
+  using Scalar = Scalar_;
+  using RealScalar = Scalar;
   static_assert(NumTraits<Scalar>::IsComplex == 0 && NumTraits<Scalar>::IsInteger == 0,
                 "TridiagonalEigenSolver requires a real floating-point scalar type; for the eigenvalues of a complex "
                 "Hermitian tridiagonal matrix, pass subdiag.cwiseAbs() as the real sub-diagonal (see the class "
                 "documentation).");
 
   /** \brief Type for the eigenvalues and the input diagonals: a dynamic-size column vector. */
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
   /** \brief Type for the eigenvector matrix: dynamic-size, one column per selected eigenvalue. */
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   /** \brief Default constructor. Call compute() before querying any result. */
   TridiagonalEigenSolver() = default;

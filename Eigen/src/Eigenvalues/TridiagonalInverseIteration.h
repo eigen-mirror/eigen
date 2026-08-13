@@ -250,7 +250,7 @@ template <typename RealScalar, typename EivecType>
 Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealScalar* ssub, const RealScalar* xj_scaled,
                                           const Index* clstart, Index n, RealScalar onenrm, RealScalar dtpcrt,
                                           int maxits, int extra, EivecType& eivecs, Index j_lo, Index j_hi) {
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
 
   // Work arrays for the LU factors of T - xj*I (reused across the block's columns) and the iterate.
@@ -348,7 +348,7 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
 Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
                                               EivecType& eivecs) {
-  typedef typename DiagType::Scalar RealScalar;
+  using RealScalar = typename DiagType::Scalar;
   EIGEN_STATIC_ASSERT(NumTraits<RealScalar>::IsInteger == 0 && NumTraits<RealScalar>::IsComplex == 0,
                       THIS_FUNCTION_IS_NOT_FOR_INTEGER_OR_COMPLEX_TYPES)
 
@@ -508,8 +508,8 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
 Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
                                     EivecType& eivecs) {
-  typedef typename DiagType::Scalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  using RealScalar = typename DiagType::Scalar;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
   const Index n = diag.size();
   const Index m = eivals.size();
   if (n == 0 || m == 0) return 0;
@@ -710,8 +710,8 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
 template <typename DiagType, typename SubdiagType, typename EivalType, typename EivecType>
 void tridiagonal_rayleigh_ritz_refine(const DiagType& diag, const SubdiagType& subdiag, const EivalType& eivals,
                                       EivecType& eivecs) {
-  typedef typename DiagType::Scalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> DenseType;
+  using RealScalar = typename DiagType::Scalar;
+  using DenseType = Matrix<RealScalar, Dynamic, Dynamic>;
   const Index n = diag.size();
   const Index m = eivals.size();
   if (n < 2 || m < 2) return;

@@ -56,7 +56,7 @@ struct complex_schur_reduce_to_hessenberg;
 template <typename MatrixType_>
 class ComplexSchur {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
@@ -66,9 +66,9 @@ class ComplexSchur {
   };
 
   /** \brief Scalar type for matrices of type \p MatrixType_. */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
 
   /** \brief Complex scalar type for \p MatrixType_.
    *
@@ -76,16 +76,15 @@ class ComplexSchur {
    * \c float or \c double) and just \c Scalar if #Scalar is
    * complex.
    */
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
 
   /** \brief Type for the matrices in the Schur decomposition.
    *
    * This is a square matrix with entries of type #ComplexScalar.
    * The size is the same as the size of \p MatrixType_.
    */
-  typedef Matrix<ComplexScalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime,
-                 MaxColsAtCompileTime>
-      ComplexMatrixType;
+  using ComplexMatrixType =
+      Matrix<ComplexScalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
 
   /** \brief Default constructor.
    *
@@ -357,7 +356,7 @@ struct complex_schur_reduce_to_hessenberg {
 template <typename MatrixType>
 struct complex_schur_reduce_to_hessenberg<MatrixType, false> {
   static void run(ComplexSchur<MatrixType>& _this, const MatrixType& matrix, bool computeU) {
-    typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
+    using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
 
     // Note: m_hess is over RealScalar; m_matT and m_matU is over ComplexScalar
     _this.m_hess.compute(matrix);

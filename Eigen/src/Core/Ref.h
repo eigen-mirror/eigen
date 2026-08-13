@@ -21,8 +21,8 @@ namespace internal {
 template <typename PlainObjectType_, int Options_, typename StrideType_>
 struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
     : public traits<Map<PlainObjectType_, Options_, StrideType_> > {
-  typedef PlainObjectType_ PlainObjectType;
-  typedef StrideType_ StrideType;
+  using PlainObjectType = PlainObjectType_;
+  using StrideType = StrideType_;
   enum {
     Options = Options_,
     Flags = traits<Map<PlainObjectType_, Options_, StrideType_> >::Flags | NestByRefBit,
@@ -48,7 +48,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch &&
                            AlignmentMatch && ScalarTypeMatch
     };
-    typedef bool_constant<MatchAtCompileTime> type;
+    using type = bool_constant<MatchAtCompileTime>;
   };
 };
 
@@ -59,11 +59,11 @@ struct traits<RefBase<Derived> > : public traits<Derived> {};
 
 template <typename Derived>
 class RefBase : public MapBase<Derived> {
-  typedef typename internal::traits<Derived>::PlainObjectType PlainObjectType;
-  typedef typename internal::traits<Derived>::StrideType StrideType;
+  using PlainObjectType = typename internal::traits<Derived>::PlainObjectType;
+  using StrideType = typename internal::traits<Derived>::StrideType;
 
  public:
-  typedef MapBase<Derived> Base;
+  using Base = MapBase<Derived>;
   EIGEN_DENSE_PUBLIC_INTERFACE(RefBase)
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const {
@@ -87,7 +87,7 @@ class RefBase : public MapBase<Derived> {
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(RefBase)
 
  protected:
-  typedef Stride<StrideType::OuterStrideAtCompileTime, StrideType::InnerStrideAtCompileTime> StrideBase;
+  using StrideBase = Stride<StrideType::OuterStrideAtCompileTime, StrideType::InnerStrideAtCompileTime>;
 
   // Resolves inner stride if default 0.
   static EIGEN_DEVICE_FUNC constexpr Index resolveInnerStride(Index inner) { return inner == 0 ? 1 : inner; }
@@ -256,14 +256,14 @@ class RefBase : public MapBase<Derived> {
 template <typename PlainObjectType, int Options, typename StrideType>
 class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
  private:
-  typedef internal::traits<Ref> Traits;
+  using Traits = internal::traits<Ref>;
   template <typename Derived>
   EIGEN_DEVICE_FUNC constexpr inline Ref(
       const PlainObjectBase<Derived>& expr,
       std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>* = 0);
 
  public:
-  typedef RefBase<Ref> Base;
+  using Base = RefBase<Ref>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Ref)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
@@ -303,7 +303,7 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
 template <typename TPlainObjectType, int Options, typename StrideType>
 class Ref<const TPlainObjectType, Options, StrideType>
     : public RefBase<Ref<const TPlainObjectType, Options, StrideType> > {
-  typedef internal::traits<Ref> Traits;
+  using Traits = internal::traits<Ref>;
 
   static constexpr bool may_map_m_object_successfully =
       (static_cast<int>(StrideType::InnerStrideAtCompileTime) == 0 ||
@@ -316,7 +316,7 @@ class Ref<const TPlainObjectType, Options, StrideType>
        static_cast<int>(TPlainObjectType::InnerSizeAtCompileTime) == Dynamic);
 
  public:
-  typedef RefBase<Ref> Base;
+  using Base = RefBase<Ref>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Ref)
 
   template <typename Derived>

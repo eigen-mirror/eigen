@@ -569,7 +569,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
  * requirement. \sa first_aligned(Scalar*,Index) and first_default_aligned(DenseBase<Derived>) */
 template <typename Scalar, typename Index>
 EIGEN_DEVICE_FUNC inline Index first_default_aligned(const Scalar* array, Index size) {
-  typedef typename packet_traits<Scalar>::type DefaultPacketType;
+  using DefaultPacketType = typename packet_traits<Scalar>::type;
   return first_aligned<unpacket_traits<DefaultPacketType>::alignment>(array, size);
 }
 
@@ -699,8 +699,8 @@ template <typename Xpr, int NbEvaluations,
           bool MapExternalBuffer = nested_eval<Xpr, NbEvaluations>::Evaluate && Xpr::MaxSizeAtCompileTime == Dynamic>
 struct local_nested_eval_wrapper {
   static constexpr bool NeedExternalBuffer = false;
-  typedef typename Xpr::Scalar Scalar;
-  typedef typename nested_eval<Xpr, NbEvaluations>::type ObjectType;
+  using Scalar = typename Xpr::Scalar;
+  using ObjectType = typename nested_eval<Xpr, NbEvaluations>::type;
   ObjectType object;
 
   EIGEN_DEVICE_FUNC local_nested_eval_wrapper(const Xpr& xpr, Scalar* ptr) : object(xpr) {
@@ -712,9 +712,9 @@ struct local_nested_eval_wrapper {
 template <typename Xpr, int NbEvaluations>
 struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
   static constexpr bool NeedExternalBuffer = true;
-  typedef typename Xpr::Scalar Scalar;
-  typedef typename plain_object_eval<Xpr>::type PlainObject;
-  typedef Map<PlainObject, EIGEN_DEFAULT_ALIGN_BYTES> ObjectType;
+  using Scalar = typename Xpr::Scalar;
+  using PlainObject = typename plain_object_eval<Xpr>::type;
+  using ObjectType = Map<PlainObject, 16>;
   ObjectType object;
 
   EIGEN_DEVICE_FUNC local_nested_eval_wrapper(const Xpr& xpr, Scalar* ptr)
@@ -919,17 +919,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 template <class T>
 class aligned_allocator {
  public:
-  typedef std::size_t size_type;
-  typedef std::ptrdiff_t difference_type;
-  typedef T* pointer;
-  typedef const T* const_pointer;
-  typedef T& reference;
-  typedef const T& const_reference;
-  typedef T value_type;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using reference = T&;
+  using const_reference = const T&;
+  using value_type = T;
 
   template <class U>
   struct rebind {
-    typedef aligned_allocator<U> other;
+    using other = aligned_allocator<U>;
   };
 
   aligned_allocator() = default;

@@ -20,7 +20,7 @@ namespace Eigen {
 namespace internal {
 template <typename PlainObjectType, int MapOptions, typename StrideType>
 struct traits<Map<PlainObjectType, MapOptions, StrideType> > : public traits<PlainObjectType> {
-  typedef traits<PlainObjectType> TraitsBase;
+  using TraitsBase = traits<PlainObjectType>;
   enum {
     PlainObjectTypeInnerSize = ((traits<PlainObjectType>::Flags & RowMajorBit) == RowMajorBit)
                                    ? PlainObjectType::ColsAtCompileTime
@@ -96,11 +96,11 @@ struct traits<Map<PlainObjectType, MapOptions, StrideType> > : public traits<Pla
 template <typename PlainObjectType, int MapOptions, typename StrideType>
 class Map : public MapBase<Map<PlainObjectType, MapOptions, StrideType> > {
  public:
-  typedef MapBase<Map> Base;
+  using Base = MapBase<Map>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Map)
 
-  typedef typename Base::PointerType PointerType;
-  typedef PointerType PointerArgType;
+  using PointerType = typename Base::PointerType;
+  using PointerArgType = PointerType;
   EIGEN_DEVICE_FUNC constexpr inline PointerType cast_to_pointer_type(PointerArgType ptr) const { return ptr; }
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const {

@@ -63,10 +63,10 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
   using std::abs;
   using std::sqrt;
 
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> FMatrixType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using FMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
 
@@ -216,8 +216,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<GMRES<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -263,7 +263,7 @@ struct traits<GMRES<MatrixType_, Preconditioner_> > {
 template <typename MatrixType_, typename Preconditioner_>
 class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<GMRES> Base;
+  using Base = IterativeSolverBase<GMRES>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -275,10 +275,10 @@ class GMRES : public IterativeSolverBase<GMRES<MatrixType_, Preconditioner_> > {
 
  public:
   using Base::_solve_impl;
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  public:
   /** Default constructor. */

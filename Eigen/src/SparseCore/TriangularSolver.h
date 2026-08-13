@@ -28,9 +28,9 @@ struct sparse_solve_triangular_selector;
 // forward substitution, row-major
 template <typename Lhs, typename Rhs, int Mode>
 struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
-  typedef typename Rhs::Scalar Scalar;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
+  using Scalar = typename Rhs::Scalar;
+  using LhsEval = evaluator<Lhs>;
+  using LhsIterator = typename evaluator<Lhs>::InnerIterator;
   static void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
@@ -58,9 +58,9 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
 // backward substitution, row-major
 template <typename Lhs, typename Rhs, int Mode>
 struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
-  typedef typename Rhs::Scalar Scalar;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
+  using Scalar = typename Rhs::Scalar;
+  using LhsEval = evaluator<Lhs>;
+  using LhsIterator = typename evaluator<Lhs>::InnerIterator;
   static void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
@@ -91,9 +91,9 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, RowMajor> {
 // forward substitution, col-major
 template <typename Lhs, typename Rhs, int Mode>
 struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
-  typedef typename Rhs::Scalar Scalar;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
+  using Scalar = typename Rhs::Scalar;
+  using LhsEval = evaluator<Lhs>;
+  using LhsIterator = typename evaluator<Lhs>::InnerIterator;
   static void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
@@ -120,9 +120,9 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, ColMajor> {
 // backward substitution, col-major
 template <typename Lhs, typename Rhs, int Mode>
 struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
-  typedef typename Rhs::Scalar Scalar;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename evaluator<Lhs>::InnerIterator LhsIterator;
+  using Scalar = typename Rhs::Scalar;
+  using LhsEval = evaluator<Lhs>;
+  using LhsIterator = typename evaluator<Lhs>::InnerIterator;
   static void run(const Lhs& lhs, Rhs& other) {
     LhsEval lhsEval(lhs);
     for (Index col = 0; col < other.cols(); ++col) {
@@ -160,8 +160,8 @@ void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<O
 
   enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
 
-  typedef std::conditional_t<copy, typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&>
-      OtherCopy;
+  using OtherCopy =
+      std::conditional_t<copy, typename internal::plain_matrix_type_column_major<OtherDerived>::type, OtherDerived&>;
   OtherCopy otherCopy(other.derived());
 
   internal::sparse_solve_triangular_selector<ExpressionType, std::remove_reference_t<OtherCopy>, Mode>::run(
@@ -232,7 +232,7 @@ void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index
 template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
           std::enable_if_t<rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
 void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
-  typedef typename traits<Lhs>::StorageIndex StorageIndex;
+  using StorageIndex = typename traits<Lhs>::StorageIndex;
   Matrix<StorageIndex, Dynamic, 1> iwork(2 * n);  // xi | pstack
   StorageIndex* xi = iwork.data();
   for (Index col = 0; col < other.cols(); ++col) {
@@ -257,7 +257,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 template <bool Upper, bool UnitDiag, typename Lhs, typename Rhs, typename Res, typename Scalar,
           std::enable_if_t<!rhs_matching_slice<Lhs, Rhs>::value, int> = 0>
 void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* mark, Scalar* xwork, Index n) {
-  typedef typename traits<Lhs>::StorageIndex StorageIndex;
+  using StorageIndex = typename traits<Lhs>::StorageIndex;
   Matrix<StorageIndex, Dynamic, 1> iwork(3 * n);  // xi | pstack | bIdx
   StorageIndex* xi = iwork.data();
   StorageIndex* bIdx = iwork.data() + 2 * n;
@@ -286,7 +286,7 @@ void reach_solve_columns(const Lhs& lhs, const Rhs& other, Res& res, uint8_t* ma
 // xwork need zeroing -- iwork is entirely written before read.
 template <bool Upper, typename Lhs, typename Rhs, int Mode>
 void run_sparse_reach_triangular_solve(const Lhs& lhs, Rhs& other) {
-  typedef typename Rhs::Scalar Scalar;
+  using Scalar = typename Rhs::Scalar;
   Index n = lhs.rows();
   Matrix<uint8_t, Dynamic, 1> mark = Matrix<uint8_t, Dynamic, 1>::Zero(n);
   Matrix<Scalar, Dynamic, 1> xwork = Matrix<Scalar, Dynamic, 1>::Zero(n);

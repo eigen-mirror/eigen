@@ -42,9 +42,9 @@ struct symm_pack_lhs {
       for (Index w = 0; w < BlockRows; w++) blockA[count++] = numext::conj(lhs(k, i + w));  // transposed
   }
   void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
-    typedef typename unpacket_traits<typename packet_traits<Scalar>::type>::half HalfPacket;
-    typedef typename unpacket_traits<typename unpacket_traits<typename packet_traits<Scalar>::type>::half>::half
-        QuarterPacket;
+    using HalfPacket = typename unpacket_traits<typename packet_traits<Scalar>::type>::half;
+    using QuarterPacket =
+        typename unpacket_traits<typename unpacket_traits<typename packet_traits<Scalar>::type>::half>::half;
     enum {
       PacketSize = packet_traits<Scalar>::size,
       HalfPacketSize = unpacket_traits<HalfPacket>::size,
@@ -298,12 +298,12 @@ product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, true, ConjugateLhs, R
                                                           level3_blocking<Scalar, Scalar>& blocking) {
   Index size = rows;
 
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
 
-  typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-  typedef const_blas_data_mapper<Scalar, Index, (LhsStorageOrder == RowMajor) ? ColMajor : RowMajor> LhsTransposeMapper;
-  typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
-  typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+  using LhsMapper = const_blas_data_mapper<Scalar, Index, LhsStorageOrder>;
+  using LhsTransposeMapper = const_blas_data_mapper<Scalar, Index, (LhsStorageOrder == RowMajor) ? ColMajor : RowMajor>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, RhsStorageOrder>;
+  using ResMapper = blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride>;
   LhsMapper lhs(lhs_, lhsStride);
   LhsTransposeMapper lhs_transpose(lhs_, lhsStride);
   RhsMapper rhs(rhs_, rhsStride);
@@ -383,10 +383,10 @@ product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, false, ConjugateLhs, 
                                                           level3_blocking<Scalar, Scalar>& blocking) {
   Index size = cols;
 
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
 
-  typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-  typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+  using LhsMapper = const_blas_data_mapper<Scalar, Index, LhsStorageOrder>;
+  using ResMapper = blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride>;
   LhsMapper lhs(lhs_, lhsStride);
   ResMapper res(res_, resStride, resIncr);
 
@@ -428,12 +428,12 @@ namespace internal {
 
 template <typename Lhs, int LhsMode, typename Rhs, int RhsMode>
 struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, RhsMode, false> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
-  typedef internal::blas_traits<Lhs> LhsBlasTraits;
-  typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-  typedef internal::blas_traits<Rhs> RhsBlasTraits;
-  typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
+  using LhsBlasTraits = internal::blas_traits<Lhs>;
+  using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+  using RhsBlasTraits = internal::blas_traits<Rhs>;
+  using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
 
   enum {
     LhsIsUpper = (LhsMode & (Upper | Lower)) == Upper,
@@ -455,10 +455,9 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, RhsMode, false> {
 
     Scalar actualAlpha = alpha * LhsBlasTraits::extractScalarFactor(a_lhs) * RhsBlasTraits::extractScalarFactor(a_rhs);
 
-    typedef internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Scalar, Scalar,
-                                          Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime,
-                                          Lhs::MaxColsAtCompileTime, 1>
-        BlockingType;
+    using BlockingType = internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Scalar,
+                                                       Scalar, Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime,
+                                                       Lhs::MaxColsAtCompileTime, 1>;
 
     BlockingType blocking(lhs.rows(), rhs.cols(), lhs.cols(), 1, false);
 

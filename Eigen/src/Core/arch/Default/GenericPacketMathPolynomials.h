@@ -132,7 +132,7 @@ template <typename Packet, int N>
 struct pchebevl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(Packet x,
                                                           const typename unpacket_traits<Packet>::type coef[]) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
+    using Scalar = typename unpacket_traits<Packet>::type;
     Packet b0 = pset1<Packet>(coef[0]);
     Packet b1 = pset1<Packet>(static_cast<Scalar>(0.f));
     Packet b2;

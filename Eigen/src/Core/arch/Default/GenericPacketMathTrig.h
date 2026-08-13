@@ -91,7 +91,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #endif
     Packet
     psincos_float(const Packet& _x) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const Packet cst_2oPI = pset1<Packet>(0.636619746685028076171875f);  // 2/PI
   const Packet cst_rounding_magic = pset1<Packet>(12582912);           // 2^23 for rounding
@@ -291,8 +291,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 #endif
     Packet
     psincos_double(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  using ScalarI = typename unpacket_traits<PacketI>::type;
 
   const Packet cst_sign_mask = psignmask<Packet>();
 
@@ -453,7 +453,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 // Generic implementation of acos(x).
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacos_float(const Packet& x_in) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
   const Packet cst_one = pset1<Packet>(Scalar(1));
@@ -496,7 +496,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacos_float(const Pac
 // Generic implementation of asin(x).
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasin_float(const Packet& x_in) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
   constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
@@ -575,7 +575,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<float>:
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Packet& x_in) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
 
   constexpr Scalar kPiOverTwo = static_cast<Scalar>(EIGEN_PI / 2);
 
@@ -764,7 +764,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_double(const T& a_x)
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
   // For |x| in [0:0.5] we use a polynomial approximation of the form
@@ -798,7 +798,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_float(const Pa
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
   // For x in [-0.5:0.5] we use a rational approximation of the form
   // R(x) = x + x^3*P(x^2)/Q(x^2), where P is or order 4 and Q is of order 5.
@@ -845,7 +845,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, float>::value, "Scalar type must be float");
 
   const Packet sign_mask = psignmask<Packet>();
@@ -885,7 +885,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Pac
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   static_assert(std::is_same<Scalar, double>::value, "Scalar type must be double");
 
   const Packet sign_mask = psignmask<Packet>();

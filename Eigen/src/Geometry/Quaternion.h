@@ -35,26 +35,26 @@ struct quaternionbase_assign_impl;
 template <class Derived>
 class QuaternionBase : public RotationBase<Derived, 3> {
  public:
-  typedef RotationBase<Derived, 3> Base;
+  using Base = RotationBase<Derived, 3>;
 
   using Base::operator*;
   using Base::derived;
 
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename internal::traits<Derived>::Coefficients Coefficients;
-  typedef typename Coefficients::CoeffReturnType CoeffReturnType;
-  typedef std::conditional_t<bool(internal::traits<Derived>::Flags& LvalueBit), Scalar&, CoeffReturnType>
-      NonConstCoeffReturnType;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Coefficients = typename internal::traits<Derived>::Coefficients;
+  using CoeffReturnType = typename Coefficients::CoeffReturnType;
+  using NonConstCoeffReturnType =
+      std::conditional_t<bool(internal::traits<Derived>::Flags& LvalueBit), Scalar&, CoeffReturnType>;
 
   enum { Flags = Eigen::internal::traits<Derived>::Flags };
 
   /** the type of a 3D vector */
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
   /** the equivalent rotation matrix type */
-  typedef Matrix<Scalar, 3, 3> Matrix3;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
   /** the equivalent angle-axis type */
-  typedef AngleAxis<Scalar> AngleAxisType;
+  using AngleAxisType = AngleAxis<Scalar>;
 
   /** \returns the \c x coefficient */
   EIGEN_DEVICE_FUNC constexpr CoeffReturnType x() const { return this->derived().coeffs().coeff(0); }
@@ -293,9 +293,9 @@ class QuaternionBase : public RotationBase<Derived, 3> {
 namespace internal {
 template <typename Scalar_, int Options_>
 struct traits<Quaternion<Scalar_, Options_> > {
-  typedef Quaternion<Scalar_, Options_> PlainObject;
-  typedef Scalar_ Scalar;
-  typedef Matrix<Scalar_, 4, 1, Options_> Coefficients;
+  using PlainObject = Quaternion<Scalar_, Options_>;
+  using Scalar = Scalar_;
+  using Coefficients = Matrix<Scalar_, 4, 1, Options_>;
   enum { Alignment = internal::traits<Coefficients>::Alignment, Flags = LvalueBit };
 };
 }  // namespace internal
@@ -303,16 +303,16 @@ struct traits<Quaternion<Scalar_, Options_> > {
 template <typename Scalar_, int Options_>
 class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
  public:
-  typedef QuaternionBase<Quaternion<Scalar_, Options_> > Base;
+  using Base = QuaternionBase<Quaternion<Scalar_, Options_>>;
   enum { NeedsAlignment = internal::traits<Quaternion>::Alignment > 0 };
 
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Quaternion)
   using Base::operator*=;
 
-  typedef typename internal::traits<Quaternion>::Coefficients Coefficients;
-  typedef typename Base::AngleAxisType AngleAxisType;
+  using Coefficients = typename internal::traits<Quaternion>::Coefficients;
+  using AngleAxisType = typename Base::AngleAxisType;
 
   /** Default constructor leaving the quaternion uninitialized. */
   EIGEN_DEVICE_FUNC inline Quaternion() {}
@@ -412,10 +412,10 @@ class Quaternion : public QuaternionBase<Quaternion<Scalar_, Options_> > {
 
 /** \ingroup Geometry_Module
  * single precision quaternion type */
-typedef Quaternion<float> Quaternionf;
+using Quaternionf = Quaternion<float>;
 /** \ingroup Geometry_Module
  * double precision quaternion type */
-typedef Quaternion<double> Quaterniond;
+using Quaterniond = Quaternion<double>;
 
 /***************************************************************************
  * Specialization of Map<Quaternion<Scalar>>
@@ -425,7 +425,7 @@ namespace internal {
 template <typename Scalar_, int Options_>
 struct traits<Map<Quaternion<Scalar_>, Options_> >
     : traits<Quaternion<Scalar_, (int(Options_) & Aligned) == Aligned ? AutoAlign : DontAlign> > {
-  typedef Map<Matrix<Scalar_, 4, 1>, Options_> Coefficients;
+  using Coefficients = Map<Matrix<Scalar_, 4, 1>, Options_>;
 };
 }  // namespace internal
 
@@ -433,8 +433,8 @@ namespace internal {
 template <typename Scalar_, int Options_>
 struct traits<Map<const Quaternion<Scalar_>, Options_> >
     : traits<Quaternion<Scalar_, (int(Options_) & Aligned) == Aligned ? AutoAlign : DontAlign> > {
-  typedef Map<const Matrix<Scalar_, 4, 1>, Options_> Coefficients;
-  typedef traits<Quaternion<Scalar_, (int(Options_) & Aligned) == Aligned ? AutoAlign : DontAlign> > TraitsBase;
+  using Coefficients = Map<const Matrix<Scalar_, 4, 1>, Options_>;
+  using TraitsBase = traits<Quaternion<Scalar_, (int(Options_) & Aligned) == Aligned ? AutoAlign : DontAlign>>;
   enum { Flags = TraitsBase::Flags & ~LvalueBit };
 };
 }  // namespace internal
@@ -453,10 +453,10 @@ struct traits<Map<const Quaternion<Scalar_>, Options_> >
 template <typename Scalar_, int Options_>
 class Map<const Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<const Quaternion<Scalar_>, Options_> > {
  public:
-  typedef QuaternionBase<Map<const Quaternion<Scalar_>, Options_> > Base;
+  using Base = QuaternionBase<Map<const Quaternion<Scalar_>, Options_>>;
 
-  typedef Scalar_ Scalar;
-  typedef typename internal::traits<Map>::Coefficients Coefficients;
+  using Scalar = Scalar_;
+  using Coefficients = typename internal::traits<Map>::Coefficients;
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
   using Base::operator*=;
 
@@ -494,10 +494,10 @@ class Map<const Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<const
 template <typename Scalar_, int Options_>
 class Map<Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<Quaternion<Scalar_>, Options_> > {
  public:
-  typedef QuaternionBase<Map<Quaternion<Scalar_>, Options_> > Base;
+  using Base = QuaternionBase<Map<Quaternion<Scalar_>, Options_>>;
 
-  typedef Scalar_ Scalar;
-  typedef typename internal::traits<Map>::Coefficients Coefficients;
+  using Scalar = Scalar_;
+  using Coefficients = typename internal::traits<Map>::Coefficients;
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Map)
   using Base::operator*=;
 
@@ -524,16 +524,16 @@ class Map<Quaternion<Scalar_>, Options_> : public QuaternionBase<Map<Quaternion<
 
 /** \ingroup Geometry_Module
  * Map an unaligned array of single precision scalars as a quaternion */
-typedef Map<Quaternion<float>, 0> QuaternionMapf;
+using QuaternionMapf = Map<Quaternion<float>, 0>;
 /** \ingroup Geometry_Module
  * Map an unaligned array of double precision scalars as a quaternion */
-typedef Map<Quaternion<double>, 0> QuaternionMapd;
+using QuaternionMapd = Map<Quaternion<double>, 0>;
 /** \ingroup Geometry_Module
  * Map a 16-byte aligned array of single precision scalars as a quaternion */
-typedef Map<Quaternion<float>, Aligned> QuaternionMapAlignedf;
+using QuaternionMapAlignedf = Map<Quaternion<float>, Aligned>;
 /** \ingroup Geometry_Module
  * Map a 16-byte aligned array of double precision scalars as a quaternion */
-typedef Map<Quaternion<double>, Aligned> QuaternionMapAlignedd;
+using QuaternionMapAlignedd = Map<Quaternion<double>, Aligned>;
 
 /***************************************************************************
  * Implementation of QuaternionBase methods
@@ -956,7 +956,7 @@ namespace internal {
 // set from a rotation matrix
 template <typename Other>
 struct quaternionbase_assign_impl<Other, 3, 3> {
-  typedef typename Other::Scalar Scalar;
+  using Scalar = typename Other::Scalar;
   template <class Derived>
   EIGEN_DEVICE_FUNC static inline void run(QuaternionBase<Derived>& q, const Other& a_mat) {
     const typename internal::nested_eval<Other, 2>::type mat(a_mat);
@@ -992,7 +992,7 @@ struct quaternionbase_assign_impl<Other, 3, 3> {
 // set from a vector of coefficients assumed to be a quaternion
 template <typename Other>
 struct quaternionbase_assign_impl<Other, 4, 1> {
-  typedef typename Other::Scalar Scalar;
+  using Scalar = typename Other::Scalar;
   template <class Derived>
   EIGEN_DEVICE_FUNC static inline void run(QuaternionBase<Derived>& q, const Other& vec) {
     q.coeffs() = vec;

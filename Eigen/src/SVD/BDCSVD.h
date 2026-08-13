@@ -36,7 +36,7 @@ namespace internal {
 
 template <typename MatrixType_, int Options>
 struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> {
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
 };
 
 }  // end namespace internal
@@ -72,7 +72,7 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  */
 template <typename MatrixType_, int Options_>
 class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
-  typedef SVDBase<BDCSVD> Base;
+  using Base = SVDBase<BDCSVD>;
 
  public:
   using Base::cols;
@@ -81,11 +81,11 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::diagSize;
   using Base::rows;
 
-  typedef MatrixType_ MatrixType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
-  typedef typename NumTraits<RealScalar>::Literal Literal;
-  typedef typename Base::Index Index;
+  using MatrixType = MatrixType_;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
+  using Literal = typename NumTraits<RealScalar>::Literal;
+  using Index = typename Base::Index;
   enum {
     Options = Options_,
     QRDecomposition = internal::get_qr_preconditioner(Options),
@@ -99,17 +99,17 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
     MatrixOptions = Base::MatrixOptions
   };
 
-  typedef typename Base::MatrixUType MatrixUType;
-  typedef typename Base::MatrixVType MatrixVType;
-  typedef typename Base::SingularValuesType SingularValuesType;
+  using MatrixUType = typename Base::MatrixUType;
+  using MatrixVType = typename Base::MatrixVType;
+  using SingularValuesType = typename Base::SingularValuesType;
 
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> MatrixX;
-  typedef Matrix<RealScalar, Dynamic, Dynamic, ColMajor> MatrixXr;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
-  typedef Array<RealScalar, Dynamic, 1> ArrayXr;
-  typedef Array<Index, 1, Dynamic> ArrayXi;
-  typedef Ref<ArrayXr> ArrayRef;
-  typedef Ref<ArrayXi> IndicesRef;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic, ColMajor>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using ArrayXr = Array<RealScalar, Dynamic, 1>;
+  using ArrayXi = Array<Index, 1, Dynamic>;
+  using ArrayRef = Ref<ArrayXr>;
+  using IndicesRef = Ref<ArrayXi>;
 
   /** \brief Default Constructor.
    *

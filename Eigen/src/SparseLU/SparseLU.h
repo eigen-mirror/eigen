@@ -27,14 +27,14 @@ struct SparseLUMatrixUReturnType;
 template <bool Conjugate, class SparseLUType>
 class SparseLUTransposeView : public SparseSolverBase<SparseLUTransposeView<Conjugate, SparseLUType>> {
  protected:
-  typedef SparseSolverBase<SparseLUTransposeView<Conjugate, SparseLUType>> APIBase;
+  using APIBase = SparseSolverBase<SparseLUTransposeView<Conjugate, SparseLUType>>;
   using APIBase::m_isInitialized;
 
  public:
-  typedef typename SparseLUType::Scalar Scalar;
-  typedef typename SparseLUType::StorageIndex StorageIndex;
-  typedef typename SparseLUType::MatrixType MatrixType;
-  typedef typename SparseLUType::OrderingType OrderingType;
+  using Scalar = typename SparseLUType::Scalar;
+  using StorageIndex = typename SparseLUType::StorageIndex;
+  using MatrixType = typename SparseLUType::MatrixType;
+  using OrderingType = typename SparseLUType::OrderingType;
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
@@ -151,23 +151,23 @@ template <typename MatrixType_, typename OrderingType_>
 class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
                  public internal::SparseLUImpl<typename MatrixType_::Scalar, typename MatrixType_::StorageIndex> {
  protected:
-  typedef SparseSolverBase<SparseLU<MatrixType_, OrderingType_>> APIBase;
+  using APIBase = SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>;
   using APIBase::m_isInitialized;
 
  public:
   using APIBase::_solve_impl;
 
-  typedef MatrixType_ MatrixType;
-  typedef OrderingType_ OrderingType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> NCMatrix;
-  typedef internal::MappedSuperNodalMatrix<Scalar, StorageIndex> SCMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
-  typedef internal::SparseLUImpl<Scalar, StorageIndex> Base;
+  using MatrixType = MatrixType_;
+  using OrderingType = OrderingType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using NCMatrix = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using SCMatrix = internal::MappedSuperNodalMatrix<Scalar, StorageIndex>;
+  using ScalarVector = Matrix<Scalar, Dynamic, 1>;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
+  using Base = internal::SparseLUImpl<Scalar, StorageIndex>;
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
@@ -814,7 +814,7 @@ void SparseLU<MatrixType, OrderingType>::factorize(const MatrixType& matrix) {
 
 template <typename MappedSupernodalType>
 struct SparseLUMatrixLReturnType : internal::no_assignment_operator {
-  typedef typename MappedSupernodalType::Scalar Scalar;
+  using Scalar = typename MappedSupernodalType::Scalar;
   explicit SparseLUMatrixLReturnType(const MappedSupernodalType& mapL) : m_mapL(mapL) {}
   Index rows() const { return m_mapL.rows(); }
   Index cols() const { return m_mapL.cols(); }
@@ -857,7 +857,7 @@ struct SparseLUMatrixLReturnType : internal::no_assignment_operator {
 
 template <typename MatrixLType, typename MatrixUType>
 struct SparseLUMatrixUReturnType : internal::no_assignment_operator {
-  typedef typename MatrixLType::Scalar Scalar;
+  using Scalar = typename MatrixLType::Scalar;
   SparseLUMatrixUReturnType(const MatrixLType& mapL, const MatrixUType& mapU) : m_mapL(mapL), m_mapU(mapU) {}
   Index rows() const { return m_mapL.rows(); }
   Index cols() const { return m_mapL.cols(); }

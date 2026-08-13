@@ -66,7 +66,7 @@ struct linspaced_op_impl;
 
 template <typename Scalar>
 struct linspaced_op_impl<Scalar, /*IsInteger*/ false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_DEVICE_FUNC constexpr linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
       : m_low(low),

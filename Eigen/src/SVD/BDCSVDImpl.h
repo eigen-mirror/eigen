@@ -39,14 +39,14 @@ namespace internal {
 template <typename RealScalar_>
 class bdcsvd_impl {
  public:
-  typedef RealScalar_ RealScalar;
-  typedef typename NumTraits<RealScalar>::Literal Literal;
-  typedef Matrix<RealScalar, Dynamic, Dynamic, ColMajor> MatrixXr;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
-  typedef Array<RealScalar, Dynamic, 1> ArrayXr;
-  typedef Array<Index, 1, Dynamic> ArrayXi;
-  typedef Ref<ArrayXr> ArrayRef;
-  typedef Ref<ArrayXi> IndicesRef;
+  using RealScalar = RealScalar_;
+  using Literal = typename NumTraits<RealScalar>::Literal;
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic, ColMajor>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using ArrayXr = Array<RealScalar, Dynamic, 1>;
+  using ArrayXi = Array<Index, 1, Dynamic>;
+  using ArrayRef = Ref<ArrayXr>;
+  using IndicesRef = Ref<ArrayXi>;
 
   bdcsvd_impl() : m_algoswap(16), m_compU(false), m_compV(false), m_numIters(0), m_info(Success) {}
 

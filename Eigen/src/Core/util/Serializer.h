@@ -75,7 +75,7 @@ class Serializer<T, std::enable_if_t<std::is_trivially_copyable<T>::value && std
 template <typename Derived>
 class Serializer<DenseBase<Derived>, void> {
  public:
-  typedef typename Derived::Scalar Scalar;
+  using Scalar = typename Derived::Scalar;
 
   struct Header {
     typename Derived::Index rows;

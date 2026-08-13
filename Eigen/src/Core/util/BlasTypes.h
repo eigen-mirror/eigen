@@ -45,11 +45,11 @@
 
 namespace Eigen {
 
-typedef std::complex<double> dcomplex;
-typedef std::complex<float> scomplex;
+using dcomplex = std::complex<double>;
+using scomplex = std::complex<float>;
 
 #if defined(EIGEN_USE_MKL)
-typedef MKL_INT BlasIndex;
+using BlasIndex = MKL_INT;
 // Plain static_assert (not EIGEN_STATIC_ASSERT): like the LAPACKE/BLAS cross-check it must not be suppressible.
 #if defined(EIGEN_64BIT_BLAS)
 static_assert(sizeof(MKL_INT) == 8,
@@ -61,7 +61,7 @@ static_assert(sizeof(MKL_INT) == 4,
               "link the MKL *_lp64 libraries.");
 #endif
 #else
-typedef EIGEN_BLAS_INT BlasIndex;
+using BlasIndex = int;
 #endif
 
 }  // end namespace Eigen
