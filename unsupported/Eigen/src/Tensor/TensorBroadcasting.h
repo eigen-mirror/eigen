@@ -191,7 +191,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -598,7 +598,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
 
     // We potentially will need to materialize input blocks.
     size_t materialized_input_size = 0;
-    ScalarNoConst* materialized_input = NULL;
+    ScalarNoConst* materialized_input = nullptr;
 
     // Initialize block broadcasting iterator state for outer dimensions (outer
     // with regard to bcast dimension). Dimensions in this array are always in
@@ -644,7 +644,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     return block_storage.AsTensorMaterializedBlock();
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
 
@@ -789,7 +789,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock emptyBlock() const {
     DSizes<Index, NumDims> dimensions;
     for (int i = 0; i < NumDims; ++i) dimensions[i] = 0;
-    return TensorBlock(internal::TensorBlockKind::kView, NULL, dimensions);
+    return TensorBlock(internal::TensorBlockKind::kView, nullptr, dimensions);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index BroadcastBlockAlongBcastDim(
@@ -942,9 +942,9 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     // ---------------------------------------------------------------------- //
     // Materialize input block into a temporary memory buffer only if it's not
     // already available in the arg block.
-    const ScalarNoConst* input_buffer = NULL;
+    const ScalarNoConst* input_buffer = nullptr;
 
-    if (input_block.data() != NULL) {
+    if (input_block.data() != nullptr) {
       // Input block already has raw data, there is no need to materialize it.
       input_buffer = input_block.data();
 
@@ -954,7 +954,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
       // Maybe reuse previously allocated buffer, or allocate a new one with a
       // scratch allocator.
       const size_t input_total_size = input_block_sizes.TotalSize();
-      if (*materialized_input == NULL || *materialized_input_size < input_total_size) {
+      if (*materialized_input == nullptr || *materialized_input_size < input_total_size) {
         *materialized_input_size = input_total_size;
         void* mem = scratch.allocate(*materialized_input_size * sizeof(Scalar));
         *materialized_input = static_cast<ScalarNoConst*>(mem);

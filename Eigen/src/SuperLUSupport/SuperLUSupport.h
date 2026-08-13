@@ -578,8 +578,8 @@ void SuperLU<MatrixType>::factorize(const MatrixType &a) {
 
   StatInit(&m_sluStat);
   SuperLU_gssvx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &ferr, &berr,
-                &m_sluStat, &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &ferr,
+                &berr, &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   m_extractedDataAreDirty = true;
@@ -622,7 +622,7 @@ void SuperLU<MatrixType>::_solve_impl(const MatrixBase<Rhs> &b, MatrixBase<Dest>
   int info = 0;
   RealScalar recip_pivot_growth, rcond;
   SuperLU_gssvx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
                 &m_sluFerr[0], &m_sluBerr[0], &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
@@ -866,8 +866,8 @@ void SuperILU<MatrixType>::factorize(const MatrixType &a) {
 
   StatInit(&m_sluStat);
   SuperLU_gsisx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &m_sluStat,
-                &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   // FIXME: implement more detailed error checking based on SuperLU info codes.
@@ -910,8 +910,8 @@ void SuperILU<MatrixType>::_solve_impl(const MatrixBase<Rhs> &b, MatrixBase<Dest
 
   StatInit(&m_sluStat);
   SuperLU_gsisx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &m_sluStat,
-                &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   if (x.derived().data() != x_ref.data()) x = x_ref;

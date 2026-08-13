@@ -89,7 +89,7 @@ static const gpuStream_t default_stream = gpuStreamDefault;
 class GpuStreamDevice : public StreamInterface {
  public:
   // Use the default stream on the current device
-  GpuStreamDevice() : stream_(&default_stream), scratch_(NULL), semaphore_(NULL) {
+  GpuStreamDevice() : stream_(&default_stream), scratch_(nullptr), semaphore_(nullptr) {
     gpuError_t status = gpuGetDevice(&device_);
     if (status != gpuSuccess) {
       std::cerr << "Failed to get the GPU devices " << gpuGetErrorString(status) << std::endl;
@@ -97,13 +97,13 @@ class GpuStreamDevice : public StreamInterface {
     }
   }
   // Use the default stream on the specified device
-  GpuStreamDevice(int device) : stream_(&default_stream), device_(device), scratch_(NULL), semaphore_(NULL) {}
+  GpuStreamDevice(int device) : stream_(&default_stream), device_(device), scratch_(nullptr), semaphore_(nullptr) {}
   // Use the specified stream. Note that it's the
   // caller's responsibility to ensure that the stream can run on
   // the specified device. If no device is specified the code
   // assumes that the stream is associated to the current gpu device.
   GpuStreamDevice(const gpuStream_t* stream, int device = -1)
-      : stream_(stream), device_(device), scratch_(NULL), semaphore_(NULL) {
+      : stream_(stream), device_(device), scratch_(nullptr), semaphore_(nullptr) {
     if (device < 0) {
       gpuError_t status = gpuGetDevice(&device_);
       if (status != gpuSuccess) {
@@ -135,27 +135,27 @@ class GpuStreamDevice : public StreamInterface {
     void* result;
     err = gpuMalloc(&result, num_bytes);
     gpu_assert(err == gpuSuccess);
-    gpu_assert(result != NULL);
+    gpu_assert(result != nullptr);
     return result;
   }
   virtual void deallocate(void* buffer) const {
     gpuError_t err = gpuSetDevice(device_);
     EIGEN_UNUSED_VARIABLE(err);
     gpu_assert(err == gpuSuccess);
-    gpu_assert(buffer != NULL);
+    gpu_assert(buffer != nullptr);
     err = gpuFree(buffer);
     gpu_assert(err == gpuSuccess);
   }
 
   virtual void* scratchpad() const {
-    if (scratch_ == NULL) {
+    if (scratch_ == nullptr) {
       scratch_ = allocate(kGpuScratchSize + sizeof(unsigned int));
     }
     return scratch_;
   }
 
   virtual unsigned int* semaphore() const {
-    if (semaphore_ == NULL) {
+    if (semaphore_ == nullptr) {
       char* scratch = static_cast<char*>(scratchpad()) + kGpuScratchSize;
       semaphore_ = reinterpret_cast<unsigned int*>(scratch);
       gpuError_t err = gpuMemsetAsync(semaphore_, 0, sizeof(unsigned int), *stream_);

@@ -336,9 +336,9 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(const DataMapper& res0, con
                                                      const Scalar* lhs_base, const Scalar* rhs_base, Index depth,
                                                      Index strideA, Index strideB, Index offsetA, Index& row,
                                                      const Packet& pAlpha, Index accCols2) {
-  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = NULL, *rhs_ptr2 = NULL, *rhs_ptr3 = NULL;
-  const Scalar *lhs_ptr0 = NULL, *lhs_ptr1 = NULL, *lhs_ptr2 = NULL, *lhs_ptr3 = NULL, *lhs_ptr4 = NULL,
-               *lhs_ptr5 = NULL, *lhs_ptr6 = NULL, *lhs_ptr7 = NULL;
+  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr, *rhs_ptr3 = nullptr;
+  const Scalar *lhs_ptr0 = nullptr, *lhs_ptr1 = nullptr, *lhs_ptr2 = nullptr, *lhs_ptr3 = nullptr, *lhs_ptr4 = nullptr,
+               *lhs_ptr5 = nullptr, *lhs_ptr6 = nullptr, *lhs_ptr7 = nullptr;
   __vector_quad accZero0, accZero1, accZero2, accZero3, accZero4, accZero5, accZero6, accZero7;
 
   if (accItr > 1) {
@@ -703,8 +703,8 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_MMA_iteration(const DataMapper& r
                                                              Index depth, Index strideA, Index offsetA, Index strideB,
                                                              Index& row, const Packet& pAlphaReal,
                                                              const Packet& pAlphaImag, const Packet& pMask) {
-  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = NULL, *rhs_ptr_real2 = NULL, *rhs_ptr_real3 = NULL;
-  const Scalar *rhs_ptr_imag0 = NULL, *rhs_ptr_imag1 = NULL, *rhs_ptr_imag2 = NULL, *rhs_ptr_imag3 = NULL;
+  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = nullptr, *rhs_ptr_real2 = nullptr, *rhs_ptr_real3 = nullptr;
+  const Scalar *rhs_ptr_imag0 = nullptr, *rhs_ptr_imag1 = nullptr, *rhs_ptr_imag2 = nullptr, *rhs_ptr_imag3 = nullptr;
   const Index imag_delta = accCols * strideA;
   const Index imag_delta2 = accCols2 * strideA;
 
@@ -746,8 +746,8 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_MMA_iteration(const DataMapper& r
     EIGEN_UNUSED_VARIABLE(res2);
     EIGEN_UNUSED_VARIABLE(res3);
   }
-  const Scalar *lhs_ptr_real0 = NULL, *lhs_ptr_real1 = NULL;
-  const Scalar *lhs_ptr_real2 = NULL, *lhs_ptr_real3 = NULL;
+  const Scalar *lhs_ptr_real0 = nullptr, *lhs_ptr_real1 = nullptr;
+  const Scalar *lhs_ptr_real2 = nullptr, *lhs_ptr_real3 = nullptr;
   __vector_quad accReal0, accImag0, accReal1, accImag1, accReal2, accImag2, accReal3, accImag3;
 
   MICRO_COMPLEX_MMA_SRC_PTR

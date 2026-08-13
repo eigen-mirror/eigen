@@ -100,7 +100,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const ArgType& op, const Device& device)
-      : m_op(op), m_device(device), m_result(NULL) {
+      : m_op(op), m_device(device), m_result(nullptr) {
     m_dimensions = op.func().dimensions(op.expression());
   }
 
@@ -121,7 +121,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   EIGEN_STRONG_INLINE void cleanup() {
     if (m_result) {
       m_device.deallocate_temp(m_result);
-      m_result = NULL;
+      m_result = nullptr;
     }
   }
 
@@ -143,7 +143,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    eigen_assert(m_result != NULL);
+    eigen_assert(m_result != nullptr);
     return TensorBlock::materialize(m_result, m_dimensions, desc, scratch);
   }
 
@@ -261,7 +261,7 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
-      : m_op(op), m_device(device), m_result(NULL) {
+      : m_op(op), m_device(device), m_result(nullptr) {
     m_dimensions = op.func().dimensions(op.lhsExpression(), op.rhsExpression());
   }
 
@@ -280,9 +280,9 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   }
 
   EIGEN_STRONG_INLINE void cleanup() {
-    if (m_result != NULL) {
+    if (m_result != nullptr) {
       m_device.deallocate_temp(m_result);
-      m_result = NULL;
+      m_result = nullptr;
     }
   }
 
@@ -304,7 +304,7 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    eigen_assert(m_result != NULL);
+    eigen_assert(m_result != nullptr);
     return TensorBlock::materialize(m_result, m_dimensions, desc, scratch);
   }
 

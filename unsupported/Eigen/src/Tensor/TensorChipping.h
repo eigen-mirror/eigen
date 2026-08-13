@@ -187,7 +187,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -294,7 +294,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     ArgTensorBlock arg_block = m_impl.block(arg_desc, scratch, root_of_expr_ast);
     if (!arg_desc.HasDestinationBuffer()) desc.DropDestinationBuffer();
 
-    if (arg_block.data() != NULL) {
+    if (arg_block.data() != nullptr) {
       // Forward argument block buffer if possible.
       return TensorBlock(arg_block.kind(), arg_block.data(), desc.dimensions());
 
@@ -321,7 +321,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     if (isOuterChipping() && result) {
       return result + m_inputOffset;
     } else {
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -461,7 +461,7 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
 
   template <typename TensorBlock>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
-    eigen_assert(this->m_impl.data() != NULL);
+    eigen_assert(this->m_impl.data() != nullptr);
 
     const Index chip_dim = this->m_dim.actualDim();
 

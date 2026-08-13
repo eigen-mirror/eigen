@@ -547,7 +547,7 @@ class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType,
   template <int NumDims = internal::traits<TensorReductionOp>::NumDimensions, EIGEN_SFINAE_ENABLE_IF(NumDims == 0)>
   EIGEN_STRONG_INLINE operator CoeffReturnType() const {
     TensorEvaluator<const TensorReductionOp, DefaultDevice> evaluator(*this, DefaultDevice());
-    evaluator.evalSubExprsIfNeeded(NULL);
+    evaluator.evalSubExprsIfNeeded(nullptr);
     const CoeffReturnType result = evaluator.coeff(0);
     evaluator.cleanup();
     return result;
@@ -649,7 +649,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   static constexpr bool RunningFullReduction = (NumOutputDims == 0);
 
   EIGEN_STRONG_INLINE TensorReductionEvaluatorBase(const XprType& op, const Device& device)
-      : m_impl(op.expression(), device), m_reducer(op.reducer()), m_result(NULL), m_device(device) {
+      : m_impl(op.expression(), device), m_reducer(op.reducer()), m_result(nullptr), m_device(device) {
     EIGEN_STATIC_ASSERT((NumInputDims >= NumReducedDims), YOU_MADE_A_PROGRAMMING_MISTAKE);
     EIGEN_STATIC_ASSERT((!ReducingInnerMostDims | !PreservingInnerMostDims | (NumReducedDims == NumInputDims)),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -784,11 +784,11 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
                                                               num_coeffs_to_preserve)) {
               if (m_result) {
                 m_device.deallocate_temp(m_result);
-                m_result = NULL;
+                m_result = nullptr;
               }
               return true;
             } else {
-              return (m_result != NULL);
+              return (m_result != nullptr);
             }
           }
         }
@@ -822,11 +822,11 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
                                                               num_coeffs_to_preserve)) {
               if (m_result) {
                 m_device.deallocate_temp(m_result);
-                m_result = NULL;
+                m_result = nullptr;
               }
               return true;
             } else {
-              return (m_result != NULL);
+              return (m_result != nullptr);
             }
           }
         }
@@ -844,7 +844,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
           Op reducer(m_reducer);
           internal::GenericReducer<Self, Op, Device>::run(*this, reducer, m_device, data, num_values_to_reduce,
                                                           num_coeffs_to_preserve);
-          return (m_result != NULL);
+          return (m_result != nullptr);
         }
 #endif
       }
@@ -855,12 +855,12 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 #ifdef EIGEN_USE_THREADS
   template <typename EvalSubExprsCallback>
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType data, EvalSubExprsCallback done) {
-    m_impl.evalSubExprsIfNeededAsync(NULL, [this, data, done](bool) { done(evalSubExprsIfNeededCommon(data)); });
+    m_impl.evalSubExprsIfNeededAsync(nullptr, [this, data, done](bool) { done(evalSubExprsIfNeededCommon(data)); });
   }
 #endif
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return evalSubExprsIfNeededCommon(data);
   }
 
@@ -868,7 +868,7 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     m_impl.cleanup();
     if (m_result) {
       m_device.deallocate_temp(m_result);
-      m_result = NULL;
+      m_result = nullptr;
     }
   }
 

@@ -1311,18 +1311,18 @@ inline void queryCacheSizes(std::ptrdiff_t& l1, std::ptrdiff_t& l2, std::ptrdiff
     std::size_t val_size = sizeof(val);
     l1 = -1;
     val_size = sizeof(val);
-    if (sysctlbyname("hw.perflevel0.l1dcachesize", &val, &val_size, NULL, 0) == 0 && val > 0)
+    if (sysctlbyname("hw.perflevel0.l1dcachesize", &val, &val_size, nullptr, 0) == 0 && val > 0)
       l1 = val;
     else {
       val_size = sizeof(val);
-      if (sysctlbyname("hw.l1dcachesize", &val, &val_size, NULL, 0) == 0) l1 = val;
+      if (sysctlbyname("hw.l1dcachesize", &val, &val_size, nullptr, 0) == 0) l1 = val;
     }
     l2 = -1;
     val_size = sizeof(val);
-    if (sysctlbyname("hw.l2cachesize", &val, &val_size, NULL, 0) == 0) l2 = val;
+    if (sysctlbyname("hw.l2cachesize", &val, &val_size, nullptr, 0) == 0) l2 = val;
     l3 = -1;
     val_size = sizeof(val);
-    if (sysctlbyname("hw.l3cachesize", &val, &val_size, NULL, 0) == 0 && val > 0) l3 = val;
+    if (sysctlbyname("hw.l3cachesize", &val, &val_size, nullptr, 0) == 0 && val > 0) l3 = val;
   }
 #elif EIGEN_OS_UNIX && defined(_SC_LEVEL1_DCACHE_SIZE)
   // On Linux and other POSIX systems, use sysconf to query cache sizes.

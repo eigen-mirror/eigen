@@ -176,7 +176,7 @@ class PardisoImpl : public SparseSolverBase<Derived> {
     {
       internal::pardiso_run_selector<StorageIndex>::run(m_pt, 1, 1, m_type, -1,
                                                         internal::convert_index<StorageIndex>(m_size), 0, 0, 0,
-                                                        m_perm.data(), 0, m_iparm.data(), m_msglvl, NULL, NULL);
+                                                        m_perm.data(), 0, m_iparm.data(), m_msglvl, nullptr, nullptr);
       m_isInitialized = false;
     }
   }
@@ -255,7 +255,7 @@ Derived& PardisoImpl<Derived>::compute(const MatrixType& a) {
   Index error;
   error = internal::pardiso_run_selector<StorageIndex>::run(
       m_pt, 1, 1, m_type, 12, internal::convert_index<StorageIndex>(m_size), m_matrix.valuePtr(),
-      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, NULL, NULL);
+      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, nullptr, nullptr);
   manageErrorCode(error);
   m_analysisIsOk = m_info == Eigen::Success;
   m_factorizationIsOk = m_info == Eigen::Success;
@@ -275,7 +275,7 @@ Derived& PardisoImpl<Derived>::analyzePattern(const MatrixType& a) {
   Index error;
   error = internal::pardiso_run_selector<StorageIndex>::run(
       m_pt, 1, 1, m_type, 11, internal::convert_index<StorageIndex>(m_size), m_matrix.valuePtr(),
-      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, NULL, NULL);
+      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, nullptr, nullptr);
 
   manageErrorCode(error);
   m_analysisIsOk = m_info == Eigen::Success;
@@ -294,7 +294,7 @@ Derived& PardisoImpl<Derived>::factorize(const MatrixType& a) {
   Index error;
   error = internal::pardiso_run_selector<StorageIndex>::run(
       m_pt, 1, 1, m_type, 22, internal::convert_index<StorageIndex>(m_size), m_matrix.valuePtr(),
-      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, NULL, NULL);
+      m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), 0, m_iparm.data(), m_msglvl, nullptr, nullptr);
 
   manageErrorCode(error);
   m_factorizationIsOk = m_info == Eigen::Success;

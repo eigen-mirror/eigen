@@ -327,7 +327,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -524,7 +524,7 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     return packetWithPossibleZero(index);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rowPaddingTop() const { return m_rowPaddingTop; }

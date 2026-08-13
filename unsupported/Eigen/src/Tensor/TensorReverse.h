@@ -126,7 +126,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -333,7 +333,7 @@ struct TensorEvaluator<const TensorReverseOp<ReverseDimensions, ArgType>, Device
     return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
+  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
 
  protected:
   Dimensions m_dimensions;

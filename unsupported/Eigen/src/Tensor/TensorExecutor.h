@@ -51,7 +51,7 @@ class TensorExecutor {
 
   static EIGEN_STRONG_INLINE void run(const Expression& expr, const Device& device = DefaultDevice()) {
     TensorEvaluator<Expression, Device> evaluator(expr, device);
-    const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
+    const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
     if (needs_assign) {
       const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
       for (StorageIndex i = 0; i < size; ++i) {
@@ -80,7 +80,7 @@ class TensorExecutor<Expression, DefaultDevice, /*Vectorizable=*/true,
 
   static EIGEN_STRONG_INLINE void run(const Expression& expr, const DefaultDevice& device = DefaultDevice()) {
     TensorEvaluator<Expression, DefaultDevice> evaluator(expr, device);
-    const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
+    const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
     if (needs_assign) {
       const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
       const int PacketSize =
@@ -133,7 +133,7 @@ class TensorExecutor<Expression, DefaultDevice, Vectorizable,
     Evaluator evaluator(expr, device);
 
     // TODO(ezhulenev): Do not use tiling for small tensors?
-    const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
+    const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
 
     if (needs_assign) {
       // Query expression tree for desired block size/shape.
@@ -604,7 +604,7 @@ class TensorExecutor<Expression, Eigen::SyclDevice, Vectorizable, Tiling> {
   static EIGEN_STRONG_INLINE void run(const Expression& expr, const Eigen::SyclDevice& dev) {
     typedef Eigen::TensorEvaluator<Expression, Eigen::SyclDevice> Evaluator;
     Evaluator evaluator(expr, dev);
-    const bool needs_assign = evaluator.evalSubExprsIfNeeded(NULL);
+    const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
     if (needs_assign) {
       Index range, GRange, tileSize;
       Index total_size = ::Eigen::internal::array_prod(evaluator.dimensions());

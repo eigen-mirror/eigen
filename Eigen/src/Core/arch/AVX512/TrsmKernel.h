@@ -967,7 +967,7 @@ void triSolve(Scalar* A_arr, Scalar* B_arr, int64_t M, int64_t numRHS, int64_t L
   constexpr int64_t numM = 8 * EIGEN_AVX_MAX_NUM_ROW;
 
   int64_t sizeBTemp = 0;
-  Scalar* B_temp = NULL;
+  Scalar* B_temp = nullptr;
   EIGEN_IF_CONSTEXPR (!isBRowMajor) {
     /**
      * If B is col-major, we copy it to a fixed-size temporary array of size at most ~numM*kB and

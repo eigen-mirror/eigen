@@ -135,7 +135,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -213,7 +213,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
                                                           bool /*root_of_expr_ast*/ = false) const {
     // If one of the dimensions is zero, return empty block view.
     if (desc.size() == 0) {
-      return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+      return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
     }
 
     static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
@@ -398,7 +398,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
           const Index out = output_offset + output_inner_pad_before_size;
           const Index in = input_offset + output_inner_pad_before_size;
 
-          eigen_assert(output_inner_copy_size == 0 || m_impl.data() != NULL);
+          eigen_assert(output_inner_copy_size == 0 || m_impl.data() != nullptr);
 
           LinCopy::template Run<LinCopy::Kind::Linear>(typename LinCopy::Dst(out, 1, block_storage.data()),
                                                        typename LinCopy::Src(in, 1, m_impl.data()),
@@ -435,7 +435,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     return block_storage.AsTensorMaterializedBlock();
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return nullptr; }
 
  private:
   struct BlockIteratorState {

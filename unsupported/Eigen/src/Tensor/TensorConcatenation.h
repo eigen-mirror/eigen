@@ -181,8 +181,8 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
   // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear.
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_leftImpl.evalSubExprsIfNeeded(NULL);
-    m_rightImpl.evalSubExprsIfNeeded(NULL);
+    m_leftImpl.evalSubExprsIfNeeded(nullptr);
+    m_rightImpl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -235,7 +235,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     static constexpr bool IsColMajor = Layout == static_cast<int>(ColMajor);
 
     if (desc.size() == 0) {
-      return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+      return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
     }
 
     Index remaining = desc.offset();
@@ -515,7 +515,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
            (rhs_size / (lhs_size + rhs_size)) * m_rightImpl.costPerCoeff(vectorized) + TensorOpCost(0, 0, compute_cost);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  protected:
   Dimensions m_dimensions;

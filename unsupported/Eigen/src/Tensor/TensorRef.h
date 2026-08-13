@@ -58,7 +58,7 @@ class TensorLazyEvaluatorReadOnly
     for (std::size_t i = 0; i < m_dims.size(); ++i) {
       m_dims[i] = other_dims[i];
     }
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
   }
   virtual ~TensorLazyEvaluatorReadOnly() { m_impl.cleanup(); }
 

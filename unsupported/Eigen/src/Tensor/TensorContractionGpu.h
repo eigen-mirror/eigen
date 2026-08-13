@@ -1282,8 +1282,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
   // We need to redefine this method to make nvcc happy
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(Scalar* data) {
-    this->m_leftImpl.evalSubExprsIfNeeded(NULL);
-    this->m_rightImpl.evalSubExprsIfNeeded(NULL);
+    this->m_leftImpl.evalSubExprsIfNeeded(nullptr);
+    this->m_rightImpl.evalSubExprsIfNeeded(nullptr);
     if (data) {
       evalTo(data);
       return false;

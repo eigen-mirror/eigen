@@ -124,7 +124,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
@@ -194,7 +194,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
            TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
+  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {

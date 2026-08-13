@@ -107,7 +107,7 @@ struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType scalar) {
     EIGEN_UNUSED_VARIABLE(scalar);
-    eigen_assert(scalar == NULL);
+    eigen_assert(scalar == nullptr);
     return m_impl.evalSubExprsIfNeeded(m_buffer);
   }
 
@@ -115,7 +115,7 @@ struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
   template <typename EvalSubExprsCallback>
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType scalar, EvalSubExprsCallback done) {
     EIGEN_UNUSED_VARIABLE(scalar);
-    eigen_assert(scalar == NULL);
+    eigen_assert(scalar == nullptr);
     m_impl.evalSubExprsIfNeededAsync(m_buffer, std::move(done));
   }
 #endif

@@ -125,7 +125,7 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     eigen_assert(dimensions_match(m_leftImpl.dimensions(), m_rightImpl.dimensions()));
-    m_leftImpl.evalSubExprsIfNeeded(NULL);
+    m_leftImpl.evalSubExprsIfNeeded(nullptr);
     // If the lhs provides raw access to its storage area (i.e. if m_leftImpl.data() returns a non
     // null value), attempt to evaluate the rhs expression in place. Returns true iff in place
     // evaluation isn't supported and the caller still needs to manually assign the values generated
@@ -178,7 +178,7 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalBlock(TensorBlockDesc& desc, TensorBlockScratch& scratch) {
-    if (TensorEvaluator<LeftArgType, Device>::RawAccess && m_leftImpl.data() != NULL) {
+    if (TensorEvaluator<LeftArgType, Device>::RawAccess && m_leftImpl.data() != nullptr) {
       // If destination has raw data access, we pass it as a potential
       // destination for a block descriptor evaluation.
       desc.template AddDestinationBuffer<Layout>(

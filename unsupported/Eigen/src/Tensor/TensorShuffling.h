@@ -142,7 +142,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -267,7 +267,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool root_of_expr_ast = false) const {
-    eigen_assert(m_impl.data() != NULL);
+    eigen_assert(m_impl.data() != nullptr);
 
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
@@ -296,7 +296,7 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
            TensorOpCost(0, 0, compute_cost, m_is_identity /* vectorized */, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
+  EIGEN_DEVICE_FUNC typename Storage::Type data() const { return nullptr; }
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index
@@ -452,7 +452,7 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
 
   template <typename TensorBlock>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
-    eigen_assert(this->m_impl.data() != NULL);
+    eigen_assert(this->m_impl.data() != nullptr);
 
     typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
     typedef typename TensorBlockIO::Dst TensorBlockIODst;
@@ -462,8 +462,8 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
 
     // TODO(ezhulenev): TensorBlockIO should be able to read from any Eigen
     // expression with coefficient and packet access as `src`.
-    void* mem = NULL;
-    if (block_buffer == NULL) {
+    void* mem = nullptr;
+    if (block_buffer == nullptr) {
       mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
       ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
 
@@ -496,7 +496,7 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
     TensorBlockIO::Copy(dst, src, dst_to_src_dim_map);
 
     // Deallocate temporary buffer used for the block materialization.
-    if (mem != NULL) this->m_device.deallocate(mem);
+    if (mem != nullptr) this->m_device.deallocate(mem);
   }
 };
 

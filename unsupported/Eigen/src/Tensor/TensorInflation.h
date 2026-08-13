@@ -137,7 +137,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
@@ -227,7 +227,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
 
     // If one of the dimensions is zero, return empty block view.
     if (desc.size() == 0) {
-      return TensorBlock(internal::TensorBlockKind::kView, NULL, desc.dimensions());
+      return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
     }
 
     // Everything outside the stride lattice is a hole, so zero-fill first and
@@ -317,7 +317,7 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
            TensorOpCost(sizeof(CoeffReturnType) * latticeDensity(), 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  protected:
   // Fraction of output coefficients that fall on the stride lattice.

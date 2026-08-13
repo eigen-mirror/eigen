@@ -45,7 +45,7 @@ struct simplicial_cholesky_amd_dispatch {
   template <int UpLo_, bool NonHermitian, typename Ordering, typename MatrixType, typename CholMatrixType,
             typename Perm>
   static void run(const MatrixType& a, CholMatrixType& C, Perm& perm) {
-    permute_symm_to_fullsymm<UpLo_, NonHermitian>(a, C, NULL);
+    permute_symm_to_fullsymm<UpLo_, NonHermitian>(a, C, nullptr);
     Ordering ordering;
     ordering(C, perm);
   }
@@ -886,7 +886,7 @@ void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMat
     EIGEN_IF_CONSTEXPR (int(UpLo) == int(Lower) || MatrixType::IsRowMajor) {
       // we have to transpose the lower part to the upper one
       ap.resize(size, size);
-      internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, NULL);
+      internal::permute_symm_to_symm<UpLo, Upper, NonHermitian>(a, ap, nullptr);
     } else
       internal::simplicial_cholesky_grab_input<CholMatrixType, MatrixType>::run(a, pmat, ap);
   }

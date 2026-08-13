@@ -105,12 +105,12 @@ struct TensorEvaluator {
   EIGEN_STRONG_INLINE void cleanup() {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     return m_data[index];
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     return m_data[index];
   }
 
@@ -137,7 +137,7 @@ struct TensorEvaluator {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(const array<DenseIndex, NumCoords>& coords) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
     } else {
@@ -146,7 +146,7 @@ struct TensorEvaluator {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(const array<DenseIndex, NumCoords>& coords) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       return m_data[m_dims.IndexOfColMajor(coords)];
     } else {
@@ -164,13 +164,13 @@ struct TensorEvaluator {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     return TensorBlock::materialize(m_data, m_dims, desc, scratch);
   }
 
   template <typename TensorBlock>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
 
     typedef typename TensorBlock::XprType TensorBlockExpr;
     typedef internal::TensorBlockAssignment<Scalar, NumCoords, TensorBlockExpr, Index> TensorBlockAssign;
@@ -274,7 +274,7 @@ struct TensorEvaluator<const Derived, Device> {
   EIGEN_STRONG_INLINE void cleanup() {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     return internal::loadConstant(m_data + index);
   }
 
@@ -296,7 +296,7 @@ struct TensorEvaluator<const Derived, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(const array<DenseIndex, NumCoords>& coords) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     const Index index = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? m_dims.IndexOfColMajor(coords)
                                                                                  : m_dims.IndexOfRowMajor(coords);
     return internal::loadConstant(m_data + index);
@@ -312,7 +312,7 @@ struct TensorEvaluator<const Derived, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    eigen_assert(m_data != NULL);
+    eigen_assert(m_data != nullptr);
     return TensorBlock::materialize(m_data, m_dims, desc, scratch);
   }
 
@@ -562,7 +562,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     return NullaryBlockImpl<Self, IndexIndependentFunctor>::Run(*this, desc, scratch);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  private:
   const NullaryOp m_functor;
@@ -613,7 +613,7 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_argImpl.dimensions(); }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_argImpl.evalSubExprsIfNeeded(NULL);
+    m_argImpl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -661,7 +661,7 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
     return TensorBlock(m_argImpl.block(desc, scratch), m_functor);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  private:
   const Device EIGEN_DEVICE_REF m_device;
@@ -729,8 +729,8 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
   }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_leftImpl.evalSubExprsIfNeeded(NULL);
-    m_rightImpl.evalSubExprsIfNeeded(NULL);
+    m_leftImpl.evalSubExprsIfNeeded(nullptr);
+    m_rightImpl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -776,7 +776,7 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
     return TensorBlock(m_leftImpl.block(desc, scratch), m_rightImpl.block(desc, scratch), m_functor);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  private:
   const Device EIGEN_DEVICE_REF m_device;
@@ -879,9 +879,9 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
   }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_arg1Impl.evalSubExprsIfNeeded(NULL);
-    m_arg2Impl.evalSubExprsIfNeeded(NULL);
-    m_arg3Impl.evalSubExprsIfNeeded(NULL);
+    m_arg1Impl.evalSubExprsIfNeeded(nullptr);
+    m_arg2Impl.evalSubExprsIfNeeded(nullptr);
+    m_arg3Impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() {
@@ -923,7 +923,7 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
                        m_arg3Impl.block(desc, scratch), TensorCwiseTernaryOpBlockFactory{m_functor});
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  private:
   const TernaryOp m_functor;
@@ -1019,9 +1019,9 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_condImpl.evalSubExprsIfNeeded(NULL);
-    m_thenImpl.evalSubExprsIfNeeded(NULL);
-    m_elseImpl.evalSubExprsIfNeeded(NULL);
+    m_condImpl.evalSubExprsIfNeeded(nullptr);
+    m_thenImpl.evalSubExprsIfNeeded(nullptr);
+    m_elseImpl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -1089,7 +1089,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
                        m_elseImpl.block(desc, scratch), TensorSelectOpBlockFactory());
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE EvaluatorPointerType data() const { return nullptr; }
 
 #ifdef EIGEN_USE_SYCL
   // binding placeholder accessors to a command group handler for SYCL

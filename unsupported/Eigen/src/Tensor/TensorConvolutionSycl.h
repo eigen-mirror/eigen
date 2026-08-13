@@ -306,8 +306,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         m_kernelArg(op.kernelExpression()),
         m_kernelImpl(op.kernelExpression(), device),
         m_indices(op.indices()),
-        m_buf(NULL),
-        m_kernel(NULL),
+        m_buf(nullptr),
+        m_kernel(nullptr),
         m_local_kernel(false),
         m_device(device) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout) ==
@@ -332,7 +332,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     preloadKernel();
-    m_inputImpl.evalSubExprsIfNeeded(NULL);
+    m_inputImpl.evalSubExprsIfNeeded(nullptr);
     if (data) {
       executeEval(data);
       return false;
@@ -348,13 +348,13 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     m_inputImpl.cleanup();
     if (m_buf) {
       m_device.deallocate_temp(m_buf);
-      m_buf = NULL;
+      m_buf = nullptr;
     }
     if (m_local_kernel) {
       m_device.deallocate_temp(m_kernel);
       m_local_kernel = false;
     }
-    m_kernel = NULL;
+    m_kernel = nullptr;
   }
   /// used by sycl in order to build the sycl buffer
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Device &device() const { return m_device; }
@@ -494,14 +494,14 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    eigen_assert(m_buf != NULL);
+    eigen_assert(m_buf != nullptr);
     eigen_assert(index < m_dimensions.TotalSize());
     return m_buf[index];
   }
 
   template <int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(const Index index) const {
-    eigen_assert(m_buf != NULL);
+    eigen_assert(m_buf != nullptr);
     eigen_assert(index < m_dimensions.TotalSize());
     return internal::ploadt<PacketReturnType, LoadMode>(m_buf + index);
   }

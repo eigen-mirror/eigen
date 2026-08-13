@@ -127,7 +127,7 @@ class TensorWithFormat<T, RowMajor, rank, Format> {
     typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
     Evaluator tensor(eval, DefaultDevice());
-    tensor.evalSubExprsIfNeeded(NULL);
+    tensor.evalSubExprsIfNeeded(nullptr);
     internal::TensorPrinter<Evaluator, rank, Format>::run(os, tensor, wf.t_format);
     // Cleanup.
     tensor.cleanup();
@@ -157,7 +157,7 @@ class TensorWithFormat<T, ColMajor, rank, Format> {
     typedef TensorEvaluator<const TensorForcedEvalOp<const decltype(tensor_row_major)>, DefaultDevice> Evaluator;
     TensorForcedEvalOp<const decltype(tensor_row_major)> eval = tensor_row_major.eval();
     Evaluator tensor(eval, DefaultDevice());
-    tensor.evalSubExprsIfNeeded(NULL);
+    tensor.evalSubExprsIfNeeded(nullptr);
     internal::TensorPrinter<Evaluator, rank, Format>::run(os, tensor, wf.t_format);
     // Cleanup.
     tensor.cleanup();
@@ -179,7 +179,7 @@ class TensorWithFormat<T, ColMajor, 0, Format> {
     typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
     Evaluator tensor(eval, DefaultDevice());
-    tensor.evalSubExprsIfNeeded(NULL);
+    tensor.evalSubExprsIfNeeded(nullptr);
     internal::TensorPrinter<Evaluator, 0, Format>::run(os, tensor, wf.t_format);
     // Cleanup.
     tensor.cleanup();

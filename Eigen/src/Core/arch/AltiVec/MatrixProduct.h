@@ -1914,7 +1914,7 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_row_iteration(const DataMapper& res, cons
                                                      const Scalar* rhs_base, Index depth, Index strideA, Index offsetA,
                                                      Index strideB, Index row, Index rows, const Packet& pAlpha,
                                                      const Packet& pMask) {
-  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = NULL, *rhs_ptr2 = NULL;
+  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr;
   const Scalar* lhs_ptr = lhs_base + row * strideA + remaining_rows * offsetA;
   PacketBlock<Packet, accRows> accZero0, accZero1, accZero2, accZero3, accZero4, accZero5, accZero6, accZero7, acc;
 
@@ -2074,9 +2074,9 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_iteration(const DataMapper& res, const Sc
                                                  const Packet& pMask
 #endif
 ) {
-  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = NULL, *rhs_ptr2 = NULL;
-  const Scalar *lhs_ptr0 = NULL, *lhs_ptr1 = NULL, *lhs_ptr2 = NULL, *lhs_ptr3 = NULL, *lhs_ptr4 = NULL,
-               *lhs_ptr5 = NULL, *lhs_ptr6 = NULL, *lhs_ptr7 = NULL;
+  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr;
+  const Scalar *lhs_ptr0 = nullptr, *lhs_ptr1 = nullptr, *lhs_ptr2 = nullptr, *lhs_ptr3 = nullptr, *lhs_ptr4 = nullptr,
+               *lhs_ptr5 = nullptr, *lhs_ptr6 = nullptr, *lhs_ptr7 = nullptr;
   PacketBlock<Packet, accRows> accZero0, accZero1, accZero2, accZero3, accZero4, accZero5, accZero6, accZero7;
   PacketBlock<Packet, accRows> acc;
 
@@ -2329,10 +2329,10 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_complex_row_iteration(const DataMapper& r
                                                              Index offsetA, Index strideB, Index row, Index rows,
                                                              const Packet& pAlphaReal, const Packet& pAlphaImag,
                                                              const Packet& pMask) {
-  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = NULL, *rhs_ptr_real2 = NULL;
-  const Scalar *rhs_ptr_imag0 = NULL, *rhs_ptr_imag1 = NULL, *rhs_ptr_imag2 = NULL;
+  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = nullptr, *rhs_ptr_real2 = nullptr;
+  const Scalar *rhs_ptr_imag0 = nullptr, *rhs_ptr_imag1 = nullptr, *rhs_ptr_imag2 = nullptr;
   const Scalar* lhs_ptr_real = lhs_base + advanceRows * row * strideA + remaining_rows * offsetA;
-  const Scalar* lhs_ptr_imag = NULL;
+  const Scalar* lhs_ptr_imag = nullptr;
   EIGEN_IF_CONSTEXPR (!LhsIsReal)
     lhs_ptr_imag = lhs_ptr_real + remaining_rows * strideA;
   else
@@ -2485,12 +2485,12 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_iteration(const DataMapper& res, 
                                                          Index offsetA, Index strideB, Index& row,
                                                          const Packet& pAlphaReal, const Packet& pAlphaImag,
                                                          const Packet& pMask) {
-  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = NULL, *rhs_ptr_real2 = NULL;
-  const Scalar *rhs_ptr_imag0 = NULL, *rhs_ptr_imag1 = NULL, *rhs_ptr_imag2 = NULL;
+  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = nullptr, *rhs_ptr_real2 = nullptr;
+  const Scalar *rhs_ptr_imag0 = nullptr, *rhs_ptr_imag1 = nullptr, *rhs_ptr_imag2 = nullptr;
   const Index imag_delta = accCols * strideA;
   const Index imag_delta2 = accCols2 * strideA;
-  const Scalar *lhs_ptr_real0 = NULL, *lhs_ptr_real1 = NULL;
-  const Scalar *lhs_ptr_real2 = NULL, *lhs_ptr_real3 = NULL;
+  const Scalar *lhs_ptr_real0 = nullptr, *lhs_ptr_real1 = nullptr;
+  const Scalar *lhs_ptr_real2 = nullptr, *lhs_ptr_real3 = nullptr;
   PacketBlock<Packet, accRows> accReal0, accImag0, accReal1, accImag1;
   PacketBlock<Packet, accRows> accReal2, accImag2, accReal3, accImag3;
   PacketBlock<Packet, accRows> taccReal, taccImag;

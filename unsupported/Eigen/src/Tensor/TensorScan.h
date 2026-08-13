@@ -385,7 +385,7 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
         m_size(m_impl.dimensions()[op.axis()]),
         m_stride(1),
         m_consume_dim(op.axis()),
-        m_output(NULL) {
+        m_output(nullptr) {
     // Accumulating a scalar isn't supported.
     EIGEN_STATIC_ASSERT((NumDims > 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
     eigen_assert(op.axis() >= 0 && op.axis() < NumDims);
@@ -425,7 +425,7 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Device& device() const { return m_device; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     internal::ScanLauncher<Self, Op, Device> launcher;
     if (data) {
       launcher(*this, data);
@@ -465,7 +465,7 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
   EIGEN_STRONG_INLINE void cleanup() {
     if (m_output) {
       m_device.deallocate_temp(m_output);
-      m_output = NULL;
+      m_output = nullptr;
     }
     m_impl.cleanup();
   }

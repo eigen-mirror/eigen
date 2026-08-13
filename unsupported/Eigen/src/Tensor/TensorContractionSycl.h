@@ -1334,15 +1334,15 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
   // We need to redefine this method to make nvcc happy
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(typename Base::EvaluatorPointerType data) {
-    this->m_leftImpl.evalSubExprsIfNeeded(NULL);
-    this->m_rightImpl.evalSubExprsIfNeeded(NULL);
+    this->m_leftImpl.evalSubExprsIfNeeded(nullptr);
+    this->m_rightImpl.evalSubExprsIfNeeded(nullptr);
     if (!data) {
       this->m_result = this->m_device.get(
           static_cast<Scalar *>(this->m_device.allocate_temp(this->dimensions().TotalSize() * sizeof(Scalar))));
       data = this->m_result;
     }
     evalToSycl(data);
-    return (this->m_result != NULL);
+    return (this->m_result != nullptr);
   }
   const Eigen::SyclDevice &device() const { return this->m_device; }
   void evalToSycl(typename Base::EvaluatorPointerType buffer) const {
@@ -1643,7 +1643,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
     if (this->m_result) {
       this->m_device.deallocate_temp(this->m_result);
-      this->m_result = NULL;
+      this->m_result = nullptr;
     }
   }
 };

@@ -290,7 +290,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
       : m_inputImpl(op.inputExpression(), device),
         m_kernelImpl(op.kernelExpression(), device),
         m_kernelArg(op.kernelExpression()),
-        m_kernel(NULL),
+        m_kernel(nullptr),
         m_local_kernel(false),
         m_device(device) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<InputArgType, Device>::Layout) ==
@@ -357,7 +357,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(Scalar*) {
-    m_inputImpl.evalSubExprsIfNeeded(NULL);
+    m_inputImpl.evalSubExprsIfNeeded(nullptr);
     preloadKernel();
     return true;
   }
@@ -367,11 +367,11 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
       m_device.deallocate((void*)m_kernel);
       m_local_kernel = false;
     }
-    m_kernel = NULL;
+    m_kernel = nullptr;
   }
 
   void evalTo(typename XprType::Scalar* buffer) {
-    evalSubExprsIfNeeded(NULL);
+    evalSubExprsIfNeeded(nullptr);
     for (int i = 0; i < dimensions().TotalSize(); ++i) {
       buffer[i] += coeff(i);
     }
@@ -440,7 +440,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
                           TensorOpCost(0, 0, convolve_compute_cost, vectorized, PacketSize));
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index firstInput(Index index) const {
@@ -759,8 +759,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         m_kernelImpl(op.kernelExpression(), device),
         m_kernelArg(op.kernelExpression()),
         m_indices(op.indices()),
-        m_buf(NULL),
-        m_kernel(NULL),
+        m_buf(nullptr),
+        m_kernel(nullptr),
         m_local_kernel(false),
         m_device(device) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<InputArgType, GpuDevice>::Layout) ==
@@ -789,7 +789,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(Scalar* data) {
     preloadKernel();
-    m_inputImpl.evalSubExprsIfNeeded(NULL);
+    m_inputImpl.evalSubExprsIfNeeded(nullptr);
     if (data) {
       executeEval(data);
       return false;
@@ -804,13 +804,13 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     m_inputImpl.cleanup();
     if (m_buf) {
       m_device.deallocate(m_buf);
-      m_buf = NULL;
+      m_buf = nullptr;
     }
     if (m_local_kernel) {
       m_device.deallocate((void*)m_kernel);
       m_local_kernel = false;
     }
-    m_kernel = NULL;
+    m_kernel = nullptr;
   }
 
   EIGEN_STRONG_INLINE void preloadKernel() {

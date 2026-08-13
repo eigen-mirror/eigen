@@ -398,7 +398,7 @@ struct FullReductionLauncher<
     const int num_per_thread = 128;
     const int num_blocks = numext::div_ceil<int>(num_coeffs, block_size * num_per_thread);
 
-    unsigned int* semaphore = NULL;
+    unsigned int* semaphore = nullptr;
     if (num_blocks > 1) {
       semaphore = device.semaphore();
     }

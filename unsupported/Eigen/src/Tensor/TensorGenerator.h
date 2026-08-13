@@ -230,7 +230,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
     return TensorOpCost(0, 0, TensorOpCost::AddCost<Scalar>() + TensorOpCost::MulCost<Scalar>());
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void extract_coordinates(Index index, array<Index, NumDims>& coords) const {

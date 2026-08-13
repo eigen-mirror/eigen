@@ -162,7 +162,7 @@ struct TensorEvaluator<const TensorReshapingOp<NewDimensions, ArgType>, Device> 
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                           bool /*root_of_expr_ast*/ = false) const {
-    eigen_assert(m_impl.data() != NULL);
+    eigen_assert(m_impl.data() != nullptr);
     eigen_assert((kind == Runtime) || (kind == OneByN && desc.dimensions()[0] == 1) ||
                  (kind == NByOne && desc.dimensions()[1] == 1));
 
@@ -228,7 +228,7 @@ struct TensorEvaluator<TensorReshapingOp<NewDimensions, ArgType>, Device>
 
   template <typename TensorBlock>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
-    eigen_assert(this->m_impl.data() != NULL);
+    eigen_assert(this->m_impl.data() != nullptr);
 
     typedef typename TensorBlock::XprType TensorBlockExpr;
     typedef internal::TensorBlockAssignment<Scalar, TensorEvaluator::NumOutputDims, TensorBlockExpr, Index>
@@ -418,7 +418,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     EIGEN_IF_CONSTEXPR (!NumTraits<std::remove_const_t<Scalar>>::RequireInitialization) {
       if (data && m_impl.data()) {
         Index contiguous_values = 1;
@@ -551,7 +551,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
             offset += m_offsets[i] * m_inputStrides[i];
             for (int j = i + 1; j < NumDims; ++j) {
               if (m_dimensions[j] > 1) {
-                return NULL;
+                return nullptr;
               }
               offset += m_offsets[j] * m_inputStrides[j];
             }
@@ -564,7 +564,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
             offset += m_offsets[i] * m_inputStrides[i];
             for (int j = i - 1; j >= 0; --j) {
               if (m_dimensions[j] > 1) {
-                return NULL;
+                return nullptr;
               }
               offset += m_offsets[j] * m_inputStrides[j];
             }
@@ -574,7 +574,7 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
       }
       return result + offset;
     }
-    return NULL;
+    return nullptr;
   }
 
  protected:
@@ -867,7 +867,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -942,7 +942,7 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
            TensorOpCost(0, 0, m_is_identity ? 1 : NumDims, vectorized && packets_stay_in_inner, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Storage::Type data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Storage::Type data() const { return nullptr; }
 
  protected:
   // Computes the input index of output index `index` and, as a by-product of

@@ -90,7 +90,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
@@ -103,7 +103,7 @@ struct TensorEvaluator<const TensorIndexPairOp<ArgType>, Device> {
     return m_impl.costPerCoeff(vectorized) + TensorOpCost(0, 0, 1);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
  protected:
   TensorEvaluator<ArgType, Device> m_impl;
@@ -213,7 +213,7 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_impl.dimensions(); }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
@@ -223,7 +223,7 @@ struct TensorEvaluator<const TensorPairReducerOp<ReduceOp, Dims, ArgType>, Devic
     return (m_return_dim < 0) ? v.first : (v.first % m_stride_mod) / m_stride_div;
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
     const double compute_cost =

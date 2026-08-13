@@ -287,7 +287,7 @@ class TensorBlockDescriptor {
 
   template <int Layout, typename Scalar>
   void AddDestinationBuffer(Scalar* dst_base, const Dimensions& dst_strides) {
-    eigen_assert(dst_base != NULL);
+    eigen_assert(dst_base != nullptr);
     m_destination = DestinationBuffer::template make<Layout>(*this, dst_base, dst_strides);
   }
 
@@ -298,7 +298,7 @@ class TensorBlockDescriptor {
   }
 
   TensorBlockDescriptor& DropDestinationBuffer() {
-    m_destination.m_data = NULL;
+    m_destination.m_data = nullptr;
     m_destination.m_kind = DestinationBuffer::kEmpty;
     return *this;
   }
@@ -523,7 +523,7 @@ class TensorBlockScratchAllocator {
       m_allocations.push_back(allocation);
     }
 
-    eigen_assert(m_allocations[m_allocation_index].ptr != NULL);
+    eigen_assert(m_allocations[m_allocation_index].ptr != nullptr);
     eigen_assert(m_allocations[m_allocation_index].size >= size);
 
     return m_allocations[m_allocation_index++].ptr;
@@ -791,7 +791,7 @@ class TensorCwiseUnaryBlock {
   TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
 
   XprType expr() const { return XprType(m_arg_block.expr(), m_functor); }
-  const Scalar* data() const { return NULL; }
+  const Scalar* data() const { return nullptr; }
   void cleanup() { m_arg_block.cleanup(); }
 
  private:
@@ -823,7 +823,7 @@ class TensorCwiseBinaryBlock {
 
   XprType expr() const { return XprType(m_left_block.expr(), m_right_block.expr(), m_functor); }
 
-  const Scalar* data() const { return NULL; }
+  const Scalar* data() const { return nullptr; }
 
   void cleanup() {
     m_left_block.cleanup();
@@ -856,7 +856,7 @@ class TensorUnaryExprBlock {
 
   TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
   XprType expr() const { return m_factory.expr(m_arg_block.expr()); }
-  const Scalar* data() const { return NULL; }
+  const Scalar* data() const { return nullptr; }
   void cleanup() { m_arg_block.cleanup(); }
 
  private:
@@ -890,7 +890,7 @@ class TensorTernaryExprBlock {
 
   TensorBlockKind kind() const { return internal::TensorBlockKind::kExpr; }
   XprType expr() const { return m_factory.expr(m_arg1_block.expr(), m_arg2_block.expr(), m_arg3_block.expr()); }
-  const Scalar* data() const { return NULL; }
+  const Scalar* data() const { return nullptr; }
   void cleanup() {
     m_arg1_block.cleanup();
     m_arg2_block.cleanup();

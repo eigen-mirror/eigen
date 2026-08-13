@@ -176,7 +176,7 @@ class TensorConversionOp : public TensorBase<TensorConversionOp<TargetType, XprT
 template <bool SameType, typename Eval, typename EvalPointerType>
 struct ConversionSubExprEval {
   static EIGEN_STRONG_INLINE bool run(Eval& impl, EvalPointerType) {
-    impl.evalSubExprsIfNeeded(NULL);
+    impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 };
@@ -405,7 +405,7 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
     return TensorBlock(m_impl.block(desc, scratch), TensorConversionOpBlockFactory());
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   /// required by sycl in order to extract the sycl accessor
   const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }

@@ -357,7 +357,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
-    m_impl.evalSubExprsIfNeeded(NULL);
+    m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
   }
 
@@ -510,7 +510,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
     return TensorOpCost(0, 0, compute_cost, vectorized, PacketSize);
   }
 
-  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
+  EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   const TensorEvaluator<ArgType, Device>& impl() const { return m_impl; }
 
