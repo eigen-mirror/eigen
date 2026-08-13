@@ -776,6 +776,30 @@ static void test_eval_tensor_shuffle() {
   } while (std::next_permutation(&shuffle[0], &shuffle[0] + NumDims));
 }
 
+template <typename T, int NumDims, int Layout>
+static void test_eval_tensor_inflation() {
+  // Keep the input small: inflation multiplies every dimension by its stride.
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(2, 5);
+  Tensor<T, NumDims, Layout> input(dims);
+  input.setRandom();
+
+  DSizes<Index, NumDims> strides;
+  DSizes<Index, NumDims> inflated_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    strides[i] = internal::random<Index>(1, 3);
+    inflated_dims[i] = (dims[i] - 1) * strides[i] + 1;
+  }
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.inflate(strides),
+                                           [&inflated_dims]() { return RandomBlock<Layout>(inflated_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.inflate(strides),
+                                           [&inflated_dims]() { return SkewedInnerBlock<Layout>(inflated_dims); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.inflate(strides),
+                                           [&inflated_dims]() { return FixedSizeBlock(inflated_dims); });
+}
+
 template <typename T, int Layout>
 static void test_eval_tensor_reshape_with_bcast() {
   Index dim = internal::random<Index>(1, 100);
@@ -1024,7 +1048,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<int, 1, RowMajor>()));   \
@@ -1034,7 +1058,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<int, 5, RowMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 1, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 2, ColMajor>()));   \
-  CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
+  CALL_SUBTEST_PART(PART)((NAME<int, 3, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 4, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<int, 5, ColMajor>()));   \
   CALL_SUBTEST_PART(PART)((NAME<bool, 1, RowMajor>()));  \
@@ -1044,7 +1068,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<bool, 5, RowMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 1, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 2, ColMajor>()));  \
-  CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
+  CALL_SUBTEST_PART(PART)((NAME<bool, 3, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 4, ColMajor>()));  \
   CALL_SUBTEST_PART(PART)((NAME<bool, 5, ColMajor>()))
 
@@ -1056,7 +1080,7 @@ static void test_assign_to_tensor_shuffle() {
   CALL_SUBTEST_PART(PART)((NAME<float, 5, RowMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 1, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 2, ColMajor>())); \
-  CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
+  CALL_SUBTEST_PART(PART)((NAME<float, 3, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 4, ColMajor>())); \
   CALL_SUBTEST_PART(PART)((NAME<float, 5, ColMajor>()))
 
@@ -1118,6 +1142,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_reshape_with_bcast);
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_forced_eval);
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_chipping_of_bcast);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(6, test_eval_tensor_inflation);
 
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(7, test_assign_to_tensor);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(7, test_assign_to_tensor_reshape);
