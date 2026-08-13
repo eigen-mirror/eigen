@@ -1030,7 +1030,7 @@ struct evaluator<CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, 
   using DummyXprType = typename Helper::DummyXprType;
 
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const DummyXprType& xpr)
-      : Base(Helper::expression(xpr, std::integral_constant<bool, Helper::UseTyped>())) {}
+      : Base(Helper::expression(xpr, bool_constant<Helper::UseTyped>())) {}
 };
 
 // -------------------- CwiseBinaryOp --------------------

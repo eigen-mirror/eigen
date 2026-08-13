@@ -138,11 +138,7 @@ struct DividerHelper<64, T> {
 template <typename T, bool div_gt_one = false>
 struct TensorIntDivisor {
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() {
-    multiplier = 0;
-    shift1 = 0;
-    shift2 = 0;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() = default;
 
   // Must have 0 < divider < 2^31. This is relaxed to
   // 0 < divider < 2^63 when using 64-bit indices on platforms that support
@@ -177,9 +173,9 @@ struct TensorIntDivisor {
 
  private:
   typedef typename DividerTraits<T>::type UnsignedType;
-  UnsignedType multiplier;
-  int32_t shift1;
-  int32_t shift2;
+  UnsignedType multiplier = 0;
+  int32_t shift1 = 0;
+  int32_t shift2 = 0;
 };
 
 // Optimized version for signed 32 bit integers.
@@ -188,10 +184,7 @@ struct TensorIntDivisor {
 template <>
 class TensorIntDivisor<int32_t, true> {
  public:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() {
-    magic = 0;
-    shift = 0;
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorIntDivisor() = default;
   // Must have 2 <= divider
   EIGEN_DEVICE_FUNC TensorIntDivisor(int32_t divider) {
     eigen_assert(divider >= 2);
@@ -244,8 +237,8 @@ class TensorIntDivisor<int32_t, true> {
     shift = p - 32;
   }
 
-  uint32_t magic;
-  int32_t shift;
+  uint32_t magic = 0;
+  int32_t shift = 0;
 };
 
 template <typename T, bool div_gt_one>

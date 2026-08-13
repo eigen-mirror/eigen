@@ -520,7 +520,7 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
                                 const LaneIdType&) const {
-    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
+    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, std::true_type, std::false_type>());
   }
 
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xf& a, std::complex<float> b, const Packet1Xcf& c) const {
@@ -559,13 +559,13 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>
   EIGEN_STRONG_INLINE void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
-                                     RhsPacketType& tmp, const true_type&) const {
+                                     RhsPacketType& tmp, const std::true_type&) const {
     EIGEN_UNUSED_VARIABLE(tmp);
     c = pmadd_scalar(a, b, c);
   }
 
   EIGEN_STRONG_INLINE void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
-                                     const false_type&) const {
+                                     const std::false_type&) const {
     c += a * b;
   }
 
@@ -638,17 +638,17 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar*, RhsPacketx4&) const {}
 
   EIGEN_STRONG_INLINE void loadRhsQuad(const RhsScalar* b, RhsPacket& dest) const {
-    loadRhsQuad_impl(b, dest, std::conditional_t<RhsPacketSize == 16, true_type, false_type>());
+    loadRhsQuad_impl(b, dest, std::conditional_t<RhsPacketSize == 16, std::true_type, std::false_type>());
   }
 
-  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const true_type&) const {
+  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const std::true_type&) const {
     // FIXME we can do better!
     // what we want here is a ploadheight
     RhsScalar tmp[4] = {b[0], b[0], b[1], b[1]};
     dest = ploadquad<RhsPacket>(tmp);
   }
 
-  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const false_type&) const {
+  EIGEN_STRONG_INLINE void loadRhsQuad_impl(const RhsScalar* b, RhsPacket& dest, const std::false_type&) const {
     eigen_internal_assert(RhsPacketSize <= 8);
     dest = pset1<RhsPacket>(*b);
   }
@@ -663,7 +663,7 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename LaneIdType>
   EIGEN_STRONG_INLINE void madd(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c, RhsPacketType& tmp,
                                 const LaneIdType&) const {
-    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, true_type, false_type>());
+    madd_impl(a, b, c, tmp, std::conditional_t<Vectorizable, std::true_type, std::false_type>());
   }
 
   EIGEN_STRONG_INLINE Packet1Xcf pmadd_scalar(const Packet1Xcf& a, float b, const Packet1Xcf& c) const {
@@ -696,13 +696,13 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
 
   template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType>
   EIGEN_STRONG_INLINE void madd_impl(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
-                                     RhsPacketType& tmp, const true_type&) const {
+                                     RhsPacketType& tmp, const std::true_type&) const {
     EIGEN_UNUSED_VARIABLE(tmp);
     c = pmadd_scalar(a, b, c);
   }
 
   EIGEN_STRONG_INLINE void madd_impl(const LhsScalar& a, const RhsScalar& b, ResScalar& c, RhsScalar& /*tmp*/,
-                                     const false_type&) const {
+                                     const std::false_type&) const {
     c += a * b;
   }
 

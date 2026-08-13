@@ -311,9 +311,8 @@ Index reach_solve_dense_dispatch(std::false_type /*iterator*/, const LhsType& lh
 template <bool Upper, bool UnitDiag, typename LhsDerived, typename StorageIndex, typename Scalar>
 Index reach_solve_dense(const SparseMatrixBase<LhsDerived>& lhs, const StorageIndex* bIdx, Index bCount,
                         StorageIndex* iwork, uint8_t* mark, Scalar* xwork) {
-  return reach_solve_dense_dispatch<Upper, UnitDiag>(
-      std::integral_constant<bool, has_compressed_access<LhsDerived>::value>{}, lhs.derived(), lhs.rows(), bIdx, bCount,
-      iwork, mark, xwork);
+  return reach_solve_dense_dispatch<Upper, UnitDiag>(bool_constant<has_compressed_access<LhsDerived>::value>{},
+                                                     lhs.derived(), lhs.rows(), bIdx, bCount, iwork, mark, xwork);
 }
 
 }  // namespace internal
