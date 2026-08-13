@@ -19,7 +19,7 @@ export | grep EIGEN
 export DEBIAN_FRONTEND=noninteractive
 if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
   apt-get update -y > /dev/null
-  apt-get install -y --no-install-recommends ninja-build cmake git xsltproc > /dev/null
+  apt-get install -y --no-install-recommends ninja-build cmake git xsltproc ccache > /dev/null
 fi
 
 # Install required dependencies and set up compilers.

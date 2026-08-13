@@ -8,10 +8,21 @@ rootdir=`pwd`
 mkdir -p ${EIGEN_CI_BUILDDIR}
 cd ${EIGEN_CI_BUILDDIR}
 
+# Compile through ccache when the job enables it and the image provides it.
+# The GitLab cache holds ${CCACHE_DIR}, keyed on content and compiler, so it
+# still hits after the fresh per-job clone re-stamps every source mtime
+# (which makes any cached ninja state rebuild from scratch).
+launchers=""
+if [[ "${EIGEN_CI_CCACHE}" == "on" ]] && command -v ccache >/dev/null 2>&1; then
+  launchers="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+  ccache --zero-stats
+fi
+
 cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
   -DCMAKE_C_COMPILER=${EIGEN_CI_C_COMPILER}                      \
   -DCMAKE_CXX_COMPILER_TARGET=${EIGEN_CI_CXX_COMPILER_TARGET}    \
+  ${launchers}                                                   \
   ${EIGEN_CI_ADDITIONAL_ARGS} ${rootdir}
 
 target=""
@@ -111,6 +122,11 @@ if [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space:]
     done < <(echo "$shuffled_deps" | xargs -n "${batch_size}")
     if [[ "$build_failed" == "true" ]]; then
       echo "Some batches failed."
+      # The cache is pushed even on failure (cache:when: always), so the
+      # stats still describe what the next attempt can reuse.
+      if [[ -n "${launchers}" ]]; then
+        ccache --show-stats
+      fi
       exit 1
     fi
   fi
@@ -119,6 +135,11 @@ fi
 
 if [[ "$shuffled" != "true" ]]; then
   cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs}
+fi
+
+# Hit/miss summary for judging what the cache pays for on this job.
+if [[ -n "${launchers}" ]]; then
+  ccache --show-stats
 fi
 
 cd ${rootdir}
