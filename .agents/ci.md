@@ -37,7 +37,18 @@ Run checks relevant to the changed files and report unavailable tools:
 ```bash
 codespell --config setup.cfg path/to/changed-file
 reuse lint
+python3 scripts/check_style.py --diff <base-sha>
+python3 scripts/clang_tidy_hook.py --diff <base-sha>   # needs clang-tidy
 ```
+
+Both report only on the lines a change adds, and both are advisory. `check_style.py` covers the conventions
+clang-tidy cannot state — comment verbosity, and the declaration forms still awaiting a `CustomChecks` query
+(see the parked block in `.clang-tidy`). `clang_tidy_hook.py` runs clang-tidy itself, restricted to added lines
+with `--line-filter`; it needs no build directory, generating a driver that includes the module umbrella and then
+the edited `Eigen/src` header, the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when
+clang-tidy is absent.
+
+Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
 to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are

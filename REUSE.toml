@@ -24,6 +24,7 @@ SPDX-License-Identifier = "MPL-2.0"
 
 [[annotations]]
 path = [
+    ".claude/settings.json",
     ".clang-format",
     ".clang-tidy",
     ".coderabbit.yaml",

@@ -15,6 +15,7 @@ core.*
 *.bak
 *~
 *.build*
+.tidy-build/
 *.moc.*
 *.moc
 ui_*
@@ -42,4 +43,6 @@ Makefile
 !Eigen/Core
 !Eigen/src/Core
 CLAUDE.md
+.claude/*
+!.claude/settings.json
 .DS_Store

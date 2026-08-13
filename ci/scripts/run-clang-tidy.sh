@@ -7,13 +7,14 @@
 # <base_sha>   The merge-base commit to diff against.
 # <build_dir>  Path to a CMake build directory containing compile_commands.json.
 #
-# For header files under Eigen/src/<Module>/, the script generates a minimal
-# driver .cpp that includes the parent module header so that
-# InternalHeaderCheck.h does not #error out. The umbrella name is read from
-# the header's own `#error "Please include <X>"` directive (or a sibling
-# InternalHeaderCheck.h), with a fallback to the heuristic <root>/<Module>
-# for deeply-nested files (e.g. arch-specific backends) that don't carry
-# their own directive.
+# For header files under Eigen/src/<Module>/, the script generates a driver
+# that includes the parent module header first, so InternalHeaderCheck.h does
+# not #error out, and then the changed header itself. The explicit second
+# include covers new headers that are not exported by the umbrella yet. The
+# umbrella name is read from the header's own `#error "Please include <X>"`
+# directive (or a sibling InternalHeaderCheck.h), with a fallback to the
+# heuristic <root>/<Module> for deeply-nested files (e.g. arch-specific
+# backends) that don't carry their own directive.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
@@ -35,18 +36,26 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # it would fail at preprocessor time (e.g. cholmod.h not found).
 EXTERNAL_DEP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
 
-# Get changed files (Added, Modified, Renamed).
-CHANGED_FILES=$(git diff --name-only --diff-filter=AMR "${BASE_SHA}" HEAD)
+# Get changed files (Added, Modified, Renamed) without losing whitespace in
+# repository paths.
+mapfile -d '' -t CHANGED_FILES < <(git diff --name-only -z --diff-filter=AMR "${BASE_SHA}" HEAD)
 
-if [ -z "${CHANGED_FILES}" ]; then
+if [ "${#CHANGED_FILES[@]}" -eq 0 ]; then
   echo "No changed files to check."
   exit 0
 fi
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "${TMPDIR}"' EXIT
+TIDY_TMPDIR=$(mktemp -d)
+trap 'rm -rf "${TIDY_TMPDIR}"' EXIT
 
 ERRORS=0
+# Generated drivers live outside the checkout, where clang-tidy cannot discover
+# Eigen's configuration.  The job is advisory (`allow_failure`), so promoting
+# warnings makes GitLab mark findings without blocking the pipeline.
+TIDY_ARGS=(
+  "--config-file=${REPO_ROOT}/.clang-tidy"
+  "--warnings-as-errors=*"
+)
 
 # Determine which umbrella header to include when linting a given source-tree
 # header. The source of truth is the `#error "Please include <X>"` directive
@@ -108,53 +117,116 @@ module_include_for_header() {
   return 1
 }
 
-# Pick a compile command from compile_commands.json to use as a template.
-# We just need a valid set of compiler flags.
-TEMPLATE_CMD=$(python3 -c "
-import json, sys
-with open('${BUILD_DIR}/compile_commands.json') as f:
-    cmds = json.load(f)
-# Pick the first .cpp entry.
-for c in cmds:
-    if c['file'].endswith('.cpp'):
-        print(c['directory'])
-        break
-")
+# CMake normally records absolute source paths, so a textual search for the
+# repository-relative path does not reliably establish membership.
+in_compile_database() {
+  python3 - "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" <<'PY'
+import json
+import os
+import sys
+
+database, target = sys.argv[1:]
+try:
+    with open(database, encoding="utf-8") as handle:
+        commands = json.load(handle)
+except (OSError, ValueError) as error:
+    print("ERROR: could not read %s: %s" % (database, error), file=sys.stderr)
+    sys.exit(2)
+if not isinstance(commands, list):
+    print("ERROR: %s does not contain a JSON array" % database, file=sys.stderr)
+    sys.exit(2)
+
+target = os.path.realpath(target)
+for command in commands:
+    if not isinstance(command, dict):
+        continue
+    source = command.get("file")
+    if not source:
+        continue
+    if not os.path.isabs(source):
+        source = os.path.join(command.get("directory", ""), source)
+    if os.path.realpath(source) == target:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+# Restrict diagnostics to the lines this merge request adds. Without it the
+# style checks in .clang-tidy (modernize-use-nullptr, modernize-use-using)
+# would report every pre-existing occurrence in a touched file — Eigen/src
+# holds ~4100 typedefs — rather than the ones under review. An empty filter
+# means "no filtering" to clang-tidy, so a file with no added lines is skipped
+# rather than linted whole.
+line_filter_for() {
+  python3 "${REPO_ROOT}/scripts/style_common.py" --line-filter "${BASE_SHA}" "$1"
+}
 
 echo "Checking changed files with clang-tidy..."
 echo "Base SHA: ${BASE_SHA}"
 echo ""
 
-for file in ${CHANGED_FILES}; do
+for file in "${CHANGED_FILES[@]}"; do
+  LINE_FILTER=$(line_filter_for "${file}")
+  if [ -z "${LINE_FILTER}" ] || [ "${LINE_FILTER}" = "[]" ]; then
+    # Renamed or mode-only change: nothing added to report on.
+    continue
+  fi
+
   # Only check C++ source and header files.
   case "${file}" in
+    failtest/*.cpp)
+      # The compilation database carries both the successful and intentionally
+      # broken variants.  Parse the ordinary variant directly so the _ko
+      # command cannot turn every changed failtest into a clang diagnostic.
+      echo "=== ${file} ==="
+      if ! clang-tidy \
+            "${TIDY_ARGS[@]}" \
+            --line-filter="${LINE_FILTER}" \
+            "${file}" \
+            -- -std=c++14 -I"${REPO_ROOT}" 2>&1; then
+        ERRORS=$((ERRORS + 1))
+      fi
+      ;;
     *.cpp|*.cc|*.cxx)
       # Source file: run clang-tidy directly if it's in the compilation database.
-      if grep -q "\"${file}\"" "${BUILD_DIR}/compile_commands.json" 2>/dev/null; then
+      if in_compile_database "${file}"; then
         echo "=== ${file} ==="
-        if ! clang-tidy -p "${BUILD_DIR}" "${file}" 2>&1; then
+        if ! clang-tidy \
+              -p "${BUILD_DIR}" \
+              "${TIDY_ARGS[@]}" \
+              --line-filter="${LINE_FILTER}" \
+              "${file}" 2>&1; then
           ERRORS=$((ERRORS + 1))
+        fi
+      else
+        STATUS=$?
+        if [ "${STATUS}" -gt 1 ]; then
+          exit "${STATUS}"
         fi
       fi
       ;;
     *.h|*.hpp)
-      # Header file: generate a driver .cpp that includes the right module.
+      # Header file: include the right module first, then force the changed
+      # header into the translation unit even if the umbrella omits it.
       MODULE_INCLUDE=$(module_include_for_header "${file}" || true)
       if [ -z "${MODULE_INCLUDE}" ]; then
         # Not a recognized module header or in skip list.
         continue
       fi
 
-      DRIVER="${TMPDIR}/tidy_driver_$(echo "${file}" | tr '/' '_').cpp"
+      DRIVER="${TIDY_TMPDIR}/tidy_driver_${file//\//_}.cpp"
       cat > "${DRIVER}" <<EOF
 #include <${MODULE_INCLUDE}>
+#include <${file}>
 EOF
 
       echo "=== ${file} (via ${MODULE_INCLUDE}) ==="
       if ! clang-tidy \
-            -p "${BUILD_DIR}" \
+            "${TIDY_ARGS[@]}" \
             --header-filter="$(echo "${file}" | sed 's/[.[\*^$()+?{|]/\\&/g')" \
-            "${DRIVER}" 2>&1; then
+            --line-filter="${LINE_FILTER}" \
+            "${DRIVER}" \
+            -- -std=c++14 -I"${REPO_ROOT}" 2>&1; then
         ERRORS=$((ERRORS + 1))
       fi
       ;;

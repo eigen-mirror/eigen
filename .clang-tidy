@@ -2,13 +2,21 @@
 # Conservative clang-tidy configuration for Eigen.
 #
 # Focuses on bug-finding checks with low false-positive rates.
-# Intentionally omits style-enforcement checks (modernize-*, google-*,
+# Intentionally omits blanket style enforcement (modernize-*, google-*,
 # cppcoreguidelines-*) since Eigen has its own conventions and is a
 # heavily-templated math library where many "modern C++" idioms don't apply.
+# The individually named modernize-* checks below are the exceptions: they
+# state actual Eigen conventions for new code. They only make sense because
+# both entry points restrict diagnostics to the lines a change adds via
+# --line-filter (ci/scripts/run-clang-tidy.sh for merge requests,
+# scripts/clang_tidy_hook.py while editing); whole-file they would report
+# thousands of pre-existing occurrences.
 
 Checks: >
   -*,
   bugprone-*,
+  modernize-use-nullptr,
+  modernize-use-using,
   -bugprone-narrowing-conversions,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
@@ -34,4 +42,59 @@ HeaderFilterRegex: 'Eigen/.*|test/.*|blas/.*|lapack/.*|unsupported/Eigen/.*'
 CheckOptions:
   - key: bugprone-assert-side-effect.AssertMacros
     value: 'eigen_assert,eigen_internal_assert,EIGEN_STATIC_ASSERT,VERIFY,VERIFY_IS_APPROX,VERIFY_IS_EQUAL,VERIFY_IS_MUCH_SMALLER_THAN,VERIFY_IS_NOT_APPROX,VERIFY_IS_NOT_EQUAL,VERIFY_IS_UNITARY,VERIFY_RAISES_ASSERT'
+
+# Eigen-specific conventions that no upstream check covers, contributed in the
+# review of !2775. `CustomChecks` requires clang-tidy >= 22, while the CI image
+# (checkformat:clangtidy, Ubuntu 24.04) provides 18, so these are parked here
+# rather than enabled; uncomment once that job's toolchain moves. Until then
+# scripts/check_style.py reports the first three textually on added lines.
+# CustomChecks:
+#   - Name: eigen-bool-constant
+#     Query: |
+#       match typeLoc(loc(templateSpecializationType(
+#         hasDeclaration(namedDecl(hasName("::std::integral_constant"))),
+#         hasTemplateArgument(0, refersToType(booleanType())),
+#       ))).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: use `Eigen::internal::bool_constant<_>` instead of `std::integral_constant<bool, _>`
+#         Level: Warning
+#   - Name: eigen-if-constexpr
+#     Query: |
+#       match ifStmt(
+#         isConstexpr(),
+#         unless(hasCondition(isExpandedFromMacro("EIGEN_IF_CONSTEXPR"))),
+#       ).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: baseline is C++14; use `EIGEN_IF_CONSTEXPR (...)` with unconditionally-valid branches
+#         Level: Warning
+#   - Name: eigen-enum-constant
+#     # Unnamed enums only — named class-scope enums are legitimate.  There is
+#     # no isAnonymous() narrowing matcher for enum declarations, so the query
+#     # matches the placeholder name Clang generates for them, resembling
+#     # `::ns::(unnamed enum at File.h:12)` as of Clang 22, whose trailing `)`
+#     # no real identifier can carry.
+#     Query: |
+#       match enumDecl(
+#         hasDeclContext(cxxRecordDecl()),
+#         matchesName("\\)$"),
+#       ).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: use `static constexpr` instead of `enum` for class constants
+#         Level: Warning
+#   - Name: eigen-unsigned-flags
+#     Query: |
+#       match varDecl(
+#         hasDeclContext(cxxRecordDecl()),
+#         isStaticStorageClass(),
+#         isConstexpr(),
+#         matchesName("Flags0?"),
+#         hasType(isSignedInteger()),
+#       ).bind("target")
+#     Diagnostic:
+#       - BindName: target
+#         Message: flag types are conventionally unsigned
+#         Level: Warning
 ...
