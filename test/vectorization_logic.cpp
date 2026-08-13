@@ -288,6 +288,34 @@ struct vectorization_logic {
                         Matrix<Scalar, PacketSize, internal::plain_enum_min(2, PacketSize)>() *
                             Matrix<Scalar, internal::plain_enum_min(2, PacketSize), PacketSize>(),
                         InnerVectorizedTraversal, CompleteUnrolling)));
+
+    if (PacketSize > 1) {
+      // Matrix22 is column-major here, since EIGEN_DEFAULT_TO_ROW_MAJOR is #undef'd above; Matrix22r
+      // is its row-major twin, so the pair below isolates the effect of storage order alone.
+      using Matrix22r = Matrix<Scalar, 2 * PacketSize, 8, RowMajor>;
+      using VectorFlat = Matrix<Scalar, Matrix22::SizeAtCompileTime, 1>;
+      using Matrix2x16 = Matrix<Scalar, 2 * PacketSize, 16, ColMajor>;
+      VERIFY(test_assign(VectorFlat(), Matrix22().reshaped(), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(VectorFlat(), (Matrix22() + Matrix22()).reshaped(), InnerVectorizedTraversal, -1));
+      // A cross-order flat view cannot serve packets, but stays linear...
+      VERIFY(test_assign(VectorFlat(), Matrix22r().reshaped(), LinearTraversal, -1));
+      // ... and vectorizes again when the requested order follows the storage order.
+      VERIFY(test_assign(VectorFlat(), Matrix22r().template reshaped<AutoOrder>(), InnerVectorizedTraversal, -1));
+      VERIFY(test_redux(Matrix22().reshaped(), LinearVectorizedTraversal, CompleteUnrolling));
+      VERIFY(test_assign(VectorX(160), MatrixXX(10, 16).reshaped(), LinearVectorizedTraversal, NoUnrolling));
+
+      // Replicate serves packets only when the inner (storage-order) direction is not replicated.
+      VERIFY(test_assign(Matrix2x16(), Matrix22().template replicate<1, 2>(), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(MatrixXX(10, 8), MatrixXX(10, 4).template replicate<1, 2>(), SliceVectorizedTraversal,
+                         NoUnrolling));
+      // Replicating the inner direction would need wrap-around loads: scalar fallback.
+      VERIFY(test_assign(Matrix44(), Matrix2x16().template replicate<2, 1>(), DefaultTraversal, -1));
+      // A replicated vector keeps linear access even when packets are unavailable.
+      VERIFY(
+          test_assign(Matrix<Scalar, 2 * PacketSize, 1>(), Vector1().template replicate<2, 1>(), LinearTraversal, -1));
+      // Runtime factors cannot prove the inner direction intact: no packets, no linear access.
+      VERIFY(test_assign(MatrixXX(10, 8), MatrixXX(10, 4).replicate(1, 2), DefaultTraversal, NoUnrolling));
+    }
 #endif
 
     VERIFY(test_assign(MatrixXX(10, 10), MatrixXX(20, 20).block(10, 10, 2, 3), SliceVectorizedTraversal, NoUnrolling));
