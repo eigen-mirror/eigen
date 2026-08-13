@@ -247,6 +247,36 @@ Here is an example enlarging a given matrix while padding the additional first r
 \verbinclude Slicing_custom_padding.out
 </td></tr></table>
 
+\section TutorialSlicingMap Slicing with Map
+
+Before the introduction of the `operator()` API in %Eigen 3.4, uniformly spaced slices were typically built by
+mapping the underlying array with a custom \ref TutorialMapClass "Map" and a suitable Stride.
+This remains a valid alternative, for instance when targeting older versions of %Eigen.
+Here is an example viewing every other coefficient of a vector:
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include Tutorial_SlicingVec.cpp
+</td>
+<td>
+\verbinclude Tutorial_SlicingVec.out
+</td></tr></table>
+
+and an example taking one column over three of a matrix:
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include Tutorial_SlicingCol.cpp
+</td>
+<td>
+\verbinclude Tutorial_SlicingCol.out
+</td></tr></table>
+
+Beware that with Map the stride has to be adjusted to the storage order of the mapped object, as done for \c M4 above,
+whereas the equivalent `A(all, seq(0, last, 3))` works regardless of the storage order.
+
 <br>
 
 */
