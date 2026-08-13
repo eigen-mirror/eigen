@@ -467,16 +467,16 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
 
   // Scaling a unit triangular view would break its implicit unit diagonal, so only non-unit modes participate.
   template <unsigned int M = Mode, std::enable_if_t<(M & UnitDiag) == 0, int> = 0>
-  EIGEN_DEVICE_FUNC const
-      TriangularView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), Mode>
-      operator*(const Scalar& s) const {
+  EIGEN_DEVICE_FUNC const TriangularView<
+      const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, internal::scalar_product_op), Mode>
+  operator*(const Scalar& s) const {
     return (derived().nestedExpression() * s).template triangularView<Mode>();
   }
 
   template <unsigned int M = Mode, std::enable_if_t<(M & UnitDiag) == 0, int> = 0>
-  friend EIGEN_DEVICE_FUNC const
-      TriangularView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), Mode>
-      operator*(const Scalar& s, const TriangularViewImpl& mat) {
+  friend EIGEN_DEVICE_FUNC const TriangularView<
+      const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, internal::scalar_product_op), Mode>
+  operator*(const Scalar& s, const TriangularViewImpl& mat) {
     return (s * mat.derived().nestedExpression()).template triangularView<Mode>();
   }
 

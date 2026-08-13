@@ -1310,64 +1310,64 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #define EIGEN_PREDICT_TRUE(x) (x)
 #endif
 
+#define EIGEN_MAKE_CWISE_UNARY_OP(METHOD, FUNCTOR, RETURN_TYPE)     \
+  using RETURN_TYPE = CwiseUnaryOp<FUNCTOR<Scalar>, const Derived>; \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const RETURN_TYPE METHOD() const { return RETURN_TYPE(derived()); }
+
 // the expression type of a standard coefficient wise binary operation
-#define EIGEN_CWISE_BINARY_RETURN_TYPE(LHS, RHS, OPNAME)                                                       \
-  CwiseBinaryOp<EIGEN_CAT(EIGEN_CAT(internal::scalar_, OPNAME), _op) < typename internal::traits<LHS>::Scalar, \
-                typename internal::traits<RHS>::Scalar>,                                                       \
-      const LHS, const RHS >
+#define EIGEN_CWISE_BINARY_RETURN_TYPE(LHS, RHS, FUNCTOR)                                                           \
+  CwiseBinaryOp<FUNCTOR<typename internal::traits<LHS>::Scalar, typename internal::traits<RHS>::Scalar>, const LHS, \
+                const RHS>
 
-#define EIGEN_MAKE_CWISE_BINARY_OP(METHOD, OPNAME)                                                                \
-  template <typename OtherDerived>                                                                                \
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(                           \
-      Derived, OtherDerived, OPNAME)(METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const { \
-    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, OPNAME)(derived(), other.derived());             \
+#define EIGEN_MAKE_CWISE_BINARY_OP(METHOD, FUNCTOR)                                                                \
+  template <typename OtherDerived>                                                                                 \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(                            \
+      Derived, OtherDerived, FUNCTOR)(METHOD)(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const { \
+    return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, FUNCTOR)(derived(), other.derived());             \
   }
 
-#define EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME, TYPEA, TYPEB)     \
-  (Eigen::internal::has_ReturnType<Eigen::ScalarBinaryOpTraits< \
-       TYPEA, TYPEB, EIGEN_CAT(EIGEN_CAT(Eigen::internal::scalar_, OPNAME), _op) < TYPEA, TYPEB> > > ::value)
+#define EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, TYPEA, TYPEB) \
+  (Eigen::internal::has_ReturnType<Eigen::ScalarBinaryOpTraits<TYPEA, TYPEB, FUNCTOR<TYPEA, TYPEB> > >::value)
 
-#define EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(EXPR, SCALAR, OPNAME)                                            \
-  CwiseBinaryOp<EIGEN_CAT(EIGEN_CAT(internal::scalar_, OPNAME), _op) < typename internal::traits<EXPR>::Scalar, \
-                SCALAR>,                                                                                        \
-      const EXPR, const typename internal::plain_constant_type<EXPR, SCALAR>::type >
+#define EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(EXPR, SCALAR, FUNCTOR)                 \
+  CwiseBinaryOp<FUNCTOR<typename internal::traits<EXPR>::Scalar, SCALAR>, const EXPR, \
+                const typename internal::plain_constant_type<EXPR, SCALAR>::type>
 
-#define EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(SCALAR, EXPR, OPNAME)           \
-  CwiseBinaryOp<EIGEN_CAT(EIGEN_CAT(internal::scalar_, OPNAME), _op) < SCALAR, \
-                typename internal::traits<EXPR>::Scalar>,                      \
-      const typename internal::plain_constant_type<EXPR, SCALAR>::type, const EXPR >
+#define EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(SCALAR, EXPR, FUNCTOR)     \
+  CwiseBinaryOp<FUNCTOR<SCALAR, typename internal::traits<EXPR>::Scalar>, \
+                const typename internal::plain_constant_type<EXPR, SCALAR>::type, const EXPR>
 
-#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, OPNAME)                                                       \
-  template <typename T>                                                                                              \
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                      \
-      Derived,                                                                                                       \
-      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(          \
-          OPNAME, Scalar, T)>::type,                                                                                 \
-      OPNAME)(METHOD)(const T& scalar) const {                                                                       \
-    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME, Scalar, T)>::type \
-        PromotedT;                                                                                                   \
-    return EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived, PromotedT, OPNAME)(                                       \
-        derived(), typename internal::plain_constant_type<Derived, PromotedT>::type(                                 \
-                       derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)));        \
+#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, FUNCTOR)                                                       \
+  template <typename T>                                                                                               \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                       \
+      Derived,                                                                                                        \
+      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(           \
+          FUNCTOR, Scalar, T)>::type,                                                                                 \
+      FUNCTOR)(METHOD)(const T& scalar) const {                                                                       \
+    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, Scalar, T)>::type \
+        PromotedT;                                                                                                    \
+    return EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived, PromotedT, FUNCTOR)(                                       \
+        derived(), typename internal::plain_constant_type<Derived, PromotedT>::type(                                  \
+                       derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)));         \
   }
 
-#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, OPNAME)                                                        \
-  template <typename T>                                                                                              \
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(               \
-      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(          \
-          OPNAME, T, Scalar)>::type,                                                                                 \
-      Derived, OPNAME)(METHOD)(const T& scalar, const StorageBaseType& matrix) {                                     \
-    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(OPNAME, T, Scalar)>::type \
-        PromotedT;                                                                                                   \
-    return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedT, Derived, OPNAME)(                                       \
-        typename internal::plain_constant_type<Derived, PromotedT>::type(                                            \
-            matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)),      \
-        matrix.derived());                                                                                           \
+#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, FUNCTOR)                                                        \
+  template <typename T>                                                                                               \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(                \
+      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(           \
+          FUNCTOR, T, Scalar)>::type,                                                                                 \
+      Derived, FUNCTOR)(METHOD)(const T& scalar, const StorageBaseType& matrix) {                                     \
+    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, T, Scalar)>::type \
+        PromotedT;                                                                                                    \
+    return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedT, Derived, FUNCTOR)(                                       \
+        typename internal::plain_constant_type<Derived, PromotedT>::type(                                             \
+            matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)),       \
+        matrix.derived());                                                                                            \
   }
 
-#define EIGEN_MAKE_SCALAR_BINARY_OP(METHOD, OPNAME)     \
-  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, OPNAME) \
-  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, OPNAME)
+#define EIGEN_MAKE_SCALAR_BINARY_OP(METHOD, FUNCTOR)     \
+  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, FUNCTOR) \
+  EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, FUNCTOR)
 
 #if (defined(_CPPUNWIND) || defined(__EXCEPTIONS)) && !defined(EIGEN_CUDA_ARCH) && !defined(EIGEN_EXCEPTIONS) && \
     !defined(EIGEN_USE_SYCL) && !defined(EIGEN_HIP_DEVICE_COMPILE)

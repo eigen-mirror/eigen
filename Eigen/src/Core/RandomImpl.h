@@ -29,17 +29,12 @@ template <typename Scalar>
 struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
 
 template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y) {
+inline Scalar random(const Scalar& x, const Scalar& y) {
   return EIGEN_MATHFUNC_IMPL(random, Scalar)::run(x, y);
 }
 
 template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random() {
+inline Scalar random() {
   return EIGEN_MATHFUNC_IMPL(random, Scalar)::run();
 }
 

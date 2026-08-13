@@ -133,15 +133,15 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& nestedExpression() const noexcept { return m_matrix; }
   EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedCleaned& nestedExpression() noexcept { return m_matrix; }
 
-  EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), UpLo>
-      operator*(const Scalar& s) const {
+  EIGEN_DEVICE_FUNC const SelfAdjointView<
+      const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, internal::scalar_product_op), UpLo>
+  operator*(const Scalar& s) const {
     return (nestedExpression() * s).template selfadjointView<UpLo>();
   }
 
-  friend EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), UpLo>
-      operator*(const Scalar& s, const SelfAdjointView& mat) {
+  friend EIGEN_DEVICE_FUNC const SelfAdjointView<
+      const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, internal::scalar_product_op), UpLo>
+  operator*(const Scalar& s, const SelfAdjointView& mat) {
     return (s * mat.nestedExpression()).template selfadjointView<UpLo>();
   }
 

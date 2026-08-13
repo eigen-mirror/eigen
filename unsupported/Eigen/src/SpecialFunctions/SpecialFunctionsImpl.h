@@ -46,14 +46,10 @@ namespace internal {
 
 template <typename Scalar>
 struct lgamma_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) { return Scalar(0); }
-};
-
-template <typename Scalar>
-struct lgamma_retval {
-  typedef Scalar type;
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) {
+    EIGEN_STATIC_ASSERT((!std::is_same<Scalar, Scalar>::value), THIS_TYPE_IS_NOT_SUPPORTED)
+    return Scalar(0);
+  }
 };
 
 // Since glibc 2.19
@@ -101,11 +97,6 @@ struct lgamma_impl<double> {
 /****************************************************************************
  * Implementation of digamma (psi), based on Cephes                         *
  ****************************************************************************/
-
-template <typename Scalar>
-struct digamma_retval {
-  typedef Scalar type;
-};
 
 /*
  *
@@ -428,11 +419,6 @@ struct erfc_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return generic_fast_erfc<Scalar>::run(x); }
 };
 
-template <typename Scalar>
-struct erfc_retval {
-  typedef Scalar type;
-};
-
 template <>
 struct erfc_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float x) {
@@ -526,11 +512,6 @@ template <typename T>
 struct erf_impl {
   typedef typename unpacket_traits<T>::type Scalar;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return generic_fast_erf<Scalar>::run(x); }
-};
-
-template <typename Scalar>
-struct erf_retval {
-  typedef Scalar type;
 };
 
 template <>
@@ -748,11 +729,6 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T generic_ndtri(const T& a) {
 }
 
 template <typename Scalar>
-struct ndtri_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
 struct ndtri_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar x) { return generic_ndtri<Scalar, Scalar>(x); }
 };
@@ -760,11 +736,6 @@ struct ndtri_impl {
 /**************************************************************************************************************
  * Implementation of igammac (complemented incomplete gamma integral), based on Cephes                       *
  **************************************************************************************************************/
-
-template <typename Scalar>
-struct igammac_retval {
-  typedef Scalar type;
-};
 
 // NOTE: cephes_helper is also used to implement zeta
 template <typename Scalar>
@@ -1152,11 +1123,6 @@ struct igamma_generic_impl {
 };
 
 template <typename Scalar>
-struct igamma_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
 struct igamma_impl : igamma_generic_impl<Scalar, VALUE> {
   /* igam()
    * Incomplete gamma integral.
@@ -1228,9 +1194,6 @@ struct igamma_impl : igamma_generic_impl<Scalar, VALUE> {
 };
 
 template <typename Scalar>
-struct igamma_der_a_retval : igamma_retval<Scalar> {};
-
-template <typename Scalar>
 struct igamma_der_a_impl : igamma_generic_impl<Scalar, DERIVATIVE> {
   /* Derivative of the incomplete Gamma function with respect to a.
    *
@@ -1247,9 +1210,6 @@ struct igamma_der_a_impl : igamma_generic_impl<Scalar, DERIVATIVE> {
    * integral". Journal of the Royal Statistical Society. 1982
    */
 };
-
-template <typename Scalar>
-struct gamma_sample_der_alpha_retval : igamma_retval<Scalar> {};
 
 template <typename Scalar>
 struct gamma_sample_der_alpha_impl : igamma_generic_impl<Scalar, SAMPLE_DERIVATIVE> {
@@ -1295,11 +1255,6 @@ struct gamma_sample_der_alpha_impl : igamma_generic_impl<Scalar, SAMPLE_DERIVATI
 /*****************************************************************************
  * Implementation of Riemann zeta function of two arguments, based on Cephes *
  *****************************************************************************/
-
-template <typename Scalar>
-struct zeta_retval {
-  typedef Scalar type;
-};
 
 template <typename Scalar>
 struct zeta_impl_series {
@@ -1499,11 +1454,6 @@ struct zeta_impl {
  ****************************************************************************/
 
 template <typename Scalar>
-struct polygamma_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
 struct polygamma_impl {
   EIGEN_DEVICE_FUNC static Scalar run(Scalar n, Scalar x) {
     Scalar zero = 0.0, one = 1.0;
@@ -1531,15 +1481,9 @@ struct polygamma_impl {
  ************************************************************************************************/
 
 template <typename Scalar>
-struct betainc_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
 struct betainc_impl {
-  EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
-
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar, Scalar, Scalar) {
+    EIGEN_STATIC_ASSERT((!std::is_same<Scalar, Scalar>::value), THIS_TYPE_IS_NOT_SUPPORTED)
     /*	betaincf.c
      *
      *	Incomplete beta integral
@@ -1962,64 +1906,69 @@ struct betainc_impl<double> {
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(lgamma, Scalar) lgamma(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto lgamma(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(lgamma, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(lgamma, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(digamma, Scalar) digamma(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto digamma(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(digamma, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(digamma, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(zeta, Scalar) zeta(const Scalar& x, const Scalar& q) {
+EIGEN_DEVICE_FUNC inline auto zeta(const Scalar& x, const Scalar& q)
+    -> decltype(EIGEN_MATHFUNC_IMPL(zeta, Scalar)::run(x, q)) {
   return EIGEN_MATHFUNC_IMPL(zeta, Scalar)::run(x, q);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(polygamma, Scalar) polygamma(const Scalar& n, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto polygamma(const Scalar& n, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(polygamma, Scalar)::run(n, x)) {
   return EIGEN_MATHFUNC_IMPL(polygamma, Scalar)::run(n, x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(erf, Scalar) erf(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto erf(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(erf, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(erf, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(erfc, Scalar) erfc(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto erfc(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(erfc, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(erfc, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(ndtri, Scalar) ndtri(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto ndtri(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(ndtri, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(ndtri, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(igamma, Scalar) igamma(const Scalar& a, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto igamma(const Scalar& a, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(igamma, Scalar)::run(a, x)) {
   return EIGEN_MATHFUNC_IMPL(igamma, Scalar)::run(a, x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(igamma_der_a, Scalar) igamma_der_a(const Scalar& a, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto igamma_der_a(const Scalar& a, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(igamma_der_a, Scalar)::run(a, x)) {
   return EIGEN_MATHFUNC_IMPL(igamma_der_a, Scalar)::run(a, x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(gamma_sample_der_alpha, Scalar)
-    gamma_sample_der_alpha(const Scalar& a, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto gamma_sample_der_alpha(const Scalar& a, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(gamma_sample_der_alpha, Scalar)::run(a, x)) {
   return EIGEN_MATHFUNC_IMPL(gamma_sample_der_alpha, Scalar)::run(a, x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(igammac, Scalar) igammac(const Scalar& a, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto igammac(const Scalar& a, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(igammac, Scalar)::run(a, x)) {
   return EIGEN_MATHFUNC_IMPL(igammac, Scalar)::run(a, x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(betainc, Scalar)
-    betainc(const Scalar& a, const Scalar& b, const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto betainc(const Scalar& a, const Scalar& b, const Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(betainc, Scalar)::run(a, b, x)) {
   return EIGEN_MATHFUNC_IMPL(betainc, Scalar)::run(a, b, x);
 }
 

@@ -112,7 +112,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using SkewSymmetricProductReturnType = SkewSymmetricWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, product)>;
+      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, internal::scalar_product_op)>;
 
   /** \returns the wedge product of \c *this by the skew symmetric matrix \a other
    *  A wedge B = AB - BA */
@@ -122,16 +122,16 @@ class SkewSymmetricBase : public EigenBase<Derived> {
     return vector().cross(other.vector()).asSkewSymmetric();
   }
 
-  using SkewSymmetricScaleReturnType =
-      SkewSymmetricWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SkewSymmetricVectorType, Scalar, product)>;
+  using SkewSymmetricScaleReturnType = SkewSymmetricWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(
+      SkewSymmetricVectorType, Scalar, internal::scalar_product_op)>;
 
   /** \returns the product of \c *this by the scalar \a scalar */
   EIGEN_DEVICE_FUNC inline SkewSymmetricScaleReturnType operator*(const Scalar& scalar) const {
     return (vector() * scalar).asSkewSymmetric();
   }
 
-  using ScaleSkewSymmetricReturnType =
-      SkewSymmetricWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, SkewSymmetricVectorType, product)>;
+  using ScaleSkewSymmetricReturnType = SkewSymmetricWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
+      Scalar, SkewSymmetricVectorType, internal::scalar_product_op)>;
 
   /** \returns the product of a scalar and the skew symmetric matrix \a other */
   EIGEN_DEVICE_FUNC friend inline ScaleSkewSymmetricReturnType operator*(const Scalar& scalar,
@@ -141,7 +141,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using SkewSymmetricSumReturnType = SkewSymmetricWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, sum)>;
+      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, internal::scalar_sum_op)>;
 
   /** \returns the sum of \c *this and the skew symmetric matrix \a other */
   template <typename OtherDerived>
@@ -152,7 +152,7 @@ class SkewSymmetricBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using SkewSymmetricDifferenceReturnType = SkewSymmetricWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, difference)>;
+      SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, internal::scalar_difference_op)>;
 
   /** \returns the difference of \c *this and the skew symmetric matrix \a other */
   template <typename OtherDerived>

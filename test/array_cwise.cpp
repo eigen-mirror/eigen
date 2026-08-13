@@ -12,6 +12,10 @@
 #include "main.h"
 #include "random_without_cast_overflow.h"
 
+static_assert(
+    std::is_same<ArrayXf::AbsReturnType, std::remove_const_t<decltype(std::declval<const ArrayXf&>().abs())>>::value,
+    "ArrayBase unary return type aliases must match their corresponding expressions");
+
 // suppress annoying unsigned integer warnings
 template <typename Scalar, bool IsSignedInteger = NumTraits<Scalar>::IsSigned && NumTraits<Scalar>::IsInteger,
           bool IsSigned = NumTraits<Scalar>::IsSigned>

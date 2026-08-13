@@ -360,7 +360,7 @@ class VectorwiseOp {
   typedef typename ReturnType<internal::member_stableNorm, RealScalar>::Type StableNormReturnType;
   typedef typename ReturnType<internal::member_hypotNorm, RealScalar>::Type HypotNormReturnType;
   typedef typename ReturnType<internal::member_sum>::Type SumReturnType;
-  typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SumReturnType, Scalar, quotient) MeanReturnType;
+  typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SumReturnType, Scalar, internal::scalar_quotient_op) MeanReturnType;
   typedef typename ReturnType<internal::member_all, bool>::Type AllReturnType;
   typedef typename ReturnType<internal::member_any, bool>::Type AnyReturnType;
   typedef PartialReduxExpr<ExpressionType, internal::member_count<Index, Scalar>, Direction> CountReturnType;

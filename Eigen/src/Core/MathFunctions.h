@@ -59,9 +59,6 @@ struct global_math_functions_filtering_base<T,
 
 #define EIGEN_MATHFUNC_IMPL(func, scalar) \
   Eigen::internal::func##_impl<typename Eigen::internal::global_math_functions_filtering_base<scalar>::type>
-#define EIGEN_MATHFUNC_RETVAL(func, scalar) \
-  typename Eigen::internal::func##_retval<  \
-      typename Eigen::internal::global_math_functions_filtering_base<scalar>::type>::type
 
 /****************************************************************************
  * Implementation of real                                                 *
@@ -93,11 +90,6 @@ struct real_impl<std::complex<T>> {
 };
 #endif
 
-template <typename Scalar>
-struct real_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of imag                                                 *
  ****************************************************************************/
@@ -128,11 +120,6 @@ struct imag_impl<std::complex<T>> {
 };
 #endif
 
-template <typename Scalar>
-struct imag_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of real_ref                                             *
  ****************************************************************************/
@@ -144,11 +131,6 @@ struct real_ref_impl {
   EIGEN_DEVICE_FUNC static inline const RealScalar& run(const Scalar& x) {
     return reinterpret_cast<const RealScalar*>(&x)[0];
   }
-};
-
-template <typename Scalar>
-struct real_ref_retval {
-  typedef typename NumTraits<Scalar>::Real& type;
 };
 
 /****************************************************************************
@@ -174,38 +156,29 @@ struct imag_ref_default_impl<Scalar, false> {
 template <typename Scalar>
 struct imag_ref_impl : imag_ref_default_impl<Scalar, NumTraits<Scalar>::IsComplex> {};
 
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct imag_ref_retval {
-  typedef typename NumTraits<Scalar>::Real& type;
-};
-
-template <typename Scalar>
-struct imag_ref_retval<Scalar, false> {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 }  // namespace internal
 
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(real, Scalar) real(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline decltype(auto) real(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(real, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline internal::add_const_on_value_type_t<EIGEN_MATHFUNC_RETVAL(real_ref, Scalar)> real_ref(
-    const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto real_ref(const Scalar& x)
+    -> internal::add_const_on_value_type_t<decltype(internal::real_ref_impl<Scalar>::run(x))> {
   return internal::real_ref_impl<Scalar>::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(real_ref, Scalar) real_ref(Scalar& x) {
-  return EIGEN_MATHFUNC_IMPL(real_ref, Scalar)::run(x);
+EIGEN_DEVICE_FUNC inline auto real_ref(Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(real_ref, std::remove_const_t<Scalar>)::run(x)) {
+  return EIGEN_MATHFUNC_IMPL(real_ref, std::remove_const_t<Scalar>)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(imag, Scalar) imag(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline decltype(auto) imag(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(imag, Scalar)::run(x);
 }
 
@@ -238,11 +211,6 @@ struct conj_default_impl<Scalar, true> {
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct conj_impl : conj_default_impl<Scalar, IsComplex> {};
 
-template <typename Scalar>
-struct conj_retval {
-  typedef Scalar type;
-};
-
 /****************************************************************************
  * Implementation of abs2                                                 *
  ****************************************************************************/
@@ -270,11 +238,6 @@ struct abs2_impl {
   }
 };
 
-template <typename Scalar>
-struct abs2_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of sqrt/rsqrt                                             *
  ****************************************************************************/
@@ -298,11 +261,6 @@ struct sqrt_impl<std::complex<T>> {
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE std::complex<T> run(const std::complex<T>& x) { return complex_sqrt(x); }
 };
 
-template <typename Scalar>
-struct sqrt_retval {
-  typedef Scalar type;
-};
-
 // Default implementation relies on numext::sqrt, at bottom of file.
 template <typename T>
 struct rsqrt_impl;
@@ -316,11 +274,6 @@ struct rsqrt_impl<std::complex<T>> {
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE std::complex<T> run(const std::complex<T>& x) {
     return complex_rsqrt(x);
   }
-};
-
-template <typename Scalar>
-struct rsqrt_retval {
-  typedef Scalar type;
 };
 
 /****************************************************************************
@@ -341,7 +294,8 @@ struct norm1_default_impl<Scalar, true> {
 
 template <typename Scalar>
 struct norm1_default_impl<Scalar, false> {
-  EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& x) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) {
     EIGEN_USING_STD(abs);
     return abs(x);
   }
@@ -350,22 +304,12 @@ struct norm1_default_impl<Scalar, false> {
 template <typename Scalar>
 struct norm1_impl : norm1_default_impl<Scalar, NumTraits<Scalar>::IsComplex> {};
 
-template <typename Scalar>
-struct norm1_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of hypot                                                *
  ****************************************************************************/
 
 template <typename Scalar>
 struct hypot_impl;
-
-template <typename Scalar>
-struct hypot_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
 
 /****************************************************************************
  * Implementation of cast                                                 *
@@ -451,11 +395,6 @@ struct arg_default_impl<Scalar, true> {
 template <typename Scalar>
 struct arg_impl : arg_default_impl<Scalar> {};
 
-template <typename Scalar>
-struct arg_retval {
-  typedef typename NumTraits<Scalar>::Real type;
-};
-
 /****************************************************************************
  * Implementation of expm1                                                   *
  ****************************************************************************/
@@ -493,11 +432,6 @@ struct expm1_impl {
     EIGEN_USING_STD(expm1);
     return expm1(x);
   }
-};
-
-template <typename Scalar>
-struct expm1_retval {
-  typedef Scalar type;
 };
 
 /****************************************************************************
@@ -559,11 +493,6 @@ struct log1p_impl<std::complex<RealScalar>> {
   EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(const std::complex<RealScalar>& x) {
     return std_fallback::log1p(x);
   }
-};
-
-template <typename Scalar>
-struct log1p_retval {
-  typedef Scalar type;
 };
 
 /****************************************************************************
@@ -947,11 +876,6 @@ struct sign_impl<bool, false, true> {
   EIGEN_DEVICE_FUNC static inline bool run(const bool& a) { return a; }
 };
 
-template <typename Scalar>
-struct sign_retval {
-  typedef Scalar type;
-};
-
 template <typename Scalar, bool IsComplex = (NumTraits<Scalar>::IsComplex != 0),
           bool IsInteger = (NumTraits<Scalar>::IsInteger != 0)>
 struct copysign_impl {
@@ -983,11 +907,6 @@ struct copysign_impl<bool, false, true> {
   EIGEN_DEVICE_FUNC static inline bool run(const bool& a, const bool&) { return a; }
 };
 
-template <typename Scalar>
-struct copysign_retval {
-  typedef Scalar type;
-};
-
 // suppress "unary minus operator applied to unsigned type, result still unsigned" warnings on MSVC
 // note: `0 - a` is distinct from `-a` when Scalar is a floating point type and `a` is zero
 
@@ -1000,11 +919,6 @@ template <typename Scalar>
 struct negate_impl<Scalar, true> {
   EIGEN_STATIC_ASSERT((!std::is_same<Scalar, bool>::value), NEGATE IS NOT DEFINED FOR BOOLEAN TYPES)
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a) { return Scalar(0) - a; }
-};
-
-template <typename Scalar>
-struct negate_retval {
-  typedef Scalar type;
 };
 
 template <typename Scalar, bool IsInteger = NumTraits<typename unpacket_traits<Scalar>::type>::IsInteger>
@@ -1249,43 +1163,44 @@ SYCL_SPECIALIZE_FLOATING_TYPES_BINARY(maxi, fmax)
 #endif
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(arg, Scalar) arg(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline typename NumTraits<Scalar>::Real arg(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(arg, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline internal::add_const_on_value_type_t<EIGEN_MATHFUNC_RETVAL(imag_ref, Scalar)> imag_ref(
-    const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto imag_ref(const Scalar& x)
+    -> internal::add_const_on_value_type_t<decltype(internal::imag_ref_impl<Scalar>::run(x))> {
   return internal::imag_ref_impl<Scalar>::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(imag_ref, Scalar) imag_ref(Scalar& x) {
-  return EIGEN_MATHFUNC_IMPL(imag_ref, Scalar)::run(x);
+EIGEN_DEVICE_FUNC inline auto imag_ref(Scalar& x)
+    -> decltype(EIGEN_MATHFUNC_IMPL(imag_ref, std::remove_const_t<Scalar>)::run(x)) {
+  return EIGEN_MATHFUNC_IMPL(imag_ref, std::remove_const_t<Scalar>)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(conj, Scalar) conj(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline Scalar conj(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(conj, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(sign, Scalar) sign(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline Scalar sign(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(sign, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(copysign, Scalar) copysign(const Scalar& x, const Scalar& y) {
+EIGEN_DEVICE_FUNC inline Scalar copysign(const Scalar& x, const Scalar& y) {
   return EIGEN_MATHFUNC_IMPL(copysign, Scalar)::run(x, y);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(negate, Scalar) negate(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline Scalar negate(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(negate, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(abs2, Scalar) abs2(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline decltype(auto) abs2(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(abs2, Scalar)::run(x);
 }
 
@@ -1313,12 +1228,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE long double absdiff(const long double& x, 
 #endif
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(norm1, Scalar) norm1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline typename NumTraits<Scalar>::Real norm1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(norm1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(hypot, Scalar) hypot(const Scalar& x, const Scalar& y) {
+EIGEN_DEVICE_FUNC inline typename NumTraits<Scalar>::Real hypot(const Scalar& x, const Scalar& y) {
   return EIGEN_MATHFUNC_IMPL(hypot, Scalar)::run(x, y);
 }
 
@@ -1327,7 +1242,7 @@ SYCL_SPECIALIZE_FLOATING_TYPES_BINARY(hypot, hypot)
 #endif
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(log1p, Scalar) log1p(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline Scalar log1p(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(log1p, Scalar)::run(x);
 }
 
@@ -1492,7 +1407,7 @@ constexpr int log2(int x) {
  * Its usage is justified in performance critical functions, like norm/normalize.
  */
 template <typename Scalar>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE EIGEN_MATHFUNC_RETVAL(sqrt, Scalar) sqrt(const Scalar& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar sqrt(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(sqrt, Scalar)::run(x);
 }
 
@@ -1769,7 +1684,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double ldexp(const double& x, int exponent
 #endif
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(expm1, Scalar) expm1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline Scalar expm1(const Scalar& x) {
   return EIGEN_MATHFUNC_IMPL(expm1, Scalar)::run(x);
 }
 

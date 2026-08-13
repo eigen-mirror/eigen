@@ -44,11 +44,6 @@ namespace internal {
  * Implementation of Bessel function, based on Cephes                       *
  ****************************************************************************/
 
-template <typename Scalar>
-struct bessel_i0e_retval {
-  typedef Scalar type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -182,11 +177,6 @@ struct bessel_i0e_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0e<T>::run(x); }
 };
 
-template <typename Scalar>
-struct bessel_i0_retval {
-  typedef Scalar type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
@@ -197,11 +187,6 @@ struct generic_i0 {
 template <typename T>
 struct bessel_i0_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0<T>::run(x); }
-};
-
-template <typename Scalar>
-struct bessel_i1e_retval {
-  typedef Scalar type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -338,11 +323,6 @@ struct bessel_i1e_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1e<T>::run(x); }
 };
 
-template <typename T>
-struct bessel_i1_retval {
-  typedef T type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1 {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) {
@@ -353,11 +333,6 @@ struct generic_i1 {
 template <typename T>
 struct bessel_i1_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1<T>::run(x); }
-};
-
-template <typename T>
-struct bessel_k0e_retval {
-  typedef T type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -478,11 +453,6 @@ struct generic_k0e<T, double> {
 template <typename T>
 struct bessel_k0e_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0e<T>::run(x); }
-};
-
-template <typename T>
-struct bessel_k0_retval {
-  typedef T type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -614,11 +584,6 @@ struct bessel_k0_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0<T>::run(x); }
 };
 
-template <typename T>
-struct bessel_k1e_retval {
-  typedef T type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k1e {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -742,11 +707,6 @@ struct generic_k1e<T, double> {
 template <typename T>
 struct bessel_k1e_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1e<T>::run(x); }
-};
-
-template <typename T>
-struct bessel_k1_retval {
-  typedef T type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -879,11 +839,6 @@ struct generic_k1<T, double> {
 template <typename T>
 struct bessel_k1_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1<T>::run(x); }
-};
-
-template <typename T>
-struct bessel_j0_retval {
-  typedef T type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -1055,11 +1010,6 @@ struct bessel_j0_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j0<T>::run(x); }
 };
 
-template <typename T>
-struct bessel_y0_retval {
-  typedef T type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_y0 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1229,11 +1179,6 @@ struct bessel_y0_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_y0<T>::run(x); }
 };
 
-template <typename T>
-struct bessel_j1_retval {
-  typedef T type;
-};
-
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_j1 {
   EIGEN_STATIC_ASSERT((std::is_same<T, T>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1392,11 +1337,6 @@ struct generic_j1<T, double> {
 template <typename T>
 struct bessel_j1_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j1<T>::run(x); }
-};
-
-template <typename T>
-struct bessel_y1_retval {
-  typedef T type;
 };
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
@@ -1573,62 +1513,62 @@ struct bessel_y1_impl {
 namespace numext {
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i0, Scalar) bessel_i0(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_i0(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_i0, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_i0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i0e, Scalar) bessel_i0e(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_i0e(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_i0e, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_i0e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i1, Scalar) bessel_i1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_i1(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_i1, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_i1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_i1e, Scalar) bessel_i1e(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_i1e(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_i1e, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_i1e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k0, Scalar) bessel_k0(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_k0(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_k0, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_k0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k0e, Scalar) bessel_k0e(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_k0e(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_k0e, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_k0e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k1, Scalar) bessel_k1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_k1(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_k1, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_k1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_k1e, Scalar) bessel_k1e(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_k1e(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_k1e, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_k1e, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_j0, Scalar) bessel_j0(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_j0(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_j0, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_j0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_y0, Scalar) bessel_y0(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_y0(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_y0, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_y0, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_j1, Scalar) bessel_j1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_j1(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_j1, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_j1, Scalar)::run(x);
 }
 
 template <typename Scalar>
-EIGEN_DEVICE_FUNC inline EIGEN_MATHFUNC_RETVAL(bessel_y1, Scalar) bessel_y1(const Scalar& x) {
+EIGEN_DEVICE_FUNC inline auto bessel_y1(const Scalar& x) -> decltype(EIGEN_MATHFUNC_IMPL(bessel_y1, Scalar)::run(x)) {
   return EIGEN_MATHFUNC_IMPL(bessel_y1, Scalar)::run(x);
 }
 

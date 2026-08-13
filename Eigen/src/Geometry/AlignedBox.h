@@ -156,8 +156,8 @@ class AlignedBox {
   EIGEN_DEVICE_FUNC inline VectorType&(max)() { return m_max; }
 
   /** \returns the center of the box */
-  EIGEN_DEVICE_FUNC inline const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar, quotient)
-      center() const {
+  EIGEN_DEVICE_FUNC inline const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar,
+                                                                        internal::scalar_quotient_op) center() const {
     return (m_min + m_max) / RealScalar(2);
   }
 

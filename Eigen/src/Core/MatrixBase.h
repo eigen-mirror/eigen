@@ -431,7 +431,8 @@ class MatrixBase : public DenseBase<Derived> {
   typedef Block<const Derived, internal::traits<Derived>::ColsAtCompileTime == 1 ? SizeMinusOne : 1,
                 internal::traits<Derived>::ColsAtCompileTime == 1 ? 1 : SizeMinusOne>
       ConstStartMinusOne;
-  typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(ConstStartMinusOne, Scalar, quotient) HNormalizedReturnType;
+  typedef EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(ConstStartMinusOne, Scalar,
+                                                 internal::scalar_quotient_op) HNormalizedReturnType;
   EIGEN_DEVICE_FUNC inline const HNormalizedReturnType hnormalized() const;
 
   ////////// Householder module ///////////

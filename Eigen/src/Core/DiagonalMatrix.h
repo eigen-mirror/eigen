@@ -90,7 +90,7 @@ class DiagonalBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using DiagonalProductReturnType = DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, product)>;
+      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, internal::scalar_product_op)>;
 
   /** \returns the diagonal matrix product of \c *this by the diagonal matrix \a other */
   template <typename OtherDerived>
@@ -107,16 +107,16 @@ class DiagonalBase : public EigenBase<Derived> {
     return diagonal().cwiseInverse().asDiagonal();
   }
 
-  using DiagonalScaleReturnType =
-      DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(DiagonalVectorType, Scalar, product)>;
+  using DiagonalScaleReturnType = DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(
+      DiagonalVectorType, Scalar, internal::scalar_product_op)>;
 
   /** \returns the product of \c *this by the scalar \a scalar */
   EIGEN_DEVICE_FUNC inline const DiagonalScaleReturnType operator*(const Scalar& scalar) const {
     return (diagonal() * scalar).asDiagonal();
   }
 
-  using ScaleDiagonalReturnType =
-      DiagonalWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, DiagonalVectorType, product)>;
+  using ScaleDiagonalReturnType = DiagonalWrapper<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
+      Scalar, DiagonalVectorType, internal::scalar_product_op)>;
 
   /** \returns the product of a scalar and the diagonal matrix \a other */
   EIGEN_DEVICE_FUNC friend inline const ScaleDiagonalReturnType operator*(const Scalar& scalar,
@@ -126,7 +126,7 @@ class DiagonalBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using DiagonalSumReturnType = DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, sum)>;
+      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, internal::scalar_sum_op)>;
 
   /** \returns the sum of \c *this and the diagonal matrix \a other */
   template <typename OtherDerived>
@@ -137,7 +137,7 @@ class DiagonalBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   using DiagonalDifferenceReturnType = DiagonalWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
-      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, difference)>;
+      DiagonalVectorType, typename OtherDerived::DiagonalVectorType, internal::scalar_difference_op)>;
 
   /** \returns the difference of \c *this and the diagonal matrix \a other */
   template <typename OtherDerived>

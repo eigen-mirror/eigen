@@ -12,6 +12,10 @@
 #include <vector>
 #include "main.h"
 
+static_assert(std::is_same<MatrixXf::CwiseAbsReturnType,
+                           std::remove_const_t<decltype(std::declval<const MatrixXf&>().cwiseAbs())>>::value,
+              "MatrixBase unary return type aliases must match their corresponding expressions");
+
 template <typename MatrixType, typename NewScalar>
 struct matrix_of {
   using type = MatrixType;

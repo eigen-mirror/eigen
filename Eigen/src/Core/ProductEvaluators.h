@@ -53,11 +53,13 @@ template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typena
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                const Product<Lhs, Rhs, DefaultProduct>>>
-    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, product), Rhs, DefaultProduct>> {
+    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs,
+                               DefaultProduct>> {
   using XprType = CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
-  using Base = evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, product), Rhs, DefaultProduct>>;
+  using Base = evaluator<
+      Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs, DefaultProduct>>;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
       : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
