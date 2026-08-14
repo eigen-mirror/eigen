@@ -311,23 +311,19 @@ template <typename T, typename IndexType = Index, typename EnableIf = void>
 struct has_nullary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
-struct has_nullary_operator<T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()())) > 0)>>
-    : std::true_type {};
+struct has_nullary_operator<T, IndexType, void_t<decltype(std::declval<const T&>()())>> : std::true_type {};
 
 template <typename T, typename IndexType = Index, typename EnableIf = void>
 struct has_unary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
-struct has_unary_operator<T, IndexType,
-                          std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0)))) > 0)>>
-    : std::true_type {};
+struct has_unary_operator<T, IndexType, void_t<decltype(std::declval<const T&>()(IndexType(0)))>> : std::true_type {};
 
 template <typename T, typename IndexType = Index, typename EnableIf = void>
 struct has_binary_operator : std::false_type {};
 
 template <typename T, typename IndexType>
-struct has_binary_operator<
-    T, IndexType, std::enable_if_t<(sizeof(decltype(std::declval<const T&>()(IndexType(0), IndexType(0)))) > 0)>>
+struct has_binary_operator<T, IndexType, void_t<decltype(std::declval<const T&>()(IndexType(0), IndexType(0)))>>
     : std::true_type {};
 
 /** \internal Computes the least common multiple of two positive integer A and B

@@ -148,8 +148,7 @@ static EIGEN_ALWAYS_INLINE void scalar_tail_pack(float* EIGEN_RESTRICT dst_panel
 template <typename DataMapper, typename EnableIf = void>
 struct sme_has_incr : std::false_type {};
 template <typename DataMapper>
-struct sme_has_incr<DataMapper, std::enable_if_t<(sizeof(decltype(std::declval<const DataMapper&>().incr())) > 0)>>
-    : std::true_type {};
+struct sme_has_incr<DataMapper, void_t<decltype(std::declval<const DataMapper&>().incr())>> : std::true_type {};
 
 template <typename Index, typename DataMapper>
 EIGEN_ALWAYS_INLINE std::enable_if_t<sme_has_incr<DataMapper>::value, Index> sme_mapper_incr(const DataMapper& m) {
