@@ -167,7 +167,13 @@ class SparseMapBase<Derived, WriteAccessors> : public SparseMapBase<Derived, Rea
   inline StorageIndex* innerNonZeroPtr() { return Base::m_innerNonZeros; }
   //----------------------------------------
 
-  /** \copydoc SparseMatrix::coeffRef */
+  /** \returns a non-const reference to the value of the matrix at position \a row, \a col
+   *
+   * The element must already exist: unlike SparseMatrix::coeffRef, this function cannot insert a new one because
+   * \c *this does not own the buffers it points to.
+   *
+   * This is a O(log(nnz_j)) operation (binary search).
+   */
   inline Scalar& coeffRef(Index row, Index col) {
     const Index outer = IsRowMajor ? row : col;
     const Index inner = IsRowMajor ? col : row;

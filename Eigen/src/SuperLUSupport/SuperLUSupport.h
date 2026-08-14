@@ -443,7 +443,7 @@ class SuperLUBase : public SparseSolverBase<Derived> {
  *
  * \tparam MatrixType_ the type of the sparse matrix A, it must be a SparseMatrix<>
  *
- * \warning This class is only for the 4.x versions of SuperLU. The 3.x and 5.x versions are not supported.
+ * \warning This class requires at least version 4.0 of SuperLU. The 3.x versions are not supported.
  *
  * \implsparsesolverconcept
  *
@@ -753,7 +753,7 @@ typename SuperLU<MatrixType>::Scalar SuperLU<MatrixType>::determinant() const {
  * factorization using the SuperLU library. This class is aimed to be used as a preconditioner of the iterative linear
  * solvers.
  *
- * \warning This class is only for the 4.x versions of SuperLU. The 3.x and 5.x versions are not supported.
+ * \warning This class requires at least version 4.0 of SuperLU. The 3.x versions are not supported.
  *
  * \tparam MatrixType_ the type of the sparse matrix A, it must be a SparseMatrix<>
  *

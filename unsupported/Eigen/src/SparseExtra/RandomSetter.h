@@ -135,8 +135,8 @@ struct GoogleSparseHashMapTraits {
  *  - \b GoogleSparseHashMapTraits: corresponds to google::sparse_hash_map (best memory consumption, relatively good
  * performance)
  *
- * The default map implementation depends on the availability, and the preferred order is:
- * GoogleSparseHashMapTraits, StdUnorderedMapTraits, and finally StdMapTraits.
+ * The default map implementation is GoogleDenseHashMapTraits if EIGEN_GOOGLEHASH_SUPPORT is defined, and
+ * StdUnorderedMapTraits otherwise; StdMapTraits is never selected by default.
  *
  * For performance and memory consumption reasons it is highly recommended to use one of
  * Google's hash_map implementations. To enable the support for them, you must define

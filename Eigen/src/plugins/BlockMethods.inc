@@ -1338,16 +1338,16 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const ConstInnerVectorReturnType
   return ConstInnerVectorReturnType(derived(), outer);
 }
 
-/// \returns the \a outer -th column (resp. row) of the matrix \c *this if \c *this
-/// is col-major (resp. row-major).
+/// \returns the \a outerSize consecutive columns (resp. rows) of the matrix \c *this starting at \a outerStart
+/// if \c *this is col-major (resp. row-major).
 ///
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE InnerVectorsReturnType innerVectors(Index outerStart, Index outerSize) {
   return InnerVectorsReturnType(derived(), IsRowMajor ? outerStart : 0, IsRowMajor ? 0 : outerStart,
                                 IsRowMajor ? outerSize : rows(), IsRowMajor ? cols() : outerSize);
 }
 
-/// \returns the \a outer -th column (resp. row) of the matrix \c *this if \c *this
-/// is col-major (resp. row-major). Read-only.
+/// \returns the \a outerSize consecutive columns (resp. rows) of the matrix \c *this starting at \a outerStart
+/// if \c *this is col-major (resp. row-major). Read-only.
 ///
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const ConstInnerVectorsReturnType innerVectors(Index outerStart,
                                                                                                Index outerSize) const {

@@ -447,11 +447,14 @@ overloads for the `()` operator that let you access individual values in
 the expression.
 `TensorRef` is convenient, because the Operation themselves do
 not provide a way to access individual elements.
+A read-only expression must be wrapped in a `TensorRef<const Tensor<...>>`; the
+mutable `TensorRef<Tensor<...>>` statically requires an lvalue expression such
+as a `Tensor` or a slice.
 
 ```cpp
 // Create a TensorRef for the expression.  The expression is not
 // evaluated yet.
-TensorRef<Tensor<float, 3>> ref = ((t1 + t2) * 0.2f).exp();
+TensorRef<const Tensor<float, 3>> ref = ((t1 + t2) * 0.2f).exp();
 
 // Use "ref" to access individual elements.  The expression is evaluated
 // on the fly.
@@ -703,7 +706,7 @@ std::cout << "Size: " << a.size();
 ### Getting Dimensions From An Operation
 
 A few operations provide `dimensions()` directly,
-e.g. `TensorSlicingOp`.  Most operations defer calculating dimensions
+e.g. `TensorReshapingOp`.  Most operations defer calculating dimensions
 until the operation is being evaluated.  If you need access to the dimensions
 of a deferred operation, you can wrap it in a `TensorRef` (see
 **Assigning to a TensorRef** above), which provides
@@ -1496,9 +1499,12 @@ The following boolean operators are supported:
  * `operator|(const OtherDerived& other)`
  * `operator^(const OtherDerived& other)`
 
-The resulting tensor retains the input scalar type.
+The comparison operators (`<`, `<=`, `>`, `>=`, `==`, `!=`) produce a tensor
+whose scalar type is `bool`.  The boolean and bitwise operators retain the
+input scalar type.
 
-Scalar comparison variants are also available (e.g. `a < 0.5f`).
+Scalar comparison variants are also available (e.g. `a < 0.5f`), and likewise
+produce a `bool` tensor.
 
 ## Selection (select(const ThenDerived& thenTensor, const ElseDerived& elseTensor)
 
@@ -2630,7 +2636,7 @@ This code results in the following output when the data layout is RowMajor:
     6 7
     10 11
 
-### (Operation)  extract_image_patches(const Index patch_rows, const Index patch_cols, const Index row_stride, const Index col_stride, const PaddingType padding_type)
+### (Operation)  extract_image_patches(const Index patch_rows, const Index patch_cols, const Index row_stride, const Index col_stride, ...)
 
 Returns a tensor of coefficient image patches extracted from the input tensor,
 which is expected to have dimensions ordered as follows (depending on the data
@@ -2653,6 +2659,13 @@ used to index each patch. The patch index in the output tensor depends on the
 data layout of the input tensor: the patch index is the 4'th dimension in
 `ColMajor` layout, and the 4'th from the last dimension in `RowMajor` layout.
 
+All the arguments are optional and default to 1, except for the two trailing
+ones. `in_row_stride` and `in_col_stride` dilate the patch, so that it samples
+every `in_row_stride`'th input row and every `in_col_stride`'th input column.
+`padding_type` selects `PADDING_SAME` (the default) or `PADDING_VALID`, and
+`padding_value` (`Scalar(0)` by default) is used for the coefficients of a
+patch that fall outside the input.
+
 For example, given the following input tensor with the following dimension
 sizes:
 - depth:   2
@@ -2671,7 +2684,7 @@ Tensor<float, 4, RowMajor> tensor_row_major = tensor.swap_layout();
 
 ```cpp
 Tensor<float, 5> twod_patch;
-twod_patch = tensor.extract_image_patches<2, 2>();
+twod_patch = tensor.extract_image_patches(2, 2);
 // twod_patch.dimension(0) == 2
 // twod_patch.dimension(1) == 2
 // twod_patch.dimension(2) == 2
@@ -2683,7 +2696,7 @@ twod_patch = tensor.extract_image_patches<2, 2>();
 
 ```cpp
 Tensor<float, 5, RowMajor> twod_patch_row_major;
-twod_patch_row_major = tensor_row_major.extract_image_patches<2, 2>();
+twod_patch_row_major = tensor_row_major.extract_image_patches(2, 2);
 // twod_patch_row_major.dimension(0) == 7
 // twod_patch_row_major.dimension(1) == 3*5
 // twod_patch_row_major.dimension(2) == 2

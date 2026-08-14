@@ -7,7 +7,9 @@ namespace Eigen {
 %Eigen provides native CMake support which allows the library to be easily
 used in CMake projects.
 
-\note %CMake 3.5 (or later) is required to enable this functionality.
+\note Configuring and installing %Eigen requires %CMake 3.17 (or later). The generated `Eigen3Config.cmake`
+imposes no version floor of its own, so a project consuming an already-installed %Eigen may use an older %CMake;
+the \ref title_fetchcontent route below adds %Eigen's own build to your project and so requires 3.17 as well.
 
 %Eigen exports a CMake target called `Eigen3::Eigen` which can be imported
 using the `find_package` CMake command and used by calling
@@ -62,14 +64,15 @@ endif (TARGET Eigen3::Eigen)
 
 \section title_fetchcontent Using FetchContent
 
-Starting with CMake 3.11, you can use the
+You can use the
 <a href="https://cmake.org/cmake/help/latest/module/FetchContent.html">FetchContent</a>
 module to download and include %Eigen directly in your project without
-installing it first.
+installing it first. This adds %Eigen's own build to your project, so it requires
+%CMake 3.17 rather than the 3.11 that introduced FetchContent.
 
 A basic example:
 \code{.cmake}
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.17)
 project(myproject)
 
 include(FetchContent)

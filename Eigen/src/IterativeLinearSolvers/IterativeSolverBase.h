@@ -222,7 +222,9 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
 
   /** Sets the tolerance threshold used by the stopping criteria.
    *
-   * This value is used as an upper bound to the relative residual error: |Ax-b|/|b|.
+   * This value is used as an upper bound to the relative residual error: |Ax-b|/|b|, or to the measure the solver
+   * documents instead; LeastSquaresConjugateGradient bounds the normal-equation residual |A'(Ax-b)|/|A'b|, and
+   * LSMR bounds |A'(Ax-b)|/(|A| |Ax-b|).
    * The default value is the machine precision given by NumTraits<Scalar>::epsilon()
    */
   Derived& setTolerance(const RealScalar& tolerance) {
@@ -257,7 +259,9 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   }
 
   /** \returns the tolerance error reached during the last solve.
-   * It is a close approximation of the true relative residual error |Ax-b|/|b|.
+   * It is a close approximation of the true relative residual error |Ax-b|/|b|, unless the solver documents a
+   * different measure: LeastSquaresConjugateGradient reports the normal-equation residual |A'(Ax-b)|/|A'b|, and
+   * LSMR reports the normal-equation residual estimate |A'(Ax-b)|/(|A| |Ax-b|).
    */
   RealScalar error() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");

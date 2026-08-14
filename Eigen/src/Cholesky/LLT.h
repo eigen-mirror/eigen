@@ -63,7 +63,8 @@ struct LLT_Traits;
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
  * Note that during the decomposition, only the lower (or upper, as defined by UpLo_) triangular part of A is
- * considered. Therefore, the strict lower part does not have to store correct values.
+ * considered. Therefore, the strict upper part (or the strict lower part when UpLo_ is Upper) does not have to
+ * store correct values.
  *
  * \sa MatrixBase::llt(), SelfAdjointView::llt(), class LDLT
  */
@@ -205,8 +206,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   /** \internal
-   * Used to compute and store L
-   * The strict upper part is not used and even not initialized.
+   * Used to compute and store L, or U when UpLo_ is Upper.
+   * The strict part of the other triangle is not used and even not initialized.
    */
   MatrixType m_matrix;
   RealScalar m_l1_norm;

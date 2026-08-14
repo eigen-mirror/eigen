@@ -99,13 +99,13 @@ Vector3f A;
 A << 1, 2, 3;
 Vector3f B = ((1 < 0) ? (A.reverse()) : A);
 \endcode
-This example will return <code>B = 3, 2, 1</code>. Do you see why?
-The reason is that in c++ the type of the \c ELSE statement is inferred from the type of the \c THEN expression such that both match.
-Since \c THEN is a <code>Reverse<Vector3f></code>, the \c ELSE statement A is converted to a <code>Reverse<Vector3f></code>, and the compiler thus generates:
+This example will return <code>B = 1, 2, 3</code>. Do you see why?
+The reason is that in c++ both statements of the ternary operator must be converted to a common type.
+The constructor of <code>Reverse<Vector3f></code> from a \c Vector3f is \c explicit, so the \c ELSE statement A cannot be converted to a <code>Reverse<Vector3f></code>; the common type is \c Vector3f instead, and the compiler thus generates:
 \code
-Vector3f B = ((1 < 0) ? (A.reverse()) : Reverse<Vector3f>(A));
+Vector3f B = ((1 < 0) ? Vector3f(A.reverse()) : Vector3f(A));
 \endcode
-In this very particular case, a workaround would be to call A.reverse().eval() for the \c THEN statement, but the safest and fastest is really to avoid this ternary operator with %Eigen's expressions and use a if/else construct.
+The value is the expected one here, but the selected statement is silently evaluated into a temporary plain object, and two different %Eigen expression types often have no common type at all, in which case the ternary operator does not even compile. The safest and fastest is really to avoid this ternary operator with %Eigen's expressions and use a if/else construct.
 
 
 \section TopicPitfalls_pass_by_value Pass-by-value

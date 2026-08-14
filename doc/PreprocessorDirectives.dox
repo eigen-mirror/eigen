@@ -73,8 +73,9 @@ run time. However, these assertions do cost time and can thus be turned off.
 
  - \b EIGEN_NO_DEBUG - disables %Eigen's assertions if defined. Not defined by default, unless the
    \c NDEBUG macro is defined (this is a standard C++ macro which disables all asserts).
- - \b EIGEN_NO_STATIC_ASSERT - if defined, compile-time static assertions are replaced by runtime assertions;
-   this saves compilation time. Not defined by default.
+ - \b EIGEN_NO_STATIC_ASSERT - if defined, %Eigen's compile-time static assertions are removed rather than
+   downgraded: the misuse they guard against is then reported neither at compile time nor at run time.
+   Not defined by default.
  - \b eigen_assert - macro with one argument that is used inside %Eigen for assertions. By default, it is
    basically defined to be \c assert, which aborts the program if the assertion is violated. Redefine this
    macro if you want to do something else, like throwing an exception.

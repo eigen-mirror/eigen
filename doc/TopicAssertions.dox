@@ -32,37 +32,20 @@ Matrix3d()  + Matrix4d();   // adding matrices of different sizes
 Matrix4cd() * Vector3cd();  // invalid product known at compile time
 \endcode
 
-Static assertions are defined in StaticAssert.h. If there is native static_assert, we use it. Otherwise, we have implemented an assertion macro that can show a limited range of messages.
-
-One can easily come up with static assertions without messages, such as:
-
-\code
-#define STATIC_ASSERT(x) \
-  switch(0) { case 0: case x:; }
-\endcode
-
-However, the example above obviously cannot tell why the assertion failed. Therefore, we define a \c struct in namespace Eigen::internal to handle available messages.
+Static assertions are defined in StaticAssert.h. EIGEN_STATIC_ASSERT(CONDITION,MSG) expands to the native
+<tt>static_assert</tt>:
 
 \code
-template<bool condition>
-struct static_assertion {};
-
-template<>
-struct static_assertion<true>
-{
-  enum {
-    YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX,
-    YOU_MIXED_VECTORS_OF_DIFFERENT_SIZES,
-    // see StaticAssert.h for all enums.
-  };
-};
+#define EIGEN_STATIC_ASSERT(X,MSG) static_assert(X, #MSG);
 \endcode
 
-And then, we define EIGEN_STATIC_ASSERT(CONDITION,MSG) to access Eigen::internal::static_assertion<bool(CONDITION)>::MSG. If the condition evaluates into \c false, your compiler displays a lot of messages explaining there is no MSG in static_assert<false>. Nevertheless, this is \a not in what we are interested. As you can see, all members of static_assert<true> are ALL_CAPS_AND_THEY_ARE_SHOUTING.
+\c CONDITION must be a compile-time boolean expression. \c MSG is not evaluated: it is stringified into the
+diagnostic, which is why the messages are written ALL_CAPS_AND_THEY_ARE_SHOUTING, as in
+\c YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX. Use one of the existing messages where it fits; see StaticAssert.h
+for the established names.
 
-\warning
-When using this macro, MSG should be a member of static_assertion<true>, or the static assertion \b always fails.
-Currently, it can only be used in function scope.
+Because it expands to a declaration, EIGEN_STATIC_ASSERT can be used wherever a declaration is allowed, including
+class scope — see for instance \c log1p_impl in MathFunctions.h.
 
 \subsection DerivedStaticAssert Derived static assertions
 
@@ -96,13 +79,14 @@ See StaticAssert.h for details such as what messages they throw.
 
 \subsection DisableStaticAssert Disabling static assertions
 
-If \c EIGEN_NO_STATIC_ASSERT is defined, static assertions turn into <tt>eigen_assert</tt>'s, working like:
+If \c EIGEN_NO_STATIC_ASSERT is defined, the static assertions are removed entirely:
 
 \code
-#define EIGEN_STATIC_ASSERT(CONDITION,MSG) eigen_assert((CONDITION) && #MSG);
+#define EIGEN_STATIC_ASSERT(CONDITION,MSG)
 \endcode
 
-This saves compile time but consumes more run time. \c EIGEN_NO_STATIC_ASSERT is undefined by default.
+They are not downgraded to run-time checks, so the misuse they guard against is reported neither at compile time
+nor at run time. \c EIGEN_NO_STATIC_ASSERT is undefined by default.
 
 */
 }

@@ -217,9 +217,14 @@ class RefBase : public MapBase<Derived> {
  * of rows.
  *
  * In the const case, if the input expression does not match the above requirement, then it is evaluated into a
- * temporary before being passed to the function. Here are some examples: \code MatrixXf A; VectorXf a; foo1(a.head());
- * // OK foo1(A.col());              // OK foo1(A.row());              // Compilation error because here innerstride!=1
- * foo2(A.row());              // Compilation error because A.row() is a 1xN object while foo2 is expecting a Nx1 object
+ * temporary before being passed to the function. Here are some examples:
+ * \code
+ * MatrixXf A;
+ * VectorXf a;
+ * foo1(a.head());             // OK
+ * foo1(A.col());              // OK
+ * foo1(A.row());              // Compilation error because here innerstride!=1
+ * foo2(A.row());              // The 1xN row is accepted as a Nx1 vector, but copied into a temporary
  * foo2(A.row().transpose());  // The row is copied into a contiguous temporary
  * foo2(2*a);                  // The expression is evaluated into a temporary
  * foo2(A.col().segment(2,4)); // No temporary

@@ -559,8 +559,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** \name Map
    * These are convenience functions returning Map objects. The Map() static functions return unaligned Map objects,
-   * while the AlignedMap() functions return aligned Map objects and thus should be called only with 16-byte-aligned
-   * \a data pointers.
+   * while the MapAligned() functions return Map objects with \c AlignedMax alignment and thus should be called only
+   * with \a data pointers aligned on an \c EIGEN_MAX_ALIGN_BYTES boundary.
    *
    * Here is an example using strides:
    * \include Matrix_Map_stride.cpp

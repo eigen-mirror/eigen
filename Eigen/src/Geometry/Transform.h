@@ -172,10 +172,13 @@ struct transform_make_affine;
  * that case the last matrix row can be ignored, and the product returns non
  * homogeneous vectors.
  *
- * Since, for instance, a Dim x Dim matrix is interpreted as a linear transformation,
- * it is not possible to directly transform Dim vectors stored in a Dim x Dim matrix.
- * The solution is either to use a Dim x Dynamic matrix or explicitly request a
- * vector transformation by making the vector homogeneous:
+ * In particular, a Dim x Dim matrix on the right-hand side of a Transform is not
+ * interpreted as a linear transformation: like any Dim x n matrix, its columns are
+ * transformed as points, so that for Mode!=Projective, T*m returns the Dim x Dim matrix
+ * (T.linear()*m).colwise() + T.translation(). A Dim x Dim matrix is interpreted as a linear
+ * transformation in the other direction of the product, and when it is assigned to a Transform,
+ * passed to a Transform constructor, or given to rotate()/prerotate().
+ * To obtain the result in homogeneous coordinates, make the points homogeneous explicitly:
  * \code
  * m' = T * m.colwise().homogeneous();
  * \endcode

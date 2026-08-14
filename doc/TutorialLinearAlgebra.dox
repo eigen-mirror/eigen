@@ -271,9 +271,10 @@ singular matrix). On \ref TopicLinearAlgebraDecompositions "this table" you can 
 whether they are rank-revealing or not.
 
 Rank-revealing decompositions offer at least a rank() method. They can also offer convenience methods such as isInvertible(),
-and some are also providing methods to compute the kernel (null-space) and image (column-space) of the matrix.
-ColPivHouseholderQR, CompleteOrthogonalDecomposition, and FullPivLU all provide these methods. Here is an example using
-FullPivLU:
+and FullPivLU is the only one that additionally computes the kernel (null-space) and the image (column-space) of the matrix,
+through kernel() and image(). ColPivHouseholderQR and CompleteOrthogonalDecomposition are faster rank-revealing
+factorizations providing rank() and isInvertible() but no null-space basis; CompleteOrthogonalDecomposition also offers
+pseudoInverse(). Here is an example using FullPivLU:
 
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>

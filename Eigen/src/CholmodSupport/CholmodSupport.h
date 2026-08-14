@@ -483,7 +483,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
  * \implsparsesolverconcept
  *
  * This class supports all kind of SparseMatrix<>: row or column major; upper, lower, or both; compressed or non
- * compressed.
+ * compressed, except row-major matrices with complex scalars.
  *
  * \warning Only double precision real and complex scalar types are supported by Cholmod.
  *
@@ -540,7 +540,7 @@ class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimpl
  * \implsparsesolverconcept
  *
  * This class supports all kind of SparseMatrix<>: row or column major; upper, lower, or both; compressed or non
- * compressed.
+ * compressed, except row-major matrices with complex scalars.
  *
  * \warning Only double precision real and complex scalar types are supported by Cholmod.
  *
@@ -611,7 +611,7 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
  * \implsparsesolverconcept
  *
  * This class supports all kind of SparseMatrix<>: row or column major; upper, lower, or both; compressed or non
- * compressed.
+ * compressed, except row-major matrices with complex scalars.
  *
  * \warning Only double precision real and complex scalar types are supported by Cholmod.
  *
@@ -674,7 +674,7 @@ class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSuper
  * \implsparsesolverconcept
  *
  * This class supports all kind of SparseMatrix<>: row or column major; upper, lower, or both; compressed or non
- * compressed.
+ * compressed, except row-major matrices with complex scalars.
  *
  * \warning Only double precision real and complex scalar types are supported by Cholmod.
  *

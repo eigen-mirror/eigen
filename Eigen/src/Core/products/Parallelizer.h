@@ -47,7 +47,7 @@ inline void manage_multi_threading(Action action, int* v);
 
 // Public APIs.
 
-/** Must be called first when calling Eigen from multiple threads */
+/** \deprecated Does nothing. No initialization is required before calling Eigen from multiple threads. */
 EIGEN_DEPRECATED_WITH_REASON("Initialization is no longer needed.") inline void initParallel() {}
 
 /** \returns the max number of threads reserved for Eigen
@@ -74,8 +74,10 @@ inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v
 inline ThreadPool* setGemmThreadPool(ThreadPool* new_pool) {
   static ThreadPool* pool = nullptr;
   if (new_pool != nullptr) {
-    // This will wait for work in all threads in *pool to finish,
-    // then destroy the old ThreadPool, and then replace it with new_pool.
+    // This only replaces the stored pointer: work already scheduled on the old
+    // ThreadPool is not waited for, and the old pool is not destroyed. Since
+    // this returns the new pool, the caller must keep its own pointer to the
+    // old one to dispose of it.
     pool = new_pool;
     // Reset the number of threads to the number of threads on the new pool.
     setNbThreads(pool->NumThreads());

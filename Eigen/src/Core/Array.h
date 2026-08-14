@@ -102,8 +102,7 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * For fixed-size matrices, does nothing.
    *
    * For dynamic-size matrices, creates an empty matrix of size 0. Does not allocate any array. Such a matrix
-   * is called a null matrix. This constructor is the unique way to create null matrices: resizing
-   * a matrix to 0 is not supported.
+   * is called a null matrix. An existing matrix can also be turned into a null matrix by resizing it to 0.
    *
    * \sa resize(Index,Index)
    */

@@ -840,7 +840,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
 
 /** \internal \returns the hyperbolic sine of \a x (coeff-wise).
     Uses sinh(x) = (exp(x) - exp(-x)) / 2.
-    Near overflow, uses sinh(x) = sign(x) * exp(|x|) / 2 via ldexp to avoid inf.
+    For |x| >= 1, the value h = exp(|x|) / 2 is computed once as exp(|x| - 1) * (E/2), where E is Euler's number,
+    to avoid premature inf, and is shared by both branches: sinh(x) = sign(x) * (h - 1/(4*h)) for |x| <= 20, and
+    sinh(x) = sign(x) * h for |x| > 20.
     For |x| < 1, uses a direct polynomial to avoid catastrophic cancellation.
 */
 template <typename Packet>
@@ -867,13 +869,13 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Pac
   const Packet one = pset1<Packet>(1.0f);
   const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
 
-  // Medium path (1 <= |x| < 20):
+  // Medium path (1 <= |x| <= 20):
   //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2
   //           = (2*e - 1/(2*e)) / 2 = e - 1/(4*e)
   const Packet quarter = pset1<Packet>(0.25f);
   Packet p_medium = psub(e, pdiv(quarter, e));
 
-  // Large path (|x| >= 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
+  // Large path (|x| > 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0f);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
   Packet p_large = pselect(large_mask, e, p_medium);
@@ -917,12 +919,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
   const Packet one = pset1<Packet>(1.0);
   const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
 
-  // Medium path (1 <= |x| < 20):
+  // Medium path (1 <= |x| <= 20):
   //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2 = e - 1/(4*e)
   const Packet quarter = pset1<Packet>(0.25);
   Packet p_medium = psub(e, pdiv(quarter, e));
 
-  // Large path (|x| >= 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
+  // Large path (|x| > 20): exp(-|x|) is negligible, sinh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
   Packet p_large = pselect(large_mask, e, p_medium);
@@ -933,7 +935,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
 
 /** \internal \returns the hyperbolic cosine of \a x (coeff-wise).
     Uses cosh(x) = (exp(|x|) + exp(-|x|)) / 2.
-    Near overflow, uses ldexp(exp(|x| - ln2), -1) to avoid premature inf.
+    The value h = exp(|x|) / 2 is computed once as exp(|x| - 1) * (E/2), where E is Euler's number, to avoid
+    premature inf, and is shared by both branches: cosh(x) = h + 1/(4*h) for |x| <= 20, and cosh(x) = h for
+    |x| > 20.
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Packet& x) {
@@ -952,7 +956,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Pac
   const Packet quarter = pset1<Packet>(0.25f);
   Packet p_medium = padd(e, pdiv(quarter, e));
 
-  // Large path (|x| >= 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
+  // Large path (|x| > 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0f);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
   return pselect(large_mask, e, p_medium);
@@ -973,7 +977,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Pa
   const Packet quarter = pset1<Packet>(0.25);
   Packet p_medium = padd(e, pdiv(quarter, e));
 
-  // Large path (|x| >= 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
+  // Large path (|x| > 20): exp(-|x|) is negligible, cosh(x) ~ exp(|x|)/2 = e.
   const Packet large_threshold = pset1<Packet>(20.0);
   const Packet large_mask = pcmp_lt(large_threshold, abs_x);
   return pselect(large_mask, e, p_medium);

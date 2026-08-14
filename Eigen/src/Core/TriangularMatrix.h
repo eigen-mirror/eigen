@@ -490,7 +490,7 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
    *
    * The matrix \c *this must be triangular and invertible (i.e., all the coefficients of the
    * diagonal must be non zero). It works as a forward (resp. backward) substitution if \c *this
-   * is an upper (resp. lower) triangular matrix.
+   * is a lower (resp. upper) triangular matrix.
    *
    * Example: \include Triangular_solve.cpp
    * Output: \verbinclude Triangular_solve.out

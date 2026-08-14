@@ -165,11 +165,11 @@ struct traits<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
  * \tparam MatrixType_ the type of the sparse matrix A, can be a dense or a sparse matrix.
  * \tparam UpLo_ the triangular part that will be used for the computations. It can be Lower,
  *               Upper, or Lower|Upper in which the full matrix entries will be considered. Default is Lower.
- * \tparam Preconditioner_ the type of the preconditioner. Default is DiagonalPreconditioner
+ * \tparam Preconditioner_ the type of the preconditioner. Default is IdentityPreconditioner
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
- * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
- * and NumTraits<Scalar>::epsilon() for the tolerance.
+ * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
+ * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
  *
  * This class can be used as the direct solver classes. Here is a typical usage example:
  * \code

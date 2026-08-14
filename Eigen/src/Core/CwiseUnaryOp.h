@@ -39,10 +39,11 @@ class CwiseUnaryOpImpl;
  * \tparam XprType the type of the expression to which we are applying the unary operator
  *
  * This class represents an expression where a unary operator is applied to an expression.
- * It is the return type of all operations taking exactly 1 input expression, regardless of the
- * presence of other inputs such as scalars. For example, the operator* in the expression 3*matrix
- * is considered unary, because only the right-hand side is an expression, and its
- * return type is a specialization of CwiseUnaryOp.
+ * It is the return type of coefficient-wise operations taking a single input expression, such as unary negation
+ * or MatrixBase::unaryExpr(). Operators mixing an expression and a scalar, such as the operator* in the expression
+ * 3*matrix, are binary: the scalar is nested as a CwiseNullaryOp, so the return type is a specialization of
+ * CwiseBinaryOp. A scalar carried inside the functor does not make the expression binary; ArrayBase::pow(const
+ * ScalarExponent&) stores its exponent in the functor and still returns a CwiseUnaryOp.
  *
  * Most of the time, this is the only way that it is used, so you typically don't have to name
  * CwiseUnaryOp types explicitly.

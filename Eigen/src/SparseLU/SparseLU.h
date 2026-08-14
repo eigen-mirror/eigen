@@ -294,7 +294,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
   inline const PermutationType& rowsPermutation() const { return m_perm_r; }
   /** \brief Give the column matrix permutation.
    *
-   * \returns a reference to the column matrix permutation\f$ P_c^T \f$ such that \f$P_r A P_c^T = L U\f$
+   * \returns a reference to the column matrix permutation \f$ P_c \f$ such that \f$P_r A P_c^T = L U\f$
    * \sa rowsPermutation()
    */
   inline const PermutationType& colsPermutation() const { return m_perm_c; }

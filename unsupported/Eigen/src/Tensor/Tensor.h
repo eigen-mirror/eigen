@@ -35,9 +35,9 @@ namespace Eigen {
  * \tparam Options_  A combination of either \b #RowMajor or \b #ColMajor, and of either
  *                 \b #AutoAlign or \b #DontAlign.
  *                 The former controls \ref TopicStorageOrders "storage order", and defaults to column-major. The latter
- * controls alignment, which is required for vectorization. It defaults to aligning tensors. Note that tensors currently
- * do not support any operations that profit from vectorization. Support for such operations (i.e. adding two tensors
- * etc.) is planned.
+ * controls alignment, which is required for vectorization. It defaults to aligning tensors. Tensor expressions such as
+ * the sum of two tensors are evaluated with packet instructions whenever the evaluators involved support packet
+ * access.
  *
  * You can access elements of tensors using normal subscripting:
  *
@@ -56,10 +56,10 @@ namespace Eigen {
  * <dt><b>Relation to other parts of Eigen:</b></dt>
  * <dd>The midterm development goal for this class is to have a similar hierarchy as Eigen uses for matrices, so that
  * taking blocks or using tensors in expressions is easily possible, including an interface with the vector/matrix code
- * by providing .asMatrix() and .asVector() (or similar) methods for rank 2 and 1 tensors. However, currently, the
- * %Tensor class does not provide any of these features and is only available as a stand-alone class that just allows
- * for coefficient access. Also, when fixed-size tensors are implemented, the number of template arguments is likely to
- * change dramatically.</dd>
+ * by providing .asMatrix() and .asVector() (or similar) methods for rank 2 and 1 tensors. Taking blocks and using
+ * tensors in expressions is already supported through \c TensorBase; interoperability with the vector/matrix code
+ * currently relies on wrapping the data in a \c Map or a \c TensorMap instead of dedicated methods. Fixed-size tensors
+ * are provided by the separate \c TensorFixedSize class.</dd>
  * </dl>
  *
  * \ref TopicStorageOrders

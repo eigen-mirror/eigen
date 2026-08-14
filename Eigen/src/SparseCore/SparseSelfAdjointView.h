@@ -140,6 +140,8 @@ class SparseSelfAdjointView : public EigenBase<SparseSelfAdjointView<MatrixType,
 
   /** Perform a symmetric rank K update of the selfadjoint matrix \c *this:
    * \f$ this = this + \alpha ( u u^* ) \f$ where \a u is a vector or matrix.
+   * As a special case, if \a alpha is zero then the previous contents of \c *this are discarded and overwritten,
+   * yielding \f$ this = u u^* \f$ instead of leaving \c *this unchanged.
    *
    * \returns a reference to \c *this
    *

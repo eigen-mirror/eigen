@@ -215,8 +215,13 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
   /** \returns A read-write reference to the angle of the third angle. */
   Scalar& gamma() { return m_angles[2]; }
 
-  /** \returns The Euler angles rotation inverse (which is as same as the negative),
-   *  (-alpha, -beta, -gamma).
+  /** \returns The Euler angles with each angle negated, (-alpha, -beta, -gamma).
+   *
+   * \note In general these angles do not describe the inverse rotation: inverting
+   * \f$ R = R_\alpha R_\beta R_\gamma \f$ also reverses the order of the three factors. They do describe it
+   * whenever the three elemental rotations commute, for instance when at most one of the angles is nonzero,
+   * and, for a system whose first and third axes coincide (a proper Euler system such as ZXZ), whenever
+   * \f$ \alpha = \gamma \f$, for any \f$ \beta \f$.
    */
   EulerAngles inverse() const {
     EulerAngles res;
@@ -224,8 +229,10 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
     return res;
   }
 
-  /** \returns The Euler angles rotation negative (which is as same as the inverse),
+  /** \returns The Euler angles negative (which is the same as inverse()),
    *  (-alpha, -beta, -gamma).
+   *
+   * \sa inverse()
    */
   EulerAngles operator-() const { return inverse(); }
 

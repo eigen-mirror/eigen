@@ -139,7 +139,8 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
 
   /** \returns the coefficient at given index.
    *
-   * This method is allowed only for vector expressions, and for matrix expressions having the LinearAccessBit.
+   * This method is allowed only for expressions that are vectors at compile time. For matrix expressions having the
+   * LinearAccessBit, use operator()(Index) instead.
    *
    * \sa operator[](Index), operator()(Index,Index) const, x() const, y() const,
    * z() const, w() const
@@ -154,9 +155,9 @@ class DenseCoeffsBase<Derived, ReadOnlyAccessors> : public EigenBase<Derived> {
 
   /** \returns the coefficient at given index.
    *
-   * This is synonymous to operator[](Index) const.
+   * For expressions that are vectors at compile time, this is synonymous to operator[](Index) const.
    *
-   * This method is allowed only for vector expressions, and for matrix expressions having the LinearAccessBit.
+   * This method is allowed only for expressions having the LinearAccessBit.
    *
    * \sa operator[](Index), operator()(Index,Index) const, x() const, y() const,
    * z() const, w() const
@@ -355,7 +356,8 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
 
   /** \returns a reference to the coefficient at given index.
    *
-   * This method is allowed only for vector expressions, and for matrix expressions having the LinearAccessBit.
+   * This method is allowed only for expressions that are vectors at compile time. For matrix expressions having the
+   * LinearAccessBit, use operator()(Index) instead.
    *
    * \sa operator[](Index) const, operator()(Index,Index), x(), y(), z(), w()
    */
@@ -369,9 +371,9 @@ class DenseCoeffsBase<Derived, WriteAccessors> : public DenseCoeffsBase<Derived,
 
   /** \returns a reference to the coefficient at given index.
    *
-   * This is synonymous to operator[](Index).
+   * For expressions that are vectors at compile time, this is synonymous to operator[](Index).
    *
-   * This method is allowed only for vector expressions, and for matrix expressions having the LinearAccessBit.
+   * This method is allowed only for expressions having the LinearAccessBit.
    *
    * \sa operator[](Index) const, operator()(Index,Index), x(), y(), z(), w()
    */

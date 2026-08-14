@@ -153,8 +153,8 @@ It is easy to perform arithmetic operations on sparse matrices provided that the
 \code 
 perm.indices();      // Reference to the vector of indices
 sm1.twistedBy(perm); // Permute rows and columns
-sm2 = sm1 * perm;    // Permute the rows
-sm2 = perm * sm1;    // Permute the columns
+sm2 = sm1 * perm;    // Permute the columns
+sm2 = perm * sm1;    // Permute the rows
 \endcode 
 </td>
 <td> 

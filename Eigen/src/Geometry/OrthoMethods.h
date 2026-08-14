@@ -242,8 +242,10 @@ struct unitOrthogonal_selector<Derived, 2> {
  *
  * \returns a unit vector which is orthogonal to \c *this
  *
- * The size of \c *this must be at least 2. If the size is exactly 2,
+ * The size of \c *this must be at least 2. If the size is exactly 2 at compile time,
  * then the returned vector is a counter-clockwise rotation of \c *this, i.e., (-y,x).normalized().
+ * A vector whose size is only known at runtime takes the generic code path even when its size is 2,
+ * and then returns the clockwise rotation (y,-x).normalized() if |y| > |x|.
  *
  * \sa cross()
  */

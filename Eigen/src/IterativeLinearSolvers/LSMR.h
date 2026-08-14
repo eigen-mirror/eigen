@@ -312,6 +312,12 @@ struct traits<LSMR<MatrixType_, Preconditioner_> > {
  * and \c btol (relative error assumed in \c b); they can also be set
  * independently via setToleranceA() and setToleranceB().
  *
+ * Unlike most other iterative solvers, error() does not report the relative
+ * residual \f$ ||Ax-b||/||b|| \f$: it reports the estimate
+ * \f$ ||A^T r|| / (||A||\,||r||) \f$, with \f$ r = b - Ax \f$, of the relative
+ * residual of the normal equations, the quantity that the least-squares
+ * stopping rule bounds by \c atol.
+ *
  * The setDamping() method enables Tikhonov regularization: with a damping
  * \f$ \lambda > 0 \f$ the solver minimizes
  * \f$ ||Ax-b||^2 + \lambda^2 ||x||^2 \f$, for which a unique solution always

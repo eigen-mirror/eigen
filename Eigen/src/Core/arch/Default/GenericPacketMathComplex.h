@@ -193,7 +193,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   rho.v = psqrt(pmul(cst_half, padd(a_abs, l)));
 
   // Step 3. Compute [rho0, eta0, rho1, eta1], where
-  // eta0 = (y0 / l0) / 2, and eta1 = (y1 / l1) / 2.
+  // eta0 = (y0 / rho0) / 2, and eta1 = (y1 / rho1) / 2.
   // set eta = 0 if input is 0 + i0.
   RealPacket eta = pandnot(pmul(cst_half, pdiv(a.v, pcplxflip(rho).v)), a_max_zero_mask);
   RealPacket real_mask = peven_mask(a.v);

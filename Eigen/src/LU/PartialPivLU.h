@@ -38,8 +38,8 @@ struct traits<PartialPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType
  * \tparam MatrixType_ the type of the matrix of which we are computing the LU decomposition
  *
  * This class represents a LU decomposition of a \b square \b invertible matrix, with partial pivoting: the matrix A
- * is decomposed as A = PLU where L is unit-lower-triangular, U is upper-triangular, and P
- * is a permutation matrix.
+ * is decomposed as \f$ A = P^{-1} L U \f$ where L is unit-lower-triangular, U is upper-triangular, and
+ * \f$ P \f$ is the permutation matrix returned by permutationP(), so that \f$ P A = L U \f$.
  *
  * Typically, partial pivoting LU decomposition is only considered numerically stable for square invertible
  * matrices. Thus LAPACK's dgesv and dgesvx require the matrix to be square and invertible. The present class
@@ -356,7 +356,7 @@ struct generic_partial_lu_impl {
         lu.col(k).tail(fix<RRows>(rrows)) /= lu.coeff(k, k);
       } else if (first_zero_pivot == -1) {
         // the pivot is exactly zero, we record the index of the first pivot which is exactly 0,
-        // and continue the factorization such we still have A = PLU
+        // and continue the factorization such we still have P A = L U
         first_zero_pivot = k;
       }
 

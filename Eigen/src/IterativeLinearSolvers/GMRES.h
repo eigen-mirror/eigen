@@ -232,8 +232,8 @@ struct traits<GMRES<MatrixType_, Preconditioner_> > {
  * \tparam Preconditioner_ the type of the preconditioner. Default is DiagonalPreconditioner
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
- * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
- * and NumTraits<Scalar>::epsilon() for the tolerance.
+ * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
+ * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
  *
  * When a left preconditioner M is used, GMRES applies the stopping criterion to the preconditioned
  * system M^{-1} A x = M^{-1} b. The reported error is therefore

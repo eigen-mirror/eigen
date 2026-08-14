@@ -92,7 +92,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * generalized eigenproblem \f$ Ax = \lambda B x \f$ with \a matA the
    * selfadjoint matrix \f$ A \f$ and \a matB the positive definite matrix
    * \f$ B \f$. Each eigenvector \f$ x \f$ satisfies the property
-   * \f$ x^* B x = 1 \f$. The eigenvectors are computed if
+   * \f$ x^* B x = 1 \f$ for \c Ax_lBx and \c ABx_lx, and the property
+   * \f$ x^* B^{-1} x = 1 \f$ for \c BAx_lx. The eigenvectors are computed if
    * \a options contains ComputeEigenvectors.
    *
    * In addition, the two following variants can be solved via \p options:
@@ -128,7 +129,9 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * - \c BAx_lx: \f$ BAx = \lambda x \f$
    * with \a matA the selfadjoint matrix \f$ A \f$ and \a matB the positive definite
    * matrix \f$ B \f$.
-   * In addition, each eigenvector \f$ x \f$ satisfies the property \f$ x^* B x = 1 \f$.
+   * In addition, each eigenvector \f$ x \f$ satisfies the property \f$ x^* B x = 1 \f$ for \c Ax_lBx and \c ABx_lx.
+   * For \c BAx_lx, the eigenvectors are instead normalized such that \f$ x^* B^{-1} x = 1 \f$, following the same
+   * convention as LAPACK's \c ?sygv with \c itype=3.
    *
    * The eigenvalues() function can be used to retrieve
    * the eigenvalues. If \p options contains ComputeEigenvectors, then the

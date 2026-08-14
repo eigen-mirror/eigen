@@ -278,7 +278,8 @@ class EigenSolver {
   template <typename InputType>
   EigenSolver& compute(const EigenBase<InputType>& matrix, bool computeEigenvectors = true);
 
-  /** \returns NumericalIssue if the input contains INF or NaN values or overflow occurred. Returns Success otherwise.
+  /** \returns NumericalIssue if the input contains INF or NaN values or overflow occurred, NoConvergence if the Schur
+   * decomposition did not converge within the maximum number of iterations, and Success otherwise.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");

@@ -476,7 +476,8 @@ class PastixLU : public PastixBase<PastixLU<MatrixType_> > {
  * The vectors or matrices X and B can be either dense or sparse
  *
  * \tparam MatrixType the type of the sparse matrix A, it must be a SparseMatrix<>
- * \tparam UpLo The part of the matrix to use : Lower or Upper. The default is Lower as required by PaStiX
+ * \tparam UpLo The part of the matrix to use : Lower or Upper. This parameter has no default: either part is accepted
+ *              and copied to the lower part required by PaStiX.
  *
  * \implsparsesolverconcept
  *
@@ -551,7 +552,8 @@ class PastixLLT : public PastixBase<PastixLLT<MatrixType_, UpLo_> > {
  * The vectors or matrices X and B can be either dense or sparse
  *
  * \tparam MatrixType the type of the sparse matrix A, it must be a SparseMatrix<>
- * \tparam UpLo The part of the matrix to use : Lower or Upper. The default is Lower as required by PaStiX
+ * \tparam UpLo The part of the matrix to use : Lower or Upper. This parameter has no default: either part is accepted
+ *              and copied to the lower part required by PaStiX.
  *
  * \implsparsesolverconcept
  *

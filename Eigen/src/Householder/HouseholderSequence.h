@@ -225,8 +225,11 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
         .setShift(m_shift);
   }
 
-  /** \returns an expression of the complex conjugate of \c *this if Cond==true,
-   *           returns \c *this otherwise.
+  /** \returns a %HouseholderSequence over the vectors and coefficients of \c *this, complex-conjugated if
+   *           Cond==true.
+   *
+   * \warning Unlike conjugate(), this function does not propagate the state of \c *this: the returned sequence uses
+   *          the defaults of the two-argument constructor, that is, not reversed, full length and zero shift.
    */
   template <bool Cond>
   EIGEN_DEVICE_FUNC inline std::conditional_t<Cond, ConjugateReturnType, ConstHouseholderSequence> conjugateIf() const {

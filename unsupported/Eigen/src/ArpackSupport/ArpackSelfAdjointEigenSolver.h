@@ -71,9 +71,9 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    *    Must be less than the size of the input matrix, or an error is returned.
    * \param[in] eigs_sigma String containing either "LM", "SM", "LA", or "SA", with
    *    respective meanings to find the largest magnitude, smallest magnitude,
-   *    largest algebraic, or smallest algebraic eigenvalues. Alternatively, this
-   *    value can contain floating point value in string form, in which case the
-   *    eigenvalues closest to this value will be found.
+   *    largest algebraic, or smallest algebraic eigenvalues. Passing a floating
+   *    point value in string form, to find the eigenvalues closest to that value,
+   *    is not supported yet and triggers an assertion.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    * \param[in] tol What tolerance to find the eigenvalues to. Default is 0, which
    *    means machine precision.
@@ -104,9 +104,9 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    *    Must be less than the size of the input matrix, or an error is returned.
    * \param[in] eigs_sigma String containing either "LM", "SM", "LA", or "SA", with
    *    respective meanings to find the largest magnitude, smallest magnitude,
-   *    largest algebraic, or smallest algebraic eigenvalues. Alternatively, this
-   *    value can contain floating point value in string form, in which case the
-   *    eigenvalues closest to this value will be found.
+   *    largest algebraic, or smallest algebraic eigenvalues. Passing a floating
+   *    point value in string form, to find the eigenvalues closest to that value,
+   *    is not supported yet and triggers an assertion.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    * \param[in] tol What tolerance to find the eigenvalues to. Default is 0, which
    *    means machine precision.
@@ -136,9 +136,9 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    *    Must be less than the size of the input matrix, or an error is returned.
    * \param[in] eigs_sigma String containing either "LM", "SM", "LA", or "SA", with
    *    respective meanings to find the largest magnitude, smallest magnitude,
-   *    largest algebraic, or smallest algebraic eigenvalues. Alternatively, this
-   *    value can contain floating point value in string form, in which case the
-   *    eigenvalues closest to this value will be found.
+   *    largest algebraic, or smallest algebraic eigenvalues. Passing a floating
+   *    point value in string form, to find the eigenvalues closest to that value,
+   *    is not supported yet and triggers an assertion.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    * \param[in] tol What tolerance to find the eigenvalues to. Default is 0, which
    *    means machine precision.
@@ -162,9 +162,9 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    *    Must be less than the size of the input matrix, or an error is returned.
    * \param[in] eigs_sigma String containing either "LM", "SM", "LA", or "SA", with
    *    respective meanings to find the largest magnitude, smallest magnitude,
-   *    largest algebraic, or smallest algebraic eigenvalues. Alternatively, this
-   *    value can contain floating point value in string form, in which case the
-   *    eigenvalues closest to this value will be found.
+   *    largest algebraic, or smallest algebraic eigenvalues. Passing a floating
+   *    point value in string form, to find the eigenvalues closest to that value,
+   *    is not supported yet and triggers an assertion.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    * \param[in] tol What tolerance to find the eigenvalues to. Default is 0, which
    *    means machine precision.
@@ -212,9 +212,9 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    *
    * \pre The eigenvalues have been computed before.
    *
-   * The eigenvalues are repeated according to their algebraic multiplicity,
-   * so there are as many eigenvalues as rows in the matrix. The eigenvalues
-   * are sorted in increasing order.
+   * The returned vector has \c nbrEigenvalues entries, as requested when calling
+   * compute(): ARPACK is a partial eigensolver and cannot compute the whole
+   * spectrum. The eigenvalues are sorted in increasing order.
    *
    * Example: \include SelfAdjointEigenSolver_eigenvalues.cpp
    * Output: \verbinclude SelfAdjointEigenSolver_eigenvalues.out

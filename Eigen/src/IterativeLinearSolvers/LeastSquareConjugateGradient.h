@@ -126,8 +126,8 @@ struct traits<LeastSquaresConjugateGradient<MatrixType_, Preconditioner_> > {
   * \implsparsesolverconcept
   *
   * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
-  * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
-  * and NumTraits<Scalar>::epsilon() for the tolerance.
+  * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
+  * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
   *
   * This class can be used as the direct solver classes. Here is a typical usage example:
     \code

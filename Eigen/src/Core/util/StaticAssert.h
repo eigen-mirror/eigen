@@ -15,9 +15,12 @@
 /* Some notes on Eigen's static assertion mechanism:
  *
  *  - in EIGEN_STATIC_ASSERT(CONDITION,MSG) the parameter CONDITION must be a compile time boolean
- *    expression, and MSG an enum listed in struct internal::static_assertion<true>
+ *    expression, and MSG an identifier that is stringified into the diagnostic; by convention it is written
+ *    ALL_CAPS. Prefer one of the messages already used by the derived EIGEN_STATIC_ASSERT_* macros below.
  *
- *  - currently EIGEN_STATIC_ASSERT can only be used in function scope
+ *  - EIGEN_STATIC_ASSERT expands to a plain static_assert, so it may be used wherever a declaration is allowed,
+ *    including class scope (see e.g. log1p_impl in MathFunctions.h). That is why EIGEN_NO_STATIC_ASSERT removes
+ *    the check outright instead of downgrading it to an eigen_assert, which would only be valid in function scope.
  *
  */
 

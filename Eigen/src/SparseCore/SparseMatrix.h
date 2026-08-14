@@ -278,8 +278,9 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   /** \returns a reference to a novel non zero coefficient with coordinates \a row x \a col.
    * The non zero coefficient must \b not already exist.
    *
-   * If the matrix \c *this is in compressed mode, then \c *this is turned into uncompressed
-   * mode while reserving room for 2 x this->innerSize() non zeros if reserve(Index) has not been called earlier.
+   * If the matrix \c *this is in compressed mode, then \c *this is turned into uncompressed mode with no spare room;
+   * whenever an insertion finds no free slot in any inner vector, room for one additional element per inner vector is
+   * reserved.
    * In this case, the insertion procedure is optimized for a \e sequential insertion mode where elements are assumed to
    * be inserted by increasing outer-indices.
    *
@@ -636,7 +637,8 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     prune(default_prunning_func(reference, epsilon));
   }
 
-  /** Turns the matrix into compressed format, and suppresses all nonzeros which do not satisfy the predicate \a keep.
+  /** Suppresses all nonzeros which do not satisfy the predicate \a keep. The storage format is preserved: an
+   * uncompressed matrix remains uncompressed, so call makeCompressed() if a compressed result is required.
    * The functor type \a KeepFunc must implement the following function:
    * \code
    * bool operator() (const Index& row, const Index& col, const Scalar& value) const;
@@ -1357,6 +1359,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
 /** The same as setFromTriplets but triplets are assumed to be pre-sorted. This is faster and requires less temporary
  * storage. Two triplets `a` and `b` are appropriately ordered if: \code ColMajor: ((a.col() != b.col()) ? (a.col() <
  * b.col()) : (a.row() < b.row()) RowMajor: ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()) \endcode
+ * If the range is empty, the initial contents of \c *this are left untouched instead of being destroyed.
  */
 template <typename Scalar, int Options_, typename StorageIndex_>
 template <typename InputIterators>

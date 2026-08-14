@@ -231,7 +231,7 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    * This is not used for the SVD decomposition itself.
    *
    * When it needs to get the threshold value, Eigen calls threshold().
-   * The default is \c NumTraits<Scalar>::epsilon()
+   * The default is \c NumTraits<Scalar>::epsilon() scaled by the number of singular values, \c max(1,min(rows,cols)).
    *
    * \param threshold The new value to use as the threshold.
    *

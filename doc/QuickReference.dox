@@ -611,10 +611,10 @@ vec.reverseInPlace()
 \subsection QuickRef_Replicate Replicate
 Vectors, matrices, rows, and/or columns can be replicated in any direction (see DenseBase::replicate(), VectorwiseOp::replicate())
 \code
-vec.replicate(times)                                          vec.replicate<Times>
+vec.replicate(times, 1)                                       vec.replicate<Times, 1>()
 mat.replicate(vertical_times, horizontal_times)               mat.replicate<VerticalTimes, HorizontalTimes>()
-mat.colwise().replicate(vertical_times, horizontal_times)     mat.colwise().replicate<VerticalTimes, HorizontalTimes>()
-mat.rowwise().replicate(vertical_times, horizontal_times)     mat.rowwise().replicate<VerticalTimes, HorizontalTimes>()
+mat.colwise().replicate(times)                                mat.colwise().replicate<Times>()
+mat.rowwise().replicate(times)                                mat.rowwise().replicate<Times>()
 \endcode
 
 

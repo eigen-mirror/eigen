@@ -266,14 +266,16 @@ class HessenbergDecomposition {
 };
 
 /** \internal
- * Performs a tridiagonal decomposition of \a matA in place.
+ * Performs a Hessenberg decomposition of \a matA in place.
  *
- * \param matA the input selfadjoint matrix
+ * \param matA the input square matrix
  * \param hCoeffs returned Householder coefficients
  *
- * The result is written in the lower triangular part of \a matA.
+ * The result is written in the whole of \a matA: the upper part, including
+ * the subdiagonal, holds the Hessenberg matrix H, while the part strictly
+ * below the subdiagonal holds the Householder vectors.
  *
- * Implemented from Golub's "%Matrix Computations", algorithm 8.3.1.
+ * Implemented from Golub's "%Matrix Computations", algorithm 7.4.2.
  *
  * \sa packedMatrix()
  */
