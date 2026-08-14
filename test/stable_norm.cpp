@@ -261,7 +261,12 @@ void stable_normalize_extremes() {
     VERIFY_IS_APPROX(input, expected);
   }
 
-  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0)) {
+  // For 32-bit ARM, the vectorized reductions flush single-precision subnormals to zero
+  // (FTZ), so stableNormalize cannot distinguish this input from zero and, per its
+  // contract for zero vectors, returns it unchanged.
+  constexpr bool subnormals_flushed = EIGEN_ARCH_ARM != 0 && sizeof(RealScalar) == 4;
+  if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present && denorm > RealScalar(0) &&
+      !subnormals_flushed) {
     const Vector2 input = Vector2::Constant(denorm);
     const Vector2 expected = Vector2::Constant(inv_sqrt_two);
     VERIFY_IS_APPROX(input.stableNormalized(), expected);
