@@ -229,12 +229,12 @@ struct functor_traits<core_cast_op<SrcType, DstType>> {
 /** \internal
  * \brief Template functor to arithmetically shift a scalar right by a number of bits
  *
- * \sa class CwiseUnaryOp, MatrixBase::shift_right()
+ * \sa class CwiseUnaryOp, ArrayBase::shiftRight()
  */
 template <typename Scalar, int N>
 struct scalar_shift_right_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return numext::arithmetic_shift_right(a);
+    return numext::arithmetic_shift_right(a, N);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
@@ -249,12 +249,12 @@ struct functor_traits<scalar_shift_right_op<Scalar, N>> {
 /** \internal
  * \brief Template functor to logically shift a scalar left by a number of bits
  *
- * \sa class CwiseUnaryOp, MatrixBase::shift_left()
+ * \sa class CwiseUnaryOp, ArrayBase::shiftLeft()
  */
 template <typename Scalar, int N>
 struct scalar_shift_left_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return numext::logical_shift_left(a);
+    return numext::logical_shift_left(a, N);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {

@@ -1175,14 +1175,8 @@ struct shift_imm_traits {
   enum { Cost = 1, PacketAccess = internal::packet_traits<Scalar>::HasShift };
 };
 
-template <int N, typename Scalar>
-struct logical_left_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::logical_shift_left(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::plogical_shift_left<N>(v);
-  }
-};
+// ArrayBase exposes an arithmetic right shift and a logical left shift, but no logical right shift,
+// so that packet op is still reached through a functor of its own.
 template <int N, typename Scalar>
 struct logical_right_shift_op {
   Scalar operator()(const Scalar& v) const { return numext::logical_shift_right(v, N); }
@@ -1191,32 +1185,25 @@ struct logical_right_shift_op {
     return internal::plogical_shift_right<N>(v);
   }
 };
-template <int N, typename Scalar>
-struct arithmetic_right_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::arithmetic_shift_right(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::parithmetic_shift_right<N>(v);
-  }
-};
 
 namespace Eigen {
 namespace internal {
 template <int N, typename Scalar>
-struct functor_traits<logical_left_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
 struct functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
-struct functor_traits<arithmetic_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
 }  // namespace internal
 }  // namespace Eigen
 
+// A lambda takes the default functor_traits, so each reference arm stays scalar while the arm under
+// test vectorizes. Comparing the reference against the shift expression as well as against the
+// assigned result evaluates the expression coefficient-wise, which is the only path that reaches the
+// scalar operator() of its functor.
 template <typename ArrayType>
 struct shift_test_impl {
-  typedef typename ArrayType::Scalar Scalar;
+  using Scalar = typename ArrayType::Scalar;
   static constexpr size_t Size = sizeof(Scalar);
   static constexpr size_t MaxShift = (CHAR_BIT * Size) - 1;
 
+  // N starts at one: NEON's immediate right-shift intrinsics reject a count of zero.
   template <size_t N = 1>
   static inline std::enable_if_t<(N > MaxShift), void> run(const ArrayType&) {}
   template <size_t N = 1>
@@ -1225,18 +1212,26 @@ struct shift_test_impl {
     const Index cols = m.cols();
 
     ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols), m3(rows, cols);
+    // The high bit is what separates an arithmetic right shift from a logical one.
+    m1(0, 0) = NumTraits<Scalar>::lowest();
+    m1(rows - 1, cols - 1) = NumTraits<Scalar>::highest();
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_left(v, N); });
-    m3 = m1.unaryExpr(logical_left_shift_op<N, Scalar>());
+    m3 = m1.template shiftLeft<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftLeft<N>());
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_right(v, N); });
     m3 = m1.unaryExpr(logical_right_shift_op<N, Scalar>());
     VERIFY_IS_CWISE_EQUAL(m2, m3);
 
-    m2 = m1.unaryExpr([](const Scalar& v) { return numext::arithmetic_shift_right(v, N); });
-    m3 = m1.unaryExpr(arithmetic_right_shift_op<N, Scalar>());
+    // Referencing Scalar's own operator>> rather than the numext helper the functor calls keeps this
+    // arm independent of the implementation under test, and states the semantics: fill with the sign
+    // bit when Scalar is signed and with zero when it is not.
+    m2 = m1.unaryExpr([](const Scalar& v) { return static_cast<Scalar>(v >> N); });
+    m3 = m1.template shiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftRight<N>());
 
     run<N + 1>(m);
   }
@@ -1465,6 +1460,15 @@ EIGEN_DECLARE_TEST(array_cwise) {
         ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_9(shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    // An unsigned Scalar has no sign bit, so its arithmetic right shift must not sign-extend.
+    CALL_SUBTEST_38(shift_test(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_39(shift_test(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<int8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                               internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<uint8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_10(array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_11(array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),

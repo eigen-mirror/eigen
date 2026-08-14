@@ -691,7 +691,9 @@ bool MatrixBase<Derived>::isLowerTriangular(const RealScalar& prec) const {
     }
   RealScalar threshold = maxAbsOnLowerPart * prec;
   for (Index j = 1; j < cols(); ++j) {
-    Index maxi = numext::mini(j, rows() - 1);
+    // Rows [0, min(j, rows())) of column j lie strictly above the diagonal. For a column past the diagonal block of a
+    // wide matrix that is the whole column, so the bound is rows(), not rows() - 1.
+    Index maxi = numext::mini(j, rows());
     for (Index i = 0; i < maxi; ++i)
       if (numext::abs(coeff(i, j)) > threshold) return false;
   }

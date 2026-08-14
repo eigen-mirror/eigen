@@ -237,6 +237,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   if (normRhs <= considerAsZero) {
     x.setZero();
     m_error = 0;
+    m_iterations = 0;
     return;
   }
 
@@ -269,6 +270,8 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
       beta = r0.norm();
     }
   }
+  // m_iterations carried the iteration cap for the loops above; report the number actually performed.
+  m_iterations = nbIts;
 }
 
 /**

@@ -1957,10 +1957,16 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar logical_shift_right(const Scalar& a
   return bit_cast<Scalar, UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) >> n);
 }
 
+// An arithmetic shift propagates the sign bit, so it coincides with the logical shift when Scalar is
+// unsigned and has none. Shifting through the signed type unconditionally would sign-extend an
+// ordinary value bit, which is what every backend's parithmetic_shift_right on unsigned packets
+// avoids, leaving the scalar and vectorized paths of one expression disagreeing.
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar arithmetic_shift_right(const Scalar& a, int n) {
-  using SignedScalar = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
-  return bit_cast<Scalar, SignedScalar>(bit_cast<SignedScalar, Scalar>(a) >> n);
+  using IntegerBySize = numext::get_integer_by_size<sizeof(Scalar)>;
+  using ShiftScalar = std::conditional_t<std::is_signed<Scalar>::value, typename IntegerBySize::signed_type,
+                                         typename IntegerBySize::unsigned_type>;
+  return bit_cast<Scalar, ShiftScalar>(bit_cast<ShiftScalar, Scalar>(a) >> n);
 }
 
 template <typename Scalar>

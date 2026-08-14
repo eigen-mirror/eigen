@@ -387,12 +387,19 @@ void transformations() {
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();
   VERIFY_IS_APPROX(t0.inverse(Affine).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
+  Transform3 t0_general = t0;
+  Matrix4 t044_general = t044;
   t0.setIdentity();
   t0.translate(v0).rotate(q1);
   t044 = Matrix4::Zero();
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();
   VERIFY_IS_APPROX(t0.inverse(Isometry).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
+  // #Projective is the "assume nothing" hint, so it must invert both transforms whatever the Mode is. Each check
+  // inverts the transform the preceding call did not, so that a stale result cannot pass for the right answer.
+  VERIFY_IS_APPROX(t0_general.inverse(Projective).matrix(),
+                   t044_general.inverse().block(0, 0, t0_general.matrix().rows(), 4));
+  VERIFY_IS_APPROX(t0.inverse(Projective).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
 
   Matrix3 mat_rotation, mat_scaling;
   t0.setIdentity();
@@ -675,6 +682,10 @@ void transformations_no_scale() {
   VERIFY((m3 * m3.inverse()).isIdentity(test_precision<Scalar>()));
   // Verify implicit last row is initialized.
   VERIFY_IS_APPROX(Vector4(m3.row(3)), Vector4(0.0, 0.0, 0.0, 1.0));
+
+  // t3 is a genuine isometry, so every hint must invert it, including the no-assumption Projective one.
+  VERIFY_IS_APPROX(t3.inverse(Projective).matrix(), m3.inverse().block(0, 0, t3.matrix().rows(), 4));
+  VERIFY_IS_APPROX(t3.inverse(Projective).matrix(), t3.inverse().matrix());
 
   VERIFY_IS_APPROX(t3.rotation(), t3.linear());
   if (Mode == Isometry) VERIFY(t3.rotation().data() == t3.linear().data());

@@ -437,7 +437,10 @@ void check_shift() {
       T a_bsrl_ref = numext::bit_cast<T, UnsignedT>(numext::bit_cast<UnsignedT, T>(a) >> s);
       VERIFY_IS_EQUAL(a_bsrl, a_bsrl_ref);
       T a_bsra = numext::arithmetic_shift_right(a, s);
-      T a_bsra_ref = numext::bit_cast<T, SignedT>(numext::bit_cast<SignedT, T>(a) >> s);
+      // An unsigned T has no sign bit to propagate, so the arithmetic shift must agree with the
+      // logical one; this is what every backend's parithmetic_shift_right on unsigned packets does.
+      T a_bsra_ref =
+          NumTraits<T>::IsSigned ? numext::bit_cast<T, SignedT>(numext::bit_cast<SignedT, T>(a) >> s) : a_bsrl_ref;
       VERIFY_IS_EQUAL(a_bsra, a_bsra_ref);
     }
   }

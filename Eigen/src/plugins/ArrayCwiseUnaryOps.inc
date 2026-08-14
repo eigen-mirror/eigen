@@ -354,6 +354,8 @@ struct ShiftRightXpr {
  * shifted right by \a N bit positions.
  *
  * The template parameter \a N specifies the number of bit positions to shift.
+ * The vacated high bits are filled with the sign bit for a signed \a Scalar and
+ * with zero for an unsigned one, which has no sign bit to propagate.
  *
  * \sa shiftLeft()
  */

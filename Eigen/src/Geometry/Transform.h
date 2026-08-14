@@ -1120,10 +1120,12 @@ struct transform_make_affine<AffineCompact> {
   EIGEN_DEVICE_FUNC static void run(MatrixType&) {}
 };
 
-// selector needed to avoid taking the inverse of a 3x4 matrix
+// Selector needed to avoid taking the inverse of a 3x4 matrix. Only a Projective transform can store a general
+// inverse; for every other mode the type itself guarantees the transform is affine, so a Projective hint - which only
+// asks that no extra structure be assumed - is honoured by the general affine inverse.
 template <typename TransformType, int Mode = TransformType::Mode>
 struct projective_transform_inverse {
-  EIGEN_DEVICE_FUNC static inline void run(const TransformType&, TransformType&) {}
+  EIGEN_DEVICE_FUNC static inline void run(const TransformType& m, TransformType& res) { res = m.inverse(Affine); }
 };
 
 template <typename TransformType>

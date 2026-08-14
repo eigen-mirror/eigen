@@ -6,6 +6,13 @@ New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
 
+Bug fixes:
+- `MatrixBase::isLowerTriangular()` skipped the last strictly-upper coefficient of every column past the diagonal block, reporting some wide matrices as lower triangular [!2814]
+- `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()` did not compile in any configuration, their functors having dropped the shift count [!2814]
+- `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
+- `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
+- `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
+
 ## [5.0.1] - 2025-11-11
 
 A few bug-fixes from the master branch, including
