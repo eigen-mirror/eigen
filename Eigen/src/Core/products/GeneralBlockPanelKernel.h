@@ -744,17 +744,15 @@ DoublePacket<Packet> padd(const DoublePacket<Packet>& a, const DoublePacket<Pack
   return res;
 }
 
-template <typename Packet>
-const DoublePacket<Packet>& predux_half(const DoublePacket<Packet>& a,
-                                        std::enable_if_t<unpacket_traits<Packet>::size <= 8>* = 0) {
+template <typename Packet, std::enable_if_t<unpacket_traits<Packet>::size <= 8, int> = 0>
+const DoublePacket<Packet>& predux_half(const DoublePacket<Packet>& a) {
   return a;
 }
 
-template <typename Packet>
-DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
-    const DoublePacket<Packet>& a,
-    std::enable_if_t<unpacket_traits<Packet>::size >= 16 &&
-                     !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex>* = 0) {
+template <typename Packet, std::enable_if_t<unpacket_traits<Packet>::size >= 16 &&
+                                                !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex,
+                                            int> = 0>
+DoublePacket<typename unpacket_traits<Packet>::half> predux_half(const DoublePacket<Packet>& a) {
   // Workaround: reduce real packets to half size by reinterpreting as complex.
   DoublePacket<typename unpacket_traits<Packet>::half> res;
   using Cplx = std::complex<typename unpacket_traits<Packet>::type>;
@@ -765,16 +763,14 @@ DoublePacket<typename unpacket_traits<Packet>::half> predux_half(
 }
 
 // same here, "quad" actually means "8" in terms of real coefficients
-template <typename Scalar, typename RealPacket>
-void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
-                            std::enable_if_t<unpacket_traits<RealPacket>::size <= 8>* = 0) {
+template <typename Scalar, typename RealPacket, std::enable_if_t<unpacket_traits<RealPacket>::size <= 8, int> = 0>
+void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
   dest.first = pset1<RealPacket>(numext::real(*b));
   dest.second = pset1<RealPacket>(numext::imag(*b));
 }
 
-template <typename Scalar, typename RealPacket>
-void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest,
-                            std::enable_if_t<unpacket_traits<RealPacket>::size == 16>* = 0) {
+template <typename Scalar, typename RealPacket, std::enable_if_t<unpacket_traits<RealPacket>::size == 16, int> = 0>
+void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
   // Workaround: load quad elements by reinterpreting real packets as complex.
   using RealScalar = typename NumTraits<Scalar>::Real;
   RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};

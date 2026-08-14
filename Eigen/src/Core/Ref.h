@@ -262,30 +262,32 @@ template <typename PlainObjectType, int Options, typename StrideType>
 class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
  private:
   using Traits = internal::traits<Ref>;
-  template <typename Derived>
-  EIGEN_DEVICE_FUNC constexpr inline Ref(
-      const PlainObjectBase<Derived>& expr,
-      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>* = 0);
+  template <typename Derived, std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), int> = 0>
+  EIGEN_DEVICE_FUNC constexpr inline Ref(const PlainObjectBase<Derived>& expr);
 
  public:
   using Base = RefBase<Ref>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Ref)
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-  template <typename Derived>
-  EIGEN_DEVICE_FUNC constexpr inline Ref(
-      PlainObjectBase<Derived>& expr,
-      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>* = 0) {
+  template <typename Derived, std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), int> = 0>
+  EIGEN_DEVICE_FUNC constexpr inline Ref(PlainObjectBase<Derived>& expr) {
     EIGEN_STATIC_ASSERT(bool(Traits::template match<Derived>::MatchAtCompileTime), STORAGE_LAYOUT_DOES_NOT_MATCH);
     // Construction must pass since we will not create temporary storage in the non-const case.
     const bool success = Base::construct(expr.derived());
     EIGEN_UNUSED_VARIABLE(success);
     eigen_assert(success);
   }
+
   template <typename Derived>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
   EIGEN_DEVICE_FUNC constexpr inline Ref(
-      const DenseBase<Derived>& expr,
-      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>* = 0)
+      PlainObjectBase<Derived>& expr,
+      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>*)
+      : Ref(expr) {}
+
+  template <typename Derived, std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), int> = 0>
+  EIGEN_DEVICE_FUNC constexpr inline Ref(const DenseBase<Derived>& expr)
 #else
   /** Implicit constructor from any dense expression */
   template <typename Derived>
@@ -300,6 +302,15 @@ class Ref : public RefBase<Ref<PlainObjectType, Options, StrideType> > {
     EIGEN_UNUSED_VARIABLE(success);
     eigen_assert(success);
   }
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+  template <typename Derived>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
+  EIGEN_DEVICE_FUNC constexpr inline Ref(
+      const DenseBase<Derived>& expr,
+      std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime), Derived>*)
+      : Ref(expr) {}
+#endif
 
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Ref)
 };
@@ -324,10 +335,8 @@ class Ref<const TPlainObjectType, Options, StrideType>
   using Base = RefBase<Ref>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Ref)
 
-  template <typename Derived>
-  EIGEN_DEVICE_FUNC constexpr inline Ref(
-      const DenseBase<Derived>& expr,
-      std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch), Derived>* = 0) {
+  template <typename Derived, std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch), int> = 0>
+  EIGEN_DEVICE_FUNC constexpr inline Ref(const DenseBase<Derived>& expr) {
     //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << ","
     //      << match_helper<Derived>::InnerStrideMatch << "\n"; std::cout << int(StrideType::OuterStrideAtCompileTime)
     //      << " - " << int(Derived::OuterStrideAtCompileTime) << "\n"; std::cout <<
@@ -336,6 +345,13 @@ class Ref<const TPlainObjectType, Options, StrideType>
                         STORAGE_LAYOUT_DOES_NOT_MATCH);
     construct(expr.derived(), typename Traits::template match<Derived>::type());
   }
+
+  template <typename Derived>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
+  EIGEN_DEVICE_FUNC constexpr inline Ref(
+      const DenseBase<Derived>& expr,
+      std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch), Derived>*)
+      : Ref(expr) {}
 
   EIGEN_DEVICE_FUNC constexpr inline Ref(const Ref& other) : Base(other) {
     // copy constructor shall not copy the m_object, to avoid unnecessary malloc and copy

@@ -854,15 +854,14 @@ template <typename T1, typename T2>
 struct possibly_same_dense : bool_constant<has_direct_access<T1>::value && has_direct_access<T2>::value &&
                                            std::is_same<typename T1::Scalar, typename T2::Scalar>::value> {};
 
-template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2,
-                                     std::enable_if_t<possibly_same_dense<T1, T2>::value>* = 0) {
+template <typename T1, typename T2, std::enable_if_t<possibly_same_dense<T1, T2>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2) {
   return (mat1.data() == mat2.data()) && (mat1.innerStride() == mat2.innerStride()) &&
          (mat1.outerStride() == mat2.outerStride());
 }
 
-template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1&, const T2&, std::enable_if_t<!possibly_same_dense<T1, T2>::value>* = 0) {
+template <typename T1, typename T2, std::enable_if_t<!possibly_same_dense<T1, T2>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool is_same_dense(const T1&, const T2&) {
   return false;
 }
 

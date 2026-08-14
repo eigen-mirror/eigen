@@ -227,11 +227,16 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 
  public:
   /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
+  template <typename OtherDerived,
+            std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(const EigenBase<OtherDerived>& other) : Base(other.derived()) {}
+
   template <typename OtherDerived>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
-      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> = PrivateType())
-      : Base(other.derived()) {}
+      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType>)
+      : Array(other) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return this->innerSize(); }

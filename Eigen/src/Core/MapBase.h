@@ -166,8 +166,8 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
   EIGEN_DEFAULT_COPY_CONSTRUCTOR(MapBase)
   EIGEN_DEFAULT_EMPTY_CONSTRUCTOR_AND_DESTRUCTOR(MapBase)
 
-  template <typename T>
-  EIGEN_DEVICE_FUNC void checkSanity(std::enable_if_t<(internal::traits<T>::Alignment > 0), void*> = 0) const {
+  template <typename T, std::enable_if_t<(internal::traits<T>::Alignment > 0), int> = 0>
+  EIGEN_DEVICE_FUNC void checkSanity() const {
 // Temporary macro to allow scalars to not be properly aligned.  This is while we sort out failures
 // in TensorFlow Lite that are currently relying on this UB.
 #ifndef EIGEN_ALLOW_UNALIGNED_SCALARS
@@ -185,8 +185,8 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
 #endif
   }
 
-  template <typename T>
-  EIGEN_DEVICE_FUNC void checkSanity(std::enable_if_t<internal::traits<T>::Alignment == 0, void*> = 0) const {
+  template <typename T, std::enable_if_t<internal::traits<T>::Alignment == 0, int> = 0>
+  EIGEN_DEVICE_FUNC void checkSanity() const {
 #ifndef EIGEN_ALLOW_UNALIGNED_SCALARS
     // Pointer must be aligned to the Scalar type, otherwise we get UB.
     eigen_assert((std::uintptr_t(m_data) % alignof(Scalar) == 0) && "data is not scalar-aligned");

@@ -242,11 +242,17 @@ class TriangularBase : public EigenBase<Derived> {
   }
 
   /** \sa MatrixBase::transpose() */
-  template <class Dummy = int>
-  EIGEN_DEVICE_FUNC inline TransposeReturnType transpose(
-      std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*> = nullptr) {
+  template <class Dummy = int, std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*> = nullptr>
+  EIGEN_DEVICE_FUNC inline TransposeReturnType transpose() {
     typename ExpressionType::TransposeReturnType tmp(derived().nestedExpression());
     return TransposeReturnType(tmp);
+  }
+
+  template <class Dummy = int>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only argument.")
+  EIGEN_DEVICE_FUNC inline TransposeReturnType
+      transpose(std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*>) {
+    return transpose<Dummy>();
   }
 
   /** \sa MatrixBase::transpose() const */

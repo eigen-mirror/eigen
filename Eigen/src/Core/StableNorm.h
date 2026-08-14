@@ -151,9 +151,8 @@ struct stable_norm_matrix_dispatch<MatrixType, Accumulator, true> {
   }
 };
 
-template <typename VectorType>
-typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
-                                                 std::enable_if_t<VectorType::IsVectorAtCompileTime>* = 0) {
+template <typename VectorType, std::enable_if_t<VectorType::IsVectorAtCompileTime, int> = 0>
+typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
   using std::sqrt;
 
   Index n = vec.size();
@@ -170,9 +169,8 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec,
   return RealScalar(scale * sqrt(ssq));
 }
 
-template <typename MatrixType>
-typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat,
-                                                 std::enable_if_t<!MatrixType::IsVectorAtCompileTime>* = 0) {
+template <typename MatrixType, std::enable_if_t<!MatrixType::IsVectorAtCompileTime, int> = 0>
+typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
   using std::sqrt;
 
   using RealScalar = typename MatrixType::RealScalar;

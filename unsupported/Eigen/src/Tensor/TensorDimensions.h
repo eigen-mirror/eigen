@@ -202,16 +202,23 @@ struct DSizes : array<DenseIndex, NumDims> {
 
   // Enable DSizes index type promotion only if we are promoting to the
   // larger type, e.g. allow to promote dimensions of type int to long.
-  template <typename OtherIndex>
-  EIGEN_DEVICE_FUNC explicit DSizes(
-      const array<OtherIndex, NumDims>& other,
-      std::enable_if_t<
-          std::is_same<DenseIndex, typename internal::promote_index_type<DenseIndex, OtherIndex>::type>::value, void*> =
-          0) {
+  template <typename OtherIndex,
+            std::enable_if_t<
+                std::is_same<DenseIndex, typename internal::promote_index_type<DenseIndex, OtherIndex>::type>::value,
+                int> = 0>
+  EIGEN_DEVICE_FUNC explicit DSizes(const array<OtherIndex, NumDims>& other) {
     for (int i = 0; i < NumDims; ++i) {
       (*this)[i] = static_cast<DenseIndex>(other[i]);
     }
   }
+
+  template <typename OtherIndex>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
+  EIGEN_DEVICE_FUNC explicit DSizes(
+      const array<OtherIndex, NumDims>& other,
+      std::enable_if_t<
+          std::is_same<DenseIndex, typename internal::promote_index_type<DenseIndex, OtherIndex>::type>::value, void*>)
+      : DSizes(other) {}
 
   template <typename FirstType, typename... OtherTypes>
   EIGEN_DEVICE_FUNC explicit DSizes(const Eigen::IndexList<FirstType, OtherTypes...>& dimensions) {

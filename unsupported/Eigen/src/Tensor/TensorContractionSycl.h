@@ -541,9 +541,8 @@ class TensorContractionKernel {
     tile_ptr rhs_scratch_ptr_compute;
     const std::pair<StorageIndex, StorageIndex> lhs_extract_index;
     const std::pair<StorageIndex, StorageIndex> rhs_extract_index;
-    template <contraction_type tp = contraction_tp>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TiledMemory(const ThreadProperties<StorageIndex> &, local_ptr,
-                                                      std::enable_if_t<tp == contraction_type::no_local> * = 0)
+    template <contraction_type tp = contraction_tp, std::enable_if_t<tp == contraction_type::no_local, int> = 0>
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TiledMemory(const ThreadProperties<StorageIndex> &, local_ptr)
         : lhs_scratch_extract{},
           rhs_scratch_extract{},
           lhs_scratch_ptr_compute(lhs_scratch_extract.ptr),
@@ -551,10 +550,9 @@ class TensorContractionKernel {
           lhs_extract_index(std::pair<StorageIndex, StorageIndex>(StorageIndex{0}, StorageIndex{0})),
           rhs_extract_index(std::pair<StorageIndex, StorageIndex>(StorageIndex{0}, StorageIndex{0})) {}
 
-    template <contraction_type tp = contraction_tp>
+    template <contraction_type tp = contraction_tp, std::enable_if_t<tp == contraction_type::local, int> = 0>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TiledMemory(const ThreadProperties<StorageIndex> &thread_properties,
-                                                      local_ptr block_start_ptr,
-                                                      std::enable_if_t<tp == contraction_type::local> * = 0)
+                                                      local_ptr block_start_ptr)
         : lhs_scratch_extract{block_start_ptr},
           rhs_scratch_extract{lhs_scratch_extract.ptr +
                               ((Properties::DoubleBuffer + 1) * LSDL * Properties::TileSizeDimK)},

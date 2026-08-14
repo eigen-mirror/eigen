@@ -45,10 +45,9 @@ struct generic_product_impl<Lhs, Rhs, SparseShape, SparseShape, ProductType> {
   }
 
   // dense += sparse * sparse
-  template <typename Dest, typename ActualLhs>
-  static void addTo(
-      Dest& dst, const ActualLhs& lhs, const Rhs& rhs,
-      std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int*>* = 0) {
+  template <typename Dest, typename ActualLhs,
+            std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int> = 0>
+  static void addTo(Dest& dst, const ActualLhs& lhs, const Rhs& rhs) {
     using LhsNested = typename nested_eval<ActualLhs, Dynamic>::type;
     using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
     LhsNested lhsNested(lhs);
@@ -58,10 +57,9 @@ struct generic_product_impl<Lhs, Rhs, SparseShape, SparseShape, ProductType> {
   }
 
   // dense -= sparse * sparse
-  template <typename Dest>
-  static void subTo(
-      Dest& dst, const Lhs& lhs, const Rhs& rhs,
-      std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int*>* = 0) {
+  template <typename Dest,
+            std::enable_if_t<std::is_same<typename evaluator_traits<Dest>::Shape, DenseShape>::value, int> = 0>
+  static void subTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
     addTo(dst, -lhs, rhs);
   }
 

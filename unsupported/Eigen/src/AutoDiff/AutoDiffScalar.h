@@ -130,19 +130,30 @@ class AutoDiffScalar
   /** Constructs an active scalar from its \a value and derivatives \a der */
   AutoDiffScalar(const Scalar& value, const DerType& der) : m_value(value), m_derivatives(der) {}
 
-  template <typename OtherDerType>
-  AutoDiffScalar(
-      const AutoDiffScalar<OtherDerType>& other
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-      ,
+  template <typename OtherDerType,
+            std::enable_if_t<
+                std::is_same<Scalar, typename internal::traits<internal::remove_all_t<OtherDerType>>::Scalar>::value &&
+                    std::is_convertible<OtherDerType, DerType>::value,
+                int> = 0>
+#else
+  template <typename OtherDerType>
+#endif
+  AutoDiffScalar(const AutoDiffScalar<OtherDerType>& other)
+      : m_value(other.value()), m_derivatives(other.derivatives()) {
+  }
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+  template <typename OtherDerType>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
+  AutoDiffScalar(
+      const AutoDiffScalar<OtherDerType>& other,
       std::enable_if_t<
           std::is_same<Scalar, typename internal::traits<internal::remove_all_t<OtherDerType>>::Scalar>::value &&
               std::is_convertible<OtherDerType, DerType>::value,
-          void*> = 0
+          void*>)
+      : AutoDiffScalar(other) {}
 #endif
-      )
-      : m_value(other.value()), m_derivatives(other.derivatives()) {
-  }
 
   friend std::ostream& operator<<(std::ostream& s, const AutoDiffScalar& a) { return s << a.value(); }
 

@@ -192,9 +192,9 @@ typename T1::RealScalar test_relative_error(const SparseMatrixBase<T1>& a, const
   return test_relative_error(a.toDense(), b.toDense());
 }
 
-template <typename T1, typename T2>
-typename NumTraits<typename NumTraits<T1>::Real>::NonInteger test_relative_error(
-    const T1& a, const T2& b, std::enable_if_t<internal::is_arithmetic<typename NumTraits<T1>::Real>::value, T1>* = 0) {
+template <typename T1, typename T2,
+          std::enable_if_t<internal::is_arithmetic<typename NumTraits<T1>::Real>::value, int> = 0>
+typename NumTraits<typename NumTraits<T1>::Real>::NonInteger test_relative_error(const T1& a, const T2& b) {
   typedef typename NumTraits<typename NumTraits<T1>::Real>::NonInteger RealScalar;
   return numext::sqrt(RealScalar(numext::abs2(a - b)) /
                       (numext::mini)(RealScalar(numext::abs2(a)), RealScalar(numext::abs2(b))));
@@ -223,9 +223,8 @@ typename NumTraits<typename T::Scalar>::Real get_test_precision(const T&, const 
   return test_precision<typename NumTraits<typename T::Scalar>::Real>();
 }
 
-template <typename T>
-typename NumTraits<T>::Real get_test_precision(
-    const T&, std::enable_if_t<internal::is_arithmetic<typename NumTraits<T>::Real>::value, T>* = 0) {
+template <typename T, std::enable_if_t<internal::is_arithmetic<typename NumTraits<T>::Real>::value, int> = 0>
+typename NumTraits<T>::Real get_test_precision(const T&) {
   return test_precision<typename NumTraits<T>::Real>();
 }
 
