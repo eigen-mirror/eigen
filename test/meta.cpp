@@ -43,6 +43,13 @@ struct dummy_c {};
 struct dummy_d {};
 struct dummy_e {};
 
+struct widening_sum_op {
+  template <typename A, typename B>
+  EIGEN_DEVICE_FUNC constexpr static long long run(A a, B b) {
+    return static_cast<long long>(a) + static_cast<long long>(b);
+  }
+};
+
 // dummy operation for testing apply
 template <typename A, typename B>
 struct dummy_op;
@@ -221,11 +228,28 @@ static void test_arg_reductions() {
 static void test_array_reductions() {
   array<int, 6> a{{4, 8, 15, 16, 23, 42}};
   array<int, 6> b{{42, 23, 16, 15, 8, 4}};
+  array<unsigned char, 0> empty{};
+  array<unsigned char, 1> singleton{{200}};
+  array<unsigned char, 2> narrow{{200, 100}};
+  array<unsigned char, 3> custom{{200, 100, 50}};
 
   VERIFY_IS_EQUAL((array_sum(a)), 108);
   VERIFY_IS_EQUAL((array_sum(b)), 108);
   VERIFY_IS_EQUAL((array_prod(a)), 7418880);
   VERIFY_IS_EQUAL((array_prod(b)), 7418880);
+  VERIFY((std::is_same<decltype(array_sum(empty)), unsigned char>::value));
+  VERIFY((std::is_same<decltype(array_sum(singleton)), unsigned char>::value));
+  VERIFY((std::is_same<decltype(array_sum(narrow)), int>::value));
+  VERIFY((std::is_same<decltype(array_prod(narrow)), int>::value));
+  VERIFY_IS_EQUAL((array_sum(empty)), 0);
+  VERIFY_IS_EQUAL((array_prod(empty)), 1);
+  VERIFY_IS_EQUAL((array_sum(singleton)), 200);
+  VERIFY_IS_EQUAL((array_prod(singleton)), 200);
+  VERIFY_IS_EQUAL((array_sum(narrow)), 300);
+  VERIFY_IS_EQUAL((array_prod(narrow)), 20000);
+  VERIFY(
+      (std::is_same<decltype(array_reduce<widening_sum_op>(custom, static_cast<unsigned char>(0))), long long>::value));
+  VERIFY_IS_EQUAL((array_reduce<widening_sum_op>(custom, static_cast<unsigned char>(0))), 350);
 }
 
 EIGEN_DECLARE_TEST(meta) {

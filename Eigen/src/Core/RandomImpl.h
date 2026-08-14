@@ -41,7 +41,7 @@ inline Scalar random() {
 // TODO: replace or provide alternatives to this, e.g. std::random_device
 struct eigen_random_device {
   using ReturnType = int;
-  static constexpr int Entropy = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value;
+  static constexpr int Entropy = floor_log2((unsigned int)(RAND_MAX) + 1);
   static constexpr ReturnType Highest = RAND_MAX;
   static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); }
 };

@@ -38,8 +38,7 @@ template <int Layout, typename IndexType, int NumDims>
 EIGEN_ALWAYS_INLINE std::enable_if_t<(NumDims > 0), DSizes<IndexType, NumDims> > strides_impl(
     const DSizes<IndexType, NumDims>& dimensions) {
   DSizes<IndexType, NumDims> strides;
-  // TODO(ezhulenev): Use templates to unroll this loop (similar to
-  // h_array_reduce in MoreMeta.h)? Benchmark it.
+  // TODO(ezhulenev): Benchmark whether template-unrolling this loop is beneficial.
   EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
     strides[0] = 1;
     for (int i = 1; i < NumDims; ++i) {

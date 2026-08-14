@@ -527,41 +527,14 @@ struct pow_impl<ScalarX, ScalarY, true> {
   }
 };
 
-enum { meta_floor_log2_terminate, meta_floor_log2_move_up, meta_floor_log2_move_down, meta_floor_log2_bogus };
-
-template <unsigned int n, int lower, int upper>
-struct meta_floor_log2_selector {
-  enum {
-    middle = (lower + upper) / 2,
-    value = (upper <= lower + 1)  ? int(meta_floor_log2_terminate)
-            : (n < (1 << middle)) ? int(meta_floor_log2_move_down)
-            : (n == 0)            ? int(meta_floor_log2_bogus)
-                                  : int(meta_floor_log2_move_up)
-  };
-};
-
-template <unsigned int n, int lower = 0, int upper = sizeof(unsigned int) * CHAR_BIT - 1,
-          int selector = meta_floor_log2_selector<n, lower, upper>::value>
-struct meta_floor_log2 {};
-
-template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_down>
-    : std::integral_constant<int, meta_floor_log2<n, lower, meta_floor_log2_selector<n, lower, upper>::middle>::value> {
-};
-
-template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_move_up>
-    : std::integral_constant<int, meta_floor_log2<n, meta_floor_log2_selector<n, lower, upper>::middle, upper>::value> {
-};
-
-template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_terminate>
-    : std::integral_constant<int, (n >= ((unsigned int)(1) << (lower + 1))) ? lower + 1 : lower> {};
-
-template <unsigned int n, int lower, int upper>
-struct meta_floor_log2<n, lower, upper, meta_floor_log2_bogus> {
-  // no value, error at compile time
-};
+constexpr int floor_log2(unsigned int value) {
+  int result = 0;
+  while (value > 1) {
+    value >>= 1;
+    ++result;
+  }
+  return result;
+}
 
 template <typename BitsType, typename EnableIf = void>
 struct count_bits_impl {

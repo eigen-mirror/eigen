@@ -241,31 +241,30 @@ constexpr auto arg_sum(Ts... ts) {
 
 /* generic array reductions */
 
-// can't reuse standard reduce() interface above because Intel's Compiler
-// *really* doesn't like it, so we just reimplement the stuff
-// (start from N - 1 and work down to 0 because specialization for
-// n == N - 1 also doesn't work in Intel's compiler, so it goes into
-// an infinite loop)
-template <typename Reducer, typename T, std::size_t N, std::size_t n = N - 1>
-struct h_array_reduce {
-  EIGEN_DEVICE_FUNC constexpr static auto run(const array<T, N>& arr, T identity) {
-    return Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), array_get<n>(arr));
+template <typename Reducer, typename T, std::size_t N>
+struct array_reducer {
+  EIGEN_DEVICE_FUNC constexpr static auto run(const array<T, N>& arr, T) {
+    auto result = Reducer::run(arr[0], arr[1]);
+    for (std::size_t i = 2; i < N; ++i) {
+      result = Reducer::run(result, arr[i]);
+    }
+    return result;
   }
 };
 
-template <typename Reducer, typename T, std::size_t N>
-struct h_array_reduce<Reducer, T, N, 0> {
-  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, N>& arr, T) { return array_get<0>(arr); }
+template <typename Reducer, typename T>
+struct array_reducer<Reducer, T, 1> {
+  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, 1>& arr, T) { return arr[0]; }
 };
 
 template <typename Reducer, typename T>
-struct h_array_reduce<Reducer, T, 0> {
+struct array_reducer<Reducer, T, 0> {
   EIGEN_DEVICE_FUNC constexpr static T run(const array<T, 0>&, T identity) { return identity; }
 };
 
 template <typename Reducer, typename T, std::size_t N>
 EIGEN_DEVICE_FUNC constexpr auto array_reduce(const array<T, N>& arr, T identity) {
-  return h_array_reduce<Reducer, T, N>::run(arr, identity);
+  return array_reducer<Reducer, T, N>::run(arr, identity);
 }
 
 /* standard array reductions */
