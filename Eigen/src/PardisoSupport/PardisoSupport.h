@@ -183,7 +183,7 @@ class PardisoImpl : public SparseSolverBase<Derived> {
 
   void pardisoInit(int type) {
     m_type = type;
-    bool symmetric = std::abs(m_type) < 10;
+    bool symmetric = numext::abs(m_type) < 10;
     m_iparm[0] = 1;                   // No solver default
     m_iparm[1] = 2;                   // use Metis for the ordering
     m_iparm[2] = 0;                   // Reserved. Set to zero. (Was number of processors / OMP_NUM_THREADS.)

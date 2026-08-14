@@ -344,7 +344,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     m_H.col(it).applyOnTheLeft(it, it + 1, gr[it].adjoint());
     g.applyOnTheLeft(it, it + 1, gr[it].adjoint());
 
-    beta = std::abs(g(it + 1));
+    beta = numext::abs(g(it + 1));
     m_error = beta / normRhs;
     it++;
     nbIts++;
@@ -426,7 +426,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
 
   // Reorder the absolute values of Schur values
   DenseRealVector modulEig(it);
-  for (Index j = 0; j < it; ++j) modulEig(j) = std::abs(eig(j));
+  for (Index j = 0; j < it; ++j) modulEig(j) = numext::abs(eig(j));
   perm.setLinSpaced(it, 0, internal::convert_index<StorageIndex>(it - 1));
   internal::sortWithPermutation(modulEig, perm, neig);
 

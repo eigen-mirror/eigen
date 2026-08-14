@@ -13,7 +13,7 @@ namespace internal {
 
 template <typename Scalar>
 void covar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt,
-           Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon())) {
+           Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon())) {
   using std::abs;
   typedef DenseIndex Index;
 

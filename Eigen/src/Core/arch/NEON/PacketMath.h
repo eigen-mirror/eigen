@@ -3316,7 +3316,9 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
 #if EIGEN_ARCH_ARM64
   return vabsq_s64(a);
 #else
-  return vcombine_s64(vdup_n_s64((std::abs)(vgetq_lane_s64(a, 0))), vdup_n_s64((std::abs)(vgetq_lane_s64(a, 1))));
+  // Parenthesized to keep a function-like abs macro from expanding: macro
+  // expansion ignores the namespace qualification.
+  return vcombine_s64(vdup_n_s64((numext::abs)(vgetq_lane_s64(a, 0))), vdup_n_s64((numext::abs)(vgetq_lane_s64(a, 1))));
 #endif
 }
 template <>

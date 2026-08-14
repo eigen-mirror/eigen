@@ -55,12 +55,13 @@ struct structured_balance_impl {
     const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
     if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
     int e;
-    std::frexp(mag, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(mag, &e);
     exponent += e;
-    return Scalar(std::ldexp(numext::real(z), -e), std::ldexp(numext::imag(z), -e));
+    return Scalar(numext::ldexp(numext::real(z), -e), numext::ldexp(numext::imag(z), -e));
   }
   static Scalar apply_exponent(const Scalar& z, int e) {
-    return Scalar(std::ldexp(numext::real(z), e), std::ldexp(numext::imag(z), e));
+    return Scalar(numext::ldexp(numext::real(z), e), numext::ldexp(numext::imag(z), e));
   }
 };
 
@@ -70,11 +71,12 @@ struct structured_balance_impl<Scalar, false> {
     const Scalar mag = numext::abs(x);
     if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
     int e;
-    std::frexp(mag, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(mag, &e);
     exponent += e;
-    return std::ldexp(x, -e);
+    return numext::ldexp(x, -e);
   }
-  static Scalar apply_exponent(const Scalar& x, int e) { return std::ldexp(x, e); }
+  static Scalar apply_exponent(const Scalar& x, int e) { return numext::ldexp(x, e); }
 };
 
 template <typename Scalar>
@@ -233,7 +235,8 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   e = 0;
   if (!(numext::isfinite)(m)) return false;
   if (m > RealScalar(0)) {
-    std::frexp(m, &e);
+    EIGEN_USING_STD(frexp);
+    frexp(m, &e);
     if (ScalarTraits::IsComplex) ++e;
   }
   return true;
@@ -338,9 +341,10 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
         continue;
       }
       const int e = numext::maxi(colExp + pointwiseExp - budget, 0);
-      const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+      const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)),
+                       down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
       const int eo = e - static_cast<int>(outExpAdjust);
-      const RealScalar up1 = std::ldexp(RealScalar(1), eo / 2), up2 = std::ldexp(RealScalar(1), eo - eo / 2);
+      const RealScalar up1 = numext::ldexp(RealScalar(1), eo / 2), up2 = numext::ldexp(RealScalar(1), eo - eo / 2);
       xf.coeffRef(0) = static_cast<Complex>((rhs.coeff(0, k) * down1) * down2);
       pointwise(xf, symbol);
       dst.coeffRef(0, k) += alpha * structured_scalar_part_impl<Scalar>::run_scalar((xf.coeff(0) * up1) * up2);
@@ -366,12 +370,12 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     // inside the exponent range even when e exceeds it (a huge column applied
     // through a huge symbol); scaling by the two exact factors in sequence is
     // still an exact shift wherever the result is representable.
-    const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+    const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)), down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
     // A caller that pre-balanced the symbol passes its exponent in outExpAdjust,
     // so the pointwise step sees an O(1) symbol whose result never passes through
     // a subnormal; the exponent is folded back into the output here.
     const int eo = e - static_cast<int>(outExpAdjust);
-    const RealScalar up1 = std::ldexp(RealScalar(1), eo / 2), up2 = std::ldexp(RealScalar(1), eo - eo / 2);
+    const RealScalar up1 = numext::ldexp(RealScalar(1), eo / 2), up2 = numext::ldexp(RealScalar(1), eo - eo / 2);
     xt.head(rhs.rows()) = ((rhs.col(k) * down1) * down2).template cast<Complex>();
     fft.fwd(xf, xt, p);
     pointwise(xf, symbol);
@@ -407,7 +411,8 @@ struct structured_symbol_divide {
       const RealScalar mod = mods->coeff(k);
       if (!(mod < tol) && mod > RealScalar(0) && (numext::isfinite)(mod)) {
         int modExp;
-        std::frexp(mod, &modExp);
+        EIGEN_USING_STD(frexp);
+        frexp(mod, &modExp);
         // mod = fraction * 2^modExp with fraction in [0.5, 1), so 1/mod <=
         // 2^(1-modExp); one more bit keeps the bound strict.
         reciprocalExp = numext::maxi(reciprocalExp, 2 - modExp);

@@ -535,7 +535,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     // subnormal once the frame exceeds the exponent range, and reads as zero under
     // flush-to-zero -- collapsing every scaled modulus, and the threshold with
     // them. Neither factor exceeds one, so no intermediate underflows on its own.
-    const RealScalar down1 = std::ldexp(RealScalar(1), -(e / 2)), down2 = std::ldexp(RealScalar(1), -(e - e / 2));
+    const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)), down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
     mods = ((s * down1) * down2).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
                        ((std::numeric_limits<RealScalar>::min)() * down1) * down2);

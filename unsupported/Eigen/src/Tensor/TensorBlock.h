@@ -417,7 +417,7 @@ class TensorBlockMapper {
       // Tensor will not fit within 'target_block_size' budget: calculate tensor
       // block dimension sizes based on "square" dimension size target.
       const IndexType dim_size_target = convert_index<IndexType>(
-          std::pow(static_cast<float>(target_block_size), 1.0f / static_cast<float>(m_block_dimensions.rank())));
+          numext::pow(static_cast<float>(target_block_size), 1.0f / static_cast<float>(m_block_dimensions.rank())));
 
       for (int i = 0; i < NumDims; ++i) {
         // TODO(andydavis): Adjust the inner most 'block_dim_size' to make it

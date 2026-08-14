@@ -392,7 +392,7 @@ struct ScanInfo {
 #endif
     global_range = roundUp(max_threads, local_range);
     loop_range = Index(
-        std::ceil(double(elements_per_panel * panel_size) / (global_range * ScanParameters<Index>::ScanPerThread)));
+        numext::ceil(double(elements_per_panel * panel_size) / (global_range * ScanParameters<Index>::ScanPerThread)));
   }
   inline ScanParameters<Index> get_scan_parameter() {
     return ScanParameters<Index>(total_size, non_scan_size, scan_size, non_scan_stride, scan_stride, panel_threads,

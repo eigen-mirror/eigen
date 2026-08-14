@@ -460,7 +460,7 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
         .rightCols((std::min)(m_n, m_n - k + 1))
         .applyHouseholderOnTheLeft(ess, tau, m_ws.data());
     m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
-    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
+    if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
 
     // Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
     Vec3 bprime = (m_T.template block<1, 3>(k + 2, k) * S3).adjoint();
@@ -468,12 +468,12 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
     m_S.template middleCols<3>(k)
         .topRows((std::min)(k + 4, m_n))
-        .applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
+        .applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
     m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
     m_T.template middleCols<3>(k)
         .topRows((std::min)(k + 3, m_n))
-        .applyHouseholderOnTheRight(ess, std::conj(tau), m_ws.data());
+        .applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
     m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
     if (m_computeQZ) {
       m_Z.template middleRows<3>(k).applyOnTheLeft(S3.transpose());
@@ -581,7 +581,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 
     // Delete the non-desired non-zero at _S(j, j-2)
     if (j > 1) {
-      J.makeGivens(std::conj(m_S(j, j - 1)), std::conj(m_S(j, j - 2)));
+      J.makeGivens(numext::conj(m_S(j, j - 1)), numext::conj(m_S(j, j - 2)));
       m_S.applyOnTheRight(j - 1, j - 2, J);
       m_S(j, j - 2) = Scalar(0);
       m_T.applyOnTheRight(j - 1, j - 2, J);
@@ -591,7 +591,7 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 
   // Assume we have the desired structure now, up to the non-zero entry at
   // _S(l, l-1) which we will delete through a last right-jacobi-rotation
-  J.makeGivens(std::conj(m_S(l, l)), std::conj(m_S(l, l - 1)));
+  J.makeGivens(numext::conj(m_S(l, l)), numext::conj(m_S(l, l - 1)));
   m_S.topRows(l + 1).applyOnTheRight(l, l - 1, J);
 
   if (!is_negligible(m_S(l, l - 1), m_normOfS * NumTraits<Scalar>::epsilon())) {

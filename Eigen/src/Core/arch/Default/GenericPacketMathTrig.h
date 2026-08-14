@@ -400,15 +400,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
     pstoreu(sincos_vals, sFinalRes);
     for (int k = 0; k < PacketSize; ++k) {
       double val = x_cpy[k];
-      if (std::abs(val) > huge_th && (numext::isfinite)(val)) {
+      if (numext::abs(val) > huge_th && (numext::isfinite)(val)) {
         if (Func == TrigFunction::Sin) {
-          sincos_vals[k] = std::sin(val);
+          sincos_vals[k] = numext::sin(val);
         } else if (Func == TrigFunction::Cos) {
-          sincos_vals[k] = std::cos(val);
+          sincos_vals[k] = numext::cos(val);
         } else if (Func == TrigFunction::Tan) {
-          sincos_vals[k] = std::tan(val);
+          sincos_vals[k] = numext::tan(val);
         } else if (Func == TrigFunction::SinCos) {
-          sincos_vals[k] = k % 2 == 0 ? std::sin(val) : std::cos(val);
+          sincos_vals[k] = k % 2 == 0 ? numext::sin(val) : numext::cos(val);
         }
       }
     }

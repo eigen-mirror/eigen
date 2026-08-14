@@ -95,10 +95,10 @@ class IterScaling {
         }
       }
       for (int i = 0; i < m; ++i) {
-        Dr(i) = std::sqrt(Dr(i));
+        Dr(i) = numext::sqrt(Dr(i));
       }
       for (int i = 0; i < n; ++i) {
-        Dc(i) = std::sqrt(Dc(i));
+        Dc(i) = numext::sqrt(Dc(i));
       }
       // Save the scaling factors
       for (int i = 0; i < m; ++i) {

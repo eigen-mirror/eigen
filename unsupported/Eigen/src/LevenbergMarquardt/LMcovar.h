@@ -22,7 +22,7 @@ namespace internal {
 
 template <typename Scalar>
 void covar(Matrix<Scalar, Dynamic, Dynamic>& r, const VectorXi& ipvt,
-           Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon())) {
+           Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon())) {
   using std::abs;
   /* Local variables */
   Index i, j, k, l, ii, jj;

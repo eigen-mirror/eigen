@@ -128,9 +128,9 @@ class LevenbergMarquardt : internal::no_assignment_operator {
   LevenbergMarquardtSpace::Status minimize(FVectorType &x);
   LevenbergMarquardtSpace::Status minimizeInit(FVectorType &x);
   LevenbergMarquardtSpace::Status minimizeOneStep(FVectorType &x);
-  LevenbergMarquardtSpace::Status lmder1(FVectorType &x, const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
+  LevenbergMarquardtSpace::Status lmder1(FVectorType &x, const Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon()));
   static LevenbergMarquardtSpace::Status lmdif1(FunctorType &functor, FVectorType &x, Index *nfev,
-                                                const Scalar tol = std::sqrt(NumTraits<Scalar>::epsilon()));
+                                                const Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon()));
 
   /** Sets the default parameters */
   void resetParameters() {
