@@ -10,6 +10,18 @@
     # Reduce overall build size and compile time.
     # Note: /d2ReducedOptimizeHugeFunctions is only available in VS 2019.
     EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
+    # "off" disables the ccache compiler launchers (see
+    # build.windows.script.ps1); used where the dominant compiles bypass them
+    # (nvcc-driven .cu files). The script downloads a pinned,
+    # SHA-256-verified ccache when the runner has none; if that also fails,
+    # the job builds exactly as before.
+    EIGEN_CI_CCACHE: "on"
+    CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
+    CCACHE_MAXSIZE: 2G
+    # Hash compile paths relative to the project directory: absolute paths are
+    # part of ccache's hash, so without this a checkout-path change (runner
+    # layout, concurrent build slots) turns every compile into a miss.
+    CCACHE_BASEDIR: ${CI_PROJECT_DIR}
   script:
      - ./ci/scripts/build.windows.script.ps1
   tags:
@@ -17,10 +29,27 @@
     - windows
     - x86-64
   rules: !reference [.rules:libeigen:all-tests, rules]
+  # Cache the ccache directory, not ${EIGEN_CI_BUILDDIR}, mirroring
+  # build.linux.gitlab-ci.yml: ccache keys on file content and compiler, so
+  # hits survive a re-checkout that re-stamps every source mtime (which made
+  # the old build-directory cache rebuild everything anyway). No
+  # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per job
+  # name (GitLab still keeps protected refs' caches separate from unprotected
+  # ones). Both entries push even when the build fails (when: always): the
+  # retry pipeline after a compile error is exactly where hits matter most.
   cache:
-    key: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG-BUILD"
-    paths:
-      - ${EIGEN_CI_BUILDDIR}/
+    # The pinned ccache binary the build script downloads when the runner has
+    # none; one shared key so a runner downloads it once for all build jobs.
+    # Cache content is writable job output, not a trusted source: the script
+    # re-verifies the binary's SHA-256 on every use before executing it.
+    - key: "windows-ccache-bin"
+      paths:
+        - .ccache-bin/
+      when: always
+    - key: "$CI_JOB_NAME_SLUG-ccache"
+      paths:
+        - .ccache/
+      when: always
 
 ######### MSVC #################################################################
 
@@ -51,7 +80,11 @@ build:windows:x86-64:msvc-14.29:avx512dq:
 
 .build:windows:cuda:
   extends: .build:windows
+  # No caching: the .cu compiles that dominate these builds go through nvcc,
+  # which bypasses the C/CXX ccache launchers.
+  cache: []
   variables:
+    EIGEN_CI_CCACHE: "off"
     # Compute architectures present in the GitLab CI runners.
     EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
