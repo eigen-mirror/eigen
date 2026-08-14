@@ -218,7 +218,8 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
       PacketReturnType rslt = m_impl.template packet<Unaligned>(inputIndices[0]);
       return rslt;
     } else {
-      EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      CoeffReturnType values[PacketSize];
       values[0] = m_impl.coeff(inputIndices[0]);
       values[PacketSize - 1] = m_impl.coeff(inputIndices[1]);
       EIGEN_UNROLL_LOOP

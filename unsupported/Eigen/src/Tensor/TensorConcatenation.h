@@ -497,7 +497,7 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
     // The packet straddles the boundary or spans multiple inner rows: fall
     // back to assembling scalars.
-    EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) CoeffReturnType values[packetSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < packetSize; ++i) {
       values[i] = coeff(index + i);
@@ -597,7 +597,7 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     EIGEN_STATIC_ASSERT((packetSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(index + packetSize - 1 < this->dimensions().TotalSize());
 
-    EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) CoeffReturnType values[packetSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     for (int i = 0; i < packetSize; ++i) {
       coeffRef(index + i) = values[i];

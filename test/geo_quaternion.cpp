@@ -326,8 +326,8 @@ void mapQuaternion(void) {
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
   Scalar a = internal::random<Scalar>(-Scalar(EIGEN_PI), Scalar(EIGEN_PI));
 
-  EIGEN_ALIGN_MAX Scalar array1[4];
-  EIGEN_ALIGN_MAX Scalar array2[4];
+  EIGEN_ALIGN_TO_BOUNDARY(Aligned) Scalar array1[4];
+  EIGEN_ALIGN_TO_BOUNDARY(Aligned) Scalar array2[4];
   EIGEN_ALIGN_MAX Scalar array3[4 + 1];
   Scalar* array3unaligned = array3 + 1;
 

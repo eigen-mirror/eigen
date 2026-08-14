@@ -270,7 +270,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetBoundary(Index row, Index col) const {
     constexpr int packetSize = unpacket_traits<PacketType>::size;
-    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketType>::alignment) Scalar tmp[packetSize];
     for (int i = 0; i < packetSize; ++i)
       tmp[i] = coeff(row + (Direction == Vertical ? i : 0), col + (Direction == Horizontal ? i : 0));
     return pload<PacketType>(tmp);
@@ -279,7 +279,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetBoundaryLinear(Index index) const {
     constexpr int packetSize = unpacket_traits<PacketType>::size;
-    EIGEN_ALIGN_MAX Scalar tmp[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketType>::alignment) Scalar tmp[packetSize];
     for (int i = 0; i < packetSize; ++i) tmp[i] = coeff(index + i);
     return pload<PacketType>(tmp);
   }

@@ -346,7 +346,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packetOneByNByOne(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
     Index startDim, endDim;
     Index inputIndex, outputOffset, batchedIndex;
 
@@ -397,7 +398,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     if (inputIndex + PacketSize <= M) {
       return m_impl.template packet<Unaligned>(inputIndex);
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < PacketSize; ++i) {
         if (inputIndex > M - 1) {
@@ -425,7 +427,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     if (outputOffset + PacketSize <= M) {
       return internal::pset1<PacketReturnType>(m_impl.coeff(inputIndex));
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < PacketSize; ++i) {
         if (outputOffset < M) {
@@ -483,7 +486,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     if (innermostLoc + PacketSize <= m_impl.dimensions()[0]) {
       return m_impl.template packet<Unaligned>(inputIndex);
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       values[0] = m_impl.coeff(inputIndex);
       EIGEN_UNROLL_LOOP
       for (int i = 1; i < PacketSize; ++i) {
@@ -539,7 +543,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     if (innermostLoc + PacketSize <= m_impl.dimensions()[NumDims - 1]) {
       return m_impl.template packet<Unaligned>(inputIndex);
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       values[0] = m_impl.coeff(inputIndex);
       EIGEN_UNROLL_LOOP
       for (int i = 1; i < PacketSize; ++i) {

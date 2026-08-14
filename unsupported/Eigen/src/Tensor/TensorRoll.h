@@ -199,7 +199,8 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     }
 
     // Slow path: the packet straddles a slice boundary on either side.
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
       values[i] = coeff(index + i);
@@ -356,7 +357,7 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
-    EIGEN_ALIGN_MAX CoeffReturnType values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) CoeffReturnType values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {

@@ -161,7 +161,7 @@ class UniformRandomGenerator {
   template <typename Packet, typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(Index i) const {
     const int packetSize = internal::unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_MAX T values[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) T values[packetSize];
 #ifdef EIGEN_USE_SYCL
     if (!m_exec_once) {
       // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread
@@ -275,7 +275,7 @@ class NormalRandomGenerator {
   template <typename Packet, typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(Index i) const {
     const int packetSize = internal::unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_MAX T values[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) T values[packetSize];
 #ifdef EIGEN_USE_SYCL
     if (!m_exec_once) {
       // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread

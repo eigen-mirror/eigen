@@ -171,7 +171,8 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
   struct InnerRunLoader {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index base,
                                                                       Index inner_stride) {
-      EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < PacketSize; ++i) {
         values[i] = self.m_impl.coeff(base + i * inner_stride);
@@ -188,7 +189,8 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
         // Inner dimension not shuffled: one contiguous load.
         return self.m_impl.template packet<Unaligned>(base);
       }
-      EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < PacketSize; ++i) {
         values[i] = self.m_impl.coeff(base + i * inner_stride);
@@ -207,7 +209,8 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
     }
 
     // The packet crosses an inner-run boundary: assemble it scalar by scalar.
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {
       values[i] = self.coeff(index + i);
@@ -219,7 +222,8 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
   struct PacketLoader {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType Run(const Self& self, Index index) {
       if (self.m_is_identity) {
-        EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+        EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+        std::remove_const_t<CoeffReturnType> values[PacketSize];
         EIGEN_UNROLL_LOOP
         for (int i = 0; i < PacketSize; ++i) {
           values[i] = self.m_impl.coeff(index + i);
@@ -432,7 +436,8 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
       if (inner_stride == 1 && InnerRunWriter<StoreMode, Self, ImplPacketAccess>::Run(*this, base, x)) {
         return;
       }
-      EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < PacketSize; ++i) {
@@ -442,7 +447,8 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
     }
 
     // The packet crosses an inner-run boundary: scatter scalar by scalar.
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
     internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
     EIGEN_UNROLL_LOOP
     for (int i = 0; i < PacketSize; ++i) {

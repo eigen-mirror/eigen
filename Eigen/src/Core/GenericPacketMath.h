@@ -786,7 +786,7 @@ EIGEN_DEVICE_FUNC inline Packet pload_partial(const typename unpacket_traits<Pac
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
   using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size] = {Scalar(0)};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size] = {Scalar(0)};
   for (Index i = offset; i < numext::mini(n + offset, packet_size); i++) {
     elements[i] = from[i - offset];
   }
@@ -807,7 +807,7 @@ EIGEN_DEVICE_FUNC inline Packet ploadu_partial(const typename unpacket_traits<Pa
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will read past end of packet");
   using Scalar = typename unpacket_traits<Packet>::type;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size] = {Scalar(0)};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size] = {Scalar(0)};
   for (Index i = offset; i < numext::mini(n + offset, packet_size); i++) {
     elements[i] = from[i - offset];
   }
@@ -1064,7 +1064,7 @@ template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstore_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0) {
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
-  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
   for (Index i = 0; i < numext::mini(n, packet_size - offset); i++) {
     to[i] = elements[i + offset];
@@ -1082,7 +1082,7 @@ template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pstoreu_partial(Scalar* to, const Packet& from, const Index n, const Index offset = 0) {
   const Index packet_size = unpacket_traits<Packet>::size;
   eigen_assert(n + offset <= packet_size && "number of elements plus offset will write past end of packet");
-  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
   for (Index i = 0; i < numext::mini(n, packet_size - offset); i++) {
     to[i] = elements[i + offset];
@@ -1105,7 +1105,7 @@ EIGEN_DEVICE_FUNC inline Packet pgather(const Scalar* from, Index /*stride*/) {
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pgather_partial(const Scalar* from, Index stride, const Index n) {
   const Index packet_size = unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size] = {Scalar(0)};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size] = {Scalar(0)};
   for (Index i = 0; i < numext::mini(n, packet_size); i++) {
     elements[i] = from[i * stride];
   }
@@ -1120,7 +1120,7 @@ EIGEN_DEVICE_FUNC inline void pscatter(Scalar* to, const Packet& from, Index /*s
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline void pscatter_partial(Scalar* to, const Packet& from, Index stride, const Index n) {
   const Index packet_size = unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_MAX Scalar elements[packet_size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[packet_size];
   pstore<Scalar>(elements, from);
   for (Index i = 0; i < numext::mini(n, packet_size); i++) {
     to[i * stride] = elements[i];
@@ -1481,7 +1481,7 @@ template <typename Packet, typename Op>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op op) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const size_t n = unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar elements[n];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar elements[n];
   pstoreu<Scalar>(elements, a);
   for (size_t k = n / 2; k > 0; k /= 2) {
     for (size_t i = 0; i < k; ++i) {

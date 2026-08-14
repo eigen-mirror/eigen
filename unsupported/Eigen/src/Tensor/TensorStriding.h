@@ -169,7 +169,8 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
       PacketReturnType rslt = m_impl.template packet<Unaligned>(inputIndices[0]);
       return rslt;
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[PacketSize];
       values[0] = m_impl.coeff(inputIndices[0]);
       values[PacketSize - 1] = m_impl.coeff(inputIndices[1]);
       EIGEN_UNROLL_LOOP
@@ -289,7 +290,7 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
     if (inputIndices[1] - inputIndices[0] == PacketSize - 1) {
       this->m_impl.template writePacket<Unaligned>(inputIndices[0], x);
     } else {
-      EIGEN_ALIGN_MAX Scalar values[PacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment) Scalar values[PacketSize];
       internal::pstore<Scalar, PacketReturnType>(values, x);
       this->m_impl.coeffRef(inputIndices[0]) = values[0];
       this->m_impl.coeffRef(inputIndices[1]) = values[PacketSize - 1];

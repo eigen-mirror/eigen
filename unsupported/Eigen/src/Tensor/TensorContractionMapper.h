@@ -282,7 +282,7 @@ class BaseTensorContractionMapper
       }
     }
 
-    EIGEN_ALIGN_MAX Scalar data[packet_size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[packet_size];
 
     data[0] = this->m_tensor.coeff(first);
     EIGEN_UNROLL_LOOP
@@ -301,7 +301,7 @@ class BaseTensorContractionMapper
       std::enable_if_t<internal::unpacket_traits<PacketT>::size != packet_size, PacketT>
       load(Index i, Index j) const {
     const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
-    EIGEN_ALIGN_MAX Scalar data[requested_packet_size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[requested_packet_size];
 
     const IndexPair<Index> indexPair = this->computeIndexPair(i, j, requested_packet_size - 1);
     const Index first = indexPair.first;
@@ -341,13 +341,13 @@ class BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, con
 
   template <typename PacketT, int>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT loadPacket(Index i, Index j) const {
-    EIGEN_ALIGN_MAX Scalar data[1];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
   }
   template <typename PacketT, int>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketT load(Index i, Index j) const {
-    EIGEN_ALIGN_MAX Scalar data[1];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketT>::alignment) Scalar data[1];
     data[0] = this->m_tensor.coeff(this->computeIndex(i, j));
     return pload<PacketT>(data);
   }

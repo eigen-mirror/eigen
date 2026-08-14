@@ -511,7 +511,8 @@ struct TensorEvaluator<const TensorSlicingOp<StartIndices, Sizes, ArgType>, Devi
       PacketReturnType rslt = m_impl.template packet<Unaligned>(inputIndices[0]);
       return rslt;
     } else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[packetSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[packetSize];
       values[0] = m_impl.coeff(inputIndices[0]);
       values[packetSize - 1] = m_impl.coeff(inputIndices[1]);
       EIGEN_UNROLL_LOOP
@@ -697,7 +698,8 @@ struct TensorEvaluator<TensorSlicingOp<StartIndices, Sizes, ArgType>, Device>
     if (inputIndices[1] - inputIndices[0] == packetSize - 1) {
       this->m_impl.template writePacket<StoreMode>(inputIndices[0], x);
     } else {
-      EIGEN_ALIGN_MAX CoeffReturnType values[packetSize];
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+      CoeffReturnType values[packetSize];
       internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
       this->m_impl.coeffRef(inputIndices[0]) = values[0];
       this->m_impl.coeffRef(inputIndices[1]) = values[packetSize - 1];
@@ -902,7 +904,8 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     const Index inner_size = m_dimensions[inner_dim];
     Index inner_pos;
     const Index base = srcCoeffInner(index, inner_pos);
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) std::remove_const_t<CoeffReturnType> values[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[PacketSize];
     if (inner_pos + PacketSize <= inner_size) {
       const Index inner_stride = m_inputStrides[inner_dim];
       if (inner_stride == 1) {
@@ -1053,7 +1056,8 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     const Index inner_size = this->m_dimensions[inner_dim];
     Index inner_pos;
     const Index base = this->srcCoeffInner(index, inner_pos);
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(PacketReturnType)) CoeffReturnType values[Base::PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    CoeffReturnType values[Base::PacketSize];
     if (inner_pos + Base::PacketSize <= inner_size) {
       const Index inner_stride = this->m_inputStrides[inner_dim];
       if (inner_stride == 1) {

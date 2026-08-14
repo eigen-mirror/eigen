@@ -42,7 +42,7 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
 
   enum {
-    IsAligned = bool(EIGEN_MAX_ALIGN_BYTES > 0),
+    IsAligned = bool(EIGEN_MAX_STATIC_ALIGN_BYTES >= Aligned),
     PacketAccess = (internal::packet_traits<Scalar>::size > 1),
     BlockAccess = false,
     PreferBlockAccess = false,

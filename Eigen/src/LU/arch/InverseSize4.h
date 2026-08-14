@@ -149,7 +149,8 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
 
     // Built from integer bits: a -0.0f literal may be replaced by +0.0f under fast-math.
     const float neg_zero = numext::bit_cast<float>(0x80000000u);
-    EIGEN_ALIGN_MAX const float sign_mask[4] = {0.0f, neg_zero, neg_zero, 0.0f};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet4f>::alignment)
+    const float sign_mask[4] = {0.0f, neg_zero, neg_zero, 0.0f};
     const Packet4f p4f_sign_PNNP = pload<Packet4f>(sign_mask);
     rd = pxor(rd, p4f_sign_PNNP);
     iA = pmul(iA, rd);
@@ -326,8 +327,8 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
 
     // Built from integer bits: a -0.0 literal may be replaced by +0.0 under fast-math.
     const double neg_zero = numext::bit_cast<double>(0x8000000000000000ull);
-    EIGEN_ALIGN_MAX const double sign_mask1[2] = {0.0, neg_zero};
-    EIGEN_ALIGN_MAX const double sign_mask2[2] = {neg_zero, 0.0};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2d>::alignment) const double sign_mask1[2] = {0.0, neg_zero};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2d>::alignment) const double sign_mask2[2] = {neg_zero, 0.0};
     const Packet2d sign_PN = pload<Packet2d>(sign_mask1);
     const Packet2d sign_NP = pload<Packet2d>(sign_mask2);
     d1 = pxor(rd, sign_PN);

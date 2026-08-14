@@ -128,7 +128,8 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
       return m_argImpl.template packet<LoadMode, PacketType>(index);
     } else if (index < m_size.value()) {
       // Partial packet.
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[kPacketSize];
+      EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<PacketType>::alignment)
+      std::remove_const_t<CoeffReturnType> values[kPacketSize];
       const int partial = m_size.value() - index;
       for (int i = 0; i < partial && i < kPacketSize; ++i) {
         values[i] = m_argImpl.coeff(index + i);

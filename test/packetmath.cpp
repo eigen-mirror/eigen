@@ -12,6 +12,8 @@
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
 
+using internal::unpacket_traits;
+
 template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
 inline T REF_ADD(const T& a, const T& b) {
   return a + b;
@@ -398,9 +400,9 @@ void packetmath_boolean_mask_ops() {
   using RealScalar = typename NumTraits<Scalar>::Real;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const int size = 2 * PacketSize;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
 
   for (int i = 0; i < size; ++i) {
     data1[i] = internal::random<Scalar>();
@@ -433,8 +435,8 @@ template <typename Scalar, typename Packet>
 void packetmath_boolean_mask_ops_real() {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   const int size = 2 * PacketSize;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
 
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = internal::random<Scalar>();
@@ -469,8 +471,8 @@ struct packetmath_boolean_mask_ops_notcomplex_test<
   static void run() {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     const int size = 2 * PacketSize;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
 
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = internal::random<Scalar>();
@@ -508,9 +510,9 @@ struct packetmath_minus_zero_add_test<Scalar, Packet, std::enable_if_t<!NumTrait
   static void run() {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     const int size = 2 * PacketSize;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size] = {};
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size] = {};
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[size] = {};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size] = {};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size] = {};
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size] = {};
 
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = Scalar(-0.0);
@@ -533,13 +535,13 @@ struct packetmath_integer_predicates_test<
     Scalar, Packet, std::enable_if_t<NumTraits<Scalar>::IsInteger && !std::is_same<Scalar, bool>::value>> {
   static void run() {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data[PacketSize];
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar res[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar res[PacketSize];
     // "True" is Scalar(1) in the scalar mask convention and all-ones bits in the packet one;
     // ptrue of the tested Packet type yields the right one either way (the runner also
     // instantiates Packet = Scalar).
     const Scalar scalar_true = internal::ptrue(Scalar(0));
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar lane_true[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar lane_true[PacketSize];
     internal::pstore(lane_true, internal::ptrue(internal::pset1<Packet>(Scalar(0))));
     const Scalar values[] = {Scalar(0),
                              Scalar(1),
@@ -623,10 +625,10 @@ void packetmath() {
 
   constexpr int max_size = PacketSize > 4 ? PacketSize : 4;
   const int size = PacketSize * max_size;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data3[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data3[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
   RealScalar refvalue = RealScalar(0);
 
   eigen_optimization_barrier_test<Packet>::run();
@@ -908,9 +910,9 @@ void packetmath_real() {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[PacketSize * 4] = {};
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[PacketSize * 4] = {};
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4] = {};
 
   // Negate with -0.
   if (PacketTraits::HasNegate) {
@@ -1365,9 +1367,9 @@ std::enable_if_t<Cond, void> run_ieee_cases(const FunctorT& fun) {
   }
 
   constexpr int size = PacketSize * 2;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
   for (int i = 0; i < size; ++i) {
     data1[i] = data2[i] = ref[i] = Scalar(0);
   }
@@ -1447,9 +1449,9 @@ void packetmath_notcomplex() {
   typedef internal::packet_traits<Scalar> PacketTraits;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4];
 
   Array<Scalar, Dynamic, 1>::Map(data1, PacketSize * 4).setRandom();
 
@@ -1731,12 +1733,12 @@ void packetmath_complex() {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar ref[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar pval[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) RealScalar realdata[PacketSize * 4];
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) RealScalar realref[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar pval[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) RealScalar realdata[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) RealScalar realref[PacketSize * 4];
 
   for (int i = 0; i < size; ++i) {
     data1[i] = internal::random<Scalar>() * Scalar(1e2);
@@ -1893,7 +1895,7 @@ template <typename Scalar, typename Packet>
 void packetmath_scatter_gather() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
-  EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
   RealScalar refvalue = RealScalar(0);
   for (int i = 0; i < PacketSize; ++i) {
     data1[i] = internal::random<Scalar>();

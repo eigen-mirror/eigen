@@ -149,9 +149,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
 
   if (predux_any(pcmp_le(pset1<Packet>(huge_th), pabs(_x)))) {
     const int PacketSize = unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) float vals[PacketSize];
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) float x_cpy[PacketSize];
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Eigen::numext::int32_t y_int2[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) float vals[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) float x_cpy[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Eigen::numext::int32_t y_int2[PacketSize];
     pstoreu(vals, pabs(_x));
     pstoreu(x_cpy, x);
     pstoreu(y_int2, y_int);
@@ -394,8 +394,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   // for what is in practice a rare path), so these inputs fall back to the scalar libm.
   if (EIGEN_PREDICT_FALSE(predux_any(pcmp_le(pset1<Packet>(huge_th), x_abs)))) {
     const int PacketSize = unpacket_traits<Packet>::size;
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) double sincos_vals[PacketSize];
-    EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) double x_cpy[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) double sincos_vals[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) double x_cpy[PacketSize];
     pstoreu(x_cpy, x);
     pstoreu(sincos_vals, sFinalRes);
     for (int k = 0; k < PacketSize; ++k) {

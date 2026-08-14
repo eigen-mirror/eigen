@@ -13,6 +13,8 @@
 #include "packetmath_test_shared.h"
 #include "../Eigen/SpecialFunctions"
 
+using internal::unpacket_traits;
+
 #if EIGEN_ARCH_ARM
 // Note: 32-bit arm always flushes subnormals to zero.
 #define MAYBE_FLUSH(op)                                                      \
@@ -34,9 +36,9 @@ void packetmath_real() {
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
-  EIGEN_ALIGN_MAX Scalar data1[PacketSize * 4] = {};
-  EIGEN_ALIGN_MAX Scalar data2[PacketSize * 4] = {};
-  EIGEN_ALIGN_MAX Scalar ref[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4] = {};
 
   {
     data1[0] = std::numeric_limits<Scalar>::quiet_NaN();

@@ -131,7 +131,8 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
     eigen_assert(index + packetSize - 1 < dimensions().TotalSize());
 
-    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[packetSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
+    std::remove_const_t<CoeffReturnType> values[packetSize];
     for (int i = 0; i < packetSize; ++i) {
       values[i] = coeff(index + i);
     }
