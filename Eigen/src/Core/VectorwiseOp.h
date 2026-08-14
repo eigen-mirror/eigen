@@ -358,9 +358,7 @@ class VectorwiseOp {
   using StableNormReturnType = typename ReturnType<Eigen::internal::member_stableNorm, RealScalar>::Type;
   using HypotNormReturnType = typename ReturnType<Eigen::internal::member_hypotNorm, RealScalar>::Type;
   using SumReturnType = typename ReturnType<Eigen::internal::member_sum>::Type;
-  using MeanReturnType =
-      CwiseBinaryOp<internal::scalar_quotient_op<typename internal::traits<SumReturnType>::Scalar, Scalar>,
-                    const SumReturnType, const typename internal::plain_constant_type<SumReturnType, Scalar>::type>;
+  using MeanReturnType = EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(SumReturnType, Scalar, internal::scalar_quotient_op);
   using AllReturnType = typename ReturnType<Eigen::internal::member_all, bool>::Type;
   using AnyReturnType = typename ReturnType<Eigen::internal::member_any, bool>::Type;
   using CountReturnType = PartialReduxExpr<ExpressionType, internal::member_count<Index, Scalar>, Direction>;

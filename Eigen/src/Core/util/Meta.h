@@ -73,14 +73,14 @@ struct get_integer_by_size<8> {
 
 namespace Eigen {
 
-using DenseIndex = std::ptrdiff_t;
+using DenseIndex = EIGEN_DEFAULT_DENSE_INDEX_TYPE;
 
 /**
  * \brief The Index type as used for the API.
  * \details To change this, \c \#define the preprocessor symbol \c EIGEN_DEFAULT_DENSE_INDEX_TYPE.
  * \sa \blank \ref TopicPreprocessorDirectives, StorageIndex.
  */
-using Index = std::ptrdiff_t;
+using Index = EIGEN_DEFAULT_DENSE_INDEX_TYPE;
 
 namespace internal {
 

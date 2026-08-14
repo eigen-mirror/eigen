@@ -429,10 +429,8 @@ class MatrixBase : public DenseBase<Derived> {
   enum { SizeMinusOne = SizeAtCompileTime == Dynamic ? Dynamic : SizeAtCompileTime - 1 };
   using ConstStartMinusOne = Block<const Derived, internal::traits<Derived>::ColsAtCompileTime == 1 ? SizeMinusOne : 1,
                                    internal::traits<Derived>::ColsAtCompileTime == 1 ? 1 : SizeMinusOne>;
-  using HNormalizedReturnType =
-      CwiseBinaryOp<internal::scalar_quotient_op<typename internal::traits<ConstStartMinusOne>::Scalar, Scalar>,
-                    const ConstStartMinusOne,
-                    const typename internal::plain_constant_type<ConstStartMinusOne, Scalar>::type>;
+  using HNormalizedReturnType = EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(ConstStartMinusOne, Scalar,
+                                                                       internal::scalar_quotient_op);
   EIGEN_DEVICE_FUNC inline const HNormalizedReturnType hnormalized() const;
 
   ////////// Householder module ///////////

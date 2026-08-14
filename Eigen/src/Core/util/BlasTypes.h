@@ -61,7 +61,7 @@ static_assert(sizeof(MKL_INT) == 4,
               "link the MKL *_lp64 libraries.");
 #endif
 #else
-using BlasIndex = int;
+using BlasIndex = EIGEN_BLAS_INT;
 #endif
 
 }  // end namespace Eigen

@@ -714,7 +714,7 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
   static constexpr bool NeedExternalBuffer = true;
   using Scalar = typename Xpr::Scalar;
   using PlainObject = typename plain_object_eval<Xpr>::type;
-  using ObjectType = Map<PlainObject, 16>;
+  using ObjectType = Map<PlainObject, EIGEN_DEFAULT_ALIGN_BYTES>;
   ObjectType object;
 
   EIGEN_DEVICE_FUNC local_nested_eval_wrapper(const Xpr& xpr, Scalar* ptr)
