@@ -313,6 +313,40 @@ static void test_type2indexpair_list() {
                       YOU_MADE_A_PROGRAMMING_MISTAKE);
 }
 
+template <typename QualifiedIndexList>
+static void verify_static_index_metadata() {
+  static_assert(Eigen::internal::index_known_statically<QualifiedIndexList>(1), "index should be known statically");
+  static_assert(Eigen::internal::all_indices_known_statically<QualifiedIndexList>(),
+                "all indices should be known statically");
+  static_assert(Eigen::internal::indices_statically_known_to_increase<QualifiedIndexList>(),
+                "indices should be known to increase");
+  static_assert(Eigen::internal::index_statically_eq<QualifiedIndexList>(1, 1), "index should be statically equal");
+  static_assert(Eigen::internal::index_statically_ne<QualifiedIndexList>(1, 2), "index should be statically unequal");
+  static_assert(Eigen::internal::index_statically_gt<QualifiedIndexList>(1, 0), "index should be statically greater");
+  static_assert(Eigen::internal::index_statically_lt<QualifiedIndexList>(1, 2), "index should be statically less");
+}
+
+template <typename QualifiedIndexPairList>
+static void verify_static_index_pair_metadata() {
+  static_assert(Eigen::internal::index_pair_first_statically_eq<QualifiedIndexPairList>(1, 1),
+                "first index should be statically equal");
+  static_assert(Eigen::internal::index_pair_second_statically_eq<QualifiedIndexPairList>(1, 11),
+                "second index should be statically equal");
+}
+
+static void test_cv_qualified_index_metadata() {
+  using StaticIndices = Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>>;
+  using StaticIndexPairs = Eigen::IndexPairList<Eigen::type2indexpair<0, 10>, Eigen::type2indexpair<1, 11>>;
+  using StaticDimensions = Eigen::DimensionList<Eigen::Index, 3>;
+
+  verify_static_index_metadata<const StaticIndices>();
+  verify_static_index_metadata<volatile StaticIndices>();
+  verify_static_index_pair_metadata<const StaticIndexPairs>();
+  verify_static_index_pair_metadata<volatile StaticIndexPairs>();
+  verify_static_index_metadata<const StaticDimensions>();
+  verify_static_index_metadata<volatile StaticDimensions>();
+}
+
 static void test_dynamic_index_list() {
   Tensor<float, 4> tensor(2, 3, 5, 7);
   tensor.setRandom();
@@ -419,6 +453,7 @@ EIGEN_DECLARE_TEST(tensor_index_list) {
   CALL_SUBTEST(test_static_index_list());
   CALL_SUBTEST(test_type2index_list());
   CALL_SUBTEST(test_type2indexpair_list());
+  CALL_SUBTEST(test_cv_qualified_index_metadata());
   CALL_SUBTEST(test_dynamic_index_list());
   CALL_SUBTEST(test_mixed_index_list());
   CALL_SUBTEST(test_dim_check());
