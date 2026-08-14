@@ -45,7 +45,10 @@ void test_2856() {
   expected(6) = -1001;
   expected(12) = -1001;
   expected(13) = 1001;
-  VERIFY_IS_EQUAL(x, expected);
+  // The regression is the breakdown handling (a spurious "not converged"), so require an
+  // accurate solution, not a bit-exact one: FP contraction makes the iterate differ by a
+  // few ulps on some targets (e.g. riscv64).
+  VERIFY_IS_APPROX(x, expected);
 
   Eigen::VectorXd residual = b - A * x;
   VERIFY(residual.isZero());
