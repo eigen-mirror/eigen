@@ -16,7 +16,8 @@ corresponding build target consistent; otherwise CTest can discover tests whose 
 ## Worktree-Safe Formatting
 
 Inspect `git status --short` before formatting and preserve unrelated changes. Eigen requires `clang-format-17`
-exactly. Format only files owned by the task:
+exactly; the pin lives in [`ci/checkformat.gitlab-ci.yml`](../ci/checkformat.gitlab-ci.yml), which installs
+`clang17-extra-tools`. Format only files owned by the task:
 
 ```bash
 clang-format-17 -i path/to/file.cpp path/to/header.h
@@ -62,6 +63,41 @@ source files with the repository helper, pass them explicitly because its defaul
 python3 scripts/add_spdx_headers.py --paths path/to/new-file.cpp
 ```
 
+## Documentation Builds
+
+The documentation job is blocking and easy to miss. Unlike the clang-format, codespell, and clang-tidy jobs,
+`build:linux:docs` in [`ci/build.linux.gitlab-ci.yml`](../ci/build.linux.gitlab-ci.yml) is not `allow_failure`, and
+[`doc/Doxyfile.in`](../doc/Doxyfile.in) sets `WARN_AS_ERROR = FAIL_ON_WARNINGS_PRINT`, so one Doxygen warning fails it.
+Its rules exclude the default merge-request pipeline: it runs on schedules, web pipelines, a merge request labeled
+`all-tests`, and a push to the default branch. A malformed `\ref` therefore passes an entire review green and breaks the
+pipeline on `master` after the merge. Apply the `all-tests` label to any merge request that touches Doxygen markup, a
+cross-reference target, or a documented name.
+
+The recurring authoring mistake is trailing punctuation absorbed into a cross-reference: a colon directly after
+`\ref name` becomes part of the symbol Doxygen tries to resolve, so `\ref adjoint: the ...` fails while
+`\ref adjoint. The ...` resolves. Separate a reference from following prose with a space, comma, or period. Punctuation
+inside the name itself is fine — `\ref MatrixBase::cross()` is a qualified symbol, not a glued colon.
+
+The `doc` target also compiles and runs the configured examples and snippets under [`doc/snippets`](../doc/snippets),
+[`doc/examples`](../doc/examples), and their unsupported counterparts, by way of the `all_snippets` and `all_examples`
+prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks the
+documentation build even when every comment is well formed, so search those directories before changing one.
+"Configured" is the operative word: `unsupported/doc/examples/CMakeLists.txt` adds its `SYCL` subdirectory only under
+`EIGEN_TEST_SYCL`, which `build:linux:docs` does not set, so a broken unsupported SYCL example leaves this target green.
+Treat the target as coverage for the sets the configuration actually enables, and check the conditional before citing
+it as coverage.
+
+`EIGEN_BUILD_DOC` defaults on for a top-level, non-cross-compiling configuration, but `doc` is excluded from `all` and
+must be named:
+
+```bash
+cmake --build build --target doc
+```
+
+Doxygen and graphviz must be installed. CI builds a pinned Doxygen from source
+([`ci/scripts/build_and_install_doxygen.sh`](../ci/scripts/build_and_install_doxygen.sh)), so another local version can
+diagnose a different set of warnings; report the version that produced a local result.
+
 ## Clang-Tidy
 
 Use the CI driver rather than invoking clang-tidy directly on an implementation header; the driver routes such a
@@ -85,4 +121,6 @@ The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted
 2. Format the exact changed source files with clang-format-17.
 3. Run the focused builds and tests documented in [`testing.md`](testing.md).
 4. Run applicable spelling, REUSE, and clang-tidy checks.
-5. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.
+5. Build the `doc` target when the change touches Doxygen markup, a documented name, or a snippet, and label the merge
+   request `all-tests` so the blocking documentation job runs before the merge rather than after it.
+6. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.

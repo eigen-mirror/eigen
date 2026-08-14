@@ -19,6 +19,7 @@ default.
 | Any new or rewritten code | [`.agents/conventions.md`](.agents/conventions.md) |
 | Tests and CMake test targets | [`.agents/testing.md`](.agents/testing.md) |
 | Numerical kernels, decompositions, solvers, accuracy | [`.agents/numerics.md`](.agents/numerics.md) |
+| Sparse matrices, sparse solvers, external sparse backends | [`.agents/sparse.md`](.agents/sparse.md) |
 | Performance changes and benchmarks | [`.agents/benchmarking.md`](.agents/benchmarking.md) |
 | Packet math, CUDA, HIP, SYCL, `unsupported/Eigen/GPU` | [`.agents/simd-gpu.md`](.agents/simd-gpu.md) |
 | Tensor, ThreadPool, and multithreading | [`.agents/tensor-threadpool.md`](.agents/tensor-threadpool.md) |
