@@ -414,6 +414,97 @@ static void test_block_io_squeeze_ones() {
   CALL_SUBTEST((NAME<bool, 4, ColMajor>()));  \
   CALL_SUBTEST((NAME<bool, 5, ColMajor>()))
 
+// The inner dimensions may only be squeezed into one run while the elements
+// keep forming a single arithmetic progression at the inner stride on both
+// sides. A reversed inner dimension under a forward outer dimension is the
+// case where the outer strides match but the progressions do not, so squeezing
+// there would walk backwards out of the source.
+template <int Layout>
+static void test_block_io_negative_inner_stride_do_not_squeeze() {
+  using TensorBlockIO = internal::TensorBlockIO<float, Index, 2, Layout>;
+  using IODst = typename TensorBlockIO::Dst;
+  using IOSrc = typename TensorBlockIO::Src;
+
+  const Index inner = 8;
+  const Index outer = 4;
+  DSizes<Index, 2> block_sizes = (static_cast<int>(Layout) == static_cast<int>(ColMajor))
+                                     ? DSizes<Index, 2>(inner, outer)
+                                     : DSizes<Index, 2>(outer, inner);
+
+  // Pad the front of the source so that a wrongly squeezed run reads defined
+  // (but incorrect) values instead of running off the allocation.
+  Tensor<float, 1> padded(2 * inner * outer);
+  padded.setRandom();
+  const float* input = padded.data() + inner * outer;
+
+  Tensor<float, 1> output(inner * outer);
+  output.setZero();
+
+  const Index inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : 1;
+  const Index outer_dim = 1 - inner_dim;
+
+  // Source walks the inner dimension backwards, the outer dimension forwards.
+  DSizes<Index, 2> src_strides;
+  src_strides[inner_dim] = -1;
+  src_strides[outer_dim] = inner;
+  const Index src_offset = inner - 1;
+
+  const DSizes<Index, 2> dst_strides = internal::strides<Layout>(block_sizes);
+  IODst dst(block_sizes, dst_strides, output.data(), 0);
+  IOSrc src(src_strides, input, src_offset);
+  TensorBlockIO::Copy(dst, src);
+
+  for (Index o = 0; o < outer; ++o) {
+    for (Index i = 0; i < inner; ++i) {
+      const float expected = input[src_offset + o * src_strides[outer_dim] + i * src_strides[inner_dim]];
+      const float actual = output.data()[o * dst_strides[outer_dim] + i * dst_strides[inner_dim]];
+      VERIFY_IS_EQUAL(actual, expected);
+    }
+  }
+}
+
+// Conversely, a uniformly dilated source does keep one progression across the
+// dimension boundary, so it must squeeze and still copy the right elements.
+template <int Layout>
+static void test_block_io_dilated_inner_stride_squeeze() {
+  using TensorBlockIO = internal::TensorBlockIO<float, Index, 2, Layout>;
+  using IODst = typename TensorBlockIO::Dst;
+  using IOSrc = typename TensorBlockIO::Src;
+
+  const Index inner = 8;
+  const Index outer = 4;
+  const Index dilation = 2;
+  DSizes<Index, 2> block_sizes = (static_cast<int>(Layout) == static_cast<int>(ColMajor))
+                                     ? DSizes<Index, 2>(inner, outer)
+                                     : DSizes<Index, 2>(outer, inner);
+
+  Tensor<float, 1> input(dilation * inner * outer);
+  input.setRandom();
+
+  Tensor<float, 1> output(inner * outer);
+  output.setZero();
+
+  const Index inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : 1;
+  const Index outer_dim = 1 - inner_dim;
+
+  DSizes<Index, 2> src_strides;
+  src_strides[inner_dim] = dilation;
+  src_strides[outer_dim] = dilation * inner;
+
+  const DSizes<Index, 2> dst_strides = internal::strides<Layout>(block_sizes);
+  IODst dst(block_sizes, dst_strides, output.data(), 0);
+  IOSrc src(src_strides, input.data(), 0);
+  TensorBlockIO::Copy(dst, src);
+
+  for (Index o = 0; o < outer; ++o) {
+    for (Index i = 0; i < inner; ++i) {
+      const float expected = input.data()[o * src_strides[outer_dim] + i * src_strides[inner_dim]];
+      const float actual = output.data()[o * dst_strides[outer_dim] + i * dst_strides[inner_dim]];
+      VERIFY_IS_EQUAL(actual, expected);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_block_io) {
   // clang-format off
   CALL_SUBTESTS(test_block_io_copy_data_from_source_to_target);
@@ -430,5 +521,11 @@ EIGEN_DECLARE_TEST(tensor_block_io) {
 
   CALL_SUBTEST(test_block_io_squeeze_ones<RowMajor>());
   CALL_SUBTEST(test_block_io_squeeze_ones<ColMajor>());
+
+  CALL_SUBTEST(test_block_io_negative_inner_stride_do_not_squeeze<RowMajor>());
+  CALL_SUBTEST(test_block_io_negative_inner_stride_do_not_squeeze<ColMajor>());
+
+  CALL_SUBTEST(test_block_io_dilated_inner_stride_squeeze<RowMajor>());
+  CALL_SUBTEST(test_block_io_dilated_inner_stride_squeeze<ColMajor>());
   // clang-format on
 }

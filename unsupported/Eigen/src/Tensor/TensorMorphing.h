@@ -786,13 +786,20 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
     // slice offsets and sizes.
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    // Blocks are materialized from the nested evaluator's raw buffer with one
+    // (possibly strided or reversed) line copy per inner run.
+    BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
+    PreferBlockAccess = true,
     RawAccess = false
   };
 
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
+
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+
+  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -945,6 +952,48 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
            TensorOpCost(0, 0, m_is_identity ? 1 : NumDims, vectorized && packets_stay_in_inner, PacketSize);
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    // Blocks materialize into scratch and are then re-read by the consumer, so
+    // the round trip must stay cache-resident: L1-sized blocks (as in
+    // TensorShuffling) make the extra pass nearly free, while LLC-sized blocks
+    // cost a measured ~40% on cheap coefficient-wise consumers of a
+    // larger-than-cache slice.
+    const size_t target_size = m_device.firstLevelCacheSize();
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    // A non-unit (or negative) inner stride turns the per-line copies into
+    // gathers or reversed reads the default cost model does not see in bytes
+    // loaded and stored; surface that like TensorReverse does.
+    const double gather_cost = m_inputStrides[inner_dim] == 1 ? 0.0 : 24.0;
+    return internal::TensorBlockResourceRequirements::skewed<Scalar>(target_size).addCostPerCoeff({0, 0, gather_cost});
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool root_of_expr_ast = false) const {
+    eigen_assert(m_impl.data() != nullptr);
+
+    if (m_is_identity) {
+      return TensorBlock::materialize(m_impl.data(), m_impl.dimensions(), desc, scratch);
+    }
+
+    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
+    typedef typename TensorBlockIO::Dst TensorBlockIODst;
+    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+
+    const typename TensorBlock::Storage block_storage =
+        TensorBlock::prepareStorage(desc, scratch, /*allow_strided_storage=*/root_of_expr_ast);
+
+    // Per output dimension, one step moves the input by the (possibly
+    // negative) dilated stride; the block's first element sits at the mapped
+    // offset of the block descriptor's origin.
+    typename TensorBlockIO::Dimensions input_strides(m_inputStrides);
+    TensorBlockIOSrc src(input_strides, m_impl.data(), srcCoeff(desc.offset()));
+
+    TensorBlockIODst dst(block_storage.dimensions(), block_storage.strides(), block_storage.data());
+
+    TensorBlockIO::Copy(dst, src);
+    return block_storage.AsTensorMaterializedBlock();
+  }
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Storage::Type data() const { return nullptr; }
 
  protected:
@@ -1012,23 +1061,26 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    // Blocks are scattered into the nested evaluator's raw buffer with one
+    // (possibly strided or reversed) line copy per inner run.
+    BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
+    PreferBlockAccess = true,
     CoordAccess = TensorEvaluator<ArgType, Device>::CoordAccess,
     RawAccess = false
   };
-
-  //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
-  //===--------------------------------------------------------------------===//
-
-  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
   typedef typename XprType::Index Index;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef Strides Dimensions;
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
+
+  //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  //===--------------------------------------------------------------------===//
+
+  EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const {
     if (this->m_is_identity) {
@@ -1083,6 +1135,58 @@ struct TensorEvaluator<TensorStridingSlicingOp<StartIndices, StopIndices, Stride
     for (int i = 0; i < Base::PacketSize; ++i) {
       this->coeffRef(index + i) = values[i];
     }
+  }
+
+  template <typename TensorBlock>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+    eigen_assert(this->m_impl.data() != nullptr);
+
+    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
+    typedef typename TensorBlockIO::Dst TensorBlockIODst;
+    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
+        TensorBlockAssignment;
+
+    const Scalar* block_buffer = block.data();
+
+    // Unlike TensorShuffling this op preserves dimension order, so with a unit
+    // inner stride a block expression can be assigned straight into the
+    // destination through the dilated outer strides, skipping the
+    // materialize-into-temp pass below. TensorBlockAssignment requires exactly
+    // that unit inner stride.
+    constexpr int inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
+    if (block_buffer == nullptr && this->m_inputStrides[inner_dim] == 1) {
+      const typename TensorBlockIO::Dimensions output_strides(this->m_inputStrides);
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), output_strides, this->m_impl.data(),
+                                                               this->srcCoeff(desc.offset())),
+                                 block.expr());
+      return;
+    }
+
+    const typename TensorBlockIO::Dimensions block_strides = internal::strides<Layout>(desc.dimensions());
+
+    // TODO(ezhulenev): TensorBlockIO should be able to read from any Eigen
+    // expression with coefficient and packet access as `src`.
+    void* mem = nullptr;
+    if (block_buffer == nullptr) {
+      mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
+      ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
+
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
+
+      block_buffer = buf;
+    }
+
+    TensorBlockIOSrc src(block_strides, block_buffer);
+
+    // Write through the (possibly negative) dilated strides.
+    typename TensorBlockIO::Dimensions output_strides(this->m_inputStrides);
+    TensorBlockIODst dst(desc.dimensions(), output_strides, this->m_impl.data(), this->srcCoeff(desc.offset()));
+
+    TensorBlockIO::Copy(dst, src);
+
+    // Deallocate temporary buffer used for the block materialization.
+    if (mem != nullptr) this->m_device.deallocate(mem);
   }
 };
 
