@@ -217,6 +217,97 @@ struct gemv_static_vector_if<Scalar, Size, MaxSize, true> {
 #endif
 };
 
+template <typename ResScalar>
+using gemv_mapped_destination =
+    Map<Matrix<ResScalar, Dynamic, 1>, plain_enum_min(AlignedMax, internal::packet_traits<ResScalar>::size)>;
+
+template <typename Dest>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE gemv_mapped_destination<typename Dest::Scalar> gemv_construct_mapped_destination(
+    Dest& dest, typename Dest::Scalar* actual_dest_ptr) {
+#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
+  constexpr int Size = Dest::SizeAtCompileTime;
+  Index size = dest.size();
+  EIGEN_DENSE_STORAGE_CTOR_PLUGIN
+#endif
+  return gemv_mapped_destination<typename Dest::Scalar>(actual_dest_ptr, dest.size());
+}
+
+// Prepares the temporary destination shared by general, triangular, and selfadjoint GEMV kernels.
+template <bool EvalToDest, typename Dest>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void gemv_prepare_destination(Dest& dest,
+                                                                    typename Dest::Scalar* actual_dest_ptr) {
+  EIGEN_IF_CONSTEXPR (!EvalToDest) gemv_construct_mapped_destination(dest, actual_dest_ptr) = dest;
+}
+
+template <bool EvalToDest, typename Dest>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void gemv_prepare_destination(Dest& dest, typename Dest::Scalar* actual_dest_ptr,
+                                                                    bool initialize_to_zero) {
+  if (initialize_to_zero) {
+    gemv_construct_mapped_destination(dest, actual_dest_ptr).setZero();
+  } else {
+    gemv_prepare_destination<EvalToDest>(dest, actual_dest_ptr);
+  }
+}
+
+template <bool EvalToDest, typename Dest>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void gemv_copy_destination(Dest& dest, typename Dest::Scalar* actual_dest_ptr) {
+  EIGEN_IF_CONSTEXPR (!EvalToDest) {
+    dest = gemv_mapped_destination<typename Dest::Scalar>(actual_dest_ptr, dest.size());
+  }
+}
+
+// Adds complex-by-real scalar adaptation to the shared destination handling when necessary.
+template <typename RhsScalar, typename ResScalar, bool EvalToDestAtCompileTime, bool ComplexByReal>
+class gemv_destination_policy {
+ public:
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit gemv_destination_policy(const ResScalar& alpha) : alpha_(alpha) {}
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool eval_to_dest() const {
+    return EvalToDestAtCompileTime && alpha_is_compatible();
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RhsScalar compatible_alpha() const {
+    return alpha_is_compatible() ? get_factor<ResScalar, RhsScalar>::run(alpha_) : RhsScalar(1);
+  }
+
+  template <typename Dest>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void prepare(Dest& dest, ResScalar* actual_dest_ptr) const {
+    gemv_prepare_destination<EvalToDestAtCompileTime>(dest, actual_dest_ptr, !alpha_is_compatible());
+  }
+
+  template <typename Dest>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void copy_back(Dest& dest, ResScalar* actual_dest_ptr) const {
+    if (!alpha_is_compatible()) {
+      dest.matrix() += alpha_ * gemv_mapped_destination<ResScalar>(actual_dest_ptr, dest.size());
+    } else {
+      gemv_copy_destination<EvalToDestAtCompileTime>(dest, actual_dest_ptr);
+    }
+  }
+
+ private:
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool alpha_is_compatible() const {
+    return !ComplexByReal || numext::is_exactly_zero(numext::imag(alpha_));
+  }
+
+  ResScalar alpha_;
+};
+
+// Copies a non-contiguous GEMV right-hand side into the aligned buffer allocated by the caller.
+template <bool DirectlyUseRhs, typename ActualRhsType>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void gemv_prepare_rhs(
+    const ActualRhsType& rhs, typename remove_all_t<ActualRhsType>::Scalar* actual_rhs_ptr) {
+  using ActualRhsTypeCleaned = remove_all_t<ActualRhsType>;
+  EIGEN_IF_CONSTEXPR (!DirectlyUseRhs) {
+#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
+    constexpr int Size = ActualRhsTypeCleaned::SizeAtCompileTime;
+    Index size = rhs.size();
+    EIGEN_DENSE_STORAGE_CTOR_PLUGIN
+#endif
+    // The caller obtains this temporary from ei_declare_aligned_stack_constructed_variable.
+    Map<typename ActualRhsTypeCleaned::PlainObject, AlignedMax>(actual_rhs_ptr, rhs.size()) = rhs;
+  }
+}
+
 // The vector is on the left => transposition
 template <int StorageOrder, bool BlasCompatible>
 struct gemv_dense_selector<OnTheLeft, StorageOrder, BlasCompatible> {
@@ -242,9 +333,6 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     using RhsBlasTraits = internal::blas_traits<Rhs>;
     using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
 
-    using MappedDest =
-        Map<Matrix<ResScalar, Dynamic, 1>, plain_enum_min(AlignedMax, internal::packet_traits<ResScalar>::size)>;
-
     ActualLhsType actualLhs = LhsBlasTraits::extract(lhs);
     ActualRhsType actualRhs = RhsBlasTraits::extract(rhs);
 
@@ -263,41 +351,26 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
 
     using LhsMapper = const_blas_data_mapper<LhsScalar, Index, ColMajor>;
     using RhsMapper = const_blas_data_mapper<RhsScalar, Index, RowMajor>;
-    RhsScalar compatibleAlpha = get_factor<ResScalar, RhsScalar>::run(actualAlpha);
-
     EIGEN_IF_CONSTEXPR (!MightCannotUseDest) {
       // shortcut if we are sure to be able to use dest directly,
       // this eases the compiler to generate cleaner and more optimized code for most common cases
-      general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
-                                    RhsMapper, RhsBlasTraits::NeedToConjugate>::run(actualLhs.rows(), actualLhs.cols(),
-                                                                                    LhsMapper(actualLhs.data(),
-                                                                                              actualLhs.outerStride()),
-                                                                                    RhsMapper(actualRhs.data(),
-                                                                                              actualRhs.innerStride()),
-                                                                                    dest.data(), 1, compatibleAlpha);
+      general_matrix_vector_product<
+          Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar, RhsMapper,
+          RhsBlasTraits::NeedToConjugate>::run(actualLhs.rows(), actualLhs.cols(),
+                                               LhsMapper(actualLhs.data(), actualLhs.outerStride()),
+                                               RhsMapper(actualRhs.data(), actualRhs.innerStride()), dest.data(), 1,
+                                               get_factor<ResScalar, RhsScalar>::run(actualAlpha));
     } else {
       gemv_static_vector_if<ResScalar, ActualDest::SizeAtCompileTime, ActualDest::MaxSizeAtCompileTime,
                             MightCannotUseDest>
           static_dest;
 
-      const bool alphaIsCompatible = (!ComplexByReal) || (numext::is_exactly_zero(numext::imag(actualAlpha)));
-      const bool evalToDest = EvalToDestAtCompileTime && alphaIsCompatible;
+      gemv_destination_policy<RhsScalar, ResScalar, EvalToDestAtCompileTime, ComplexByReal> destPolicy(actualAlpha);
 
       ei_declare_aligned_stack_constructed_variable(ResScalar, actualDestPtr, dest.size(),
-                                                    evalToDest ? dest.data() : static_dest.data());
+                                                    destPolicy.eval_to_dest() ? dest.data() : static_dest.data());
 
-      if (!evalToDest) {
-#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-        constexpr int Size = Dest::SizeAtCompileTime;
-        Index size = dest.size();
-        EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-#endif
-        if (!alphaIsCompatible) {
-          MappedDest(actualDestPtr, dest.size()).setZero();
-          compatibleAlpha = RhsScalar(1);
-        } else
-          MappedDest(actualDestPtr, dest.size()) = dest;
-      }
+      destPolicy.prepare(dest, actualDestPtr);
 
       general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, LhsBlasTraits::NeedToConjugate, RhsScalar,
                                     RhsMapper, RhsBlasTraits::NeedToConjugate>::run(actualLhs.rows(), actualLhs.cols(),
@@ -305,14 +378,10 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
                                                                                               actualLhs.outerStride()),
                                                                                     RhsMapper(actualRhs.data(),
                                                                                               actualRhs.innerStride()),
-                                                                                    actualDestPtr, 1, compatibleAlpha);
+                                                                                    actualDestPtr, 1,
+                                                                                    destPolicy.compatible_alpha());
 
-      if (!evalToDest) {
-        if (!alphaIsCompatible)
-          dest.matrix() += actualAlpha * MappedDest(actualDestPtr, dest.size());
-        else
-          dest = MappedDest(actualDestPtr, dest.size());
-      }
+      destPolicy.copy_back(dest, actualDestPtr);
     }
   }
 };
@@ -351,14 +420,7 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
         RhsScalar, actualRhsPtr, actualRhs.size(),
         DirectlyUseRhs ? const_cast<RhsScalar*>(actualRhs.data()) : static_rhs.data());
 
-    EIGEN_IF_CONSTEXPR (!DirectlyUseRhs) {
-#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-      constexpr int Size = ActualRhsTypeCleaned::SizeAtCompileTime;
-      Index size = actualRhs.size();
-      EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-#endif
-      Map<typename ActualRhsTypeCleaned::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
-    }
+    gemv_prepare_rhs<DirectlyUseRhs>(actualRhs, actualRhsPtr);
 
     using LhsMapper = const_blas_data_mapper<LhsScalar, Index, RowMajor>;
     using RhsMapper = const_blas_data_mapper<RhsScalar, Index, ColMajor>;

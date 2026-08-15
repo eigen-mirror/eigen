@@ -255,7 +255,16 @@ struct triangular_product_impl<Mode, false, Lhs, true, Rhs, false> {
 
 namespace internal {
 
-// TODO: find a way to factorize this piece of code with gemv_selector since the logic is exactly the same.
+template <int Mode, typename Lhs, typename Rhs, typename Dest, typename LhsScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trmv_correct_unit_diagonal(const Lhs& lhs, const Rhs& rhs, Dest& dest,
+                                                                      const LhsScalar& lhs_alpha) {
+  EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
+    if (!numext::is_exactly_one(lhs_alpha)) {
+      Index diagSize = (std::min)(lhs.rows(), lhs.cols());
+      dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+    }
+  }
+}
 
 template <int Mode>
 struct trmv_selector<Mode, ColMajor> {
@@ -269,10 +278,6 @@ struct trmv_selector<Mode, ColMajor> {
     using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
     using RhsBlasTraits = internal::blas_traits<Rhs>;
     using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
-    constexpr int Alignment = (std::min)(int(AlignedMax), int(internal::packet_traits<ResScalar>::size));
-
-    using MappedDest = Map<Matrix<ResScalar, Dynamic, 1>, Alignment>;
-
     add_const_on_value_type_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
     add_const_on_value_type_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
 
@@ -289,50 +294,23 @@ struct trmv_selector<Mode, ColMajor> {
     gemv_static_vector_if<ResScalar, Dest::SizeAtCompileTime, Dest::MaxSizeAtCompileTime, MightCannotUseDest>
         static_dest;
 
-    bool alphaIsCompatible = (!ComplexByReal) || numext::is_exactly_zero(numext::imag(actualAlpha));
-    bool evalToDest = EvalToDestAtCompileTime && alphaIsCompatible;
-
-    RhsScalar compatibleAlpha = get_factor<ResScalar, RhsScalar>::run(actualAlpha);
+    gemv_destination_policy<RhsScalar, ResScalar, EvalToDestAtCompileTime, ComplexByReal> destPolicy(actualAlpha);
 
     ei_declare_aligned_stack_constructed_variable(ResScalar, actualDestPtr, dest.size(),
-                                                  evalToDest ? dest.data() : static_dest.data());
+                                                  destPolicy.eval_to_dest() ? dest.data() : static_dest.data());
 
-    if (!evalToDest) {
-#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-      constexpr int Size = Dest::SizeAtCompileTime;
-      Index size = dest.size();
-      EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-#endif
-      if (!alphaIsCompatible) {
-        MappedDest(actualDestPtr, dest.size()).setZero();
-        compatibleAlpha = RhsScalar(1);
-      } else
-        MappedDest(actualDestPtr, dest.size()) = dest;
-    }
+    destPolicy.prepare(dest, actualDestPtr);
 
     internal::triangular_matrix_vector_product<Index, Mode, LhsScalar, LhsBlasTraits::NeedToConjugate, RhsScalar,
-                                               RhsBlasTraits::NeedToConjugate, ColMajor>::run(actualLhs.rows(),
-                                                                                              actualLhs.cols(),
-                                                                                              actualLhs.data(),
-                                                                                              actualLhs.outerStride(),
-                                                                                              actualRhs.data(),
-                                                                                              actualRhs.innerStride(),
-                                                                                              actualDestPtr, 1,
-                                                                                              compatibleAlpha);
+                                               RhsBlasTraits::NeedToConjugate,
+                                               ColMajor>::run(actualLhs.rows(), actualLhs.cols(), actualLhs.data(),
+                                                              actualLhs.outerStride(), actualRhs.data(),
+                                                              actualRhs.innerStride(), actualDestPtr, 1,
+                                                              destPolicy.compatible_alpha());
 
-    if (!evalToDest) {
-      if (!alphaIsCompatible)
-        dest += actualAlpha * MappedDest(actualDestPtr, dest.size());
-      else
-        dest = MappedDest(actualDestPtr, dest.size());
-    }
+    destPolicy.copy_back(dest, actualDestPtr);
 
-    EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
-      if (!numext::is_exactly_one(lhs_alpha)) {
-        Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-        dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
-      }
-    }
+    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, lhs_alpha);
   }
 };
 
@@ -359,40 +337,15 @@ struct trmv_selector<Mode, RowMajor> {
 
     constexpr bool DirectlyUseRhs = ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1;
 
-    const RhsScalar* actualRhsPtr = actualRhs.data();
-
-    // Potentially create a temporary buffer to copy RHS to contiguous memory.
     gemv_static_vector_if<RhsScalar, ActualRhsTypeCleaned::SizeAtCompileTime,
                           ActualRhsTypeCleaned::MaxSizeAtCompileTime, !DirectlyUseRhs>
-        static_rhs;  // Fixed-sized array.
-    RhsScalar* buffer = nullptr;
-    EIGEN_IF_CONSTEXPR (!DirectlyUseRhs) {
-      // Maybe used fixed-sized buffer, otherwise allocate.
-      if (static_rhs.data() != nullptr) {
-        buffer = static_rhs.data();
-      } else {
-        // Allocate either with alloca or malloc.
-        Eigen::internal::check_size_for_overflow<RhsScalar>(actualRhs.size());
-#ifdef EIGEN_ALLOCA
-        buffer = static_cast<RhsScalar*>((sizeof(RhsScalar) * actualRhs.size() <= EIGEN_STACK_ALLOCATION_LIMIT)
-                                             ? EIGEN_ALIGNED_ALLOCA(sizeof(RhsScalar) * actualRhs.size())
-                                             : Eigen::internal::aligned_malloc(sizeof(RhsScalar) * actualRhs.size()));
-#else
-        buffer = static_cast<RhsScalar*>(Eigen::internal::aligned_malloc(sizeof(RhsScalar) * actualRhs.size()));
-#endif
-      }
-#ifdef EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-      constexpr int Size = ActualRhsTypeCleaned::SizeAtCompileTime;
-      Index size = actualRhs.size();
-      EIGEN_DENSE_STORAGE_CTOR_PLUGIN
-#endif
-      Map<typename ActualRhsTypeCleaned::PlainObject, Eigen::AlignedMax>(buffer, actualRhs.size()) = actualRhs;
-      actualRhsPtr = buffer;
-    }
-    // Deallocate only if malloced.
-    Eigen::internal::aligned_stack_memory_handler<RhsScalar> buffer_stack_memory_destructor(
-        buffer, actualRhs.size(),
-        !DirectlyUseRhs && static_rhs.data() == nullptr && actualRhs.size() > EIGEN_STACK_ALLOCATION_LIMIT);
+        static_rhs;
+
+    ei_declare_aligned_stack_constructed_variable(
+        RhsScalar, actualRhsPtr, actualRhs.size(),
+        DirectlyUseRhs ? const_cast<RhsScalar*>(actualRhs.data()) : static_rhs.data());
+
+    gemv_prepare_rhs<DirectlyUseRhs>(actualRhs, actualRhsPtr);
 
     internal::triangular_matrix_vector_product<Index, Mode, LhsScalar, LhsBlasTraits::NeedToConjugate, RhsScalar,
                                                RhsBlasTraits::NeedToConjugate, RowMajor>::run(actualLhs.rows(),
@@ -404,12 +357,7 @@ struct trmv_selector<Mode, RowMajor> {
                                                                                               dest.innerStride(),
                                                                                               actualAlpha);
 
-    EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
-      if (!numext::is_exactly_one(lhs_alpha)) {
-        Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-        dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
-      }
-    }
+    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, lhs_alpha);
   }
 };
 

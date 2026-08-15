@@ -7,6 +7,7 @@ New features:
 - Generic clang vector extension backend [!2051]
 
 Bug fixes:
+- Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]
 - `MatrixBase::isLowerTriangular()` skipped the last strictly-upper coefficient of every column past the diagonal block, reporting some wide matrices as lower triangular [!2814]
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()` did not compile in any configuration, their functors having dropped the shift count [!2814]
 - `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]

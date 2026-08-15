@@ -10,8 +10,10 @@
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
 #define TEST_IGNORE_STACK_ALLOCATED_TEMPORARY
+#define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 
 #include "main.h"
+#include "AnnoyingScalar.h"
 
 template <typename Dst, typename Lhs, typename Rhs>
 void check_scalar_multiple3(Dst& dst, const Lhs& A, const Rhs& B) {
@@ -214,7 +216,38 @@ void product_notemporary(const MatrixType& m) {
   }
 }
 
+template <int Size>
+void triangular_product_with_initialized_scalar() {
+  constexpr Index kSize = 6;
+  using MatrixType = Matrix<AnnoyingScalar, Size, Size, RowMajor>;
+  using RhsStorage = Matrix<AnnoyingScalar, Size, 2, RowMajor>;
+  using ResultType = Matrix<AnnoyingScalar, Size, 1>;
+
+  const int initial_instances = AnnoyingScalar::instances;
+  {
+    MatrixType lhs(kSize, kSize);
+    RhsStorage rhs_storage(kSize, 2);
+    ResultType result(kSize);
+    lhs.setOnes();
+    rhs_storage.setZero();
+    for (Index i = 0; i < kSize; ++i) rhs_storage(i, 0) = AnnoyingScalar(i + 1);
+
+    auto rhs = rhs_storage.col(0);
+    STATIC_CHECK((decltype(rhs)::InnerStrideAtCompileTime != 1));
+    result.noalias() = lhs.template triangularView<Upper>() * rhs;
+
+    for (Index i = 0; i < kSize; ++i) {
+      const int expected = int((i + 1 + kSize) * (kSize - i) / 2);
+      VERIFY_IS_EQUAL(result(i), AnnoyingScalar(expected));
+    }
+  }
+  VERIFY_IS_EQUAL(AnnoyingScalar::instances, initial_instances);
+}
+
 EIGEN_DECLARE_TEST(product_notemporary) {
+  CALL_SUBTEST_5((triangular_product_with_initialized_scalar<6>()));
+  CALL_SUBTEST_5((triangular_product_with_initialized_scalar<Dynamic>()));
+
   int s;
   for (int i = 0; i < g_repeat; i++) {
     s = internal::random<int>(16, EIGEN_TEST_MAX_SIZE);
