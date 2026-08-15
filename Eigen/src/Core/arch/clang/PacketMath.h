@@ -456,34 +456,46 @@ EIGEN_CLANG_PACKET_CMP(PacketXd, PacketXl)
 #undef EIGEN_CLANG_PACKET_CMP
 
 // --- Min/Max operations ---
+// Floating-point support in __builtin_elementwise_{min,max} is deprecated because the name does not say which of the
+// several IEEE min/max flavors is meant. __builtin_elementwise_{minnum,maxnum} spell out the same IEEE 754-2008
+// minNum/maxNum semantics the deprecated builtins provided for floats, and additionally pin down +0.0 > -0.0. The
+// integer overloads are not deprecated, so PacketXi and PacketXl keep using them.
+#if EIGEN_HAS_BUILTIN(__builtin_elementwise_minnum) && EIGEN_HAS_BUILTIN(__builtin_elementwise_maxnum)
+#define EIGEN_CLANG_ELEMENTWISE_MINNUM __builtin_elementwise_minnum
+#define EIGEN_CLANG_ELEMENTWISE_MAXNUM __builtin_elementwise_maxnum
+#else
+#define EIGEN_CLANG_ELEMENTWISE_MINNUM __builtin_elementwise_min
+#define EIGEN_CLANG_ELEMENTWISE_MAXNUM __builtin_elementwise_max
+#endif
+
 #if EIGEN_HAS_BUILTIN(__builtin_elementwise_min) && EIGEN_HAS_BUILTIN(__builtin_elementwise_max) && \
     EIGEN_HAS_BUILTIN(__builtin_elementwise_abs)
-#define EIGEN_CLANG_PACKET_ELEMENTWISE(PACKET_TYPE)                                                                 \
+#define EIGEN_CLANG_PACKET_ELEMENTWISE(PACKET_TYPE, MIN_NUM, MAX_NUM)                                               \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
     /* Match NaN propagation of std::min. */                                                                        \
-    return a == a ? __builtin_elementwise_min(a, b) : a;                                                            \
+    return a == a ? MIN_NUM(a, b) : a;                                                                              \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmax<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {                   \
     /* Match NaN propagation of std::max. */                                                                        \
-    return a == a ? __builtin_elementwise_max(a, b) : a;                                                            \
+    return a == a ? MAX_NUM(a, b) : a;                                                                              \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
-    return __builtin_elementwise_min(a, b);                                                                         \
+    return MIN_NUM(a, b);                                                                                           \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNumbers, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) { \
-    return __builtin_elementwise_max(a, b);                                                                         \
+    return MAX_NUM(a, b);                                                                                           \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmin<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
-    return a != a ? a : (b != b ? b : __builtin_elementwise_min(a, b));                                             \
+    return a != a ? a : (b != b ? b : MIN_NUM(a, b));                                                               \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pmax<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b) {     \
-    return a != a ? a : (b != b ? b : __builtin_elementwise_max(a, b));                                             \
+    return a != a ? a : (b != b ? b : MAX_NUM(a, b));                                                               \
   }                                                                                                                 \
   template <>                                                                                                       \
   EIGEN_STRONG_INLINE PACKET_TYPE pabs<PACKET_TYPE>(const PACKET_TYPE& a) {                                         \
@@ -495,12 +507,14 @@ EIGEN_CLANG_PACKET_CMP(PacketXd, PacketXl)
     return mask != 0 ? a : b;                                                                                       \
   }
 
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXf)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXd)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXi)
-EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXl)
+EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXf, EIGEN_CLANG_ELEMENTWISE_MINNUM, EIGEN_CLANG_ELEMENTWISE_MAXNUM)
+EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXd, EIGEN_CLANG_ELEMENTWISE_MINNUM, EIGEN_CLANG_ELEMENTWISE_MAXNUM)
+EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXi, __builtin_elementwise_min, __builtin_elementwise_max)
+EIGEN_CLANG_PACKET_ELEMENTWISE(PacketXl, __builtin_elementwise_min, __builtin_elementwise_max)
 #undef EIGEN_CLANG_PACKET_ELEMENTWISE
 #endif
+#undef EIGEN_CLANG_ELEMENTWISE_MINNUM
+#undef EIGEN_CLANG_ELEMENTWISE_MAXNUM
 
 // --- Math functions (float/double only) ---
 
