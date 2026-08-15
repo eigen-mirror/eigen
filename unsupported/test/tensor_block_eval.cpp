@@ -328,6 +328,64 @@ static void test_eval_tensor_fft() {
                                            [&dims]() { return FixedSizeBlock(dims); });
 }
 
+// A destination buffer whose strides do not match the block's dense strides
+// cannot back a tensor expression, but it can still absorb the block when the
+// block is the root of the expression tree, because nothing reads the result
+// back through `expr()`. Verify that such a destination is used rather than
+// routed through scratch, and that the values landing in it are correct.
+template <typename T, int NumDims, int Layout, typename Expression>
+static void VerifyStridedDestinationAtRoot(Expression expr, const DSizes<Index, NumDims>& expr_dims) {
+  using Device = DefaultDevice;
+  using Desc = TensorBlockDescriptor<NumDims, Index>;
+  auto d = Device();
+
+  internal::TensorBlockScratchAllocator<Device> scratch(d);
+
+  auto eval = TensorEvaluator<const Expression, Device>(expr, d);
+  eval.evalSubExprsIfNeeded(nullptr);
+
+  // A block strictly inside the expression, and a destination strictly larger
+  // than the block, so that the destination strides are dense in no dimension
+  // but the innermost.
+  DSizes<Index, NumDims> offsets, sizes, dst_dims;
+  for (int i = 0; i < NumDims; ++i) {
+    offsets[i] = 1;
+    sizes[i] = expr_dims[i] - 2;
+    dst_dims[i] = sizes[i] + 2;
+  }
+
+  Index offset = 0;
+  const DSizes<Index, NumDims> expr_strides = internal::strides<Layout>(expr_dims);
+  for (int i = 0; i < NumDims; ++i) offset += expr_strides[i] * offsets[i];
+
+  Desc desc(offset, sizes);
+  Tensor<T, NumDims, Layout> dst(dst_dims);
+  dst.setZero();
+  desc.template AddDestinationBuffer<Layout>(dst.data(), internal::strides<Layout>(dst.dimensions()));
+  VERIFY(desc.destination().kind() == Desc::DestinationBuffer::kStrided);
+
+  auto tensor_block = eval.block(desc, scratch, /*root_of_expr_ast=*/true);
+  VERIFY(tensor_block.kind() == internal::TensorBlockKind::kMaterializedInOutput);
+  tensor_block.cleanup();
+
+  DSizes<Index, NumDims> zeros;
+  for (int i = 0; i < NumDims; ++i) zeros[i] = 0;
+  Tensor<T, NumDims, Layout> block = dst.slice(zeros, sizes);
+
+  // Reference: the same slice evaluated coefficient-wise.
+  Tensor<T, NumDims, Layout> slice(sizes);
+  auto s_expr = expr.slice(offsets, sizes);
+  using SliceAssign = TensorAssignOp<decltype(slice), const decltype(s_expr)>;
+  using SliceExecutor = TensorExecutor<const SliceAssign, Device, false, internal::TiledEvaluation::Off>;
+  SliceExecutor::run(SliceAssign(slice, s_expr), d);
+
+  for (Index i = 0; i < sizes.TotalSize(); ++i) {
+    VERIFY_IS_EQUAL(block.coeff(i), slice.coeff(i));
+  }
+
+  eval.cleanup();
+}
+
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_layout_swap() {
   // The swap_layout expression has the opposite layout of its operand. Build
@@ -336,7 +394,7 @@ static void test_eval_tensor_layout_swap() {
   constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
   DSizes<Index, NumDims> input_dims = RandomDims<NumDims>(10, 20);
   Tensor<T, NumDims, InputLayout> input(input_dims);
-  input.setRandom();
+  setRandomForBinaryProduct(input);
 
   DSizes<Index, NumDims> swapped_dims;
   for (int i = 0; i < NumDims; ++i) {
@@ -348,6 +406,32 @@ static void test_eval_tensor_layout_swap() {
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.swap_layout(),
                                            [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
+
+  // An operand without a raw buffer: the block request is forwarded to the
+  // operand with reversed dimensions. A shuffle serves materialized blocks
+  // (re-wrapped without a copy), while a cwise expression on top of it serves
+  // lazy blocks (materialized by the layout swap itself).
+  DSizes<Index, NumDims> reversing_shuffle;
+  for (int i = 0; i < NumDims; ++i) reversing_shuffle[i] = NumDims - 1 - i;
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(),
+                                           [&input_dims]() { return RandomBlock<Layout>(input_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(),
+                                           [&input_dims]() { return FixedSizeBlock(input_dims); });
+
+  VerifyBlockEvaluator<T, NumDims, Layout>(
+      (input.shuffle(reversing_shuffle) * input.shuffle(reversing_shuffle)).swap_layout(),
+      [&input_dims]() { return RandomBlock<Layout>(input_dims, 1, 10); });
+
+  // Both forwarding branches must take a strided destination at the root of
+  // the expression tree instead of paying for a scratch round trip. A
+  // one-dimensional destination is never strided, so it has nothing to pin.
+  EIGEN_IF_CONSTEXPR (NumDims > 1) {
+    VerifyStridedDestinationAtRoot<T, NumDims, Layout>(input.shuffle(reversing_shuffle).swap_layout(), input_dims);
+    VerifyStridedDestinationAtRoot<T, NumDims, Layout>(
+        (input.shuffle(reversing_shuffle) * input.shuffle(reversing_shuffle)).swap_layout(), input_dims);
+  }
 }
 
 // Regression for the original failure mode this MR fixes: TensorPaddingOp's
@@ -872,8 +956,12 @@ static void test_eval_tensor_chipping_of_bcast() {
 // as an assignment to TensorSliceOp (writing a block is is identical to
 // assigning one tensor to a slice of another tensor).
 
-template <typename T, int NumDims, int Layout, int NumExprDims = NumDims, typename Expression, typename GenBlockParams>
-static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor, Expression expr, GenBlockParams gen_block) {
+// `Layout` is the layout of the expression and the blocks written through it;
+// `TensorLayout` is the layout of the underlying destination tensor. They only
+// differ when the expression contains a layout swap.
+template <typename T, int NumDims, int Layout, int NumExprDims = NumDims, int TensorLayout = Layout,
+          typename Expression, typename GenBlockParams>
+static void VerifyBlockAssignment(Tensor<T, NumDims, TensorLayout>& tensor, Expression expr, GenBlockParams gen_block) {
   using Device = DefaultDevice;
   auto d = Device();
 
@@ -901,7 +989,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor, Expression
   eval.writeBlock(block_params.desc, blk);
 
   // Make a copy of the result after assignment.
-  Tensor<T, NumDims, Layout> block_assigned = tensor;
+  Tensor<T, NumDims, TensorLayout> block_assigned = tensor;
 
   // ************************************************************************ //
   // (2) Assignment to a slice
@@ -918,7 +1006,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, Layout>& tensor, Expression
   SliceExecutor::run(SliceAssign(s_expr, block), d);
 
   // Make a copy of the result after assignment.
-  Tensor<T, NumDims, Layout> slice_assigned = tensor;
+  Tensor<T, NumDims, TensorLayout> slice_assigned = tensor;
 
   for (Index i = 0; i < tensor.dimensions().TotalSize(); ++i) {
     VERIFY_IS_EQUAL(block_assigned.coeff(i), slice_assigned.coeff(i));
@@ -1036,6 +1124,25 @@ static void test_assign_to_tensor_shuffle() {
   } while (std::next_permutation(&shuffle[0], &shuffle[0] + NumDims));
 }
 
+template <typename T, int NumDims, int Layout>
+static void test_assign_to_tensor_layout_swap() {
+  // The swap_layout lvalue has the opposite layout of the underlying tensor.
+  constexpr int SwappedLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
+  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  Tensor<T, NumDims, Layout> tensor(dims);
+
+  DSizes<Index, NumDims> swapped_dims;
+  for (int i = 0; i < NumDims; ++i) swapped_dims[i] = dims[NumDims - 1 - i];
+
+  TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
+
+  VerifyBlockAssignment<T, NumDims, SwappedLayout>(
+      tensor, map.swap_layout(), [&swapped_dims]() { return RandomBlock<SwappedLayout>(swapped_dims, 1, 10); });
+
+  VerifyBlockAssignment<T, NumDims, SwappedLayout>(tensor, map.swap_layout(),
+                                                   [&swapped_dims]() { return FixedSizeBlock(swapped_dims); });
+}
+
 // -------------------------------------------------------------------------- //
 
 #define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
@@ -1149,6 +1256,7 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(7, test_assign_to_tensor_chipping);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_slice);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_shuffle);
+  CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(8, test_assign_to_tensor_layout_swap);
 
   // Force CMake to split this test.
   // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
