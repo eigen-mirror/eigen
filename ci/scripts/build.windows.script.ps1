@@ -1,7 +1,10 @@
-# Find Visual Studio installation directory.
+# Find Visual Studio installation directory. -products * includes Build
+# Tools installs, which vswhere's default product filter skips; without it a
+# Build Tools-only runner gets an empty path here, vcvarsall never runs, and
+# the configure step fails with "No CMAKE_CXX_COMPILER could be found".
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
-$VS_INSTALL_DIR = &"${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+$VS_INSTALL_DIR = &"${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
 
 # Run VCVarsAll.bat initialization script and extract environment variables.
 # http://allen-mack.blogspot.com/2008/03/replace-visual-studio-command-prompt.html
