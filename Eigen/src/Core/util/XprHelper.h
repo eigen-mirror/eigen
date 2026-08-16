@@ -418,9 +418,13 @@ constexpr unsigned compute_matrix_flags(int Options) {
   return DirectAccessBit | LvalueBit | NestByRefBit | row_major_bit;
 }
 
+/** \internal Compile-time product of two dimensions: Dynamic when either factor is unknown, and also when the
+ * product would not fit in \c int -- no fixed-size dimension or size that large is usable anyway, and the
+ * overflowing multiplication would be ill-formed in a constant expression. */
 constexpr int size_at_compile_time(int rows, int cols) {
   if (rows == 0 || cols == 0) return 0;
   if (rows == Dynamic || cols == Dynamic) return Dynamic;
+  if (rows > (std::numeric_limits<int>::max)() / cols) return Dynamic;
   return rows * cols;
 }
 

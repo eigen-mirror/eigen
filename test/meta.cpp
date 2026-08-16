@@ -320,6 +320,14 @@ EIGEN_DECLARE_TEST(meta) {
   VERIFY((!internal::has_ReturnType<MatrixXf>::value));
   VERIFY((!internal::has_ReturnType<int>::value));
 
+  // size_at_compile_time falls back to Dynamic rather than overflowing int
+  // (46341^2 is the first square past INT_MAX).
+  STATIC_CHECK((internal::size_at_compile_time(0, Dynamic) == 0));
+  STATIC_CHECK((internal::size_at_compile_time(3, Dynamic) == Dynamic));
+  STATIC_CHECK((internal::size_at_compile_time(46340, 46340) == 46340 * 46340));
+  STATIC_CHECK((internal::size_at_compile_time(46341, 46341) == Dynamic));
+  STATIC_CHECK((internal::size_at_compile_time(1 << 16, 1 << 16) == Dynamic));
+
   CALL_SUBTEST(test_concat());
   CALL_SUBTEST(test_slice());
   CALL_SUBTEST(test_get());
