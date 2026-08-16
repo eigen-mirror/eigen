@@ -550,6 +550,18 @@ EIGEN_STRONG_INLINE std::enable_if_t<(N < 0) || (N > 63), Packet4l> parithmetic_
   return parithmetic_shift_right<int(N & 63)>(a);
 }
 #endif
+template <int N>
+EIGEN_STRONG_INLINE Packet4ul parithmetic_shift_right(Packet4ul a) {
+  return _mm256_srli_epi64(a, N);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet4ul plogical_shift_right(Packet4ul a) {
+  return _mm256_srli_epi64(a, N);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet4ul plogical_shift_left(Packet4ul a) {
+  return _mm256_slli_epi64(a, N);
+}
 template <>
 EIGEN_STRONG_INLINE Packet4l pload<Packet4l>(const int64_t* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return _mm256_load_si256(reinterpret_cast<const __m256i*>(from));

@@ -1932,6 +1932,60 @@ EIGEN_STRONG_INLINE Packet4i plogical_shift_left(const Packet4i& a) {
   return vec_sl(a, reinterpret_cast<Packet4ui>(pset1<Packet4i>(N)));
 }
 template <int N>
+EIGEN_STRONG_INLINE Packet16c parithmetic_shift_right(const Packet16c& a) {
+  return vec_sra(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet16c plogical_shift_right(const Packet16c& a) {
+  return vec_sr(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet16c plogical_shift_left(const Packet16c& a) {
+  return vec_sl(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet16uc parithmetic_shift_right(const Packet16uc& a) {
+  return vec_sr(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet16uc plogical_shift_right(const Packet16uc& a) {
+  return vec_sr(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet16uc plogical_shift_left(const Packet16uc& a) {
+  return vec_sl(a, pset1<Packet16uc>(static_cast<unsigned char>(N)));
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8s parithmetic_shift_right(const Packet8s& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sra(a, p8us_mask);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8s plogical_shift_right(const Packet8s& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sr(a, p8us_mask);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8s plogical_shift_left(const Packet8s& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sl(a, p8us_mask);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8us parithmetic_shift_right(const Packet8us& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sr(a, p8us_mask);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8us plogical_shift_right(const Packet8us& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sr(a, p8us_mask);
+}
+template <int N>
+EIGEN_STRONG_INLINE Packet8us plogical_shift_left(const Packet8us& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
+  return vec_sl(a, p8us_mask);
+}
+template <int N>
 EIGEN_STRONG_INLINE Packet4f plogical_shift_left(const Packet4f& a) {
   const EIGEN_DECLARE_CONST_FAST_Packet4ui(mask, N);
   Packet4ui r = vec_sl(reinterpret_cast<Packet4ui>(a), p4ui_mask);
@@ -1946,6 +2000,12 @@ EIGEN_STRONG_INLINE Packet4f plogical_shift_right(const Packet4f& a) {
 }
 
 template <int N>
+EIGEN_STRONG_INLINE Packet4ui parithmetic_shift_right(const Packet4ui& a) {
+  const EIGEN_DECLARE_CONST_FAST_Packet4ui(mask, N);
+  return vec_sr(a, p4ui_mask);
+}
+
+template <int N>
 EIGEN_STRONG_INLINE Packet4ui plogical_shift_right(const Packet4ui& a) {
   const EIGEN_DECLARE_CONST_FAST_Packet4ui(mask, N);
   return vec_sr(a, p4ui_mask);
@@ -1955,17 +2015,6 @@ template <int N>
 EIGEN_STRONG_INLINE Packet4ui plogical_shift_left(const Packet4ui& a) {
   const EIGEN_DECLARE_CONST_FAST_Packet4ui(mask, N);
   return vec_sl(a, p4ui_mask);
-}
-
-template <int N>
-EIGEN_STRONG_INLINE Packet8us plogical_shift_left(const Packet8us& a) {
-  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
-  return vec_sl(a, p8us_mask);
-}
-template <int N>
-EIGEN_STRONG_INLINE Packet8us plogical_shift_right(const Packet8us& a) {
-  const EIGEN_DECLARE_CONST_FAST_Packet8us(mask, N);
-  return vec_sr(a, p8us_mask);
 }
 
 EIGEN_STRONG_INLINE Packet4f Bf16ToF32Even(const Packet8bf& bf) {

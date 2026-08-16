@@ -1469,6 +1469,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_40(shift_test(Array<uint8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_41(shift_test(Array<int16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_41(shift_test(Array<uint16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_10(array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_11(array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
