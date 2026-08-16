@@ -424,8 +424,15 @@ struct ldlt_inplace<Lower> {
       RealScalar swj2 = sigma * numext::abs2(wj);
       RealScalar gamma = dj * alpha + swj2;
 
-      mat.coeffRef(j, j) += swj2 / alpha;
-      alpha += swj2 / dj;
+      // A zero contribution leaves both quantities unchanged, but spelling that out as an addition of swj2/alpha and
+      // swj2/dj evaluates 0/0 when alpha or the pivot is zero. The resulting NaN reaches the termination test above
+      // on the next iteration, which reads it as a low-rank signal and abandons the remainder of the update. Skip the
+      // no-op instead. A zero pivot with a nonzero contribution still yields an infinite alpha, so genuine low-rank
+      // termination is unaffected.
+      if (!numext::is_exactly_zero(swj2)) {
+        mat.coeffRef(j, j) += swj2 / alpha;
+        alpha += swj2 / dj;
+      }
 
       // Update the terms of L
       Index rs = size - j - 1;
@@ -505,10 +512,24 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputT
   return *this;
 }
 
-/** Update the LDLT decomposition:  given A = L D L^T, efficiently compute the decomposition of A + sigma w w^T.
+/** Update the LDLT decomposition: given a decomposition of \f$ A = P^TLDL^*P \f$, efficiently compute the
+ * decomposition of \f$ A + \sigma w w^* \f$.
+ *
+ * If \c *this holds no factorization yet, A is taken to be zero and the decomposition is built from scratch; info()
+ * then reports \c Success. An update applied to an existing factorization leaves info() unchanged, so a
+ * \c NumericalIssue already reported for that factorization stands until compute() replaces it or setZero() discards
+ * it. LLT::rankUpdate() differs on both counts: it requires an existing factorization and re-reports the status on
+ * every call.
+ *
+ * \note rcond(), isPositive() and isNegative() are not maintained across rank updates. rcond() keeps using the L1
+ * norm recorded by the last compute(), which is zero when there was none, and the definiteness flags are assigned
+ * only where this function builds a factorization from scratch, from the sign of \a sigma alone.
+ *
  * \param w a vector to be incorporated into the decomposition.
  * \param sigma a scalar, +1 for updates and -1 for "downdates," which correspond to removing previously-added column
- * vectors. Optional; default value is +1. \sa setZero()
+ * vectors. Optional; default value is +1.
+ *
+ * \sa setZero()
  */
 template <typename MatrixType, int UpLo_>
 template <typename Derived>
@@ -526,6 +547,8 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
     m_temporary.resize(size);
     m_sign = sigma >= 0 ? internal::PositiveSemiDef : internal::NegativeSemiDef;
     m_isInitialized = true;
+    // Assigned here rather than after the branch: updating an existing factorization keeps the status it already has.
+    m_info = Success;
   }
 
   internal::ldlt_inplace<UpLo>::update(m_matrix, m_transpositions, m_temporary, w, sigma);

@@ -438,6 +438,172 @@ void cholesky_faillure_cases() {
   }
 }
 
+// Accumulates I + sum_k w_k w_k^* out of rank-1 updates alone, which is the path rankUpdate() takes while the
+// decomposition holds no factorization, and checks the reported status against the factorization it produced.
+template <typename MatrixType, int UpLo>
+void check_ldlt_rankupdate_from_scratch(LDLT<MatrixType, UpLo>& ldlt, Index size) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+
+  // Build up the identity first so that the accumulated matrix is well conditioned whatever the random terms are.
+  MatrixType ref = MatrixType::Identity(size, size);
+  for (Index k = 0; k < size; ++k) ldlt.rankUpdate(VectorType::Unit(size, k), RealScalar(1));
+
+  for (int k = 0; k < 3; ++k) {
+    VectorType w = VectorType::Random(size);
+    ldlt.rankUpdate(w, RealScalar(1));
+    ref += w * w.adjoint();
+  }
+
+  VERIFY(ldlt.info() == Success);
+  // Success has to be earned: check that the factorization really is one, so that reporting Success unconditionally
+  // would not pass either.
+  VERIFY_IS_APPROX(ref, ldlt.reconstructedMatrix());
+  VectorType vecB = VectorType::Random(size);
+  VectorType vecX = ldlt.solve(vecB);
+  VERIFY_IS_APPROX(ref * vecX, vecB);
+}
+
+// LDLT::rankUpdate() takes one of two paths: it updates the factorization the decomposition already holds, or, when
+// there is none, it builds one from scratch. The from-scratch path left the status untouched, so info() reported
+// whatever was left over -- InvalidInput from construction, or a failure from an earlier compute() -- for a
+// factorization that was in fact sound. Updating an existing factorization keeps a failure already reported for it.
+template <typename MatrixType>
+void cholesky_ldlt_rankupdate_info(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+
+  const Index size = m.rows();
+  eigen_assert(size >= 2);
+
+  // A zero diagonal with non-zero off-diagonal entries makes the first pivot invalid while the matrix is not: this
+  // is the 2x2 failure case of cholesky_faillure_cases() at size `size`.
+  const MatrixType indefinite = MatrixType::Ones(size, size) - MatrixType::Identity(size, size);
+
+  // The decomposition has never factored anything, so its status is the constructor's InvalidInput.
+  {
+    LDLT<MatrixType, Lower> ldltlo(size);
+    check_ldlt_rankupdate_from_scratch(ldltlo, size);
+
+    LDLT<MatrixType, Upper> ldltup(size);
+    check_ldlt_rankupdate_from_scratch(ldltup, size);
+  }
+
+  // The decomposition is reused after a compute() that failed, and setZero() discards that factorization, so the
+  // stale failure must not be reported for the one the rank updates build.
+  {
+    LDLT<MatrixType, Lower> ldltlo(indefinite);
+    VERIFY(ldltlo.info() == NumericalIssue);
+    ldltlo.setZero();
+    check_ldlt_rankupdate_from_scratch(ldltlo, size);
+
+    LDLT<MatrixType, Upper> ldltup(indefinite);
+    VERIFY(ldltup.info() == NumericalIssue);
+    ldltup.setZero();
+    check_ldlt_rankupdate_from_scratch(ldltup, size);
+  }
+
+  // Without setZero() the update applies to the failed factorization, whose status stands.
+  {
+    VectorType vec = VectorType::Random(size);
+
+    LDLT<MatrixType, Lower> ldltlo(indefinite);
+    VERIFY(ldltlo.info() == NumericalIssue);
+    ldltlo.rankUpdate(vec, RealScalar(1));
+    VERIFY(ldltlo.info() == NumericalIssue);
+
+    LDLT<MatrixType, Upper> ldltup(indefinite);
+    VERIFY(ldltup.info() == NumericalIssue);
+    ldltup.rankUpdate(vec, RealScalar(1));
+    VERIFY(ldltup.info() == NumericalIssue);
+  }
+}
+
+// Applies a single rank update that has to succeed, and checks the factorization it left behind rather than the
+// reported status alone, so that reporting Success unconditionally would not pass either.
+template <typename MatrixType, int UpLo, typename VectorType>
+void check_ldlt_rankupdate(LDLT<MatrixType, UpLo>& ldlt, const VectorType& w,
+                           const typename MatrixType::RealScalar& sigma, const MatrixType& ref) {
+  ldlt.rankUpdate(w, sigma);
+  VERIFY(ldlt.info() == Success);
+  VERIFY_IS_APPROX(ref, ldlt.reconstructedMatrix());
+}
+
+// A component of w that is exactly zero contributes nothing, but the update used to compute that contribution as a
+// division whose denominator can be zero at the same position: the pivot is zero all along the from-scratch path, and
+// the running alpha reaches zero when a downdate cancels the matrix exactly. The resulting 0/0 either landed straight
+// in the factorization or reached the low-rank termination, which read it as a signal to abandon the rest of the
+// update. The update has to survive a zero in any position, including the first.
+template <typename MatrixType>
+void cholesky_ldlt_rankupdate_zero_components(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+
+  const Index size = m.rows();
+  const MatrixType identity = MatrixType::Identity(size, size);
+
+  for (Index zero_at = 0; zero_at < size; ++zero_at) {
+    VectorType w = VectorType::Random(size);
+    w(zero_at) = Scalar(0);
+    const MatrixType ref = w * w.adjoint();
+
+    LDLT<MatrixType, Lower> ldltlo(size);
+    check_ldlt_rankupdate(ldltlo, w, RealScalar(1), ref);
+
+    LDLT<MatrixType, Upper> ldltup(size);
+    check_ldlt_rankupdate(ldltup, w, RealScalar(1), ref);
+  }
+
+  // Consecutive zeros have to be skipped one after another, not collapse the update at the first of them.
+  {
+    VectorType w = VectorType::Random(size);
+    w.head(size / 2).setZero();
+    const MatrixType ref = w * w.adjoint();
+
+    LDLT<MatrixType, Lower> ldltlo(size);
+    check_ldlt_rankupdate(ldltlo, w, RealScalar(1), ref);
+
+    LDLT<MatrixType, Upper> ldltup(size);
+    check_ldlt_rankupdate(ldltup, w, RealScalar(1), ref);
+  }
+
+  // The hazard is not confined to the from-scratch path: compute() accepts a rank-deficient matrix, and a zero of w
+  // meeting one of its zero pivots is the same 0/0. An existing factorization whose pivots are all non-zero, such as
+  // the identity, cannot reach it -- the zero of w always meets a non-zero denominator there.
+  if (size >= 3) {
+    MatrixType rank_deficient = MatrixType::Zero(size, size);
+    rank_deficient(0, 0) = Scalar(1);
+
+    // Leave a non-zero component after the zeroed one, whose contribution the 0/0 used to discard.
+    for (Index zero_at = 1; zero_at + 1 < size; ++zero_at) {
+      VectorType w = VectorType::Random(size);
+      w(zero_at) = Scalar(0);
+      const MatrixType ref = rank_deficient + w * w.adjoint();
+
+      LDLT<MatrixType, Lower> ldlt(rank_deficient);
+      VERIFY(ldlt.info() == Success);
+      check_ldlt_rankupdate(ldlt, w, RealScalar(1), ref);
+    }
+  }
+
+  // Downdating the identity by one of its own basis directions drives alpha to exactly zero, so every later position
+  // -- where w is zero -- met a zero denominator on an ordinary, fully initialized factorization. The factorization
+  // came back full of NaN, and info() still reported Success.
+  for (Index k = 0; k < size; ++k) {
+    const VectorType w = VectorType::Unit(size, k);
+    const MatrixType ref = identity - w * w.adjoint();
+
+    LDLT<MatrixType, Lower> ldltlo(identity);
+    check_ldlt_rankupdate(ldltlo, w, RealScalar(-1), ref);
+
+    LDLT<MatrixType, Upper> ldltup(identity);
+    check_ldlt_rankupdate(ldltup, w, RealScalar(-1), ref);
+  }
+}
+
 template <typename MatrixType>
 void cholesky_verify_assert() {
   MatrixType tmp;
@@ -534,12 +700,36 @@ EIGEN_DECLARE_TEST(cholesky) {
     CALL_SUBTEST_4(cholesky(Matrix3f()));
     CALL_SUBTEST_5(cholesky(Matrix4d()));
 
+    CALL_SUBTEST_3(cholesky_ldlt_rankupdate_info(Matrix2d()));
+    CALL_SUBTEST_4(cholesky_ldlt_rankupdate_info(Matrix3f()));
+    CALL_SUBTEST_5(cholesky_ldlt_rankupdate_info(Matrix4d()));
+
+    CALL_SUBTEST_1(cholesky_ldlt_rankupdate_zero_components(Matrix<double, 1, 1>()));
+    CALL_SUBTEST_3(cholesky_ldlt_rankupdate_zero_components(Matrix2d()));
+    CALL_SUBTEST_4(cholesky_ldlt_rankupdate_zero_components(Matrix3f()));
+    CALL_SUBTEST_5(cholesky_ldlt_rankupdate_zero_components(Matrix4d()));
+
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_2(cholesky(MatrixXd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
 
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2);
     CALL_SUBTEST_6(cholesky_cplx(MatrixXcd(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    // cholesky_ldlt_rankupdate_info() needs at least two rows for its NumericalIssue case.
+    s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE / 4);
+    CALL_SUBTEST_2(cholesky_ldlt_rankupdate_info(MatrixXd(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE / 8);
+    CALL_SUBTEST_6(cholesky_ldlt_rankupdate_info(MatrixXcd(s, s)));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    // Quadratic in the size, since every position of the zero is tried in turn.
+    s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 16);
+    CALL_SUBTEST_2(cholesky_ldlt_rankupdate_zero_components(MatrixXd(s, s)));
+    CALL_SUBTEST_6(cholesky_ldlt_rankupdate_zero_components(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
   // empty matrix, regression test for Bug 785:
