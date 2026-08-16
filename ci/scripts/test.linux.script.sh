@@ -21,6 +21,39 @@ fi
 
 set +x
 
+# Content-addressed pass cache (see ci/scripts/test_cache.py, which owns
+# the keying and fingerprint policy): skip tests whose executable,
+# emulator, CTest definition, and environment fingerprint match a
+# first-attempt pass recorded by an earlier run of this job.
+# Merge-request pipelines only: scheduled and web runs keep re-running
+# identical binaries so the clock-seeded RNG keeps exploring fresh seeds.
+# Sharded jobs must not skip -- dropping tests from the filtered list
+# would shift the `-I index,,total` partition and could leave tests unrun
+# in every shard; the ctest-args check fails closed for jobs that shard by
+# hand rather than through `parallel:`.
+testcache_active=false
+if [[ "${EIGEN_CI_TEST_CACHE}" == "on" \
+      && "${CI_PIPELINE_SOURCE:-}" == "merge_request_event" \
+      && "${CI_NODE_TOTAL:-1}" -le 1 \
+      && "${EIGEN_CI_CTEST_ARGS:-}" != *-I* \
+      && -n "${EIGEN_CI_TEST_CACHE_DIR:-}" ]] && command -v python3 >/dev/null 2>&1; then
+  mkdir -p "${EIGEN_CI_TEST_CACHE_DIR}"
+  testcache_tmp=$(mktemp -d)
+  if ctest --show-only=json-v1 ${target} ${exclude} \
+       | python3 "${rootdir}/ci/scripts/test_cache.py" plan \
+           --tests-json - \
+           --manifest "${EIGEN_CI_TEST_CACHE_DIR}/passed.txt" \
+           --config-root "${rootdir}" \
+           --skip-regex-out "${testcache_tmp}/skip_regex.txt" \
+           --keys-out "${testcache_tmp}/keys.txt"; then
+    testcache_active=true
+    skip_regex=$(cat "${testcache_tmp}/skip_regex.txt" 2>/dev/null || true)
+    if [[ -n "${skip_regex}" ]]; then
+      exclude="-E ${EIGEN_CI_CTEST_EXCLUDE:+(${EIGEN_CI_CTEST_EXCLUDE})|}${skip_regex}"
+    fi
+  fi
+fi
+
 EIGEN_CI_CTEST_PARALLEL=${EIGEN_CI_CTEST_PARALLEL:-${NPROC}}
 # Total attempts for flaky tests (passed to ctest --repeat until-pass:N).
 EIGEN_CI_CTEST_REPEAT=${EIGEN_CI_CTEST_REPEAT:-3}
@@ -34,11 +67,30 @@ EIGEN_CI_CTEST_RETRY_TIMEOUT=${EIGEN_CI_CTEST_RETRY_TIMEOUT:-600}
 ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${EIGEN_CI_CTEST_PARALLEL} --output-on-failure --no-compress-output --build-noclean ${target} ${exclude}"
 
 echo "Running initial tests..."
-if ${ctest_cmd} -T test; then
+# The job sources this script and GitLab Runner runs it under errexit, so
+# a bare failing ctest would abort the job before the retry logic; capture
+# the status through || instead.
+initial_exit=0
+${ctest_cmd} -T test || initial_exit=$?
+
+# Fold first-attempt results into the pass cache.  The dashboard run's
+# Test.xml is the authoritative status source: only "passed" is recorded,
+# so failures, timeouts and SKIP_RETURN_CODE skips ("failed"/"notrun")
+# never enter the manifest, and a ctest that died without writing results
+# records nothing.  Passes obtained in the retry phase below are
+# deliberately not recorded: a seed-flaky test keeps re-running.
+if [[ "${testcache_active}" == "true" ]]; then
+  python3 "${rootdir}/ci/scripts/test_cache.py" record \
+      --manifest "${EIGEN_CI_TEST_CACHE_DIR}/passed.txt" \
+      --keys "${testcache_tmp}/keys.txt" \
+      --testing-dir Testing || true
+fi
+
+if [[ ${initial_exit} -eq 0 ]]; then
   echo "Tests passed on the first attempt."
   exit_code=0
 else
-  echo "Initial tests failed with exit code $?. Retrying up to ${EIGEN_CI_CTEST_REPEAT} times..."
+  echo "Initial tests failed with exit code ${initial_exit}. Retrying up to ${EIGEN_CI_CTEST_REPEAT} times..."
   if ${ctest_cmd} --rerun-failed --repeat until-pass:${EIGEN_CI_CTEST_REPEAT} --timeout ${EIGEN_CI_CTEST_RETRY_TIMEOUT}; then
     echo "Tests passed on retry."
     # 42 = passed-on-retry; .test:linux / .test:windows whitelist it via

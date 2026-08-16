@@ -19,7 +19,13 @@ export | grep EIGEN
 export DEBIAN_FRONTEND=noninteractive
 if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
   apt-get update -y > /dev/null
-  apt-get install -y --no-install-recommends ninja-build cmake git xsltproc ccache > /dev/null
+  # python3 drives the test pass cache; only the test jobs (the jobs that
+  # set EIGEN_CI_TEST_CACHE) consume it, so build jobs skip the install.
+  packages="ninja-build cmake git xsltproc ccache"
+  if [[ "${EIGEN_CI_TEST_CACHE}" == "on" ]]; then
+    packages="${packages} python3"
+  fi
+  apt-get install -y --no-install-recommends ${packages} > /dev/null
 fi
 
 # Install required dependencies and set up compilers.

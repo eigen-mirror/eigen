@@ -13,6 +13,16 @@ Build jobs publish the configured build directory as an artifact. Their paired t
 run CTest without rebuilding. When changing either side, keep the test job's `needs`, CTest label or filter, and the
 corresponding build target consistent; otherwise CTest can discover tests whose executables are absent.
 
+In merge-request pipelines the Linux test jobs also keep a content-addressed pass cache (a per-job-name GitLab cache
+holding `.testcache/`): [`test.linux.script.sh`](../ci/scripts/test.linux.script.sh) skips tests whose executable,
+emulator, CTest definition, and environment fingerprint (image, `lib*` package state, the checked-in CI
+configuration, and behavior-affecting variables such as `EIGEN_REPEAT` and `QEMU_CPU`) match a first-attempt pass
+recorded by an earlier MR pipeline, then records this run's first-attempt passes — taken from the dashboard run's
+`Test.xml` statuses — via [`test_cache.py`](../ci/scripts/test_cache.py). Scheduled and web pipelines always run
+their full selection (fresh clock-derived RNG seeds are part of their coverage), sharded jobs never skip, and
+`EIGEN_CI_TEST_CACHE: "off"` opts a job out. Skipped tests are absent from that run's JUnit report, and a test job
+whose binaries all match cached passes legitimately reports "No tests were found".
+
 ## Worktree-Safe Formatting
 
 Inspect `git status --short` before formatting and preserve unrelated changes. Eigen requires `clang-format-17`
