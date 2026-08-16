@@ -17,7 +17,9 @@
     # the job builds exactly as before.
     EIGEN_CI_CCACHE: "on"
     CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
-    CCACHE_MAXSIZE: 2G
+    # Runner-local cache, so no archive-size limit applies; 4G holds a full
+    # MSVC buildtests run with headroom and only bounds runner disk use.
+    CCACHE_MAXSIZE: 4G
     # Hash compile paths relative to the project directory: absolute paths are
     # part of ccache's hash, so without this a checkout-path change (runner
     # layout, concurrent build slots) turns every compile into a miss.

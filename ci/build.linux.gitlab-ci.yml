@@ -14,7 +14,16 @@
     # build exactly as before regardless of this setting.
     EIGEN_CI_CCACHE: "on"
     CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
-    CCACHE_MAXSIZE: 2G
+    # A full buildtests job stores ~4-6 GB of compressed objects; at 2G every
+    # nightly build filled the cache (149 LRU cleanups, 0.4% hits) and evicted
+    # what the previous run had stored, so nothing was ever reused. 4G is the
+    # largest safe cap: hosted runners reject cache archives over 5 GB, and
+    # the archive is about the size of the (already zstd-compressed) ccache
+    # directory. The raised compression level packs more of the working set
+    # under that cap; 5 is the ccache manual's recommended ceiling for live
+    # (compile-time) compression, and captures most of the density gain.
+    CCACHE_MAXSIZE: 4G
+    CCACHE_COMPRESSLEVEL: 5
     # Hash compile paths relative to the project directory: absolute -I/source
     # paths are part of ccache's hash, so without this a checkout-path change
     # (runner layout, concurrent build slots) turns every compile into a miss.
