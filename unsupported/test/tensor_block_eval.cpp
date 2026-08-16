@@ -1167,7 +1167,9 @@ static void test_assign_to_tensor_shuffle() {
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_layout_swap() {
   // The swap_layout lvalue has the opposite layout of the underlying tensor.
-  constexpr int SwappedLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
+  // static so the lambdas below can name it without capturing: MSVC 14.29
+  // rejects an uncaptured non-static constexpr local there (error C3493).
+  static constexpr int SwappedLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
   DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> tensor(dims);
 
