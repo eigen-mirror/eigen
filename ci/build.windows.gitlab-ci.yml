@@ -24,6 +24,10 @@
     # part of ccache's hash, so without this a checkout-path change (runner
     # layout, concurrent build slots) turns every compile into a miss.
     CCACHE_BASEDIR: ${CI_PROJECT_DIR}
+    # Don't re-compress the already-zstd-compressed ccache payload when
+    # archiving; see the Linux build template for the measured rationale.
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: "fastest"
   script:
      - ./ci/scripts/build.windows.script.ps1
   tags:

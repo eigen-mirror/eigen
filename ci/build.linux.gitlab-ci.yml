@@ -28,6 +28,13 @@
     # paths are part of ccache's hash, so without this a checkout-path change
     # (runner layout, concurrent build slots) turns every compile into a miss.
     CCACHE_BASEDIR: ${CI_PROJECT_DIR}
+    # The ccache payload is already zstd-compressed, so re-compressing it into
+    # cache.zip at the default level burns CPU for no size gain: a fully warm
+    # build spent 87s archiving+uploading a 2 GB cache it compiled in 71s.
+    # Fastzip at "fastest" effectively stores the archive instead, and also
+    # speeds up cache extraction on restore.
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: "fastest"
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
