@@ -1945,28 +1945,31 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double fmod(const double& a, const double&
 #undef SYCL_SPECIALIZE_BINARY_FUNC
 #endif
 
+// A logical shift is a shift of the bit pattern, so it goes through the unsigned type of the same
+// width whatever Scalar's signedness. A Scalar narrower than int promotes to int for the shift
+// itself, which the explicit truncation undoes: for the left shift the promoted value can carry set
+// bits above Scalar's width, and dropping them is the operation rather than an accident of the cast.
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar logical_shift_left(const Scalar& a, int n) {
   using UnsignedScalar = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  return bit_cast<Scalar, UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) << n);
+  return bit_cast<Scalar, UnsignedScalar>(static_cast<UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) << n));
 }
 
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar logical_shift_right(const Scalar& a, int n) {
   using UnsignedScalar = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  return bit_cast<Scalar, UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) >> n);
+  return bit_cast<Scalar, UnsignedScalar>(static_cast<UnsignedScalar>(bit_cast<UnsignedScalar, Scalar>(a) >> n));
 }
 
 // An arithmetic shift propagates the sign bit, so it coincides with the logical shift when Scalar is
 // unsigned and has none. Shifting through the signed type unconditionally would sign-extend an
 // ordinary value bit, which is what every backend's parithmetic_shift_right on unsigned packets
-// avoids, leaving the scalar and vectorized paths of one expression disagreeing.
+// avoids, leaving the scalar and vectorized paths of one expression disagreeing. Scalar's own
+// operator>> already selects on its signedness, so no reinterpretation is needed; the cast only
+// undoes the integral promotion a Scalar narrower than int is subject to.
 template <typename Scalar, typename Enable = std::enable_if_t<std::is_integral<Scalar>::value>>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar arithmetic_shift_right(const Scalar& a, int n) {
-  using IntegerBySize = numext::get_integer_by_size<sizeof(Scalar)>;
-  using ShiftScalar = std::conditional_t<std::is_signed<Scalar>::value, typename IntegerBySize::signed_type,
-                                         typename IntegerBySize::unsigned_type>;
-  return bit_cast<Scalar, ShiftScalar>(bit_cast<ShiftScalar, Scalar>(a) >> n);
+  return static_cast<Scalar>(a >> n);
 }
 
 template <typename Scalar>

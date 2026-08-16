@@ -346,8 +346,8 @@ EIGEN_MAKE_CWISE_UNARY_OP(ceil, internal::scalar_ceil_op, CeilReturnType)
 EIGEN_MAKE_CWISE_UNARY_OP(trunc, internal::scalar_trunc_op, TruncReturnType)
 
 template <int N>
-struct ShiftRightXpr {
-  using Type = CwiseUnaryOp<internal::scalar_shift_right_op<Scalar, N>, const Derived>;
+struct ArithmeticShiftRightXpr {
+  using Type = CwiseUnaryOp<internal::scalar_arithmetic_shift_right_op<Scalar, N>, const Derived>;
 };
 
 /** \returns an expression of \c *this with the \a Scalar type arithmetically
@@ -355,30 +355,88 @@ struct ShiftRightXpr {
  *
  * The template parameter \a N specifies the number of bit positions to shift.
  * The vacated high bits are filled with the sign bit for a signed \a Scalar and
- * with zero for an unsigned one, which has no sign bit to propagate.
+ * with zero for an unsigned one, which has no sign bit to propagate. Use
+ * logicalShiftRight() to fill with zero regardless of signedness.
  *
- * \sa shiftLeft()
+ * \sa logicalShiftRight(), logicalShiftLeft()
  */
 template <int N>
-EIGEN_DEVICE_FUNC constexpr typename ShiftRightXpr<N>::Type shiftRight() const {
-  return typename ShiftRightXpr<N>::Type(derived());
+EIGEN_DEVICE_FUNC constexpr typename ArithmeticShiftRightXpr<N>::Type arithmeticShiftRight() const {
+  return typename ArithmeticShiftRightXpr<N>::Type(derived());
 }
 
 template <int N>
-struct ShiftLeftXpr {
-  using Type = CwiseUnaryOp<internal::scalar_shift_left_op<Scalar, N>, const Derived>;
+struct LogicalShiftRightXpr {
+  using Type = CwiseUnaryOp<internal::scalar_logical_shift_right_op<Scalar, N>, const Derived>;
+};
+
+/** \returns an expression of \c *this with the \a Scalar type logically
+ * shifted right by \a N bit positions.
+ *
+ * The template parameter \a N specifies the number of bit positions to shift.
+ * The vacated high bits are filled with zero even when \a Scalar is signed; use
+ * arithmeticShiftRight() to propagate the sign bit instead.
+ *
+ * \sa arithmeticShiftRight(), logicalShiftLeft()
+ */
+template <int N>
+EIGEN_DEVICE_FUNC constexpr typename LogicalShiftRightXpr<N>::Type logicalShiftRight() const {
+  return typename LogicalShiftRightXpr<N>::Type(derived());
+}
+
+template <int N>
+struct LogicalShiftLeftXpr {
+  using Type = CwiseUnaryOp<internal::scalar_logical_shift_left_op<Scalar, N>, const Derived>;
 };
 
 /** \returns an expression of \c *this with the \a Scalar type logically
  * shifted left by \a N bit positions.
  *
  * The template parameter \a N specifies the number of bit positions to shift.
+ * The vacated low bits are filled with zero. There is no separate arithmetic
+ * left shift: for every integral \a Scalar it produces the same bit pattern.
  *
- * \sa shiftRight()
+ * \sa arithmeticShiftRight(), logicalShiftRight()
  */
 template <int N>
+EIGEN_DEVICE_FUNC constexpr typename LogicalShiftLeftXpr<N>::Type logicalShiftLeft() const {
+  return typename LogicalShiftLeftXpr<N>::Type(derived());
+}
+
+template <int N>
+struct ShiftRightXpr {
+  using Type = typename ArithmeticShiftRightXpr<N>::Type;
+};
+
+/** \deprecated Use arithmeticShiftRight() instead.
+ *
+ * \returns an expression of \c *this with the \a Scalar type arithmetically
+ * shifted right by \a N bit positions.
+ *
+ * \sa arithmeticShiftRight()
+ */
+template <int N>
+EIGEN_DEPRECATED_WITH_REASON("Use arithmeticShiftRight() instead.")
+EIGEN_DEVICE_FUNC constexpr typename ShiftRightXpr<N>::Type shiftRight() const {
+  return arithmeticShiftRight<N>();
+}
+
+template <int N>
+struct ShiftLeftXpr {
+  using Type = typename LogicalShiftLeftXpr<N>::Type;
+};
+
+/** \deprecated Use logicalShiftLeft() instead.
+ *
+ * \returns an expression of \c *this with the \a Scalar type logically
+ * shifted left by \a N bit positions.
+ *
+ * \sa logicalShiftLeft()
+ */
+template <int N>
+EIGEN_DEPRECATED_WITH_REASON("Use logicalShiftLeft() instead.")
 EIGEN_DEVICE_FUNC constexpr typename ShiftLeftXpr<N>::Type shiftLeft() const {
-  return typename ShiftLeftXpr<N>::Type(derived());
+  return logicalShiftLeft<N>();
 }
 
 /** \returns an expression of the coefficient-wise isnan of *this.

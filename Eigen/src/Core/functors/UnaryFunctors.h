@@ -229,10 +229,10 @@ struct functor_traits<core_cast_op<SrcType, DstType>> {
 /** \internal
  * \brief Template functor to arithmetically shift a scalar right by a number of bits
  *
- * \sa class CwiseUnaryOp, ArrayBase::shiftRight()
+ * \sa class CwiseUnaryOp, ArrayBase::arithmeticShiftRight()
  */
 template <typename Scalar, int N>
-struct scalar_shift_right_op {
+struct scalar_arithmetic_shift_right_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     return numext::arithmetic_shift_right(a, N);
   }
@@ -242,17 +242,37 @@ struct scalar_shift_right_op {
   }
 };
 template <typename Scalar, int N>
-struct functor_traits<scalar_shift_right_op<Scalar, N>> {
+struct functor_traits<scalar_arithmetic_shift_right_op<Scalar, N>> {
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift };
+};
+
+/** \internal
+ * \brief Template functor to logically shift a scalar right by a number of bits
+ *
+ * \sa class CwiseUnaryOp, ArrayBase::logicalShiftRight()
+ */
+template <typename Scalar, int N>
+struct scalar_logical_shift_right_op {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    return numext::logical_shift_right(a, N);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+    return internal::plogical_shift_right<N>(a);
+  }
+};
+template <typename Scalar, int N>
+struct functor_traits<scalar_logical_shift_right_op<Scalar, N>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift };
 };
 
 /** \internal
  * \brief Template functor to logically shift a scalar left by a number of bits
  *
- * \sa class CwiseUnaryOp, ArrayBase::shiftLeft()
+ * \sa class CwiseUnaryOp, ArrayBase::logicalShiftLeft()
  */
 template <typename Scalar, int N>
-struct scalar_shift_left_op {
+struct scalar_logical_shift_left_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     return numext::logical_shift_left(a, N);
   }
@@ -262,7 +282,7 @@ struct scalar_shift_left_op {
   }
 };
 template <typename Scalar, int N>
-struct functor_traits<scalar_shift_left_op<Scalar, N>> {
+struct functor_traits<scalar_logical_shift_left_op<Scalar, N>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift };
 };
 

@@ -8,6 +8,9 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Silence warnings about the deprecated shiftLeft()/shiftRight(), which are still being tested.
+#define EIGEN_NO_DEPRECATED_WARNING
+
 #include <vector>
 #include "main.h"
 #include "random_without_cast_overflow.h"
@@ -1170,29 +1173,6 @@ void min_max(const ArrayType& m) {
   }
 }
 
-template <typename Scalar>
-struct shift_imm_traits {
-  enum { Cost = 1, PacketAccess = internal::packet_traits<Scalar>::HasShift };
-};
-
-// ArrayBase exposes an arithmetic right shift and a logical left shift, but no logical right shift,
-// so that packet op is still reached through a functor of its own.
-template <int N, typename Scalar>
-struct logical_right_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::logical_shift_right(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::plogical_shift_right<N>(v);
-  }
-};
-
-namespace Eigen {
-namespace internal {
-template <int N, typename Scalar>
-struct functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-}  // namespace internal
-}  // namespace Eigen
-
 // A lambda takes the default functor_traits, so each reference arm stays scalar while the arm under
 // test vectorizes. Comparing the reference against the shift expression as well as against the
 // assigned result evaluates the expression coefficient-wise, which is the only path that reaches the
@@ -1217,20 +1197,23 @@ struct shift_test_impl {
     m1(rows - 1, cols - 1) = NumTraits<Scalar>::highest();
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_left(v, N); });
-    m3 = m1.template shiftLeft<N>();
+    m3 = m1.template logicalShiftLeft<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template logicalShiftLeft<N>());
     VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftLeft<N>());
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_right(v, N); });
-    m3 = m1.unaryExpr(logical_right_shift_op<N, Scalar>());
+    m3 = m1.template logicalShiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template logicalShiftRight<N>());
 
     // Referencing Scalar's own operator>> rather than the numext helper the functor calls keeps this
     // arm independent of the implementation under test, and states the semantics: fill with the sign
     // bit when Scalar is signed and with zero when it is not.
     m2 = m1.unaryExpr([](const Scalar& v) { return static_cast<Scalar>(v >> N); });
-    m3 = m1.template shiftRight<N>();
+    m3 = m1.template arithmeticShiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template arithmeticShiftRight<N>());
     VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftRight<N>());
 
     run<N + 1>(m);
