@@ -474,6 +474,8 @@ elseif(COMPILER_SUPPORT_FPFAST)
 endif()
 if(COMPILER_SUPPORT_FASTMATH AND COMPILER_SUPPORTS_VECTOR_EXTENSIONS)
   ei_add_test(packetmath_fastmath_generic_16 "-O2 ${EIGEN_FASTMATH_FLAGS} -Werror")
+  ei_add_test(packetmath_fastmath_generic_32 "-O2 ${EIGEN_FASTMATH_FLAGS} -Werror")
+  ei_add_test(packetmath_fastmath_generic_64 "-O2 ${EIGEN_FASTMATH_FLAGS} -Werror")
 endif()
 
 ei_add_test(fastmath "${EIGEN_FASTMATH_FLAGS}")

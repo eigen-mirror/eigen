@@ -18,9 +18,11 @@ namespace Eigen {
 namespace internal {
 
 // --- Reductions ---
-#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max) && \
-    EIGEN_HAS_BUILTIN(__builtin_reduce_or)
-#define EIGEN_CLANG_PACKET_REDUX_MINMAX(PACKET_TYPE)                                        \
+// __builtin_reduce_{min,max} lower well for the integer packets only: for
+// floating point their strict NaN-ordering semantics scalarize into a serial
+// compare-blend chain, so PacketXf/PacketXd use the halving trees below.
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_min) && EIGEN_HAS_BUILTIN(__builtin_reduce_max)
+#define EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PACKET_TYPE)                                    \
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) { \
     return __builtin_reduce_min(a);                                                         \
@@ -28,17 +30,27 @@ namespace internal {
   template <>                                                                               \
   EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max(const PACKET_TYPE& a) { \
     return __builtin_reduce_max(a);                                                         \
-  }                                                                                         \
-  template <>                                                                               \
-  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {                               \
-    return __builtin_reduce_or(a != 0) != 0;                                                \
   }
 
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXf)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXd)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXi)
-EIGEN_CLANG_PACKET_REDUX_MINMAX(PacketXl)
-#undef EIGEN_CLANG_PACKET_REDUX_MINMAX
+EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PacketXi)
+EIGEN_CLANG_PACKET_REDUX_MINMAX_INT(PacketXl)
+#undef EIGEN_CLANG_PACKET_REDUX_MINMAX_INT
+#endif
+
+#if EIGEN_HAS_BUILTIN(__builtin_reduce_or)
+// Test the integer view: comparing an all-ones (NaN bit pattern) float mask
+// against zero is fair game for -ffast-math to fold away, as with pselect.
+#define EIGEN_CLANG_PACKET_REDUX_ANY(PACKET_TYPE)                                                    \
+  template <>                                                                                        \
+  EIGEN_STRONG_INLINE bool predux_any(const PACKET_TYPE& a) {                                        \
+    return __builtin_reduce_or(reinterpret_cast<detail::signed_vector_t<PACKET_TYPE>>(a) != 0) != 0; \
+  }
+
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXf)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXd)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXi)
+EIGEN_CLANG_PACKET_REDUX_ANY(PacketXl)
+#undef EIGEN_CLANG_PACKET_REDUX_ANY
 #endif
 
 #if EIGEN_HAS_BUILTIN(__builtin_reduce_add) && EIGEN_HAS_BUILTIN(__builtin_reduce_mul)
@@ -61,292 +73,149 @@ EIGEN_CLANG_PACKET_REDUX_INT(PacketXl)
 #if EIGEN_HAS_BUILTIN(__builtin_shufflevector)
 namespace detail {
 
-// Reduction helpers for different vector sizes.
-// Each returns a pair of (even-sum, odd-sum) or (even-product, odd-product).
+// Folds `a` in half with `op` until two elements are left and returns them as
+// (even, odd). Callers combine those two with the same operation; splitting the
+// final step out is what lets the complex reductions read off the accumulated
+// real and imaginary parts separately. The halves are shuffled inline rather
+// than through lower_half/upper_half: an 8-byte half returned by value is
+// ABI-lowered to a scalar double in IR even under forced inlining, and the
+// leftover bitcasts perturb LLVM's canonicalization of the commutative fold,
+// measurably changing the generated code.
+template <int N>
+struct halving_reduce {
+  template <typename VectorT, typename Op, std::size_t... Is>
+  static EIGEN_STRONG_INLINE scalar_pair_t<VectorT> fold(const VectorT& a, Op op, std::index_sequence<Is...>) {
+    return halving_reduce<N / 2>::run(
+        op(__builtin_shufflevector(a, a, Is...), __builtin_shufflevector(a, a, (sizeof...(Is) + Is)...)), op);
+  }
+
+  template <typename VectorT, typename Op>
+  static EIGEN_STRONG_INLINE scalar_pair_t<VectorT> run(const VectorT& a, Op op) {
+    return fold(a, op, std::make_index_sequence<N / 2>{});
+  }
+};
+
+template <>
+struct halving_reduce<2> {
+  template <typename VectorT, typename Op>
+  static EIGEN_STRONG_INLINE scalar_pair_t<VectorT> run(const VectorT& a, Op /*op*/) {
+    return {a[0], a[1]};
+  }
+};
 
 template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceAdd2(
-    const VectorT& a) {
-  return {a[0], a[1]};
+EIGEN_STRONG_INLINE scalar_pair_t<VectorT> reduce_add_pairs(const VectorT& a) {
+  return halving_reduce<vector_elements<VectorT>()>::run(a, [](const auto& x, const auto& y) { return x + y; });
 }
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceAdd4(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1) + __builtin_shufflevector(a, a, 2, 3);
-  return {t1[0], t1[1]};
+// Folds the packet all the way to a scalar with `op`, which must also be
+// applicable to bare scalars for the final step.
+template <typename VectorT, typename Op>
+EIGEN_STRONG_INLINE scalar_type_of_vector_t<VectorT> tree_reduce(const VectorT& a, Op op) {
+  const scalar_pair_t<VectorT> even_odd = halving_reduce<vector_elements<VectorT>()>::run(a, op);
+  return op(even_odd.first, even_odd.second);
 }
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceAdd8(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1, 2, 3) + __builtin_shufflevector(a, a, 4, 5, 6, 7);
-  const auto t2 = __builtin_shufflevector(t1, t1, 0, 1) + __builtin_shufflevector(t1, t1, 2, 3);
-  return {t2[0], t2[1]};
-}
+// Multiplies the two halves of a complex packet until two complex values are
+// left, then multiplies those as scalars. Unlike the reductions above this
+// cannot work on the real vector, because complex multiplication mixes lanes.
+template <int N>
+struct complex_predux_mul {
+  template <typename RealScalar>
+  static EIGEN_STRONG_INLINE std::complex<RealScalar> run(const complex_packet_wrapper<RealScalar, N>& a) {
+    using HalfPacket = complex_packet_wrapper<RealScalar, N / 2>;
+    return complex_predux_mul<N / 2>::run(complex_pmul_impl(HalfPacket(lower_half(a.v)), HalfPacket(upper_half(a.v)),
+                                                            complex_real_indices<HalfPacket>{}));
+  }
+};
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceAdd16(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7) +
-                  __builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15);
-  const auto t2 = __builtin_shufflevector(t1, t1, 0, 1, 2, 3) + __builtin_shufflevector(t1, t1, 4, 5, 6, 7);
-  const auto t3 = __builtin_shufflevector(t2, t2, 0, 1) + __builtin_shufflevector(t2, t2, 2, 3);
-  return {t3[0], t3[1]};
-}
+template <>
+struct complex_predux_mul<2> {
+  template <typename RealScalar>
+  static EIGEN_STRONG_INLINE std::complex<RealScalar> run(const complex_packet_wrapper<RealScalar, 2>& a) {
+    return a[0] * a[1];
+  }
+};
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceMul2(
-    const VectorT& a) {
-  return {a[0], a[1]};
-}
+template <>
+struct complex_predux_mul<1> {
+  template <typename RealScalar>
+  static EIGEN_STRONG_INLINE std::complex<RealScalar> run(const complex_packet_wrapper<RealScalar, 1>& a) {
+    return a[0];
+  }
+};
 
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceMul4(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1) * __builtin_shufflevector(a, a, 2, 3);
-  return {t1[0], t1[1]};
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceMul8(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1, 2, 3) * __builtin_shufflevector(a, a, 4, 5, 6, 7);
-  const auto t2 = __builtin_shufflevector(t1, t1, 0, 1) * __builtin_shufflevector(t1, t1, 2, 3);
-  return {t2[0], t2[1]};
-}
-
-template <typename VectorT>
-EIGEN_STRONG_INLINE std::pair<scalar_type_of_vector_t<VectorT>, scalar_type_of_vector_t<VectorT>> ReduceMul16(
-    const VectorT& a) {
-  const auto t1 = __builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7) *
-                  __builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15);
-  const auto t2 = __builtin_shufflevector(t1, t1, 0, 1, 2, 3) * __builtin_shufflevector(t1, t1, 4, 5, 6, 7);
-  const auto t3 = __builtin_shufflevector(t2, t2, 0, 1) * __builtin_shufflevector(t2, t2, 2, 3);
-  return {t3[0], t3[1]};
-}
 }  // namespace detail
 
-// --- predux and predux_mul for float ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
+// --- predux and predux_mul for float and double ---
+// __builtin_reduce_{add,mul} cover the integer packets above but are not
+// defined for floating point, so these fold the packet by hand.
+#define EIGEN_CLANG_PACKET_REDUX_FLOAT(PACKET_TYPE)                                                      \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
+    return detail::tree_reduce(a, [](const auto& x, const auto& y) { return x + y; });                   \
+  }                                                                                                      \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::tree_reduce(a, [](const auto& x, const auto& y) { return x * y; });                   \
+  }
 
-template <>
-EIGEN_STRONG_INLINE float predux<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceAdd4(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceMul4(a);
-  return even * odd;
-}
+EIGEN_CLANG_PACKET_REDUX_FLOAT(PacketXf)
+EIGEN_CLANG_PACKET_REDUX_FLOAT(PacketXd)
+#undef EIGEN_CLANG_PACKET_REDUX_FLOAT
 
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
+// --- predux_min and predux_max for float and double ---
+// Also covers the NaN-propagation variants, whose generic fallback spills the
+// packet to the stack and reduces it with a scalar loop.
+#define EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PACKET_TYPE)                                                             \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min(const PACKET_TYPE& a) {                            \
+    return detail::tree_reduce(a, detail::pmin_op());                                                                  \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max(const PACKET_TYPE& a) {                            \
+    return detail::tree_reduce(a, detail::pmax_op());                                                                  \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min<PropagateNumbers, PACKET_TYPE>(                    \
+      const PACKET_TYPE& a) {                                                                                          \
+    return detail::tree_reduce(a, detail::pmin_num_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max<PropagateNumbers, PACKET_TYPE>(                    \
+      const PACKET_TYPE& a) {                                                                                          \
+    return detail::tree_reduce(a, detail::pmax_num_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_min<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::tree_reduce(a, detail::pmin_nan_op());                                                              \
+  }                                                                                                                    \
+  template <>                                                                                                          \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_max<PropagateNaN, PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::tree_reduce(a, detail::pmax_nan_op());                                                              \
+  }
 
-template <>
-EIGEN_STRONG_INLINE float predux<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceAdd8(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceMul8(a);
-  return even * odd;
-}
+EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PacketXf)
+EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT(PacketXd)
+#undef EIGEN_CLANG_PACKET_REDUX_MINMAX_FLOAT
 
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
+// --- predux and predux_mul for complex ---
+// The real vector of a complex packet interleaves real and imaginary parts, so
+// summing it into an (even, odd) pair accumulates the two parts separately.
+#define EIGEN_CLANG_COMPLEX_REDUX(PACKET_TYPE)                                                           \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux<PACKET_TYPE>(const PACKET_TYPE& a) {     \
+    const auto re_im = detail::reduce_add_pairs(a.v);                                                    \
+    return unpacket_traits<PACKET_TYPE>::type(re_im.first, re_im.second);                                \
+  }                                                                                                      \
+  template <>                                                                                            \
+  EIGEN_STRONG_INLINE unpacket_traits<PACKET_TYPE>::type predux_mul<PACKET_TYPE>(const PACKET_TYPE& a) { \
+    return detail::complex_predux_mul<unpacket_traits<PACKET_TYPE>::size>::run(a);                       \
+  }
 
-template <>
-EIGEN_STRONG_INLINE float predux<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceAdd16(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
-  float even, odd;
-  std::tie(even, odd) = detail::ReduceMul16(a);
-  return even * odd;
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- predux and predux_mul for double ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceAdd2(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceMul2(a);
-  return even * odd;
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceAdd4(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceMul4(a);
-  return even * odd;
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceAdd8(a);
-  return even + odd;
-}
-template <>
-EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
-  double even, odd;
-  std::tie(even, odd) = detail::ReduceMul8(a);
-  return even * odd;
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- predux for complex<float> ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux<PacketXcf>(const PacketXcf& a) {
-  float re, im;
-  std::tie(re, im) = detail::ReduceAdd4(a.v);
-  return std::complex<float>(re, im);
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux<PacketXcf>(const PacketXcf& a) {
-  float re, im;
-  std::tie(re, im) = detail::ReduceAdd8(a.v);
-  return std::complex<float>(re, im);
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux<PacketXcf>(const PacketXcf& a) {
-  float re, im;
-  std::tie(re, im) = detail::ReduceAdd16(a.v);
-  return std::complex<float>(re, im);
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- predux for complex<double> ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<PacketXcd>(const PacketXcd& a) {
-  // 1 complex double: just return it
-  return a[0];
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<PacketXcd>(const PacketXcd& a) {
-  double re, im;
-  std::tie(re, im) = detail::ReduceAdd4(a.v);
-  return std::complex<double>(re, im);
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<PacketXcd>(const PacketXcd& a) {
-  double re, im;
-  std::tie(re, im) = detail::ReduceAdd8(a.v);
-  return std::complex<double>(re, im);
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- predux_mul for complex<float> ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux_mul<PacketXcf>(const PacketXcf& a) {
-  // 2 complex floats: just multiply them
-  return a[0] * a[1];
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux_mul<PacketXcf>(const PacketXcf& a) {
-  // 4 complex floats: split into 2+2, multiply, then scalar multiply
-  const Packet2cf lower2 = Packet2cf(__builtin_shufflevector(a.v, a.v, 0, 1, 2, 3));
-  const Packet2cf upper2 = Packet2cf(__builtin_shufflevector(a.v, a.v, 4, 5, 6, 7));
-  const Packet2cf prod2 = pmul<Packet2cf>(lower2, upper2);
-  return prod2[0] * prod2[1];
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux_mul<PacketXcf>(const PacketXcf& a) {
-  // 8 complex floats: 8->4->2->scalar
-  const Packet4cf lower4 = Packet4cf(__builtin_shufflevector(a.v, a.v, 0, 1, 2, 3, 4, 5, 6, 7));
-  const Packet4cf upper4 = Packet4cf(__builtin_shufflevector(a.v, a.v, 8, 9, 10, 11, 12, 13, 14, 15));
-  const Packet4cf prod4 = pmul<Packet4cf>(lower4, upper4);
-  const Packet2cf lower2 = Packet2cf(__builtin_shufflevector(prod4.v, prod4.v, 0, 1, 2, 3));
-  const Packet2cf upper2 = Packet2cf(__builtin_shufflevector(prod4.v, prod4.v, 4, 5, 6, 7));
-  const Packet2cf prod2 = pmul<Packet2cf>(lower2, upper2);
-  return prod2[0] * prod2[1];
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
-
-// --- predux_mul for complex<double> ---
-#if EIGEN_GENERIC_VECTOR_SIZE_BYTES == 16
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<PacketXcd>(const PacketXcd& a) {
-  // 1 complex double: just return it
-  return a[0];
-}
-
-#elif EIGEN_GENERIC_VECTOR_SIZE_BYTES == 32
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<PacketXcd>(const PacketXcd& a) {
-  // 2 complex doubles: just multiply them
-  return a[0] * a[1];
-}
-
-#else  // EIGEN_GENERIC_VECTOR_SIZE_BYTES == 64
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<PacketXcd>(const PacketXcd& a) {
-  // 4 complex doubles: split into 2+2, multiply, then scalar multiply
-  const Packet2cd lower2 = Packet2cd(__builtin_shufflevector(a.v, a.v, 0, 1, 2, 3));
-  const Packet2cd upper2 = Packet2cd(__builtin_shufflevector(a.v, a.v, 4, 5, 6, 7));
-  const Packet2cd prod2 = pmul<Packet2cd>(lower2, upper2);
-  return prod2[0] * prod2[1];
-}
-
-#endif  // EIGEN_GENERIC_VECTOR_SIZE_BYTES
+EIGEN_CLANG_COMPLEX_REDUX(PacketXcf)
+EIGEN_CLANG_COMPLEX_REDUX(PacketXcd)
+#undef EIGEN_CLANG_COMPLEX_REDUX
 
 #endif
 

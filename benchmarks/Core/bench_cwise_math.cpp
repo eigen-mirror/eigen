@@ -73,6 +73,25 @@ BENCH_CWISE_UNARY(Trunc, a.trunc(), -100, 100)
 // Sigmoid: 1 / (1 + exp(-x)), common in ML.
 BENCH_CWISE_UNARY(Sigmoid, Scalar(1) / (Scalar(1) + (-a).exp()), -10, 10)
 
+// Macro for real binary benchmarks (e.g. coefficient-wise min/max).
+#define BENCH_CWISE_BINARY(NAME, EXPR, LO, HI)                                                   \
+  template <typename Scalar>                                                                     \
+  static void BM_##NAME(benchmark::State& state) {                                               \
+    const Index n = state.range(0);                                                              \
+    using Arr = Array<Scalar, Dynamic, 1>;                                                       \
+    Arr a = (Arr::Random(n) + Scalar(1)) * Scalar((double(HI) - double(LO)) / 2.0) + Scalar(LO); \
+    Arr b = (Arr::Random(n) + Scalar(1)) * Scalar((double(HI) - double(LO)) / 2.0) + Scalar(LO); \
+    Arr c(n);                                                                                    \
+    for (auto _ : state) {                                                                       \
+      c = EXPR;                                                                                  \
+      benchmark::DoNotOptimize(c.data());                                                        \
+    }                                                                                            \
+    state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);                        \
+  }
+
+BENCH_CWISE_BINARY(Min, a.min(b), -100, 100)
+BENCH_CWISE_BINARY(Max, a.max(b), -100, 100)
+
 // Power: array^scalar
 template <typename Scalar>
 static void BM_Pow(benchmark::State& state) {
@@ -174,6 +193,8 @@ BENCHMARK(BM_Rint<float>) CWISE_SIZES ->Name("Rint_float");
 BENCHMARK(BM_Trunc<float>) CWISE_SIZES ->Name("Trunc_float");
 BENCHMARK(BM_Sigmoid<float>) CWISE_SIZES ->Name("Sigmoid_float");
 BENCHMARK(BM_Pow<float>) CWISE_SIZES ->Name("Pow_float");
+BENCHMARK(BM_Min<float>) CWISE_SIZES ->Name("Min_float");
+BENCHMARK(BM_Max<float>) CWISE_SIZES ->Name("Max_float");
 
 // --- Register double ---
 BENCHMARK(BM_Exp<double>) CWISE_SIZES ->Name("Exp_double");
@@ -209,6 +230,8 @@ BENCHMARK(BM_Rint<double>) CWISE_SIZES ->Name("Rint_double");
 BENCHMARK(BM_Trunc<double>) CWISE_SIZES ->Name("Trunc_double");
 BENCHMARK(BM_Sigmoid<double>) CWISE_SIZES ->Name("Sigmoid_double");
 BENCHMARK(BM_Pow<double>) CWISE_SIZES ->Name("Pow_double");
+BENCHMARK(BM_Min<double>) CWISE_SIZES ->Name("Min_double");
+BENCHMARK(BM_Max<double>) CWISE_SIZES ->Name("Max_double");
 
 // --- Register complex<float> ---
 BENCHMARK(BM_Exp_complex<float>) CWISE_SIZES ->Name("Exp_complexf");

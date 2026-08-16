@@ -1,12 +1,47 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+#include <cstring>
+
 #include "main.h"
 
 template <typename Scalar, typename Packet>
 EIGEN_DONT_INLINE void store_ptrue(Scalar* output) {
   const Packet zero = Eigen::internal::pset1<Packet>(Scalar(0));
   Eigen::internal::pstoreu<Scalar, Packet>(output, Eigen::internal::ptrue(zero));
+}
+
+// The out-of-line boundary keeps the mask opaque at the packet-op call site, so
+// the compiler must emit the mask test instead of folding it against the known
+// lane values.
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void select_with_mask(const Scalar* mask, const Scalar* a, const Scalar* b, Scalar* output) {
+  const Packet selected = Eigen::internal::pselect(
+      Eigen::internal::ploadu<Packet>(mask), Eigen::internal::ploadu<Packet>(a), Eigen::internal::ploadu<Packet>(b));
+  Eigen::internal::pstoreu<Scalar, Packet>(output, selected);
+}
+
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE bool mask_any(const Scalar* mask) {
+  return Eigen::internal::predux_any(Eigen::internal::ploadu<Packet>(mask));
+}
+
+// Complementary to the opaque-mask calls: the all-ones mask flows straight
+// from ptrue into the packet op, the way comparison-mask producers feed it,
+// which gives constant folding under -ffinite-math-only a chance to see the
+// NaN bit pattern.
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE bool ptrue_mask_any() {
+  const Packet zero = Eigen::internal::pset1<Packet>(Scalar(0));
+  return Eigen::internal::predux_any(Eigen::internal::ptrue(zero));
+}
+
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void select_with_ptrue_mask(const Scalar* a, const Scalar* b, Scalar* output) {
+  const Packet zero = Eigen::internal::pset1<Packet>(Scalar(0));
+  const Packet selected = Eigen::internal::pselect(Eigen::internal::ptrue(zero), Eigen::internal::ploadu<Packet>(a),
+                                                   Eigen::internal::ploadu<Packet>(b));
+  Eigen::internal::pstoreu<Scalar, Packet>(output, selected);
 }
 
 template <typename Scalar>
@@ -46,6 +81,50 @@ struct packetmath_fastmath_runner<Scalar, true> {
         has_nonzero_byte = has_nonzero_byte || lane_bytes[j] != 0;
       }
       VERIFY(has_nonzero_byte);
+    }
+
+    // pselect and predux_any consume comparison masks whose "true" lanes are
+    // all-ones bit patterns, i.e. NaN when reinterpreted as floating point. An
+    // implementation that tests such a mask with a floating-point compare
+    // invites -ffinite-math-only to drop the unordered case and mishandle the
+    // "true" lanes, so exercise all-zero, all-ones, and single-lane masks here.
+    Scalar mask[packet_size];
+    Scalar a[packet_size];
+    Scalar b[packet_size];
+    Scalar selected[packet_size];
+    for (int i = 0; i < packet_size; ++i) {
+      a[i] = Scalar(i + 1);
+      b[i] = Scalar(-(i + 1));
+    }
+
+    std::memset(mask, 0, sizeof(mask));
+    select_with_mask<Scalar, Packet>(mask, a, b, selected);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY_IS_EQUAL(selected[i], b[i]);
+    }
+    VERIFY(!(mask_any<Scalar, Packet>(mask)));
+
+    std::memset(mask, 0xff, sizeof(mask));
+    select_with_mask<Scalar, Packet>(mask, a, b, selected);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY_IS_EQUAL(selected[i], a[i]);
+    }
+    VERIFY((mask_any<Scalar, Packet>(mask)));
+
+    select_with_ptrue_mask<Scalar, Packet>(a, b, selected);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY_IS_EQUAL(selected[i], a[i]);
+    }
+    VERIFY((ptrue_mask_any<Scalar, Packet>()));
+
+    for (int lane = 0; lane < packet_size; ++lane) {
+      std::memset(mask, 0, sizeof(mask));
+      std::memset(mask + lane, 0xff, sizeof(Scalar));
+      select_with_mask<Scalar, Packet>(mask, a, b, selected);
+      for (int i = 0; i < packet_size; ++i) {
+        VERIFY_IS_EQUAL(selected[i], i == lane ? a[i] : b[i]);
+      }
+      VERIFY((mask_any<Scalar, Packet>(mask)));
     }
   }
 };
