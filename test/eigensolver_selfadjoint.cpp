@@ -9,6 +9,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Enables the runtime malloc tracking that generalizedselfadjointeigensolver_no_malloc() needs.
+// Allocation stays allowed by default; only the explicit set_is_malloc_allowed(false) window checks.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 #include "svd_fill.h"
 #include "tridiag_test_matrices.h"
@@ -866,8 +870,45 @@ void direct_2x2_stress() {
   }
 }
 
+// Regression test for issue #1739: a solver constructed with its size must not
+// allocate in compute(), for any of the three generalized problem types.
+template <typename MatrixType>
+void generalizedselfadjointeigensolver_no_malloc() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index n = 20;
+
+  MatrixType a = MatrixType::Random(n, n);
+  MatrixType symmA = a + a.adjoint();
+  MatrixType b = MatrixType::Random(n, n);
+  // Make b positive definite so that its Cholesky decomposition succeeds.
+  MatrixType symmB = b * b.adjoint() + RealScalar(n) * MatrixType::Identity(n, n);
+
+  const int types[] = {Ax_lBx, ABx_lx, BAx_lx};
+  for (int type : types) {
+    for (int vecs : {int(ComputeEigenvectors), int(EigenvaluesOnly)}) {
+      GeneralizedSelfAdjointEigenSolver<MatrixType> eig(n);
+      internal::set_is_malloc_allowed(false);
+      eig.compute(symmA, symmB, vecs | type);
+      internal::set_is_malloc_allowed(true);
+      VERIFY_IS_EQUAL(eig.info(), Success);
+    }
+  }
+
+  // The reused workspaces must not change the result.
+  GeneralizedSelfAdjointEigenSolver<MatrixType> reused(n);
+  reused.compute(symmA, symmB);
+  reused.compute(symmA, symmB);
+  GeneralizedSelfAdjointEigenSolver<MatrixType> fresh(symmA, symmB);
+  VERIFY_IS_APPROX(reused.eigenvalues(), fresh.eigenvalues());
+  VERIFY_IS_APPROX(symmA * reused.eigenvectors(), symmB * reused.eigenvectors() * reused.eigenvalues().asDiagonal());
+}
+
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
+  CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
+  CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
+
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:
     CALL_SUBTEST_1(selfadjointeigensolver(Matrix<float, 1, 1>()));

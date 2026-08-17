@@ -62,7 +62,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    * can only be used if \p MatrixType_ is a fixed-size matrix; use
    * GeneralizedSelfAdjointEigenSolver(Index) for dynamic-size matrices.
    */
-  GeneralizedSelfAdjointEigenSolver() : Base() {}
+  GeneralizedSelfAdjointEigenSolver() : Base(), m_cholB(), m_matC() {}
 
   /** \brief Constructor, pre-allocates memory for dynamic-size matrices.
    *
@@ -76,7 +76,7 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute() for an example
    */
-  explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size) {}
+  explicit GeneralizedSelfAdjointEigenSolver(Index size) : Base(size), m_cholB(size), m_matC(size, size) {}
 
   /** \brief Constructor; computes generalized eigendecomposition of given matrix pencil.
    *
@@ -155,6 +155,12 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    */
   GeneralizedSelfAdjointEigenSolver& compute(const MatrixType& matA, const MatrixType& matB,
                                              int options = ComputeEigenvectors | Ax_lBx);
+
+ protected:
+  // Reused across compute() calls so that a solver constructed with its size,
+  // or computed with once, does not allocate again.
+  LLT<MatrixType> m_cholB;
+  MatrixType m_matC;
 };
 
 template <typename MatrixType>
@@ -169,41 +175,45 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
   bool computeEigVecs = ((options & EigVecMask) == 0) || ((options & EigVecMask) == ComputeEigenvectors);
 
   // Compute the cholesky decomposition of matB = L L' = U'U
-  LLT<MatrixType> cholB(matB);
+  m_cholB.compute(matB);
 
   int type = (options & GenEigMask);
   if (type == 0) type = Ax_lBx;
 
+  m_matC = matA.template selfadjointView<Lower>();
+
   if (type == Ax_lBx) {
     // compute C = inv(L) A inv(L')
-    MatrixType matC = matA.template selfadjointView<Lower>();
-    cholB.matrixL().template solveInPlace<OnTheLeft>(matC);
-    cholB.matrixU().template solveInPlace<OnTheRight>(matC);
+    m_cholB.matrixL().template solveInPlace<OnTheLeft>(m_matC);
+    m_cholB.matrixU().template solveInPlace<OnTheRight>(m_matC);
 
-    Base::compute(matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
+    Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
     // transform back the eigen vectors: evecs = inv(U) * evecs
-    if (computeEigVecs) cholB.matrixU().solveInPlace(Base::m_eivec);
+    if (computeEigVecs) m_cholB.matrixU().solveInPlace(Base::m_eivec);
   } else if (type == ABx_lx) {
-    // compute C = L' A L
-    MatrixType matC = matA.template selfadjointView<Lower>();
-    matC = matC * cholB.matrixL();
-    matC = cholB.matrixU() * matC;
+    // compute C = L' A L, using Base::m_eivec for the intermediate product: Base::compute()
+    // overwrites it before reading it.
+    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
 
-    Base::compute(matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
+    Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
     // transform back the eigen vectors: evecs = inv(U) * evecs
-    if (computeEigVecs) cholB.matrixU().solveInPlace(Base::m_eivec);
+    if (computeEigVecs) m_cholB.matrixU().solveInPlace(Base::m_eivec);
   } else if (type == BAx_lx) {
     // compute C = L' A L
-    MatrixType matC = matA.template selfadjointView<Lower>();
-    matC = matC * cholB.matrixL();
-    matC = cholB.matrixU() * matC;
+    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
 
-    Base::compute(matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
+    Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
-    // transform back the eigen vectors: evecs = L * evecs
-    if (computeEigVecs) Base::m_eivec = cholB.matrixL() * Base::m_eivec;
+    // transform back the eigen vectors: evecs = L * evecs, using m_matC as the
+    // intermediate: Base::compute() has consumed it.
+    if (computeEigVecs) {
+      m_matC.noalias() = m_cholB.matrixL() * Base::m_eivec;
+      Base::m_eivec = m_matC;
+    }
   }
 
   return *this;
