@@ -747,7 +747,8 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
  * The macro ei_declare_aligned_stack_constructed_variable(TYPE,NAME,SIZE,BUFFER) declares, allocates,
  * and construct an aligned buffer named NAME of SIZE elements of type TYPE on the stack
  * if the size in bytes is smaller than EIGEN_STACK_ALLOCATION_LIMIT, and if stack allocation is supported by the
- * platform (currently, this is Linux, OSX and Visual Studio only). Otherwise the memory is allocated on the heap. The
+ * platform (currently, this is Linux, OSX and Visual Studio only). Otherwise the memory is allocated on the heap;
+ * in particular, a zero EIGEN_STACK_ALLOCATION_LIMIT disables stack allocation and every buffer is heap-allocated. The
  * allocated buffer is automatically deleted when exiting the scope of this declaration. If BUFFER is non null, then the
  * declared variable is simply an alias for BUFFER, and no allocation/deletion occurs. Here is an example: \code
  * {
