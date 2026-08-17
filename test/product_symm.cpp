@@ -114,6 +114,35 @@ void symm(int size = Size, int othersize = OtherSize) {
   }
 }
 
+// Physical RowMajor selfadjoint operand.  symm<> above always builds a ColMajor
+// operand, so the RowMajor packers -- symm_pack_lhs/symm_pack_rhs specialized on
+// RowMajor, including the SME versions whose transposed regions carry the
+// two-pass trailing transpose -- are otherwise never reached through the public
+// API.  Both operand positions (selfadjoint on the LHS and on the RHS) and both
+// stored triangles are checked against a dense reference.
+template <typename Scalar>
+void symm_rowmajor_selfadjoint(Index size, Index othersize) {
+  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
+  typedef Matrix<Scalar, Dynamic, Dynamic> ColMat;
+
+  RowMat m1 = RowMat::Random(size, size);
+  m1 = (m1 + m1.adjoint()).eval();  // exactly self-adjoint
+  RowMat lo = m1.template triangularView<Lower>();
+  RowMat up = m1.template triangularView<Upper>();
+
+  // Selfadjoint on the LHS: packs the RowMajor operand via symm_pack_lhs.
+  ColMat rhs = ColMat::Random(size, othersize);
+  ColMat ref = m1 * rhs;
+  VERIFY_IS_APPROX((lo.template selfadjointView<Lower>() * rhs).eval(), ref);
+  VERIFY_IS_APPROX((up.template selfadjointView<Upper>() * rhs).eval(), ref);
+
+  // Selfadjoint on the RHS: packs the RowMajor operand via symm_pack_rhs.
+  ColMat lhs = ColMat::Random(othersize, size);
+  ColMat ref2 = lhs * m1;
+  VERIFY_IS_APPROX((lhs * lo.template selfadjointView<Lower>()).eval(), ref2);
+  VERIFY_IS_APPROX((lhs * up.template selfadjointView<Upper>()).eval(), ref2);
+}
+
 // Test symmetric products at blocking boundary sizes.
 // The existing test uses random sizes; these deterministic sizes exercise
 // transitions in GEBP blocking (early-return at 48, block size changes).
@@ -131,6 +160,17 @@ void product_symm_boundary() {
     symm<float, Dynamic, Dynamic>(n, 7);
     // complex float, matrix RHS
     symm<std::complex<float>, Dynamic, Dynamic>(n, 3);
+  }
+
+  // RowMajor selfadjoint operand.  The partial last-panel widths in this list
+  // drive the RowMajor packers' transposed regions through the two-pass trailing
+  // transpose for streaming vector lengths from SVL=128 (svlw=4) up to SVL=2048
+  // (svlw=64): a partial width w in (svlw, 2*svlw) needs two predicated passes.
+  const int sa_sizes[] = {1, 5, 7, 17, 32, 33, 39, 45, 48, 49, 55, 57, 63, 64, 65, 96};
+  for (int n : sa_sizes) {
+    symm_rowmajor_selfadjoint<float>(n, 7);
+    symm_rowmajor_selfadjoint<float>(n, 1);
+    symm_rowmajor_selfadjoint<double>(n, 4);
   }
 }
 
