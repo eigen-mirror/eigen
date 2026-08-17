@@ -1784,7 +1784,60 @@ void testNistEckerle4(void) {
   VERIFY_IS_APPROX(x[2], 4.5154121844E+02);
 }
 
+// r1mpyq() indexed its argument through a raw pointer with a hard-coded
+// column-major layout, so it corrupted the accumulated orthogonal factor
+// whenever Matrix<Scalar, Dynamic, Dynamic> is row major, which is what
+// EIGEN_DEFAULT_TO_ROW_MAJOR makes it.
+template <typename StorageType>
+void checkR1mpyq(const MatrixXd &a, const MatrixXd &expected, const std::vector<JacobiRotation<double> > &v_givens,
+                 const std::vector<JacobiRotation<double> > &w_givens) {
+  StorageType stored = a;
+  internal::r1mpyq<double>(stored, v_givens, w_givens);
+  VERIFY_IS_APPROX(MatrixXd(stored), expected);
+}
+
+void testR1mpyq() {
+  const Index n = 5;
+
+  MatrixXd a(n, n);
+  for (Index i = 0; i < n; ++i)
+    for (Index j = 0; j < n; ++j) a(i, j) = 1. + double(i) + 10. * double(j);
+
+  std::vector<JacobiRotation<double> > v_givens(n), w_givens(n);
+  for (Index j = 0; j + 1 < n; ++j) {
+    v_givens[j].makeGivens(1. + double(j), 2. - .5 * double(j));
+    w_givens[j].makeGivens(.5 * double(j) - 1., 3. + double(j));
+  }
+
+  // The MINPACK recurrence, spelled out independently of Eigen's rotation
+  // conventions and of any storage order.
+  MatrixXd expected = a;
+  for (Index j = n - 2; j >= 0; --j)
+    for (Index i = 0; i < n; ++i) {
+      const double temp = v_givens[j].c() * expected(i, j) - v_givens[j].s() * expected(i, n - 1);
+      expected(i, n - 1) = v_givens[j].s() * expected(i, j) + v_givens[j].c() * expected(i, n - 1);
+      expected(i, j) = temp;
+    }
+  for (Index j = 0; j + 1 < n; ++j)
+    for (Index i = 0; i < n; ++i) {
+      const double temp = w_givens[j].c() * expected(i, j) + w_givens[j].s() * expected(i, n - 1);
+      expected(i, n - 1) = -w_givens[j].s() * expected(i, j) + w_givens[j].c() * expected(i, n - 1);
+      expected(i, j) = temp;
+    }
+
+  checkR1mpyq<Matrix<double, Dynamic, Dynamic, ColMajor> >(a, expected, v_givens, w_givens);
+  checkR1mpyq<Matrix<double, Dynamic, Dynamic, RowMajor> >(a, expected, v_givens, w_givens);
+
+  // HybridNonLinearSolver also rotates qtf, which it passes as a single row.
+  VectorXd qtf = a.row(0).transpose();
+  Transpose<VectorXd> qtf_row = qtf.transpose();
+  internal::r1mpyq<double>(qtf_row, v_givens, w_givens);
+  VERIFY_IS_APPROX(qtf.transpose(), expected.row(0));
+}
+
 EIGEN_DECLARE_TEST(NonLinearOptimization) {
+  CALL_SUBTEST /*_2*/ (testR1mpyq());
+
   // Tests using the examples provided by (c)minpack
   CALL_SUBTEST /*_1*/ (testChkder());
   CALL_SUBTEST /*_1*/ (testLmder1());
