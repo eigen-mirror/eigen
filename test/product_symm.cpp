@@ -99,7 +99,10 @@ void symm(int size = Size, int othersize = OtherSize) {
   {
     typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
     MatrixX buffer(2 * cols, 2 * othersize);
-    Map<Rhs1, 0, Stride<Dynamic, 2> > map1(buffer.data(), cols, othersize, Stride<Dynamic, 2>(2 * rows, 2));
+    // As for map2 below, the outer stride spans Rhs1's outer dimension, which is not rows() when
+    // Rhs1 is row major.
+    Map<Rhs1, 0, Stride<Dynamic, 2> > map1(buffer.data(), cols, othersize,
+                                           Stride<Dynamic, 2>(2 * rhs13.outerStride(), 2));
     buffer.setZero();
     VERIFY_IS_APPROX(map1.noalias() = (s1 * m2).template selfadjointView<Lower>() * (s2 * rhs1),
                      rhs13 = (s1 * m1) * (s2 * rhs1));

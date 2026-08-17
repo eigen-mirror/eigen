@@ -104,8 +104,10 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
     // Test with a Map and non-unit stride.
     Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> out(2 * xm.rows(), 2 * xm.cols());
     out.setZero();
+    // The outer stride spans DenseRhs's outer dimension, so it must be taken from outerStride()
+    // rather than from rows(): the two differ when DenseRhs is row major.
     Eigen::Map<DenseRhs, 0, Stride<Eigen::Dynamic, 2>> outm(out.data(), xm.rows(), xm.cols(),
-                                                            Stride<Eigen::Dynamic, 2>(2 * xm.rows(), 2));
+                                                            Stride<Eigen::Dynamic, 2>(2 * xm.outerStride(), 2));
     outm = solver.solve(bm);
     VERIFY(outm.isApprox(refX, test_precision<Scalar>()));
   }
