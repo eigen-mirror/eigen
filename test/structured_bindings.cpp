@@ -188,6 +188,36 @@ void check_tuple_element() {
   STATIC_CHECK((std::is_same<std::tuple_element_t<0, Array3i>, int>::value));
 }
 
+// Emulates generic tuple-like detection as done by fmt's range formatter
+// (issue #3103): probing tuple_size<T>::value in a SFINAE context must be a
+// substitution failure for dynamic-size types, not a hard error.
+template <typename T, typename = void>
+struct is_tuple_like : std::false_type {};
+
+template <typename T>
+struct is_tuple_like<T, internal::void_t<decltype(std::tuple_size<T>::value)>> : std::true_type {};
+
+template <typename T, typename = void>
+struct has_tuple_element0 : std::false_type {};
+
+template <typename T>
+struct has_tuple_element0<T, internal::void_t<typename std::tuple_element<0, T>::type>> : std::true_type {};
+
+void check_sfinae_friendly_detection() {
+  STATIC_CHECK((is_tuple_like<Vector3d>::value));
+  STATIC_CHECK((is_tuple_like<Matrix2f>::value));
+  STATIC_CHECK((is_tuple_like<Array3i>::value));
+  STATIC_CHECK((!is_tuple_like<VectorXd>::value));
+  STATIC_CHECK((!is_tuple_like<MatrixXf>::value));
+  STATIC_CHECK((!is_tuple_like<ArrayXd>::value));
+  STATIC_CHECK((!is_tuple_like<Matrix<double, 3, Dynamic>>::value));
+  STATIC_CHECK((!is_tuple_like<Matrix<double, Dynamic, 3>>::value));
+  STATIC_CHECK((has_tuple_element0<Vector3d>::value));
+  STATIC_CHECK((has_tuple_element0<Array3i>::value));
+  STATIC_CHECK((!has_tuple_element0<VectorXd>::value));
+  STATIC_CHECK((!has_tuple_element0<ArrayXXf>::value));
+}
+
 EIGEN_DECLARE_TEST(structured_bindings) {
   CALL_SUBTEST_1(check_vector_bindings<double>());
   CALL_SUBTEST_1(check_vector_bindings<float>());
@@ -200,6 +230,7 @@ EIGEN_DECLARE_TEST(structured_bindings) {
   CALL_SUBTEST_4(check_matrix_bindings<int>());
   CALL_SUBTEST_5(check_tuple_size());
   CALL_SUBTEST_5(check_tuple_element());
+  CALL_SUBTEST_5(check_sfinae_friendly_detection());
   CALL_SUBTEST_6(check_storage_order_semantics<double>());
   CALL_SUBTEST_6(check_storage_order_semantics<int>());
 }

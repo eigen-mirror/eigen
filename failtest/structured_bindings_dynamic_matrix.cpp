@@ -1,9 +1,8 @@
 #include "../Eigen/Core"
 
 // Reproduces the "Dynamic-sized Matrix breaks tuple_size" bug reported on !2336.
-// With an enable_if_t base-clause the error is a cryptic non-SFINAE hard error;
-// with our static_assert-in-body fix it becomes a friendly diagnostic. Either
-// way, the compile must fail for MatrixXd.
+// tuple_size<MatrixXd> is a SFINAE-friendly empty specialization (issue #3103),
+// so naming ::value outside a SFINAE context must still fail to compile.
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD
 #define ROWS Eigen::Dynamic
 #define COLS Eigen::Dynamic
