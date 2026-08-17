@@ -946,7 +946,10 @@ EIGEN_STRONG_INLINE Packet2l pcmp_lt(const Packet2l& a, const Packet2l& b) {
 #else
   Packet4i eq = pcmp_eq<Packet4i>(Packet4i(a), Packet4i(b));
   Packet2l hi_eq = Packet2l(_mm_shuffle_epi32(eq, (shuffle_mask<1, 1, 3, 3>::mask)));
-  Packet4i lt = pcmp_lt<Packet4i>(Packet4i(a), Packet4i(b));
+  // The low halves carry magnitude only and must be ordered as unsigned, while the high halves carry
+  // the sign. Biasing just the low lanes by 2^31 makes one signed 32-bit compare serve both.
+  const Packet4i kLowSignFlip = _mm_setr_epi32(SIGN_MASK_I32, 0x0, SIGN_MASK_I32, 0x0);
+  Packet4i lt = pcmp_lt<Packet4i>(pxor(Packet4i(a), kLowSignFlip), pxor(Packet4i(b), kLowSignFlip));
   Packet2l hi_lt = Packet2l(_mm_shuffle_epi32(lt, (shuffle_mask<1, 1, 3, 3>::mask)));
   Packet2l lo_lt = Packet2l(_mm_shuffle_epi32(lt, (shuffle_mask<0, 0, 2, 2>::mask)));
   // return hi(a) < hi(b) || (hi(a) == hi(b) && lo(a) < lo(b))

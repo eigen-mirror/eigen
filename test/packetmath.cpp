@@ -501,6 +501,65 @@ struct packetmath_boolean_mask_ops_notcomplex_test<
 };
 
 template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_split_half_compare_test {
+  static void run() {}
+};
+
+// An emulated wide compare that combines per-half compares lexicographically is correct only if the
+// low half is ordered as unsigned. Operands sharing a high half are what reach that path, and
+// packetmath_boolean_mask_ops_notcomplex_test builds none: it pairs each value with itself or zero.
+template <typename Scalar, typename Packet>
+struct packetmath_split_half_compare_test<
+    Scalar, Packet,
+    std::enable_if_t<std::is_integral<Scalar>::value && internal::packet_traits<Scalar>::HasCmp &&
+                     !std::is_same<Scalar, bool>::value>> {
+  // Class scope keeps these usable as array bounds inside a lambda, which MSVC otherwise treats as
+  // captured and therefore non-constant.
+  static constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+  static constexpr int size = 2 * PacketSize;
+
+  static void run() {
+    using Unsigned = std::make_unsigned_t<Scalar>;
+    constexpr int kHalfBits = 4 * int(sizeof(Scalar));
+    constexpr Unsigned kHalfSignBit = Unsigned(Unsigned(1) << (kHalfBits - 1));
+    constexpr Unsigned kLowMask = Unsigned(Unsigned(kHalfSignBit << 1) - Unsigned(1));
+
+    const Unsigned low_parts[] = {Unsigned(0), Unsigned(1), Unsigned(kHalfSignBit - Unsigned(1)), kHalfSignBit,
+                                  kLowMask};
+    constexpr int kNumLow = int(sizeof(low_parts) / sizeof(low_parts[0]));
+    // The second high half sets the lane's own sign bit, exercising the high compare for signed and
+    // unsigned Scalar alike.
+    const Unsigned high_parts[] = {Unsigned(0), kLowMask};
+    constexpr int kNumHigh = int(sizeof(high_parts) / sizeof(high_parts[0]));
+
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
+
+    const auto compose = [&](int high_index, int low_index) {
+      return Scalar(Unsigned(Unsigned(high_parts[high_index] << kHalfBits) | low_parts[low_index]));
+    };
+
+    for (int high_index = 0; high_index < kNumHigh; ++high_index) {
+      for (int lhs_low_index = 0; lhs_low_index < kNumLow; ++lhs_low_index) {
+        for (int rhs_low_index = 0; rhs_low_index < kNumLow; ++rhs_low_index) {
+          for (int lane = 0; lane < PacketSize; ++lane) {
+            data1[lane] = compose(high_index, lhs_low_index);
+            data1[lane + PacketSize] = compose(high_index, rhs_low_index);
+          }
+          CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
+          CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
+          CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
+          CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
+          CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
+          CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasAbsDiff, REF_ABS_DIFF, internal::pabsdiff);
+        }
+      }
+    }
+  }
+};
+
+template <typename Scalar, typename Packet, typename EnableIf = void>
 struct packetmath_minus_zero_add_test {
   static void run() {}
 };
@@ -1554,6 +1613,7 @@ void packetmath_notcomplex() {
   }
 
   packetmath_boolean_mask_ops_notcomplex_test<Scalar, Packet>::run();
+  packetmath_split_half_compare_test<Scalar, Packet>::run();
 }
 
 template <typename Scalar, typename Packet, bool ConjLhs, bool ConjRhs>
