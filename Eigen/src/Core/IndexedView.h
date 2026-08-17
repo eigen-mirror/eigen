@@ -69,8 +69,10 @@ struct traits<IndexedView<XprType, RowIndices, ColIndices>> : traits<XprType> {
     FlagsRowMajorBit = IsRowMajor ? RowMajorBit : 0,
     FlagsLvalueBit = is_lvalue<XprType>::value ? LvalueBit : 0,
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1) ? LinearAccessBit : 0,
-    Flags = (traits<XprType>::Flags & (HereditaryBits | DirectAccessMask)) | FlagsLvalueBit | FlagsRowMajorBit |
-            FlagsLinearAccessBit
+    // IsRowMajor above pins a single-column view to column-major and a single-row view to
+    // row-major, so the nested expression's RowMajorBit must not be inherited on top of it.
+    Flags = (traits<XprType>::Flags & ((HereditaryBits & ~RowMajorBit) | DirectAccessMask)) | FlagsLvalueBit |
+            FlagsRowMajorBit | FlagsLinearAccessBit
   };
 
   using BlockType = Block<XprType, RowsAtCompileTime, ColsAtCompileTime, IsInnerPannel>;
