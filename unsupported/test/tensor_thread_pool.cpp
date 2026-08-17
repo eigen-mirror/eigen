@@ -11,6 +11,7 @@
 #define EIGEN_USE_THREADS
 
 #include "main.h"
+#include <atomic>
 #include <iostream>
 #include <Eigen/Tensor>
 
@@ -158,6 +159,73 @@ void test_async_multithread_volume_patch() {
 
   for (int i = 0; i < in.size(); ++i) {
     VERIFY_IS_EQUAL(in.data()[i], out.data()[i]);
+  }
+}
+
+// Stateful-but-copyable unary functor: flags an overlap when two threads call
+// the same instance concurrently. The executors must copy the evaluator (and
+// with it the functor) into each task, so no instance is ever called
+// concurrently even though the expression is evaluated by multiple threads.
+struct OverlapDetectingOp {
+  explicit OverlapDetectingOp(std::atomic<int>* overlaps) : overlaps_(overlaps) {}
+  OverlapDetectingOp(const OverlapDetectingOp& other) : overlaps_(other.overlaps_) {}
+
+  float operator()(const float& x) const {
+    if (busy_.exchange(true)) overlaps_->fetch_add(1);
+    const float result = x + 1.0f;
+    busy_.store(false);
+    return result;
+  }
+
+  std::atomic<int>* overlaps_;
+  mutable std::atomic<bool> busy_{false};
+};
+
+// The driver expression uses reverse() because its block() has always read
+// the argument through coeff() with BlockAccess independent of the argument,
+// so these tests exercise the tiled executor's per-task evaluator copy
+// regardless of how any one evaluator's traits evolve.
+void test_multithread_tiled_stateful_functor() {
+  Tensor<float, 4> in(64, 64, 64, 8);
+  in.setRandom();
+
+  const array<bool, 4> rev = {{false, true, true, false}};
+  Tensor<float, 4> expected(64, 64, 64, 8);
+  expected = (in + 1.0f).reverse(rev);
+
+  std::atomic<int> overlaps(0);
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+  Tensor<float, 4> out(64, 64, 64, 8);
+  out.device(thread_pool_device) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
+
+  VERIFY_IS_EQUAL(overlaps.load(), 0);
+  for (int i = 0; i < out.size(); ++i) {
+    VERIFY_IS_EQUAL(out.data()[i], expected.data()[i]);
+  }
+}
+
+void test_async_multithread_tiled_stateful_functor() {
+  Tensor<float, 4> in(64, 64, 64, 8);
+  in.setRandom();
+
+  const array<bool, 4> rev = {{false, true, true, false}};
+  Tensor<float, 4> expected(64, 64, 64, 8);
+  expected = (in + 1.0f).reverse(rev);
+
+  std::atomic<int> overlaps(0);
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+
+  Tensor<float, 4> out(64, 64, 64, 8);
+  Eigen::Barrier b(1);
+  out.device(thread_pool_device, [&b]() { b.Notify(); }) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
+  b.Wait();
+
+  VERIFY_IS_EQUAL(overlaps.load(), 0);
+  for (int i = 0; i < out.size(); ++i) {
+    VERIFY_IS_EQUAL(out.data()[i], expected.data()[i]);
   }
 }
 
@@ -773,6 +841,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_4(test_multithread_volume_patch());
   CALL_SUBTEST_4(test_async_multithread_volume_patch());
+  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor());
+  CALL_SUBTEST_4(test_async_multithread_tiled_stateful_functor());
 
   CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<ColMajor>());
   CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<RowMajor>());

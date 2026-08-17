@@ -991,6 +991,222 @@ static void test_eval_tensor_chipping_of_bcast() {
                                      [chipped_dims]() { return RandomBlock<Layout, 2>(chipped_dims, 1, 5); });
 }
 
+template <typename T, int Layout>
+static void test_eval_tensor_patch() {
+  DSizes<Index, 3> dims = RandomDims<3>(4, 10);
+  Tensor<T, 3, Layout> input(dims);
+  input.setRandom();
+
+  DSizes<Index, 3> patch_dims;
+  Index num_patches = 1;
+  for (int i = 0; i < 3; ++i) {
+    patch_dims[i] = internal::random<Index>(1, dims[i]);
+    num_patches *= (dims[i] - patch_dims[i] + 1);
+  }
+
+  DSizes<Index, 4> out_dims;
+  if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+    out_dims = DSizes<Index, 4>(patch_dims[0], patch_dims[1], patch_dims[2], num_patches);
+  } else {
+    out_dims = DSizes<Index, 4>(num_patches, patch_dims[0], patch_dims[1], patch_dims[2]);
+  }
+
+  VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
+                                     [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+
+  VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
+                                     [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
+
+  VerifyBlockEvaluator<T, 4, Layout>(input.extract_patches(patch_dims),
+                                     [&out_dims]() { return FixedSizeBlock(out_dims); });
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the patch block path needs no capability bit from its
+  // argument, only coeff().
+  {
+    const array<Index, 3> strides = {{2, 2, 2}};
+    auto strided = input.stride(strides);
+    typedef TensorEvaluator<const decltype(strided), DefaultDevice> StridedEval;
+    static_assert(!StridedEval::BlockAccess && !StridedEval::RawAccess,
+                  "stride() must stay a coeff()-only argument for this check to be meaningful");
+
+    DSizes<Index, 3> strided_dims;
+    DSizes<Index, 3> strided_patch_dims;
+    Index strided_num_patches = 1;
+    for (int i = 0; i < 3; ++i) {
+      strided_dims[i] = (dims[i] - 1) / 2 + 1;
+      strided_patch_dims[i] = internal::random<Index>(1, strided_dims[i]);
+      strided_num_patches *= (strided_dims[i] - strided_patch_dims[i] + 1);
+    }
+    DSizes<Index, 4> strided_out_dims;
+    if (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      strided_out_dims =
+          DSizes<Index, 4>(strided_patch_dims[0], strided_patch_dims[1], strided_patch_dims[2], strided_num_patches);
+    } else {
+      strided_out_dims =
+          DSizes<Index, 4>(strided_num_patches, strided_patch_dims[0], strided_patch_dims[1], strided_patch_dims[2]);
+    }
+
+    auto strided_patch = strided.extract_patches(strided_patch_dims);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the patch block path must dispatch for a coeff()-only argument");
+    VerifyBlockEvaluator<T, 4, Layout>(strided_patch,
+                                       [&strided_out_dims]() { return RandomBlock<Layout>(strided_out_dims, 1, 10); });
+  }
+}
+
+template <typename T, int Layout>
+static void test_eval_tensor_image_patch() {
+  static constexpr bool kColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+  const Index depth = internal::random<Index>(1, 5);
+  const Index rows = internal::random<Index>(6, 12);
+  const Index cols = internal::random<Index>(6, 12);
+  const Index batch = internal::random<Index>(1, 3);
+
+  DSizes<Index, 4> input_dims =
+      kColMajor ? DSizes<Index, 4>(depth, rows, cols, batch) : DSizes<Index, 4>(batch, cols, rows, depth);
+  Tensor<T, 4, Layout> input(input_dims);
+  input.setRandom();
+
+  const Index pr = internal::random<Index>(1, 3);
+  const Index pc = internal::random<Index>(1, 3);
+
+  auto make_out_dims = [&](Index out_r, Index out_c) {
+    return kColMajor ? DSizes<Index, 5>(depth, pr, pc, out_r * out_c, batch)
+                     : DSizes<Index, 5>(batch, out_r * out_c, pc, pr, depth);
+  };
+
+  // No padding, unit strides.
+  {
+    DSizes<Index, 5> out_dims = make_out_dims(rows - pr + 1, cols - pc + 1);
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Same padding with strided patch extraction (blocks contain padding runs).
+  {
+    DSizes<Index, 5> out_dims = make_out_dims(numext::div_ceil(rows, Index(2)), numext::div_ceil(cols, Index(2)));
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 2, 2, 1, 1, PADDING_SAME),
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 2, 2, 1, 1, PADDING_SAME),
+                                       [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Dilated patches (non-unit in-row/in-col strides).
+  {
+    const Index pr_eff = pr + (pr - 1);
+    const Index pc_eff = pc + (pc - 1);
+    DSizes<Index, 5> out_dims = make_out_dims(rows - pr_eff + 1, cols - pc_eff + 1);
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 2, 2, PADDING_VALID),
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(input.extract_image_patches(pr, pc, 1, 1, 2, 2, PADDING_VALID),
+                                       [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Inflated (zero-interleaved) input. Only the long overload can set the
+  // inflate strides, and they are what makes an in-range coordinate land
+  // between samples, which is a branch none of the cases above reach.
+  {
+    const Index rows_eff = (rows - 1) * 2 + 1;
+    const Index cols_eff = (cols - 1) * 2 + 1;
+    DSizes<Index, 5> out_dims = make_out_dims(rows_eff - pr + 1, cols_eff - pc + 1);
+    auto inflated = input.extract_image_patches(pr, pc, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0, T(0));
+    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 5, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the block path needs no capability bit from its argument.
+  {
+    const array<Index, 4> strides = {{1, 2, 2, 1}};
+    auto strided_patch = input.stride(strides).extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the image-patch block path must dispatch for a coeff()-only argument");
+    const Index rows_s = (rows - 1) / 2 + 1;
+    const Index cols_s = (cols - 1) / 2 + 1;
+    DSizes<Index, 5> out_dims = make_out_dims(rows_s - pr + 1, cols_s - pc + 1);
+    VerifyBlockEvaluator<T, 5, Layout>(strided_patch, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+  }
+}
+
+template <typename T, int Layout>
+static void test_eval_tensor_volume_patch() {
+  static constexpr bool kColMajor = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+  const Index depth = internal::random<Index>(1, 4);
+  const Index planes = internal::random<Index>(5, 8);
+  const Index rows = internal::random<Index>(5, 8);
+  const Index cols = internal::random<Index>(5, 8);
+  const Index batch = internal::random<Index>(1, 2);
+
+  DSizes<Index, 5> input_dims = kColMajor ? DSizes<Index, 5>(depth, planes, rows, cols, batch)
+                                          : DSizes<Index, 5>(batch, cols, rows, planes, depth);
+  Tensor<T, 5, Layout> input(input_dims);
+  input.setRandom();
+
+  const Index pp = internal::random<Index>(1, 3);
+  const Index pr = internal::random<Index>(1, 3);
+  const Index pc = internal::random<Index>(1, 3);
+
+  auto make_out_dims = [&](Index out_p, Index out_r, Index out_c) {
+    return kColMajor ? DSizes<Index, 6>(depth, pp, pr, pc, out_p * out_r * out_c, batch)
+                     : DSizes<Index, 6>(batch, out_p * out_r * out_c, pc, pr, pp, depth);
+  };
+
+  // No padding, unit strides.
+  {
+    DSizes<Index, 6> out_dims = make_out_dims(planes - pp + 1, rows - pr + 1, cols - pc + 1);
+    VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return SkewedInnerBlock<Layout>(out_dims); });
+    VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID),
+                                       [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Same padding with strided patch extraction (blocks contain padding runs).
+  {
+    DSizes<Index, 6> out_dims = make_out_dims(numext::div_ceil(planes, Index(2)), numext::div_ceil(rows, Index(2)),
+                                              numext::div_ceil(cols, Index(2)));
+    VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 2, 2, 2, PADDING_SAME),
+                                       [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 6, Layout>(input.extract_volume_patches(pp, pr, pc, 2, 2, 2, PADDING_SAME),
+                                       [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Inflated (zero-interleaved) input, reaching the branch that rejects an
+  // in-range coordinate for landing between samples.
+  {
+    const Index planes_eff = (planes - 1) * 2 + 1;
+    const Index rows_eff = (rows - 1) * 2 + 1;
+    const Index cols_eff = (cols - 1) * 2 + 1;
+    DSizes<Index, 6> out_dims = make_out_dims(planes_eff - pp + 1, rows_eff - pr + 1, cols_eff - pc + 1);
+    auto inflated = input.extract_volume_patches(pp, pr, pc, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, T(0));
+    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+    VerifyBlockEvaluator<T, 6, Layout>(inflated, [&out_dims]() { return FixedSizeBlock(out_dims); });
+  }
+
+  // Dispatch check: stride() serves neither blocks nor raw buffers, so this
+  // pins down that the block path needs no capability bit from its argument.
+  {
+    const array<Index, 5> strides = {{1, 2, 2, 2, 1}};
+    auto strided_patch = input.stride(strides).extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID);
+    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
+                  "the volume-patch block path must dispatch for a coeff()-only argument");
+    const Index planes_s = (planes - 1) / 2 + 1;
+    const Index rows_s = (rows - 1) / 2 + 1;
+    const Index cols_s = (cols - 1) / 2 + 1;
+    DSizes<Index, 6> out_dims = make_out_dims(planes_s - pp + 1, rows_s - pr + 1, cols_s - pc + 1);
+    VerifyBlockEvaluator<T, 6, Layout>(strided_patch, [&out_dims]() { return RandomBlock<Layout>(out_dims, 1, 10); });
+  }
+}
+
 // -------------------------------------------------------------------------- //
 // Verify that assigning block to a Tensor expression produces the same result
 // as an assignment to TensorSliceOp (writing a block is is identical to
@@ -1375,6 +1591,9 @@ EIGEN_DECLARE_TEST(tensor_block_eval) {
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_forced_eval);
   CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_chipping_of_bcast);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(6, test_eval_tensor_inflation);
+  CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_patch);
+  CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_image_patch);
+  CALL_SUBTESTS_LAYOUTS_TYPES(6, test_eval_tensor_volume_patch);
 
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(7, test_assign_to_tensor);
   CALL_SUBTESTS_DIMS_LAYOUTS_TYPES(7, test_assign_to_tensor_reshape);

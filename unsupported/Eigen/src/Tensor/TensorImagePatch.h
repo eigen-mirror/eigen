@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 template <DenseIndex Rows, DenseIndex Cols, typename XprType>
-struct traits<TensorImagePatchOp<Rows, Cols, XprType> > : public traits<XprType> {
+struct traits<TensorImagePatchOp<Rows, Cols, XprType>> : traits<XprType> {
   typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
@@ -166,14 +166,20 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
+    // block() reads the argument one coefficient at a time through coeff() --
+    // the contract the scalar executors already rely on for every evaluator --
+    // so it requires no capability bit from the argument (same as
+    // TensorReverse).
+    BlockAccess = true,
     PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  typedef typename internal::TensorMaterializedBlock<Scalar, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -522,6 +528,155 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     }
 
     return packetWithPossibleZero(index);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    const size_t target_size = m_device.firstLevelCacheSize();
+    // In-bounds output coefficients read the argument once and every output
+    // coefficient is stored once (padding runs make this a slight
+    // over-estimate). Pass the full cost explicitly rather than adding to
+    // skewed()'s default load+store seed, which would double-count the
+    // baseline byte traffic and halve the tile size.
+    const TensorOpCost cost_per_coeff = m_impl.costPerCoeff(/*vectorized=*/false) + TensorOpCost(0, sizeof(Scalar), 0);
+    return internal::TensorBlockResourceRequirements::withShapeAndSize<Scalar>(
+        internal::TensorBlockShapeType::kSkewedInnerDims, target_size, cost_per_coeff);
+  }
+
+  // Materializes the block by iterating patch/col/row coordinates and either
+  // copying the (always input-contiguous) depth run or filling it with the
+  // padding value. All per-coordinate index math and bounds checks are
+  // amortized over a whole depth run instead of paid per coefficient.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
+                                                          bool /*root_of_expr_ast*/ = false) const {
+    constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
+
+    if (desc.size() == 0) {
+      return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
+    }
+
+    typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
+    Scalar* block_buffer = block_storage.data();
+
+    // Output coordinates of the block's corner.
+    const DSizes<Index, NumDims> output_strides = internal::strides<Layout>(m_dimensions);
+    array<Index, NumDims> coords;
+    Index remaining = desc.offset();
+    EIGEN_IF_CONSTEXPR (is_col_major) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        coords[i] = remaining / output_strides[i];
+        remaining -= coords[i] * output_strides[i];
+      }
+      coords[0] = remaining;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        coords[i] = remaining / output_strides[i];
+        remaining -= coords[i] * output_strides[i];
+      }
+      coords[NumDims - 1] = remaining;
+    }
+
+    // Output dimensions: depth, patch row/col offset, 2d patch index, rest.
+    const int dd = is_col_major ? 0 : NumDims - 1;
+    const int rd = is_col_major ? 1 : NumDims - 2;
+    const int cd = is_col_major ? 2 : NumDims - 3;
+    const int pd = is_col_major ? 3 : NumDims - 4;
+
+    const Index depth_start = coords[dd];
+    const Index depth_size = desc.dimension(dd);
+    const Index row_start = coords[rd];
+    const Index row_size = desc.dimension(rd);
+    const Index col_start = coords[cd];
+    const Index col_size = desc.dimension(cd);
+    const Index patch_start = coords[pd];
+    const Index patch_size = desc.dimension(pd);
+
+    // Odometer over the remaining (batch etc.) dimensions, tracking the input
+    // offset they contribute.
+    array<Index, NumDims> other_sizes;
+    array<Index, NumDims> other_src_stride;
+    array<Index, NumDims> other_count;
+    int num_other = 0;
+    Index src_other = 0;
+    {
+      Index in_stride = m_patchInputStride;
+      for (int k = 4; k < NumDims; ++k) {
+        const int d = is_col_major ? k : NumDims - 1 - k;
+        other_sizes[num_other] = desc.dimension(d);
+        other_src_stride[num_other] = in_stride;
+        other_count[num_other] = 0;
+        src_other += coords[d] * in_stride;
+        in_stride *= m_dimensions[d];
+        ++num_other;
+      }
+    }
+
+    typedef internal::StridedLinearBufferCopy<Scalar, Index> LinCopy;
+
+    // The loop nest below visits the block in exactly its memory order (the
+    // storage returned by prepareStorage() is dense with the block's own
+    // layout-order strides), so the destination is one running cursor.
+    Index dst = 0;
+    for (;;) {
+      for (Index p = 0; p < patch_size; ++p) {
+        const Index patch2DIndex = patch_start + p;
+        const Index colIndex = patch2DIndex / m_fastOutputRows;
+        const Index rowIndex = patch2DIndex - colIndex * m_outputRows;
+
+        for (Index c = 0; c < col_size; ++c) {
+          const Index colOffset = col_start + c;
+          const Index inputCol = colIndex * m_col_strides + colOffset * m_in_col_strides - m_colPaddingLeft;
+          Index origInputCol = inputCol;
+          bool col_valid = inputCol >= 0 && inputCol < m_input_cols_eff;
+          if (col_valid && m_col_inflate_strides != 1) {
+            origInputCol = inputCol / m_fastInflateColStride;
+            col_valid = (inputCol == origInputCol * m_col_inflate_strides);
+          }
+
+          for (Index r = 0; r < row_size; ++r) {
+            const Index rowOffset = row_start + r;
+            bool valid = col_valid;
+            Index origInputRow = 0;
+            if (valid) {
+              const Index inputRow = rowIndex * m_row_strides + rowOffset * m_in_row_strides - m_rowPaddingTop;
+              valid = inputRow >= 0 && inputRow < m_input_rows_eff;
+              if (valid) {
+                origInputRow = inputRow;
+                if (m_row_inflate_strides != 1) {
+                  origInputRow = inputRow / m_fastInflateRowStride;
+                  valid = (inputRow == origInputRow * m_row_inflate_strides);
+                }
+              }
+            }
+            if (valid) {
+              const Index src =
+                  depth_start + origInputRow * m_rowInputStride + origInputCol * m_colInputStride + src_other;
+              for (Index d = 0; d < depth_size; ++d) {
+                block_buffer[dst + d] = m_impl.coeff(src + d);
+              }
+            } else {
+              LinCopy::template Run<LinCopy::Kind::FillLinear>(typename LinCopy::Dst(dst, 1, block_buffer),
+                                                               typename LinCopy::Src(0, 0, &m_paddingValue),
+                                                               depth_size);
+            }
+            dst += depth_size;
+          }
+        }
+      }
+
+      int k = 0;
+      for (; k < num_other; ++k) {
+        if (++other_count[k] < other_sizes[k]) {
+          src_other += other_src_stride[k];
+          break;
+        }
+        other_count[k] = 0;
+        src_other -= other_src_stride[k] * (other_sizes[k] - 1);
+      }
+      if (k == num_other) break;
+    }
+    eigen_assert(dst == desc.size());
+
+    return block_storage.AsTensorMaterializedBlock();
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
