@@ -76,6 +76,18 @@ To get an overview of the true relative speed of the different decompositions, c
     </tr>
 
     <tr>
+        <td>RandColPivHouseholderQR</td>
+        <td>-</td>
+        <td>Fast</td>
+        <td>Good</td>
+        <td>Yes</td>
+        <td>Orthogonalization, least squares for overdetermined systems</td>
+        <td>Yes (and does least squares)</td>
+        <td>Good</td>
+        <td>Blocking, randomized pivot selection</td>
+    </tr>
+
+    <tr class="alt">
         <td>FullPivHouseholderQR</td>
         <td>-</td>
         <td>Slow (no blocking)</td>
@@ -123,6 +135,18 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>-</td>
     </tr>
 
+    <tr>
+        <td>BunchKaufman</td>
+        <td>Self-adjoint (possibly indefinite)</td>
+        <td>Very fast</td>
+        <td>Good</td>
+        <td>-</td>
+        <td>Inertia</td>
+        <td>Yes</td>
+        <td>Good</td>
+        <td>Blocking</td>
+    </tr>
+
     <tr><th class="inter" colspan="9">\n Singular values and eigenvalues decompositions</th></tr>
 
     <tr>
@@ -162,6 +186,18 @@ To get an overview of the true relative speed of the different decompositions, c
     </tr>
 
     <tr>
+        <td>TridiagonalEigenSolver</td>
+        <td>Symmetric tridiagonal</td>
+        <td>Fast</td>
+        <td>Good</td>
+        <td>-</td>
+        <td>Eigenvalues/vectors, subsets of the spectrum</td>
+        <td>-</td>
+        <td>Good</td>
+        <td>Vectorization, Explicit MT</td>
+    </tr>
+
+    <tr>
         <td>ComplexEigenSolver</td>
         <td>Square</td>
         <td>Slow-very slow<sup><a href="#note2">2</a></sup></td>
@@ -197,6 +233,18 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>-</td>
     </tr>
 
+    <tr class="alt">
+        <td>GeneralizedEigenSolver</td>
+        <td>Square and real</td>
+        <td>Slow-very slow<sup><a href="#note2">2</a></sup></td>
+        <td>Depends on condition number</td>
+        <td>-</td>
+        <td>Generalized eigenvalues/vectors</td>
+        <td>-</td>
+        <td>Average</td>
+        <td>-</td>
+    </tr>
+
     <tr><th class="inter" colspan="9">\n Helper decompositions</th></tr>
 
     <tr>
@@ -218,6 +266,30 @@ To get an overview of the true relative speed of the different decompositions, c
         <td>Depends on condition number</td>
         <td>-</td>
         <td>-</td>
+        <td>-</td>
+        <td>Average</td>
+        <td>-</td>
+    </tr>
+
+    <tr>
+        <td>RealQZ</td>
+        <td>Square and real (pair of matrices)</td>
+        <td>Average-slow<sup><a href="#note2">2</a></sup></td>
+        <td>Depends on condition number</td>
+        <td>-</td>
+        <td>Generalized eigenvalues of a pencil</td>
+        <td>-</td>
+        <td>Average</td>
+        <td>-</td>
+    </tr>
+
+    <tr class="alt">
+        <td>ComplexQZ</td>
+        <td>Square (pair of matrices)</td>
+        <td>Slow-very slow<sup><a href="#note2">2</a></sup></td>
+        <td>Depends on condition number</td>
+        <td>-</td>
+        <td>Generalized eigenvalues of a pencil</td>
         <td>-</td>
         <td>Average</td>
         <td>-</td>
@@ -263,6 +335,9 @@ The following recommendations apply to the most common use cases:
 \li <b>Symmetric positive definite systems:</b> Use \b LLT. It is the fastest solver and has excellent
     numerical properties for this class of problems. For semidefinite or nearly singular symmetric systems,
     use \b LDLT.
+\li <b>Symmetric indefinite systems:</b> Use \b BunchKaufman. It extends the Cholesky family to
+    indefinite self-adjoint matrices with a backward-stable pivoting strategy at LDLT-like speed,
+    and also reveals the inertia of the matrix.
 \li <b>General invertible systems:</b> Use \b PartialPivLU. It uses cache-friendly blocking and implicit
     multi-threading, making it the fastest general-purpose solver. Partial pivoting is sufficient for
     virtually all practical problems.
