@@ -134,6 +134,144 @@ void product_symm_boundary() {
   }
 }
 
+// Packed-buffer contract: symm_pack_lhs/rhs applied to a stored triangle must
+// be bit-identical to gemm_pack_lhs/rhs applied to the reconstructed dense
+// matrix -- gebp_kernel cannot tell the two apart. Sentinels in the unused
+// triangle catch reads of the wrong half; a marker past the packed range (in
+// both buffers) catches writing too much or too little.
+
+template <typename Scalar>
+Scalar symm_pack_sentinel() {
+  return Scalar(typename NumTraits<Scalar>::Real(98765));
+}
+
+// Build an n x n Hermitian `full` and its triangle-only image `stored`
+// (row >= col valid, sentinel elsewhere).
+template <typename MatrixType>
+void make_stored_triangle(Index n, MatrixType& stored, MatrixType& full) {
+  full = MatrixType::Random(n, n);
+  full = (full + full.adjoint()).eval();
+  stored = MatrixType::Constant(n, n, symm_pack_sentinel<typename MatrixType::Scalar>());
+  stored.template triangularView<Lower>() = full;
+}
+
+// A buffer holding `packed_size` packed entries followed by overrun markers.
+template <typename Scalar>
+Matrix<Scalar, Dynamic, 1> make_marked_buffer(Index packed_size) {
+  return Matrix<Scalar, Dynamic, 1>::Constant(packed_size + 32, Scalar(typename NumTraits<Scalar>::Real(-31415)));
+}
+
+template <typename Scalar, int StorageOrder>
+void check_symm_pack_lhs(Index kc) {
+  using Traits = internal::gebp_traits<Scalar, Scalar>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using Mapper = internal::const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  Mat stored, full;
+  make_stored_triangle<Mat>(kc, stored, full);
+
+  Matrix<Scalar, Dynamic, 1> packed = make_marked_buffer<Scalar>(kc * kc);
+  Matrix<Scalar, Dynamic, 1> ref = packed;
+
+  internal::symm_pack_lhs<Scalar, Index, Traits::mr, Traits::LhsProgress, StorageOrder>()(packed.data(), stored.data(),
+                                                                                          stored.outerStride(), kc, kc);
+  internal::gemm_pack_lhs<Scalar, Index, Mapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing,
+                          StorageOrder, false, false>()(ref.data(), Mapper(full.data(), full.outerStride()), kc, kc);
+  VERIFY_IS_EQUAL(packed, ref);
+}
+
+template <typename Scalar, int StorageOrder>
+void check_symm_pack_rhs(Index n, Index rows, Index k2) {
+  using Traits = internal::gebp_traits<Scalar, Scalar>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using Mapper = internal::const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  Mat stored, full;
+  make_stored_triangle<Mat>(n, stored, full);
+
+  Matrix<Scalar, Dynamic, 1> packed = make_marked_buffer<Scalar>(rows * n);
+  Matrix<Scalar, Dynamic, 1> ref = packed;
+
+  internal::symm_pack_rhs<Scalar, Index, Traits::nr, StorageOrder>()(packed.data(), stored.data(), stored.outerStride(),
+                                                                     rows, n, k2);
+  internal::gemm_pack_rhs<Scalar, Index, Mapper, Traits::nr, StorageOrder, false, false>()(
+      ref.data(), Mapper(full.data(), full.outerStride()).getSubMapper(k2, 0), rows, n);
+  VERIFY_IS_EQUAL(packed, ref);
+}
+
+template <typename Scalar>
+void symm_pack_buffers() {
+  using Traits = internal::gebp_traits<Scalar, Scalar>;
+  constexpr Index mr = Traits::mr;
+  constexpr Index nr = Traits::nr;
+  constexpr Index ps = internal::packet_traits<Scalar>::size;
+
+  // LHS: every panel width up to a full panel plus a packet, then multi-panel
+  // borders around the 2*mr/3*mr transitions and the half-packet tail.
+  for (Index kc = 1; kc <= mr + ps + 2; ++kc) {
+    check_symm_pack_lhs<Scalar, ColMajor>(kc);
+    check_symm_pack_lhs<Scalar, RowMajor>(kc);
+  }
+  const Index lhs_borders[] = {2 * mr - 1, 2 * mr, 2 * mr + 1, 3 * mr, 3 * mr + ps / 2, 3 * mr + ps / 2 + 1, 97};
+  for (Index kc : lhs_borders) {
+    check_symm_pack_lhs<Scalar, ColMajor>(kc);
+    check_symm_pack_lhs<Scalar, RowMajor>(kc);
+  }
+
+  // RHS: sizes on and off the 8/4-column panel grid, with every depth block
+  // the driver's blocking can produce (k2 a multiple of 8; a block ends
+  // 8-aligned or at the matrix edge).
+  const Index rhs_sizes[] = {1,  2,  3,  nr - 1, nr, nr + 1, 2 * nr + 1, 15, 16, 17,
+                             23, 24, 25, 31,     32, 33,     47,         48, 49, 97};
+  for (Index n : rhs_sizes) {
+    if (n < 1) continue;
+    for (Index k2 = 0; k2 < n; k2 += 8) {
+      check_symm_pack_rhs<Scalar, ColMajor>(n, n - k2, k2);
+      check_symm_pack_rhs<Scalar, RowMajor>(n, n - k2, k2);
+      for (Index rows = 8; k2 + rows <= (n / 8) * 8; rows += 8) {
+        check_symm_pack_rhs<Scalar, ColMajor>(n, rows, k2);
+        check_symm_pack_rhs<Scalar, RowMajor>(n, rows, k2);
+      }
+    }
+  }
+}
+
+// A physically RowMajor selfadjoint operand. The symm<> tests above always
+// build ColMajor operands, so without this the RowMajor symm_pack_lhs/rhs
+// instantiations are never reached through the public API.
+template <typename Scalar>
+void symm_rowmajor_operand(Index n, Index m) {
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  RowMat s = RowMat::Random(n, n);
+  s = (s + s.adjoint()).eval();
+  RowMat lo = s.template triangularView<Lower>();
+  RowMat up = s.template triangularView<Upper>();
+  ColMat b = ColMat::Random(n, m), c = ColMat::Random(m, n);
+
+  ColMat ref = ColMat(s) * b;
+  VERIFY_IS_APPROX(ColMat(lo.template selfadjointView<Lower>() * b), ref);
+  VERIFY_IS_APPROX(ColMat(up.template selfadjointView<Upper>() * b), ref);
+  ColMat ref2 = c * ColMat(s);
+  VERIFY_IS_APPROX(ColMat(c * lo.template selfadjointView<Lower>()), ref2);
+  VERIFY_IS_APPROX(ColMat(c * up.template selfadjointView<Upper>()), ref2);
+}
+
+template <int>
+void symm_packers_and_rowmajor_operands() {
+  symm_pack_buffers<float>();
+  symm_pack_buffers<double>();
+  symm_pack_buffers<std::complex<float> >();
+  symm_pack_buffers<std::complex<double> >();
+
+  const Index sizes[] = {1, 2, 7, 8, 9, 24, 25, 31, 32, 33, 47, 48, 49, 65};
+  for (Index n : sizes) {
+    for (Index m : {1, 3, 17}) {
+      symm_rowmajor_operand<float>(n, m);
+      symm_rowmajor_operand<double>(n, m);
+      symm_rowmajor_operand<std::complex<float> >(n, m);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(product_symm) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((symm<float, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
@@ -153,4 +291,7 @@ EIGEN_DECLARE_TEST(product_symm) {
 
   // Deterministic blocking boundary tests (outside g_repeat).
   CALL_SUBTEST_9(product_symm_boundary<0>());
+
+  // Packed-buffer contract checks and RowMajor selfadjoint operands.
+  CALL_SUBTEST_10(symm_packers_and_rowmajor_operands<0>());
 }

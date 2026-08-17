@@ -19,41 +19,55 @@ namespace Eigen {
 namespace internal {
 
 // pack a selfadjoint block diagonal for use with the gebp_kernel
-template <typename Scalar, typename Index, int Pack1, int Pack2_dummy, int StorageOrder>
+//
+// The panel-width schedule and depth-major layout must match gemm_pack_lhs:
+// gebp_kernel cannot tell symm-packed and gemm-packed operands apart. A panel
+// of width bw at row offset i splits at the diagonal: depth [0, i) reads the
+// stored triangle directly, depth [i + bw, cols) reads its conjugated mirror
+// through a transposed-order mapper, and both rectangles delegate to the
+// (vectorized) gemm_pack_lhs; only the bw x bw diagonal band is packed per row.
+template <typename Scalar, typename Index, int Pack1, int Pack2, int StorageOrder>
 struct symm_pack_lhs {
-  template <int BlockRows>
-  inline void pack(Scalar* blockA, const const_blas_data_mapper<Scalar, Index, StorageOrder>& lhs, Index cols, Index i,
-                   Index& count) const {
-    // normal copy
-    for (Index k = 0; k < i; k++)
-      for (Index w = 0; w < BlockRows; w++) blockA[count++] = lhs(i + w, k);  // normal
-    // symmetric copy
-    Index h = 0;
-    for (Index k = i; k < i + BlockRows; k++) {
-      for (Index w = 0; w < h; w++) blockA[count++] = numext::conj(lhs(k, i + w));  // transposed
+  static constexpr int TransposedStorageOrder = StorageOrder == ColMajor ? RowMajor : ColMajor;
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  using PacketType = typename packet_traits<Scalar>::type;
+  using Mapper = const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  using TransposedMapper = const_blas_data_mapper<Scalar, Index, TransposedStorageOrder>;
+  // Pack2 is Traits::LhsProgress, the same value the driver hands its
+  // gemm_pack_lhs for the off-diagonal panels: the diagonal block has to be
+  // packed the way those are, since gebp_kernel consumes them alike.
+  using DirectPacker = gemm_pack_lhs<Scalar, Index, Mapper, Pack1, Pack2, PacketType, StorageOrder, false, false>;
+  using MirroredPacker =
+      gemm_pack_lhs<Scalar, Index, TransposedMapper, Pack1, Pack2, PacketType, TransposedStorageOrder, true, false>;
 
-      blockA[count++] = numext::real(lhs(k, k));  // real (diagonal)
-
-      for (Index w = h + 1; w < BlockRows; w++) blockA[count++] = lhs(i + w, k);  // normal
-      ++h;
+  void pack_panel(Scalar* blockA, const Mapper& lhs, const TransposedMapper& lhs_t, Index cols, Index i, Index bw,
+                  Index& count) const {
+    Scalar* panel = blockA + count;
+    const Index band_end = i + bw;
+    if (i > 0) DirectPacker()(panel, lhs.getSubMapper(i, 0), i, bw);
+    // Diagonal band: row k mirrors its first k - i entries, drops the
+    // imaginary part of the diagonal, and reads the rest directly.
+    for (Index k = i; k < band_end; k++) {
+      Scalar* row = panel + k * bw;
+      const Index h = k - i;
+      for (Index w = 0; w < h; w++) row[w] = numext::conj(lhs(k, i + w));
+      row[h] = numext::real(lhs(k, k));
+      for (Index w = h + 1; w < bw; w++) row[w] = lhs(i + w, k);
     }
-    // transposed copy
-    for (Index k = i + BlockRows; k < cols; k++)
-      for (Index w = 0; w < BlockRows; w++) blockA[count++] = numext::conj(lhs(k, i + w));  // transposed
+    if (cols > band_end) MirroredPacker()(panel + band_end * bw, lhs_t.getSubMapper(i, band_end), cols - band_end, bw);
+    count += bw * numext::maxi(cols, band_end);
   }
-  void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
-    using HalfPacket = typename unpacket_traits<typename packet_traits<Scalar>::type>::half;
-    using QuarterPacket =
-        typename unpacket_traits<typename unpacket_traits<typename packet_traits<Scalar>::type>::half>::half;
-    enum {
-      PacketSize = packet_traits<Scalar>::size,
-      HalfPacketSize = unpacket_traits<HalfPacket>::size,
-      QuarterPacketSize = unpacket_traits<QuarterPacket>::size,
-      HasHalf = (int)HalfPacketSize < (int)PacketSize,
-      HasQuarter = (int)QuarterPacketSize < (int)HalfPacketSize
-    };
 
-    const_blas_data_mapper<Scalar, Index, StorageOrder> lhs(lhs_, lhsStride);
+  void operator()(Scalar* blockA, const Scalar* lhs_, Index lhsStride, Index cols, Index rows) const {
+    using HalfPacket = typename unpacket_traits<PacketType>::half;
+    using QuarterPacket = typename unpacket_traits<HalfPacket>::half;
+    constexpr int HalfPacketSize = unpacket_traits<HalfPacket>::size;
+    constexpr int QuarterPacketSize = unpacket_traits<QuarterPacket>::size;
+    constexpr bool HasHalf = HalfPacketSize < PacketSize;
+    constexpr bool HasQuarter = QuarterPacketSize < HalfPacketSize;
+
+    const Mapper lhs(lhs_, lhsStride);
+    const TransposedMapper lhs_t(lhs_, lhsStride);
     Index count = 0;
 
     const Index peeled_mc3 = Pack1 >= 3 * PacketSize ? (rows / (3 * PacketSize)) * (3 * PacketSize) : 0;
@@ -68,174 +82,104 @@ struct symm_pack_lhs {
             ? peeled_mc_half + ((rows - peeled_mc_half) / (QuarterPacketSize)) * (QuarterPacketSize)
             : 0;
 
-    EIGEN_IF_CONSTEXPR (Pack1 >= 3 * PacketSize)
-      for (Index i = 0; i < peeled_mc3; i += 3 * PacketSize) pack<3 * PacketSize>(blockA, lhs, cols, i, count);
+    auto pack_rows = [&](Index begin, Index end, Index bw) {
+      for (Index i = begin; i < end; i += bw) pack_panel(blockA, lhs, lhs_t, cols, i, bw, count);
+    };
 
-    EIGEN_IF_CONSTEXPR (Pack1 >= 2 * PacketSize)
-      for (Index i = peeled_mc3; i < peeled_mc2; i += 2 * PacketSize) pack<2 * PacketSize>(blockA, lhs, cols, i, count);
-
-    EIGEN_IF_CONSTEXPR (Pack1 >= 1 * PacketSize)
-      for (Index i = peeled_mc2; i < peeled_mc1; i += 1 * PacketSize) pack<1 * PacketSize>(blockA, lhs, cols, i, count);
-
-    EIGEN_IF_CONSTEXPR (HasHalf && Pack1 >= HalfPacketSize)
-      for (Index i = peeled_mc1; i < peeled_mc_half; i += HalfPacketSize)
-        pack<HalfPacketSize>(blockA, lhs, cols, i, count);
-
+    EIGEN_IF_CONSTEXPR (Pack1 >= 3 * PacketSize) pack_rows(0, peeled_mc3, 3 * PacketSize);
+    EIGEN_IF_CONSTEXPR (Pack1 >= 2 * PacketSize) pack_rows(peeled_mc3, peeled_mc2, 2 * PacketSize);
+    EIGEN_IF_CONSTEXPR (Pack1 >= 1 * PacketSize) pack_rows(peeled_mc2, peeled_mc1, 1 * PacketSize);
+    EIGEN_IF_CONSTEXPR (HasHalf && Pack1 >= HalfPacketSize) pack_rows(peeled_mc1, peeled_mc_half, HalfPacketSize);
     EIGEN_IF_CONSTEXPR (HasQuarter && Pack1 >= QuarterPacketSize)
-      for (Index i = peeled_mc_half; i < peeled_mc_quarter; i += QuarterPacketSize)
-        pack<QuarterPacketSize>(blockA, lhs, cols, i, count);
+      pack_rows(peeled_mc_half, peeled_mc_quarter, QuarterPacketSize);
 
     // do the same with mr==1
-    for (Index i = peeled_mc_quarter; i < rows; i++) {
-      for (Index k = 0; k < i; k++) blockA[count++] = lhs(i, k);  // normal
-
-      blockA[count++] = numext::real(lhs(i, i));  // real (diagonal)
-
-      for (Index k = i + 1; k < cols; k++) blockA[count++] = numext::conj(lhs(k, i));  // transposed
-    }
+    pack_rows(peeled_mc_quarter, rows, 1);
   }
 };
 
 template <typename Scalar, typename Index, int nr, int StorageOrder>
 struct symm_pack_rhs {
-  enum { PacketSize = packet_traits<Scalar>::size };
+  static constexpr int TransposedStorageOrder = StorageOrder == ColMajor ? RowMajor : ColMajor;
+  using Mapper = const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  using TransposedMapper = const_blas_data_mapper<Scalar, Index, TransposedStorageOrder>;
+  using DirectPacker = gemm_pack_rhs<Scalar, Index, Mapper, nr, StorageOrder, false, false>;
+  using MirroredPacker = gemm_pack_rhs<Scalar, Index, TransposedMapper, nr, TransposedStorageOrder, true, false>;
+
+  // One nr-wide panel the diagonal crosses: a conjugated-mirror head above the
+  // diagonal, the Width x Width band packed per row, and a direct tail below.
+  template <int Width>
+  void pack_diagonal_panel(Scalar* blockB, const Mapper& rhs, const TransposedMapper& rhs_t, Index k2, Index end_k,
+                           Index j2, Index& count) const {
+    const Index band_end = j2 + Width;
+    if (j2 > k2) {
+      MirroredPacker()(blockB + count, rhs_t.getSubMapper(k2, j2), j2 - k2, Width);
+      count += Width * (j2 - k2);
+    }
+    for (Index k = j2; k < band_end; k++) {
+      Scalar* row = blockB + count;
+      const Index h = k - j2;
+      for (Index w = 0; w < h; w++) row[w] = rhs(k, j2 + w);
+      row[h] = numext::real(rhs(k, k));
+      for (Index w = h + 1; w < Width; w++) row[w] = numext::conj(rhs(j2 + w, k));
+      count += Width;
+    }
+    if (end_k > band_end) {
+      DirectPacker()(blockB + count, rhs.getSubMapper(band_end, j2), end_k - band_end, Width);
+      count += Width * (end_k - band_end);
+    }
+  }
+
   void operator()(Scalar* blockB, const Scalar* rhs_, Index rhsStride, Index rows, Index cols, Index k2) const {
-    Index end_k = k2 + rows;
+    const Index end_k = k2 + rows;
+    const Mapper rhs(rhs_, rhsStride);
+    const TransposedMapper rhs_t(rhs_, rhsStride);
     Index count = 0;
-    const_blas_data_mapper<Scalar, Index, StorageOrder> rhs(rhs_, rhsStride);
-    Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
-    Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
+    const Index packet_cols8 = nr >= 8 ? (cols / 8) * 8 : 0;
+    const Index packet_cols4 = nr >= 4 ? (cols / 4) * 4 : 0;
 
-    // first part: normal case
-    for (Index j2 = 0; j2 < k2; j2 += nr) {
-      for (Index k = k2; k < end_k; k++) {
-        blockB[count + 0] = rhs(k, j2 + 0);
-        blockB[count + 1] = rhs(k, j2 + 1);
-        EIGEN_IF_CONSTEXPR (nr >= 4) {
-          blockB[count + 2] = rhs(k, j2 + 2);
-          blockB[count + 3] = rhs(k, j2 + 3);
-        }
-        EIGEN_IF_CONSTEXPR (nr >= 8) {
-          blockB[count + 4] = rhs(k, j2 + 4);
-          blockB[count + 5] = rhs(k, j2 + 5);
-          blockB[count + 6] = rhs(k, j2 + 6);
-          blockB[count + 7] = rhs(k, j2 + 7);
-        }
-        count += nr;
-      }
+    // first part: whole panels left of the diagonal block, read directly.
+    // k2 is a multiple of the panel width (blocking rounds kc to a multiple
+    // of 8), so this region and the delegate lie on the same panel grid.
+    // The delegates re-derive that grid from the extent they are handed, so a
+    // k2 or end_k off the grid would silently pack a correctly sized buffer
+    // with the wrong panel shape.
+    eigen_internal_assert(k2 % nr == 0);
+    eigen_internal_assert(end_k % nr == 0 || end_k == cols);
+    if (k2 > 0) {
+      DirectPacker()(blockB, rhs.getSubMapper(k2, 0), rows, k2);
+      count += k2 * rows;
     }
 
-    // second part: diagonal block
-    Index end8 = nr >= 8 ? (std::min)(k2 + rows, packet_cols8) : k2;
+    // second part: the panels the diagonal block crosses
+    const Index end8 = nr >= 8 ? numext::mini(end_k, packet_cols8) : k2;
+    const Index end4 = numext::mini(end_k, packet_cols4);
     EIGEN_IF_CONSTEXPR (nr >= 8) {
-      for (Index j2 = k2; j2 < end8; j2 += 8) {
-        // again we can split vertically in three different parts (transpose, symmetric, normal)
-        // transpose
-        for (Index k = k2; k < j2; k++) {
-          blockB[count + 0] = numext::conj(rhs(j2 + 0, k));
-          blockB[count + 1] = numext::conj(rhs(j2 + 1, k));
-          blockB[count + 2] = numext::conj(rhs(j2 + 2, k));
-          blockB[count + 3] = numext::conj(rhs(j2 + 3, k));
-          blockB[count + 4] = numext::conj(rhs(j2 + 4, k));
-          blockB[count + 5] = numext::conj(rhs(j2 + 5, k));
-          blockB[count + 6] = numext::conj(rhs(j2 + 6, k));
-          blockB[count + 7] = numext::conj(rhs(j2 + 7, k));
-          count += 8;
-        }
-        // symmetric
-        Index h = 0;
-        for (Index k = j2; k < j2 + 8; k++) {
-          // normal
-          for (Index w = 0; w < h; ++w) blockB[count + w] = rhs(k, j2 + w);
+      for (Index j2 = k2; j2 < end8; j2 += 8) pack_diagonal_panel<8>(blockB, rhs, rhs_t, k2, end_k, j2, count);
+    }
+    EIGEN_IF_CONSTEXPR (nr >= 4) {
+      for (Index j2 = end8; j2 < end4; j2 += 4) pack_diagonal_panel<4>(blockB, rhs, rhs_t, k2, end_k, j2, count);
+    }
 
-          blockB[count + h] = numext::real(rhs(k, k));
-
-          // transpose
-          for (Index w = h + 1; w < 8; ++w) blockB[count + w] = numext::conj(rhs(j2 + w, k));
-          count += 8;
-          ++h;
-        }
-        // normal
-        for (Index k = j2 + 8; k < end_k; k++) {
-          blockB[count + 0] = rhs(k, j2 + 0);
-          blockB[count + 1] = rhs(k, j2 + 1);
-          blockB[count + 2] = rhs(k, j2 + 2);
-          blockB[count + 3] = rhs(k, j2 + 3);
-          blockB[count + 4] = rhs(k, j2 + 4);
-          blockB[count + 5] = rhs(k, j2 + 5);
-          blockB[count + 6] = rhs(k, j2 + 6);
-          blockB[count + 7] = rhs(k, j2 + 7);
-          count += 8;
-        }
+    // third part: whole panels right of the diagonal block, read mirrored
+    EIGEN_IF_CONSTEXPR (nr >= 8) {
+      if (packet_cols8 > end_k) {
+        MirroredPacker()(blockB + count, rhs_t.getSubMapper(k2, end_k), rows, packet_cols8 - end_k);
+        count += rows * (packet_cols8 - end_k);
       }
     }
     EIGEN_IF_CONSTEXPR (nr >= 4) {
-      for (Index j2 = end8; j2 < (std::min)(k2 + rows, packet_cols4); j2 += 4) {
-        // again we can split vertically in three different parts (transpose, symmetric, normal)
-        // transpose
-        for (Index k = k2; k < j2; k++) {
-          blockB[count + 0] = numext::conj(rhs(j2 + 0, k));
-          blockB[count + 1] = numext::conj(rhs(j2 + 1, k));
-          blockB[count + 2] = numext::conj(rhs(j2 + 2, k));
-          blockB[count + 3] = numext::conj(rhs(j2 + 3, k));
-          count += 4;
-        }
-        // symmetric
-        Index h = 0;
-        for (Index k = j2; k < j2 + 4; k++) {
-          // normal
-          for (Index w = 0; w < h; ++w) blockB[count + w] = rhs(k, j2 + w);
-
-          blockB[count + h] = numext::real(rhs(k, k));
-
-          // transpose
-          for (Index w = h + 1; w < 4; ++w) blockB[count + w] = numext::conj(rhs(j2 + w, k));
-          count += 4;
-          ++h;
-        }
-        // normal
-        for (Index k = j2 + 4; k < end_k; k++) {
-          blockB[count + 0] = rhs(k, j2 + 0);
-          blockB[count + 1] = rhs(k, j2 + 1);
-          blockB[count + 2] = rhs(k, j2 + 2);
-          blockB[count + 3] = rhs(k, j2 + 3);
-          count += 4;
-        }
-      }
-    }
-
-    // third part: transposed
-    EIGEN_IF_CONSTEXPR (nr >= 8) {
-      for (Index j2 = k2 + rows; j2 < packet_cols8; j2 += 8) {
-        for (Index k = k2; k < end_k; k++) {
-          blockB[count + 0] = numext::conj(rhs(j2 + 0, k));
-          blockB[count + 1] = numext::conj(rhs(j2 + 1, k));
-          blockB[count + 2] = numext::conj(rhs(j2 + 2, k));
-          blockB[count + 3] = numext::conj(rhs(j2 + 3, k));
-          blockB[count + 4] = numext::conj(rhs(j2 + 4, k));
-          blockB[count + 5] = numext::conj(rhs(j2 + 5, k));
-          blockB[count + 6] = numext::conj(rhs(j2 + 6, k));
-          blockB[count + 7] = numext::conj(rhs(j2 + 7, k));
-          count += 8;
-        }
-      }
-    }
-    EIGEN_IF_CONSTEXPR (nr >= 4) {
-      for (Index j2 = (std::max)(packet_cols8, k2 + rows); j2 < packet_cols4; j2 += 4) {
-        for (Index k = k2; k < end_k; k++) {
-          blockB[count + 0] = numext::conj(rhs(j2 + 0, k));
-          blockB[count + 1] = numext::conj(rhs(j2 + 1, k));
-          blockB[count + 2] = numext::conj(rhs(j2 + 2, k));
-          blockB[count + 3] = numext::conj(rhs(j2 + 3, k));
-          count += 4;
-        }
+      const Index j3 = numext::maxi(packet_cols8, end_k);
+      if (packet_cols4 > j3) {
+        MirroredPacker()(blockB + count, rhs_t.getSubMapper(k2, j3), rows, packet_cols4 - j3);
+        count += rows * (packet_cols4 - j3);
       }
     }
 
     // copy the remaining columns one at a time (=> the same with nr==1)
     for (Index j2 = packet_cols4; j2 < cols; ++j2) {
       // transpose
-      Index half = (std::min)(end_k, j2);
+      Index half = numext::mini(end_k, j2);
       for (Index k = k2; k < half; k++) {
         blockB[count] = numext::conj(rhs(j2, k));
         count += 1;
