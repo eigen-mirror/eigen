@@ -2742,7 +2742,11 @@ than the input. Unlike `unaryExpr()` which is element-wise, `customOp()`
 gives full control over how the output is computed.
 
 The functor must implement:
-- `dimensions(const InputType& input)` — returns the output dimensions.
+- `dimensions(const InputType& input)` — returns the output dimensions. Its
+  return type (e.g. `DSizes<Index, Rank>`) determines the rank of the result;
+  its index type must be the expression's index type, or one that promotes to
+  it. Only the shape is functor-controlled: the scalar type and layout of the
+  result are inherited from the input expression(s).
 - `eval(const InputType& input, OutputType& output, const Device& device)` —
   computes the result.
 
@@ -2765,6 +2769,26 @@ Eigen::Tensor<float, 2> a(3, 4);
 a.setRandom();
 Eigen::Tensor<float, 1> row_sums = a.customOp(RowSumOp());
 ```
+
+`InputType` is whatever expression `customOp()` was applied to (both operands,
+in the binary form) and need not be a plain tensor or map. A lazy expression
+does not expose `dimension()`/`dimensions()`, so compute the sizes with a
+`TensorEvaluator`, whose constructor determines the dimensions without
+evaluating the expression:
+
+```cpp
+template <typename Input>
+Eigen::DSizes<Eigen::Index, 1> dimensions(const Input& input) const {
+  Eigen::DefaultDevice device;
+  Eigen::TensorEvaluator<const Input, Eigen::DefaultDevice> eval(input, device);
+  return Eigen::DSizes<Eigen::Index, 1>(eval.dimensions()[0]);
+}
+```
+
+Do not materialize the input (e.g. through a `TensorRef` or by converting it
+to a `Tensor`) just to read its size: that evaluates the whole expression on
+the host, and with a non-default device it would touch device memory from the
+host.
 
 A binary variant is also available:
 ```cpp

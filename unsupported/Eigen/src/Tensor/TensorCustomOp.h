@@ -22,7 +22,17 @@ struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::StorageKind StorageKind;
   typedef typename XprType::Index Index;
-  static constexpr int NumDimensions = traits<XprType>::NumDimensions;
+  // The functor's dimensions() determines the output shape, so the rank of the
+  // result may differ from the rank of the input. The argument is spelled
+  // exactly as in the evaluator's call so both resolve to the same overload.
+  using CustomDimensions = remove_all_t<decltype(std::declval<const CustomUnaryFunc&>().dimensions(
+      std::declval<const remove_all_t<typename XprType::Nested>&>()))>;
+  static constexpr ptrdiff_t CustomRank = array_size<CustomDimensions>::value;
+  static_assert(CustomRank >= 0,
+                "The dimensions() method of a custom tensor functor must return a fixed-rank "
+                "array-like type such as DSizes<Index, Rank>.");
+  // Clamped so a failed assertion doesn't cascade into DSizes<Index, -1> errors.
+  static constexpr int NumDimensions = CustomRank < 0 ? 1 : static_cast<int>(CustomRank);
   static constexpr int Layout = traits<XprType>::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
   enum { Flags = 0 };
@@ -99,10 +109,9 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
+  // The functor's dimensions() may return an index type that promotes to Index.
   EIGEN_STRONG_INLINE TensorEvaluator(const ArgType& op, const Device& device)
-      : m_op(op), m_device(device), m_result(nullptr) {
-    m_dimensions = op.func().dimensions(op.expression());
-  }
+      : m_dimensions(op.func().dimensions(op.expression())), m_op(op), m_device(device), m_result(nullptr) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
@@ -112,7 +121,7 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
       return false;
     } else {
       m_result = static_cast<EvaluatorPointerType>(
-          m_device.get((CoeffReturnType*)m_device.allocate_temp(dimensions().TotalSize() * sizeof(Scalar))));
+          m_device.get((CoeffReturnType*)m_device.allocate_temp(dimensions().TotalSize() * sizeof(CoeffReturnType))));
       evalTo(m_result);
       return true;
     }
@@ -178,7 +187,18 @@ struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
                                         typename traits<RhsXprType>::StorageKind>::ret StorageKind;
   typedef
       typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
-  static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
+  // The functor's dimensions() determines the output shape, so the rank of the
+  // result may differ from the ranks of the inputs. The arguments are spelled
+  // exactly as in the evaluator's call so both resolve to the same overload.
+  using CustomDimensions = remove_all_t<decltype(std::declval<const CustomBinaryFunc&>().dimensions(
+      std::declval<const remove_all_t<typename LhsXprType::Nested>&>(),
+      std::declval<const remove_all_t<typename RhsXprType::Nested>&>()))>;
+  static constexpr ptrdiff_t CustomRank = array_size<CustomDimensions>::value;
+  static_assert(CustomRank >= 0,
+                "The dimensions() method of a custom tensor functor must return a fixed-rank "
+                "array-like type such as DSizes<Index, Rank>.");
+  // Clamped so a failed assertion doesn't cascade into DSizes<Index, -1> errors.
+  static constexpr int NumDimensions = CustomRank < 0 ? 1 : static_cast<int>(CustomRank);
   static constexpr int Layout = traits<LhsXprType>::Layout;
   typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
                              typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>
@@ -260,10 +280,12 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
   //===--------------------------------------------------------------------===//
 
+  // The functor's dimensions() may return an index type that promotes to Index.
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
-      : m_op(op), m_device(device), m_result(nullptr) {
-    m_dimensions = op.func().dimensions(op.lhsExpression(), op.rhsExpression());
-  }
+      : m_dimensions(op.func().dimensions(op.lhsExpression(), op.rhsExpression())),
+        m_op(op),
+        m_device(device),
+        m_result(nullptr) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
@@ -312,7 +334,14 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
 
  protected:
   void evalTo(EvaluatorPointerType data) {
-    TensorMap<Tensor<CoeffReturnType, NumDims, Layout> > result(m_device.get(data), m_dimensions);
+    // The Output type handed to eval() is a compatibility surface: functors are
+    // compiled against a DenseIndex-typed map, so widen its index type only
+    // when the expressions' promoted Index is strictly wider than DenseIndex.
+    // DenseIndex must stay the first argument: promote_index_type keeps that
+    // one on a tie, which preserves the map type for equal-width distinct
+    // index types such as long long versus long.
+    using MapIndex = typename internal::promote_index_type<DenseIndex, Index>::type;
+    TensorMap<Tensor<CoeffReturnType, NumDims, Layout, MapIndex> > result(m_device.get(data), m_dimensions);
     m_op.func().eval(m_op.lhsExpression(), m_op.rhsExpression(), result, m_device);
   }
 

@@ -214,6 +214,190 @@ static void test_custom_op_block_access() {
   }
 }
 
+struct RowSumOp {
+  // The rank-changing functor from the customOp() documentation example.
+  template <typename Input>
+  DSizes<Index, 1> dimensions(const Input& input) const {
+    return DSizes<Index, 1>(input.dimension(0));
+  }
+
+  template <typename Input, typename Output, typename Device>
+  void eval(const Input& input, Output& output, const Device& device) const {
+    array<Index, 1> reduce_dims{{1}};
+    output.device(device) = input.sum(reduce_dims);
+  }
+};
+
+struct RowSumExprOp {
+  // Rank-changing functor accepting arbitrary input expressions. Lazy
+  // expressions do not expose dimension(), so sizes are computed with a
+  // TensorEvaluator, whose constructor determines the dimensions without
+  // evaluating the expression.
+  template <typename Input>
+  DSizes<Index, 1> dimensions(const Input& input) const {
+    DefaultDevice device;
+    TensorEvaluator<const Input, DefaultDevice> eval(input, device);
+    return DSizes<Index, 1>(eval.dimensions()[0]);
+  }
+
+  template <typename Input, typename Output, typename Device>
+  void eval(const Input& input, Output& output, const Device& device) const {
+    array<Index, 1> reduce_dims{{1}};
+    output.device(device) = input.sum(reduce_dims);
+  }
+};
+
+template <int DataLayout>
+static void test_custom_unary_op_output_rank() {
+  // Regression test for issue #3106: the output rank must come from the
+  // functor's dimensions() method, not from the input expression.
+  Tensor<float, 2, DataLayout> tensor(3, 5);
+  tensor.setRandom();
+
+  Tensor<float, 1, DataLayout> row_sums = tensor.customOp(RowSumOp());
+  VERIFY_IS_EQUAL(row_sums.dimension(0), 3);
+  for (Index i = 0; i < 3; ++i) {
+    float expected = 0.0f;
+    for (Index j = 0; j < 5; ++j) {
+      expected += tensor(i, j);
+    }
+    VERIFY_IS_APPROX(row_sums(i), expected);
+  }
+
+  // The input may be an arbitrary expression rather than a plain tensor.
+  Tensor<float, 1, DataLayout> doubled_row_sums = (tensor + tensor).customOp(RowSumExprOp());
+  VERIFY_IS_EQUAL(doubled_row_sums.dimension(0), 3);
+  for (Index i = 0; i < 3; ++i) {
+    VERIFY_IS_APPROX(doubled_row_sums(i), 2.0f * row_sums(i));
+  }
+}
+
+struct OuterProductOp {
+  template <typename Lhs, typename Rhs>
+  DSizes<Index, 2> dimensions(const Lhs& lhs, const Rhs& rhs) const {
+    return DSizes<Index, 2>(lhs.dimension(0), rhs.dimension(0));
+  }
+
+  template <typename Lhs, typename Rhs, typename Output, typename Device>
+  void eval(const Lhs& lhs, const Rhs& rhs, Output& output, const Device& device) const {
+    const array<IndexPair<Index>, 0> contract_dims{};
+    output.device(device) = lhs.contract(rhs, contract_dims);
+  }
+};
+
+template <typename OuterTensor, typename VectorTensor>
+static void verify_outer_product(const OuterTensor& outer, const VectorTensor& lhs, const VectorTensor& rhs) {
+  using OuterIndex = typename OuterTensor::Index;
+  VERIFY_IS_EQUAL(outer.dimension(0), lhs.dimension(0));
+  VERIFY_IS_EQUAL(outer.dimension(1), rhs.dimension(0));
+  for (OuterIndex i = 0; i < outer.dimension(0); ++i) {
+    for (OuterIndex j = 0; j < outer.dimension(1); ++j) {
+      VERIFY_IS_APPROX(outer(i, j), lhs(i) * rhs(j));
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_custom_binary_op_output_rank() {
+  Tensor<float, 1, DataLayout> lhs(3);
+  Tensor<float, 1, DataLayout> rhs(4);
+  lhs.setRandom();
+  rhs.setRandom();
+
+  Tensor<float, 2, DataLayout> outer = lhs.customOp(rhs, OuterProductOp());
+  verify_outer_product(outer, lhs, rhs);
+}
+
+struct OuterProductIntIndexOp {
+  // Returns dimensions with index type int regardless of the expressions'
+  // index type.
+  template <typename Lhs, typename Rhs>
+  DSizes<int, 2> dimensions(const Lhs& lhs, const Rhs& rhs) const {
+    return DSizes<int, 2>(static_cast<int>(lhs.dimension(0)), static_cast<int>(rhs.dimension(0)));
+  }
+
+  template <typename Lhs, typename Rhs, typename Output, typename Device>
+  void eval(const Lhs& lhs, const Rhs& rhs, Output& output, const Device& device) const {
+    const array<IndexPair<typename Lhs::Index>, 0> contract_dims{};
+    output.device(device) = lhs.contract(rhs, contract_dims);
+  }
+};
+
+template <int DataLayout>
+static void test_custom_binary_op_custom_index() {
+  // Operands with a non-default index type: their DSizes<int, ...> dimensions
+  // are promoted into the evaluator's Dimensions and output map.
+  Tensor<float, 1, DataLayout, int> lhs(3);
+  Tensor<float, 1, DataLayout, int> rhs(4);
+  lhs.setRandom();
+  rhs.setRandom();
+
+  Tensor<float, 2, DataLayout, int> outer = lhs.customOp(rhs, OuterProductIntIndexOp());
+  verify_outer_product(outer, lhs, rhs);
+
+  // The functor may also return dimensions with a narrower index type than the
+  // expressions'; the evaluator promotes them.
+  Tensor<float, 1, DataLayout> lhs_default(3);
+  Tensor<float, 1, DataLayout> rhs_default(4);
+  lhs_default.setRandom();
+  rhs_default.setRandom();
+
+  Tensor<float, 2, DataLayout> outer_default = lhs_default.customOp(rhs_default, OuterProductIntIndexOp());
+  verify_outer_product(outer_default, lhs_default, rhs_default);
+}
+
+// An index type as wide as DenseIndex but distinct from it where the platform
+// provides one (long long versus long on LP64), so the output map's index type
+// is pinned on a width tie and not just when the operands are narrower.
+using EqualWidthIndex =
+    std::conditional_t<sizeof(long long) == sizeof(DenseIndex) && !std::is_same<long long, DenseIndex>::value,
+                       long long,
+                       std::conditional_t<sizeof(long) == sizeof(DenseIndex) && !std::is_same<long, DenseIndex>::value,
+                                          long, DenseIndex> >;
+
+template <int DataLayout, typename IndexType>
+struct AddExactOutput {
+  DSizes<IndexType, 2> dimensions(const Tensor<float, 2, DataLayout, IndexType>& lhs,
+                                  const Tensor<float, 2, DataLayout, IndexType>&) const {
+    return DSizes<IndexType, 2>(lhs.dimension(0), lhs.dimension(1));
+  }
+
+  // eval() spells out the exact Output type the evaluator constructs: the
+  // DenseIndex-typed map, for any operand index type no wider than DenseIndex.
+  template <typename Device>
+  void eval(const Tensor<float, 2, DataLayout, IndexType>& lhs, const Tensor<float, 2, DataLayout, IndexType>& rhs,
+            TensorMap<Tensor<float, 2, DataLayout> >& output, const Device& device) const {
+    output.device(device) = lhs + rhs;
+  }
+};
+
+template <int DataLayout, typename IndexType>
+static void verify_exact_output_type() {
+  Tensor<float, 2, DataLayout, IndexType> lhs(3, 4);
+  Tensor<float, 2, DataLayout, IndexType> rhs(3, 4);
+  lhs.setRandom();
+  rhs.setRandom();
+
+  Tensor<float, 2, DataLayout, IndexType> sum = lhs.customOp(rhs, AddExactOutput<DataLayout, IndexType>());
+  VERIFY_IS_EQUAL(sum.dimension(0), 3);
+  VERIFY_IS_EQUAL(sum.dimension(1), 4);
+  for (IndexType i = 0; i < 3; ++i) {
+    for (IndexType j = 0; j < 4; ++j) {
+      VERIFY_IS_APPROX(sum(i, j), lhs(i, j) + rhs(i, j));
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_custom_binary_op_exact_output_type() {
+  // The Output parameter of eval() is a user customization point: functors
+  // written against the concrete DenseIndex-typed TensorMap must keep
+  // compiling for operand index types no wider than DenseIndex, including a
+  // distinct type of the same width.
+  verify_exact_output_type<DataLayout, int>();
+  verify_exact_output_type<DataLayout, EqualWidthIndex>();
+}
+
 EIGEN_DECLARE_TEST(tensor_custom_op) {
   CALL_SUBTEST(test_custom_unary_op());
   CALL_SUBTEST(test_custom_binary_op());
@@ -221,4 +405,12 @@ EIGEN_DECLARE_TEST(tensor_custom_op) {
   CALL_SUBTEST(test_custom_op_raw_access<RowMajor>());
   CALL_SUBTEST(test_custom_op_block_access<ColMajor>());
   CALL_SUBTEST(test_custom_op_block_access<RowMajor>());
+  CALL_SUBTEST(test_custom_unary_op_output_rank<ColMajor>());
+  CALL_SUBTEST(test_custom_unary_op_output_rank<RowMajor>());
+  CALL_SUBTEST(test_custom_binary_op_output_rank<ColMajor>());
+  CALL_SUBTEST(test_custom_binary_op_output_rank<RowMajor>());
+  CALL_SUBTEST(test_custom_binary_op_custom_index<ColMajor>());
+  CALL_SUBTEST(test_custom_binary_op_custom_index<RowMajor>());
+  CALL_SUBTEST(test_custom_binary_op_exact_output_type<ColMajor>());
+  CALL_SUBTEST(test_custom_binary_op_exact_output_type<RowMajor>());
 }
