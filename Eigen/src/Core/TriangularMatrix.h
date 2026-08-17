@@ -143,10 +143,23 @@ class TriangularBase : public EigenBase<Derived> {
     return derived() = DenseMatrixType::Identity(rows(), cols());
   }
 
+  /** \returns the coefficient of the \em underlying expression at position (\a row, \a col).
+   *
+   * \warning This is raw storage access: the unit diagonal of \c UnitLower / \c UnitUpper and the
+   * structural zeros of the view are \em not synthesized, so for coordinates outside the part
+   * referenced by \c Mode the stored value is returned as-is. Only evaluation of the view — for
+   * example assigning it to a dense matrix or calling toDenseMatrix() — produces the mathematical
+   * coefficients implied by \c Mode.
+   */
   EIGEN_DEVICE_FUNC inline Scalar coeff(Index row, Index col) const {
     check_coordinates_internal(row, col);
     return derived().nestedExpression().coeff(row, col);
   }
+  /** \returns a reference to the coefficient of the underlying expression at position (\a row, \a col).
+   *
+   * \warning See the warning of coeff(Index,Index): the unit diagonal and structural zeros of the
+   * view are not represented in storage and cannot be referenced.
+   */
   EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index col) {
     EIGEN_STATIC_ASSERT_LVALUE(Derived);
     check_coordinates_internal(row, col);
@@ -160,10 +173,15 @@ class TriangularBase : public EigenBase<Derived> {
     coeffRef(row, col) = other.coeff(row, col);
   }
 
+  /** Like coeff(Index,Index), but asserts (in debug builds) that (\a row, \a col) lies inside the
+   * part referenced by \c Mode; for \c UnitLower / \c UnitUpper and the strictly triangular modes
+   * that excludes the diagonal, whose implicit values are not stored. */
   EIGEN_DEVICE_FUNC inline Scalar operator()(Index row, Index col) const {
     check_coordinates(row, col);
     return coeff(row, col);
   }
+  /** Like coeffRef(Index,Index), but asserts (in debug builds) that (\a row, \a col) lies inside
+   * the part referenced by \c Mode. */
   EIGEN_DEVICE_FUNC inline Scalar& operator()(Index row, Index col) {
     check_coordinates(row, col);
     return coeffRef(row, col);
