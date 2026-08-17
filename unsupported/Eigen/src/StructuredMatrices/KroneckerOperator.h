@@ -334,19 +334,19 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     eigen_assert(m_A.size() > 0 && m_B.size() > 0 && "KroneckerOperator factors must be non-empty");
   }
 
-  /** \overload for a diagonal left factor, stored as its diagonal. */
+  /** Builds the operator from a diagonal left factor, which is stored as its diagonal. */
   template <typename LhsDerived, typename RhsDerived>
   KroneckerOperator(const DiagonalBase<LhsDerived>& a, const MatrixBase<RhsDerived>& b) : m_A(a), m_B(b) {
     eigen_assert(m_A.size() > 0 && m_B.size() > 0 && "KroneckerOperator factors must be non-empty");
   }
 
-  /** \overload for a diagonal right factor, stored as its diagonal. */
+  /** Builds the operator from a diagonal right factor, which is stored as its diagonal. */
   template <typename LhsDerived, typename RhsDerived>
   KroneckerOperator(const MatrixBase<LhsDerived>& a, const DiagonalBase<RhsDerived>& b) : m_A(a), m_B(b) {
     eigen_assert(m_A.size() > 0 && m_B.size() > 0 && "KroneckerOperator factors must be non-empty");
   }
 
-  /** \overload for two diagonal factors (the operator itself is then diagonal). */
+  /** Builds the operator from two diagonal factors; the operator itself is then diagonal. */
   template <typename LhsDerived, typename RhsDerived>
   KroneckerOperator(const DiagonalBase<LhsDerived>& a, const DiagonalBase<RhsDerived>& b) : m_A(a), m_B(b) {
     eigen_assert(m_A.size() > 0 && m_B.size() > 0 && "KroneckerOperator factors must be non-empty");
@@ -808,21 +808,25 @@ KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainOb
   return {a.derived(), b.derived()};
 }
 
-/** \overload for a diagonal left factor. */
+/** \ingroup StructuredMatrices_Module
+ * \returns a \ref KroneckerOperator \c a (x) \c b whose left factor is diagonal. */
 template <typename LhsDerived, typename RhsDerived>
 KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainObject> makeKroneckerOperator(
     const DiagonalBase<LhsDerived>& a, const MatrixBase<RhsDerived>& b) {
   return {a.derived(), b.derived()};
 }
 
-/** \overload for a diagonal right factor. */
+/** \ingroup StructuredMatrices_Module
+ * \returns a \ref KroneckerOperator \c a (x) \c b whose right factor is diagonal. */
 template <typename LhsDerived, typename RhsDerived>
 KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainObject> makeKroneckerOperator(
     const MatrixBase<LhsDerived>& a, const DiagonalBase<RhsDerived>& b) {
   return {a.derived(), b.derived()};
 }
 
-/** \overload for two diagonal factors. */
+/** \ingroup StructuredMatrices_Module
+ * \returns a \ref KroneckerOperator \c a (x) \c b with two diagonal factors, which is
+ * itself diagonal. */
 template <typename LhsDerived, typename RhsDerived>
 KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainObject> makeKroneckerOperator(
     const DiagonalBase<LhsDerived>& a, const DiagonalBase<RhsDerived>& b) {
