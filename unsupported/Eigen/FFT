@@ -183,6 +183,49 @@ struct fft_inv_proxy : public ReturnByValue<fft_inv_proxy<T_SrcMat, T_FftIfc> > 
   Index m_nfft;
 };
 
+namespace internal {
+
+// The transforms are one-dimensional, but a matrix with a dynamic dimension only knows at run
+// time whether that dimension is one, so it cannot be rejected at compile time the way a matrix
+// of known two-dimensional shape can. Only the latter is excluded here.
+template <typename Derived>
+struct fft_accepts_as_vector {
+  static constexpr bool value = bool(Derived::IsVectorAtCompileTime) || int(Derived::RowsAtCompileTime) == Dynamic ||
+                                int(Derived::ColsAtCompileTime) == Dynamic;
+};
+
+// Distance between consecutive elements of a one-dimensional operand. The inner stride does not
+// answer this once matrices are accepted: a matrix holding a single row steps along its outer
+// stride, and only a unit distance lets the transform run over the operand's own memory.
+template <typename Derived>
+EIGEN_STRONG_INLINE Index fft_linear_stride(const DenseBase<Derived>& x) {
+  return x.rows() == 1 ? x.derived().colStride() : x.derived().rowStride();
+}
+
+// Resize a one-dimensional destination. Every orientation a compile-time dimension leaves open
+// is settled here: a fixed dimension other than one can only be the long one, and a destination
+// with two dynamic dimensions takes the orientation of the source.
+template <typename Derived>
+EIGEN_STRONG_INLINE void fft_resize_as_vector(DenseBase<Derived>& dst, Index size, bool source_is_row) {
+  // A destination already holding the transform's length in one dimension keeps that shape, which
+  // is the only one a view such as a Map can be given at all.
+  if ((dst.rows() == 1 && dst.cols() == size) || (dst.cols() == 1 && dst.rows() == size)) return;
+
+  constexpr int Rows = int(Derived::RowsAtCompileTime);
+  constexpr int Cols = int(Derived::ColsAtCompileTime);
+  const bool row = Rows == 1         ? true
+                   : Cols == 1       ? false
+                   : Cols != Dynamic ? true
+                   : Rows != Dynamic ? false
+                                     : source_is_row;
+  dst.derived().resize(row ? 1 : size, row ? size : 1);
+}
+
+}  // namespace internal
+
+#define EIGEN_STATIC_ASSERT_FFT_VECTOR(TYPE) \
+  EIGEN_STATIC_ASSERT(internal::fft_accepts_as_vector<TYPE>::value, YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX)
+
 template <typename T_Scalar, typename T_Impl = default_fft_impl<T_Scalar> >
 class FFT {
  public:
@@ -237,14 +280,15 @@ class FFT {
   inline void fwd(DenseBase<ComplexDerived>& dst, const DenseBase<InputDerived>& src, Index nfft = -1) {
     typedef typename ComplexDerived::Scalar dst_type;
     typedef typename InputDerived::Scalar src_type;
-    EIGEN_STATIC_ASSERT_VECTOR_ONLY(InputDerived)
-    EIGEN_STATIC_ASSERT_VECTOR_ONLY(ComplexDerived)
+    EIGEN_STATIC_ASSERT_FFT_VECTOR(InputDerived)
+    EIGEN_STATIC_ASSERT_FFT_VECTOR(ComplexDerived)
     EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(ComplexDerived, InputDerived)  // size at compile-time
     EIGEN_STATIC_ASSERT(
         (std::is_same<dst_type, Complex>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT(int(InputDerived::Flags) & int(ComplexDerived::Flags) & DirectAccessBit,
                         THIS_METHOD_IS_ONLY_FOR_EXPRESSIONS_WITH_DIRECT_MEMORY_ACCESS_SUCH_AS_MAP_OR_PLAIN_MATRICES)
+    eigen_assert((src.rows() == 1 || src.cols() == 1) && "the input of an FFT must be one-dimensional");
 
     if (nfft < 1) nfft = src.size();
 
@@ -254,29 +298,29 @@ class FFT {
         dst_size = (nfft >> 1) + 1;
       }
     }
-    dst.derived().resize(dst_size);
+    internal::fft_resize_as_vector(dst, dst_size, src.rows() == 1);
 
-    if (src.innerStride() != 1 || src.size() < nfft) {
+    if (internal::fft_linear_stride(src) != 1 || src.size() < nfft) {
       Matrix<src_type, 1, Dynamic> tmp(1, nfft);
       const Index copy_size = (std::min)(src.size(), nfft);
       if (copy_size > 0) {
         tmp.head(copy_size) = src.reshaped().head(copy_size);
       }
       if (copy_size < nfft) tmp.tail(nfft - copy_size).setZero();
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, dst_size);
-        fwd(&out[0], &tmp[0], nfft);
-        dst.derived() = out;
+        fwd(out.data(), tmp.data(), nfft);
+        dst.derived() = out.reshaped(dst.rows(), dst.cols());
       } else {
-        fwd(&dst[0], &tmp[0], nfft);
+        fwd(dst.derived().data(), tmp.data(), nfft);
       }
     } else {
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, dst_size);
-        fwd(&out[0], &src[0], nfft);
-        dst.derived() = out;
+        fwd(out.data(), src.derived().data(), nfft);
+        dst.derived() = out.reshaped(dst.rows(), dst.cols());
       } else {
-        fwd(&dst[0], &src[0], nfft);
+        fwd(dst.derived().data(), src.derived().data(), nfft);
       }
     }
   }
@@ -309,14 +353,15 @@ class FFT {
     typedef typename ComplexDerived::RealScalar real_type;
     typedef typename OutputDerived::Scalar dst_type;
     const bool realfft = (NumTraits<dst_type>::IsComplex == 0);
-    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OutputDerived)
-    EIGEN_STATIC_ASSERT_VECTOR_ONLY(ComplexDerived)
+    EIGEN_STATIC_ASSERT_FFT_VECTOR(OutputDerived)
+    EIGEN_STATIC_ASSERT_FFT_VECTOR(ComplexDerived)
     EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(ComplexDerived, OutputDerived)  // size at compile-time
     EIGEN_STATIC_ASSERT(
         (std::is_same<src_type, Complex>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT(int(OutputDerived::Flags) & int(ComplexDerived::Flags) & DirectAccessBit,
                         THIS_METHOD_IS_ONLY_FOR_EXPRESSIONS_WITH_DIRECT_MEMORY_ACCESS_SUCH_AS_MAP_OR_PLAIN_MATRICES)
+    eigen_assert((src.rows() == 1 || src.cols() == 1) && "the input of an FFT must be one-dimensional");
 
     if (nfft < 1) {  // automatic FFT size determination
       if (realfft && HasFlag(HalfSpectrum))
@@ -324,53 +369,54 @@ class FFT {
       else
         nfft = src.size();
     }
-    dst.derived().resize(nfft);
+    internal::fft_resize_as_vector(dst, nfft, src.rows() == 1);
 
     // check for nfft that does not fit the input data size
     Index resize_input = (realfft && HasFlag(HalfSpectrum)) ? ((nfft / 2 + 1) - src.size()) : (nfft - src.size());
 
-    if (src.innerStride() != 1 || resize_input) {
+    if (internal::fft_linear_stride(src) != 1 || resize_input) {
       // if the vector is strided, then we need to copy it to a packed temporary
+      const auto src_lin = src.reshaped();
       Matrix<src_type, 1, Dynamic> tmp;
       if (resize_input) {
         size_t ncopy = (std::min)(src.size(), src.size() + resize_input);
         tmp.setZero(src.size() + resize_input);
         if (realfft && HasFlag(HalfSpectrum)) {
           // pad at the Nyquist bin
-          tmp.head(ncopy) = src.head(ncopy);
+          tmp.head(ncopy) = src_lin.head(ncopy);
           tmp(ncopy - 1) = real(tmp(ncopy - 1));  // enforce real-only Nyquist bin
         } else {
           size_t nhead, ntail;
           nhead = 1 + ncopy / 2 - 1;  // range  [0:pi)
           ntail = ncopy / 2 - 1;      // range (-pi:0)
-          tmp.head(nhead) = src.head(nhead);
-          tmp.tail(ntail) = src.tail(ntail);
+          tmp.head(nhead) = src_lin.head(nhead);
+          tmp.tail(ntail) = src_lin.tail(ntail);
           if (resize_input <
               0) {  // shrinking -- create the Nyquist bin as the average of the two bins that fold into it
-            tmp(nhead) = (src(nfft / 2) + src(src.size() - nfft / 2)) * real_type(.5);
+            tmp(nhead) = (src_lin(nfft / 2) + src_lin(src.size() - nfft / 2)) * real_type(.5);
           } else {  // expanding -- split the old Nyquist bin into two halves
-            tmp(nhead) = src(nhead) * real_type(.5);
+            tmp(nhead) = src_lin(nhead) * real_type(.5);
             tmp(tmp.size() - nhead) = tmp(nhead);
           }
         }
       } else {
-        tmp = src;
+        tmp = src_lin;
       }
 
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, nfft);
-        inv(&out[0], &tmp[0], nfft);
-        dst.derived() = out;
+        inv(out.data(), tmp.data(), nfft);
+        dst.derived() = out.reshaped(dst.rows(), dst.cols());
       } else {
-        inv(&dst[0], &tmp[0], nfft);
+        inv(dst.derived().data(), tmp.data(), nfft);
       }
     } else {
-      if (dst.innerStride() != 1) {
+      if (internal::fft_linear_stride(dst) != 1) {
         Matrix<dst_type, 1, Dynamic> out(1, nfft);
-        inv(&out[0], &src[0], nfft);
-        dst.derived() = out;
+        inv(out.data(), src.derived().data(), nfft);
+        dst.derived() = out.reshaped(dst.rows(), dst.cols());
       } else {
-        inv(&dst[0], &src[0], nfft);
+        inv(dst.derived().data(), src.derived().data(), nfft);
       }
     }
   }
