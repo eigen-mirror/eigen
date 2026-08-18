@@ -1387,12 +1387,24 @@ EIGEN_STRONG_INLINE Packet16b ploadu<Packet16b>(const bool* from) {
   return _mm_loadu_si128(reinterpret_cast<const __m128i*>(from));
 }
 
+EIGEN_STRONG_INLINE __m128i ploadu_si64(const void* from) {
+#if EIGEN_GNUC_STRICT_LESS_THAN(9, 1, 0) || (EIGEN_COMP_MINGW && !EIGEN_COMP_CLANG && EIGEN_COMP_GNUC < 910)
+  // GCC added _mm_loadu_si64 in 9.1. Copy through __m64 to avoid relying on _mm_loadl_epi64's type-punned load.
+  EIGEN_USING_STD(memcpy);
+  __m64 lo;
+  memcpy(&lo, from, sizeof(lo));
+  return _mm_set_epi64((__m64)0LL, lo);
+#else
+  return _mm_loadu_si64(from);
+#endif
+}
+
 // Load lower part of packet zero extending.
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet ploadl(const typename unpacket_traits<Packet>::type* from);
 template <>
 EIGEN_STRONG_INLINE Packet4f ploadl<Packet4f>(const float* from) {
-  EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castsi128_ps(_mm_loadu_si64(reinterpret_cast<const void*>(from)));
+  EIGEN_DEBUG_UNALIGNED_LOAD return _mm_castsi128_ps(ploadu_si64(reinterpret_cast<const void*>(from)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ploadl<Packet2d>(const double* from) {
@@ -1413,7 +1425,7 @@ EIGEN_STRONG_INLINE Packet2d ploads<Packet2d>(const double* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
-  return vec4f_swizzle1(_mm_castsi128_ps(_mm_loadu_si64(reinterpret_cast<const void*>(from))), 0, 0, 1, 1);
+  return vec4f_swizzle1(_mm_castsi128_ps(ploadu_si64(reinterpret_cast<const void*>(from))), 0, 0, 1, 1);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
@@ -1440,7 +1452,7 @@ EIGEN_STRONG_INLINE Packet4ui ploaddup<Packet4ui>(const uint32_t* from) {
 // {b0, b0, b1, b1, b2, b2, b3, b3, b4, b4, b5, b5, b6, b6, b7, b7}
 template <>
 EIGEN_STRONG_INLINE Packet16b ploaddup<Packet16b>(const bool* from) {
-  __m128i tmp = _mm_loadu_si64(reinterpret_cast<const void*>(from));
+  __m128i tmp = ploadu_si64(reinterpret_cast<const void*>(from));
   return _mm_unpacklo_epi8(tmp, tmp);
 }
 
