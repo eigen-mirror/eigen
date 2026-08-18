@@ -400,6 +400,42 @@ void unwind_test(const BaseXpr&) {
   unwind_test_impl<BaseXpr>::run(xpr);
 }
 
+// A block that is an inner panel of a general sub-block is not an inner panel of
+// the sub-block's base expression: it spans the full inner dimension of its
+// immediate parent, but not that of the base. Unwinding must not promote it to
+// one, since an inner panel advertises linear access over the base's storage.
+template <typename BaseXpr>
+void unwind_inner_panel_test(const BaseXpr&) {
+  const Index rows = 20, cols = 20;
+  BaseXpr xpr = BaseXpr::Random(rows, cols);
+
+  // The parent spans neither dimension fully, so neither panel taken from it is
+  // an inner panel of `xpr`. Copying out through a plain object exercises this:
+  // an unwound block that wrongly claims to be an inner panel is traversed
+  // linearly and reads the wrong coefficients.
+  auto sub = xpr.block(1, 1, rows - 3, cols - 3);
+  auto sub_cols = sub.middleCols(2, 3);
+  auto sub_rows = sub.middleRows(2, 3);
+  VERIFY_IS_EQUAL(int(internal::traits<decltype(sub_cols.unwind())>::InnerPanel), 0);
+  VERIFY_IS_EQUAL(int(internal::traits<decltype(sub_rows.unwind())>::InnerPanel), 0);
+  BaseXpr sub_cols_ref = sub_cols, sub_cols_unwound = sub_cols.unwind();
+  VERIFY_IS_CWISE_EQUAL(sub_cols_ref, sub_cols_unwound);
+  BaseXpr sub_rows_ref = sub_rows, sub_rows_unwound = sub_rows.unwind();
+  VERIFY_IS_CWISE_EQUAL(sub_rows_ref, sub_rows_unwound);
+
+  // An inner panel of an inner panel *is* an inner panel of the base, and must
+  // keep saying so after unwinding.
+  auto inner_cols = xpr.middleCols(1, cols - 3).middleCols(2, 3);
+  VERIFY_IS_EQUAL(int(internal::traits<decltype(inner_cols.unwind())>::InnerPanel), int(BaseXpr::IsRowMajor ? 0 : 1));
+  BaseXpr inner_cols_ref = inner_cols, inner_cols_unwound = inner_cols.unwind();
+  VERIFY_IS_CWISE_EQUAL(inner_cols_ref, inner_cols_unwound);
+
+  auto inner_rows = xpr.middleRows(1, rows - 3).middleRows(2, 3);
+  VERIFY_IS_EQUAL(int(internal::traits<decltype(inner_rows.unwind())>::InnerPanel), int(BaseXpr::IsRowMajor ? 1 : 0));
+  BaseXpr inner_rows_ref = inner_rows, inner_rows_unwound = inner_rows.unwind();
+  VERIFY_IS_CWISE_EQUAL(inner_rows_ref, inner_rows_unwound);
+}
+
 EIGEN_DECLARE_TEST(block) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(block(Matrix<float, 1, 1>()));
@@ -414,6 +450,8 @@ EIGEN_DECLARE_TEST(block) {
 
     CALL_SUBTEST_8(block(Matrix<float, Dynamic, 4>(3, 4)));
     CALL_SUBTEST_9(unwind_test(MatrixXf()));
+    CALL_SUBTEST_9(unwind_inner_panel_test(MatrixXf()));
+    CALL_SUBTEST_9(unwind_inner_panel_test(Matrix<float, Dynamic, Dynamic, RowMajor>()));
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     CALL_SUBTEST_6(data_and_stride(MatrixXf(internal::random(5, 50), internal::random(5, 50))));

@@ -953,7 +953,9 @@ struct block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
 
   // For block-of-block expressions, we need to combine the InnerPannel trait
   // with that of the block subexpression.
-  static constexpr bool is_inner_panel(bool inner_panel) { return InnerPanel && inner_panel; }
+  static constexpr bool is_inner_panel(bool inner_panel) {
+    return NestedXprHelper::is_inner_panel(InnerPanel && inner_panel);
+  }
 
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicates definition).
   template <typename T = XprType, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>

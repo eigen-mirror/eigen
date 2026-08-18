@@ -150,8 +150,9 @@ class Block
 
   // convert nested blocks (e.g. Block<Block<MatrixType>>) to a simple block expression (Block<MatrixType>)
 
-  using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
-  using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, InnerPanel>;
+  static constexpr bool UnwoundInnerPanel = BlockHelper::is_inner_panel(true);
+  using ConstUnwindReturnType = Block<const typename BlockHelper::BaseType, BlockRows, BlockCols, UnwoundInnerPanel>;
+  using UnwindReturnType = Block<typename BlockHelper::BaseType, BlockRows, BlockCols, UnwoundInnerPanel>;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ConstUnwindReturnType unwind() const {
     return ConstUnwindReturnType(BlockHelper::base(*this), BlockHelper::row(*this, 0), BlockHelper::col(*this, 0),
