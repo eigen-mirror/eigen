@@ -1493,7 +1493,101 @@ void testNistEckerle4(void) {
   VERIFY_IS_APPROX(x[2], 4.5154121844E+02);
 }
 
+// lmqrsolv() must minimize ||[R; D] z - [qtb; 0]|| and leave the eliminated
+// factor in the strict lower triangle of s for lmpar2(). Issue #657: the QR is
+// rank-revealing, so R carries zeros above the diagonal, and the Givens
+// rotation that eliminates a row of D acts on the whole row: it rotates sdiag
+// against those zeros and fills them in.
+void testLmqrsolv() {
+  const Index n = 6;
+
+  // An upper triangular factor with zeros above the diagonal.
+  MatrixXd r = MatrixXd::Zero(n, n);
+  for (Index i = 0; i < n; ++i)
+    for (Index j = i; j < n; ++j)
+      r(i, j) = ((i == 0 && j == 3) || (i == 1 && j == 4)) ? 0.0 : 1.0 + 0.5 * double(i + 1) * double(j + 1);
+
+  VectorXd diag(n), qtb(n);
+  for (Index i = 0; i < n; ++i) {
+    diag(i) = 0.5 + 0.25 * double(i);
+    qtb(i) = 1.0 - 0.3 * double(i);
+  }
+
+  PermutationMatrix<Dynamic, Dynamic, int> perm(n);
+  perm.setIdentity();
+
+  MatrixXd s = r;
+  VectorXd x(n), sdiag(n);
+  internal::lmqrsolv(s, perm, diag, qtb, x, sdiag);
+
+  MatrixXd augmented(2 * n, n);
+  augmented.topRows(n) = r;
+  augmented.bottomRows(n) = diag.asDiagonal();
+  VectorXd rhs = VectorXd::Zero(2 * n);
+  rhs.head(n) = qtb;
+  VERIFY_IS_APPROX(x, augmented.colPivHouseholderQr().solve(rhs));
+
+  // The upper triangle and the diagonal of s are restored. lmpar2() reads the
+  // eliminated factor S out of the strict lower triangle of s, transposed, with
+  // its diagonal in sdiag; S is the triangular factor of [R; D].
+  VERIFY_IS_APPROX(MatrixXd(s.triangularView<Upper>()), r);
+  MatrixXd eliminated = MatrixXd(s.triangularView<StrictlyLower>()).transpose();
+  eliminated.diagonal() = sdiag;
+  VERIFY_IS_APPROX(MatrixXd(eliminated.transpose() * eliminated),
+                   MatrixXd(r.transpose() * r + MatrixXd(diag.cwiseAbs2().asDiagonal())));
+}
+
+// Exponential decay with two exactly collinear offsets x2 and x3, so the
+// Jacobian is rank deficient and the triangular factor of its sparse QR loses
+// its last diagonal entry. Issue #657: the sparse solver then asserted inside
+// Eigen::internal::sparse_solve_triangular_selector.
+struct collinear_offsets_functor : SparseFunctor<double, int> {
+  collinear_offsets_functor(int m) : SparseFunctor<double, int>(4, m), m_t(m), m_y(m) {
+    for (int i = 0; i < m; ++i) {
+      m_t(i) = 0.05 * i;
+      m_y(i) = 2.5 * std::exp(-0.7 * m_t(i)) + 0.3;
+    }
+  }
+  int operator()(const VectorXd &x, VectorXd &fvec) {
+    for (int i = 0; i < values(); ++i) fvec(i) = x(0) * std::exp(-x(1) * m_t(i)) + x(2) + x(3) - m_y(i);
+    return 0;
+  }
+  int df(const VectorXd &x, JacobianType &jac) {
+    std::vector<Triplet<double> > triplets;
+    for (int i = 0; i < values(); ++i) {
+      const double e = std::exp(-x(1) * m_t(i));
+      triplets.push_back(Triplet<double>(i, 0, e));
+      triplets.push_back(Triplet<double>(i, 1, -x(0) * m_t(i) * e));
+      triplets.push_back(Triplet<double>(i, 2, 1.0));
+      triplets.push_back(Triplet<double>(i, 3, 1.0));
+    }
+    jac.resize(values(), inputs());
+    jac.setFromTriplets(triplets.begin(), triplets.end());
+    return 0;
+  }
+  VectorXd m_t, m_y;
+};
+
+void testSparseFunctor() {
+  collinear_offsets_functor functor(30);
+  LevenbergMarquardt<collinear_offsets_functor> lm(functor);
+  VectorXd x(4);
+  x << 5.0, 5.0, 5.0, 5.0;
+  const LevenbergMarquardtSpace::Status info = lm.minimize(x);
+  VERIFY(info > LevenbergMarquardtSpace::ImproperInputParameters &&
+         info < LevenbergMarquardtSpace::TooManyFunctionEvaluation);
+
+  // x2 and x3 are determined only through their sum.
+  VERIFY_IS_APPROX(x(0), 2.5);
+  VERIFY_IS_APPROX(x(1), 0.7);
+  VERIFY_IS_APPROX(x(2) + x(3), 0.3);
+  VERIFY(lm.fnorm() <= 1e3 * NumTraits<double>::epsilon() * functor.m_y.norm());
+}
+
 EIGEN_DECLARE_TEST(levenberg_marquardt) {
+  CALL_SUBTEST(testLmqrsolv());
+  CALL_SUBTEST(testSparseFunctor());
+
   // Tests using the examples provided by (c)minpack
   CALL_SUBTEST(testLmder1());
   CALL_SUBTEST(testLmder());

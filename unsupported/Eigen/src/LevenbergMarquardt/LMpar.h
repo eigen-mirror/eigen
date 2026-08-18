@@ -27,7 +27,6 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
 {
   using std::abs;
   using std::sqrt;
-  typedef typename QRSolver::MatrixType MatrixType;
   typedef typename QRSolver::Scalar Scalar;
   /* Local variables */
   Index j;
@@ -38,14 +37,16 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
   Scalar gnorm;
   Scalar dxnorm;
 
-  // Make a copy of the triangular factor.
-  // This copy is modified during call the qrsolv
-  MatrixType s;
-  s = qr.matrixR();
-
   /* Function Body */
   const Scalar dwarf = (std::numeric_limits<Scalar>::min)();
   const Index n = qr.matrixR().cols();
+
+  // Working copy of the leading n-by-n block of the triangular factor; lmqrsolv()
+  // overwrites its strict lower triangle with the eliminated factor read back
+  // below. The rotations fill that triangle in completely, so this is dense even
+  // when the QR is sparse.
+  Matrix<Scalar, Dynamic, Dynamic> s = qr.matrixR().topLeftCorner(n, n);
+
   eigen_assert(n == diag.size());
   eigen_assert(n == qtb.size());
 
@@ -57,8 +58,7 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
   const Index rank = qr.rank();  // use a threshold
   wa1 = qtb;
   wa1.tail(n - rank).setZero();
-  // FIXME: There is no solve-in-place for sparse triangularView.
-  wa1.head(rank) = s.topLeftCorner(rank, rank).template triangularView<Upper>().solve(qtb.head(rank));
+  s.topLeftCorner(rank, rank).template triangularView<Upper>().solveInPlace(wa1.head(rank));
 
   x = qr.colsPermutation() * wa1;
 
