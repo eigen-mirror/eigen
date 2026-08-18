@@ -564,6 +564,35 @@ static void test_large_contraction_with_output_kernel() {
   }
 }
 
+// Tensors whose StorageIndex is narrower than Eigen::Index instantiate the GEBP kernel with that index type, which
+// the architecture-specific kernels have to support.
+template <int DataLayout, typename Scalar>
+static void test_narrow_index_contraction() {
+  typedef Tensor<Scalar, 2, DataLayout, int> TensorType;
+  typedef typename TensorType::DimensionPair NarrowDimPair;
+
+  TensorType t_left(53, 37);
+  TensorType t_right(37, 41);
+  TensorType t_result(53, 41);
+
+  t_left.setRandom();
+  t_right.setRandom();
+
+  typedef Map<Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>> MapType;
+  MapType m_left(t_left.data(), 53, 37);
+  MapType m_right(t_right.data(), 37, 41);
+  Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout> m_result(53, 41);
+
+  Eigen::array<NarrowDimPair, 1> dims{{NarrowDimPair(1, 0)}};
+
+  t_result = t_left.contract(t_right, dims);
+  m_result = m_left * m_right;
+
+  for (int i = 0; i < t_result.size(); ++i) {
+    VERIFY_IS_APPROX(t_result.data()[i], m_result.data()[i]);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_1(test_evals<ColMajor>());
   CALL_SUBTEST_1(test_evals<RowMajor>());
@@ -599,7 +628,15 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_8(test_const_inputs<RowMajor>());
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<ColMajor>());
   CALL_SUBTEST_8(test_large_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, float>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, float>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, double>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, double>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, std::complex<float>>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, std::complex<float>>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, std::complex<double>>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, std::complex<double>>()));
 
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9
 }
