@@ -1928,6 +1928,28 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double fmod(const double& a, const double&
 }
 #endif
 
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T nextafter(const T& from, const T& to) {
+  EIGEN_USING_STD(nextafter);
+  return nextafter(from, to);
+}
+
+#if defined(SYCL_DEVICE_ONLY)
+SYCL_SPECIALIZE_FLOATING_TYPES_BINARY(nextafter, nextafter)
+#endif
+
+#if defined(EIGEN_GPUCC)
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float nextafter(const float& from, const float& to) {
+  return ::nextafterf(from, to);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double nextafter(const double& from, const double& to) {
+  return ::nextafter(from, to);
+}
+#endif
+
 #if defined(SYCL_DEVICE_ONLY)
 #undef SYCL_SPECIALIZE_SIGNED_INTEGER_TYPES_BINARY
 #undef SYCL_SPECIALIZE_SIGNED_INTEGER_TYPES_UNARY

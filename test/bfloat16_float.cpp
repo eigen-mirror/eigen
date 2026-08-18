@@ -384,9 +384,11 @@ void test_nextafter() {
          std::numeric_limits<bfloat16>::infinity());
   VERIFY(numext::nextafter(-(std::numeric_limits<bfloat16>::max)(), -std::numeric_limits<bfloat16>::infinity()) ==
          -std::numeric_limits<bfloat16>::infinity());
+  // The neighbors of ±0 are the smallest subnormals with the sign of the
+  // direction, matching std::nextafter (IEEE-754 nextUp/nextDown of zero).
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(1.0f)), 0x0001);
-  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(1.0f)), 0x0000);
-  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-1.0f)), 0x8000);
+  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(1.0f)), 0x0001);
+  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-1.0f)), 0x8001);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(-1.0f)), 0x8001);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-0.0f)), 0x8000);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(0.0f)), 0x0000);

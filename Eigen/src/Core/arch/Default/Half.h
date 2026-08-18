@@ -968,6 +968,31 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC uint16_t bit_cast<uint16_t, Eigen::half>(c
   return Eigen::half_impl::raw_half_as_uint16(src);
 }
 
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half nextafter(const Eigen::half& from, const Eigen::half& to) {
+  if (numext::isnan EIGEN_NOT_A_MACRO(from)) {
+    return from;
+  }
+  if (numext::isnan EIGEN_NOT_A_MACRO(to)) {
+    return to;
+  }
+  if (from == to) {
+    return to;
+  }
+  uint16_t from_bits = numext::bit_cast<uint16_t>(from);
+  bool from_sign = from_bits >> 15;
+  if ((from_bits & 0x7fff) == 0) {
+    // From ±0 toward a nonzero value: the neighbor is the smallest subnormal
+    // carrying the sign of the direction (IEEE-754 nextUp/nextDown of zero).
+    from_bits = (to > from) ? uint16_t(0x0001) : uint16_t(0x8001);
+  } else if ((to > from) != from_sign) {
+    // Toward the infinity with the same sign as from: increase the magnitude.
+    ++from_bits;
+  } else {
+    --from_bits;
+  }
+  return numext::bit_cast<Eigen::half>(from_bits);
+}
+
 // Specialize multiply-add to match packet operations and reduce conversions to/from float.
 template <>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Eigen::half madd<Eigen::half>(const Eigen::half& x, const Eigen::half& y,

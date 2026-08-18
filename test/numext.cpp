@@ -423,6 +423,40 @@ void check_signbit() {
 }
 
 template <typename T>
+void check_nextafter() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  const T eps = std::numeric_limits<T>::epsilon();
+  const T denorm_min = std::numeric_limits<T>::denorm_min();
+  const T inf = std::numeric_limits<T>::infinity();
+  const T nan = std::numeric_limits<T>::quiet_NaN();
+  const T max = (std::numeric_limits<T>::max)();
+
+  // from == to returns to.
+  VERIFY(numext::equal_strict(numext::nextafter(one, one), one));
+  // One-ulp steps around 1.
+  VERIFY(numext::equal_strict(numext::nextafter(one, two), one + eps));
+  VERIFY(numext::equal_strict(numext::nextafter(one + eps, zero), one));
+  // The neighbors of ±0 are the smallest subnormals, with the sign of the direction.
+  VERIFY(numext::equal_strict(numext::nextafter(zero, one), denorm_min));
+  VERIFY(numext::equal_strict(numext::nextafter(zero, -one), -denorm_min));
+  VERIFY(numext::equal_strict(numext::nextafter(-zero, one), denorm_min));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(zero, -one)), -one));
+  // Stepping the smallest subnormals toward the other sign lands on the zero
+  // of the starting sign (IEEE-754 nextUp/nextDown).
+  VERIFY(numext::equal_strict(numext::nextafter(denorm_min, -one), zero));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(denorm_min, -one)), one));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(-denorm_min, one)), -one));
+  // Infinities saturate and unsaturate by one step.
+  VERIFY(numext::equal_strict(numext::nextafter(max, inf), inf));
+  VERIFY(numext::equal_strict(numext::nextafter(inf, zero), max));
+  // NaNs propagate.
+  VERIFY((numext::isnan)(numext::nextafter(nan, one)));
+  VERIFY((numext::isnan)(numext::nextafter(one, nan)));
+}
+
+template <typename T>
 void check_shift() {
   using SignedT = typename numext::get_integer_by_size<sizeof(T)>::signed_type;
   using UnsignedT = typename numext::get_integer_by_size<sizeof(T)>::unsigned_type;
@@ -529,6 +563,12 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_signbit<int16_t>());
     CALL_SUBTEST(check_signbit<int32_t>());
     CALL_SUBTEST(check_signbit<int64_t>());
+
+    CALL_SUBTEST(check_nextafter<half>());
+    CALL_SUBTEST(check_nextafter<bfloat16>());
+    CALL_SUBTEST(check_nextafter<float>());
+    CALL_SUBTEST(check_nextafter<double>());
+    CALL_SUBTEST(check_nextafter<long double>());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());
