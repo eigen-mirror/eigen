@@ -907,6 +907,8 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
     std::remove_const_t<CoeffReturnType> values[PacketSize];
+    // Materializing reduction results before storing them avoids a GCC ICE in emit_move_insn. Fixed in GCC 6.5, 7.4,
+    // and 8.1. See issue #1647 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85496.
     EIGEN_IF_CONSTEXPR (ReducingInnerMostDims) {
       const Index num_values_to_reduce = (static_cast<int>(Layout) == static_cast<int>(ColMajor))
                                              ? m_preservedStrides[0]
@@ -914,8 +916,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       const Index firstIndex = firstInput(index);
       for (Index i = 0; i < PacketSize; ++i) {
         Op reducer(m_reducer);
-        values[i] = internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstIndex + i * num_values_to_reduce,
-                                                                    num_values_to_reduce, reducer);
+        const CoeffReturnType value = internal::InnerMostDimReducer<Self, Op>::reduce(
+            *this, firstIndex + i * num_values_to_reduce, num_values_to_reduce, reducer);
+        values[i] = value;
       }
     } else EIGEN_IF_CONSTEXPR (PreservingInnerMostDims) {
       const Index firstIndex = firstInput(index);
@@ -937,8 +940,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
       const Index firstIndex = index * m_numValuesToReduce;
       for (Index i = 0; i < PacketSize; ++i) {
         Op reducer(m_reducer);
-        values[i] = internal::InnerMostDimReducer<Self, Op>::reduce(*this, firstIndex + i * m_numValuesToReduce,
-                                                                    m_numValuesToReduce, reducer);
+        const CoeffReturnType value = internal::InnerMostDimReducer<Self, Op>::reduce(
+            *this, firstIndex + i * m_numValuesToReduce, m_numValuesToReduce, reducer);
+        values[i] = value;
       }
     } else {
       for (int i = 0; i < PacketSize; ++i) {

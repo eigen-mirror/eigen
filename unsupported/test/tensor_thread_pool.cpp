@@ -763,6 +763,55 @@ void test_multithreaded_reductions() {
   VERIFY_IS_APPROX(full_redux(), full_redux_tp());
 }
 
+void test_multithreaded_complex_reduction() {
+  using Scalar = std::complex<float>;
+  constexpr Index size = 4096;
+
+  // Preserve the mapped source and fixed-size mapped destination from the issue #1647 backtrace: this exact
+  // instantiation triggers the old GCC compiler bug.
+  Tensor<Scalar, 1, RowMajor> storage(size);
+  storage.setConstant(Scalar(1.0f, 2.0f));
+  TensorMap<Tensor<Scalar, 1, RowMajor>> input(storage.data(), size);
+  EIGEN_ALIGN_MAX Scalar output_storage;
+  TensorMap<TensorFixedSize<Scalar, Sizes<>, RowMajor>, Aligned> output(&output_storage);
+
+  ThreadPool thread_pool(2);
+  ThreadPoolDevice thread_pool_device(&thread_pool, 2);
+  output.device(thread_pool_device) = input.sum();
+
+  VERIFY_IS_EQUAL(output(), Scalar(static_cast<float>(size), static_cast<float>(2 * size)));
+}
+
+void test_multithreaded_complex_partial_reductions() {
+  using Scalar = std::complex<float>;
+  constexpr Index outer_size = 32;
+  constexpr Index reduced_size = 257;
+
+  Tensor<Scalar, 2, RowMajor> input(outer_size, reduced_size);
+  for (Index i = 0; i < outer_size; ++i) {
+    for (Index j = 0; j < reduced_size; ++j) {
+      input(i, j) = Scalar(static_cast<float>(i + 1), static_cast<float>(2 * i + 1));
+    }
+  }
+
+  ThreadPool thread_pool(2);
+  ThreadPoolDevice thread_pool_device(&thread_pool, 2);
+
+  IndexList<type2index<1>> static_reduction_dim;
+  Tensor<Scalar, 1, RowMajor> static_result(outer_size);
+  static_result.device(thread_pool_device) = input.sum(static_reduction_dim);
+
+  array<Index, 1> runtime_reduction_dim{{1}};
+  Tensor<Scalar, 1, RowMajor> runtime_result(outer_size);
+  runtime_result.device(thread_pool_device) = input.sum(runtime_reduction_dim);
+
+  for (Index i = 0; i < outer_size; ++i) {
+    const Scalar expected = static_cast<float>(reduced_size) * input(i, 0);
+    VERIFY_IS_EQUAL(static_result(i), expected);
+    VERIFY_IS_EQUAL(runtime_result(i), expected);
+  }
+}
+
 void test_memcpy() {
   for (int i = 0; i < 5; ++i) {
     const int num_threads = internal::random<int>(3, 11);
@@ -872,6 +921,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_11(test_multithreaded_reductions<ColMajor>());
   CALL_SUBTEST_11(test_multithreaded_reductions<RowMajor>());
+  CALL_SUBTEST_11(test_multithreaded_complex_reduction());
+  CALL_SUBTEST_11(test_multithreaded_complex_partial_reductions());
 
   CALL_SUBTEST_12(test_memcpy());
   CALL_SUBTEST_12(test_multithread_random());
