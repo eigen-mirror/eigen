@@ -360,7 +360,7 @@ The following recommendations apply to the most common use cases:
     under-determined problems, but at QR-like speed. Use \b BDCSVD when you also need singular values
     or vectors, not just the least squares solution.
 \li <b>Large least squares problems:</b> Use \b RandCompleteOrthogonalDecomposition. It produces the
-    same factorization as \b CompleteOrthogonalDecomposition, but chooses pivots from a small random
+    same kind of factorization as \b CompleteOrthogonalDecomposition, but chooses pivots from a small random
     sketch so that nearly all of the work happens in level-3 BLAS kernels rather than in the
     memory-bound column scan of classical column pivoting. The pivot-quality difference is empirically
     minor. On small matrices the sketch overhead dominates, so prefer the non-randomized class there.

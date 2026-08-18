@@ -111,14 +111,20 @@ Three possibilities:
   <li>Define \link TopicPreprocessorDirectivesPerformance EIGEN_MAX_STATIC_ALIGN_BYTES \endlink to 0. That disables all 16-byte (and above) static alignment code, while keeping 16-byte (or above) heap alignment. This has the effect of
       vectorizing fixed-size objects (like Matrix4d) through unaligned stores (as controlled by \link TopicPreprocessorDirectivesPerformance EIGEN_UNALIGNED_VECTORIZE \endlink), while keeping unchanged the vectorization of dynamic-size objects
       (like MatrixXd). On 64 bytes systems, you might also define it 16 to disable only 32 and 64 bytes of over-alignment. But do note that this breaks ABI compatibility with the default behavior of static alignment.</li>
-  <li>Or define both \link TopicPreprocessorDirectivesPerformance  EIGEN_DONT_VECTORIZE \endlink and `EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT`. This keeps the
-      16-byte (or above) alignment code and thus preserves ABI compatibility, but completely disables vectorization.</li>
+  <li>Or define \link TopicPreprocessorDirectivesPerformance EIGEN_DONT_VECTORIZE \endlink. Outside GPU compilation,
+      where the alignment is kept because device code needs it, this sets %Eigen's ideal alignment to zero besides
+      disabling vectorization, so fixed-size vectorizable types are no longer over-aligned and the assertion can no
+      longer trigger: `EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT` is then defined automatically, and you do not need to
+      define it yourself.</li>
 </ul>
 
-If you want to know why defining `EIGEN_DONT_VECTORIZE` does not by itself disable 16-byte (or above) alignment and the assertion, here's the explanation:
-
-It doesn't disable the assertion, because otherwise code that runs fine without vectorization would suddenly crash when enabling vectorization.
-It doesn't disable 16-byte (or above) alignment, because that would mean that vectorized and non-vectorized code are not mutually ABI-compatible. This ABI compatibility is very important, even for people who develop only an in-house application, as for instance one may want to have in the same application a vectorized path and a non-vectorized path.
+The last two options change the alignment %Eigen requests for every fixed-size vectorizable type, and alignment is part
+of the ABI: outside GPU compilation, `alignof(Vector4f)` is 16 in a default x86-64 build and 4 under
+`EIGEN_DONT_VECTORIZE`, so a translation unit compiled one way cannot exchange %Eigen objects, or structures holding
+them, with one compiled the other way. Define such a macro for every translation unit of your program, including any
+library you link against that exposes %Eigen types in its interface. The \c DontAlign option carries no such risk: it
+is part of the type, so every translation unit that sees the declaration agrees about it. See \ref TopicVectorization
+for the alignment consequences of the vectorization macros.
 
 \section checkmycode How can I check my code is safe regarding alignment issues?
 
