@@ -69,6 +69,9 @@ ei_add_failtest("eigensolver_cplx")
 ei_add_failtest("initializer_list_1")
 ei_add_failtest("initializer_list_2")
 
+ei_add_failtest("erf_no_scalar_overload")
+ei_add_failtest("erfc_no_scalar_overload")
+
 ei_add_failtest("structured_bindings_dynamic_matrix")
 ei_add_failtest("structured_bindings_dynamic_array")
 ei_add_failtest("structured_bindings_rowmajor")

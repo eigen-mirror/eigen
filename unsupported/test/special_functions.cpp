@@ -441,10 +441,81 @@ void scalar_ndtri() {
   VERIFY(positive_inf > Scalar(0));
 }
 
+// A scalar type without a vectorized erf/erfc implementation must defer to
+// std::erf/std::erfc instead of the float/double-tuned polynomials.
+template <typename Scalar>
+void scalar_erf_erfc() {
+  EIGEN_USING_STD(erf);
+  EIGEN_USING_STD(erfc);
+  // Approximate comparison: the compiler may constant-fold one side to the
+  // correctly rounded value while the other runs the libm implementation.
+  for (Scalar x : {Scalar(-2.5L), Scalar(-0.5L), Scalar(0.0L), Scalar(0.25L), Scalar(3.0L)}) {
+    VERIFY_IS_APPROX(numext::erf(x), Scalar(erf(x)));
+    VERIFY_IS_APPROX(numext::erfc(x), Scalar(erfc(x)));
+  }
+}
+
+namespace custom_scalar {
+// Minimal custom real scalar providing erf/erfc via argument-dependent lookup,
+// the way multiprecision types do. numext::erf/erfc must route to these instead
+// of the float/double-tuned polynomials (issue #3023).
+struct CustomReal {
+  double value;
+  CustomReal() : value(0) {}
+  explicit CustomReal(double v) : value(v) {}
+};
+inline CustomReal erf(const CustomReal& x) { return CustomReal(std::erf(x.value)); }
+inline CustomReal erfc(const CustomReal& x) { return CustomReal(std::erfc(x.value)); }
+
+// The shape of boost::numeric::interval: neither erf nor erfc. Eigen's
+// approximations are not valid for such a type, so it must not be routed into
+// them; see failtest/erf_no_scalar_overload.cpp for the resulting error.
+struct NoErfReal {
+  double value;
+};
+}  // namespace custom_scalar
+
+namespace Eigen {
+template <>
+struct NumTraits<custom_scalar::CustomReal> : NumTraits<double> {
+  using Real = custom_scalar::CustomReal;
+  using NonInteger = custom_scalar::CustomReal;
+  using Nested = custom_scalar::CustomReal;
+};
+}  // namespace Eigen
+
+void custom_scalar_erf_erfc() {
+  using custom_scalar::CustomReal;
+  using custom_scalar::NoErfReal;
+  // Pin the routing decision in both directions.
+  STATIC_CHECK((internal::has_erf<CustomReal>::value));
+  STATIC_CHECK((internal::has_erfc<CustomReal>::value));
+  STATIC_CHECK((internal::has_erf<long double>::value));
+  STATIC_CHECK((internal::has_erfc<long double>::value));
+  STATIC_CHECK((!internal::has_erf<NoErfReal>::value));
+  STATIC_CHECK((!internal::has_erfc<NoErfReal>::value));
+
+  Eigen::Array<CustomReal, 4, 1> x;
+  x(0) = CustomReal(-2.5);
+  x(1) = CustomReal(-0.5);
+  x(2) = CustomReal(0.25);
+  x(3) = CustomReal(3.0);
+  Eigen::Array<CustomReal, 4, 1> e = x.erf();
+  Eigen::Array<CustomReal, 4, 1> c = x.erfc();
+  // The polynomial paths cannot even be instantiated for CustomReal, so
+  // compiling proves the routing; the value check guards the plumbing.
+  for (int i = 0; i < 4; ++i) {
+    VERIFY_IS_APPROX(e(i).value, std::erf(x(i).value));
+    VERIFY_IS_APPROX(c(i).value, std::erfc(x(i).value));
+  }
+}
+
 EIGEN_DECLARE_TEST(special_functions) {
   CALL_SUBTEST_1(array_special_functions<ArrayXf>());
   CALL_SUBTEST_2(array_special_functions<ArrayXd>());
   CALL_SUBTEST_3(scalar_ndtri<long double>());
+  CALL_SUBTEST_4(scalar_erf_erfc<long double>());
+  CALL_SUBTEST_5(custom_scalar_erf_erfc());
   // TODO(cantonios): half/bfloat16 don't have enough precision to reproduce results above.
   // CALL_SUBTEST_4(array_special_functions<ArrayX<Eigen::half>>());
   // CALL_SUBTEST_5(array_special_functions<ArrayX<Eigen::bfloat16>>());

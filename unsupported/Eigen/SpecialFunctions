@@ -53,6 +53,12 @@ namespace Eigen {
  * - bessel_y0
  * - bessel_y1
  *
+ * The implementations are tuned for \c float and \c double, so they do not carry
+ * over to an arbitrary scalar. \c erf and \c erfc accept any other scalar type
+ * that declares its own \c erf / \c erfc in the namespace of that type, where
+ * argument-dependent lookup finds it; a scalar type that declares neither is
+ * rejected at compile time.
+ *
  * \code
  * #include <unsupported/Eigen/SpecialFunctions>
  * \endcode
