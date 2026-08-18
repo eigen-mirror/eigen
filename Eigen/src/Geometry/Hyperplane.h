@@ -255,12 +255,57 @@ class Hyperplane {
   /** \returns \c true if \c *this is approximately equal to \a other, within the precision
    * determined by \a prec.
    *
-   * \sa MatrixBase::isApprox() */
+   * Hyperplanes are oriented: the sign of their coefficients decides which side signedDistance()
+   * reports as positive, so a hyperplane and its negation are not approximately equal here even
+   * though they describe the same point set. Use isCoincident() to compare them as point sets.
+   *
+   * \sa isCoincident(), MatrixBase::isApprox() */
   template <int OtherOptions>
   EIGEN_DEVICE_FUNC bool isApprox(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
     return m_coeffs.isApprox(other.m_coeffs, prec);
+  }
+
+  /** \returns \c true if \c *this and \a other describe approximately the same set of points,
+   * within the precision determined by \a prec, regardless of orientation and scale.
+   *
+   * Scaling the equation signedDistance() evaluates by any nonzero \f$ \gamma \f$ leaves its zero
+   * set unchanged. Because dot() is conjugate-linear in the normal, that carries
+   * \f$ (n, d) \f$ to \f$ (\bar{\gamma} n, \gamma d) \f$, so coincident hyperplanes need not have
+   * coefficients of equal magnitude: for a real \c Scalar any nonzero real factor relates them, a
+   * sign flip - which isApprox() rejects - being the norm-preserving case, and for a complex
+   * \c Scalar any nonzero complex factor does.
+   *
+   * The comparison is therefore made on the normalized equations, which \f$ \gamma \f$ no longer
+   * distinguishes beyond a unit-modulus factor: the unit normals must agree, up to that factor,
+   * within \a prec, and the two distances to the origin must agree the way internal::isApprox()
+   * compares scalars, that is relative to their own magnitude. Comparing the two halves separately
+   * is what keeps a distant hyperplane from relaxing the comparison of the normals; it also means
+   * that a hyperplane through the origin is not coincident with one that merely passes close to it.
+   * The result is symmetric in the two hyperplanes, and unchanged both when either equation is
+   * rescaled and when the ambient coordinates are.
+   *
+   * Both normals must be nonzero.
+   *
+   * \sa isApprox(), signedDistance(), normalize() */
+  template <int OtherOptions>
+  EIGEN_DEVICE_FUNC bool isCoincident(
+      const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
+      const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
+    const RealScalar this_norm = normal().norm();
+    const RealScalar other_norm = other.normal().norm();
+    eigen_assert(this_norm > RealScalar(0) && other_norm > RealScalar(0));
+    // Normalizing accounts for |gamma|; what is left of it is a unit-modulus factor, and the
+    // normals themselves determine it, since the inner product of two coincident unit normals is
+    // exactly that factor. Orthogonal normals leave it undetermined, but no factor makes those
+    // agree either, so the choice made for them does not matter.
+    const Scalar inner = normal().dot(other.normal());
+    const RealScalar inner_norm = numext::abs(inner);
+    const Scalar phase = inner_norm > RealScalar(0) ? inner / Scalar(inner_norm) : Scalar(1);
+    if (!((other.normal() / Scalar(other_norm) - phase * (normal() / Scalar(this_norm))).norm() <= prec)) return false;
+    return internal::isApprox(other.offset() / Scalar(other_norm), numext::conj(phase) * (offset() / Scalar(this_norm)),
+                              prec);
   }
 
  protected:
