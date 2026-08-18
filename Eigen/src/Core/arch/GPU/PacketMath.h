@@ -437,6 +437,15 @@ EIGEN_DEVICE_FUNC inline void pscatter<double, double2>(double* to, const double
 }
 
 template <>
+EIGEN_DEVICE_FUNC inline float4 preverse(const float4& a) {
+  return make_float4(a.w, a.z, a.y, a.x);
+}
+template <>
+EIGEN_DEVICE_FUNC inline double2 preverse(const double2& a) {
+  return make_double2(a.y, a.x);
+}
+
+template <>
 EIGEN_DEVICE_FUNC inline float pfirst<float4>(const float4& a) {
   return a.x;
 }
@@ -680,6 +689,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pgather(const Eigen::half* from, Ind
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(Eigen::half* to, const half2& from, Index stride) {
   to[stride * 0] = __low2half(from);
   to[stride * 1] = __high2half(from);
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 preverse(const half2& a) {
+  return __halves2half2(__high2half(a), __low2half(a));
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half pfirst(const half2& a) { return __low2half(a); }
@@ -967,6 +980,18 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter<Eigen::half, Packet4h2>(Eige
   pscatter(to + stride * 2, from_alias[1], stride);
   pscatter(to + stride * 4, from_alias[2], stride);
   pscatter(to + stride * 6, from_alias[3], stride);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 preverse(const Packet4h2& a) {
+  Packet4h2 r;
+  half2* p_alias = reinterpret_cast<half2*>(&r);
+  const half2* a_alias = reinterpret_cast<const half2*>(&a);
+  p_alias[0] = preverse(a_alias[3]);
+  p_alias[1] = preverse(a_alias[2]);
+  p_alias[2] = preverse(a_alias[1]);
+  p_alias[3] = preverse(a_alias[0]);
+  return r;
 }
 
 template <>

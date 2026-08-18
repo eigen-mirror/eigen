@@ -463,6 +463,62 @@ static void test_block_io_negative_inner_stride_do_not_squeeze() {
   }
 }
 
+// A unit-magnitude negative stride on one or both sides is copied with a
+// packet reversal rather than element-by-element. Sweep the run length so the
+// full-packet body, the half-packet step and the scalar tail are all covered
+// for every scalar width, with and without an outer dimension to iterate.
+template <typename Scalar, int Layout>
+static void test_block_io_reversed_inner_runs() {
+  using TensorBlockIO = internal::TensorBlockIO<Scalar, Index, 2, Layout>;
+  using IODst = typename TensorBlockIO::Dst;
+  using IOSrc = typename TensorBlockIO::Src;
+
+  const Index inner_dim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : 1;
+  const Index outer_dim = 1 - inner_dim;
+
+  // `outer == 1` leaves the block iterator empty, so the copy is a single run.
+  for (Index outer : {Index(1), Index(3)}) {
+    // Lengths straddling the packet and half-packet boundaries of every width.
+    for (Index inner = 1; inner <= 40; ++inner) {
+      DSizes<Index, 2> block_sizes;
+      block_sizes[inner_dim] = inner;
+      block_sizes[outer_dim] = outer;
+
+      Tensor<Scalar, 1> input(inner * outer);
+      input.setRandom();
+      const DSizes<Index, 2> dense = internal::strides<Layout>(block_sizes);
+
+      // reversed destination, forward source; forward destination, reversed
+      // source; and both reversed.
+      for (int variant = 0; variant < 3; ++variant) {
+        const bool rev_dst = (variant != 1);
+        const bool rev_src = (variant != 0);
+
+        Tensor<Scalar, 1> output(inner * outer);
+        output.setZero();
+
+        DSizes<Index, 2> src_strides = dense, dst_strides = dense;
+        src_strides[inner_dim] = rev_src ? -1 : 1;
+        dst_strides[inner_dim] = rev_dst ? -1 : 1;
+        const Index src_offset = rev_src ? inner - 1 : 0;
+        const Index dst_offset = rev_dst ? inner - 1 : 0;
+
+        IODst dst(block_sizes, dst_strides, output.data(), dst_offset);
+        IOSrc src(src_strides, input.data(), src_offset);
+        TensorBlockIO::Copy(dst, src);
+
+        for (Index o = 0; o < outer; ++o) {
+          for (Index i = 0; i < inner; ++i) {
+            const Scalar expected = input.data()[src_offset + o * src_strides[outer_dim] + i * src_strides[inner_dim]];
+            const Scalar actual = output.data()[dst_offset + o * dst_strides[outer_dim] + i * dst_strides[inner_dim]];
+            VERIFY_IS_EQUAL(actual, expected);
+          }
+        }
+      }
+    }
+  }
+}
+
 // Conversely, a uniformly dilated source does keep one progression across the
 // dimension boundary, so it must squeeze and still copy the right elements.
 template <int Layout>
@@ -524,6 +580,12 @@ EIGEN_DECLARE_TEST(tensor_block_io) {
 
   CALL_SUBTEST(test_block_io_negative_inner_stride_do_not_squeeze<RowMajor>());
   CALL_SUBTEST(test_block_io_negative_inner_stride_do_not_squeeze<ColMajor>());
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<float, RowMajor>()));
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<float, ColMajor>()));
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<double, RowMajor>()));
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<double, ColMajor>()));
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<int, ColMajor>()));
+  CALL_SUBTEST((test_block_io_reversed_inner_runs<bool, ColMajor>()));
 
   CALL_SUBTEST(test_block_io_dilated_inner_stride_squeeze<RowMajor>());
   CALL_SUBTEST(test_block_io_dilated_inner_stride_squeeze<ColMajor>());

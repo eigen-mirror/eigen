@@ -921,12 +921,15 @@ class StridedLinearBufferCopy {
  public:
   // Specifying linear copy kind statically gives ~30% speedup for small sizes.
   enum class Kind {
-    Linear = 0,       // src_stride == 1 && dst_stride == 1
-    Scatter = 1,      // src_stride == 1 && dst_stride != 1
-    FillLinear = 2,   // src_stride == 0 && dst_stride == 1
-    FillScatter = 3,  // src_stride == 0 && dst_stride != 1
-    Gather = 4,       // dst_stride == 1
-    Random = 5        // everything else
+    Linear = 0,        // src_stride == 1 && dst_stride == 1
+    Scatter = 1,       // src_stride == 1 && dst_stride != 1 && dst_stride != -1
+    FillLinear = 2,    // src_stride == 0 && dst_stride == 1
+    FillScatter = 3,   // src_stride == 0 && dst_stride != 1
+    Gather = 4,        // dst_stride == 1 && src_stride != -1
+    Random = 5,        // everything else
+    ReverseStore = 6,  // src_stride == 1 && dst_stride == -1
+    ReverseLoad = 7,   // src_stride == -1 && dst_stride == 1
+    ReverseBoth = 8    // src_stride == -1 && dst_stride == -1
   };
 
   struct Dst {
@@ -969,31 +972,41 @@ class StridedLinearBufferCopy {
     const IndexType vectorized_size = PacketSize * (count / PacketSize);
     IndexType i = 0;
 
-    EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::Linear) {
+    EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::Linear ||
+                        kind == StridedLinearBufferCopy::Kind::ReverseBoth) {
       // ******************************************************************** //
-      // Linear copy from `src` to `dst`.
+      // Linear copy from `src` to `dst`. `ReverseBoth` walks both runs
+      // backwards, which leaves the elements contiguous and in the same order
+      // in both buffers, so it is this same copy once each pointer is moved to
+      // the low end of its run. No evaluator produces a reversed run on both
+      // sides today; the kind exists so that such a run does not fall back to
+      // `Random`.
+      constexpr IndexType run_stride = kind == StridedLinearBufferCopy::Kind::ReverseBoth ? -1 : 1;
+      eigen_assert(src_stride == run_stride && dst_stride == run_stride);
+      const IndexType run_offset = run_stride == 1 ? 0 : count - 1;
+      const Scalar* run_src = src - run_offset;
+      Scalar* run_dst = dst - run_offset;
       const IndexType unrolled_size = (4 * PacketSize) * (count / (4 * PacketSize));
-      eigen_assert(src_stride == 1 && dst_stride == 1);
       for (; i < unrolled_size; i += 4 * PacketSize) {
         for (int j = 0; j < 4; ++j) {
-          Packet p = ploadu<Packet>(src + i + j * PacketSize);
-          pstoreu<Scalar, Packet>(dst + i + j * PacketSize, p);
+          Packet p = ploadu<Packet>(run_src + i + j * PacketSize);
+          pstoreu<Scalar, Packet>(run_dst + i + j * PacketSize, p);
         }
       }
       for (; i < vectorized_size; i += PacketSize) {
-        Packet p = ploadu<Packet>(src + i);
-        pstoreu<Scalar, Packet>(dst + i, p);
+        Packet p = ploadu<Packet>(run_src + i);
+        pstoreu<Scalar, Packet>(run_dst + i, p);
       }
       EIGEN_IF_CONSTEXPR (HasHalfPacket) {
         const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
         if (i < vectorized_half_size) {
-          HalfPacket p = ploadu<HalfPacket>(src + i);
-          pstoreu<Scalar, HalfPacket>(dst + i, p);
+          HalfPacket p = ploadu<HalfPacket>(run_src + i);
+          pstoreu<Scalar, HalfPacket>(run_dst + i, p);
           i += HalfPacketSize;
         }
       }
       for (; i < count; ++i) {
-        dst[i] = src[i];
+        run_dst[i] = run_src[i];
       }
       // ******************************************************************** //
     } else EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::Scatter) {
@@ -1079,6 +1092,48 @@ class StridedLinearBufferCopy {
       }
       for (; i < count; ++i) {
         dst[i] = src[i * src_stride];
+      }
+      // ******************************************************************** //
+    } else EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::ReverseStore) {
+      // ******************************************************************** //
+      // Contiguous read, reversed write: `dst[-i] = src[i]`. The destination
+      // run covers [dst - count + 1, dst], so a packet is one contiguous load,
+      // one `preverse` and one contiguous store -- instead of the `pscatter`
+      // that a stride of -1 would otherwise fall into.
+      eigen_assert(src_stride == 1 && dst_stride == -1);
+      for (; i < vectorized_size; i += PacketSize) {
+        Packet p = ploadu<Packet>(src + i);
+        pstoreu<Scalar, Packet>(dst - i - (PacketSize - 1), preverse(p));
+      }
+      EIGEN_IF_CONSTEXPR (HasHalfPacket) {
+        const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
+        if (i < vectorized_half_size) {
+          HalfPacket p = ploadu<HalfPacket>(src + i);
+          pstoreu<Scalar, HalfPacket>(dst - i - (HalfPacketSize - 1), preverse(p));
+          i += HalfPacketSize;
+        }
+      }
+      for (; i < count; ++i) {
+        dst[-i] = src[i];
+      }
+      // ******************************************************************** //
+    } else EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::ReverseLoad) {
+      // Reversed read, contiguous write: `dst[i] = src[-i]`.
+      eigen_assert(src_stride == -1 && dst_stride == 1);
+      for (; i < vectorized_size; i += PacketSize) {
+        Packet p = ploadu<Packet>(src - i - (PacketSize - 1));
+        pstoreu<Scalar, Packet>(dst + i, preverse(p));
+      }
+      EIGEN_IF_CONSTEXPR (HasHalfPacket) {
+        const IndexType vectorized_half_size = HalfPacketSize * (count / HalfPacketSize);
+        if (i < vectorized_half_size) {
+          HalfPacket p = ploadu<HalfPacket>(src - i - (HalfPacketSize - 1));
+          pstoreu<Scalar, HalfPacket>(dst + i, preverse(p));
+          i += HalfPacketSize;
+        }
+      }
+      for (; i < count; ++i) {
+        dst[i] = src[-i];
       }
       // ******************************************************************** //
     } else EIGEN_IF_CONSTEXPR (kind == StridedLinearBufferCopy::Kind::Random) {
@@ -1249,6 +1304,12 @@ class TensorBlockIO {
 
     if (input_stride == 1 && output_stride == 1) {
       COPY_INNER_DIM(LinCopy::Kind::Linear);
+    } else if (input_stride == 1 && output_stride == -1) {
+      COPY_INNER_DIM(LinCopy::Kind::ReverseStore);
+    } else if (input_stride == -1 && output_stride == 1) {
+      COPY_INNER_DIM(LinCopy::Kind::ReverseLoad);
+    } else if (input_stride == -1 && output_stride == -1) {
+      COPY_INNER_DIM(LinCopy::Kind::ReverseBoth);
     } else if (input_stride == 1 && output_stride != 1) {
       COPY_INNER_DIM(LinCopy::Kind::Scatter);
     } else if (input_stride == 0 && output_stride == 1) {

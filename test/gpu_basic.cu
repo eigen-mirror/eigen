@@ -479,6 +479,44 @@ void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out)
 #endif
 }
 
+// `preverse` falls back to returning the packet unchanged for any packet type
+// that does not override it, which is only correct for a packet of one element.
+// A GPU translation unit resolves both the host and the device side to the same
+// packet type, so running the same reversal on both and comparing them cannot
+// catch a missing override: check the reversed values instead.
+template <typename T>
+struct reverse_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    constexpr int size = T::SizeAtCompileTime;
+    Eigen::Map<T>(out + i * size) = T(in + i * size).reverse();
+  }
+};
+
+template <typename T>
+void test_reverse() {
+  typedef typename T::Scalar Scalar;
+  constexpr int size = T::SizeAtCompileTime;
+  constexpr int n = 4;
+
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * size), out_ref(n * size), out_gpu(n * size);
+  for (int i = 0; i < n * size; ++i) in(i) = static_cast<Scalar>(i + 1);
+  out_ref.setZero();
+  out_gpu.setZero();
+
+  run_on_cpu(reverse_test<T>(), n, in, out_ref);
+  run_on_gpu(reverse_test<T>(), n, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < size; ++j) {
+      const Scalar expected = in(i * size + size - 1 - j);
+      VERIFY_IS_EQUAL(out_ref(i * size + j), expected);
+      VERIFY_IS_EQUAL(out_gpu(i * size + j), expected);
+    }
+  }
+#endif
+}
+
 EIGEN_DECLARE_TEST(gpu_basic) {
   ei_test_init_gpu();
 
@@ -542,6 +580,12 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
+
+  // `preverse` on every GPU packet type. 32 elements cover several packets of
+  // each, including `Packet4h2`, the widest at 8.
+  CALL_SUBTEST((test_reverse<Eigen::Array<float, 32, 1>>()));
+  CALL_SUBTEST((test_reverse<Eigen::Array<double, 32, 1>>()));
+  CALL_SUBTEST((test_reverse<Eigen::Array<Eigen::half, 32, 1>>()));
 
   typedef Matrix<float, 6, 6> Matrix6f;
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));
