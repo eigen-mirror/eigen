@@ -30,12 +30,12 @@ i.e either row major or column major. The default is column major. Most arithmet
 <tr> 
 <td> Assignment </td>
 <td> 
-\code 
-  SparseMatrix<double,Colmajor> sm1;
+\code
+  SparseMatrix<double,ColMajor> sm1;
  // Initialize sm2 with sm1.
-  SparseMatrix<double,Rowmajor> sm2(sm1), sm3;        
+  SparseMatrix<double,RowMajor> sm2(sm1), sm3;
   // Assignment and evaluations modify the storage order.
-  sm3 = sm1; 
+  sm3 = sm1;
  \endcode
 </td>
 <td> The copy constructor can be used to convert from a storage order to another</td>
@@ -62,13 +62,13 @@ i.e either row major or column major. The default is column major. Most arithmet
   std::vector< Eigen::Triplet<double> > tripletList;
   tripletList.reserve(estimation_of_entries);
   // -- Fill tripletList with nonzero elements...
-  sm1.setFromTriplets(TripletList.begin(), TripletList.end());
+  sm1.setFromTriplets(tripletList.begin(), tripletList.end());
 \endcode
 </td>
 <td>A complete example is available at \link TutorialSparseFilling Triplet Insertion \endlink.</td>
 </tr>
-<tr class="alt"> 
-<td> Constant or Random Insertion</td>
+<tr class="alt">
+<td> Reset to zero</td>
 <td>
 \code
 sm1.setZero();
@@ -186,10 +186,9 @@ sm2 = perm * sm1;    // Permute the rows
 <tr><td colspan="2">Sub-matrices</td></tr>
 <tr>
 <td> 
-\code 
-  sm1.block(startRow, startCol, rows, cols); 
-  sm1.block(startRow, startCol); 
-  sm1.topLeftCorner(rows, cols); 
+\code
+  sm1.block(startRow, startCol, rows, cols);
+  sm1.topLeftCorner(rows, cols);
   sm1.topRightCorner(rows, cols);
   sm1.bottomLeftCorner( rows, cols);
   sm1.bottomRightCorner( rows, cols);
@@ -219,15 +218,14 @@ As stated earlier, for a read-write sub-matrix (RW), the evaluation can be done 
 </tr>
 <tr><td colspan="2"> Triangular and selfadjoint views</td></tr>
 <tr>
-<td> 
+<td>
 \code
-  sm2 = sm1.triangularview<Lower>();
-  sm2 = sm1.selfadjointview<Lower>();
+  sm2 = sm1.triangularView<Lower>();
+  sm2 = sm1.selfadjointView<Lower>();
 \endcode
 </td>
-<td> Several combination between triangular views and blocks views are possible
-\code 
-  \endcode </td>
+<td> Several combinations between triangular views and blocks views are possible
+</td>
 </tr>
 <tr class="alt"><td colspan="2">Triangular solve </td></tr>
 <tr class="alt">

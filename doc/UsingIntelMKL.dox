@@ -38,15 +38,15 @@ namespace Eigen {
 
 Since %Eigen version 3.1 and later, users can benefit from built-in Intel® Math Kernel Library (MKL) optimizations with an installed copy of Intel MKL 10.3 (or later).
 
-<a href="http://eigen.tuxfamily.org/Counter/redirect_to_mkl.php"> Intel MKL </a> provides highly optimized multi-threaded mathematical routines for x86-compatible architectures.
-Intel MKL is available on Linux, Mac and Windows for both Intel64 and IA32 architectures.
+<a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html"> Intel MKL </a> (now distributed as Intel® oneAPI Math Kernel Library, oneMKL) provides highly optimized multi-threaded mathematical routines for x86-compatible architectures.
+Intel MKL is available on Linux, macOS and Windows.
 
 \note
-Intel® MKL is a proprietary software and it is the responsibility of users to buy or register for community (free) Intel MKL licenses for their products. Moreover, the license of the user product has to allow linking to proprietary software that excludes any unmodified versions of the GPL.
+Intel® oneMKL is closed source, but it is distributed under the Intel Simplified Software License: there is no license to buy and no community-license registration to complete, and the terms grant royalty-free use and redistribution with no limit on the number of copies. See the <a href="https://www.intel.com/content/www/us/en/developer/articles/tool/onemkl-license-faq.html">oneMKL license FAQ</a> for the terms that apply to your own product.
 
 Using Intel MKL through %Eigen is easy:
 -# define the \c EIGEN_USE_MKL_ALL macro before including any %Eigen's header
--# link your program to MKL libraries (see the <a href="http://software.intel.com/en-us/articles/intel-mkl-link-line-advisor/">MKL linking advisor</a>)
+-# link your program to MKL libraries (see the <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-link-line-advisor.html">MKL link line advisor</a>)
 -# to use the ILP64 interface rather than LP64, define \c EIGEN_64BIT_BLAS alongside \c MKL_ILP64 (see \ref TopicUsingBlasLapack_ILP64); %Eigen checks at compile time that the two agree
 
 When doing so, a number of %Eigen's algorithms are silently substituted with calls to Intel MKL routines.
@@ -104,8 +104,9 @@ In the examples, v1 and v2 are dense vectors.
 
 
 \section TopicUsingIntelMKL_Links Links
-- Intel MKL can be purchased and downloaded <a href="http://eigen.tuxfamily.org/Counter/redirect_to_mkl.php">here</a>.
-- Intel MKL is also bundled with <a href="http://software.intel.com/en-us/articles/intel-composer-xe/">Intel Composer XE</a>.
+- Intel MKL can be downloaded from the
+  <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html">Intel oneMKL page</a>,
+  either standalone or as part of the Intel oneAPI Base Toolkit.
 
 
 */

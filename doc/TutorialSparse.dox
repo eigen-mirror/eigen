@@ -219,7 +219,7 @@ A typical scenario of this approach is illustrated below:
 5: mat.makeCompressed();                        // optional
 \endcode
 
-- The key ingredient here is the line 2 where we reserve room for 6 non-zeros per column. In many cases, the number of non-zeros per column or row can easily be known in advance. If it varies significantly for each inner vector, then it is possible to specify a reserve size for each inner vector by providing a vector object with an `operator[](int j)` returning the reserve size of the \c j-th inner vector (e.g., via a `VectorXi` or `std::vector<int>`). If only a rought estimate of the number of nonzeros per inner-vector can be obtained, it is highly recommended to overestimate it rather than the opposite. If this line is omitted, then the first insertion of a new element will reserve room for one element per inner vector, and room for one more element per inner vector is reserved again whenever an insertion finds no free slot in any inner vector.
+- The key ingredient here is the line 2 where we reserve room for 6 non-zeros per column. In many cases, the number of non-zeros per column or row can easily be known in advance. If it varies significantly for each inner vector, then it is possible to specify a reserve size for each inner vector by providing a vector object with an `operator[](int j)` returning the reserve size of the \c j-th inner vector (e.g., via a `VectorXi` or `std::vector<int>`). If only a rough estimate of the number of nonzeros per inner-vector can be obtained, it is highly recommended to overestimate it rather than the opposite. If this line is omitted, then the first insertion of a new element will reserve room for one element per inner vector, and room for one more element per inner vector is reserved again whenever an insertion finds no free slot in any inner vector.
 - The line 4 performs a sorted insertion. In this example, the ideal case is when the \c j-th column is not full and contains non-zeros whose inner-indices are smaller than \c i. In this case, this operation boils down to trivial O(1) operation.
 - When calling `insert(i,j)` the element `i`, `j` must not already exists, otherwise use the `coeffRef(i,j)` method that will allow to, e.g., accumulate values. This method first performs a binary search and finally calls `insert(i,j)` if the element does not already exist. It is more flexible than `insert()` but also more costly.
 - The line 5 suppresses the remaining empty space and transforms the matrix into a compressed column storage.
@@ -284,9 +284,9 @@ dm2 = 2. * sm1 * dm1;
     \endcode
   - \b symmetric \b sparse-dense. The product of a sparse symmetric matrix with a dense matrix (or vector) can also be optimized by specifying the symmetry with `selfadjointView()`:
     \code
-dm2 = sm1.selfadjointView<>() * dm1;          // if all coefficients of sm1 are stored
-dm2 = sm1.selfadjointView<Upper>() * dm1;     // if only the upper part of sm1 is stored
-dm2 = sm1.selfadjointView<Lower>() * dm1;     // if only the lower part of sm1 is stored
+dm2 = sm1.selfadjointView<Lower|Upper>() * dm1;  // if all coefficients of sm1 are stored
+dm2 = sm1.selfadjointView<Upper>() * dm1;        // if only the upper part of sm1 is stored
+dm2 = sm1.selfadjointView<Lower>() * dm1;        // if only the lower part of sm1 is stored
     \endcode
   - \b sparse-sparse. For sparse-sparse products, two different algorithms are available. The default one is conservative and preserve the explicit zeros that might appear:
     \code
@@ -333,16 +333,16 @@ In addition, sparse matrices expose the `SparseMatrixBase::innerVector()` and `S
 
 Just as with dense matrices, the `triangularView()` function can be used to address a triangular part of the matrix, and perform triangular solves with a dense right hand side:
 \code
-dm2 = sm1.triangularView<Lower>(dm1);
-dv2 = sm1.transpose().triangularView<Upper>(dv1);
+dm2 = sm1.triangularView<Lower>().solve(dm1);
+dv2 = sm1.transpose().triangularView<Upper>().solve(dv1);
 \endcode
 
 The `selfadjointView()` function permits various operations:
  - optimized sparse-dense matrix products:
     \code
-dm2 = sm1.selfadjointView<>() * dm1;          // if all coefficients of sm1 are stored
-dm2 = sm1.selfadjointView<Upper>() * dm1;     // if only the upper part of sm1 is stored
-dm2 = sm1.selfadjointView<Lower>() * dm1;     // if only the lower part of sm1 is stored
+dm2 = sm1.selfadjointView<Lower|Upper>() * dm1;  // if all coefficients of sm1 are stored
+dm2 = sm1.selfadjointView<Upper>() * dm1;        // if only the upper part of sm1 is stored
+dm2 = sm1.selfadjointView<Lower>() * dm1;        // if only the lower part of sm1 is stored
     \endcode
  - copy of triangular parts:
     \code

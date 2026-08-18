@@ -20,7 +20,7 @@ especially if you got wrong results in statements where the destination appears 
 Indeed, prior to C++17,  C++ does not have quite good enough support for explicit data alignment.
 In that case your program hits an assertion failure (that is, a "controlled crash") with a message that tells you to consult this page:
 \code
-http://eigen.tuxfamily.org/dox/group__TopicUnalignedArrayAssert.html
+http://eigen.tuxfamily.org/dox-devel/group__TopicUnalignedArrayAssert.html
 \endcode
 Have a look at \link TopicUnalignedArrayAssert it \endlink and see for yourself if that's something that you can cope with.
 It contains detailed information about how to deal with each known cause for that issue.
@@ -129,23 +129,30 @@ There are at least two ways around this:
 
 \section TopicPitfalls_matrix_bool Matrices with boolean coefficients
 
-The current behaviour of using \c Matrix with boolean coefficients is inconsistent and likely to change in future versions of Eigen, so please use it carefully!
+For \c bool coefficients, %Eigen interprets the arithmetic operators in the Boolean semiring: \c + is the
+logical OR and \c * is the logical AND. In particular, the product of two \c bool matrices is a Boolean
+matrix product: coefficient \c (i,j) of <tt>A * B</tt> tells whether row \c i of \c A and column \c j of
+\c B share a \c true entry. This holds for every matrix size and every product implementation.
 
-A simple example for such an inconsistency is 
+Operators without a natural Boolean meaning, such as subtraction and negation, fall back to the C++
+integer promotion rules and then convert the result back to \c bool. For instance, both
+<tt>true - false</tt> and <tt>false - true</tt> yield \c true. If you need genuine integer arithmetic on
+0/1 data, use an integer scalar type (and \c cast<int>() where needed) instead of \c bool.
 
+\warning Subtracting a matrix \em product is currently inconsistent with that rule, and the result
+depends on the size of the operands. %Eigen rewrites <tt>dst = X - A * B</tt> into
+<tt>dst = X; dst -= A * B;</tt>, and the compound form scales the product by <tt>Scalar(-1)</tt>, which
+for \c bool is \c true. The subtraction therefore becomes another logical OR whenever the product is
+not evaluated into a temporary first:
 \code
-template<int Size>
-void foo() {
-  Eigen::Matrix<bool, Size, Size> A, B, C;
-  A.setOnes();
-  B.setOnes();
-
-  C = A * B - A * B;
-  std::cout << C << "\n";
-}
+Matrix<bool, Dynamic, Dynamic> A(n, n), B(n, n);
+A.setOnes();
+B.setOnes();
+Matrix<bool, Dynamic, Dynamic> C = A * B - A * B;   // all true, not zero
 \endcode
-
-since calling \c foo<3>() prints the zero matrix while calling \c foo<10>() prints the identity matrix.
+Fixed-size operands give the zero matrix instead, as do sufficiently small dynamic sizes, which take
+a different product implementation. Evaluating the product first, as in <tt>T = A * B; C = T - T;</tt>,
+always gives the zero matrix. Prefer an integer scalar type when you need to subtract products.
 
 */
 }

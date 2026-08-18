@@ -9,7 +9,7 @@ namespace Eigen {
 <a href="#" class="top">top</a>
 \section QuickRef_Headers Modules and Header files
 
-The Eigen library is divided in a Core module and several additional modules. Each module has a corresponding header file which has to be included in order to use the module. The \c %Dense and \c Eigen header files are provided to conveniently gain access to several modules at once.
+The Eigen library is divided into a Core module and several additional modules. Each module has a corresponding header file which has to be included in order to use the module. The \c %Dense and \c Eigen header files are provided to conveniently gain access to several modules at once.
 
 <table class="manual">
 <tr><th>Module</th><th>Header file</th><th>Contents</th></tr>
@@ -19,7 +19,7 @@ The Eigen library is divided in a Core module and several additional modules. Ea
 <tr class="alt"><td>\link Cholesky_Module Cholesky \endlink</td><td>\code#include <Eigen/Cholesky>\endcode</td><td>LLT and LDLT Cholesky factorization with solver</td></tr>
 <tr            ><td>\link Householder_Module Householder \endlink</td><td>\code#include <Eigen/Householder>\endcode</td><td>Householder transformations; this module is used by several linear algebra modules</td></tr>
 <tr class="alt"><td>\link SVD_Module SVD \endlink</td><td>\code#include <Eigen/SVD>\endcode</td><td>SVD decompositions with least-squares solver (JacobiSVD, BDCSVD)</td></tr>
-<tr            ><td>\link QR_Module QR \endlink</td><td>\code#include <Eigen/QR>\endcode</td><td>QR decomposition with solver (HouseholderQR, ColPivHouseholderQR, FullPivHouseholderQR)</td></tr>
+<tr            ><td>\link QR_Module QR \endlink</td><td>\code#include <Eigen/QR>\endcode</td><td>QR decompositions with solver (HouseholderQR, ColPivHouseholderQR, RandColPivHouseholderQR, FullPivHouseholderQR) and the complete orthogonal decompositions (CompleteOrthogonalDecomposition, RandCompleteOrthogonalDecomposition)</td></tr>
 <tr class="alt"><td>\link Eigenvalues_Module Eigenvalues \endlink</td><td>\code#include <Eigen/Eigenvalues>\endcode</td><td>Eigenvalue, eigenvector decompositions (EigenSolver, SelfAdjointEigenSolver, ComplexEigenSolver)</td></tr>
 <tr            ><td>\link Sparse_Module Sparse \endlink</td><td>\code#include <Eigen/Sparse>\endcode</td><td>%Sparse matrix storage and related basic linear algebra (SparseMatrix, SparseVector) \n (see \ref SparseQuickRefPage for details on sparse modules)</td></tr>
 <tr class="alt"><td></td><td>\code#include <Eigen/Dense>\endcode</td><td>Includes Core, Geometry, LU, Cholesky, SVD, QR, and Eigenvalues header files</td></tr>
@@ -142,7 +142,7 @@ matrix.data();
 <td colspan="2">\code
 ObjectType::Scalar              ObjectType::RowsAtCompileTime
 ObjectType::RealScalar          ObjectType::ColsAtCompileTime
-ObjectType::Index               ObjectType::SizeAtCompileTime
+Eigen::Index                    ObjectType::SizeAtCompileTime
 \endcode</td><td></td></tr>
 <tr class="alt"><td>Resizing</td>
 <td>\code
@@ -416,7 +416,7 @@ array1.arg()                  arg(array1)
 
 array1.floor()                floor(array1)
 array1.ceil()                 ceil(array1)
-array1.round()                round(aray1)
+array1.round()                round(array1)
 
 array1.isFinite()             isfinite(array1)
 array1.isInf()                isinf(array1)
@@ -536,11 +536,8 @@ if((array1 < array2).any()) ... // if there exist a pair i,j such that array1(i,
 
 <a href="#" class="top">top</a>\section QuickRef_Blocks Sub-matrices
 
-<div class="warningbox">
-<strong>PLEASE HELP US IMPROVING THIS SECTION.</strong>
-%Eigen 3.4 supports a much improved API for sub-matrices, including,
-slicing and indexing from arrays: \ref TutorialSlicingIndexing
-</div>
+\note %Eigen also supports a more powerful `operator()` API for sub-matrices, including slicing
+with arithmetic sequences and indexing from arrays of indices; see \ref TutorialSlicingIndexing.
 
 Read-write access to a \link DenseBase::col(Index) column \endlink
 or a \link DenseBase::row(Index) row \endlink of a matrix (or array):
@@ -596,10 +593,13 @@ Read-write access to sub-matrices:</td></tr>
 
 <a href="#" class="top">top</a>\section QuickRef_Misc Miscellaneous operations
 
-<div class="warningbox">
-<strong>PLEASE HELP US IMPROVING THIS SECTION.</strong>
-%Eigen 3.4 supports a new API for reshaping: \ref TutorialReshape
-</div>
+\subsection QuickRef_ReshapeRef Reshape
+Matrices and arrays can be viewed with different dimensions through `reshaped()` (see \ref TutorialReshape):
+\code
+mat.reshaped(nrows, ncols)      // 2D view with the given dimensions
+mat.reshaped()                  // 1D linear (column-vector) view
+mat.reshaped<AutoOrder>()       // 1D view following the storage order of mat
+\endcode
 
 \subsection QuickRef_Reverse Reverse
 Vectors, rows, and/or columns of a matrix can be reversed (see DenseBase::reverse(), DenseBase::reverseInPlace(), VectorwiseOp::reverse()).
@@ -746,65 +746,6 @@ m2 = m1.selfadjointView<Eigen::Lower>().ldlt().solve(m2);
 \endcode
 </td></tr>
 </table>
-
-*/
-
-/*
-<table class="tutorial_code">
-<tr><td>
-\link MatrixBase::asDiagonal() make a diagonal matrix \endlink \n from a vector </td><td>\code
-mat1 = vec1.asDiagonal();\endcode
-</td></tr>
-<tr><td>
-Declare a diagonal matrix</td><td>\code
-DiagonalMatrix<Scalar,SizeAtCompileTime> diag1(size);
-diag1.diagonal() = vector;\endcode
-</td></tr>
-<tr><td>Access \link MatrixBase::diagonal() the diagonal and super/sub diagonals of a matrix \endlink as a vector (read/write)</td>
- <td>\code
-vec1 = mat1.diagonal();            mat1.diagonal() = vec1;      // main diagonal
-vec1 = mat1.diagonal(+n);          mat1.diagonal(+n) = vec1;    // n-th super diagonal
-vec1 = mat1.diagonal(-n);          mat1.diagonal(-n) = vec1;    // n-th sub diagonal
-vec1 = mat1.diagonal<1>();         mat1.diagonal<1>() = vec1;   // first super diagonal
-vec1 = mat1.diagonal<-2>();        mat1.diagonal<-2>() = vec1;  // second sub diagonal
-\endcode</td>
-</tr>
-
-<tr><td>View on a triangular part of a matrix (read/write)</td>
- <td>\code
-mat2 = mat1.triangularView<Xxx>();
-// Xxx = Upper, Lower, StrictlyUpper, StrictlyLower, UnitUpper, UnitLower
-mat1.triangularView<Upper>() = mat2 + mat3; // only the upper part is evaluated and referenced
-\endcode</td></tr>
-
-<tr><td>View a triangular part as a symmetric/self-adjoint matrix (read/write)</td>
- <td>\code
-mat2 = mat1.selfadjointView<Xxx>();     // Xxx = Upper or Lower
-mat1.selfadjointView<Upper>() = mat2 + mat2.adjoint();  // evaluated and write to the upper triangular part only
-\endcode</td></tr>
-
-</table>
-
-Optimized products:
-\code
-mat3 += scalar * vec1.asDiagonal() * mat1
-mat3 += scalar * mat1 * vec1.asDiagonal()
-mat3.noalias() += scalar * mat1.triangularView<Xxx>() * mat2
-mat3.noalias() += scalar * mat2 * mat1.triangularView<Xxx>()
-mat3.noalias() += scalar * mat1.selfadjointView<Upper or Lower>() * mat2
-mat3.noalias() += scalar * mat2 * mat1.selfadjointView<Upper or Lower>()
-mat1.selfadjointView<Upper or Lower>().rankUpdate(mat2);
-mat1.selfadjointView<Upper or Lower>().rankUpdate(mat2.adjoint(), scalar);
-\endcode
-
-Inverse products: (all are optimized)
-\code
-mat3 = vec1.asDiagonal().inverse() * mat1
-mat3 = mat1 * diag1.inverse()
-mat1.triangularView<Xxx>().solveInPlace(mat2)
-mat1.triangularView<Xxx>().solveInPlace<OnTheRight>(mat2)
-mat2 = mat1.selfadjointView<Upper or Lower>().llt().solve(mat2)
-\endcode
 
 */
 }

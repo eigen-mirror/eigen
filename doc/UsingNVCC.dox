@@ -27,7 +27,7 @@ Define \c EIGEN_NO_HIP to disable this. Internally, both CUDA and HIP are unifie
 
 \section TopicCUDA_KnownIssues Known issues
 
- - On 64-bit systems %Eigen uses \c long \c int as the default type for indexes and sizes.
+ - On 64-bit systems %Eigen uses \c std::ptrdiff_t, a 64-bit type, as the default type for indexes and sizes.
    On CUDA/HIP devices, it would make sense to default to 32-bit \c int.
    However, to keep host and device code compatible, this cannot be done automatically by %Eigen,
    and the user is thus required to define \c EIGEN_DEFAULT_DENSE_INDEX_TYPE to \c int throughout

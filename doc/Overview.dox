@@ -2,7 +2,7 @@ namespace Eigen {
 
 /** \mainpage notitle
 
-This is the API documentation for Eigen3. You can <a href="eigen-doc.tgz">download</a> it as a tgz archive for offline reading.
+This is the API documentation for %Eigen. You can <a href="eigen-doc.tgz">download</a> it as a tgz archive for offline reading.
 
 For a first contact with Eigen, the best place is to have a look at the \subpage GettingStarted page that show you how to write and compile your first program with Eigen.
 
@@ -19,9 +19,7 @@ Under the \subpage UserManual_CustomizingEigen section, you will find discussion
 
 Under the \subpage UserManual_Generalities section, you will find documentation on more general topics such as preprocessor directives, controlling assertions, multi-threading, MKL support, some Eigen's internal insights, and much more...
 
-For details regarding Eigen's inner-workings, see the \subpage UserManual_UnderstandingEigen section.
-
-Some random topics can be found under the \subpage UnclassifiedPages section.
+For details regarding Eigen's inner-workings, see the \ref UserManual_UnderstandingEigen section.
 
 Finally, do not miss the search engine, useful to quickly get to the documentation of a given class or function.
 

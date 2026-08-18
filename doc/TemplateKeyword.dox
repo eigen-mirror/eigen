@@ -108,9 +108,9 @@ If \c SparseMatrixType depends on a template parameter, then the \c typename key
 
 \code
 template <typename T>
-void iterateOverSparseMatrix(const SparseMatrix<T>& mat;
+void iterateOverSparseMatrix(const SparseMatrix<T>& mat)
 {
-  for (int k=0; k<m1.outerSize(); ++k)
+  for (int k=0; k<mat.outerSize(); ++k)
     for (typename SparseMatrix<T>::InnerIterator it(mat,k); it; ++it)
     {
       /* ... */
@@ -124,10 +124,9 @@ void iterateOverSparseMatrix(const SparseMatrix<T>& mat;
 For more information and a fuller explanation of this topic, the reader may consult the following sources:
 - The book "C++ Template Metaprogramming" by David Abrahams and Aleksey Gurtovoy contains a very good
   explanation in Appendix B ("The typename and template Keywords") which formed the basis for this page.
-- http://pages.cs.wisc.edu/~driscoll/typename.html
-- http://www.parashift.com/c++-faq-lite/templates.html#faq-35.18
-- http://www.comeaucomputing.com/techtalk/templates/#templateprefix
-- http://www.comeaucomputing.com/techtalk/templates/#typename
+- The cppreference page on <a href="https://en.cppreference.com/w/cpp/language/dependent_name">dependent names</a>.
+- The ISO C++ FAQ entry on
+  <a href="https://isocpp.org/wiki/faq/templates#nondependent-name-lookup-members">name lookup within class templates</a>.
 
 */
 }

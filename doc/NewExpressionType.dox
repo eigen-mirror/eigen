@@ -44,8 +44,8 @@ Owning storage types are much more invasive than lightweight expressions because
 resizing, alignment, assignment, and evaluator assumptions. New code should avoid introducing such a type unless the
 existing Matrix, Array, Map, Ref, view, or expression mechanisms cannot represent the use case.
 
-\b TO \b DO: Write a page explaining the design, with details on
-vectorization etc., and refer to that page here.
+For background on the design that a new expression type plugs into, see \ref TopicEigenExpressionTemplates,
+\ref TopicClassHierarchy, \ref TopicLazyEvaluation, and \ref TopicInsideEigenExample.
 
 
 \eigenAutoToc
@@ -86,9 +86,9 @@ to the \c makeCirculant function.
 
 \section TopicTraits The traits class
 
-For every expression class \c X, there should be a traits class 
-\c Traits<X> in the \c Eigen::internal namespace containing
-information about \c X known as compile time.
+For every expression class \c X, there should be a traits class
+\c internal::traits<X> in the \c Eigen namespace containing
+information about \c X known at compile time.
 
 As explained in \ref TopicSetting, we designed the \c Circulant
 expression class to refer to dense matrices. The entries of the
@@ -118,8 +118,14 @@ size of the corresponding circulant matrix. As explained above, this
 is a square matrix with as many columns as the vector used to
 construct the matrix.
 
-\b TO \b DO: What about the \c Nested typedef? It seems to be
-necessary; is this only temporary?
+The \c Nested typedef is what an enclosing expression stores this one
+as: \c CwiseUnaryOp, \c CwiseBinaryOp and their kin declare their
+operand members as \c ArgType::Nested. Define it from
+\c internal::ref_selector, as above, which selects a reference or a
+value from the expression's own \c NestByRefBit. Whether a
+sub-expression is instead evaluated into a temporary is a separate
+decision, taken by \c internal::nested_eval from the evaluator's flags
+and costs rather than from this typedef.
 
 \include make_circulant.cpp.expression
 

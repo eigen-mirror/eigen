@@ -26,6 +26,8 @@
  *  - MatrixBase::colPivHouseholderQr()
  *  - MatrixBase::fullPivHouseholderQr()
  *  - MatrixBase::randColPivHouseholderQr()
+ *  - MatrixBase::completeOrthogonalDecomposition()
+ *  - MatrixBase::randCompleteOrthogonalDecomposition()
  *
  * \code
  * #include <Eigen/QR>

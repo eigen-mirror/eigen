@@ -50,12 +50,6 @@ VectorXi::LinSpaced(((hi-low)/step)+1,      // low:step:hi
 // Matrix slicing and blocks. All expressions listed here are read/write.
 // Templated size versions are faster. Note that Matlab is 1-based (a size N
 // vector is x(1)...x(N)).
-/******************************************************************************/
-/*                  PLEASE HELP US IMPROVING THIS SECTION                     */
-/* Eigen 3.4 supports a much improved API for sub-matrices, including,        */
-/* slicing and indexing from arrays:                                          */
-/* http://eigen.tuxfamily.org/dox-devel/group__TutorialSlicingIndexing.html   */
-/******************************************************************************/
 // Eigen                           // Matlab
 x.head(n)                          // x(1:n)
 x.head<n>()                        // x(1:n)
@@ -88,26 +82,34 @@ P.topRightCorner<rows,cols>()      // P(1:rows, end-cols+1:end)
 P.bottomLeftCorner<rows,cols>()    // P(end-rows+1:end, 1:cols)
 P.bottomRightCorner<rows,cols>()   // P(end-rows+1:end, end-cols+1:end)
 
+// Slicing and indexing with operator() (Eigen 3.4+).
+// using namespace Eigen::indexing; provides seq, seqN, all, last, lastN.
+// Eigen                           // Matlab
+x(seq(i, j))                       // x(i+1 : j+1)
+x(seq(i, j, step))                 // x(i+1 : step : j+1)
+x(seqN(i, n))                      // x(i+1 : i+n)
+x(lastN(n))                        // x(end-n+1 : end)
+P(all, j)                          // P(:, j+1)
+P(seq(0, last, 2), all)            // P(1:2:end, :)
+P(ind, all)                        // P(ind, :)      // ind: vector/array of indices (0-based)
+
 // Of particular note is Eigen's swap function which is highly optimized.
 // Eigen                           // Matlab
 R.row(i) = P.col(j);               // R(i, :) = P(:, j)
-R.col(j1).swap(mat1.col(j2));      // R(:, [j1 j2]) = R(:, [j2, j1])
+R.col(j1).swap(R.col(j2));         // R(:, [j1 j2]) = R(:, [j2, j1])
 
-// Views, transpose, etc;
-/******************************************************************************/
-/*                  PLEASE HELP US IMPROVING THIS SECTION                     */
-/* Eigen 3.4 supports a new API for reshaping:                                */
-/* http://eigen.tuxfamily.org/dox-devel/group__TutorialReshape.html           */
-/******************************************************************************/
+// Views, transpose, reshape, etc.
 // Eigen                           // Matlab
 R.adjoint()                        // R'
 R.transpose()                      // R.' or conj(R')       // Read-write
 R.diagonal()                       // diag(R)               // Read-write
 x.asDiagonal()                     // diag(x)
 R.transpose().colwise().reverse()  // rot90(R)              // Read-write
-R.rowwise().reverse()              // fliplr(R)
-R.colwise().reverse()              // flipud(R)
+R.rowwise().reverse()              // fliplr(R)             // Read-write
+R.colwise().reverse()              // flipud(R)             // Read-write
 R.replicate(i,j)                   // repmat(P,i,j)
+R.reshaped(m,n)                    // reshape(R,m,n)        // Read-write, column-major view
+R.reshaped()                       // R(:)                  // Read-write, 1D column-major view
 
 
 // All the same as Matlab, but matlab doesn't have *= style operators.
@@ -122,11 +124,11 @@ a *= M;            R  = P + Q;      R  = P/s;
 // Vectorized operations on each element independently
 // Eigen                       // Matlab
 R = P.cwiseProduct(Q);         // R = P .* Q
-R = P.array() * s.array();     // R = P .* s
+R = P.array() * s;             // R = P .* s
 R = P.cwiseQuotient(Q);        // R = P ./ Q
 R = P.array() / Q.array();     // R = P ./ Q
-R = P.array() + s.array();     // R = P + s
-R = P.array() - s.array();     // R = P - s
+R = P.array() + s;             // R = P + s
+R = P.array() - s;             // R = P - s
 R.array() += s;                // R = R + s
 R.array() -= s;                // R = R - s
 R.array() < Q.array();         // R < Q
@@ -154,7 +156,8 @@ R.cwiseAbs2()                  // abs(P.^2)
 R.array().abs2()               // abs(P.^2)
 (R.array() < s).select(P,Q );  // (R < s ? P : Q)
 R = (Q.array()==0).select(P,R) // R(Q==0) = P(Q==0)
-R = P.unaryExpr([&](const scalar& x) { return func(x); }) // R = arrayfun(func, P)
+R = P.unaryExpr([](float x) -> float { return func(x); }); // R = arrayfun(func, P). The lambda must
+                                                           // preserve P's scalar type.
 
 
 // Reductions.
@@ -180,7 +183,7 @@ R.rowwise().any()         // any(R, 2)
 
 // Dot products, norms, etc.
 // Eigen                  // Matlab
-x.norm()                  // norm(x).    Note that norm(R) doesn't work in Eigen.
+x.norm()                  // norm(x).    Note: R.norm() is the Frobenius norm, not Matlab's norm(R).
 x.squaredNorm()           // dot(x, x)   Note the equivalence is not true for complex
 x.dot(y)                  // dot(x, y)
 x.cross(y)                // cross(x, y) Requires #include <Eigen/Geometry>
@@ -207,17 +210,21 @@ Matrix2i mat2x2(data);                    // copies data into mat2x2
 Matrix2i::Map(data) = 2*mat2x2;           // overwrite elements of data with 2*mat2x2
 MatrixXi::Map(data, 2, 2) += mat2x2;      // adds mat2x2 to elements of data (alternative syntax if size is not know at compile time)
 
-// Solve Ax = b. Result stored in x. Matlab: x = A \ b.
-x = A.ldlt().solve(b));  // A sym. p.s.d.    #include <Eigen/Cholesky>
-x = A.llt() .solve(b));  // A sym. p.d.      #include <Eigen/Cholesky>
-x = A.lu()  .solve(b));  // Stable and fast. #include <Eigen/LU>
-x = A.qr()  .solve(b));  // No pivoting.     #include <Eigen/QR>
-x = A.svd() .solve(b));  // Stable, slowest. #include <Eigen/SVD>
-// .ldlt() -> .matrixL() and .matrixD()
-// .llt()  -> .matrixL()
-// .lu()   -> .matrixL() and .matrixU()
-// .qr()   -> .matrixQ() and .matrixR()
-// .svd()  -> .matrixU(), .singularValues(), and .matrixV()
+// Solve A*xd = bd. Result stored in xd. Matlab: xd = A \ bd.
+Vector3d bd, xd;                              // A is double, so the RHS and result are too.
+xd = A.ldlt().solve(bd);                      // A sym. p.s.d.       #include <Eigen/Cholesky>
+xd = A.llt().solve(bd);                       // A sym. p.d.         #include <Eigen/Cholesky>
+xd = A.lu().solve(bd);                        // A invertible; fast. #include <Eigen/LU>
+xd = A.householderQr().solve(bd);             // Least squares, full rank.       #include <Eigen/QR>
+xd = A.completeOrthogonalDecomposition()
+      .solve(bd);                             // Least squares, rank-deficient OK. #include <Eigen/QR>
+xd = A.bdcSvd<ComputeThinU |
+              ComputeThinV>().solve(bd);      // Most robust, slowest. #include <Eigen/SVD>
+// .ldlt()             -> .matrixL() and .vectorD()
+// .llt()              -> .matrixL()
+// .lu()               -> .matrixLU(), .permutationP()
+// .householderQr()    -> .householderQ() and .matrixQR()
+// .bdcSvd<...>()      -> .matrixU(), .singularValues(), and .matrixV()
 
 // Eigenvalue problems
 // Eigen                          // Matlab

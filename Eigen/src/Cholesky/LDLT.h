@@ -58,7 +58,10 @@ enum SignMatrix { PositiveSemiDef, NegativeSemiDef, ZeroSign, Indefinite };
  *
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
- * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT
+ * D is purely diagonal, so this class cannot factor an indefinite matrix. For a self-adjoint matrix
+ * that is indefinite, use BunchKaufman, which produces a block-diagonal D.
+ *
+ * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT, class BunchKaufman
  */
 template <typename MatrixType_, int UpLo_>
 class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {

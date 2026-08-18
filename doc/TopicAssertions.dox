@@ -6,7 +6,7 @@ namespace Eigen {
 
 \section PlainAssert Assertions
 
-The macro eigen_assert is defined to be \c eigen_plain_assert by default. We use eigen_plain_assert instead of \c assert to work around a known bug for GCC <= 4.3. Basically, eigen_plain_assert \a is \c assert.
+The macro eigen_assert is defined to be \c eigen_plain_assert by default, and eigen_plain_assert essentially behaves like the standard \c assert. Having %Eigen's own layer instead of using \c assert directly lets %Eigen handle device code (assertions in GPU kernels are disabled unless explicitly enabled) and avoid ODR pitfalls caused by \c __FILE__ expanding differently across translation units; see Eigen/src/Core/util/Assert.h for the details.
 
 \subsection RedefineAssert Redefining assertions
 

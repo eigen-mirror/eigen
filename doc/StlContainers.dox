@@ -58,7 +58,7 @@ Here is an example:
 \code
 #include<Eigen/StdVector>
 /* ... */
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix2d)
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Vector2d)
 std::vector<Eigen::Vector2d>
 \endcode
 

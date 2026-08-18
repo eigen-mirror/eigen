@@ -82,26 +82,25 @@ When we do
 \code
   Eigen::VectorXf u(size);
 \endcode
-the constructor that is called is Matrix::Matrix(int), in src/Core/Matrix.h. Besides some assertions, all it does is to construct the \a m_storage member, which is of type DenseStorage\<float, Dynamic, Dynamic, 1\>.
+the constructor that is called is Matrix::Matrix(Index), in src/Core/Matrix.h. Besides some assertions, all it does is to construct the \a m_storage member, which is of type DenseStorage\<float, Dynamic, Dynamic, 1, 0\> (the last parameter carries the Options).
 
 You may wonder, isn't it overengineering to have the storage in a separate class? The reason is that the Matrix class template covers all kinds of matrices and vector: both fixed-size and dynamic-size. The storage method is not the same in these two cases. For fixed-size, the matrix coefficients are stored as a plain member array. For dynamic-size, the coefficients will be stored as a pointer to a dynamically-allocated array. Because of this, we need to abstract storage away from the Matrix class. That's DenseStorage.
 
-Let's look at this constructor, in src/Core/DenseStorage.h. You can see that there are many partial template specializations of DenseStorages here, treating separately the cases where dimensions are Dynamic or fixed at compile-time. The partial specialization that we are looking at is:
+Let's look at this constructor, in src/Core/DenseStorage.h. You can see that there are many partial template specializations of the DenseStorage implementation here, treating separately the cases where dimensions are Dynamic or fixed at compile-time. The partial specialization that we are looking at is the one for a dynamic size with a fixed number of columns:
 \code
-template<typename T, int Cols_> class DenseStorage<T, Dynamic, Dynamic, Cols_>
+template<typename T, int Cols, int Options> class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options>
 \endcode
 
-Here, the constructor called is DenseStorage::DenseStorage(int size, int rows, int columns)
-with size=50, rows=50, columns=1.
-
-Here is this constructor:
+Here, the constructor called is DenseStorage_impl(Index size, Index rows, Index cols)
+with size=50, rows=50, cols=1:
 \code
-inline DenseStorage(int size, int rows, int) : m_data(internal::aligned_new<T>(size)), m_rows(rows) {}
+constexpr DenseStorage_impl(Index size, Index rows, Index /*cols*/)
+    : m_data(conditional_aligned_new_auto<T, Align>(size)), m_rows(rows) {}
 \endcode
 
-Here, the \a m_data member is the actual array of coefficients of the matrix. As you see, it is dynamically allocated. Rather than calling new[] or malloc(), as you can see, we have our own internal::aligned_new defined in src/Core/util/Memory.h. What it does is that if vectorization is enabled, then it uses a platform-specific call to allocate a 128-bit-aligned array, as that is very useful for vectorization with both SSE2 and AltiVec. If vectorization is disabled, it amounts to the standard new[].
+Here, the \a m_data member is the actual array of coefficients of the matrix. As you see, it is dynamically allocated. Rather than calling new[] or malloc(), we have our own internal::conditional_aligned_new_auto defined in src/Core/util/Memory.h. What it does is that if vectorization is enabled, then it allocates a suitably aligned array (e.g. 16-byte-aligned for SSE2, more for AVX or AVX512), as that is very useful for vectorization. If no alignment is required, it amounts to the standard new[].
 
-As you can see, the constructor also sets the \a m_rows member to \a size. Notice that there is no \a m_columns member: indeed, in this partial specialization of DenseStorage, we know the number of columns at compile-time, since the Cols_ template parameter is different from Dynamic. Namely, in our case, Cols_ is 1, which is to say that our vector is just a matrix with 1 column. Hence, there is no need to store the number of columns as a runtime variable.
+As you can see, the constructor also sets the \a m_rows member to \a rows. Notice that there is no \a m_cols member: indeed, in this partial specialization of DenseStorage_impl, we know the number of columns at compile-time, since the Cols template parameter is different from Dynamic. Namely, in our case, Cols is 1, which is to say that our vector is just a matrix with 1 column. Hence, there is no need to store the number of columns as a runtime variable.
 
 When you call VectorXf::data() to get the pointer to the array of coefficients, it returns DenseStorage::data() which returns the \a m_data member.
 
@@ -131,7 +130,7 @@ MatrixBase::operator+(const MatrixBase&)
 
 The return type of this operator is
 \code
-CwiseBinaryOp<internal::scalar_sum_op<float>, VectorXf, VectorXf>
+CwiseBinaryOp<internal::scalar_sum_op<float, float>, const VectorXf, const VectorXf>
 \endcode
 The CwiseBinaryOp class is our first encounter with an expression template. As we said, the operator+ doesn't by itself perform any computation, it just returns an abstract "sum of vectors" expression. Since there are also "difference of vectors" and "coefficient-wise product of vectors" expressions, we unify them all as "coefficient-wise binary operations", which we abbreviate as "CwiseBinaryOp". "Coefficient-wise" means that the operations is performed coefficient by coefficient. "binary" means that there are two operands -- we are adding two vectors with one another.
 
@@ -163,7 +162,7 @@ So let's end this digression and come back to the piece of code from our example
 v + w
 \endcode
 
-Now that MatrixBase is a good friend, let's write fully the prototype of the operator+ that gets called here (this code is from src/Core/MatrixBase.h):
+Now that MatrixBase is a good friend, let's write fully the prototype of the operator+ that gets called here (the actual declaration is generated by the EIGEN_MAKE_CWISE_BINARY_OP macro in the plugin file src/plugins/CommonCwiseBinaryOps.inc, included from within MatrixBase; slightly simplified, it amounts to):
 
 \code
 template<typename Derived>
@@ -172,7 +171,9 @@ class MatrixBase
   // ...
 
   template<typename OtherDerived>
-  const CwiseBinaryOp<internal::scalar_sum_op<typename internal::traits<Derived>::Scalar>, Derived, OtherDerived>
+  const CwiseBinaryOp<internal::scalar_sum_op<typename internal::traits<Derived>::Scalar,
+                                              typename internal::traits<OtherDerived>::Scalar>,
+                      const Derived, const OtherDerived>
   operator+(const MatrixBase<OtherDerived> &other) const;
 
   // ...
@@ -181,9 +182,9 @@ class MatrixBase
 
 Here of course, \a Derived and \a OtherDerived are VectorXf.
 
-As we said, CwiseBinaryOp is also used for other operations such as substration, so it takes another template parameter determining the operation that will be applied to coefficients. This template parameter is a functor, that is, a class in which we have an operator() so it behaves like a function. Here, the functor used is internal::scalar_sum_op. It is defined in src/Core/Functors.h.
+As we said, CwiseBinaryOp is also used for other operations such as subtraction, so it takes another template parameter determining the operation that will be applied to coefficients. This template parameter is a functor, that is, a class in which we have an operator() so it behaves like a function. Here, the functor used is internal::scalar_sum_op. It is defined in src/Core/functors/BinaryFunctors.h.
 
-Let us now explain the internal::traits here. The internal::scalar_sum_op class takes one template parameter: the type of the numbers to handle. Here of course we want to pass the scalar type (a.k.a. numeric type) of VectorXf, which is \c float. How do we determine which is the scalar type of \a Derived ? Throughout Eigen, all matrix and expression types define a typedef \a Scalar which gives its scalar type. For example, VectorXf::Scalar is a typedef for \c float. So here, if life was easy, we could find the numeric type of \a Derived as just
+Let us now explain the internal::traits here. The internal::scalar_sum_op class takes two template parameters: the types of the numbers to add (which may differ, e.g. when adding a real and a complex matrix). Here of course we want to pass the scalar type (a.k.a. numeric type) of VectorXf, which is \c float, twice. How do we determine which is the scalar type of \a Derived ? Throughout Eigen, all matrix and expression types define a typedef \a Scalar which gives its scalar type. For example, VectorXf::Scalar is a typedef for \c float. So here, if life was easy, we could find the numeric type of \a Derived as just
 \code
 typename Derived::Scalar
 \endcode
@@ -199,7 +200,7 @@ class MatrixBase<VectorXf>
 {
   // ...
 
-  const CwiseBinaryOp<internal::scalar_sum_op<float>, VectorXf, VectorXf>
+  const CwiseBinaryOp<internal::scalar_sum_op<float, float>, const VectorXf, const VectorXf>
   operator+(const MatrixBase<VectorXf> &other) const;
 
   // ...
@@ -212,11 +213,6 @@ Thus, the operator+ hasn't performed any actual computation. To summarize, the o
 
 \section Assignment The assignment
 
-<div class="warningbox">
-<strong>PLEASE HELP US IMPROVING THIS SECTION.</strong>
-This page reflects how %Eigen worked until 3.2, but since %Eigen 3.3 the assignment is more sophisticated as it involves an Assignment expression, and the creation of so called evaluator which are responsible for the evaluation of each kind of expressions.
-</div>
-
 At this point, the expression \a v + \a w has finished evaluating, so, in the process of compiling the line of code
 \code
 u = v + w;
@@ -226,272 +222,120 @@ we now enter the operator=.
 What operator= is being called here? The vector u is an object of class VectorXf, i.e. Matrix. In src/Core/Matrix.h, inside the definition of class Matrix, we see this:
 \code
     template<typename OtherDerived>
-    inline Matrix& operator=(const MatrixBase<OtherDerived>& other)
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix& operator=(const DenseBase<OtherDerived>& other)
     {
-      eigen_assert(m_storage.data()!=0 && "you cannot use operator= with a non initialized matrix (instead use set()");
-      return Base::operator=(other.derived());
+      return Base::_set(other);
     }
 \endcode
-Here, Base is a typedef for MatrixBase\<Matrix\>. So, what is being called is the operator= of MatrixBase. Let's see its prototype in src/Core/MatrixBase.h:
+Here, Base is a typedef for PlainObjectBase\<Matrix\>. The _set() helper, in src/Core/PlainObjectBase.h, forwards to the central assignment entry point:
 \code
-    template<typename OtherDerived>
-    Derived& operator=(const MatrixBase<OtherDerived>& other);
+    internal::call_assignment(this->derived(), other.derived());
 \endcode
-Here, \a Derived is VectorXf (since u is a VectorXf) and \a OtherDerived is CwiseBinaryOp. More specifically, as explained in the previous section, \a OtherDerived is:
-\code
-CwiseBinaryOp<internal::scalar_sum_op<float>, VectorXf, VectorXf>
-\endcode
-So the full prototype of the operator= being called is:
-\code
-VectorXf& MatrixBase<VectorXf>::operator=(const MatrixBase<CwiseBinaryOp<internal::scalar_sum_op<float>, VectorXf, VectorXf> > & other);
-\endcode
-This operator= literally reads "copying a sum of two VectorXf's into another VectorXf".
+This function literally reads "assign a sum of two VectorXf's to another VectorXf", and everything from here on lives in src/Core/AssignEvaluator.h. This file implements %Eigen's evaluator-based assignment mechanism (introduced in %Eigen 3.3): expressions describe \em what to compute, while separate \em evaluator classes, one specialization of internal::evaluator\<\> per expression type, describe \em how to compute coefficients and packets of it.
 
-Let's now look at the implementation of this operator=. It resides in the file src/Core/Assign.h.
-
-What we can see there is:
+The first stage is a compile-time dispatch on whether the right-hand side must be assumed to alias the destination:
 \code
-template<typename Derived>
-template<typename OtherDerived>
-inline Derived& MatrixBase<Derived>
-  ::operator=(const MatrixBase<OtherDerived>& other)
-{
-  return internal::assign_selector<Derived,OtherDerived>::run(derived(), other.derived());
+template <typename Dst, typename Src, typename Func, std::enable_if_t<evaluator_assume_aliasing<Src>::value, int> = 0>
+constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
+  typename plain_matrix_type<Src>::type tmp(src);
+  call_assignment_no_alias(dst, tmp, func);
+}
+
+template <typename Dst, typename Src, typename Func, std::enable_if_t<!evaluator_assume_aliasing<Src>::value, int> = 0>
+constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
+  call_assignment_no_alias(dst, src, func);
+}
+\endcode
+As explained in \ref TopicLazyEvaluation, certain expressions, most notably the matrix Product expression, are evaluated into a temporary before being assigned, in order to avoid aliasing issues when doing "m = m * m;". The internal::evaluator_assume_aliasing trait identifies them. Our CwiseBinaryOp sum is not one of them -- we said since the beginning that we didn't want a temporary to be introduced here -- so we take the second overload and go straight to call_assignment_no_alias. This is also, incidentally, exactly what writing u.noalias() = v + w would have done directly.
+
+Inside call_assignment_no_alias, a compile-time constant NeedToTranspose handles the special case of assigning a row-vector to a column-vector (the one exception to the rule that assignment requires matching dimensions); here both sides are column vectors, so it is false. After a few static assertions, the call lands in the Assignment class template, which dispatches on the \em shapes of the two sides. Both sides here have dense shape, so the Dense2Dense specialization runs, which (ignoring a runtime aliasing check in debug builds) simply calls call_dense_assignment_loop:
+\code
+template <typename DstXprType, typename SrcXprType, typename Functor>
+constexpr void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+  using DstEvaluatorType = evaluator<DstXprType>;
+  using SrcEvaluatorType = evaluator<SrcXprType>;
+
+  SrcEvaluatorType srcEvaluator(src);
+  resize_if_allowed(dst, src, func);
+  DstEvaluatorType dstEvaluator(dst);
+
+  using Kernel = generic_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Functor>;
+  Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
+
+  dense_assignment_loop<Kernel>::run(kernel);
 }
 \endcode
 
-OK so our next task is to understand internal::assign_selector :)
-
-Here is its declaration (all that is still in the same file src/Core/Assign.h)
+This is where the evaluators appear. The evaluator of our CwiseBinaryOp expression stores the functor and, recursively, the evaluators of its two operands; the evaluator of a Matrix simply stores the data pointer. The \a kernel object bundles the destination evaluator, the source evaluator, and the assignment functor (here internal::assign_op, meaning plain assignment; compound assignments like += reuse this exact machinery with a different functor). The kernel exposes two essential operations:
 \code
-template<typename Derived, typename OtherDerived,
-         bool EvalBeforeAssigning = int(OtherDerived::Flags) & EvalBeforeAssigningBit,
-         bool NeedToTranspose = Derived::IsVectorAtCompileTime
-                && OtherDerived::IsVectorAtCompileTime
-                && int(Derived::RowsAtCompileTime) == int(OtherDerived::ColsAtCompileTime)
-                && int(Derived::ColsAtCompileTime) == int(OtherDerived::RowsAtCompileTime)
-                && int(Derived::SizeAtCompileTime) != 1>
-struct internal::assign_selector;
+  void assignCoeff(Index index) {
+    m_functor.assignCoeff(m_dst.coeffRef(index), m_src.coeff(index));
+  }
+  template <int StoreMode, int LoadMode, typename Packet>
+  void assignPacket(Index index) {
+    m_functor.template assignPacket<StoreMode>(&m_dst.coeffRef(index), m_src.template packet<LoadMode, Packet>(index));
+  }
 \endcode
 
-So internal::assign_selector takes 4 template parameters, but the 2 last ones are automatically determined by the 2 first ones.
+The last line hands the kernel to dense_assignment_loop, whose run() function selects the evaluation strategy. A helper class, internal::copy_using_evaluator_traits, computes two compile-time constants from the evaluators' capabilities: \a Traversal (how to iterate: coefficient by coefficient, linearly, by aligned packets, ...) and \a Unrolling (whether to fully unroll the loop at compile time). In our example \a Traversal is \a LinearVectorizedTraversal -- both sides can be addressed linearly by a single integer index and support packet access -- and \a Unrolling is \a NoUnrolling, which is obvious since our vectors have dynamic size so there's no way to unroll the loop at compile-time.
 
-EvalBeforeAssigning is here to enforce the EvalBeforeAssigningBit. As explained <a href="TopicLazyEvaluation.html">here</a>, certain expressions have this flag which makes them automatically evaluate into temporaries before assigning them to another expression. This is the case of the Product expression, in order to avoid strange aliasing effects when doing "m = m * m;" However, of course here our CwiseBinaryOp expression doesn't have the EvalBeforeAssigningBit: we said since the beginning that we didn't want a temporary to be introduced here. So if you go to src/Core/CwiseBinaryOp.h, you'll see that the Flags in internal::traits\<CwiseBinaryOp\> don't include the EvalBeforeAssigningBit. The Flags member of CwiseBinaryOp is then imported from the internal::traits by the EIGEN_GENERIC_PUBLIC_INTERFACE macro. Anyway, here the template parameter EvalBeforeAssigning has the value \c false.
-
-NeedToTranspose is here for the case where the user wants to copy a row-vector into a column-vector. We allow this as a special exception to the general rule that in assignments we require the dimensions to match. Anyway, here both the left-hand and right-hand sides are column vectors, in the sense that ColsAtCompileTime is equal to 1. So NeedToTranspose is \c false too.
-
-So, here we are in the partial specialization:
+So the partial specialization that runs is, in slightly simplified form:
 \code
-internal::assign_selector<Derived, OtherDerived, false, false>
-\endcode
+template <typename Kernel>
+struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling> {
+  static void run(Kernel& kernel) {
+    const Index size = kernel.size();
+    const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
+    const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
-Here's how it is defined:
-\code
-template<typename Derived, typename OtherDerived>
-struct internal::assign_selector<Derived,OtherDerived,false,false> {
-  static Derived& run(Derived& dst, const OtherDerived& other) { return dst.lazyAssign(other.derived()); }
-};
-\endcode
+    head_loop::run(kernel, 0, alignedStart);                      // scalar (or partial-packet) prologue
 
-OK so now our next job is to understand how lazyAssign works :)
+    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+      kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
 
-\code
-template<typename Derived>
-template<typename OtherDerived>
-inline Derived& MatrixBase<Derived>
-  ::lazyAssign(const MatrixBase<OtherDerived>& other)
-{
-  EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Derived,OtherDerived)
-  eigen_assert(rows() == other.rows() && cols() == other.cols());
-  internal::assign_impl<Derived, OtherDerived>::run(derived(),other.derived());
-  return derived();
-}
-\endcode
-
-What do we see here? Some assertions, and then the only interesting line is:
-\code
-  internal::assign_impl<Derived, OtherDerived>::run(derived(),other.derived());
-\endcode
-
-OK so now we want to know what is inside internal::assign_impl.
-
-Here is its declaration:
-\code
-template<typename Derived1, typename Derived2,
-         int Vectorization = internal::assign_traits<Derived1, Derived2>::Vectorization,
-         int Unrolling = internal::assign_traits<Derived1, Derived2>::Unrolling>
-struct internal::assign_impl;
-\endcode
-Again, internal::assign_selector takes 4 template parameters, but the 2 last ones are automatically determined by the 2 first ones.
-
-These two parameters \a Vectorization and \a Unrolling are determined by a helper class internal::assign_traits. Its job is to determine which vectorization strategy to use (that is \a Vectorization) and which unrolling strategy to use (that is \a Unrolling).
-
-We'll not enter into the details of how these strategies are chosen (this is in the implementation of internal::assign_traits at the top of the same file). Let's just say that here \a Vectorization has the value \a LinearVectorization, and \a Unrolling has the value \a NoUnrolling (the latter is obvious since our vectors have dynamic size so there's no way to unroll the loop at compile-time).
-
-So the partial specialization of internal::assign_impl that we're looking at is:
-\code
-internal::assign_impl<Derived1, Derived2, LinearVectorization, NoUnrolling>
-\endcode
-
-Here is how it's defined:
-\code
-template<typename Derived1, typename Derived2>
-struct internal::assign_impl<Derived1, Derived2, LinearVectorization, NoUnrolling>
-{
-  static void run(Derived1 &dst, const Derived2 &src)
-  {
-    const int size = dst.size();
-    const int packetSize = internal::packet_traits<typename Derived1::Scalar>::size;
-    const int alignedStart = internal::assign_traits<Derived1,Derived2>::DstIsAligned ? 0
-                           : internal::first_aligned(&dst.coeffRef(0), size);
-    const int alignedEnd = alignedStart + ((size-alignedStart)/packetSize)*packetSize;
-
-    for(int index = 0; index < alignedStart; index++)
-      dst.copyCoeff(index, src);
-
-    for(int index = alignedStart; index < alignedEnd; index += packetSize)
-    {
-      dst.template copyPacket<Derived2, Aligned, internal::assign_traits<Derived1,Derived2>::SrcAlignment>(index, src);
-    }
-
-    for(int index = alignedEnd; index < size; index++)
-      dst.copyCoeff(index, src);
+    tail_loop::run(kernel, alignedEnd, size);                     // scalar (or partial-packet) epilogue
   }
 };
 \endcode
 
-Here's how it works. \a LinearVectorization means that the left-hand and right-hand side expression can be accessed linearly i.e. you can refer to their coefficients by one integer \a index, as opposed to having to refer to its coefficients by two integers \a row, \a column.
+Here's how it works. As we said at the beginning, vectorization works with blocks of 4 floats with SSE, so \a PacketSize is 4. There are two potential problems that the loop structure deals with:
+\li first, vectorized stores are most efficient when they are aligned to the packet size. So when writing to the coefficients of the destination, we want to group them into packets of 4 such that each packet is 128-bit-aligned. In general, this requires skipping a few coefficients at the beginning, which is the purpose of \a alignedStart and the head loop. In our case the destination is a VectorXf, and remember that in the construction of the vectors we allocated aligned arrays. The evaluator advertises this alignment at compile time, so \a alignedStart is zero and the head loop is avoided altogether without any runtime check.
+\li second, the number of coefficients is not in general a multiple of \a PacketSize. Here, there are 50 coefficients and \a PacketSize is 4, so \a alignedEnd is 48 and the last 2 coefficients are handled by the tail loop.
 
-As we said at the beginning, vectorization works with blocks of 4 floats. Here, \a PacketSize is 4.
-
-There are two potential problems that we need to deal with:
-\li first, vectorization works much better if the packets are 128-bit-aligned. This is especially important for write access. So when writing to the coefficients of \a dst, we want to group these coefficients by packets of 4 such that each of these packets is 128-bit-aligned. In general, this requires to skip a few coefficients at the beginning of \a dst. This is the purpose of \a alignedStart. We then copy these first few coefficients one by one, not by packets. However, in our case, the \a dst expression is a VectorXf and remember that in the construction of the vectors we allocated aligned arrays. Thanks to \a DstIsAligned, Eigen remembers that without having to do any runtime check, so \a alignedStart is zero and this part is avoided altogether.
-\li second, the number of coefficients to copy is not in general a multiple of \a packetSize. Here, there are 50 coefficients to copy and \a packetSize is 4. So we'll have to copy the last 2 coefficients one by one, not by packets. Here, \a alignedEnd is 48.
-
-Now come the actual loops.
-
-First, the vectorized part: the 48 first coefficients out of 50 will be copied by packets of 4:
+Now let's follow one call to kernel.assignPacket(index) all the way down. The assignment functor internal::assign_op, from src/Core/functors/AssignmentFunctors.h, stores the source packet into the destination memory:
 \code
-  for(int index = alignedStart; index < alignedEnd; index += packetSize)
-  {
-    dst.template copyPacket<Derived2, Aligned, internal::assign_traits<Derived1,Derived2>::SrcAlignment>(index, src);
-  }
-\endcode
-
-What is copyPacket? It is defined in src/Core/Coeffs.h:
-\code
-template<typename Derived>
-template<typename OtherDerived, int StoreMode, int LoadMode>
-inline void MatrixBase<Derived>::copyPacket(int index, const MatrixBase<OtherDerived>& other)
-{
-  eigen_internal_assert(index >= 0 && index < size());
-  derived().template writePacket<StoreMode>(index,
-    other.derived().template packet<LoadMode>(index));
+template <int Alignment, typename Packet>
+void assign_op::assignPacket(DstScalar* a, const Packet& b) const {
+  pstoret<DstScalar, Packet, Alignment>(a, b);
 }
 \endcode
-
-OK, what are writePacket() and packet() here?
-
-First, writePacket() here is a method on the left-hand side VectorXf. So we go to src/Core/Matrix.h to look at its definition:
+internal::pstoret, in src/Core/GenericPacketMath.h, is a dispatcher selecting between the aligned internal::pstore and the unaligned internal::pstoreu at compile time. Since \a Alignment says the store is aligned, it calls internal::pstore, whose SSE specialization in src/Core/arch/SSE/PacketMath.h is essentially:
 \code
-template<int StoreMode>
-inline void writePacket(int index, const PacketScalar& x)
-{
-  internal::pstoret<Scalar, PacketScalar, StoreMode>(m_storage.data() + index, x);
+template <>
+inline void pstore<float>(float* to, const Packet4f& from) { _mm_store_ps(to, from); }
+\endcode
+Here, Packet4f is %Eigen's name for the SSE type __m128 ("packet of 4 floats"), and _mm_store_ps is an SSE intrinsic representing a single SSE instruction. The packet_traits\<float\> specialization in the same file is what declared, at compile time, that packets of floats have size 4, which is where \a PacketSize came from.
+
+The source packet was produced by m_src.packet(index), where m_src is the evaluator of our sum expression. Its packet() function, in src/Core/CoreEvaluators.h, reads one packet from each operand's evaluator and combines them with the functor:
+\code
+template <int LoadMode, typename PacketType>
+PacketType binary_evaluator<CwiseBinaryOp>::packet(Index index) const {
+  return m_d.func().packetOp(m_d.lhsImpl.template packet<LoadMode, PacketType>(index),
+                             m_d.rhsImpl.template packet<LoadMode, PacketType>(index));
 }
 \endcode
-Here, \a StoreMode is \a #Aligned, indicating that we are doing a 128-bit-aligned write access, \a PacketScalar is a type representing a "SSE packet of 4 floats" and internal::pstoret is a function writing such a packet in memory. Their definitions are architecture-specific, we find them in src/Core/arch/SSE/PacketMath.h:
-
-The line in src/Core/arch/SSE/PacketMath.h that determines the PacketScalar type (via a typedef in Matrix.h) is:
+Here, \a lhsImpl and \a rhsImpl are the evaluators of the vectors \a v and \a w. Their packet() function loads 4 consecutive floats with internal::ploadt, the load-side analogue of internal::pstoret, which resolves to the _mm_load_ps intrinsic. Finally, the functor's packetOp(), in src/Core/functors/BinaryFunctors.h, is:
 \code
-template<> struct internal::packet_traits<float>  { typedef __m128  type; enum {size=4}; };
-\endcode
-Here, __m128 is a SSE-specific type. Notice that the enum \a size here is what was used to define \a packetSize above.
-
-And here is the implementation of internal::pstoret:
-\code
-template<> inline void internal::pstore(float*  to, const __m128&  from) { _mm_store_ps(to, from); }
-\endcode
-Here, __mm_store_ps is a SSE-specific intrinsic function, representing a single SSE instruction. The difference between internal::pstore and internal::pstoret is that internal::pstoret is a dispatcher handling both the aligned and unaligned cases, you find its definition in src/Core/GenericPacketMath.h:
-\code
-template<typename Scalar, typename Packet, int LoadMode>
-inline void internal::pstoret(Scalar* to, const Packet& from)
-{
-  if(LoadMode == Aligned)
-    internal::pstore(to, from);
-  else
-    internal::pstoreu(to, from);
+template <typename Packet>
+Packet scalar_sum_op::packetOp(const Packet& a, const Packet& b) const {
+  return internal::padd(a, b);
 }
 \endcode
+and internal::padd's SSE specialization is a single _mm_add_ps instruction.
 
-OK, that explains how writePacket() works. Now let's look into the packet() call. Remember that we are analyzing this line of code inside copyPacket():
-\code
-derived().template writePacket<StoreMode>(index,
-    other.derived().template packet<LoadMode>(index));
-\endcode
+To summarize, the vectorized loop has been compiled to the following code: for \a index taking the values 0, 4, 8, ..., 44 -- twelve iterations covering the first 48 coefficients -- read the packet of 4 floats starting at v[index] and the packet starting at w[index] using two _mm_load_ps SSE instructions, add them together using an _mm_add_ps instruction, then store the result using an _mm_store_ps instruction.
 
-Here, \a other is our sum expression \a v + \a w. The .derived() is just casting from MatrixBase to the subclass which here is CwiseBinaryOp. So let's go to src/Core/CwiseBinaryOp.h:
-\code
-class CwiseBinaryOp
-{
-  // ...
-    template<int LoadMode>
-    inline PacketScalar packet(int index) const
-    {
-      return m_functor.packetOp(m_lhs.template packet<LoadMode>(index), m_rhs.template packet<LoadMode>(index));
-    }
-};
-\endcode
-Here, \a m_lhs is the vector \a v, and \a m_rhs is the vector \a w. So the packet() function here is Matrix::packet(). The template parameter \a LoadMode is \a #Aligned. So we're looking at
-\code
-class Matrix
-{
-  // ...
-    template<int LoadMode>
-    inline PacketScalar packet(int index) const
-    {
-      return internal::ploadt<Scalar, LoadMode>(m_storage.data() + index);
-    }
-};
-\endcode
-We let you look up the definition of internal::ploadt in GenericPacketMath.h and the internal::pload in src/Core/arch/SSE/PacketMath.h. It is very similar to the above for internal::pstore.
-
-Let's go back to CwiseBinaryOp::packet(). Once the packets from the vectors \a v and \a w have been returned, what does this function do? It calls m_functor.packetOp() on them. What is m_functor? Here we must remember what particular template specialization of CwiseBinaryOp we're dealing with:
-\code
-CwiseBinaryOp<internal::scalar_sum_op<float>, VectorXf, VectorXf>
-\endcode
-So m_functor is an object of the empty class internal::scalar_sum_op<float>. As we mentioned above, don't worry about why we constructed an object of this empty class at all -- it's an implementation detail, the point is that some other functors need to store member data.
-
-Anyway, internal::scalar_sum_op is defined in src/Core/Functors.h:
-\code
-template<typename Scalar> struct internal::scalar_sum_op EIGEN_EMPTY_STRUCT {
-  inline const Scalar operator() (const Scalar& a, const Scalar& b) const { return a + b; }
-  template<typename PacketScalar>
-  inline const PacketScalar packetOp(const PacketScalar& a, const PacketScalar& b) const
-  { return internal::padd(a,b); }
-};
-\endcode
-As you can see, all what packetOp() does is to call internal::padd on the two packets. Here is the definition of internal::padd from src/Core/arch/SSE/PacketMath.h:
-\code
-template<> inline __m128  internal::padd(const __m128&  a, const __m128&  b) { return _mm_add_ps(a,b); }
-\endcode
-Here, _mm_add_ps is a SSE-specific intrinsic function, representing a single SSE instruction.
-
-To summarize, the loop
-\code
-  for(int index = alignedStart; index < alignedEnd; index += packetSize)
-  {
-    dst.template copyPacket<Derived2, Aligned, internal::assign_traits<Derived1,Derived2>::SrcAlignment>(index, src);
-  }
-\endcode
-has been compiled to the following code: for \a index going from 0 to the 11 ( = 48/4 - 1), read the i-th packet (of 4 floats) from the vector v and the i-th packet from the vector w using two __mm_load_ps SSE instructions, then add them together using a __mm_add_ps instruction, then store the result using a __mm_store_ps instruction.
-
-There remains the second loop handling the last few (here, the last 2) coefficients:
-\code
-  for(int index = alignedEnd; index < size; index++)
-    dst.copyCoeff(index, src);
-\endcode
-However, it works just like the one we just explained, it is just simpler because there is no SSE vectorization involved here. copyPacket() becomes copyCoeff(), packet() becomes coeff(), writePacket() becomes coeffRef(). If you followed us this far, you can probably understand this part by yourself.
+There remains the tail loop handling the last few (here, the last 2) coefficients. Depending on the instruction set it either uses partial-packet loads and stores, or falls back to kernel.assignCoeff(index), which does the same walk through the evaluators coefficient by coefficient: assignPacket() becomes assignCoeff(), packet() becomes coeff(), and pstore() becomes a plain scalar store. If you followed us this far, you can probably understand this part by yourself.
 
 We see that all the C++ abstraction of Eigen goes away during compilation and that we indeed are precisely controlling which assembly instructions we emit. Such is the beauty of C++! Since we have such precise control over the emitted assembly instructions, but such complex logic to choose the right instructions, we can say that Eigen really behaves like an optimizing compiler. If you prefer, you could say that Eigen behaves like a script for the compiler. In a sense, C++ template metaprogramming is scripting the compiler -- and it's been shown that this scripting language is Turing-complete. See <a href="http://en.wikipedia.org/wiki/Template_metaprogramming"> Wikipedia</a>.
 

@@ -17,33 +17,29 @@ namespace Eigen {
 
 /** \page UserManual_Generalities General topics
   - \subpage TopicFunctionTakingEigenTypes
+  - \subpage TopicScalarTypes
+  - \subpage TopicVectorization
   - \subpage TopicPreprocessorDirectives
   - \subpage TopicAssertions
   - \subpage TopicMultiThreading
   - \subpage TopicUsingBlasLapack
   - \subpage TopicUsingIntelMKL
+  - \subpage TopicUsingAOCL
   - \subpage TopicCUDA
   - \subpage TopicPitfalls
   - \subpage TopicTemplateKeyword
+  - \subpage TopicWritingEfficientProductExpression
+  - \subpage Experimental
   - \subpage UserManual_UnderstandingEigen
   - \subpage TopicCMakeGuide
 */
 
 /** \page UserManual_UnderstandingEigen Understanding Eigen
+  - \subpage TopicEigenExpressionTemplates
   - \subpage TopicInsideEigenExample
   - \subpage TopicClassHierarchy
   - \subpage TopicLazyEvaluation
 */
-
-/** \page UnclassifiedPages Unclassified pages
-  - \subpage TopicVectorization
-  - \subpage TopicEigenExpressionTemplates
-  - \subpage TopicScalarTypes
-  - \subpage TutorialSparse_example_details
-  - \subpage TopicWritingEfficientProductExpression
-  - \subpage Experimental
-*/
-
 
 /** \defgroup Support_modules Support modules
   * Category of modules which add support for external libraries.

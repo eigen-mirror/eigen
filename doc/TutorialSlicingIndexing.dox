@@ -33,7 +33,7 @@ using Eigen::seqN;
 using Eigen::fix;
 \endcode
 
-More generally, it can accepts any object exposing the following two member functions:
+More generally, it can accept any object exposing the following two member functions:
   \code
   <integral type> operator[](<integral type>) const;
   <integral type> size() const;
@@ -141,11 +141,6 @@ Here comes \ref Eigen_placeholders_lastN :
   <td>Last \c n elements of v</td>
   <td>\code v(lastN(n)) \endcode</td>
   <td>\code v.tail(n) \endcode</td>
-</tr>
-<tr>
-  <td>Bottom-right corner of A of size \c m times \c n</td>
-  <td>\code A(lastN(m), lastN(n)) \endcode</td>
-  <td>\code A.bottomRightCorner(m,n) \endcode</td>
 </tr>
 <tr>
   <td>Bottom-right corner of A of size \c m times \c n</td>

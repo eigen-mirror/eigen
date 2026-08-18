@@ -36,12 +36,12 @@ namespace Eigen {
 
 
 Since %Eigen version 3.3 and later, any F77 compatible BLAS or LAPACK libraries can be used as backends for dense matrix products and dense matrix decompositions.
-For instance, one can use <a href="http://eigen.tuxfamily.org/Counter/redirect_to_mkl.php">Intel® MKL</a>, Apple's Accelerate framework on OSX, <a href="http://www.openblas.net/">OpenBLAS</a>, <a href="http://www.netlib.org/lapack">Netlib LAPACK</a>, etc.
+For instance, one can use <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html">Intel® oneMKL</a>, Apple's Accelerate framework on macOS, <a href="http://www.openblas.net/">OpenBLAS</a>, <a href="http://www.netlib.org/lapack">Netlib LAPACK</a>, etc.
 
 Do not miss this \link TopicUsingIntelMKL page \endlink for further discussions on the specific use of Intel® MKL (also includes VML, PARDISO, etc.)
 
-In order to use an external BLAS and/or LAPACK library, you must link you own application to the respective libraries and their dependencies.
-For LAPACK, you must also link to the standard <a href="http://www.netlib.org/lapack/lapacke.html">Lapacke</a> library, which is used as a convenient think layer between %Eigen's C++ code and LAPACK F77 interface. Then you must activate their usage by defining one or multiple of the following macros (\b before including any %Eigen's header):
+In order to use an external BLAS and/or LAPACK library, you must link your own application to the respective libraries and their dependencies.
+For LAPACK, you must also link to the standard <a href="http://www.netlib.org/lapack/lapacke.html">Lapacke</a> library, which is used as a convenient thin layer between %Eigen's C++ code and LAPACK F77 interface. Then you must activate their usage by defining one or multiple of the following macros (\b before including any %Eigen's header):
 
 \note For Mac users, in order to use the lapack version shipped with the Accelerate framework, you also need the lapacke library.
 Using <a href="https://www.macports.org/">MacPorts</a>, this is as easy as:

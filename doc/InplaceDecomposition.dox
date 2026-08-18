@@ -107,8 +107,10 @@ Here is the list of matrix decompositions supporting this inplace mechanism:
 - class FullPivLU
 - class HouseholderQR
 - class ColPivHouseholderQR
+- class RandColPivHouseholderQR
 - class FullPivHouseholderQR
 - class CompleteOrthogonalDecomposition
+- class RandCompleteOrthogonalDecomposition
 
 */
 

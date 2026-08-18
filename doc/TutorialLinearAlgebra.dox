@@ -62,6 +62,14 @@ depending on your matrix, the problem you are trying to solve, and the trade-off
         <td>++</td>
     </tr>
     <tr>
+        <td>BunchKaufman</td>
+        <td>bunchKaufman()</td>
+        <td>Self-adjoint</td>
+        <td>+++</td>
+        <td>++</td>
+        <td>++</td>
+    </tr>
+    <tr class="alt">
         <td>PartialPivLU</td>
         <td>partialPivLu()</td>
         <td>Invertible</td>
@@ -69,7 +77,7 @@ depending on your matrix, the problem you are trying to solve, and the trade-off
         <td>++</td>
         <td>+</td>
     </tr>
-    <tr class="alt">
+    <tr>
         <td>HouseholderQR</td>
         <td>householderQr()</td>
         <td>None</td>
@@ -77,7 +85,7 @@ depending on your matrix, the problem you are trying to solve, and the trade-off
         <td>++</td>
         <td>+</td>
     </tr>
-    <tr>
+    <tr class="alt">
         <td>ColPivHouseholderQR</td>
         <td>colPivHouseholderQr()</td>
         <td>None</td>
@@ -85,12 +93,20 @@ depending on your matrix, the problem you are trying to solve, and the trade-off
         <td>-</td>
         <td>+++</td>
     </tr>
-    <tr class="alt">
+    <tr>
         <td>CompleteOrthogonalDecomposition</td>
         <td>completeOrthogonalDecomposition()</td>
         <td>None</td>
         <td>+</td>
         <td>-</td>
+        <td>+++</td>
+    </tr>
+    <tr class="alt">
+        <td>RandCompleteOrthogonalDecomposition</td>
+        <td>randCompleteOrthogonalDecomposition()</td>
+        <td>None</td>
+        <td>-</td>
+        <td>+</td>
         <td>+++</td>
     </tr>
     <tr>
@@ -121,7 +137,11 @@ All of these decompositions offer a solve() method that works as in the above ex
 
 \b Practical \b recommendations:
 \li If your matrix is symmetric positive definite, use \b LLT. It is the fastest and is perfectly accurate
-    for this class of problems. If your matrix is only positive or negative semidefinite, use \b LDLT.
+    for this class of problems. If your matrix is only positive or negative semidefinite, use \b LDLT,
+    whose symmetric pivoting keeps the factorization stable in the presence of tiny or zero pivots.
+    \b LDLT produces a purely diagonal D and so cannot handle indefinite matrices; for a self-adjoint
+    matrix that is indefinite, use \b BunchKaufman, which produces a block-diagonal D at LDLT-like speed
+    and also reveals the inertia.
 \li For a general invertible matrix, \b PartialPivLU is the best choice. It is fast (uses cache-friendly
     blocking) and reliable for the vast majority of problems.
 \li For least squares problems (over- or under-determined systems), \b CompleteOrthogonalDecomposition
@@ -129,14 +149,23 @@ All of these decompositions offer a solve() method that works as in the above ex
     rank-deficient and under-determined problems, but at the cost of a QR decomposition rather than
     an SVD. Use \b ColPivHouseholderQR if you only need least squares for full-rank overdetermined
     systems and don't need the minimum-norm property.
+\li For \em large least squares problems, consider \b RandCompleteOrthogonalDecomposition. It computes
+    the same kind of factorization as CompleteOrthogonalDecomposition, but its rank-revealing QR step
+    selects pivots from a small random sketch, which lets nearly all of the work be done by level-3
+    BLAS kernels instead of the memory-bound column scan used by classical column pivoting. On small
+    matrices the sketch overhead dominates and plain CompleteOrthogonalDecomposition is preferable.
 \li \b SVD decompositions (BDCSVD, JacobiSVD) are the most robust but also the slowest. Use these when
     you need singular values/vectors, not just the solution.
 \li \b HouseholderQR is the fastest option for full-rank least squares problems, but it does not
     reveal rank and cannot compute minimum-norm solutions for rank-deficient problems.
-\li FullPivLU and FullPivHouseholderQR use complete pivoting, which is significantly slower due to
-    lack of blocking. In practice, they rarely provide meaningful benefits over PartialPivLU and
-    ColPivHouseholderQR, respectively, and are not recommended for general use. They are primarily useful
-    for debugging or for pedagogical purposes.
+\li FullPivLU and FullPivHouseholderQR use complete pivoting, which rules out blocking and so makes
+    them substantially slower, increasingly so as the matrix grows. What it buys -- a smaller growth
+    factor for LU, a more reliable rank decision for QR -- rarely repays that cost on its own, so
+    PartialPivLU and ColPivHouseholderQR are the better default; LAPACK made the same call, offering
+    no complete-pivoting LU or QR driver. Where complete pivoting does earn its cost is rank
+    determination, since column pivoting is reliable in practice but not guaranteed. If your
+    application depends on getting the rank right, the full-pivoting classes are a reasonable choice,
+    especially for small matrices, where the lost blocking costs comparatively little.
 
 Here's an example showing the use of LLT for a symmetric positive definite system, also demonstrating
 that using a general matrix (not a vector) as right hand side is possible:
@@ -159,7 +188,9 @@ supports many other decompositions), see our special page on
 The recommended method to solve under- or over-determined linear systems in the least squares sense is
 \b CompleteOrthogonalDecomposition. Like the SVD, it robustly computes the minimum-norm least squares
 solution, correctly handling rank-deficient and under-determined problems, but it is significantly faster
-since it is based on a rank-revealing QR decomposition rather than a full SVD.
+since it is based on a rank-revealing QR decomposition rather than a full SVD. For large problems,
+\b RandCompleteOrthogonalDecomposition computes the same kind of factorization with a randomized blocked
+rank-revealing QR that spends nearly all of its time in level-3 BLAS kernels.
 
 If you also need the singular values or vectors themselves (not just the least squares solution), use
 \b BDCSVD, which scales well for large problems and automatically falls back to JacobiSVD for smaller ones.
@@ -273,8 +304,11 @@ whether they are rank-revealing or not.
 Rank-revealing decompositions offer at least a rank() method. They can also offer convenience methods such as isInvertible(),
 and FullPivLU is the only one that additionally computes the kernel (null-space) and the image (column-space) of the matrix,
 through kernel() and image(). ColPivHouseholderQR and CompleteOrthogonalDecomposition are faster rank-revealing
-factorizations providing rank() and isInvertible() but no null-space basis; CompleteOrthogonalDecomposition also offers
-pseudoInverse(). Here is an example using FullPivLU:
+factorizations providing rank() and isInvertible() but no null-space basis. CompleteOrthogonalDecomposition and
+RandCompleteOrthogonalDecomposition additionally offer pseudoInverse(); they are the only decompositions in %Eigen
+that do, so they are also the cheapest route to a Moore-Penrose pseudo-inverse, which would otherwise have to be
+assembled by hand from an SVD. Note that solve() should still be preferred over multiplying by an explicitly formed
+pseudo-inverse. Here is an example using FullPivLU:
 
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>

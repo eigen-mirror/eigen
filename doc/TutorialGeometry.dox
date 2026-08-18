@@ -61,9 +61,9 @@ Transform<float,3,Affine> t = Translation3f(p) * AngleAxisf(a,axis) * Scaling(s)
 <tr><td>
 N-D Linear transformations \n
 <em class=note>(pure rotations, \n scaling, etc.)</em></td><td>\code
-Matrix<float,N> t = concatenation_of_rotations_and_scalings;
-Matrix<float,2> t = Rotation2Df(a) * Scaling(s);
-Matrix<float,3> t = AngleAxisf(a,axis) * Scaling(s);\endcode</td></tr>
+Matrix<float,N,N> t = concatenation_of_rotations_and_scalings;
+Matrix2f t = Rotation2Df(a) * Scaling(s);
+Matrix3f t = AngleAxisf(a,axis) * Scaling(s);\endcode</td></tr>
 </table>
 
 <strong>Notes on rotations</strong>\n To transform more than a single vector the preferred
@@ -89,7 +89,7 @@ AngleAxisf aa;  aa = Quaternionf(..);
 AngleAxisf aa;  aa = Matrix3f(..);       // assumes a pure rotation matrix
 Matrix2f m;     m  = Rotation2Df(..);
 Matrix3f m;     m  = Quaternionf(..);       Matrix3f m;   m = Scaling(..);
-Affine3f m;     m  = AngleAxis3f(..);       Affine3f m;   m = Scaling(..);
+Affine3f m;     m  = AngleAxisf(..);        Affine3f m;   m = Scaling(..);
 Affine3f m;     m  = Translation3f(..);     Affine3f m;   m = Matrix3f(..);
 Affine3f m(Translation3f(..));           // direct initialization
 \endcode</td></tr>

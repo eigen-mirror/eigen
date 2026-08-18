@@ -68,10 +68,10 @@ data stored in column-major and row-major order:
 
 Again, see the documentation of DenseBase::reshaped() for more control on the ordering.
 
-\section TutorialReshapeInPlace
+\section TutorialReshapeInPlace Reshaping in place
 
 The above examples create reshaped views, but what about reshaping inplace a given matrix?
-Of course this task in only conceivable for matrix and arrays having runtime dimensions.
+Of course this task is only conceivable for matrices and arrays having runtime dimensions.
 In many cases, this can be accomplished via PlainObjectBase::resize(Index,Index):
 
 <table class="example">
@@ -97,7 +97,7 @@ It thus behaves similarly to `reshaped<AutoOrder>`:
 \verbinclude Tutorial_reshaped_vs_resize_2.out
 </td></tr></table>
 
-Finally, assigning a reshaped matrix to itself is currently not supported and will result to undefined-behavior because of \link TopicAliasing aliasing \endlink.
+Finally, assigning a reshaped matrix to itself is currently not supported and results in undefined behavior because of \link TopicAliasing aliasing \endlink.
 The following is forbidden: \code A = A.reshaped(2,8); \endcode
 This is OK: \code A = A.reshaped(2,8).eval(); \endcode
 

@@ -2,10 +2,9 @@ namespace Eigen {
 
 /** \eigenManualPage TopicWrongStackAlignment Compiler making a wrong assumption on stack alignment
 
-<h4>It appears that this was a GCC bug that has been fixed in GCC 4.5.
-If you hit this issue, please upgrade to GCC 4.5 and report to us, so we can update this page.</h4>
-
-This is an issue that, so far, we met only with GCC on Windows: for instance, MinGW and TDM-GCC.
+\note This is a historical issue affecting GCC before version 4.5 on Windows (MinGW, TDM-GCC).
+It was fixed in GCC 4.5, and every compiler supported by current %Eigen handles stack alignment
+correctly. The page is kept for users stuck on such legacy toolchains.
 
 By default, in a function like this,
 
@@ -17,7 +16,7 @@ void foo()
 }
 \endcode
 
-GCC assumes that the stack is already 16-byte-aligned so that the object \a q will be created at a 16-byte-aligned location. For this reason, it doesn't take any special care to explicitly align the object \a q, as Eigen requires.
+GCC assumes that the stack is already 16-byte-aligned so that the object \a q will be created at a 16-byte-aligned location. For this reason, it doesn't take any special care to explicitly align the object \a q, as %Eigen requires.
 
 The problem is that, in some particular cases, this assumption can be wrong on Windows, where the stack is only guaranteed to have 4-byte alignment. Indeed, even though GCC takes care of aligning the stack in the main function and does its best to keep it aligned, when a function is called from another thread or from a binary compiled with another compiler, the stack alignment can be corrupted. This results in the object 'q' being created at an unaligned location, making your program crash with the \ref TopicUnalignedArrayAssert "assertion on unaligned arrays". So far we found the three following solutions.
 
@@ -32,7 +31,7 @@ __attribute__((force_align_arg_pointer)) void foo()
   //...
 }
 \endcode
-Read <a href="http://gcc.gnu.org/onlinedocs/gcc-4.4.0/gcc/Function-Attributes.html#Function-Attributes">this GCC documentation</a> to understand what this does. Of course this should only be done on GCC on Windows, so for portability you'll have to encapsulate this in a macro which you leave empty on other platforms. The advantage of this solution is that you can finely select which function might have a corrupted stack alignment. Of course on the downside this has to be done for every such function, so you may prefer one of the following two global solutions.
+Read <a href="https://gcc.gnu.org/onlinedocs/gcc/x86-Function-Attributes.html">this GCC documentation</a> to understand what this does. Of course this should only be done on GCC on Windows, so for portability you'll have to encapsulate this in a macro which you leave empty on other platforms. The advantage of this solution is that you can finely select which function might have a corrupted stack alignment. Of course on the downside this has to be done for every such function, so you may prefer one of the following two global solutions.
 
 
 \section sec_sol2 Global solutions

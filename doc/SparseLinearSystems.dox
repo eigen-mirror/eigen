@@ -21,6 +21,9 @@ They are summarized in the following tables:
 <tr><td>SimplicialLDLT \n <tt>\#include<Eigen/\link SparseCholesky_Module SparseCholesky\endlink></tt></td><td>Direct LDLt factorization</td><td>SPD</td><td>Fill-in reducing</td>
     <td>Recommended for very sparse and not too large problems (e.g., 2D Poisson eq.)</td></tr>
 
+<tr><td>SimplicialNonHermitianLLT \n SimplicialNonHermitianLDLT \n <tt>\#include<Eigen/\link SparseCholesky_Module SparseCholesky\endlink></tt></td><td>Direct LLt, LDLt factorizations without conjugation</td><td>Complex symmetric</td><td>Fill-in reducing</td>
+    <td>For complex symmetric (non-Hermitian) matrices, e.g., arising from PDEs with absorbing boundary conditions</td></tr>
+
 <tr><td>SparseLU \n <tt>\#include<Eigen/\link SparseLU_Module SparseLU\endlink></tt></td> <td>LU factorization </td>
     <td>Square </td><td>Fill-in reducing, Leverage fast dense algebra</td>
     <td>optimized for small and large problems with irregular patterns </td></tr>
@@ -51,6 +54,30 @@ They are summarized in the following tables:
 <tr><td>BiCGSTAB \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Iterative stabilized bi-conjugate gradient</td><td>Square</td>
     <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
     <td>To speedup the convergence, try it with the \ref IncompleteLUT preconditioner.</td></tr>
+
+<tr><td>BiCGSTABL \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Generalization of BiCGSTAB with higher-degree stabilization polynomials</td><td>Square</td>
+    <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
+    <td>More robust than BiCGSTAB on problems where the convergence of BiCGSTAB stagnates</td></tr>
+
+<tr><td>MINRES \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Minimal residual method</td><td>Symmetric, possibly indefinite</td>
+    <td>[IdentityPreconditioner], DiagonalPreconditioner (must be positive definite)</td>
+    <td>Handles symmetric indefinite systems that CG cannot; monotonically decreasing residual</td></tr>
+
+<tr><td>GMRES \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Restarted generalized minimal residual method</td><td>Square</td>
+    <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
+    <td>Robust general-purpose Krylov method; memory grows with the restart length</td></tr>
+
+<tr><td>DGMRES \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Restarted GMRES with deflation</td><td>Square</td>
+    <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
+    <td>Deflation of the smallest eigenvalues can restore the convergence lost at restarts</td></tr>
+
+<tr><td>IDRS \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Induced dimension reduction method IDR(s)</td><td>Square</td>
+    <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
+    <td>Short recurrences with tunable subspace dimension \c s; often converges where BiCGSTAB fails</td></tr>
+
+<tr><td>IDRSTABL \n <tt>\#include<Eigen/\link IterativeLinearSolvers_Module IterativeLinearSolvers\endlink></tt></td><td>Combination of IDR(s) and BiCGSTAB(L)</td><td>Square</td>
+    <td>IdentityPreconditioner, [DiagonalPreconditioner], IncompleteLUT</td>
+    <td>Combines the strengths of IDR(s) and BiCGSTAB(L) for hard nonsymmetric problems</td></tr>
 </table>
 
 \subsection TutorialSparseSolverList_Wrapper Wrappers to external solvers
@@ -59,7 +86,7 @@ They are summarized in the following tables:
 <tr><th>Class</th><th>Module</th><th>Solver kind</th><th>Matrix kind</th><th>Features related to performance</th>
     <th>Dependencies,License</th><th class="width20em"><p>Notes</p></th></tr>
 <tr><td>PastixLLT \n PastixLDLT \n PastixLU</td><td>\link PaStiXSupport_Module PaStiXSupport \endlink</td><td>Direct LLt, LDLt, LU factorizations</td><td>SPD \n SPD \n Square</td><td>Fill-in reducing, Leverage fast dense algebra, Multithreading</td>
-    <td>Requires the <a href="http://pastix.gforge.inria.fr">PaStiX</a> package, \b CeCILL-C </td>
+    <td>Requires the <a href="https://gitlab.inria.fr/solverstack/pastix">PaStiX</a> package, \b CeCILL-C </td>
     <td>optimized for tough problems and symmetric patterns</td></tr>
 <tr><td>CholmodSupernodalLLT</td><td>\link CholmodSupport_Module CholmodSupport \endlink</td><td>Direct LLt factorization</td><td>SPD</td><td>Fill-in reducing, Leverage fast dense algebra</td>
     <td>Requires the <a href="http://www.suitesparse.com">SuiteSparse</a> package, \b GPL </td>
@@ -71,13 +98,13 @@ They are summarized in the following tables:
     <td>Requires the <a href="http://www.suitesparse.com">SuiteSparse</a> package, \b GPL </td>
     <td></td></tr>
 <tr><td>SuperLU</td><td>\link SuperLUSupport_Module SuperLUSupport \endlink</td><td>Direct LU factorization</td><td>Square</td><td>Fill-in reducing, Leverage fast dense algebra</td>
-    <td>Requires the <a href="http://crd-legacy.lbl.gov/~xiaoye/SuperLU/">SuperLU</a> library, (BSD-like)</td>
+    <td>Requires the <a href="https://github.com/xiaoyeli/superlu">SuperLU</a> library, (BSD-like)</td>
     <td></td></tr>
 <tr><td>SPQR</td><td>\link SPQRSupport_Module SPQRSupport \endlink  </td> <td> QR factorization </td> 
     <td> Any, rectangular</td><td>fill-in reducing, multithreaded, fast dense algebra</td>
     <td> requires the <a href="http://www.suitesparse.com">SuiteSparse</a> package, \b GPL </td><td>recommended for linear least-squares problems, has a rank-revealing feature</tr>
 <tr><td>PardisoLLT \n PardisoLDLT \n PardisoLU</td><td>\link PardisoSupport_Module PardisoSupport \endlink</td><td>Direct LLt, LDLt, LU factorizations</td><td>SPD \n SPD \n Square</td><td>Fill-in reducing, Leverage fast dense algebra, Multithreading</td>
-    <td>Requires the <a href="http://eigen.tuxfamily.org/Counter/redirect_to_mkl.php">Intel MKL</a> package, \b Proprietary </td>
+    <td>Requires the <a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html">Intel oneMKL</a> package, \b Proprietary </td>
     <td>optimized for tough problems patterns, see also \link TopicUsingIntelMKL using MKL with Eigen \endlink</td></tr>
 <tr><td>AccelerateLLT \n AccelerateLDLT \n AccelerateQR</td><td>\link AccelerateSupport_Module AccelerateSupport \endlink</td><td>Direct LLt, LDLt, QR factorizations</td><td>SPD \n SPD \n Rectangular</td><td>Fill-in reducing, Leverage fast dense algebra, Multithreading</td>
     <td>Requires the <a href="https://developer.apple.com/documentation/accelerate">Apple Accelerate</a> package, \b Proprietary </td>
@@ -160,7 +187,7 @@ In `factorize()`, the factors of the coefficient matrix are computed. This step 
 
 For iterative solvers, the compute step is used to eventually setup a preconditioner. For instance, with the ILUT preconditioner, the incomplete factors L and U are computed in this step. Remember that, basically, the goal of the preconditioner is to speedup the convergence of an iterative method by solving a modified linear system where the coefficient matrix has more clustered eigenvalues. For real problems, an iterative solver should always be used with a preconditioner. In Eigen, a preconditioner is  selected by simply adding it as a template parameter to the iterative solver object. 
 \code
-IterativeSolverClassName<SparseMatrix<double>, PreconditionerName<SparseMatrix<double> > solver; 
+IterativeSolverClassName<SparseMatrix<double>, PreconditionerName<SparseMatrix<double>::Scalar> > solver;
 \endcode
 The member function `preconditioner()` returns a read-write reference to the preconditioner 
  to directly interact with it. See the \link IterativeLinearSolvers_Module Iterative solvers module \endlink and the documentation of each class for the list of available methods.
