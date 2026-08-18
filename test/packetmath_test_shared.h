@@ -26,7 +26,16 @@ namespace Eigen {
 
 namespace test {
 
-template <typename T, std::enable_if_t<NumTraits<T>::IsSigned, bool> = true>
+template <typename T, std::enable_if_t<NumTraits<T>::IsSigned && NumTraits<T>::IsInteger, bool> = true>
+T negate(const T& x) {
+  // `-x` is UB at the minimum representable value; go through the unsigned type instead, the
+  // same way the unsigned overload below does. This wraps to match what the vectorized
+  // `pnegate` actually computes there.
+  using UnsignedT = typename std::make_unsigned<T>::type;
+  return static_cast<T>(UnsignedT(0) - static_cast<UnsignedT>(x));
+}
+
+template <typename T, std::enable_if_t<NumTraits<T>::IsSigned && !NumTraits<T>::IsInteger, bool> = true>
 T negate(const T& x) {
   return -x;
 }

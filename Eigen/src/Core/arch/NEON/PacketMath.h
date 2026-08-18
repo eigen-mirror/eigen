@@ -884,8 +884,14 @@ template <>
 EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
 #if EIGEN_ARCH_ARM64
   return vnegq_s64(a);
+#elif !EIGEN_GNUC_STRICT_AT_LEAST(12, 0, 0)
+  return psub(pzero(a), a);
 #else
-  return vcombine_s64(vdup_n_s64(-vgetq_lane_s64(a, 0)), vdup_n_s64(-vgetq_lane_s64(a, 1)));
+  // NOTE: GCC>=12 refuses to emit `vsub.i64` for `0 - x`: <https://godbolt.org/z/bfaz9ao59>.
+  int64x2_t x = a;
+  int64x2_t z = vdupq_n_s64(0);
+  asm("vsub.i64 %q0, %q1, %q0" : "+w"(x) : "w"(z));
+  return x;
 #endif
 }
 
@@ -1029,14 +1035,15 @@ EIGEN_STRONG_INLINE Packet4ui pmul<Packet4ui>(const Packet4ui& a, const Packet4u
   return vmulq_u32(a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pmul<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return vcombine_s64(vdup_n_s64(vgetq_lane_s64(a, 0) * vgetq_lane_s64(b, 0)),
-                      vdup_n_s64(vgetq_lane_s64(a, 1) * vgetq_lane_s64(b, 1)));
+EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+  const uint32x2_t al = vmovn_u64(a);
+  const uint32x2_t bl = vmovn_u64(b);
+  const uint64x2_t hi = vpaddlq_u32(vmulq_u32(vreinterpretq_u32_u64(a), vrev64q_u32(vreinterpretq_u32_u64(b))));
+  return vmlal_u32(vshlq_n_u64(hi, 32), al, bl);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2ul pmul<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return vcombine_u64(vdup_n_u64(vgetq_lane_u64(a, 0) * vgetq_lane_u64(b, 0)),
-                      vdup_n_u64(vgetq_lane_u64(a, 1) * vgetq_lane_u64(b, 1)));
+EIGEN_STRONG_INLINE Packet2l pmul<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vreinterpretq_s64_u64(pmul(vreinterpretq_u64_s64(a), vreinterpretq_u64_s64(b)));
 }
 
 template <>
@@ -1394,14 +1401,8 @@ EIGEN_STRONG_INLINE Packet4ui pmin<Packet4ui>(const Packet4ui& a, const Packet4u
   return vminq_u32(a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pmin<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return vcombine_s64(vdup_n_s64((std::min)(vgetq_lane_s64(a, 0), vgetq_lane_s64(b, 0))),
-                      vdup_n_s64((std::min)(vgetq_lane_s64(a, 1), vgetq_lane_s64(b, 1))));
-}
-template <>
 EIGEN_STRONG_INLINE Packet2ul pmin<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return vcombine_u64(vdup_n_u64((std::min)(vgetq_lane_u64(a, 0), vgetq_lane_u64(b, 0))),
-                      vdup_n_u64((std::min)(vgetq_lane_u64(a, 1), vgetq_lane_u64(b, 1))));
+  return vsubq_u64(a, vqsubq_u64(a, b));
 }
 
 template <>
@@ -1495,14 +1496,8 @@ EIGEN_STRONG_INLINE Packet4ui pmax<Packet4ui>(const Packet4ui& a, const Packet4u
   return vmaxq_u32(a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pmax<Packet2l>(const Packet2l& a, const Packet2l& b) {
-  return vcombine_s64(vdup_n_s64((std::max)(vgetq_lane_s64(a, 0), vgetq_lane_s64(b, 0))),
-                      vdup_n_s64((std::max)(vgetq_lane_s64(a, 1), vgetq_lane_s64(b, 1))));
-}
-template <>
 EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-  return vcombine_u64(vdup_n_u64((std::max)(vgetq_lane_u64(a, 0), vgetq_lane_u64(b, 0))),
-                      vdup_n_u64((std::max)(vgetq_lane_u64(a, 1), vgetq_lane_u64(b, 1))));
+  return vaddq_u64(b, vqsubq_u64(a, b));
 }
 
 template <>
@@ -1571,24 +1566,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4ui pcmp_le<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
   return vcleq_u32(a, b);
 }
-template <>
-EIGEN_STRONG_INLINE Packet2l pcmp_le<Packet2l>(const Packet2l& a, const Packet2l& b) {
-#if EIGEN_ARCH_ARM64
-  return vreinterpretq_s64_u64(vcleq_s64(a, b));
-#else
-  return vcombine_s64(vdup_n_s64(vgetq_lane_s64(a, 0) <= vgetq_lane_s64(b, 0) ? numext::int64_t(-1) : 0),
-                      vdup_n_s64(vgetq_lane_s64(a, 1) <= vgetq_lane_s64(b, 1) ? numext::int64_t(-1) : 0));
-#endif
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pcmp_le<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
-#if EIGEN_ARCH_ARM64
-  return vcleq_u64(a, b);
-#else
-  return vcombine_u64(vdup_n_u64(vgetq_lane_u64(a, 0) <= vgetq_lane_u64(b, 0) ? numext::uint64_t(-1) : 0),
-                      vdup_n_u64(vgetq_lane_u64(a, 1) <= vgetq_lane_u64(b, 1) ? numext::uint64_t(-1) : 0));
-#endif
-}
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pcmp_lt<Packet2f>(const Packet2f& a, const Packet2f& b) {
@@ -1656,13 +1633,13 @@ template <>
 EIGEN_STRONG_INLINE Packet4ui pcmp_lt<Packet4ui>(const Packet4ui& a, const Packet4ui& b) {
   return vcltq_u32(a, b);
 }
+
 template <>
 EIGEN_STRONG_INLINE Packet2l pcmp_lt<Packet2l>(const Packet2l& a, const Packet2l& b) {
 #if EIGEN_ARCH_ARM64
   return vreinterpretq_s64_u64(vcltq_s64(a, b));
 #else
-  return vcombine_s64(vdup_n_s64(vgetq_lane_s64(a, 0) < vgetq_lane_s64(b, 0) ? numext::int64_t(-1) : 0),
-                      vdup_n_s64(vgetq_lane_s64(a, 1) < vgetq_lane_s64(b, 1) ? numext::int64_t(-1) : 0));
+  return vshrq_n_s64(vqsubq_s64(a, b), 63);
 #endif
 }
 template <>
@@ -1670,9 +1647,34 @@ EIGEN_STRONG_INLINE Packet2ul pcmp_lt<Packet2ul>(const Packet2ul& a, const Packe
 #if EIGEN_ARCH_ARM64
   return vcltq_u64(a, b);
 #else
-  return vcombine_u64(vdup_n_u64(vgetq_lane_u64(a, 0) < vgetq_lane_u64(b, 0) ? numext::uint64_t(-1) : 0),
-                      vdup_n_u64(vgetq_lane_u64(a, 1) < vgetq_lane_u64(b, 1) ? numext::uint64_t(-1) : 0));
+  const uint64x2_t flag = vshrq_n_u64(vreinterpretq_u64_u8(vdupq_n_u8(0xFF)), 1);
+  return vreinterpretq_u64_s64(vshrq_n_s64(vreinterpretq_s64_u64(vqaddq_u64(vqsubq_u64(b, a), flag)), 63));
 #endif
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_le<Packet2l>(const Packet2l& a, const Packet2l& b) {
+#if EIGEN_ARCH_ARM64
+  return vreinterpretq_s64_u64(vcleq_s64(a, b));
+#else
+  return vreinterpretq_s64_u8(vmvnq_u8(vreinterpretq_u8_s64(pcmp_lt(b, a))));
+#endif
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ul pcmp_le<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
+#if EIGEN_ARCH_ARM64
+  return vcleq_u64(a, b);
+#else
+  return vreinterpretq_u64_u8(vmvnq_u8(vreinterpretq_u8_u64(pcmp_lt(b, a))));
+#endif
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2l pmin<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(a, b)), a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pmax<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vbslq_s64(vreinterpretq_u64_s64(pcmp_lt(b, a)), a, b);
 }
 
 template <>
@@ -1742,21 +1744,20 @@ EIGEN_STRONG_INLINE Packet4ui pcmp_eq<Packet4ui>(const Packet4ui& a, const Packe
   return vceqq_u32(a, b);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2l pcmp_eq<Packet2l>(const Packet2l& a, const Packet2l& b) {
-#if EIGEN_ARCH_ARM64
-  return vreinterpretq_s64_u64(vceqq_s64(a, b));
-#else
-  return vcombine_s64(vdup_n_s64(vgetq_lane_s64(a, 0) == vgetq_lane_s64(b, 0) ? numext::int64_t(-1) : 0),
-                      vdup_n_s64(vgetq_lane_s64(a, 1) == vgetq_lane_s64(b, 1) ? numext::int64_t(-1) : 0));
-#endif
-}
-template <>
 EIGEN_STRONG_INLINE Packet2ul pcmp_eq<Packet2ul>(const Packet2ul& a, const Packet2ul& b) {
 #if EIGEN_ARCH_ARM64
   return vceqq_u64(a, b);
 #else
-  return vcombine_u64(vdup_n_u64(vgetq_lane_u64(a, 0) == vgetq_lane_u64(b, 0) ? numext::uint64_t(-1) : 0),
-                      vdup_n_u64(vgetq_lane_u64(a, 1) == vgetq_lane_u64(b, 1) ? numext::uint64_t(-1) : 0));
+  const uint32x4_t eq = vceqq_u32(vreinterpretq_u32_u64(a), vreinterpretq_u32_u64(b));
+  return vreinterpretq_u64_u32(vandq_u32(eq, vrev64q_u32(eq)));
+#endif
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_eq<Packet2l>(const Packet2l& a, const Packet2l& b) {
+#if EIGEN_ARCH_ARM64
+  return vreinterpretq_s64_u64(vceqq_s64(a, b));
+#else
+  return vreinterpretq_s64_u64(pcmp_eq(vreinterpretq_u64_s64(a), vreinterpretq_u64_s64(b)));
 #endif
 }
 
@@ -3316,9 +3317,12 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
 #if EIGEN_ARCH_ARM64
   return vabsq_s64(a);
 #else
-  // Parenthesized to keep a function-like abs macro from expanding: macro
-  // expansion ignores the namespace qualification.
-  return vcombine_s64(vdup_n_s64((numext::abs)(vgetq_lane_s64(a, 0))), vdup_n_s64((numext::abs)(vgetq_lane_s64(a, 1))));
+  // NOTE: From <https://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs>. The addition is
+  // done in the unsigned domain: at `a == INT64_MIN`, `mask == -1`, so the signed `a + mask` is UB
+  // (it wraps to INT64_MIN on every real target, which is exactly what's needed here).
+  const int64x2_t mask = vshrq_n_s64(a, 63);
+  const uint64x2_t sum = vaddq_u64(vreinterpretq_u64_s64(a), vreinterpretq_u64_s64(mask));
+  return veorq_s64(vreinterpretq_s64_u64(sum), mask);
 #endif
 }
 template <>

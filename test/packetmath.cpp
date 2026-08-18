@@ -9,6 +9,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#include <utility>
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
 
@@ -624,6 +625,99 @@ struct packetmath_integer_predicates_test<
   }
 };
 
+template <typename Scalar, typename Packet, typename = void>
+struct packetmath_64bit_boundary_test {
+  static void run() {}
+};
+
+// Focused coverage for 64-bit lanes: non-ARM64 `pcmp_eq<Packet2{,u}l>` splits each lane into 32-bit
+// halves and `AND`s the two half-comparisons together. The generic `packetmath_boolean_mask_ops`
+// only feeds 0/1 values, whose high half is always zero, so a broken half-pairing/`AND` there can
+// go undetected. Here lanes vary only the high half, only the low half, or neither, and boundary
+// values cross the 2^32 seam.
+template <typename Scalar, typename Packet>
+struct packetmath_64bit_boundary_test<Scalar, Packet,
+                                      std::enable_if_t<NumTraits<Scalar>::IsInteger && sizeof(Scalar) == 8>> {
+  static constexpr int PacketSize = unpacket_traits<Packet>::size;
+  static constexpr int size = 2 * PacketSize;
+
+  static void run() {
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[size];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[size];
+
+    const auto ref_abs = [](const Scalar& x) { return x < Scalar(0) ? test::negate(x) : x; };
+    const auto check_ops = [&] {
+      CHECK_CWISE2_MASK(REF_PCMP_EQ, internal::pcmp_eq);
+      CHECK_CWISE2_MASK(internal::pcmp_lt, internal::pcmp_lt);
+      CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, REF_MUL, internal::pmul);
+      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
+      CHECK_CWISE1(ref_abs, internal::pabs);
+    };
+
+    constexpr Scalar high = 0x11111111;
+    constexpr Scalar low = 0x00000001;
+    constexpr Scalar reference = (high << 32) | low;
+    constexpr Scalar high_shifted = (high << 33) | low;
+    constexpr Scalar low_shifted = (high << 32) | (low << 1);
+
+    static constexpr Scalar half_lanes[] = {high_shifted, low_shifted, reference};
+    constexpr int half_lanes_count = sizeof(half_lanes) / sizeof(half_lanes[0]);
+
+    constexpr int half_lanes_chunks = numext::div_ceil(half_lanes_count, PacketSize);
+    for (int chunk = 0; chunk < half_lanes_chunks; ++chunk) {
+      Map<ArrayX<Scalar>>(data1, PacketSize).setConstant(reference);
+      for (int i = 0; i < PacketSize; ++i)
+        data1[i + PacketSize] = half_lanes[(chunk * PacketSize + i) % half_lanes_count];
+      check_ops();
+
+      for (int i = 0; i < PacketSize; ++i) std::swap(data1[i], data1[i + PacketSize]);
+      check_ops();
+    }
+
+    const auto from_bits = [](unsigned long long bits) { return numext::bit_cast<Scalar>(bits); };
+    const Scalar boundary_values[] = {
+        Scalar(0),
+        Scalar(1),
+        from_bits(0xFFFFFFFFFFFFFFFFull),  // -1 (signed) / UINT64_MAX (unsigned)
+        from_bits(0x8000000000000000ull),  // INT64_MIN (signed) / 2^63 (unsigned)
+        from_bits(0x7FFFFFFFFFFFFFFFull),  // INT64_MAX
+        from_bits(0x00000000FFFFFFFFull),  // 2^32 - 1
+        from_bits(0x0000000100000000ull),  // 2^32
+        from_bits(0x00000001FFFFFFFFull),  // 2^33 - 1
+    };
+    constexpr int num_boundary = sizeof(boundary_values) / sizeof(boundary_values[0]);
+
+    // Test every distinct pair of `boundary_values` entries against each other.  Broadcast each
+    // pair across all lanes; lane-position coverage is already exercised above and in the
+    // self-value sweep below.
+    for (int i = 0; i < num_boundary; ++i) {
+      for (int j = i + 1; j < num_boundary; ++j) {
+        for (int k = 0; k < PacketSize; ++k) {
+          data1[k] = boundary_values[i];
+          data1[k + PacketSize] = boundary_values[j];
+        }
+        check_ops();
+
+        for (int k = 0; k < PacketSize; ++k) std::swap(data1[k], data1[k + PacketSize]);
+        check_ops();
+      }
+    }
+
+    constexpr int num_self_chunks = numext::div_ceil(num_boundary, PacketSize);
+    for (int chunk = 0; chunk < num_self_chunks; ++chunk) {
+      for (int i = 0; i < PacketSize; ++i) {
+        const int idx = (chunk * PacketSize + i) % num_boundary;
+        data1[i] = data1[i + PacketSize] = boundary_values[idx];
+      }
+      check_ops();
+    }
+  }
+};
+
 // Ensure optimization barrier compiles and doesn't modify contents.
 // Only applies to raw types, so will not work for std::complex, Eigen::half
 // or Eigen::bfloat16. For those you would need to refer to an underlying
@@ -932,6 +1026,7 @@ void packetmath() {
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
   packetmath_integer_predicates_test<Scalar, Packet>::run();
+  packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
   CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
