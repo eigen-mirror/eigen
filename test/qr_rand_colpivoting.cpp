@@ -84,9 +84,9 @@ void rqr_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
   typedef typename MatrixType::Scalar Scalar;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
-  Matrix<Scalar, Rows, Cols> m1;
+  MatrixType m1;
   createRandomPIMatrixOfRank(rank, Rows, Cols, m1);
-  RandColPivHouseholderQR<Matrix<Scalar, Rows, Cols>> qr;
+  RandColPivHouseholderQR<MatrixType> qr;
   configure_small(qr);
   qr.compute(m1);
   VERIFY_IS_EQUAL(rank, qr.rank());
@@ -95,8 +95,8 @@ void rqr_fixedsize() {
   VERIFY_IS_EQUAL(qr.isSurjective(), (rank == Cols));
   VERIFY_IS_EQUAL(qr.isInvertible(), (qr.isInjective() && qr.isSurjective()));
 
-  Matrix<Scalar, Rows, Cols> r = qr.matrixQR().template triangularView<Upper>();
-  Matrix<Scalar, Rows, Cols> c = qr.householderQ() * r * qr.colsPermutation().inverse();
+  MatrixType r = qr.matrixQR().template triangularView<Upper>();
+  MatrixType c = qr.householderQ() * r * qr.colsPermutation().inverse();
   VERIFY_IS_APPROX(m1, c);
 
   check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2>>(m1, qr, Rows, Cols, Cols2);
@@ -283,9 +283,9 @@ template <typename MatrixType, int Cols2>
 void rcod_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
   typedef typename MatrixType::Scalar Scalar;
-  typedef RandCompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols>> COD;
+  typedef RandCompleteOrthogonalDecomposition<MatrixType> COD;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
-  Matrix<Scalar, Rows, Cols> matrix;
+  MatrixType matrix;
   createRandomPIMatrixOfRank(rank, Rows, Cols, matrix);
   COD cod;
   cod.setBlockSize(4).setSeed(0xfed1);
@@ -653,11 +653,20 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
     CALL_SUBTEST_4((rqr_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rqr_fixedsize<Matrix<double, 12, 6>, 3>()));
 
+    // The panel factorization wraps a block of the stored matrix in a Ref, so it has to follow
+    // MatrixType's storage order rather than the workspaces' column-major one.
+    CALL_SUBTEST_1((rqr<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_2((rqr<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_4((rqr_fixedsize<Matrix<float, 8, 10, RowMajor>, 4>()));
+
     CALL_SUBTEST_1(rcod<MatrixXf>());
     CALL_SUBTEST_2(rcod<MatrixXd>());
     CALL_SUBTEST_3(rcod<MatrixXcd>());
     CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rcod_fixedsize<Matrix<double, 12, 6>, 3>()));
+
+    CALL_SUBTEST_2((rcod<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10, RowMajor>, 4>()));
   }
 
   for (int i = 0; i < g_repeat; i++) {

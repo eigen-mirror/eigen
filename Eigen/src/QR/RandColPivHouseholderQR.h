@@ -82,6 +82,9 @@ EIGEN_STRONG_INLINE void lawn176_norm_downdate(RealScalar& norm_updated, RealSca
  * \tparam MatrixType_ the type of the matrix being decomposed.
  * \tparam PermutationIndex_ the type of the permutation indices.
  *
+ * \warning This decomposition is significantly slower when \c MatrixType_
+ * uses \c RowMajor storage. Prefer \c ColMajor storage when performance matters.
+ *
  * Computes \f$ \mathbf{A} \mathbf{P} = \mathbf{Q} \mathbf{R} \f$ using the
  * BQRRP framework introduced by Melnichenko, Murray, Killian, Demmel,
  * Mahoney, Luszczek, and Gates, *Anatomy of High-Performance Column-Pivoted
@@ -565,6 +568,9 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   // Matrix<float, 8, 10>) and its run-time-sized blocks can both be
   // wrapped without tripping Ref's compile-time-size check.
   using WorkMatrixRef = Ref<WorkMatrix, 0, OuterStride<>>;
+  // Panels of m_qr carry MatrixType's storage order, which need not be the workspaces'.
+  using QrMatrix = Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor>;
+  using QrPanelRef = Ref<QrMatrix, 0, OuterStride<>>;
   using HCoeffsRef = Ref<WorkVector>;
   using IpivType = Transpositions<Dynamic, Dynamic, PermutationIndex>;
 
@@ -649,9 +655,9 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     auto panel = m_qr.block(k, k, sub_rows, b);
     auto hCoeffsSegment = m_hCoeffs.segment(k, b);
     {
-      WorkMatrixRef panel_ref(panel);
+      QrPanelRef panel_ref(panel);
       HCoeffsRef hc_ref(hCoeffsSegment);
-      internal::householder_qr_inplace_blocked<WorkMatrixRef, HCoeffsRef>::run(
+      internal::householder_qr_inplace_blocked<QrPanelRef, HCoeffsRef>::run(
           panel_ref, hc_ref, /*maxBlockSize=*/(std::min)(b, Index(48)), m_temp.data());
     }
 
