@@ -581,7 +581,6 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   WorkMatrix Y(b, cols);
   WorkMatrix YT(cols, b);
   WorkMatrix sketch_R(b, b);
-  WorkMatrix tmp(b, cols - b);
   IpivType ipiv(b);
   WorkVector y_hcoeffs(b);
   WorkVector y_temp(cols);
@@ -650,6 +649,9 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     // panel QR overwrites the corresponding columns of m_qr (via the
     // trailing update); we need it for step 24.
     sketch_R = Y.block(0, k, b, b);
+    // The step-24 update below consumes R_sk_11 as a plain matrix, so clear
+    // the Householder vectors the sketch QR left below its diagonal.
+    sketch_R.template triangularView<StrictlyLower>().setZero();
 
     // === Step 12: tall unpivoted Householder QR on the panel.
     auto panel = m_qr.block(k, k, sub_rows, b);
@@ -712,12 +714,13 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     // the sketch above placed it there). R_sk_11 we saved into sketch_R.
     // R_11 and R_12 are the corresponding blocks of m_qr after the
     // panel QR + trailing update.
+    // Associating as (R_sk_11 * R_11^{-1}) * R_12 keeps the triangular solve at
+    // b x b and leaves a single GEMM reading R_12 straight out of m_qr: no
+    // b x trail_cols workspace, and no wide triangular solve/product (both of
+    // which run well below GEMM throughput).
     {
-      auto tmp_block = tmp.leftCols(trail_cols);
-      tmp_block = m_qr.block(k, k + b, b, trail_cols);
-      m_qr.block(k, k, b, b).template triangularView<Upper>().solveInPlace(tmp_block);
-
-      Y.middleCols(k + b, trail_cols).noalias() -= sketch_R.template triangularView<Upper>() * tmp_block;
+      m_qr.block(k, k, b, b).template triangularView<Upper>().template solveInPlace<OnTheRight>(sketch_R);
+      Y.middleCols(k + b, trail_cols).noalias() -= sketch_R * m_qr.block(k, k + b, b, trail_cols);
     }
 
     k += b;
