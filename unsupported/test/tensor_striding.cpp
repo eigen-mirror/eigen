@@ -107,9 +107,99 @@ static void test_striding_as_lvalue() {
   }
 }
 
+// setRandom() draws integers from the full range of T, so the values scaled
+// below would overflow. Bounded draws keep them representable for every T.
+template <typename T, int NumDims, int DataLayout>
+static void set_bounded_random(Tensor<T, NumDims, DataLayout>& tensor) {
+  for (Index i = 0; i < tensor.size(); ++i) {
+    tensor.coeffRef(i) = internal::random<T>(T(-10), T(10));
+  }
+}
+
+template <typename T, int DataLayout>
+static void test_striding_packet_paths() {
+  // Sizes with partial-packet tails; expression-sourced reads so the packet
+  // path is exercised, sweeping strides that keep the inner dimension intact
+  // (contiguous inner runs), that stride it (gathers), and the identity.
+  Tensor<T, 3, DataLayout> tensor(17, 5, 7);
+  set_bounded_random(tensor);
+
+  const ptrdiff_t stride_sets[][3] = {{1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}, {2, 2, 2}, {3, 1, 2}};
+  for (const auto& s : stride_sets) {
+    array<ptrdiff_t, 3> strides{{s[0], s[1], s[2]}};
+
+    // Expression-sourced: the argument has no raw buffer, so the striding
+    // serves packets assembled from the nested expression.
+    Tensor<T, 3, DataLayout> result = (tensor * tensor.constant(T(2))).stride(strides);
+    for (Index i = 0; i < result.dimension(0); ++i) {
+      for (Index j = 0; j < result.dimension(1); ++j) {
+        for (Index k = 0; k < result.dimension(2); ++k) {
+          VERIFY_IS_EQUAL(result(i, j, k), T(2) * tensor(i * s[0], j * s[1], k * s[2]));
+        }
+      }
+    }
+
+    // Lvalue: writePacket through the strided destination.
+    Tensor<T, 3, DataLayout> dst(17, 5, 7);
+    dst.setZero();
+    Tensor<T, 3, DataLayout> src((17 + s[0] - 1) / s[0], (5 + s[1] - 1) / s[1], (7 + s[2] - 1) / s[2]);
+    set_bounded_random(src);
+    dst.stride(strides) = src * src.constant(T(3));
+    for (Index i = 0; i < src.dimension(0); ++i) {
+      for (Index j = 0; j < src.dimension(1); ++j) {
+        for (Index k = 0; k < src.dimension(2); ++k) {
+          VERIFY_IS_EQUAL(dst(i * s[0], j * s[1], k * s[2]), T(3) * src(i, j, k));
+        }
+      }
+    }
+  }
+}
+
+template <typename T, int DataLayout>
+static void test_striding_without_impl_packet_access() {
+  // A TensorRef argument exposes only coefficient access, but the striding
+  // still serves packets by assembling them coefficient by coefficient.
+  Tensor<T, 3, DataLayout> tensor(17, 5, 7);
+  tensor.setRandom();
+  const Eigen::TensorRef<const Tensor<T, 3, DataLayout>> ref(tensor);
+
+  array<ptrdiff_t, 3> identity{{1, 1, 1}};
+
+  // Pin the capabilities this test relies on: the nested TensorRef evaluator
+  // must not have packet access (otherwise this test exercises nothing), while
+  // the striding evaluator on top of it must still advertise it.
+  typedef Eigen::TensorRef<const Tensor<T, 3, DataLayout>> RefType;
+  typedef decltype(std::declval<const RefType&>().stride(identity)) StrideExprType;
+  typedef Eigen::TensorEvaluator<const RefType, Eigen::DefaultDevice> RefEvaluator;
+  typedef Eigen::TensorEvaluator<const StrideExprType, Eigen::DefaultDevice> StrideEvaluator;
+  EIGEN_STATIC_ASSERT(!RefEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
+  EIGEN_STATIC_ASSERT(StrideEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
+
+  Tensor<T, 3, DataLayout> result = ref.stride(identity);
+  for (Index i = 0; i < result.size(); ++i) {
+    VERIFY_IS_EQUAL(result.coeff(i), tensor.coeff(i));
+  }
+
+  array<ptrdiff_t, 3> strides{{2, 1, 3}};
+  Tensor<T, 3, DataLayout> strided = ref.stride(strides);
+  for (Index i = 0; i < strided.dimension(0); ++i) {
+    for (Index j = 0; j < strided.dimension(1); ++j) {
+      for (Index k = 0; k < strided.dimension(2); ++k) {
+        VERIFY_IS_EQUAL(strided(i, j, k), tensor(i * 2, j, k * 3));
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_striding) {
   CALL_SUBTEST(test_simple_striding<ColMajor>());
   CALL_SUBTEST(test_simple_striding<RowMajor>());
   CALL_SUBTEST(test_striding_as_lvalue<ColMajor>());
   CALL_SUBTEST(test_striding_as_lvalue<RowMajor>());
+  CALL_SUBTEST((test_striding_packet_paths<float, ColMajor>()));
+  CALL_SUBTEST((test_striding_packet_paths<float, RowMajor>()));
+  CALL_SUBTEST((test_striding_packet_paths<int, ColMajor>()));
+  CALL_SUBTEST((test_striding_packet_paths<int, RowMajor>()));
+  CALL_SUBTEST((test_striding_without_impl_packet_access<float, ColMajor>()));
+  CALL_SUBTEST((test_striding_without_impl_packet_access<float, RowMajor>()));
 }

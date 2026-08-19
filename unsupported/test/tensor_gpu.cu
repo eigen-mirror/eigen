@@ -231,6 +231,112 @@ void test_gpu_props() {
   gpuFree(d_out);
 }
 
+// Drives the striding evaluators' packet paths directly from device code.
+// TensorExecutor gates GPU vectorization on PacketAccess && IsAligned, and
+// striding is never aligned, so the `.device(gpu) =` path below always takes
+// the scalar kernel and never instantiates packet()/writePacket() for the
+// device. Calling them here is what keeps them device-callable.
+template <typename ReadEvaluator, typename WriteEvaluator>
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void striding_packet_kernel(ReadEvaluator read_eval, WriteEvaluator write_eval,
+                                                                    int num_packets) {
+  const int packet_size = Eigen::internal::unpacket_traits<typename ReadEvaluator::PacketReturnType>::size;
+  for (int p = blockIdx.x * blockDim.x + threadIdx.x; p < num_packets; p += blockDim.x * gridDim.x) {
+    const Eigen::DenseIndex index = static_cast<Eigen::DenseIndex>(p) * packet_size;
+    write_eval.template writePacket<Eigen::Unaligned>(index, read_eval.template packet<Eigen::Unaligned>(index));
+  }
+}
+
+// Strided reads and writes on the device. The executor half checks the scalar
+// kernel end to end; the kernel half above reaches the packet paths, which the
+// executor cannot select for an unaligned evaluator.
+template <int DataLayout>
+void test_gpu_striding() {
+  Tensor<float, 2, DataLayout> in(31, 26);
+  Tensor<float, 2, DataLayout> read_out(16, 13);
+  Tensor<float, 2, DataLayout> write_out(31, 26);
+  in.setRandom();
+  write_out.setZero();
+
+  std::size_t in_bytes = in.size() * sizeof(float);
+  std::size_t read_out_bytes = read_out.size() * sizeof(float);
+  std::size_t write_out_bytes = write_out.size() * sizeof(float);
+
+  float* d_in;
+  float* d_read_out;
+  float* d_write_out;
+  gpuMalloc((void**)(&d_in), in_bytes);
+  gpuMalloc((void**)(&d_read_out), read_out_bytes);
+  gpuMalloc((void**)(&d_write_out), write_out_bytes);
+
+  gpuMemcpy(d_in, in.data(), in_bytes, gpuMemcpyHostToDevice);
+  gpuMemcpy(d_write_out, write_out.data(), write_out_bytes, gpuMemcpyHostToDevice);
+
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_in(d_in, 31, 26);
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_read_out(d_read_out, 16, 13);
+  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>, Eigen::Aligned> gpu_write_out(d_write_out, 31, 26);
+
+  Eigen::array<Eigen::DenseIndex, 2> strides{{2, 2}};
+  gpu_read_out.device(gpu_device) = (gpu_in + gpu_in.constant(1.0f)).stride(strides);
+  gpu_write_out.stride(strides).device(gpu_device) =
+      gpu_in.slice(Eigen::array<Eigen::DenseIndex, 2>{{0, 0}}, Eigen::array<Eigen::DenseIndex, 2>{{16, 13}});
+
+  assert(gpuMemcpyAsync(read_out.data(), d_read_out, read_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
+         gpuSuccess);
+  assert(gpuMemcpyAsync(write_out.data(), d_write_out, write_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
+         gpuSuccess);
+  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+
+  for (int i = 0; i < 16; ++i) {
+    for (int j = 0; j < 13; ++j) {
+      VERIFY_IS_EQUAL(read_out(i, j), in(2 * i, 2 * j) + 1.0f);
+      VERIFY_IS_EQUAL(write_out(2 * i, 2 * j), in(i, j));
+    }
+  }
+
+  // Now the packet paths, which the executor above cannot reach.
+  Tensor<float, 2, DataLayout> packet_out(31, 26);
+  packet_out.setZero();
+  gpuMemcpy(d_write_out, packet_out.data(), write_out_bytes, gpuMemcpyHostToDevice);
+
+  auto read_expr = gpu_in.stride(strides);
+  auto write_expr = gpu_write_out.stride(strides);
+  typedef Eigen::TensorEvaluator<const decltype(read_expr), Eigen::GpuDevice> ReadEval;
+  typedef Eigen::TensorEvaluator<decltype(write_expr), Eigen::GpuDevice> WriteEval;
+  ReadEval read_eval(read_expr, gpu_device);
+  WriteEval write_eval(write_expr, gpu_device);
+  read_eval.evalSubExprsIfNeeded(NULL);
+
+  const int packet_size = Eigen::internal::unpacket_traits<typename ReadEval::PacketReturnType>::size;
+  const int num_packets = static_cast<int>(read_eval.dimensions().TotalSize()) / packet_size;
+#ifdef EIGEN_USE_HIP
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(striding_packet_kernel<ReadEval, WriteEval>), dim3(1), dim3(64), 0,
+                     gpu_device.stream(), read_eval, write_eval, num_packets);
+#else
+  // Various versions of clang-format incorrectly add spaces to the kernel launch brackets.
+  // clang-format off
+  striding_packet_kernel<ReadEval, WriteEval><<<1, 64, 0, gpu_device.stream()>>>(read_eval, write_eval, num_packets);
+  // clang-format on
+#endif
+  assert(gpuMemcpyAsync(packet_out.data(), d_write_out, write_out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
+         gpuSuccess);
+  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  read_eval.cleanup();
+
+  // Only whole packets are stored; the tail stays zero.
+  for (int k = 0; k < num_packets * packet_size; ++k) {
+    const int i = (static_cast<int>(DataLayout) == static_cast<int>(ColMajor)) ? k % 16 : k / 13;
+    const int j = (static_cast<int>(DataLayout) == static_cast<int>(ColMajor)) ? k / 16 : k % 13;
+    VERIFY_IS_EQUAL(packet_out(2 * i, 2 * j), in(2 * i, 2 * j));
+  }
+
+  gpuFree(d_in);
+  gpuFree(d_read_out);
+  gpuFree(d_write_out);
+}
+
 void test_gpu_reduction() {
   Tensor<float, 4> in1(72, 53, 97, 113);
   Tensor<float, 2> out(72, 97);
@@ -1440,6 +1546,8 @@ EIGEN_DECLARE_TEST(tensor_gpu) {
   CALL_SUBTEST_1(test_gpu_elementwise_small());
   CALL_SUBTEST_1(test_gpu_elementwise());
   CALL_SUBTEST_1(test_gpu_props());
+  CALL_SUBTEST_1(test_gpu_striding<ColMajor>());
+  CALL_SUBTEST_1(test_gpu_striding<RowMajor>());
   CALL_SUBTEST_2(test_gpu_reduction());
   CALL_SUBTEST_3(test_gpu_contraction<ColMajor>());
   CALL_SUBTEST_3(test_gpu_contraction<RowMajor>());
