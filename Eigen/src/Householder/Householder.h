@@ -147,6 +147,9 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
   Scalar c0 = coeff(0);
   const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
   RealScalar unscaledNormThreshold = tol;
+  // Whether the direct construction's abs2(c0) + tailSqNorm would exceed the range. Integer scalars keep the direct
+  // path they have always taken; the scaled path divides by a component maximum, which does not apply to them.
+  bool unscaledSqNormOverflows = false;
   EIGEN_IF_CONSTEXPR (!NumTraits<RealScalar>::IsInteger) {
     const RealScalar precision = RealScalar(NumTraits<RealScalar>::epsilon());
     // With flush-to-zero arithmetic, every tail component square below tol can be lost. Account for every component
@@ -155,9 +158,21 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     // intentional.
     const RealScalar componentCount = RealScalar(size() - 1) * RealScalar(NumTraits<Scalar>::IsComplex ? 2 : 1);
     unscaledNormThreshold = (tol / precision) * componentCount;
+
+    // Both terms overflow well before the reflector stops being representable, so classify the input before the
+    // squares are formed: abs2(c0) is at most twice the square of the larger component of c0, and the tail's own
+    // reduction has already overflowed if tailSqNorm exceeds the bound. Testing the sum with isinf() instead would
+    // not survive -ffinite-math-only, which folds that test away, whereas a comparison against a finite bound is
+    // still evaluated.
+    const RealScalar sqNormBound = NumTraits<RealScalar>::highest() / RealScalar(2);
+    const RealScalar componentBound = numext::sqrt(sqNormBound / RealScalar(2));
+    const RealScalar c0Max = numext::maxi(numext::abs(numext::real(c0)), numext::abs(numext::imag(c0)));
+    unscaledSqNormOverflows = !(c0Max <= componentBound) || !(tailSqNorm <= sqNormBound);
   }
 
-  if (tailSqNorm <= unscaledNormThreshold && !(numext::isnan)(c0)) {
+  // The scaled path forms the reflector from ratios of the largest component and never squares an unscaled
+  // coefficient, so it is also the path for inputs the direct construction cannot square.
+  if ((tailSqNorm <= unscaledNormThreshold || unscaledSqNormOverflows) && !(numext::isnan)(c0)) {
     using Accumulator = typename internal::householder_norm_accumulator<RealScalar>::type;
     const auto tailView = tail.unwind();
     const auto tailComponents = tailView.realView();

@@ -682,6 +682,107 @@ void householder_small_tail() {
   VERIFY_IS_APPROX(2.0f * tau, tau * tau * (1.0f + essential.squaredNorm()));
 }
 
+// tau and the essential vector are scale invariant and beta is homogeneous, so rescaling by a power of two is exact.
+// It keeps the long double reference below the squaring overflow that this path exists to avoid, which matters where
+// long double is only as wide as double.
+template <typename VectorType, typename EssentialType>
+void verify_large_householder_result(const VectorType& vector, const EssentialType& essential,
+                                     const typename VectorType::Scalar& tau,
+                                     const typename VectorType::RealScalar& beta) {
+  typedef typename VectorType::RealScalar RealScalar;
+  int exponent = 0;
+  (void)std::frexp(vector.cwiseAbs().maxCoeff(), &exponent);
+  const RealScalar scale = std::ldexp(RealScalar(1), exponent);
+  verify_real_householder_result((vector / scale).eval(), essential, tau, RealScalar(beta / scale));
+}
+
+void householder_large_components() {
+  {
+    // The head coefficient squares out of the float range; the tail coefficient does not. The direct
+    // construction forms their sum regardless, so it produced beta = -inf and tau = NaN.
+    Vector2f vector(4e19f, -5.2e18f);
+    Matrix<float, 1, 1> essential;
+    float tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    VERIFY((numext::isfinite)(tau));
+    VERIFY((numext::isfinite)(beta));
+    VERIFY((numext::isfinite)(essential[0]));
+    verify_large_householder_result(vector, essential, tau, beta);
+  }
+
+  {
+    VectorXf vector(3);
+    vector << 1e20f, 2e20f, 3e20f;
+    VectorXf essential(2);
+    float tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    verify_large_householder_result(vector, essential, tau, beta);
+  }
+
+  {
+    // Accumulated overflow: every square is representable, their sum is not.
+    VectorXf vector = VectorXf::Constant(65, 1e19f);
+    VectorXf essential(64);
+    float tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    verify_large_householder_result(vector, essential, tau, beta);
+  }
+
+  {
+    VectorXd vector(3);
+    vector << 1e160, -2e160, 3e160;
+    VectorXd essential(2);
+    double tau;
+    double beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    verify_large_householder_result(vector, essential, tau, beta);
+  }
+
+  {
+    const float largest = (std::numeric_limits<float>::max)();
+    const Vector2cf vector(std::complex<float>(largest, 0.0f), std::complex<float>(largest, 0.0f));
+    Matrix<std::complex<float>, 1, 1> essential;
+    std::complex<float> tau;
+    float beta;
+
+    vector.makeHouseholder(essential, tau, beta);
+
+    // The true norm exceeds the float range, so beta cannot be represented; the reflector itself still must be.
+    VERIFY((numext::isfinite)(numext::real(tau)));
+    VERIFY((numext::isfinite)(numext::imag(tau)));
+    VERIFY((numext::isfinite)(numext::real(essential[0])));
+    VERIFY((numext::isfinite)(numext::imag(essential[0])));
+    Vector2cf householder;
+    householder << std::complex<float>(1.0f, 0.0f), essential;
+    const Matrix2cf transform = Matrix2cf::Identity() - tau * householder * householder.adjoint();
+    VERIFY_IS_APPROX(transform.adjoint() * transform, Matrix2cf::Identity());
+  }
+
+  {
+    // Reflectors this large must still compose into a usable decomposition.
+    MatrixXf matrix(6, 4);
+    for (Index i = 0; i < matrix.rows(); ++i)
+      for (Index j = 0; j < matrix.cols(); ++j) matrix(i, j) = 1e19f * float(internal::random<double>(-1.0, 1.0));
+    const HouseholderQR<MatrixXf> qr(matrix);
+    const MatrixXf q = qr.householderQ() * MatrixXf::Identity(6, 4);
+    const MatrixXf r = qr.matrixQR().topRows(4).template triangularView<Upper>();
+    const MatrixXd scaled = (matrix / 1e19f).cast<double>();
+    const double relative_residual = ((q * r).cast<double>() / 1e19 - scaled).norm() / scaled.norm();
+    VERIFY(relative_residual <= 64 * double(NumTraits<float>::epsilon()));
+  }
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -705,4 +806,5 @@ EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_10(householder_blocked_right_regression<double>());
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
   CALL_SUBTEST_12(householder_small_tail());
+  CALL_SUBTEST_13(householder_large_components());
 }
