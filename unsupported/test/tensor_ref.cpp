@@ -243,6 +243,44 @@ static void test_nested_ops_with_ref() {
   }
 }
 
+// Regression test for issue #1616: unsigned index types must not trigger
+// narrowing errors in the variadic accessors.
+static void test_unsigned_indices() {
+  Tensor<float, 3> tensor(2, 3, 7);
+  tensor.setRandom();
+
+  TensorRef<Tensor<float, 3>> ref(tensor);
+  VERIFY_IS_EQUAL(ref(1u, std::size_t(2), 6ul), tensor(1, 2, 6));
+  ref.coeffRef(1u, 2ul, std::size_t(6)) = 5.0f;
+  VERIFY_IS_EQUAL(tensor(1, 2, 6), 5.0f);
+}
+
+// TensorRef's accessors must take the plain object's index type. Unqualified Index in the class body does not find
+// the base's typedef, so coeffRef used to take Eigen::Index while operator() took the plain object's index type.
+static void test_index_type() {
+  using RefType = Eigen::TensorRef<Tensor<float, 3, Eigen::ColMajor, int>>;
+  VERIFY((std::is_same<RefType::Index, int>::value));
+
+  Tensor<float, 3, Eigen::ColMajor, int> tensor(2, 3, 7);
+  tensor.setZero();
+  RefType ref(tensor);
+
+  float& (RefType::*coeff_ref)(RefType::Index) = &RefType::coeffRef;
+  (ref.*coeff_ref)(3) = 5.0f;
+  VERIFY_IS_EQUAL(tensor.coeff(3), 5.0f);
+}
+
+// An index the ref's index type cannot represent must assert rather than silently truncate. size_t(-1) is
+// representable by no signed index type, so this holds whichever index type the accessor takes.
+static void test_narrowing_indices() {
+  Tensor<float, 3> tensor(2, 3, 7);
+  tensor.setRandom();
+
+  TensorRef<Tensor<float, 3>> ref(tensor);
+  VERIFY_RAISES_ASSERT(ref(0, 0, std::size_t(-1)));
+  VERIFY_RAISES_ASSERT(ref.coeffRef(0, 0, std::size_t(-1)) = 1.0f);
+}
+
 EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_simple_lvalue_ref());
   CALL_SUBTEST(test_simple_rvalue_ref());
@@ -254,4 +292,7 @@ EIGEN_DECLARE_TEST(tensor_ref) {
   CALL_SUBTEST(test_ref_in_expr());
   CALL_SUBTEST(test_coeff_ref());
   CALL_SUBTEST(test_nested_ops_with_ref());
+  CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_index_type());
+  CALL_SUBTEST(test_narrowing_indices());
 }

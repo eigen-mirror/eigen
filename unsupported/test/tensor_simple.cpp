@@ -323,6 +323,44 @@ static void test_resize() {
   VERIFY_IS_EQUAL(epsilon.size(), 3 * 5 * 7);
 }
 
+// Regression test for issue #1616: unsigned index and dimension types must not
+// trigger narrowing errors in the variadic constructor, resize, and accessors.
+static void test_unsigned_indices() {
+  Tensor<int, 3> tensor(2u, 3ul, std::size_t(7));
+  tensor.setZero();
+  tensor.resize(std::size_t(2), 3u, 7ul);
+  tensor.setZero();
+
+  tensor(1u, std::size_t(2), 6ul) = 5;
+  VERIFY_IS_EQUAL(tensor(1u, 2u, 6u), 5);
+  VERIFY_IS_EQUAL(tensor.coeff(1ul, 2u, std::size_t(6)), 5);
+  tensor.coeffRef(0u, 0ul, std::size_t(0)) = 7;
+
+  const Tensor<int, 3>& const_tensor = tensor;
+  VERIFY_IS_EQUAL(const_tensor(0u, std::size_t(0), 0ul), 7);
+  VERIFY_IS_EQUAL(const_tensor.coeff(0ul, 0u, 0u), 7);
+}
+
+// An index the tensor's index type cannot represent must assert rather than silently truncate.
+static void test_narrowing_indices() {
+  const std::size_t too_large = std::size_t(1) << 40;
+
+  Tensor<int, 3, ColMajor, int> tensor(2, 3, 7);
+  tensor.setZero();
+  VERIFY_RAISES_ASSERT(tensor(0, 0, too_large) = 1);
+  VERIFY_RAISES_ASSERT(tensor.coeffRef(0, 0, too_large) = 1);
+  VERIFY_RAISES_ASSERT(tensor.resize(2, 3, too_large));
+
+  const Tensor<int, 3, ColMajor, int>& const_tensor = tensor;
+  VERIFY_RAISES_ASSERT(const_tensor(0, 0, too_large));
+  VERIFY_RAISES_ASSERT(const_tensor.coeff(0, 0, too_large));
+
+  // A same-width unsigned value reaches the index type without truncating, but as a negative index.
+  Tensor<int, 3> wide_tensor(2, 3, 7);
+  wide_tensor.setZero();
+  VERIFY_RAISES_ASSERT(wide_tensor(0, 0, std::size_t(-1)) = 1);
+}
+
 EIGEN_DECLARE_TEST(tensor_simple) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
@@ -330,4 +368,6 @@ EIGEN_DECLARE_TEST(tensor_simple) {
   CALL_SUBTEST(test_3d());
   CALL_SUBTEST(test_simple_assign());
   CALL_SUBTEST(test_resize());
+  CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_narrowing_indices());
 }

@@ -268,6 +268,32 @@ constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE array<Index, NumIndices> customI
   return customIndices2Array(idx, std::make_integer_sequence<Index, NumIndices>{});
 }
 
+/** \internal Whether converting \a index to \a Index preserves its value.
+ *
+ * The round trip catches truncation and the sign comparison catches a same-width unsigned value reinterpreted as
+ * negative, which round trips exactly. Both tests compare operands of one type, unlike a bound check against
+ * NumTraits<Index>::highest(), which mixes signedness whenever \a T is unsigned. Types that are not built-in
+ * integers reach \a Index through their own conversion operator and are left unchecked.
+ */
+template <typename Index, typename T,
+          std::enable_if_t<std::is_integral<T>::value && std::is_integral<Index>::value, bool> = true>
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool index_fits(T index) {
+  return static_cast<T>(static_cast<Index>(index)) == index &&
+         (numext::signbit(static_cast<Index>(index)) == Index(0)) == (numext::signbit(index) == T(0));
+}
+
+template <typename Index, typename T,
+          std::enable_if_t<!(std::is_integral<T>::value && std::is_integral<Index>::value), bool> = true>
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool index_fits(const T&) {
+  return true;
+}
+
+/** \internal Whether every index in the pack converts to \a Index without changing value. */
+template <typename Index, typename... IndexTypes>
+constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool indices_fit(IndexTypes... indices) {
+  return all(index_fits<Index>(indices)...);
+}
+
 }  // namespace internal
 
 }  // namespace Eigen

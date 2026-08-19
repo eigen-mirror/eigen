@@ -114,7 +114,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
                                                             IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return coeff(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return coeff(array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
   }
 
   // normal indices
@@ -143,7 +144,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   inline Scalar& coeffRef(Index firstIndex, Index secondIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return coeffRef(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return coeffRef(array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
   }
 
   // normal indices
@@ -172,7 +174,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   inline const Scalar& operator()(Index firstIndex, Index secondIndex, IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return this->operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return this->operator()(array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
   }
 
   // custom indices
@@ -206,7 +209,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   inline Scalar& operator()(Index firstIndex, Index secondIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 2 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return operator()(array<Index, NumIndices>{{firstIndex, secondIndex, static_cast<Index>(otherIndices)...}});
   }
 
   // normal indices
@@ -297,7 +301,8 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   EIGEN_DEVICE_FUNC void resize(Index firstDimension, IndexTypes... otherDimensions) {
     // The number of dimensions used to resize a tensor must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherDimensions) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    resize(array<Index, NumIndices>{{firstDimension, otherDimensions...}});
+    eigen_assert(internal::indices_fit<Index>(otherDimensions...));
+    resize(array<Index, NumIndices>{{firstDimension, static_cast<Index>(otherDimensions)...}});
   }
 
   /** Normal Dimension */

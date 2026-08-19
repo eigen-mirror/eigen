@@ -78,7 +78,8 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& coeff(Index firstIndex, IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return coeff(array<Index, NumIndices>{{firstIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return coeff(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& coeff(const array<Index, NumIndices>& indices) const {
@@ -100,7 +101,8 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index firstIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return coeffRef(array<Index, NumIndices>{{firstIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return coeffRef(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(const array<Index, NumIndices>& indices) {
@@ -122,7 +124,8 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& operator()(Index firstIndex, IndexTypes... otherIndices) const {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return this->operator()(array<Index, NumIndices>{{firstIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return this->operator()(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar& operator()(const array<Index, NumIndices>& indices) const {
@@ -150,7 +153,8 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(Index firstIndex, IndexTypes... otherIndices) {
     // The number of indices used to access a tensor coefficient must be equal to the rank of the tensor.
     EIGEN_STATIC_ASSERT(sizeof...(otherIndices) + 1 == NumIndices, YOU_MADE_A_PROGRAMMING_MISTAKE)
-    return operator()(array<Index, NumIndices>{{firstIndex, otherIndices...}});
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
+    return operator()(array<Index, NumIndices>{{firstIndex, static_cast<Index>(otherIndices)...}});
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& operator()(const array<Index, NumIndices>& indices) {

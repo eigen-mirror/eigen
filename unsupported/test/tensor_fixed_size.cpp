@@ -289,6 +289,35 @@ static void test_embedded_odd_size() {
 static_assert(TensorFixedSize<float, Sizes<5> >::IsAligned == (EIGEN_MAX_STATIC_ALIGN_BYTES >= 16),
               "IsAligned must match whether EIGEN_MAX_STATIC_ALIGN_BYTES actually provides Aligned16 storage");
 
+// Regression test for issue #1616: unsigned index types must not trigger
+// narrowing errors in the variadic accessors.
+static void test_unsigned_indices() {
+  TensorFixedSize<float, Sizes<2, 3> > tensor;
+  tensor.setZero();
+
+  tensor(1u, std::size_t(2)) = 5.0f;
+  VERIFY_IS_EQUAL(tensor(1ul, 2u), 5.0f);
+  tensor.coeffRef(0u, 1ul) = 7.0f;
+
+  const TensorFixedSize<float, Sizes<2, 3> >& const_tensor = tensor;
+  VERIFY_IS_EQUAL(const_tensor.coeff(0ul, 1u), 7.0f);
+  VERIFY_IS_EQUAL(const_tensor(0u, std::size_t(1)), 7.0f);
+}
+
+// An index the tensor's index type cannot represent must assert rather than silently truncate.
+static void test_narrowing_indices() {
+  const std::size_t too_large = std::size_t(1) << 40;
+
+  TensorFixedSize<float, Sizes<2, 3>, ColMajor, int> tensor;
+  tensor.setZero();
+  VERIFY_RAISES_ASSERT(tensor(0, too_large) = 1.0f);
+  VERIFY_RAISES_ASSERT(tensor.coeffRef(0, too_large) = 1.0f);
+
+  const TensorFixedSize<float, Sizes<2, 3>, ColMajor, int>& const_tensor = tensor;
+  VERIFY_RAISES_ASSERT(const_tensor(0, too_large));
+  VERIFY_RAISES_ASSERT(const_tensor.coeff(0, too_large));
+}
+
 EIGEN_DECLARE_TEST(tensor_fixed_size) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
@@ -297,4 +326,6 @@ EIGEN_DECLARE_TEST(tensor_fixed_size) {
   CALL_SUBTEST(test_3d());
   CALL_SUBTEST(test_array());
   CALL_SUBTEST(test_embedded_odd_size());
+  CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_narrowing_indices());
 }

@@ -184,8 +184,9 @@ class TensorRefBase : public TensorBase<Derived> {
 
   template <typename... IndexTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(Index firstIndex, IndexTypes... otherIndices) const {
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     const std::size_t num_indices = sizeof...(otherIndices) + 1;
-    const array<Index, num_indices> indices{{firstIndex, otherIndices...}};
+    const array<Index, num_indices> indices{{firstIndex, static_cast<Index>(otherIndices)...}};
     return coeff(indices);
   }
 
@@ -243,6 +244,9 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
  public:
   using Scalar = typename Base::Scalar;
   using Dimensions = typename Base::Dimensions;
+  // Without this, unqualified Index below does not find the dependent base's typedef and resolves to Eigen::Index,
+  // giving the accessors a different index type than the rest of the class.
+  using Index = typename Base::Index;
 
   EIGEN_STRONG_INLINE TensorRef() = default;
 
@@ -267,8 +271,9 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
 
   template <typename... IndexTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index firstIndex, IndexTypes... otherIndices) {
+    eigen_assert(internal::indices_fit<Index>(otherIndices...));
     const std::size_t num_indices = sizeof...(otherIndices) + 1;
-    const array<Index, num_indices> indices{{firstIndex, otherIndices...}};
+    const array<Index, num_indices> indices{{firstIndex, static_cast<Index>(otherIndices)...}};
     return coeffRef(indices);
   }
 

@@ -19,8 +19,8 @@ static void test_0d() {
   Tensor<int, 0> scalar1;
   Tensor<int, 0, RowMajor> scalar2;
 
-  TensorMap<const Tensor<int, 0> > scalar3(scalar1.data());
-  TensorMap<const Tensor<int, 0, RowMajor> > scalar4(scalar2.data());
+  TensorMap<const Tensor<int, 0>> scalar3(scalar1.data());
+  TensorMap<const Tensor<int, 0, RowMajor>> scalar4(scalar2.data());
 
   scalar1() = 7;
   scalar2() = 13;
@@ -36,8 +36,8 @@ static void test_1d() {
   Tensor<int, 1> vec1(6);
   Tensor<int, 1, RowMajor> vec2(6);
 
-  TensorMap<const Tensor<int, 1> > vec3(vec1.data(), 6);
-  TensorMap<const Tensor<int, 1, RowMajor> > vec4(vec2.data(), 6);
+  TensorMap<const Tensor<int, 1>> vec3(vec1.data(), 6);
+  TensorMap<const Tensor<int, 1, RowMajor>> vec4(vec2.data(), 6);
 
   vec1(0) = 4;
   vec2(0) = 0;
@@ -89,8 +89,8 @@ static void test_2d() {
   mat2(1, 1) = 4;
   mat2(1, 2) = 5;
 
-  TensorMap<const Tensor<int, 2> > mat3(mat1.data(), 2, 3);
-  TensorMap<const Tensor<int, 2, RowMajor> > mat4(mat2.data(), 2, 3);
+  TensorMap<const Tensor<int, 2>> mat3(mat1.data(), 2, 3);
+  TensorMap<const Tensor<int, 2, RowMajor>> mat4(mat2.data(), 2, 3);
 
   VERIFY_IS_EQUAL(mat3.rank(), 2);
   VERIFY_IS_EQUAL(mat3.size(), 6);
@@ -132,8 +132,8 @@ static void test_3d() {
     }
   }
 
-  TensorMap<const Tensor<int, 3> > mat3(mat1.data(), 2, 3, 7);
-  TensorMap<const Tensor<int, 3, RowMajor> > mat4(mat2.data(), 2, 3, 7);
+  TensorMap<const Tensor<int, 3>> mat3(mat1.data(), 2, 3, 7);
+  TensorMap<const Tensor<int, 3, RowMajor>> mat4(mat2.data(), 2, 3, 7);
 
   VERIFY_IS_EQUAL(mat3.rank(), 3);
   VERIFY_IS_EQUAL(mat3.size(), 2 * 3 * 7);
@@ -174,8 +174,8 @@ static void test_from_tensor() {
     }
   }
 
-  TensorMap<Tensor<int, 3> > mat3(mat1);
-  TensorMap<Tensor<int, 3, RowMajor> > mat4(mat2);
+  TensorMap<Tensor<int, 3>> mat3(mat1);
+  TensorMap<Tensor<int, 3, RowMajor>> mat4(mat2);
 
   VERIFY_IS_EQUAL(mat3.rank(), 3);
   VERIFY_IS_EQUAL(mat3.size(), 2 * 3 * 7);
@@ -200,7 +200,7 @@ static void test_from_tensor() {
     }
   }
 
-  TensorFixedSize<int, Sizes<2, 3, 7> > mat5;
+  TensorFixedSize<int, Sizes<2, 3, 7>> mat5;
 
   val = 0;
   for (int i = 0; i < 2; ++i) {
@@ -216,7 +216,7 @@ static void test_from_tensor() {
     }
   }
 
-  TensorMap<TensorFixedSize<int, Sizes<2, 3, 7> > > mat6(mat5);
+  TensorMap<TensorFixedSize<int, Sizes<2, 3, 7>>> mat6(mat5);
 
   VERIFY_IS_EQUAL(mat6.rank(), 3);
   VERIFY_IS_EQUAL(mat6.size(), 2 * 3 * 7);
@@ -235,10 +235,10 @@ static void test_from_tensor() {
   }
 }
 
-static int f(const TensorMap<Tensor<int, 3> >& tensor) {
+static int f(const TensorMap<Tensor<int, 3>>& tensor) {
   //  Size<0> empty;
-  EIGEN_STATIC_ASSERT((internal::array_size<Sizes<> >::value == 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
-  EIGEN_STATIC_ASSERT((internal::array_size<DSizes<int, 0> >::value == 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::array_size<Sizes<>>::value == 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
+  EIGEN_STATIC_ASSERT((internal::array_size<DSizes<int, 0>>::value == 0), YOU_MADE_A_PROGRAMMING_MISTAKE);
   Tensor<int, 0> result = tensor.sum();
   return result();
 }
@@ -256,7 +256,7 @@ static void test_casting() {
     }
   }
 
-  TensorMap<Tensor<int, 3> > map(tensor);
+  TensorMap<Tensor<int, 3>> map(tensor);
   int sum1 = f(map);
   int sum2 = f(tensor);
 
@@ -273,8 +273,8 @@ static void test_0d_const_tensor() {
   Tensor<int, 0> scalar1;
   Tensor<int, 0, RowMajor> scalar2;
 
-  TensorMap<const Tensor<int, 0> > scalar3(add_const(scalar1).data());
-  TensorMap<const Tensor<int, 0, RowMajor> > scalar4(add_const(scalar2).data());
+  TensorMap<const Tensor<int, 0>> scalar3(add_const(scalar1).data());
+  TensorMap<const Tensor<int, 0, RowMajor>> scalar4(add_const(scalar2).data());
 
   scalar1() = 7;
   scalar2() = 13;
@@ -290,8 +290,8 @@ static void test_0d_const_tensor_map() {
   Tensor<int, 0> scalar1;
   Tensor<int, 0, RowMajor> scalar2;
 
-  const TensorMap<Tensor<int, 0> > scalar3(scalar1.data());
-  const TensorMap<Tensor<int, 0, RowMajor> > scalar4(scalar2.data());
+  const TensorMap<Tensor<int, 0>> scalar3(scalar1.data());
+  const TensorMap<Tensor<int, 0, RowMajor>> scalar4(scalar2.data());
 
   // Although TensorMap is constant, we still can write to the underlying
   // storage, because we map over non-constant Tensor.
@@ -309,6 +309,37 @@ static void test_0d_const_tensor_map() {
   VERIFY_IS_EQUAL(scalar2(), 14);
 }
 
+// Regression test for issue #1616: unsigned index and dimension types must not
+// trigger narrowing errors in the variadic constructor and accessors.
+static void test_unsigned_indices() {
+  Tensor<int, 3> tensor(2, 3, 7);
+  tensor.setZero();
+
+  TensorMap<Tensor<int, 3>> map(tensor.data(), 2u, 3ul, std::size_t(7));
+  map(1u, std::size_t(2), 6ul) = 5;
+  VERIFY_IS_EQUAL(map(1ul, 2u, std::size_t(6)), 5);
+  VERIFY_IS_EQUAL(tensor(1, 2, 6), 5);
+
+  TensorMap<const Tensor<int, 3>> const_map(tensor.data(), 2u, 3ul, std::size_t(7));
+  VERIFY_IS_EQUAL(const_map(1u, 2ul, std::size_t(6)), 5);
+}
+
+// An index or dimension the tensor's index type cannot represent must assert rather than silently truncate.
+static void test_narrowing_indices() {
+  const std::size_t too_large = std::size_t(1) << 40;
+
+  Tensor<int, 3, ColMajor, int> tensor(2, 3, 7);
+  tensor.setZero();
+
+  VERIFY_RAISES_ASSERT((TensorMap<Tensor<int, 3, ColMajor, int>>(tensor.data(), 2, 3, too_large)));
+
+  TensorMap<Tensor<int, 3, ColMajor, int>> map(tensor.data(), 2, 3, 7);
+  VERIFY_RAISES_ASSERT(map(0, 0, too_large) = 1);
+
+  TensorMap<const Tensor<int, 3, ColMajor, int>> const_map(tensor.data(), 2, 3, 7);
+  VERIFY_RAISES_ASSERT(const_map(0, 0, too_large));
+}
+
 EIGEN_DECLARE_TEST(tensor_map) {
   CALL_SUBTEST(test_0d());
   CALL_SUBTEST(test_1d());
@@ -320,4 +351,7 @@ EIGEN_DECLARE_TEST(tensor_map) {
 
   CALL_SUBTEST(test_0d_const_tensor());
   CALL_SUBTEST(test_0d_const_tensor_map());
+
+  CALL_SUBTEST(test_unsigned_indices());
+  CALL_SUBTEST(test_narrowing_indices());
 }
