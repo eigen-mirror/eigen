@@ -637,6 +637,10 @@ template <>
 struct pminmax_impl<PropagateNaN, false> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
+    // pselect is an ordinary call, so op(a, b) is evaluated even where an operand is NaN;
+    // only its result is discarded there. op therefore need not propagate NaN, but must
+    // still be well-defined on NaN input. Operands stay in the caller's order so that op
+    // selects the same one on a signed-zero tie as plain pmin/pmax does for this Packet.
     Packet not_nan_mask_a = pcmp_eq(a, a);
     Packet not_nan_mask_b = pcmp_eq(b, b);
     return pselect(not_nan_mask_a, pselect(not_nan_mask_b, op(a, b), b), a);

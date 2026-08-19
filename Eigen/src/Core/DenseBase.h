@@ -568,7 +568,25 @@ class DenseBase
   using ConstRealViewReturnType =
       std::conditional_t<NumTraits<Scalar>::IsComplex, RealView<const Derived>, const Derived&>;
 
+  /// \returns an expression of the real and imaginary parts of \c *this as a real expression,
+  /// twice as large along the inner dimension, holding the components interleaved in storage
+  /// order. For a real \c *this it is the identity and returns \c *this itself, so everything
+  /// below concerns a complex \c *this.
+  ///
+  /// real() and imag() build a view that is not packet accessible, so a reduction over either
+  /// runs coefficient by coefficient. This view instead keeps whichever of linear access,
+  /// packet access and writability \c *this itself provides, so where \c *this supplies them
+  /// an operation that treats the components alike should prefer it:
+  /// \code m.realView().cwiseAbs().maxCoeff() \endcode
+  /// covers both components in a single vectorized pass. Operations that must distinguish the
+  /// components, or that need only one of them, still require real()/imag().
+  ///
+  /// Writing through the returned expression additionally requires the scalar type to be
+  /// std::complex, whose storage the standard fixes as its two components interleaved.
+  ///
+  /// \sa real(), imag()
   EIGEN_DEVICE_FUNC RealViewReturnType realView();
+  /// This is the const version of realView().
   EIGEN_DEVICE_FUNC ConstRealViewReturnType realView() const;
 
 #define EIGEN_CURRENT_STORAGE_BASE_CLASS Eigen::DenseBase

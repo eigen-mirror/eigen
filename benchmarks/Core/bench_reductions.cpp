@@ -38,23 +38,69 @@ static void BM_VectorProd(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
 }
 
-template <typename Scalar>
+template <typename Scalar, int NaNPropagation = PropagateFast>
 static void BM_VectorMinCoeff(benchmark::State& state) {
   const Index n = state.range(0);
   Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
   for (auto _ : state) {
-    Scalar m = v.minCoeff();
+    Scalar m = v.template minCoeff<NaNPropagation>();
     benchmark::DoNotOptimize(m);
   }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
 }
 
-template <typename Scalar>
+template <typename Scalar, int NaNPropagation = PropagateFast>
 static void BM_VectorMaxCoeff(benchmark::State& state) {
   const Index n = state.range(0);
   Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
   for (auto _ : state) {
-    Scalar m = v.maxCoeff();
+    Scalar m = v.template maxCoeff<NaNPropagation>();
+    benchmark::DoNotOptimize(m);
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
+}
+
+// --- NaN-propagating min/max ---
+
+// PropagateNaN and PropagateNumbers wrap the plain packet min/max in a select that supplies
+// whichever NaN case the plain op does not. The wrapper is branchless, so its cost does not
+// depend on the data containing a NaN, and Random() supplies none.
+
+// cwiseAbs() ahead of the reduction is the shape a norm takes. It gives the wrapper an operand
+// the compiler cannot fold into the min/max instruction's memory operand either way.
+template <typename Scalar, int NaNPropagation>
+static void BM_VectorAbsMaxCoeff(benchmark::State& state) {
+  const Index n = state.range(0);
+  Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
+  for (auto _ : state) {
+    Scalar m = v.cwiseAbs().template maxCoeff<NaNPropagation>();
+    benchmark::DoNotOptimize(m);
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
+}
+
+// real() builds a CwiseUnaryView, which drops PacketAccessBit, so this reduces coefficient by
+// coefficient and reaches the scalar form of the wrapper.
+template <typename Scalar, int NaNPropagation>
+static void BM_ComplexRealAbsMaxCoeff(benchmark::State& state) {
+  using Real = typename NumTraits<Scalar>::Real;
+  const Index n = state.range(0);
+  Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
+  for (auto _ : state) {
+    Real m = v.real().cwiseAbs().template maxCoeff<NaNPropagation>();
+    benchmark::DoNotOptimize(m);
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
+}
+
+// realView() keeps packet access, so the same reduction runs vectorized across both components.
+template <typename Scalar, int NaNPropagation>
+static void BM_ComplexRealViewAbsMaxCoeff(benchmark::State& state) {
+  using Real = typename NumTraits<Scalar>::Real;
+  const Index n = state.range(0);
+  Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
+  for (auto _ : state) {
+    Real m = v.realView().cwiseAbs().template maxCoeff<NaNPropagation>();
     benchmark::DoNotOptimize(m);
   }
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
@@ -232,6 +278,12 @@ BENCHMARK(BM_VectorSum<float>) VECTOR_SIZES ->Name("VectorSum_float");
 BENCHMARK(BM_VectorProd<float>) VECTOR_SIZES ->Name("VectorProd_float");
 BENCHMARK(BM_VectorMinCoeff<float>) VECTOR_SIZES ->Name("VectorMinCoeff_float");
 BENCHMARK(BM_VectorMaxCoeff<float>) VECTOR_SIZES ->Name("VectorMaxCoeff_float");
+BENCHMARK(BM_VectorMinCoeff<float, PropagateNaN>) VECTOR_SIZES ->Name("VectorMinCoeffPropagateNaN_float");
+BENCHMARK(BM_VectorMaxCoeff<float, PropagateNaN>) VECTOR_SIZES ->Name("VectorMaxCoeffPropagateNaN_float");
+BENCHMARK(BM_VectorMinCoeff<float, PropagateNumbers>) VECTOR_SIZES ->Name("VectorMinCoeffPropagateNumbers_float");
+BENCHMARK(BM_VectorMaxCoeff<float, PropagateNumbers>) VECTOR_SIZES ->Name("VectorMaxCoeffPropagateNumbers_float");
+BENCHMARK(BM_VectorAbsMaxCoeff<float, PropagateFast>) VECTOR_SIZES ->Name("VectorAbsMaxCoeff_float");
+BENCHMARK(BM_VectorAbsMaxCoeff<float, PropagateNaN>) VECTOR_SIZES ->Name("VectorAbsMaxCoeffPropagateNaN_float");
 BENCHMARK(BM_VectorMean<float>) VECTOR_SIZES ->Name("VectorMean_float");
 BENCHMARK(BM_VectorSquaredNorm<float>) VECTOR_SIZES ->Name("VectorSquaredNorm_float");
 BENCHMARK(BM_VectorNorm<float>) VECTOR_SIZES ->Name("VectorNorm_float");
@@ -251,6 +303,12 @@ BENCHMARK(BM_VectorSum<double>) VECTOR_SIZES ->Name("VectorSum_double");
 BENCHMARK(BM_VectorProd<double>) VECTOR_SIZES ->Name("VectorProd_double");
 BENCHMARK(BM_VectorMinCoeff<double>) VECTOR_SIZES ->Name("VectorMinCoeff_double");
 BENCHMARK(BM_VectorMaxCoeff<double>) VECTOR_SIZES ->Name("VectorMaxCoeff_double");
+BENCHMARK(BM_VectorMinCoeff<double, PropagateNaN>) VECTOR_SIZES ->Name("VectorMinCoeffPropagateNaN_double");
+BENCHMARK(BM_VectorMaxCoeff<double, PropagateNaN>) VECTOR_SIZES ->Name("VectorMaxCoeffPropagateNaN_double");
+BENCHMARK(BM_VectorMinCoeff<double, PropagateNumbers>) VECTOR_SIZES ->Name("VectorMinCoeffPropagateNumbers_double");
+BENCHMARK(BM_VectorMaxCoeff<double, PropagateNumbers>) VECTOR_SIZES ->Name("VectorMaxCoeffPropagateNumbers_double");
+BENCHMARK(BM_VectorAbsMaxCoeff<double, PropagateFast>) VECTOR_SIZES ->Name("VectorAbsMaxCoeff_double");
+BENCHMARK(BM_VectorAbsMaxCoeff<double, PropagateNaN>) VECTOR_SIZES ->Name("VectorAbsMaxCoeffPropagateNaN_double");
 BENCHMARK(BM_VectorMean<double>) VECTOR_SIZES ->Name("VectorMean_double");
 BENCHMARK(BM_VectorSquaredNorm<double>) VECTOR_SIZES ->Name("VectorSquaredNorm_double");
 BENCHMARK(BM_VectorNorm<double>) VECTOR_SIZES ->Name("VectorNorm_double");
@@ -264,6 +322,16 @@ BENCHMARK(BM_BlockReduxOp<double, UserSumOp>) MATRIX_SIZES ->Name("BlockReduxUse
 BENCHMARK(BM_BlockReduxOp<double, CommutativeUserSumOp>) MATRIX_SIZES ->Name("BlockReduxCommutativeOp_double");
 BENCHMARK(BM_StridedRowSum<double>) REDUX_SIZES ->Name("StridedRowSum_double");
 BENCHMARK(BM_ColwiseSumRaggedTail<double>) RAGGED_SIZES ->Name("ColwiseSumRaggedTail_double");
+
+// --- Register: complex component views ---
+BENCHMARK(BM_ComplexRealAbsMaxCoeff<std::complex<float>, PropagateFast>) VECTOR_SIZES ->Name("ComplexRealAbsMaxCoeff_cfloat");
+BENCHMARK(BM_ComplexRealAbsMaxCoeff<std::complex<float>, PropagateNaN>) VECTOR_SIZES ->Name("ComplexRealAbsMaxCoeffPropagateNaN_cfloat");
+BENCHMARK(BM_ComplexRealViewAbsMaxCoeff<std::complex<float>, PropagateFast>) VECTOR_SIZES ->Name("ComplexRealViewAbsMaxCoeff_cfloat");
+BENCHMARK(BM_ComplexRealViewAbsMaxCoeff<std::complex<float>, PropagateNaN>) VECTOR_SIZES ->Name("ComplexRealViewAbsMaxCoeffPropagateNaN_cfloat");
+BENCHMARK(BM_ComplexRealAbsMaxCoeff<std::complex<double>, PropagateFast>) VECTOR_SIZES ->Name("ComplexRealAbsMaxCoeff_cdouble");
+BENCHMARK(BM_ComplexRealAbsMaxCoeff<std::complex<double>, PropagateNaN>) VECTOR_SIZES ->Name("ComplexRealAbsMaxCoeffPropagateNaN_cdouble");
+BENCHMARK(BM_ComplexRealViewAbsMaxCoeff<std::complex<double>, PropagateFast>) VECTOR_SIZES ->Name("ComplexRealViewAbsMaxCoeff_cdouble");
+BENCHMARK(BM_ComplexRealViewAbsMaxCoeff<std::complex<double>, PropagateNaN>) VECTOR_SIZES ->Name("ComplexRealViewAbsMaxCoeffPropagateNaN_cdouble");
 
 #undef VECTOR_SIZES
 #undef MATRIX_SIZES

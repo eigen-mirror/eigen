@@ -1143,10 +1143,11 @@ EIGEN_STRONG_INLINE Packet pminmax_propagate_numbers(const Packet& a, const Pack
 template <typename Packet, typename Op>
 EIGEN_STRONG_INLINE Packet pminmax_propagate_nan(const Packet& a, const Packet& b, Op op) {
   // In this implementation, we take advantage of the fact that pmin/pmax for SSE
-  // always return a if either a or b is NaN.
-  Packet not_nan_mask_a = pcmp_eq(a, a);
-  Packet m = op(b, a);
-  return pselect<Packet>(not_nan_mask_a, m, a);
+  // always return a if either a or b is NaN. Testing b rather than a is what supplies the
+  // missing case, and it keeps op's operand order, hence its choice on a signed-zero tie.
+  Packet not_nan_mask_b = pcmp_eq(b, b);
+  Packet m = op(a, b);
+  return pselect<Packet>(not_nan_mask_b, m, b);
 }
 
 // Add specializations for min/max with prescribed NaN propagation.
