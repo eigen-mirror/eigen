@@ -15,6 +15,7 @@
 #include "./InternalHeaderCheck.h"
 
 #include <memory>
+#include <mutex>
 
 namespace Eigen {
 
@@ -45,6 +46,39 @@ inline fftwl_complex *fftw_cast(const std::complex<long double> *p) {
   return const_cast<fftwl_complex *>(reinterpret_cast<const fftwl_complex *>(p));
 }
 
+// The FFTW planner is not thread-safe: fftw_execute and its new-array variants,
+// which is what this backend runs transforms through, are the only entry points
+// that may be called concurrently (FFTW manual, "Thread safety"), so plan
+// creation and destruction are serialized through this mutex. A template
+// static gives the header-only definition; std::mutex is
+// constexpr-constructible, so the mutex is ready before any thread starts.
+// The planner state it stands in for is one per process, so the mutex must be
+// too: the explicit default visibility is what keeps the definition from being
+// bound locally under -fvisibility=hidden, where each library planning through
+// Eigen would get a mutex of its own and serialize nothing between them. The
+// module documentation covers what no header can reach, which needs FFTW's own
+// fftw_make_planner_thread_safe().
+#if EIGEN_HAS_ATTRIBUTE(visibility) && !EIGEN_OS_WIN
+#define EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY __attribute__((visibility("default")))
+#else
+#define EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY
+#endif
+
+template <typename Dummy = void>
+struct fftw_planner_lock {
+  static EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY std::mutex mutex;
+};
+template <typename Dummy>
+EIGEN_FFTW_PLANNER_MUTEX_VISIBILITY std::mutex fftw_planner_lock<Dummy>::mutex;
+
+inline std::mutex &fftw_planner_mutex() { return fftw_planner_lock<>::mutex; }
+
+template <typename PlanFactory>
+inline decltype(auto) fftw_make_plan(PlanFactory factory) {
+  std::lock_guard<std::mutex> lock(fftw_planner_mutex());
+  return factory();
+}
+
 template <typename T>
 struct fftw_plan {};
 
@@ -55,30 +89,47 @@ struct fftw_plan<float> {
   std::shared_ptr<fftwf_plan_s> m_plan;
   fftw_plan() = default;
 
-  void set_plan(fftwf_plan p) { m_plan.reset(p, fftwf_destroy_plan); }
+  void set_plan(fftwf_plan p) {
+    m_plan.reset(p, [](fftwf_plan plan) {
+      std::lock_guard<std::mutex> lock(fftw_planner_mutex());
+      fftwf_destroy_plan(plan);
+    });
+  }
   inline void fwd(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwf_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwf_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwf_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwf_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft(m_plan.get(), src, dst);
   }
   inline void fwd(complex_type *dst, scalar_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwf_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftwf_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft_r2c(m_plan.get(), src, dst);
   }
   inline void inv(scalar_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwf_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftwf_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft_c2r(m_plan.get(), src, dst);
   }
 
   inline void fwd2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftwf_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwf_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftwf_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwf_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwf_execute_dft(m_plan.get(), src, dst);
   }
 };
@@ -89,29 +140,46 @@ struct fftw_plan<double> {
   std::shared_ptr<fftw_plan_s> m_plan;
   fftw_plan() = default;
 
-  void set_plan(::fftw_plan p) { m_plan.reset(p, fftw_destroy_plan); }
+  void set_plan(::fftw_plan p) {
+    m_plan.reset(p, [](::fftw_plan plan) {
+      std::lock_guard<std::mutex> lock(fftw_planner_mutex());
+      fftw_destroy_plan(plan);
+    });
+  }
   inline void fwd(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftw_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftw_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftw_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftw_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft(m_plan.get(), src, dst);
   }
   inline void fwd(complex_type *dst, scalar_type *src, int nfft) {
-    if (!m_plan) set_plan(fftw_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftw_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft_r2c(m_plan.get(), src, dst);
   }
   inline void inv(scalar_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftw_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftw_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft_c2r(m_plan.get(), src, dst);
   }
   inline void fwd2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftw_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftw_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftw_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftw_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftw_execute_dft(m_plan.get(), src, dst);
   }
 };
@@ -122,29 +190,46 @@ struct fftw_plan<long double> {
   std::shared_ptr<fftwl_plan_s> m_plan;
   fftw_plan() = default;
 
-  void set_plan(fftwl_plan p) { m_plan.reset(p, fftwl_destroy_plan); }
+  void set_plan(fftwl_plan p) {
+    m_plan.reset(p, [](fftwl_plan plan) {
+      std::lock_guard<std::mutex> lock(fftw_planner_mutex());
+      fftwl_destroy_plan(plan);
+    });
+  }
   inline void fwd(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwl_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwl_plan_dft_1d(nfft, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv(complex_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwl_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwl_plan_dft_1d(nfft, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft(m_plan.get(), src, dst);
   }
   inline void fwd(complex_type *dst, scalar_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwl_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftwl_plan_dft_r2c_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft_r2c(m_plan.get(), src, dst);
   }
   inline void inv(scalar_type *dst, complex_type *src, int nfft) {
-    if (!m_plan) set_plan(fftwl_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(
+          fftw_make_plan([&] { return fftwl_plan_dft_c2r_1d(nfft, src, dst, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft_c2r(m_plan.get(), src, dst);
   }
   inline void fwd2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftwl_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwl_plan_dft_2d(n0, n1, src, dst, FFTW_FORWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft(m_plan.get(), src, dst);
   }
   inline void inv2(complex_type *dst, complex_type *src, int n0, int n1) {
-    if (!m_plan) set_plan(fftwl_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT));
+    if (!m_plan)
+      set_plan(fftw_make_plan(
+          [&] { return fftwl_plan_dft_2d(n0, n1, src, dst, FFTW_BACKWARD, FFTW_ESTIMATE | FFTW_PRESERVE_INPUT); }));
     fftwl_execute_dft(m_plan.get(), src, dst);
   }
 };

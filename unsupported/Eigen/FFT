@@ -48,6 +48,26 @@
  *   .
  *   According to the author, DUCC contains the "evolution" of pocketfft, though the interface is very similar.
  *
+ * \section FFTThreadSafety Thread safety
+ *
+ * An FFT object is not thread-safe: it caches a plan, so concurrent transforms need one object per
+ * thread. Distinct objects may be used concurrently.
+ *
+ * That is not by itself enough for the FFTW backend, whose planner keeps process-wide state and
+ * whose only concurrent entry points are \c fftw_execute and its new-array variants. %Eigen
+ * therefore serializes plan creation and destruction on a mutex of its own, which covers every
+ * planner call %Eigen makes from within one process image.
+ *
+ * Two cases fall outside that. FFTW planner calls made directly, not through %Eigen, share nothing
+ * with %Eigen's mutex. And a program that loads several shared libraries which each carry their own
+ * copy of %Eigen may end up with one mutex per library instead of one per process: %Eigen gives the
+ * mutex default visibility so that the dynamic linker collapses those copies, which covers ELF
+ * libraries linked normally or loaded with \c RTLD_GLOBAL, but not separate Windows DLLs, and not a
+ * library loaded with \c RTLD_LOCAL unless the compiler emitted a unique symbol for the definition.
+ * In either case, call FFTW's own \c fftw_make_planner_thread_safe() once before any transform: it
+ * puts the lock inside the planner, where it applies to every caller. It needs FFTW 3.3.5 or later,
+ * built with thread support.
+ *
  * \section FFTDesign Design
  *
  * The following design decisions were made concerning scaling and
