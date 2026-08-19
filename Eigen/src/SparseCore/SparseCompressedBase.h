@@ -576,8 +576,8 @@ struct evaluator<SparseCompressedBase<Derived>> : evaluator_base<Derived> {
 
   enum { CoeffReadCost = NumTraits<Scalar>::ReadCost, Flags = Derived::Flags };
 
-  evaluator() : m_matrix(0), m_zero(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
-  explicit evaluator(const Derived& mat) : m_matrix(&mat), m_zero(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
+  evaluator() : m_matrix(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
+  explicit evaluator(const Derived& mat) : m_matrix(&mat) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
 
   inline Index nonZerosEstimate() const { return m_matrix->nonZeros(); }
 
@@ -589,7 +589,7 @@ struct evaluator<SparseCompressedBase<Derived>> : evaluator_base<Derived> {
     Index p = find(row, col);
 
     if (p == Dynamic)
-      return m_zero;
+      return zero();
     else
       return m_matrix->const_cast_derived().valuePtr()[p];
   }
@@ -606,8 +606,16 @@ struct evaluator<SparseCompressedBase<Derived>> : evaluator_base<Derived> {
     return p.found ? p.value : Dynamic;
   }
 
+  // Stable storage for the structural zero coeff() hands out by reference. Kept
+  // out of the evaluator itself: product_evaluator and friends reconstruct their
+  // base evaluator in place with construct_at, which would leak any member that
+  // owns resources when Scalar is not trivially destructible.
+  static const Scalar& zero() {
+    static const Scalar kZero(0);
+    return kZero;
+  }
+
   const Derived* m_matrix;
-  const Scalar m_zero;
 };
 
 }  // namespace internal
