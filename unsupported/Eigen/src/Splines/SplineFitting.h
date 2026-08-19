@@ -31,12 +31,13 @@ namespace Eigen {
  *
  * The knots are computed as
  * \f{align*}
- *  u_0 & = \hdots = u_p = 0 \\
- *  u_{m-p} & = \hdots = u_{m} = 1 \\
+ *  u_0 & = \hdots = u_p = \bar{u}_0 \\
+ *  u_{m-p} & = \hdots = u_{m} = \bar{u}_n \\
  *  u_{j+p} & = \frac{1}{p}\sum_{i=j}^{j+p-1}\bar{u}_i \quad\quad j=1,\hdots,n-p
  * \f}
- * where \f$p\f$ is the degree and \f$m+1\f$ the number of knots
- * of the desired interpolating spline.
+ * where \f$p\f$ is the degree, \f$m+1\f$ the number of knots of the desired
+ * interpolating spline, and \f$\bar{u}_0,\hdots,\bar{u}_n\f$ the input
+ * parameters, which may span any interval, not just \f$[0,1]\f$.
  *
  * \param[in] parameters The input parameters. During interpolation one for each data point.
  * \param[in] degree The spline degree which is used during the interpolation.
@@ -50,8 +51,10 @@ void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVect
 
   for (DenseIndex j = 1; j < parameters.size() - degree; ++j) knots(j + degree) = parameters.segment(j, degree).mean();
 
-  knots.segment(0, degree + 1) = KnotVectorType::Zero(degree + 1);
-  knots.segment(knots.size() - degree - 1, degree + 1) = KnotVectorType::Ones(degree + 1);
+  // The boundary knots replicate the first and last parameter so that the
+  // spline domain matches the parameter range, whatever interval it spans.
+  knots.head(degree + 1).setConstant(parameters(0));
+  knots.tail(degree + 1).setConstant(parameters(placeholders::last));
 }
 
 /**

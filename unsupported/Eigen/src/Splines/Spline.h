@@ -28,6 +28,12 @@ namespace Eigen {
  *   C(u) & = \sum_{i=0}^{n}N_{i,p}(u)P_i
  * \f}
  *
+ * The spline is parameterized over the domain \f$[u_p; u_{m-p}]\f$ of its knot
+ * vector \f$\{u_0,\hdots,u_m\}\f$, where \f$p\f$ is the degree. For the clamped
+ * knot vectors that SplineFitting produces this is \f$[u_0; u_m]\f$, which is
+ * the interval spanned by the interpolation parameters and therefore not
+ * necessarily \f$[0;1]\f$.
+ *
  * \tparam Scalar_ The underlying data type (typically float or double)
  * \tparam Dim_ The curve dimension (e.g. 2 or 3)
  * \tparam Degree_ Per default set to Dynamic; could be set to the actual desired
@@ -106,7 +112,7 @@ class Spline {
    *   C(u) & = \sum_{i=0}^{n}N_{i,p}P_i
    * \f}
    *
-   * \param u Parameter \f$u \in [0;1]\f$ at which the spline is evaluated.
+   * \param u Parameter \f$u\f$ in the spline's knot domain at which the spline is evaluated.
    * \return The spline value at the given location \f$u\f$.
    **/
   PointType operator()(Scalar u) const;
@@ -120,7 +126,7 @@ class Spline {
    * \f}
    * for i ranging between 0 and order.
    *
-   * \param u Parameter \f$u \in [0;1]\f$ at which the spline derivative is evaluated.
+   * \param u Parameter \f$u\f$ in the spline's knot domain at which the spline derivative is evaluated.
    * \param order The order up to which the derivatives are computed.
    **/
   typename SplineTraits<Spline>::DerivativeType derivatives(Scalar u, DenseIndex order) const;
@@ -147,8 +153,8 @@ class Spline {
    *   N_{i,p}(u), \hdots, N_{i+p+1,p}(u)
    * \f}
    *
-   * \param u Parameter \f$u \in [0;1]\f$ at which the non-zero basis functions
-   *          are computed.
+   * \param u Parameter \f$u\f$ in the spline's knot domain at which the non-zero
+   *          basis functions are computed.
    **/
   typename SplineTraits<Spline>::BasisVectorType basisFunctions(Scalar u) const;
 
@@ -161,8 +167,8 @@ class Spline {
    * \f}
    * with i ranging from 0 up to the specified order.
    *
-   * \param u Parameter \f$u \in [0;1]\f$ at which the non-zero basis function
-   *          derivatives are computed.
+   * \param u Parameter \f$u\f$ in the spline's knot domain at which the non-zero
+   *          basis function derivatives are computed.
    * \param order The order up to which the basis function derivatives are computed.
    **/
   typename SplineTraits<Spline>::BasisDerivativeType basisFunctionDerivatives(Scalar u, DenseIndex order) const;

@@ -165,6 +165,43 @@ void check_global_interpolation2d() {
   }
 }
 
+// Regression test for issue #764: KnotAveraging hard-coded 0/1 boundary knots,
+// producing a non-monotone knot vector for parameters outside [0, 1].
+void check_global_interpolation2d_arbitrary_range() {
+  typedef Spline2d::PointType PointType;
+  typedef Spline2d::KnotVectorType KnotVectorType;
+  typedef Spline2d::ControlPointVectorType ControlPointVectorType;
+
+  // The issue's example: parameters [2,3,4,5] with degree 1 must yield the
+  // clamped knot vector [2,2,3,4,5,5], not [0,0,3,4,1,1].
+  {
+    KnotVectorType parameters(4), knots, expected(6);
+    parameters << 2, 3, 4, 5;
+    expected << 2, 2, 3, 4, 5, 5;
+    Eigen::KnotAveraging(parameters, 1, knots);
+    VERIFY_IS_EQUAL(knots.size(), expected.size());
+    VERIFY((knots - expected).matrix().norm() == 0.0);
+  }
+
+  // Interpolation with knot parameters spanning [2, 5] must pass through the
+  // data points, exactly like the normalized [0, 1] parameterization.
+  {
+    ControlPointVectorType points = ControlPointVectorType::Random(2, 100);
+
+    KnotVectorType chord_lengths;
+    Eigen::ChordLengths(points, chord_lengths);
+    KnotVectorType parameters = 2.0 + 3.0 * chord_lengths;
+
+    const Spline2d spline = SplineFitting<Spline2d>::Interpolate(points, 3, parameters);
+
+    for (Eigen::DenseIndex i = 0; i < points.cols(); ++i) {
+      PointType pt = spline(parameters(i));
+      PointType ref = points.col(i);
+      VERIFY((pt - ref).matrix().norm() < 32 * NumTraits<double>::epsilon());
+    }
+  }
+}
+
 void check_global_interpolation_with_derivatives2d() {
   typedef Spline2d::PointType PointType;
   typedef Spline2d::KnotVectorType KnotVectorType;
@@ -202,6 +239,7 @@ EIGEN_DECLARE_TEST(splines) {
     CALL_SUBTEST(eval_spline3d_onbrks());
     CALL_SUBTEST(eval_closed_spline2d());
     CALL_SUBTEST(check_global_interpolation2d());
+    CALL_SUBTEST(check_global_interpolation2d_arbitrary_range());
     CALL_SUBTEST(check_global_interpolation_with_derivatives2d());
   }
 }
