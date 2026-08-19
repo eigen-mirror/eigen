@@ -125,6 +125,15 @@ ci/scripts/run-clang-tidy.sh <base-sha> .tidy-build
 The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's
 `.clang-tidy` policy is authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
 
+For a source in the compilation database the driver narrows that database first, through
+[`tidy_compile_db.py`](../scripts/tidy_compile_db.py). A split test contributes one entry per `EIGEN_TEST_PART`, and
+clang-tidy parses the file once per entry naming it — 41 times for `test/array_cwise.cpp` — which alone exhausts the
+job's timeout. The reduction keeps one entry per distinct compiler configuration and, within a configuration split
+into parts, the parts that actually compile the added lines: a line inside a `CALL_SUBTEST_<n>(...)` or an
+`#if defined(EIGEN_TEST_PART_<n>)` guard needs part `<n>`, anything else needs no particular part. What that leaves
+out is printed beside the file name, so a capped run names the parts it did not check rather than reporting the file
+clean.
+
 ## Before Review
 
 1. Inspect `git diff` and `git diff --check`.

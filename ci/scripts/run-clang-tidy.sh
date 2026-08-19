@@ -117,38 +117,22 @@ module_include_for_header() {
   return 1
 }
 
-# CMake normally records absolute source paths, so a textual search for the
-# repository-relative path does not reliably establish membership.
-in_compile_database() {
-  python3 - "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" <<'PY'
-import json
-import os
-import sys
-
-database, target = sys.argv[1:]
-try:
-    with open(database, encoding="utf-8") as handle:
-        commands = json.load(handle)
-except (OSError, ValueError) as error:
-    print("ERROR: could not read %s: %s" % (database, error), file=sys.stderr)
-    sys.exit(2)
-if not isinstance(commands, list):
-    print("ERROR: %s does not contain a JSON array" % database, file=sys.stderr)
-    sys.exit(2)
-
-target = os.path.realpath(target)
-for command in commands:
-    if not isinstance(command, dict):
-        continue
-    source = command.get("file")
-    if not source:
-        continue
-    if not os.path.isabs(source):
-        source = os.path.join(command.get("directory", ""), source)
-    if os.path.realpath(source) == target:
-        sys.exit(0)
-sys.exit(1)
-PY
+# A split test contributes one compilation-database entry per EIGEN_TEST_PART,
+# and clang-tidy parses the file once for every entry that names it: 17 for
+# test/eigensolver_selfadjoint.cpp, 41 for test/array_cwise.cpp, at roughly a
+# minute and 3 GB each. That exhausts the job timeout on a single file and
+# leaves every later file unchecked, silently. Narrow the database to the
+# entries the changed lines need, which scripts/tidy_compile_db.py selects:
+# one per distinct compiler configuration, and within a configuration split
+# into parts, the parts that compile the added lines.
+#
+# Writes the reduced database to <outdir>/compile_commands.json, reports on
+# stdout what it left out, and succeeds only when the file is present in the
+# full database. CMake normally records absolute source paths, so establishing
+# membership takes path resolution rather than a textual search.
+reduced_database() {
+  python3 "${REPO_ROOT}/scripts/tidy_compile_db.py" \
+          "${BUILD_DIR}/compile_commands.json" "${REPO_ROOT}/$1" "$2" "$3"
 }
 
 # Restrict diagnostics to the lines this merge request adds. Without it the
@@ -189,10 +173,11 @@ for file in "${CHANGED_FILES[@]}"; do
       ;;
     *.cpp|*.cc|*.cxx)
       # Source file: run clang-tidy directly if it's in the compilation database.
-      if in_compile_database "${file}"; then
-        echo "=== ${file} ==="
+      FILE_DB="${TIDY_TMPDIR}/db_${file//\//_}"
+      if SELECTION=$(reduced_database "${file}" "${FILE_DB}" "${LINE_FILTER}"); then
+        echo "=== ${file} ===${SELECTION:+ ${SELECTION}}"
         if ! clang-tidy \
-              -p "${BUILD_DIR}" \
+              -p "${FILE_DB}" \
               "${TIDY_ARGS[@]}" \
               --line-filter="${LINE_FILTER}" \
               "${file}" 2>&1; then
