@@ -148,6 +148,54 @@ static void test_concatenation_as_lvalue() {
   }
 }
 
+// Assignments into a concatenation run through the tiled executor's
+// writeBlock, which splits each block at the concat axis. Unlike the
+// coeff/packet write path this is layout-generic, so the RowMajor
+// instantiation exercises a previously unsupported case.
+template <int DataLayout>
+static void test_concatenation_write_blocks() {
+  for (int axis = 0; axis < 3; ++axis) {
+    Eigen::DSizes<Eigen::Index, 3> left_dims(7, 5, 11);
+    Eigen::DSizes<Eigen::Index, 3> right_dims(left_dims);
+    right_dims[axis] = 4;
+    Eigen::DSizes<Eigen::Index, 3> dims(left_dims);
+    dims[axis] = left_dims[axis] + right_dims[axis];
+
+    Tensor<float, 3, DataLayout> left(left_dims);
+    Tensor<float, 3, DataLayout> right(right_dims);
+    Tensor<float, 3, DataLayout> src(dims);
+    src.setRandom();
+
+    // Materialized-block path: a plain tensor on the right-hand side.
+    left.setZero();
+    right.setZero();
+    left.concatenate(right, axis) = src;
+
+    // Lazy-block path: a cwise expression on the right-hand side.
+    Tensor<float, 3, DataLayout> left2(left_dims);
+    Tensor<float, 3, DataLayout> right2(right_dims);
+    left2.setZero();
+    right2.setZero();
+    left2.concatenate(right2, axis) = src * src.constant(2.0f);
+
+    for (Eigen::Index i = 0; i < dims[0]; ++i) {
+      for (Eigen::Index j = 0; j < dims[1]; ++j) {
+        for (Eigen::Index k = 0; k < dims[2]; ++k) {
+          Eigen::array<Eigen::Index, 3> coords = {{i, j, k}};
+          if (coords[axis] < left_dims[axis]) {
+            VERIFY_IS_EQUAL(left(coords), src(i, j, k));
+            VERIFY_IS_EQUAL(left2(coords), 2.0f * src(i, j, k));
+          } else {
+            coords[axis] -= left_dims[axis];
+            VERIFY_IS_EQUAL(right(coords), src(i, j, k));
+            VERIFY_IS_EQUAL(right2(coords), 2.0f * src(i, j, k));
+          }
+        }
+      }
+    }
+  }
+}
+
 // Regression tests: when a scalar-changing consumer (TensorCwiseUnaryOp,
 // TensorConversionOp) sits above concat in an assign, the assign forwards a
 // destination buffer sized for its *output* scalar (e.g. float in
@@ -211,6 +259,8 @@ EIGEN_DECLARE_TEST(tensor_concatenation) {
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<ColMajor>());
   CALL_SUBTEST(test_concatenation_packet_axis_not_innermost<RowMajor>());
   CALL_SUBTEST(test_concatenation_as_lvalue());
+  CALL_SUBTEST(test_concatenation_write_blocks<ColMajor>());
+  CALL_SUBTEST(test_concatenation_write_blocks<RowMajor>());
   CALL_SUBTEST(test_complex_concatenation_through_abs<ColMajor>());
   CALL_SUBTEST(test_complex_concatenation_through_abs<RowMajor>());
   CALL_SUBTEST(test_concatenation_through_cast<ColMajor>());

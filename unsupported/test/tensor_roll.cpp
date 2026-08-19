@@ -188,6 +188,47 @@ static void test_packet_roll() {
   }
 }
 
+template <int DataLayout>
+static void test_roll_write_blocks() {
+  // The roll destination prefers block evaluation, so any block-capable
+  // right-hand side routes through writeBlock, which scatters each block as
+  // wrap-around pieces. Sweep zero, in-range, oversized and negative shifts;
+  // sizes have partial-packet tails.
+  Tensor<float, 3, DataLayout> src(17, 5, 7);
+  src.setRandom();
+
+  const ptrdiff_t roll_sets[][3] = {{0, 0, 0}, {3, 0, 0}, {0, 2, 5}, {20, 7, 3}, {-4, 1, -9}};
+  for (const auto& r : roll_sets) {
+    array<Index, 3> rolls{{r[0], r[1], r[2]}};
+
+    // Materialized right-hand-side blocks (plain tensor).
+    Tensor<float, 3, DataLayout> dst(17, 5, 7);
+    dst.setZero();
+    dst.roll(rolls) = src;
+
+    // Lazy right-hand-side blocks (cwise expression).
+    Tensor<float, 3, DataLayout> dst2(17, 5, 7);
+    dst2.setZero();
+    dst2.roll(rolls) = src * src.constant(2.0f);
+
+    auto wrap = [](Index i, Index r_, Index n) {
+      Index m = (i + r_) % n;
+      return m < 0 ? m + n : m;
+    };
+    for (Index i = 0; i < 17; ++i) {
+      for (Index j = 0; j < 5; ++j) {
+        for (Index k = 0; k < 7; ++k) {
+          const Index di = wrap(i, rolls[0], 17);
+          const Index dj = wrap(j, rolls[1], 5);
+          const Index dk = wrap(k, rolls[2], 7);
+          VERIFY_IS_EQUAL(dst(di, dj, dk), src(i, j, k));
+          VERIFY_IS_EQUAL(dst2(di, dj, dk), 2.0f * src(i, j, k));
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_simple_roll<ColMajor>());
   CALL_SUBTEST(test_simple_roll<RowMajor>());
@@ -197,4 +238,6 @@ EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_expr_roll<RowMajor>(false));
   CALL_SUBTEST(test_packet_roll<ColMajor>());
   CALL_SUBTEST(test_packet_roll<RowMajor>());
+  CALL_SUBTEST(test_roll_write_blocks<ColMajor>());
+  CALL_SUBTEST(test_roll_write_blocks<RowMajor>());
 }

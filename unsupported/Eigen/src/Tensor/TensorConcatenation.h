@@ -536,25 +536,33 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
   typedef TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> Base;
   typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
   typedef typename Base::Dimensions Dimensions;
+  static constexpr int NumDims = Base::NumDims;
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess =
         TensorEvaluator<LeftArgType, Device>::PacketAccess && TensorEvaluator<RightArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = TensorEvaluator<LeftArgType, Device>::PreferBlockAccess ||
-                        TensorEvaluator<RightArgType, Device>::PreferBlockAccess,
+    // writeBlock() splits the block at the concat axis and copies each piece
+    // straight into the operand's buffer, so both must expose raw storage.
+    BlockAccess = TensorEvaluator<LeftArgType, Device>::RawAccess && TensorEvaluator<RightArgType, Device>::RawAccess,
+    // The coeff/packet write path pays a div/mod cascade plus a per-dim mod
+    // for every scalar; the block path is a pair of bulk copies. Mirrors the
+    // rvalue evaluator.
+    PreferBlockAccess = true,
     RawAccess = false
   };
 
+  typedef std::remove_const_t<typename XprType::Scalar> ScalarNoConst;
+
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, typename XprType::Index> TensorBlockDesc;
   //===--------------------------------------------------------------------===//
 
   // The ColMajor-only static_assert lives in coeffRef/writePacket rather than
   // here so that passthrough evaluators (e.g. TensorSlicingOp's) can
   // instantiate this type for RowMajor concat operands without ever calling
-  // its lvalue methods.
+  // its lvalue methods. writeBlock() below is layout-generic, so tiled
+  // assignments through a RowMajor concatenation are supported.
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
   typedef typename XprType::Index Index;
@@ -602,6 +610,95 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     for (int i = 0; i < packetSize; ++i) {
       coeffRef(index + i) = values[i];
     }
+  }
+
+  // Mirror of the rvalue block(): split the block at the concat axis and copy
+  // each piece into the corresponding operand's buffer.
+  template <typename TensorBlock>
+  EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+    if (desc.size() == 0) return;
+    eigen_assert(this->m_leftImpl.data() != nullptr && this->m_rightImpl.data() != nullptr);
+
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+
+    // Materialize the block into a temporary buffer if it is lazy.
+    const ScalarNoConst* block_buffer = block.data();
+    void* mem = nullptr;
+    if (block_buffer == nullptr) {
+      mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
+      ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
+
+      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
+          TensorBlockAssignment;
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
+
+      block_buffer = buf;
+    }
+
+    // Decompose the block's offset into output coordinates.
+    Index remaining = desc.offset();
+    DSizes<Index, NumDims> out_coords;
+    EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
+      for (int i = NumDims - 1; i > 0; --i) {
+        out_coords[i] = remaining / this->m_outputStrides[i];
+        remaining -= out_coords[i] * this->m_outputStrides[i];
+      }
+      out_coords[0] = remaining;
+    } else {
+      for (int i = 0; i < NumDims - 1; ++i) {
+        out_coords[i] = remaining / this->m_outputStrides[i];
+        remaining -= out_coords[i] * this->m_outputStrides[i];
+      }
+      out_coords[NumDims - 1] = remaining;
+    }
+
+    const Index axis_start = out_coords[this->m_axis];
+    const Index axis_size = desc.dimension(static_cast<int>(this->m_axis));
+    const Index axis_end = axis_start + axis_size;
+    const Index left_axis_size = this->m_leftAxisSize;
+
+    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
+    typedef typename TensorBlockIO::Dst TensorBlockIODst;
+    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+
+    if (axis_start < left_axis_size) {
+      DSizes<Index, NumDims> left_sub_dims = desc.dimensions();
+      left_sub_dims[this->m_axis] = numext::mini(left_axis_size, axis_end) - axis_start;
+
+      Index left_dst_offset = 0;
+      for (int i = 0; i < NumDims; ++i) {
+        left_dst_offset += out_coords[i] * this->m_leftStrides[i];
+      }
+
+      TensorBlockIOSrc src(block_strides, block_buffer, /*src_offset=*/0);
+      TensorBlockIODst dst(left_sub_dims, typename TensorBlockIO::Dimensions(this->m_leftStrides),
+                           this->m_leftImpl.data(), left_dst_offset);
+      TensorBlockIO::Copy(dst, src);
+    }
+
+    if (axis_end > left_axis_size) {
+      DSizes<Index, NumDims> right_sub_dims = desc.dimensions();
+      right_sub_dims[this->m_axis] = axis_end - numext::maxi(left_axis_size, axis_start);
+
+      const Index right_axis_start = numext::maxi(Index(0), axis_start - left_axis_size);
+      Index right_dst_offset = right_axis_start * this->m_rightStrides[this->m_axis];
+      for (int i = 0; i < NumDims; ++i) {
+        if (i != this->m_axis) {
+          right_dst_offset += out_coords[i] * this->m_rightStrides[i];
+        }
+      }
+
+      // Offset within the block buffer where the right-side piece starts.
+      const Index src_offset = numext::maxi(Index(0), left_axis_size - axis_start) * block_strides[this->m_axis];
+
+      TensorBlockIOSrc src(block_strides, block_buffer, src_offset);
+      TensorBlockIODst dst(right_sub_dims, typename TensorBlockIO::Dimensions(this->m_rightStrides),
+                           this->m_rightImpl.data(), right_dst_offset);
+      TensorBlockIO::Copy(dst, src);
+    }
+
+    // Deallocate temporary buffer used for the block materialization.
+    if (mem != nullptr) this->m_device.deallocate(mem);
   }
 };
 

@@ -253,6 +253,45 @@ static void test_reverse_write_packet_paths() {
   }
 }
 
+template <typename T, int DataLayout>
+static void test_reverse_write_blocks() {
+  // A right-hand side that prefers block evaluation (a shuffle) routes the
+  // assignment through the tiled executor and the reverse destination's
+  // writeBlock. Sweep all 8 reverse-flag combinations; sizes have
+  // partial-packet tails.
+  Tensor<T, 3, DataLayout> src(17, 5, 7);
+  src.setRandom();
+
+  array<ptrdiff_t, 3> shuffle{{2, 0, 1}};
+  const Tensor<T, 3, DataLayout> shuffled = src.shuffle(shuffle);
+
+  for (int mask = 0; mask < 8; ++mask) {
+    array<bool, 3> rev{{(mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0}};
+
+    // Materialized right-hand-side blocks.
+    Tensor<T, 3, DataLayout> dst(shuffled.dimensions());
+    dst.setZero();
+    dst.reverse(rev) = src.shuffle(shuffle);
+
+    // Lazy right-hand-side blocks (cwise on top of the shuffle).
+    Tensor<T, 3, DataLayout> dst2(shuffled.dimensions());
+    dst2.setZero();
+    dst2.reverse(rev) = src.shuffle(shuffle) * src.shuffle(shuffle).constant(T(2));
+
+    for (Index i = 0; i < shuffled.dimension(0); ++i) {
+      for (Index j = 0; j < shuffled.dimension(1); ++j) {
+        for (Index k = 0; k < shuffled.dimension(2); ++k) {
+          const Index di = rev[0] ? shuffled.dimension(0) - 1 - i : i;
+          const Index dj = rev[1] ? shuffled.dimension(1) - 1 - j : j;
+          const Index dk = rev[2] ? shuffled.dimension(2) - 1 - k : k;
+          VERIFY_IS_EQUAL(dst(di, dj, dk), shuffled(i, j, k));
+          VERIFY_IS_EQUAL(dst2(di, dj, dk), T(2) * shuffled(i, j, k));
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST(test_simple_reverse<ColMajor>());
   CALL_SUBTEST(test_simple_reverse<RowMajor>());
@@ -266,4 +305,8 @@ EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST((test_reverse_write_packet_paths<float, RowMajor>()));
   CALL_SUBTEST((test_reverse_write_packet_paths<double, ColMajor>()));
   CALL_SUBTEST((test_reverse_write_packet_paths<double, RowMajor>()));
+  CALL_SUBTEST((test_reverse_write_blocks<float, ColMajor>()));
+  CALL_SUBTEST((test_reverse_write_blocks<float, RowMajor>()));
+  CALL_SUBTEST((test_reverse_write_blocks<int, ColMajor>()));
+  CALL_SUBTEST((test_reverse_write_blocks<int, RowMajor>()));
 }

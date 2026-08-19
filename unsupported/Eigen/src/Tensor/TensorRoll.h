@@ -332,8 +332,12 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
-    PreferBlockAccess = false,
+    // writeBlock() scatters the block into the argument's buffer as bulk
+    // copies of the wrap-around pieces, so it needs raw storage underneath.
+    BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
+    // The coeff/packet write path pays a full div/mod index walk per scalar;
+    // the block path is a handful of bulk copies. Mirrors the rvalue side.
+    PreferBlockAccess = true,
     CoordAccess = false,
     RawAccess = false
   };
@@ -343,9 +347,10 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return this->m_dimensions; }
@@ -363,6 +368,90 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
     for (int i = 0; i < PacketSize; ++i) {
       this->coeffRef(index + i) = values[i];
     }
+  }
+
+  template <typename TensorBlock>
+  EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+    if (desc.size() == 0) return;
+    eigen_assert(this->m_impl.data() != nullptr);
+
+    const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(desc.dimensions());
+
+    // Materialize the block into a temporary buffer if it is lazy.
+    const ScalarNoConst* block_buffer = block.data();
+    void* mem = nullptr;
+    if (block_buffer == nullptr) {
+      mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
+      ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
+
+      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
+          TensorBlockAssignment;
+      TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
+
+      block_buffer = buf;
+    }
+
+    // Output coordinates of the block's corner.
+    array<Index, NumDims> coords;
+    this->extract_coordinates(desc.offset(), coords);
+
+    // On each dimension the output range [o, o + e) maps to the input range
+    // starting at (o + r) mod n, wrapping around at most once.
+    struct Segment {
+      Index block_start;
+      Index input_start;
+      Index length;
+    };
+    Segment segments[NumDims][2];
+    int num_segments[NumDims];
+    for (int i = 0; i < NumDims; ++i) {
+      const Index n = this->m_dimensions[i];
+      const Index e = desc.dimension(i);
+      const Index start = this->roll(coords[i], this->m_rolls[i], n);
+      if (start + e <= n) {
+        segments[i][0] = {0, start, e};
+        num_segments[i] = 1;
+      } else {
+        segments[i][0] = {0, start, n - start};
+        segments[i][1] = {n - start, 0, e - (n - start)};
+        num_segments[i] = 2;
+      }
+    }
+
+    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
+    typedef typename TensorBlockIO::Dst TensorBlockIODst;
+    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+
+    const typename TensorBlockIO::Dimensions input_strides(this->m_strides);
+
+    // Copy every wrap-around piece (the cartesian product of the per-dim
+    // segments) into its destination box.
+    int seg_index[NumDims] = {0};
+    for (;;) {
+      DSizes<Index, NumDims> piece_dims;
+      Index src_offset = 0;
+      Index dst_offset = 0;
+      for (int i = 0; i < NumDims; ++i) {
+        const Segment& seg = segments[i][seg_index[i]];
+        piece_dims[i] = seg.length;
+        src_offset += seg.block_start * block_strides[i];
+        dst_offset += seg.input_start * this->m_strides[i];
+      }
+
+      TensorBlockIOSrc src(block_strides, block_buffer, src_offset);
+      TensorBlockIODst dst(piece_dims, input_strides, this->m_impl.data(), dst_offset);
+      TensorBlockIO::Copy(dst, src);
+
+      int d = 0;
+      while (d < NumDims && ++seg_index[d] == num_segments[d]) {
+        seg_index[d] = 0;
+        ++d;
+      }
+      if (d == NumDims) break;
+    }
+
+    // Deallocate temporary buffer used for the block materialization.
+    if (mem != nullptr) this->m_device.deallocate(mem);
   }
 };
 

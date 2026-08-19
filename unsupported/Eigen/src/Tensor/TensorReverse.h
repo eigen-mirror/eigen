@@ -374,7 +374,12 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
-    BlockAccess = false,
+    // writeBlock() assigns the re-reversed block expression straight into the
+    // argument's buffer, so it needs raw storage underneath.
+    BlockAccess = TensorEvaluator<ArgType, Device>::RawAccess,
+    // Unlike the rvalue side there is no preference: the reversal cost moves
+    // to the block-expression reads, so writing blocks only pays off when the
+    // right-hand side prefers block evaluation anyway.
     PreferBlockAccess = false,
     CoordAccess = false,  // to be implemented
     RawAccess = false
@@ -385,15 +390,34 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  typedef std::remove_const_t<Scalar> ScalarNoConst;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return this->m_dimensions; }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) const {
     return this->m_impl.coeffRef(this->reverseIndex(index));
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
+    // Deliberately not the rvalue evaluator's requirements. Reading a block
+    // reverses memory as it materializes it straight into the output, which is
+    // why that side asks for a last-level-cache sized, inner-dim-skewed block.
+    // As a write destination we have no such preference: writeBlock() only
+    // copies the block into a strided box. Since merge() lets kSkewedInnerDims
+    // win over kUniformAllDims and keeps the larger size, inheriting them would
+    // silently override the shape the right-hand side asked for -- a shuffle
+    // that permutes the inner dimension requests small uniform tiles precisely
+    // because that is what keeps a transpose cache-resident, and turning those
+    // into one cache-sized skewed strip costs more than the block path wins.
+    // Only impose a lower bound on the block size, so that a right-hand side
+    // without any preference still gets sensibly sized blocks.
+    return internal::TensorBlockResourceRequirements::merge(
+        this->m_impl.getResourceRequirements(),
+        internal::TensorBlockResourceRequirements::uniform<Scalar>(this->m_device.firstLevelCacheSize()));
   }
 
   template <int StoreMode>
@@ -424,6 +448,32 @@ struct TensorEvaluator<TensorReverseOp<ReverseDimensions, ArgType>, Device>
     for (int i = 0; i < PacketSize; ++i) {
       this->coeffRef(index + i) = values[i];
     }
+  }
+
+  template <typename TensorBlock>
+  EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
+    eigen_assert(this->m_impl.data() != nullptr);
+
+    // The destination of a block is a box in the underlying tensor: on a
+    // reversed dimension the output range [o, o + e) maps to the input range
+    // [n - o - e, n - o), whose corner sits (e - 1) strides below the image of
+    // the block's origin.
+    Index input_corner = this->reverseIndex(desc.offset());
+    for (int i = 0; i < NumDims; ++i) {
+      if (this->m_reverse[i]) input_corner -= (desc.dimension(i) - 1) * this->m_strides[i];
+    }
+
+    // Assigning the block expression reversed along the reversed dimensions
+    // into that box cancels the reversal; the reversed reads vectorize via
+    // the rvalue evaluator's inner-slice fast path while the stores stay
+    // contiguous.
+    typedef TensorReverseOp<const ReverseDimensions, const typename TensorBlock::XprType> RevBlockExpr;
+    const RevBlockExpr reversed_block(block.expr(), this->m_reverse);
+
+    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, RevBlockExpr, Index> TensorBlockAssign;
+    TensorBlockAssign::Run(TensorBlockAssign::target(desc.dimensions(), DSizes<Index, NumDims>(this->m_strides),
+                                                     this->m_impl.data(), input_corner),
+                           reversed_block);
   }
 };
 

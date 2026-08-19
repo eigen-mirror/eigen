@@ -145,6 +145,130 @@ static void BM_ReverseWrite_Outer(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
 }
 
+// --- Writes into a reversed destination from a block-preferring source. The
+// shuffle routes the assignment through the tiled executor, so the reverse
+// destination serves it via writeBlock instead of per-packet index math. ---
+static void BM_ReverseWrite_FromShuffle_Inner(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(N, M);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  Eigen::array<Index, 2> transpose = {1, 0};
+  array<bool, 2> dim_rev = {true, false};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src.shuffle(transpose);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(M - 1 - i, j) != src(j, i)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+static void BM_ReverseWrite_FromShuffle_Outer(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(N, M);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  Eigen::array<Index, 2> transpose = {1, 0};
+  array<bool, 2> dim_rev = {false, true};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src.shuffle(transpose);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(i, N - 1 - j) != src(j, i)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+// A broadcast right-hand side is the motivating case for the reverse
+// destination's writeBlock: broadcast's packet path pays heavy per-packet
+// index math, while its block path is a bulk copy.
+static void BM_ReverseWrite_FromBroadcast(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(M / 4, N);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  Eigen::array<Index, 2> bcast = {4, 1};
+  array<bool, 2> dim_rev = {true, false};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src.broadcast(bcast);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(M - 1 - i, j) != src(i % (M / 4), j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
+// Lazy right-hand-side blocks: writeBlock evaluates the re-reversed cwise
+// expression straight into the destination box.
+static void BM_ReverseWrite_FromShuffleExpr(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> src(N, M);
+  src.setRandom();
+  Tensor<Scalar, 2> dst(M, N);
+  dst.setZero();
+
+  Eigen::array<Index, 2> transpose = {1, 0};
+  array<bool, 2> dim_rev = {true, false};
+
+  for (auto _ : state) {
+    dst.reverse(dim_rev) = src.shuffle(transpose) + src.shuffle(transpose).constant(1.0f);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (dst(M - 1 - i, j) != src(j, i) + 1.0f) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(M) * N * sizeof(Scalar));
+}
+
 // clang-format off
 #define REVERSE_SIZES \
   ->Args({64, 64})->Args({256, 256})->Args({1024, 1024})
@@ -160,3 +284,7 @@ BENCHMARK(BM_Reverse_All) REVERSE_SIZES;
 BENCHMARK(BM_Reverse_3D_Inner) REVERSE_3D_SIZES;
 BENCHMARK(BM_ReverseWrite_Inner) REVERSE_SIZES;
 BENCHMARK(BM_ReverseWrite_Outer) REVERSE_SIZES;
+BENCHMARK(BM_ReverseWrite_FromShuffle_Inner) REVERSE_SIZES;
+BENCHMARK(BM_ReverseWrite_FromShuffle_Outer) REVERSE_SIZES;
+BENCHMARK(BM_ReverseWrite_FromBroadcast) REVERSE_SIZES;
+BENCHMARK(BM_ReverseWrite_FromShuffleExpr) REVERSE_SIZES;

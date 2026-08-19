@@ -273,6 +273,93 @@ static void BM_Concat2D_Axis1_Chain_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
+// --- Writes through a concatenation destination (lvalue writeBlock path) ---
+static void BM_ConcatWrite2D_Axis0(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  Tensor<Scalar, 2> B(M, N);
+  Tensor<Scalar, 2> src(2 * M, N);
+  src.setRandom();
+  A.setZero();
+  B.setZero();
+
+  for (auto _ : state) {
+    A.concatenate(B, 0) = src;
+    benchmark::DoNotOptimize(A.data());
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (A(i, j) != src(i, j) || B(i, j) != src(M + i, j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * 2ll * M * N * sizeof(Scalar) * 2);
+}
+
+static void BM_ConcatWrite2D_Axis1(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  Tensor<Scalar, 2> B(M, N);
+  Tensor<Scalar, 2> src(M, 2 * N);
+  src.setRandom();
+  A.setZero();
+  B.setZero();
+
+  for (auto _ : state) {
+    A.concatenate(B, 1) = src;
+    benchmark::DoNotOptimize(A.data());
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (A(i, j) != src(i, j) || B(i, j) != src(i, N + j)) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * 2ll * M * N * sizeof(Scalar) * 2);
+}
+
+// Lazy right-hand-side blocks: writeBlock materializes the cwise expression
+// into a temporary before splitting it at the axis.
+static void BM_ConcatWrite2D_Axis1_Plus(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Scalar, 2> A(M, N);
+  Tensor<Scalar, 2> B(M, N);
+  Tensor<Scalar, 2> src(M, 2 * N);
+  src.setRandom();
+  A.setZero();
+  B.setZero();
+
+  for (auto _ : state) {
+    A.concatenate(B, 1) = src + src.constant(1.0f);
+    benchmark::DoNotOptimize(A.data());
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      if (A(i, j) != src(i, j) + 1.0f || B(i, j) != src(i, N + j) + 1.0f) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * 2ll * M * N * sizeof(Scalar) * 2);
+}
+
 // clang-format off
 #define CONCAT2D_SIZES \
   ->Args({256, 256})->Args({1024, 1024})->Args({4096, 4096})
@@ -291,6 +378,9 @@ BENCHMARK(BM_Concat2D_Chain) CONCAT2D_SIZES->UseRealTime();
 BENCHMARK(BM_Concat2D_Axis1_Plus) CONCAT2D_SIZES->UseRealTime();
 BENCHMARK(BM_Concat2D_Axis1_Chain) CONCAT2D_SIZES->UseRealTime();
 BENCHMARK(BM_Concat3D_OuterAxis_Square) CONCAT3D_SIZES->UseRealTime();
+BENCHMARK(BM_ConcatWrite2D_Axis0) CONCAT2D_SIZES->UseRealTime();
+BENCHMARK(BM_ConcatWrite2D_Axis1) CONCAT2D_SIZES->UseRealTime();
+BENCHMARK(BM_ConcatWrite2D_Axis1_Plus) CONCAT2D_SIZES->UseRealTime();
 BENCHMARK(BM_Concat2D_Axis1_ThreadPool) CONCAT2D_THREAD_SIZES->UseRealTime();
 BENCHMARK(BM_Concat2D_Chain_ThreadPool) CONCAT2D_THREAD_SIZES->UseRealTime();
 BENCHMARK(BM_Concat2D_Axis1_Chain_ThreadPool) CONCAT2D_THREAD_SIZES->UseRealTime();
