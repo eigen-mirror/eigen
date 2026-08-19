@@ -43,10 +43,71 @@ if (POLICY CMP0074)
 endif ()
 
 #==============================================================================
+# Version Info.
+#==============================================================================
+
+# If version information is not provided, automatically parse the version number
+# from header files.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Eigen/Version" _eigen_version_header)
+if (NOT DEFINED EIGEN_WORLD_VERSION)
+  string(REGEX MATCH "define[ \t]+EIGEN_WORLD_VERSION[ \t]+([0-9]+)" _eigen_world_version_match "${_eigen_version_header}")
+  set(EIGEN_WORLD_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
+endif()
+if (NOT DEFINED EIGEN_MAJOR_VERSION)
+  string(REGEX MATCH "define[ \t]+EIGEN_MAJOR_VERSION[ \t]+([0-9]+)" _eigen_major_version_match "${_eigen_version_header}")
+  set(EIGEN_MAJOR_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
+endif()
+if (NOT DEFINED EIGEN_MINOR_VERSION)
+  string(REGEX MATCH "define[ \t]+EIGEN_MINOR_VERSION[ \t]+([0-9]+)" _eigen_minor_version_match "${_eigen_version_header}")
+  set(EIGEN_MINOR_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
+endif()
+if (NOT DEFINED EIGEN_PATCH_VERSION)
+  string(REGEX MATCH "define[ \t]+EIGEN_PATCH_VERSION[ \t]+([0-9]+)" _eigen_patch_version_match "${_eigen_version_header}")
+  set(EIGEN_PATCH_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
+endif()
+if (NOT DEFINED EIGEN_PRERELEASE_VERSION)
+  set(EIGEN_PRERELEASE_VERSION "dev")
+endif()
+
+# If we are in a git repo, extract a changeset.
+if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
+  # if the git program is absent or this will leave the EIGEN_GIT_REVNUM string empty,
+  # but won't stop CMake.
+  execute_process(COMMAND git ls-remote -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
+endif()
+
+# extract the git rev number from the git output...
+if(EIGEN_GIT_OUTPUT)
+  string(REGEX MATCH "^([0-9;a-f]+).*" EIGEN_GIT_CHANGESET_MATCH "${EIGEN_GIT_OUTPUT}")
+  set(EIGEN_GIT_REVNUM "${CMAKE_MATCH_1}")
+endif()
+
+if (NOT DEFINED EIGEN_BUILD_VERSION AND DEFINED EIGEN_GIT_REVNUM)
+  string(SUBSTRING "${EIGEN_GIT_REVNUM}" 0 8 EIGEN_BUILD_VERSION)
+else()
+  set(EIGEN_BUILD_VERSION "" CACHE STRING "")
+endif()
+
+# The EIGEN_VERSION_NUMBER must be of the form <major.minor.patch>.
+# The EIGEN_VERSION_STRING can contain the preprelease/build strings.
+set(EIGEN_VERSION_NUMBER "${EIGEN_MAJOR_VERSION}.${EIGEN_MINOR_VERSION}.${EIGEN_PATCH_VERSION}" CACHE STRING "")
+set(EIGEN_VERSION_STRING "${EIGEN_VERSION_NUMBER}" CACHE STRING "")
+if (NOT "x${EIGEN_PRERELEASE_VERSION}" STREQUAL "x")
+  set(EIGEN_VERSION_STRING "${EIGEN_VERSION_STRING}-${EIGEN_PRERELEASE_VERSION}" CACHE STRING "")
+endif()
+if (NOT "x${EIGEN_BUILD_VERSION}" STREQUAL "x")
+  set(EIGEN_VERSION_STRING "${EIGEN_VERSION_STRING}+${EIGEN_BUILD_VERSION}" CACHE STRING "")
+endif()
+
+#==============================================================================
 # CMake Project.
 #==============================================================================
 
-project(Eigen3)
+# The version is derived above so that project() can declare it here. Declaring
+# it is what populates PROJECT_VERSION, Eigen3_VERSION and, for a top-level
+# build, CMAKE_PROJECT_VERSION; all three are empty otherwise. See the
+# cmake_project_version test.
+project(Eigen3 VERSION ${EIGEN_VERSION_NUMBER})
 
 # Remove this block after bumping CMake to v3.21.0
 # PROJECT_IS_TOP_LEVEL is defined then by default
@@ -100,64 +161,6 @@ option(EIGEN_INSTALL "Enable Eigen's install rules" ON)
 if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC OR EIGEN_BUILD_DEMOS)
   set(EIGEN_IS_BUILDING_ ON)
 endif()
-
-#==============================================================================
-# Version Info.
-#==============================================================================
-
-# If version information is not provided, automatically parse the version number
-# from header files.
-file(READ "${PROJECT_SOURCE_DIR}/Eigen/Version" _eigen_version_header)
-if (NOT DEFINED EIGEN_WORLD_VERSION)
-  string(REGEX MATCH "define[ \t]+EIGEN_WORLD_VERSION[ \t]+([0-9]+)" _eigen_world_version_match "${_eigen_version_header}")
-  set(EIGEN_WORLD_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
-endif()
-if (NOT DEFINED EIGEN_MAJOR_VERSION)
-  string(REGEX MATCH "define[ \t]+EIGEN_MAJOR_VERSION[ \t]+([0-9]+)" _eigen_major_version_match "${_eigen_version_header}")
-  set(EIGEN_MAJOR_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
-endif()
-if (NOT DEFINED EIGEN_MINOR_VERSION)
-  string(REGEX MATCH "define[ \t]+EIGEN_MINOR_VERSION[ \t]+([0-9]+)" _eigen_minor_version_match "${_eigen_version_header}")
-  set(EIGEN_MINOR_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
-endif()
-if (NOT DEFINED EIGEN_PATCH_VERSION)
-  string(REGEX MATCH "define[ \t]+EIGEN_PATCH_VERSION[ \t]+([0-9]+)" _eigen_patch_version_match "${_eigen_version_header}")
-  set(EIGEN_PATCH_VERSION "${CMAKE_MATCH_1}" CACHE STRING "")
-endif()
-if (NOT DEFINED EIGEN_PRERELEASE_VERSION)
-  set(EIGEN_PRERELEASE_VERSION "dev")
-endif()
-
-# If we are in a git repo, extract a changeset.
-if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
-  # if the git program is absent or this will leave the EIGEN_GIT_REVNUM string empty,
-  # but won't stop CMake.
-  execute_process(COMMAND git ls-remote -q ${CMAKE_SOURCE_DIR} HEAD OUTPUT_VARIABLE EIGEN_GIT_OUTPUT)
-endif()
-
-# extract the git rev number from the git output...
-if(EIGEN_GIT_OUTPUT)
-  string(REGEX MATCH "^([0-9;a-f]+).*" EIGEN_GIT_CHANGESET_MATCH "${EIGEN_GIT_OUTPUT}")
-  set(EIGEN_GIT_REVNUM "${CMAKE_MATCH_1}")
-endif()
-
-if (NOT DEFINED EIGEN_BUILD_VERSION AND DEFINED EIGEN_GIT_REVNUM)
-  string(SUBSTRING "${EIGEN_GIT_REVNUM}" 0 8 EIGEN_BUILD_VERSION)
-else()
-  set(EIGEN_BUILD_VERSION "" CACHE STRING "")
-endif()
-
-# The EIGEN_VERSION_NUMBER must be of the form <major.minor.patch>.
-# The EIGEN_VERSION_STRING can contain the preprelease/build strings.
-set(EIGEN_VERSION_NUMBER "${EIGEN_MAJOR_VERSION}.${EIGEN_MINOR_VERSION}.${EIGEN_PATCH_VERSION}" CACHE STRING "")
-set(EIGEN_VERSION_STRING "${EIGEN_VERSION_NUMBER}" CACHE STRING "")
-if (NOT "x${EIGEN_PRERELEASE_VERSION}" STREQUAL "x")
-  set(EIGEN_VERSION_STRING "${EIGEN_VERSION_STRING}-${EIGEN_PRERELEASE_VERSION}" CACHE STRING "")
-endif()
-if (NOT "x${EIGEN_BUILD_VERSION}" STREQUAL "x")
-  set(EIGEN_VERSION_STRING "${EIGEN_VERSION_STRING}+${EIGEN_BUILD_VERSION}" CACHE STRING "")
-endif()
-
 
 # Generate version file.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.in"

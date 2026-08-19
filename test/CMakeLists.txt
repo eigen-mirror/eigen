@@ -254,6 +254,18 @@ endif()
 set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official")
 add_custom_target(BuildOfficial)
 
+# Not an ei_add_test: this checks values produced by the configure step itself,
+# so it compares what the enclosing project() call left in this scope.
+add_test(NAME cmake_project_version
+         COMMAND ${CMAKE_COMMAND}
+                 "-DEIGEN_EXPECTED_VERSION=${EIGEN_VERSION_NUMBER}"
+                 "-DEIGEN_IS_TOP_LEVEL=${PROJECT_IS_TOP_LEVEL}"
+                 "-DOBSERVED_PROJECT_VERSION=${PROJECT_VERSION}"
+                 "-DOBSERVED_Eigen3_VERSION=${Eigen3_VERSION}"
+                 "-DOBSERVED_CMAKE_PROJECT_VERSION=${CMAKE_PROJECT_VERSION}"
+                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake_project_version.cmake")
+set_property(TEST cmake_project_version PROPERTY LABELS "Official")
+
 ei_add_test(clz)
 ei_add_test(rand)
 ei_add_test(realview)
