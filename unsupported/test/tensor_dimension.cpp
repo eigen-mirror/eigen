@@ -86,7 +86,8 @@ static void test_unsigned_dimensions() {
 
 // A dimension the index type cannot represent must assert rather than silently truncate.
 static void test_narrowing_dimensions() {
-  VERIFY_RAISES_ASSERT((Eigen::DSizes<int, 3>(2, 3, std::size_t(1) << 40)));
+  // Fixed width: on ILP32 targets shifting std::size_t by 40 is undefined, and GCC folds it to an in-range 0.
+  VERIFY_RAISES_ASSERT((Eigen::DSizes<int, 3>(2, 3, std::uint64_t(1) << 40)));
   VERIFY_RAISES_ASSERT((Eigen::DSizes<std::ptrdiff_t, 3>(2, 3, std::size_t(-1))));
 }
 

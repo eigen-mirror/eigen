@@ -326,7 +326,8 @@ static void test_unsigned_indices() {
 
 // An index or dimension the tensor's index type cannot represent must assert rather than silently truncate.
 static void test_narrowing_indices() {
-  const std::size_t too_large = std::size_t(1) << 40;
+  // Fixed width: on ILP32 targets shifting std::size_t by 40 is undefined, and GCC folds it to an in-range 0.
+  const std::uint64_t too_large = std::uint64_t(1) << 40;
 
   Tensor<int, 3, ColMajor, int> tensor(2, 3, 7);
   tensor.setZero();
