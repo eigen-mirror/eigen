@@ -153,7 +153,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     // so the discarded contribution is at most epsilon relative to a squared norm above this threshold. The narrow
     // normal range of half makes this scaled path common for moderately small inputs; preserving the bound there is
     // intentional.
-    const RealScalar componentCount = RealScalar((size() - 1) << bool(NumTraits<Scalar>::IsComplex));
+    const RealScalar componentCount = RealScalar(size() - 1) * RealScalar(NumTraits<Scalar>::IsComplex ? 2 : 1);
     unscaledNormThreshold = (tol / precision) * componentCount;
   }
 
