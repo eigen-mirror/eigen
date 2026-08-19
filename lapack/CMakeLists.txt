@@ -125,10 +125,12 @@ foreach(target IN LISTS EIGEN_LAPACK_TARGETS)
   endif()
   target_link_libraries(${target} Eigen3::Eigen)
   add_dependencies(lapack ${target})
-  install(TARGETS ${target}
-          RUNTIME DESTINATION bin
-          LIBRARY DESTINATION lib
-          ARCHIVE DESTINATION lib)
+  if(EIGEN_INSTALL)
+    install(TARGETS ${target}
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib)
+  endif()
 endforeach()
 
 

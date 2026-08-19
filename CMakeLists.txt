@@ -93,6 +93,10 @@ if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
 endif()
 option(EIGEN_BUILD_CMAKE_PACKAGE "Enables the creation of EigenConfig.cmake and related files" ${PROJECT_IS_TOP_LEVEL})
 
+# Set to OFF to place no Eigen file under CMAKE_INSTALL_PREFIX.  This covers the
+# headers, eigen3.pc, the CMake package files, and the BLAS/LAPACK libraries.
+option(EIGEN_INSTALL "Enable Eigen's install rules" ON)
+
 if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC OR EIGEN_BUILD_DEMOS)
   set(EIGEN_IS_BUILDING_ ON)
 endif()
@@ -163,13 +167,11 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.in"
 # Install Path Configuration.
 #==============================================================================
 
-# Unconditionally allow install of targets to support nested dependency
-# installations.
-#
-# Note: projects that depend on Eigen should _probably_ exclude installing
-# Eigen by default (e.g. by using EXCLUDE_FROM_ALL when using
-# FetchContent_Declare or add_subdirectory) to avoid overwriting a previous
-# installation.
+# Install rules are enabled by default even for non-top-level builds, so that a
+# project embedding Eigen can ship it as part of its own package.  Projects that
+# do not want that should set EIGEN_INSTALL to OFF, or exclude Eigen from the
+# default install target with EXCLUDE_FROM_ALL on FetchContent_Declare or
+# add_subdirectory.
 
 include(GNUInstallDirs)
 # Backward compatibility support for EIGEN_INCLUDE_INSTALL_DIR
@@ -228,29 +230,31 @@ set_target_properties (eigen PROPERTIES EXPORT_NAME Eigen)
 # Install Rule Configuration.
 #==============================================================================
 
-install(FILES
-  signature_of_eigen3_matrix_library
-  DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel
-  )
+if(EIGEN_INSTALL)
+  install(FILES
+    signature_of_eigen3_matrix_library
+    DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel
+    )
 
-if(EIGEN_BUILD_PKGCONFIG)
-    # Walk back from the .pc file's location to the install prefix so
-    # eigen3.pc resolves ${prefix} at lookup time via ${pcfiledir} and
-    # honors install-time --prefix overrides.
-    file(RELATIVE_PATH PKGCONFIG_RELATIVE_PATH_TO_PREFIX
-        "${CMAKE_INSTALL_PREFIX}/${PKGCONFIG_INSTALL_DIR}"
-        "${CMAKE_INSTALL_PREFIX}")
-    configure_file(eigen3.pc.in eigen3.pc @ONLY)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/eigen3.pc
-        DESTINATION ${PKGCONFIG_INSTALL_DIR})
+  if(EIGEN_BUILD_PKGCONFIG)
+      # Walk back from the .pc file's location to the install prefix so
+      # eigen3.pc resolves ${prefix} at lookup time via ${pcfiledir} and
+      # honors install-time --prefix overrides.
+      file(RELATIVE_PATH PKGCONFIG_RELATIVE_PATH_TO_PREFIX
+          "${CMAKE_INSTALL_PREFIX}/${PKGCONFIG_INSTALL_DIR}"
+          "${CMAKE_INSTALL_PREFIX}")
+      configure_file(eigen3.pc.in eigen3.pc @ONLY)
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/eigen3.pc
+          DESTINATION ${PKGCONFIG_INSTALL_DIR})
+  endif()
+
+  install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
+  # Replace the "Version" header file with the generated one.
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/Eigen/Version
+      DESTINATION ${INCLUDE_INSTALL_DIR}/Eigen/ COMPONENT Devel)
+
+  install(TARGETS eigen EXPORT Eigen3Targets)
 endif()
-
-install(DIRECTORY Eigen DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
-# Replace the "Version" header file with the generated one.
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/Eigen/Version
-    DESTINATION ${INCLUDE_INSTALL_DIR}/Eigen/ COMPONENT Devel)
-
-install(TARGETS eigen EXPORT Eigen3Targets)
 
 if(EIGEN_BUILD_CMAKE_PACKAGE)
   include (CMakePackageConfigHelpers)
@@ -274,11 +278,13 @@ if(EIGEN_BUILD_CMAKE_PACKAGE)
   # CMake even if it has not been installed to a standard directory.
   export (PACKAGE Eigen3)
 
-  install (EXPORT Eigen3Targets NAMESPACE Eigen3:: DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+  if(EIGEN_INSTALL)
+    install (EXPORT Eigen3Targets NAMESPACE Eigen3:: DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
 
-  install (FILES ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
-                ${CMAKE_CURRENT_BINARY_DIR}/Eigen3ConfigVersion.cmake
-          DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+    install (FILES ${CMAKE_CURRENT_BINARY_DIR}/Eigen3Config.cmake
+                  ${CMAKE_CURRENT_BINARY_DIR}/Eigen3ConfigVersion.cmake
+            DESTINATION ${CMAKEPACKAGE_INSTALL_DIR})
+  endif()
 
   # Add uninstall target
   if(NOT TARGET uninstall AND PROJECT_IS_TOP_LEVEL)
@@ -806,19 +812,23 @@ if(PROJECT_IS_TOP_LEVEL)
   message(STATUS "------------+--------------------------------------------------------------")
   message(STATUS "Target      |   Description")
   message(STATUS "------------+--------------------------------------------------------------")
-  message(STATUS "install     | Install Eigen. Headers will be installed to:")
-  message(STATUS "            |     <CMAKE_INSTALL_PREFIX>/<INCLUDE_INSTALL_DIR>")
-  message(STATUS "            |   Using the following values:")
-  message(STATUS "            |     CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
-  message(STATUS "            |     INCLUDE_INSTALL_DIR:  ${INCLUDE_INSTALL_DIR}")
-  message(STATUS "            |   Change the install location of Eigen headers using:")
-  message(STATUS "            |     cmake . -DCMAKE_INSTALL_PREFIX=yourprefix")
-  message(STATUS "            |   Or:")
-  message(STATUS "            |     cmake . -DINCLUDE_INSTALL_DIR=yourdir")
+  if (EIGEN_INSTALL)
+    message(STATUS "install     | Install Eigen. Headers will be installed to:")
+    message(STATUS "            |     <CMAKE_INSTALL_PREFIX>/<INCLUDE_INSTALL_DIR>")
+    message(STATUS "            |   Using the following values:")
+    message(STATUS "            |     CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+    message(STATUS "            |     INCLUDE_INSTALL_DIR:  ${INCLUDE_INSTALL_DIR}")
+    message(STATUS "            |   Change the install location of Eigen headers using:")
+    message(STATUS "            |     cmake . -DCMAKE_INSTALL_PREFIX=yourprefix")
+    message(STATUS "            |   Or:")
+    message(STATUS "            |     cmake . -DINCLUDE_INSTALL_DIR=yourdir")
+  endif()
   message(STATUS "uninstall   | Remove files installed by the install target")
   if (EIGEN_BUILD_DOC)
     message(STATUS "doc         | Generate the API documentation, requires Doxygen & LaTeX")
-    message(STATUS "install-doc | Install the API documentation")
+    if (EIGEN_INSTALL)
+      message(STATUS "install-doc | Install the API documentation")
+    endif()
   endif()
   if(EIGEN_BUILD_TESTING)
     message(STATUS "check       | Build and run the unit-tests. Read this page:")
@@ -831,6 +841,9 @@ if(PROJECT_IS_TOP_LEVEL)
     message(STATUS "lapack      | Build LAPACK subset library (not the same thing as Eigen)")
   endif()
   message(STATUS "------------+--------------------------------------------------------------")
+  if (NOT EIGEN_INSTALL)
+    message(STATUS "EIGEN_INSTALL is OFF, so this build generates no install target.")
+  endif()
   message(STATUS "")
 endif()
 

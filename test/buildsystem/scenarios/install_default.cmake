@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MPL-2.0
 
 # doc/TopicCMakeGuide.dox: "Eigen's install rules are enabled even when it is
-# built as a sub-project."  This is the baseline that makes exclude_from_all
-# meaningful -- without it, a build that installed nothing at all would satisfy
-# that scenario too.
+# built as a sub-project."  This is the baseline that makes install_off and
+# exclude_from_all meaningful -- without it, a build that installed nothing at
+# all would satisfy both of them.
 
 bs_configure("embedding consumer" "${BS_CONSUMER_DIR}/subproject" "${WORK_DIR}/consumer"
              "-DEIGEN_SOURCE_DIR=${EIGEN_SOURCE_DIR}"

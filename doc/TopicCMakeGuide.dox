@@ -105,6 +105,27 @@ set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(Eigen)
 \endcode
 
+\subsection title_fetchcontent_install Disabling Eigen's install rules
+
+%Eigen's install rules are enabled even when it is built as a sub-project, so
+that a project embedding %Eigen can ship it as part of its own package. If your
+project does not want %Eigen's headers to land in \c CMAKE_INSTALL_PREFIX (or in
+a \c CPack package), set \c EIGEN_INSTALL to \c OFF:
+\code{.cmake}
+set(EIGEN_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(Eigen)
+\endcode
+
+%Eigen then places no file at all under \c CMAKE_INSTALL_PREFIX, the generated
+documentation included.
+
+\note %CMake refuses to generate an \c install(EXPORT ...) whose targets link a
+target that no installed export set provides. So if you export your own targets
+and their public interface links \c Eigen3::Eigen, you must either leave
+\c EIGEN_INSTALL on and install %Eigen's CMake package alongside them, or consume
+%Eigen through \c find_package instead of embedding it.
+
 \subsection title_fetchcontent_exclude Using EXCLUDE_FROM_ALL
 
 Projects that depend on %Eigen should typically exclude installing %Eigen by
@@ -134,7 +155,7 @@ FetchContent_MakeAvailable(Eigen)
 
 \warning %CMake 3.17 through 3.27 accept \c EXCLUDE_FROM_ALL in
 \c FetchContent_Declare without complaint and ignore it, so %Eigen is installed
-anyway.
+anyway. Below 3.28, use \c EIGEN_INSTALL or the \c add_subdirectory form.
 
 \subsection title_fetchcontent_cmake330 Note for CMake 3.30 and later
 

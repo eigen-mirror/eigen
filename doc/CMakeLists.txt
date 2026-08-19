@@ -119,7 +119,11 @@ add_custom_target(doc ALL
 
 add_dependencies(doc doc-eigen-prerequisites doc-unsupported-prerequisites)
 
-add_custom_target(install-doc ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${Eigen_BINARY_DIR}/doc ${CMAKE_INSTALL_FULL_DOCDIR}
-)
-add_dependencies(install-doc doc)
+# This target writes below CMAKE_INSTALL_PREFIX like any install rule, so it
+# follows EIGEN_INSTALL: with the option off, Eigen places no file there.
+if(EIGEN_INSTALL)
+  add_custom_target(install-doc ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${Eigen_BINARY_DIR}/doc ${CMAKE_INSTALL_FULL_DOCDIR}
+  )
+  add_dependencies(install-doc doc)
+endif()

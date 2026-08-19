@@ -782,6 +782,7 @@ test:linux:buildsystem:
         - blas/CMakeLists.txt
         - lapack/CMakeLists.txt
         - unsupported/**/CMakeLists.txt
+        - doc/CMakeLists.txt
         - doc/TopicCMakeGuide.dox
         - test/buildsystem/**/*
         - ci/test.linux.gitlab-ci.yml
