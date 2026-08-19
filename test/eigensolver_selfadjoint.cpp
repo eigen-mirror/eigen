@@ -21,6 +21,40 @@
 #include <Eigen/SparseCore>
 #include <unsupported/Eigen/MatrixFunctions>
 
+template <typename Scalar>
+struct selfadjoint_eigensolver_test_rescale {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  explicit selfadjoint_eigensolver_test_rescale(RealScalar scale) : m_scale(scale) {}
+
+  Scalar operator()(const Scalar& value) const { return value / m_scale; }
+
+  RealScalar m_scale;
+};
+
+template <>
+struct selfadjoint_eigensolver_test_rescale<float> {
+  explicit selfadjoint_eigensolver_test_rescale(float scale) : m_scale(scale) {}
+
+  // A scalar widened division keeps the residual calculation independent of NEON's subnormal flushing.
+  float operator()(float value) const { return float(double(value) / double(m_scale)); }
+
+  float m_scale;
+};
+
+template <typename MatrixType>
+MatrixType scaled_selfadjoint_for_residual(const MatrixType& matrix, typename MatrixType::RealScalar scale) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  MatrixType dense = matrix.template selfadjointView<Lower>();
+  if (!internal::is_same<Scalar, float>::value ||
+      scale >= RealScalar((std::numeric_limits<float>::min)() / NumTraits<float>::epsilon())) {
+    dense /= scale;
+    return dense;
+  }
+  return dense.unaryExpr(selfadjoint_eigensolver_test_rescale<Scalar>(scale));
+}
+
 template <typename MatrixType>
 void selfadjointeigensolver_essential_check(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
@@ -42,8 +76,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
     // This ensures accuracy for every eigenpair, including those corresponding
     // to small eigenvalues (which a Frobenius norm check would miss).
     // Computed in scaled space (dividing by ||A||_max) to avoid overflow.
-    MatrixType scaledA = m.template selfadjointView<Lower>();
-    scaledA /= scaling;
+    const MatrixType scaledA = scaled_selfadjoint_for_residual(m, scaling);
     MatrixType residual =
         scaledA * eiSymm.eigenvectors() - eiSymm.eigenvectors() * (eiSymm.eigenvalues() / scaling).asDiagonal();
     RealScalar tol = RealScalar(8) * RealScalar(numext::maxi(Index(1), n)) * NumTraits<RealScalar>::epsilon();
@@ -83,8 +116,9 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
       VERIFY_IS_APPROX(eiSymm.eigenvalues() / scaling, eiDirect.eigenvalues() / scaling);
       // TODO: the direct 3x3 solver can produce large backward errors (>>n*eps*||A||)
       // on some matrices. Investigate and fix, then tighten this to a Frobenius norm check.
-      VERIFY_IS_APPROX((m.template selfadjointView<Lower>() * eiDirect.eigenvectors()) / scaling,
-                       (eiDirect.eigenvectors() * eiDirect.eigenvalues().asDiagonal()) / scaling);
+      const MatrixType scaledA = scaled_selfadjoint_for_residual(m, scaling);
+      VERIFY_IS_APPROX(scaledA * eiDirect.eigenvectors(),
+                       eiDirect.eigenvectors() * (eiDirect.eigenvalues() / scaling).asDiagonal());
       VERIFY_IS_APPROX(m.template selfadjointView<Lower>().eigenvalues() / scaling, eiDirect.eigenvalues() / scaling);
     }
 
@@ -379,6 +413,31 @@ void selfadjointeigensolver_extreme_eigenvalues(const MatrixType& m) {
     MatrixType A = (q * d.template cast<Scalar>().asDiagonal() * q.adjoint()).eval();
     A.template triangularView<StrictlyUpper>().setZero();
     selfadjointeigensolver_essential_check(A);
+  }
+}
+
+void selfadjointeigensolver_subnormal_coefficients() {
+  volatile float normalMinInput = (std::numeric_limits<float>::min)();
+  const double scale = 256.0 * double(normalMinInput);
+  const auto scaled = [scale](float value) { return float(double(value) * scale); };
+
+  // The 1/512 entries are subnormal but significant relative to the matrix norm.
+  Matrix2f matrix2 = Matrix2f::Zero();
+  matrix2(0, 0) = scaled(1.0f);
+  matrix2(1, 0) = scaled(1.0f / 512.0f);
+  matrix2(1, 1) = scaled(0.5f);
+
+  Matrix3f matrix3 = Matrix3f::Zero();
+  matrix3(0, 0) = scaled(1.0f);
+  matrix3(1, 0) = scaled(0.25f);
+  matrix3(1, 1) = scaled(0.75f);
+  matrix3(2, 0) = scaled(1.0f / 512.0f);
+  matrix3(2, 1) = scaled(-0.125f);
+  matrix3(2, 2) = scaled(0.5f);
+
+  if (!numext::is_exactly_zero(matrix2(1, 0))) {
+    selfadjointeigensolver_essential_check(matrix2);
+    selfadjointeigensolver_essential_check(matrix3);
   }
 }
 
@@ -908,6 +967,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
+  CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
 
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:

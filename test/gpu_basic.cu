@@ -47,6 +47,35 @@ struct coeff_wise {
   }
 };
 
+struct make_householder_small_tail {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
+    Eigen::Vector3f vector;
+    vector << 0.0f, 1e-20f, -2e-20f;
+    Eigen::Vector2f essential;
+    float tau;
+    float beta;
+    vector.makeHouseholder(essential, tau, beta);
+    out[4 * i] = tau;
+    out[4 * i + 1] = beta;
+    out[4 * i + 2] = essential[0];
+    out[4 * i + 3] = essential[1];
+  }
+};
+
+struct make_householder_complex_zero_tail {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* /*in*/, std::complex<float>* out) const {
+    Eigen::Vector2cf vector;
+    vector << std::complex<float>(0.0f, 1e-20f), std::complex<float>(0.0f, 0.0f);
+    Eigen::Matrix<std::complex<float>, 1, 1> essential;
+    std::complex<float> tau;
+    float beta;
+    vector.makeHouseholder(essential, tau, beta);
+    out[3 * i] = tau;
+    out[3 * i + 1] = std::complex<float>(beta, 0.0f);
+    out[3 * i + 2] = essential[0];
+  }
+};
+
 template <typename T>
 struct complex_sqrt {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -534,6 +563,8 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Array44f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(make_householder_small_tail(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(make_householder_complex_zero_tail(), nthreads, cfin, cfout));
 
 #if !defined(EIGEN_USE_HIP)
   // FIXME

@@ -289,7 +289,19 @@ void HessenbergDecomposition<MatrixType>::_compute(MatrixType& matA, CoeffVector
     Index remainingSize = n - i - 1;
     RealScalar beta;
     Scalar h;
-    matA.col(i).tail(remainingSize).makeHouseholderInPlace(h, beta);
+    auto householder = matA.col(i).tail(remainingSize);
+    const RealScalar tailSqNorm =
+        remainingSize == 1 ? RealScalar(0) : householder.tail(remainingSize - 1).unwind().squaredNorm();
+    const RealScalar tol = (std::numeric_limits<RealScalar>::min)();
+    // Preserve negligible subdiagonal entries instead of rotating them into much larger matrix coefficients.  The
+    // latter can erase small eigenvalues through cancellation even though the reflector itself is accurate.
+    if (tailSqNorm <= tol && numext::abs2(numext::imag(householder.coeff(0))) <= tol) {
+      h = Scalar(0);
+      beta = numext::real(householder.coeff(0));
+      householder.tail(remainingSize - 1).setZero();
+    } else {
+      householder.makeHouseholderInPlace(h, beta);
+    }
     matA.col(i).coeffRef(i + 1) = beta;
     hCoeffs.coeffRef(i) = h;
 

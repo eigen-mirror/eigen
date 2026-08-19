@@ -26,6 +26,31 @@ namespace internal {
 template <typename SolverType, int Size, bool IsComplex>
 struct direct_selfadjoint_eigenvalues;
 
+template <typename MatrixType, bool WidenFloat = is_same<typename MatrixType::Scalar, float>::value>
+struct direct_selfadjoint_eigensolver_matrix_scaling {
+  using Scalar = typename MatrixType::Scalar;
+
+  EIGEN_DEVICE_FUNC static void run(MatrixType& matrix, const Scalar& scale) { matrix /= scale; }
+};
+
+template <typename MatrixType>
+struct direct_selfadjoint_eigensolver_matrix_scaling<MatrixType, true> {
+  EIGEN_DEVICE_FUNC static void run(MatrixType& matrix, float scale) {
+    // Below this threshold, a subnormal coefficient can be significant relative to the matrix norm.  Widening keeps
+    // ARM NEON from flushing that coefficient before the division brings it into the normal range.
+    if (scale >= (std::numeric_limits<float>::min)() / NumTraits<float>::epsilon()) {
+      matrix /= scale;
+      return;
+    }
+    const double wideScale = double(scale);
+    for (Index col = 0; col < matrix.cols(); ++col) {
+      for (Index row = 0; row < matrix.rows(); ++row) {
+        matrix.coeffRef(row, col) = float(double(matrix.coeff(row, col)) / wideScale);
+      }
+    }
+  }
+};
+
 template <bool PerBlockScaling, typename MatrixType, typename DiagType, typename SubDiagType>
 EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, SubDiagType& subdiag,
                                                               const Index maxIterations, bool computeEigenvectors,
@@ -743,7 +768,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     MatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
     Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > 0) scaledMat /= scale;  // TODO: skip remaining operations when scale==0.
+    if (scale > 0) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -858,7 +883,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
     scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
     scaledMat.diagonal().array() -= shift;
     Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > Scalar(0)) scaledMat /= scale;
+    if (scale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
 
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);
