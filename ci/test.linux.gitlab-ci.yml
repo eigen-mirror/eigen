@@ -731,3 +731,61 @@ test:linux:aarch64:clang-14:default:smoketest:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - saas-linux-small-arm64
+
+##### Build-System Integration #################################################
+
+# Grounds the CMake behavior doc/TopicCMakeGuide.dox documents: find_package
+# against an installed tree, the version-range contract of the hand-written
+# Eigen3ConfigVersion.cmake, embedding via add_subdirectory, and the ways an
+# embedding project opts out of Eigen's install rules.
+#
+# Self-contained, so it neither extends .test:linux nor needs a build job: the
+# scenarios run their own nested configures against the checkout, and the
+# enclosing build directory holds only the CTest definitions.  Staying off
+# .test:linux also keeps it off the pass cache, which keys on a test's
+# executable -- these tests have none, so a recorded pass would outlive any
+# change to Eigen's CMake files.
+#
+# Cheap -- a nested configure and a small compile per scenario, six seconds of
+# script on the runner, inside a job that takes half a minute once the image
+# pull and checkout are counted -- but still gated on the files that can make
+# it fail rather than run on every merge request: Eigen's own CMake surface,
+# the guide it grounds, and the job's own definition and script. A push to the
+# default branch runs it unconditionally, as the backstop for whatever the path
+# list does not anticipate.
+#
+# Not behind the all-tests label, unlike the documentation job it complements:
+# that label is why an incorrect claim in the CMake guide reached a release
+# unnoticed, and an MR that edits these files is exactly the MR that needs the
+# answer before merge rather than after.
+test:linux:buildsystem:
+  extends: .common:linux:cross
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
+  stage: test
+  needs: []
+  variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
+    EIGEN_CI_C_COMPILER: gcc-10
+    EIGEN_CI_CXX_COMPILER: g++-10
+    EIGEN_CI_SKIP_APT: "true"
+  script:
+    - . ci/scripts/test.buildsystem.script.sh
+  tags:
+    - saas-linux-medium-amd64
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - CMakeLists.txt
+        - cmake/**/*
+        - Eigen/Version
+        - blas/CMakeLists.txt
+        - lapack/CMakeLists.txt
+        - unsupported/**/CMakeLists.txt
+        - doc/TopicCMakeGuide.dox
+        - test/buildsystem/**/*
+        - ci/test.linux.gitlab-ci.yml
+        - ci/scripts/test.buildsystem.script.sh
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

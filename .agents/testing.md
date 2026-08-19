@@ -110,6 +110,34 @@ that is impractical, that it reaches the new code by construction.
 - Exercise the customization points users are documented to have (custom scalars, functors without declared traits),
   not only the built-in specializations that happen to satisfy a new precondition.
 
+## Build-System Tests
+
+[`test/buildsystem`](../test/buildsystem) holds the coverage for Eigen's own CMake surface: what an install tree
+contains, what `find_package(Eigen3)` and the version ranges in
+[`cmake/Eigen3ConfigVersion.cmake.in`](../cmake/Eigen3ConfigVersion.cmake.in) accept, and how an embedding project
+opts out of Eigen's install rules. They exist because those are claims
+[`doc/TopicCMakeGuide.dox`](../doc/TopicCMakeGuide.dox) makes to users and nothing else checks; the blocking
+documentation job only builds the docs, it does not run what they describe.
+
+```bash
+cmake -G Ninja -S . -B build -DEIGEN_BUILD_TESTING=ON
+cmake -E chdir build ctest -L buildsystem --output-on-failure
+```
+
+`ctest --test-dir` would be the shorter spelling, but that option arrived in CMake 3.20; the 3.17 Eigen supports
+accepts and ignores it, inspects the source directory instead, reports that no tests were found, and exits
+successfully.
+
+No target needs building first: each scenario runs its own nested configure, build, and install into the CTest
+binary directory. Add a claim by dropping a scenario in `scenarios/` and naming it in the list in
+`test/buildsystem/CMakeLists.txt`; the driver `run_scenario.cmake` supplies the assertion helpers.
+
+Two hazards specific to these tests. Eigen calls `export(PACKAGE Eigen3)`, so CMake's user package registry names
+every Eigen build tree on the machine — a `find_package` scenario must disable both registries and assert the package
+came from the prefix it installed, or it passes without reading that prefix at all. And because CMake registers the
+tests, a guard that stops matching yields an empty selection rather than a failure, so the CI job runs `ctest` with
+`--no-tests=error`.
+
 ## Configurations The Test Suite Cannot See
 
 - In the default host-test configuration, no test compiles an `EIGEN_NO_DEBUG` code path: `test/main.h` undefines

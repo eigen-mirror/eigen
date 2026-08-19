@@ -754,6 +754,10 @@ if (EIGEN_BUILD_TESTING)
     add_subdirectory(failtest EXCLUDE_FROM_ALL)
   endif()
 
+  # Build-system integration tests. These build nothing in this project, so
+  # they need no place in either target above.
+  add_subdirectory(test/buildsystem)
+
   ei_testing_print_summary()
 
   if (EIGEN_SPLIT_TESTSUITE)
