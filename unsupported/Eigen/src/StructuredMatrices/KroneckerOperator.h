@@ -458,8 +458,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index m1 = m_A.rows(), m2 = m_B.rows();
     eigen_assert(b.rows() == m1 * m2 && "right-hand side has the wrong number of rows");
-    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU | ComputeThinV),
-        svdB(RhsOps::denseFactor(m_B), ComputeThinU | ComputeThinV);
+    BDCSVD<DenseMatrix, ComputeThinU | ComputeThinV> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
     const RealScalar tol = relativeRankThreshold();
     const Index kA = sa.size(), kB = sb.size();
@@ -607,7 +606,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
   KroneckerOperator<DenseMatrix, DenseMatrix> matrixU() const {
-    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinU), svdB(RhsOps::denseFactor(m_B), ComputeThinU);
+    BDCSVD<DenseMatrix, ComputeThinU> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     return {svdA.matrixU(), svdB.matrixU()};
   }
 
@@ -615,7 +614,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
   KroneckerOperator<DenseMatrix, DenseMatrix> matrixV() const {
-    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A), ComputeThinV), svdB(RhsOps::denseFactor(m_B), ComputeThinV);
+    BDCSVD<DenseMatrix, ComputeThinV> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     return {svdA.matrixV(), svdB.matrixV()};
   }
 

@@ -457,7 +457,7 @@ void test_kron_rank_ratio_threshold() {
   // dense SVD is a trustworthy reference: the singular-value ratios decay by
   // 1e-15 per mode, below the 8 * eps ~ 1.8e-15 threshold, leaving rank one.
   Mat dense = reference_kron<double>(A, B);
-  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  JacobiSVD<Mat, ComputeThinU | ComputeThinV> svd(dense);
   VERIFY_IS_EQUAL(svd.rank(), 1);
   VERIFY_IS_EQUAL(K.rank(), svd.rank());
 
@@ -495,7 +495,7 @@ void test_kron_rank_min_normal_clamp() {
   B << mn / 2;  // subnormal
   KroneckerOperator<Mat, Mat> K(A, B);
   Mat dense = reference_kron<double>(A, B);
-  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  JacobiSVD<Mat, ComputeThinU | ComputeThinV> svd(dense);
   VERIFY_IS_EQUAL(svd.rank(), 0);
   VERIFY_IS_EQUAL(K.rank(), svd.rank());
   Vec b(1);

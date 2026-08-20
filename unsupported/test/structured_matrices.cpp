@@ -1145,7 +1145,7 @@ void test_circulant_minnorm_solve(Index n) {
   Circulant<Scalar> C(c);
   VERIFY_IS_EQUAL(C.rank(), 1);
   Mat dense = reference_circulant<Scalar>(c);
-  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  JacobiSVD<Mat, ComputeThinU | ComputeThinV> svd(dense);
 
   Vec b = dense * Vec::Random(n);  // consistent right-hand side
   VERIFY_IS_APPROX(C.solve(b), svd.solve(b).eval());
@@ -1176,7 +1176,7 @@ void test_circulant_rank_deficient(Index n, Index defect) {
   VERIFY_IS_EQUAL(C.rank(), n - defect);
 
   Mat dense = reference_circulant<Scalar>(c);
-  JacobiSVD<Mat> svd(dense, ComputeThinU | ComputeThinV);
+  JacobiSVD<Mat, ComputeThinU | ComputeThinV> svd(dense);
   Vec b = Vec::Random(n);
   VERIFY_IS_APPROX(C.solve(b), svd.solve(b).eval());
 
