@@ -224,11 +224,11 @@ static void BM_FullPipeline_Device(benchmark::State& state) {
 
 // clang-format off
 // Args: {matrix_size, chain_length}
-BENCHMARK(BM_Chain_HostRoundtrip)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime();
-BENCHMARK(BM_Chain_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime();
-BENCHMARK(BM_Chain_DeviceAsync)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime();
-BENCHMARK(BM_Chain_DeviceNoDownload)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_Chain_HostRoundtrip)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_Chain_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_Chain_DeviceAsync)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_Chain_DeviceNoDownload)->ArgsProduct({{64, 256, 1024, 4096}, {1, 2, 4, 8}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 
-BENCHMARK(BM_FullPipeline_Host)->ArgsProduct({{256, 1024, 4096}, {1, 4}})->Unit(benchmark::kMicrosecond)->UseRealTime();
-BENCHMARK(BM_FullPipeline_Device)->ArgsProduct({{256, 1024, 4096}, {1, 4}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_FullPipeline_Host)->ArgsProduct({{256, 1024, 4096}, {1, 4}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_FullPipeline_Device)->ArgsProduct({{256, 1024, 4096}, {1, 4}})->Unit(benchmark::kMicrosecond)->UseRealTime()->MinWarmUpTime(0.5);
 // clang-format on

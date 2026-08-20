@@ -166,7 +166,7 @@ static void BM_CG_DeviceMatrixOps(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * 200);
 }
 
-BENCHMARK(BM_CG_DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime();
+BENCHMARK(BM_CG_DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ==========================================================================
 // Raw cuBLAS device-pointer-mode CG (1 sync/iter) — performance lower bound
@@ -291,4 +291,4 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   cudaStreamDestroy(stream);
 }
 
-BENCHMARK(BM_CG_DevicePointerMode)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime();
+BENCHMARK(BM_CG_DevicePointerMode)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime()->MinWarmUpTime(0.5);

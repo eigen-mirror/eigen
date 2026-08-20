@@ -76,7 +76,7 @@ static void BM_FromHost(benchmark::State& state) {
   }
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
-BENCHMARK(BM_FromHost)->Arg(256)->Arg(1024)->Arg(4096)->UseRealTime();
+BENCHMARK(BM_FromHost)->Arg(256)->Arg(1024)->Arg(4096)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_FromHostRawPointer(benchmark::State& state) {
   const Index n = state.range(0);
@@ -89,7 +89,7 @@ static void BM_FromHostRawPointer(benchmark::State& state) {
   }
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Scalar));
 }
-BENCHMARK(BM_FromHostRawPointer)->Arg(256)->Arg(1024)->Arg(4096)->UseRealTime();
+BENCHMARK(BM_FromHostRawPointer)->Arg(256)->Arg(1024)->Arg(4096)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 2. GEMM destination allocation: assigning into a fresh (or wrong-shaped)
@@ -109,7 +109,7 @@ static void BM_GemmFreshDst(benchmark::State& state) {
     syncStream(ctx.stream());
   }
 }
-BENCHMARK(BM_GemmFreshDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime();
+BENCHMARK(BM_GemmFreshDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_GemmPreallocDst(benchmark::State& state) {
   const Index n = state.range(0);
@@ -122,7 +122,7 @@ static void BM_GemmPreallocDst(benchmark::State& state) {
     syncStream(ctx.stream());
   }
 }
-BENCHMARK(BM_GemmPreallocDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime();
+BENCHMARK(BM_GemmPreallocDst)->Arg(64)->Arg(256)->Arg(1024)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 3. BLAS-1 reduction wrapper: dot() constructs a DeviceScalar initialized to
@@ -143,7 +143,7 @@ static void BM_DotDeviceScalar(benchmark::State& state) {
     syncStream(ctx.stream());
   }
 }
-BENCHMARK(BM_DotDeviceScalar)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime();
+BENCHMARK(BM_DotDeviceScalar)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_DotRawCublas(benchmark::State& state) {
   const Index n = state.range(0);
@@ -161,7 +161,7 @@ static void BM_DotRawCublas(benchmark::State& state) {
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(ctx.cublasHandle(), CUBLAS_POINTER_MODE_HOST));
   EIGEN_CUDA_RUNTIME_CHECK(cudaFree(d_result));
 }
-BENCHMARK(BM_DotRawCublas)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime();
+BENCHMARK(BM_DotRawCublas)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 4. Cholesky solve paths.
@@ -187,7 +187,7 @@ static void BM_OneShotLltExpr(benchmark::State& state) {
     syncStream(ctx.stream());
   }
 }
-BENCHMARK(BM_OneShotLltExpr)->Arg(256)->Arg(1024)->UseRealTime();
+BENCHMARK(BM_OneShotLltExpr)->Arg(256)->Arg(1024)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_CachedLltSolve(benchmark::State& state) {
   const Index n = state.range(0);
@@ -204,7 +204,7 @@ static void BM_CachedLltSolve(benchmark::State& state) {
     benchmark::DoNotOptimize(d_X.data());
   }
 }
-BENCHMARK(BM_CachedLltSolve)->Arg(256)->Arg(1024)->UseRealTime();
+BENCHMARK(BM_CachedLltSolve)->Arg(256)->Arg(1024)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_RawPotrs(benchmark::State& state) {
   const Index n = state.range(0);
@@ -235,7 +235,7 @@ static void BM_RawPotrs(benchmark::State& state) {
   }
   EIGEN_CUDA_RUNTIME_CHECK(cudaFree(d_info));
 }
-BENCHMARK(BM_RawPotrs)->Arg(256)->Arg(1024)->UseRealTime();
+BENCHMARK(BM_RawPotrs)->Arg(256)->Arg(1024)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 4b. Device-resident SpMV in a loop (the CG hot path): measures per-call
@@ -265,7 +265,7 @@ static void BM_DeviceSpMV(benchmark::State& state) {
     syncStream(gctx.stream());
   }
 }
-BENCHMARK(BM_DeviceSpMV)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime();
+BENCHMARK(BM_DeviceSpMV)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 5. Allocator microbenchmark: cudaMalloc/cudaFree (what DeviceMatrix uses
@@ -281,7 +281,7 @@ static void BM_CudaMallocFree(benchmark::State& state) {
     EIGEN_CUDA_RUNTIME_CHECK(cudaFree(p));
   }
 }
-BENCHMARK(BM_CudaMallocFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime();
+BENCHMARK(BM_CudaMallocFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime()->MinWarmUpTime(0.5);
 
 static void BM_CudaMallocAsyncFree(benchmark::State& state) {
   const size_t bytes = static_cast<size_t>(state.range(0));
@@ -301,4 +301,4 @@ static void BM_CudaMallocAsyncFree(benchmark::State& state) {
   }
   syncStream(ctx.stream());
 }
-BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime();
+BENCHMARK(BM_CudaMallocAsyncFree)->Arg(1 << 10)->Arg(1 << 20)->Arg(1 << 26)->UseRealTime()->MinWarmUpTime(0.5);

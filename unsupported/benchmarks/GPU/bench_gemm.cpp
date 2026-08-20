@@ -163,14 +163,17 @@ static void BM_DeviceMatrix_Gemm_TransA(benchmark::State& state) {
 BENCHMARK(BM_DeviceMatrix_Gemm)
     ->ArgsProduct({{16, 32, 64, 128, 256, 512, 1024, 2048, 4096}})
     ->Unit(benchmark::kMicrosecond)
-    ->UseRealTime();
+    ->UseRealTime()
+    ->MinWarmUpTime(0.5);
 
 BENCHMARK(BM_Raw_CublasGemmEx)
     ->ArgsProduct({{16, 32, 64, 128, 256, 512, 1024, 2048, 4096}})
     ->Unit(benchmark::kMicrosecond)
-    ->UseRealTime();
+    ->UseRealTime()
+    ->MinWarmUpTime(0.5);
 
 BENCHMARK(BM_DeviceMatrix_Gemm_TransA)
     ->ArgsProduct({{16, 32, 64, 128, 256, 512, 1024, 2048, 4096}})
     ->Unit(benchmark::kMicrosecond)
-    ->UseRealTime();
+    ->UseRealTime()
+    ->MinWarmUpTime(0.5);

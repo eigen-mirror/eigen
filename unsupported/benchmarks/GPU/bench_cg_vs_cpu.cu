@@ -190,29 +190,29 @@ void run_gpu_cg(benchmark::State& state, MatGen make_matrix) {
 static void BM_CG_CPU_2D_double(benchmark::State& state) { run_cpu_cg<double>(state, make_laplacian_2d<double>); }
 static void BM_CG_GPU_2D_double(benchmark::State& state) { run_gpu_cg<double>(state, make_laplacian_2d<double>); }
 
-BENCHMARK(BM_CG_CPU_2D_double)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime();
-BENCHMARK(BM_CG_GPU_2D_double)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime();
+BENCHMARK(BM_CG_CPU_2D_double)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_CG_GPU_2D_double)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---- 2D Laplacian, float ----------------------------------------------------
 
 static void BM_CG_CPU_2D_float(benchmark::State& state) { run_cpu_cg<float>(state, make_laplacian_2d<float>); }
 static void BM_CG_GPU_2D_float(benchmark::State& state) { run_gpu_cg<float>(state, make_laplacian_2d<float>); }
 
-BENCHMARK(BM_CG_CPU_2D_float)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime();
-BENCHMARK(BM_CG_GPU_2D_float)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime();
+BENCHMARK(BM_CG_CPU_2D_float)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_CG_GPU_2D_float)->ArgsProduct({{32, 64, 128, 256, 512}})->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---- 3D Laplacian, double ---------------------------------------------------
 
 static void BM_CG_CPU_3D_double(benchmark::State& state) { run_cpu_cg<double>(state, make_laplacian_3d<double>); }
 static void BM_CG_GPU_3D_double(benchmark::State& state) { run_gpu_cg<double>(state, make_laplacian_3d<double>); }
 
-BENCHMARK(BM_CG_CPU_3D_double)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime();
-BENCHMARK(BM_CG_GPU_3D_double)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime();
+BENCHMARK(BM_CG_CPU_3D_double)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_CG_GPU_3D_double)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---- 3D Laplacian, float ----------------------------------------------------
 
 static void BM_CG_CPU_3D_float(benchmark::State& state) { run_cpu_cg<float>(state, make_laplacian_3d<float>); }
 static void BM_CG_GPU_3D_float(benchmark::State& state) { run_gpu_cg<float>(state, make_laplacian_3d<float>); }
 
-BENCHMARK(BM_CG_CPU_3D_float)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime();
-BENCHMARK(BM_CG_GPU_3D_float)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime();
+BENCHMARK(BM_CG_CPU_3D_float)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_CG_GPU_3D_float)->ArgsProduct({{16, 32, 48, 64}})->UseRealTime()->MinWarmUpTime(0.5);

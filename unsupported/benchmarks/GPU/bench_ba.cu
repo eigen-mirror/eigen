@@ -498,9 +498,9 @@ static void BM_BA_CPU_CG_Jacobi(benchmark::State& state) {
 // Register benchmarks
 // ============================================================================
 
-BENCHMARK(BM_BA_CPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime();
-BENCHMARK(BM_BA_CPU_CG_Jacobi)->Unit(benchmark::kMillisecond)->UseRealTime();
-BENCHMARK(BM_BA_GPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime();
+BENCHMARK(BM_BA_CPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_BA_CPU_CG_Jacobi)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
+BENCHMARK(BM_BA_GPU_CG)->Unit(benchmark::kMillisecond)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ============================================================================
 // Custom main: print summary after benchmarks
