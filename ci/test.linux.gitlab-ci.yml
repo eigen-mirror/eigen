@@ -790,3 +790,63 @@ test:linux:buildsystem:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+##### MR Affected Tests ########################################################
+# Paired with the affected build jobs.  No CTest label is set: the regex from
+# select:tests is the only filter, so a selection spanning Official and
+# Unsupported tests runs in one job.
+#
+# Each job shares its trigger rule with the build job it needs; see
+# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.
+
+.affected:test:
+  variables:
+    EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
+
+##### Always, under the label ##################################################
+
+test:linux:x86-64:gcc-10:avx2:affected:
+  extends: [ .test:linux:x86-64:gcc-10:avx2, .affected:test ]
+  needs: [ build:linux:cross:x86-64:gcc-10:avx2:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+test:linux:aarch64:gcc-10:default:affected:
+  extends: [ .test:linux:aarch64:gcc-10:default, .affected:test ]
+  needs: [ build:linux:cross:aarch64:gcc-10:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+##### Backend-triggered ########################################################
+
+test:linux:x86-64:gcc-10:default:affected:
+  extends: [ .test:linux:x86-64:gcc-10:default, .affected:test ]
+  needs: [ build:linux:cross:x86-64:gcc-10:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:sse, rules]
+
+test:linux:x86-64:gcc-10:avx:affected:
+  extends: [ .test:linux:x86-64:gcc-10:avx, .affected:test ]
+  needs: [ build:linux:cross:x86-64:gcc-10:avx:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:avx, rules]
+
+test:linux:x86-64:gcc-10:avx512dq:affected:
+  extends: [ .test:linux:x86-64:gcc-10:avx512dq, .affected:test ]
+  needs: [ build:linux:cross:x86-64:gcc-10:avx512dq:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:avx512, rules]
+
+test:linux:arm:gcc-10:default:affected:
+  extends: [ .test:linux:arm:gcc-10:default, .affected:test ]
+  needs: [ build:linux:cross:arm:gcc-10:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:neon, rules]
+
+test:linux:ppc64le:gcc-14:default:affected:
+  extends: [ .test:linux:ppc64le:gcc-14:default, .affected:test ]
+  needs: [ build:linux:cross:ppc64le:gcc-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:altivec, rules]
+
+test:linux:loongarch64:gcc-14:default:affected:
+  extends: [ .test:linux:loongarch64:gcc-14:default, .affected:test ]
+  needs: [ build:linux:cross:loongarch64:gcc-14:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:lsx, rules]
+
+test:linux:riscv64:gcc-15:default:affected:
+  extends: [ .test:linux:riscv64:gcc-15:default, .affected:test ]
+  needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]

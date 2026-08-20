@@ -277,6 +277,15 @@ macro(ei_add_failtest testname)
 
   # Expect the second test to fail
   set_tests_properties(${test_target_ko} PROPERTIES WILL_FAIL TRUE)
+
+  # The test action is a build in the shared binary directory, so two failtests
+  # running at once drive two concurrent builds over one build system.  A lock
+  # shared by the whole suite serializes those while leaving the ordinary tests
+  # free to run in parallel.  It matters most for ${test_target_ko}: WILL_FAIL
+  # cannot tell the compile error it asserts from a build system that failed for
+  # an unrelated reason, so a race there passes vacuously.
+  set_tests_properties(${test_target_ok} ${test_target_ko} PROPERTIES
+                       RESOURCE_LOCK eigen_failtest_build)
 endmacro()
 
 # print a summary of the different options

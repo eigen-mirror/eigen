@@ -26,6 +26,7 @@ workflow:
 
 stages:
   - checkformat
+  - select
   - build
   - test
   - benchmark
@@ -53,11 +54,16 @@ variables:
   # Valid CTest labels: Official, Unsupported, gpu, smoketest.
   EIGEN_CI_CTEST_LABEL: ""
   EIGEN_CI_CTEST_ARGS: ""
+  # Affected-test tier: paths to the selection written by the select:tests job.
+  # Unset for every other job, which keeps their existing behaviour.
+  EIGEN_CI_BUILD_TARGET_FILE: ""
+  EIGEN_CI_CTEST_REGEX_FILE: ""
 
 include:
   - "/ci/checkformat.gitlab-ci.yml"
   - "/ci/common.gitlab-ci.yml"
   - "/ci/images.gitlab-ci.yml"
+  - "/ci/select.gitlab-ci.yml"
   - "/ci/build.linux.gitlab-ci.yml"
   - "/ci/build.windows.gitlab-ci.yml"
   - "/ci/test.linux.gitlab-ci.yml"

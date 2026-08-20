@@ -19,6 +19,91 @@
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/gpu-tests/"
+    # No affected-tier configuration enables CUDA, HIP or SYCL, so the GPU test
+    # targets exist in none of them: a diff confined to these paths selects
+    # targets every affected build reports as unconfigured and a -R regex that
+    # matches nothing, and the tier goes green having compiled and run nothing.
+    # These jobs close that gap the way ppc64le closes it for AltiVec.  They
+    # ignore the selection and build buildtests_gpu, which covers every GPU
+    # test rather than the affected subset.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/GPU/**/*
+        - test/*.cu
+        - test/gpu_common.h
+        - unsupported/test/*.cu
+        - unsupported/test/GPU/**/*
+
+.rules:libeigen:affected-tests:
+  # Opt-in middle tier between the fixed smoke list and the full `all-tests`
+  # matrix: every test the diff can reach, on a small set of platforms.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+
+# The rest of the affected tier is gated on the backend a job compiles as well
+# as on the label.  A build job and its paired test job share one rule set: a
+# test job whose build did not run has nothing to execute.  A wider x86
+# configuration compiles the narrower backends' headers, so an SSE change
+# triggers the AVX and AVX-512 rules too.
+.rules:libeigen:affected-tests:sse:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+
+.rules:libeigen:affected-tests:avx:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+        - Eigen/src/Core/arch/AVX/**/*
+
+.rules:libeigen:affected-tests:avx512:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SSE/**/*
+        - Eigen/src/Core/arch/AVX/**/*
+        - Eigen/src/Core/arch/AVX512/**/*
+
+# The AVX512-FP16 headers are excluded unless -mavx512fp16 is active, so the
+# AVX512DQ build does not parse them.
+.rules:libeigen:affected-tests:avx512fp16:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/AVX512/*FP16*
+
+.rules:libeigen:affected-tests:neon:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/NEON/**/*
+
+.rules:libeigen:affected-tests:altivec:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/AltiVec/**/*
+
+.rules:libeigen:affected-tests:lsx:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/LSX/**/*
+
+.rules:libeigen:affected-tests:rvv10:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/RVV10/**/*
+
+.rules:libeigen:affected-tests:sve-sme:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SVE/**/*
+        - Eigen/src/Core/arch/SME/**/*
 
 .rules:libeigen:scheduled-or-web:
   rules:

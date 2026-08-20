@@ -72,7 +72,9 @@ Keep `test/main.h` limited to framework configuration, registration, shared-help
 Put reusable utilities in a narrowly named helper header; include it from `main.h` only when most tests need it.
 
 For compile-failure coverage, use the established `failtest/` pattern. Its `_ok` target must compile and its `_ko`
-target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined.
+target must fail with `EIGEN_SHOULD_FAIL_TO_BUILD` defined. `_ko` is a `WILL_FAIL` test whose action is a build, so it
+cannot tell the intended compile error from any other build failure: keep the construct narrow, and leave the
+`RESOURCE_LOCK` that `ei_add_failtest` uses to serialize the suite in place.
 
 ## Split Tests
 

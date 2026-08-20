@@ -5,6 +5,37 @@
 set -x
 
 rootdir=`pwd`
+
+# The affected-tests tier (see scripts/affected_tests.py) passes its CTest
+# filter as a file rather than a variable so the regex is not bounded by CI
+# variable limits.  "ALL" means run everything the paired build produced,
+# "NONE" means the merge request affects no test at all.
+if [[ -n "${EIGEN_CI_CTEST_REGEX_FILE}" ]]; then
+  regex_file="${EIGEN_CI_CTEST_REGEX_FILE}"
+  [[ "${regex_file}" = /* ]] || regex_file="${rootdir}/${regex_file}"
+  # Fail loudly rather than falling through: a missing selection would
+  # otherwise silently run the whole suite against a partial build.
+  if [[ ! -f "${regex_file}" ]]; then
+    echo "EIGEN_CI_CTEST_REGEX_FILE=${EIGEN_CI_CTEST_REGEX_FILE} does not exist." >&2
+    echo "The select:tests artifact is missing; refusing to guess a test filter." >&2
+    exit 1
+  fi
+  selection=$(cat "${regex_file}")
+  case "${selection}" in
+    NONE)
+      echo "No tests are affected by this merge request; nothing to run."
+      set +x
+      return 0 2>/dev/null || exit 0
+      ;;
+    ALL)
+      EIGEN_CI_CTEST_REGEX=""
+      ;;
+    *)
+      EIGEN_CI_CTEST_REGEX="${selection}"
+      ;;
+  esac
+fi
+
 cd ${EIGEN_CI_BUILDDIR}
 
 target=""
