@@ -260,7 +260,11 @@ static void test_reverse_write_blocks() {
   // writeBlock. Sweep all 8 reverse-flag combinations; sizes have
   // partial-packet tails.
   Tensor<T, 3, DataLayout> src(17, 5, 7);
-  src.setRandom();
+  EIGEN_IF_CONSTEXPR (NumTraits<T>::IsInteger) {
+    setRandomDataInRange(src, T(-1000), T(1000));
+  } else {
+    src.setRandom();
+  }
 
   array<ptrdiff_t, 3> shuffle{{2, 0, 1}};
   const Tensor<T, 3, DataLayout> shuffled = src.shuffle(shuffle);
