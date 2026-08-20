@@ -8,6 +8,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Enables the runtime malloc tracking that trsolve_no_malloc() needs. Allocation stays allowed
+// by default; only the explicit set_is_malloc_allowed(false) windows below check it.
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include "main.h"
 
 #define VERIFY_TRSM(TRI, XB)                             \
@@ -253,6 +257,76 @@ void trsolve_indexed_view() {
   VERIFY_IS_APPROX(inplace, inplace_ref);
 }
 
+#define VERIFY_TRSM_NO_MALLOC(TRI, XB, REF)                \
+  {                                                        \
+    (XB) = (REF);                                          \
+    internal::set_is_malloc_allowed(false);                \
+    (TRI).solveInPlace(XB);                                \
+    internal::set_is_malloc_allowed(true);                 \
+    VERIFY_IS_APPROX((TRI).toDenseMatrix() * (XB), (REF)); \
+  }
+
+#define VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(TRI, XB, REF)     \
+  {                                                        \
+    (XB) = (REF);                                          \
+    internal::set_is_malloc_allowed(false);                \
+    (TRI).template solveInPlace<OnTheRight>(XB);           \
+    internal::set_is_malloc_allowed(true);                 \
+    VERIFY_IS_APPROX((XB) * (TRI).toDenseMatrix(), (REF)); \
+  }
+
+// Regression test for issue #3115: while malloc is disallowed, the AVX-512 trsm kernels delegate
+// to the unspecialized kernel, which takes an upper-triangular panel by the opposite corner. The
+// delegation used to keep the AVX-512 origin and solve outside the panel, reading and writing
+// past the ends of both operands.
+template <typename Scalar, int TriOptions>
+void trsolve_no_malloc(int size, int cols) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, TriOptions> TriMatrix;
+  typedef Matrix<Scalar, Dynamic, Dynamic> RhsMatrix;
+
+  TriMatrix lhs = TriMatrix::Random(size, size) * RealScalar(0.1);
+  lhs.diagonal().array() += RealScalar(1);
+
+  RhsMatrix ref = RhsMatrix::Random(size, cols);
+  RhsMatrix x(size, cols);
+
+  VERIFY_TRSM_NO_MALLOC(lhs.template triangularView<Upper>(), x, ref);
+  VERIFY_TRSM_NO_MALLOC(lhs.template triangularView<Lower>(), x, ref);
+  VERIFY_TRSM_NO_MALLOC(lhs.template triangularView<UnitUpper>(), x, ref);
+  VERIFY_TRSM_NO_MALLOC(lhs.template triangularView<UnitLower>(), x, ref);
+  // The adjoint swaps the triangular operand's storage order.
+  VERIFY_TRSM_NO_MALLOC(lhs.adjoint().template triangularView<Upper>(), x, ref);
+  VERIFY_TRSM_NO_MALLOC(lhs.adjoint().template triangularView<Lower>(), x, ref);
+
+  RhsMatrix refRight = RhsMatrix::Random(cols, size);
+  RhsMatrix xRight(cols, size);
+
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(lhs.template triangularView<Upper>(), xRight, refRight);
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(lhs.template triangularView<Lower>(), xRight, refRight);
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(lhs.adjoint().template triangularView<Upper>(), xRight, refRight);
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(lhs.adjoint().template triangularView<Lower>(), xRight, refRight);
+}
+
+template <int>
+void trsolve_no_malloc_all() {
+  // The packed solver walks the triangular matrix in panels of max(mr, nr) columns; these sizes
+  // straddle that width for both float and double. They also stay small enough that the solver's
+  // blocking buffers come off the stack, since a heap allocation inside the windows below would
+  // trip the guard for an unrelated reason.
+  const int sizes[] = {1, 4, 17, 20, 24, 25, 40, 64};
+  const int colCounts[] = {1, 5, 20};
+  for (int size : sizes) {
+    for (int cols : colCounts) {
+      trsolve_no_malloc<float, ColMajor>(size, cols);
+      trsolve_no_malloc<float, RowMajor>(size, cols);
+      trsolve_no_malloc<double, ColMajor>(size, cols);
+      trsolve_no_malloc<double, RowMajor>(size, cols);
+      trsolve_no_malloc<std::complex<double>, ColMajor>(size, cols);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(product_trsolve) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
@@ -283,4 +357,5 @@ EIGEN_DECLARE_TEST(product_trsolve) {
   // Strided solve at blocking boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_15(trsolve_strided_boundary<0>());
   CALL_SUBTEST_16(trsolve_indexed_view());
+  CALL_SUBTEST_17(trsolve_no_malloc_all<0>());
 }

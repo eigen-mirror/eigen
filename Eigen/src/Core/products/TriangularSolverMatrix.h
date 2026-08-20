@@ -24,6 +24,12 @@ template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStor
 struct trsmKernelL {
   // Generic Implementation of triangular solve for triangular matrix on left and multiple rhs.
   // Handles non-packed matrices.
+  //
+  // A lower-triangular panel is addressed from its top-left element with indices in [0, size);
+  // an upper-triangular one is addressed from its bottom-right element with indices in
+  // (-size, 0]. Both origins are elements of the panel, so callers never form a pointer outside
+  // the matrix they solve in. The AVX-512 specializations take both by the top-left element and
+  // convert when they delegate here.
   static void kernel(Index size, Index otherSize, const Scalar* _tri, Index triStride, Scalar* _other, Index otherIncr,
                      Index otherStride);
 };
@@ -54,7 +60,7 @@ EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageO
   // tr solve
   for (Index k = 0; k < size; ++k) {
     // TODO: write a small kernel handling this (can be shared with trsv)
-    Index i = IsLower ? k : -k - 1;
+    Index i = IsLower ? k : -k;
     Index rs = size - k - 1;  // remaining size
     Index s = TriStorageOrder == RowMajor ? (IsLower ? 0 : i + 1) : IsLower ? i + 1 : i - rs;
 
@@ -267,7 +273,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
         Index actualPanelWidth = std::min<Index>(actual_kc - k1, SmallPanelWidth);
         // tr solve
         {
-          Index i = IsLower ? k2 + k1 : k2 - k1;
+          Index i = IsLower ? k2 + k1 : k2 - k1 - 1;
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_L_KERNELS) && EIGEN_USE_AVX512_TRSM_L_KERNELS
           EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 &&
                                (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value))) {
