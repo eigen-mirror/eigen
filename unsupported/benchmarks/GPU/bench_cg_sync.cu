@@ -166,7 +166,7 @@ static void BM_CG_DeviceMatrixOps(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * 200);
 }
 
-BENCHMARK(BM_CG_DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_CG_DeviceMatrixOps)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime();
 
 // ==========================================================================
 // Raw cuBLAS device-pointer-mode CG (1 sync/iter) — performance lower bound
@@ -193,91 +193,92 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   cusparseCreate(&cusparse);
   cusparseSetStream(cusparse, stream);
 
-  internal::DeviceBuffer d_outer((n + 1) * sizeof(int));
-  internal::DeviceBuffer d_inner(A.nonZeros() * sizeof(int));
-  internal::DeviceBuffer d_vals(A.nonZeros() * sizeof(Scalar));
-  cudaMemcpy(d_outer.ptr, A.outerIndexPtr(), (n + 1) * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_inner.ptr, A.innerIndexPtr(), A.nonZeros() * sizeof(int), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_vals.ptr, A.valuePtr(), A.nonZeros() * sizeof(Scalar), cudaMemcpyHostToDevice);
+  gpu::internal::DeviceBuffer d_outer((n + 1) * sizeof(int));
+  gpu::internal::DeviceBuffer d_inner(A.nonZeros() * sizeof(int));
+  gpu::internal::DeviceBuffer d_vals(A.nonZeros() * sizeof(Scalar));
+  cudaMemcpy(d_outer.get(), A.outerIndexPtr(), (n + 1) * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_inner.get(), A.innerIndexPtr(), A.nonZeros() * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_vals.get(), A.valuePtr(), A.nonZeros() * sizeof(Scalar), cudaMemcpyHostToDevice);
 
   cusparseSpMatDescr_t matA;
-  cusparseCreateCsc(&matA, n, n, A.nonZeros(), d_outer.ptr, d_inner.ptr, d_vals.ptr, CUSPARSE_INDEX_32I,
+  cusparseCreateCsc(&matA, n, n, A.nonZeros(), d_outer.get(), d_inner.get(), d_vals.get(), CUSPARSE_INDEX_32I,
                     CUSPARSE_INDEX_32I, CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 
-  internal::DeviceBuffer d_tmp_buf(n * sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_tmp_buf(n * sizeof(Scalar));
   cusparseDnVecDescr_t tmp_x, tmp_y;
-  cusparseCreateDnVec(&tmp_x, n, d_tmp_buf.ptr, CUDA_R_64F);
-  cusparseCreateDnVec(&tmp_y, n, d_tmp_buf.ptr, CUDA_R_64F);
+  cusparseCreateDnVec(&tmp_x, n, d_tmp_buf.get(), CUDA_R_64F);
+  cusparseCreateDnVec(&tmp_y, n, d_tmp_buf.get(), CUDA_R_64F);
   Scalar spmv_alpha = 1.0, spmv_beta = 0.0;
   size_t ws_size = 0;
   cusparseSpMV_bufferSize(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &spmv_alpha, matA, tmp_x, &spmv_beta, tmp_y,
                           CUDA_R_64F, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size);
-  internal::DeviceBuffer d_workspace(ws_size);
+  gpu::internal::DeviceBuffer d_workspace(ws_size);
   cusparseDestroyDnVec(tmp_x);
   cusparseDestroyDnVec(tmp_y);
 
-  internal::DeviceBuffer d_x(n * sizeof(Scalar)), d_r(n * sizeof(Scalar));
-  internal::DeviceBuffer d_p(n * sizeof(Scalar)), d_tmp(n * sizeof(Scalar));
-  internal::DeviceBuffer d_b(n * sizeof(Scalar));
-  internal::DeviceBuffer d_absNew(sizeof(Scalar)), d_absOld(sizeof(Scalar));
-  internal::DeviceBuffer d_pdot(sizeof(Scalar)), d_alpha(sizeof(Scalar));
-  internal::DeviceBuffer d_neg_alpha(sizeof(Scalar)), d_beta(sizeof(Scalar));
-  internal::DeviceBuffer d_rnorm(sizeof(RealScalar));
+  gpu::internal::DeviceBuffer d_x(n * sizeof(Scalar)), d_r(n * sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_p(n * sizeof(Scalar)), d_tmp(n * sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_b(n * sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_absNew(sizeof(Scalar)), d_absOld(sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_pdot(sizeof(Scalar)), d_alpha(sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_neg_alpha(sizeof(Scalar)), d_beta(sizeof(Scalar));
+  gpu::internal::DeviceBuffer d_rnorm(sizeof(RealScalar));
 
-  cudaMemcpy(d_b.ptr, b.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_b.get(), b.data(), n * sizeof(Scalar), cudaMemcpyHostToDevice);
 
   auto spmv = [&](Scalar* x_ptr, Scalar* y_ptr) {
     cusparseDnVecDescr_t vx, vy;
     cusparseCreateDnVec(&vx, n, x_ptr, CUDA_R_64F);
     cusparseCreateDnVec(&vy, n, y_ptr, CUDA_R_64F);
     cusparseSpMV(cusparse, CUSPARSE_OPERATION_NON_TRANSPOSE, &spmv_alpha, matA, vx, &spmv_beta, vy, CUDA_R_64F,
-                 CUSPARSE_SPMV_ALG_DEFAULT, d_workspace.ptr);
+                 CUSPARSE_SPMV_ALG_DEFAULT, d_workspace.get());
     cusparseDestroyDnVec(vx);
     cusparseDestroyDnVec(vy);
   };
 
   for (auto _ : state) {
-    cudaMemsetAsync(static_cast<Scalar*>(d_x.ptr), 0, n * sizeof(Scalar), stream);
-    cudaMemcpyAsync(d_r.ptr, d_b.ptr, n * sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
-    cudaMemcpyAsync(d_p.ptr, d_b.ptr, n * sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
+    cudaMemsetAsync(static_cast<Scalar*>(d_x.get()), 0, n * sizeof(Scalar), stream);
+    cudaMemcpyAsync(d_r.get(), d_b.get(), n * sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(d_p.get(), d_b.get(), n * sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
 
     cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_DEVICE);
-    cublasDdot(cublas, n, static_cast<Scalar*>(d_r.ptr), 1, static_cast<Scalar*>(d_p.ptr), 1,
-               static_cast<Scalar*>(d_absNew.ptr));
+    cublasDdot(cublas, n, static_cast<Scalar*>(d_r.get()), 1, static_cast<Scalar*>(d_p.get()), 1,
+               static_cast<Scalar*>(d_absNew.get()));
 
     for (int i = 0; i < maxIters; ++i) {
-      spmv(static_cast<Scalar*>(d_p.ptr), static_cast<Scalar*>(d_tmp.ptr));
+      spmv(static_cast<Scalar*>(d_p.get()), static_cast<Scalar*>(d_tmp.get()));
 
-      cublasDdot(cublas, n, static_cast<Scalar*>(d_p.ptr), 1, static_cast<Scalar*>(d_tmp.ptr), 1,
-                 static_cast<Scalar*>(d_pdot.ptr));
+      cublasDdot(cublas, n, static_cast<Scalar*>(d_p.get()), 1, static_cast<Scalar*>(d_tmp.get()), 1,
+                 static_cast<Scalar*>(d_pdot.get()));
 
-      scalar_div_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_absNew.ptr), static_cast<Scalar*>(d_pdot.ptr),
-                                             static_cast<Scalar*>(d_alpha.ptr));
-      scalar_neg_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_alpha.ptr), static_cast<Scalar*>(d_neg_alpha.ptr));
+      scalar_div_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_absNew.get()), static_cast<Scalar*>(d_pdot.get()),
+                                             static_cast<Scalar*>(d_alpha.get()));
+      scalar_neg_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_alpha.get()),
+                                             static_cast<Scalar*>(d_neg_alpha.get()));
 
-      cublasDaxpy(cublas, n, static_cast<Scalar*>(d_alpha.ptr), static_cast<Scalar*>(d_p.ptr), 1,
-                  static_cast<Scalar*>(d_x.ptr), 1);
-      cublasDaxpy(cublas, n, static_cast<Scalar*>(d_neg_alpha.ptr), static_cast<Scalar*>(d_tmp.ptr), 1,
-                  static_cast<Scalar*>(d_r.ptr), 1);
+      cublasDaxpy(cublas, n, static_cast<Scalar*>(d_alpha.get()), static_cast<Scalar*>(d_p.get()), 1,
+                  static_cast<Scalar*>(d_x.get()), 1);
+      cublasDaxpy(cublas, n, static_cast<Scalar*>(d_neg_alpha.get()), static_cast<Scalar*>(d_tmp.get()), 1,
+                  static_cast<Scalar*>(d_r.get()), 1);
 
-      cublasDnrm2(cublas, n, static_cast<Scalar*>(d_r.ptr), 1, static_cast<RealScalar*>(d_rnorm.ptr));
+      cublasDnrm2(cublas, n, static_cast<Scalar*>(d_r.get()), 1, static_cast<RealScalar*>(d_rnorm.get()));
 
       RealScalar rnorm;
-      cudaMemcpyAsync(&rnorm, d_rnorm.ptr, sizeof(RealScalar), cudaMemcpyDeviceToHost, stream);
+      cudaMemcpyAsync(&rnorm, d_rnorm.get(), sizeof(RealScalar), cudaMemcpyDeviceToHost, stream);
       cudaStreamSynchronize(stream);
       if (rnorm * rnorm < 1e-20) break;
 
-      cudaMemcpyAsync(d_absOld.ptr, d_absNew.ptr, sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
-      cublasDdot(cublas, n, static_cast<Scalar*>(d_r.ptr), 1, static_cast<Scalar*>(d_r.ptr), 1,
-                 static_cast<Scalar*>(d_absNew.ptr));
+      cudaMemcpyAsync(d_absOld.get(), d_absNew.get(), sizeof(Scalar), cudaMemcpyDeviceToDevice, stream);
+      cublasDdot(cublas, n, static_cast<Scalar*>(d_r.get()), 1, static_cast<Scalar*>(d_r.get()), 1,
+                 static_cast<Scalar*>(d_absNew.get()));
 
-      scalar_div_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_absNew.ptr), static_cast<Scalar*>(d_absOld.ptr),
-                                             static_cast<Scalar*>(d_beta.ptr));
+      scalar_div_kernel<<<1, 1, 0, stream>>>(static_cast<Scalar*>(d_absNew.get()), static_cast<Scalar*>(d_absOld.get()),
+                                             static_cast<Scalar*>(d_beta.get()));
 
-      cublasDscal(cublas, n, static_cast<Scalar*>(d_beta.ptr), static_cast<Scalar*>(d_p.ptr), 1);
+      cublasDscal(cublas, n, static_cast<Scalar*>(d_beta.get()), static_cast<Scalar*>(d_p.get()), 1);
       cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
       Scalar one = 1.0;
-      cublasDaxpy(cublas, n, &one, static_cast<Scalar*>(d_r.ptr), 1, static_cast<Scalar*>(d_p.ptr), 1);
+      cublasDaxpy(cublas, n, &one, static_cast<Scalar*>(d_r.get()), 1, static_cast<Scalar*>(d_p.get()), 1);
       cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_DEVICE);
     }
     cudaStreamSynchronize(stream);
@@ -290,4 +291,4 @@ static void BM_CG_DevicePointerMode(benchmark::State& state) {
   cudaStreamDestroy(stream);
 }
 
-BENCHMARK(BM_CG_DevicePointerMode)->RangeMultiplier(4)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_CG_DevicePointerMode)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime();

@@ -281,18 +281,18 @@ static void BM_CpuLU_Compute(benchmark::State& state) {
 // --------------------------------------------------------------------------
 
 // clang-format off
-BENCHMARK(BM_GpuLLT_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLLT_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLLT_Compute_DeviceMove)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLLT_Solve_Host)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLLT_Solve_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLLT_Solve_DeviceOnly)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_GpuLLT_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLLT_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLLT_Compute_DeviceMove)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLLT_Solve_Host)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLLT_Solve_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLLT_Solve_DeviceOnly)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime();
 
-BENCHMARK(BM_GpuLU_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLU_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLU_Solve_Host)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_GpuLU_Solve_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_GpuLU_Compute_Host)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLU_Compute_Device)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLU_Solve_Host)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_GpuLU_Solve_Device)->ArgsProduct({{64, 256, 1024, 4096}, {1, 16}})->Unit(benchmark::kMicrosecond)->UseRealTime();
 
-BENCHMARK(BM_CpuLLT_Compute)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_CpuLU_Compute)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_CpuLLT_Compute)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
+BENCHMARK(BM_CpuLU_Compute)->ArgsProduct({{64, 128, 256, 512, 1024, 2048, 4096}})->Unit(benchmark::kMicrosecond)->UseRealTime();
 // clang-format on

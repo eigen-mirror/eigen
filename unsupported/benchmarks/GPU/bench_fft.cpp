@@ -60,7 +60,7 @@ static void BM_GpuFFT_1D_C2C_Fwd(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Complex) * 2);  // read + write
 }
 
-BENCHMARK(BM_GpuFFT_1D_C2C_Fwd)->RangeMultiplier(4)->Range(1 << 10, 1 << 22);
+BENCHMARK(BM_GpuFFT_1D_C2C_Fwd)->RangeMultiplier(4)->Range(1 << 10, 1 << 22)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 1D C2C Inverse
@@ -80,7 +80,7 @@ static void BM_GpuFFT_1D_C2C_Inv(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Complex) * 2);
 }
 
-BENCHMARK(BM_GpuFFT_1D_C2C_Inv)->RangeMultiplier(4)->Range(1 << 10, 1 << 22);
+BENCHMARK(BM_GpuFFT_1D_C2C_Inv)->RangeMultiplier(4)->Range(1 << 10, 1 << 22)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 1D R2C Forward
@@ -102,7 +102,7 @@ static void BM_GpuFFT_1D_R2C_Fwd(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * (n * sizeof(Scalar) + (n / 2 + 1) * sizeof(Complex)));
 }
 
-BENCHMARK(BM_GpuFFT_1D_R2C_Fwd)->RangeMultiplier(4)->Range(1 << 10, 1 << 22);
+BENCHMARK(BM_GpuFFT_1D_R2C_Fwd)->RangeMultiplier(4)->Range(1 << 10, 1 << 22)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 1D C2R Inverse
@@ -122,7 +122,7 @@ static void BM_GpuFFT_1D_C2R_Inv(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * ((n / 2 + 1) * sizeof(Complex) + n * sizeof(Scalar)));
 }
 
-BENCHMARK(BM_GpuFFT_1D_C2R_Inv)->RangeMultiplier(4)->Range(1 << 10, 1 << 22);
+BENCHMARK(BM_GpuFFT_1D_C2R_Inv)->RangeMultiplier(4)->Range(1 << 10, 1 << 22)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 2D C2C Forward
@@ -144,7 +144,7 @@ static void BM_GpuFFT_2D_C2C_Fwd(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Complex) * 2);
 }
 
-BENCHMARK(BM_GpuFFT_2D_C2C_Fwd)->RangeMultiplier(2)->Range(64, 4096);
+BENCHMARK(BM_GpuFFT_2D_C2C_Fwd)->RangeMultiplier(2)->Range(64, 4096)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 2D C2C Roundtrip (fwd + inv)
@@ -167,7 +167,7 @@ static void BM_GpuFFT_2D_C2C_Roundtrip(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * n * sizeof(Complex) * 4);
 }
 
-BENCHMARK(BM_GpuFFT_2D_C2C_Roundtrip)->RangeMultiplier(2)->Range(64, 4096);
+BENCHMARK(BM_GpuFFT_2D_C2C_Roundtrip)->RangeMultiplier(2)->Range(64, 4096)->UseRealTime();
 
 // --------------------------------------------------------------------------
 // 1D Cold start (includes plan creation)
@@ -185,4 +185,4 @@ static void BM_GpuFFT_1D_ColdStart(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * n);
 }
 
-BENCHMARK(BM_GpuFFT_1D_ColdStart)->RangeMultiplier(4)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_GpuFFT_1D_ColdStart)->RangeMultiplier(4)->Range(1 << 10, 1 << 20)->UseRealTime();
