@@ -45,7 +45,7 @@ EIGEN_LAPACK_FUNC(gesdd)
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GESDD ", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "GESDD ", &e, kBlasNameLength);
   }
 
   if (query_size) {
@@ -115,7 +115,7 @@ EIGEN_LAPACK_FUNC(gesvd)
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GESVD ", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "GESVD ", &e, kBlasNameLength);
   }
 
   if (query_size) {

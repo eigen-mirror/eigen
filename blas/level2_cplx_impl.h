@@ -48,7 +48,7 @@ EIGEN_BLAS_FUNC(hemv)
     info = 7;
   else if (*incy == 0)
     info = 10;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HEMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HEMV ", &info, kBlasNameLength);
 
   if (*n == 0) return;
 
@@ -103,7 +103,7 @@ EIGEN_BLAS_FUNC(hbmv)
     info = 8;
   else if (*incy == 0)
     info = 11;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HBMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HBMV ", &info, kBlasNameLength);
 
   if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
@@ -208,7 +208,7 @@ EIGEN_BLAS_FUNC(hpmv)
     info = 6;
   else if (*incy == 0)
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPMV ", &info, kBlasNameLength);
 
   if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
@@ -288,7 +288,7 @@ EIGEN_BLAS_FUNC(hpr)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int
     info = 2;
   else if (*incx == 0)
     info = 5;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPR  ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPR  ", &info, kBlasNameLength);
 
   if (alpha == Scalar(0)) return;
 
@@ -333,7 +333,7 @@ EIGEN_BLAS_FUNC(hpr2)
     info = 5;
   else if (*incy == 0)
     info = 7;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPR2 ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HPR2 ", &info, kBlasNameLength);
 
   if (alpha == Scalar(0)) return;
 
@@ -378,7 +378,7 @@ EIGEN_BLAS_FUNC(her)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int
     info = 5;
   else if (*lda < std::max(1, *n))
     info = 7;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER  ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER  ", &info, kBlasNameLength);
 
   if (alpha == RealScalar(0)) return;
 
@@ -428,7 +428,7 @@ EIGEN_BLAS_FUNC(her2)
     info = 7;
   else if (*lda < std::max(1, *n))
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2 ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2 ", &info, kBlasNameLength);
 
   if (alpha == Scalar(0)) return;
 
@@ -471,7 +471,7 @@ EIGEN_BLAS_FUNC(geru)
     info = 7;
   else if (*lda < std::max(1, *m))
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GERU ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GERU ", &info, kBlasNameLength);
 
   if (alpha == Scalar(0)) return;
 
@@ -510,7 +510,7 @@ EIGEN_BLAS_FUNC(gerc)
     info = 7;
   else if (*lda < std::max(1, *m))
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GERC ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GERC ", &info, kBlasNameLength);
 
   if (alpha == Scalar(0)) return;
 

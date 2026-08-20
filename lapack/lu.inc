@@ -22,7 +22,7 @@ EIGEN_LAPACK_FUNC(getrf)(int *m, int *n, RealScalar *pa, int *lda, int *ipiv, in
     *info = -4;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GETRF", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "GETRF", &e, kBlasNameLength);
   }
 
   if (*m == 0 || *n == 0) return;
@@ -55,7 +55,7 @@ EIGEN_LAPACK_FUNC(getrs)
     *info = -8;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "GETRS", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "GETRS", &e, kBlasNameLength);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);

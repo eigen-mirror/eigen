@@ -15,7 +15,9 @@
 extern "C" {
 #endif
 
-EIGEN_WEAK_LINKING void xerbla_(const char *msg, int *info) { printf("Eigen BLAS ERROR #%i: %s\n", *info, msg); }
+EIGEN_WEAK_LINKING void xerbla_(const char* msg, int* info, size_t len) {
+  printf("Eigen BLAS ERROR #%i: %.*s\n", *info, static_cast<int>(len), msg);
+}
 
 #ifdef __cplusplus
 }

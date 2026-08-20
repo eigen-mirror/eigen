@@ -56,7 +56,7 @@ EIGEN_BLAS_FUNC(gemv)
     info = 8;
   else if (*incc == 0)
     info = 11;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMV ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
@@ -141,7 +141,7 @@ EIGEN_BLAS_FUNC(trsv)
     info = 6;
   else if (*incb == 0)
     info = 8;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSV ", &info, kBlasNameLength);
 
   Scalar *actual_b = get_compact_vector(b, *n, *incb);
 
@@ -213,7 +213,7 @@ EIGEN_BLAS_FUNC(trmv)
     info = 6;
   else if (*incb == 0)
     info = 8;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRMV ", &info, kBlasNameLength);
 
   if (*n == 0) return;
 
@@ -264,7 +264,7 @@ EIGEN_BLAS_FUNC(gbmv)
     info = 10;
   else if (*incy == 0)
     info = 13;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GBMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GBMV ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
@@ -334,7 +334,7 @@ EIGEN_BLAS_FUNC(tbmv)
     info = 7;
   else if (*incx == 0)
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TBMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TBMV ", &info, kBlasNameLength);
 
   if (*n == 0) return;
 
@@ -527,7 +527,7 @@ EIGEN_BLAS_FUNC(tbsv)
     info = 7;
   else if (*incx == 0)
     info = 9;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TBSV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TBSV ", &info, kBlasNameLength);
 
   if (*n == 0 || (*k == 0 && DIAG(*diag) == UNIT)) return;
 
@@ -614,7 +614,7 @@ EIGEN_BLAS_FUNC(tpmv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap
     info = 4;
   else if (*incx == 0)
     info = 7;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TPMV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TPMV ", &info, kBlasNameLength);
 
   if (*n == 0) return;
 
@@ -703,7 +703,7 @@ EIGEN_BLAS_FUNC(tpsv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap
     info = 4;
   else if (*incx == 0)
     info = 7;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TPSV ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TPSV ", &info, kBlasNameLength);
 
   Scalar *actual_x = get_compact_vector(x, *n, *incx);
 

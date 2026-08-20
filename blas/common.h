@@ -22,6 +22,8 @@
 
 #include "blas.h"
 
+constexpr size_t kBlasNameLength = 6;
+
 namespace Eigen {
 namespace internal {
 // Optionally wraps an expression in a conjugation, used by the product kernels

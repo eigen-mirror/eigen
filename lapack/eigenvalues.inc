@@ -32,7 +32,7 @@ EIGEN_LAPACK_FUNC(syev)
 
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "SYEV ", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "SYEV ", &e, kBlasNameLength);
   }
 
   if (query_size) {

@@ -75,7 +75,7 @@ EIGEN_BLAS_FUNC(gemm)
     info = 10;
   else if (*ldc < std::max(1, *m))
     info = 13;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMM ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMM ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0) return;
 
@@ -196,7 +196,7 @@ EIGEN_BLAS_FUNC(gemmtr)
     info = 10;
   else if (*ldc < std::max(1, *n))
     info = 13;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMMTR ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "GEMMTR", &info, kBlasNameLength + 1);
 
   if (*n == 0) return;
 
@@ -344,7 +344,7 @@ EIGEN_BLAS_FUNC(trsm)
     info = 9;
   else if (*ldb < std::max(1, *m))
     info = 11;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSM ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSM ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0) return;
 
@@ -481,7 +481,7 @@ EIGEN_BLAS_FUNC(trmm)
     info = 9;
   else if (*ldb < std::max(1, *m))
     info = 11;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRMM ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "TRMM ", &info, kBlasNameLength);
 
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
@@ -528,7 +528,7 @@ EIGEN_BLAS_FUNC(symm)
     info = 9;
   else if (*ldc < std::max(1, *m))
     info = 12;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYMM ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYMM ", &info, kBlasNameLength);
 
   if (beta != Scalar(1)) {
     if (beta == Scalar(0))
@@ -646,7 +646,7 @@ EIGEN_BLAS_FUNC(syrk)
     info = 7;
   else if (*ldc < std::max(1, *n))
     info = 10;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYRK ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYRK ", &info, kBlasNameLength);
 
   if (beta != Scalar(1)) {
     if (UPLO(*uplo) == UP)
@@ -714,7 +714,7 @@ EIGEN_BLAS_FUNC(syr2k)
     info = 9;
   else if (*ldc < std::max(1, *n))
     info = 12;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYR2K", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "SYR2K", &info, kBlasNameLength);
 
   using Eigen::Lower;
   using Eigen::Upper;
@@ -781,7 +781,7 @@ EIGEN_BLAS_FUNC(hemm)
     info = 9;
   else if (*ldc < std::max(1, *m))
     info = 12;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HEMM ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HEMM ", &info, kBlasNameLength);
 
   if (beta == Scalar(0))
     matrix(c, *m, *n, *ldc).setZero();
@@ -881,7 +881,7 @@ EIGEN_BLAS_FUNC(herk)
     info = 7;
   else if (*ldc < std::max(1, *n))
     info = 10;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HERK ", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HERK ", &info, kBlasNameLength);
 
   int code = OP(*op) | (UPLO(*uplo) << 2);
 
@@ -936,7 +936,7 @@ EIGEN_BLAS_FUNC(her2k)
     info = 9;
   else if (*ldc < std::max(1, *n))
     info = 12;
-  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2K", &info);
+  if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2K", &info, kBlasNameLength);
 
   using Eigen::Lower;
   using Eigen::StrictlyLower;

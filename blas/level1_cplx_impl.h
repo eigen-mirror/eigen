@@ -127,7 +127,7 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(
 
   if (*incx == 1) return make_vector(x, *n).stableNorm();
 
-  return make_vector(x, *n, *incx).stableNorm();
+  return make_vector(x, *n, std::abs(*incx)).stableNorm();
 }
 
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
