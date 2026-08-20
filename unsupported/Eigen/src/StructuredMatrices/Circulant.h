@@ -368,11 +368,13 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
 
   /** \returns the singular values, sorted in decreasing order: the moduli of the
    * symbol entries. The ordering is shared with \ref matrixU and \ref matrixV, so
-   * together they form the SVD \c *this = U * singularValues().asDiagonal() * V^H. */
+   * together they form the SVD \c *this = U * singularValues().asDiagonal() * V^H.
+   * A real operator has a conjugate-symmetric symbol, so the two modes of a
+   * conjugate pair carry exactly equal singular values. */
   RealVector singularValues() const {
-    const ComplexVector s = symbol();
-    const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
+    ComplexVector s;
+    RealVector mods;
+    const std::vector<Index> perm = svdOrdering(s, mods);
     RealVector sv(s.size());
     for (Index t = 0; t < s.size(); ++t) sv[t] = mods[perm[t]];
     return sv;
@@ -383,9 +385,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * zero entry). Dense \c n x \c n, see the note in \ref eigenvectors. */
   ComplexMatrix matrixU() const {
     const Index n = rows();
-    const ComplexVector s = symbol();
-    const RealVector mods = s.cwiseAbs();
-    const std::vector<Index> perm = internal::structured_svd_permutation(mods);
+    ComplexVector s;
+    RealVector mods;
+    const std::vector<Index> perm = svdOrdering(s, mods);
     ComplexMatrix U(n, n);
     for (Index t = 0; t < n; ++t) {
       fourierColumn(U, perm[t], t);
@@ -400,8 +402,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * note in \ref eigenvectors. */
   ComplexMatrix matrixV() const {
     const Index n = rows();
-    const ComplexVector s = symbol();
-    const std::vector<Index> perm = internal::structured_svd_permutation(RealVector(s.cwiseAbs()));
+    ComplexVector s;
+    RealVector mods;
+    const std::vector<Index> perm = svdOrdering(s, mods);
     ComplexMatrix V(n, n);
     for (Index t = 0; t < n; ++t) fourierColumn(V, perm[t], t);
     return V;
@@ -539,6 +542,31 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     mods = ((s * down1) * down2).cwiseAbs();
     tol = numext::maxi(RealScalar(s.size()) * NumTraits<RealScalar>::epsilon() * mods.maxCoeff(),
                        ((std::numeric_limits<RealScalar>::min)() * down1) * down2);
+  }
+
+  /** \internal Computes the symbol \a s and the moduli \a mods that order the
+   * SVD, and \returns the permutation sorting those moduli in decreasing order --
+   * the single ordering singularValues(), matrixU() and matrixV() agree on.
+   *
+   * For a real generator the symbol is conjugate-symmetric, so modes \c k and
+   * \c n-k have equal moduli; taken through the complex transform they agree only
+   * to roundoff. Ranking such a pair by the computed moduli leaves its order
+   * decided by those last bits, and the three accessors each derive the ordering
+   * from their own symbol computation, which nothing requires to agree down to
+   * the last bit: one of them ranking a pair the other way pairs a left singular
+   * vector with the wrong right one and breaks the reconstruction by an O(1)
+   * amount. The moduli of a conjugate pair are therefore tied exactly, which the
+   * stable sort resolves by index in every caller. Sharing one value between the
+   * pair costs nothing: it cancels out of \c U * S, where matrixU() divides the
+   * mode's phase by it and singularValues() returns it.
+   */
+  std::vector<Index> svdOrdering(ComplexVector& s, RealVector& mods) const {
+    const Index n = rows();
+    s = symbol();
+    mods = s.cwiseAbs();
+    if (!NumTraits<Scalar>::IsComplex)
+      for (Index k = 1; 2 * k < n; ++k) mods[n - k] = mods[k];
+    return internal::structured_svd_permutation(mods);
   }
 
   /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column

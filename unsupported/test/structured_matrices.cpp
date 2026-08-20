@@ -1126,6 +1126,26 @@ void test_circulant_svd(Index n) {
   JacobiSVD<Mat> svd(dense);
   VERIFY_IS_APPROX(sv, svd.singularValues());
 
+  // The symbol of a real operator is conjugate-symmetric, so every mode but the
+  // self-conjugate ones (k = 0 and, for even n, k = n/2) is tied with its mirror.
+  // The tie must be exact rather than accurate to roundoff: singularValues(),
+  // matrixU() and matrixV() each order the modes from their own symbol
+  // computation, and a pair ranked by its last bits can come out ordered one way
+  // in one of them and the other way in another -- pairing a left singular vector
+  // with the wrong right one. Runs of exactly equal values must therefore all be
+  // even, apart from those self-conjugate moduli (fewer runs are odd when a
+  // modulus coincidentally repeats).
+  if (!NumTraits<Scalar>::IsComplex) {
+    Index odd = 0;
+    for (Index t = 0; t < n;) {
+      Index run = t;
+      while (run < n && numext::equal_strict(sv[run], sv[t])) ++run;
+      if ((run - t) % 2 == 1) ++odd;
+      t = run;
+    }
+    VERIFY(odd <= (n % 2 == 0 ? 2 : 1));
+  }
+
   CMat U = C.matrixU(), V = C.matrixV();
   VERIFY_IS_APPROX((U * sv.template cast<Complex>().asDiagonal() * V.adjoint()).eval(),
                    CMat(dense.template cast<Complex>()));
@@ -1752,6 +1772,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_eigen<double>(40)));
     CALL_SUBTEST_7((test_circulant_eigen<std::complex<double>>(21)));
     CALL_SUBTEST_7((test_circulant_svd<double>(1)));
+    CALL_SUBTEST_7((test_circulant_svd<double>(18)));  // conjugate-pair moduli routinely differ in the last bits
     CALL_SUBTEST_7((test_circulant_svd<double>(24)));
     CALL_SUBTEST_7((test_circulant_svd<std::complex<double>>(18)));
     CALL_SUBTEST_7((test_circulant_svd<float>(12)));
