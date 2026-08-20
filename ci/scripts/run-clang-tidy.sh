@@ -34,7 +34,12 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # External-dependency modules that require third-party headers we don't
 # install in the clang-tidy CI image. The umbrella exists, but `#include`-ing
 # it would fail at preprocessor time (e.g. cholmod.h not found).
-EXTERNAL_DEP_MODULES="AccelerateSupport|CholmodSupport|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
+#
+# GPU belongs here for the same reason: every header in the module reaches
+# <cuda_runtime.h> through GpuSupport.h, and the image carries no CUDA
+# toolkit, so linting any of them fails with `'cuda_runtime.h' file not
+# found` rather than reporting anything about the change under review.
+EXTERNAL_DEP_MODULES="AccelerateSupport|CholmodSupport|GPU|KLUSupport|MetisSupport|PaStiXSupport|PardisoSupport|SPQRSupport|SuperLUSupport|UmfPackSupport"
 
 # Get changed files (Added, Modified, Renamed) without losing whitespace in
 # repository paths.
