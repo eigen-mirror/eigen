@@ -427,7 +427,9 @@ void check_nextafter() {
   const T zero(0);
   const T one(1);
   const T two(2);
-  const T eps = std::numeric_limits<T>::epsilon();
+  // NumTraits::epsilon() is the ulp at 1. std::numeric_limits reports the far smaller representational gap for the
+  // non-IEEE IBM double-double `long double`, which is not the step nextafter takes.
+  const T eps = NumTraits<T>::epsilon();
   const T denorm_min = std::numeric_limits<T>::denorm_min();
   const T inf = std::numeric_limits<T>::infinity();
   const T nan = std::numeric_limits<T>::quiet_NaN();
@@ -435,6 +437,8 @@ void check_nextafter() {
 
   // from == to returns to.
   VERIFY(numext::equal_strict(numext::nextafter(one, one), one));
+  // Stepping up from 1 and back down returns 1.
+  VERIFY(numext::equal_strict(numext::nextafter(numext::nextafter(one, two), zero), one));
   // One-ulp steps around 1.
   VERIFY(numext::equal_strict(numext::nextafter(one, two), one + eps));
   VERIFY(numext::equal_strict(numext::nextafter(one + eps, zero), one));
