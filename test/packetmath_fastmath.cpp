@@ -26,6 +26,28 @@ EIGEN_DONT_INLINE bool mask_any(const Scalar* mask) {
   return Eigen::internal::predux_any(Eigen::internal::ploadu<Packet>(mask));
 }
 
+// Keep the finite inputs opaque while compiling the reduction itself with fast-math optimizations.
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void reduce_minmax(const Scalar* input, Scalar* output) {
+  const Packet packet = Eigen::internal::ploadu<Packet>(input);
+  output[0] = Eigen::internal::predux_min(packet);
+  output[1] = Eigen::internal::predux_max(packet);
+}
+
+template <typename Scalar, typename Packet>
+void verify_minmax_reduction() {
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  Scalar input[packet_size];
+  for (int i = 0; i < packet_size; ++i) {
+    input[i] = Scalar(i + 1);
+  }
+
+  Scalar output[2];
+  reduce_minmax<Scalar, Packet>(input, output);
+  VERIFY_IS_EQUAL(output[0], Scalar(1));
+  VERIFY_IS_EQUAL(output[1], Scalar(packet_size));
+}
+
 // Complementary to the opaque-mask calls: the all-ones mask flows straight
 // from ptrue into the packet op, the way comparison-mask producers feed it,
 // which gives constant folding under -ffinite-math-only a chance to see the
@@ -126,6 +148,8 @@ struct packetmath_fastmath_runner<Scalar, true> {
       }
       VERIFY((mask_any<Scalar, Packet>(mask)));
     }
+
+    verify_minmax_reduction<Scalar, Packet>();
   }
 };
 
@@ -160,4 +184,18 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::half>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::bfloat16>::run());
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
+
+#if defined(EIGEN_VECTORIZE_RVV10)
+  CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet1Xf>()));
+  CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet2Xf>()));
+  CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet4Xf>()));
+  CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet1Xd>()));
+  CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet2Xd>()));
+  CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet4Xd>()));
+#endif
+
+#if defined(EIGEN_VECTORIZE_RVV10FP16)
+  CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet1Xh>()));
+  CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet2Xh>()));
+#endif
 }

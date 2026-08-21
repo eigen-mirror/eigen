@@ -619,22 +619,18 @@ EIGEN_STRONG_INLINE float predux_mul<Packet4Xf>(const Packet4Xf& a) {
   return predux_mul<Packet1Xf>(__riscv_vfmul_vv_f32m1(half1, half2, unpacket_traits<Packet1Xf>::size));
 }
 
+// Reusing the first lane is exact for an idempotent reduction and avoids a NaN seed that becomes poison under
+// finite fast-math.
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet4Xf>(const Packet4Xf& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f32m4_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet4Xf>::size / 4),
-          unpacket_traits<Packet4Xf>::size)),
-      (std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmin_vs_f32m4_f32m1(a, __riscv_vget_v_f32m4_f32m1(a, 0), unpacket_traits<Packet4Xf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<Packet4Xf>(const Packet4Xf& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f32m4_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet4Xf>::size / 4),
-          unpacket_traits<Packet4Xf>::size)),
-      -(std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmax_vs_f32m4_f32m1(a, __riscv_vget_v_f32m4_f32m1(a, 0), unpacket_traits<Packet4Xf>::size));
 }
 
 template <>
@@ -1271,20 +1267,14 @@ EIGEN_STRONG_INLINE double predux_mul<Packet4Xd>(const Packet4Xd& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<Packet4Xd>(const Packet4Xd& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f64m4_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet4Xd>::size / 4),
-          unpacket_traits<Packet4Xd>::size)),
-      (std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmin_vs_f64m4_f64m1(a, __riscv_vget_v_f64m4_f64m1(a, 0), unpacket_traits<Packet4Xd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<Packet4Xd>(const Packet4Xd& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f64m4_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet4Xd>::size / 4),
-          unpacket_traits<Packet4Xd>::size)),
-      -(std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmax_vs_f64m4_f64m1(a, __riscv_vget_v_f64m4_f64m1(a, 0), unpacket_traits<Packet4Xd>::size));
 }
 
 template <>

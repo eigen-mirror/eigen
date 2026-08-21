@@ -616,22 +616,18 @@ EIGEN_STRONG_INLINE float predux_mul<Packet2Xf>(const Packet2Xf& a) {
       __riscv_vget_v_f32m2_f32m1(a, 0), __riscv_vget_v_f32m2_f32m1(a, 1), unpacket_traits<Packet1Xf>::size));
 }
 
+// Reusing the first lane is exact for an idempotent reduction and avoids a NaN seed that becomes poison under
+// finite fast-math.
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet2Xf>(const Packet2Xf& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f32m2_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet2Xf>::size / 2),
-          unpacket_traits<Packet2Xf>::size)),
-      (std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmin_vs_f32m2_f32m1(a, __riscv_vget_v_f32m2_f32m1(a, 0), unpacket_traits<Packet2Xf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<Packet2Xf>(const Packet2Xf& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f32m2_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet2Xf>::size / 2),
-          unpacket_traits<Packet2Xf>::size)),
-      -(std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmax_vs_f32m2_f32m1(a, __riscv_vget_v_f32m2_f32m1(a, 0), unpacket_traits<Packet2Xf>::size));
 }
 
 template <>
@@ -1266,20 +1262,14 @@ EIGEN_STRONG_INLINE double predux_mul<Packet2Xd>(const Packet2Xd& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<Packet2Xd>(const Packet2Xd& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f64m2_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet2Xd>::size / 2),
-          unpacket_traits<Packet2Xd>::size)),
-      (std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmin_vs_f64m2_f64m1(a, __riscv_vget_v_f64m2_f64m1(a, 0), unpacket_traits<Packet2Xd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<Packet2Xd>(const Packet2Xd& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f64m2_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet2Xd>::size / 2),
-          unpacket_traits<Packet2Xd>::size)),
-      -(std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(
+      __riscv_vfredmax_vs_f64m2_f64m1(a, __riscv_vget_v_f64m2_f64m1(a, 0), unpacket_traits<Packet2Xd>::size));
 }
 
 #if __riscv_v_min_vlen >= 256

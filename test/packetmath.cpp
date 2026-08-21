@@ -1687,6 +1687,18 @@ std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_va
 }
 
 template <typename Scalar, typename Packet>
+void packetmath_redux_infinities() {
+  const Scalar infinity = NumTraits<Scalar>::infinity();
+  const Packet positive_infinity = internal::pset1<Packet>(infinity);
+  VERIFY_IS_EQUAL(internal::predux_min(positive_infinity), infinity);
+  VERIFY_IS_EQUAL(internal::predux_max(positive_infinity), infinity);
+
+  const Packet negative_infinity = internal::pset1<Packet>(-infinity);
+  VERIFY_IS_EQUAL(internal::predux_min(negative_infinity), -infinity);
+  VERIFY_IS_EQUAL(internal::predux_max(negative_infinity), -infinity);
+}
+
+template <typename Scalar, typename Packet>
 void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
 
@@ -2259,4 +2271,18 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_15(test::runner<bfloat16>::run());
     g_first_pass = false;
   }
+
+#if defined(EIGEN_VECTORIZE_RVV10)
+  CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));
+  CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet2Xf>()));
+  CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet4Xf>()));
+  CALL_SUBTEST_2((packetmath_redux_infinities<double, internal::Packet1Xd>()));
+  CALL_SUBTEST_2((packetmath_redux_infinities<double, internal::Packet2Xd>()));
+  CALL_SUBTEST_2((packetmath_redux_infinities<double, internal::Packet4Xd>()));
+#endif
+
+#if defined(EIGEN_VECTORIZE_RVV10FP16)
+  CALL_SUBTEST_13((packetmath_redux_infinities<half, internal::Packet1Xh>()));
+  CALL_SUBTEST_13((packetmath_redux_infinities<half, internal::Packet2Xh>()));
+#endif
 }

@@ -642,22 +642,16 @@ EIGEN_STRONG_INLINE float predux_mul<Packet1Xf>(const Packet1Xf& a) {
   return pfirst(prod);
 }
 
+// Reusing the first lane is exact for an idempotent reduction and avoids a NaN seed that becomes poison under
+// finite fast-math.
 template <>
 EIGEN_STRONG_INLINE float predux_min<Packet1Xf>(const Packet1Xf& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f32m1_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet1Xf>::size),
-          unpacket_traits<Packet1Xf>::size)),
-      (std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(__riscv_vfredmin_vs_f32m1_f32m1(a, a, unpacket_traits<Packet1Xf>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<Packet1Xf>(const Packet1Xf& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f32m1_f32m1(
-          a, __riscv_vfmv_v_f_f32m1((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet1Xf>::size),
-          unpacket_traits<Packet1Xf>::size)),
-      -(std::numeric_limits<float>::max)());
+  return __riscv_vfmv_f(__riscv_vfredmax_vs_f32m1_f32m1(a, a, unpacket_traits<Packet1Xf>::size));
 }
 
 template <int N>
@@ -1340,20 +1334,12 @@ EIGEN_STRONG_INLINE double predux_mul<Packet1Xd>(const Packet1Xd& a) {
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<Packet1Xd>(const Packet1Xd& a) {
-  return (std::min)(
-      __riscv_vfmv_f(__riscv_vfredmin_vs_f64m1_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet1Xd>::size),
-          unpacket_traits<Packet1Xd>::size)),
-      (std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(__riscv_vfredmin_vs_f64m1_f64m1(a, a, unpacket_traits<Packet1Xd>::size));
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<Packet1Xd>(const Packet1Xd& a) {
-  return (std::max)(
-      __riscv_vfmv_f(__riscv_vfredmax_vs_f64m1_f64m1(
-          a, __riscv_vfmv_v_f_f64m1((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet1Xd>::size),
-          unpacket_traits<Packet1Xd>::size)),
-      -(std::numeric_limits<double>::max)());
+  return __riscv_vfmv_f(__riscv_vfredmax_vs_f64m1_f64m1(a, a, unpacket_traits<Packet1Xd>::size));
 }
 
 template <int N>
