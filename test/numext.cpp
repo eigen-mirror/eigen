@@ -10,6 +10,10 @@
 
 #include "main.h"
 
+#if EIGEN_COMP_MSVC
+#include <cfenv>
+#endif
+
 template <typename T, typename U>
 bool check_if_equal_or_nans(const T& actual, const U& expected) {
   return (numext::equal_strict(actual, expected) || ((numext::isnan)(actual) && (numext::isnan)(expected)));
@@ -140,9 +144,15 @@ void check_negate() {
   }
 }
 
+#if EIGEN_COMP_MSVC
+#pragma float_control(precise, on, push)
+#pragma fenv_access(on)
+#endif
+
 template <typename T>
 void check_complex_exp() {
   using Complex = std::complex<T>;
+  const T highest = (std::numeric_limits<T>::max)();
   const T inf = std::numeric_limits<T>::infinity();
   const T nan = std::numeric_limits<T>::quiet_NaN();
 
@@ -150,10 +160,30 @@ void check_complex_exp() {
   VERIFY((numext::isnan)(finite_inf.real()));
   VERIFY((numext::isnan)(finite_inf.imag()));
 
+  const Complex finite_nan = numext::exp(Complex(T(1), nan));
+  VERIFY((numext::isnan)(finite_nan.real()));
+  VERIFY((numext::isnan)(finite_nan.imag()));
+
+#if EIGEN_COMP_MSVC
+  std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+  const Complex highest_inf = numext::exp(Complex(highest, inf));
+  VERIFY((numext::isnan)(highest_inf.real()));
+  VERIFY((numext::isnan)(highest_inf.imag()));
+#if EIGEN_COMP_MSVC
+  VERIFY((std::fetestexcept(FE_INVALID) & FE_INVALID) != 0);
+  std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+
   const Complex inf_nan = numext::exp(Complex(inf, nan));
   VERIFY((numext::isinf)(inf_nan.real()));
   VERIFY((numext::isnan)(inf_nan.imag()));
 }
+
+#if EIGEN_COMP_MSVC
+#pragma fenv_access(off)
+#pragma float_control(pop)
+#endif
 
 template <typename T>
 std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, T> random_abs2_input() {

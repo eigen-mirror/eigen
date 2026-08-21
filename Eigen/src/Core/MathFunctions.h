@@ -1517,22 +1517,26 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T exp(const T& x) {
   return exp(x);
 }
 
-// MSVC before 19.31 screws up some edge-cases for std::exp(complex).
-#if EIGEN_COMP_MSVC && EIGEN_COMP_MSVC < 1931
+// MSVC through at least 19.51 mishandles some finite-real, non-finite-imaginary inputs to std::exp(complex).
+#if EIGEN_COMP_MSVC
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<RealScalar> exp(const std::complex<RealScalar>& x) {
-  EIGEN_USING_STD(exp);
+  // Evaluate eagerly to preserve the floating-point exceptions raised by std::exp before correcting its result.
+  const std::complex<RealScalar> result = std::exp(x);
   // If z is (x,±∞) (for any finite x), the result is (NaN,NaN) and FE_INVALID is raised.
   // If z is (x,NaN) (for any finite x), the result is (NaN,NaN) and FE_INVALID may be raised.
   if ((isfinite)(real_ref(x)) && !(isfinite)(imag_ref(x))) {
     return std::complex<RealScalar>(NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::quiet_NaN());
   }
+#if EIGEN_COMP_MSVC < 1931
+  // Before 19.31, MSVC also mishandles a positive-infinite real part with a non-finite imaginary part.
   // If z is (+∞,±∞), the result is (±∞,NaN) and FE_INVALID is raised (the sign of the real part is unspecified)
   // If z is (+∞,NaN), the result is (±∞,NaN) (the sign of the real part is unspecified)
   if ((real_ref(x) == NumTraits<RealScalar>::infinity() && !(isfinite)(imag_ref(x)))) {
     return std::complex<RealScalar>(NumTraits<RealScalar>::infinity(), NumTraits<RealScalar>::quiet_NaN());
   }
-  return exp(x);
+#endif
+  return result;
 }
 #endif
 
