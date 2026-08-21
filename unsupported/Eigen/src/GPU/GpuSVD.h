@@ -589,9 +589,8 @@ class SVD {
     // one blocking wait instead of two.
     const Ref<const PlainMatrix> rhs(B.derived());
     internal::DeviceBuffer d_B(static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar));
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_B.get(), rhs.data(),
-                                             static_cast<size_t>(m_orig) * static_cast<size_t>(nrhs) * sizeof(Scalar),
-                                             cudaMemcpyHostToDevice, solver_ctx_.stream()));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_B.get()), m_orig, rhs.data(), rhs.outerStride(), m_orig, nrhs,
+                                 solver_ctx_.stream());
     build_diag(kk, lambda);
 
     PlainMatrix X(n_orig, nrhs);

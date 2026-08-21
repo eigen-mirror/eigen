@@ -209,18 +209,20 @@ class DeviceMatrix {
    * returning. Plain contiguous column-major input is transferred directly;
    * other expressions are first evaluated into a contiguous temporary.
    *
-   * \param host   Any Eigen matrix expression.
+   * \param host   Any Eigen dense expression.
    * \param stream CUDA stream for the transfer (default: stream 0).
    */
   template <typename Derived>
-  static DeviceMatrix fromHost(const MatrixBase<Derived>& host, cudaStream_t stream = nullptr) {
-    // Ref binds plain contiguous column-major input in place (no host copy);
-    // expressions and incompatible layouts evaluate into its temporary.
+  static DeviceMatrix fromHost(const DenseBase<Derived>& host, cudaStream_t stream = nullptr) {
+    // Ref binds any column-major direct-access input in place (no host copy);
+    // row-major layouts and expressions evaluate into its temporary. A bound
+    // block keeps its parent's outer stride, so the upload must honour
+    // outerStride() rather than assume rows() -- see upload_host_matrix.
     const Ref<const PlainMatrix> mat(host.derived());
     DeviceMatrix dm(mat.rows(), mat.cols());
     if (dm.sizeInBytes() > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpyAsync(dm.data_.get(), mat.data(), dm.sizeInBytes(), cudaMemcpyHostToDevice, stream));
+      internal::upload_host_matrix(dm.data_.get(), mat.rows(), mat.data(), mat.outerStride(), mat.rows(), mat.cols(),
+                                   stream);
       EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
     }
     return dm;

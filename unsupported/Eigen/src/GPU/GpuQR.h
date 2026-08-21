@@ -283,13 +283,13 @@ class QR {
     apply_Q(trans, d_B, ldb, nrhs);
   }
 
-  PlainMatrix solve_overdetermined_host(const PlainMatrix& rhs) const {
+  PlainMatrix solve_overdetermined_host(const Ref<const PlainMatrix>& rhs) const {
     const Index nrhs = rhs.cols();
     const size_t b_bytes = static_cast<size_t>(m_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
     internal::DeviceBuffer d_B(b_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_B.get(), rhs.data(), b_bytes, cudaMemcpyHostToDevice, solver_ctx_.stream()));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_B.get()), m_, rhs.data(), rhs.outerStride(), m_, nrhs,
+                                 solver_ctx_.stream());
 
     apply_QH(d_B.get(), m_, nrhs);
     trsm_R(d_B.get(), m_, nrhs, /*op=*/CUBLAS_OP_N);
@@ -340,20 +340,16 @@ class QR {
   //   z = R^{-H} B            (m × nrhs, occupies top m rows of an n × nrhs buffer)
   //   X = Q [z; 0]            (n × nrhs)
 
-  PlainMatrix solve_underdetermined_host(const PlainMatrix& rhs, Index nrhs) const {
+  PlainMatrix solve_underdetermined_host(const Ref<const PlainMatrix>& rhs, Index nrhs) const {
     const size_t x_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
 
     internal::DeviceBuffer d_X(x_bytes);
     // Zero the full n × nrhs buffer; B will overwrite the top m × nrhs block.
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(d_X.get(), 0, x_bytes, solver_ctx_.stream()));
 
-    // 2D copy: B (m × nrhs, leading dim m) into top of d_X (leading dim n).
-    if (m_ > 0 && nrhs > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(d_X.get(), static_cast<size_t>(n_) * sizeof(Scalar), rhs.data(),
-                                                 static_cast<size_t>(m_) * sizeof(Scalar),
-                                                 static_cast<size_t>(m_) * sizeof(Scalar), static_cast<size_t>(nrhs),
-                                                 cudaMemcpyHostToDevice, solver_ctx_.stream()));
-    }
+    // B (m × nrhs) into the top of d_X (leading dim n).
+    internal::upload_host_matrix(static_cast<Scalar*>(d_X.get()), n_, rhs.data(), rhs.outerStride(), m_, nrhs,
+                                 solver_ctx_.stream());
 
     trsm_R(d_X.get(), n_, nrhs, trsm_op_conj_trans());
     apply_Q(CUBLAS_OP_N, d_X.get(), n_, nrhs);

@@ -231,6 +231,44 @@ void test_context_bound_solver(Index n, Index nrhs) {
   VERIFY(d_B.data() == nullptr);  // moved-from
 }
 
+// ---- Non-plain host input ---------------------------------------------------
+
+// compute() binds plain contiguous column-major input in place through Ref and
+// evaluates anything else into a temporary. An SPD matrix is symmetric, so a
+// row-major copy is byte-identical and would not detect a layout mistake; a
+// block whose outerStride() differs from rows() would.
+template <typename Scalar>
+void test_non_plain_input(Eigen::Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+
+  const MatrixType h_A = make_spd<MatrixType>(n);
+  const MatrixType h_B = MatrixType::Random(n, 3);
+  const RealScalar tol = RealScalar(n) * Eigen::NumTraits<Scalar>::epsilon();
+
+  MatrixType h_padded = MatrixType::Random(n + 3, n + 5);
+  h_padded.block(2, 1, n, n) = h_A;
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt_block(h_padded.block(2, 1, n, n));
+  VERIFY_IS_EQUAL(gpu_llt_block.info(), Eigen::Success);
+  MatrixType h_X_block = gpu_llt_block.solve(h_B);
+  VERIFY((h_A * h_X_block - h_B).norm() / h_B.norm() < tol);
+
+  // Unevaluated expression; 2*A is still SPD.
+  const MatrixType h_A2 = Scalar(2) * h_A;
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt_expr(Scalar(2) * h_A);
+  VERIFY_IS_EQUAL(gpu_llt_expr.info(), Eigen::Success);
+  MatrixType h_X_expr = gpu_llt_expr.solve(h_B);
+  VERIFY((h_A2 * h_X_expr - h_B).norm() / h_B.norm() < tol);
+
+  // Strided right-hand side: solve() binds B through Ref as well.
+  MatrixType h_padded_B = MatrixType::Random(n + 2, h_B.cols() + 4);
+  h_padded_B.block(1, 3, n, h_B.cols()) = h_B;
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt(h_A);
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
+  MatrixType h_X_rhs = gpu_llt.solve(h_padded_B.block(1, 3, n, h_B.cols()));
+  VERIFY((h_A * h_X_rhs - h_B).norm() / h_B.norm() < tol);
+}
+
 template <typename Scalar>
 void test_scalar() {
   CALL_SUBTEST(test_context_bound_solver<Scalar>(64, 4));
@@ -252,6 +290,8 @@ void test_scalar() {
   CALL_SUBTEST((test_device_matrix_solve<Scalar, Eigen::Upper>(128, 1)));
   CALL_SUBTEST(test_device_matrix_move_compute<Scalar>(64));
   CALL_SUBTEST(test_chaining<Scalar>(64));
+
+  CALL_SUBTEST(test_non_plain_input<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_llt) {

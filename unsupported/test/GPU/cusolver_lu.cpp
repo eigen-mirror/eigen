@@ -187,6 +187,52 @@ void test_chaining(Index n) {
   VERIFY((A * Y - X).norm() / (A.norm() * Y.norm()) < tol);
 }
 
+// ---- Non-plain host input ---------------------------------------------------
+
+// compute() binds plain contiguous column-major input in place through Ref and
+// evaluates anything else into a temporary. Cover the inputs that take the
+// second path and require the same factorization as the plain original. A is
+// deliberately not symmetric, so a layout mistake factors A^T and the residual
+// does not converge.
+template <typename Scalar>
+void test_non_plain_input(Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMajorMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  const MatrixType A = MatrixType::Random(n, n) + MatrixType::Identity(n, n) * Scalar(n);
+  const MatrixType B = MatrixType::Random(n, 3);
+  const RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  const RowMajorMatrix A_row = A;
+  gpu::LU<Scalar> lu_row(A_row);
+  VERIFY_IS_EQUAL(lu_row.info(), Success);
+  MatrixType X_row = lu_row.solve(B);
+  VERIFY((A * X_row - B).norm() / (A.norm() * X_row.norm()) < tol);
+
+  // outerStride() != rows(): binding in place would read the surrounding data.
+  MatrixType padded = MatrixType::Random(n + 3, n + 5);
+  padded.block(2, 1, n, n) = A;
+  gpu::LU<Scalar> lu_block(padded.block(2, 1, n, n));
+  VERIFY_IS_EQUAL(lu_block.info(), Success);
+  MatrixType X_block = lu_block.solve(B);
+  VERIFY((A * X_block - B).norm() / (A.norm() * X_block.norm()) < tol);
+
+  // Unevaluated expression.
+  gpu::LU<Scalar> lu_expr(A.transpose());
+  VERIFY_IS_EQUAL(lu_expr.info(), Success);
+  MatrixType X_expr = lu_expr.solve(B);
+  VERIFY((A.transpose() * X_expr - B).norm() / (A.norm() * X_expr.norm()) < tol);
+
+  // Strided right-hand side: solve() binds B through Ref as well.
+  MatrixType padded_B = MatrixType::Random(n + 2, B.cols() + 4);
+  padded_B.block(1, 3, n, B.cols()) = B;
+  gpu::LU<Scalar> lu(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+  MatrixType X_rhs = lu.solve(padded_B.block(1, 3, n, B.cols()));
+  VERIFY((A * X_rhs - B).norm() / (A.norm() * X_rhs.norm()) < tol);
+}
+
 // ---- Per-scalar driver -------------------------------------------------------
 
 template <typename Scalar>
@@ -206,6 +252,8 @@ void test_scalar() {
   CALL_SUBTEST(test_device_matrix_solve<Scalar>(64));
   CALL_SUBTEST(test_device_matrix_move_compute<Scalar>(64));
   CALL_SUBTEST(test_chaining<Scalar>(64));
+
+  CALL_SUBTEST(test_non_plain_input<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_lu) {

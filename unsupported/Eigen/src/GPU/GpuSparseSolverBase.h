@@ -202,7 +202,8 @@ class SparseSolverBase {
     const size_t rhs_bytes = static_cast<size_t>(n_) * static_cast<size_t>(nrhs) * sizeof(Scalar);
     ensure_solve_buffer(d_b_solve_, rhs_bytes);
     ensure_solve_buffer(d_x_solve_, rhs_bytes);
-    EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpyAsync(d_b_solve_.get(), rhs.data(), rhs_bytes, cudaMemcpyHostToDevice, stream_));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_b_solve_.get()), n_, rhs.data(), rhs.outerStride(), n_, nrhs,
+                                 stream_);
 
     update_solve_descriptors(nrhs, d_b_solve_.get(), d_x_solve_.get());
     EIGEN_CUDSS_CHECK(

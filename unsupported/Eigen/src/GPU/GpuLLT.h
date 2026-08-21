@@ -157,8 +157,8 @@ class LLT {
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
     const int64_t ldb = static_cast<int64_t>(rhs.rows());
     internal::DeviceBuffer d_x(rhsBytes(nrhs, ldb));
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(d_x.get(), rhs.data(), rhsBytes(nrhs, ldb), cudaMemcpyHostToDevice, solver_ctx_.stream()));
+    internal::upload_host_matrix(static_cast<Scalar*>(d_x.get()), ldb, rhs.data(), rhs.outerStride(), rhs.rows(),
+                                 rhs.cols(), solver_ctx_.stream());
     DeviceMatrix<Scalar> d_X = solve_impl(nrhs, ldb, std::move(d_x));
 
     PlainMatrix X(n_, B.cols());
