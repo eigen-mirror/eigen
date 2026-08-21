@@ -16,6 +16,8 @@
 #include <Eigen/Eigenvalues>
 #include <unsupported/Eigen/GPU>
 
+#include "./gpu_test_helpers.h"
+
 using namespace Eigen;
 
 // ---- Reconstruction: V * diag(W) * V^H ≈ A ---------------------------------
@@ -329,6 +331,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_eigen) {
+  gpu_test::require_cuda_device();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

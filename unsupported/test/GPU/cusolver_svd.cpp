@@ -15,6 +15,8 @@
 #include <Eigen/SVD>
 #include <unsupported/Eigen/GPU>
 
+#include "./gpu_test_helpers.h"
+
 using namespace Eigen;
 
 // ---- SVD reconstruction: U * diag(S) * VT ≈ A ------------------------------
@@ -481,6 +483,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_svd) {
+  gpu_test::require_cuda_device();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

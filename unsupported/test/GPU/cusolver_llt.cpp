@@ -17,6 +17,8 @@
 #include <Eigen/Cholesky>
 #include <unsupported/Eigen/GPU>
 
+#include "./gpu_test_helpers.h"
+
 // Identifier convention throughout this file:
 //   h_ prefix for host-resident Eigen::Matrix values
 //   d_ prefix for device-resident Eigen::gpu::DeviceMatrix values
@@ -253,6 +255,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_llt) {
+  gpu_test::require_cuda_device();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());

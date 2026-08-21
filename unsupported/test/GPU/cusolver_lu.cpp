@@ -16,6 +16,8 @@
 #include "main.h"
 #include <unsupported/Eigen/GPU>
 
+#include "./gpu_test_helpers.h"
+
 using namespace Eigen;
 
 // ---- Test factorization + NoTrans solve: residual ||A*X - B|| / ||B|| -------
@@ -207,6 +209,7 @@ void test_scalar() {
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_lu) {
+  gpu_test::require_cuda_device();
   // Split by scalar so each part compiles in parallel.
   CALL_SUBTEST_1(test_scalar<float>());
   CALL_SUBTEST_2(test_scalar<double>());
