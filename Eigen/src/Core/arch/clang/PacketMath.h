@@ -800,14 +800,13 @@ EIGEN_STRONG_INLINE Packet plset_impl(const typename unpacket_traits<Packet>::ty
   return Packet{(a + Scalar(Is))...};
 }
 
-// All ones in the even lanes, all zeros in the odd ones.
+// All ones in the even lanes, all zeros in the odd ones. Return the integer representation so finite fast-math cannot
+// make the all-ones lanes poison before the caller applies EIGEN_FAST_MATH_CONSTANT_BARRIER.
 template <typename Packet, std::size_t... Is>
-EIGEN_STRONG_INLINE Packet peven_mask_impl(std::index_sequence<Is...>) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  using Bits = scalar_type_of_vector_t<typename unpacket_traits<Packet>::integer_packet>;
-  const Scalar kTrue = numext::bit_cast<Scalar>(Bits(-1));
-  const Scalar kFalse = Scalar(0);
-  return Packet{(Is % 2 == 0 ? kTrue : kFalse)...};
+EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::integer_packet peven_mask_impl(std::index_sequence<Is...>) {
+  using IntegerPacket = typename unpacket_traits<Packet>::integer_packet;
+  using Bits = scalar_type_of_vector_t<IntegerPacket>;
+  return IntegerPacket{(Is % 2 == 0 ? Bits(-1) : Bits(0))...};
 }
 
 }  // namespace detail
@@ -866,13 +865,13 @@ EIGEN_CLANG_PACKET_PLSET(PacketXl)
 // --- peven_mask ---
 template <>
 EIGEN_STRONG_INLINE PacketXf peven_mask(const PacketXf& /* unused */) {
-  PacketXf r = detail::peven_mask_impl<PacketXf>(detail::vector_indices<PacketXf>{});
+  PacketXf r = numext::bit_cast<PacketXf>(detail::peven_mask_impl<PacketXf>(detail::vector_indices<PacketXf>{}));
   EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
   return r;
 }
 template <>
 EIGEN_STRONG_INLINE PacketXd peven_mask(const PacketXd& /* unused */) {
-  PacketXd r = detail::peven_mask_impl<PacketXd>(detail::vector_indices<PacketXd>{});
+  PacketXd r = numext::bit_cast<PacketXd>(detail::peven_mask_impl<PacketXd>(detail::vector_indices<PacketXd>{}));
   EIGEN_FAST_MATH_CONSTANT_BARRIER(r);
   return r;
 }
