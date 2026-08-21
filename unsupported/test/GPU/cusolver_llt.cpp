@@ -16,6 +16,9 @@
 #include "main.h"
 #include <Eigen/Cholesky>
 #include <unsupported/Eigen/GPU>
+#include <atomic>
+#include <chrono>
+#include <thread>
 
 #include "./gpu_test_helpers.h"
 
@@ -31,6 +34,17 @@ MatrixType make_spd(Eigen::Index n) {
   using Scalar = typename MatrixType::Scalar;
   MatrixType M = MatrixType::Random(n, n);
   return M.adjoint() * M + MatrixType::Identity(n, n) * static_cast<Scalar>(n);
+}
+
+struct HostInputGate {
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+};
+
+static void CUDART_CB wait_for_host_input_gate(void* data) {
+  HostInputGate* gate = static_cast<HostInputGate*>(data);
+  gate->entered.store(true, std::memory_order_release);
+  while (!gate->release.load(std::memory_order_acquire)) std::this_thread::yield();
 }
 
 // Test factorization: L*L^H must reconstruct A to within floating-point tolerance.
@@ -239,7 +253,7 @@ void test_context_bound_solver(Index n, Index nrhs) {
 // block whose outerStride() differs from rows() would.
 template <typename Scalar>
 void test_non_plain_input(Eigen::Index n) {
-  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
   using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
 
   const MatrixType h_A = make_spd<MatrixType>(n);
@@ -260,6 +274,11 @@ void test_non_plain_input(Eigen::Index n) {
   MatrixType h_X_expr = gpu_llt_expr.solve(h_B);
   VERIFY((h_A2 * h_X_expr - h_B).norm() / h_B.norm() < tol);
 
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt_array(h_A.array());
+  VERIFY_IS_EQUAL(gpu_llt_array.info(), Eigen::Success);
+  MatrixType h_X_array = gpu_llt_array.solve(h_B);
+  VERIFY((h_A * h_X_array - h_B).norm() / h_B.norm() < tol);
+
   // Strided right-hand side: solve() binds B through Ref as well.
   MatrixType h_padded_B = MatrixType::Random(n + 2, h_B.cols() + 4);
   h_padded_B.block(1, 3, n, h_B.cols()) = h_B;
@@ -267,6 +286,44 @@ void test_non_plain_input(Eigen::Index n) {
   VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
   MatrixType h_X_rhs = gpu_llt.solve(h_padded_B.block(1, 3, n, h_B.cols()));
   VERIFY((h_A * h_X_rhs - h_B).norm() / h_B.norm() < tol);
+}
+
+template <typename Scalar>
+void test_pinned_host_input_lifetime(Eigen::Index n) {
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+
+  const MatrixType h_A = make_spd<MatrixType>(n);
+  const MatrixType h_B = MatrixType::Random(n, 3);
+  const RealScalar tol = RealScalar(n) * Eigen::NumTraits<Scalar>::epsilon();
+
+  Eigen::gpu::LLT<Scalar, Eigen::Lower> gpu_llt(h_A);
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
+
+  Scalar* pinned_data = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(
+      cudaMallocHost(reinterpret_cast<void**>(&pinned_data), static_cast<size_t>(h_A.size()) * sizeof(Scalar)));
+  Eigen::Map<MatrixType> pinned_A(pinned_data, n, n);
+  pinned_A = h_A;
+
+  HostInputGate gate;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(gpu_llt.stream(), wait_for_host_input_gate, &gate));
+  std::thread release_thread([&gate]() {
+    while (!gate.entered.load(std::memory_order_acquire)) std::this_thread::yield();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    gate.release.store(true, std::memory_order_release);
+  });
+
+  // The gate keeps the page-locked source live but unavailable to the DMA
+  // until after an unfenced compute() would have returned.
+  gpu_llt.compute(pinned_A);
+  pinned_A.setZero();
+  release_thread.join();
+
+  VERIFY_IS_EQUAL(gpu_llt.info(), Eigen::Success);
+  MatrixType h_X = gpu_llt.solve(h_B);
+  VERIFY((h_A * h_X - h_B).norm() / h_B.norm() < tol);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaFreeHost(pinned_data));
 }
 
 template <typename Scalar>
@@ -292,6 +349,7 @@ void test_scalar() {
   CALL_SUBTEST(test_chaining<Scalar>(64));
 
   CALL_SUBTEST(test_non_plain_input<Scalar>(64));
+  CALL_SUBTEST(test_pinned_host_input_lifetime<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_llt) {

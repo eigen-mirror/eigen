@@ -290,7 +290,8 @@ void test_eigen_move(Index n) {
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_eigen_empty() {
-  gpu::SelfAdjointEigenSolver<double> es(MatrixXd(0, 0));
+  ArrayXXd empty(0, 0);
+  gpu::SelfAdjointEigenSolver<double> es(empty);
   VERIFY_IS_EQUAL(es.info(), Success);
   VERIFY_IS_EQUAL(es.rows(), 0);
   VERIFY_IS_EQUAL(es.cols(), 0);

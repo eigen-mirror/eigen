@@ -41,7 +41,7 @@ class SVD {
   explicit SVD(Context& ctx) : solver_ctx_(ctx) {}
 
   template <typename InputType>
-  explicit SVD(const EigenBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV) {
+  explicit SVD(const DenseBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV) {
     compute(A, options);
   }
 
@@ -56,7 +56,7 @@ class SVD {
 
   /** Bind to \p ctx and decompose A immediately. */
   template <typename InputType>
-  SVD(Context& ctx, const EigenBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV)
+  SVD(Context& ctx, const DenseBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV)
       : solver_ctx_(ctx) {
     compute(A, options);
   }
@@ -122,7 +122,7 @@ class SVD {
   }
 
   template <typename InputType>
-  SVD& compute(const EigenBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV) {
+  SVD& compute(const DenseBase<InputType>& A, unsigned int options = ComputeThinU | ComputeThinV) {
     // Upload to device, then delegate to the adopting overload — the freshly
     // uploaded matrix is consumed in place by gesvd, so no second device copy.
     // The wide-matrix transpose runs on the GPU (via cublasXgeam) inside the

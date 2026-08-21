@@ -196,7 +196,7 @@ void test_chaining(Index n) {
 // does not converge.
 template <typename Scalar>
 void test_non_plain_input(Index n) {
-  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   using RowMajorMatrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
@@ -218,11 +218,25 @@ void test_non_plain_input(Index n) {
   MatrixType X_block = lu_block.solve(B);
   VERIFY((A * X_block - B).norm() / (A.norm() * X_block.norm()) < tol);
 
+  MatrixType reversed_storage(n, n);
+  for (Index col = 0; col < n; ++col) reversed_storage.col(n - 1 - col) = A.col(col);
+  using NegativeStrideMap = Eigen::Map<const MatrixType, Eigen::Unaligned, Eigen::OuterStride<Dynamic>>;
+  const NegativeStrideMap negative_stride(reversed_storage.data() + (n - 1) * n, n, n, Eigen::OuterStride<Dynamic>(-n));
+  gpu::LU<Scalar> lu_negative_stride(negative_stride);
+  VERIFY_IS_EQUAL(lu_negative_stride.info(), Success);
+  MatrixType X_negative_stride = lu_negative_stride.solve(B);
+  VERIFY((A * X_negative_stride - B).norm() / (A.norm() * X_negative_stride.norm()) < tol);
+
   // Unevaluated expression.
   gpu::LU<Scalar> lu_expr(A.transpose());
   VERIFY_IS_EQUAL(lu_expr.info(), Success);
   MatrixType X_expr = lu_expr.solve(B);
   VERIFY((A.transpose() * X_expr - B).norm() / (A.norm() * X_expr.norm()) < tol);
+
+  gpu::LU<Scalar> lu_array(A.array());
+  VERIFY_IS_EQUAL(lu_array.info(), Success);
+  MatrixType X_array = lu_array.solve(B);
+  VERIFY((A * X_array - B).norm() / (A.norm() * X_array.norm()) < tol);
 
   // Strided right-hand side: solve() binds B through Ref as well.
   MatrixType padded_B = MatrixType::Random(n + 2, B.cols() + 4);

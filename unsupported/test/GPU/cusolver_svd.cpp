@@ -387,7 +387,8 @@ void test_svd_chain_orthogonality(Index m, Index n) {
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_svd_empty() {
-  gpu::SVD<double> svd(MatrixXd(0, 0), 0);
+  ArrayXXd empty(0, 0);
+  gpu::SVD<double> svd(empty, 0);
   VERIFY_IS_EQUAL(svd.info(), Success);
   VERIFY_IS_EQUAL(svd.rows(), 0);
   VERIFY_IS_EQUAL(svd.cols(), 0);

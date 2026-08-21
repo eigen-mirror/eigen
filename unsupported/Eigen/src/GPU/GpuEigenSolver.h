@@ -38,7 +38,7 @@ class SelfAdjointEigenSolver {
 
   /** \param options  Eigen::ComputeEigenvectors (default) or Eigen::EigenvaluesOnly. */
   template <typename InputType>
-  explicit SelfAdjointEigenSolver(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
+  explicit SelfAdjointEigenSolver(const DenseBase<InputType>& A, int options = ComputeEigenvectors) {
     compute(A, options);
   }
 
@@ -53,7 +53,7 @@ class SelfAdjointEigenSolver {
 
   /** Bind to \p ctx and decompose A immediately. */
   template <typename InputType>
-  SelfAdjointEigenSolver(Context& ctx, const EigenBase<InputType>& A, int options = ComputeEigenvectors)
+  SelfAdjointEigenSolver(Context& ctx, const DenseBase<InputType>& A, int options = ComputeEigenvectors)
       : solver_ctx_(ctx) {
     compute(A, options);
   }
@@ -97,7 +97,7 @@ class SelfAdjointEigenSolver {
   }
 
   template <typename InputType>
-  SelfAdjointEigenSolver& compute(const EigenBase<InputType>& A, int options = ComputeEigenvectors) {
+  SelfAdjointEigenSolver& compute(const DenseBase<InputType>& A, int options = ComputeEigenvectors) {
     // Route through the adopting overload: the freshly uploaded matrix is
     // decomposed in place (syevd overwrites its input) — no second device copy.
     return compute(DeviceMatrix<Scalar>::fromHost(A.derived(), solver_ctx_.stream()), options);

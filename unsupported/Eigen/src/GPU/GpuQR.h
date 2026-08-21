@@ -41,7 +41,7 @@ class QR {
   explicit QR(Context& ctx) : solver_ctx_(ctx) {}
 
   template <typename InputType>
-  explicit QR(const EigenBase<InputType>& A) {
+  explicit QR(const DenseBase<InputType>& A) {
     compute(A);
   }
 
@@ -52,7 +52,7 @@ class QR {
 
   /** Bind to \p ctx and factor A immediately. */
   template <typename InputType>
-  QR(Context& ctx, const EigenBase<InputType>& A) : solver_ctx_(ctx) {
+  QR(Context& ctx, const DenseBase<InputType>& A) : solver_ctx_(ctx) {
     compute(A);
   }
 
@@ -96,7 +96,7 @@ class QR {
   }
 
   template <typename InputType>
-  QR& compute(const EigenBase<InputType>& A) {
+  QR& compute(const DenseBase<InputType>& A) {
     // Upload to device, then delegate to the adopting overload — the freshly
     // uploaded matrix is factored in place (geqrf overwrites its input), so no
     // second device copy is made. The wide-matrix transpose runs on the GPU

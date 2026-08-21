@@ -295,7 +295,8 @@ void test_scalar() {
 }
 
 void test_qr_empty() {
-  gpu::QR<double> qr(MatrixXd(0, 0));
+  ArrayXXd empty(0, 0);
+  gpu::QR<double> qr(empty);
   VERIFY_IS_EQUAL(qr.info(), Success);
   VERIFY_IS_EQUAL(qr.rows(), 0);
   VERIFY_IS_EQUAL(qr.cols(), 0);
