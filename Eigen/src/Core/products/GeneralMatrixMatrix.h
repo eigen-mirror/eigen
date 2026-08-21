@@ -228,11 +228,13 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, blocking.blockA());
       ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, blocking.blockB());
 
-      // SME uses RHS-first order so consecutive gebp calls stream through
-      // adjacent row panels of a ColMajor result. Other kernels keep Eigen's
+      // The SME kernel uses RHS-first order so consecutive gebp calls stream
+      // through adjacent row panels of a ColMajor result. Other kernels --
+      // including the scalar pairs SME does not specialize -- keep Eigen's
       // default LHS-first order.
 #ifdef EIGEN_VECTORIZE_SME
-      using SequentialGemmLoop = gemm_pack_rhs_first_loop_policy;
+      using SequentialGemmLoop = std::conditional_t<sme_has_gebp_kernel<LhsScalar, RhsScalar>::value,
+                                                    gemm_pack_rhs_first_loop_policy, gemm_pack_lhs_first_loop_policy>;
 #else
       using SequentialGemmLoop = gemm_pack_lhs_first_loop_policy;
 #endif

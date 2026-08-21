@@ -20,8 +20,11 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
 <tr class="alt"><td>ARM / AArch64</td><td>NEON; SVE and SME as opt-in backends</td>
     <td>SVE requires \c EIGEN_ARM64_USE_SVE and a fixed vector length
         (<tt>-msve-vector-bits=N</tt>); the SME backend, enabled with \c EIGEN_ARM64_USE_SME,
-        accelerates matrix products and must be built \em without <tt>-msve-vector-bits</tt>, since
-        a fixed length would pin the kernels to one runtime streaming vector length</td></tr>
+        accelerates \c float and \c double matrix products and must be built \em without
+        <tt>-msve-vector-bits</tt>, since a fixed length would pin the kernels to one runtime
+        streaming vector length. Double precision additionally needs the optional FEAT_SME_F64F64
+        extension (<tt>+sme-f64f64</tt>, or a <tt>-mcpu</tt> that implies it); without it \c double
+        keeps the generic kernel</td></tr>
 <tr><td>PowerPC</td><td>AltiVec, VSX, MMA</td><td></td></tr>
 <tr class="alt"><td>IBM Z (s390x)</td><td>ZVector</td><td></td></tr>
 <tr><td>MIPS</td><td>MSA</td><td></td></tr>

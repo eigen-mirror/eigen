@@ -429,9 +429,12 @@ build:linux:cross:arm:clang-14:default:
     # line (ci/scripts/build.linux.script.sh), so each -D value must be a single
     # shell word: multi-token flags use CMake's ';' list separator, with no
     # spaces or embedded quotes (cf. the arm / generic-vector jobs).
+    # +sme-f64f64 (FEAT_SME_F64F64) enables the double-precision GEMM kernel:
+    # GCC refuses to compile its fp64 FMOPA without it, and qemu's `max` CPU
+    # implements the extension, so the test jobs below exercise that kernel.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SME=ON
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2+sme-f64f64
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
     # SME ACLE (arm_sme.h, __arm_streaming, +sme2) requires GCC >= 14.
     # The build stage only cross-compiles and never invokes the emulator, so
@@ -440,8 +443,9 @@ build:linux:cross:arm:clang-14:default:
     # product_symm/product_trsolve/product_trmm/product_syrk/mixingtypes exercise
     # the SME packers through their non-dense-GEMM consumers (selfadjoint,
     # triangular-solve, triangular-product, rank-update, mixed-scalar) that
-    # product_sme can't reach. Explicit list, not `buildtests`: cross-building
-    # every test under the SME flags overruns the runner timeout.
+    # product_sme can't reach; each has double subtests, so they cover both SME
+    # scalar types. Explicit list, not `buildtests`: cross-building every test
+    # under the SME flags overruns the runner timeout.
     EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk mixingtypes
   # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
   # program bills small and large runners the same, so don't downsize.
@@ -475,6 +479,28 @@ build:linux:cross:sme:gcc-14:full:
     EIGEN_CI_BUILD_TARGET: buildtests
   timeout: 2h
 
+# FEAT_SME_F64F64 is optional, and every job above builds with it, so nothing
+# else compiles the configuration where it is absent: the #else static_assert
+# that keeps double off the GEMM driver, and double on the generic kernel inside
+# an SME build. GCC hard-errors on the fp64 FMOPA without the feature, so this
+# is also what catches an fp64 SME intrinsic escaping the
+# EIGEN_VECTORIZE_SME_F64F64 gate. The EIGEN_ARM64_NO_SME_F64F64 opt-out reaches
+# the same branch, so one job covers both ways in. product_sme alone: its double
+# subtest is written to run in either configuration, and one target keeps the
+# job cheap.
+build:linux:cross:sme:gcc-14:no-f64f64:
+  extends: .build:linux:cross:sme
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-14
+    EIGEN_CI_CXX_COMPILER: g++-14
+    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
+    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
+    # The anchor's arguments, less +sme-f64f64.
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DEIGEN_TEST_SME=ON
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2
+      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
+    EIGEN_CI_BUILD_TARGET: product_sme
 
 
 build:linux:cross:aarch64:gcc-10:default:
@@ -727,4 +753,10 @@ build:linux:riscv64:gcc-15:default:affected:
 # subset through EIGEN_CI_CTEST_REGEX, which a selection would conflict with.
 build:linux:cross:sme:gcc-14:full:affected:
   extends: build:linux:cross:sme:gcc-14:full
+  rules: !reference [.rules:libeigen:affected-tests:sve-sme, rules]
+
+# One product_sme build, so a change to the gate is caught by the affected tier
+# rather than only by the nightly run.
+build:linux:cross:sme:gcc-14:no-f64f64:affected:
+  extends: build:linux:cross:sme:gcc-14:no-f64f64
   rules: !reference [.rules:libeigen:affected-tests:sve-sme, rules]

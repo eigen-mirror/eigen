@@ -470,6 +470,18 @@ test:linux:sme2048:gcc-14:default:official:
   variables:
     QEMU_CPU: max,sme=on,sme2048=on,sme128=off,sme256=off,sme512=off,sme1024=off
 
+# The no-FEAT_SME_F64F64 build, at one SVL: double has to reach the generic
+# kernel and still be correct inside an SME build, where packet traits,
+# alignment and cache blocking all differ from a plain NEON build. Its subtest
+# skips the SME-only symm and mapper cases there, so the run is short. One SVL
+# is enough -- the generic kernel it exercises is SVL-independent.
+test:linux:sme512:gcc-14:no-f64f64:official:
+  extends: .test:linux:sme:gcc-14:default
+  needs: [ build:linux:cross:sme:gcc-14:no-f64f64 ]
+  variables:
+    QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
+    EIGEN_CI_CTEST_REGEX: product_sme
+
 # Full nightly SME test run: the complete Official + Unsupported ctest suite
 # against the full build above, at a single representative SVL (512: the logical
 # block matches the ZA tile grid exactly, exercising the multi-vector-load fast

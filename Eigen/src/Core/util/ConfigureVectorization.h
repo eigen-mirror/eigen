@@ -462,6 +462,16 @@ extern "C" {
     "EIGEN_ARM64_USE_SME must be built without -msve-vector-bits (scalable/VLA mode): a fixed SVE vector length pins the kernel to one runtime streaming SVL and silently miscomputes at any other."
 #endif
 
+// Double-precision outer products (FMOPA into a ZA.D tile) need the optional
+// FEAT_SME_F64F64, which each compiler reports differently: GCC defines the ACLE
+// macro, clang defines no macro but gates the builtin on the target feature.
+// Both halves are needed -- clang otherwise accepts svmopa_za64_f64_m without the
+// feature, so a missed gate faults at run time rather than at build time.
+#if !defined(EIGEN_ARM64_NO_SME_F64F64) && \
+    (defined(__ARM_FEATURE_SME_F64F64) || EIGEN_HAS_BUILTIN(__builtin_sme_svmopa_za64_f64_m))
+#define EIGEN_VECTORIZE_SME_F64F64
+#endif
+
 #elif EIGEN_ARCH_RISCV
 
 #if defined(__riscv_zfh)

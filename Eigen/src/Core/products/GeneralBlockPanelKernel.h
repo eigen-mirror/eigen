@@ -127,6 +127,19 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
  * \sa setCpuCacheSizes */
 
 #ifdef EIGEN_VECTORIZE_SME
+// True for the scalar pairs the SME gebp_kernel specializes (see
+// arch/SME/GeneralBlockPanelKernel.h, which static_asserts that it agrees with
+// this list); every other pair keeps Eigen's generic kernel, packers, cache
+// blocking and GEMM loop order.
+template <typename LhsScalar, typename RhsScalar>
+struct sme_has_gebp_kernel : std::false_type {};
+template <>
+struct sme_has_gebp_kernel<float, float> : std::true_type {};
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+template <>
+struct sme_has_gebp_kernel<double, double> : std::true_type {};
+#endif
+
 // Overridable SME packed-panel budgets. The defaults are empirically tuned
 // fp32 working-set limits for Apple M4 — heuristic budgets, not generic ARM64
 // cache defaults; redefine them to retune for other SME implementations.
@@ -162,8 +175,11 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
 #endif
 
   // Keep kc large enough to amortize SME setup and accumulation, but cap very
-  // deep products to avoid too many result store passes.
-  k = (numext::mini)(k, sme_max_kc);
+  // deep products to avoid too many result store passes. The cap is a scalar
+  // count tuned for fp32; scale it by the scalar width so every element type
+  // gets the same packed-panel byte budget.
+  const Index max_kc = (numext::maxi)(Index(1), sme_max_kc * Index(sizeof(float)) / Index(sizeof(LhsScalar)));
+  k = (numext::mini)(k, max_kc);
 
   // Bound the packed RHS strip so very wide matrices do not allocate an
   // unbounded blockB panel.
@@ -267,9 +283,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     if ((numext::maxi)(k, (numext::maxi)(m, n)) < 48) return;
 
 #ifdef EIGEN_VECTORIZE_SME
-    // Only float×float uses the SME kernel; other scalar pairs run the generic
-    // kernel below and would thrash L1/L2 with the SME-sized budgets.
-    if (std::is_same<LhsScalar, float>::value && std::is_same<RhsScalar, float>::value) {
+    // Only the scalar pairs the SME kernel specializes use the SME budgets;
+    // the others run the generic kernel below and would thrash L1/L2 with them.
+    EIGEN_IF_CONSTEXPR ((sme_has_gebp_kernel<LhsScalar, RhsScalar>::value)) {
       evaluateProductBlockingSizesHeuristicForSme<LhsScalar, RhsScalar>(k, m, n);
       return;
     }
