@@ -422,26 +422,45 @@ EIGEN_STRONG_INLINE __device__ bool operator>=(const half& a, const half& b) { r
 
 #endif  // EIGEN_HAS_NATIVE_GPU_FP16
 
+#if (EIGEN_HAS_ARM64_FP16 || defined(EIGEN_HAS_BUILTIN_FLOAT16)) && !defined(EIGEN_GPU_COMPILE_PHASE)
+// nvcc's EDG front end does not promote __fp16 arithmetic to float, and it ranks the mandatory
+// __fp16 -> float promotion as an exact match, so constructing a half from a native fp16 expression
+// is an ambiguous tie between half(__fp16) and half(float). Every nvcc arm64 translation unit that
+// includes Eigen then fails to compile. Building __half_raw names one constructor, and is what
+// half(__fp16) and half(_Float16) do internally, so the stored value is unchanged.
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half half_from_rep(decltype(__half_raw::x) rep) {
+  return half(__half_raw(__half_raw::construct_from_rep_tag(), rep));
+}
+#endif
+
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) && !defined(EIGEN_GPU_COMPILE_PHASE)
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half(vaddh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half(vmulh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half(vsubh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half(vdivh_f16(a.x, b.x)); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(vnegh_f16(a.x)); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) {
+  return half_from_rep(vaddh_f16(a.x, b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) {
+  return half_from_rep(vmulh_f16(a.x, b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) {
+  return half_from_rep(vsubh_f16(a.x, b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) {
+  return half_from_rep(vdivh_f16(a.x, b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half_from_rep(vnegh_f16(a.x)); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
-  a = half(vaddh_f16(a.x, b.x));
+  a = half_from_rep(vaddh_f16(a.x, b.x));
   return a;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator*=(half& a, const half& b) {
-  a = half(vmulh_f16(a.x, b.x));
+  a = half_from_rep(vmulh_f16(a.x, b.x));
   return a;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator-=(half& a, const half& b) {
-  a = half(vsubh_f16(a.x, b.x));
+  a = half_from_rep(vsubh_f16(a.x, b.x));
   return a;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator/=(half& a, const half& b) {
-  a = half(vdivh_f16(a.x, b.x));
+  a = half_from_rep(vdivh_f16(a.x, b.x));
   return a;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const half& a, const half& b) { return vceqh_f16(a.x, b.x); }
@@ -463,11 +482,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half&
 #pragma clang diagnostic ignored "-Wdouble-promotion"
 #endif
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half(a.x + b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half(a.x * b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half(a.x - b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half(a.x / b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half(-a.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half_from_rep(a.x + b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half_from_rep(a.x * b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half_from_rep(a.x - b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half_from_rep(a.x / b.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half_from_rep(-a.x); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
   a = a + b;
   return a;
@@ -779,7 +798,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const half& a) {
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half abs(const half& a) {
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
-  return half(vabsh_f16(a.x));
+  return half_from_rep(vabsh_f16(a.x));
 #else
   return raw_uint16_to_half(static_cast<numext::uint16_t>(raw_half_as_uint16(a) & 0x7FFF));
 #endif
@@ -864,7 +883,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(max)(const half& a, const half& b) { 
 
 EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
-  return half(vfmah_f16(c.x, a.x, b.x));
+  return half_from_rep(vfmah_f16(c.x, a.x, b.x));
 #elif defined(EIGEN_VECTORIZE_AVX512FP16)
   // Reduces to vfmadd213sh.
   return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), _mm_set_sh(c.x))));
