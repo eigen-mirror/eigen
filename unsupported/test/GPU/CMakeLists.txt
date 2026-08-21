@@ -5,6 +5,20 @@
 
 find_package(CUDAToolkit QUIET)
 
+# These tests compile the GPU headers against the test harness, where
+# eigen_assert throws. A noexcept function that reaches such an assert therefore
+# calls std::terminate; the headers destroy CUDA events unchecked in their
+# noexcept move assignments for exactly that reason. Both compilers already
+# diagnose the pattern by default, under their own spelling; promoting it to an
+# error keeps it from returning unnoticed. The move assignments are templates,
+# so this binds the instantiations the tests below create, not the definitions.
+set(EIGEN_GPU_TEST_CXX_FLAGS "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(EIGEN_GPU_TEST_CXX_FLAGS "-Werror=terminate")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(EIGEN_GPU_TEST_CXX_FLAGS "-Werror=exceptions")
+endif()
+
 # ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...])
 #
 # Thin wrapper around ei_add_test for GPU module tests. Delegates to
@@ -25,7 +39,7 @@ function(ei_add_gpu_test test_name)
   # Delegate to ei_add_test. The third arg is a semicolon-separated library
   # list; CUDA::cudart_static is always needed for any host test that
   # touches a device-allocated buffer.
-  ei_add_test(${test_name} "" "CUDA::cudart_static;${ARG_EXTRA_LIBS}")
+  ei_add_test(${test_name} "${EIGEN_GPU_TEST_CXX_FLAGS}" "CUDA::cudart_static;${ARG_EXTRA_LIBS}")
 
   # Discover targets ei_add_test created. The scan mirrors ei_add_test's own
   # scan so we see the same set of suffixes: one target per distinct
@@ -44,10 +58,12 @@ function(ei_add_gpu_test test_name)
   endif()
 
   foreach(t ${_targets})
-    target_include_directories(${t} PRIVATE
+    # SYSTEM for the toolkit and backend headers: the -Werror above is aimed at
+    # Eigen's own noexcept functions, not at whatever those ship.
+    target_include_directories(${t} SYSTEM PRIVATE
       "${CUDA_TOOLKIT_ROOT_DIR}/include"
-      "${CMAKE_CURRENT_BINARY_DIR}"
       ${ARG_EXTRA_INCLUDES})
+    target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     if(ARG_EXTRA_DEFINES)
       target_compile_definitions(${t} PRIVATE ${ARG_EXTRA_DEFINES})
     endif()

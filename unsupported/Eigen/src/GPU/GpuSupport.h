@@ -32,7 +32,9 @@ namespace gpu {
 enum class GpuOp { NoTrans, Trans, ConjTrans };
 
 namespace internal {
-// Aborts via eigen_assert on failure, so it must not be used in destructors.
+// Aborts via eigen_assert on failure, and eigen_assert throws where it is so
+// configured, so this must not be used in a destructor or any other noexcept
+// function: there the throw would call std::terminate.
 #define EIGEN_CUDA_RUNTIME_CHECK(expr)                             \
   do {                                                             \
     cudaError_t _e = (expr);                                       \

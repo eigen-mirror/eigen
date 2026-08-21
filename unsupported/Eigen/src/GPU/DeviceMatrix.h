@@ -76,7 +76,8 @@ class HostTransfer {
 
   HostTransfer& operator=(HostTransfer&& o) noexcept {
     if (this != &o) {
-      if (event_) EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(event_));
+      // Unchecked like the destructor: eigen_assert may throw, and this operator is noexcept.
+      if (event_) (void)cudaEventDestroy(event_);
       host_buf_ = std::move(o.host_buf_);
       pinned_buf_ = std::move(o.pinned_buf_);
       event_ = o.event_;
@@ -183,7 +184,8 @@ class DeviceMatrix {
 
   DeviceMatrix& operator=(DeviceMatrix&& o) noexcept {
     if (this != &o) {
-      if (ready_event_) EIGEN_CUDA_RUNTIME_CHECK(cudaEventDestroy(ready_event_));
+      // Unchecked like the destructor: eigen_assert may throw, and this operator is noexcept.
+      if (ready_event_) (void)cudaEventDestroy(ready_event_);
       data_ = std::move(o.data_);
       rows_ = o.rows_;
       cols_ = o.cols_;

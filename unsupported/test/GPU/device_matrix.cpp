@@ -173,6 +173,52 @@ void test_host_transfer_move() {
   VERIFY_IS_APPROX(result, host);
 }
 
+// ---- HostTransfer move assign -----------------------------------------------
+
+// Move assignment destroys the destination's own transfer event before adopting
+// the source's; move construction never reaches that branch because it starts
+// from no event at all. Both destinations below hold a live event_, one already
+// consumed by get() and one not, so the branch runs in both synced_ states.
+void test_host_transfer_move_assign() {
+  using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
+  MatrixType host_a = MatrixType::Random(50, 50);
+  MatrixType host_b = MatrixType::Random(50, 50);
+
+  cudaStream_t stream;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&stream));
+
+  auto dm_a = gpu::DeviceMatrix<double>::fromHost(host_a, stream);
+  auto dm_b = gpu::DeviceMatrix<double>::fromHost(host_b, stream);
+
+  // Destination already consumed: get() leaves event_ live and synced_ set.
+  {
+    auto dest = dm_a.toHostAsync(stream);
+    VERIFY_IS_APPROX(dest.get(), host_a);
+
+    auto src = dm_b.toHostAsync(stream);
+    dest = std::move(src);
+
+    // The adopted transfer still completes and yields the source's data.
+    VERIFY_IS_APPROX(dest.get(), host_b);
+    // The moved-from future owns no event and answers ready() without CUDA.
+    VERIFY(src.ready());
+  }
+
+  // Destination never consumed: event_ live and synced_ still false. Sync first
+  // so no copy is in flight into the staging buffer the assignment frees.
+  {
+    auto dest = dm_a.toHostAsync(stream);
+    auto src = dm_b.toHostAsync(stream);
+    EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream));
+
+    dest = std::move(src);
+    VERIFY_IS_APPROX(dest.get(), host_b);
+    VERIFY(src.ready());
+  }
+
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(stream));
+}
+
 // ---- clone() produces independent copy --------------------------------------
 
 template <typename Scalar>
@@ -230,6 +276,46 @@ void test_move_assign(Index rows, Index cols) {
   VERIFY_IS_EQUAL(dest.rows(), rows);
   MatrixType result = dest.toHost();
   VERIFY_IS_APPROX(result, host);
+}
+
+// ---- Move assign over a live ready event ------------------------------------
+
+// A destination produced asynchronously owns a ready event, which the
+// assignment must destroy before adopting the source's. test_move_assign()
+// cannot reach that branch: its destination is default-constructed and its
+// source comes from the synchronous fromHost(), so neither records an event.
+template <typename Scalar>
+void test_move_assign_async(Index rows, Index cols) {
+  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  MatrixType host_a = MatrixType::Random(rows, cols);
+  MatrixType host_b = MatrixType::Random(rows, cols);
+
+  cudaStream_t producer_stream;
+  cudaStream_t consumer_stream;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&producer_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&consumer_stream));
+
+  // Destination: upload finished, but its ready event is still live. Draining
+  // the stream keeps the assignment from freeing a buffer still being written.
+  auto dest = gpu::DeviceMatrix<Scalar>::fromHostAsync(host_a.data(), rows, cols, producer_stream);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(producer_stream));
+
+  // Source: upload still in flight, so the adopted event has real work behind it.
+  auto src = gpu::DeviceMatrix<Scalar>::fromHostAsync(host_b.data(), rows, cols, producer_stream);
+  dest = std::move(src);
+
+  VERIFY(src.empty());
+  VERIFY(src.data() == nullptr);
+  VERIFY_IS_EQUAL(dest.rows(), rows);
+  VERIFY_IS_EQUAL(dest.cols(), cols);
+
+  // Reading back on the other stream waits on the adopted event, so an event
+  // lost or left behind by the assignment shows up as wrong data.
+  MatrixType result = dest.toHost(consumer_stream);
+  VERIFY_IS_APPROX(result, host_b);
+
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(consumer_stream));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamDestroy(producer_stream));
 }
 
 // ---- resize() ---------------------------------------------------------------
@@ -290,6 +376,7 @@ void test_scalar() {
   CALL_SUBTEST(test_clone<Scalar>(64, 64));
   CALL_SUBTEST(test_move_construct<Scalar>(64, 64));
   CALL_SUBTEST(test_move_assign<Scalar>(64, 64));
+  CALL_SUBTEST(test_move_assign_async<Scalar>(64, 64));
 }
 
 // ---- BLAS-1: dot product ----------------------------------------------------
@@ -510,6 +597,7 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_resize());
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());
+  CALL_SUBTEST(test_host_transfer_move_assign());
   CALL_SUBTEST((test_allocate<float>(100, 50)));
   CALL_SUBTEST((test_allocate<double>(100, 50)));
   CALL_SUBTEST(test_scalar<float>());
