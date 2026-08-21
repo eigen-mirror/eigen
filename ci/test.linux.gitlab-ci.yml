@@ -345,8 +345,6 @@ test:linux:cuda-12.6:clang-19:
     # TCG. The emulated jobs are here for ISA-specific codegen coverage; seed
     # diversity is already provided by the native jobs at the default repeat.
     EIGEN_REPEAT: "2"
-  tags:
-    - saas-linux-large-amd64
 
 ##### arm ######################################################################
 
