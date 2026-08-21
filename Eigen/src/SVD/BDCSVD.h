@@ -413,6 +413,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   m_impl.computed().setZero();
   m_impl.computed().topRows(diagSize()).diagonal() = bid.bidiagonal().diagonal();
   m_impl.computed().topRows(diagSize()).template diagonal<-1>() = bid.bidiagonal().diagonal(1);
+  m_impl.splitNegligibleSuperdiagonal(diagSize());
   m_impl.divide(0, diagSize() - 1, 0, 0, 0);
   m_info = m_impl.info();
   m_numIters = m_impl.numIters();
@@ -558,6 +559,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   m_isTranspose = false;
 
   //**** Run D&C.
+  m_impl.splitNegligibleSuperdiagonal(n);
   m_impl.divide(0, n - 1, 0, 0, 0);
   m_info = m_impl.info();
   m_numIters = m_impl.numIters();

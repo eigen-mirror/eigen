@@ -55,6 +55,9 @@ class bdcsvd_impl {
   /** Entry point for the divide-and-conquer phase. */
   void divide(Index firstCol, Index lastCol, Index firstRowW, Index firstColW, Index shift);
 
+  /** Zeroes sub-diagonal entries of the stored bidiagonal that are negligible for the matrix as a whole. */
+  void splitNegligibleSuperdiagonal(Index n);
+
   MatrixXr& naiveU() { return m_naiveU; }
   const MatrixXr& naiveU() const { return m_naiveU; }
   MatrixXr& naiveV() { return m_naiveV; }
@@ -121,6 +124,24 @@ void bdcsvd_impl<RealScalar_>::allocate(Index diagSize, bool compU, bool compV) 
   else
     m_workspace.resize(5 * diagSize);
   m_workspaceI.resize(3 * diagSize);
+}
+
+// LAPACK's xBDSDC normalizes the bidiagonal by its largest entry and splits wherever a superdiagonal entry falls
+// below eps, so a run of rounding noise never becomes a sub-problem. Eigen scales the input matrix but has no such
+// split: every threshold in deflation() is formed from the sub-problem's own maximum, so a block whose entries are
+// uniformly tiny looks well scaled from the inside and gets resolved for its own relative accuracy. Zeroing here
+// costs one pass and leaves the perturbation within the eps * ||B|| the SVD already carries.
+template <typename RealScalar_>
+void bdcsvd_impl<RealScalar_>::splitNegligibleSuperdiagonal(Index n) {
+  if (n < 2) return;
+  // xBDSDC scales d and e by DLANST('M', n, d, e), the largest entry of either, and then splits at
+  // 0.9 * DLAMCH('E'). DLAMCH('E') is the unit roundoff, i.e. half of NumTraits::epsilon(), so the
+  // same threshold unscaled is 0.45 * epsilon * ||B||_max.
+  const RealScalar norm = numext::maxi(m_computed.topRows(n).diagonal().cwiseAbs().maxCoeff(),
+                                       m_computed.topRows(n).template diagonal<-1>().cwiseAbs().maxCoeff());
+  const RealScalar threshold = RealScalar(0.45) * NumTraits<RealScalar>::epsilon() * norm;
+  for (Index i = 0; i + 1 < n; ++i)
+    if (numext::abs(m_computed(i + 1, i)) < threshold) m_computed(i + 1, i) = RealScalar(0);
 }
 
 /** \internal
