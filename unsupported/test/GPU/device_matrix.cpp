@@ -16,6 +16,8 @@
 #include <Eigen/Sparse>
 #include <unsupported/Eigen/GPU>
 
+#include "./gpu_test_helpers.h"
+
 using namespace Eigen;
 
 // ---- Default construction ---------------------------------------------------
@@ -457,6 +459,7 @@ void test_cwiseProduct() {
 }
 
 EIGEN_DECLARE_TEST(gpu_device_matrix) {
+  gpu_test::require_cuda_device();
   CALL_SUBTEST(test_default_construct());
   CALL_SUBTEST(test_empty());
   CALL_SUBTEST(test_resize());

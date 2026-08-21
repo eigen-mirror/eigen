@@ -34,6 +34,22 @@ inline std::enable_if_t<!Eigen::NumTraits<Scalar>::IsComplex, Scalar> make_test_
   return Scalar(re);
 }
 
+#ifdef CUDART_VERSION
+// The CUDA runtime loads without a driver, so a GPU test binary starts happily on
+// a machine with no device and only fails at its first allocation -- as an abort
+// out of EIGEN_CUDA_RUNTIME_CHECK, not a skip. Probe the device count first so
+// those runs report as skipped, the way the per-library probes below do.
+inline void require_cuda_device() {
+  int count = 0;
+  const cudaError_t status = cudaGetDeviceCount(&count);
+  if (status != cudaSuccess || count == 0) {
+    std::cout << "SKIP: GPU tests require a CUDA device. cudaGetDeviceCount reported " << cudaGetErrorString(status)
+              << " with " << count << " device(s)." << std::endl;
+    std::exit(77);
+  }
+}
+#endif
+
 #ifdef CUDSS_VERSION
 inline void require_cudss_context() {
   cudssHandle_t handle = nullptr;
