@@ -1160,9 +1160,8 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 // directly for std::complex<T>, Eigen::half, Eigen::bfloat16. For these,
 // you will need to apply to the underlying POD type.
 #if EIGEN_ARCH_PPC && EIGEN_COMP_GNUC_STRICT
-// This seems to be broken on clang. Packet4f is loaded into a single
-//   register rather than a vector, zeroing out some entries. Integer
-//   types also generate a compile error.
+// These register alternatives are broken on Clang. Packet4f is loaded into a single register rather than a vector,
+// zeroing out some entries, and integer types generate a compile error.
 #if EIGEN_OS_MAC
 // General, Altivec for Apple (VSX were added in ISA v2.06):
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+r,v"(X));
@@ -1170,6 +1169,10 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 // General, Altivec, VSX otherwise:
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+r,v,wa"(X));
 #endif
+#elif EIGEN_ARCH_PPC && EIGEN_COMP_CLANG
+// Clang's PPC backend does not accept one register constraint covering all scalar and vector operands. In particular,
+// "wa" crashes the backend for scalar integers narrower than 64 bits.
+#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+m"(X));
 #elif EIGEN_ARCH_ARM_OR_ARM64
 #ifdef __ARM_FP
 // General, VFP or NEON.
