@@ -121,6 +121,10 @@ opts out of Eigen's install rules. They exist because those are claims
 [`doc/TopicCMakeGuide.dox`](../doc/TopicCMakeGuide.dox) makes to users and nothing else checks; the blocking
 documentation job only builds the docs, it does not run what they describe.
 
+Not every scenario answers to the documentation. A find module that has to survive a second configure of the same
+build tree, or the wiring that routes a compiler launcher into a test's compile command, is CMake behavior nothing
+else exercises either.
+
 ```bash
 cmake -G Ninja -S . -B build -DEIGEN_BUILD_TESTING=ON
 cmake -E chdir build ctest -L buildsystem --output-on-failure

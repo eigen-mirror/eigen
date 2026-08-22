@@ -9,9 +9,9 @@
     EIGEN_CI_BUILD_TARGET: buildtests
     EIGEN_CI_SKIP_APT: "false"
     # "off" disables the ccache compiler launchers (see build.linux.script.sh);
-    # used where the dominant compiles bypass them (nvcc-driven .cu files) or
-    # the compiler is unsupported by ccache (nvc++). Images without ccache
-    # build exactly as before regardless of this setting.
+    # used where the compiler is unsupported by ccache (nvc++) or a cache does
+    # not survive the image (ROCm). Images without ccache build exactly as
+    # before regardless of this setting.
     EIGEN_CI_CCACHE: "on"
     CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
     # A full buildtests job stores ~4-6 GB of compressed objects; at 2G every
@@ -258,12 +258,13 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
 
 .build:linux:cuda:
   extends: .build:linux:cross:x86-64
-  # No caching: the .cu compiles that dominate these builds go through nvcc,
-  # which bypasses the C/CXX ccache launchers, and the CUDA images vary
-  # enough between runs that a cache invites staleness.
-  cache: []
+  # ccache and the inherited cache stanza apply here: the .cu compiles that
+  # dominate these builds now reach the launcher through the wrapper that
+  # ei_cuda_use_compiler_launcher() puts in front of nvcc. A new image costs
+  # one cold build rather than serving stale objects, since ccache hashes the
+  # nvcc it runs and the preprocessed source. nvcc's -M dependency and -dlink
+  # passes are not cacheable and appear as misses in the statistics.
   variables:
-    EIGEN_CI_CCACHE: "off"
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
     # Compute architectures present in the GitLab CI runners.

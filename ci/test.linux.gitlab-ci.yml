@@ -265,9 +265,9 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
-    # nvcc-driven builds bypass ccache and nvcc-linked binaries are not
-    # bit-reproducible, so the pass cache could never hit here.  cache: []
-    # also drops the inherited stanza, mirroring the build jobs' opt-outs.
+    # nvcc-linked binaries are not bit-reproducible, so the content-addressed
+    # pass cache could never hit here. cache: [] also drops the inherited
+    # stanza.
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]

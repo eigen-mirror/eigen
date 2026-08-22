@@ -51,6 +51,12 @@ function(bs_fail message)
   message(FATAL_ERROR "[${SCENARIO}] ${message}")
 endfunction()
 
+function(bs_assert_streq actual expected what)
+  if(NOT actual STREQUAL expected)
+    bs_fail("${what}:\n  expected [${expected}]\n  actual   [${actual}]")
+  endif()
+endfunction()
+
 # Runs a command, failing the scenario with its merged output unless the exit
 # status matches EXPECT_RESULT.  EXPECT_RESULT accepts a number or the word
 # FAILURE, which admits any non-zero status.

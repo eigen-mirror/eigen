@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-# Build-system integration tests.  Each scenario drives a real configure,
-# build, and install of Eigen through CMake and asserts a claim that
-# doc/TopicCMakeGuide.dox makes about consuming Eigen, so documented CMake
-# behavior cannot drift from the tree without a test failing.
+# Build-system integration tests.  Each scenario asserts a claim about Eigen's
+# own CMake surface -- most by driving a real configure, build, and install of
+# Eigen -- so documented or relied-upon CMake behavior cannot drift from the
+# tree without a test failing.
 #
 # Registered only for a top-level, non-cross-compiling build: a scenario
 # configures and runs a nested project, which needs a usable host toolchain
@@ -22,6 +22,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off
     install_off_all_options
     exclude_from_all
+    cuda_launcher_wrapper
     )
 
 # find_package version ranges are CMake 3.19 syntax.  On the 3.17 Eigen still
