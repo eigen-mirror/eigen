@@ -9,8 +9,7 @@
     EIGEN_CI_BUILD_TARGET: buildtests
     EIGEN_CI_SKIP_APT: "false"
     # "off" disables the ccache compiler launchers (see build.linux.script.sh);
-    # used where the compiler is unsupported by ccache (nvc++) or a cache does
-    # not survive the image (ROCm). Images without ccache build exactly as
+    # the jobs that set it explain why. Images without ccache build exactly as
     # before regardless of this setting.
     EIGEN_CI_CCACHE: "on"
     CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
@@ -229,10 +228,11 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
 .build:linux:x86-64:nvhpc-26.1:
   extends: .build:linux:cross:x86-64
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
-  # nvc++ is not a compiler ccache supports; no cache to populate.
-  cache: []
+  # ccache has no dedicated nvc++ support -- the name falls through its
+  # compiler-type guess to "other" -- but that is a generic handling path, not a
+  # refusal: the calls are cacheable and hit. Which matters most here, given the
+  # frontend cost the section comment above describes.
   variables:
-    EIGEN_CI_CCACHE: "off"
     EIGEN_CI_C_COMPILER: nvc
     EIGEN_CI_CXX_COMPILER: nvc++
     EIGEN_CI_INSTALL: ""

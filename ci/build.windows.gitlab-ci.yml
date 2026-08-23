@@ -11,8 +11,7 @@
     # Note: /d2ReducedOptimizeHugeFunctions is only available in VS 2019.
     EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
     # "off" disables the ccache compiler launchers (see
-    # build.windows.script.ps1); used where the dominant compiles bypass them
-    # (nvcc-driven .cu files). The script downloads a pinned,
+    # build.windows.script.ps1). The script downloads a pinned,
     # SHA-256-verified ccache when the runner has none; if that also fails,
     # the job builds exactly as before.
     EIGEN_CI_CCACHE: "on"
@@ -86,11 +85,10 @@ build:windows:x86-64:msvc-14.29:avx512dq:
 
 .build:windows:cuda:
   extends: .build:windows
-  # No caching: the .cu compiles that dominate these builds go through nvcc,
-  # which bypasses the C/CXX ccache launchers.
-  cache: []
+  # The .cu compiles reach the launcher through the .bat wrapper that
+  # ei_cuda_use_compiler_launcher() puts in front of nvcc; see the Linux CUDA
+  # template for the rationale.
   variables:
-    EIGEN_CI_CCACHE: "off"
     # Compute architectures present in the GitLab CI runners.
     EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
