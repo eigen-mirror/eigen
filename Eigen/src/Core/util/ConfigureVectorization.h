@@ -81,6 +81,15 @@
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
 #elif defined(EIGEN_VECTORIZE_SME)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
+#elif defined(EIGEN_ARM64_USE_SVE) && defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0)
+// A fixed-length SVE packet is __ARM_FEATURE_SVE_BITS/8 bytes wide and asks for
+// exactly that much alignment; a fixed-size object has to be able to offer it or
+// it never reaches the vectorized path.  The Alignment enum stops at 128.
+#if __ARM_FEATURE_SVE_BITS <= 1024
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES (__ARM_FEATURE_SVE_BITS / 8)
+#else
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
+#endif
 #elif defined(__AVX__)
 // 32 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 32

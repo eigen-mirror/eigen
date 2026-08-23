@@ -31,6 +31,16 @@ struct sve_packet_size_selector {
   enum { size = SVEVectorLength / (sizeof(Scalar) * CHAR_BIT) };
 };
 
+// A fixed-length SVE packet needs exactly its own size in alignment, no more --
+// hard-coding Aligned64 over-constrains every vector length below 512 and, since
+// the requirement then exceeds what a fixed-size object can offer, disables
+// vectorization for those types outright. The Alignment enum tops out at
+// Aligned128 (AlignedMask is 255), so clamp there for VL >= 2048.
+template <int SVEVectorLength>
+struct sve_packet_alignment_selector {
+  enum { alignment = plain_enum_min(SVEVectorLength / CHAR_BIT, Aligned128) };
+};
+
 /********************************* int32 **************************************/
 typedef svint32_t PacketXi __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL)));
 
@@ -64,7 +74,7 @@ struct unpacket_traits<PacketXi> {
   typedef PacketXi half;  // Half not yet implemented
   enum {
     size = sve_packet_size_selector<numext::int32_t, EIGEN_ARM64_SVE_VL>::size,
-    alignment = Aligned64,
+    alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
@@ -382,7 +392,7 @@ struct unpacket_traits<PacketXf> {
 
   enum {
     size = sve_packet_size_selector<float, EIGEN_ARM64_SVE_VL>::size,
-    alignment = Aligned64,
+    alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
     vectorizable = true,
     masked_load_available = false,
     masked_store_available = false
