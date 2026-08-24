@@ -93,6 +93,30 @@ namespace internal {
 
 // Implementation.
 
+// Granularity of the column split. Aligning to Traits::nr instead would avoid a partial leading
+// rhs panel per thread, but nr is 8 on several backends and the coarser split balances worse: on a
+// 72-core Neoverse V2, nr-alignment cost 3.5-4.5% at high thread counts (8192x8192 float, 72
+// threads: 5132 vs 5315 GFLOP/s). gebp handles a partial panel, so prefer the finer balance.
+constexpr int kGemmColGrain = 4;
+
+/** \internal
+ * Splits [0, \a total) into \a parts contiguous ranges and returns the one belonging to \a part.
+ * Lengths are multiples of \a grain apart from the final partial one, and the remainder is spread
+ * over the leading parts rather than appended to the last: every thread waits on the slowest.
+ * The ranges tile [0, \a total) exactly, which the packed-lhs handoff in
+ * general_matrix_matrix_product relies on for its blockA offsets. */
+template <typename Index>
+EIGEN_ALWAYS_INLINE void balanced_gemm_range(Index total, Index parts, Index grain, Index part, Index& start,
+                                             Index& length) {
+  const Index chunks = numext::div_ceil(total, grain);
+  const Index base = chunks / parts;
+  const Index extra = chunks % parts;
+  const Index first_chunk = part * base + numext::mini(part, extra);
+  const Index chunk_count = base + (part < extra ? 1 : 0);
+  start = numext::mini(first_chunk * grain, total);
+  length = numext::mini(chunk_count * grain, total - start);
+}
+
 #if defined(EIGEN_USE_BLAS) || (!defined(EIGEN_HAS_OPENMP) && !defined(EIGEN_GEMM_THREADPOOL))
 
 inline void manage_multi_threading(Action action, int* v) {
@@ -222,15 +246,11 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
     Index actual_threads = omp_get_num_threads();
     GemmParallelInfo<Index> info(static_cast<int>(i), static_cast<int>(actual_threads), task_info);
 
-    Index blockCols = (cols / actual_threads) & ~Index(0x3);
-    Index blockRows = (rows / actual_threads);
-    blockRows = (blockRows / Functor::Traits::mr) * Functor::Traits::mr;
+    Index r0, actualBlockRows;
+    balanced_gemm_range<Index>(rows, actual_threads, Index(Functor::Traits::mr), i, r0, actualBlockRows);
 
-    Index r0 = i * blockRows;
-    Index actualBlockRows = (i + 1 == actual_threads) ? rows - r0 : blockRows;
-
-    Index c0 = i * blockCols;
-    Index actualBlockCols = (i + 1 == actual_threads) ? cols - c0 : blockCols;
+    Index c0, actualBlockCols;
+    balanced_gemm_range<Index>(cols, actual_threads, Index(kGemmColGrain), i, c0, actualBlockCols);
 
     info.task_info[i].lhs_start = r0;
     info.task_info[i].lhs_length = actualBlockRows;
@@ -246,15 +266,11 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   auto task = [=, &func, &barrier, &task_info](int i) {
     Index actual_threads = threads;
     GemmParallelInfo<Index> info(i, static_cast<int>(actual_threads), task_info);
-    Index blockCols = (cols / actual_threads) & ~Index(0x3);
-    Index blockRows = (rows / actual_threads);
-    blockRows = (blockRows / Functor::Traits::mr) * Functor::Traits::mr;
+    Index r0, actualBlockRows;
+    balanced_gemm_range<Index>(rows, actual_threads, Index(Functor::Traits::mr), i, r0, actualBlockRows);
 
-    Index r0 = i * blockRows;
-    Index actualBlockRows = (i + 1 == actual_threads) ? rows - r0 : blockRows;
-
-    Index c0 = i * blockCols;
-    Index actualBlockCols = (i + 1 == actual_threads) ? cols - c0 : blockCols;
+    Index c0, actualBlockCols;
+    balanced_gemm_range<Index>(cols, actual_threads, Index(kGemmColGrain), i, c0, actualBlockCols);
 
     info.task_info[i].lhs_start = r0;
     info.task_info[i].lhs_length = actualBlockRows;
