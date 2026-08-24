@@ -1148,6 +1148,9 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
   Array<Scalar_, Dynamic, 1> accumData(maskSize * ResultBlockSize);
   Array<Index, Dynamic, 1> indices(maskSize);
   Index nIndices = 0;
+  // The mask is read and written through coeff/coeffRef below: the block indices
+  // are in range by construction, and operator()'s bounds check gives GCC 14+ a
+  // false -Wstringop-overflow on a negative StorageIndex_.
 
   // Grow result storage geometrically rather than pre-allocating the dense
   // worst case (cBlockRows*cBlockCols blocks): the product is typically far
@@ -1173,8 +1176,8 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
         typename RhsMatrix::ConstBlockMap Bkj = rhs.blockRef(rhsId);
         for (Index lhsId = m_outerIndex(k); lhsId < m_outerIndex(k + 1); ++lhsId) {
           Index bi = m_innerIndex(lhsId);
-          if (!mask(bi)) {
-            mask(bi) = 1;
+          if (!mask.coeff(bi)) {
+            mask.coeffRef(bi) = 1;
             Map<ResultBlock>(accumData.data() + bi * ResultBlockSize).noalias() = blockRef(lhsId) * Bkj;
             indices(nIndices++) = bi;
           } else {
@@ -1191,8 +1194,8 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
         ConstBlockMap Aik = blockRef(lhsId);
         for (Index rhsId = rhs.m_outerIndex(k); rhsId < rhs.m_outerIndex(k + 1); ++rhsId) {
           Index j = rhs.m_innerIndex(rhsId);
-          if (!mask(j)) {
-            mask(j) = 1;
+          if (!mask.coeff(j)) {
+            mask.coeffRef(j) = 1;
             Map<ResultBlock>(accumData.data() + j * ResultBlockSize).noalias() = Aik * rhs.blockRef(rhsId);
             indices(nIndices++) = j;
           } else {
@@ -1212,7 +1215,7 @@ BlockSparseMatrix<Scalar_, Options_, BlockRows_, BlockCols_, StorageIndex_>::ope
       Index idx = indices(ki);
       result.m_innerIndex(nnz) = StorageIndex_(idx);
       result.blockRef(nnz) = Map<ResultBlock>(accumData.data() + idx * ResultBlockSize);
-      mask(idx) = 0;
+      mask.coeffRef(idx) = 0;
       ++nnz;
     }
     nIndices = 0;
