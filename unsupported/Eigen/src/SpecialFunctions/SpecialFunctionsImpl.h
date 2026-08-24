@@ -220,7 +220,13 @@ struct digamma_impl {
     const Scalar half = Scalar(0.5);
     nz = zero;
 
-    if (x <= zero) {
+    // Near 0, psi(x) ~ -1/x - gamma.
+    // For x = +0.0: psi(+0.0) -> -infinity.
+    // For x = -0.0: psi(-0.0) -> +infinity.
+    if (x == zero) {
+      return (std::signbit(x)) ? NumTraits<Scalar>::infinity() : -NumTraits<Scalar>::infinity();
+    }
+    if (x < zero) {
       negative = true;
       q = x;
       p = numext::floor(q);
@@ -293,7 +299,7 @@ template <>
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<float>::run(const T& x_in) {
   constexpr float kClamp = 11.0f;
-  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
+  const T x = pmin<PropagateNaN>(pmax<PropagateNaN>(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
 
   // erfc(x) = 1 + x * S(x^2), |x| <= 1.
   //
@@ -418,7 +424,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
   // Clamp x to [-28:28] beyond which erfc(x) is either two or zero (below the underflow threshold).
   // This avoids having to deal with twoprod(x,x) producing NaN for sufficiently large x.
   constexpr double kClamp = 28.0;
-  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
+  const T x = pmin<PropagateNaN>(pmax<PropagateNaN>(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
 
   // For |x| < 1, we use erfc(x) = 1 - erf(x).
   const T x2 = pmul(x, x);
@@ -517,8 +523,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<float>::run(const T& x)
                             4.99425798654556274414062500000e-01f, 1.0f};
 
   // Since the polynomials are odd/even, we need x^2.
-  // Since erf(4) == 1 in float, we clamp x^2 to 16 to avoid
-  // computing Inf/Inf below.
+  // Since erf(4) == 1 in float, we clamp x^2 to 16 to avoid computing Inf/Inf below.
+  // NaN need not survive this clamp: multiplying by x below restores it.
   const T x2 = pmin(pset1<T>(16.0f), pmul(x, x));
 
   // Evaluate the numerator polynomial p.
@@ -530,7 +536,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<float>::run(const T& x)
   const T r = pdiv(p, q);
 
   // Clamp to [-1:1].
-  return pmax(pmin(r, pset1<T>(1.0f)), pset1<T>(-1.0f));
+  return pmax<PropagateNaN>(pmin<PropagateNaN>(r, pset1<T>(1.0f)), pset1<T>(-1.0f));
 }
 
 template <>
@@ -539,7 +545,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x
   // Clamp x to [-28:28] beyond which erf(x) is ±1 within double precision.
   // This avoids NaN from twoprod and exp operations for infinite inputs.
   constexpr double kClamp = 28.0;
-  const T x = pmin(pmax(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
+  const T x = pmin<PropagateNaN>(pmax<PropagateNaN>(x_in, pset1<T>(-kClamp)), pset1<T>(kClamp));
   T x2 = pmul(x, x);
   T erf_small = pmul(x, erf_over_x_double_small(x2));
 

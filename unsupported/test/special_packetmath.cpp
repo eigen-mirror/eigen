@@ -48,15 +48,65 @@ void packetmath_real() {
   }
   if (internal::packet_traits<Scalar>::HasErf) {
     data1[0] = std::numeric_limits<Scalar>::quiet_NaN();
+    data1[1] = std::numeric_limits<Scalar>::infinity();
+    data1[2] = -std::numeric_limits<Scalar>::infinity();
+    data1[3] = (std::numeric_limits<Scalar>::max)();
+    if (size >= 8) {
+      data1[4] = -(std::numeric_limits<Scalar>::max)();
+      if (sizeof(Scalar) >= 8) {
+        data1[5] = Scalar(1e200);
+        data1[6] = Scalar(-1e200);
+      } else {
+        data1[5] = Scalar(1e30f);
+        data1[6] = Scalar(-1e30f);
+      }
+      data1[7] = std::numeric_limits<Scalar>::denorm_min();
+    }
     test::packet_helper<internal::packet_traits<Scalar>::HasErf, Packet> h;
-    h.store(data2, internal::perf(h.load(data1)));
+    for (int i = 0; i < size; i += PacketSize) {
+      h.store(data2 + i, internal::perf(h.load(data1 + i)));
+    }
     VERIFY((numext::isnan)(data2[0]));
+    VERIFY_IS_EQUAL(data2[1], Scalar(1));
+    VERIFY_IS_EQUAL(data2[2], Scalar(-1));
+    VERIFY_IS_EQUAL(data2[3], Scalar(1));
+    if (size >= 8) {
+      VERIFY_IS_EQUAL(data2[4], Scalar(-1));
+      VERIFY_IS_EQUAL(data2[5], Scalar(1));
+      VERIFY_IS_EQUAL(data2[6], Scalar(-1));
+      if (data1[7] > Scalar(0)) {
+        VERIFY((data2[7] > Scalar(0)));
+      }
+    }
   }
-  {
+  if (internal::packet_traits<Scalar>::HasErfc) {
     data1[0] = std::numeric_limits<Scalar>::quiet_NaN();
+    data1[1] = std::numeric_limits<Scalar>::infinity();
+    data1[2] = -std::numeric_limits<Scalar>::infinity();
+    data1[3] = (std::numeric_limits<Scalar>::max)();
+    if (size >= 8) {
+      data1[4] = -(std::numeric_limits<Scalar>::max)();
+      if (sizeof(Scalar) >= 8) {
+        data1[5] = Scalar(1e200);
+        data1[6] = Scalar(-1e200);
+      } else {
+        data1[5] = Scalar(1e30f);
+        data1[6] = Scalar(-1e30f);
+      }
+    }
     test::packet_helper<internal::packet_traits<Scalar>::HasErfc, Packet> h;
-    h.store(data2, internal::perfc(h.load(data1)));
+    for (int i = 0; i < size; i += PacketSize) {
+      h.store(data2 + i, internal::perfc(h.load(data1 + i)));
+    }
     VERIFY((numext::isnan)(data2[0]));
+    VERIFY_IS_EQUAL(data2[1], Scalar(0));
+    VERIFY_IS_EQUAL(data2[2], Scalar(2));
+    VERIFY_IS_EQUAL(data2[3], Scalar(0));
+    if (size >= 8) {
+      VERIFY_IS_EQUAL(data2[4], Scalar(2));
+      VERIFY_IS_EQUAL(data2[5], Scalar(0));
+      VERIFY_IS_EQUAL(data2[6], Scalar(2));
+    }
   }
   {
     for (int i = 0; i < size; ++i) {

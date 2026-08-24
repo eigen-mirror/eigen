@@ -183,10 +183,10 @@ void array_special_functions() {
 
   // digamma
   {
-    ArrayType x(9), res(9), ref(9);
-    x << 1, 1.5, 4, -10.5, 10000.5, 0, -1, -2, -3;
-    ref << -0.5772156649015329, 0.03648997397857645, 1.2561176684318, 2.398239129535781, 9.210340372392849, nan, nan,
-        nan, nan;
+    ArrayType x(10), res(10), ref(10);
+    x << 1, 1.5, 4, -10.5, 10000.5, 0.0, -0.0, -1, -2, -3;
+    ref << -0.5772156649015329, 0.03648997397857645, 1.2561176684318, 2.398239129535781, 9.210340372392849, -plusinf,
+        plusinf, nan, nan, nan;
     CALL_SUBTEST(verify_component_wise(ref, ref););
 
     CALL_SUBTEST(res = x.digamma(); verify_component_wise(res, ref););
@@ -510,9 +510,110 @@ void custom_scalar_erf_erfc() {
   }
 }
 
+template <typename Scalar>
+void test_special_functions_edge_cases() {
+  const Scalar plusinf = std::numeric_limits<Scalar>::infinity();
+  const Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
+  const Scalar max_val = (std::numeric_limits<Scalar>::max)();
+  const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar min_val = (std::numeric_limits<Scalar>::min)();
+
+  // Test scalar digamma edge cases
+  VERIFY_IS_EQUAL(numext::digamma(Scalar(0.0)), -plusinf);
+  VERIFY_IS_EQUAL(numext::digamma(Scalar(-0.0)), plusinf);
+  VERIFY((numext::isnan)(numext::digamma(Scalar(-1.0))));
+  VERIFY((numext::isnan)(numext::digamma(Scalar(-2.0))));
+  VERIFY_IS_EQUAL(numext::digamma(plusinf), plusinf);
+  VERIFY((numext::isnan)(numext::digamma(-plusinf)));
+  VERIFY((numext::isnan)(numext::digamma(nan)));
+
+  // Test polygamma at (0, 0)
+  VERIFY_IS_EQUAL(numext::polygamma(Scalar(0.0), Scalar(0.0)), -plusinf);
+  VERIFY_IS_EQUAL(numext::polygamma(Scalar(0.0), Scalar(-0.0)), plusinf);
+
+  // Test scalar erf/erfc edge cases
+  VERIFY_IS_EQUAL(numext::erf(Scalar(0.0)), Scalar(0.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(-0.0)), Scalar(-0.0));
+  VERIFY((std::signbit)(numext::erf(Scalar(-0.0))));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(10.0)), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(-10.0)), Scalar(-1.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(28.0)), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(-28.0)), Scalar(-1.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(100.0)), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erf(Scalar(-100.0)), Scalar(-1.0));
+  VERIFY_IS_EQUAL(numext::erf(max_val), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erf(-max_val), Scalar(-1.0));
+  VERIFY_IS_EQUAL(numext::erf(plusinf), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erf(-plusinf), Scalar(-1.0));
+  VERIFY((numext::isnan)(numext::erf(nan)));
+
+  VERIFY_IS_EQUAL(numext::erfc(Scalar(0.0)), Scalar(1.0));
+  VERIFY_IS_EQUAL(numext::erfc(Scalar(28.0)), Scalar(0.0));
+  VERIFY_IS_EQUAL(numext::erfc(Scalar(-28.0)), Scalar(2.0));
+  VERIFY_IS_EQUAL(numext::erfc(Scalar(100.0)), Scalar(0.0));
+  VERIFY_IS_EQUAL(numext::erfc(Scalar(-100.0)), Scalar(2.0));
+  VERIFY_IS_EQUAL(numext::erfc(max_val), Scalar(0.0));
+  VERIFY_IS_EQUAL(numext::erfc(-max_val), Scalar(2.0));
+  VERIFY_IS_EQUAL(numext::erfc(plusinf), Scalar(0.0));
+  VERIFY_IS_EQUAL(numext::erfc(-plusinf), Scalar(2.0));
+  VERIFY((numext::isnan)(numext::erfc(nan)));
+
+  if (sizeof(Scalar) >= 8) {
+    VERIFY_IS_EQUAL(numext::erf(Scalar(1e200)), Scalar(1.0));
+    VERIFY_IS_EQUAL(numext::erf(Scalar(-1e200)), Scalar(-1.0));
+    VERIFY_IS_EQUAL(numext::erfc(Scalar(1e200)), Scalar(0.0));
+    VERIFY_IS_EQUAL(numext::erfc(Scalar(-1e200)), Scalar(2.0));
+  } else {
+    VERIFY_IS_EQUAL(numext::erf(Scalar(1e30f)), Scalar(1.0));
+    VERIFY_IS_EQUAL(numext::erf(Scalar(-1e30f)), Scalar(-1.0));
+    VERIFY_IS_EQUAL(numext::erfc(Scalar(1e30f)), Scalar(0.0));
+    VERIFY_IS_EQUAL(numext::erfc(Scalar(-1e30f)), Scalar(2.0));
+  }
+
+  // Denormals / subnormals
+  if (denorm_min > Scalar(0)) {
+    VERIFY(numext::erf(denorm_min) > Scalar(0));
+    VERIFY(numext::erf(-denorm_min) < Scalar(0));
+  }
+  VERIFY(numext::erf(min_val) > Scalar(0));
+  VERIFY(numext::erf(-min_val) < Scalar(0));
+
+  // Array / vectorized edge cases
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  ArrayType x(14), erf_ref(14), erfc_ref(14);
+  Scalar large_val = (sizeof(Scalar) >= 8) ? Scalar(1e200) : Scalar(1e30f);
+  x << Scalar(0.0), Scalar(-0.0), denorm_min, min_val, Scalar(2.0), Scalar(-2.0), Scalar(28.0), Scalar(-28.0),
+      large_val, -large_val, max_val, -max_val, plusinf, -plusinf;
+  erf_ref << Scalar(0.0), Scalar(-0.0), numext::erf(denorm_min), numext::erf(min_val), Scalar(std::erf(2.0)),
+      Scalar(std::erf(-2.0)), Scalar(1.0), Scalar(-1.0), Scalar(1.0), Scalar(-1.0), Scalar(1.0), Scalar(-1.0),
+      Scalar(1.0), Scalar(-1.0);
+  erfc_ref << Scalar(1.0), Scalar(1.0), numext::erfc(denorm_min), numext::erfc(min_val), Scalar(std::erfc(2.0)),
+      Scalar(std::erfc(-2.0)), Scalar(0.0), Scalar(2.0), Scalar(0.0), Scalar(2.0), Scalar(0.0), Scalar(2.0),
+      Scalar(0.0), Scalar(2.0);
+
+  ArrayType erf_res = x.erf();
+  verify_component_wise(erf_res, erf_ref);
+  erf_res = erf(x);
+  verify_component_wise(erf_res, erf_ref);
+
+  ArrayType erfc_res = x.erfc();
+  verify_component_wise(erfc_res, erfc_ref);
+  erfc_res = erfc(x);
+  verify_component_wise(erfc_res, erfc_ref);
+
+  // Array with NaN
+  ArrayType x_nan(3), erf_nan_ref(3);
+  x_nan << Scalar(1.0), nan, Scalar(-1.0);
+  erf_nan_ref << Scalar(std::erf(1.0)), nan, Scalar(std::erf(-1.0));
+  ArrayType erf_nan_res = x_nan.erf();
+  verify_component_wise(erf_nan_res, erf_nan_ref);
+}
+
 EIGEN_DECLARE_TEST(special_functions) {
   CALL_SUBTEST_1(array_special_functions<ArrayXf>());
+  CALL_SUBTEST_1(test_special_functions_edge_cases<float>());
   CALL_SUBTEST_2(array_special_functions<ArrayXd>());
+  CALL_SUBTEST_2(test_special_functions_edge_cases<double>());
   CALL_SUBTEST_3(scalar_ndtri<long double>());
   CALL_SUBTEST_4(scalar_erf_erfc<long double>());
   CALL_SUBTEST_5(custom_scalar_erf_erfc());
