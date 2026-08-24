@@ -81,6 +81,10 @@ class bdcsvd_impl {
   void deflation44(Index firstColu, Index firstColm, Index firstRowW, Index firstColW, Index i, Index j, Index size);
   void deflation(Index firstCol, Index lastCol, Index k, Index firstRowW, Index firstColW, Index shift);
   void structured_update(Block<MatrixXr, Dynamic, Dynamic> A, const MatrixXr& B, Index n1);
+  static EIGEN_STRONG_INLINE RealScalar productOfQuotients(RealScalar firstNumerator, RealScalar firstDenominator,
+                                                           RealScalar secondNumerator, RealScalar secondDenominator);
+  static EIGEN_STRONG_INLINE RealScalar sequentialQuotient(RealScalar numerator, RealScalar firstDenominator,
+                                                           RealScalar secondDenominator);
   static RealScalar secularEq(RealScalar x, const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
                               const ArrayRef& diagShifted, RealScalar shift);
   template <typename SVDType>
@@ -398,6 +402,30 @@ void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& 
 }
 
 template <typename RealScalar_>
+EIGEN_STRONG_INLINE typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::productOfQuotients(
+    RealScalar firstNumerator, RealScalar firstDenominator, RealScalar secondNumerator, RealScalar secondDenominator) {
+  // Keep the divisions separate: combining their denominators can underflow even when the final product is finite.
+  RealScalar firstQuotient = firstNumerator / firstDenominator;
+  RealScalar secondQuotient = secondNumerator / secondDenominator;
+#if defined(__FAST_MATH__) || EIGEN_COMP_NVHPC
+  // NVHPC does not expose a preprocessor macro for -fast, so retain the barriers in all NVHPC builds.
+  EIGEN_OPTIMIZATION_BARRIER(firstQuotient)
+  EIGEN_OPTIMIZATION_BARRIER(secondQuotient)
+#endif
+  return firstQuotient * secondQuotient;
+}
+
+template <typename RealScalar_>
+EIGEN_STRONG_INLINE typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::sequentialQuotient(
+    RealScalar numerator, RealScalar firstDenominator, RealScalar secondDenominator) {
+  RealScalar firstQuotient = numerator / firstDenominator;
+#if defined(__FAST_MATH__) || EIGEN_COMP_NVHPC
+  EIGEN_OPTIMIZATION_BARRIER(firstQuotient)
+#endif
+  return firstQuotient / secondDenominator;
+}
+
+template <typename RealScalar_>
 typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularEq(RealScalar mu, const ArrayRef& col0,
                                                                                   const ArrayRef& diag,
                                                                                   const IndicesRef& perm,
@@ -407,9 +435,7 @@ typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularE
   RealScalar res = Literal(1);
   for (Index i = 0; i < m; ++i) {
     Index j = perm(i);
-    // The following expression could be rewritten to involve only a single division,
-    // but this would make the expression more sensitive to overflow.
-    res += (col0(j) / (diagShifted(j) - mu)) * (col0(j) / (diag(j) + shift + mu));
+    res += productOfQuotients(col0(j), diagShifted(j) - mu, col0(j), diag(j) + shift + mu);
   }
   return res;
 }
@@ -539,7 +565,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
 
         // check that we did it right:
         eigen_internal_assert(
-            (numext::isfinite)((col0(k) / leftShifted) * (col0(k) / (diag(k) + shift + leftShifted))));
+            (numext::isfinite)(productOfQuotients(col0(k), leftShifted, col0(k), diag(k) + shift + leftShifted)));
         rightShifted = (k == actual_n - 1)
                            ? right
                            : ((right - left) * RealScalar(0.51));  // theoretically we can take 0.5, but let's be safe
@@ -627,7 +653,7 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
           Index j = i < k ? i : perm(l - 1);
           diff = shifts(j) - dk;
           EIGEN_OPTIMIZATION_BARRIER(diff)
-          prod *= ((singVals(j) + dk) / ((diag(i) + dk))) * ((mus(j) + diff) / ((diag(i) - dk)));
+          prod *= productOfQuotients(singVals(j) + dk, diag(i) + dk, mus(j) + diff, diag(i) - dk);
         }
       }
       // This product is non-negative in exact arithmetic. As in LAPACK's
@@ -659,8 +685,8 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
         EIGEN_OPTIMIZATION_BARRIER(diff)
         diff -= mus(k);
         EIGEN_OPTIMIZATION_BARRIER(diff)
-        U(i, k) = zhat(i) / diff / ((diag(i) + singVals[k]));
-        if (m_compV && l > 0) V(i, k) = diag(i) * zhat(i) / diff / ((diag(i) + singVals[k]));
+        U(i, k) = sequentialQuotient(zhat(i), diff, diag(i) + singVals[k]);
+        if (m_compV && l > 0) V(i, k) = sequentialQuotient(diag(i) * zhat(i), diff, diag(i) + singVals[k]);
       }
       U(n, k) = Literal(0);
       // LAPACK's xLASD3 normalizes these vectors with xNRM2. Use the scaled
