@@ -440,6 +440,8 @@ using std::size_t;
 #include "src/Core/arch/AltiVec/MatrixProduct.h"
 #elif defined EIGEN_VECTORIZE_NEON
 #include "src/Core/arch/NEON/GeneralBlockPanelKernel.h"
+#elif defined EIGEN_VECTORIZE_SVE
+#include "src/Core/arch/SVE/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_SME
 #include "src/Core/arch/SME/GeneralBlockPanelKernel.h"
 #elif defined EIGEN_VECTORIZE_LSX
