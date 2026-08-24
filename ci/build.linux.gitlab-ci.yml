@@ -243,6 +243,14 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
     # batches, preventing simultaneous OOM-prone compilations.
     EIGEN_CI_BUILD_JOBS: "16"
     EIGEN_CI_FALLBACK_JOBS: "4"
+  # Schedules and web pipelines only, not the `all-tests` label the rest of the
+  # matrix inherits from .build:linux:cross. That slow frontend makes this the
+  # single most expensive pair of jobs in the tree -- together about a quarter
+  # of the project's hosted-runner minutes -- while covering one compiler that
+  # no merge request is likely to break in isolation. Start a web pipeline on a
+  # merge request that touches something nvc++ is known to be fussy about
+  # rather than waiting for the scheduled run to find it.
+  rules: !reference [.rules:libeigen:scheduled-or-web, rules]
 
 build:linux:x86-64:nvhpc-26.1:default:official:
   extends: .build:linux:x86-64:nvhpc-26.1

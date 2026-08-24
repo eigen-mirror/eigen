@@ -32,7 +32,12 @@ Three tiers, in increasing cost:
 |---|---|---|
 | smoke | every MR | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64 |
 | affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 AVX2 and aarch64, plus the ISA of any packet-math backend the diff touches |
-| full | `all-tests` label | the whole suite across the entire compiler and ISA matrix |
+| full | `all-tests` label | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
+
+One configuration sits outside all three tiers and runs only on schedules and web pipelines: the NVHPC (`nvc++`) build
+and test pair. Its frontend is slow enough that those two builds alone accounted for roughly a quarter of the project's
+hosted-runner minutes while they were in the `all-tests` matrix. Start a web pipeline when a change plausibly affects
+`nvc++` rather than waiting for the scheduled run to find it.
 
 The affected tier exists because the smoke list samples: it is broad but shallow, so a change confined to one module
 gets only the one part of each related test that the list happens to name. Reach for `affected-tests` when a change is

@@ -246,6 +246,9 @@ test:linux:x86-64:clang-19:default:asan-ubsan:unsupported:
   image: nvcr.io/nvidia/nvhpc:26.1-devel-cuda13.1-ubuntu24.04
   variables:
     EIGEN_CI_INSTALL: ""
+  # Match the rules on the paired builds in build.linux.gitlab-ci.yml: a test
+  # job whose build did not run has nothing to execute.
+  rules: !reference [.rules:libeigen:scheduled-or-web, rules]
 
 test:linux:x86-64:nvhpc-26.1:default:official:
   extends: .test:linux:x86-64:nvhpc-26.1:default
