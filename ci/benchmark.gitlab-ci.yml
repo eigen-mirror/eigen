@@ -1,9 +1,9 @@
 # Benchmark pipeline for performance regression detection.
 #
-# Runs nightly (core subset) or weekly (all benchmarks) on scheduled
-# pipelines, with separate jobs per ISA target.  Results are analyzed
-# using Welch's t-test against the last 30 runs stored on the perf-data
-# branch.
+# Runs on the weekly scheduled pipeline, with separate jobs per ISA target.
+# EIGEN_BENCH_SCOPE selects the core subset or all benchmarks.  Results are
+# analyzed using Welch's t-test against the last 30 runs stored on the
+# perf-data branch.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 

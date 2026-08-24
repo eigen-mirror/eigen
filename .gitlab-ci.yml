@@ -12,7 +12,7 @@ default:
   interruptible: true
 
 # For MR pipelines, auto-cancel running jobs when new commits are pushed.
-# For scheduled (nightly) pipelines, never auto-cancel so all jobs run to
+# For scheduled (weekly) pipelines, never auto-cancel so all jobs run to
 # completion and all failures are visible for debugging.
 workflow:
   auto_cancel:

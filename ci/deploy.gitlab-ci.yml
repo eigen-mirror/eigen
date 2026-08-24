@@ -1,15 +1,15 @@
- # Push a nightly tag if the pipeline succeeded.
+# Push a `weekly` tag if the pipeline succeeded.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
-deploy:tag:nightly:
+deploy:tag:weekly:
   stage: deploy
   image: alpine:3.20
   dependencies: []
   before_script:
     - apk add git
   script:
-    - git tag -f nightly $CI_COMMIT_SHORT_SHA
-    - git push -f $EIGEN_CI_GIT_PUSH_URL tag nightly
+    - git tag -f weekly $CI_COMMIT_SHORT_SHA
+    - git push -f $EIGEN_CI_GIT_PUSH_URL tag weekly
   tags:
     - saas-linux-small-amd64
   rules: !reference [.rules:libeigen:scheduled-or-web:default-branch, rules]
@@ -20,7 +20,7 @@ deploy:docs:
   image: busybox
   dependencies: [ build:linux:docs ]
   variables:
-    PAGES_PREFIX: docs-nightly
+    PAGES_PREFIX: docs-weekly
   script:
     - echo "Deploying site to $CI_PAGES_URL"
     - mv ${EIGEN_CI_BUILDDIR}/doc/html public
