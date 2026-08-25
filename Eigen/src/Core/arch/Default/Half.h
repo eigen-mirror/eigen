@@ -133,7 +133,7 @@ struct __half_raw {
   // and hence the following special casing (which skips the zero-initialization).
   // Note that this check gets done even in the host compilation phase, and
   // hence the need for this
-  EIGEN_DEVICE_FUNC __half_raw() {}
+  EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw() {}
 #else
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw() : x(0) {}
 #endif
