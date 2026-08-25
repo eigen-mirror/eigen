@@ -8,7 +8,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // SME GEMM kernel tests.
-// Requires compiler flags: -march=armv9.2-a+sme2 and -DEIGEN_ARM64_USE_SME.
+// Requires a compiler targeting SME2, e.g. -march=armv9.2-a+sme2, which selects
+// the backend on its own; -DEIGEN_ARM64_USE_SME then makes a toolchain that
+// cannot provide it fail the build rather than fall back to NEON.
 // double and complex<double> additionally need FEAT_SME_F64F64 (+sme-f64f64, or
 // a -mcpu that implies it); without it EIGEN_VECTORIZE_SME_F64F64 is undefined
 // and they keep the generic kernel, so their subtests pack their cases through
@@ -23,8 +25,16 @@
 #if !defined(EIGEN_VECTORIZE_SME)
 #error \
     "product_sme requires the SME backend.  Build with -march=armv9.2-a+sme2 " \
-    "-DEIGEN_ARM64_USE_SME (see -DEIGEN_TEST_SME=ON in test/CMakeLists.txt for " \
-    "the typical CMake invocation)."
+    "(see -DEIGEN_TEST_SME=ON in test/CMakeLists.txt for the typical CMake " \
+    "invocation)."
+#endif
+
+// The backend is chosen from the compiler's target features; EIGEN_ARM64_USE_SME,
+// which this test's CMake option passes, only turns a toolchain that cannot
+// provide it into a build error. Assert that here, so a regression making
+// selection depend on the opt-in again is caught rather than masked by it.
+#if !defined(EIGEN_ARM64_SME_SELECTED)
+#error "the SME backend was forced by EIGEN_ARM64_USE_SME rather than selected from the compiler's target features."
 #endif
 
 template <typename Scalar>

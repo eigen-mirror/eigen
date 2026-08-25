@@ -17,14 +17,18 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
 <tr><th>Architecture</th><th>Instruction sets</th><th>Notes</th></tr>
 <tr><td>x86 / x86-64</td><td>SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, AVX, AVX2+FMA, AVX512 (incl. the DQ, VL, FP16, and BF16 extensions)</td>
     <td>Selected from the compiler's target flags (e.g. \c -mavx2 \c -mfma, \c /arch:AVX2)</td></tr>
-<tr class="alt"><td>ARM / AArch64</td><td>NEON; SVE and SME as opt-in backends</td>
+<tr class="alt"><td>ARM / AArch64</td><td>NEON, SME; SVE as an opt-in backend</td>
     <td>SVE requires \c EIGEN_ARM64_USE_SVE and a fixed vector length
-        (<tt>-msve-vector-bits=N</tt>); the SME backend, enabled with \c EIGEN_ARM64_USE_SME,
-        accelerates \c float and \c double matrix products and must be built \em without
+        (<tt>-msve-vector-bits=N</tt>). The SME backend accelerates real and complex matrix
+        products and is selected automatically when the compiler targets SME2
+        (<tt>-march=armv9.2-a+sme2</tt>, or a <tt>-mcpu</tt> that implies it) \em without
         <tt>-msve-vector-bits</tt>, since a fixed length would pin the kernels to one runtime
-        streaming vector length. Double precision additionally needs the optional FEAT_SME_F64F64
-        extension (<tt>+sme-f64f64</tt>, or a <tt>-mcpu</tt> that implies it); without it \c double
-        keeps the generic kernel</td></tr>
+        streaming vector length; everything else keeps the NEON path. Define
+        \c EIGEN_ARM64_NO_SME to opt out, or \c EIGEN_ARM64_USE_SME to turn a toolchain that
+        cannot provide it into a build error instead of a NEON fallback. Double precision
+        additionally needs the optional FEAT_SME_F64F64 extension (<tt>+sme-f64f64</tt>, or a
+        <tt>-mcpu</tt> that implies it); without it \c double and \c std::complex<double> keep
+        the generic kernel</td></tr>
 <tr><td>PowerPC</td><td>AltiVec, VSX, MMA</td><td></td></tr>
 <tr class="alt"><td>IBM Z (s390x)</td><td>ZVector</td><td></td></tr>
 <tr><td>MIPS</td><td>MSA</td><td></td></tr>

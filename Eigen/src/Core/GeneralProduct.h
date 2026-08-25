@@ -23,6 +23,11 @@ enum { Large = 2, Small = 3 };
 // implementation (heavy) to the lightweight coeff-based product one. See
 // generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct> in
 // products/GeneralMatrixMatrix.h for more details.
+// The crossover belongs to the kernel the GEMM path would select, not to the
+// build: a scalar type that falls back to the generic gebp kernel keeps this
+// value even in an SME build. The SME kernels have their own, larger crossovers
+// -- sme_gemm_to_coeffbased_threshold and
+// EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD below.
 #ifndef EIGEN_GEMM_TO_COEFFBASED_THRESHOLD
 // This default value has been obtained on a Haswell architecture.
 #define EIGEN_GEMM_TO_COEFFBASED_THRESHOLD 20
@@ -35,6 +40,19 @@ enum { Large = 2, Small = 3 };
 // tracks EIGEN_GEMM_TO_COEFFBASED_THRESHOLD unless specialized independently.
 #ifndef EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
 #define EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD (2 * EIGEN_GEMM_TO_COEFFBASED_THRESHOLD)
+#endif
+
+#ifdef EIGEN_VECTORIZE_SME
+// Measured separately rather than inherited as twice the runtime threshold: on
+// SME the fixed-size crossover sits at 56, where doubling would put it at 80 and
+// cost up to 3.2x on fixed-size products in the high teens and twenties. The
+// optimum is again flat (48..60 within 1%). It applies only to the scalar pairs
+// the SME kernel claims -- int, half, bfloat16, mixed real x complex, and
+// double / complex<double> without FEAT_SME_F64F64, all run the generic kernel
+// and want the generic value.
+#ifndef EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 56
+#endif
 #endif
 
 // The dimension-sum bound in sme_gemm_to_coeffbased_threshold below grows with
@@ -57,6 +75,10 @@ enum { Large = 2, Small = 3 };
 namespace internal {
 
 #ifdef EIGEN_VECTORIZE_SME
+// Defined in products/GeneralBlockPanelKernel.h, which Core includes after this
+// header; only the declaration is needed to form the dependent type below.
+template <typename LhsScalar, typename RhsScalar>
+struct sme_has_gebp_kernel;
 // Dimension sum below which the coeff-based product beats the SME GEMM kernel.
 // mr x nr is sized in ZA tiles, so a product too small to fill the grid wastes
 // most of the outer products the kernel issues, and the block holds fewer
@@ -132,9 +154,21 @@ struct product_type {
   static constexpr int ProductType =
       product_type_selector<product_size_category<Rows, MaxRows>::value, product_size_category<Cols, MaxCols>::value,
                             product_size_category<Depth, MaxDepth>::value>::value;
-  static constexpr bool FixedSizeCoeffBasedProduct =
-      ProductType == GemmProduct && Rows != Dynamic && Cols != Dynamic && Depth != Dynamic &&
-      (int(Rows) + int(Cols) + int(Depth) < EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD);
+
+  // Same rule as the runtime dispatch in products/GeneralMatrixMatrix.h: the
+  // threshold follows the kernel the GEMM path would select, so a scalar pair
+  // without an SME kernel keeps the generic crossover in an SME build.
+  static constexpr int FixedSizeThreshold =
+#ifdef EIGEN_VECTORIZE_SME
+      sme_has_gebp_kernel<typename traits<Lhs_>::Scalar, typename traits<Rhs_>::Scalar>::value
+          ? EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
+          :
+#endif
+          EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD;
+
+  static constexpr bool FixedSizeCoeffBasedProduct = ProductType == GemmProduct && Rows != Dynamic && Cols != Dynamic &&
+                                                     Depth != Dynamic &&
+                                                     (int(Rows) + int(Cols) + int(Depth) < FixedSizeThreshold);
 
   static constexpr int value = FixedSizeCoeffBasedProduct ? CoeffBasedProductMode : ProductType;
 #ifdef EIGEN_DEBUG_PRODUCT

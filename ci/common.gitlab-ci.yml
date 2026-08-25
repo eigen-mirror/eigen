@@ -104,6 +104,10 @@
       changes:
         - Eigen/src/Core/arch/SVE/**/*
         - Eigen/src/Core/arch/SME/**/*
+        # Backend selection, and the SME-specific product thresholds, live
+        # outside arch/ but decide whether either backend is used at all.
+        - Eigen/src/Core/util/ConfigureVectorization.h
+        - Eigen/src/Core/GeneralProduct.h
 
 .rules:libeigen:scheduled-or-web:
   rules:

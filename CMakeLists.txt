@@ -576,10 +576,14 @@ if (EIGEN_BUILD_TESTING)
       message(STATUS "Enabling NEON in tests/examples")
     endif()
 
-    option(EIGEN_TEST_SME "Enable/Disable SME in tests/examples" OFF)
+    # SME selects itself whenever the toolchain targets SME2 in scalable mode, so
+    # this option only forces the issue: it turns a toolchain that cannot provide
+    # the backend from a silent NEON fallback into a build error, which is what
+    # the SME test targets want.
+    option(EIGEN_TEST_SME "Require the SME backend in tests/examples" OFF)
     if(EIGEN_TEST_SME)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_ARM64_USE_SME")
-      message(STATUS "Enabling SME in tests/examples")
+      message(STATUS "Requiring SME in tests/examples")
     endif()
 
     option(EIGEN_TEST_Z13 "Enable/Disable S390X(zEC13) ZVECTOR in tests/examples" OFF)
