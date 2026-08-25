@@ -662,6 +662,40 @@ void gemv_complex_conjugate() {
 // Locks the BLAS contract that GEMM/GEMV leave the destination unchanged when
 // alpha == 0, including under non-finite inputs in A/x/B that would otherwise
 // taint the result via 0 * Inf = NaN.
+// A zero scalar factor must leave the destination untouched for every
+// assignment form: += and -= return early, while = zeroes the destination.
+// Inf/NaN operands make a kernel that ran anyway visible as a NaN.
+template <typename Scalar, int Order>
+void alpha_zero_skips_gemm(Index m, Index k, Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, Order> Mat;
+
+  const Scalar pos_zero = Scalar(0);
+  const Scalar neg_zero = Scalar(-RealScalar(0));
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+  A(0, 0) = Scalar(NumTraits<RealScalar>::infinity());
+  B(1, 1) = Scalar(NumTraits<RealScalar>::quiet_NaN());
+
+  const Mat C_ref = Mat::Random(m, n);
+  const Mat zero = Mat::Zero(m, n);
+
+  for (const Scalar& alpha : {pos_zero, neg_zero}) {
+    Mat C = C_ref;
+    C.noalias() += alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+
+    C = C_ref;
+    C.noalias() -= alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+
+    C = C_ref;
+    C.noalias() = alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, zero);
+  }
+}
+
 template <typename Scalar>
 void alpha_zero_skips_kernel() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -675,22 +709,14 @@ void alpha_zero_skips_kernel() {
   const Scalar pos_zero = Scalar(0);
   const Scalar neg_zero = Scalar(-RealScalar(0));
 
-  // GEMM (col-major).
-  {
-    ColMat A = ColMat::Random(m, k);
-    ColMat B = ColMat::Random(k, n);
-    A(0, 0) = inf;
-    B(1, 1) = nan;
-
-    ColMat C = ColMat::Random(m, n);
-    const ColMat C_ref = C;
-
-    C.noalias() += pos_zero * A * B;
-    VERIFY_IS_CWISE_EQUAL(C, C_ref);
-
-    C.noalias() += neg_zero * A * B;
-    VERIFY_IS_CWISE_EQUAL(C, C_ref);
-  }
+  // GEMM, both storage orders. 17x13x11 sums to 41 and so takes the GEMM path
+  // on a default build; 5x5x5 sums to 15 and reaches the coeff-based path,
+  // which has its own zero-factor exit. Without the small shape the latter is
+  // only covered where the threshold is raised (SME), i.e. by one nightly job.
+  alpha_zero_skips_gemm<Scalar, ColMajor>(m, k, n);
+  alpha_zero_skips_gemm<Scalar, ColMajor>(5, 5, 5);
+  alpha_zero_skips_gemm<Scalar, RowMajor>(m, k, n);
+  alpha_zero_skips_gemm<Scalar, RowMajor>(5, 5, 5);
 
   // GEMV col-major.
   {

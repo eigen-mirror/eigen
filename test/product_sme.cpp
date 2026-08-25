@@ -9,10 +9,10 @@
 
 // SME GEMM kernel tests.
 // Requires compiler flags: -march=armv9.2-a+sme2 and -DEIGEN_ARM64_USE_SME.
-// Double precision additionally needs FEAT_SME_F64F64 (+sme-f64f64, or a -mcpu
-// that implies it); without it EIGEN_VECTORIZE_SME_F64F64 is undefined and
-// double keeps the generic kernel, so the double subtest packs its cases
-// through that path instead.
+// double and complex<double> additionally need FEAT_SME_F64F64 (+sme-f64f64, or
+// a -mcpu that implies it); without it EIGEN_VECTORIZE_SME_F64F64 is undefined
+// and they keep the generic kernel, so their subtests pack their cases through
+// that path instead.
 
 #include "product.h"
 
@@ -38,9 +38,11 @@ using SmeColMajorStridedMat = Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, Dyn
 template <typename Scalar>
 using SmeRowMajorStridedMat = Map<SmeRowMajorMat<Scalar>, 0, Stride<Dynamic, Dynamic>>;
 
-// The logical micro-kernel block width for Scalar: kSmeMr for float, kSmeMrD
-// for double.  Sizes below are expressed in terms of it so each scalar sweeps
-// its own block and ZA-tile boundaries.
+// The logical micro-kernel block for Scalar (kSmeMr/kSmeNr for float and so
+// on).  Sizes below are expressed in terms of it so each scalar sweeps its own
+// block boundaries; sme_tile() is the ZA tile side at the SVL=512 design point,
+// which is where the intra-block splits fall.  Complex scalars pair two tiles
+// per accumulator, so their block is not square.
 template <typename Scalar>
 static constexpr int sme_mr() {
   return internal::sme_block<Scalar>::mr;
@@ -48,6 +50,24 @@ static constexpr int sme_mr() {
 template <typename Scalar>
 static constexpr int sme_nr() {
   return internal::sme_block<Scalar>::nr;
+}
+template <typename Scalar>
+static constexpr int sme_tile() {
+  return internal::sme_block<Scalar>::mr / internal::sme_block<Scalar>::kGridRows;
+}
+
+// Write one element into a packed panel of width w, in the layout the SME
+// kernel reads: a real scalar lands at dst[k*w + r], a complex one splits into
+// the depth step's real and imaginary halves.
+template <typename Scalar>
+static void set_packed(Scalar* panel, Index w, Index k, Index r, const Scalar& v) {
+  panel[k * w + r] = v;
+}
+template <typename RealScalar>
+static void set_packed(std::complex<RealScalar>* panel, Index w, Index k, Index r, const std::complex<RealScalar>& v) {
+  RealScalar* p = reinterpret_cast<RealScalar*>(panel + k * w);
+  p[r] = numext::real(v);
+  p[w + r] = numext::imag(v);
 }
 
 template <typename InputMat, typename ResultMat, typename ResultMap>
@@ -96,6 +116,58 @@ static void test_rowmajor_strided_result(int n) {
   }
 }
 
+// A non-trivial alpha: complex where the scalar is, so the store's rotation of
+// the accumulator is exercised rather than a plain rescale.
+template <typename Scalar>
+struct nontrivial_alpha_impl {
+  static Scalar run() { return Scalar(1.375); }
+};
+template <typename RealScalar>
+struct nontrivial_alpha_impl<std::complex<RealScalar>> {
+  static std::complex<RealScalar> run() { return std::complex<RealScalar>(RealScalar(1.375), RealScalar(-0.625)); }
+};
+
+// Conjugated operands and a non-real alpha.
+//
+// blas_traits folds .adjoint()/.conjugate() and a scalar factor into the
+// gebp_kernel's ConjugateLhs/ConjugateRhs and alpha rather than materializing a
+// temporary, so these expressions are the only thing that reaches the complex
+// kernel's FMOPA/FMOPS sign choices and its alpha-scaled store. The references
+// materialize the conjugation first and multiply coefficient-wise, so they do
+// not share a code path with what they check.
+template <typename Scalar, typename LhsMat, typename RhsMat, typename ResMat>
+static void verify_conjugated_products(int n) {
+  const LhsMat A = LhsMat::Random(n, n);
+  const RhsMat B = RhsMat::Random(n, n);
+  const SmeColMajorMat<Scalar> Ap = A, Bp = B;
+  const SmeColMajorMat<Scalar> Aa = Ap.adjoint().eval(), Ac = Ap.conjugate().eval();
+  const SmeColMajorMat<Scalar> Ba = Bp.adjoint().eval(), Bc = Bp.conjugate().eval();
+  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
+
+  ResMat C(n, n);
+  C.setZero();
+  C.noalias() += A.adjoint() * B;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Aa.lazyProduct(Bp)));
+  C.setZero();
+  C.noalias() += A * B.adjoint();
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Ap.lazyProduct(Ba)));
+  C.setZero();
+  C.noalias() += A.adjoint() * B.adjoint();
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Aa.lazyProduct(Ba)));
+  C.setZero();
+  C.noalias() += A.conjugate() * B;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Ac.lazyProduct(Bp)));
+  C.setZero();
+  C.noalias() += A * B.conjugate();
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Ap.lazyProduct(Bc)));
+  C.setZero();
+  C.noalias() += A.conjugate() * B.conjugate();
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(Ac.lazyProduct(Bc)));
+  C.setZero();
+  C.noalias() += alpha * (A.adjoint() * B);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(alpha * Aa.lazyProduct(Bp)));
+}
+
 // Exercise the kc split path just above the SME blocking heuristic's depth cap
 // (sme_max_kc in GeneralBlockPanelKernel.h, scaled by the scalar width).
 template <typename Scalar>
@@ -127,23 +199,35 @@ static void test_deep_k_split() {
 
 // A distinctive marker for buffer cells the packer must leave untouched, and
 // for the unused triangle of a lower-triangular operand. Random values live in
-// [-1, 1], so it never collides with a real packed value.
+// [-1, 1], so it never collides with a real packed value. The complex marker's
+// imaginary part differs from its real one, so a packer that fills only the
+// real half of a split depth step is caught.
+template <typename Scalar>
+struct pack_sentinel_impl {
+  static Scalar run() { return Scalar(98765); }
+};
+template <typename RealScalar>
+struct pack_sentinel_impl<std::complex<RealScalar>> {
+  static std::complex<RealScalar> run() { return std::complex<RealScalar>(RealScalar(98765), RealScalar(-54321)); }
+};
 template <typename Scalar>
 static Scalar pack_sentinel() {
-  return Scalar(98765);
+  return pack_sentinel_impl<Scalar>::run();
 }
 
-// Lower-triangular n x n operand plus the dense symmetric reference the packer
+// Lower-triangular n x n operand plus the dense selfadjoint reference the packer
 // must emit. The unused triangle is filled with the sentinel so a packer that
 // copies the dense matrix and never mirrors fails VERIFY_IS_EQUAL.
 // product_selfadjoint_matrix stores the valid triangle where row >= col
 // (after the Upper/RowMajor xor), so the packer must read stored(row,col)
-// below the diagonal and stored(col,row) above it.
+// below the diagonal and conj(stored(col,row)) above it. Averaging with the
+// adjoint cancels the diagonal's imaginary part exactly, which is what a
+// selfadjoint view defines it to be.
 template <typename Scalar, int StorageOrder>
-static void make_lower_stored_symmetric(Index n, Matrix<Scalar, Dynamic, Dynamic, StorageOrder>& stored,
-                                        Matrix<Scalar, Dynamic, Dynamic, StorageOrder>& full) {
+static void make_lower_stored_selfadjoint(Index n, Matrix<Scalar, Dynamic, Dynamic, StorageOrder>& stored,
+                                          Matrix<Scalar, Dynamic, Dynamic, StorageOrder>& full) {
   full = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>::Random(n, n);
-  full = ((full + full.transpose()) * Scalar(0.5)).eval();
+  full = ((full + full.adjoint()) * Scalar(0.5)).eval();
   stored = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>::Constant(n, n, pack_sentinel<Scalar>());
   for (Index i = 0; i < n; ++i)
     for (Index j = 0; j <= i; ++j) stored(i, j) = full(i, j);
@@ -155,14 +239,14 @@ template <typename Scalar, int StorageOrder>
 static void verify_symm_pack_lhs(Index n) {
   const Index MR = sme_mr<Scalar>();
   Matrix<Scalar, Dynamic, Dynamic, StorageOrder> stored, full;
-  make_lower_stored_symmetric<Scalar, StorageOrder>(n, stored, full);
+  make_lower_stored_selfadjoint<Scalar, StorageOrder>(n, stored, full);
 
   SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(n * n, pack_sentinel<Scalar>());
   SmeVector<Scalar> ref = SmeVector<Scalar>::Constant(n * n, pack_sentinel<Scalar>());
   for (Index i = 0; i < n; i += MR) {
     const Index w = numext::mini(MR, n - i);
     for (Index k = 0; k < n; ++k)
-      for (Index r = 0; r < w; ++r) ref[i * n + k * w + r] = full(i + r, k);
+      for (Index r = 0; r < w; ++r) set_packed(ref.data() + i * n, w, k, r, Scalar(full(i + r, k)));
   }
 
   internal::symm_pack_lhs<Scalar, Index, sme_mr<Scalar>(), 1, StorageOrder> pack;
@@ -179,14 +263,14 @@ static void verify_symm_pack_rhs(Index N, Index depth, Index cols, Index k2) {
   eigen_assert(k2 + depth <= N && cols <= N);
   const Index NR = sme_nr<Scalar>();
   Matrix<Scalar, Dynamic, Dynamic, StorageOrder> stored, full;
-  make_lower_stored_symmetric<Scalar, StorageOrder>(N, stored, full);
+  make_lower_stored_selfadjoint<Scalar, StorageOrder>(N, stored, full);
 
   SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(cols * depth, pack_sentinel<Scalar>());
   SmeVector<Scalar> ref = SmeVector<Scalar>::Constant(cols * depth, pack_sentinel<Scalar>());
   for (Index j = 0; j < cols; j += NR) {
     const Index w = numext::mini(NR, cols - j);
     for (Index k = 0; k < depth; ++k)
-      for (Index c = 0; c < w; ++c) ref[j * depth + k * w + c] = full(k2 + k, j + c);
+      for (Index c = 0; c < w; ++c) set_packed(ref.data() + j * depth, w, k, c, Scalar(full(k2 + k, j + c)));
   }
 
   internal::symm_pack_rhs<Scalar, Index, sme_nr<Scalar>(), StorageOrder> pack;
@@ -306,7 +390,7 @@ static Index packed_len(Index outer, Index depth, Index unit, Index dst_stride, 
   return end;
 }
 
-template <typename Scalar, bool PanelMode, typename MatrixType>
+template <typename Scalar, bool PanelMode, bool Conjugate, typename MatrixType>
 static void fill_lhs_ref(SmeVector<Scalar>& ref, const MatrixType& V, Index rows, Index depth, Index dst_stride,
                          Index dst_offset) {
   const Index MR = sme_mr<Scalar>();
@@ -315,11 +399,14 @@ static void fill_lhs_ref(SmeVector<Scalar>& ref, const MatrixType& V, Index rows
     const Index w = numext::mini(MR, rows - i);
     const Index base = PanelMode ? i * dst_stride + dst_offset * w : i * depth;
     for (Index k = 0; k < depth; ++k)
-      for (Index r = 0; r < w; ++r) ref[base + k * w + r] = V(i + r, k);
+      for (Index r = 0; r < w; ++r) {
+        const Scalar v = V(i + r, k);
+        set_packed(ref.data() + base, w, k, r, Conjugate ? numext::conj(v) : v);
+      }
   }
 }
 
-template <typename Scalar, bool PanelMode, typename MatrixType>
+template <typename Scalar, bool PanelMode, bool Conjugate, typename MatrixType>
 static void fill_rhs_ref(SmeVector<Scalar>& ref, const MatrixType& V, Index cols, Index depth, Index dst_stride,
                          Index dst_offset) {
   const Index NR = sme_nr<Scalar>();
@@ -328,14 +415,69 @@ static void fill_rhs_ref(SmeVector<Scalar>& ref, const MatrixType& V, Index cols
     const Index w = numext::mini(NR, cols - j);
     const Index base = PanelMode ? j * dst_stride + dst_offset * w : j * depth;
     for (Index k = 0; k < depth; ++k)
-      for (Index c = 0; c < w; ++c) ref[base + k * w + c] = V(k, j + c);
+      for (Index c = 0; c < w; ++c) {
+        const Scalar v = V(k, j + c);
+        set_packed(ref.data() + base, w, k, c, Conjugate ? numext::conj(v) : v);
+      }
   }
+}
+
+// Every packer check below is the same nine lines -- fill a sentinel buffer,
+// build the scalar reference, run the packer, compare exactly -- over a
+// different mapper. The mapper is what each check is really about, so it is
+// built by the caller and the rest lives here once.
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate, typename Mapper, typename MatrixType>
+static void check_packed_lhs(const Mapper& mapper, const MatrixType& V, Index rows, Index depth) {
+  const Index dst_stride = PanelMode ? depth + 5 : 0;
+  const Index dst_offset = PanelMode ? 3 : 0;
+  const Index len = packed_len<PanelMode>(rows, depth, sme_mr<Scalar>(), dst_stride, dst_offset);
+  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
+  SmeVector<Scalar> ref(len);
+  fill_lhs_ref<Scalar, PanelMode, Conjugate>(ref, V, rows, depth, dst_stride, dst_offset);
+
+  internal::gemm_pack_lhs<Scalar, Index, Mapper, sme_mr<Scalar>(), 1, typename internal::packet_traits<Scalar>::type,
+                          StorageOrder, Conjugate, PanelMode>
+      pack;
+  pack(packed.data(), mapper, depth, rows, dst_stride, dst_offset);
+  VERIFY_IS_EQUAL(packed, ref);
+}
+
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate, typename Mapper, typename MatrixType>
+static void check_packed_rhs(const Mapper& mapper, const MatrixType& V, Index depth, Index cols) {
+  const Index dst_stride = PanelMode ? depth + 5 : 0;
+  const Index dst_offset = PanelMode ? 3 : 0;
+  const Index len = packed_len<PanelMode>(cols, depth, sme_nr<Scalar>(), dst_stride, dst_offset);
+  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
+  SmeVector<Scalar> ref(len);
+  fill_rhs_ref<Scalar, PanelMode, Conjugate>(ref, V, cols, depth, dst_stride, dst_offset);
+
+  internal::gemm_pack_rhs<Scalar, Index, Mapper, sme_nr<Scalar>(), StorageOrder, Conjugate, PanelMode> pack;
+  pack(packed.data(), mapper, depth, cols, dst_stride, dst_offset);
+  VERIFY_IS_EQUAL(packed, ref);
+}
+
+// The raw pointer + stride packers, taken whenever the mapper grants direct
+// unit-inner-stride access.
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
+static void verify_pack_lhs_direct(Index rows, Index depth) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using Mapper = internal::const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  MatrixType V = MatrixType::Random(rows, depth);
+  check_packed_lhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper(V.data(), V.outerStride()), V, rows, depth);
+}
+
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
+static void verify_pack_rhs_direct(Index depth, Index cols) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using Mapper = internal::const_blas_data_mapper<Scalar, Index, StorageOrder>;
+  MatrixType V = MatrixType::Random(depth, cols);
+  check_packed_rhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper(V.data(), V.outerStride()), V, depth, cols);
 }
 
 // Inner-strided blas mapper LHS: element(i, k) laid out with inner stride
 // `incr`.  ColMajor takes the vectorised gather path; RowMajor takes the scalar
 // path (its packets would run along depth, not rows).
-template <typename Scalar, int StorageOrder, bool PanelMode>
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
 static void verify_fallback_lhs_strided(Index rows, Index depth, Index incr) {
   using Mapper = internal::blas_data_mapper<Scalar, Index, StorageOrder, Unaligned, Dynamic>;
   Matrix<Scalar, Dynamic, Dynamic> V = Matrix<Scalar, Dynamic, Dynamic>::Random(rows, depth);
@@ -344,49 +486,23 @@ static void verify_fallback_lhs_strided(Index rows, Index depth, Index incr) {
   for (Index k = 0; k < depth; ++k)
     for (Index i = 0; i < rows; ++i)
       buf[StorageOrder == ColMajor ? i * incr + k * mstride : k * incr + i * mstride] = V(i, k);
-  Mapper mapper(buf.data(), mstride, incr);
-
-  const Index dst_stride = PanelMode ? depth + 5 : 0;
-  const Index dst_offset = PanelMode ? 3 : 0;
-  const Index len = packed_len<PanelMode>(rows, depth, sme_mr<Scalar>(), dst_stride, dst_offset);
-  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
-  SmeVector<Scalar> ref(len);
-  fill_lhs_ref<Scalar, PanelMode>(ref, V, rows, depth, dst_stride, dst_offset);
-
-  internal::gemm_pack_lhs<Scalar, Index, Mapper, sme_mr<Scalar>(), 1, typename internal::packet_traits<Scalar>::type,
-                          StorageOrder, false, PanelMode>
-      pack;
-  pack(packed.data(), mapper, depth, rows, dst_stride, dst_offset);
-  VERIFY_IS_EQUAL(packed, ref);
+  check_packed_lhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper(buf.data(), mstride, incr), V, rows, depth);
 }
 
 // By-value LHS mappers exercise both packet directions. RowMajor must stay
 // scalar because its packets advance depth rather than rows.
-template <typename Scalar, int StorageOrder, bool PanelMode>
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
 static void verify_fallback_lhs_byvalue(Index rows, Index depth) {
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
   using Mapper = typename std::conditional<StorageOrder == ColMajor, ByValueColMajorLhsMapper<Scalar>,
                                            ByValueRowMajorLhsMapper<Scalar>>::type;
   MatrixType V = MatrixType::Random(rows, depth);
-  Mapper mapper{V.data(), V.outerStride()};
-
-  const Index dst_stride = PanelMode ? depth + 5 : 0;
-  const Index dst_offset = PanelMode ? 3 : 0;
-  const Index len = packed_len<PanelMode>(rows, depth, sme_mr<Scalar>(), dst_stride, dst_offset);
-  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
-  SmeVector<Scalar> ref(len);
-  fill_lhs_ref<Scalar, PanelMode>(ref, V, rows, depth, dst_stride, dst_offset);
-
-  internal::gemm_pack_lhs<Scalar, Index, Mapper, sme_mr<Scalar>(), 1, typename internal::packet_traits<Scalar>::type,
-                          StorageOrder, false, PanelMode>
-      pack;
-  pack(packed.data(), mapper, depth, rows, dst_stride, dst_offset);
-  VERIFY_IS_EQUAL(packed, ref);
+  check_packed_lhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper{V.data(), V.outerStride()}, V, rows, depth);
 }
 
 // Inner-strided blas mapper RHS: element(k, col) with inner stride `incr`.
 // ColMajor takes the vectorised transpose path; RowMajor takes the scalar path.
-template <typename Scalar, int StorageOrder, bool PanelMode>
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
 static void verify_fallback_rhs_strided(Index depth, Index cols, Index incr) {
   using Mapper = internal::blas_data_mapper<Scalar, Index, StorageOrder, Unaligned, Dynamic>;
   Matrix<Scalar, Dynamic, Dynamic> V = Matrix<Scalar, Dynamic, Dynamic>::Random(depth, cols);
@@ -395,40 +511,76 @@ static void verify_fallback_rhs_strided(Index depth, Index cols, Index incr) {
   for (Index col = 0; col < cols; ++col)
     for (Index k = 0; k < depth; ++k)
       buf[StorageOrder == ColMajor ? k * incr + col * mstride : col * incr + k * mstride] = V(k, col);
-  Mapper mapper(buf.data(), mstride, incr);
-
-  const Index dst_stride = PanelMode ? depth + 5 : 0;
-  const Index dst_offset = PanelMode ? 3 : 0;
-  const Index len = packed_len<PanelMode>(cols, depth, sme_nr<Scalar>(), dst_stride, dst_offset);
-  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
-  SmeVector<Scalar> ref(len);
-  fill_rhs_ref<Scalar, PanelMode>(ref, V, cols, depth, dst_stride, dst_offset);
-
-  internal::gemm_pack_rhs<Scalar, Index, Mapper, sme_nr<Scalar>(), StorageOrder, false, PanelMode> pack;
-  pack(packed.data(), mapper, depth, cols, dst_stride, dst_offset);
-  VERIFY_IS_EQUAL(packed, ref);
+  check_packed_rhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper(buf.data(), mstride, incr), V, depth, cols);
 }
 
 // By-value RHS mappers likewise cover both packet directions. RowMajor packets
 // advance columns, so the depth-oriented transpose fallback must stay scalar.
-template <typename Scalar, int StorageOrder, bool PanelMode>
+template <typename Scalar, int StorageOrder, bool PanelMode, bool Conjugate>
 static void verify_fallback_rhs_byvalue(Index depth, Index cols) {
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
   using Mapper = typename std::conditional<StorageOrder == ColMajor, ByValueColMajorRhsMapper<Scalar>,
                                            ByValueRowMajorRhsMapper<Scalar>>::type;
   MatrixType V = MatrixType::Random(depth, cols);
-  Mapper mapper{V.data(), V.outerStride()};
+  check_packed_rhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper{V.data(), V.outerStride()}, V, depth, cols);
+}
 
-  const Index dst_stride = PanelMode ? depth + 5 : 0;
-  const Index dst_offset = PanelMode ? 3 : 0;
-  const Index len = packed_len<PanelMode>(cols, depth, sme_nr<Scalar>(), dst_stride, dst_offset);
-  SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(len, pack_sentinel<Scalar>());
-  SmeVector<Scalar> ref(len);
-  fill_rhs_ref<Scalar, PanelMode>(ref, V, cols, depth, dst_stride, dst_offset);
+// Each packer is swept over all four (PanelMode, Conjugate) combinations.
+// Conjugate=true is the identity on real scalars; for complex ones it negates
+// the packed imaginary half, and reaches the direct packers from the SYMM
+// above-diagonal transposed pack and the fallbacks from an inner-strided
+// selfadjoint operand.
+template <typename Scalar, int SO>
+static void sweep_pack_direct(Index n, Index depth) {
+  verify_pack_lhs_direct<Scalar, SO, false, false>(n, depth);
+  verify_pack_lhs_direct<Scalar, SO, false, true>(n, depth);
+  verify_pack_lhs_direct<Scalar, SO, true, false>(n, depth);
+  verify_pack_lhs_direct<Scalar, SO, true, true>(n, depth);
+  verify_pack_rhs_direct<Scalar, SO, false, false>(depth, n);
+  verify_pack_rhs_direct<Scalar, SO, false, true>(depth, n);
+  verify_pack_rhs_direct<Scalar, SO, true, false>(depth, n);
+  verify_pack_rhs_direct<Scalar, SO, true, true>(depth, n);
+}
 
-  internal::gemm_pack_rhs<Scalar, Index, Mapper, sme_nr<Scalar>(), StorageOrder, false, PanelMode> pack;
-  pack(packed.data(), mapper, depth, cols, dst_stride, dst_offset);
-  VERIFY_IS_EQUAL(packed, ref);
+template <typename Scalar, int SO>
+static void sweep_fallback_strided(Index n, Index depth, Index incr) {
+  verify_fallback_lhs_strided<Scalar, SO, false, false>(n, depth, incr);
+  verify_fallback_lhs_strided<Scalar, SO, false, true>(n, depth, incr);
+  verify_fallback_lhs_strided<Scalar, SO, true, false>(n, depth, incr);
+  verify_fallback_lhs_strided<Scalar, SO, true, true>(n, depth, incr);
+  verify_fallback_rhs_strided<Scalar, SO, false, false>(depth, n, incr);
+  verify_fallback_rhs_strided<Scalar, SO, false, true>(depth, n, incr);
+  verify_fallback_rhs_strided<Scalar, SO, true, false>(depth, n, incr);
+  verify_fallback_rhs_strided<Scalar, SO, true, true>(depth, n, incr);
+}
+
+template <typename Scalar, int SO>
+static void sweep_fallback_byvalue(Index n, Index depth) {
+  verify_fallback_lhs_byvalue<Scalar, SO, false, false>(n, depth);
+  verify_fallback_lhs_byvalue<Scalar, SO, false, true>(n, depth);
+  verify_fallback_lhs_byvalue<Scalar, SO, true, false>(n, depth);
+  verify_fallback_lhs_byvalue<Scalar, SO, true, true>(n, depth);
+  verify_fallback_rhs_byvalue<Scalar, SO, false, false>(depth, n);
+  verify_fallback_rhs_byvalue<Scalar, SO, false, true>(depth, n);
+  verify_fallback_rhs_byvalue<Scalar, SO, true, false>(depth, n);
+  verify_fallback_rhs_byvalue<Scalar, SO, true, true>(depth, n);
+}
+
+template <typename Scalar>
+static void test_pack_direct() {
+  const int TILE = sme_tile<Scalar>();
+  const int MR = sme_mr<Scalar>();
+  const int NR = sme_nr<Scalar>();
+  // Widths around the tile side and both panel widths, which differ for
+  // complex scalars.
+  const int widths[] = {1, TILE - 1, TILE, TILE + 1, MR, MR + 1, NR, NR + 1, 2 * NR + 1};
+  const int depths[] = {1, 3, 8, 35};
+  for (int d : depths) {
+    for (int n : widths) {
+      sweep_pack_direct<Scalar, ColMajor>(n, d);
+      sweep_pack_direct<Scalar, RowMajor>(n, d);
+    }
+  }
 }
 
 template <typename Scalar>
@@ -438,24 +590,14 @@ static void test_mapper_fallback() {
   const int depths[] = {1, 3, 8, 35};                   // depth remainders 1..3 and larger
   for (int n : widths) {
     for (int d : depths) {
+      // RowMajor mappers take the scalar path: their packets advance the index
+      // the fallback does not transpose.
       for (int incr : {2, 3}) {
-        verify_fallback_lhs_strided<Scalar, ColMajor, false>(n, d, incr);
-        verify_fallback_lhs_strided<Scalar, ColMajor, true>(n, d, incr);
-        verify_fallback_lhs_strided<Scalar, RowMajor, false>(n, d, incr);  // scalar path
-        verify_fallback_lhs_strided<Scalar, RowMajor, true>(n, d, incr);
-        verify_fallback_rhs_strided<Scalar, ColMajor, false>(d, n, incr);
-        verify_fallback_rhs_strided<Scalar, ColMajor, true>(d, n, incr);
-        verify_fallback_rhs_strided<Scalar, RowMajor, false>(d, n, incr);  // scalar path
-        verify_fallback_rhs_strided<Scalar, RowMajor, true>(d, n, incr);
+        sweep_fallback_strided<Scalar, ColMajor>(n, d, incr);
+        sweep_fallback_strided<Scalar, RowMajor>(n, d, incr);
       }
-      verify_fallback_lhs_byvalue<Scalar, ColMajor, false>(n, d);
-      verify_fallback_lhs_byvalue<Scalar, ColMajor, true>(n, d);
-      verify_fallback_lhs_byvalue<Scalar, RowMajor, false>(n, d);
-      verify_fallback_lhs_byvalue<Scalar, RowMajor, true>(n, d);
-      verify_fallback_rhs_byvalue<Scalar, ColMajor, false>(d, n);
-      verify_fallback_rhs_byvalue<Scalar, ColMajor, true>(d, n);
-      verify_fallback_rhs_byvalue<Scalar, RowMajor, false>(d, n);
-      verify_fallback_rhs_byvalue<Scalar, RowMajor, true>(d, n);
+      sweep_fallback_byvalue<Scalar, ColMajor>(n, d);
+      sweep_fallback_byvalue<Scalar, RowMajor>(n, d);
     }
   }
 }
@@ -465,11 +607,62 @@ static void test_mapper_fallback() {
 // ---------------------------------------------------------------------------
 
 // Sizes that land just on and off the block tails and the intra-block ZA-tile
-// splits.  MR/2 is the tile side at the SVL=512 design point.
+// splits, for both panel widths (they differ for complex scalars) and the tile
+// side at the SVL=512 design point.
 template <typename Scalar>
 static std::vector<int> sme_edge_sizes() {
+  const int T = sme_tile<Scalar>();
   const int MR = sme_mr<Scalar>();
-  return {1, MR / 2 - 1, MR / 2, MR / 2 + 1, MR - 1, MR, MR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1};
+  const int NR = sme_nr<Scalar>();
+  std::vector<int> sizes = {1,  T - 1,  T,          T + 1,  MR - 1,     MR,         MR + 1, NR - 1,
+                            NR, NR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1, 2 * NR - 1, 2 * NR, 2 * NR + 1};
+  std::sort(sizes.begin(), sizes.end());
+  sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
+  return sizes;
+}
+
+// The dimension-sum and output-area bounds in GeneralProduct.h route a small
+// square product to the coeff-based evaluator, so the n x n sweeps above stop
+// reaching the SME kernel once n gets small -- which is exactly where the
+// intra-block ZA tile-split edges (T-1, T, T+1) live for double and
+// complex<double>.  Repeat the same widths over a depth that clears both
+// bounds, so every m and n edge still reaches the kernel, and check the
+// conjugated forms too: at those sizes test_conjugated_products compares a
+// lazyProduct against a lazyProduct and cannot fail.
+template <typename Scalar>
+static void test_edge_sizes_deep_k() {
+  const int depth = 4 * sme_mr<Scalar>();
+  for (int n : sme_edge_sizes<Scalar>()) {
+    if (n < 2) continue;
+    const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(n, depth);
+    const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+    const SmeColMajorMat<Scalar> Aa = A.adjoint().eval();
+    const SmeColMajorMat<Scalar> Ba = B.adjoint().eval();
+    const SmeColMajorMat<Scalar> c_before = SmeColMajorMat<Scalar>::Random(n, n);
+    const SmeColMajorMat<Scalar> expected = c_before + A.lazyProduct(B);
+
+    SmeColMajorMat<Scalar> C = c_before;
+    C.noalias() += A * B;
+    VERIFY_IS_APPROX(C, expected);
+
+    C = c_before;
+    C.noalias() += Aa.adjoint() * B;
+    VERIFY_IS_APPROX(C, expected);
+
+    C = c_before;
+    C.noalias() += A * Ba.adjoint();
+    VERIFY_IS_APPROX(C, expected);
+  }
+}
+
+template <typename Scalar>
+static void test_conjugated_products() {
+  for (int n : sme_edge_sizes<Scalar>()) {
+    verify_conjugated_products<Scalar, SmeColMajorMat<Scalar>, SmeColMajorMat<Scalar>, SmeColMajorMat<Scalar>>(n);
+    verify_conjugated_products<Scalar, SmeRowMajorMat<Scalar>, SmeColMajorMat<Scalar>, SmeColMajorMat<Scalar>>(n);
+    verify_conjugated_products<Scalar, SmeColMajorMat<Scalar>, SmeRowMajorMat<Scalar>, SmeRowMajorMat<Scalar>>(n);
+    verify_conjugated_products<Scalar, SmeRowMajorMat<Scalar>, SmeRowMajorMat<Scalar>, SmeColMajorMat<Scalar>>(n);
+  }
 }
 
 template <typename Scalar>
@@ -494,6 +687,7 @@ static void test_products() {
   product(SmeColMajorMat<Scalar>(3, 4 * MR));
 
   test_deep_k_split<Scalar>();
+  test_edge_sizes_deep_k<Scalar>();
 
   // Random sizes
   for (int i = 0; i < g_repeat; i++) {
@@ -545,20 +739,40 @@ static void test_products() {
 
 EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_products<float>());
+  CALL_SUBTEST_1(test_conjugated_products<float>());
   CALL_SUBTEST_1(test_symm_pack<float>());
+  CALL_SUBTEST_1(test_pack_direct<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
 
-  // double only reaches the SME kernel and packers with FEAT_SME_F64F64; the
+  // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
   // specializations that only exist when it is available.
   CALL_SUBTEST_2(test_products<double>());
+  CALL_SUBTEST_2(test_conjugated_products<double>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_2(test_symm_pack<double>());
+  CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
 #endif
 
-  // Scalar types SME does not specialize: these prove they still route through
-  // the generic product path.
-  CALL_SUBTEST_3(product(Matrix<std::complex<float>, Dynamic, Dynamic>(33, 17)));
-  CALL_SUBTEST_3(product(Matrix<std::complex<double>, Dynamic, Dynamic>(33, 17)));
+  CALL_SUBTEST_3(test_products<std::complex<float>>());
+  CALL_SUBTEST_3(test_conjugated_products<std::complex<float>>());
+  CALL_SUBTEST_3(test_symm_pack<std::complex<float>>());
+  CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
+  CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
+
+  // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
+  // exactly as double does.
+  CALL_SUBTEST_4(test_products<std::complex<double>>());
+  CALL_SUBTEST_4(test_conjugated_products<std::complex<double>>());
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+  CALL_SUBTEST_4(test_symm_pack<std::complex<double>>());
+  CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
+  CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
+#endif
+
+  // A scalar type SME does not specialize, proving it still routes through the
+  // generic product path inside an SME build -- where packet traits, alignment
+  // and cache blocking all differ from a plain NEON build.
+  CALL_SUBTEST_5(product(Matrix<long double, Dynamic, Dynamic>(33, 17)));
 }

@@ -13,6 +13,9 @@ using namespace Eigen;
 typedef SCALAR Scalar;
 typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
+// A complex multiply-add is four real multiplies and four real adds.
+static constexpr double kFlopsPerMulAdd = NumTraits<Scalar>::IsComplex ? 8.0 : 2.0;
+
 template <typename A, typename B, typename C>
 EIGEN_DONT_INLINE void gemm(const A& a, const B& b, C& c) {
   c.noalias() += a * b;
@@ -33,8 +36,8 @@ static void BM_EigenGemm(benchmark::State& state) {
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
-  state.counters["GFLOPS"] =
-      benchmark::Counter(2.0 * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["GFLOPS"] = benchmark::Counter(
+      kFlopsPerMulAdd * m * n * p, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
 // clang-format off
@@ -56,7 +59,8 @@ BENCHMARK(BM_EigenGemm)
     ->Args({4096, 160, 160})->Args({4096, 176, 176})->Args({8192, 128, 128});
 // clang-format on
 
-#ifdef HAVE_BLAS
+// The reference below calls sgemm_/dgemm_ directly, so it is real-only.
+#if defined(HAVE_BLAS) && !defined(EIGEN_BENCH_COMPLEX_SCALAR)
 extern "C" {
 #include <Eigen/src/misc/blas.h>
 }

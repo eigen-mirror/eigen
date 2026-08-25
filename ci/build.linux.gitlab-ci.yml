@@ -453,13 +453,15 @@ build:linux:cross:arm:clang-14:default:
     # The build stage only cross-compiles and never invokes the emulator, so
     # no qemu here -- the test stage installs qemu-user.
     EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu
-    # product_symm/product_trsolve/product_trmm/product_syrk/mixingtypes exercise
-    # the SME packers through their non-dense-GEMM consumers (selfadjoint,
-    # triangular-solve, triangular-product, rank-update, mixed-scalar) that
-    # product_sme can't reach; each has double subtests, so they cover both SME
-    # scalar types. Explicit list, not `buildtests`: cross-building every test
-    # under the SME flags overruns the runner timeout.
-    EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk mixingtypes
+    # product_symm/product_trsolve/product_trmm/product_syrk/product_mmtr/
+    # mixingtypes exercise the SME packers through their non-dense-GEMM consumers
+    # (selfadjoint, triangular-solve, triangular-product, rank-update,
+    # triangular-result product, mixed-scalar) that product_sme can't reach; each
+    # has double and complex subtests, so they cover all four SME scalar types.
+    # product_mmtr additionally covers tribb_kernel's lcm(mr, nr) block, which is
+    # only larger than mr for complex<float>. Explicit list, not `buildtests`:
+    # cross-building every test under the SME flags overruns the runner timeout.
+    EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk product_mmtr mixingtypes
   # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
   # program bills small and large runners the same, so don't downsize.
 
@@ -493,14 +495,14 @@ build:linux:cross:sme:gcc-14:full:
   timeout: 2h
 
 # FEAT_SME_F64F64 is optional, and every job above builds with it, so nothing
-# else compiles the configuration where it is absent: the #else static_assert
-# that keeps double off the GEMM driver, and double on the generic kernel inside
-# an SME build. GCC hard-errors on the fp64 FMOPA without the feature, so this
-# is also what catches an fp64 SME intrinsic escaping the
+# else compiles the configuration where it is absent: the #else static_asserts
+# that keep double and complex<double> off the GEMM driver, and both on the
+# generic kernel inside an SME build. GCC hard-errors on the fp64 FMOPA without
+# the feature, so this is also what catches an fp64 SME intrinsic escaping the
 # EIGEN_VECTORIZE_SME_F64F64 gate. The EIGEN_ARM64_NO_SME_F64F64 opt-out reaches
 # the same branch, so one job covers both ways in. product_sme alone: its double
-# subtest is written to run in either configuration, and one target keeps the
-# job cheap.
+# and complex<double> subtests are written to run in either configuration, and
+# one target keeps the job cheap.
 build:linux:cross:sme:gcc-14:no-f64f64:
   extends: .build:linux:cross:sme
   variables:

@@ -139,6 +139,11 @@ struct sme_has_gebp_kernel<float, float> : std::true_type {};
 template <>
 struct sme_has_gebp_kernel<double, double> : std::true_type {};
 #endif
+// A complex accumulator is a pair of the corresponding real ZA tiles, so the
+// complex kernels exist exactly where the real ones do.
+template <typename RealScalar>
+struct sme_has_gebp_kernel<std::complex<RealScalar>, std::complex<RealScalar>>
+    : sme_has_gebp_kernel<RealScalar, RealScalar> {};
 
 // Overridable SME packed-panel budgets. The defaults are empirically tuned
 // fp32 working-set limits for Apple M4 — heuristic budgets, not generic ARM64
