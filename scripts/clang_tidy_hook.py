@@ -85,11 +85,34 @@ def umbrella_for(rel_path, root=REPO_ROOT):
     return fallback if os.path.isfile(os.path.join(root, fallback)) else None
 
 
+def cuda_include_dir(default_root="/usr/local/cuda"):
+    """Include directory of an installed CUDA toolkit, or None if there is none.
+
+    Every header in the GPU module that includes ``GpuSupport.h`` reaches
+    ``<cuda_runtime.h>``. Without it clang drops the include and every
+    declaration behind it, leaving an AST too truncated to check the module
+    against; with it the header is checked like any other.
+
+    ``default_root`` is where the toolkit is looked for once the environment
+    names none; a test passes a directory that holds no toolkit so the
+    negative case does not depend on the host.
+    """
+    roots = [os.environ.get(name) for name in ("CUDAToolkit_ROOT", "CUDA_HOME", "CUDA_PATH")]
+    roots.append(default_root)
+    for root in roots:
+        if root and os.path.isfile(os.path.join(root, "include", "cuda_runtime.h")):
+            return os.path.join(root, "include")
+    return None
+
+
 def compile_args(rel_path, root=REPO_ROOT):
     """Include paths sufficient to parse ``rel_path`` without a compile database."""
     args = ["-std=c++14", "-I" + root]
     if rel_path.startswith(("test/", "unsupported/test/")):
         args += ["-I" + os.path.join(root, "test")]
+    cuda = cuda_include_dir()
+    if cuda:
+        args += ["-isystem", cuda]
     return args
 
 

@@ -20,7 +20,8 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from clang_tidy_hook import compile_args, module_of, run_clang_tidy, tidy_target, umbrella_for
+from clang_tidy_hook import (compile_args, cuda_include_dir, module_of, run_clang_tidy,
+                             tidy_target, umbrella_for)
 from style_common import REPO_ROOT, as_ranges, line_filter_json
 
 
@@ -102,6 +103,28 @@ def test_compile_args():
     assert any(a.endswith("/test") for a in compile_args("test/block.cpp"))
     assert any(a.endswith("/test") for a in compile_args("unsupported/test/cxx11_tensor_block_access.cpp"))
     assert not any(a.endswith("/test") for a in compile_args("Eigen/src/Core/Block.h"))
+
+
+def test_cuda_include_dir():
+    saved = {name: os.environ.pop(name, None)
+             for name in ("CUDAToolkit_ROOT", "CUDA_HOME", "CUDA_PATH")}
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            include = os.path.join(tmpdir, "include")
+            os.makedirs(include)
+            absent = os.path.join(tmpdir, "absent")
+            os.environ["CUDA_HOME"] = tmpdir
+            assert cuda_include_dir(absent) is None, "an empty toolkit root must not be accepted"
+            with open(os.path.join(include, "cuda_runtime.h"), "w", encoding="utf-8") as handle:
+                handle.write("\n")
+            assert cuda_include_dir(absent) == include
+            assert compile_args("unsupported/Eigen/src/GPU/DeviceMatrix.h")[-2:] == ["-isystem", include]
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def test_end_to_end_line_filter():

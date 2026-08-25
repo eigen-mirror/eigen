@@ -228,6 +228,18 @@ ci/scripts/run-clang-tidy.sh <base-sha> .tidy-build
 The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's
 `.clang-tidy` policy is authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
 
+A module that reaches a third-party header the machine does not install — `<cuda_runtime.h>` from
+`unsupported/Eigen/src/GPU`, `<cholmod.h>` from `CholmodSupport` — is still checked, but clang parses a truncated
+translation unit, so the driver marks the heading `— partial: <header> is not installed` and reports that file's
+findings without failing the job. Installing the dependency gets the module checked in full; for CUDA the driver
+looks under `CUDAToolkit_ROOT`, `CUDA_HOME`, `CUDA_PATH`, then `/usr/local/cuda`, and so does
+`clang_tidy_hook.py`. An unresolved *in-tree* include is a defect in the change and stays a hard error.
+
+A header under `arch/<ISA>/` other than `arch/Default/` is not forced into the driver: it parses only under the
+`-march`/`-mcpu` that selects it, which this job does not pass. Such a header is linted only when the host target
+selects the backend — SSE2 on the x86-64 runner — and the heading says which backend went unchecked. Validate a
+change to one with a build that enables the ISA rather than relying on this job.
+
 For a source in the compilation database the driver narrows that database first, through
 [`tidy_compile_db.py`](../scripts/tidy_compile_db.py). A split test contributes one entry per `EIGEN_TEST_PART`, and
 clang-tidy parses the file once per entry naming it — 41 times for `test/array_cwise.cpp` — which alone exhausts the
