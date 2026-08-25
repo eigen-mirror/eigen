@@ -101,9 +101,6 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
 # tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
 .build:linux:cross:x86-64:gcc-13:avx512fp16:
   extends: build:linux:cross:x86-64:gcc-13:default
-  # The build-directory cache was disabled here because its upload took ~35
-  # minutes; the ccache directory is bounded by CCACHE_MAXSIZE, so this job
-  # can cache again.
   variables:
     # Force -O2 via EIGEN_TEST_CUSTOM_CXX_FLAGS (appended after the default
     # Release -O3 -DNDEBUG; last -O wins). GCC bug at -O3 generates invalid
@@ -194,7 +191,11 @@ build:linux:docs:
   extends: .build:linux:cross:x86-64
   # Disable caching for ASAN builds: instrumented .o files are so large that
   # moving them through the cache can take longer than a clean build from
-  # scratch.
+  # scratch.  Both settings below are needed and do different things:
+  # cache: [] drops the archive round trip, and without it a pool populated
+  # before ccache was turned off here would keep being restored under the same
+  # $CI_JOB_NAME_SLUG-ccache key; EIGEN_CI_CCACHE: "off" drops the compiler
+  # launchers, so nothing is written to the runner's disk either.
   cache: []
   timeout: 2h
   variables:
@@ -381,7 +382,10 @@ build:linux:rocm-latest:gcc-11:
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
   rules: !reference [.rules:libeigen:gpu, rules]
-  cache: [] # Disable cache for ROCm, since it fails whenever the image updates.
+  # Disable cache for ROCm, since it fails whenever the image updates.  As with
+  # the ASAN build above, this and EIGEN_CI_CCACHE: "off" are both needed: one
+  # drops the archive round trip, the other the compiler launchers.
+  cache: []
 
 
 ######## Arm ###################################################################
