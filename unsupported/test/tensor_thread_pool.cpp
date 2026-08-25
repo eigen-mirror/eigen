@@ -801,7 +801,7 @@ void test_multithreaded_complex_partial_reductions() {
   Tensor<Scalar, 1, RowMajor> static_result(outer_size);
   static_result.device(thread_pool_device) = input.sum(static_reduction_dim);
 
-  array<Index, 1> runtime_reduction_dim{{1}};
+  array<Index, 1> runtime_reduction_dim{1};
   Tensor<Scalar, 1, RowMajor> runtime_result(outer_size);
   runtime_result.device(thread_pool_device) = input.sum(runtime_reduction_dim);
 

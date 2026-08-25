@@ -223,7 +223,7 @@ struct RowSumOp {
 
   template <typename Input, typename Output, typename Device>
   void eval(const Input& input, Output& output, const Device& device) const {
-    array<Index, 1> reduce_dims{{1}};
+    array<Index, 1> reduce_dims{1};
     output.device(device) = input.sum(reduce_dims);
   }
 };
@@ -242,7 +242,7 @@ struct RowSumExprOp {
 
   template <typename Input, typename Output, typename Device>
   void eval(const Input& input, Output& output, const Device& device) const {
-    array<Index, 1> reduce_dims{{1}};
+    array<Index, 1> reduce_dims{1};
     output.device(device) = input.sum(reduce_dims);
   }
 };

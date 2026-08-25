@@ -226,12 +226,12 @@ static void test_arg_reductions() {
 }
 
 static void test_array_reductions() {
-  array<int, 6> a{{4, 8, 15, 16, 23, 42}};
-  array<int, 6> b{{42, 23, 16, 15, 8, 4}};
+  array<int, 6> a{4, 8, 15, 16, 23, 42};
+  array<int, 6> b{42, 23, 16, 15, 8, 4};
   array<unsigned char, 0> empty{};
-  array<unsigned char, 1> singleton{{200}};
-  array<unsigned char, 2> narrow{{200, 100}};
-  array<unsigned char, 3> custom{{200, 100, 50}};
+  array<unsigned char, 1> singleton{200};
+  array<unsigned char, 2> narrow{200, 100};
+  array<unsigned char, 3> custom{200, 100, 50};
 
   VERIFY_IS_EQUAL((array_sum(a)), 108);
   VERIFY_IS_EQUAL((array_sum(b)), 108);

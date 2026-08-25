@@ -50,7 +50,7 @@ static void test_larg_expr1D(const Eigen::SyclDevice& sycl_device) {
   Tensor<DataType, 3, DataLayout, IndexType> result(result_dims);
   Tensor<DataType, 3, DataLayout, IndexType> result_host(result_dims);
 
-  Eigen::array<IndexType, 1> dims3{{0}};
+  Eigen::array<IndexType, 1> dims3{0};
 
   input.setRandom();
   kernel.setRandom();
@@ -223,7 +223,7 @@ static void test_evals(const Eigen::SyclDevice& sycl_device) {
   Tensor<DataType, 1, DataLayout, IndexType> kernel(kernel_dims);
   Tensor<DataType, 2, DataLayout, IndexType> result(result_dims);
 
-  Eigen::array<IndexType, 1> dims3{{0}};
+  Eigen::array<IndexType, 1> dims3{0};
 
   input.setRandom();
   kernel.setRandom();
