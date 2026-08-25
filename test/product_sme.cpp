@@ -56,6 +56,28 @@ static constexpr int sme_tile() {
   return internal::sme_block<Scalar>::mr / internal::sme_block<Scalar>::kGridRows;
 }
 
+// svwhilelt_b* is overloaded only on the four fixed-width types, so forwarding
+// the caller's own type would leave Index ambiguous wherever it is `long` while
+// int64_t is `long long`, and deducing one type from both arguments would reject
+// the literal-plus-Index bounds the packers pass.  Name every spelling Index
+// takes, mix the two argument types, and check the predicate so the traits'
+// widening cannot change which lanes are active.
+template <typename Scalar, typename Begin, typename End = Begin>
+__arm_locally_streaming static bool sme_whilelt_covers_first_lane_only() {
+  using Traits = internal::sme_traits<Scalar>;
+  const svbool_t pg = Traits::whilelt(Begin(0), End(1));
+  return svptest_first(Traits::ptrue(), pg) && svcntp_b8(Traits::ptrue(), pg) == 1;
+}
+
+template <typename Scalar>
+static void test_whilelt_operand_types() {
+  VERIFY((sme_whilelt_covers_first_lane_only<Scalar, int>()));
+  VERIFY((sme_whilelt_covers_first_lane_only<Scalar, long>()));
+  VERIFY((sme_whilelt_covers_first_lane_only<Scalar, long long>()));
+  VERIFY((sme_whilelt_covers_first_lane_only<Scalar, Index>()));
+  VERIFY((sme_whilelt_covers_first_lane_only<Scalar, int, Index>()));
+}
+
 // Write one element into a packed panel of width w, in the layout the SME
 // kernel reads: a real scalar lands at dst[k*w + r], a complex one splits into
 // the depth step's real and imaginary halves.
@@ -738,6 +760,7 @@ static void test_products() {
 }
 
 EIGEN_DECLARE_TEST(product_sme) {
+  CALL_SUBTEST_1(test_whilelt_operand_types<float>());
   CALL_SUBTEST_1(test_products<float>());
   CALL_SUBTEST_1(test_conjugated_products<float>());
   CALL_SUBTEST_1(test_symm_pack<float>());
@@ -750,6 +773,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_products<double>());
   CALL_SUBTEST_2(test_conjugated_products<double>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
+  CALL_SUBTEST_2(test_whilelt_operand_types<double>());
   CALL_SUBTEST_2(test_symm_pack<double>());
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());

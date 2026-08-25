@@ -61,6 +61,12 @@ namespace internal {
 // Operations that can be overloaded on their arguments are free functions
 // below, and the ones taking a ZA tile number take it as a template parameter
 // because the underlying instructions encode it as an immediate.
+//
+// `whilelt` takes int64_t in both specializations rather than the caller's own
+// integer type: svwhilelt_b* is overloaded on the four fixed-width types only,
+// so an argument of a distinct type of the same width -- `Index` wherever
+// int64_t is `long long` -- matches none of them exactly.  Signed, because
+// every bound the packers pass is a non-negative Index.
 template <typename Scalar>
 struct sme_traits;
 
@@ -84,8 +90,7 @@ struct sme_traits<float> {
   using Vec2 = svfloat32x2_t;
   using Vec4 = svfloat32x4_t;
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsw()); }
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming {
     return svwhilelt_b32(begin, end);
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b32(); }
@@ -100,8 +105,7 @@ struct sme_traits<double> {
   using Vec2 = svfloat64x2_t;
   using Vec4 = svfloat64x4_t;
   static EIGEN_ALWAYS_INLINE int svl() __arm_streaming_compatible { return static_cast<int>(svcntsd()); }
-  template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(T begin, T end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming {
     return svwhilelt_b64(begin, end);
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b64(); }
