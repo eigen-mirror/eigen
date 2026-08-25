@@ -324,9 +324,26 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
     return *this;
   }
 
-  internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex>::run(*this, matrix.derived(),
-                                                                                              computeU);
+  // Reduce to Hessenberg form at unit scale, as RealSchur does: HessenbergDecomposition treats a subdiagonal tail
+  // whose squared norm underflows as already zero, so an unscaled matrix near the bottom of the exponent range loses
+  // its whole subdiagonal. The scale is the power of two just below the largest coefficient, floored at the smallest
+  // normal, so the divisor is never subnormal and every coefficient that stays representable divides and multiplies
+  // back exactly. A scale above one underflows coefficients more than the exponent range below the largest one, a
+  // perturbation bounded by the smallest subnormal relative to that largest coefficient. maxCoeff propagates NaN; a
+  // zero or non-finite maxCoeff carries no usable exponent and is left unscaled.
+  const RealScalar maxCoeff = matrix.derived().cwiseAbs().template maxCoeff<PropagateNaN>();
+  RealScalar scale = RealScalar(1);
+  if ((numext::isfinite)(maxCoeff) && !numext::is_exactly_zero(maxCoeff)) {
+    RealScalar exponent;
+    internal::pfrexp<RealScalar>(maxCoeff, exponent);
+    scale = numext::maxi(numext::ldexp(RealScalar(1), int(exponent) - 1), (std::numeric_limits<RealScalar>::min)());
+  }
+
+  internal::complex_schur_reduce_to_hessenberg<MatrixType, NumTraits<Scalar>::IsComplex>::run(
+      *this, matrix.derived() / scale, computeU);
   computeFromHessenberg(m_matT, m_matU, computeU);
+  // m_matU is unitary either way; only the triangular factor carries the scale.
+  m_matT *= scale;
   return *this;
 }
 
@@ -346,7 +363,8 @@ namespace internal {
 template <typename MatrixType, bool IsComplex>
 struct complex_schur_reduce_to_hessenberg {
   // this is the implementation for the case IsComplex = true
-  static void run(ComplexSchur<MatrixType>& _this, const MatrixType& matrix, bool computeU) {
+  template <typename InputType>
+  static void run(ComplexSchur<MatrixType>& _this, const InputType& matrix, bool computeU) {
     _this.m_hess.compute(matrix);
     _this.m_matT = _this.m_hess.matrixH();
     if (computeU) _this.m_matU = _this.m_hess.matrixQ();
@@ -355,7 +373,8 @@ struct complex_schur_reduce_to_hessenberg {
 
 template <typename MatrixType>
 struct complex_schur_reduce_to_hessenberg<MatrixType, false> {
-  static void run(ComplexSchur<MatrixType>& _this, const MatrixType& matrix, bool computeU) {
+  template <typename InputType>
+  static void run(ComplexSchur<MatrixType>& _this, const InputType& matrix, bool computeU) {
     using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
 
     // Note: m_hess is over RealScalar; m_matT and m_matU is over ComplexScalar
