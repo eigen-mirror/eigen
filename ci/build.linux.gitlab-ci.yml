@@ -633,8 +633,7 @@ build:linux:riscv64:gcc-15:default:smoketest:
   extends: build:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -642,8 +641,7 @@ build:linux:riscv64:clang-21:default:smoketest:
   extends: build:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -657,8 +655,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -668,8 +665,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -679,8 +675,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -690,8 +685,7 @@ build:linux:aarch64:clang-14:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -700,17 +694,11 @@ build:linux:aarch64:clang-14:default:smoketest:
 # can reach.  The target list comes from the select:tests job; see
 # scripts/affected_tests.py.
 #
-# Two jobs always run under the label and give generic coverage.  The rest are
-# gated on the backend they compile, so a backend change also builds on the ISA
-# it targets -- coverage the default smoke matrix has no job for at all, since
-# every smoke build is at baseline ISA.  The trigger rules are shared with the
-# paired test jobs; see .rules:libeigen:affected-tests:* in
-# ci/common.gitlab-ci.yml.
-
-.affected:build:
-  needs: [ select:tests ]
-  variables:
-    EIGEN_CI_BUILD_TARGET_FILE: affected/targets.txt
+# The four jobs below always run under the label; the rest are gated on the
+# platform they target.  Trigger rules are shared with the paired test jobs; see
+# .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml, and .agents/ci.md
+# for which label selects what and how this tier relates to the smoke matrix it
+# suppresses.
 
 ##### Always, under the label ##################################################
 
@@ -718,11 +706,19 @@ build:linux:cross:x86-64:gcc-10:avx2:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:avx2, .affected:build ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
+build:linux:cross:x86-64:clang-14:default:affected:
+  extends: [ build:linux:cross:x86-64:clang-14:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
 build:linux:cross:aarch64:gcc-10:default:affected:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .affected:build ]
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
-##### Backend-triggered ########################################################
+build:linux:cross:aarch64:clang-14:default:affected:
+  extends: [ build:linux:cross:aarch64:clang-14:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests, rules]
+
+##### Platform-triggered #######################################################
 
 build:linux:cross:x86-64:gcc-10:default:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:default, .affected:build ]

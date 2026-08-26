@@ -107,3 +107,12 @@ build:windows:x86-64:cuda-12.2:msvc-14.29:
   extends: .build:windows:cuda
   variables:
     EIGEN_CI_BEFORE_SCRIPT: $$env:CUDA_PATH=$$env:CUDA_PATH_V12_2
+
+######### MR Affected Tests ####################################################
+# Opt-in via `affected-tests` plus `windows-tests` or `all-platforms`; see
+# .rules:libeigen:affected-tests:windows in ci/common.gitlab-ci.yml.  Only MSVC
+# x64 at baseline ISA; the wider Windows matrix stays in `all-tests`.
+
+build:windows:x86-64:msvc-14.29:default:affected:
+  extends: [ build:windows:x86-64:msvc-14.29:default, .affected:build ]
+  rules: !reference [.rules:libeigen:affected-tests:windows, rules]

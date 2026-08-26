@@ -3,8 +3,9 @@
 Use the checked-out configuration as the source of truth. [`.gitlab-ci.yml`](../.gitlab-ci.yml) defines stages and
 includes; [`ci/*.gitlab-ci.yml`](../ci) and [`ci/scripts/`](../ci/scripts) define the actual jobs. Default MR pipelines
 run a limited smoke matrix; labels such as `affected-tests`, `all-tests` and `gpu-tests`, plus scheduled or manually
-started pipelines, enable broader jobs. A green default MR pipeline is not proof that every supported configuration was
-exercised.
+started pipelines, enable broader jobs, and `affected-tests` composes with the `*-tests` platform labels and
+`all-platforms` to pick where it runs. A green default MR pipeline is not proof that every supported
+configuration was exercised.
 
 A pipeline is evidence only for the commit it ran on: after a push, amend, or rebase, check which SHA the pipeline and
 the merge request point at before citing either — a green run on a superseded revision proves nothing about the
@@ -30,8 +31,8 @@ Three tiers, in increasing cost:
 
 | Tier | Trigger | What runs |
 |---|---|---|
-| smoke | every MR | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64 |
-| affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 AVX2 and aarch64, plus the ISA of any packet-math backend the diff touches |
+| smoke | every MR with neither label below | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64, under gcc and clang |
+| affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 (gcc AVX2, clang baseline) and aarch64 (gcc, clang), plus any platform the diff or a `*-tests` label selects |
 | full | `all-tests` label | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
 
 One configuration sits outside all three tiers and runs only on schedules and web pipelines: the NVHPC (`nvc++`) build
@@ -43,9 +44,18 @@ The affected tier exists because the smoke list samples: it is broad but shallow
 gets only the one part of each related test that the list happens to name. Reach for `affected-tests` when a change is
 module-local and you want depth without paying for the full matrix.
 
+The tiers do not stack: `affected-tests` and `all-tests` each suppress the smoke jobs
+(`.rules:libeigen:smoketest`), because both go deeper than the fixed list on the same native runners and the smoke
+jobs would only pay for it twice. The affected tier's four unconditional jobs therefore mirror the smoke matrix's
+*compilers* — gcc-10 and clang-14 on x86-64 and aarch64. Two smoke *configurations* are still not reproduced, and
+both need a label to get back: riscv64, whose native runner is a single scarce machine (`rvv-tests` or
+`all-platforms`), and x86-64 gcc at baseline ISA, since the unconditional gcc job is AVX2 (`sse-tests` or
+`all-platforms`). The suppression is scoped to the `libeigen` namespace, since neither wider tier has any job in a
+fork.
+
 [`scripts/affected_tests.py`](../scripts/affected_tests.py) computes the selection in the `select:tests` job and writes
-`affected/targets.txt` and `affected/ctest_regex.txt`, which the paired build and test jobs consume through
-`EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_CI_CTEST_REGEX_FILE`. Run it locally the same way CI does:
+`affected/targets.txt` and `affected/ctest_regex.txt`, which the paired build and test jobs on both Linux and Windows
+consume through `EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_CI_CTEST_REGEX_FILE`. Run it locally the same way CI does:
 
 ```bash
 python3 scripts/affected_tests.py --base-sha $(git merge-base origin/master HEAD)
@@ -67,7 +77,10 @@ unconfigured target to drop. `test/buildsystem/` is skipped: its consumers are s
 test here. Targets absent from one configuration (optional dependencies such as CHOLMOD, CUDA or
 SYCL) are still filtered against `ninja -t targets` after cmake configure, because ninja aborts on an unknown target;
 a selection consisting only of such targets is a no-op, not a failure. A missing selection artifact must also fail the
-job rather than fall through to the default target, which would silently build everything.
+job rather than fall through to the default target, which would silently build everything. A `NONE` selection is read
+before the toolchain setup and the configure step, so a merge request that reaches no test costs a checkout rather than
+a full configure. `rules:` cannot decline to schedule that job in the first place, because GitLab evaluates them when
+the pipeline is created, before `select:tests` has run; only a child pipeline generated from the selection could.
 
 The build script expands the surviving selection through ninja's phony edges before it shuffles and batches. Most
 selected names are aggregates — `buildtests`, and the parent of every split test — and the batch loop can only spread
@@ -86,31 +99,56 @@ Because that test action is a build in the shared binary directory, `ei_add_fail
 collide whenever a regeneration is pending. The failure is not only noisy: `_ko` is `WILL_FAIL`, so a build system
 that errors for an unrelated reason satisfies it just as well as the compile error it is supposed to assert.
 
-### Backend-Triggered Configurations
+### Platform-Triggered Configurations
 
 Every job in the default smoke matrix builds at baseline ISA, so a change under `Eigen/src/Core/arch/AVX512` gets no
-AVX-512 compilation at all unless someone applies `all-tests`. Under the `affected-tests` label the tier adds the
-configuration that targets the backend the diff touches, through `rules:changes:`:
+AVX-512 compilation at all unless someone applies `all-tests`. Under the `affected-tests` label the tier adds
+platforms beyond the four unconditional jobs on two independent triggers, either of which is enough:
 
-| Backend directory | Added configuration |
-|---|---|
-| `arch/SSE` | x86-64 gcc-10 baseline, AVX, and AVX-512DQ |
-| `arch/AVX` | x86-64 gcc-10 AVX and AVX-512DQ |
-| `arch/AVX512` | x86-64 gcc-10 AVX-512DQ; `*FP16*` files also get the split gcc-13 AVX512-FP16 compile builds |
-| `arch/NEON` | 32-bit arm (aarch64 already runs unconditionally) |
-| `arch/AltiVec` | ppc64le gcc-14 |
-| `arch/LSX` | loongarch64 gcc-14 |
-| `arch/RVV10` | riscv64 gcc-15 |
-| `arch/SVE`, `arch/SME` | the full SME build, compile-only |
-| `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | the CUDA build and test jobs |
+- **the diff**, through `rules:changes:` on the backend directory — automatic, and the common case;
+- **a label**, through `$CI_MERGE_REQUEST_LABELS` — the axis orthogonal to the include graph. The graph decides
+  *which tests* run; the labels decide *where*. Use this to run the affected tests somewhere the diff does not
+  point at: a `Core` change on ppc64le, a `Geometry` change on Windows.
+
+| Backend directory | Label | Added configuration | In `all-platforms` |
+|---|---|---|---|
+| `arch/SSE` | `sse-tests` | x86-64 gcc-10 baseline, AVX, and AVX-512DQ | yes |
+| `arch/AVX` | `avx-tests` | x86-64 gcc-10 AVX and AVX-512DQ | yes |
+| `arch/AVX512` | `avx512-tests` | x86-64 gcc-10 AVX-512DQ | yes |
+| `arch/AVX512/*FP16*` | `avx512-tests` | the split gcc-13 AVX512-FP16 compile builds | no |
+| `arch/NEON` | `neon-tests` | 32-bit arm (aarch64 already runs unconditionally) | yes |
+| `arch/AltiVec` | `altivec-tests` | ppc64le gcc-14, under qemu | yes |
+| `arch/LSX` | `lsx-tests` | loongarch64 gcc-14, under qemu | yes |
+| `arch/RVV10` | `rvv-tests` | riscv64 gcc-15, on the native runner | yes |
+| `arch/SVE`, `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
+| — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
+| `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | `gpu-tests` | the CUDA build and test jobs | no |
+
+Each rule set matches the whole label string on its own, so several labels select the union of their platforms —
+`neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and nothing else. That is why these labels are
+**unscoped**: GitLab makes scoped labels (`backend::NEON`) mutually exclusive, so a scoped axis could never express
+a union, which is the point of the axis. Apart from `gpu-tests`, none of them does anything without
+`affected-tests`.
+
+`all-platforms` is a shorthand for every row that *runs the affected selection*. The three rows marked "no" are
+excluded because their jobs ignore the selection and compile the whole suite instead — the AVX512-FP16 pair and the
+SME build are compile-only with no paired test job, and the GPU jobs build `buildtests_gpu`. Reaching those means
+naming their label, so `all-platforms` on a one-line change cannot silently buy hours of whole-suite compilation.
 
 A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
 SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
 subset through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
 
-AVX512-FP16 headers are guarded by `EIGEN_VECTORIZE_AVX512FP16`, so an AVX512DQ build does not parse them. Changes to
-files matching `arch/AVX512/*FP16*` therefore also trigger the existing gcc-13 AVX512-FP16 official and unsupported
-builds. Those jobs are compile-only because no current runner can execute AVX512-FP16 instructions.
+Windows has no `changes:` trigger. What MSVC catches that the Linux jobs do not — template instantiation limits,
+`EIGEN_STRONG_INLINE` behaviour, optimizer heap exhaustion — is whole-library rather than confined to a subtree a
+diff could name, so there is nothing to key an automatic rule on and `windows-tests` is the only way in. The
+selection is consumed by [`build.windows.script.ps1`](../ci/scripts/build.windows.script.ps1) and
+[`test.windows.script.ps1`](../ci/scripts/test.windows.script.ps1). Only MSVC x64 at baseline ISA is wired up; the
+32-bit, AVX2 and AVX-512DQ Windows configurations stay in `all-tests`.
+
+AVX512-FP16 headers are guarded by `EIGEN_VECTORIZE_AVX512FP16`, so an AVX512DQ build does not parse them, and the
+`*FP16*` row exists to compile them. Those jobs are compile-only because no current runner can execute AVX512-FP16
+instructions.
 
 The GPU row is the one entry that adds jobs outside the tier rather than an affected build and test pair, because no
 affected-tier configuration enables CUDA, HIP or SYCL. In a host-only build there is no `gpu_basic`, `tensor_gpu`,
@@ -119,10 +157,11 @@ build reports as unconfigured and hands the test jobs a `-R` regex matching noth
 reads as green having compiled and run nothing. Those paths therefore add the existing CUDA jobs, through the
 `affected-tests` entry in `.rules:libeigen:gpu`. They ignore the selection — `EIGEN_CI_BUILD_TARGET` is
 `buildtests_gpu` and the test jobs filter on the `gpu` CTest label — so this is coverage of the whole GPU suite, not
-of the affected subset.
+of the affected subset. `gpu-tests` is the platform label for this row and already triggers those jobs on its own,
+so it composes with `affected-tests` without a second rule entry.
 
 `arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/HIP` and `arch/SYCL` backends have no matching test
-configuration, so a change there gets only the two unconditional jobs and the same hollow result; `gpu-tests` is no
+configuration, so a change there gets only the four unconditional jobs and the same hollow result; `gpu-tests` is no
 help either, since the GPU jobs it gates are all CUDA. When adding a runner for one of these, add the trigger here
 too.
 

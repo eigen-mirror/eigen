@@ -85,3 +85,29 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
 test:windows:x86-64:cuda-12.2:msvc-14.29:
   extends: .test:windows:cuda
   needs: [ build:windows:x86-64:cuda-12.2:msvc-14.29 ]
+
+##### MR Affected Tests ########################################################
+# Paired with the affected Windows build job.  No CTest label is set: the regex
+# from select:tests is the only filter, so a selection spanning Official and
+# Unsupported tests runs in one job rather than the two the labelled jobs above
+# need.
+#
+# Dropping the label filter is what makes the exclusion below necessary.  The
+# failtest suite and the buildsystem tests carry no CTest label, so every other
+# Windows job skips them by construction, and their test action is a compile
+# rather than the running of a prebuilt binary.  Only the build script runs
+# vcvarsall, so cl.exe is not invocable here: each one fails with "CreateProcess
+# failed: The system cannot find the file specified", while its WILL_FAIL `_ko`
+# twin passes on that same unrelated error.  Excluding them keeps this job's
+# coverage equal to what Windows has always run.  Giving the Windows test runner
+# a compiler environment would be a separate change with its own fallout.
+
+test:windows:x86-64:msvc-14.29:default:affected:
+  extends: [ .test:windows, .affected:test ]
+  needs: [ build:windows:x86-64:msvc-14.29:default:affected, select:tests ]
+  variables:
+    # `$` last: GitLab expands $NAME inside a variable value, and a trailing `$`
+    # cannot begin an expansion. Verified against the registered test names --
+    # `_(ok|ko)$` matches the 124 failtest entries and nothing else.
+    EIGEN_CI_CTEST_EXCLUDE: "^buildsystem_|_(ok|ko)$"
+  rules: !reference [.rules:libeigen:affected-tests:windows, rules]

@@ -16,8 +16,10 @@ safe direction here: the point is to widen coverage relative to the fixed smoke
 list, not to minimise work.  Changes that invalidate the mapping itself (CMake,
 CI, the BLAS/LAPACK shims) fall back to the full ``buildtests`` target.
 
-Two output files are written, both consumed by ``ci/scripts/build.linux.script.sh``
-and ``ci/scripts/test.linux.script.sh``:
+Two output files are written, both consumed by the build and test scripts of each
+platform in the tier -- ``ci/scripts/build.linux.script.sh`` and
+``ci/scripts/test.linux.script.sh``, and their ``.windows.script.ps1``
+counterparts:
 
   targets.txt       ``NONE``, a newline-separated target list, or the
                     full-suite list of ``buildtests`` and the targets it does
@@ -28,8 +30,8 @@ The selected names are CMake target names, not CTest test names: a split test
 ``foo`` registers ``foo_1``..``foo_N`` as tests but a single ``foo`` target that
 aggregates them, so selecting ``foo`` builds and runs every part.  Targets that
 a given configuration does not register (optional dependencies such as CHOLMOD
-or SYCL) are filtered out by the build script, which is the only place that
-knows what CMake actually configured.
+or SYCL) are filtered out by the build scripts, the only place that knows what
+CMake actually configured.
 
 Two registrations do not fit that shape:
 

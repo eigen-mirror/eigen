@@ -463,6 +463,12 @@ ei_add_test(threads_fork_join "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 ei_add_test(assignment_threaded "-pthread" "${CMAKE_THREAD_LIBS_INIT}")
 add_executable(bug1213 bug1213.cpp bug1213_main.cpp)
 target_link_libraries(bug1213 Eigen3::Eigen)
+# ei_add_test applies EIGEN_TEST_CUSTOM_CXX_FLAGS to every target it registers;
+# a bare add_executable has to ask. Without it this is the one test target built
+# at the configuration's default -march, which is not what the job selected.
+if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
+  target_compile_options(bug1213 PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
+endif()
 
 check_cxx_compiler_flag("-ffast-math" COMPILER_SUPPORT_FASTMATH)
 if(COMPILER_SUPPORT_FASTMATH)
@@ -669,9 +675,15 @@ endif()
 # ULP accuracy measurement tool (see test/ulp_accuracy/README.md)
 find_package(MPFR)
 find_package(GMP)
+find_package(Threads REQUIRED)
 add_executable(ulp_accuracy ulp_accuracy/ulp_accuracy.cpp)
-target_compile_options(ulp_accuracy PRIVATE -pthread)
-target_link_libraries(ulp_accuracy Eigen3::Eigen ${CMAKE_THREAD_LIBS_INIT} pthread)
+# Threads::Threads rather than a literal -pthread and pthread: it carries the
+# right compile and link flags per toolchain and expands to nothing on MSVC,
+# where there is no pthread.lib to open.
+target_link_libraries(ulp_accuracy Eigen3::Eigen Threads::Threads)
+if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
+  target_compile_options(ulp_accuracy PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
+endif()
 if(MPFR_FOUND AND GMP_FOUND)
   target_include_directories(ulp_accuracy PRIVATE ${MPFR_INCLUDES} ${GMP_INCLUDES})
   target_link_libraries(ulp_accuracy ${MPFR_LIBRARIES} ${GMP_LIBRARIES})
