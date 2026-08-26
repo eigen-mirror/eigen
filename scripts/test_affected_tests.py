@@ -145,9 +145,27 @@ def test_fixture_graph(root):
 
     # CMake and CI changes invalidate the mapping.
     for path in ["CMakeLists.txt", "test/CMakeLists.txt", "cmake/EigenTesting.cmake",
-                 "ci/scripts/build.linux.script.sh", ".gitlab-ci.yml", "blas/level3_impl.h"]:
+                 "ci/scripts/build.linux.script.sh", "ci/scripts/test_cache.py",
+                 "ci/docker/ubuntu-24.04-amd64-smoketest-run/Dockerfile",
+                 ".gitlab-ci.yml", "blas/level3_impl.h"]:
         sel = select(graph, [path])
         check(sel.mode == "all", "%s forces the full suite, got %s" % (path, sel.mode))
+
+    # The CI YAML is orchestration: it cannot change which test includes which
+    # header.  "none", not "all" -- these files are outside SCAN_ROOTS, so
+    # merely dropping them from FULL_REBUILD_PATTERNS would leave them falling
+    # through to "not in the include graph" and forcing the full suite anyway.
+    for path in ["ci/test.linux.gitlab-ci.yml", "ci/common.gitlab-ci.yml",
+                 "ci/build.linux.gitlab-ci.yml", "ci/CTest2JUnit.xsl", "ci/README.md"]:
+        sel = select(graph, [path])
+        check(sel.mode == "none", "%s selects nothing, got %s (%s)"
+              % (path, sel.mode, sel.reasons))
+
+    # An ignored CI path neither widens nor suppresses a real selection.
+    sel = select(graph, ["ci/test.linux.gitlab-ci.yml", "Eigen/src/SVD/BDCSVD.h"])
+    check(sel.mode == "targets" and "bdcsvd" in sel.targets,
+          "a CI YAML edit alongside a real change still selects bdcsvd, got %s %s"
+          % (sel.mode, sorted(sel.targets)))
 
     # An unknown path (deleted or renamed away) is not guessed at.
     sel = select(graph, ["Eigen/src/Core/util/Removed.h"])

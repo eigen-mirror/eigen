@@ -104,6 +104,14 @@ IGNORED_PATTERNS = (
     ".gitlab/*",
     "LICENSES/*",
     "benchmarks/*",
+    # The CI YAML is orchestration -- rules, tags, artifacts, job names -- and
+    # cannot change which test includes which header, which is the only mapping
+    # this selector maintains.  Ignored rather than merely dropped from
+    # FULL_REBUILD_PATTERNS below: these files are not under SCAN_ROOTS, so an
+    # un-forced path would instead fall through to "not in the include graph"
+    # and force the full suite anyway.
+    "ci/*.gitlab-ci.yml",
+    "ci/CTest2JUnit.xsl",
     "debug/*",
     "demos/*",
     "doc/*",
@@ -121,8 +129,14 @@ FULL_REBUILD_PATTERNS = (
     "*/CMakeLists.txt",
     "*.cmake",
     "*.cmake.in",
+    # Keeps forcing: it defines the selector-to-driver contract itself
+    # (EIGEN_CI_BUILD_TARGET_FILE, EIGEN_CI_CTEST_REGEX_FILE).
     ".gitlab-ci.yml",
-    "ci/*",
+    # ci/ splits: the scripts and the image definitions can change what a build
+    # produces or how a test runs.  The *.gitlab-ci.yml files cannot, and are
+    # ignored above.
+    "ci/scripts/*",
+    "ci/docker/*",
     "cmake/*",
     "scripts/*",
     "blas/*",

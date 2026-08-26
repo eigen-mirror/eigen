@@ -17,14 +17,12 @@
 #
 # The environment fingerprint covers everything that can change a test's
 # outcome while its binary stays identical: the image and its C library, the
-# checked-in CI configuration (hashed deliberately over-broadly -- the whole
-# ci/ tree plus .gitlab-ci.yml -- so an MR editing QEMU_CPU, EIGEN_REPEAT,
-# sanitizer options or these scripts invalidates its own skips), the dpkg
-# version state of every lib* package (a superset of anything a test binary
-# can dynamically load, cross sysroots included), and KEYED_ENV_PREFIXES
-# variables read directly for values set outside the tree.  Job-to-job
-# differences are already isolated by the per-job-name GitLab cache key;
-# the fingerprint guards against one job's environment drifting over time.
+# CONFIG_PATHS subtrees of the checked-in CI configuration, the dpkg version
+# state of every lib* package (a superset of anything a test binary can
+# dynamically load, cross sysroots included), and KEYED_ENV_PREFIXES variables
+# read directly for values set outside the tree.  Job-to-job differences are
+# already isolated by the per-job-name GitLab cache key; the fingerprint guards
+# against one job's environment drifting over time.
 # A tool that is genuinely absent (e.g. no dpkg on the hand-assembled
 # riscv64 image) contributes a fixed sentinel so images with and without it
 # never share keys; unexpected errors propagate, `plan` fails, and the
@@ -53,10 +51,34 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ElementTree
 
+# Paths under the config root whose content can change a test's outcome while
+# its binary stays identical.  Deliberately not the whole ci/ tree: the
+# *.gitlab-ci.yml files are orchestration, and everything in them that reaches
+# a test outcome reaches this key by value already -- job variables through
+# KEYED_ENV_PREFIXES, the image through CI_JOB_IMAGE, compiler flags and the
+# cross emulator through the digests of the files in the test's command, ctest
+# timeouts through the properties hash.  Hashing the file that sets them only
+# means every CI-maintenance merge request throws away every job's manifest.
+#
+# ci/docker/ stays: those images are referenced by a moving :latest tag, so
+# CI_JOB_IMAGE cannot see a rebuild, and the dpkg-query below covers only lib*
+# packages, not a non-lib* one such as qemu-user.
+#
+# This is a whole-directory walk rather than a list of the scripts on the test
+# path, because a list is complete only until someone adds a script and forgets
+# to name it here -- and that failure mode is a silently reused stale pass.
+#
+# The exchange for the narrowing: a job's tags: are now invisible to the key.
+# Moving a job to a runner pool whose CPU differs (an AVX-512 job off the
+# avx512 pool, say) will not invalidate its manifest, so pair such a move with
+# a cache clear.  Nothing today distinguishes two hosts within one tag pool
+# either, so this widens an accepted hole rather than opening a new one.
+CONFIG_PATHS = ("ci/scripts", "ci/docker")
+
 # Environment variables (matched by prefix) that can change a test's outcome
-# without changing its binary.  Host-derived values that legitimately vary
-# across runners of one job (EIGEN_CI_CTEST_PARALLEL, NPROC) are deliberately
-# absent.
+# without changing its binary.  Since the CI YAML is no longer hashed, this
+# tuple is load-bearing: a new job variable that can change a test's outcome
+# must be added here, because setting it in the YAML alone no longer keys it.
 KEYED_ENV_PREFIXES = (
     "EIGEN_REPEAT",
     "EIGEN_SEED",
@@ -69,6 +91,8 @@ KEYED_ENV_PREFIXES = (
     "MSAN_",
     "LD_LIBRARY_PATH",
     "LD_PRELOAD",
+    # Host-derived values that legitimately vary across runners of one job
+    # (EIGEN_CI_CTEST_PARALLEL, NPROC) are deliberately absent.
 )
 
 
@@ -85,7 +109,7 @@ def fingerprint(config_root):
     except (ValueError, OSError):
         parts.append("libc:unavailable")
     config = hashlib.sha256()
-    for top in ("ci", ".gitlab-ci.yml"):
+    for top in CONFIG_PATHS:
         top_path = os.path.join(config_root, top)
         if os.path.isfile(top_path):
             config.update(top.encode() + b"\0" + file_digest(top_path).encode() + b"\0")

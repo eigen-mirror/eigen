@@ -36,6 +36,24 @@ checkformat:reuse:
   script:
     - reuse lint
 
+# The unit tests for the Python helpers that decide what the rest of the
+# pipeline does: scripts/affected_tests.py chooses which tests an MR builds,
+# ci/scripts/test_cache.py chooses which of them can be skipped as already
+# passed.  Both fail closed, but a wrong answer is silent -- a job that skips
+# too much still reports success -- so these are blocking, and they run on
+# every merge request rather than under the affected-tests label that gates
+# select:tests (which is where the selector's tests used to run alone).
+checkformat:scripts:
+  stage: checkformat
+  image: alpine:3.20
+  only:
+    - merge_requests
+  before_script:
+    - apk add --no-cache python3 git
+  script:
+    - python3 scripts/test_affected_tests.py
+    - python3 ci/scripts/test_test_cache.py
+
 checkformat:clangtidy:
   stage: checkformat
   image: ubuntu:24.04

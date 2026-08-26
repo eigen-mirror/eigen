@@ -17,13 +17,22 @@ corresponding build target consistent; otherwise CTest can discover tests whose 
 
 In merge-request pipelines the Linux test jobs also keep a content-addressed pass cache (a per-job-name GitLab cache
 holding `.testcache/`): [`test.linux.script.sh`](../ci/scripts/test.linux.script.sh) skips tests whose executable,
-emulator, CTest definition, and environment fingerprint (image, `lib*` package state, the checked-in CI
-configuration, and behavior-affecting variables such as `EIGEN_REPEAT` and `QEMU_CPU`) match a first-attempt pass
+emulator, CTest definition, and environment fingerprint (image, `lib*` package state, `ci/scripts/` and
+`ci/docker/`, and behavior-affecting variables such as `EIGEN_REPEAT` and `QEMU_CPU`) match a first-attempt pass
 recorded by an earlier MR pipeline, then records this run's first-attempt passes — taken from the dashboard run's
 `Test.xml` statuses — via [`test_cache.py`](../ci/scripts/test_cache.py). Scheduled and web pipelines always run
 their full selection (fresh clock-derived RNG seeds are part of their coverage), sharded jobs never skip, and
 `EIGEN_CI_TEST_CACHE: "off"` opts a job out. Skipped tests are absent from that run's JUnit report, and a test job
 whose binaries all match cached passes legitimately reports "No tests were found".
+
+The fingerprint covers `ci/scripts/` and `ci/docker/`, not the `ci/*.gitlab-ci.yml` files: everything in the YAML that
+reaches a test's outcome already reaches the key by value — job variables through `KEYED_ENV_PREFIXES`, the image
+through `CI_JOB_IMAGE`, compiler flags and the cross emulator through the digests of the files in the test's command,
+CTest timeouts through the properties hash — so hashing the YAML as well only meant that every CI-maintenance merge
+request discarded every job's manifest. Two consequences follow. **A new job variable that can change a test's outcome
+must be added to `KEYED_ENV_PREFIXES`**; setting it in the YAML alone no longer keys it. And a job's `tags:` are now
+invisible to the fingerprint, so moving a job to a runner pool whose CPU differs should be paired with a cache clear —
+though nothing distinguished two hosts within one tag pool before this either.
 
 ## Test Tiers On Merge Requests
 
@@ -59,14 +68,19 @@ consume through `EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_CI_CTEST_REGEX_FILE`. Ru
 
 ```bash
 python3 scripts/affected_tests.py --base-sha $(git merge-base origin/master HEAD)
-python3 scripts/test_affected_tests.py     # unit tests, also run by the CI job
+python3 scripts/test_affected_tests.py     # unit tests, also run by checkformat:scripts
+python3 ci/scripts/test_test_cache.py      # pass-cache unit tests, same job
 ```
+
+`checkformat:scripts` runs both suites on every merge request and is blocking: both scripts fail closed, but a wrong
+answer is silent — a job that skips too much still reports success.
 
 Selection follows the textual `#include` graph, ignoring preprocessor guards, so it is a strict superset of the real
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
-correct answer, not a failure. Changes to CMake, `ci/`, or the BLAS/LAPACK shims also force the full suite, since they
-invalidate the mapping itself. Git rename detection is disabled for the input diff so both the old and new path of a
+correct answer, not a failure. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims also force the
+full suite, since they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot
+change which test includes which header, so they select nothing. Git rename detection is disabled for the input diff so both the old and new path of a
 move are evaluated; an old path absent from the current graph safely forces the full suite.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
