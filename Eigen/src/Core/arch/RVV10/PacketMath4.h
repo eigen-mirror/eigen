@@ -155,18 +155,18 @@ EIGEN_STRONG_INLINE Packet4Xi pnot<Packet4Xi>(const Packet4Xi& a) {
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xi parithmetic_shift_right(Packet4Xi a) {
+EIGEN_STRONG_INLINE Packet4Xi parithmetic_shift_right(const Packet4Xi& a) {
   return __riscv_vsra_vx_i32m4(a, N, unpacket_traits<Packet4Xi>::size);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xi plogical_shift_right(Packet4Xi a) {
+EIGEN_STRONG_INLINE Packet4Xi plogical_shift_right(const Packet4Xi& a) {
   return __riscv_vreinterpret_i32m4(
       __riscv_vsrl_vx_u32m4(__riscv_vreinterpret_u32m4(a), N, unpacket_traits<Packet4Xi>::size));
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xi plogical_shift_left(Packet4Xi a) {
+EIGEN_STRONG_INLINE Packet4Xi plogical_shift_left(const Packet4Xi& a) {
   return __riscv_vsll_vx_i32m4(a, N, unpacket_traits<Packet4Xi>::size);
 }
 
@@ -800,18 +800,18 @@ EIGEN_STRONG_INLINE Packet4Xl pandnot<Packet4Xl>(const Packet4Xl& a, const Packe
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xl parithmetic_shift_right(Packet4Xl a) {
+EIGEN_STRONG_INLINE Packet4Xl parithmetic_shift_right(const Packet4Xl& a) {
   return __riscv_vsra_vx_i64m4(a, N, unpacket_traits<Packet4Xl>::size);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xl plogical_shift_right(Packet4Xl a) {
+EIGEN_STRONG_INLINE Packet4Xl plogical_shift_right(const Packet4Xl& a) {
   return __riscv_vreinterpret_i64m4(
       __riscv_vsrl_vx_u64m4(__riscv_vreinterpret_u64m4(a), N, unpacket_traits<Packet4Xl>::size));
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xl plogical_shift_left(Packet4Xl a) {
+EIGEN_STRONG_INLINE Packet4Xl plogical_shift_left(const Packet4Xl& a) {
   return __riscv_vsll_vx_i64m4(a, N, unpacket_traits<Packet4Xl>::size);
 }
 
@@ -1443,18 +1443,18 @@ EIGEN_STRONG_INLINE Packet4Xs pandnot<Packet4Xs>(const Packet4Xs& a, const Packe
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xs parithmetic_shift_right(Packet4Xs a) {
+EIGEN_STRONG_INLINE Packet4Xs parithmetic_shift_right(const Packet4Xs& a) {
   return __riscv_vsra_vx_i16m4(a, N, unpacket_traits<Packet4Xs>::size);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xs plogical_shift_right(Packet4Xs a) {
+EIGEN_STRONG_INLINE Packet4Xs plogical_shift_right(const Packet4Xs& a) {
   return __riscv_vreinterpret_i16m4(
       __riscv_vsrl_vx_u16m4(__riscv_vreinterpret_u16m4(a), N, unpacket_traits<Packet4Xs>::size));
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet4Xs plogical_shift_left(Packet4Xs a) {
+EIGEN_STRONG_INLINE Packet4Xs plogical_shift_left(const Packet4Xs& a) {
   return __riscv_vsll_vx_i16m4(a, N, unpacket_traits<Packet4Xs>::size);
 }
 

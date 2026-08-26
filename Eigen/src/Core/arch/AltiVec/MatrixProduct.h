@@ -382,7 +382,7 @@ template <typename Scalar, typename DataMapper, typename Packet, typename Packet
 struct dhs_cpack {
   template <bool transpose>
   EIGEN_ALWAYS_INLINE void dhs_cblock(PacketBlock<PacketC, 8>& cblock, PacketBlock<Packet, 4>& block,
-                                      Packet16uc permute) {
+                                      const Packet16uc& permute) {
     if (transpose) {
       block.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[1].v, permute);
       block.packet[1] = vec_perm(cblock.packet[2].v, cblock.packet[3].v, permute);
@@ -2631,13 +2631,13 @@ EIGEN_ALWAYS_INLINE bool supportsMMA() {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet4f loadAndMultiplyF32(Packet4f acc, const Packet4f pAlpha, float* result) {
+EIGEN_ALWAYS_INLINE Packet4f loadAndMultiplyF32(const Packet4f& acc, const Packet4f& pAlpha, float* result) {
   Packet4f result_block = ploadu<Packet4f>(result);
   return pmadd(acc, pAlpha, result_block);
 }
 
 template <bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index rows, Index extra_rows) {
+EIGEN_ALWAYS_INLINE void storeF32(float*& result, const Packet4f& result_block, Index rows, Index extra_rows) {
   EIGEN_IF_CONSTEXPR (lhsExtraRows) {
     pstoreu_partial(result, result_block, extra_rows);
   } else {
@@ -2647,7 +2647,7 @@ EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index r
 }
 
 template <bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result,
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f& pAlpha, float* result,
                                       Index extra_cols, Index extra_rows) {
   Index x = 0;
   EIGEN_IF_CONSTEXPR (rhsExtraCols) {
@@ -2669,7 +2669,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
   }
 }
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(Packet8us data) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(const Packet8us& data) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_mergeh(data, z));
@@ -2678,7 +2678,7 @@ EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(Packet8us data) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Lo(Packet8us data) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Lo(const Packet8us& data) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_mergel(data, z));
@@ -2730,7 +2730,7 @@ static Packet16uc p16uc_MERGE16_32_6 = {2, 3, 18, 19, 18, 19, 18, 19, 2, 3, 18, 
 static Packet16uc p16uc_MERGE16_32_7 = {4, 5, 20, 21, 20, 21, 20, 21, 4, 5, 20, 21, 20, 21, 20, 21};
 static Packet16uc p16uc_MERGE16_32_8 = {6, 7, 22, 23, 22, 23, 22, 23, 6, 7, 22, 23, 22, 23, 22, 23};
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Perm(Packet8us data, Packet16uc mask) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Perm(const Packet8us& data, const Packet16uc& mask) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_perm(data, z, mask));
@@ -2862,8 +2862,8 @@ EIGEN_ALWAYS_INLINE void addResults(Packet4f (&acc)[num_acc][4]) {
 }
 
 template <Index num_acc, bool rhsExtraCols, bool lhsExtraRows, Index num_rhs>
-EIGEN_ALWAYS_INLINE void outputResultsVSX(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result,
-                                          const Index extra_cols, Index extra_rows) {
+EIGEN_ALWAYS_INLINE void outputResultsVSX(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f& pAlpha,
+                                          float* result, const Index extra_cols, Index extra_rows) {
   tranposeResults<num_acc>(acc);
   addResults<num_acc>(acc);
 
@@ -2916,7 +2916,7 @@ EIGEN_ALWAYS_INLINE void KLoop(const float* indexA, const float* indexB, Packet4
 }
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const float* indexA,
+EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packet4f& pAlpha, const float* indexA,
                                             const float* indexB, Index strideB, Index offsetB, float* result,
                                             const Index extra_cols, const Index extra_rows) {
   constexpr Index num_rhs = num_acc;
@@ -2940,7 +2940,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packe
 #define MAX_BFLOAT16_ACC_VSX 4
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const float* indexA,
+void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f& pAlpha, const float* indexA,
                     const float* indexB, Index strideB, Index offsetB, float* result) {
   constexpr Index step = (num_acc * 4);  // each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
@@ -2957,7 +2957,7 @@ void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packe
 }
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha,
+EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f& pAlpha,
                                               const float* indexA, const float* blockB, Index strideB, Index offsetB,
                                               float* result) {
   EIGEN_IF_CONSTEXPR (MAX_BFLOAT16_ACC_VSX > num_acc) {
@@ -2967,7 +2967,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols
 }
 
 template <bool rhsExtraCols, bool lhsExtraRows>
-void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const float* indexA,
+void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const Packet4f& pAlpha, const float* indexA,
                          const float* blockB, Index strideB, Index offsetB, float* result) {
   switch ((cols - col) >> 2) {
     case 3:
@@ -2991,9 +2991,9 @@ void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const P
 }
 
 template <Index size, bool lhsExtraRows = false>
-EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA,
-                                     const float* indexA2, const float* blockB2, Index strideA, Index strideB,
-                                     Index offsetB, float* result2) {
+EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const Packet4f& pAlpha,
+                                     const bfloat16* indexA, const float* indexA2, const float* blockB2, Index strideA,
+                                     Index strideB, Index offsetB, float* result2) {
   Index delta_rows = 2 * (lhsExtraRows ? (rows & 3) : size);
   for (Index row = 0; row < size; row += 4) {
     convertArrayPointerBF16toF32Dup<lhsExtraRows>(const_cast<float*>(indexA2), strideA, delta_rows, indexA, row,
@@ -3020,7 +3020,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const 
 
 template <Index size>
 EIGEN_ALWAYS_INLINE void calcVSXColLoops(const bfloat16*& indexA, const float* indexA2, Index& row, Index depth,
-                                         Index cols, Index rows, const Packet4f pAlpha, const float* indexB,
+                                         Index cols, Index rows, const Packet4f& pAlpha, const float* indexB,
                                          Index strideA, Index strideB, Index offsetA, Index offsetB, Index bigSuffix,
                                          float* result) {
   if ((size == 16) || (rows & size)) {

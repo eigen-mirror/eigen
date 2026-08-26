@@ -69,7 +69,7 @@
 
 /** \internal multiply and add and store results */
 template <typename ResPacket, typename ResScalar>
-EIGEN_ALWAYS_INLINE void storeMaddData(ResScalar* res, ResPacket& palpha, ResPacket& data) {
+EIGEN_ALWAYS_INLINE void storeMaddData(ResScalar* res, const ResPacket& palpha, const ResPacket& data) {
   pstoreu(res, pmadd(data, palpha, ploadu<ResPacket>(res)));
 }
 
@@ -443,7 +443,7 @@ EIGEN_STRONG_INLINE void gemv_col(Index rows, Index cols, const LhsMapper& alhs,
 }
 
 template <bool extraRows>
-EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float* result, Packet4f pAlpha, Index extra_rows) {
+EIGEN_ALWAYS_INLINE void outputVecCol(const Packet4f& acc, float* result, const Packet4f& pAlpha, Index extra_rows) {
   Packet4f d0 = ploadu<Packet4f>(result);
   d0 = pmadd(acc, pAlpha, d0);
   EIGEN_IF_CONSTEXPR (extraRows) {
@@ -454,7 +454,7 @@ EIGEN_ALWAYS_INLINE void outputVecCol(Packet4f acc, float* result, Packet4f pAlp
 }
 
 template <Index num_acc, bool extraRows, Index size>
-EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float* result, Packet4f pAlpha,
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float* result, const Packet4f& pAlpha,
                                              Index extra_rows) {
   constexpr Index real_acc = (num_acc - (extraRows ? 1 : 0));
   for (Index k = 0; k < real_acc; k++) {
@@ -554,7 +554,7 @@ EIGEN_ALWAYS_INLINE void addResultsVSX(Packet4f (&acc)[num_acc][2]) {
 #define MAX_BFLOAT16_VEC_ACC_VSX 8
 
 template <const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
-void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha,
+void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f& pAlpha,
                           float* result) {
   constexpr Index step = (num_acc * 4);
   const Index extra_rows = (extraRows) ? (rows & 3) : 0;
@@ -585,7 +585,7 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
 
 template <const Index num_acc, typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
 EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtraN(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs,
-                                                    const Packet4f pAlpha, float* result) {
+                                                    const Packet4f& pAlpha, float* result) {
   EIGEN_IF_CONSTEXPR (MAX_BFLOAT16_VEC_ACC_VSX > num_acc) {
     colVSXVecColLoopBody<num_acc + (extraRows ? 1 : 0), LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs,
                                                                                                  rhs, pAlpha, result);
@@ -594,7 +594,7 @@ EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtraN(Index& row, Index cend, Inde
 
 template <typename LhsMapper, typename RhsMapper, bool extraRows, bool linear>
 EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtra(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs,
-                                                   const Packet4f pAlpha, float* result) {
+                                                   const Packet4f& pAlpha, float* result) {
   switch ((rows - row) >> 2) {
     case 7:
       colVSXVecColLoopBodyExtraN<7, LhsMapper, RhsMapper, extraRows, linear>(row, cend, rows, lhs, rhs, pAlpha, result);
@@ -627,7 +627,7 @@ EIGEN_ALWAYS_INLINE void colVSXVecColLoopBodyExtra(Index& row, Index cend, Index
 
 template <typename LhsMapper, typename RhsMapper, bool linear>
 EIGEN_ALWAYS_INLINE void calcVSXVecColLoops(Index cend, Index rows, LhsMapper& lhs, RhsMapper& rhs,
-                                            const Packet4f pAlpha, float* result) {
+                                            const Packet4f& pAlpha, float* result) {
   Index row = 0;
   if (rows >= (MAX_BFLOAT16_VEC_ACC_VSX * 4)) {
     colVSXVecColLoopBody<MAX_BFLOAT16_VEC_ACC_VSX, LhsMapper, RhsMapper, false, linear>(row, cend, rows, lhs, rhs,
@@ -642,7 +642,7 @@ EIGEN_ALWAYS_INLINE void calcVSXVecColLoops(Index cend, Index rows, LhsMapper& l
 }
 
 template <const Index size, bool inc, Index delta>
-EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc, Index extra) {
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, const Packet8bf& data, Index resInc, Index extra) {
   if (inc) {
     EIGEN_IF_CONSTEXPR (size < 8) {
       pscatter_partial(dst + delta * resInc, data, resInc, extra);
@@ -697,8 +697,8 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerF32toBF16VSX(float* result, Index ro
 
 template <typename RhsMapper, typename LhsMapper, typename = void>
 struct UseStride : std::false_type {
-  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha,
-                                      float* result) {
+  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs,
+                                      const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
     RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
@@ -710,8 +710,8 @@ template <typename RhsMapper, typename LhsMapper>
 struct UseStride<RhsMapper, LhsMapper,
                  std::enable_if_t<std::is_member_function_pointer<decltype(&RhsMapper::stride)>::value>>
     : std::true_type {
-  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs, Packet4f pAlpha,
-                                      float* result) {
+  static EIGEN_ALWAYS_INLINE void run(Index j2, Index jend, Index rows, LhsMapper& lhs, RhsMapper& rhs,
+                                      const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
     RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
@@ -758,7 +758,7 @@ void gemv_bfloat16_col(Index rows, Index cols, const LhsMapper& alhs, const RhsM
 }
 
 template <Index num_acc, Index size>
-EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float* result, Packet4f pAlpha) {
+EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float* result, const Packet4f& pAlpha) {
   constexpr Index extra = num_acc & 3;
 
   for (Index k = 0; k < num_acc; k += 4) {
@@ -811,7 +811,7 @@ EIGEN_ALWAYS_INLINE void preduxVecResultsVSX(Packet4f (&acc)[num_acc][2]) {
 }
 
 #ifndef _ARCH_PWR9
-EIGEN_ALWAYS_INLINE Packet8us loadPacketPartialZero(Packet8us data, Index extra_cols) {
+EIGEN_ALWAYS_INLINE Packet8us loadPacketPartialZero(const Packet8us& data, Index extra_cols) {
   Packet16uc shift = pset1<Packet16uc>(8 * 2 * (8 - extra_cols));
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet8us>(vec_slo(vec_sro(reinterpret_cast<Packet16uc>(data), shift), shift));
@@ -869,7 +869,7 @@ EIGEN_ALWAYS_INLINE void vecVSXLoop(Index cols, const LhsMapper& lhs, RhsMapper&
 }
 
 template <const Index num_acc, typename LhsMapper, typename RhsMapper>
-void colVSXVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha,
+void colVSXVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f& pAlpha,
                        float* result) {
   constexpr bool multiIters = (num_acc == MAX_BFLOAT16_VEC_ACC_VSX);
   const Index extra_cols = (cols & 7);
@@ -894,7 +894,7 @@ void colVSXVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMa
 
 template <const Index num_acc, typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void colVSXVecLoopBodyExtraN(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs,
-                                                 const Packet4f pAlpha, float* result) {
+                                                 const Packet4f& pAlpha, float* result) {
   EIGEN_IF_CONSTEXPR (MAX_BFLOAT16_VEC_ACC_VSX > num_acc) {
     colVSXVecLoopBody<num_acc, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
   }
@@ -902,7 +902,7 @@ EIGEN_ALWAYS_INLINE void colVSXVecLoopBodyExtraN(Index& row, Index cols, Index r
 
 template <typename LhsMapper, typename RhsMapper>
 EIGEN_ALWAYS_INLINE void colVSXVecLoopBodyExtra(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs,
-                                                const Packet4f pAlpha, float* result) {
+                                                const Packet4f& pAlpha, float* result) {
   switch (rows - row) {
     case 7:
       colVSXVecLoopBodyExtraN<7, LhsMapper, RhsMapper>(row, cols, rows, lhs, rhs, pAlpha, result);
@@ -929,7 +929,7 @@ EIGEN_ALWAYS_INLINE void colVSXVecLoopBodyExtra(Index& row, Index cols, Index ro
 }
 
 template <typename LhsMapper, typename RhsMapper>
-EIGEN_ALWAYS_INLINE void calcVSXVecLoops(Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f pAlpha,
+EIGEN_ALWAYS_INLINE void calcVSXVecLoops(Index cols, Index rows, LhsMapper& lhs, RhsMapper& rhs, const Packet4f& pAlpha,
                                          float* result) {
   Index row = 0;
   if (rows >= MAX_BFLOAT16_VEC_ACC_VSX) {
@@ -1036,7 +1036,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pconjinv(const Packet1cd& a) {
 #endif
 
 /** \internal flip the real & imaginary results and packet conjugate */
-EIGEN_ALWAYS_INLINE Packet2cf pcplxflipconj(Packet2cf a) {
+EIGEN_ALWAYS_INLINE Packet2cf pcplxflipconj(const Packet2cf& a) {
 #ifdef PERMXOR_GOOD
   return Packet2cf(Packet4f(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX32_CONJ_XOR, p16uc_COMPLEX32_XORFLIP)));
 #else
@@ -1044,7 +1044,7 @@ EIGEN_ALWAYS_INLINE Packet2cf pcplxflipconj(Packet2cf a) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd pcplxflipconj(Packet1cd a) {
+EIGEN_ALWAYS_INLINE Packet1cd pcplxflipconj(const Packet1cd& a) {
 #ifdef PERMXOR_GOOD
   return Packet1cd(Packet2d(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX64_CONJ_XOR, p16uc_COMPLEX64_XORFLIP)));
 #else
@@ -1053,7 +1053,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pcplxflipconj(Packet1cd a) {
 }
 
 /** \internal packet conjugate and flip the real & imaginary results */
-EIGEN_ALWAYS_INLINE Packet2cf pcplxconjflip(Packet2cf a) {
+EIGEN_ALWAYS_INLINE Packet2cf pcplxconjflip(const Packet2cf& a) {
 #ifdef PERMXOR_GOOD
   return Packet2cf(Packet4f(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX32_CONJ_XOR2, p16uc_COMPLEX32_XORFLIP)));
 #else
@@ -1061,7 +1061,7 @@ EIGEN_ALWAYS_INLINE Packet2cf pcplxconjflip(Packet2cf a) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd pcplxconjflip(Packet1cd a) {
+EIGEN_ALWAYS_INLINE Packet1cd pcplxconjflip(const Packet1cd& a) {
 #ifdef PERMXOR_GOOD
   return Packet1cd(Packet2d(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX64_CONJ_XOR2, p16uc_COMPLEX64_XORFLIP)));
 #else
@@ -1070,7 +1070,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pcplxconjflip(Packet1cd a) {
 }
 
 /** \internal packet negate */
-EIGEN_ALWAYS_INLINE Packet2cf pnegate2(Packet2cf a) {
+EIGEN_ALWAYS_INLINE Packet2cf pnegate2(const Packet2cf& a) {
 #ifdef __POWER8_VECTOR__
   return Packet2cf(vec_neg(a.v));
 #else
@@ -1078,7 +1078,7 @@ EIGEN_ALWAYS_INLINE Packet2cf pnegate2(Packet2cf a) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd pnegate2(Packet1cd a) {
+EIGEN_ALWAYS_INLINE Packet1cd pnegate2(const Packet1cd& a) {
 #ifdef __POWER8_VECTOR__
   return Packet1cd(vec_neg(a.v));
 #else
@@ -1087,7 +1087,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pnegate2(Packet1cd a) {
 }
 
 /** \internal flip the real & imaginary results and negate */
-EIGEN_ALWAYS_INLINE Packet2cf pcplxflipnegate(Packet2cf a) {
+EIGEN_ALWAYS_INLINE Packet2cf pcplxflipnegate(const Packet2cf& a) {
 #ifdef PERMXOR_GOOD
   return Packet2cf(Packet4f(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX32_NEGATE, p16uc_COMPLEX32_XORFLIP)));
 #else
@@ -1095,7 +1095,7 @@ EIGEN_ALWAYS_INLINE Packet2cf pcplxflipnegate(Packet2cf a) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd pcplxflipnegate(Packet1cd a) {
+EIGEN_ALWAYS_INLINE Packet1cd pcplxflipnegate(const Packet1cd& a) {
 #ifdef PERMXOR_GOOD
   return Packet1cd(Packet2d(vec_permxor(Packet16uc(a.v), p16uc_COMPLEX64_NEGATE, p16uc_COMPLEX64_XORFLIP)));
 #else
@@ -1104,11 +1104,11 @@ EIGEN_ALWAYS_INLINE Packet1cd pcplxflipnegate(Packet1cd a) {
 }
 
 /** \internal flip the real & imaginary results */
-EIGEN_ALWAYS_INLINE Packet2cf pcplxflip2(Packet2cf a) {
+EIGEN_ALWAYS_INLINE Packet2cf pcplxflip2(const Packet2cf& a) {
   return Packet2cf(Packet4f(vec_perm(Packet16uc(a.v), Packet16uc(a.v), p16uc_COMPLEX32_XORFLIP)));
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd pcplxflip2(Packet1cd a) {
+EIGEN_ALWAYS_INLINE Packet1cd pcplxflip2(const Packet1cd& a) {
 #ifdef EIGEN_VECTORIZE_VSX
   return Packet1cd(__builtin_vsx_xxpermdi(a.v, a.v, 2));
 #else
@@ -1240,9 +1240,9 @@ EIGEN_ALWAYS_INLINE Packet4f pload_real(float* src) { return pset1<Packet4f>(*sr
 
 EIGEN_ALWAYS_INLINE Packet2d pload_real(double* src) { return pset1<Packet2d>(*src); }
 
-EIGEN_ALWAYS_INLINE Packet4f pload_real(Packet4f& src) { return src; }
+EIGEN_ALWAYS_INLINE Packet4f pload_real(const Packet4f& src) { return src; }
 
-EIGEN_ALWAYS_INLINE Packet2d pload_real(Packet2d& src) { return src; }
+EIGEN_ALWAYS_INLINE Packet2d pload_real(const Packet2d& src) { return src; }
 
 /** \internal load a vector from a real-only vector location */
 EIGEN_ALWAYS_INLINE Packet4f pload_real_full(float* src) {
@@ -1275,12 +1275,12 @@ EIGEN_ALWAYS_INLINE Packet2d pload_real_row(double* src) {
   return pload_real(src);
 }
 
-EIGEN_ALWAYS_INLINE Packet2cf padd(Packet2cf& a, std::complex<float>& b) {
+EIGEN_ALWAYS_INLINE Packet2cf padd(const Packet2cf& a, std::complex<float>& b) {
   EIGEN_UNUSED_VARIABLE(b);
   return a;  // Just for compilation
 }
 
-EIGEN_ALWAYS_INLINE Packet1cd padd(Packet1cd& a, std::complex<double>& b) {
+EIGEN_ALWAYS_INLINE Packet1cd padd(const Packet1cd& a, std::complex<double>& b) {
   EIGEN_UNUSED_VARIABLE(b);
   return a;  // Just for compilation
 }
@@ -1328,7 +1328,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pset_zero<Packet1cd>() {
 
 /** \internal initialize a vector from another vector */
 template <typename Packet, typename LhsPacket, typename RhsPacket>
-EIGEN_ALWAYS_INLINE Packet pset_init(Packet& c1) {
+EIGEN_ALWAYS_INLINE Packet pset_init(const Packet& c1) {
   EIGEN_IF_CONSTEXPR (GEMV_IS_COMPLEX_COMPLEX) {
     EIGEN_UNUSED_VARIABLE(c1);
     return pset_zero<Packet>();
@@ -1351,14 +1351,15 @@ struct alpha_store {
 
 /** \internal multiply and add for complex math */
 template <typename ScalarPacket, typename AlphaData>
-EIGEN_ALWAYS_INLINE ScalarPacket pmadd_complex(ScalarPacket& c0, ScalarPacket& c2, ScalarPacket& c4, AlphaData& b0) {
+EIGEN_ALWAYS_INLINE ScalarPacket pmadd_complex(const ScalarPacket& c0, const ScalarPacket& c2, const ScalarPacket& c4,
+                                               AlphaData& b0) {
   return pmadd(c2, b0.separate.i.v, pmadd(c0, b0.separate.r.v, c4));
 }
 
 /** \internal store and madd for complex math */
 template <typename Scalar, typename ScalarPacket, typename PResPacket, typename ResPacket, typename ResScalar,
           typename AlphaData>
-EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(PResPacket& c0, AlphaData& b0, ResScalar* res) {
+EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(const PResPacket& c0, AlphaData& b0, ResScalar* res) {
   PResPacket c2 = pcplxflipconj(c0);
   EIGEN_IF_CONSTEXPR (GEMV_IS_SCALAR) {
     ScalarPacket c4 = ploadu<ScalarPacket>(reinterpret_cast<Scalar*>(res));
@@ -1373,7 +1374,8 @@ EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(PResPacket& c0, AlphaData& b0, Re
 
 template <typename ScalarPacket, typename PResPacket, typename ResPacket, typename ResScalar, typename AlphaData,
           Index ResPacketSize, Index iter2>
-EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(PResPacket& c0, PResPacket& c1, AlphaData& b0, ResScalar* res) {
+EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(const PResPacket& c0, const PResPacket& c1, AlphaData& b0,
+                                               ResScalar* res) {
   PResPacket c2 = pcplxflipconj(c0);
   PResPacket c3 = pcplxflipconj(c1);
 #if !defined(_ARCH_PWR10)
@@ -1416,7 +1418,7 @@ EIGEN_ALWAYS_INLINE LhsPacket loadLhsPacket(LhsMapper& lhs, Index i, Index j) {
 
 /** \internal madd for complex times complex */
 template <typename ComplexPacket, typename RealPacket, bool ConjugateLhs, bool ConjugateRhs, bool Negate>
-EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_complex(RealPacket& a, RealPacket& b, RealPacket& c) {
+EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_complex(const RealPacket& a, const RealPacket& b, const RealPacket& c) {
   EIGEN_IF_CONSTEXPR (ConjugateLhs && ConjugateRhs) {
     return vec_madd(a, pconj2(ComplexPacket(b)).v, c);
   } else EIGEN_IF_CONSTEXPR (Negate && !ConjugateLhs && ConjugateRhs) {
@@ -1428,7 +1430,7 @@ EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_complex(RealPacket& a, RealPacket& 
 
 /** \internal madd for complex times real */
 template <typename ComplexPacket, typename RealPacket, bool Conjugate>
-EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_real(RealPacket& a, RealPacket& b, RealPacket& c) {
+EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_real(const RealPacket& a, const RealPacket& b, const RealPacket& c) {
   EIGEN_IF_CONSTEXPR (Conjugate) {
     return vec_madd(a, pconj2(ComplexPacket(b)).v, c);
   } else {
@@ -1438,7 +1440,7 @@ EIGEN_ALWAYS_INLINE RealPacket pmadd_complex_real(RealPacket& a, RealPacket& b, 
 
 template <typename LhsPacket, typename RhsScalar, typename RhsPacket, typename PResPacket, bool ConjugateLhs,
           bool ConjugateRhs, int StorageOrder>
-EIGEN_ALWAYS_INLINE void gemv_mult_generic(LhsPacket& a0, RhsScalar* b, PResPacket& c0) {
+EIGEN_ALWAYS_INLINE void gemv_mult_generic(const LhsPacket& a0, RhsScalar* b, PResPacket& c0) {
   conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs> pcj;
   RhsPacket b0;
   EIGEN_IF_CONSTEXPR (StorageOrder == ColMajor) {
@@ -1470,7 +1472,7 @@ EIGEN_ALWAYS_INLINE void gemv_mult_complex_complex(LhsPacket& a0, RhsScalar* b, 
 /** \internal core multiply operation for vectors - real times complex */
 template <typename ScalarPacket, typename LhsPacket, typename RhsScalar, typename RhsPacket, typename PResPacket,
           typename ResPacket, bool ConjugateLhs, bool ConjugateRhs, int StorageOrder>
-EIGEN_ALWAYS_INLINE void gemv_mult_real_complex(LhsPacket& a0, RhsScalar* b, PResPacket& c0) {
+EIGEN_ALWAYS_INLINE void gemv_mult_real_complex(const LhsPacket& a0, RhsScalar* b, PResPacket& c0) {
   ScalarPacket b0;
   EIGEN_IF_CONSTEXPR (StorageOrder == ColMajor) {
     b0 = pload_complex_full(b);
@@ -1540,9 +1542,9 @@ EIGEN_ALWAYS_INLINE T convertReal(T a) {
   return a;
 }
 
-EIGEN_ALWAYS_INLINE Packet4f convertReal(Packet2cf a) { return a.v; }
+EIGEN_ALWAYS_INLINE Packet4f convertReal(const Packet2cf& a) { return a.v; }
 
-EIGEN_ALWAYS_INLINE Packet2d convertReal(Packet1cd a) { return a.v; }
+EIGEN_ALWAYS_INLINE Packet2d convertReal(const Packet1cd& a) { return a.v; }
 
 /** \internal convert packet to complex form */
 template <typename T>
@@ -1550,9 +1552,9 @@ EIGEN_ALWAYS_INLINE T convertComplex(T a) {
   return a;
 }
 
-EIGEN_ALWAYS_INLINE Packet2cf convertComplex(Packet4f a) { return Packet2cf(a); }
+EIGEN_ALWAYS_INLINE Packet2cf convertComplex(const Packet4f& a) { return Packet2cf(a); }
 
-EIGEN_ALWAYS_INLINE Packet1cd convertComplex(Packet2d a) { return Packet1cd(a); }
+EIGEN_ALWAYS_INLINE Packet1cd convertComplex(const Packet2d& a) { return Packet1cd(a); }
 
 /** \internal load a vector from a complex location (for MMA version) */
 template <typename ScalarPacket, typename LhsPacket, typename SLhsPacket, typename ResPacket>
@@ -1567,7 +1569,7 @@ EIGEN_ALWAYS_INLINE void pload_complex_MMA(__vector_pair&) {
 
 /** \internal perform a matrix multiply and accumulate (positive and negative) of packet a and packet b */
 template <typename LhsPacket, typename RhsPacket, bool NegativeAccumulate>
-EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, RhsPacket& a, LhsPacket& b) {
+EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, const RhsPacket& a, const LhsPacket& b) {
   EIGEN_IF_CONSTEXPR (NegativeAccumulate) {
     __builtin_mma_xvf32gernp(acc, (__vector unsigned char)a, (__vector unsigned char)b);
   } else {
@@ -1577,7 +1579,7 @@ EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, RhsPacket& a, LhsPacket
 
 /** \internal perform a matrix multiply and accumulate (positive and negative) of vector_pair a and packet b */
 template <typename LhsPacket, typename RhsPacket, bool NegativeAccumulate>
-EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, __vector_pair& a, Packet2d& b) {
+EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, __vector_pair& a, const Packet2d& b) {
   EIGEN_IF_CONSTEXPR (NegativeAccumulate) {
     __builtin_mma_xvf64gernp(acc, (__vector_pair)a, (__vector unsigned char)b);
   } else {
@@ -1586,13 +1588,13 @@ EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad* acc, __vector_pair& a, Packe
 }
 
 template <typename LhsPacket, typename RhsPacket, bool NegativeAccumulate>
-EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad*, __vector_pair&, Packet4f&) {
+EIGEN_ALWAYS_INLINE void pger_vecMMA(__vector_quad*, __vector_pair&, const Packet4f&) {
   // Just for compilation
 }
 
 /** \internal madd for complex times complex (MMA version) */
 template <typename RealPacket, typename LhsPacket, bool ConjugateLhs, bool ConjugateRhs, bool Negate>
-EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(LhsPacket& a, RealPacket& b, __vector_quad* c) {
+EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(const LhsPacket& a, const RealPacket& b, __vector_quad* c) {
   EIGEN_IF_CONSTEXPR (ConjugateLhs && ConjugateRhs) {
     RealPacket b2 = pconj2(convertComplex(b)).v;
     return pger_vecMMA<RealPacket, RealPacket, false>(c, b2, a.v);
@@ -1604,7 +1606,7 @@ EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(LhsPacket& a, RealPacket& b, 
 }
 
 template <typename RealPacket, typename LhsPacket, bool ConjugateLhs, bool ConjugateRhs, bool Negate>
-EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(__vector_pair& a, RealPacket& b, __vector_quad* c) {
+EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(__vector_pair& a, const RealPacket& b, __vector_quad* c) {
   EIGEN_IF_CONSTEXPR (ConjugateLhs && ConjugateRhs) {
     RealPacket b2 = pconj2(convertComplex(b)).v;
     return pger_vecMMA<RealPacket, __vector_pair, false>(c, a, b2);
@@ -1617,7 +1619,7 @@ EIGEN_ALWAYS_INLINE void pmadd_complex_complex_MMA(__vector_pair& a, RealPacket&
 
 /** \internal madd for complex times real (MMA version) */
 template <typename RealPacket, typename LhsPacket, bool Conjugate, int StorageOrder>
-EIGEN_ALWAYS_INLINE void pmadd_complex_real_MMA(LhsPacket& a, RealPacket& b, __vector_quad* c) {
+EIGEN_ALWAYS_INLINE void pmadd_complex_real_MMA(const LhsPacket& a, const RealPacket& b, __vector_quad* c) {
   RealPacket a2 = convertReal(a);
   EIGEN_IF_CONSTEXPR (Conjugate) {
     RealPacket b2 = pconj2(convertComplex(b)).v;
@@ -1637,7 +1639,7 @@ EIGEN_ALWAYS_INLINE void pmadd_complex_real_MMA(LhsPacket& a, RealPacket& b, __v
 
 /** \internal madd for real times complex (MMA version) */
 template <typename RealPacket, typename LhsPacket, bool Conjugate, int StorageOrder>
-EIGEN_ALWAYS_INLINE void pmadd_complex_real_MMA(__vector_pair& a, RealPacket& b, __vector_quad* c) {
+EIGEN_ALWAYS_INLINE void pmadd_complex_real_MMA(__vector_pair& a, const RealPacket& b, __vector_quad* c) {
   EIGEN_IF_CONSTEXPR (Conjugate) {
     RealPacket b2 = pconj2(convertComplex(b)).v;
     return pger_vecMMA<RealPacket, __vector_pair, false>(c, a, b2);
@@ -2169,7 +2171,7 @@ EIGEN_ALWAYS_INLINE ScalarBlock<double, 2> predux_real<double, Packet2d>(__vecto
 /** \internal add complex results together */
 template <typename LhsPacket, typename RhsPacket, bool ConjugateLhs, bool ConjugateRhs>
 EIGEN_ALWAYS_INLINE ScalarBlock<std::complex<float>, 2> addComplexResults(PacketBlock<Packet4f, 4>& result0,
-                                                                          PacketBlock<Packet4f, 4>& result1) {
+                                                                          const PacketBlock<Packet4f, 4>& result1) {
   ScalarBlock<std::complex<float>, 2> cc0;
   result0.packet[0] = reinterpret_cast<Packet4f>(
       vec_mergeh(reinterpret_cast<Packet2d>(result0.packet[0]), reinterpret_cast<Packet2d>(result1.packet[0])));
@@ -2205,7 +2207,7 @@ EIGEN_ALWAYS_INLINE ScalarBlock<std::complex<float>, 2> addComplexResults(Packet
 
 template <typename LhsPacket, typename RhsPacket, bool ConjugateLhs, bool ConjugateRhs>
 EIGEN_ALWAYS_INLINE ScalarBlock<std::complex<double>, 2> addComplexResults(PacketBlock<Packet2d, 4>&,
-                                                                           PacketBlock<Packet2d, 4>&) {
+                                                                           const PacketBlock<Packet2d, 4>&) {
   ScalarBlock<std::complex<double>, 2> cc0;
   EIGEN_UNUSED_VARIABLE(cc0);
   return cc0;  // Just for compilation
@@ -2262,7 +2264,7 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(__vector_quad* acc0
 #endif
 
 template <typename ResScalar, typename ResPacket>
-EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_real(ResPacket& a, ResPacket& b) {
+EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_real(const ResPacket& a, const ResPacket& b) {
   ScalarBlock<ResScalar, 2> cc0;
   cc0.scalar[0] = predux(a);
   cc0.scalar[1] = predux(b);
@@ -2270,7 +2272,7 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_real(ResPacket& a, ResPacke
 }
 
 template <typename ResScalar, typename ResPacket>
-EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(ResPacket& a, ResPacket& b) {
+EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(const ResPacket& a, const ResPacket& b) {
   return predux_real<ResScalar, ResPacket>(a, b);
 }
 
@@ -2499,8 +2501,8 @@ EIGEN_POWER_GEMV_REAL_SPECIALIZE_COL_BFLOAT16()
 EIGEN_POWER_GEMV_REAL_SPECIALIZE_ROW_BFLOAT16()
 
 template <typename ResScalar, typename PResPacket, typename ResPacket, typename LhsPacket, typename RhsPacket>
-EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PResPacket& b0, ResPacket& a1,
-                                                             ResPacket& b1) {
+EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PResPacket& b0, const ResPacket& a1,
+                                                             const ResPacket& b1) {
   EIGEN_IF_CONSTEXPR (GEMV_IS_COMPLEX_COMPLEX) {
     a0 = padd(a0, a1);
     b0 = padd(b0, b1);

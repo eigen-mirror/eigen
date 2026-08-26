@@ -102,8 +102,8 @@ EIGEN_ALWAYS_INLINE void pgerMMA(__vector_quad* acc, const __vector_pair& a, con
 }
 
 template <typename Packet, typename RhsPacket, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
-EIGEN_ALWAYS_INLINE void pgercMMA(__vector_quad* accReal, __vector_quad* accImag, const Packet& lhsV, Packet& lhsVi,
-                                  const RhsPacket& rhsV, RhsPacket& rhsVi) {
+EIGEN_ALWAYS_INLINE void pgercMMA(__vector_quad* accReal, __vector_quad* accImag, const Packet& lhsV,
+                                  const Packet& lhsVi, const RhsPacket& rhsV, const RhsPacket& rhsVi) {
   pgerMMA<Packet, RhsPacket, false>(accReal, rhsV, lhsV);
   if (LhsIsReal) {
     pgerMMA<Packet, RhsPacket, ConjugateRhs>(accImag, rhsVi, lhsV);

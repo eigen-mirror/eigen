@@ -1452,6 +1452,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_40(shift_test(Array<uint8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    // A random dynamic size above only occasionally lands on 4, so it does not reliably exercise
+    // the quarter-width NEON packets (Packet4c/Packet4uc); pin a fixed size to cover them every run.
+    CALL_SUBTEST_40(shift_test(Array<int8_t, 4, 1>()));
+    CALL_SUBTEST_40(shift_test(Array<uint8_t, 4, 1>()));
     CALL_SUBTEST_41(shift_test(Array<int16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_41(shift_test(Array<uint16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),

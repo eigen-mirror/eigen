@@ -2026,7 +2026,7 @@ EIGEN_STRONG_INLINE Packet4f Bf16ToF32Odd(const Packet8bf& bf) {
   return pand<Packet4f>(reinterpret_cast<Packet4f>(bf.m_val), reinterpret_cast<Packet4f>(p4ui_high_mask));
 }
 
-EIGEN_ALWAYS_INLINE Packet8us pmerge(Packet4ui even, Packet4ui odd) {
+EIGEN_ALWAYS_INLINE Packet8us pmerge(const Packet4ui& even, const Packet4ui& odd) {
 #ifdef _BIG_ENDIAN
   return vec_perm(reinterpret_cast<Packet8us>(odd), reinterpret_cast<Packet8us>(even), p16uc_MERGEO16);
 #else
@@ -2036,7 +2036,7 @@ EIGEN_ALWAYS_INLINE Packet8us pmerge(Packet4ui even, Packet4ui odd) {
 
 // Simple interleaving of bool masks, prevents true values from being
 // converted to NaNs.
-EIGEN_STRONG_INLINE Packet8bf F32ToBf16Bool(Packet4f even, Packet4f odd) {
+EIGEN_STRONG_INLINE Packet8bf F32ToBf16Bool(const Packet4f& even, const Packet4f& odd) {
   return pmerge(reinterpret_cast<Packet4ui>(even), reinterpret_cast<Packet4ui>(odd));
 }
 
@@ -2053,7 +2053,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16Bool(Packet4f even, Packet4f odd) {
 #define __VEC_CLASS_FP_SUBNORMAL (__VEC_CLASS_FP_SUBNORMAL_P | __VEC_CLASS_FP_SUBNORMAL_N)
 #endif
 
-EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f) {
+EIGEN_STRONG_INLINE Packet8bf F32ToBf16(const Packet4f& p4f) {
 #ifdef _ARCH_PWR10
   return reinterpret_cast<Packet8us>(__builtin_vsx_xvcvspbf16(reinterpret_cast<Packet16uc>(p4f)));
 #else
@@ -2116,7 +2116,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f p4f) {
  * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi>
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f lo, Packet4f hi) {
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(const Packet4f& lo, const Packet4f& hi) {
   if (lohi) {
     return vec_perm(reinterpret_cast<Packet8us>(lo), reinterpret_cast<Packet8us>(hi), p16uc_MERGEH16);
   } else {
@@ -2130,7 +2130,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f lo, Packet4f hi) {
  * @param lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi>
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f lo, Packet4f hi) {
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(const Packet4f& lo, const Packet4f& hi) {
   if (lohi) {
     return vec_pack(reinterpret_cast<Packet4ui>(lo), reinterpret_cast<Packet4ui>(hi));
   } else {
@@ -2139,7 +2139,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f lo, Packet4f hi) {
 }
 #else
 template <bool lohi>
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f hi, Packet4f lo) {
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(const Packet4f& hi, const Packet4f& lo) {
   if (lohi) {
     return vec_pack(reinterpret_cast<Packet4ui>(hi), reinterpret_cast<Packet4ui>(lo));
   } else {
@@ -2148,7 +2148,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackLow(Packet4f hi, Packet4f lo) {
 }
 
 template <bool lohi>
-EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo) {
+EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(const Packet4f& hi, const Packet4f& lo) {
   if (lohi) {
     return vec_perm(reinterpret_cast<Packet8us>(hi), reinterpret_cast<Packet8us>(lo), p16uc_MERGEL16);
   } else {
@@ -2163,7 +2163,7 @@ EIGEN_ALWAYS_INLINE Packet8bf Bf16PackHigh(Packet4f hi, Packet4f lo) {
  * @tparam lohi to expect either a low & high OR odd & even order
  */
 template <bool lohi = true>
-EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi) {
+EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(const Packet4f& lo, const Packet4f& hi) {
   Packet8us p4f = Bf16PackHigh<lohi>(lo, hi);
   Packet8us p4f2 = Bf16PackLow<lohi>(lo, hi);
 
@@ -2231,7 +2231,7 @@ EIGEN_ALWAYS_INLINE Packet8bf F32ToBf16Two(Packet4f lo, Packet4f hi) {
 /**
  * Convert and pack two float Packets into one bfloat16 Packet - low & high order
  */
-EIGEN_STRONG_INLINE Packet8bf F32ToBf16Both(Packet4f lo, Packet4f hi) {
+EIGEN_STRONG_INLINE Packet8bf F32ToBf16Both(const Packet4f& lo, const Packet4f& hi) {
 #ifdef _ARCH_PWR10
   Packet8bf fp16_0 = F32ToBf16(lo);
   Packet8bf fp16_1 = F32ToBf16(hi);
@@ -2244,7 +2244,7 @@ EIGEN_STRONG_INLINE Packet8bf F32ToBf16Both(Packet4f lo, Packet4f hi) {
 /**
  * Convert and pack two float Packets into one bfloat16 Packet - odd & even order
  */
-EIGEN_STRONG_INLINE Packet8bf F32ToBf16(Packet4f even, Packet4f odd) {
+EIGEN_STRONG_INLINE Packet8bf F32ToBf16(const Packet4f& even, const Packet4f& odd) {
 #ifdef _ARCH_PWR10
   return pmerge(reinterpret_cast<Packet4ui>(F32ToBf16(even).m_val), reinterpret_cast<Packet4ui>(F32ToBf16(odd).m_val));
 #else
@@ -3127,7 +3127,7 @@ static Packet2d p2d_COUNTDOWN =
 #endif
 
 template <int index>
-Packet2d vec_splat_dbl(Packet2d& a) {
+Packet2d vec_splat_dbl(const Packet2d& a) {
   return vec_splat(a, index);
 }
 

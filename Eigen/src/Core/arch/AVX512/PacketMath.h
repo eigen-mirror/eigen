@@ -713,44 +713,44 @@ EIGEN_STRONG_INLINE Packet8d pmax<PropagateNaN, Packet8d>(const Packet8d& a, con
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ
 template <int I_>
-EIGEN_STRONG_INLINE Packet8f extract256(Packet16f x) {
+EIGEN_STRONG_INLINE Packet8f extract256(const Packet16f& x) {
   return _mm512_extractf32x8_ps(x, I_);
 }
 template <int I_>
-EIGEN_STRONG_INLINE Packet2d extract128(Packet8d x) {
+EIGEN_STRONG_INLINE Packet2d extract128(const Packet8d& x) {
   return _mm512_extractf64x2_pd(x, I_);
 }
-EIGEN_STRONG_INLINE Packet16f cat256(Packet8f a, Packet8f b) {
+EIGEN_STRONG_INLINE Packet16f cat256(const Packet8f& a, const Packet8f& b) {
   return _mm512_insertf32x8(_mm512_castps256_ps512(a), b, 1);
 }
-EIGEN_STRONG_INLINE Packet16i cat256i(Packet8i a, Packet8i b) {
+EIGEN_STRONG_INLINE Packet16i cat256i(const Packet8i& a, const Packet8i& b) {
   return _mm512_inserti32x8(_mm512_castsi256_si512(a), b, 1);
 }
 #else
 // AVX512F does not define _mm512_extractf32x8_ps to extract _m256 from _m512
 template <int I_>
-EIGEN_STRONG_INLINE Packet8f extract256(Packet16f x) {
+EIGEN_STRONG_INLINE Packet8f extract256(const Packet16f& x) {
   return _mm256_castsi256_ps(_mm512_extracti64x4_epi64(_mm512_castps_si512(x), I_));
 }
 
 // AVX512F does not define _mm512_extractf64x2_pd to extract _m128 from _m512
 template <int I_>
-EIGEN_STRONG_INLINE Packet2d extract128(Packet8d x) {
+EIGEN_STRONG_INLINE Packet2d extract128(const Packet8d& x) {
   return _mm_castsi128_pd(_mm512_extracti32x4_epi32(_mm512_castpd_si512(x), I_));
 }
 
-EIGEN_STRONG_INLINE Packet16f cat256(Packet8f a, Packet8f b) {
+EIGEN_STRONG_INLINE Packet16f cat256(const Packet8f& a, const Packet8f& b) {
   return _mm512_castsi512_ps(
       _mm512_inserti64x4(_mm512_castsi256_si512(_mm256_castps_si256(a)), _mm256_castps_si256(b), 1));
 }
-EIGEN_STRONG_INLINE Packet16i cat256i(Packet8i a, Packet8i b) {
+EIGEN_STRONG_INLINE Packet16i cat256i(const Packet8i& a, const Packet8i& b) {
   return _mm512_inserti64x4(_mm512_castsi256_si512(a), b, 1);
 }
 #endif
 
 // Helper function for bit packing snippet of low precision comparison.
 // It packs the flags from 32x16 to 16x16.
-EIGEN_STRONG_INLINE __m256i Pack32To16(Packet16f rf) {
+EIGEN_STRONG_INLINE __m256i Pack32To16(const Packet16f& rf) {
   // Split data into small pieces and handle with AVX instructions
   // to guarantee internal order of vector.
   // Operation:
@@ -1040,32 +1040,32 @@ EIGEN_STRONG_INLINE Packet8d pround<Packet8d>(const Packet8d& a) {
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16i parithmetic_shift_right(Packet16i a) {
+EIGEN_STRONG_INLINE Packet16i parithmetic_shift_right(const Packet16i& a) {
   return _mm512_srai_epi32(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16i plogical_shift_right(Packet16i a) {
+EIGEN_STRONG_INLINE Packet16i plogical_shift_right(const Packet16i& a) {
   return _mm512_srli_epi32(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16i plogical_shift_left(Packet16i a) {
+EIGEN_STRONG_INLINE Packet16i plogical_shift_left(const Packet16i& a) {
   return _mm512_slli_epi32(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8l parithmetic_shift_right(Packet8l a) {
+EIGEN_STRONG_INLINE Packet8l parithmetic_shift_right(const Packet8l& a) {
   return _mm512_srai_epi64(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8l plogical_shift_right(Packet8l a) {
+EIGEN_STRONG_INLINE Packet8l plogical_shift_right(const Packet8l& a) {
   return _mm512_srli_epi64(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8l plogical_shift_left(Packet8l a) {
+EIGEN_STRONG_INLINE Packet8l plogical_shift_left(const Packet8l& a) {
   return _mm512_slli_epi64(a, N);
 }
 
@@ -3126,47 +3126,47 @@ EIGEN_STRONG_INLINE Packet8s pnegate(const Packet8s& a) {
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet32s parithmetic_shift_right(Packet32s a) {
+EIGEN_STRONG_INLINE Packet32s parithmetic_shift_right(const Packet32s& a) {
   return _mm512_srai_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16s parithmetic_shift_right(Packet16s a) {
+EIGEN_STRONG_INLINE Packet16s parithmetic_shift_right(const Packet16s& a) {
   return _mm256_srai_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8s parithmetic_shift_right(Packet8s a) {
+EIGEN_STRONG_INLINE Packet8s parithmetic_shift_right(const Packet8s& a) {
   return _mm_srai_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet32s plogical_shift_left(Packet32s a) {
+EIGEN_STRONG_INLINE Packet32s plogical_shift_left(const Packet32s& a) {
   return _mm512_slli_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16s plogical_shift_left(Packet16s a) {
+EIGEN_STRONG_INLINE Packet16s plogical_shift_left(const Packet16s& a) {
   return _mm256_slli_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8s plogical_shift_left(Packet8s a) {
+EIGEN_STRONG_INLINE Packet8s plogical_shift_left(const Packet8s& a) {
   return _mm_slli_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet32s plogical_shift_right(Packet32s a) {
+EIGEN_STRONG_INLINE Packet32s plogical_shift_right(const Packet32s& a) {
   return _mm512_srli_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet16s plogical_shift_right(Packet16s a) {
+EIGEN_STRONG_INLINE Packet16s plogical_shift_right(const Packet16s& a) {
   return _mm256_srli_epi16(a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE Packet8s plogical_shift_right(Packet8s a) {
+EIGEN_STRONG_INLINE Packet8s plogical_shift_right(const Packet8s& a) {
   return _mm_srli_epi16(a, N);
 }
 

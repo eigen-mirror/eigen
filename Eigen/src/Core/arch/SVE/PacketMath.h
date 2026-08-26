@@ -190,19 +190,19 @@ EIGEN_STRONG_INLINE PacketXi pandnot<PacketXi>(const PacketXi& a, const PacketXi
 }
 
 template <int N>
-EIGEN_STRONG_INLINE PacketXi parithmetic_shift_right(PacketXi a) {
+EIGEN_STRONG_INLINE PacketXi parithmetic_shift_right(const PacketXi& a) {
   // ASR, not ASRD: ASRD is the shift-for-divide form, which rounds toward zero,
   // whereas a C++ arithmetic right shift rounds toward negative infinity.
   return svasr_n_s32_x(svptrue_b32(), a, N);
 }
 
 template <int N>
-EIGEN_STRONG_INLINE PacketXi plogical_shift_right(PacketXi a) {
+EIGEN_STRONG_INLINE PacketXi plogical_shift_right(const PacketXi& a) {
   return svreinterpret_s32_u32(svlsr_n_u32_x(svptrue_b32(), svreinterpret_u32_s32(a), N));
 }
 
 template <int N>
-EIGEN_STRONG_INLINE PacketXi plogical_shift_left(PacketXi a) {
+EIGEN_STRONG_INLINE PacketXi plogical_shift_left(const PacketXi& a) {
   return svlsl_n_s32_x(svptrue_b32(), a, N);
 }
 
