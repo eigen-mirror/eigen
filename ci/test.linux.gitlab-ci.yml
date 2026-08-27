@@ -542,6 +542,14 @@ test:linux:sme512:gcc-14:full:unsupported:
     # double ctest's default 1500s, as the SME jobs do.
     EIGEN_CI_CTEST_ARGS: --timeout 3000
     EIGEN_REPEAT: "2"
+    # Threaded tests are meaningless under single-threaded TCG, and FFT overruns
+    # even the raised timeout at EIGEN_REPEAT=2 -- it is kissfft-based scalar and
+    # complex code with no SVE-specific path, and every native job covers it.
+    # On the anchor rather than the :unsupported jobs so the affected-tier jobs,
+    # which apply no label filter and so run both labels in one pass, inherit it
+    # too; the :official jobs are unaffected either way, as both names are
+    # Unsupported tests.
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
     # The test stage never compiles, so no build compiler is named here and one
     # anchor serves both widths whichever GCC built them: all this needs is the
     # aarch64 runtime and qemu-user, and the default-version cross g++ supplies
@@ -590,10 +598,6 @@ test:linux:sve128:gcc-14:unsupported:
   extends: .test:linux:sve:vl128
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
-    # Same exclusions as the SME full run: threaded tests are meaningless under
-    # single-threaded TCG, and FFT overruns the raised timeout with no
-    # SVE-specific code to cover.
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
 test:linux:sve256:gcc-13:official:
   extends: .test:linux:sve:vl256
@@ -604,7 +608,6 @@ test:linux:sve256:gcc-13:unsupported:
   extends: .test:linux:sve:vl256
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
 test:linux:sve512:gcc-13:official:
   extends: .test:linux:sve:vl512
@@ -615,7 +618,6 @@ test:linux:sve512:gcc-13:unsupported:
   extends: .test:linux:sve:vl512
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
-    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
 ##### aarch64 ##################################################################
 
