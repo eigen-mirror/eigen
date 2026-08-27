@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 .test:windows:
-  extends: .common:windows
+  extends: [ .common:windows, .artifacts:test:results ]
   stage: test
   script:
     - ./ci/scripts/test.windows.script.ps1

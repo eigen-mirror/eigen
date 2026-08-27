@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MPL-2.0
 .build:linux:cross:
   needs: []
-  extends: .common:linux:cross
+  extends: [ .common:linux:cross, .artifacts:linux:builddir ]
   stage: build
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests

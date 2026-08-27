@@ -15,6 +15,20 @@ Build jobs publish the configured build directory as an artifact. Their paired t
 run CTest without rebuilding. When changing either side, keep the test job's `needs`, CTest label or filter, and the
 corresponding build target consistent; otherwise CTest can discover tests whose executables are absent.
 
+Publishing is opt-in per job rather than inherited: `.common:linux:cross` and `.common:windows` carry no `artifacts:`
+key, and a job picks up `.artifacts:linux:builddir`, `.artifacts:windows:builddir` or `.artifacts:test:results` as a
+second `extends:` parent. A test job takes the results template — it links nothing, so re-publishing the build
+directory it just downloaded would only duplicate the build job's artifact — and that template also registers
+`JUnitTestResults_*.xml` through `artifacts:reports:junit:`, which is what puts failures in the job's Tests tab and
+the merge request widget rather than only in the log. A job that needs neither, such as `test:linux:buildsystem`,
+extends the base alone and publishes nothing.
+
+Two things to know when reading a test report. A job that failed and then passed on retry still reports the failed
+first attempt: the retry runs `--rerun-failed` without `-T test`, so it never rewrites the dashboard `Test.xml` the
+report is converted from. That job exits 42 and is a soft warning, so a green pipeline showing a failed test is the
+flake being surfaced, not a regression. And the widget's *comparison* needs a base-branch report for the same job
+name; default-branch pushes run only a small subset of jobs, so most jobs show a summary without one.
+
 In merge-request pipelines the Linux test jobs also keep a content-addressed pass cache (a per-job-name GitLab cache
 holding `.testcache/`): [`test.linux.script.sh`](../ci/scripts/test.linux.script.sh) skips tests whose executable,
 emulator, CTest definition, and environment fingerprint (image, `lib*` package state, `ci/scripts/` and
@@ -22,8 +36,9 @@ emulator, CTest definition, and environment fingerprint (image, `lib*` package s
 recorded by an earlier MR pipeline, then records this run's first-attempt passes — taken from the dashboard run's
 `Test.xml` statuses — via [`test_cache.py`](../ci/scripts/test_cache.py). Scheduled and web pipelines always run
 their full selection (fresh clock-derived RNG seeds are part of their coverage), sharded jobs never skip, and
-`EIGEN_CI_TEST_CACHE: "off"` opts a job out. Skipped tests are absent from that run's JUnit report, and a test job
-whose binaries all match cached passes legitimately reports "No tests were found".
+`EIGEN_CI_TEST_CACHE: "off"` opts a job out. Skipped tests are absent from that run's JUnit report, so a test count that
+falls between pipelines is expected rather than a regression, and a test job whose binaries all match cached passes
+legitimately reports "No tests were found".
 
 The fingerprint covers `ci/scripts/` and `ci/docker/`, not the `ci/*.gitlab-ci.yml` files: everything in the YAML that
 reaches a test's outcome already reaches the key by value — job variables through `KEYED_ENV_PREFIXES`, the image

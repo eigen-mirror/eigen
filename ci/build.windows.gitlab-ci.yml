@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MPL-2.0
 .build:windows:
   needs: []
-  extends: .common:windows
+  extends: [ .common:windows, .artifacts:windows:builddir ]
   stage: build
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 .test:linux:
-  extends: .common:linux:cross
+  extends: [ .common:linux:cross, .artifacts:test:results ]
   stage: test
   variables:
     # Content-addressed pass cache toggle and manifest location, read by
@@ -864,6 +864,8 @@ test:linux:aarch64:clang-14:default:smoketest:
 # that label is why an incorrect claim in the CMake guide reached a release
 # unnoticed, and an MR that edits these files is exactly the MR that needs the
 # answer before merge rather than after.
+# Publishes nothing: no .artifacts:* template, and its build directory holds
+# only CTest definitions and the scenarios' own configure and install trees.
 test:linux:buildsystem:
   extends: .common:linux:cross
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
