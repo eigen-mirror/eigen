@@ -15,14 +15,37 @@ if (SPQR_INCLUDES AND SPQR_LIBRARIES)
 endif ()
 
 # --- Try config-mode first (SuiteSparse >= 7.0) ---
-if(NOT SPQR_INCLUDES OR NOT SPQR_LIBRARIES)
-  find_package(SPQR CONFIG QUIET)
-  if(SPQR_FOUND AND TARGET SuiteSparse::SPQR)
-    get_target_property(_spqr_inc SuiteSparse::SPQR INTERFACE_INCLUDE_DIRECTORIES)
-    if(_spqr_inc)
-      set(SPQR_INCLUDES "${_spqr_inc}" CACHE PATH "SPQR include directory")
-    endif()
-    set(SPQR_LIBRARIES SuiteSparse::SPQR CACHE STRING "SPQR libraries")
+# Run this on every configure, not only when the cache is cold.  The variables
+# set below name an imported target, which exists only if the config package has
+# been loaded in the *current* run.  Returning early on a warm cache left
+# SPQR_LIBRARIES naming a target that was never defined, so the first
+# configure of a build tree succeeded and every later one failed.
+find_package(SPQR CONFIG QUIET)
+if(SPQR_FOUND AND TARGET SuiteSparse::SPQR)
+  # Extract include dirs and libraries from the imported target so that the
+  # legacy variables expected by Eigen's build system are populated.
+  get_target_property(_spqr_inc SuiteSparse::SPQR INTERFACE_INCLUDE_DIRECTORIES)
+  # SuiteSparse >= 7 exports these as a generator expression, e.g.
+  # $<TARGET_PROPERTY:SuiteSparse::SuiteSparseConfig,INTERFACE_INCLUDE_DIRECTORIES>.
+  # A generator expression cannot be cached and handed to callers that inspect
+  # include directories at configure time, so keep only literal paths and let
+  # the manual search below handle the rest.
+  set(_spqr_inc_dirs "")
+  if(_spqr_inc)
+    foreach(_dir IN LISTS _spqr_inc)
+      if(NOT _dir MATCHES "\\$<")
+        list(APPEND _spqr_inc_dirs "${_dir}")
+      endif()
+    endforeach()
+  endif()
+  if(_spqr_inc_dirs)
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(SPQR_INCLUDES "${_spqr_inc_dirs}" CACHE PATH "SPQR include directory" FORCE)
+    set(SPQR_LIBRARIES SuiteSparse::SPQR CACHE STRING "SPQR libraries" FORCE)
+    # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(SPQR_INCLUDES SPQR_LIBRARIES)
     return()
   endif()

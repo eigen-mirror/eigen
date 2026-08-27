@@ -23,6 +23,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off_all_options
     exclude_from_all
     cuda_launcher_wrapper
+    suitesparse_reconfigure
     )
 
 # find_package version ranges are CMake 3.19 syntax.  On the 3.17 Eigen still
