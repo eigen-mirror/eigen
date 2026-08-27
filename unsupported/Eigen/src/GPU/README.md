@@ -4,6 +4,21 @@ GPU-accelerated linear algebra for Eigen users, dispatching to NVIDIA CUDA
 Math Libraries (cuBLAS, cuSOLVER, cuFFT, cuSPARSE, cuDSS). Requires CUDA 11.4+;
 cuDSS features require CUDA 12.0+ and a separate cuDSS install. Header-only.
 
+This module dispatches rather than reimplements, so numerical behavior,
+supported shapes and scalar types, and performance characteristics are the
+vendor libraries'. Their documentation is the reference for anything this file
+does not state:
+
+| Library | Used for | Documentation |
+|---------|----------|---------------|
+| CUDA Toolkit | streams, memory, error codes | <https://docs.nvidia.com/cuda/> |
+| cuBLAS (incl. cuBLASLt) | `DeviceMatrix` products, BLAS-1 | <https://docs.nvidia.com/cuda/cublas/> |
+| cuSOLVER | dense LLT / LU / QR / SVD / EVD | <https://docs.nvidia.com/cuda/cusolver/> |
+| cuSPARSE | SpMV / SpMM | <https://docs.nvidia.com/cuda/cusparse/> |
+| cuFFT | `gpu::FFT` | <https://docs.nvidia.com/cuda/cufft/> |
+| NPP | device-side scalar and coefficient-wise arithmetic | <https://docs.nvidia.com/cuda/npp/> |
+| cuDSS | sparse direct solvers (separate install) | <https://docs.nvidia.com/cuda/cudss/> |
+
 ## Why this module
 
 Eigen is the linear algebra foundation for a large ecosystem of C++ projects
@@ -209,6 +224,10 @@ including `unsupported/Eigen/GPU`.
 
 ### Matrix operations (cuBLAS)
 
+Products dispatch to [cuBLAS](https://docs.nvidia.com/cuda/cublas/), GEMM
+through its cuBLASLt API; see [Precision control](#eigen_gpu_precision) for which
+compute type that selects.
+
 ```cpp
 auto d_A = gpu::DeviceMatrix<double>::fromHost(A);
 auto d_B = gpu::DeviceMatrix<double>::fromHost(B);
@@ -234,6 +253,11 @@ d_C.selfadjointView<Lower>().rankUpdate(d_A);  // C += A * A^H
 ```
 
 ### BLAS Level-1 operations
+
+Dot products, norms and vector arithmetic map to the corresponding
+[cuBLAS](https://docs.nvidia.com/cuda/cublas/) Level-1 routines, except for
+device-side scalar arithmetic, which uses the signal-processing functions of
+[NPP](https://docs.nvidia.com/cuda/npp/).
 
 ```cpp
 // Dot product and norms (return DeviceScalar -- no sync until read)
@@ -262,6 +286,10 @@ d_C = 0.5 * d_C;                                 // in-place rescale (aliasing-s
 ```
 
 ### Dense solvers (cuSOLVER)
+
+Backed by the dense part of [cuSOLVER](https://docs.nvidia.com/cuda/cusolver/)
+(cuSolverDN), whose documentation defines what each factorization returns and
+when it reports a numerical failure.
 
 **One-shot expression syntax** -- "one-shot" means factorization and solve
 run as a single fused call with no persistent factorization object; each
@@ -349,8 +377,10 @@ round-tripping through host memory.
 
 ### Sparse direct solvers (cuDSS)
 
-Requires cuDSS (separate install, CUDA 12.0+). Define `EIGEN_CUDSS` before
-including `unsupported/Eigen/GPU`; see [Linking](#eigen_gpu_linking) for link flags.
+Requires [cuDSS](https://docs.nvidia.com/cuda/cudss/) (separate install, CUDA
+12.0+), which is distributed outside the CUDA Toolkit and versioned separately
+from it. Define `EIGEN_CUDSS` before including `unsupported/Eigen/GPU`; see
+[Linking](#eigen_gpu_linking) for link flags.
 
 ```cpp
 SparseMatrix<double> A = ...;  // symmetric positive definite
@@ -386,6 +416,11 @@ gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 
 ### FFT (cuFFT)
 
+Plans and data layouts are [cuFFT](https://docs.nvidia.com/cuda/cufft/)'s. The
+scaling convention is not: cuFFT leaves its transforms unnormalized, and
+`gpu::FFT` applies the 1/n on the inverse so that `inv(fwd(x)) == x`, matching
+`unsupported/Eigen/FFT`.
+
 ```cpp
 gpu::FFT<float> fft;                // shares stream + cuBLAS with the
                                     // thread-local default Context
@@ -419,6 +454,10 @@ fft.inv2(d_B, d_C);                 // 2D C2C inverse
 ```
 
 ### Sparse matrix-vector multiply (cuSPARSE)
+
+Uses the [cuSPARSE](https://docs.nvidia.com/cuda/cusparse/) generic API
+(`cusparseSpMV` / `cusparseSpMM`), which fixes the supported index and value
+type combinations.
 
 ```cpp
 SparseMatrix<double> A = ...;
@@ -500,7 +539,7 @@ while (i < maxIters) {
 MatrixXd result = x.toHost();
 ```
 
-### Precision control
+### Precision control {#eigen_gpu_precision}
 
 GEMM dispatch routes through `cublasLtMatmul`. The compute type is selected
 per scalar via the `cuda_compute_type` trait in `CuBlasSupport.h`, gated by
