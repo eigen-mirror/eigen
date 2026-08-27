@@ -526,6 +526,97 @@ test:linux:sme512:gcc-14:full:unsupported:
     # would trip the runner's 1h no-log-output kill.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
 
+##### SVE ######################################################################
+
+# Emulation via QEMU for SVE. Nothing else runs the SVE backend: the aarch64
+# jobs are NEON and the SME jobs above take the NEON headers.
+.test:linux:sve:
+  extends: .test:linux
+  # qemu >= 10 for the sve-default-vector-length property used below; Ubuntu
+  # 24.04 ships 8.2. Same split as the SME jobs: build on 24.04, test on 26.04.
+  image: ubuntu:26.04
+  variables:
+    EIGEN_CI_TARGET_ARCH: aarch64-sve
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+    # Per-test wall time under single-core TCG swings widely across SaaS hosts;
+    # double ctest's default 1500s, as the SME jobs do.
+    EIGEN_CI_CTEST_ARGS: --timeout 3000
+    EIGEN_REPEAT: "2"
+    # The test stage never compiles, so no build compiler is named here and one
+    # anchor serves both widths whichever GCC built them: all this needs is the
+    # aarch64 runtime and qemu-user, and the default-version cross g++ supplies
+    # the libraries on any release.
+    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++
+    EIGEN_CI_CROSS_INSTALL: g++-aarch64-linux-gnu qemu-user
+
+# Each concrete job must set QEMU_CPU, and both halves of it: sveN=on advertises
+# the width, sve-default-vector-length (in bytes) selects the one a task
+# actually runs at. Setting only the first leaves qemu on its own default, so a
+# job would silently run at the wrong width and pass against packet types built
+# for another. The sve_vector_length test compares RDVL against
+# EIGEN_ARM64_SVE_VL and fails if this is ever wrong.
+.test:linux:sve:vl128:
+  extends: .test:linux:sve
+  needs: [ build:linux:cross:sve:gcc-14:vl128 ]
+  variables:
+    QEMU_CPU: max,sve128=on,sve-default-vector-length=16
+
+.test:linux:sve:vl256:
+  extends: .test:linux:sve
+  needs: [ build:linux:cross:sve:gcc-13:vl256 ]
+  variables:
+    QEMU_CPU: max,sve256=on,sve-default-vector-length=32
+
+.test:linux:sve:vl512:
+  extends: .test:linux:sve
+  needs: [ build:linux:cross:sve:gcc-13:vl512 ]
+  variables:
+    QEMU_CPU: max,sve512=on,sve-default-vector-length=64
+
+# The three lengths SVE hardware implements: 128 (Neoverse V2, Grace), 256
+# (Neoverse V1, Graviton3) and 512 (A64FX). Running all three is what makes the
+# sweep worth its minutes -- the packet-size-dependent paths differ between them
+# (four- and eight-wide double packets, deeper predux_mul folds and ptranspose
+# networks), and a packet size of eight, which is where the GEBP column-group
+# guard went wrong, is reached by float at 256 and by double at 512. The job
+# names carry the compiler that built the binaries, which is gcc-13 above 128
+# bits -- see the note on .build:linux:cross:sve:gcc-14.
+test:linux:sve128:gcc-14:official:
+  extends: .test:linux:sve:vl128
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:sve128:gcc-14:unsupported:
+  extends: .test:linux:sve:vl128
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+    # Same exclusions as the SME full run: threaded tests are meaningless under
+    # single-threaded TCG, and FFT overruns the raised timeout with no
+    # SVE-specific code to cover.
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
+
+test:linux:sve256:gcc-13:official:
+  extends: .test:linux:sve:vl256
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:sve256:gcc-13:unsupported:
+  extends: .test:linux:sve:vl256
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
+
+test:linux:sve512:gcc-13:official:
+  extends: .test:linux:sve:vl512
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:sve512:gcc-13:unsupported:
+  extends: .test:linux:sve:vl512
+  variables:
+    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
+
 ##### aarch64 ##################################################################
 
 .test:linux:aarch64:
@@ -864,3 +955,21 @@ test:linux:riscv64:gcc-15:default:affected:
   extends: [ .test:linux:riscv64:gcc-15:default, .affected:test ]
   needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
+
+# Three vector lengths: the SVE packet code has VL-dependent fold counts and
+# transpose networks, so a single length is not a meaningful affected-tier
+# signal for a change under arch/SVE.
+test:linux:sve128:gcc-14:affected:
+  extends: [ .test:linux:sve:vl128, .affected:test ]
+  needs: [ build:linux:cross:sve:gcc-14:vl128:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:sve, rules]
+
+test:linux:sve256:gcc-13:affected:
+  extends: [ .test:linux:sve:vl256, .affected:test ]
+  needs: [ build:linux:cross:sve:gcc-13:vl256:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:sve, rules]
+
+test:linux:sve512:gcc-13:affected:
+  extends: [ .test:linux:sve:vl512, .affected:test ]
+  needs: [ build:linux:cross:sve:gcc-13:vl512:affected, select:tests ]
+  rules: !reference [.rules:libeigen:affected-tests:sve, rules]

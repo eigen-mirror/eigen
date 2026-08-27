@@ -130,17 +130,27 @@
         - Eigen/src/Core/arch/RVV10/**/*
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|rvv-tests/"
 
-.rules:libeigen:affected-tests:sve-sme:
+# SME builds take the NEON headers, so an SVE-only change must trigger the SVE
+# jobs, not these: keep the two backends on separate rules.
+.rules:libeigen:affected-tests:sme:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
-        - Eigen/src/Core/arch/SVE/**/*
         - Eigen/src/Core/arch/SME/**/*
         # Backend selection, and the SME-specific product thresholds, live
         # outside arch/ but decide whether either backend is used at all.
         - Eigen/src/Core/util/ConfigureVectorization.h
         - Eigen/src/Core/GeneralProduct.h
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/sme-tests/"
+
+.rules:libeigen:affected-tests:sve:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
+      changes:
+        - Eigen/src/Core/arch/SVE/**/*
+        # As for SME: the backend is only reachable through this header.
+        - Eigen/src/Core/util/ConfigureVectorization.h
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/" && $CI_MERGE_REQUEST_LABELS =~ "/all-platforms|sve-tests/"
 
 # No `changes:` entry: what MSVC catches is whole-library (instantiation limits,
 # `EIGEN_STRONG_INLINE`, optimizer heap exhaustion), not confined to any subtree

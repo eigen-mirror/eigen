@@ -327,6 +327,13 @@ if(EIGEN_TEST_SME)
   # toolchain must still supply an SME2 -march/-mcpu.
   ei_add_test(product_sme)
 endif()
+if(EIGEN_TEST_SVE)
+  # EIGEN_TEST_SVE defines EIGEN_ARM64_USE_SVE and -msve-vector-bits (root
+  # CMakeLists.txt); the toolchain must still supply an SVE -march/-mcpu.
+  # This guards every other SVE result: if the runner's vector length does not
+  # match the one the packets were built for, the rest of the suite is vacuous.
+  ei_add_test(sve_vector_length)
+endif()
 ei_add_test(product_extra)
 ei_add_test(diagonalmatrices)
 ei_add_test(diagonalview)

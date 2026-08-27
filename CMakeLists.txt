@@ -586,6 +586,16 @@ if (EIGEN_BUILD_TESTING)
       message(STATUS "Requiring SME in tests/examples")
     endif()
 
+    # The SVE backend needs a compile-time vector length: EIGEN_ARM64_SVE_VL is taken from
+    # __ARM_FEATURE_SVE_BITS, which only -msve-vector-bits sets. An SVE-capable -march is the
+    # caller's responsibility, as it is for SME.
+    option(EIGEN_TEST_SVE "Enable/Disable SVE in tests/examples" OFF)
+    set(EIGEN_TEST_SVE_VL "128" CACHE STRING "SVE vector length in bits used when EIGEN_TEST_SVE is ON")
+    if(EIGEN_TEST_SVE)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_ARM64_USE_SVE -msve-vector-bits=${EIGEN_TEST_SVE_VL}")
+      message(STATUS "Enabling SVE in tests/examples at vector length ${EIGEN_TEST_SVE_VL}")
+    endif()
+
     option(EIGEN_TEST_Z13 "Enable/Disable S390X(zEC13) ZVECTOR in tests/examples" OFF)
     if(EIGEN_TEST_Z13)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=z13 -mzvector")

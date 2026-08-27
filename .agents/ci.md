@@ -134,7 +134,8 @@ platforms beyond the four unconditional jobs on two independent triggers, either
 | `arch/AltiVec` | `altivec-tests` | ppc64le gcc-14, under qemu | yes |
 | `arch/LSX` | `lsx-tests` | loongarch64 gcc-14, under qemu | yes |
 | `arch/RVV10` | `rvv-tests` | riscv64 gcc-15, on the native runner | yes |
-| `arch/SVE`, `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
+| `arch/SVE` | `sve-tests` | SVE cross builds and test runs at 128, 256 and 512 bits under qemu | yes |
+| `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
 | `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | `gpu-tests` | the CUDA build and test jobs | no |
 
@@ -149,9 +150,17 @@ excluded because their jobs ignore the selection and compile the whole suite ins
 SME build are compile-only with no paired test job, and the GPU jobs build `buildtests_gpu`. Reaching those means
 naming their label, so `all-platforms` on a one-line change cannot silently buy hours of whole-suite compilation.
 
-A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SVE and
-SME get compile coverage rather than a selection because their per-SVL test jobs already filter to a curated target
-subset through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
+A wider x86 configuration compiles the narrower backends' headers, which is why SSE fans out to three builds. SME gets
+compile coverage rather than a selection because its per-SVL test jobs already filter to a curated target subset
+through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
+
+SVE runs the selection, at two vector lengths rather than one. The backend is fixed-length — `EIGEN_ARM64_SVE_VL`
+comes from `__ARM_FEATURE_SVE_BITS`, which only `-msve-vector-bits` sets — so each width is a separate build, and the
+packet code's fold counts and transpose networks differ between them. `test/sve_vector_length` guards the rest by
+reading `RDVL` and comparing it against the width the packets were built for, because a binary run at the wrong length
+does not fail to start; it computes the wrong answer while the suite passes. Both `arch/SVE` and `arch/SME` also list
+`Eigen/src/Core/util/ConfigureVectorization.h` in `changes:`, since that header decides whether either backend is
+compiled at all.
 
 Windows has no `changes:` trigger. What MSVC catches that the Linux jobs do not — template instantiation limits,
 `EIGEN_STRONG_INLINE` behaviour, optimizer heap exhaustion — is whole-library rather than confined to a subtree a
