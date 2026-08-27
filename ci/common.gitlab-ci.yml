@@ -9,9 +9,28 @@
   # Every merge request, except one that opted into a wider tier; see
   # .agents/ci.md.  The namespace guard is load-bearing: neither wider tier has
   # any job outside libeigen, so a fork keeps its smoke coverage whatever it is
-  # labelled.
+  # labelled.  The set below restates these two entries behind a namespace
+  # guard rather than nesting a !reference into them; keep the two in step.
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/(affected|all)-tests/"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+.rules:libeigen:smoketest:upstream-runner:
+  # The smoke tier, for jobs pinned to a runner only this project has: the
+  # riscv64 tests inherit `tags: [riscv]`, a single self-hosted machine.  A fork
+  # that schedules them leaves them pending until the stuck-job timeout drops
+  # them: measured at 5563 s, 6475 s and 6786 s queued across two fork merge
+  # request pipelines, so its pipeline is neither green nor finished for the
+  # better part of two hours.  allow_failure hides the eventual failure but not
+  # the wait.  A tag the plan does not offer at all fails fast instead
+  # (no_matching_runner, zero queue), which is why only this one needs guarding.
+  # Past the first entry the namespace is known, so the rest is
+  # .rules:libeigen:smoketest.
+  rules:
+    - if: $CI_PROJECT_NAMESPACE != "libeigen"
+      when: never
+    - if: $CI_MERGE_REQUEST_LABELS =~ "/(affected|all)-tests/"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 

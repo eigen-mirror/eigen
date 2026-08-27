@@ -767,6 +767,13 @@ test:linux:riscv64:clang-21:default:unsupported:
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
 
+# Unlike the other smoke jobs, these two are namespace-guarded: they inherit
+# `tags: [riscv]` from .test:linux:riscv64, a single self-hosted machine that
+# no fork can reach.  Scheduled in a fork they would sit pending until the
+# stuck-job timeout dropped them -- the better part of two hours of neither-
+# green-nor-finished for a contributor who can do nothing about it, which
+# allow_failure hides but does not shorten.  Their paired builds are guarded for
+# the same reason: they exist only to feed these.
 test:linux:riscv64:clang-21:default:smoketest:
   extends: .test:linux:riscv64:clang-21:default
   image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN}
@@ -774,7 +781,7 @@ test:linux:riscv64:clang-21:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules: !reference [.rules:libeigen:smoketest, rules]
+  rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
 
 test:linux:riscv64:gcc-15:default:smoketest:
   extends: .test:linux:riscv64:gcc-15:default
@@ -783,7 +790,7 @@ test:linux:riscv64:gcc-15:default:smoketest:
   variables:
     EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_CTEST_LABEL: smoketest
-  rules: !reference [.rules:libeigen:smoketest, rules]
+  rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
 
 ##### MR Smoke Tests ###########################################################
 
@@ -886,9 +893,14 @@ test:linux:buildsystem:
         - test/buildsystem/**/*
         - ci/test.linux.gitlab-ci.yml
         - ci/scripts/test.buildsystem.script.sh
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # The merge-request entry above is deliberately fork-visible: it runs on a
+    # hosted runner, and a fork editing the CMake surface needs the answer as
+    # much as this project does.  The three below are this project's own
+    # scheduled, web and post-merge coverage, so they are namespace-guarded
+    # like every .rules:libeigen:* set.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 ##### MR Affected Tests ########################################################
 # Paired with the affected build jobs.  No CTest label is set: the regex from
 # select:tests is the only filter, so a selection spanning Official and

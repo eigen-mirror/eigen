@@ -759,11 +759,14 @@ build:linux:riscv64:clang-21:default:
     EIGEN_CI_CXX_COMPILER: clang++-21
     EIGEN_CI_CROSS_INSTALL: g++-15-riscv64-linux-gnu clang-21
 
+# Namespace-guarded, unlike the other smoke builds: their consumers are the
+# riscv64 smoke tests, which need a self-hosted runner no fork has.  See
+# test.linux.gitlab-ci.yml.
 build:linux:riscv64:gcc-15:default:smoketest:
   extends: build:linux:riscv64:gcc-15:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules: !reference [.rules:libeigen:smoketest, rules]
+  rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
   tags:
     - saas-linux-large-amd64
 
@@ -771,7 +774,7 @@ build:linux:riscv64:clang-21:default:smoketest:
   extends: build:linux:riscv64:clang-21:default
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
-  rules: !reference [.rules:libeigen:smoketest, rules]
+  rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
   tags:
     - saas-linux-large-amd64
 
