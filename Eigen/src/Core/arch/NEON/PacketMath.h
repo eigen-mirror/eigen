@@ -5394,6 +5394,33 @@ EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x) {
 typedef float16x4_t Packet4hf;
 typedef float16x8_t Packet8hf;
 
+// Clang <19.1.0 does not provide `f16` intrinsics for pure data movement instructions.
+// Polyfill them with `u16`.
+//
+// See: <https://github.com/llvm/llvm-project/pull/87467>.
+#if EIGEN_CLANG_STRICT_LESS_THAN(19, 1, 0) && !EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+EIGEN_ALWAYS_INLINE float16x4_t vbsl_f16(uint16x4_t a, float16x4_t b, float16x4_t c) {
+  return vreinterpret_f16_u16(vbsl_u16(a, vreinterpret_u16_f16(b), vreinterpret_u16_f16(c)));
+}
+EIGEN_ALWAYS_INLINE float16x8_t vbslq_f16(uint16x8_t a, float16x8_t b, float16x8_t c) {
+  return vreinterpretq_f16_u16(vbslq_u16(a, vreinterpretq_u16_f16(b), vreinterpretq_u16_f16(c)));
+}
+EIGEN_ALWAYS_INLINE float16x4_t vrev64_f16(float16x4_t a) {
+  return vreinterpret_f16_u16(vrev64_u16(vreinterpret_u16_f16(a)));
+}
+EIGEN_ALWAYS_INLINE float16x8_t vrev64q_f16(float16x8_t a) {
+  return vreinterpretq_f16_u16(vrev64q_u16(vreinterpretq_u16_f16(a)));
+}
+EIGEN_ALWAYS_INLINE float16x8x2_t vzipq_f16(float16x8_t a, float16x8_t b) {
+  const uint16x8x2_t r = vzipq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b));
+  return {vreinterpretq_f16_u16(r.val[0]), vreinterpretq_f16_u16(r.val[1])};
+}
+EIGEN_ALWAYS_INLINE float16x8x2_t vuzpq_f16(float16x8_t a, float16x8_t b) {
+  const uint16x8x2_t r = vuzpq_u16(vreinterpretq_u16_f16(a), vreinterpretq_u16_f16(b));
+  return {vreinterpretq_f16_u16(r.val[0]), vreinterpretq_f16_u16(r.val[1])};
+}
+#endif  // EIGEN_CLANG_STRICT_LESS_THAN(19, 1, 0) && !EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+
 template <>
 struct packet_traits<half> : default_packet_traits {
   typedef Packet8hf type;
