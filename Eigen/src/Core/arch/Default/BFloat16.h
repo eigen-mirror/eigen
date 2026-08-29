@@ -331,6 +331,15 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator-(const bfloat16& a) {
   numext::uint16_t x = numext::bit_cast<uint16_t>(a) ^ 0x8000;
   return numext::bit_cast<bfloat16>(x);
 }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t bfloat16_map_to_signed(numext::uint16_t bits) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  return (bits >> 15) ? -(bits & kAbsMask) : bits;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_is_ordered(numext::uint16_t a, numext::uint16_t b) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  constexpr numext::uint16_t kInf = 0x7f80;
+  return numext::maxi(a & kAbsMask, b & kAbsMask) <= kInf;
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16& operator+=(bfloat16& a, const bfloat16& b) {
   a = bfloat16(float(a) + float(b));
   return a;
@@ -365,23 +374,38 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator--(bfloat16& a, int) {
   --a;
   return original_value;
 }
+// Evaluate both predicates to keep comparison loops branch-free. Integer operands avoid Clang's
+// -Wbitwise-instead-of-logical warning.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const bfloat16& a, const bfloat16& b) {
-  return numext::equal_strict(float(a), float(b));
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) == bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) {
-  return numext::not_equal_strict(float(a), float(b));
-}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) { return !(a == b); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const bfloat16& a, const bfloat16& b) {
-  return float(a) < float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) < bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const bfloat16& a, const bfloat16& b) {
-  return float(a) <= float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) <= bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const bfloat16& a, const bfloat16& b) {
-  return float(a) > float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) > bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const bfloat16& a, const bfloat16& b) {
-  return float(a) >= float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) >= bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_CUDACC)
