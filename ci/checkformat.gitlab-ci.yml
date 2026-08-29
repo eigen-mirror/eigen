@@ -39,10 +39,12 @@ checkformat:reuse:
 # The unit tests for the Python helpers that decide what the rest of the
 # pipeline does: scripts/affected_tests.py chooses which tests an MR builds,
 # ci/scripts/test_cache.py chooses which of them can be skipped as already
-# passed.  Both fail closed, but a wrong answer is silent -- a job that skips
-# too much still reports success -- so these are blocking, and they run on
-# every merge request rather than under the affected-tests label that gates
-# select:tests (which is where the selector's tests used to run alone).
+# passed, and scripts/clang_tidy_hook.py decides which edit-time diagnostics
+# interrupt an agent.  They fail closed, but a wrong answer is silent -- a job
+# that skips too much or drops a hook diagnostic still reports success -- so
+# these are blocking, and they run on every merge request rather than under the
+# affected-tests label that gates select:tests (which is where the selector's
+# tests used to run alone).
 checkformat:scripts:
   stage: checkformat
   image: alpine:3.20
@@ -53,6 +55,7 @@ checkformat:scripts:
   script:
     - python3 scripts/test_affected_tests.py
     - python3 ci/scripts/test_test_cache.py
+    - python3 scripts/test_clang_tidy_hook.py
 
 checkformat:clangtidy:
   stage: checkformat

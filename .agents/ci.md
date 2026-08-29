@@ -237,7 +237,7 @@ clang-tidy cannot state — comment verbosity, and the declaration forms still a
 (see the parked block in `.clang-tidy`). `clang_tidy_hook.py` runs clang-tidy itself, restricted to added lines
 with `--line-filter`; it needs no build directory, generating a driver that includes the module umbrella and then
 the edited `Eigen/src` header, the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when
-clang-tidy is absent.
+clang-tidy is absent, and shows the user a non-blocking notice when a file's translation unit does not compile.
 
 Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`.
 
