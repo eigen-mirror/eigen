@@ -6,6 +6,7 @@
 
 #include <cfenv>
 #include <cstdint>
+#include <limits>
 
 #include <Eigen/Core>
 
@@ -24,6 +25,8 @@
 #if !EIGEN_TEST_DEVICE_COMPILE && EIGEN_ARCH_i386_OR_x86_64 && \
     (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
 #include <xmmintrin.h>
+// The DAZ controls live here, not in <xmmintrin.h>.
+#include <pmmintrin.h>
 #define EIGEN_TEST_HAS_X86_FTZ 1
 #else
 #define EIGEN_TEST_HAS_X86_FTZ 0
@@ -145,6 +148,40 @@ class ScopedFlushToZero {
 
   bool isSupported() const { return active_; }
 
+  // Whether the hardware currently flushes subnormal inputs to zero, read from
+  // the registers the constructor writes.  On x86 that is DAZ; the FTZ bit the
+  // constructor sets only flushes results.  The Arm and MIPS controls flush
+  // both.  A compiler told it may treat subnormals as zero leaves every bit
+  // clear, so this is a diagnostic, not a gate.  Returns false where there is
+  // no runtime control to read.
+  static bool hardwareFlushesSubnormalInputs() {
+#if !EIGEN_TEST_HAS_RUNTIME_FTZ
+    return false;
+#elif EIGEN_TEST_HAS_X86_FTZ
+    return _MM_GET_DENORMALS_ZERO_MODE() == _MM_DENORMALS_ZERO_ON;
+#elif EIGEN_ARCH_ARM64 && defined(_MSC_VER)
+    return (arm64ControlState() & arm64FlushToZeroMask()) != 0;
+#elif EIGEN_ARCH_ARM64 && (defined(__GNUC__) || defined(__clang__))
+    std::uint64_t fpcr = 0;
+    asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+    return (fpcr & arm64FlushToZeroMask()) != 0;
+#elif EIGEN_TEST_ARCH_ARM32 && defined(_MSC_VER)
+    unsigned int current_control = 0;
+    if (_controlfp_s(&current_control, 0, 0) != 0) return false;
+    return (current_control & _MCW_DN) == _DN_FLUSH;
+#elif EIGEN_TEST_ARCH_ARM32 && (defined(__GNUC__) || defined(__clang__))
+    std::uint32_t fpscr = 0;
+    asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
+    return (fpscr & armFlushToZeroMask()) != 0;
+#elif EIGEN_ARCH_MIPS && defined(__mips_hard_float) && (defined(__GNUC__) || defined(__clang__))
+    std::uint32_t fcsr = 0;
+    asm volatile("cfc1 %0, $31" : "=r"(fcsr));
+    return (fcsr & mipsFlushToZeroMask()) != 0;
+#else
+    return false;
+#endif
+  }
+
   ScopedFlushToZero(const ScopedFlushToZero&) = delete;
   ScopedFlushToZero& operator=(const ScopedFlushToZero&) = delete;
 
@@ -171,6 +208,48 @@ class ScopedFlushToZero {
   std::uint64_t control_state_;
   std::uint32_t vector_control_state_;
 };
+
+// Whether dividing a normal value by a subnormal divisor yields its IEEE 754
+// quotient here.  Two things defeat it: hardware that flushes subnormal inputs
+// (x86 DAZ, Arm FZ, MIPS FS) reads the divisor as zero, and a compiler
+// permitted to relax floating point may rewrite `x / c` as
+// `x * (Scalar(1) / c)`, whose reciprocal overflows.  The x86 FTZ bit alone
+// does not: it flushes results, and this quotient is normal.
+//
+// The division is the packet primitive that `Matrix / scalar` lowers to, plain
+// `/` where `Scalar` is not vectorized, because a compiler may relax the one
+// and leave the other alone: MSVC /fp:fast rewrites scalar division but not
+// _mm_div_pd.  The lanes are distinct runtime values, all of them checked, so
+// the packet division cannot be narrowed back to a scalar one.  The divisor
+// stays a compile-time constant, because the rewrite is a folding step the
+// compiler only reaches while it can see the value.  The numerators are read
+// through `volatile`, because a compiler free to fold the whole quotient never
+// forms the reciprocal at all; EIGEN_OPTIMIZATION_BARRIER would not do, since
+// it expands to nothing on MSVC cl.exe.  The result is compared with the exact
+// quotient rather than tested for finiteness: under -ffinite-math-only GCC
+// folds `quotient <= max` to true before the division runs.
+template <typename Scalar>
+bool subnormalDivisionIsExact() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  constexpr int packet_size = internal::packet_traits<Scalar>::size;
+
+  volatile Scalar opaque_numerator;
+  Scalar numerators[packet_size];
+  for (int k = 0; k < packet_size; ++k) {
+    opaque_numerator = Scalar(k + 1) * (std::numeric_limits<Scalar>::min)();
+    numerators[k] = opaque_numerator;
+  }
+
+  const Packet divisor = internal::pset1<Packet>((std::numeric_limits<Scalar>::denorm_min)());
+  Scalar quotients[packet_size];
+  internal::pstoreu(quotients, internal::pdiv<Packet>(internal::ploadu<Packet>(numerators), divisor));
+
+  // (k + 1) * min / denorm_min == (k + 1) * 2^(digits - 1) == (k + 1) / epsilon.
+  for (int k = 0; k < packet_size; ++k) {
+    if (quotients[k] != Scalar(k + 1) / std::numeric_limits<Scalar>::epsilon()) return false;
+  }
+  return true;
+}
 
 }  // namespace Eigen
 

@@ -14,6 +14,7 @@ static bool g_called;
   { g_called |= (!std::is_same<LhsScalar, RhsScalar>::value); }
 
 #include "main.h"
+#include "fp_control.h"
 
 template <typename MatrixType>
 void linearStructure(const MatrixType& m) {
@@ -196,6 +197,21 @@ template <int>
 void linearstructure_overflow() {
   // make sure that /=scalar and /scalar do not overflow
   // rational: 1.0/4.94e-320 overflow, but m/4.94e-320 should not
+  //
+  // The claim is about Eigen: that it divides rather than multiplying by a
+  // reciprocal.  An environment that flushes subnormal operands, or whose
+  // compiler performs that rewrite itself, cannot answer it -- the quotient is
+  // infinite either way, so a failure would not distinguish Eigen's arithmetic
+  // from the compiler's.  NVHPC is such an environment by default, through
+  // -Knoieee.
+  if (!subnormalDivisionIsExact<double>()) {
+    const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division";
+    std::cout << "SKIP: linearstructure_overflow needs an environment that divides by subnormals per IEEE 754 ("
+              << reason << ")." << std::endl;
+    return;
+  }
+
   Matrix4d m2, m3;
   m3 = m2 = Matrix4d::Random() * 1e-20;
   m2 = m2 / 4.9e-320;
