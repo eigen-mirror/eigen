@@ -482,11 +482,21 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const half& a, const half&
 #pragma clang diagnostic ignored "-Wdouble-promotion"
 #endif
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) { return half_from_rep(a.x + b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) { return half_from_rep(a.x * b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) { return half_from_rep(a.x - b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) { return half_from_rep(a.x / b.x); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) { return half_from_rep(-a.x); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator+(const half& a, const half& b) {
+  return half_from_rep(static_cast<decltype(a.x)>(a.x + b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator*(const half& a, const half& b) {
+  return half_from_rep(static_cast<decltype(a.x)>(a.x * b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a, const half& b) {
+  return half_from_rep(static_cast<decltype(a.x)>(a.x - b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator/(const half& a, const half& b) {
+  return half_from_rep(static_cast<decltype(a.x)>(a.x / b.x));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half operator-(const half& a) {
+  return half_from_rep(static_cast<decltype(a.x)>(-a.x));
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half& operator+=(half& a, const half& b) {
   a = a + b;
   return a;
