@@ -51,6 +51,9 @@
 #ifndef EIGEN_STACK_ALLOCATION_LIMIT
 // 131072 == 128 KB
 #define EIGEN_STACK_ALLOCATION_LIMIT 131072
+// Marks the limit above as Eigen's own, so that a backend needing more room can raise it without
+// overriding a caller's stack-safety policy. ConfigureVectorization.h consumes and undefines it.
+#define EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED
 #endif
 
 /* Specify whether to use std::fma for scalar multiply-add instructions.

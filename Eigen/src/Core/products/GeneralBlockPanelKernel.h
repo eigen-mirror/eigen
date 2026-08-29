@@ -790,12 +790,19 @@ void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
   dest.second = pset1<RealPacket>(numext::imag(*b));
 }
 
-template <typename Scalar, typename RealPacket, std::enable_if_t<unpacket_traits<RealPacket>::size == 16, int> = 0>
+// A real packet of N lanes carries N/8 complex values, each spread over eight
+// lanes. ploadquad repeats every element four times, so it needs each value
+// listed twice. Sized off N rather than a fixed 16: SVE reaches 32 real lanes
+// at VL=1024 and 64 at VL=2048, which no fixed overload covers.
+template <typename Scalar, typename RealPacket, std::enable_if_t<(unpacket_traits<RealPacket>::size > 8), int> = 0>
 void loadQuadToDoublePacket(const Scalar* b, DoublePacket<RealPacket>& dest) {
-  // Workaround: load quad elements by reinterpreting real packets as complex.
   using RealScalar = typename NumTraits<Scalar>::Real;
-  RealScalar r[4] = {numext::real(b[0]), numext::real(b[0]), numext::real(b[1]), numext::real(b[1])};
-  RealScalar i[4] = {numext::imag(b[0]), numext::imag(b[0]), numext::imag(b[1]), numext::imag(b[1])};
+  constexpr int kQuads = unpacket_traits<RealPacket>::size / 4;
+  RealScalar r[kQuads], i[kQuads];
+  for (int j = 0; j < kQuads; ++j) {
+    r[j] = numext::real(b[j / 2]);
+    i[j] = numext::imag(b[j / 2]);
+  }
   dest.first = ploadquad<RealPacket>(r);
   dest.second = ploadquad<RealPacket>(i);
 }
@@ -1722,11 +1729,11 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         prefetch(&blA[0]);
         const RhsScalar* blB = &blockB[j2 * strideB + offsetB * 4];
 
-        // If LhsProgress is 8 or 16, it assumes that there is a
-        // half or quarter packet, respectively, of the same size as
-        // nr (which is currently 4) for the return type.
-        const int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
-        const int SResPacketQuarterSize =
+        // This loop packs groups of 4 columns, so the sub-packet holding them is 4
+        // lanes wide regardless of nr, which is tunable (EIGEN_SVE_GEBP_NR and
+        // friends) and 8 on several backends.
+        constexpr int SResPacketHalfSize = unpacket_traits<typename unpacket_traits<SResPacket>::half>::size;
+        constexpr int SResPacketQuarterSize =
             unpacket_traits<typename unpacket_traits<typename unpacket_traits<SResPacket>::half>::half>::size;
         // The following code assumes we can load SRhsPacket in such a way that
         // it multiplies blocks of 4 elements in SLhsPacket.  This is not the
@@ -1735,9 +1742,10 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
         constexpr bool kCanLoadSRhsQuad =
             (unpacket_traits<SLhsPacket>::size < 4) ||
             (unpacket_traits<SRhsPacket>::size % ((std::max<int>)(unpacket_traits<SLhsPacket>::size, 4) / 4)) == 0;
-        if (kCanLoadSRhsQuad && (SwappedTraits::LhsProgress % 4) == 0 && (SwappedTraits::LhsProgress <= 16) &&
-            (SwappedTraits::LhsProgress != 8 || SResPacketHalfSize == nr) &&
-            (SwappedTraits::LhsProgress != 16 || SResPacketQuarterSize == nr)) {
+        EIGEN_IF_CONSTEXPR (kCanLoadSRhsQuad && (SwappedTraits::LhsProgress % 4) == 0 &&
+                            (SwappedTraits::LhsProgress <= 16) &&
+                            (SwappedTraits::LhsProgress != 8 || SResPacketHalfSize == 4) &&
+                            (SwappedTraits::LhsProgress != 16 || SResPacketQuarterSize == 4)) {
           SAccPacket C0, C1, C2, C3;
           straits.initAcc(C0);
           straits.initAcc(C1);

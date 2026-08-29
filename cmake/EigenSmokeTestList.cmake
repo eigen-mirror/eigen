@@ -132,6 +132,7 @@ set(ei_smoke_test_list
   spqr_support_2
   stable_norm_1
   stable_norm_fastmath
+  stack_allocation_limit
   stddeque_1
   stddeque_overload_1
   stdlist_1
