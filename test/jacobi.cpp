@@ -65,16 +65,17 @@ void verify_makeGivens(const Scalar& p, const Scalar& q) {
   JacobiRotation<Scalar> rot;
   rot.makeGivens(p, q, &r);
 
-  // Eigen's J^T * [p; q] = [r; 0] with J = [c s; -s c], so:
-  //   c*p - s*q = r,  s*p + c*q = 0.
-  Scalar rotated0 = rot.c() * p - rot.s() * q;
-  Scalar rotated1 = rot.s() * p + rot.c() * q;
+  // Eigen's J^T * [p; q] = [r; 0] with J = [c s; -s c]. Verify the homogeneous relation after scaling the inputs so
+  // the check itself does not overflow or flush intermediate products to zero.
+  const Scalar scale = numext::maxi(numext::maxi(abs(p), abs(q)), (std::numeric_limits<Scalar>::min)());
+  const Scalar scaledP = p / scale;
+  const Scalar scaledQ = q / scale;
+  const Scalar scaledR = r / scale;
+  const Scalar rotated0 = rot.c() * scaledP - rot.s() * scaledQ;
+  const Scalar rotated1 = rot.s() * scaledP + rot.c() * scaledQ;
 
-  // The check itself performs two rounded products and an addition/subtraction, sometimes at the safe-scaling
-  // overflow threshold. Keep the tolerance relative to r, but leave enough room for compiler-specific contraction and
-  // reassociation in the verification expression.
-  Scalar tol = NumTraits<Scalar>::epsilon() * (abs(r) + (std::numeric_limits<Scalar>::min)()) * Scalar(64);
-  VERIFY(abs(rotated0 - r) <= tol);
+  const Scalar tol = NumTraits<Scalar>::epsilon() * (abs(scaledR) + (std::numeric_limits<Scalar>::min)()) * Scalar(64);
+  VERIFY(abs(rotated0 - scaledR) <= tol);
   VERIFY(abs(rotated1) <= tol);
   VERIFY(r >= Scalar(0));
   VERIFY_IS_APPROX(numext::abs2(rot.c()) + numext::abs2(rot.s()), Scalar(1));
@@ -92,6 +93,7 @@ void jacobi_makegivens_safe_scaling() {
   const Scalar half(0.5);
 
   // Safe-range cases (regression — must keep existing fast path working).
+  verify_makeGivens<Scalar>(Scalar(0), Scalar(0));
   verify_makeGivens<Scalar>(Scalar(3), Scalar(4));
   verify_makeGivens<Scalar>(Scalar(-3), Scalar(4));
   verify_makeGivens<Scalar>(Scalar(3), Scalar(-4));
