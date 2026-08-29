@@ -777,9 +777,9 @@ void test_gpu_lgamma(const Scalar stddev) {
 
 template <typename Scalar>
 void test_gpu_digamma() {
-  Tensor<Scalar, 1> in(7);
-  Tensor<Scalar, 1> out(7);
-  Tensor<Scalar, 1> expected_out(7);
+  Tensor<Scalar, 1> in(8);
+  Tensor<Scalar, 1> out(8);
+  Tensor<Scalar, 1> expected_out(8);
   out.setZero();
 
   in(0) = Scalar(1);
@@ -787,16 +787,20 @@ void test_gpu_digamma() {
   in(2) = Scalar(4);
   in(3) = Scalar(-10.5);
   in(4) = Scalar(10000.5);
-  in(5) = Scalar(0);
-  in(6) = Scalar(-1);
+  in(5) = Scalar(0.0);
+  in(6) = Scalar(-0.0);
+  in(7) = Scalar(-1);
 
   expected_out(0) = Scalar(-0.5772156649015329);
   expected_out(1) = Scalar(0.03648997397857645);
   expected_out(2) = Scalar(1.2561176684318);
   expected_out(3) = Scalar(2.398239129535781);
   expected_out(4) = Scalar(9.210340372392849);
-  expected_out(5) = std::numeric_limits<Scalar>::quiet_NaN();
-  expected_out(6) = std::numeric_limits<Scalar>::quiet_NaN();
+  // Signed infinities at the zero pole, as in special_functions.cpp; NaN at
+  // the negative-integer poles.
+  expected_out(5) = -std::numeric_limits<Scalar>::infinity();
+  expected_out(6) = std::numeric_limits<Scalar>::infinity();
+  expected_out(7) = std::numeric_limits<Scalar>::quiet_NaN();
 
   std::size_t bytes = in.size() * sizeof(Scalar);
 
@@ -810,15 +814,15 @@ void test_gpu_digamma() {
   Eigen::GpuStreamDevice stream;
   Eigen::GpuDevice gpu_device(&stream);
 
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_in(d_in, 7);
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_out(d_out, 7);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_in(d_in, 8);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 1> > gpu_out(d_out, 8);
 
   gpu_out.device(gpu_device) = gpu_in.digamma();
 
   assert(gpuMemcpyAsync(out.data(), d_out, bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
   assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
 
-  for (int i = 0; i < 7; ++i) {
+  for (int i = 0; i < 8; ++i) {
     VERIFY_IS_CWISE_APPROX(out(i), expected_out(i));
   }
 
