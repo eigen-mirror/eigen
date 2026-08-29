@@ -41,3 +41,17 @@ The comment rules in the repository-root `AGENTS.md` are enforced in review and 
 here. Before publishing a diff, reread each added comment and delete the ones that narrate code or restate an
 identifier. Keep the ones recording mathematics, invariants, compatibility constraints, provenance, or the reason a
 slower or unusual form is deliberate — stated at the construct, not in the merge request.
+
+## REUSE metadata for new files
+
+Every new source file needs accurate REUSE metadata. Original Eigen code normally uses MPL-2.0; prefer the collective
+form when an agent cannot truthfully attribute an individual author:
+
+```cpp
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+```
+
+Use the language's comment syntax. Documentation or assets that should not carry inline tags must be covered precisely
+in [`REUSE.toml`](../REUSE.toml); do not add a broad annotation that hides unrelated files. Compatible adapted material
+may require a different license expression and attribution, which must be preserved rather than relabeled as MPL-2.0.

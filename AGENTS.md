@@ -103,17 +103,8 @@ guarantees are under `unsupported/Eigen/`, with tests under `unsupported/test/`.
 impact: Tensor is a foundational TensorFlow dependency. Public umbrella headers are the source of truth for a module's
 exported internals.
 
-Every new source file needs accurate REUSE metadata. Original Eigen code normally uses MPL-2.0; prefer the collective
-form when an agent cannot truthfully attribute an individual author:
-
-```cpp
-// SPDX-FileCopyrightText: The Eigen Authors
-// SPDX-License-Identifier: MPL-2.0
-```
-
-Use the language's comment syntax. Documentation or assets that should not carry inline tags must be covered precisely
-in `REUSE.toml`; do not add a broad annotation that hides unrelated files. Compatible adapted material may require a
-different license expression and attribution, which must be preserved rather than relabeled as MPL-2.0.
+Every new source file needs accurate REUSE metadata; [`.agents/conventions.md`](.agents/conventions.md) records the
+required header form and the `REUSE.toml` rules for files that cannot carry an inline tag.
 
 ## Essential Eigen hazards
 
