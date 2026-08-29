@@ -89,12 +89,22 @@ build:windows:x86-64:msvc-14.29:avx512dq:
   # ei_cuda_use_compiler_launcher() puts in front of nvcc; see the Linux CUDA
   # template for the rationale.
   variables:
-    # Compute architectures present in the GitLab CI runners.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "70;80"
+    # The GPU in the Windows CUDA runner (eigen-windows-testing-001.gcloud) is
+    # a Tesla L4, sm_89.  Eigen has no architecture-dependent device code
+    # between sm_75 and sm_89, so a second architecture would only double the
+    # device compile time on a single self-hosted runner.  CUDA 13 dropped
+    # offline compilation for Volta and older; nothing below sm_75 can be
+    # listed here any more.
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "89"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
       -DEIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CI_CUDA_COMPUTE_ARCH}
+  # Name the GPU and driver on this runner first; the arch list above has to
+  # match it.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.windows.before_script.ps1
   rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - eigen-runner
@@ -102,11 +112,16 @@ build:windows:x86-64:msvc-14.29:avx512dq:
     - x86-64
     - cuda
 
-# MSVC 14.29 + CUDA 12.2
-build:windows:x86-64:cuda-12.2:msvc-14.29:
+# MSVC 14.29 + CUDA 13.0
+build:windows:x86-64:cuda-13.0:msvc-14.29:
   extends: .build:windows:cuda
   variables:
-    EIGEN_CI_BEFORE_SCRIPT: $$env:CUDA_PATH=$$env:CUDA_PATH_V12_2
+    # Pin the toolkit and fail when it is absent.  With CUDA_PATH empty,
+    # FindCUDA falls through to whichever nvcc is first on PATH and the job
+    # silently builds with a toolkit other than the one in its name.
+    EIGEN_CI_BEFORE_SCRIPT: >-
+      if (-not $$env:CUDA_PATH_V13_0) { throw 'CUDA 13.0 is not installed on this runner' };
+      $$env:CUDA_PATH=$$env:CUDA_PATH_V13_0
 
 ######### MR Affected Tests ####################################################
 # Opt-in via `affected-tests` plus `windows-tests` or `all-platforms`; see

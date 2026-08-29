@@ -74,6 +74,10 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
   allow_failure: true
   variables:
     EIGEN_CI_CTEST_LABEL: gpu
+  # Name the GPU and driver the tests run on.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.windows.before_script.ps1
   rules: !reference [.rules:libeigen:gpu, rules]
   tags:
     - eigen-runner
@@ -81,10 +85,10 @@ test:windows:x86-64:msvc-14.29:avx512dq:unsupported:
     - x86-64
     - cuda
 
-# MSVC 14.29 + CUDA 12.2
-test:windows:x86-64:cuda-12.2:msvc-14.29:
+# MSVC 14.29 + CUDA 13.0
+test:windows:x86-64:cuda-13.0:msvc-14.29:
   extends: .test:windows:cuda
-  needs: [ build:windows:x86-64:cuda-12.2:msvc-14.29 ]
+  needs: [ build:windows:x86-64:cuda-13.0:msvc-14.29 ]
 
 ##### MR Affected Tests ########################################################
 # Paired with the affected Windows build job.  No CTest label is set: the regex

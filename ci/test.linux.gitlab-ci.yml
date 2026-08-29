@@ -274,6 +274,18 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]
+  # Name the GPU and driver the job landed on before anything else.  The
+  # binaries are built for one architecture (see the tag note below), and the
+  # log is the only place that says which runner pool picked the job up.
+  before_script:
+    - nvidia-smi
+    - . ci/scripts/common.linux.before_script.sh
+  # GitLab's SaaS GPU runners, Tesla T4 (sm_75): the architecture the paired
+  # builds target.  Keep this tag off self-hosted runners.  On a newer GPU the
+  # sm_75 binaries run only through the driver's PTX JIT, and the CUDA 11.5
+  # libraries have no kernels for anything past Ampere at all (cufft_1 and
+  # cufft_2 abort in cufftPlan1d), so a runner that borrows the tag pulls these
+  # jobs onto hardware they were not built for -- and allow_failure hides it.
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
@@ -295,6 +307,9 @@ test:linux:cuda-11.5:clang-14:
   image: nvidia/cuda:11.5.2-devel-ubuntu20.04
   needs: [ build:linux:cuda-11.5:clang-14 ]
   before_script:
+    # This override replaces the template's before_script, so repeat its
+    # first step.
+    - nvidia-smi
     # Ubuntu 20.04 lacks clang-14.  Add the LLVM apt repo before
     # the common before_script installs EIGEN_CI_INSTALL packages.
     - apt-get update -y > /dev/null
