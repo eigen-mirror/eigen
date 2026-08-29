@@ -939,20 +939,21 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
   // Wilkinson Shift.
   RealScalar td = (diag[end - 1] - diag[end]) * RealScalar(0.5);
   RealScalar e = subdiag[end - 1];
-  // Note that thanks to scaling, e^2 or td^2 cannot overflow, however they can still
-  // underflow thus leading to inf/NaN values when using the following commented code:
-  //   RealScalar e2 = numext::abs2(subdiag[end-1]);
-  //   RealScalar mu = diag[end] - e2 / (td + (td>0 ? 1 : -1) * sqrt(td*td + e2));
-  // This explains the following, somewhat more complicated, version:
   RealScalar mu = diag[end];
   if (numext::is_exactly_zero(td)) {
     mu -= numext::abs(e);
   } else if (!numext::is_exactly_zero(e)) {
     const RealScalar e2 = numext::abs2(e);
-    const RealScalar h = numext::hypot(td, e);
     if (numext::is_exactly_zero(e2)) {
-      mu -= e / ((td + (td > RealScalar(0) ? h : -h)) / e);
+      // Scaling prevents e^2 and td^2 from overflowing, but e^2 can still underflow. A subdiagonal that survives
+      // deflation satisfies (e/epsilon)^2 > 2*abs(td), so td/e remains bounded in this branch. LAPACK's xSTEQR uses
+      // this dimensionless form; keeping td/e inside hypot prevents fast-math from reassociating the correction into
+      // an underflowing e^2 expression.
+      const RealScalar ratio = td / e;
+      const RealScalar h = numext::hypot(ratio, RealScalar(1));
+      mu -= e / (ratio + (ratio > RealScalar(0) ? h : -h));
     } else {
+      const RealScalar h = numext::hypot(td, e);
       mu -= e2 / (td + (td > RealScalar(0) ? h : -h));
     }
   }
