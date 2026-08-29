@@ -86,6 +86,18 @@ if [[ "${EIGEN_CI_TEST_CACHE}" == "on" \
 fi
 
 EIGEN_CI_CTEST_PARALLEL=${EIGEN_CI_CTEST_PARALLEL:-${NPROC}}
+# A `saas-*` tag names an instance type, but the pool behind it also holds
+# self-hosted runners that carry the tag with fewer cores than that type has, so
+# a job-supplied cap can land above the host it runs on.  Clamp rather than
+# oversubscribe: the qemu jobs pick their cap to leave TCG contention headroom
+# under EIGEN_CI_CTEST_ARGS' --timeout, and exceeding the core count spends
+# exactly that headroom.  Both operands are digit-tested first: `-gt` evaluates
+# its operands arithmetically, so a malformed value reaches ctest unclamped
+# behind a bash diagnostic rather than being caught here.
+if [[ "${EIGEN_CI_CTEST_PARALLEL}" =~ ^[0-9]+$ && "${NPROC}" =~ ^[0-9]+$ \
+      && "${EIGEN_CI_CTEST_PARALLEL}" -gt "${NPROC}" ]]; then
+  EIGEN_CI_CTEST_PARALLEL=${NPROC}
+fi
 # Total attempts for flaky tests (passed to ctest --repeat until-pass:N).
 EIGEN_CI_CTEST_REPEAT=${EIGEN_CI_CTEST_REPEAT:-3}
 # Per-test timeout for the retry phase. Retries exist to absorb seed-dependent

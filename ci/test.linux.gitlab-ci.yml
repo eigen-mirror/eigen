@@ -356,7 +356,16 @@ test:linux:cuda-12.6:clang-19:
   extends: .test:linux
   variables:
     EIGEN_CI_CTEST_ARGS: --timeout 2000
-    EIGEN_CI_CTEST_PARALLEL: "4"
+    # Well below the host's core count: TCG contention stretches per-test wall
+    # time, and the --timeout above has to hold with that stretch included.
+    # Most of what a wider run could give is out of reach anyway.  Measured on
+    # the 2026-08-16 scheduled run, the two longest jobs sum 4518 s
+    # (loongarch64:official) and 4870 s (ppc64le:gcc-14:official) of test time
+    # behind a single longest test of 251 s and 447 s, so their makespan is
+    # pinned by that one test from 18 and 11 ways on; 12 already sits at the
+    # second's floor.  test.linux.script.sh clamps this to nproc, which is what
+    # the smaller runners in the tag's pool report.
+    EIGEN_CI_CTEST_PARALLEL: "12"
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool
     # Each test binary repeats its whole body 10x with fresh seeds by default,
     # which puts the slowest binaries past any workable per-test timeout under
