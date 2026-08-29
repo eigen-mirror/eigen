@@ -1426,6 +1426,23 @@ void cast_test() {
                   uint32_t, uint64_t, float, double, /*long double, */ half, bfloat16>::run();
 }
 
+void bool_logical_ops() {
+  const Index size = 67;
+  ArrayX<bool> lhs = ArrayXi::Random(size) > 0;
+  ArrayX<bool> rhs = ArrayXi::Random(size) > 0;
+  lhs[0] = false;
+  rhs[0] = false;
+  lhs[1] = false;
+  rhs[1] = true;
+  lhs[2] = true;
+  rhs[2] = false;
+  lhs[3] = true;
+  rhs[3] = true;
+
+  VERIFY_IS_CWISE_EQUAL(lhs && rhs, (lhs.cast<int>() * rhs.cast<int>()) != 0);
+  VERIFY_IS_CWISE_EQUAL(lhs || rhs, (lhs.cast<int>() + rhs.cast<int>()) != 0);
+}
+
 EIGEN_DECLARE_TEST(array_cwise) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(array_generic(Array<float, 1, 1>()));
@@ -1521,6 +1538,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_42(bool_logical_ops());
   }
 
   for (int i = 0; i < g_repeat; i++) {

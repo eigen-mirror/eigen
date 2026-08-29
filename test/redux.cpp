@@ -186,8 +186,11 @@ void boolRedux(Index rows, Index cols) {
     }
   VERIFY_IS_EQUAL(mixed.count(), expected_count);
   if (rows > 0 && cols > 0) {
+    BoolArray random = BoolArray::Random(rows, cols);
     VERIFY(mixed.any());
     VERIFY(mixed.all() == (expected_count == rows * cols));
+    VERIFY_IS_EQUAL(random.sum(), random.any());
+    VERIFY_IS_EQUAL(random.prod(), random.all());
   }
 
   // Partial reductions

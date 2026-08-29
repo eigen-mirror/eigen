@@ -326,10 +326,11 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet padd(const Packet& a, const Packet& b) {
   return a + b;
 }
-// Avoid compiler warning for boolean algebra.
+// Bool arithmetic is specialized to avoid compiler warnings. Bitwise operations are intentional to keep scalar
+// evaluator loops branch-free.
 template <>
 EIGEN_DEVICE_FUNC inline bool padd(const bool& a, const bool& b) {
-  return a || b;
+  return a | b;
 }
 
 /** \internal \returns a packet version of \a *from, (un-aligned masked add)
@@ -365,10 +366,9 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmul(const Packet& a, const Packet& b) {
   return a * b;
 }
-// Avoid compiler warning for boolean algebra.
 template <>
 EIGEN_DEVICE_FUNC inline bool pmul(const bool& a, const bool& b) {
-  return a && b;
+  return a & b;
 }
 
 /** \internal \returns a / b (coeff-wise) */
@@ -376,10 +376,9 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pdiv(const Packet& a, const Packet& b) {
   return a / b;
 }
-// Avoid compiler warning for boolean algebra.
 template <>
 EIGEN_DEVICE_FUNC inline bool pdiv(const bool& a, const bool& b) {
-  return a && b;
+  return a & b;
 }
 
 // In the generic packet case, memset to all one bits.
@@ -466,12 +465,12 @@ struct bit_not {
 
 template <>
 struct bit_and<bool> {
-  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a && b; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a & b; }
 };
 
 template <>
 struct bit_or<bool> {
-  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a || b; }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE bool operator()(const bool& a, const bool& b) const { return a | b; }
 };
 
 template <>

@@ -69,7 +69,7 @@ struct functor_is_commutative<scalar_sum_op<Scalar, Scalar>>
 template <>
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_sum_op<bool, bool>::operator()(const bool& a,
                                                                                            const bool& b) const {
-  return a || b;
+  return a | b;
 }
 
 /** \internal
@@ -140,7 +140,7 @@ struct functor_traits<fast_mult_op<LhsScalar, RhsScalar>> : functor_traits<scala
 template <>
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_product_op<bool, bool>::operator()(const bool& a,
                                                                                                const bool& b) const {
-  return a && b;
+  return a & b;
 }
 
 /** \internal
@@ -510,6 +510,12 @@ struct scalar_boolean_and_op {
     return pandnot(cst_one, a_nand_b);
   }
 };
+// Keep bool logical functors eager so scalar evaluator loops remain branch-free.
+template <>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_boolean_and_op<bool>::operator()(const bool& a,
+                                                                                             const bool& b) const {
+  return a & b;
+}
 template <typename Scalar>
 struct functor_traits<scalar_boolean_and_op<Scalar>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
@@ -537,6 +543,11 @@ struct scalar_boolean_or_op {
     return pandnot(cst_one, a_nor_b);
   }
 };
+template <>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool scalar_boolean_or_op<bool>::operator()(const bool& a,
+                                                                                            const bool& b) const {
+  return a | b;
+}
 template <typename Scalar>
 struct functor_traits<scalar_boolean_or_op<Scalar>> {
   enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasCmp };
