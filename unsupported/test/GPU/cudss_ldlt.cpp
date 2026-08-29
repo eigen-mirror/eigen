@@ -131,6 +131,53 @@ void test_refactorize(Index n) {
   VERIFY((x1 - x2).norm() > RealScalar(0.01) * x1.norm());
 }
 
+// ---- Solver configuration ---------------------------------------------------
+
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
+template <typename Scalar>
+void test_config(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_symmetric_indefinite<Scalar>(n);
+  Vec b = Vec::Random(n);
+  const RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  // Every reordering algorithm valid for symmetric matrices must yield a
+  // correct factorization.
+  const gpu::SparseReordering orderings[] = {gpu::SparseReordering::Default, gpu::SparseReordering::Amd,
+                                             gpu::SparseReordering::NestedDissection, gpu::SparseReordering::Natural};
+  for (gpu::SparseReordering r : orderings) {
+    gpu::SparseSolverConfig cfg;
+    cfg.reordering = r;
+    gpu::SparseLDLT<Scalar> ldlt;
+    ldlt.setConfig(cfg);
+    VERIFY(ldlt.config().reordering == r);
+    ldlt.compute(A);
+    VERIFY_IS_EQUAL(ldlt.info(), Success);
+    Vec x = ldlt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+
+  // Diagonal pivoting (symmetric indefinite) with iterative refinement.
+  {
+    gpu::SparseSolverConfig cfg;
+    cfg.reordering = gpu::SparseReordering::Amd;
+    cfg.pivoting = gpu::SparsePivoting::Diagonal;
+    cfg.refinementSteps = 2;
+    gpu::SparseLDLT<Scalar> ldlt;
+    ldlt.setConfig(cfg);
+    ldlt.compute(A);
+    VERIFY_IS_EQUAL(ldlt.info(), Success);
+    Vec x = ldlt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+}
+
+#endif  // EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 // ---- Empty ------------------------------------------------------------------
 
 template <typename Scalar>
@@ -152,6 +199,9 @@ void test_scalar() {
   CALL_SUBTEST(test_solve<Scalar>(256));
   CALL_SUBTEST(test_multiple_rhs<Scalar>(64, 4));
   CALL_SUBTEST(test_refactorize<Scalar>(64));
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+  CALL_SUBTEST(test_config<Scalar>(64));
+#endif
 }
 
 EIGEN_DECLARE_TEST(gpu_cudss_ldlt) {

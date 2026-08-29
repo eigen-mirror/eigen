@@ -157,6 +157,80 @@ void test_refactorize(Index n) {
   VERIFY((x1 - x2).norm() > RealScalar(0.01) * x1.norm());
 }
 
+// ---- Solver configuration ---------------------------------------------------
+
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
+template <typename Scalar>
+void test_config(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_spd<Scalar>(n);
+  Vec b = Vec::Random(n);
+  const RealScalar tol = RealScalar(100) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+
+  // Every reordering algorithm valid for symmetric matrices must yield a
+  // correct factorization.
+  const gpu::SparseReordering orderings[] = {gpu::SparseReordering::Default, gpu::SparseReordering::Amd,
+                                             gpu::SparseReordering::NestedDissection, gpu::SparseReordering::Natural};
+  for (gpu::SparseReordering r : orderings) {
+    gpu::SparseSolverConfig cfg;
+    cfg.reordering = r;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    VERIFY(llt.config().reordering == r);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+
+  // Iterative refinement during solve().
+  {
+    gpu::SparseSolverConfig cfg;
+    cfg.refinementSteps = 2;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+
+  // The "let cuDSS decide" sentinel for the hybrid device budget is negative,
+  // as it is in cuDSS itself, so that a budget of zero bytes stays a budget a
+  // caller can ask for rather than a second spelling of the default.
+  {
+    gpu::SparseSolverConfig cfg;
+    VERIFY(cfg.isDefault());
+    VERIFY(cfg.hybridMemoryDeviceLimit < 0);
+    cfg.hybridMemoryDeviceLimit = 0;
+    VERIFY(!cfg.isDefault());
+  }
+
+  // Hybrid memory mode, with the budget left to cuDSS and pinned explicitly.
+  // Zero is deliberately not exercised end to end: cuDSS then has no device
+  // memory to factor in and fails the factorization, which EIGEN_CUDSS_CHECK
+  // turns into an assertion rather than an info() code.
+  const int64_t limits[] = {-1, int64_t(1) << 26};
+  for (int64_t limit : limits) {
+    gpu::SparseSolverConfig cfg;
+    cfg.hybridMemory = true;
+    cfg.hybridMemoryDeviceLimit = limit;
+    gpu::SparseLLT<Scalar> llt;
+    llt.setConfig(cfg);
+    VERIFY_IS_EQUAL(llt.config().hybridMemoryDeviceLimit, limit);
+    llt.compute(A);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    Vec x = llt.solve(b);
+    VERIFY((A * x - b).norm() / b.norm() < tol);
+  }
+}
+
+#endif  // EIGEN_HAS_CUDSS_SOLVER_CONFIG
+
 // ---- Empty matrix -----------------------------------------------------------
 
 template <typename Scalar>
@@ -200,6 +274,9 @@ void test_scalar() {
   CALL_SUBTEST(test_multiple_rhs<Scalar>(64, 4));
   CALL_SUBTEST(test_refactorize<Scalar>(64));
   CALL_SUBTEST(test_upper<Scalar>(64));
+#if EIGEN_HAS_CUDSS_SOLVER_CONFIG
+  CALL_SUBTEST(test_config<Scalar>(64));
+#endif
 }
 
 // ---- Device-resident solve + Context binding -----------------------------------

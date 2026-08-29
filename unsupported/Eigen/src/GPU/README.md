@@ -414,6 +414,48 @@ auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
 gpu::DeviceMatrix<double> d_x = llt_ctx.solve(d_b);
 ```
 
+#### Solver configuration (cuDSS >= 0.8)
+
+`gpu::SparseSolverConfig` passes cuDSS tuning knobs through to the solver:
+fill-reducing reordering, matching, pivoting strategy / threshold / epsilon,
+iterative refinement, and the hybrid host/device memory and execute modes.
+Fields left at their defaults keep the cuDSS defaults, which favor speed over
+maximum robustness — for badly scaled or nearly singular systems, consider
+enabling matching and iterative refinement:
+
+```cpp
+gpu::SparseSolverConfig cfg;
+cfg.reordering = gpu::SparseReordering::Amd;
+cfg.matching = gpu::SparseMatching::Auto;   // off by cuDSS default
+cfg.refinementSteps = 2;                    // iterative refinement in solve()
+gpu::SparseLU<double> lu;
+lu.setConfig(cfg);                          // before compute(): reordering and
+lu.compute(A);                              // matching apply at analysis time
+VectorXd x = lu.solve(b);
+```
+
+Each knob is consumed by the phase it affects (reordering/matching by
+`analyzePattern()`, pivoting by `factorize()`, refinement by `solve()`), so
+`setConfig()` must run before the first phase whose behavior it changes.
+
+Every field is a pass-through, so which values are admissible for a given matrix
+type — and what each one does — is cuDSS's contract, not ours:
+[cuDSS Data Types](https://docs.nvidia.com/cuda/cudss/types.html) documents
+`cudssConfigParam_t` and the `cudssReorderingAlg_t` / `cudssMatchingAlg_t` /
+`cudssPivotType_t` values these enums mirror, and
+[cuDSS Advanced Features](https://docs.nvidia.com/cuda/cudss/advanced_features.html)
+describes the hybrid host/device memory and execute modes.
+
+cuDSS < 0.8 names none of these algorithms. There the `SparseReordering`,
+`SparseMatching` and `SparsePivoting` enumerators other than `Default` are not
+declared, so selecting one is a compile error rather than a request the linked
+cuDSS cannot honor. The remaining fields — thresholds, refinement, the hybrid
+modes — still exist, and `setConfig()` refuses any non-default value of them: it
+asserts, and `info()` reports `InvalidInput` until the config is reset to
+default, so the request cannot be silently downgraded to the cuDSS defaults.
+`EIGEN_HAS_CUDSS_SOLVER_CONFIG` is 1 or 0 accordingly, for callers that need to
+branch at compile time.
+
 ### FFT (cuFFT)
 
 Plans and data layouts are [cuFFT](https://docs.nvidia.com/cuda/cufft/)'s. The
@@ -916,6 +958,9 @@ gpu::SparseLLT&      compute(const SparseMatrixBase<D>& A)         // analyzePat
 DenseMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
 
+gpu::SparseLLT&      setConfig(const SparseSolverConfig&) // cuDSS knobs (>= 0.8); call before the affected phase
+const SparseSolverConfig& config()                        // Last configuration set
+
 ComputationInfo    info()                                // Lazy sync
 Index              rows() / cols()
 cudaStream_t       stream()
@@ -1045,15 +1090,11 @@ template compatibility.
   is in users' hands; if the convenience overloads cause more confusion than
   they save, narrow toward a single explicit `fromHost` / `toHost` boundary.
 
-- **cuDSS configuration knobs.** cuDSS exposes settings for accuracy /
-  robustness (e.g. matching, pivoting) and execution mode (e.g. hybrid
-  memory, hybrid execute). The current bindings use cuDSS defaults, which
-  are tuned for performance rather than maximum robustness — for example,
-  matching is off by default. We don't expose configuration controls yet;
-  a follow-up should add a `gpu::SparseSolverConfig` (or per-solver
-  setters) covering at least matching, pivot threshold, and reordering
-  algorithm pass-through, and consider switching the defaults toward
-  robustness once exposed.
+- **Robustness-oriented cuDSS defaults.** `gpu::SparseSolverConfig` exposes
+  matching, pivoting, refinement, and the hybrid modes, but a
+  default-constructed solver still runs with cuDSS's performance-tuned
+  defaults (matching off). Consider flipping the shipped defaults toward
+  robustness now that users can override them.
 
 - **cuDSS threading layer for host-side reordering.** As of cuDSS 0.7.1
   fill-reducing reordering runs on the CPU. cuDSS supports a "threading
