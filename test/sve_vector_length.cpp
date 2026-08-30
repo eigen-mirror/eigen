@@ -13,7 +13,12 @@
 // default 512-bit task vector length, so `-cpu max,sve2048=on` alone runs at 512 unless
 // `sve-default-vector-length=<bytes>` is also given.
 
+// The backend raises Eigen's own default to fit its blocked kernel panels, but an explicit limit
+// is the caller's policy and must survive. 1 is below the requirement at every vector length, so
+// the assertion is never vacuous, and nothing in this file allocates a fixed-size Eigen object.
+#define EIGEN_STACK_ALLOCATION_LIMIT 1
 #include "main.h"
+static_assert(EIGEN_STACK_ALLOCATION_LIMIT == 1, "SVE must preserve an explicit stack allocation limit");
 
 // Registered only under EIGEN_TEST_SVE (test/CMakeLists.txt). Without an SVE -march this would
 // compile against NEON and trivially pass.
