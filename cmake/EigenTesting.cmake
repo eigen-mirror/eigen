@@ -88,6 +88,23 @@ endfunction()
 #
 # Caveat: the wrapper also fronts nvcc's -M dependency and -dlink passes, which
 # ccache does not cache; expect those as misses in the statistics.
+# Resolve EIGEN_CUDA_COMPUTE_ARCH once find_package(CUDA) has set CUDA_VERSION.
+# The cache entry defaults to empty, which selects the oldest architecture the
+# toolkit still compiles for: sm_70, Eigen's documented floor (see Macros.h),
+# or sm_75 from CUDA 13 on, which dropped offline compilation for Volta.  Sets
+# the directory-scope variable the arch flags are built from; an explicit cache
+# value is used as given.
+macro(ei_cuda_resolve_compute_arch)
+  if("${EIGEN_CUDA_COMPUTE_ARCH}" STREQUAL "")
+    if(CUDA_VERSION VERSION_LESS 13.0)
+      set(EIGEN_CUDA_COMPUTE_ARCH 70)
+    else()
+      set(EIGEN_CUDA_COMPUTE_ARCH 75)
+    endif()
+  endif()
+  set_property(GLOBAL PROPERTY EIGEN_CUDA_COMPUTE_ARCH_RESOLVED "${EIGEN_CUDA_COMPUTE_ARCH}")
+endmacro()
+
 macro(ei_cuda_use_compiler_launcher)
   # Fall back to the C++ launcher.  A project using FindCUDA never enables the
   # CUDA language, so CMAKE_CUDA_COMPILER_LAUNCHER is seldom set, whereas
@@ -523,10 +540,14 @@ macro(ei_testing_print_summary)
       message(STATUS "SYCL:              OFF")
     endif()
     if(EIGEN_TEST_CUDA)
+      get_property(EIGEN_CUDA_ARCH_SUMMARY GLOBAL PROPERTY EIGEN_CUDA_COMPUTE_ARCH_RESOLVED)
+      if(EIGEN_CUDA_ARCH_SUMMARY)
+        string(REPLACE ";" ", sm_" EIGEN_CUDA_ARCH_SUMMARY ", sm_${EIGEN_CUDA_ARCH_SUMMARY}")
+      endif()
       if(EIGEN_TEST_CUDA_CLANG)
-        message(STATUS "CUDA:              ON (using clang)")
+        message(STATUS "CUDA:              ON (using clang${EIGEN_CUDA_ARCH_SUMMARY})")
       else()
-        message(STATUS "CUDA:              ON (using nvcc)")
+        message(STATUS "CUDA:              ON (using nvcc${EIGEN_CUDA_ARCH_SUMMARY})")
       endif()
     else()
       message(STATUS "CUDA:              OFF")

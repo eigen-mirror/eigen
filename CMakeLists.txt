@@ -711,7 +711,7 @@ if (EIGEN_BUILD_TESTING)
   endif()
 
   set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-  set(EIGEN_CUDA_COMPUTE_ARCH 70 CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code")
+  set(EIGEN_CUDA_COMPUTE_ARCH "" CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code, as a ;-separated list of sm_XX numbers (e.g. 75;90). Empty selects sm_70, or sm_75 with CUDA 13 and later, which dropped Volta.")
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
   if(EIGEN_TEST_SYCL)

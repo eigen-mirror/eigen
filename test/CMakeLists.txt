@@ -587,6 +587,8 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
+  ei_cuda_resolve_compute_arch()
+
   if(EIGEN_TEST_CUDA_CLANG)
     string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
     foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
