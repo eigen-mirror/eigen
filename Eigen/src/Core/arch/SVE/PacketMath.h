@@ -94,9 +94,7 @@ EIGEN_STRONG_INLINE PacketXi pset1<PacketXi>(const numext::int32_t& from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXi plset<PacketXi>(const numext::int32_t& a) {
-  numext::int32_t c[packet_traits<numext::int32_t>::size];
-  for (int i = 0; i < packet_traits<numext::int32_t>::size; i++) c[i] = i;
-  return svadd_s32_x(svptrue_b32(), pset1<PacketXi>(a), svld1_s32(svptrue_b32(), c));
+  return svindex_s32(a, 1);
 }
 
 template <>
@@ -218,17 +216,24 @@ EIGEN_STRONG_INLINE PacketXi ploadu<PacketXi>(const numext::int32_t* from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXi ploaddup<PacketXi>(const numext::int32_t* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  return svld1_gather_u32index_s32(svptrue_b32(), from, indices);
+  // Load the size/2 values this reads into the low half and interleave them
+  // with themselves: svzip1 only consumes the low halves of its operands.
+  // The predicate is exact rather than svptrue -- ploaddup may only touch
+  // size/2 elements, and a wider one would read past the end of the input.
+  constexpr uint64_t kHalf = uint64_t(packet_traits<numext::int32_t>::size) / 2;
+  svint32_t lo = svld1_s32(svwhilelt_b32(uint64_t(0), kHalf), from);
+  return svzip1_s32(lo, lo);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXi ploadquad<PacketXi>(const numext::int32_t* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
-  return svld1_gather_u32index_s32(svptrue_b32(), from, indices);
+  // As ploaddup, one zip further: size/4 values, each repeated four times.
+  // At the smallest vector length size/4 rounds to zero, where one element
+  // still has to be read.
+  constexpr uint64_t kQuarter = numext::maxi(uint64_t(packet_traits<numext::int32_t>::size) / 4, uint64_t(1));
+  svint32_t lo = svld1_s32(svwhilelt_b32(uint64_t(0), kQuarter), from);
+  lo = svzip1_s32(lo, lo);
+  return svzip1_s32(lo, lo);
 }
 
 template <>
@@ -279,32 +284,13 @@ EIGEN_STRONG_INLINE numext::int32_t predux<PacketXi>(const PacketXi& a) {
 
 template <>
 EIGEN_STRONG_INLINE numext::int32_t predux_mul<PacketXi>(const PacketXi& a) {
-  EIGEN_STATIC_ASSERT((EIGEN_ARM64_SVE_VL % 128 == 0), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
-
-  // Multiply the vector by its reverse
+  // Multiply the vector by its reverse.
   svint32_t prod = svmul_s32_x(svptrue_b32(), a, svrev_s32(a));
-  svint32_t half_prod;
 
-  // Extract the high half of the vector. Depending on the VL more reductions need to be done
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 2048) {
-    half_prod = svtbl_s32(prod, svindex_u32(32, 1));
-    prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 1024) {
-    half_prod = svtbl_s32(prod, svindex_u32(16, 1));
-    prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 512) {
-    half_prod = svtbl_s32(prod, svindex_u32(8, 1));
-    prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 256) {
-    half_prod = svtbl_s32(prod, svindex_u32(4, 1));
-    prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
-  }
-  // Last reduction
-  half_prod = svtbl_s32(prod, svindex_u32(2, 1));
-  prod = svmul_s32_x(svptrue_b32(), prod, half_prod);
+  // Reduce with interleave-and-multiply.
+  // NOTE: Skip the final reduction since it is already handled by `rev` above.
+  for (int n = unpacket_traits<PacketXi>::size; n > 2; n >>= 1)
+    prod = svmul_s32_x(svptrue_b32(), svzip1_s32(prod, prod), svzip2_s32(prod, prod));
 
   // The reduction is done to the first element.
   return pfirst<PacketXi>(prod);
@@ -322,16 +308,16 @@ EIGEN_STRONG_INLINE numext::int32_t predux_max<PacketXi>(const PacketXi& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXi, N>& kernel) {
-  int buffer[packet_traits<numext::int32_t>::size * N] = {0};
-  int i = 0;
-
-  PacketXi stride_index = svindex_s32(0, N);
-
-  for (i = 0; i < N; i++) {
-    svst1_scatter_s32index_s32(svptrue_b32(), buffer + i, stride_index, kernel.packet[i]);
-  }
-  for (i = 0; i < N; i++) {
-    kernel.packet[i] = svld1_s32(svptrue_b32(), buffer + i * packet_traits<numext::int32_t>::size);
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
+  for (int stride = N / 2; stride > 0; stride >>= 1) {
+    for (int block = 0; block < N; block += 2 * stride) {
+      for (int k = 0; k < stride; ++k) {
+        PacketXi lo = svzip1_s32(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        PacketXi hi = svzip2_s32(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        kernel.packet[block + k] = lo;
+        kernel.packet[block + k + stride] = hi;
+      }
+    }
   }
 }
 
@@ -568,17 +554,24 @@ EIGEN_STRONG_INLINE PacketXf ploadu<PacketXf>(const float* from) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ploaddup<PacketXf>(const float* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  return svld1_gather_u32index_f32(svptrue_b32(), from, indices);
+  // Load the size/2 values this reads into the low half and interleave them
+  // with themselves: svzip1 only consumes the low halves of its operands.
+  // The predicate is exact rather than svptrue -- ploaddup may only touch
+  // size/2 elements, and a wider one would read past the end of the input.
+  constexpr uint64_t kHalf = uint64_t(packet_traits<float>::size) / 2;
+  svfloat32_t lo = svld1_f32(svwhilelt_b32(uint64_t(0), kHalf), from);
+  return svzip1_f32(lo, lo);
 }
 
 template <>
 EIGEN_STRONG_INLINE PacketXf ploadquad<PacketXf>(const float* from) {
-  svuint32_t indices = svindex_u32(0, 1);  // index {base=0, base+step=1, base+step*2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a1, a1, a2, a2, ...}
-  indices = svzip1_u32(indices, indices);  // index in the format {a0, a0, a0, a0, a1, a1, a1, a1, ...}
-  return svld1_gather_u32index_f32(svptrue_b32(), from, indices);
+  // As ploaddup, one zip further: size/4 values, each repeated four times.
+  // At the smallest vector length size/4 rounds to zero, where one element
+  // still has to be read.
+  constexpr uint64_t kQuarter = numext::maxi(uint64_t(packet_traits<float>::size) / 4, uint64_t(1));
+  svfloat32_t lo = svld1_f32(svwhilelt_b32(uint64_t(0), kQuarter), from);
+  lo = svzip1_f32(lo, lo);
+  return svzip1_f32(lo, lo);
 }
 
 template <>
@@ -635,34 +628,15 @@ EIGEN_STRONG_INLINE float predux<PacketXf>(const PacketXf& a) {
 
 // Other reduction functions:
 // mul
-// Only works for SVE Vls multiple of 128
 template <>
 EIGEN_STRONG_INLINE float predux_mul<PacketXf>(const PacketXf& a) {
-  EIGEN_STATIC_ASSERT((EIGEN_ARM64_SVE_VL % 128 == 0), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
-  // Multiply the vector by its reverse
+  // Multiply the vector by its reverse.
   svfloat32_t prod = svmul_f32_x(svptrue_b32(), a, svrev_f32(a));
-  svfloat32_t half_prod;
 
-  // Extract the high half of the vector. Depending on the VL more reductions need to be done
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 2048) {
-    half_prod = svtbl_f32(prod, svindex_u32(32, 1));
-    prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 1024) {
-    half_prod = svtbl_f32(prod, svindex_u32(16, 1));
-    prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 512) {
-    half_prod = svtbl_f32(prod, svindex_u32(8, 1));
-    prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
-  }
-  EIGEN_IF_CONSTEXPR (EIGEN_ARM64_SVE_VL >= 256) {
-    half_prod = svtbl_f32(prod, svindex_u32(4, 1));
-    prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
-  }
-  // Last reduction
-  half_prod = svtbl_f32(prod, svindex_u32(2, 1));
-  prod = svmul_f32_x(svptrue_b32(), prod, half_prod);
+  // Reduce with interleave-and-multiply.
+  // NOTE: Skip the final reduction since it is already handled by `rev` above.
+  for (int n = unpacket_traits<PacketXf>::size; n > 2; n >>= 1)
+    prod = svmul_f32_x(svptrue_b32(), svzip1_f32(prod, prod), svzip2_f32(prod, prod));
 
   // The reduction is done to the first element.
   return pfirst<PacketXf>(prod);
@@ -680,17 +654,16 @@ EIGEN_STRONG_INLINE float predux_max<PacketXf>(const PacketXf& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
-  EIGEN_ALIGN_MAX float buffer[packet_traits<float>::size * N] = {};
-  int i = 0;
-
-  PacketXi stride_index = svindex_s32(0, N);
-
-  for (i = 0; i < N; i++) {
-    svst1_scatter_s32index_f32(svptrue_b32(), buffer + i, stride_index, kernel.packet[i]);
-  }
-
-  for (i = 0; i < N; i++) {
-    kernel.packet[i] = svld1_f32(svptrue_b32(), buffer + i * packet_traits<float>::size);
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
+  for (int stride = N / 2; stride > 0; stride >>= 1) {
+    for (int block = 0; block < N; block += 2 * stride) {
+      for (int k = 0; k < stride; ++k) {
+        PacketXf lo = svzip1_f32(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        PacketXf hi = svzip2_f32(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        kernel.packet[block + k] = lo;
+        kernel.packet[block + k + stride] = hi;
+      }
+    }
   }
 }
 
@@ -995,18 +968,17 @@ EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
   return svaddv_f64(svptrue_b64(), a);
 }
 
-// Only works for SVE VLs that are a multiple of 128.
 template <>
 EIGEN_STRONG_INLINE double predux_mul<PacketXd>(const PacketXd& a) {
-  EIGEN_STATIC_ASSERT((EIGEN_ARM64_SVE_VL % 128 == 0), EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
-  // Multiplying by the reverse pairs lane i with lane n-1-i, leaving every
-  // product of a pair in both halves; halving the span each round then folds
-  // the halves together. At VL = 128 there are two lanes and the first multiply
-  // has already combined them.
+  // Multiply the vector by its reverse.
   svfloat64_t prod = svmul_f64_x(svptrue_b64(), a, svrev_f64(a));
-  for (int span = unpacket_traits<PacketXd>::size / 2; span >= 2; span >>= 1) {
-    prod = svmul_f64_x(svptrue_b64(), prod, svtbl_f64(prod, svindex_u64(span, 1)));
-  }
+
+  // Reduce with interleave-and-multiply.
+  // NOTE: Skip the final reduction since it is already handled by `rev` above.
+  for (int n = unpacket_traits<PacketXd>::size; n > 2; n >>= 1)
+    prod = svmul_f64_x(svptrue_b64(), svzip1_f64(prod, prod), svzip2_f64(prod, prod));
+
+  // The reduction is done to the first element.
   return pfirst<PacketXd>(prod);
 }
 
@@ -1022,17 +994,16 @@ EIGEN_STRONG_INLINE double predux_max<PacketXd>(const PacketXd& a) {
 
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
-  EIGEN_ALIGN_MAX double buffer[packet_traits<double>::size * N] = {};
-  int i = 0;
-
-  svint64_t stride_index = svindex_s64(0, N);
-
-  for (i = 0; i < N; i++) {
-    svst1_scatter_s64index_f64(svptrue_b64(), buffer + i, stride_index, kernel.packet[i]);
-  }
-
-  for (i = 0; i < N; i++) {
-    kernel.packet[i] = svld1_f64(svptrue_b64(), buffer + i * packet_traits<double>::size);
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
+  for (int stride = N / 2; stride > 0; stride >>= 1) {
+    for (int block = 0; block < N; block += 2 * stride) {
+      for (int k = 0; k < stride; ++k) {
+        PacketXd lo = svzip1_f64(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        PacketXd hi = svzip2_f64(kernel.packet[block + k], kernel.packet[block + k + stride]);
+        kernel.packet[block + k] = lo;
+        kernel.packet[block + k + stride] = hi;
+      }
+    }
   }
 }
 

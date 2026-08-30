@@ -482,6 +482,11 @@ extern "C" {
 // to ensure a fixed length is set
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
+
+// Architecture-mandated length constraints.
+static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
+                  ((EIGEN_ARM64_SVE_VL & (EIGEN_ARM64_SVE_VL - 1)) == 0),
+              "SVE vector length must be 2^n for some n in [7, 11]");
 #else
 #error "Eigen requires a fixed SVE vector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
