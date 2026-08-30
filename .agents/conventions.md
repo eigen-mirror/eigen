@@ -10,7 +10,13 @@ current form, and a file being edited heavily should come out uniform rather tha
 - Trait and evaluator constants are `static constexpr` members, not `enum` blocks; `enum` constants are being phased
   out. Give each the type it is used as: `Flags` is `unsigned int` by convention, predicates are `bool`.
 - Prefer `using` to `typedef`, `nullptr` to `NULL`, `= default` and default member initializers to empty constructor
-  bodies that assign each member.
+  bodies that assign each member. `using` binds in every tree, `test/` and `unsupported/` included: those were left
+  out of the sweep that converted `Eigen/src`, so the aliases surrounding new code there are mostly still `typedef`
+  and matching the neighbours reproduces the form the sweep removed. Do not rely on CI to catch it — the
+  `modernize-use-using` gap recorded at [`scripts/check_style.py`](../scripts/check_style.py) leaves function-local
+  typedefs unreported.
+- `kCamelCase` is an accepted spelling for `static constexpr` and static constants, alongside the older `snake_case`
+  and `SCREAMING_CASE` forms. It is not a review finding.
 - Use `numext::` math functions rather than `std::` in library code, and Eigen's metaprogramming aliases
   (`bool_constant`, `void_t`, `remove_all_t`; see `Eigen/src/Core/util/Meta.h`) rather than spelling out the standard
   forms. `internal::is_arithmetic` is not a spelling of `std::is_arithmetic`: it is deliberately specialized for

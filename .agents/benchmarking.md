@@ -52,10 +52,9 @@ Express static grids declaratively on the registration:
 - `Range`, `DenseRange`, or `Ranges` for swept dimensions.
 - `ArgsProduct({{...}, {...}})` for Cartesian products.
 
-Use `Apply()` only for a genuinely computed grid that these APIs cannot express. In that exceptional case, match the
-Google Benchmark version used by the project and note that the callback currently names
-`benchmark::internal::Benchmark*`, an internal API. Prefer an existing local pattern and keep the grid-generation
-function small and deterministic.
+Do not use `Apply()`. Its callback is typed on `benchmark::internal::Benchmark*`, a library-internal name that
+benchmark sources must not reference. A grid that appears to need it is expressible by enumerating the points in
+`ArgsProduct` or `Args`, or by registering several benchmarks.
 
 ## Running Measurements
 
