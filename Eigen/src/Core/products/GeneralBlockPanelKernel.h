@@ -81,9 +81,9 @@ const std::ptrdiff_t defaultL3CacheSize = EIGEN_SET_DEFAULT_L3_CACHE_SIZE(512 * 
 
 /** \internal */
 struct CacheSizes {
-  CacheSizes() : m_l1(-1), m_l2(-1), m_l3(-1) {
+  CacheSizes() : m_l1(-1), m_l2(-1), m_l3(-1), m_l3_per_cpu(0) {
     std::ptrdiff_t l1CacheSize, l2CacheSize, l3CacheSize;
-    queryCacheSizes(l1CacheSize, l2CacheSize, l3CacheSize);
+    queryCacheSizes(l1CacheSize, l2CacheSize, l3CacheSize, m_l3_per_cpu);
     m_l1 = manage_caching_sizes_helper(l1CacheSize, defaultL1CacheSize);
     m_l2 = manage_caching_sizes_helper(l2CacheSize, defaultL2CacheSize);
     m_l3 = manage_caching_sizes_helper(l3CacheSize, defaultL3CacheSize);
@@ -92,10 +92,14 @@ struct CacheSizes {
   std::ptrdiff_t m_l1;
   std::ptrdiff_t m_l2;
   std::ptrdiff_t m_l3;
+  // Bytes of L3 backing one CPU, or 0 when unknown. Cleared by setCpuCacheSizes so that an
+  // explicit override is never overruled by the detected geometry.
+  std::ptrdiff_t m_l3_per_cpu;
 };
 
 /** \internal */
-inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff_t* l2, std::ptrdiff_t* l3) {
+inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff_t* l2, std::ptrdiff_t* l3,
+                                 std::ptrdiff_t* l3_per_cpu = nullptr) {
   static CacheSizes m_cacheSizes;
 
   if (action == SetAction) {
@@ -104,10 +108,12 @@ inline void manage_caching_sizes(Action action, std::ptrdiff_t* l1, std::ptrdiff
     m_cacheSizes.m_l1 = *l1;
     m_cacheSizes.m_l2 = *l2;
     m_cacheSizes.m_l3 = *l3;
+    m_cacheSizes.m_l3_per_cpu = l3_per_cpu != nullptr ? *l3_per_cpu : 0;
   } else if (action == GetAction) {
     eigen_internal_assert(l1 != 0 && l2 != 0);
     *l1 = m_cacheSizes.m_l1;
     *l2 = m_cacheSizes.m_l2;
+    if (l3_per_cpu != nullptr) *l3_per_cpu = m_cacheSizes.m_l3_per_cpu;
     *l3 = m_cacheSizes.m_l3;
   } else {
     eigen_internal_assert(false);
@@ -212,8 +218,8 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
   // kc x nc blocks B' on the rhs. B' has to fit into L2/L3 cache. Moreover, A' is processed
   // per mr x kc horizontal small panels where mr is the blocking size along the m dimension
   // at the register level. This small horizontal panel has to stay within L1 cache.
-  std::ptrdiff_t l1, l2, l3;
-  manage_caching_sizes(GetAction, &l1, &l2, &l3);
+  std::ptrdiff_t l1, l2, l3, l3_per_cpu;
+  manage_caching_sizes(GetAction, &l1, &l2, &l3, &l3_per_cpu);
 #ifdef EIGEN_VECTORIZE_AVX512
   const std::ptrdiff_t phys_l1 = l1;
   // We need to find a rationale for that, but without this adjustment,
@@ -279,6 +285,8 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     l1 = 9 * 1024;
     l2 = 32 * 1024;
     l3 = 512 * 1024;
+    // The detected share would otherwise swamp these synthetic sizes and defeat the whole point.
+    l3_per_cpu = 0;
 #endif
 
     // Early return for small problems because the computation below are time consuming for small problems.
@@ -349,6 +357,15 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     const Index actual_l2 = static_cast<Index>(l2 * 3 / 2);
 #endif
 
+    // Budget for the packed rhs panel. The 1.5x above stands in for an L3 whose geometry was
+    // unknown, and was calibrated against a 1MB placeholder L2, so it underestimates the reachable
+    // working set on a core whose real L2 is much smaller. Prefer this CPU's measured share of L3
+    // where the platform reports it -- a share rather than the whole cache, since sizing one CPU's
+    // panel to all of a server's L3 would evict every other CPU's working set. This deliberately
+    // does not feed actual_lm below: that governs the blockA allocation, whose L1/L2 tuning is
+    // separate.
+    const Index rhs_panel_budget = numext::maxi<Index>(actual_l2, static_cast<Index>(l3_per_cpu));
+
     // Here, nc is chosen such that a block of kc x nc of the rhs fit within half of L2.
     // The second half is implicitly reserved to access the result and lhs coefficients.
     // When k<max_kc, then nc can grow without bound. In practice, it seems to be fruitful
@@ -364,10 +381,10 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     } else {
       // L2 blocking: use actual kc (k) rather than max_kc so that nc is not
       // unnecessarily squeezed when k < max_kc (e.g. on CPUs with large L1).
-      max_nc = (3 * actual_l2) / (2 * 2 * k * sizeof(RhsScalar));
+      max_nc = (3 * rhs_panel_budget) / (2 * 2 * k * sizeof(RhsScalar));
     }
     // WARNING Below, we assume that Traits::nr is a power of two.
-    Index nc = numext::mini<Index>(actual_l2 / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
+    Index nc = numext::mini<Index>(rhs_panel_budget / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
     if (n > nc) {
       // We are really blocking over the columns:
       // -> reduce blocking size to make sure the last block is as large as possible

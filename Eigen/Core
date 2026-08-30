@@ -126,6 +126,10 @@
 
 // Required for querying cache sizes on Linux and macOS.
 #if EIGEN_OS_LINUX
+#if !defined(EIGEN_NO_CPU_CACHE_SYSFS)
+#include <cstdio>
+#include <sched.h>
+#endif
 #include <unistd.h>
 #elif EIGEN_OS_MAC
 #include <sys/types.h>
