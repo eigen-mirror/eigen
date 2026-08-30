@@ -34,6 +34,11 @@
     # speeds up cache extraction on restore.
     FF_USE_FASTZIP: "true"
     CACHE_COMPRESSION_LEVEL: "fastest"
+    # ccache pool name, minus the `-ccache` suffix the cache stanza appends:
+    # the job's own slug by default. A job that compiles a subset of another
+    # job's targets with the same flags names that job's slug instead (see the
+    # affected-tests section), so it draws on a pool the full builds fill.
+    EIGEN_CI_CCACHE_POOL: $CI_JOB_NAME_SLUG
   script:
     - . ci/scripts/build.linux.script.sh
   tags:
@@ -44,10 +49,13 @@
   # output, so ninja rebuilt every target despite a successfully restored
   # cache. ccache keys on file content and compiler, which survives the
   # re-clone. No ${CI_COMMIT_REF_SLUG} in the key: pipelines share one cache
-  # pool per job name (GitLab still keeps protected refs' caches separate
-  # from unprotected ones).
+  # pool per EIGEN_CI_CCACHE_POOL. GitLab still splits each pool by a suffix:
+  # `-protected` for a pipeline on a protected ref or started by a Maintainer
+  # or Owner, `-non_protected` otherwise. A Developer-started merge request
+  # pipeline therefore has a pool the scheduled master builds never fill; a
+  # maintainer starting that pipeline puts it on the shared one.
   cache:
-    key: "$CI_JOB_NAME_SLUG-ccache"
+    key: "$EIGEN_CI_CCACHE_POOL-ccache"
     paths:
       - .ccache/
     # Push the cache even when the build fails: the retry pipeline after a
@@ -834,64 +842,96 @@ build:linux:aarch64:clang-14:default:smoketest:
 # .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml, and .agents/ci.md
 # for which label selects what and how this tier relates to the smoke matrix it
 # suppresses.
+#
+# Every job here names its parent's ccache pool (EIGEN_CI_CCACHE_POOL): the
+# selection is a subset of the parent's targets compiled with the same flags,
+# so it hits in, and feeds, the pool the parent's full builds fill. Under the
+# default `$CI_JOB_NAME_SLUG` pool it would have an `-affected` pool of its own
+# that no full build ever warms.
 
 ##### Always, under the label ##################################################
 
 build:linux:cross:x86-64:gcc-10:avx2:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:avx2, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-10-avx2
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 build:linux:cross:x86-64:clang-14:default:affected:
   extends: [ build:linux:cross:x86-64:clang-14:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-clang-14-default
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 build:linux:cross:aarch64:gcc-10:default:affected:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-aarch64-gcc-10-default
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 build:linux:cross:aarch64:clang-14:default:affected:
   extends: [ build:linux:cross:aarch64:clang-14:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-aarch64-clang-14-default
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 ##### Platform-triggered #######################################################
 
 build:linux:cross:x86-64:gcc-10:default:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-10-default
   rules: !reference [.rules:libeigen:affected-tests:sse, rules]
 
 build:linux:cross:x86-64:gcc-10:avx:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:avx, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-10-avx
   rules: !reference [.rules:libeigen:affected-tests:avx, rules]
 
 build:linux:cross:x86-64:gcc-10:avx512dq:affected:
   extends: [ build:linux:cross:x86-64:gcc-10:avx512dq, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-10-avx512dq
   rules: !reference [.rules:libeigen:affected-tests:avx512, rules]
 
 # The FP16 builds reuse the existing split compile-only jobs; there is no runner
 # with AVX512-FP16 hardware for a paired test job.
 build:linux:cross:x86-64:gcc-13:avx512fp16:official:affected:
   extends: build:linux:cross:x86-64:gcc-13:avx512fp16:official
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-13-avx512fp16-official
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
 build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported:affected:
   extends: build:linux:cross:x86-64:gcc-13:avx512fp16:unsupported
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-13-avx512fp16-unsupported
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
 # 32-bit arm: a distinct NEON code path from the aarch64 job above.
 build:linux:cross:arm:gcc-10:default:affected:
   extends: [ build:linux:cross:arm:gcc-10:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-arm-gcc-10-default
   rules: !reference [.rules:libeigen:affected-tests:neon, rules]
 
 build:linux:cross:ppc64le:gcc-14:default:affected:
   extends: [ build:linux:cross:ppc64le:gcc-14:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-ppc64le-gcc-14-default
   rules: !reference [.rules:libeigen:affected-tests:altivec, rules]
 
 build:linux:cross:loongarch64:gcc-14:default:affected:
   extends: [ build:linux:cross:loongarch64:gcc-14:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-loongarch64-gcc-14-default
   rules: !reference [.rules:libeigen:affected-tests:lsx, rules]
 
 build:linux:riscv64:gcc-15:default:affected:
   extends: [ build:linux:riscv64:gcc-15:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-riscv64-gcc-15-default
   rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
 
 # SME gets compile coverage of the whole suite under the streaming-mode flags
@@ -899,24 +939,34 @@ build:linux:riscv64:gcc-15:default:affected:
 # through EIGEN_CI_CTEST_REGEX, which a selection would conflict with.
 build:linux:cross:sme:gcc-14:full:affected:
   extends: build:linux:cross:sme:gcc-14:full
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sme-gcc-14-full
   rules: !reference [.rules:libeigen:affected-tests:sme, rules]
 
 # One product_sme build, so a change to the gate is caught by the affected tier
 # rather than only by the nightly run.
 build:linux:cross:sme:gcc-14:no-f64f64:affected:
   extends: build:linux:cross:sme:gcc-14:no-f64f64
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sme-gcc-14-no-f64f64
   rules: !reference [.rules:libeigen:affected-tests:sme, rules]
 
 # The VL sweep is the point of the affected tier for SVE: a change to the packet
 # code is exactly what breaks at one vector length and not another.
 build:linux:cross:sve:gcc-14:vl128:affected:
   extends: build:linux:cross:sve:gcc-14:vl128
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-14-vl128
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl512:affected:
   extends: build:linux:cross:sve:gcc-13:vl512
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl512
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl256:affected:
   extends: build:linux:cross:sve:gcc-13:vl256
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl256
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]

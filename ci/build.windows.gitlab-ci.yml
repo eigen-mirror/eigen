@@ -27,6 +27,8 @@
     # archiving; see the Linux build template for the measured rationale.
     FF_USE_FASTZIP: "true"
     CACHE_COMPRESSION_LEVEL: "fastest"
+    # ccache pool name; see the Linux build template.
+    EIGEN_CI_CCACHE_POOL: $CI_JOB_NAME_SLUG
   script:
      - ./ci/scripts/build.windows.script.ps1
   tags:
@@ -38,10 +40,11 @@
   # build.linux.gitlab-ci.yml: ccache keys on file content and compiler, so
   # hits survive a re-checkout that re-stamps every source mtime (which made
   # the old build-directory cache rebuild everything anyway). No
-  # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per job
-  # name (GitLab still keeps protected refs' caches separate from unprotected
-  # ones). Both entries push even when the build fails (when: always): the
-  # retry pipeline after a compile error is exactly where hits matter most.
+  # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per
+  # EIGEN_CI_CCACHE_POOL, split by GitLab's protection suffix as described in
+  # the Linux template. Both entries push even when the build fails
+  # (when: always): the retry pipeline after a compile error is exactly where
+  # hits matter most.
   cache:
     # The pinned ccache binary the build script downloads when the runner has
     # none; one shared key so a runner downloads it once for all build jobs.
@@ -51,7 +54,7 @@
       paths:
         - .ccache-bin/
       when: always
-    - key: "$CI_JOB_NAME_SLUG-ccache"
+    - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
       when: always
@@ -130,4 +133,6 @@ build:windows:x86-64:cuda-13.0:msvc-14.29:
 
 build:windows:x86-64:msvc-14.29:default:affected:
   extends: [ build:windows:x86-64:msvc-14.29:default, .affected:build ]
+  variables:
+    EIGEN_CI_CCACHE_POOL: build-windows-x86-64-msvc-14-29-default
   rules: !reference [.rules:libeigen:affected-tests:windows, rules]
