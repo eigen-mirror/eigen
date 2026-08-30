@@ -48,6 +48,26 @@ here. Before publishing a diff, reread each added comment and delete the ones th
 identifier. Keep the ones recording mathematics, invariants, compatibility constraints, provenance, or the reason a
 slower or unusual form is deliberate — stated at the construct, not in the merge request.
 
+Prefer the most precise notation that fits. A recurrence, an error bound, an invariant written as an expression, or
+two lines of pseudo-code usually carry more than a paragraph and are read faster by this audience:
+
+```cpp
+// Bad: the relative error in summing n elements this way is bounded by roughly twice the
+// machine epsilon multiplied by the quantity log base two of n over B, plus B, where B is
+// the number of elements summed sequentially in each leaf of the tree.
+
+// Good: tree summation, relative error <= ~2*eps*(log2(n/B) + B) for leaf size B.
+```
+
+Only when it genuinely fits. A bound, invariant, or identity stated exactly earns the switch even when prose
+already half-carries it — `m` kept in `[1, 2)` says more than "balanced form", and a named theorem should come with
+its statement rather than sending the reader to the paper for one exponent. Notation that restates something already
+obvious from the code is the same defect as prose that does, and the losing case is a symbol invented for a single
+sentence — reuse whatever the surrounding file and the cited reference already use, and spell out any symbol that is
+not standard in context.
+Prose is the right tool for a *reason*: why this form and not the obvious one. Comments are plain text, so write
+expressions the way the rest of the tree does rather than in a markup language that does not render.
+
 ## REUSE metadata for new files
 
 Every new source file needs accurate REUSE metadata. Original Eigen code normally uses MPL-2.0; prefer the collective

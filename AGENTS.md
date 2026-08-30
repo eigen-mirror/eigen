@@ -164,7 +164,10 @@ for internal invariants gated by `EIGEN_INTERNAL_DEBUGGING`. Use the local compi
 clearest diagnostic. Comments should explain non-obvious mathematics, invariants, compatibility constraints, or
 provenance rather than narrating the code. Keep comments concise and proportional to the code's complexity. Avoid
 tutorial-style prose, section-by-section narration, and comments that restate identifiers or control flow. Longer
-comments are justified only when that rationale cannot be expressed clearly in code.
+comments are justified only when that rationale cannot be expressed clearly in code. Reviewers here read mathematics
+and code faster than English: where a formula, a recurrence, an error bound, or two lines of pseudo-code state the
+point more precisely than a paragraph, write that instead. The same preference applies to merge request descriptions
+and review comments.
 
 ## Quick build and test
 
