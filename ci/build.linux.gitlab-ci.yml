@@ -343,8 +343,9 @@ build:linux:cuda-11.5:clang-14:
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
 
-# ---- New: latest CUDA + newest compilers, sm_75;sm_90 ----------------------
-# sm_75 (T4) coverage comes from every job; sm_90 only from newer CUDA.
+# ---- New: latest CUDA + newest compilers, sm_89;sm_90 ----------------------
+# The CUDA 11.5 jobs cover sm_75 on T4. These jobs run natively on the L4 at
+# sm_89 and retain compile coverage for sm_90.
 
 # GCC-13, CUDA-12.6 (nvcc)
 # CUDA 12.6 nvcc only supports gcc up to 13.
@@ -354,7 +355,7 @@ build:linux:cuda-12.6:gcc-13:
   variables:
     EIGEN_CI_C_COMPILER: gcc-13
     EIGEN_CI_CXX_COMPILER: g++-13
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "89;90"
 
 # Clang-19, CUDA-12.6 (clang as CUDA compiler)
 # Clang CUDA support lags behind nvcc; clang-19 supports up to CUDA 12.x.
@@ -366,7 +367,7 @@ build:linux:cuda-12.6:clang-19:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "89;90"
 
 
 ######### HIP ##################################################################

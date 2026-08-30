@@ -280,14 +280,17 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   before_script:
     - nvidia-smi
     - . ci/scripts/common.linux.before_script.sh
-  # GitLab's SaaS GPU runners, Tesla T4 (sm_75): the architecture the paired
-  # builds target.  Keep this tag off self-hosted runners.  On a newer GPU the
-  # sm_75 binaries run only through the driver's PTX JIT, and the CUDA 11.5
-  # libraries have no kernels for anything past Ampere at all (cufft_1 and
-  # cufft_2 abort in cufftPlan1d), so a runner that borrows the tag pulls these
-  # jobs onto hardware they were not built for -- and allow_failure hides it.
+  # The CUDA 11.5 jobs inherit this GitLab SaaS T4 (sm_75) tag. Keep it off
+  # self-hosted runners: their old cuFFT library aborts in cufftPlan1d on the
+  # L4, and allow_failure hides the misplaced job. Newer jobs override the tag
+  # through .test:linux:cuda:l4 below.
   tags:
     - saas-linux-medium-amd64-gpu-standard
+
+.test:linux:cuda:l4:
+  extends: .test:linux:cuda
+  tags:
+    - eigen-linux-cuda-l4
 
 # ---- CUDA 11.5 + oldest supported compilers ---------------------------------
 
@@ -329,7 +332,7 @@ test:linux:cuda-11.5:clang-14:
 
 # GCC-13, CUDA-12.6
 test:linux:cuda-12.6:gcc-13:
-  extends: .test:linux:cuda
+  extends: .test:linux:cuda:l4
   image: nvidia/cuda:12.6.3-devel-ubuntu24.04
   needs: [ build:linux:cuda-12.6:gcc-13 ]
   variables:
@@ -338,7 +341,7 @@ test:linux:cuda-12.6:gcc-13:
 
 # Clang-19, CUDA-12.6
 test:linux:cuda-12.6:clang-19:
-  extends: .test:linux:cuda
+  extends: .test:linux:cuda:l4
   image: nvidia/cuda:12.6.3-devel-ubuntu24.04
   needs: [ build:linux:cuda-12.6:clang-19 ]
   variables:
