@@ -18,6 +18,22 @@ namespace gpu {
 
 class Context;
 
+enum class GpuOp;
+
+namespace internal {
+class DeviceBuffer;
+
+/** \brief Describes GPU device expression types.
+ *
+ * Specializations report the expression's scalar type, its transpose op, and
+ * how to reach the underlying matrix and deferred scalar. They live in
+ * DeviceExpr.h; this declaration is what the query aliases in type_traits.h
+ * are written against.
+ */
+template <typename Expr>
+struct device_expr_traits;
+}  // namespace internal
+
 template <typename Scalar_>
 class DeviceMatrix;
 template <typename Scalar_>
@@ -27,6 +43,8 @@ template <typename Scalar_, int UpLo_>
 class LLT;
 template <typename Scalar_>
 class LU;
+template <typename Scalar_>
+class QR;
 
 template <typename Scalar_>
 class AdjointView;

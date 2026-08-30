@@ -43,6 +43,8 @@
 #ifdef EIGEN_USE_GPU
 // IWYU pragma: begin_exports
 #include "src/GPU/FwdDecl.h"
+#include "src/GPU/Meta.h"
+#include "src/GPU/type_traits.h"
 #include "src/GPU/DeviceScalar.h"
 #include "src/GPU/DeviceMatrix.h"
 #include "src/GPU/GpuContext.h"

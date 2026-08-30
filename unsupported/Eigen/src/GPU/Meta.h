@@ -30,6 +30,9 @@ using require_same_t = require_t<std::is_same<std::decay_t<T1>, std::decay_t<T2>
 template <typename T1, typename T2>
 using require_not_same_t = require_not_t<std::is_same<std::decay_t<T1>, std::decay_t<T2>>>;
 
+template <bool... Values>
+using require_all_t = require_t<Eigen::internal::reduce_all<Values...>>;
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

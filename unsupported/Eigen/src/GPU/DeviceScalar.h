@@ -28,6 +28,7 @@
 namespace Eigen {
 namespace gpu {
 
+/** \brief RAII wrapper for a scalar in GPU device memory. */
 template <typename Scalar_>
 class DeviceScalar {
  public:

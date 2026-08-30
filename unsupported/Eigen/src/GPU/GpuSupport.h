@@ -214,6 +214,7 @@ struct PooledCudaFreeDeleter {
   }
 };
 
+/** \brief Internal RAII owner for an untyped GPU device allocation. */
 class DeviceBuffer {
  public:
   DeviceBuffer() = default;
