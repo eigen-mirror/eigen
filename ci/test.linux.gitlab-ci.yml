@@ -274,16 +274,13 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]
-  # Name the GPU and driver the job landed on before anything else.  The
-  # binaries are built for one architecture (see the tag note below), and the
-  # log is the only place that says which runner pool picked the job up.
+  # Name the GPU and driver the job landed on before anything else; the log is
+  # the record of which tagged runner handled it.
   before_script:
     - nvidia-smi
     - . ci/scripts/common.linux.before_script.sh
-  # The CUDA 11.5 jobs inherit this GitLab SaaS T4 (sm_75) tag. Keep it off
-  # self-hosted runners: their old cuFFT library aborts in cufftPlan1d on the
-  # L4, and allow_failure hides the misplaced job. Newer jobs override the tag
-  # through .test:linux:cuda:l4 below.
+  # The oldest CUDA jobs inherit this GitLab SaaS T4 (sm_75) tag. Newer jobs
+  # override it through .test:linux:cuda:l4 below.
   tags:
     - saas-linux-medium-amd64-gpu-standard
 
@@ -292,23 +289,23 @@ test:linux:x86-64:nvhpc-26.1:default:unsupported:
   tags:
     - eigen-linux-cuda-l4
 
-# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
+# ---- CUDA 11.8 + oldest supported compilers ---------------------------------
 
-# GCC-10, CUDA-11.5
-test:linux:cuda-11.5:gcc-10:
+# GCC-10, CUDA-11.8
+test:linux:cuda-11.8:gcc-10:
   extends: .test:linux:cuda
-  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
-  needs: [ build:linux:cuda-11.5:gcc-10 ]
+  image: nvidia/cuda:11.8.0-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.8:gcc-10 ]
   variables:
     EIGEN_CI_INSTALL: gcc-10 g++-10
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
 
-# Clang-14, CUDA-11.5
-test:linux:cuda-11.5:clang-14:
+# Clang-14, CUDA-11.8
+test:linux:cuda-11.8:clang-14:
   extends: .test:linux:cuda
-  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
-  needs: [ build:linux:cuda-11.5:clang-14 ]
+  image: nvidia/cuda:11.8.0-devel-ubuntu20.04
+  needs: [ build:linux:cuda-11.8:clang-14 ]
   before_script:
     # This override replaces the template's before_script, so repeat its
     # first step.
@@ -328,7 +325,7 @@ test:linux:cuda-11.5:clang-14:
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_C_COMPILER: clang-14
 
-# ---- New: latest CUDA -------------------------------------------------------
+# ---- Latest CUDA ------------------------------------------------------------
 
 # GCC-13, CUDA-12.6
 test:linux:cuda-12.6:gcc-13:

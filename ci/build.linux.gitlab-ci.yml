@@ -284,10 +284,10 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
-    # Compute architectures present in the GitLab CI runners.
-    # SaaS GPU runners have Tesla T4 (sm_75); the paired test jobs have to
-    # stay on those runners, see .test:linux:cuda.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
+    # Default architecture coverage spans the GPUs used by CI: GitLab's SaaS
+    # runners are Tesla T4 (sm_75), and eigen-gpu-testing-001.gcloud is an L4
+    # (sm_89). Jobs tied to one runner pool may override this set below.
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;89"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
@@ -302,14 +302,15 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
     # Build on regular linux to limit GPU cost.
     - saas-linux-2xlarge-amd64
 
-# ---- CUDA 11.5 + oldest supported compilers ---------------------------------
-# clang-14 fully supports up to CUDA 11.5.  CUDA 11.5 images are Ubuntu 20.04
-# only, which lacks clang-14 and cmake >= 3.17.  EIGEN_CI_BEFORE_SCRIPT adds
-# the LLVM apt repo (for clang-14) and installs cmake via pip.
+# ---- CUDA 11.8 + oldest supported compilers ---------------------------------
+# 11.8 is the oldest toolkit that knows sm_89, so gcc can cover the default
+# T4/L4 architecture set. CUDA 11.x images are Ubuntu 20.04 only, which lacks
+# clang-14 and cmake >= 3.17; the before_scripts add the Kitware and LLVM apt
+# repos.
 
-build:linux:cuda-11.5:gcc-10:
+build:linux:cuda-11.8:gcc-10:
   extends: .build:linux:cuda
-  image: nvidia/cuda:11.5.2-devel-ubuntu20.04
+  image: nvidia/cuda:11.8.0-devel-ubuntu20.04
   before_script:
     # Ubuntu 20.04 has cmake 3.16; Eigen requires 3.17+. Pull a newer
     # cmake from Kitware's official apt repo for focal.
@@ -326,8 +327,8 @@ build:linux:cuda-11.5:gcc-10:
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
 
-build:linux:cuda-11.5:clang-14:
-  extends: build:linux:cuda-11.5:gcc-10
+build:linux:cuda-11.8:clang-14:
+  extends: build:linux:cuda-11.8:gcc-10
   before_script:
     # Ubuntu 20.04 lacks clang-14 and has cmake 3.16. Add both the LLVM
     # apt repo (for clang-14) and Kitware's apt repo (for cmake >= 3.17)
@@ -350,10 +351,15 @@ build:linux:cuda-11.5:clang-14:
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+    # clang-14 predates sm_89 (LLVM 16 added it), so this pair targets sm_75.
+    # The 11.8 toolkit is newer than clang-14 knows; it treats it as 11.5,
+    # which is what the suppressed warning says.
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
+    EIGEN_CI_CUDA_CXX_FLAGS: "-Wno-unknown-cuda-version"
 
-# ---- New: latest CUDA + newest compilers, sm_89;sm_90 ----------------------
-# The CUDA 11.5 jobs cover sm_75 on T4. These jobs run natively on the L4 at
-# sm_89 and retain compile coverage for sm_90.
+# ---- Latest CUDA + newest compilers, sm_89;sm_90 ---------------------------
+# These jobs run natively on the L4 at sm_89 and retain compile-only coverage
+# for sm_90.
 
 # GCC-13, CUDA-12.6 (nvcc)
 # CUDA 12.6 nvcc only supports gcc up to 13.
