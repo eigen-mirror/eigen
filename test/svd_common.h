@@ -80,12 +80,21 @@ void svd_least_square(const MatrixType& m, SvdType& svd) {
 
     // evaluate normal equation which works also for least-squares solutions
     if (std::is_same<RealScalar, double>::value || svd.rank() == m.diagonal().size()) {
-      using std::sqrt;
       // This test is not stable with single precision.
       // This is likely because squaring m significantly affects the precision.
       if (std::is_same<RealScalar, float>::value) ++g_test_level;
 
-      VERIFY_IS_APPROX(m.adjoint() * (m * x), m.adjoint() * rhs);
+      // solve() zeroes the singular values below the threshold, so x satisfies the normal equations
+      // only up to the truncated part, m^H (m x - rhs) = -sum_{i >= rank} sigma_i (u_i^H rhs) v_i,
+      // whose norm is at most sigma_rank * ||rhs||.
+      const RealScalar truncated =
+          svd.rank() < svd.singularValues().size() ? svd.singularValues()(svd.rank()) * rhs_norm : RealScalar(0);
+      const SolutionType normal_lhs = m.adjoint() * (m * x);
+      const SolutionType normal_rhs = m.adjoint() * rhs;
+      const RealScalar normal_error = (normal_lhs - normal_rhs).norm();
+      const RealScalar normal_tolerance =
+          test_precision<RealScalar>() * numext::mini(normal_lhs.norm(), normal_rhs.norm()) + truncated;
+      VERIFY_LE(normal_error, normal_tolerance);
 
       if (std::is_same<RealScalar, float>::value) --g_test_level;
     }
