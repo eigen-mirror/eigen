@@ -556,9 +556,14 @@ test:linux:sme512:gcc-14:full:unsupported:
 # jobs are NEON and the SME jobs above take the NEON headers.
 .test:linux:sve:
   extends: .test:linux
-  # qemu >= 10 for the sve-default-vector-length property used below; Ubuntu
-  # 24.04 ships 8.2. Same split as the SME jobs: build on 24.04, test on 26.04.
-  image: ubuntu:26.04
+  # No image override: these run on the same ubuntu:24.04 the SVE builds use.
+  # An earlier split put the test stage on 26.04 for "qemu >= 10 for the
+  # sve-default-vector-length property", but 24.04's qemu-user 8.2.2 honours
+  # that property at every width -- measured with an RDVL probe at 128, 256,
+  # 512, 1024 and 2048, and by sve_vector_length itself, which fails if the
+  # emulated width ever disagrees with EIGEN_ARM64_SVE_VL. The SME jobs keep
+  # their own 26.04 split: theirs is FEAT_SME2 multi-vector emulation, which
+  # 8.2 genuinely lacks, and is unrelated to this property.
   variables:
     EIGEN_CI_TARGET_ARCH: aarch64-sve
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
@@ -574,12 +579,19 @@ test:linux:sme512:gcc-14:full:unsupported:
     # too; the :official jobs are unaffected either way, as both names are
     # Unsupported tests.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
-    # The test stage never compiles, so no build compiler is named here and one
-    # anchor serves both widths whichever GCC built them: all this needs is the
-    # aarch64 runtime and qemu-user, and the default-version cross g++ supplies
-    # the libraries on any release.
-    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++
-    EIGEN_CI_CROSS_INSTALL: g++-aarch64-linux-gnu qemu-user
+    # Name the compiler the artifacts were built with, not the default-version
+    # cross g++. The test stage does compile: the failtest targets are
+    # EXCLUDE_FROM_ALL and their ctest command is `cmake --build`, and the
+    # buildsystem scenarios configure nested projects with the parent cache's
+    # CMAKE_CXX_COMPILER baked in (test/buildsystem/CMakeLists.txt). Both read
+    # the absolute path CMake resolved at configure time, so an image without
+    # that exact binary fails them -- 62 failtests and 9 buildsystem tests at
+    # once, and the failtest _ko halves then pass vacuously, WILL_FAIL being
+    # unable to tell the asserted compile error from a missing compiler. Only
+    # the affected tier saw this: the :official and :unsupported jobs filter by
+    # label, and neither family carries the labels they select.
+    EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-13
+    EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu qemu-user
 
 # Each concrete job must set QEMU_CPU, and both halves of it: sveN=on advertises
 # the width, sve-default-vector-length (in bytes) selects the one a task
@@ -589,7 +601,7 @@ test:linux:sme512:gcc-14:full:unsupported:
 # EIGEN_ARM64_SVE_VL and fails if this is ever wrong.
 .test:linux:sve:vl128:
   extends: .test:linux:sve
-  needs: [ build:linux:cross:sve:gcc-14:vl128 ]
+  needs: [ build:linux:cross:sve:gcc-13:vl128 ]
   variables:
     QEMU_CPU: max,sve128=on,sve-default-vector-length=16
 
@@ -611,14 +623,14 @@ test:linux:sme512:gcc-14:full:unsupported:
 # (four- and eight-wide double packets, deeper predux_mul folds and ptranspose
 # networks), and a packet size of eight, which is where the GEBP column-group
 # guard went wrong, is reached by float at 256 and by double at 512. The job
-# names carry the compiler that built the binaries, which is gcc-13 above 128
-# bits -- see the note on .build:linux:cross:sve:gcc-14.
-test:linux:sve128:gcc-14:official:
+# names carry the compiler that built the binaries, which is gcc-13 at every
+# width -- see the note on .build:linux:cross:sve:gcc-13.
+test:linux:sve128:gcc-13:official:
   extends: .test:linux:sve:vl128
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve128:gcc-14:unsupported:
+test:linux:sve128:gcc-13:unsupported:
   extends: .test:linux:sve:vl128
   variables:
     EIGEN_CI_CTEST_LABEL: Unsupported
@@ -999,9 +1011,9 @@ test:linux:riscv64:gcc-15:default:affected:
 # Three vector lengths: the SVE packet code has VL-dependent fold counts and
 # transpose networks, so a single length is not a meaningful affected-tier
 # signal for a change under arch/SVE.
-test:linux:sve128:gcc-14:affected:
+test:linux:sve128:gcc-13:affected:
   extends: [ .test:linux:sve:vl128, .affected:test ]
-  needs: [ build:linux:cross:sve:gcc-14:vl128:affected, select:tests ]
+  needs: [ build:linux:cross:sve:gcc-13:vl128:affected, select:tests ]
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 test:linux:sve256:gcc-13:affected:

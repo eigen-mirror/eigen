@@ -598,27 +598,19 @@ build:linux:cross:aarch64:clang-14:default:
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv8.2-a+sve
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
 
-# gcc-14 builds 128 bits and nothing wider. At -O3 with -msve-vector-bits=256 or
-# above, gcc-14.2 miscompiles: redux_commutative<double> in test/redux.cpp sums
-# a 16x16 block of a 17x17 matrix to 660 instead of 1022, deterministically.
-# That is a compiler bug and not an Eigen one -- it reproduces with
-# EIGEN_ARM64_USE_SVE unset, with GCC autovectorizing to fixed-length SVE while
-# Eigen is on NEON -- and not an emulation artifact, since QEMU 8.2 and 10.0
-# produce the same wrong value. It goes away at -O2, with
-# -fno-tree-slp-vectorize, and at 128 bits.
-.build:linux:cross:sve:gcc-14:
-  extends: .build:linux:cross:sve
-  variables:
-    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu
-    EIGEN_CI_C_COMPILER: gcc-14
-    EIGEN_CI_CXX_COMPILER: g++-14
-    EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-14
-    EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-14
-
-# Every width above 128, for the reason above: gcc-13.3 is clean at 128, 256 and
-# 512. SVE ACLE needs only gcc-10, so nothing here depends on 14 the way SME's
-# ACLE does. Revisit once the image carries a fixed gcc-14 or a gcc-15 aarch64
-# cross.
+# One compiler for all three widths. gcc-14 is not usable above 128 bits: at -O3
+# with -msve-vector-bits=256 or above, gcc-14.2 miscompiles
+# redux_commutative<double> in test/redux.cpp, summing a 16x16 block of a 17x17
+# matrix to 660 instead of 1022, deterministically. That is a compiler bug and
+# not an Eigen one -- it reproduces with EIGEN_ARM64_USE_SVE unset, with GCC
+# autovectorizing to fixed-length SVE while Eigen is on NEON -- and not an
+# emulation artifact, since QEMU 8.2 and 10.0 produce the same wrong value. It
+# goes away at -O2, with -fno-tree-slp-vectorize, and at 128 bits.
+#
+# gcc-13.3 is clean at 128, 256 and 512, and SVE ACLE needs only gcc-10, so
+# nothing here depends on 14 the way SME's ACLE does. Naming one compiler is
+# what lets the test jobs install the compiler their artifacts were built with,
+# which the failtest and buildsystem tests require -- see .test:linux:sve.
 .build:linux:cross:sve:gcc-13:
   extends: .build:linux:cross:sve
   variables:
@@ -634,8 +626,8 @@ build:linux:cross:aarch64:clang-14:default:
 # architecturally legal but unimplemented, and compile-only coverage of them
 # bought two latent compile fixes at the cost of running nothing -- if a wider
 # part ships, add it here with a test job rather than as a build on its own.
-build:linux:cross:sve:gcc-14:vl128:
-  extends: .build:linux:cross:sve:gcc-14
+build:linux:cross:sve:gcc-13:vl128:
+  extends: .build:linux:cross:sve:gcc-13
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SVE=ON
@@ -673,7 +665,7 @@ build:linux:cross:sve:clang-14:vl128:
     EIGEN_CI_INSTALL: clang-14
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
-    EIGEN_CI_CROSS_INSTALL: g++-14-aarch64-linux-gnu clang-14
+    EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu clang-14
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SVE=ON
       -DEIGEN_TEST_SVE_VL=128
@@ -959,10 +951,10 @@ build:linux:cross:sme:gcc-14:no-f64f64:affected:
 
 # The VL sweep is the point of the affected tier for SVE: a change to the packet
 # code is exactly what breaks at one vector length and not another.
-build:linux:cross:sve:gcc-14:vl128:affected:
-  extends: build:linux:cross:sve:gcc-14:vl128
+build:linux:cross:sve:gcc-13:vl128:affected:
+  extends: build:linux:cross:sve:gcc-13:vl128
   variables:
-    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-14-vl128
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl128
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl512:affected:

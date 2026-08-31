@@ -169,7 +169,7 @@ A wider x86 configuration compiles the narrower backends' headers, which is why 
 compile coverage rather than a selection because its per-SVL test jobs already filter to a curated target subset
 through `EIGEN_CI_CTEST_REGEX`, which a selection would fight with.
 
-SVE runs the selection, at two vector lengths rather than one. The backend is fixed-length — `EIGEN_ARM64_SVE_VL`
+SVE runs the selection, at three vector lengths rather than one. The backend is fixed-length — `EIGEN_ARM64_SVE_VL`
 comes from `__ARM_FEATURE_SVE_BITS`, which only `-msve-vector-bits` sets — so each width is a separate build, and the
 packet code's fold counts and transpose networks differ between them. `test/sve_vector_length` guards the rest by
 reading `RDVL` and comparing it against the width the packets were built for, because a binary run at the wrong length
