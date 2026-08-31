@@ -43,19 +43,28 @@ fi
 
 cd "${builddir}"
 
+# benchmarks/CMakeLists.txt adds one subdirectory per module, so an executable
+# lands in a per-module directory such as Core/bench_gemm rather than at the top
+# of the build tree.  Search the whole tree, skipping CMake's own scratch
+# directories.
+find_bench_exes() {
+  find . -type f -executable -name "$1" -not -path '*/CMakeFiles/*' -print0
+}
+
 # Determine which benchmarks to run.
 bench_list=()
 if [[ "${scope}" == "weekly" ]]; then
   while IFS= read -r -d '' exe; do
     bench_list+=("${exe}")
-  done < <(find . -maxdepth 1 -type f -executable -name 'bench_*' -print0 | sort -z)
+  done < <(find_bench_exes 'bench_*' | sort -z)
 else
   while IFS= read -r name; do
     [[ -z "$name" || "$name" == \#* ]] && continue
     name=$(echo "$name" | xargs)  # trim whitespace
     [[ -z "$name" ]] && continue
-    if [[ -x "./${name}" ]]; then
-      bench_list+=("./${name}")
+    exe=$(find_bench_exes "${name}" | head -z -n 1 | tr -d '\0')
+    if [[ -n "${exe}" ]]; then
+      bench_list+=("${exe}")
     else
       echo "WARNING: ${name} not found, skipping."
     fi
