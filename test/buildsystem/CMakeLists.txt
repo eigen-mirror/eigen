@@ -9,8 +9,14 @@
 # Registered only for a top-level, non-cross-compiling build: a scenario
 # configures and runs a nested project, which needs a usable host toolchain
 # rather than the artifacts of the enclosing build.
+#
+# CMAKE_CROSSCOMPILING alone does not catch the CI's emulator builds, which
+# select a cross compiler without a toolchain file or CMAKE_SYSTEM_NAME.  There
+# the enclosing suite runs through the CROSSCOMPILING_EMULATOR target property,
+# but the nested consumers inherit only the (cross) compiler, so the scenarios
+# that run one exec a foreign-architecture binary on the host.
 
-if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING)
+if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING OR CMAKE_CROSSCOMPILING_EMULATOR)
   return()
 endif()
 

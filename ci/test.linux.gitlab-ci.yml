@@ -581,15 +581,15 @@ test:linux:sme512:gcc-14:full:unsupported:
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
     # Name the compiler the artifacts were built with, not the default-version
     # cross g++. The test stage does compile: the failtest targets are
-    # EXCLUDE_FROM_ALL and their ctest command is `cmake --build`, and the
-    # buildsystem scenarios configure nested projects with the parent cache's
-    # CMAKE_CXX_COMPILER baked in (test/buildsystem/CMakeLists.txt). Both read
-    # the absolute path CMake resolved at configure time, so an image without
-    # that exact binary fails them -- 62 failtests and 9 buildsystem tests at
-    # once, and the failtest _ko halves then pass vacuously, WILL_FAIL being
-    # unable to tell the asserted compile error from a missing compiler. Only
-    # the affected tier saw this: the :official and :unsupported jobs filter by
-    # label, and neither family carries the labels they select.
+    # EXCLUDE_FROM_ALL and their ctest command is `cmake --build`, which reads
+    # the absolute compiler path CMake resolved at configure time, so an image
+    # without that exact binary fails all 62 failtests at once -- and the _ko
+    # halves then pass vacuously, WILL_FAIL being unable to tell the asserted
+    # compile error from a missing compiler. Only the affected tier sees this:
+    # the :official and :unsupported jobs filter by label, and failtests carry
+    # neither label. (The buildsystem scenarios, which bake in the same path,
+    # no longer register here: test/buildsystem/CMakeLists.txt skips emulator
+    # builds, whose consumer binaries cannot run on the host.)
     EIGEN_CI_CXX_COMPILER: aarch64-linux-gnu-g++-13
     EIGEN_CI_CROSS_INSTALL: g++-13-aarch64-linux-gnu qemu-user
 
