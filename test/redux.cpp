@@ -187,8 +187,16 @@ void boolRedux(Index rows, Index cols) {
   VERIFY_IS_EQUAL(mixed.count(), expected_count);
   if (rows > 0 && cols > 0) {
     BoolArray random = BoolArray::Random(rows, cols);
+    BoolArray last_false = all_true;
+    last_false(rows - 1, cols - 1) = false;
+    BoolArray last_true = all_false;
+    last_true(rows - 1, cols - 1) = true;
     VERIFY(mixed.any());
     VERIFY(mixed.all() == (expected_count == rows * cols));
+    VERIFY(!last_false.all());
+    VERIFY_IS_EQUAL(last_false.any(), rows * cols > 1);
+    VERIFY(last_true.any());
+    VERIFY_IS_EQUAL(last_true.all(), rows * cols == 1);
     VERIFY_IS_EQUAL(random.sum(), random.any());
     VERIFY_IS_EQUAL(random.prod(), random.all());
   }

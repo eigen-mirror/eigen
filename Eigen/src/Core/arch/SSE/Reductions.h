@@ -75,16 +75,16 @@ struct sse_predux_max_prop_impl : sse_predux_common<Packet, sse_max_prop_wrapper
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet16b -- -- -- -- -- -- -- -- -- -- -- -- */
 
+// Packet16b stores one bool per byte. Reduce the byte-wise zero mask rather than extracting and short-circuiting two
+// scalar halves. This also treats every nonzero byte as true, matching the scalar reduction for non-canonical inputs.
 template <>
 EIGEN_STRONG_INLINE bool predux(const Packet16b& a) {
-  Packet4i tmp = _mm_or_si128(a, _mm_unpackhi_epi64(a, a));
-  return (pfirst(tmp) != 0) || (pfirst<Packet4i>(_mm_shuffle_epi32(tmp, 1)) != 0);
+  return _mm_movemask_epi8(_mm_cmpeq_epi8(a, _mm_setzero_si128())) != 0xffff;
 }
 
 template <>
 EIGEN_STRONG_INLINE bool predux_mul(const Packet16b& a) {
-  Packet4i tmp = _mm_and_si128(a, _mm_unpackhi_epi64(a, a));
-  return ((pfirst<Packet4i>(tmp) == 0x01010101) && (pfirst<Packet4i>(_mm_shuffle_epi32(tmp, 1)) == 0x01010101));
+  return _mm_movemask_epi8(_mm_cmpeq_epi8(a, _mm_setzero_si128())) == 0;
 }
 
 template <>

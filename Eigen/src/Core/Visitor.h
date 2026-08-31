@@ -433,6 +433,12 @@ struct all_visitor {
   EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
   bool res = true;
 };
+// Bool packets already contain the truth values that all()/any() need, so avoid constructing an equivalent comparison
+// mask before reducing them.
+template <>
+EIGEN_DEVICE_FUNC inline bool all_visitor<bool>::all_predux(const Packet& p) const {
+  return predux_mul(p);
+}
 template <typename Scalar>
 struct functor_traits<all_visitor<Scalar>> {
   enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
@@ -456,6 +462,10 @@ struct any_visitor {
   EIGEN_DEVICE_FUNC inline bool done() const { return res; }
   bool res = false;
 };
+template <>
+EIGEN_DEVICE_FUNC inline bool any_visitor<bool>::any_predux(const Packet& p) const {
+  return predux(p);
+}
 template <typename Scalar>
 struct functor_traits<any_visitor<Scalar>> {
   enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };

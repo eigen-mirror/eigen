@@ -3,25 +3,13 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <cstdint>
+
+#include "benchmark_boolean_helpers.h"
 
 namespace Eigen {
 namespace {
 
-using BoolArray = Array<bool, Dynamic, 1>;
-
-enum InputPattern { Random, AllFalse, AllTrue, Sparse };
-
-template <InputPattern Pattern>
-bool next_input(std::uint32_t& state) {
-  state = state * 1664525u + 1013904223u;
-  return Pattern == AllFalse ? false : Pattern == AllTrue ? true : Pattern == Sparse ? state % 10 == 0 : state >> 31;
-}
-
-template <InputPattern Pattern>
-void fill_input(BoolArray& input, std::uint32_t state) {
-  for (Index i = 0; i < input.size(); ++i) input[i] = next_input<Pattern>(state);
-}
+using namespace benchmark_detail;
 
 struct Sum {
   static bool run(const BoolArray& input) { return input.sum(); }
@@ -91,7 +79,7 @@ void BM_BooleanBinary(benchmark::State& state) {
   BENCHMARK_TEMPLATE(BENCHMARK_FUNCTION, OPERATION, Random)->Arg(262151);   \
   BENCHMARK_TEMPLATE(BENCHMARK_FUNCTION, OPERATION, AllFalse)->Arg(262151); \
   BENCHMARK_TEMPLATE(BENCHMARK_FUNCTION, OPERATION, AllTrue)->Arg(262151);  \
-  BENCHMARK_TEMPLATE(BENCHMARK_FUNCTION, OPERATION, Sparse)->Arg(262151)
+  BENCHMARK_TEMPLATE(BENCHMARK_FUNCTION, OPERATION, benchmark_detail::Sparse)->Arg(262151)
 
 EIGEN_BENCH_BOOLEAN_PATTERNS(BM_BooleanReduction, Sum);
 EIGEN_BENCH_BOOLEAN_PATTERNS(BM_BooleanReduction, Product);
