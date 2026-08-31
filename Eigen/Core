@@ -284,6 +284,7 @@ using std::size_t;
 #include "src/Core/arch/SVE/PacketMath.h"
 #include "src/Core/arch/SVE/TypeCasting.h"
 #include "src/Core/arch/SVE/MathFunctions.h"
+#include "src/Core/arch/SVE/Complex.h"
 #elif defined EIGEN_VECTORIZE_RVV10
 #include "src/Core/arch/RVV10/PacketMathDecl.h"
 #include "src/Core/arch/RVV10/PacketMath.h"

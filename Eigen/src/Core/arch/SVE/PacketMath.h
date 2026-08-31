@@ -64,6 +64,15 @@ struct packet_traits<numext::int32_t> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
+    // HasSetLinear and HasCmp stay 0 even though plset and pcmp_{eq,lt,le} are
+    // implemented below: both flags route work onto a packet path that measures
+    // far slower than the scalar loop GCC autovectorizes. On Neoverse V2 at
+    // VL=128, HasSetLinear costs LinSpaced 20.7 -> 60.6 us for float and
+    // 20.7 -> 121.6 us for double, and HasCmp costs (a < b).select(a, b)
+    // 6.2 -> 50.6 us. Neither is explained by pselect: these numbers are with
+    // the svsel specialization below in place, and it made the LinSpaced case
+    // worse rather than better. The cause is higher up, in how those evaluators
+    // drive the packet path, and should be found before either flag is set.
     HasSetLinear = 0,
     HasReduxp = 0  // Not implemented in SVE
   };
@@ -185,6 +194,17 @@ EIGEN_STRONG_INLINE PacketXi pxor<PacketXi>(const PacketXi& a, const PacketXi& b
 template <>
 EIGEN_STRONG_INLINE PacketXi pandnot<PacketXi>(const PacketXi& a, const PacketXi& b) {
   return svbic_s32_x(svptrue_b32(), a, b);
+}
+
+// SVE selects on a predicate, so turn Eigen's all-ones/all-zeros value mask back
+// into one and use svsel rather than the generic por(pand, pandnot). Measured on
+// Neoverse V2 at VL=128: latency 3.18 -> 2.55 ns, throughput 0.80 -> 0.64 ns/op.
+// SVE2's single-instruction svbsl is no faster than this, so it is not worth an
+// ISA-conditional path. The mask is compared as an integer: as a float it would
+// be a NaN bit pattern, and relying on NaN != 0 is needlessly subtle.
+template <>
+EIGEN_STRONG_INLINE PacketXi pselect<PacketXi>(const PacketXi& mask, const PacketXi& a, const PacketXi& b) {
+  return svsel_s32(svcmpne_n_s32(svptrue_b32(), mask, 0), a, b);
 }
 
 template <int N>
@@ -346,6 +366,7 @@ struct packet_traits<float> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
+    // See the int32 traits above for why HasSetLinear stays 0.
     HasSetLinear = 0,
     HasReduxp = 0,  // Not implemented in SVE
 
@@ -365,6 +386,7 @@ struct packet_traits<float> : default_packet_traits {
     HasExp = 1,
     HasPow = 1,
     HasSqrt = 1,
+    HasRsqrt = 1,
     HasCbrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
@@ -542,6 +564,12 @@ EIGEN_STRONG_INLINE PacketXf pandnot<PacketXf>(const PacketXf& a, const PacketXf
   return svreinterpret_f32_u32(svbic_u32_x(svptrue_b32(), svreinterpret_u32_f32(a), svreinterpret_u32_f32(b)));
 }
 
+// See pselect<PacketXi>.
+template <>
+EIGEN_STRONG_INLINE PacketXf pselect<PacketXf>(const PacketXf& mask, const PacketXf& a, const PacketXf& b) {
+  return svsel_f32(svcmpne_n_s32(svptrue_b32(), svreinterpret_s32_f32(mask), 0), a, b);
+}
+
 template <>
 EIGEN_STRONG_INLINE PacketXf pload<PacketXf>(const float* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return svld1_f32(svptrue_b32(), from);
@@ -709,12 +737,14 @@ struct packet_traits<double> : default_packet_traits {
     HasMin = 1,
     HasMax = 1,
     HasConj = 1,
+    // See the int32 traits above for why HasSetLinear stays 0.
     HasSetLinear = 0,
     HasReduxp = 0,  // Not implemented in SVE
 
     HasDiv = 1,
     HasCmp = 1,
-    HasSqrt = 1
+    HasSqrt = 1,
+    HasRsqrt = 1
   };
 };
 
@@ -891,6 +921,12 @@ EIGEN_STRONG_INLINE PacketXd pandnot<PacketXd>(const PacketXd& a, const PacketXd
   return svreinterpret_f64_u64(svbic_u64_x(svptrue_b64(), svreinterpret_u64_f64(a), svreinterpret_u64_f64(b)));
 }
 
+// See pselect<PacketXi>.
+template <>
+EIGEN_STRONG_INLINE PacketXd pselect<PacketXd>(const PacketXd& mask, const PacketXd& a, const PacketXd& b) {
+  return svsel_f64(svcmpne_n_s64(svptrue_b64(), svreinterpret_s64_f64(mask), 0), a, b);
+}
+
 template <>
 EIGEN_STRONG_INLINE PacketXd pload<PacketXd>(const double* from) {
   EIGEN_DEBUG_ALIGNED_LOAD return svld1_f64(svptrue_b64(), from);
@@ -1010,6 +1046,14 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXd, N>& kernel) {
 template <>
 EIGEN_STRONG_INLINE PacketXd psqrt<PacketXd>(const PacketXd& a) {
   return svsqrt_f64_x(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd prsqrt<PacketXd>(const PacketXd& a) {
+  // Newton off the FRSQRTE seed, as NEON's Packet2d does. The generic
+  // preciprocal(psqrt(x)) form is correct but pays a double-precision FDIV,
+  // which is slow enough here to lose to the scalar loop.
+  return generic_rsqrt_newton_step<PacketXd, /*Steps=*/3>::run(a, svrsqrte_f64(a));
 }
 
 }  // namespace internal

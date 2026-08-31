@@ -88,7 +88,7 @@ template <typename Scalar>
 struct packetmath_fastmath_runner<Scalar, true> {
   static void run() {
     typedef typename Eigen::internal::packet_traits<Scalar>::type Packet;
-    const int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+    const int packet_size = Eigen::internal::packet_traits<Scalar>::size;
     Scalar output[packet_size];
     for (int i = 0; i < packet_size; ++i) {
       output[i] = Scalar(0);
@@ -119,14 +119,14 @@ struct packetmath_fastmath_runner<Scalar, true> {
       b[i] = Scalar(-(i + 1));
     }
 
-    std::memset(mask, 0, sizeof(mask));
+    std::memset(static_cast<void*>(mask), 0, sizeof(mask));
     select_with_mask<Scalar, Packet>(mask, a, b, selected);
     for (int i = 0; i < packet_size; ++i) {
       VERIFY_IS_EQUAL(selected[i], b[i]);
     }
     VERIFY(!(mask_any<Scalar, Packet>(mask)));
 
-    std::memset(mask, 0xff, sizeof(mask));
+    std::memset(static_cast<void*>(mask), 0xff, sizeof(mask));
     select_with_mask<Scalar, Packet>(mask, a, b, selected);
     for (int i = 0; i < packet_size; ++i) {
       VERIFY_IS_EQUAL(selected[i], a[i]);
@@ -140,8 +140,8 @@ struct packetmath_fastmath_runner<Scalar, true> {
     VERIFY((ptrue_mask_any<Scalar, Packet>()));
 
     for (int lane = 0; lane < packet_size; ++lane) {
-      std::memset(mask, 0, sizeof(mask));
-      std::memset(mask + lane, 0xff, sizeof(Scalar));
+      std::memset(static_cast<void*>(mask), 0, sizeof(mask));
+      std::memset(static_cast<void*>(mask + lane), 0xff, sizeof(Scalar));
       select_with_mask<Scalar, Packet>(mask, a, b, selected);
       for (int i = 0; i < packet_size; ++i) {
         VERIFY_IS_EQUAL(selected[i], i == lane ? a[i] : b[i]);

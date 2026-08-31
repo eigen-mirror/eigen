@@ -433,7 +433,9 @@ if (EIGEN_BUILD_TESTING)
     ei_add_cxx_compiler_flag("-Wno-psabi")
     ei_add_cxx_compiler_flag("-Wno-variadic-macros")
     ei_add_cxx_compiler_flag("-Wno-long-long")
-    ei_add_cxx_compiler_flag("-Wno-pass-failed")          # disable clang's warning for unrolling when the loop count is dynamic.
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      ei_add_cxx_compiler_flag("-Wno-pass-failed")        # disable clang's warning for unrolling when the loop count is dynamic.
+    endif()
     ei_add_cxx_compiler_flag("-fno-common")
     ei_add_cxx_compiler_flag("-fstrict-aliasing")
     ei_add_cxx_compiler_flag("-wd981")                    # disable ICC's "operands are evaluated in unspecified order" remark
@@ -451,7 +453,9 @@ if (EIGEN_BUILD_TESTING)
     if (CMAKE_COMPILER_IS_GNUCXX)
       ei_add_cxx_compiler_flag("-Wno-array-bounds")
       ei_add_cxx_compiler_flag("-Wno-maybe-uninitialized")
-      ei_add_cxx_compiler_flag("-Wno-stringop-overread")
+      if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12)
+        ei_add_cxx_compiler_flag("-Wno-stringop-overread")
+      endif()
       ei_add_cxx_compiler_flag("-Wno-nonnull")
     endif()
 

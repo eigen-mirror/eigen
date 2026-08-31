@@ -490,9 +490,11 @@ else()
 endif()
 # The fastmath test intentionally uses NaN/infinity under -ffast-math.
 # Suppress the clang warning about this being technically undefined.
-check_cxx_compiler_flag("-Wno-nan-infinity-disabled" COMPILER_SUPPORT_WNO_NAN_INF)
-if(COMPILER_SUPPORT_WNO_NAN_INF)
-  set(EIGEN_FASTMATH_FLAGS "${EIGEN_FASTMATH_FLAGS} -Wno-nan-infinity-disabled")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  check_cxx_compiler_flag("-Wno-nan-infinity-disabled" COMPILER_SUPPORT_WNO_NAN_INF)
+  if(COMPILER_SUPPORT_WNO_NAN_INF)
+    set(EIGEN_FASTMATH_FLAGS "${EIGEN_FASTMATH_FLAGS} -Wno-nan-infinity-disabled")
+  endif()
 endif()
 
 if(COMPILER_SUPPORT_FASTMATH)
