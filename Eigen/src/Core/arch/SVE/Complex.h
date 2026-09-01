@@ -361,17 +361,45 @@ EIGEN_STRONG_INLINE std::complex<double> predux<PacketXcd>(const PacketXcd& a) {
   return {svaddv_f64(even, a.v), svaddv_f64(svrev_b64(even), a.v)};
 }
 
-// Round-trip through memory, as the real packets' ptranspose does. Expressed
-// against the semantics the scatter/gather form defines:
-// new[i][j] == old[(i * size + j) % N][(i * size + j) / N].
+// A complex<double> is one 128-bit quadword, so transposing complex packets is
+// the real backend's zip network run on quadwords. FEAT_F64MM spells that
+// svzip1q_f64/svzip2q_f64, but armv8.2-a+sve has neither those nor SVE2's
+// two-vector svtbl2, so pick each half with svtbl and merge them on a
+// quadword-alternating predicate. Both index vectors and the predicate are
+// loop-invariant, leaving two svtbl and one svsel per output.
+EIGEN_STRONG_INLINE svbool_t sve_cd_quadword_even() {
+  const svuint64_t quadword = svlsr_n_u64_x(svptrue_b64(), svindex_u64(0, 1), 1);
+  return svcmpeq_n_u64(svptrue_b64(), svand_n_u64_x(svptrue_b64(), quadword, 1), 0);
+}
+
+// Lane j of the low zip takes component j & 1 of quadword j >> 2, from a when
+// its own quadword is even and from b when it is odd; the high zip is the same
+// pattern offset by half the packet.
+EIGEN_STRONG_INLINE svuint64_t sve_cd_zip_index(uint64_t offset) {
+  const svuint64_t lane = svindex_u64(0, 1);
+  const svuint64_t pair = svlsl_n_u64_x(svptrue_b64(), svlsr_n_u64_x(svptrue_b64(), lane, 2), 1);
+  return svadd_n_u64_x(svptrue_b64(), svorr_u64_x(svptrue_b64(), pair, svand_n_u64_x(svptrue_b64(), lane, 1)), offset);
+}
+
 template <int N>
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcd, N>& kernel) {
-  constexpr int size = unpacket_traits<PacketXcd>::size;
-  EIGEN_ALIGN_MAX std::complex<double> in[size * N];
-  EIGEN_ALIGN_MAX std::complex<double> out[size * N];
-  for (int i = 0; i < N; ++i) pstore(in + i * size, kernel.packet[i]);
-  for (int m = 0; m < size * N; ++m) out[m] = in[(m % N) * size + m / N];
-  for (int i = 0; i < N; ++i) kernel.packet[i] = pload<PacketXcd>(out + i * size);
+  EIGEN_STATIC_ASSERT((N & (N - 1)) == 0, EIGEN_INTERNAL_ERROR_PLEASE_FILE_A_BUG_REPORT);
+  constexpr uint64_t kLanes = 2 * uint64_t(unpacket_traits<PacketXcd>::size);
+  const svbool_t even = sve_cd_quadword_even();
+  const svuint64_t lo_index = sve_cd_zip_index(0);
+  const svuint64_t hi_index = sve_cd_zip_index(kLanes / 2);
+  for (int stride = N / 2; stride > 0; stride >>= 1) {
+    for (int block = 0; block < N; block += 2 * stride) {
+      for (int k = 0; k < stride; ++k) {
+        const svfloat64_t a = kernel.packet[block + k].v;
+        const svfloat64_t b = kernel.packet[block + k + stride].v;
+        const svfloat64_t lo = svsel_f64(even, svtbl_f64(a, lo_index), svtbl_f64(b, lo_index));
+        const svfloat64_t hi = svsel_f64(even, svtbl_f64(a, hi_index), svtbl_f64(b, hi_index));
+        kernel.packet[block + k] = PacketXcd(lo);
+        kernel.packet[block + k + stride] = PacketXcd(hi);
+      }
+    }
+  }
 }
 
 /********************************* shared *************************************/
