@@ -28,12 +28,6 @@ if [ "${scope}" = "nightly" ] && [ "$(date -u +%u)" = "7" ]; then
 fi
 
 # Runtime ISA check: skip if the runner lacks the required instruction set.
-if [[ "${target}" == *"avx512"* ]]; then
-  if ! grep -q 'avx512dq' /proc/cpuinfo 2>/dev/null; then
-    echo "WARNING: Runner does not support AVX-512 DQ. Skipping benchmarks."
-    exit 0
-  fi
-fi
 if [[ "${target}" == *"avx2"* ]]; then
   if ! grep -q 'avx2' /proc/cpuinfo 2>/dev/null; then
     echo "WARNING: Runner does not support AVX2. Skipping benchmarks."

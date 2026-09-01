@@ -87,16 +87,6 @@ bench:build:x86-64:avx2:
     EIGEN_BENCH_TARGET: x86-64-avx2
     EIGEN_BENCH_ISA_FLAGS: "-mavx2 -mfma"
 
-bench:build:x86-64:avx512dq:
-  extends: .bench:linux:build
-  variables:
-    EIGEN_CI_C_COMPILER: gcc-10
-    EIGEN_CI_CXX_COMPILER: g++-10
-    EIGEN_CI_INSTALL: g++-10
-    EIGEN_CI_TARGET_ARCH: x86_64
-    EIGEN_BENCH_TARGET: x86-64-avx512dq
-    EIGEN_BENCH_ISA_FLAGS: "-mavx512dq -mfma"
-
 bench:build:aarch64:neon:
   extends: .bench:linux:build
   variables:
@@ -129,15 +119,6 @@ bench:run:x86-64:avx2:
   tags:
     - saas-linux-2xlarge-amd64
 
-bench:run:x86-64:avx512dq:
-  extends: .bench:linux:run
-  needs: [bench:build:x86-64:avx512dq]
-  variables:
-    EIGEN_BENCH_TARGET: x86-64-avx512dq
-  tags:
-    - saas-linux-2xlarge-amd64
-  allow_failure: true
-
 bench:run:aarch64:neon:
   extends: .bench:linux:run
   needs: [bench:build:aarch64:neon]
@@ -158,9 +139,6 @@ bench:analyze:
       artifacts: true
     - job: bench:run:x86-64:avx2
       artifacts: true
-    - job: bench:run:x86-64:avx512dq
-      artifacts: true
-      optional: true
     - job: bench:run:aarch64:neon
       artifacts: true
   variables:
