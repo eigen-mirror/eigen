@@ -143,6 +143,21 @@ void packetmath_real() {
   CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i0, internal::pbessel_i0);
   CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i1, internal::pbessel_i1);
 
+  // Boundary values for which a naive i0(x) = exp(|x|) * i0e(x) overflows even though the result is
+  // finite.  CHECK_CWISE1_IF cannot detect that on its own: its reference is the scalar path through
+  // the same generic_i0, so both sides would be +inf and compare equal.  Check finiteness explicitly.
+  if (PacketTraits::HasBessel &&
+      (internal::is_same<Scalar, float>::value || internal::is_same<Scalar, double>::value)) {
+    Scalar boundary = internal::is_same<Scalar, float>::value ? Scalar(90) : Scalar(713);
+    for (int i = 0; i < size; ++i) {
+      data1[i] = (i % 2 == 0) ? boundary : -boundary;
+    }
+    CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i0, internal::pbessel_i0);
+    for (int i = 0; i < PacketSize; ++i) VERIFY((numext::isfinite)(data2[i]));
+    CHECK_CWISE1_IF(PacketTraits::HasBessel, numext::bessel_i1, internal::pbessel_i1);
+    for (int i = 0; i < PacketSize; ++i) VERIFY((numext::isfinite)(data2[i]));
+  }
+
   // y_i, and k_i are valid for x > 0.
   {
     const int max_exponent = numext::mini(std::numeric_limits<Scalar>::max_exponent10 - 1, 5);
