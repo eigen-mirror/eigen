@@ -875,6 +875,263 @@ void test_threadpool_allocate(TestAllocator* allocator) {
   VERIFY_IS_EQUAL(allocator->dealloc_count(), num_allocs);
 }
 
+template <int DataLayout>
+void test_multithread_zero_dim_contraction() {
+  const int num_threads = internal::random<int>(2, 11);
+  ThreadPool threads(num_threads);
+  Eigen::ThreadPoolDevice device(&threads, num_threads);
+
+  // 2D contraction: {10, 0} * {0, 20} -> {10, 20}
+  {
+    Tensor<float, 2, DataLayout> t_left(10, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 20);
+    Tensor<float, 2, DataLayout> t_result(10, 20);
+    t_result.setConstant(123.0f);
+
+    typedef Tensor<float, 1>::DimensionPair DimPair;
+    Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+    t_result.device(device) = t_left.contract(t_right, dims);
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
+    }
+  }
+
+  // 2D contraction with non-empty dim >= 48: {64, 0} * {0, 64} -> {64, 64}
+  {
+    Tensor<float, 2, DataLayout> t_left(64, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 64);
+    Tensor<float, 2, DataLayout> t_result(64, 64);
+    t_result.setConstant(123.0f);
+
+    typedef Tensor<float, 1>::DimensionPair DimPair;
+    Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+    t_result.device(device) = t_left.contract(t_right, dims);
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
+    }
+  }
+
+  // Multidim contraction: {5, 0, 4} * {0, 3, 4} with dims {1, 0} and {2, 2} -> {5, 3}
+  {
+    Tensor<float, 3, DataLayout> t_left(5, 0, 4);
+    Tensor<float, 3, DataLayout> t_right(0, 3, 4);
+    Tensor<float, 2, DataLayout> t_result(5, 3);
+    t_result.setConstant(123.0f);
+
+    typedef Tensor<float, 1>::DimensionPair DimPair;
+    Eigen::array<DimPair, 2> dims{{DimPair(1, 0), DimPair(2, 2)}};
+
+    t_result.device(device) = t_left.contract(t_right, dims);
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 5);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 3);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
+    }
+  }
+}
+
+template <int DataLayout>
+void test_async_multithread_zero_dim_contraction() {
+  const int num_threads = internal::random<int>(2, 11);
+  ThreadPool threads(num_threads);
+  Eigen::ThreadPoolDevice device(&threads, num_threads);
+
+  Tensor<float, 2, DataLayout> t_left(10, 0);
+  Tensor<float, 2, DataLayout> t_right(0, 20);
+  Tensor<float, 2, DataLayout> t_result(10, 20);
+  t_result.setConstant(123.0f);
+
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+  Eigen::Barrier barrier(1);
+  t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims);
+  barrier.Wait();
+
+  VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+  VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+  for (Index i = 0; i < t_result.size(); ++i) {
+    VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
+  }
+}
+
+template <typename Scalar>
+struct AddBiasOutputKernel {
+  Scalar bias;
+  explicit AddBiasOutputKernel(Scalar b) : bias(b) {}
+
+  template <typename Index, typename ResScalar>
+  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<ResScalar, Index, ColMajor>& output_mapper,
+                                      const TensorContractionParams&, Index, Index, Index num_rows,
+                                      Index num_cols) const {
+    for (Index i = 0; i < num_rows; ++i) {
+      for (Index j = 0; j < num_cols; ++j) {
+        output_mapper(i, j) += bias;
+      }
+    }
+  }
+};
+
+template <int DataLayout>
+void test_multithread_zero_dim_contraction_with_output_kernel() {
+  const int num_threads = internal::random<int>(2, 11);
+  ThreadPool threads(num_threads);
+  Eigen::ThreadPoolDevice device(&threads, num_threads);
+
+  const float bias = 42.0f;
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+  // {10, 0} * {0, 20} -> {10, 20}
+  {
+    Tensor<float, 2, DataLayout> t_left(10, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 20);
+    Tensor<float, 2, DataLayout> t_result(10, 20);
+    t_result.setConstant(123.0f);
+
+    t_result.device(device) = t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], bias);
+    }
+  }
+
+  // {64, 0} * {0, 64} -> {64, 64}
+  {
+    Tensor<float, 2, DataLayout> t_left(64, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 64);
+    Tensor<float, 2, DataLayout> t_result(64, 64);
+    t_result.setConstant(123.0f);
+
+    t_result.device(device) = t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], bias);
+    }
+  }
+}
+
+template <int DataLayout>
+void test_async_multithread_zero_dim_contraction_with_output_kernel() {
+  const int num_threads = internal::random<int>(2, 11);
+  ThreadPool threads(num_threads);
+  Eigen::ThreadPoolDevice device(&threads, num_threads);
+
+  const float bias = 42.0f;
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+  // {10, 0} * {0, 20} -> {10, 20}
+  {
+    Tensor<float, 2, DataLayout> t_left(10, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 20);
+    Tensor<float, 2, DataLayout> t_result(10, 20);
+    t_result.setConstant(123.0f);
+
+    Eigen::Barrier barrier(1);
+    t_result.device(device, [&barrier]() { barrier.Notify(); }) =
+        t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
+    barrier.Wait();
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], bias);
+    }
+  }
+
+  // {64, 0} * {0, 64} -> {64, 64}
+  {
+    Tensor<float, 2, DataLayout> t_left(64, 0);
+    Tensor<float, 2, DataLayout> t_right(0, 64);
+    Tensor<float, 2, DataLayout> t_result(64, 64);
+    t_result.setConstant(123.0f);
+
+    Eigen::Barrier barrier(1);
+    t_result.device(device, [&barrier]() { barrier.Notify(); }) =
+        t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
+    barrier.Wait();
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], bias);
+    }
+  }
+}
+
+template <int DataLayout>
+void test_multithread_zero_dim_outer_zeros() {
+  const int num_threads = internal::random<int>(2, 11);
+  ThreadPool threads(num_threads);
+  Eigen::ThreadPoolDevice device(&threads, num_threads);
+
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+  // Outer zero on LHS: {0, 5} * {5, 10} -> {0, 10}
+  {
+    Tensor<float, 2, DataLayout> t_left(0, 5);
+    Tensor<float, 2, DataLayout> t_right(5, 10);
+    t_right.setRandom();
+    Tensor<float, 2, DataLayout> t_result(0, 10);
+    t_result.device(device) = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Outer zero on RHS: {10, 5} * {5, 0} -> {10, 0}
+  {
+    Tensor<float, 2, DataLayout> t_left(10, 5);
+    Tensor<float, 2, DataLayout> t_right(5, 0);
+    t_left.setRandom();
+    Tensor<float, 2, DataLayout> t_result(10, 0);
+    t_result.device(device) = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Outer zero on both: {0, 5} * {5, 0} -> {0, 0}
+  {
+    Tensor<float, 2, DataLayout> t_left(0, 5);
+    Tensor<float, 2, DataLayout> t_right(5, 0);
+    Tensor<float, 2, DataLayout> t_result(0, 0);
+    t_result.device(device) = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Async zero outer dim
+  {
+    Tensor<float, 2, DataLayout> t_left(0, 5);
+    Tensor<float, 2, DataLayout> t_right(5, 10);
+    t_right.setRandom();
+    Tensor<float, 2, DataLayout> t_result(0, 10);
+    Eigen::Barrier barrier(1);
+    t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims);
+    barrier.Wait();
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_1(test_multithread_elementwise());
   CALL_SUBTEST_1(test_async_multithread_elementwise());
@@ -932,6 +1189,17 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_13(test_multithread_shuffle<RowMajor>(&test_allocator));
   CALL_SUBTEST_13(test_threadpool_allocate(&test_allocator));
 
+  CALL_SUBTEST_14(test_multithread_zero_dim_contraction<ColMajor>());
+  CALL_SUBTEST_14(test_multithread_zero_dim_contraction<RowMajor>());
+  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction<ColMajor>());
+  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction<RowMajor>());
+  CALL_SUBTEST_14(test_multithread_zero_dim_contraction_with_output_kernel<ColMajor>());
+  CALL_SUBTEST_14(test_multithread_zero_dim_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction_with_output_kernel<ColMajor>());
+  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_14(test_multithread_zero_dim_outer_zeros<ColMajor>());
+  CALL_SUBTEST_14(test_multithread_zero_dim_outer_zeros<RowMajor>());
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13;14
 }

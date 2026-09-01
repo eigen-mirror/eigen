@@ -1326,6 +1326,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
   }
 
+  template <int Alignment>
+  void evalProduct(Scalar* buffer) const {
+    evalTo(buffer);
+  }
+
   template <typename LhsScalar, typename RhsScalar, typename Index, typename LhsMapper, typename RhsMapper,
             typename OutputMapper, bool UseNaiveKernel>
   struct LaunchKernelsImpl;
@@ -1389,15 +1394,18 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   void evalTyped(Scalar* buffer) const {
     // columns in left side, rows in right side
     const Index k = this->m_k_size;
-    EIGEN_UNUSED_VARIABLE(k);
     // rows in left side
     const Index m = this->m_i_size;
 
     // columns in right side
     const Index n = this->m_j_size;
 
+    if (m == 0 || n == 0) return;
+
     // zero out the result buffer (which must be of size at least m * n * sizeof(Scalar))
     this->m_device.fill(buffer, buffer + m * n, Scalar(0));
+
+    if (k == 0) return;
 
     typedef internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator, left_nocontract_t,
                                                    contract_t, 4, lhs_inner_dim_contiguous, false, Unaligned>

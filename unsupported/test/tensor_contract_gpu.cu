@@ -75,6 +75,52 @@ void test_gpu_contraction(int m_size, int k_size, int n_size) {
   gpuFree((void*)d_t_result);
 }
 
+template <int DataLayout, typename Scalar = float>
+void test_gpu_contraction_zero_k(int m_size, int n_size) {
+  const int k_size = 0;
+  Tensor<Scalar, 2, DataLayout> t_left(m_size, k_size);
+  Tensor<Scalar, 2, DataLayout> t_right(k_size, n_size);
+  Tensor<Scalar, 2, DataLayout> t_result(m_size, n_size);
+  Tensor<Scalar, 2, DataLayout> t_result_gpu(m_size, n_size);
+  t_result_gpu.setConstant(Scalar(123));
+  Eigen::array<DimPair, 1> dims{DimPair(1, 0)};
+
+  std::size_t t_left_bytes = (std::max)(t_left.size(), DenseIndex(1)) * sizeof(Scalar);
+  std::size_t t_right_bytes = (std::max)(t_right.size(), DenseIndex(1)) * sizeof(Scalar);
+  std::size_t t_result_bytes = t_result.size() * sizeof(Scalar);
+
+  Scalar* d_t_left;
+  Scalar* d_t_right;
+  Scalar* d_t_result;
+
+  gpuMalloc((void**)(&d_t_left), t_left_bytes);
+  gpuMalloc((void**)(&d_t_right), t_right_bytes);
+  gpuMalloc((void**)(&d_t_result), t_result_bytes);
+
+  // Prefill the device output with a nonzero value to verify that the GPU path actively zeroes the output buffer.
+  gpuMemcpy(d_t_result, t_result_gpu.data(), t_result_bytes, gpuMemcpyHostToDevice);
+
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_left(d_t_left, Eigen::array<int, 2>{m_size, k_size});
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_right(d_t_right, Eigen::array<int, 2>{k_size, n_size});
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_result(d_t_result, Eigen::array<int, 2>{m_size, n_size});
+
+  gpu_t_result.device(gpu_device) = gpu_t_left.contract(gpu_t_right, dims);
+  t_result = t_left.contract(t_right, dims);
+
+  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  for (DenseIndex i = 0; i < t_result.size(); i++) {
+    VERIFY_IS_EQUAL(t_result(i), Scalar(0));
+    VERIFY_IS_EQUAL(t_result_gpu(i), Scalar(0));
+  }
+
+  gpuFree((void*)d_t_left);
+  gpuFree((void*)d_t_right);
+  gpuFree((void*)d_t_result);
+}
+
 template <int DataLayout>
 void test_gpu_contraction_double(int m_size, int k_size, int n_size) {
   Tensor<double, 2, DataLayout> t_left(m_size, k_size);
@@ -255,6 +301,15 @@ EIGEN_DECLARE_TEST(tensor_contract_gpu) {
 
   CALL_SUBTEST_1(test_scalar<ColMajor>(128, 128, 128));
   CALL_SUBTEST_1(test_scalar<RowMajor>(128, 128, 128));
+
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<ColMajor>(10, 20)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<RowMajor>(10, 20)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<ColMajor>(64, 64)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<RowMajor>(64, 64)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<ColMajor, double>(10, 20)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<RowMajor, double>(10, 20)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<ColMajor, double>(64, 64)));
+  CALL_SUBTEST_1((test_gpu_contraction_zero_k<RowMajor, double>(64, 64)));
 
   CALL_SUBTEST_2(test_gpu_contraction_m<ColMajor>());
   CALL_SUBTEST_3(test_gpu_contraction_m<RowMajor>());

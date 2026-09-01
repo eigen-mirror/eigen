@@ -105,7 +105,19 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     const Index m = this->m_i_size;
     const Index n = this->m_j_size;
     const Index k = this->m_k_size;
-    if (m == 0 || n == 0 || k == 0) return;
+    if (m == 0 || n == 0) {
+      EIGEN_IF_CONSTEXPR (!IsEvalInSyncMode) done();
+      return;
+    }
+    if (k == 0) {
+      internal::tensor_contraction_dispatch(
+          [&](auto lhs_c, auto rhs_c, auto rhs_r) {
+            this->template evalProductSequential<lhs_c(), rhs_c(), rhs_r(), Unaligned>(buffer);
+          },
+          this->m_lhs_inner_dim_contiguous, this->m_rhs_inner_dim_contiguous, this->m_rhs_inner_dim_reordered);
+      EIGEN_IF_CONSTEXPR (!IsEvalInSyncMode) done();
+      return;
+    }
 
     // Compute a set of algorithm parameters:
     // - kernel block sizes (bm, bn, bk)

@@ -684,6 +684,17 @@ struct TensorContractionEvaluatorBase {
 
   template <bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous, bool rhs_inner_dim_reordered, int Alignment>
   void evalProductSequential(Scalar* buffer) const {
+    if (this->m_i_size == 0 || this->m_j_size == 0) {
+      return;
+    }
+    if (this->m_k_size == 0) {
+      // Contraction over dimension of size zero results in an all-zero output.
+      this->m_device.fill(buffer, buffer + this->m_i_size * this->m_j_size, Scalar(0));
+      using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
+      this->m_output_kernel(OutputMapper(buffer, this->m_i_size), this->m_tensor_contraction_params,
+                            static_cast<Index>(0), static_cast<Index>(0), this->m_i_size, this->m_j_size);
+      return;
+    }
     // Gemv-shape contractions (output is a vector) get a direct GEMV kernel
     // call when the operand layout admits one. There are four shapes:
     //
@@ -855,6 +866,17 @@ struct TensorContractionEvaluatorBase {
 
     // columns in right side
     const Index n = this->m_j_size;
+
+    if (m == 0 || n == 0) return;
+    if (k_slice == 0) {
+      this->m_device.fill(buffer, buffer + m * n, Scalar(0));
+      if (use_output_kernel) {
+        using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
+        m_output_kernel(OutputMapper(buffer, m), m_tensor_contraction_params, static_cast<Index>(0),
+                        static_cast<Index>(0), m, n);
+      }
+      return;
+    }
 
     // define data mappers for Lhs and Rhs
     using LhsScalar = std::remove_const_t<typename EvalLeftArgType::Scalar>;

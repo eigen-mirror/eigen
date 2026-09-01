@@ -593,6 +593,334 @@ static void test_narrow_index_contraction() {
   }
 }
 
+template <int DataLayout, typename Scalar>
+static void test_zero_dim_contraction_2d() {
+  // Test {10, 0} * {0, 20} -> {10, 20}
+  Tensor<Scalar, 2, DataLayout> t_left(10, 0);
+  Tensor<Scalar, 2, DataLayout> t_right(0, 20);
+
+  // Pre-fill destination tensor with non-zero values to verify that contraction actively zeroes output memory.
+  const Scalar non_zero = Scalar(123);
+  Tensor<Scalar, 2, DataLayout> t_result(10, 20);
+  t_result.setConstant(non_zero);
+
+  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+  t_result = t_left.contract(t_right, dims);
+
+  VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+  VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+  VERIFY_IS_EQUAL(t_result.size(), 200);
+
+  for (Index i = 0; i < t_result.dimension(0); ++i) {
+    for (Index j = 0; j < t_result.dimension(1); ++j) {
+      VERIFY_IS_EQUAL(t_result(i, j), Scalar(0));
+    }
+  }
+
+  // Also test via TensorEvaluator directly with evalTo into pre-filled memory.
+  Tensor<Scalar, 2, DataLayout> t_result_eval(10, 20);
+  t_result_eval.setConstant(non_zero);
+  typedef TensorEvaluator<decltype(t_left.contract(t_right, dims)), DefaultDevice> Evaluator;
+  Evaluator eval(t_left.contract(t_right, dims), DefaultDevice());
+  eval.evalTo(t_result_eval.data());
+  for (Index i = 0; i < t_result_eval.size(); ++i) {
+    VERIFY_IS_EQUAL(t_result_eval.data()[i], Scalar(0));
+  }
+
+  // Test large contraction: {64, 0} * {0, 64} -> {64, 64}
+  // This exercises the path where max(m, n) >= 48, which previously triggered a
+  // SIGFPE (division by zero) in computeProductBlockingSizes.
+  {
+    Tensor<Scalar, 2, DataLayout> t_left_large(64, 0);
+    Tensor<Scalar, 2, DataLayout> t_right_large(0, 64);
+    Tensor<Scalar, 2, DataLayout> t_result_large(64, 64);
+    t_result_large.setConstant(non_zero);
+
+    t_result_large = t_left_large.contract(t_right_large, dims);
+
+    VERIFY_IS_EQUAL(t_result_large.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result_large.dimension(1), 64);
+    VERIFY_IS_EQUAL(t_result_large.size(), 64 * 64);
+
+    for (Index i = 0; i < t_result_large.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result_large.data()[i], Scalar(0));
+    }
+  }
+
+  // 1D Vector contractions (GEMV shapes)
+  // Matrix {10, 0} * Vector {0} -> Vector {10}
+  Tensor<Scalar, 1, DataLayout> vec_right(0);
+  Tensor<Scalar, 1, DataLayout> vec_result(10);
+  vec_result.setConstant(non_zero);
+  vec_result = t_left.contract(vec_right, dims);
+  VERIFY_IS_EQUAL(vec_result.dimension(0), 10);
+  for (Index i = 0; i < vec_result.size(); ++i) {
+    VERIFY_IS_EQUAL(vec_result(i), Scalar(0));
+  }
+
+  // Vector {0} * Matrix {0, 20} -> Vector {20}
+  Tensor<Scalar, 1, DataLayout> vec_left(0);
+  Tensor<Scalar, 1, DataLayout> vec_result2(20);
+  vec_result2.setConstant(non_zero);
+  Eigen::array<DimPair, 1> dims_vm = {{DimPair(0, 0)}};
+  vec_result2 = vec_left.contract(t_right, dims_vm);
+  VERIFY_IS_EQUAL(vec_result2.dimension(0), 20);
+  for (Index i = 0; i < vec_result2.size(); ++i) {
+    VERIFY_IS_EQUAL(vec_result2(i), Scalar(0));
+  }
+
+  // Vector {0} * Vector {0} -> Scalar {}
+  Tensor<Scalar, 0, DataLayout> scalar_result;
+  scalar_result() = non_zero;
+  scalar_result = vec_left.contract(vec_right, dims_vm);
+  VERIFY_IS_EQUAL(scalar_result(), Scalar(0));
+}
+
+template <int DataLayout, typename Scalar>
+static void test_zero_dim_contraction_multidims() {
+  // Test {5, 0, 4} * {0, 3, 4} with contraction dims {1, 0} and {2, 2} -> {5, 3}
+  Tensor<Scalar, 3, DataLayout> t_left(5, 0, 4);
+  Tensor<Scalar, 3, DataLayout> t_right(0, 3, 4);
+
+  const Scalar non_zero = Scalar(123);
+  Tensor<Scalar, 2, DataLayout> t_result(5, 3);
+  t_result.setConstant(non_zero);
+
+  Eigen::array<DimPair, 2> dims = {{DimPair(1, 0), DimPair(2, 2)}};
+  t_result = t_left.contract(t_right, dims);
+
+  VERIFY_IS_EQUAL(t_result.dimension(0), 5);
+  VERIFY_IS_EQUAL(t_result.dimension(1), 3);
+  VERIFY_IS_EQUAL(t_result.size(), 15);
+
+  for (Index i = 0; i < t_result.dimension(0); ++i) {
+    for (Index j = 0; j < t_result.dimension(1); ++j) {
+      VERIFY_IS_EQUAL(t_result(i, j), Scalar(0));
+    }
+  }
+
+  // 4D contractions: {2, 5, 0, 3} * {0, 4, 3, 2} with contraction dims {2, 0} and {3, 2} -> {2, 5, 4, 2}
+  Tensor<Scalar, 4, DataLayout> t_left4(2, 5, 0, 3);
+  Tensor<Scalar, 4, DataLayout> t_right4(0, 4, 3, 2);
+  Tensor<Scalar, 4, DataLayout> t_result4(2, 5, 4, 2);
+  t_result4.setConstant(non_zero);
+
+  Eigen::array<DimPair, 2> dims4 = {{DimPair(2, 0), DimPair(3, 2)}};
+  t_result4 = t_left4.contract(t_right4, dims4);
+
+  VERIFY_IS_EQUAL(t_result4.dimension(0), 2);
+  VERIFY_IS_EQUAL(t_result4.dimension(1), 5);
+  VERIFY_IS_EQUAL(t_result4.dimension(2), 4);
+  VERIFY_IS_EQUAL(t_result4.dimension(3), 2);
+  VERIFY_IS_EQUAL(t_result4.size(), 80);
+
+  for (Index i = 0; i < t_result4.size(); ++i) {
+    VERIFY_IS_EQUAL(t_result4.data()[i], Scalar(0));
+  }
+}
+
+template <int DataLayout, typename Scalar>
+static void test_zero_dim_contraction_outer_zeros() {
+  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+
+  // Outer zero on LHS: {0, 5} * {5, 10} -> {0, 10}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(0, 5);
+    Tensor<Scalar, 2, DataLayout> t_right(5, 10);
+    t_right.setRandom();
+    Tensor<Scalar, 2, DataLayout> t_result(0, 10);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Outer zero on RHS: {10, 5} * {5, 0} -> {10, 0}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(10, 5);
+    Tensor<Scalar, 2, DataLayout> t_right(5, 0);
+    t_left.setRandom();
+    Tensor<Scalar, 2, DataLayout> t_result(10, 0);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Outer zero on both LHS and RHS: {0, 5} * {5, 0} -> {0, 0}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(0, 5);
+    Tensor<Scalar, 2, DataLayout> t_right(5, 0);
+    Tensor<Scalar, 2, DataLayout> t_result(0, 0);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Both outer and inner zero: {0, 0} * {0, 10} -> {0, 10}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(0, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 10);
+    Tensor<Scalar, 2, DataLayout> t_result(0, 10);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Both outer and inner zero: {10, 0} * {0, 0} -> {10, 0}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(10, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 0);
+    Tensor<Scalar, 2, DataLayout> t_result(10, 0);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Both outer and inner zero: {0, 0} * {0, 0} -> {0, 0}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(0, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 0);
+    Tensor<Scalar, 2, DataLayout> t_result(0, 0);
+    t_result = t_left.contract(t_right, dims);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+
+  // Multidimensional with outer zero: {0, 3, 4} * {3, 2, 4} with contraction dims {1, 0} and {2, 2} -> {0, 2}
+  {
+    Tensor<Scalar, 3, DataLayout> t_left(0, 3, 4);
+    Tensor<Scalar, 3, DataLayout> t_right(3, 2, 4);
+    t_right.setRandom();
+    Eigen::array<DimPair, 2> dims_md = {{DimPair(1, 0), DimPair(2, 2)}};
+    Tensor<Scalar, 2, DataLayout> t_result(0, 2);
+    t_result = t_left.contract(t_right, dims_md);
+    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 2);
+    VERIFY_IS_EQUAL(t_result.size(), 0);
+  }
+}
+
+template <typename Scalar>
+struct AddBiasOutputKernel {
+  Scalar bias;
+  explicit AddBiasOutputKernel(Scalar b) : bias(b) {}
+
+  template <typename Index, typename ResScalar>
+  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<ResScalar, Index, ColMajor>& output_mapper,
+                                      const TensorContractionParams&, Index, Index, Index num_rows,
+                                      Index num_cols) const {
+    for (Index i = 0; i < num_rows; ++i) {
+      for (Index j = 0; j < num_cols; ++j) {
+        output_mapper(i, j) += bias;
+      }
+    }
+  }
+};
+
+template <int DataLayout, typename Scalar>
+static void test_zero_dim_contraction_output_kernel() {
+  const Scalar non_zero = Scalar(123);
+  const Scalar bias = Scalar(42);
+
+  // 2D contraction with bias addition on zero-sized contraction dimension:
+  // {10, 0} * {0, 20} -> {10, 20}
+  // The contraction sum is 0, so output kernel adds bias to produce `bias` everywhere.
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(10, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 20);
+    Tensor<Scalar, 2, DataLayout> t_result(10, 20);
+    t_result.setConstant(non_zero);
+
+    Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+    t_result = t_left.contract(t_right, dims, AddBiasOutputKernel<Scalar>(bias));
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+    for (Index i = 0; i < t_result.dimension(0); ++i) {
+      for (Index j = 0; j < t_result.dimension(1); ++j) {
+        VERIFY_IS_EQUAL(t_result(i, j), bias);
+      }
+    }
+  }
+
+  // 2D contraction with SqrtOutputKernel on zero-sized contraction dimension:
+  // sqrt(0) == 0
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(10, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 20);
+    Tensor<Scalar, 2, DataLayout> t_result(10, 20);
+    t_result.setConstant(non_zero);
+
+    Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+    t_result = t_left.contract(t_right, dims, SqrtOutputKernel());
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], Scalar(0));
+    }
+  }
+
+  // Large contraction with bias addition on zero-sized contraction dimension:
+  // {64, 0} * {0, 64} -> {64, 64}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left_large(64, 0);
+    Tensor<Scalar, 2, DataLayout> t_right_large(0, 64);
+    Tensor<Scalar, 2, DataLayout> t_result_large(64, 64);
+    t_result_large.setConstant(non_zero);
+
+    Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+    t_result_large = t_left_large.contract(t_right_large, dims, AddBiasOutputKernel<Scalar>(bias));
+
+    VERIFY_IS_EQUAL(t_result_large.dimension(0), 64);
+    VERIFY_IS_EQUAL(t_result_large.dimension(1), 64);
+    for (Index i = 0; i < t_result_large.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result_large.data()[i], bias);
+    }
+  }
+
+  // Multidimensional contraction with bias: {5, 0, 4} * {0, 3, 4} -> {5, 3}
+  {
+    Tensor<Scalar, 3, DataLayout> t_left(5, 0, 4);
+    Tensor<Scalar, 3, DataLayout> t_right(0, 3, 4);
+    Tensor<Scalar, 2, DataLayout> t_result(5, 3);
+    t_result.setConstant(non_zero);
+
+    Eigen::array<DimPair, 2> dims = {{DimPair(1, 0), DimPair(2, 2)}};
+    t_result = t_left.contract(t_right, dims, AddBiasOutputKernel<Scalar>(bias));
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 5);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 3);
+    for (Index i = 0; i < t_result.dimension(0); ++i) {
+      for (Index j = 0; j < t_result.dimension(1); ++j) {
+        VERIFY_IS_EQUAL(t_result(i, j), bias);
+      }
+    }
+  }
+
+  // GEMV-shape contraction with bias (e.g. 1 column in RHS): {10, 0} * {0, 1} -> {10, 1}
+  {
+    Tensor<Scalar, 2, DataLayout> t_left(10, 0);
+    Tensor<Scalar, 2, DataLayout> t_right(0, 1);
+    Tensor<Scalar, 2, DataLayout> t_result(10, 1);
+    t_result.setConstant(non_zero);
+
+    Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+    t_result = t_left.contract(t_right, dims, AddBiasOutputKernel<Scalar>(bias));
+
+    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
+    VERIFY_IS_EQUAL(t_result.dimension(1), 1);
+    for (Index i = 0; i < t_result.size(); ++i) {
+      VERIFY_IS_EQUAL(t_result.data()[i], bias);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_1(test_evals<ColMajor>());
   CALL_SUBTEST_1(test_evals<RowMajor>());
@@ -637,6 +965,39 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, std::complex<double>>()));
   CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, std::complex<double>>()));
 
+  // Zero-dimension contraction tests:
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, std::complex<double>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, std::complex<double>>()));
+
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<ColMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<RowMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<ColMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<RowMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<ColMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<RowMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<ColMajor, std::complex<double>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_multidims<RowMajor, std::complex<double>>()));
+
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<ColMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<RowMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<ColMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<RowMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<ColMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<RowMajor, std::complex<float>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<ColMajor, std::complex<double>>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_outer_zeros<RowMajor, std::complex<double>>()));
+
+  CALL_SUBTEST_10((test_zero_dim_contraction_output_kernel<ColMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_output_kernel<RowMajor, float>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_output_kernel<ColMajor, double>()));
+  CALL_SUBTEST_10((test_zero_dim_contraction_output_kernel<RowMajor, double>()));
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10
 }
