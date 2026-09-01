@@ -19,16 +19,17 @@ namespace internal {
 // A complex packet is one real packet holding interleaved {re, im} pairs. That
 // layout is not a choice: GenericPacketMathComplex.h and ConjHelper.h both index
 // the member `v` and construct a complex packet from a real one.
-//
-// std::complex<double> is not vectorized here yet. plog_complex and pexp_complex
-// reach plog and pexp for PacketXd, which need a 64-bit integer packet this
-// backend does not define, and packetmath instantiates plog for any vectorizable
-// complex type regardless of HasLog -- so complex<double> has to wait for the
-// double transcendentals rather than ship with the flags turned off.
+
 struct PacketXcf {
   EIGEN_STRONG_INLINE PacketXcf() {}
   EIGEN_STRONG_INLINE explicit PacketXcf(const PacketXf& a) : v(a) {}
   PacketXf v;
+};
+
+struct PacketXcd {
+  EIGEN_STRONG_INLINE PacketXcd() {}
+  EIGEN_STRONG_INLINE explicit PacketXcd(const PacketXd& a) : v(a) {}
+  PacketXd v;
 };
 
 template <>
@@ -69,12 +70,57 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 };
 
 template <>
+struct packet_traits<std::complex<double>> : default_packet_traits {
+  typedef PacketXcd type;
+  typedef PacketXcd half;
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    size = sve_packet_size_selector<std::complex<double>, EIGEN_ARM64_SVE_VL>::size,
+
+    HasAdd = 1,
+    HasSub = 1,
+    HasMul = 1,
+    HasDiv = 1,
+    HasNegate = 1,
+    HasConj = 1,
+    HasSetLinear = 0,
+    HasAbs = 0,
+    HasAbs2 = 0,
+    HasMin = 0,
+    HasMax = 0,
+    HasArg = 0,
+
+    HasSqrt = 1,
+    HasLog = 1,
+    // As for complex<float>: pexp_complex reaches psin, which drops the sign
+    // under -ffast-math with GCC. See
+    // https://gitlab.com/libeigen/eigen/-/issues/3132.
+    HasExp = 0
+  };
+};
+
+template <>
 struct unpacket_traits<PacketXcf> {
   typedef std::complex<float> type;
   typedef PacketXcf half;
   typedef PacketXf as_real;
   enum {
     size = sve_packet_size_selector<std::complex<float>, EIGEN_ARM64_SVE_VL>::size,
+    alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
+    vectorizable = true,
+    masked_load_available = false,
+    masked_store_available = false
+  };
+};
+
+template <>
+struct unpacket_traits<PacketXcd> {
+  typedef std::complex<double> type;
+  typedef PacketXcd half;
+  typedef PacketXd as_real;
+  enum {
+    size = sve_packet_size_selector<std::complex<double>, EIGEN_ARM64_SVE_VL>::size,
     alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
     vectorizable = true,
     masked_load_available = false,
@@ -194,6 +240,140 @@ EIGEN_STRONG_INLINE std::complex<float> predux<PacketXcf>(const PacketXcf& a) {
   return {svaddv_f32(even, a.v), svaddv_f32(odd, a.v)};
 }
 
+/********************************* complex<double> ****************************/
+// A complex<double> spans two 64-bit lanes rather than sitting inside one, so
+// the lane kernels below index components instead of whole values.
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pset1<PacketXcd>(const std::complex<double>& from) {
+  // A complex value is one 128-bit quadword, so broadcasting it is a quadword dup.
+  return PacketXcd(svdupq_n_f64(numext::real(from), numext::imag(from)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pload<PacketXcd>(const std::complex<double>* from) {
+  return PacketXcd(pload<PacketXd>(reinterpret_cast<const double*>(from)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd ploadu<PacketXcd>(const std::complex<double>* from) {
+  return PacketXcd(ploadu<PacketXd>(reinterpret_cast<const double*>(from)));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstore<std::complex<double>>(std::complex<double>* to, const PacketXcd& from) {
+  pstore(reinterpret_cast<double*>(to), from.v);
+}
+
+template <>
+EIGEN_STRONG_INLINE void pstoreu<std::complex<double>>(std::complex<double>* to, const PacketXcd& from) {
+  pstoreu(reinterpret_cast<double*>(to), from.v);
+}
+
+// Gather the components of complex value `value_index[i]`, keeping the
+// component offset of lane i.
+EIGEN_STRONG_INLINE svuint64_t sve_cd_component_index(const svuint64_t& value_index) {
+  const svuint64_t lane = svindex_u64(0, 1);
+  return svadd_u64_x(svptrue_b64(), svlsl_n_u64_x(svptrue_b64(), value_index, 1),
+                     svand_n_u64_x(svptrue_b64(), lane, 1));
+}
+
+// Repeat each of the leading `kValues` complex values `1 << kLog2Repeat` times.
+// Reading them contiguously under an exact predicate and permuting beats a
+// gather, and unlike a 128-bit zip it needs no f64mm: lane j wants component
+// j & 1 of complex value j >> (kLog2Repeat + 1).
+template <int kLog2Repeat>
+EIGEN_STRONG_INLINE PacketXcd sve_cd_loadrepeat(const std::complex<double>* from) {
+  constexpr uint64_t kValues =
+      numext::maxi(uint64_t(packet_traits<std::complex<double>>::size) >> kLog2Repeat, uint64_t(1));
+  const svfloat64_t lo = svld1_f64(svwhilelt_b64(uint64_t(0), 2 * kValues), reinterpret_cast<const double*>(from));
+  const svuint64_t lane = svindex_u64(0, 1);
+  const svuint64_t idx =
+      svorr_u64_x(svptrue_b64(), svlsl_n_u64_x(svptrue_b64(), svlsr_n_u64_x(svptrue_b64(), lane, kLog2Repeat + 1), 1),
+                  svand_n_u64_x(svptrue_b64(), lane, 1));
+  return PacketXcd(svtbl_f64(lo, idx));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd ploaddup<PacketXcd>(const std::complex<double>* from) {
+  return sve_cd_loadrepeat<1>(from);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd ploadquad<PacketXcd>(const std::complex<double>* from) {
+  return sve_cd_loadrepeat<2>(from);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pgather<std::complex<double>, PacketXcd>(const std::complex<double>* from, Index stride) {
+  const svuint64_t value =
+      svmul_n_u64_x(svptrue_b64(), svlsr_n_u64_x(svptrue_b64(), svindex_u64(0, 1), 1), numext::uint64_t(stride));
+  return PacketXcd(
+      svld1_gather_u64index_f64(svptrue_b64(), reinterpret_cast<const double*>(from), sve_cd_component_index(value)));
+}
+
+template <>
+EIGEN_STRONG_INLINE void pscatter<std::complex<double>, PacketXcd>(std::complex<double>* to, const PacketXcd& from,
+                                                                   Index stride) {
+  const svuint64_t value =
+      svmul_n_u64_x(svptrue_b64(), svlsr_n_u64_x(svptrue_b64(), svindex_u64(0, 1), 1), numext::uint64_t(stride));
+  svst1_scatter_u64index_f64(svptrue_b64(), reinterpret_cast<double*>(to), sve_cd_component_index(value), from.v);
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<double> pfirst<PacketXcd>(const PacketXcd& a) {
+  // svlastb with a VL1 predicate reads lane 0, VL2 reads lane 1.
+  return {svlastb_f64(svptrue_pat_b64(SV_VL1), a.v), svlastb_f64(svptrue_pat_b64(SV_VL2), a.v)};
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pconj(const PacketXcd& a) {
+  // Flip the sign bit of every odd lane; the mask repeats every quadword.
+  const svuint64_t mask = svdupq_n_u64(0, numext::uint64_t(1) << 63);
+  return PacketXcd(svreinterpret_f64_u64(sveor_u64_x(svptrue_b64(), svreinterpret_u64_f64(a.v), mask)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pcplxflip<PacketXcd>(const PacketXcd& a) {
+  // Swapping the two lanes of each complex value is an index xor 1.
+  return PacketXcd(svtbl_f64(a.v, sveor_n_u64_x(svptrue_b64(), svindex_u64(0, 1), 1)));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pdupreal<PacketXcd>(const PacketXcd& a) {
+  return PacketXcd(svtrn1_f64(a.v, a.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd pdupimag<PacketXcd>(const PacketXcd& a) {
+  return PacketXcd(svtrn2_f64(a.v, a.v));
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXcd preverse(const PacketXcd& a) {
+  // Reversing every lane also swaps re and im inside each value; undo that.
+  return pcplxflip<PacketXcd>(PacketXcd(svrev_f64(a.v)));
+}
+
+template <>
+EIGEN_STRONG_INLINE std::complex<double> predux<PacketXcd>(const PacketXcd& a) {
+  const svbool_t even = svdupq_n_b64(true, false);
+  return {svaddv_f64(even, a.v), svaddv_f64(svrev_b64(even), a.v)};
+}
+
+// Round-trip through memory, as the real packets' ptranspose does. Expressed
+// against the semantics the scatter/gather form defines:
+// new[i][j] == old[(i * size + j) % N][(i * size + j) / N].
+template <int N>
+EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcd, N>& kernel) {
+  constexpr int size = unpacket_traits<PacketXcd>::size;
+  EIGEN_ALIGN_MAX std::complex<double> in[size * N];
+  EIGEN_ALIGN_MAX std::complex<double> out[size * N];
+  for (int i = 0; i < N; ++i) pstore(in + i * size, kernel.packet[i]);
+  for (int m = 0; m < size * N; ++m) out[m] = in[(m % N) * size + m / N];
+  for (int i = 0; i < N; ++i) kernel.packet[i] = pload<PacketXcd>(out + i * size);
+}
+
 /********************************* shared *************************************/
 
 // Everything that acts on {re, im} pairs identically forwards to the real packet.
@@ -252,9 +432,11 @@ EIGEN_STRONG_INLINE std::complex<float> predux<PacketXcf>(const PacketXcf& a) {
   }
 
 EIGEN_SVE_COMPLEX_DELEGATE(PacketXcf)
+EIGEN_SVE_COMPLEX_DELEGATE(PacketXcd)
 #undef EIGEN_SVE_COMPLEX_DELEGATE
 
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(PacketXcf)
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(PacketXcd)
 
 // A complex value is exactly one 64-bit lane, so transposing complex packets is
 // a zip network run on 64-bit elements.
@@ -274,6 +456,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcf, N>& kernel) {
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(PacketXcf, PacketXf)
+EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(PacketXcd, PacketXd)
 
 }  // end namespace internal
 }  // end namespace Eigen
