@@ -18,6 +18,20 @@ struct ConstexprTest {
   Matrix<Scalar, Rows, Rows> A;
 };
 
+template <typename Scalar, int Rows>
+struct ConstexprArrayTest {
+  constexpr ConstexprArrayTest(const Array<Scalar, Rows, Rows>& B) { A = B; }
+
+  Array<Scalar, Rows, Rows> A;
+};
+
+template <typename Scalar, int Rows>
+struct ConstexprArrayMoveTest {
+  constexpr ConstexprArrayMoveTest(Array<Scalar, Rows, Rows> B) { A = std::move(B); }
+
+  Array<Scalar, Rows, Rows> A;
+};
+
 EIGEN_DECLARE_TEST(constexpr) {
   // Clang accepts (some of) this code when using C++14/C++17, but GCC does not like
   // the fact that `T array[Size]` inside Eigen::internal::plain_array is not initialized
@@ -52,6 +66,16 @@ EIGEN_DECLARE_TEST(constexpr) {
   static_assert(obj2.A(0, 0) == 1);
   static_assert(obj2.A(0) == 1);
   static_assert(obj2.A.coeff(0, 1) == 2);
+
+  constexpr ConstexprArrayTest<double, 2> arr_obj1(Array22d({{1, 2}, {3, 4}}));
+  VERIFY_IS_EQUAL(arr_obj1.A.size(), 4);
+  static_assert(arr_obj1.A(0, 0) == 1);
+  static_assert(arr_obj1.A(0) == 1);
+  static_assert(arr_obj1.A.coeff(0, 1) == 2);
+
+  constexpr ConstexprArrayMoveTest<double, 2> arr_move_obj(Array22d({{1, 2}, {3, 4}}));
+  static_assert(arr_move_obj.A(0, 0) == 1);
+  static_assert(arr_move_obj.A.coeff(0, 1) == 2);
 
   // Also check dynamic size arrays/matrices with fixed-size storage (currently
   // only works if all elements are initialized, since otherwise the compiler

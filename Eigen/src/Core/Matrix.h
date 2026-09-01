@@ -261,7 +261,7 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    */
   EIGEN_DEVICE_FUNC constexpr Matrix& operator=(Matrix&& other) noexcept(
       std::is_nothrow_move_assignable<Scalar>::value) {
-    Base::operator=(std::move(other));
+    this->m_storage = std::move(other.m_storage);
     return *this;
   }
 

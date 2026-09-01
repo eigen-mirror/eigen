@@ -14,6 +14,11 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
+// for __cpp_lib feature test macros
+#if defined(__has_include) && __has_include(<version>)
+#include <version>
+#endif
+
 //------------------------------------------------------------------------------------------
 // Eigen version and basic defaults
 //------------------------------------------------------------------------------------------

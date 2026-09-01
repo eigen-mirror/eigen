@@ -52,15 +52,9 @@
 #endif
 
 // Align to the boundary that avoids false sharing.
-//   https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size
-// There is a bug in android NDK < r26 where the macro is defined but std::hardware_destructive_interference_size
-// still does not exist.
-#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201603 && \
-    (!EIGEN_OS_ANDROID || __NDK_MAJOR__ + 0 >= 26)
-#include <new>
-#define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(std::hardware_destructive_interference_size)
-#else
-// Overalign for the cache line size of 128 bytes (Apple M1)
+// Pinned to 128 bytes to preserve a stable ABI across architectures and standard libraries
+// and avoid GCC -Winterference-size warnings.
+#ifndef EIGEN_ALIGN_TO_AVOID_FALSE_SHARING
 #define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(128)
 #endif
 

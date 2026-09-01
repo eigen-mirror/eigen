@@ -21,6 +21,8 @@
 #define EIGEN_DEFAULT_DENSE_INDEX_TYPE int
 #elif defined(EIGEN_TEST_PART_3)
 #define EIGEN_64BIT_BLAS
+#elif defined(EIGEN_TEST_PART_4)
+#define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(256)
 #endif
 
 #include "main.h"
@@ -45,6 +47,19 @@ static_assert(int(Eigen::internal::traits<
                   EIGEN_DEFAULT_ALIGN_BYTES,
               "local_nested_eval_wrapper no longer follows EIGEN_DEFAULT_ALIGN_BYTES");
 
+// EIGEN_ALIGN_TO_AVOID_FALSE_SHARING must honor pre-existing definitions and stay pinned to 128 by default.
+struct AvoidFalseSharingAligned {
+  EIGEN_ALIGN_TO_AVOID_FALSE_SHARING char c;
+};
+
+#if defined(EIGEN_TEST_PART_4)
+static_assert(alignof(AvoidFalseSharingAligned) == 256,
+              "Pre-existing EIGEN_ALIGN_TO_AVOID_FALSE_SHARING definition was not preserved");
+#else
+static_assert(alignof(AvoidFalseSharingAligned) == 128,
+              "EIGEN_ALIGN_TO_AVOID_FALSE_SHARING should be pinned to 128 bytes by default");
+#endif
+
 // Per-part checks that the override actually took effect.
 #if defined(EIGEN_TEST_PART_2)
 static_assert(std::is_same<Eigen::Index, int>::value, "EIGEN_DEFAULT_DENSE_INDEX_TYPE was ignored");
@@ -67,8 +82,18 @@ void check_blas_index() {
 #endif
 }
 
+void check_false_sharing_alignment() {
+#if defined(EIGEN_TEST_PART_4)
+  VERIFY_IS_EQUAL(std::size_t(alignof(AvoidFalseSharingAligned)), std::size_t(256));
+#else
+  VERIFY_IS_EQUAL(std::size_t(alignof(AvoidFalseSharingAligned)), std::size_t(128));
+#endif
+}
+
 EIGEN_DECLARE_TEST(preprocessor_directives) {
   CALL_SUBTEST_1(check_index_type());
+  CALL_SUBTEST_1(check_false_sharing_alignment());
   CALL_SUBTEST_2(check_index_type());
   CALL_SUBTEST_3(check_blas_index());
+  CALL_SUBTEST_4(check_false_sharing_alignment());
 }
