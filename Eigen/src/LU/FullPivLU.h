@@ -362,7 +362,10 @@ void FullPivLU<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_lu.rows() <= NumTraits<PermutationIndex>::highest() &&
                m_lu.cols() <= NumTraits<PermutationIndex>::highest());
 
-  m_l1_norm = m_lu.cwiseAbs().colwise().sum().maxCoeff();
+  if (m_lu.cols() > 0)
+    m_l1_norm = m_lu.cwiseAbs().colwise().sum().maxCoeff();
+  else
+    m_l1_norm = RealScalar(0);
 
   const Index size = m_lu.diagonalSize();
   const Index rows = m_lu.rows();

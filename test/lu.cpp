@@ -165,6 +165,33 @@ void lu_partial_piv(Index size = MatrixType::ColsAtCompileTime) {
   VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
 }
 
+// Regression test: FullPivLU took the maximum of an empty column-sum vector when computing its l1 norm,
+// so it could not be constructed at all from a matrix with zero columns. PartialPivLU already guarded the
+// same reduction.
+template <typename MatrixType>
+void lu_empty() {
+  typedef typename MatrixType::Scalar Scalar;
+  const Index n = 5;
+
+  FullPivLU<MatrixType> lu{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY(lu.isInvertible());
+  VERIFY_IS_EQUAL(lu.determinant(), Scalar(1));
+
+  lu.compute(MatrixType(0, n));
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY_IS_EQUAL(lu.dimensionOfKernel(), n);
+  VERIFY(!lu.isInjective());
+
+  lu.compute(MatrixType(n, 0));
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY_IS_EQUAL(lu.dimensionOfKernel(), Index(0));
+  VERIFY(!lu.isSurjective());
+
+  PartialPivLU<MatrixType> plu{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(plu.determinant(), Scalar(1));
+}
+
 template <typename MatrixType>
 void lu_verify_assert() {
   MatrixType tmp;
@@ -302,6 +329,7 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_4(lu_invertible<MatrixXd>());
     CALL_SUBTEST_4(lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_4(lu_verify_assert<MatrixXd>());
+    CALL_SUBTEST_4(lu_empty<MatrixXd>());
 
     CALL_SUBTEST_5(lu_non_invertible<MatrixXcf>());
     CALL_SUBTEST_5(lu_invertible<MatrixXcf>());
@@ -311,6 +339,7 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_6(lu_invertible<MatrixXcd>());
     CALL_SUBTEST_6(lu_partial_piv<MatrixXcd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_6(lu_verify_assert<MatrixXcd>());
+    CALL_SUBTEST_6(lu_empty<MatrixXcd>());
 
     CALL_SUBTEST_7((lu_non_invertible<Matrix<float, Dynamic, 16> >()));
 
