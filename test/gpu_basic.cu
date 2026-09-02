@@ -76,6 +76,27 @@ struct make_householder_complex_zero_tail {
   }
 };
 
+// Applies the complex operators inside Eigen's own templates, which see the device overloads only through
+// Eigen/Core's include order; complex_operators below finds them through its using-directive.
+template <typename ComplexType>
+struct complex_internal_operators {
+  EIGEN_DEVICE_FUNC void operator()(int i, const ComplexType* in, ComplexType* out) const {
+    const int num_operators = 8;
+    int out_idx = i * num_operators;
+    const ComplexType a = in[i];
+    const ComplexType b = in[i + 1];
+
+    out[out_idx++] = numext::negate(a);
+    out[out_idx++] = numext::conj(a);
+    out[out_idx++] = internal::padd(a, b);
+    out[out_idx++] = internal::psub(a, b);
+    out[out_idx++] = internal::pmul(a, b);
+    out[out_idx++] = internal::pdiv(a, b);
+    out[out_idx++] = internal::pnegate(a);
+    out[out_idx++] = internal::pconj(a);
+  }
+};
+
 template <typename T>
 struct complex_sqrt {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -599,6 +620,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   // Test std::complex.
   CALL_SUBTEST(run_and_compare_to_gpu(complex_operators<Vector3cf>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(complex_internal_operators<std::complex<float>>(), nthreads, cfin, cfout));
   CALL_SUBTEST(test_with_infs_nans(complex_sqrt<Vector3cf>(), nthreads, cfin, cfout));
 
   // numeric_limits
