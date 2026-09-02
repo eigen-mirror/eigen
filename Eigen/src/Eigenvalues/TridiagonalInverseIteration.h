@@ -42,10 +42,7 @@ struct inverse_iteration_rng {
     // (uncorrelated) start vectors -- consecutive LCG seeds would produce near-parallel starts that
     // collapse under the cluster reorthogonalization.
     state += 0x9E3779B97F4A7C15ULL;
-    numext::uint64_t z = state;
-    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-    z = z ^ (z >> 31);
+    const numext::uint64_t z = splitmix64_mix(state);
     // Top 32 bits give a uniform integer in [0, 2^32); map to [0, 1) and then to (-1, 1).
     // RealScalar must be float or wider: a narrower scalar overflows RealScalar(hi) to infinity
     // (inf * 0 = NaN start vectors), which is why TridiagonalEigenSolver computes scalars narrower
