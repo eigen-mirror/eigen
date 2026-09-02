@@ -62,9 +62,7 @@ void cod() {
   // now construct a (square) matrix with prescribed determinant
   Index size = internal::random<Index>(2, 20);
   matrix.setZero(size, size);
-  for (int i = 0; i < size; i++) {
-    matrix(i, i) = internal::random<Scalar>();
-  }
+  setRandomWellConditionedDiagonal(matrix);
   Scalar det = matrix.diagonal().prod();
   RealScalar absdet = numext::abs(det);
   CompleteOrthogonalDecomposition<MatrixType> cod2(matrix);
@@ -275,7 +273,7 @@ void qr_invertible() {
 
   // now construct a matrix with prescribed determinant
   m1.setZero();
-  for (int i = 0; i < size; i++) m1(i, i) = internal::random<Scalar>();
+  setRandomWellConditionedDiagonal(m1);
   Scalar det = m1.diagonal().prod();
   RealScalar absdet = abs(det);
   m3 = qr.householderQ();  // get a unitary

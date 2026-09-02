@@ -97,7 +97,7 @@ void qr_invertible() {
 
   // now construct a matrix with prescribed determinant
   m1.setZero();
-  for (int i = 0; i < size; i++) m1(i, i) = internal::random<Scalar>();
+  setRandomWellConditionedDiagonal(m1);
   Scalar det = m1.diagonal().prod();
   RealScalar absdet = abs(det);
   m3 = qr.matrixQ();  // get a unitary

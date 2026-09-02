@@ -52,8 +52,6 @@ template <typename MatrixType>
 void qr_invertible() {
   using std::abs;
   using std::log;
-  using std::max;
-  using std::pow;
   typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
   typedef typename MatrixType::Scalar Scalar;
 
@@ -76,7 +74,7 @@ void qr_invertible() {
 
   // now construct a matrix with prescribed determinant
   m1.setZero();
-  for (int i = 0; i < size; i++) m1(i, i) = internal::random<Scalar>();
+  setRandomWellConditionedDiagonal(m1);
   Scalar det = m1.diagonal().prod();
   RealScalar absdet = abs(det);
   m3 = qr.householderQ();  // get a unitary
@@ -84,12 +82,8 @@ void qr_invertible() {
   qr.compute(m1);
   VERIFY_IS_APPROX(log(absdet), qr.logAbsDeterminant());
   VERIFY_IS_APPROX(numext::sign(det), qr.signDeterminant());
-  // This test is tricky if the determinant becomes too small.
-  // Since we generate random numbers with magnitude range [0,1], the average determinant is 0.5^size
-  RealScalar tol =
-      numext::maxi(RealScalar(pow(0.5, size)), numext::maxi<RealScalar>(abs(absdet), abs(qr.absDeterminant())));
-  VERIFY_IS_MUCH_SMALLER_THAN(abs(det - qr.determinant()), tol);
-  VERIFY_IS_MUCH_SMALLER_THAN(abs(absdet - qr.absDeterminant()), tol);
+  VERIFY_IS_APPROX(det, qr.determinant());
+  VERIFY_IS_APPROX(absdet, qr.absDeterminant());
 }
 
 template <typename MatrixType>
