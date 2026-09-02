@@ -19,6 +19,15 @@
 dim3 threadIdx, blockDim, blockIdx;
 #endif
 
+// Marks a functor body that only compiles in the device pass because it uses packet operations the host pass does
+// not have (the half packets; the float4/double2 comparisons and bit operations). Such a functor runs through
+// run_on_gpu only, never through run_on_cpu or run_and_compare_to_gpu.
+#if defined(EIGEN_GPUCC)
+#define EIGEN_TEST_DEVICE_ONLY __device__
+#else
+#define EIGEN_TEST_DEVICE_ONLY
+#endif
+
 template <typename Kernel, typename Input, typename Output>
 void run_on_cpu(const Kernel& ker, int n, const Input& in, Output& out) {
   for (int i = 0; i < n; i++) ker(i, in.data(), out.data());
@@ -33,6 +42,8 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void run_on_gpu_meta_kernel(const Kernel
   }
 }
 
+// A binary that carries no code for the present device reports as skipped (skip_test in main.h) rather than failing:
+// the compiled -arch is a property of the build, not a bug.
 template <typename Kernel, typename Input, typename Output>
 void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out) {
   typename Input::Scalar* d_in;
@@ -57,14 +68,17 @@ void run_on_gpu(const Kernel& ker, int n, const Input& in, Output& out) {
   hipLaunchKernelGGL(
       HIP_KERNEL_NAME(run_on_gpu_meta_kernel<Kernel, std::decay_t<decltype(*d_in)>, std::decay_t<decltype(*d_out)>>),
       dim3(Grids), dim3(Blocks), 0, 0, ker, n, d_in, d_out);
+  const gpuError_t no_image_for_device = hipErrorNoBinaryForGpu;
 #else
   // Various versions of clang-format incorrectly add spaces to the kernel launch brackets.
   // clang-format off
   run_on_gpu_meta_kernel<<<Grids, Blocks>>>(ker, n, d_in, d_out);
   // clang-format on
+  const gpuError_t no_image_for_device = cudaErrorNoKernelImageForDevice;
 #endif
   // Pre-launch errors.
   gpuError_t err = gpuGetLastError();
+  if (err == no_image_for_device) skip_test("this binary carries no kernel image for the present device");
   if (err != gpuSuccess) {
     printf("%s: %s\n", gpuGetErrorName(err), gpuGetErrorString(err));
     gpu_assert(false);

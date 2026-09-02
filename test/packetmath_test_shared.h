@@ -126,6 +126,69 @@ bool areFullBitMasks(const Scalar* data, const bool* zero_mask, int size) {
   return true;
 }
 
+// print_mismatch for a buffer of any length: the eight lanes around position `at`.
+template <typename Scalar>
+inline void print_mismatch_window(const Scalar* ref, const Scalar* vec, int size, int at) {
+  const int window = 8;
+  const int begin = (std::max)(0, at - window / 2);
+  const int end = (std::min)(size, begin + window);
+  std::cout << "lanes [" << begin << ", " << end << ") ";
+  print_mismatch(ref + begin, vec + begin, end - begin);
+}
+
+// Bitwise equality lane by lane; with `nan_is_nan`, two NaNs match whatever their payloads. Use it where a
+// contract fixes the result bit for bit (loads and stores, bit operations, correctly rounded arithmetic, the sign of
+// a zero) and areEqual's value comparison would pass +0 for -0.
+template <typename Scalar>
+bool areEqualBits(const Scalar* a, const Scalar* b, int size, bool nan_is_nan = true) {
+  for (int i = 0; i < size; ++i) {
+    const bool both_nan = nan_is_nan && (numext::isnan)(a[i]) && (numext::isnan)(b[i]);
+    if (!both_nan && !biteq(a[i], b[i])) {
+      print_mismatch_window(a, b, size, i);
+      std::cout << std::setprecision(16) << "Bits differ in position " << i << ": " << a[i] << " vs " << b[i]
+                << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
+// The position of x among the values of its type: the sign-magnitude bit pattern folded onto a monotone integer
+// line, so that adjacent representable values are one apart, +0 and -0 coincide, and the infinities sit at the ends.
+template <typename Scalar>
+typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type ordered_position(Scalar x) {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
+  const Bits bits = numext::bit_cast<Bits>(x);
+  return bits < 0 ? Bits((std::numeric_limits<Bits>::min)() - bits) : bits;
+}
+
+// Distance in units in the last place between two values of the same floating-point type. Two NaNs are zero apart,
+// a NaN and a number as far apart as possible. (test/ulp_accuracy measures signed errors with its own fold, which
+// maps -0 below +0 and treats infinities as incomparable; the budgets it reports are not this distance.)
+template <typename Scalar>
+uint64_t ulp_distance(Scalar a, Scalar b) {
+  const bool a_nan = (numext::isnan)(a);
+  const bool b_nan = (numext::isnan)(b);
+  if (a_nan || b_nan) return (a_nan && b_nan) ? 0 : (std::numeric_limits<uint64_t>::max)();
+  const int64_t pa = static_cast<int64_t>(ordered_position(a));
+  const int64_t pb = static_cast<int64_t>(ordered_position(b));
+  return pa > pb ? uint64_t(pa) - uint64_t(pb) : uint64_t(pb) - uint64_t(pa);
+}
+
+template <typename Scalar>
+bool areWithinUlps(const Scalar* ref, const Scalar* vec, int size, uint64_t max_ulps) {
+  for (int i = 0; i < size; ++i) {
+    const uint64_t distance = ulp_distance(ref[i], vec[i]);
+    if (distance > max_ulps) {
+      print_mismatch_window(ref, vec, size, i);
+      std::cout << std::setprecision(16) << "Values differ in position " << i << " by " << distance << " ulps (budget "
+                << max_ulps << "): " << ref[i] << " vs " << vec[i] << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
 template <typename Scalar>
 bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& precision) {
   for (int i = 0; i < size; ++i) {
