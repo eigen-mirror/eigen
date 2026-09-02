@@ -40,6 +40,24 @@ using Buffer = Eigen::Array<Scalar, Eigen::Dynamic, 1>;
 // 2 ulp for rsqrtf and 1 ulp for rsqrt, and the reference below is rounded once more from the wider type.
 const uint64_t kRsqrtFloatUlps = 3;
 const uint64_t kRsqrtDoubleUlps = 2;
+// The CUDA Math API's documented maximum error for each function, plus one for the rounding of the reference from
+// the wider type. Everything here is a named budget the test pins, so a toolkit regression is a test failure.
+struct MathUlpBudget {
+  uint64_t log, log1p, exp, exp2, expm1;
+};
+const MathUlpBudget kFloatUlps = {2, 2, 3, 3, 2};
+const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, 2};
+
+// The reference is computed one type wider and rounded once.
+template <typename Scalar>
+struct wider_type {
+  using type = double;
+};
+template <>
+struct wider_type<double> {
+  using type = long double;
+};
+
 // nvcc compiles sqrtf to a correctly rounded sqrt (-prec-sqrt=true is its default); clang as the CUDA compiler
 // lowers it to an approximation one ulp off, and only the __fsqrt_rn intrinsic is exact there. Double sqrt is
 // correctly rounded under both.
@@ -96,6 +114,11 @@ EIGEN_GPU_TEST_UNARY_OP(op_ptrunc, Eigen::internal::ptrunc(a))
 EIGEN_GPU_TEST_UNARY_OP(op_pround, Eigen::internal::pround(a))
 EIGEN_GPU_TEST_UNARY_OP(op_psqrt, Eigen::internal::psqrt(a))
 EIGEN_GPU_TEST_UNARY_OP(op_prsqrt, Eigen::internal::prsqrt(a))
+EIGEN_GPU_TEST_UNARY_OP(op_plog, Eigen::internal::plog(a))
+EIGEN_GPU_TEST_UNARY_OP(op_plog1p, Eigen::internal::plog1p(a))
+EIGEN_GPU_TEST_UNARY_OP(op_pexp, Eigen::internal::pexp(a))
+EIGEN_GPU_TEST_UNARY_OP(op_pexp2, Eigen::internal::pexp2(a))
+EIGEN_GPU_TEST_UNARY_OP(op_pexpm1, Eigen::internal::pexpm1(a))
 EIGEN_GPU_TEST_UNARY_OP(op_preverse, Eigen::internal::preverse(a))
 EIGEN_GPU_TEST_UNARY_OP(op_ptrue, Eigen::internal::ptrue(a))
 EIGEN_GPU_TEST_UNARY_OP(op_pzero, Eigen::internal::pzero(a))
@@ -595,19 +618,107 @@ void check_redux(const Buffer<typename unpacket_traits<Packet>::type>& in, Ref r
   VERIFY_OP(compare(expected.data(), out.data(), n));
 }
 
+// Points where the standard fixes the result exactly, whatever the implementation's accuracy elsewhere. The
+// comparison is bitwise, so the sign of a zero counts; NaN matches NaN whatever the payload.
+template <typename Packet, typename Op>
+void check_special_values(
+    const std::vector<std::pair<typename unpacket_traits<Packet>::type, typename unpacket_traits<Packet>::type>>&
+        cases) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  const int kSize = unpacket_traits<Packet>::size;
+  std::vector<Scalar> in_values, expected_values;
+  for (const auto& one : cases) {
+    in_values.push_back(one.first);
+    expected_values.push_back(one.second);
+  }
+  // Pad to a whole number of packets by repeating the first case; only the real cases are compared.
+  while (in_values.size() % kSize != 0) {
+    in_values.push_back(cases[0].first);
+    expected_values.push_back(cases[0].second);
+  }
+  const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(in_values.data(), in_values.size());
+  Buffer<Scalar> out(in.size());
+  out.setConstant(Scalar(-7));
+  run_on_gpu(unary_kernel<Packet, Op>(), int(in.size()) / kSize, in, out);
+  VERIFY_OP(test::areEqualBits(expected_values.data(), out.data(), int(cases.size())));
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// Parts 2 and 4: the transcendental operations. Accuracy over the ordinary range is a named ULP budget against a
+// reference computed one type wider; the values the standard fixes are checked exactly.
+
+template <typename Scalar>
+void packetmath_gpu_real_math() {
+  using Packet = typename packet_traits<Scalar>::type;
+  using Wider = typename wider_type<Scalar>::type;
+  const int kSize = unpacket_traits<Packet>::size;
+  const MathUlpBudget& budget = std::is_same<Scalar, double>::value ? kDoubleUlps : kFloatUlps;
+
+  const std::vector<int> traits = device_traits<Scalar>();
+  VERIFY_IS_EQUAL(traits[kHasExp], 1);
+  VERIFY_IS_EQUAL(traits[kHasLog], 1);
+
+  const Scalar zero(0), one(1), inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
+  const Scalar lowest = std::numeric_limits<Scalar>::lowest(), largest = (std::numeric_limits<Scalar>::max)();
+
+  // Inputs the logarithms accept: positive, plus the special values, which the budgeted comparison tolerates
+  // because a NaN reference matches a NaN result.
+  const Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
+  Buffer<Scalar> positive(in.size());
+  for (Index k = 0; k < in.size(); ++k) positive[k] = std::abs(in[k]);
+  // log1p's domain is (-1, +inf), and the interesting half of it is the run just above -1: |x| - 0.5 never
+  // reaches below -0.5, so it would leave the argument reduction there untested. Even lanes therefore hold
+  // -1 + u with u drawn log-uniformly over [2^-digits, 1), which walks (-1, 0) from a single ulp above -1 up to
+  // 0; odd lanes keep |x| - 0.5, which covers (-0.5, +inf) and carries the special values.
+  Buffer<Scalar> above_minus_one(in.size());
+  for (Index k = 0; k < in.size(); ++k) {
+    if (k % 2 == 0) {
+      const int exponent = Eigen::internal::random<int>(1, Eigen::NumTraits<Scalar>::digits());
+      const Scalar significand = Eigen::internal::random<Scalar>(Scalar(1), Scalar(2));
+      above_minus_one[k] = Scalar(-1) + std::ldexp(significand, -exponent);
+    } else {
+      above_minus_one[k] = std::abs(in[k]) - Scalar(0.5);
+    }
+  }
+
+  check_unary<Packet, op_pexp>(
+      in, [](Scalar x) { return static_cast<Scalar>(std::exp(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.exp});
+  check_unary<Packet, op_pexp2>(
+      in, [](Scalar x) { return static_cast<Scalar>(std::exp2(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.exp2});
+  check_unary<Packet, op_pexpm1>(
+      in, [](Scalar x) { return static_cast<Scalar>(std::expm1(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.expm1});
+  check_unary<Packet, op_plog>(
+      positive, [](Scalar x) { return static_cast<Scalar>(std::log(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.log});
+  check_unary<Packet, op_plog1p>(
+      above_minus_one, [](Scalar x) { return static_cast<Scalar>(std::log1p(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.log1p});
+
+  check_special_values<Packet, op_pexp>(
+      {{zero, one}, {-zero, one}, {-inf, zero}, {inf, inf}, {nan, nan}, {lowest, zero}, {largest, inf}});
+  check_special_values<Packet, op_pexp2>(
+      {{zero, one}, {-zero, one}, {one, Scalar(2)}, {-inf, zero}, {inf, inf}, {nan, nan}});
+  // expm1 preserves the sign of a zero, and saturates to -1 at minus infinity.
+  check_special_values<Packet, op_pexpm1>(
+      {{zero, zero}, {-zero, -zero}, {-inf, Scalar(-1)}, {inf, inf}, {nan, nan}, {lowest, Scalar(-1)}});
+  check_special_values<Packet, op_plog>(
+      {{one, zero}, {zero, -inf}, {-zero, -inf}, {-one, nan}, {-inf, nan}, {inf, inf}, {nan, nan}});
+  check_special_values<Packet, op_plog1p>(
+      {{zero, zero}, {-zero, -zero}, {Scalar(-1), -inf}, {Scalar(-2), nan}, {-inf, nan}, {inf, inf}, {nan, nan}});
+}
+
 // ------------------------------------------------------------------------------------------------------------------
 // The core of a floating-point packet type: loads and stores, arithmetic, min/max, rounding, bit operations,
 // comparisons, select, reductions, sqrt and rsqrt.
 
 template <typename Scalar>
-Scalar rsqrt_reference(Scalar x);
-template <>
-float rsqrt_reference<float>(float x) {
-  return static_cast<float>(1.0 / std::sqrt(static_cast<double>(x)));
-}
-template <>
-double rsqrt_reference<double>(double x) {
-  return static_cast<double>(1.0L / std::sqrt(static_cast<long double>(x)));
+Scalar rsqrt_reference(Scalar x) {
+  using Wider = typename wider_type<Scalar>::type;
+  return static_cast<Scalar>(Wider(1) / std::sqrt(static_cast<Wider>(x)));
 }
 
 template <typename Scalar>
@@ -876,11 +987,8 @@ void packetmath_gpu_real_core() {
         return s;
       },
       bits);
-  const Buffer<Scalar> numbers = [&] {
-    std::vector<Scalar> v;
-    for (Index k = 0; k < in.size(); ++k) v.push_back((std::isnan)(in[k]) ? Scalar(1) : in[k]);
-    return Eigen::Map<const Buffer<Scalar>>(v.data(), v.size()).eval();
-  }();
+  Buffer<Scalar> numbers(in.size());
+  for (Index k = 0; k < in.size(); ++k) numbers[k] = (std::isnan)(in[k]) ? Scalar(1) : in[k];
   check_redux<Packet, op_predux_min>(
       numbers,
       [kSize](const Scalar* p) {
@@ -1048,7 +1156,9 @@ EIGEN_DECLARE_TEST(packetmath_gpu) {
   ei_test_init_gpu();
   CALL_SUBTEST_1(host_pass_instantiation());
   CALL_SUBTEST_1(packetmath_gpu_real_core<float>());
+  CALL_SUBTEST_2(packetmath_gpu_real_math<float>());
   CALL_SUBTEST_3(packetmath_gpu_real_core<double>());
+  CALL_SUBTEST_4(packetmath_gpu_real_math<double>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<int32_t>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<int64_t>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<uint8_t>());
