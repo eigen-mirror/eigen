@@ -500,6 +500,8 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernel(Reducer reduce
   for (Index i = blockIdx.x; i < num_input_blocks; i += gridDim.x) {
     const Index row = i / input_col_blocks;
 
+    // `i`, and so `row`, is uniform across the block: a warp enters this branch as a whole, which the full-mask
+    // shuffle tree below relies on.
     if (row < num_preserved_coeffs) {
       const Index col_block = i % input_col_blocks;
       const Index col_begin = col_block * blockDim.x * NumPerThread + threadIdx.x;
@@ -575,6 +577,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(Reduc
   for (Index i = blockIdx.x; i < num_input_blocks; i += gridDim.x) {
     const Index row = 2 * (i / input_col_blocks);  // everybody takes 2 rows
 
+    // Block-uniform, as in InnerReductionKernel: the full-mask shuffles below are safe.
     if (row + 1 < num_preserved_coeffs) {
       const Index col_block = i % input_col_blocks;
       const Index col_begin = packet_width * (col_block * blockDim.x * NumPerThread + threadIdx.x);
@@ -847,10 +850,12 @@ template <typename Self, typename Op>
 struct OuterReducer<Self, Op, GpuDevice> {
   // Unfortunately nvidia doesn't support well exotic types such as complex,
   // so reduce the scope of the optimized version of the code to the simple case
-  // of floats.
+  // of floats and doubles.
+  template <typename T>
+  using IsFloatOrDouble = bool_constant<std::is_same<T, float>::value || std::is_same<T, double>::value>;
+
   static constexpr bool HasOptimizedImplementation =
-      !Self::ReducerTraits::IsStateful && (std::is_same<typename Self::CoeffReturnType, float>::value ||
-                                           std::is_same<typename Self::CoeffReturnType, double>::value);
+      !Self::ReducerTraits::IsStateful && IsFloatOrDouble<typename Self::CoeffReturnType>::value;
   template <typename Device, typename OutputType>
   static
 #if !defined(EIGEN_HIPCC)
@@ -871,13 +876,27 @@ struct OuterReducer<Self, Op, GpuDevice> {
     return true;
   }
 
-  static bool run(const Self& self, Op& reducer, const GpuDevice& device, float* output,
+  // OuterReductionKernel is generic in CoeffReturnType, so one launch serves both types that
+  // HasOptimizedImplementation admits. The enable_if keeps every other OutputType on the overload above: the
+  // caller's EIGEN_IF_CONSTEXPR is a plain `if` in C++14, so the call is instantiated for those types as well.
+  template <typename OutputType, EIGEN_SFINAE_ENABLE_IF(IsFloatOrDouble<OutputType>::value)>
+  static bool run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs_to_reduce, typename Self::Index num_preserved_vals) {
     typedef typename Self::Index Index;
 
     // It's faster to use the usual code.
     if (num_coeffs_to_reduce <= 32) {
       return true;
+    }
+
+    // Double reductions use compare-and-swap atomics. Restrict their parallel reduction to the shape band
+    // measured to amortize that contention on sm_89; outside it, use one thread per output.
+    if (std::is_same<OutputType, double>::value) {
+      const Index multi_processors = device.getNumGpuMultiProcessors();
+      if (num_coeffs_to_reduce < 64 || num_preserved_vals < 8 * multi_processors ||
+          num_preserved_vals > 64 * multi_processors) {
+        return true;
+      }
     }
 
     const Index num_coeffs = num_coeffs_to_reduce * num_preserved_vals;
@@ -893,7 +912,7 @@ struct OuterReducer<Self, Op, GpuDevice> {
       const int dyn_blocks2 = numext::div_ceil<int>(num_preserved_vals, 1024);
       const int max_blocks2 = device.getNumGpuMultiProcessors() * device.maxGpuThreadsPerMultiProcessor() / 1024;
       const int num_blocks2 = numext::mini<int>(max_blocks2, dyn_blocks2);
-      LAUNCH_GPU_KERNEL((ReductionInitKernel<float, Index>), num_blocks2, 1024, 0, device, reducer.initialize(),
+      LAUNCH_GPU_KERNEL((ReductionInitKernel<OutputType, Index>), num_blocks2, 1024, 0, device, reducer.initialize(),
                         num_preserved_vals, output);
     }
 

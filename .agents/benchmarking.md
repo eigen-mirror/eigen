@@ -31,7 +31,7 @@ both locally, and report the measurement conditions this guide requires.
 ### GPU kernel benchmarks
 
 `benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead,
-contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
+reductions, contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
 benchmark project behind an option, so the CPU tree builds as before:
 
 ```bash
@@ -41,8 +41,8 @@ cmake --build build-bench-gpu
 ./build-bench-gpu/GPU/bench_gpu_elementwise --benchmark_repetitions=10 --benchmark_report_aggregates_only=true
 ```
 
-The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`, `bench_gpu_contraction` (against cuBLAS) and
-`bench_gpu_alloc`.
+The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`, `bench_gpu_reduction` (against CUB),
+`bench_gpu_contraction` (against cuBLAS) and `bench_gpu_alloc`.
 
 `CMAKE_CUDA_ARCHITECTURES=native` needs CMake 3.24; name the architecture (`89`) otherwise. Device time is measured
 with events around a batch of launches (`eigen_bench::timeLaunches`), using `UseManualTime()` to report time per

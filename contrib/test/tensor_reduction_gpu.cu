@@ -93,11 +93,7 @@ static void test_first_dim_reductions() {
 }
 
 template <typename Type, int DataLayout>
-static void test_last_dim_reductions() {
-  int dim_x = 128;
-  int dim_y = 1;
-  int dim_z = 33;
-
+static void test_last_dim_reductions(int dim_x = 128, int dim_y = 1, int dim_z = 33) {
   Tensor<Type, 3, DataLayout> in(dim_x, dim_y, dim_z);
   in.setRandom();
 
@@ -141,12 +137,20 @@ EIGEN_DECLARE_TEST(tensor_reduction_gpu) {
   CALL_SUBTEST_3((test_first_dim_reductions<float, ColMajor>()));
   CALL_SUBTEST_3((test_first_dim_reductions<double, ColMajor>()));
   CALL_SUBTEST_4((test_first_dim_reductions<float, RowMajor>()));
-  // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_4((test_first_dim_reductions<double, RowMajor>()))
+  CALL_SUBTEST_4((test_first_dim_reductions<double, RowMajor>()));
 
   CALL_SUBTEST_5((test_last_dim_reductions<float, ColMajor>()));
-  // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_5((test_last_dim_reductions<double, ColMajor>()));
+  CALL_SUBTEST_5((test_last_dim_reductions<double, ColMajor>()));
   CALL_SUBTEST_6((test_last_dim_reductions<float, RowMajor>()));
   CALL_SUBTEST_6((test_last_dim_reductions<double, RowMajor>()));
+
+  // A double outer reduction reaches OuterReductionKernel only inside the band of output counts OuterReducer::run
+  // gates on, and that band scales with the device's multiprocessor count; every shape above lies outside it and
+  // takes the generic path. The float cases are not gated and reach the kernel already.
+  {
+    Eigen::GpuStreamDevice stream;
+    Eigen::GpuDevice device(&stream);
+    const int outputs_in_band = 16 * device.getNumGpuMultiProcessors();
+    CALL_SUBTEST_7((test_last_dim_reductions<double, ColMajor>(outputs_in_band, 1, 128)));
+  }
 }

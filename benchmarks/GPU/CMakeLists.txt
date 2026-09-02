@@ -38,6 +38,13 @@ eigen_add_gpu_benchmark(bench_gpu_elementwise bench_gpu_elementwise.cu)
 # Launch overhead: an executor launch of a tiny expression against a raw <<<>>> launch, LAUNCH_GPU_KERNEL and
 # cudaLaunchKernel.
 eigen_add_gpu_benchmark(bench_gpu_launch bench_gpu_launch.cu)
+# Full and partial reductions against CUB, which nvcc compiles from the toolkit's own headers, so the CUDA 13
+# relocation of CCCL is transparent here.
+eigen_add_gpu_benchmark(bench_gpu_reduction bench_gpu_reduction.cu)
+if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL 13.0)
+  # CUDA 13's CUB requires C++17, independently of Eigen's C++14 header contract.
+  target_compile_features(bench_gpu_reduction PRIVATE cuda_std_17)
+endif()
 # Contraction against cuBLAS, which is the gap a library dispatch would close.
 eigen_add_gpu_benchmark(bench_gpu_contraction bench_gpu_contraction.cu LIBRARIES CUDA::cublas)
 # What a temporary costs: the device's synchronous allocation against the stream-ordered one.
