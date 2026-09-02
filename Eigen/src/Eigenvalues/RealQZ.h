@@ -582,6 +582,11 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const Ma
     }
   }
 
+  // The QZ sweep restores T's triangularity only up to rounding, so its strictly lower triangle
+  // can retain entries of order eps*||T||. matrixT() is documented upper triangular; make it so,
+  // as the deflation above already does for the subdiagonal of S.
+  m_T.template triangularView<StrictlyLower>().setZero();
+
   return *this;
 }  // end compute
 
