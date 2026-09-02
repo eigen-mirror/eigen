@@ -73,14 +73,15 @@
       changes:
         - Eigen/src/Core/arch/GPU/**/*
         # The two scalar headers carry their own device code paths, the .inc
-        # files are the CUDA/HIP alias layer, EigenTesting.cmake holds the
-        # nvcc/hipcc dispatch, and the harness headers decide what a GPU test
+        # files are the CUDA/HIP alias layer, EigenGpuTesting.cmake holds the
+        # CUDA/HIP dispatch, and the harness headers decide what a GPU test
         # can express; a change to any of them is invisible to a host build.
         - Eigen/src/Core/arch/Default/Half.h
         - Eigen/src/Core/arch/Default/BFloat16.h
         - Eigen/src/Core/util/GpuHipCuda*.inc
         - Eigen/src/Core/util/GpuRuntime.h
         - cmake/EigenTesting.cmake
+        - cmake/EigenGpuTesting.cmake
         - test/*.cu
         - test/gpu_common.h
         - test/gpu_test_helper.h

@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-cmake_minimum_required(VERSION 3.17)
+# 3.18 for CMake's CUDA language, which cmake/EigenGpuTesting.cmake enables for the .cu tests. Debian 11 ships
+# 3.18.4; the HIP language and the `native` architecture ask for more, scoped to the options that need them.
+cmake_minimum_required(VERSION 3.18)
 
 #==============================================================================
 # CMake Policy issues.
@@ -22,15 +24,6 @@ if (POLICY CMP0090)
     set (CMAKE_EXPORT_PACKAGE_REGISTRY ON)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
-
-# Disable warning about find_package(CUDA).
-# CUDA language support is lacking for clang as the CUDA compiler
-# until at least cmake version 3.18.  Even then, there seems to be
-# issues on Windows+Ninja in passing build flags.  Continue using
-# the "old" way for now.
-if (POLICY CMP0146)
-  cmake_policy(SET CMP0146 OLD)
-endif ()
 
 # Normalize DESTINATION paths
 if (POLICY CMP0177)
@@ -715,7 +708,22 @@ if (EIGEN_BUILD_TESTING)
   endif()
 
   set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-  set(EIGEN_CUDA_COMPUTE_ARCH "" CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code, as a ;-separated list of sm_XX numbers (e.g. 75;90). Empty selects sm_60, or sm_75 with CUDA 13 and later, which dropped Pascal and Volta.")
+  set(EIGEN_CUDA_COMPUTE_ARCH "" CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code, as a ;-separated list of sm_XX numbers (e.g. 75;90). Empty honors CMAKE_CUDA_ARCHITECTURES or CUDAARCHS; otherwise selects sm_60, or sm_75 with CUDA 13 and later. `native` and `all-major` need CMake 3.24.")
+
+  # The GPU test options and the language they enable. enable_language() reaches the calling directory and below,
+  # and test/ and contrib/test/ are siblings, so this has to happen here rather than in either of them.
+  option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
+  option(EIGEN_TEST_CUDA_CLANG "Use clang instead of nvcc to compile the CUDA tests" OFF)
+  option(EIGEN_TEST_CUDA_NVC "Use nvc++ (NVHPC) instead of nvcc to compile the CUDA tests" OFF)
+  option(EIGEN_TEST_HIP "Add HIP support." OFF)
+  if(EIGEN_TEST_CUDA_CLANG AND NOT CMAKE_CXX_COMPILER MATCHES "clang")
+    message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
+  endif()
+  if(EIGEN_TEST_CUDA_NVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
+    message(WARNING "EIGEN_TEST_CUDA_NVC is set, but CMAKE_CXX_COMPILER does not appear to be nvc++.")
+  endif()
+  include(EigenGpuTesting)
+  ei_gpu_testing_enable()
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
   if(EIGEN_TEST_SYCL)

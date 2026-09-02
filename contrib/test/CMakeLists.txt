@@ -241,47 +241,16 @@ if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "MS
   ei_add_test(tensor_uint128)
 endif()
 
-find_package(CUDA 11.8)
-if(CUDA_FOUND AND EIGEN_TEST_CUDA)
-  # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
-  # and -fno-check-new flags since they trigger thousands of compilation warnings
-  # in the CUDA runtime
-  string(REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-  ei_cuda_resolve_compute_arch()
-
-  if(EIGEN_TEST_CUDA_CLANG)
-    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-        string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${ARCH}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  else()
-    set(NVCC_ARCH_FLAGS)
-    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
-    # those in the arch list for -gencode, the kernels will fail to run with
-    #    cudaErrorNoKernelImageForDevice
-    # This can happen with newer cards (e.g. sm_75) and compiling with older
-    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
-    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
-      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
-    endif()
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
-    endforeach()
-    set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
-    cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
-  endif()
-  
+# CUDA and HIP tests. The options, the toolkit and the language are set up once in the top-level CMakeLists
+# through cmake/EigenGpuTesting.cmake.
+if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
   set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
 
-  ei_add_test(tensor_complex_gpu)
-  ei_add_test(tensor_complex_cwise_ops_gpu)
+  if(EIGEN_GPU_TEST_MODE MATCHES "^cuda")
+    # complex is not yet supported by HIP.
+    ei_add_test(tensor_complex_gpu)
+    ei_add_test(tensor_complex_cwise_ops_gpu)
+  endif()
   ei_add_test(tensor_reduction_gpu)
   ei_add_test(tensor_argmax_gpu)
   ei_add_test(tensor_cast_float16_gpu)
@@ -297,60 +266,8 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 
-  add_subdirectory(GPU)
-endif()
-
-# Add HIP specific tests
-if (EIGEN_TEST_HIP)
-
-  set(ROCM_PATH "/opt/rocm" CACHE STRING "Path to the ROCm installation.")
-
-  if (EXISTS ${ROCM_PATH}/hip)
-    set(HIP_PATH ${ROCM_PATH}/hip)
-    list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/cmake)
-  elseif (EXISTS ${ROCM_PATH}/lib/cmake/hip)
-    set(HIP_PATH ${ROCM_PATH})
-    list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/lib/cmake/hip)
-  else ()
-    message(FATAL_ERROR "EIGEN_TEST_HIP is ON, but could not find the ROCm installation under ${ROCM_PATH}")
-  endif()
-
-  find_package(HIP REQUIRED)
-  if (HIP_FOUND)
-    execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-    if (HIP_PLATFORM STREQUAL "amd")
-      include_directories(${CMAKE_CURRENT_BINARY_DIR})
-      include_directories(${HIP_PATH}/include)
-
-      set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
-      #
-      # complex datatype is not yet supported by HIP
-      # so leaving out those tests for now
-      #
-      # ei_add_test(tensor_complex_gpu)
-      # ei_add_test(tensor_complex_cwise_ops_gpu)
-      #
-      ei_add_test(tensor_reduction_gpu)
-      ei_add_test(tensor_argmax_gpu)
-      ei_add_test(tensor_cast_float16_gpu)
-      ei_add_test(tensor_scan_gpu)
-      ei_add_test(tensor_device)
-      ei_add_test(tensor_gpu)
-      ei_add_test(tensor_gpu_runtime_check)
-      ei_add_test(tensor_gpu_runtime_check_ndebug)
-      ei_add_test(tensor_contract_gpu)
-      ei_add_test(tensor_of_float16_gpu)
-      ei_add_test(tensor_of_bfloat16_gpu)
-      ei_add_test(tensor_random_gpu)
-
-      unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-
-    elseif (HIP_PLATFORM STREQUAL "nvcc" OR HIP_PLATFORM STREQUAL "nvidia")
-      message(FATAL_ERROR "HIP_PLATFORM = nvcc is not supported within Eigen")
-    else ()
-      message(FATAL_ERROR "Unknown HIP_PLATFORM = ${HIP_PLATFORM}")
-    endif()
+  # The GPU module's own tests (cuSOLVER, cuDSS) are CUDA-only.
+  if(EIGEN_GPU_TEST_MODE MATCHES "^cuda")
+    add_subdirectory(GPU)
   endif()
 endif()

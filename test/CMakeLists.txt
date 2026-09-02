@@ -569,113 +569,17 @@ else()
 endif()
 
 
-# CUDA unit tests
-option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
-option(EIGEN_TEST_CUDA_CLANG "Use clang instead of nvcc to compile the CUDA tests" OFF)
-option(EIGEN_TEST_CUDA_NVC "Use nvc++ (NVHPC) instead of nvcc to compile the CUDA tests" OFF)
-
-if(EIGEN_TEST_CUDA_CLANG AND NOT CMAKE_CXX_COMPILER MATCHES "clang")
-  message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
-endif()
-
-if(EIGEN_TEST_CUDA_NVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
-  message(WARNING "EIGEN_TEST_CUDA_NVC is set, but CMAKE_CXX_COMPILER does not appear to be nvc++.")
-endif()
-
-find_package(CUDA 11.8)
-if(CUDA_FOUND AND EIGEN_TEST_CUDA)
-  # Make sure to compile without the -pedantic, -Wundef, -Wnon-virtual-dtor
-  # and -fno-check-new flags since they trigger thousands of compilation warnings
-  # in the CUDA runtime
-  string(REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-Wnon-virtual-dtor" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  string(REPLACE "-fno-check-new" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-  ei_cuda_resolve_compute_arch()
-
-  if(EIGEN_TEST_CUDA_CLANG)
-    string(APPEND CMAKE_CXX_FLAGS " --cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
-    foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND CMAKE_CXX_FLAGS " --cuda-gpu-arch=sm_${GPU}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  elseif(EIGEN_TEST_CUDA_NVC)
-    string(APPEND CMAKE_CXX_FLAGS " -cuda")
-    foreach(GPU IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND CMAKE_CXX_FLAGS " -gpu=cc${GPU}")
-    endforeach()
-    string(APPEND CMAKE_CXX_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
-  else()
-    set(NVCC_ARCH_FLAGS)
-    # Define an -arch=sm_<arch>, otherwise if GPU does not exactly match one of
-    # those in the arch list for -gencode, the kernels will fail to run with
-    #    cudaErrorNoKernelImageForDevice
-    # This can happen with newer cards (e.g. sm_75) and compiling with older
-    # versions of nvcc (e.g. 9.2) that do not support their specific arch.
-    list(LENGTH EIGEN_CUDA_COMPUTE_ARCH EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-    if(EIGEN_CUDA_COMPUTE_ARCH_SIZE)
-      list(GET EIGEN_CUDA_COMPUTE_ARCH 0 EIGEN_CUDA_COMPUTE_DEFAULT)
-      set(NVCC_ARCH_FLAGS " -arch=sm_${EIGEN_CUDA_COMPUTE_DEFAULT}")
-    endif()
-    foreach(ARCH IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
-      string(APPEND NVCC_ARCH_FLAGS " -gencode arch=compute_${ARCH},code=sm_${ARCH}")
-    endforeach()
-    set(CUDA_NVCC_FLAGS  "--expt-relaxed-constexpr -Xcudafe \"--display_error_number\" ${NVCC_ARCH_FLAGS} ${CUDA_NVCC_FLAGS} ${EIGEN_CUDA_CXX_FLAGS}")
-    cuda_include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}/include")
-  endif()
-
-  set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
+# GPU unit tests, the same set under CUDA and HIP. The options, the toolkit and the CUDA/HIP language are set up
+# once in the top-level CMakeLists through cmake/EigenGpuTesting.cmake, which also decides how a .cu file is
+# compiled.
+if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
+  set(EIGEN_ADD_TEST_FILENAME_EXTENSION "cu")
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
   ei_add_test(packetmath_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-
-endif()
-
-
-# HIP unit tests
-option(EIGEN_TEST_HIP "Add HIP support." OFF)
-if (EIGEN_TEST_HIP)
-
-  set(ROCM_PATH "/opt/rocm" CACHE STRING "Path to the ROCm installation.")
-
-  if (EXISTS ${ROCM_PATH}/hip)
-    set(HIP_PATH ${ROCM_PATH}/hip)
-    list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/cmake)
-  elseif (EXISTS ${ROCM_PATH}/lib/cmake/hip)
-    set(HIP_PATH ${ROCM_PATH})
-    list(APPEND CMAKE_MODULE_PATH ${HIP_PATH}/lib/cmake/hip)
-  else ()
-    message(FATAL_ERROR "EIGEN_TEST_HIP is ON, but could not find the ROCm installation under ${ROCM_PATH}")
-  endif()
-
-  find_package(HIP REQUIRED)
-  if (HIP_FOUND AND HIP_VERSION VERSION_LESS "5.6")
-    message(FATAL_ERROR "Eigen requires ROCm/HIP >= 5.6, found ${HIP_VERSION}")
-  endif()
-  if (HIP_FOUND)
-    execute_process(COMMAND ${HIP_PATH}/bin/hipconfig --platform OUTPUT_VARIABLE HIP_PLATFORM
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-    if (HIP_PLATFORM STREQUAL "amd")
-
-      include_directories(${HIP_PATH}/include)
-
-      set(EIGEN_ADD_TEST_FILENAME_EXTENSION  "cu")
-      ei_add_test(gpu_basic)
-      ei_add_test(gpu_example)
-      ei_add_test(packetmath_gpu)
-      unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
-
-    elseif (HIP_PLATFORM STREQUAL "nvcc" OR HIP_PLATFORM STREQUAL "nvidia")
-      message(FATAL_ERROR "HIP_PLATFORM = nvcc is not supported within Eigen")
-    else ()
-      message(FATAL_ERROR "Unknown HIP_PLATFORM = ${HIP_PLATFORM}")
-    endif()
-  endif()
 endif()
 
 if(EIGEN_TEST_SYCL)

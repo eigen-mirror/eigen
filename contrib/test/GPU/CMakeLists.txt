@@ -1,9 +1,8 @@
-# GPU module tests. Included from contrib/test/CMakeLists.txt inside the
-# if(CUDA_FOUND AND EIGEN_TEST_CUDA) block.
+# GPU module tests. Included from contrib/test/CMakeLists.txt when the CUDA tests are on; the toolkit is
+# found once at the top level, by cmake/EigenGpuTesting.cmake.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-find_package(CUDAToolkit QUIET)
 
 # These tests compile the GPU headers against the test harness, where
 # eigen_assert throws. A noexcept function that reaches such an assert therefore
@@ -61,7 +60,7 @@ function(ei_add_gpu_test test_name)
     # SYSTEM for the toolkit and backend headers: the -Werror above is aimed at
     # Eigen's own noexcept functions, not at whatever those ship.
     target_include_directories(${t} SYSTEM PRIVATE
-      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CUDAToolkit_INCLUDE_DIRS}"
       ${ARG_EXTRA_INCLUDES})
     target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     if(ARG_EXTRA_DEFINES)
@@ -121,7 +120,7 @@ endif()
 option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
 if(EIGEN_TEST_CUDSS)
   find_path(CUDSS_INCLUDE_DIR cudss.h
-    HINTS ${CUDSS_DIR}/include ${CUDA_TOOLKIT_ROOT_DIR}/include /usr/include)
+    HINTS ${CUDSS_DIR}/include ${CUDAToolkit_INCLUDE_DIRS} /usr/include)
   find_library(CUDSS_LIBRARY cudss
     HINTS ${CUDSS_DIR}/lib ${CUDSS_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib64 /usr/lib/x86_64-linux-gnu)
   if(CUDSS_INCLUDE_DIR AND CUDSS_LIBRARY)
