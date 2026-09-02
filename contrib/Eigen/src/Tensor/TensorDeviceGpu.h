@@ -21,6 +21,69 @@ namespace Eigen {
 
 static const int kGpuScratchSize = 1024;
 
+// The device facts Eigen consults, read one at a time. The reason is portability, not speed: the opt-in
+// shared-memory limit and memory-pool support are not fields a gpuDeviceProp_t carries under both backends, while
+// the attribute enumerators exist in each. (Measured on CUDA 13.3, a warm gpuGetDeviceProperties costs 0.3-0.5 us
+// against 1.4-1.5 us for these nine queries, and a cold call of either is dominated by runtime initialization.)
+struct GpuDeviceAttributes {
+  int multiProcessorCount;
+  int maxThreadsPerBlock;
+  int maxThreadsPerMultiProcessor;
+  int sharedMemPerBlock;
+  int sharedMemPerBlockOptin;
+  int computeCapabilityMajor;
+  int computeCapabilityMinor;
+  int warpSize;
+  int memoryPoolsSupported;
+};
+
+// Filled once for every visible device at first use, which is thread-safe by the initialization rules and needs no
+// lock. A few microseconds per device, so there is nothing to gain from filling it per device on demand.
+// Templated on the attribute enum: CUDA spells it cudaDeviceAttr and HIP hipDeviceAttribute_t, and the .inc pair
+// aliases the enumerators but not the type.
+template <typename GpuDeviceAttr>
+inline int GetGpuDeviceAttribute(GpuDeviceAttr attribute, int device) {
+  int value = 0;
+  EIGEN_GPU_RUNTIME_CHECK(gpuDeviceGetAttribute(&value, attribute, device));
+  return value;
+}
+
+inline const std::vector<GpuDeviceAttributes>& GetGpuDeviceAttributes() {
+  static const std::vector<GpuDeviceAttributes>* kAttributes = [] {
+    int num_devices = 0;
+    EIGEN_GPU_RUNTIME_CHECK(gpuGetDeviceCount(&num_devices));
+    auto* attributes = new std::vector<GpuDeviceAttributes>(num_devices);
+    for (int device = 0; device < num_devices; ++device) {
+      GpuDeviceAttributes& attribute = (*attributes)[device];
+      attribute.multiProcessorCount = GetGpuDeviceAttribute(gpuDevAttrMultiProcessorCount, device);
+      attribute.maxThreadsPerBlock = GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerBlock, device);
+      attribute.maxThreadsPerMultiProcessor = GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerMultiProcessor, device);
+      attribute.sharedMemPerBlock = GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlock, device);
+      attribute.sharedMemPerBlockOptin = GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlockOptin, device);
+      attribute.computeCapabilityMajor = GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMajor, device);
+      attribute.computeCapabilityMinor = GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMinor, device);
+      attribute.warpSize = GetGpuDeviceAttribute(gpuDevAttrWarpSize, device);
+      attribute.memoryPoolsSupported = GetGpuDeviceAttribute(gpuDevAttrMemoryPoolsSupported, device);
+    }
+    return attributes;
+  }();
+  return *kAttributes;
+}
+
+inline const GpuDeviceAttributes& GetGpuDeviceAttributes(int device) {
+  const std::vector<GpuDeviceAttributes>& attributes = GetGpuDeviceAttributes();
+  eigen_assert(device >= 0 && device < static_cast<int>(attributes.size()) && "no such GPU device");
+  return attributes[device];
+}
+
+// Attributes for StreamInterface implementations that follow the calling thread's current device.
+// GpuStreamDevice instead queries the device that owns its stream.
+inline const GpuDeviceAttributes& GetCurrentGpuDeviceAttributes() {
+  int device = 0;
+  EIGEN_GPU_RUNTIME_CHECK(gpuGetDevice(&device));
+  return GetGpuDeviceAttributes(device);
+}
+
 // This defines an interface that GPUDevice can take to use
 // HIP / CUDA streams underneath.
 class StreamInterface {
@@ -29,6 +92,12 @@ class StreamInterface {
 
   virtual const gpuStream_t& stream() const = 0;
   virtual const gpuDeviceProp_t& deviceProperties() const = 0;
+
+  // The attributes of the device this interface's stream runs on. The default reports the device the calling
+  // thread is bound to, which is what an implementation that follows the current device wants; one that owns a
+  // device index overrides it, as GpuStreamDevice does, so that the answer follows the stream rather than
+  // whatever device the caller happens to have selected.
+  virtual const GpuDeviceAttributes& deviceAttributes() const { return GetCurrentGpuDeviceAttributes(); }
 
   // Allocate memory on the actual device where the computation will run
   virtual void* allocate(size_t num_bytes) const = 0;
@@ -52,7 +121,10 @@ class GpuDeviceProperties {
     return *kInstance;
   }
 
-  EIGEN_STRONG_INLINE const gpuDeviceProp_t& get(int device) const { return device_properties_[device]; }
+  EIGEN_STRONG_INLINE const gpuDeviceProp_t& get(int device) const {
+    eigen_assert(device >= 0 && device < static_cast<int>(device_properties_.size()) && "no such GPU device");
+    return device_properties_[device];
+  }
 
  private:
   GpuDeviceProperties() = default;
@@ -112,6 +184,7 @@ class GpuStreamDevice : public StreamInterface {
 
   const gpuStream_t& stream() const { return *stream_; }
   const gpuDeviceProp_t& deviceProperties() const { return GetGpuDeviceProperties(device_); }
+  const GpuDeviceAttributes& deviceAttributes() const override { return GetGpuDeviceAttributes(device_); }
   virtual void* allocate(size_t num_bytes) const {
     EIGEN_GPU_RUNTIME_CHECK(gpuSetDevice(device_));
     void* result = nullptr;
@@ -152,7 +225,9 @@ struct GpuDevice {
   // The StreamInterface is not owned: the caller is
   // responsible for its initialization and eventual destruction.
   explicit GpuDevice(const StreamInterface* stream) : stream_(stream), max_blocks_(INT_MAX) { eigen_assert(stream); }
-  explicit GpuDevice(const StreamInterface* stream, int num_blocks) : stream_(stream), max_blocks_(num_blocks) {
+  // Nothing reads max_blocks_ any more; the executor sizes its grid from the device's own limits.
+  EIGEN_DEPRECATED explicit GpuDevice(const StreamInterface* stream, int num_blocks)
+      : stream_(stream), max_blocks_(num_blocks) {
     eigen_assert(stream);
   }
   // TODO(bsteiner): This is an internal API, we should not expose it.
@@ -236,10 +311,8 @@ struct GpuDevice {
 #endif
   }
 
-  EIGEN_STRONG_INLINE size_t numThreads() const {
-    // FIXME: Return a more accurate thread count.
-    return 32;
-  }
+  // The warp (wavefront) width, which is what "a thread" means to the block-size heuristics that ask.
+  EIGEN_STRONG_INLINE size_t numThreads() const { return static_cast<size_t>(warpSize()); }
 
   EIGEN_STRONG_INLINE size_t firstLevelCacheSize() const {
     // FIXME: Return a more accurate cache size.
@@ -271,7 +344,19 @@ struct GpuDevice {
   EIGEN_STRONG_INLINE int majorDeviceVersion() const { return stream_->deviceProperties().major; }
   EIGEN_STRONG_INLINE int minorDeviceVersion() const { return stream_->deviceProperties().minor; }
 
-  EIGEN_STRONG_INLINE int maxBlocks() const { return max_blocks_; }
+  // Read from the StreamInterface's attributes rather than from its properties: gpuDeviceProp_t does not carry
+  // the opt-in shared-memory limit or memory-pool support portably. Like the properties above, they describe the
+  // device the stream and its allocations belong to, which need not be the device the calling thread is bound to.
+  EIGEN_STRONG_INLINE int warpSize() const { return stream_->deviceAttributes().warpSize; }
+  // The shared memory a kernel may request with gpuFuncSetAttribute, which exceeds sharedMemPerBlock on every
+  // architecture since Volta.
+  EIGEN_STRONG_INLINE int sharedMemPerBlockOptin() const { return stream_->deviceAttributes().sharedMemPerBlockOptin; }
+  // Whether gpuMallocAsync and its pool are available on this device.
+  EIGEN_STRONG_INLINE bool memoryPoolsSupported() const {
+    return stream_->deviceAttributes().memoryPoolsSupported != 0;
+  }
+
+  EIGEN_DEPRECATED EIGEN_STRONG_INLINE int maxBlocks() const { return max_blocks_; }
 
   // This function checks if the GPU runtime recorded an error for the
   // underlying stream device.

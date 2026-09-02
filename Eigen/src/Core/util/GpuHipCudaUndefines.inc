@@ -24,6 +24,16 @@
 #undef gpuGetErrorName
 #undef gpuGetErrorString
 #undef gpuGetDeviceProperties
+#undef gpuDeviceGetAttribute
+#undef gpuDevAttrMultiProcessorCount
+#undef gpuDevAttrMaxThreadsPerBlock
+#undef gpuDevAttrMaxThreadsPerMultiProcessor
+#undef gpuDevAttrMaxSharedMemoryPerBlock
+#undef gpuDevAttrMaxSharedMemoryPerBlockOptin
+#undef gpuDevAttrComputeCapabilityMajor
+#undef gpuDevAttrComputeCapabilityMinor
+#undef gpuDevAttrWarpSize
+#undef gpuDevAttrMemoryPoolsSupported
 #undef gpuStreamDefault
 #undef gpuGetDevice
 #undef gpuSetDevice

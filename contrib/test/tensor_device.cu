@@ -435,7 +435,62 @@ void test_gpu() {
   test_device_memory<OffByOneScalar<int>>(context.device());
 }
 
+// The attribute cache has to agree with the properties struct on every field both carry, and the accessors built
+// on it have to describe the device the stream belongs to.
+void test_device_attributes() {
+  int device = 0;
+  VERIFY(gpuGetDevice(&device) == gpuSuccess);
+  const Eigen::GpuDeviceAttributes& attributes = Eigen::GetGpuDeviceAttributes(device);
+
+  gpuDeviceProp_t properties;
+  VERIFY(gpuGetDeviceProperties(&properties, device) == gpuSuccess);
+  VERIFY_IS_EQUAL(attributes.multiProcessorCount, properties.multiProcessorCount);
+  VERIFY_IS_EQUAL(attributes.maxThreadsPerBlock, properties.maxThreadsPerBlock);
+  VERIFY_IS_EQUAL(attributes.maxThreadsPerMultiProcessor, properties.maxThreadsPerMultiProcessor);
+  VERIFY_IS_EQUAL(attributes.sharedMemPerBlock, static_cast<int>(properties.sharedMemPerBlock));
+  VERIFY_IS_EQUAL(attributes.computeCapabilityMajor, properties.major);
+  VERIFY_IS_EQUAL(attributes.computeCapabilityMinor, properties.minor);
+  VERIFY_IS_EQUAL(attributes.warpSize, properties.warpSize);
+
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+  VERIFY_IS_EQUAL(gpu_device.warpSize(), properties.warpSize);
+  VERIFY_IS_EQUAL(static_cast<int>(gpu_device.numThreads()), properties.warpSize);
+  // Every architecture Eigen supports can opt in to at least what a block gets by default.
+  VERIFY(gpu_device.sharedMemPerBlockOptin() >= gpu_device.sharedMemPerBlock());
+  int pools = 0;
+  VERIFY(gpuDeviceGetAttribute(&pools, gpuDevAttrMemoryPoolsSupported, device) == gpuSuccess);
+  VERIFY_IS_EQUAL(gpu_device.memoryPoolsSupported(), pools != 0);
+}
+
+// A GpuStreamDevice built for a fixed device answers for that device, not for whichever device the calling thread
+// happens to be bound to: the stream and its allocations live on the configured one. With several devices visible
+// the current device is deliberately set to a different one; with a single device the loop still checks that the
+// configured index is what is reported.
+void test_stream_device_attributes() {
+  int device_count = 0;
+  VERIFY(gpuGetDeviceCount(&device_count) == gpuSuccess);
+  int restore = 0;
+  VERIFY(gpuGetDevice(&restore) == gpuSuccess);
+
+  for (int device = 0; device < device_count; ++device) {
+    VERIFY(gpuSetDevice((device + 1) % device_count) == gpuSuccess);
+    Eigen::GpuStreamDevice stream(device);
+    Eigen::GpuDevice gpu_device(&stream);
+    const Eigen::GpuDeviceAttributes& attributes = Eigen::GetGpuDeviceAttributes(device);
+    VERIFY_IS_EQUAL(gpu_device.warpSize(), attributes.warpSize);
+    VERIFY_IS_EQUAL(static_cast<int>(gpu_device.numThreads()), attributes.warpSize);
+    VERIFY_IS_EQUAL(gpu_device.sharedMemPerBlockOptin(), attributes.sharedMemPerBlockOptin);
+    VERIFY_IS_EQUAL(gpu_device.memoryPoolsSupported(), attributes.memoryPoolsSupported != 0);
+    VERIFY_IS_EQUAL(gpu_device.getNumGpuMultiProcessors(), attributes.multiProcessorCount);
+  }
+
+  VERIFY(gpuSetDevice(restore) == gpuSuccess);
+}
+
 EIGEN_DECLARE_TEST(tensor_device) {
   CALL_SUBTEST_1(test_cpu());
   CALL_SUBTEST_2(test_gpu());
+  CALL_SUBTEST_3(test_device_attributes());
+  CALL_SUBTEST_3(test_stream_device_attributes());
 }
