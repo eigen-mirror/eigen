@@ -838,8 +838,10 @@ struct sign_impl<Scalar, true, IsInteger> {
     EIGEN_USING_STD(abs);
     real_type aa = abs(a);
     if (aa == real_type(0)) return Scalar(0);
-    aa = real_type(1) / aa;
-    return Scalar(numext::real(a) * aa, numext::imag(a) * aa);
+    // Divide rather than multiply by 1/aa: the reciprocal overflows for subnormal aa and is itself
+    // subnormal, hence inexact, for aa near the top of the range. psign_impl for complex packets
+    // divides for the same reason.
+    return Scalar(numext::real(a) / aa, numext::imag(a) / aa);
   }
 };
 

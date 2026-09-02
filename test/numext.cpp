@@ -234,6 +234,33 @@ void check_abs<bool>() {
   }
 }
 
+// numext::sign(z) = z / |z| for complex z. The interesting inputs are the ends of the range, where
+// forming 1/|z| first would overflow (subnormal |z|) or itself be subnormal, hence inexact (|z| near max).
+template <typename T>
+void check_complex_sign() {
+  typedef typename NumTraits<T>::Real Real;
+  const Real zero(0), one(1);
+
+  VERIFY_IS_EQUAL(numext::sign(T(zero, zero)), T(zero, zero));
+  VERIFY_IS_EQUAL(numext::sign(T(one, zero)), T(one, zero));
+  VERIFY_IS_EQUAL(numext::sign(T(zero, -one)), T(zero, -one));
+
+  for (Real r : {std::numeric_limits<Real>::denorm_min(), (std::numeric_limits<Real>::min)(),
+                 (std::numeric_limits<Real>::max)()}) {
+    VERIFY_IS_EQUAL(numext::sign(T(r, zero)), T(one, zero));
+    VERIFY_IS_EQUAL(numext::sign(T(-r, zero)), T(-one, zero));
+    VERIFY_IS_EQUAL(numext::sign(T(zero, r)), T(zero, one));
+  }
+
+  // Off the axes the magnitude is only as accurate as abs() itself, which cannot resolve |z| for a z
+  // whose components are at the bottom of the subnormal range; from the smallest normal upwards it can.
+  for (Real r : {(std::numeric_limits<Real>::min)(), one, (std::numeric_limits<Real>::max)() / Real(2)}) {
+    const T s = numext::sign(T(r, r));
+    VERIFY_IS_APPROX(numext::abs(s), one);
+    VERIFY_IS_EQUAL(numext::real(s), numext::imag(s));
+  }
+}
+
 template <typename T>
 void check_arg() {
   typedef typename NumTraits<T>::Real Real;
@@ -569,6 +596,9 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_abs<long double>());
     CALL_SUBTEST(check_abs<std::complex<float>>());
     CALL_SUBTEST(check_abs<std::complex<double>>());
+
+    CALL_SUBTEST(check_complex_sign<std::complex<float>>());
+    CALL_SUBTEST(check_complex_sign<std::complex<double>>());
 
     CALL_SUBTEST(check_arg<std::complex<float>>());
     CALL_SUBTEST(check_arg<std::complex<double>>());
