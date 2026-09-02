@@ -61,7 +61,6 @@ namespace Eigen {
 class ScopedFlushToZero {
  public:
   ScopedFlushToZero() : environment_saved_(false), active_(false), control_state_(0), vector_control_state_(0) {
-    static_cast<void>(vector_control_state_);
 #if EIGEN_TEST_HAS_RUNTIME_FTZ
     environment_saved_ = std::fegetenv(&environment_) == 0;
 
@@ -202,11 +201,11 @@ class ScopedFlushToZero {
 
   static std::uint32_t mipsFlushToZeroMask() { return std::uint32_t(1) << 24; }
 
-  std::fenv_t environment_;
-  bool environment_saved_;
+  std::fenv_t environment_ EIGEN_UNUSED;
+  bool environment_saved_ EIGEN_UNUSED;
   bool active_;
-  std::uint64_t control_state_;
-  std::uint32_t vector_control_state_;
+  std::uint64_t control_state_ EIGEN_UNUSED;
+  std::uint32_t vector_control_state_ EIGEN_UNUSED;
 };
 
 // Whether dividing a normal value by a subnormal divisor yields its IEEE 754
