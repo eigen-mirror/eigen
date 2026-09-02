@@ -48,8 +48,6 @@
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuStreamQuery hipStreamQuery
-#define gpuSharedMemConfig hipSharedMemConfig
-#define gpuDeviceSetSharedMemConfig hipDeviceSetSharedMemConfig
 #define gpuStreamSynchronize hipStreamSynchronize
 #define gpuDeviceSynchronize hipDeviceSynchronize
 #define gpuMemcpy hipMemcpy
@@ -79,8 +77,6 @@
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuStreamQuery cudaStreamQuery
-#define gpuSharedMemConfig cudaSharedMemConfig
-#define gpuDeviceSetSharedMemConfig cudaDeviceSetSharedMemConfig
 #define gpuStreamSynchronize cudaStreamSynchronize
 #define gpuDeviceSynchronize cudaDeviceSynchronize
 #define gpuMemcpy cudaMemcpy

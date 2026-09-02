@@ -19,6 +19,9 @@
 #undef gpuSuccess
 #undef gpuErrorNotReady
 #undef gpuGetDeviceCount
+#undef gpuGetLastError
+#undef gpuPeekAtLastError
+#undef gpuGetErrorName
 #undef gpuGetErrorString
 #undef gpuGetDeviceProperties
 #undef gpuStreamDefault
@@ -33,8 +36,6 @@
 #undef gpuMemcpyDeviceToHost
 #undef gpuMemcpyHostToDevice
 #undef gpuStreamQuery
-#undef gpuSharedMemConfig
-#undef gpuDeviceSetSharedMemConfig
 #undef gpuStreamSynchronize
 #undef gpuDeviceSynchronize
 #undef gpuMemcpy

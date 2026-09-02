@@ -69,6 +69,9 @@ objects cross the host/device boundary.
 `contrib/Eigen/Tensor` evaluates expressions through an explicit device. `GpuDevice` handles CUDA/HIP and
 `SyclDevice` handles SYCL; Tensor GPU kernels remain part of the Tensor implementation. Device-resident storage is
 normally supplied through `TensorMap`, and the destination selects execution with `out.device(device) = expression`.
+Host-side runtime calls in the device go through `EIGEN_GPU_RUNTIME_CHECK` and kernel launches through
+`LAUNCH_GPU_KERNEL` (both from `Eigen/src/Core/util/GpuRuntime.h`); a result stored into a variable that only a
+`gpu_assert` inspects is unchecked in every release build.
 Consult `contrib/Eigen/src/Tensor/README.md` and the nearby device implementation before changing memory,
 synchronization, or callback semantics.
 

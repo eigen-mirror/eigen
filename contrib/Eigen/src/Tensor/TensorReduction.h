@@ -481,12 +481,12 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernel(R, const S, I_,
                                                                  unsigned int*);
 
 #if defined(EIGEN_GPUCC)
+// The scratch parameter is half* as in the definitions (TensorReductionGpu.h): declared as
+// packet_traits<half>::type*, it is Packet4h2* in the device pass, which makes the name denote two templates there.
 template <typename S, typename R, typename I_>
-__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitFullReduxKernelHalfFloat(
-    R, const S, I_, internal::packet_traits<half>::type*);
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitFullReduxKernelHalfFloat(R, const S, I_, half*);
 template <int B, int N, typename S, typename R, typename I_>
-__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernelHalfFloat(R, const S, I_, half*,
-                                                                          internal::packet_traits<half>::type*);
+__global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernelHalfFloat(R, const S, I_, half*, half*);
 template <int NPT, typename S, typename R, typename I_>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(R, const S, I_, I_, half*);
 
@@ -984,11 +984,9 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
   KERNEL_FRIEND void internal::FullReductionKernel(R, const S, I_, typename S::CoeffReturnType*, unsigned int*);
 #if defined(EIGEN_GPUCC)
   template <typename S, typename R, typename I_>
-  KERNEL_FRIEND void internal::ReductionInitFullReduxKernelHalfFloat(R, const S, I_,
-                                                                     internal::packet_traits<Eigen::half>::type*);
+  KERNEL_FRIEND void internal::ReductionInitFullReduxKernelHalfFloat(R, const S, I_, half*);
   template <int B, int N, typename S, typename R, typename I_>
-  KERNEL_FRIEND void internal::FullReductionKernelHalfFloat(R, const S, I_, half*,
-                                                            internal::packet_traits<Eigen::half>::type*);
+  KERNEL_FRIEND void internal::FullReductionKernelHalfFloat(R, const S, I_, half*, half*);
   template <int NPT, typename S, typename R, typename I_>
   KERNEL_FRIEND void internal::InnerReductionKernelHalfFloat(R, const S, I_, I_, half*);
 #endif

@@ -100,7 +100,7 @@ platforms beyond the four unconditional jobs on two independent triggers, either
 | `arch/SVE` | `sve-tests` | SVE cross builds and test runs at 128, 256 and 512 bits under qemu | yes |
 | `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
-| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files, `cmake/EigenTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
+| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
 
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
 nothing else. Apart from `gpu-tests`, none of them does anything without `affected-tests`. `all-platforms` is a
