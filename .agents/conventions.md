@@ -41,6 +41,13 @@ Supported headers compile as C++14, which rules out forms that review suggestion
 - `std::span`, CTAD, fold expressions, `constinit`, and later library additions are unavailable outside guarded
   backends with a documented newer requirement (the SYCL configurations force C++17, for example).
 
+## Hot paths
+
+Code added to a hot inner loop grows the enclosing function and can displace it from the instruction cache even when
+an `EIGEN_PREDICT_FALSE` guard keeps it from executing. Watch for that when adding a check or a fallback to such a
+loop; where a benchmark shows the cost, moving the cold path into an `EIGEN_DONT_INLINE` helper is one way to
+recover it.
+
 ## Comments
 
 The comment rules in the repository-root `AGENTS.md` are enforced in review and are the most repeated style finding

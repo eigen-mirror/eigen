@@ -13,6 +13,10 @@ Address every thread: apply the suggestion or explain the deviation, naming the 
 response within the comment's scope; a defect it exposes in shared code belongs in its own commit or merge request.
 After each round, re-verify that the merge request description and commit messages still describe the current head.
 
+[`.coderabbit.yaml`](../.coderabbit.yaml) holds the path-specific instructions the CodeRabbit review bot applies when
+it is enabled on the project; they are the bot's rendering of these conventions and predict what an automated review
+will flag.
+
 GitLab renders KaTeX in merge request descriptions and comments. Typeset real mathematics — bounds, recurrences,
 identities, error terms — as math: inline with dollar-backtick delimiters (``$`h_j = \varepsilon\,\max(|x_j|, 1)`$``;
 bare `$...$` does not render on gitlab.com), display equations in a fenced ` ```math ` block. Keep identifiers that
