@@ -133,6 +133,23 @@ inline T REF_ABS_DIFF(const T& a, const T& b) {
   return a > b ? a - b : b - a;
 }
 
+template <typename Packet>
+struct predux_reference_scalar {
+  using Scalar = typename internal::unpacket_traits<Packet>::type;
+  static constexpr bool WidensToFloat = std::is_same<Scalar, bfloat16>::value
+#if defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX512FP16)
+                                        || std::is_same<Packet, internal::Packet8h>::value
+#endif
+#if defined(EIGEN_VECTORIZE_AVX512) && !defined(EIGEN_VECTORIZE_AVX512FP16)
+                                        || std::is_same<Packet, internal::Packet16h>::value
+#endif
+      ;
+  using type = std::conditional_t<WidensToFloat, float, Scalar>;
+};
+
+template <typename Packet>
+using predux_reference_scalar_t = typename predux_reference_scalar<Packet>::type;
+
 // MacOS apple-clang has an issue with pcmp_eq for half when inlined,
 // resulting in an ICE, but only in this specific test.
 template <typename Packet>
@@ -925,11 +942,12 @@ void packetmath() {
     }
   }
 
-  // REF_ADD folds with defined wraparound for signed integers (matching predux,
-  // which wraps mod 2^N) and with || for bool, avoiding both signed-overflow UB
-  // and the MSVC C4804 "unsafe use of bool" warning that raw operator+ triggers.
-  ref[0] = Scalar(0);
-  for (int i = 0; i < PacketSize; ++i) ref[0] = REF_ADD(ref[0], data1[i]);
+  // Match the packet reduction's accumulation precision. REF_ADD also preserves signed wrapping and Boolean OR
+  // semantics and avoids MSVC C4804 for raw Boolean addition.
+  using ReduxReferenceScalar = predux_reference_scalar_t<Packet>;
+  ReduxReferenceScalar redux_ref(0);
+  for (int i = 0; i < PacketSize; ++i) redux_ref = REF_ADD(redux_ref, static_cast<ReduxReferenceScalar>(data1[i]));
+  ref[0] = static_cast<Scalar>(redux_ref);
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
   if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
