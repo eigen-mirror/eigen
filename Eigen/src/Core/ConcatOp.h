@@ -165,7 +165,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
     LhsOrderAgrees = (bool(int(LhsFlags) & RowMajorBit) == bool(IsRowMajor)) || LhsNestedCleaned::IsVectorAtCompileTime,
     RhsOrderAgrees = (bool(int(RhsFlags) & RowMajorBit) == bool(IsRowMajor)) || RhsNestedCleaned::IsVectorAtCompileTime,
     BothHavePacketAccess = (int(LhsFlags) & int(RhsFlags) & PacketAccessBit) && LhsOrderAgrees && RhsOrderAgrees,
-    BothHaveLinearAccess = int(LhsFlags) & int(RhsFlags) & LinearAccessBit,
+    BothHaveLinearAccess = bool(int(LhsFlags) & int(RhsFlags) & LinearAccessBit),
     Flags = (traits<XprType>::Flags & RowMajorBit) | (BothHavePacketAccess ? PacketAccessBit : 0) |
             (IsVectorAtCompileTime && BothHaveLinearAccess ? LinearAccessBit : 0),
     Alignment = 0  // conservative: no alignment guarantees across boundary

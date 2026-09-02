@@ -79,6 +79,8 @@ template <typename LeftArgType, typename RightArgType, typename Device>
 struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> {
   typedef TensorAssignOp<LeftArgType, RightArgType> XprType;
   typedef typename XprType::Index Index;
+  using LeftIndex = typename TensorEvaluator<LeftArgType, Device>::Index;
+  using RightIndex = typename TensorEvaluator<RightArgType, Device>::Index;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
@@ -148,17 +150,22 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalScalar(Index i) const {
-    m_leftImpl.coeffRef(i) = m_rightImpl.coeff(i);
+    m_leftImpl.coeffRef(internal::convert_index<LeftIndex>(i)) =
+        m_rightImpl.coeff(internal::convert_index<RightIndex>(i));
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalPacket(Index i) const {
     constexpr int LhsStoreMode = TensorEvaluator<LeftArgType, Device>::IsAligned ? Aligned : Unaligned;
     constexpr int RhsLoadMode = TensorEvaluator<RightArgType, Device>::IsAligned ? Aligned : Unaligned;
-    m_leftImpl.template writePacket<LhsStoreMode>(i, m_rightImpl.template packet<RhsLoadMode>(i));
+    m_leftImpl.template writePacket<LhsStoreMode>(
+        internal::convert_index<LeftIndex>(i),
+        m_rightImpl.template packet<RhsLoadMode>(internal::convert_index<RightIndex>(i)));
   }
-  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const { return m_leftImpl.coeff(index); }
+  EIGEN_DEVICE_FUNC CoeffReturnType coeff(Index index) const {
+    return m_leftImpl.coeff(internal::convert_index<LeftIndex>(index));
+  }
   template <int LoadMode>
   EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
-    return m_leftImpl.template packet<LoadMode>(index);
+    return m_leftImpl.template packet<LoadMode>(internal::convert_index<LeftIndex>(index));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
