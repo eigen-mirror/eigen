@@ -62,6 +62,10 @@ LIBRARY_SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
 
 DOXYGEN = re.compile(r"^\s*(/\*\*|/\*!|///|//!)")
 LICENSE = re.compile(r"SPDX|Copyright|License|Mozilla Public", re.I)
+# A bibliography is provenance, which AGENTS.md keeps, and it is long by nature: one entry per
+# work cited already exceeds the block threshold. Matched on the block's own header line so that
+# ordinary prose mentioning a reference is still counted.
+REFERENCES = re.compile(r"^\s*(?://|/\*)?\s*References:\s*$", re.M)
 STD_MATH = (
     r"abs|arg|conj|real|imag|sqrt|cbrt|isnan|isinf|isfinite|signbit|exp|exp2|expm1|log|log1p|log2|pow|"
     r"sin|cos|tan|asin|acos|atan|atan2|asinh|acosh|atanh|sinh|cosh|tanh|hypot|fma|copysign|ldexp|floor|"
@@ -245,14 +249,16 @@ def check_comments(comment_only, doxygen_only, added, findings):
     """Flag comment blocks that gain six or more added narration lines.
 
     Blocks are formed over the full file, so an addition inside an existing
-    Doxygen or license block inherits that block's exemption, and only the
-    ADDED lines count toward the threshold — extending a pre-existing block
-    by a line or two is not reported.
+    Doxygen, license or bibliography block inherits that block's exemption, and
+    only the ADDED lines count toward the threshold — extending a pre-existing
+    block by a line or two is not reported.
     """
     def finish_block(block_start, block_end, is_doxygen):
         block = comment_only[block_start:block_end]
         added_in_block = [line_no for line_no in range(block_start + 1, block_end + 1) if line_no in added]
-        if added_in_block and len(added_in_block) >= 6 and not (is_doxygen or LICENSE.search("\n".join(block))):
+        text = "\n".join(block)
+        exempt = is_doxygen or LICENSE.search(text) or REFERENCES.search(text)
+        if added_in_block and len(added_in_block) >= 6 and not exempt:
             findings.append((added_in_block[0], "%d added lines of non-Doxygen comment: AGENTS.md keeps only "
                                                 "mathematics, invariants, compatibility constraints, provenance, "
                                                 "or the reason a deliberate construct must not be simplified"

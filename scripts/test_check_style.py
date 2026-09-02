@@ -142,6 +142,12 @@ def test_comment_verbosity():
     license_header = "\n".join("// SPDX-License-Identifier: MPL-2.0" if i == 0 else "// Copyright notice %d" % i
                                for i in range(8)) + "\nint x = 1;\n"
     assert_clean("Eigen/src/Core/Foo.h", license_header)
+    # A bibliography under its own header is provenance, exempt however long it runs.
+    refs = "// References:\n" + "\n".join("//  [%d] Author, \"Title\", 20%02d." % (i, i) for i in range(8))
+    assert_clean("Eigen/src/Core/Foo.h", refs + "\nint x = 1;\n")
+    # Prose that merely mentions references is still narration.
+    prose = "\n".join("// see the References: section for line %d" % i for i in range(6)) + "\nint x = 1;\n"
+    assert_flags("Eigen/src/Core/Foo.h", prose, "non-Doxygen comment")
     # Five added lines stay under the threshold.
     assert_clean("Eigen/src/Core/Foo.h", "\n".join("// l%d" % i for i in range(5)) + "\nint x = 1;\n")
     # Extending an existing narration block by two lines is not reported: only
