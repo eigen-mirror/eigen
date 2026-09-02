@@ -19,6 +19,21 @@
 
 namespace Eigen {
 
+namespace internal {
+
+// Keeps -ffast-math from folding the rounded evaluation points back into x and h, e.g. (x + h) - x
+// into h. EIGEN_OPTIMIZATION_BARRIER is an asm operand constraint restricted to plain types (see
+// Macros.h), so class-type scalars go unguarded.
+template <typename Scalar, std::enable_if_t<std::is_floating_point<Scalar>::value, int> = 0>
+EIGEN_STRONG_INLINE void numerical_diff_barrier(Scalar& x) {
+  EIGEN_UNUSED_VARIABLE(x);
+  EIGEN_OPTIMIZATION_BARRIER(x)
+}
+template <typename Scalar, std::enable_if_t<!std::is_floating_point<Scalar>::value, int> = 0>
+EIGEN_STRONG_INLINE void numerical_diff_barrier(Scalar&) {}
+
+}  // namespace internal
+
 enum NumericalDiffMode { Forward, Central };
 
 /**
@@ -55,7 +70,11 @@ class NumericalDiff : public Functor_ {
   enum { InputsAtCompileTime = Functor::InputsAtCompileTime, ValuesAtCompileTime = Functor::ValuesAtCompileTime };
 
   /**
-   * return the number of evaluations of the functor
+   * Computes the Jacobian of the functor at \a _x into \a jac and returns the number of functor evaluations.
+   *
+   * The step along coordinate \c j is <tt>h = eps * max(|x[j]|, 1)</tt> with <tt>eps = sqrt(max(epsfcn, epsilon))</tt>
+   * and \c epsilon the machine precision NumTraits<Scalar>::epsilon(); the difference quotient divides by the
+   * representable step <tt>fl(x[j] + h) - x[j]</tt> actually applied.
    */
   int df(const InputType& _x, JacobianType& jac) const {
     using std::abs;
@@ -89,24 +108,35 @@ class NumericalDiff : public Functor_ {
     for (int j = 0; j < n; ++j) {
       const Scalar x_abs = abs(x[j]);
       h = numext::maxi(x_abs, Scalar(1)) * eps;
+      // The functor is evaluated at fl(x[j] + h), so divide by that representable step: the rounding
+      // of x[j] + h perturbs h by up to ulp(x[j]) <= epsilon/eps * h <= sqrt(epsilon) * h, comparable
+      // to the error of the difference quotient itself.
+      Scalar x_plus = _x[j] + h;
+      internal::numerical_diff_barrier(x_plus);
+      h = x_plus - _x[j];
       switch (mode) {
         case Forward:
-          x[j] += h;
+          x[j] = x_plus;
           Functor::operator()(x, val2);
           nfev++;
           x[j] = _x[j];
           jac.col(j) = (val2 - val1) / h;
           break;
-        case Central:
-          x[j] += h;
+        case Central: {
+          x[j] = x_plus;
           Functor::operator()(x, val2);
           nfev++;
-          x[j] -= 2 * h;
+          // x[j] - h can round (a tie when x[j] < 0 has |x[j]| within h above a power of two), so
+          // divide by the separation of the two evaluation points rather than by 2*h.
+          Scalar x_minus = _x[j] - h;
+          internal::numerical_diff_barrier(x_minus);
+          x[j] = x_minus;
           Functor::operator()(x, val1);
           nfev++;
           x[j] = _x[j];
-          jac.col(j) = (val2 - val1) / (2 * h);
+          jac.col(j) = (val2 - val1) / (x_plus - x_minus);
           break;
+        }
         default:
           eigen_assert(false);
       }

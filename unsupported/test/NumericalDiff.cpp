@@ -59,6 +59,17 @@ struct my_functor : Functor<double> {
   }
 };
 
+// Scaling by a power of two is exact, so the difference quotients of this map equal the scales
+// iff each divisor is the representable step actually applied to x.
+struct pow2_scaling_functor : Functor<double> {
+  pow2_scaling_functor() : Functor<double>(7, 7), scale(7) { scale << 0.25, 1.0, 8.0, -2.0, 0.5, 4.0, -0.125; }
+  int operator()(const VectorXd &x, VectorXd &fvec) const {
+    fvec = scale.cwiseProduct(x);
+    return 0;
+  }
+  VectorXd scale;
+};
+
 void test_forward() {
   VectorXd x(3);
   MatrixXd jac(15, 3);
@@ -115,8 +126,29 @@ void test_small() {
   VERIFY_IS_APPROX(jac, actual_jac);
 }
 
+template <NumericalDiffMode Mode>
+void test_step_alignment(double epsfcn) {
+  pow2_scaling_functor functor;
+  NumericalDiff<pow2_scaling_functor, Mode> numDiff(functor, epsfcn);
+
+  // Non-dyadic coordinates, so that x + h rounds; the first two take the absolute step eps, and the
+  // last two are negative with |x| at or just above a power of two, where x - h is a rounding tie.
+  VectorXd x(7);
+  x << 0.0, 0.082, 1.13, -2350.7, 7.7e8 + 0.3, -1.0 - std::ldexp(1.0, -27), -1.0;
+  MatrixXd jac(7, 7);
+  numDiff.df(x, jac);
+
+  MatrixXd expected = functor.scale.asDiagonal();
+  VERIFY_IS_EQUAL(jac, expected);
+}
+
 EIGEN_DECLARE_TEST(NumericalDiff) {
   CALL_SUBTEST(test_forward());
   CALL_SUBTEST(test_central());
   CALL_SUBTEST(test_small());
+  CALL_SUBTEST(test_step_alignment<Forward>(0.0));
+  CALL_SUBTEST(test_step_alignment<Central>(0.0));
+  // A non-dyadic eps also misaligns the absolute step taken for |x| < 1.
+  CALL_SUBTEST(test_step_alignment<Forward>(1e-10));
+  CALL_SUBTEST(test_step_alignment<Central>(1e-10));
 }
