@@ -55,6 +55,7 @@ checkformat:scripts:
   script:
     - python3 scripts/test_affected_tests.py
     - python3 ci/scripts/test_test_cache.py
+    - python3 scripts/test_check_style.py
     - python3 scripts/test_clang_tidy_hook.py
 
 checkformat:clangtidy:

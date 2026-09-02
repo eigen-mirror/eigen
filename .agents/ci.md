@@ -239,7 +239,10 @@ with `--line-filter`; it needs no build directory, generating a driver that incl
 the edited `Eigen/src` header, the way `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when
 clang-tidy is absent, and shows the user a non-blocking notice when a file's translation unit does not compile.
 
-Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`.
+Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. Their unit
+tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
+[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:scripts`; run them after
+changing either script.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
 to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are
