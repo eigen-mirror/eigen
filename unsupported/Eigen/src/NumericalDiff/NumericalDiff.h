@@ -87,10 +87,8 @@ class NumericalDiff : public Functor_ {
 
     // Function Body
     for (int j = 0; j < n; ++j) {
-      h = eps * abs(x[j]);
-      if (h == 0.) {
-        h = eps;
-      }
+      const Scalar x_abs = abs(x[j]);
+      h = numext::maxi(x_abs, Scalar(1)) * eps;
       switch (mode) {
         case Forward:
           x[j] += h;
