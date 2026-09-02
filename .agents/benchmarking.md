@@ -28,6 +28,26 @@ settings. CUDA benchmarks also have a standalone project and instructions in
 benchmarks, so the pipeline validates neither a benchmark's own compilation nor a performance claim: build and run
 both locally, and report the measurement conditions this guide requires.
 
+### GPU kernel benchmarks
+
+`benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead;
+reductions and contractions follow) against hand-written kernels and vendor baselines. It is part of the supported
+benchmark project behind an option, so the CPU tree builds as before:
+
+```bash
+cmake -G Ninja -S benchmarks -B build-bench-gpu -DCMAKE_BUILD_TYPE=Release -DEIGEN_BENCH_CUDA=ON \
+      -DEIGEN_BENCH_CPU=OFF -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DCMAKE_CUDA_ARCHITECTURES=native
+cmake --build build-bench-gpu
+./build-bench-gpu/GPU/bench_gpu_elementwise --benchmark_repetitions=10 --benchmark_report_aggregates_only=true
+```
+
+`CMAKE_CUDA_ARCHITECTURES=native` needs CMake 3.24; name the architecture (`89`) otherwise. Device time is measured
+with events around a batch of launches (`eigen_bench::timeLaunches`), so every registration is `UseManualTime()`
+and the reported time is per launch; `host_us_per_launch` is the host-side cost of enqueueing, `bytes_per_second` counts every
+operand read once and the result written once. Results are checked against a reference outside the timed loop.
+Quote the `GPU:` line the binary prints (also in the JSON context) with every number, and say whether clocks were
+locked; a laptop under WSL2 cannot lock them.
+
 ## Adding A Benchmark
 
 One family per translation unit, `bench_<topic>.cpp` under the module directory (`benchmarks/LU/bench_lu.cpp`),
