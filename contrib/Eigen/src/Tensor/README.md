@@ -588,6 +588,16 @@ cudaFree(d_c);
 
 For HIP, replace `cuda*` calls with the corresponding `hip*` calls.
 
+Every runtime call `GpuDevice` makes, and every kernel launch, is checked: a
+failure is reported on `stderr` as `file:line: call: error name: description`
+and stops the program, through `std::abort()` when `EIGEN_NO_DEBUG` (or
+`NDEBUG`) is defined and a failed `eigen_assert` otherwise. Define
+`EIGEN_GPU_RUNTIME_CHECK(call)` before including the Tensor header to route
+failures elsewhere, `EIGEN_GPU_NO_RUNTIME_CHECKS` to ignore them as release
+builds of earlier versions did, or `EIGEN_GPU_SYNC_LAUNCHES` to synchronize
+after every kernel launch so that an execution failure is reported at the
+launch that caused it.
+
 #### Asynchronous Device Execution
 
 You can pass a callback to the `device()` call that will be invoked when the

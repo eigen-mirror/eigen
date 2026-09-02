@@ -79,6 +79,7 @@
         - Eigen/src/Core/arch/Default/Half.h
         - Eigen/src/Core/arch/Default/BFloat16.h
         - Eigen/src/Core/util/GpuHipCuda*.inc
+        - Eigen/src/Core/util/GpuRuntime.h
         - cmake/EigenTesting.cmake
         - test/*.cu
         - test/gpu_common.h

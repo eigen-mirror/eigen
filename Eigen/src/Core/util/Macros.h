@@ -611,23 +611,21 @@
 #define EIGEN_HIP_DEVICE_COMPILE __HIP_DEVICE_COMPILE__
 #endif
 
-// HIP compilers default to launch_bounds(256), which causes failures when kernels
-// are called with more than 256 threads per block. On CUDA, without explicit
-// launch_bounds the compiler may over-allocate registers per thread, causing
-// cudaErrorLaunchOutOfResources for kernels launched with 1024 threads (e.g. 3D
-// convolution). Set to 1024 for all GPU compilers.
-
-#define EIGEN_HIP_LAUNCH_BOUNDS_1024 __launch_bounds__(1024)
-
 #endif
 
-#if !defined(EIGEN_HIP_LAUNCH_BOUNDS_1024)
-#if defined(EIGEN_CUDACC)
-#define EIGEN_HIP_LAUNCH_BOUNDS_1024 __launch_bounds__(1024)
+// Launch-bounds attribute under either GPU compiler, nothing elsewhere. Eigen's
+// kernels declare 1024 (EIGEN_HIP_LAUNCH_BOUNDS_1024 is the older spelling):
+// hipcc defaults to 256 and refuses larger blocks at launch, and nvcc without a
+// bound may allocate registers so that a 1024-thread launch fails with
+// cudaErrorLaunchOutOfResources (the 3D convolution kernel does).
+#if defined(EIGEN_CUDACC) || defined(EIGEN_HIPCC)
+#define EIGEN_GPU_LAUNCH_BOUNDS(n) __launch_bounds__(n)
 #else
-#define EIGEN_HIP_LAUNCH_BOUNDS_1024
+#define EIGEN_GPU_LAUNCH_BOUNDS(n)
 #endif
-#endif  // !defined(EIGEN_HIP_LAUNCH_BOUNDS_1024)
+#if !defined(EIGEN_HIP_LAUNCH_BOUNDS_1024)
+#define EIGEN_HIP_LAUNCH_BOUNDS_1024 EIGEN_GPU_LAUNCH_BOUNDS(1024)
+#endif
 
 // Unify CUDA/HIPCC
 
