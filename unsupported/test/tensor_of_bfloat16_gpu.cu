@@ -460,6 +460,15 @@ EIGEN_DECLARE_TEST(tensor_of_bfloat16_gpu) {
   CALL_SUBTEST_8(test_gpu_full_reductions<void>());
   CALL_SUBTEST_9(test_gpu_forced_evals<void>());
 #else
-  std::cout << "bfloat16 floats are not supported by this version of gpu: skipping the test" << std::endl;
+  // Without device bfloat16 support parts 2-9 have nothing to run.  Report them as skipped rather than let an
+  // empty part pass: under
+  // EIGEN_SPLIT_LARGE_TESTS each part is its own executable, and a green one would claim coverage that never ran.
+#if !defined(EIGEN_TEST_PART_1) && !defined(EIGEN_TEST_PART_ALL)
+  skip_test("bfloat16 device support (EIGEN_HAS_GPU_BF16) is not available with this toolkit.");
+#else
+  std::cout << "bfloat16 device support (EIGEN_HAS_GPU_BF16) is not available with this toolkit: only the numext "
+               "part runs."
+            << std::endl;
+#endif
 #endif
 }

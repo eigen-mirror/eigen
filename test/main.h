@@ -421,6 +421,13 @@ inline void set_seed_from_time() {
   g_seed = static_cast<decltype(g_seed)>(ns);
 }
 
+// Reports the test as skipped and exits with 77, the code CTest maps to "skipped"
+// (SKIP_RETURN_CODE in cmake/EigenTesting.cmake).
+[[noreturn]] inline void skip_test(const char* reason) {
+  std::cout << "SKIP: " << reason << std::endl;
+  std::exit(77);
+}
+
 #if defined(EIGEN_USE_GPU)
 inline int maybe_skip_gpu_tests() {
 #if defined(EIGEN_USE_HIP)

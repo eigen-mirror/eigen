@@ -286,6 +286,7 @@ if(CUDA_FOUND AND EIGEN_TEST_CUDA)
   ei_add_test(tensor_gpu)
   ei_add_test(tensor_contract_gpu)
   ei_add_test(tensor_of_float16_gpu)
+  ei_add_test(tensor_of_bfloat16_gpu)
   ei_add_test(tensor_random_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)

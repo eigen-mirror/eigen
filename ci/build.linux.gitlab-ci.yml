@@ -180,6 +180,7 @@ build:linux:cross:x86-64:clang-19:cxx20:nightly:
       -DCMAKE_CXX_STANDARD=20
   # Nightly job restricted to the default branch on schedule.
   rules:
+    - !reference [.rules:libeigen:gpu-schedule-guard, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
@@ -196,6 +197,7 @@ build:linux:docs:
   tags:
     - saas-linux-medium-amd64
   rules:
+    - !reference [.rules:libeigen:gpu-schedule-guard, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -394,6 +396,22 @@ build:linux:cuda-12.6:clang-19:
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
     EIGEN_CI_CUDA_COMPUTE_ARCH: "89;90"
+
+# ---- CUDA 13 ----------------------------------------------------------------
+# CUDA 13 dropped offline compilation for sm_70, relocated the CCCL headers and
+# ships an nvcc that rejects code every 12.x toolkit accepted (issue #3139 was
+# found on a laptop because no job here compiled with it).  This pair runs on
+# the L4 at sm_89.  It builds on the FindCUDA path like the others; the
+# Windows CUDA 13.0 job already proves that works.
+
+# GCC-13, CUDA-13.3 (nvcc)
+build:linux:cuda-13.3:gcc-13:
+  extends: .build:linux:cuda
+  image: nvidia/cuda:13.3.1-devel-ubuntu24.04
+  variables:
+    EIGEN_CI_C_COMPILER: gcc-13
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "89"
 
 
 ######### HIP ##################################################################
