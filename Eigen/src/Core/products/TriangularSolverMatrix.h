@@ -282,7 +282,7 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
 #endif
           trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, /*Specialized=*/true>::kernel(
               actualPanelWidth, actual_cols, _tri + i + (i)*triStride, triStride,
-              _other + i * OtherInnerStride + j2 * otherStride, otherIncr, otherStride);
+              _other + i * otherIncr + j2 * otherStride, otherIncr, otherStride);
         }
 
         Index lengthTarget = actual_kc - k1 - actualPanelWidth;
@@ -434,8 +434,8 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheRight, Mode, 
             trsmKernelR<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                         /*Specialized=*/true>::kernel(actualPanelWidth, actual_mc,
                                                       _tri + absolute_j2 + absolute_j2 * triStride, triStride,
-                                                      _other + i2 * OtherInnerStride + absolute_j2 * otherStride,
-                                                      otherIncr, otherStride);
+                                                      _other + i2 * otherIncr + absolute_j2 * otherStride, otherIncr,
+                                                      otherStride);
           }
           // pack the just computed part of lhs to A
           pack_lhs_panel(blockA, lhs.getSubMapper(i2, absolute_j2), actualPanelWidth, actual_mc, actual_kc, j2);

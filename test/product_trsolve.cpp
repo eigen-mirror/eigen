@@ -98,6 +98,21 @@ void trsolve(int size = Size, int cols = Cols) {
     VERIFY_TRSM(cmLhs.conjugate().template triangularView<Lower>(), map1);
     buffer.setZero();
     VERIFY_TRSM(cmLhs.template triangularView<Lower>(), map2);
+
+    // A runtime inner stride reaches the blocked kernels as OtherInnerStride == Dynamic, which the
+    // compile-time 2 above does not; their panel offsets once multiplied by that constant.
+    Map<Matrix<Scalar, Size, Cols, colmajor>, 0, Stride<Dynamic, Dynamic> > map3(
+        buffer.data(), cmRhs.rows(), cmRhs.cols(), Stride<Dynamic, Dynamic>(2 * cmRhs.outerStride(), 2));
+    Map<Matrix<Scalar, Size, Cols, rowmajor>, 0, Stride<Dynamic, Dynamic> > map4(
+        buffer.data(), rmRhs.rows(), rmRhs.cols(), Stride<Dynamic, Dynamic>(2 * rmRhs.outerStride(), 2));
+    buffer.setZero();
+    VERIFY_TRSM(cmLhs.template triangularView<Lower>(), map3);
+    buffer.setZero();
+    VERIFY_TRSM(cmLhs.template triangularView<Upper>(), map4);
+    buffer.setZero();
+    VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Lower>(), map3);
+    buffer.setZero();
+    VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Upper>(), map4);
   }
 
   if (Size == Dynamic) {
@@ -155,6 +170,24 @@ void trsolve_strided_boundary() {
       ref = map;
       lhs.triangularView<Upper>().solveInPlace(map);
       VERIFY_IS_APPROX(lhs.triangularView<Upper>().toDenseMatrix() * MatrixX(map), ref);
+    }
+
+    // Runtime inner stride (OtherInnerStride == Dynamic), both sides
+    {
+      int cols = 5;
+      MatrixX buffer(2 * n, 2 * cols);
+      Map<MatrixX, 0, Stride<Dynamic, Dynamic> > map(buffer.data(), n, cols, Stride<Dynamic, Dynamic>(2 * n, 2));
+      MatrixX ref(n, cols);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<Lower>().solveInPlace(map);
+      VERIFY_IS_APPROX(lhs.triangularView<Lower>().toDenseMatrix() * MatrixX(map), ref);
+      buffer.setZero();
+      map.setRandom();
+      ref = map;
+      lhs.triangularView<Upper>().template solveInPlace<OnTheRight>(map.transpose());
+      VERIFY_IS_APPROX(MatrixX(map.transpose()) * lhs.triangularView<Upper>().toDenseMatrix(), ref.transpose());
     }
 
     // InnerStride = 2: UnitLower (tests the UnitDiag path without diagonal scaling)
