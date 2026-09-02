@@ -21,6 +21,8 @@ if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING OR CMAKE_CROSSCOMPILING_EMUL
 endif()
 
 set(EIGEN_BUILDSYSTEM_SCENARIOS
+    gpu_architectures
+    gpu_runtime_linkage
     find_package
     find_package_version_reject
     add_subdirectory
@@ -28,7 +30,6 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off
     install_off_all_options
     exclude_from_all
-    cuda_launcher_wrapper
     suitesparse_reconfigure
     )
 

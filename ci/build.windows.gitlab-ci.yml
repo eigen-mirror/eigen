@@ -93,9 +93,8 @@ build:windows:x86-64:msvc-14.29:avx512dq:
 
 .build:windows:cuda:
   extends: .build:windows
-  # The .cu compiles reach the launcher through the .bat wrapper that
-  # ei_cuda_use_compiler_launcher() puts in front of nvcc; see the Linux CUDA
-  # template for the rationale.
+  # The .cu compiles reach the launcher through CMAKE_CUDA_COMPILER_LAUNCHER;
+  # see the Linux CUDA template for the rationale.
   variables:
     # The GPU in the Windows CUDA runner (eigen-windows-testing-001.gcloud) is
     # a Tesla L4, sm_89.  Eigen has no architecture-dependent device code
