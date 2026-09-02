@@ -1563,7 +1563,7 @@ inline std::ptrdiff_t queryTopLevelCacheSize() {
  * This wraps C++20's std::construct_at, using placement new instead if it is not available.
  */
 
-#if EIGEN_COMP_CXXVER >= 20 && defined(__cpp_lib_constexpr_dynamic_alloc) && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && EIGEN_COMP_CXXVER >= 20 && defined(__cpp_lib_constexpr_dynamic_alloc) && \
     __cpp_lib_constexpr_dynamic_alloc >= 201907L
 using std::construct_at;
 #else
