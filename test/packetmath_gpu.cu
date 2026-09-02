@@ -100,6 +100,7 @@ EIGEN_GPU_TEST_UNARY_OP(op_preverse, Eigen::internal::preverse(a))
 EIGEN_GPU_TEST_UNARY_OP(op_ptrue, Eigen::internal::ptrue(a))
 EIGEN_GPU_TEST_UNARY_OP(op_pzero, Eigen::internal::pzero(a))
 EIGEN_GPU_TEST_UNARY_OP(op_preinterpret_self, Eigen::internal::preinterpret<P>(a))
+EIGEN_GPU_TEST_UNARY_OP(op_psign, Eigen::internal::psign(a))
 
 EIGEN_GPU_TEST_BINARY_OP(op_padd, Eigen::internal::padd(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_psub, Eigen::internal::psub(a, b))
@@ -118,6 +119,7 @@ EIGEN_GPU_TEST_BINARY_OP(op_pandnot, Eigen::internal::pandnot(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_eq, Eigen::internal::pcmp_eq(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_lt, Eigen::internal::pcmp_lt(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_le, Eigen::internal::pcmp_le(a, b))
+EIGEN_GPU_TEST_BINARY_OP(op_pcmp_lt_or_nan, Eigen::internal::pcmp_lt_or_nan(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pabsdiff, Eigen::internal::pabsdiff(a, b))
 
 EIGEN_GPU_TEST_TERNARY_OP(op_pmadd, Eigen::internal::pmadd(a, b, c))
@@ -317,20 +319,17 @@ std::vector<int> device_traits() {
   return std::vector<int>(report.data(), report.data() + kNumTraits);
 }
 
-// Every flag the device advertises must be covered by a part of this test, deferred to a reserved part by name,
-// or a known gap. HasSign: float4/double2 have no psign and the generic form (numext::sign on the packet) does not
-// compile, so the flag is a promise the backend does not keep until it gains one.
+// Every flag the device advertises must be covered by a part of this test or deferred to a reserved part by name.
 template <typename Scalar>
 void check_advertised_ops_are_covered(const std::vector<int>& traits, const std::vector<Trait>& covered_here) {
   const std::vector<Trait> deferred = {kHasExp, kHasExpm1, kHasLog, kHasLog1p};
-  const std::vector<Trait> known_gaps = {kHasSign};
   for (int k = kHasAdd; k < kNumTraits; ++k) {
     const Trait flag = static_cast<Trait>(k);
     if (traits[k] == 0) continue;
     const auto covered = [flag](const std::vector<Trait>& list) {
       return std::find(list.begin(), list.end(), flag) != list.end();
     };
-    const bool ok = covered(covered_here) || covered(deferred) || covered(known_gaps);
+    const bool ok = covered(covered_here) || covered(deferred);
     if (!ok) std::cout << "advertised device op without a test: " << kTraitNames[k] << std::endl;
     VERIFY(ok);
   }
@@ -628,11 +627,10 @@ void packetmath_gpu_real_core() {
   std::cout << std::endl;
   VERIFY_IS_EQUAL(traits[kVectorizable], 1);
   VERIFY_IS_EQUAL(traits[ksize], kSize);
-  // HasCmp is 1 for float and 0 for double although pcmp_eq/lt/le exist for both packets; the comparisons below
-  // are exercised either way, and the flag is the backend's to fix.
+  VERIFY_IS_EQUAL(traits[kHasCmp], 1);
   check_advertised_ops_are_covered<Scalar>(
       traits, {kHasAdd, kHasSub, kHasMul, kHasDiv, kHasNegate, kHasAbs, kHasMin, kHasMax, kHasCmp, kHasRound, kHasSqrt,
-               kHasRsqrt, kHasAbsDiff, kHasSetLinear, kHasConj});
+               kHasRsqrt, kHasSign, kHasAbsDiff, kHasSetLinear, kHasConj});
 
   const Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
   const int n = int(in.size()) / kSize;
@@ -730,6 +728,8 @@ void packetmath_gpu_real_core() {
       in, [](Scalar x) { return std::round(x); }, bits);
   check_unary<Packet, op_preinterpret_self>(
       in, [](Scalar x) { return x; }, bits_and_payload);
+  check_unary<Packet, op_psign>(
+      in, [](Scalar x) { return Eigen::numext::sign(x); }, bits);
   if (std::is_same<Scalar, float>::value) {
     check_unary<Packet, op_psqrt>(
         in, [](Scalar x) { return std::sqrt(x); }, compare_ulps<Scalar>{kSqrtFloatUlps});
@@ -806,6 +806,7 @@ void packetmath_gpu_real_core() {
   check_compare<Packet, op_pcmp_eq>(pairs, [](Scalar x, Scalar y) { return x == y; });
   check_compare<Packet, op_pcmp_lt>(pairs, [](Scalar x, Scalar y) { return x < y; });
   check_compare<Packet, op_pcmp_le>(pairs, [](Scalar x, Scalar y) { return x <= y; });
+  check_compare<Packet, op_pcmp_lt_or_nan>(pairs, [](Scalar x, Scalar y) { return !(x >= y); });
 
   {
     // pmadd may or may not be contracted by the device compiler (ptxas fuses a*b+c by default): either the
@@ -1027,10 +1028,25 @@ void packetmath_gpu_preinterpret() {
   }
 }
 
+// Compiled in the host pass as well as the device pass: with EIGEN_USE_GPU defined, packet_traits<float>::type is
+// float4 in both, so an expression reaching psign, a comparison or a bit operation has to compile on the host too.
+// It did not before those operations moved out of the device-only block.
+void host_pass_instantiation() {
+  Eigen::Array<float, 32, 1> a = Eigen::Array<float, 32, 1>::Random();
+  a(0) = std::numeric_limits<float>::quiet_NaN();
+  const Eigen::Array<float, 32, 1> s = a.sign();
+  const Eigen::Array<bool, 32, 1> nans = a.isNaN();
+  const Eigen::Array<float, 32, 1> clamped = a.cwiseMax(0.0f).cwiseMin(1.0f);
+  VERIFY((Eigen::numext::isnan)(s(0)));
+  VERIFY(nans(0));
+  VERIFY(clamped(1) >= 0.0f && clamped(1) <= 1.0f);
+}
+
 }  // namespace
 
 EIGEN_DECLARE_TEST(packetmath_gpu) {
   ei_test_init_gpu();
+  CALL_SUBTEST_1(host_pass_instantiation());
   CALL_SUBTEST_1(packetmath_gpu_real_core<float>());
   CALL_SUBTEST_3(packetmath_gpu_real_core<double>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<int32_t>());

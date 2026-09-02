@@ -578,8 +578,8 @@
 #define EIGEN_CUDA_SDK_VER 0
 #endif
 
-#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER > 0 && EIGEN_CUDA_SDK_VER < 110400
-#error "Eigen requires CUDA 11.4 or later."
+#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER > 0 && EIGEN_CUDA_SDK_VER < 110800
+#error "Eigen requires CUDA 11.8 or later."
 #endif
 
 // Native FP16 packet math intrinsics (e.g. __hfma2, h2exp, h2log) are only
@@ -635,8 +635,9 @@
 //
 #define EIGEN_GPUCC
 // NOTE: Some platforms (e.g. SPIRV) artificially set the CUDA SDK version to 0,
-// and don't support FP16, so we need to check the version number here.
-#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER >= 70500
+// and don't support FP16, so we need to check the version number here. Every real toolkit is past the CUDA 11.8
+// floor checked above, so this only distinguishes "has a version" from "reports none".
+#if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER > 0
 #define EIGEN_HAS_CUDA_FP16 1
 #elif defined(EIGEN_HIPCC)
 #define EIGEN_HAS_HIP_FP16 1
@@ -798,8 +799,7 @@
 // individual features as defined later.
 // This is why there is no EIGEN_HAS_CXX17.
 #if EIGEN_MAX_CPP_VER < 14 || EIGEN_COMP_CXXVER < 14 || (EIGEN_COMP_MSVC_STRICT && EIGEN_COMP_MSVC < 1910) || \
-    (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1700) || (EIGEN_COMP_NVCC && EIGEN_COMP_NVCC < 90000) ||              \
-    (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) ||                                                    \
+    (EIGEN_COMP_ICC && EIGEN_COMP_ICC < 1700) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG < 390) ||       \
     (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 9000000) || (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC < 510)
 #error Eigen requires at least c++14 support.
 #endif
