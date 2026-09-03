@@ -24,6 +24,7 @@ default.
 | Packet math, CUDA, HIP, SYCL, `unsupported/Eigen/GPU` | [`.agents/simd-gpu.md`](.agents/simd-gpu.md) |
 | Tensor, ThreadPool, and multithreading | [`.agents/tensor-threadpool.md`](.agents/tensor-threadpool.md) |
 | Formatting, lint, and GitLab CI | [`.agents/ci.md`](.agents/ci.md) |
+| Writing or updating a merge request description | [`.agents/merge-requests.md`](.agents/merge-requests.md) |
 | Answering merge request review comments | [`.agents/review-response.md`](.agents/review-response.md) |
 | Expression templates or evaluator internals | [`doc/TopicLazyEvaluation.dox`](doc/TopicLazyEvaluation.dox), [`doc/NewExpressionType.dox`](doc/NewExpressionType.dox), and [`doc/ClassHierarchy.dox`](doc/ClassHierarchy.dox) |
 
@@ -161,7 +162,7 @@ tutorial-style prose, section-by-section narration, and comments that restate id
 comments are justified only when that rationale cannot be expressed clearly in code. Reviewers here read mathematics
 and code faster than English: where a formula, a recurrence, an error bound, or two lines of pseudo-code state the
 point more precisely than a paragraph, write that instead. The same preference applies to merge request descriptions
-and review comments.
+and review comments; [`.agents/merge-requests.md`](.agents/merge-requests.md) gives the KaTeX syntax GitLab renders.
 
 ## Quick build and test
 

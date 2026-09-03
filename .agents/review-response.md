@@ -17,7 +17,7 @@ After each round, re-verify that the merge request description and commit messag
 it is enabled on the project; they are the bot's rendering of these conventions and predict what an automated review
 will flag.
 
-GitLab renders KaTeX in merge request descriptions and comments. Typeset real mathematics — bounds, recurrences,
-identities, error terms — as math: inline with dollar-backtick delimiters (``$`h_j = \varepsilon\,\max(|x_j|, 1)`$``;
-bare `$...$` does not render on gitlab.com), display equations in a fenced ` ```math ` block. Keep identifiers that
-name actual code (`eps`, `numext::maxi`) in code spans, and do not dress a code-level statement up in LaTeX.
+Typeset real mathematics in comments — bounds, recurrences, identities, error terms — the way
+[`merge-requests.md`](merge-requests.md) prescribes for descriptions: KaTeX inline with dollar-backtick delimiters
+(``$`h_j = \varepsilon\,\max(|x_j|, 1)`$``; bare `$...$` does not render on gitlab.com), display equations in a fenced
+` ```math ` block, and identifiers that name actual code kept in code spans.
