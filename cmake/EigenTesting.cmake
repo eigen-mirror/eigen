@@ -90,14 +90,14 @@ endfunction()
 # ccache does not cache; expect those as misses in the statistics.
 # Resolve EIGEN_CUDA_COMPUTE_ARCH once find_package(CUDA) has set CUDA_VERSION.
 # The cache entry defaults to empty, which selects the oldest architecture the
-# toolkit still compiles for: sm_70, Eigen's documented floor (see Macros.h),
-# or sm_75 from CUDA 13 on, which dropped offline compilation for Volta.  Sets
-# the directory-scope variable the arch flags are built from; an explicit cache
-# value is used as given.
+# toolkit still compiles for: sm_60, Eigen's documented floor (see Macros.h),
+# or sm_75 from CUDA 13 on, which dropped offline compilation for Pascal and
+# Volta. Sets the directory-scope variable the arch flags are built from; an
+# explicit cache value is used as given.
 macro(ei_cuda_resolve_compute_arch)
   if("${EIGEN_CUDA_COMPUTE_ARCH}" STREQUAL "")
     if(CUDA_VERSION VERSION_LESS 13.0)
-      set(EIGEN_CUDA_COMPUTE_ARCH 70)
+      set(EIGEN_CUDA_COMPUTE_ARCH 60)
     else()
       set(EIGEN_CUDA_COMPUTE_ARCH 75)
     endif()

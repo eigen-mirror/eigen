@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 // Read-only data cached load (__ldg) and native FP16 arithmetic are available
-// on all supported GPU architectures (sm_70+ for CUDA, GFX906+ for HIP).
+// on all supported GPU architectures (sm_60+ for CUDA, GFX906+ for HIP).
 
 // We need to distinguish ‘clang as the CUDA compiler’ from ‘clang as the host compiler,
 // invoked by NVCC’ (e.g. on MacOS). The former needs to see both host and device implementation

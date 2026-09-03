@@ -284,10 +284,11 @@ build:linux:x86-64:nvhpc-26.1:default:unsupported:
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
-    # Default architecture coverage spans the GPUs used by CI: GitLab's SaaS
-    # runners are Tesla T4 (sm_75), and eigen-gpu-testing-001.gcloud is an L4
-    # (sm_89). Jobs tied to one runner pool may override this set below.
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "75;89"
+    # Default architecture coverage spans the minimum supported architecture
+    # (sm_60) and the GPUs used by CI: GitLab's SaaS runners are Tesla T4
+    # (sm_75), and eigen-gpu-testing-001.gcloud is an L4 (sm_89). Jobs tied to
+    # one runner pool may override this set below.
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "60;75;89"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_TEST_CUDA_CLANG: "off"
     EIGEN_CI_TEST_CUDA_NVC: "off"
