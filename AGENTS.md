@@ -162,7 +162,7 @@ tutorial-style prose, section-by-section narration, and comments that restate id
 comments are justified only when that rationale cannot be expressed clearly in code. Reviewers here read mathematics
 and code faster than English: where a formula, a recurrence, an error bound, or two lines of pseudo-code state the
 point more precisely than a paragraph, write that instead. The same preference applies to merge request descriptions
-and review comments; [`.agents/merge-requests.md`](.agents/merge-requests.md) gives the KaTeX syntax GitLab renders.
+and review comments; [`.agents/merge-requests.md`](.agents/merge-requests.md) records the KaTeX syntax GitLab renders.
 
 ## Quick build and test
 
