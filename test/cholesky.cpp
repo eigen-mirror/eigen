@@ -52,6 +52,94 @@ void test_chol_update(const MatrixType& symm) {
   }
 }
 
+// A^-1 from an LLT factorization. The kernels fill one triangle and mirror it, so the result is
+// exactly self-adjoint, and accuracy is checked as the backward error of the corresponding solve.
+template <typename MatrixType, int UpLo>
+void check_llt_inverse(const MatrixType& symm) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using DynVectorType = Matrix<Scalar, Dynamic, 1>;
+  const Index n = symm.rows();
+
+  const MatrixType tri = symm.template triangularView<UpLo>();
+  LLT<MatrixType, UpLo> llt(tri);
+  VERIFY(llt.info() == Success);
+
+  const MatrixType inv = llt.inverse();
+  VERIFY_IS_EQUAL(inv.rows(), n);
+  VERIFY_IS_EQUAL(inv.cols(), n);
+  VERIFY_IS_CWISE_EQUAL(inv, inv.adjoint());
+
+  // |A X - I| <= c*n*eps*|A|*|X| for a Cholesky solve (Higham, Accuracy and Stability of Numerical
+  // Algorithms, 2nd ed., Thm 10.4). The factor 16 absorbs c and the entrywise-to-norm step; the
+  // largest ratio measured over this family is 2, at n = 1.
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar residual_bound = RealScalar(16 * n) * eps * symm.norm() * inv.norm();
+  VERIFY((numext::isfinite)(residual_bound));
+  VERIFY((symm * inv - MatrixType::Identity(n, n)).norm() <= residual_bound);
+
+  // The same answer as solving against an explicit identity, to within the forward error, which the
+  // residual bound multiplied by cond(A) <= |A|*|X| bounds in turn.
+  const MatrixType reference = llt.solve(MatrixType::Identity(n, n));
+  const RealScalar forward_bound = residual_bound * inv.norm();
+  VERIFY((numext::isfinite)(forward_bound));
+  VERIFY((inv - reference).norm() <= forward_bound);
+
+  // The destination need not be a plain object.
+  DynMatrixType host = DynMatrixType::Random(n + 2, n + 2);
+  host.bottomRightCorner(n, n) = llt.inverse();
+  VERIFY((symm * host.bottomRightCorner(n, n) - MatrixType::Identity(n, n)).norm() <= residual_bound);
+
+  // Nor need its inner stride be known at compile time. extract_data() is null for such a destination,
+  // which leaves the alias with the factor unknown rather than excluded, so this takes POTRI at every
+  // size, and the gaps between the mapped coefficients hold the kernels to the storage they were given.
+  using StrideType = Stride<Dynamic, Dynamic>;
+  const Index inner = 2, outer = 2 * n + 3;
+  const Index buffer_size = numext::maxi(Index(1), (n - 1) * (outer + inner) + 1);
+  DynVectorType buffer = DynVectorType::Random(buffer_size);
+  const DynVectorType before = buffer;
+  Map<MatrixType, 0, StrideType> strided(buffer.data(), n, n, StrideType(outer, inner));
+  strided = llt.inverse();
+  VERIFY_IS_CWISE_EQUAL(strided, strided.adjoint());
+  VERIFY((symm * strided - MatrixType::Identity(n, n)).norm() <= residual_bound);
+  std::vector<bool> mapped(buffer_size, false);
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < n; ++i) mapped[static_cast<std::size_t>(&strided.coeffRef(i, j) - buffer.data())] = true;
+  for (Index k = 0; k < buffer_size; ++k)
+    if (!mapped[k]) VERIFY_IS_EQUAL(buffer[k], before[k]);
+
+  // An in-place decomposition may overwrite its own factor, whichever arm the size selects: the solve
+  // fallback would read the factor after setIdentity() had destroyed it, so the alias takes POTRI.
+  MatrixType storage = tri;
+  LLT<Ref<MatrixType>, UpLo> inplace(storage);
+  VERIFY(inplace.info() == Success);
+  storage = inplace.inverse();
+  VERIFY_IS_CWISE_EQUAL(storage, storage.adjoint());
+  VERIFY((symm * storage - MatrixType::Identity(n, n)).norm() <= residual_bound);
+}
+
+// LLT::inverse() dispatches on EIGEN_LLT_INVERSE_POTRI_THRESHOLD, so straddle it deterministically:
+// the random sizes above reach only whichever side of it EIGEN_TEST_MAX_SIZE happens to allow. Only
+// real scalars are thresholded, so only they have a boundary to straddle.
+template <typename Scalar>
+void llt_inverse_threshold_boundary() {
+  static_assert(!NumTraits<Scalar>::IsComplex, "only real scalars are thresholded");
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+
+  const Index threshold = EIGEN_LLT_INVERSE_POTRI_THRESHOLD;
+  const Index sizes[] = {threshold - 1, threshold, threshold + 1};
+  for (Index n : sizes) {
+    MatrixType r = MatrixType::Random(n, n);
+    MatrixType symm = r * r.adjoint();
+    symm.diagonal().array() += RealScalar(n);
+
+    check_llt_inverse<MatrixType, Lower>(symm);
+    check_llt_inverse<MatrixType, Upper>(symm);
+  }
+}
+
 template <typename MatrixType>
 void cholesky(const MatrixType& m) {
   /* this test covers the following files:
@@ -111,6 +199,9 @@ void cholesky(const MatrixType& m) {
         (RealScalar(1) / matrix_l1_norm<MatrixType, Upper>(symmUp)) / matrix_l1_norm<MatrixType, Upper>(symmUp_inverse);
     rcond_est = cholup.rcond();
     VERIFY(rcond_est >= rcond / 10 && rcond_est <= rcond * 10);
+
+    check_llt_inverse<SquareMatrixType, Lower>(symm);
+    check_llt_inverse<SquareMatrixType, Upper>(symm);
 
     MatrixType neg = -symmLo;
     chollo.compute(neg);
@@ -897,6 +988,8 @@ EIGEN_DECLARE_TEST(cholesky) {
   CALL_SUBTEST_6(cholesky_blocking_boundary<std::complex<double> >());
   CALL_SUBTEST_2(cholesky_rowmajor_boundary<double>());
   CALL_SUBTEST_8(cholesky_rowmajor_boundary<float>());
+  CALL_SUBTEST_2(llt_inverse_threshold_boundary<double>());
+  CALL_SUBTEST_8(llt_inverse_threshold_boundary<float>());
 
   TEST_SET_BUT_UNUSED_VARIABLE(nb_temporaries);
 }

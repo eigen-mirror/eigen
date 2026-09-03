@@ -14,6 +14,19 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+// Smallest n at which LLT::inverse() runs the POTRI sequence on a real scalar rather than solving
+// against an explicit identity. POTRI's n^3/3 runs in the unblocked TRTRI and LAUUM kernels at small
+// n, the solve's 3x at the blocked TRSM rate, so a wider ISA helps the competitor more and moves the
+// crossover right: on Zen 4 it is n = 32 under SSE2 and AVX2, 128 (double) to 256 (float) under
+// AVX-512. Complex is not thresholded: POTRI leads from n = 8 in all twelve configurations measured.
+#ifndef EIGEN_LLT_INVERSE_POTRI_THRESHOLD
+#if defined(EIGEN_VECTORIZE_AVX512)
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 256
+#else
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 32
+#endif
+#endif
+
 namespace Eigen {
 
 namespace internal {
@@ -81,6 +94,7 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   enum { PacketSize = internal::packet_traits<Scalar>::size, AlignmentMask = int(PacketSize) - 1, UpLo = UpLo_ };
 
   using Traits = internal::LLT_Traits<MatrixType, UpLo>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /**
    * \brief Default Constructor.
@@ -166,6 +180,32 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   inline const MatrixType& matrixLLT() const {
     eigen_assert(m_isInitialized && "LLT is not initialized.");
     return m_matrix;
+  }
+
+  /** \returns the inverse of the matrix of which \c *this is the Cholesky decomposition.
+   *
+   * The result is computed as \f$ A^{-1} = L^{-*} L^{-1} \f$ by inverting the stored factor in place and
+   * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
+   * explicit identity right hand side. Beyond the destination, only a block-sized scratch panel of at most
+   * 128x128 coefficients is used, whatever the matrix size.
+   *
+   * Fewer flops is not fewer seconds at every size: for a real scalar below
+   * \c EIGEN_LLT_INVERSE_POTRI_THRESHOLD (32, or 256 where AVX-512 is enabled) the POTRI sequence runs in
+   * its unblocked kernels while the solve against an identity runs its 3x at the blocked TRSM rate, so that
+   * is what this method does there. Complex scalars always take the POTRI path. The result is exactly
+   * self-adjoint either way: one triangle is computed and mirrored onto the other.
+   *
+   * An in-place decomposition (see the class documentation) may overwrite its own factor with the result,
+   * as in <tt>storage = llt.inverse()</tt>; like any other write to the referenced matrix, that leaves the
+   * decomposition unusable afterwards.
+   *
+   * The matrix must be positive definite, that is, info() must be \c Success.
+   *
+   * \sa solve(), MatrixBase::inverse()
+   */
+  inline Inverse<LLT> inverse() const {
+    eigen_assert(m_isInitialized && "LLT is not initialized.");
+    return Inverse<LLT>(*this);
   }
 
   MatrixType reconstructedMatrix() const;
@@ -559,6 +599,50 @@ void LLT<MatrixType, UpLo_>::solveInPlace(const MatrixBase<Derived>& bAndX) cons
   matrixL().solveInPlace(bAndX);
   matrixU().solveInPlace(bAndX);
 }
+
+namespace internal {
+
+/***** Implementation of inverse() *****************************************************/
+template <typename DstXprType, typename MatrixType, int UpLo_>
+struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
+                  internal::assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo_>::Scalar>,
+                  Dense2Dense> {
+  using LltType = LLT<MatrixType, UpLo_>;
+  using SrcXprType = Inverse<LltType>;
+  static constexpr unsigned int kMirrorMode = UpLo_ == Lower ? StrictlyUpper : StrictlyLower;
+  static void run(DstXprType& dst, const SrcXprType& src,
+                  const internal::assign_op<typename DstXprType::Scalar, typename LltType::Scalar>&) {
+    const LltType& llt = src.nestedExpression();
+    eigen_assert(llt.info() == Success && "LLT::inverse(): the factorization failed.");
+    const Index size = llt.rows();
+    if ((dst.rows() != size) || (dst.cols() != size)) dst.resize(size, size);
+
+    // Complex is never thresholded; see EIGEN_LLT_INVERSE_POTRI_THRESHOLD.
+    constexpr Index kPotriThreshold =
+        NumTraits<typename LltType::Scalar>::IsComplex ? Index(0) : Index(EIGEN_LLT_INVERSE_POTRI_THRESHOLD);
+    // An in-place LLT<Ref<...>> may be asked to overwrite its own factor. The POTRI sequence does exactly
+    // that, so it takes the alias at every size; the solve fallback would read a factor that setIdentity()
+    // had already destroyed. extract_data() is null for a destination whose inner stride is not known to
+    // be 1 at compile time, which leaves the alias unknown rather than excluded, so that goes the same way.
+    const typename DstXprType::Scalar* dst_data = extract_data(dst);
+    const bool overwrites_factor = dst_data == nullptr || dst_data == llt.matrixLLT().data();
+    if (overwrites_factor || size >= kPotriThreshold) {
+      // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
+      dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
+      dst.template triangularView<UpLo_>().inverseInPlace();
+      internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    } else {
+      dst.setIdentity();
+      llt.solveInPlace(dst);
+    }
+    // Mirror; (i, j) reads (j, i), which lies in the computed triangle and is never written here, so
+    // the aliasing is benign. The computed diagonal is exactly real (a squaredNorm above the
+    // threshold, a real scalar below it), so the result is exactly self-adjoint.
+    dst.template triangularView<kMirrorMode>() = dst.adjoint();
+  }
+};
+
+}  // end namespace internal
 
 /** \returns the matrix represented by the decomposition,
  * i.e., it returns the product: L L^*.
