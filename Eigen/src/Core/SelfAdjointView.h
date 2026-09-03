@@ -62,6 +62,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /** \brief The type of coefficients in this matrix */
   using Scalar = typename internal::traits<SelfAdjointView>::Scalar;
+  /** Real part of #Scalar */
+  using RealScalar = typename NumTraits<Scalar>::Real;
   using StorageIndex = typename MatrixType::StorageIndex;
 
   enum {
@@ -213,12 +215,58 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * (complex) scalars the unstored entries are conjugates of stored ones, and
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
-  EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
-    using RealScalar_ = typename NumTraits<Scalar>::Real;
-    RealScalar_ norm = RealScalar_(0);
+  EIGEN_DEVICE_FUNC RealScalar l1Norm() const {
+#ifdef EIGEN_GPU_COMPILE_PHASE
+    // The panel accumulator below is per-thread local storage on a device, so it would cost every
+    // kernel instantiating this kPanelSize scalars of stack and the registers to address them.
+    return l1NormPerColumn();
+#else
+    // For a self-adjoint matrix |a_ij| = |a_ji|, so the stored triangle of a row-major matrix is
+    // the transposed, column-major, complementary one and yields the same norm read the fast way.
+    EIGEN_IF_CONSTEXPR (bool(MatrixType::IsRowMajor)) {
+      return l1NormColumnwise<TransposeMode>(m_matrix.transpose());
+    } else {
+      return l1NormColumnwise<UpLo>(m_matrix);
+    }
+#endif
+  }
+
+ private:
+  // Reading the mirrored term of column j as a row of the stored triangle costs a stride-n
+  // traversal of a column-major matrix. Instead accumulate column sums a panel at a time:
+  // |a_ij| from a column left of the panel is added to the sum of column i, which walks that
+  // column. Only the panel's diagonal block keeps the row traversal, where it is cache resident,
+  // and a panel-sized accumulator stays a stack object.
+  template <int Mode, typename Mat>
+  EIGEN_DEVICE_FUNC static RealScalar l1NormColumnwise(const Mat& m) {
+    static constexpr int kPanelSize = 64;
+    RealScalar norm = RealScalar(0);
+    const Index n = m.rows();
+    Matrix<RealScalar, kPanelSize, 1> sums;
+    for (Index p = 0; p < n; p += kPanelSize) {
+      const Index len = numext::mini(Index(kPanelSize), n - p);
+      EIGEN_IF_CONSTEXPR (Mode == Lower) {
+        for (Index j = 0; j < len; ++j)
+          sums.coeffRef(j) =
+              m.col(p + j).tail(n - p - j).template lpNorm<1>() + m.row(p + j).segment(p, j).template lpNorm<1>();
+        for (Index j = 0; j < p; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
+      } else {
+        for (Index j = 0; j < len; ++j)
+          sums.coeffRef(j) = m.col(p + j).head(p + j + 1).template lpNorm<1>() +
+                             m.row(p + j).segment(p + j + 1, len - j - 1).template lpNorm<1>();
+        for (Index j = p + len; j < n; ++j) sums.head(len) += m.col(j).segment(p, len).cwiseAbs();
+      }
+      norm = numext::maxi(norm, sums.head(len).maxCoeff());
+    }
+    return norm;
+  }
+
+  // Workspace-free form, one column sum at a time; the mirrored term is read as a row.
+  EIGEN_DEVICE_FUNC RealScalar l1NormPerColumn() const {
+    RealScalar norm = RealScalar(0);
     const Index n = m_matrix.rows();
     for (Index col = 0; col < n; ++col) {
-      RealScalar_ abs_col_sum;
+      RealScalar abs_col_sum;
       EIGEN_IF_CONSTEXPR (UpLo == Lower) {
         abs_col_sum =
             m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
@@ -226,11 +274,12 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
         abs_col_sum =
             m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
       }
-      if (abs_col_sum > norm) norm = abs_col_sum;
+      norm = numext::maxi(norm, abs_col_sum);
     }
     return norm;
   }
 
+ public:
   /////////// Cholesky module ///////////
 
   LLT<PlainObject, UpLo> llt() const;
@@ -239,8 +288,6 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Eigenvalue module ///////////
 
-  /** Real part of #Scalar */
-  using RealScalar = typename NumTraits<Scalar>::Real;
   /** Return type of eigenvalues() */
   using EigenvaluesReturnType = Matrix<RealScalar, internal::traits<MatrixType>::ColsAtCompileTime, 1>;
 

@@ -75,6 +75,21 @@ void selfadjoint(const MatrixType& m) {
   VERIFY_IS_APPROX(lowerOnly.template selfadjointView<Lower>().l1Norm(), ref_l1);
 }
 
+// l1Norm accumulates the column sums a panel at a time, so sweep sizes across two panel
+// boundaries: a mis-sized segment would otherwise hide between the random sizes above.
+template <typename Scalar>
+void selfadjoint_l1norm_sizes() {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  for (Index n : {Index(0), Index(1), Index(2), Index(63), Index(64), Index(65), Index(127), Index(128), Index(129)}) {
+    MatrixType m = MatrixType::Random(n, n);
+    MatrixType full = m.template selfadjointView<Lower>();
+    RealScalar ref = n == 0 ? RealScalar(0) : full.cwiseAbs().colwise().sum().maxCoeff();
+    VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), ref);
+    VERIFY_IS_APPROX(full.template selfadjointView<Upper>().l1Norm(), ref);
+  }
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
   EIGEN_UNUSED_VARIABLE(m);
@@ -94,4 +109,6 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   }
 
   CALL_SUBTEST_1(bug_159());
+  CALL_SUBTEST_4(selfadjoint_l1norm_sizes<double>());
+  CALL_SUBTEST_4(selfadjoint_l1norm_sizes<std::complex<double> >());
 }

@@ -381,6 +381,16 @@ struct selfadjoint_rank2_update {
   }
 };
 
+template <typename T, int UpLo>
+struct selfadjoint_l1_norm {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using namespace Eigen;
+    T M(in + i);
+    // l1Norm() has a separate device implementation, so the host result is the reference.
+    out[i] = M.template selfadjointView<UpLo>().l1Norm();
+  }
+};
+
 template <typename T>
 struct matrix_inverse {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -645,4 +655,9 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Upper>(), nthreads, in, out));
+
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Upper>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix6f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix6f, Upper>(), nthreads, in, out));
 }
