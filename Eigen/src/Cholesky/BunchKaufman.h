@@ -262,6 +262,61 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   MatrixType reconstructedMatrix() const;
 
+  /** \returns the determinant of the matrix of which *this is the Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Bunch-Kaufman
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the
+   * Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation. The 2x2 blocks of D are scaled by their off-diagonal entry before their
+   * determinant is formed, so a block whose own determinant is out of range still contributes a
+   * finite term.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Bunch-Kaufman decomposition,
+   * that is, \c 1, \c -1, or \c 0 if the matrix is singular.
+   *
+   * The sign is read off the inertia rather than computed from a product, so it is exact and cannot
+   * overflow: \f$ \mathrm{sign}(\det A) = (-1)^{n_-} \f$, with \f$ n_- \f$ the number of negative
+   * eigenvalues, which congruence leaves invariant (Sylvester's law of inertia).
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
   /** \returns the adjoint of \c *this, that is, a const reference to the decomposition itself as the underlying matrix
    * is self-adjoint.
    *
@@ -305,6 +360,16 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
+
+  /** \internal \returns \f$ \det(D_k)/|d_{21}|^2 \f$ for a 2x2 block of D, which is real and shares the
+   * sign of \f$ \det(D_k) \f$ since \f$ |d_{21}| > 0 \f$ there. */
+  static RealScalar scaledBlockDeterminant(const RealScalar& d11, const RealScalar& d22, const RealScalar& d21);
+
+  /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
+   * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
+   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. Accumulated as a mantissa and a power of two,
+   * so that only the result has to be representable. */
+  RealScalar determinantD() const;
 
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -802,6 +867,18 @@ void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) cons
   }
 }
 
+// det(D_k) itself over- or underflows on an extreme-scaled 2x2 block, so it is only ever formed scaled by
+// |d21|^2. Divide by |d21| twice rather than multiply by its reciprocal, which overflows once |d21| is
+// subnormal. The pivot criterion bounds |q| by a^2 < 1 with a = (1+sqrt(17))/8, so q >= 1 or NaN is an
+// artifact of d22/d21 overflowing -- the criterion bounds |d22| only against its own row -- and
+// det(D_k) = -|d21|^2 to within that same bound there.
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::scaledBlockDeterminant(
+    const RealScalar& d11, const RealScalar& d22, const RealScalar& d21) {
+  const RealScalar q = (d11 / d21) * (d22 / d21);
+  return q < RealScalar(1) ? q - RealScalar(1) : RealScalar(-1);
+}
+
 template <typename MatrixType, int UpLo_>
 void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
   const Index n = m_matrix.rows();
@@ -811,11 +888,8 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
-      const Scalar d21 = m_subdiag.coeff(k);
-      // Scaled determinant denom = det/|d21|^2 (|d21|^2 > 0 for a 2x2 block), so sign(denom) == sign(det);
-      // avoids forming det = d11*d22 - |d21|^2, which over/underflows on extreme-scaled 2x2 blocks.
-      const Scalar id = Scalar(1) / d21;
-      const RealScalar denom = numext::real((d22 * id) * (d11 * numext::conj(id))) - RealScalar(1);
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      const RealScalar denom = scaledBlockDeterminant(d11, d22, d21);
       if (denom < RealScalar(0)) {
         // Indefinite 2x2 block: one positive and one negative eigenvalue.
         ++m_n_pos;
@@ -915,6 +989,87 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
   eigen_assert(m_matrix.rows() == bAndX.rows());
   bAndX = this->solve(bAndX);
   return true;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::determinantD() const {
+  const Index n = m_matrix.rows();
+  // det(D) is accumulated as mantissa * 2^exponent, the mantissa renormalized to [1/2, 1) after each
+  // block. Both a single 2x2 block determinant and the running product can leave the representable range
+  // while det(D) itself stays in it, and an overflowed block meeting an underflowed one gives NaN.
+  RealScalar mantissa(1);
+  Index exponent = 0;
+  Index k = 0;
+  while (k < n) {
+    RealScalar blockM, blockE;
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      RealScalar e21;
+      const RealScalar m21 = internal::pfrexp<RealScalar>(d21, e21);
+      blockM = m21 * m21 * scaledBlockDeterminant(d11, d22, d21);
+      blockE = RealScalar(2) * e21;
+      k += 2;
+    } else {
+      blockM = internal::pfrexp<RealScalar>(numext::real(m_matrix.coeff(k, k)), blockE);
+      k += 1;
+    }
+    // |blockM| < 2 and, unless the block is singular, above 1/16, so the product below stays normal and
+    // its rounding is the only error this step adds.
+    RealScalar renorm;
+    mantissa = internal::pfrexp<RealScalar>(mantissa * blockM, renorm);
+    exponent += Index(blockE) + Index(renorm);
+  }
+  // ldexp() saturates to zero or infinity but takes an int exponent; past this magnitude it has already
+  // saturated, so clamping first cannot change the result.
+  const Index limit = Index(NumTraits<RealScalar>::max_exponent()) - Index(NumTraits<RealScalar>::min_exponent()) +
+                      Index(NumTraits<RealScalar>::digits());
+  return numext::ldexp(mantissa, int(numext::mini(numext::maxi(exponent, -limit), limit)));
+}
+
+// A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::determinant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  return Scalar(determinantD());
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  return numext::abs(determinantD());
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  const Index n = m_matrix.rows();
+  RealScalar result(0);
+  Index k = 0;
+  while (k < n) {
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      // log|det(D_k)| = 2 log|d21| + log|det(D_k)/|d21|^2|.
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      const RealScalar scaled = scaledBlockDeterminant(d11, d22, d21);
+      result += RealScalar(2) * numext::log(d21) + numext::log(numext::abs(scaled));
+      k += 2;
+    } else {
+      result += numext::log(numext::abs(numext::real(m_matrix.coeff(k, k))));
+      k += 1;
+    }
+  }
+  return result;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  if (m_n_zero > 0) return Scalar(0);
+  return Scalar((m_n_neg % 2 == 0) ? 1 : -1);
 }
 
 /** \returns the matrix represented by the decomposition, i.e., the product \f$ P^T L D L^* P \f$.

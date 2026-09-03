@@ -204,10 +204,58 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
    *
    * \warning a determinant can be very big or small, so for matrices
    * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
    *
-   * \sa MatrixBase::determinant()
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
 
   MatrixType reconstructedMatrix() const;
 
@@ -538,6 +586,27 @@ typename PartialPivLU<MatrixType, PermutationIndex>::Scalar PartialPivLU<MatrixT
     const {
   eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
   return Scalar(m_det_p) * m_lu.diagonal().prod();
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename PartialPivLU<MatrixType, PermutationIndex>::RealScalar
+PartialPivLU<MatrixType, PermutationIndex>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
+  return numext::abs(m_lu.diagonal().prod());
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename PartialPivLU<MatrixType, PermutationIndex>::RealScalar
+PartialPivLU<MatrixType, PermutationIndex>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
+  return m_lu.diagonal().cwiseAbs().array().log().sum();
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename PartialPivLU<MatrixType, PermutationIndex>::Scalar
+PartialPivLU<MatrixType, PermutationIndex>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
+  return Scalar(m_det_p) * m_lu.diagonal().array().sign().prod();
 }
 
 /** \returns the matrix represented by the decomposition,

@@ -343,6 +343,28 @@ void check_sparse_abs_determinant(Solver& solver, const typename Solver::MatrixT
 }
 
 template <typename Solver, typename DenseMat>
+void check_sparse_log_abs_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
+  typedef typename Solver::MatrixType Mat;
+  typedef typename Mat::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  solver.compute(A);
+  if (solver.info() != Success) {
+    std::cerr << "WARNING | sparse solver testing: factorization failed (check_sparse_log_abs_determinant)\n";
+    return;
+  }
+
+  Scalar refDet = dA.determinant();
+  RealScalar refAbsDet = numext::abs(refDet);
+  VERIFY_IS_APPROX(refAbsDet, solver.absDeterminant());
+  VERIFY_IS_APPROX(numext::sign(refDet), solver.signDeterminant());
+  // log|det| crosses zero, so the meaningful bound here is absolute once |log|det|| drops below one.
+  RealScalar refLogAbsDet = numext::log(refAbsDet);
+  VERIFY_IS_MUCH_SMALLER_THAN(solver.logAbsDeterminant() - refLogAbsDet,
+                              numext::maxi(RealScalar(1), numext::abs(refLogAbsDet)));
+}
+
+template <typename Solver, typename DenseMat>
 int generate_sparse_spd_problem(Solver&, typename Solver::MatrixType& A, typename Solver::MatrixType& halfA,
                                 DenseMat& dA, int maxSize = 300) {
   typedef typename Solver::MatrixType Mat;
@@ -492,6 +514,23 @@ void check_sparse_spd_determinant(Solver& solver) {
   }
 }
 
+template <typename Solver>
+void check_sparse_spd_log_abs_determinant(Solver& solver) {
+  typedef typename Solver::MatrixType Mat;
+  typedef typename Mat::Scalar Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+
+  // generate the problem
+  Mat A, halfA;
+  DenseMatrix dA;
+  generate_sparse_spd_problem(solver, A, halfA, dA, 30);
+
+  for (int i = 0; i < g_repeat; i++) {
+    check_sparse_log_abs_determinant(solver, A, dA);
+    check_sparse_log_abs_determinant(solver, halfA, dA);
+  }
+}
+
 template <typename Solver, typename DenseMat>
 int generate_sparse_nonhermitian_problem(Solver&, typename Solver::MatrixType& A, typename Solver::MatrixType& halfA,
                                          DenseMat& dA, int maxSize = 300) {
@@ -579,6 +618,23 @@ void check_sparse_nonhermitian_determinant(Solver& solver) {
   for (int i = 0; i < g_repeat; i++) {
     check_sparse_determinant(solver, A, dA);
     check_sparse_determinant(solver, halfA, dA);
+  }
+}
+
+template <typename Solver>
+void check_sparse_nonhermitian_log_abs_determinant(Solver& solver) {
+  typedef typename Solver::MatrixType Mat;
+  typedef typename Mat::Scalar Scalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+
+  // generate the problem
+  Mat A, halfA;
+  DenseMatrix dA;
+  generate_sparse_nonhermitian_problem(solver, A, halfA, dA, 30);
+
+  for (int i = 0; i < g_repeat; i++) {
+    check_sparse_log_abs_determinant(solver, A, dA);
+    check_sparse_log_abs_determinant(solver, halfA, dA);
   }
 }
 

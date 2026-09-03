@@ -10,6 +10,61 @@
 
 #include "sparse_solver.h"
 
+template <typename Solver>
+void verify_determinant_asserts(const Solver& solver) {
+  VERIFY_RAISES_ASSERT(solver.determinant());
+  VERIFY_RAISES_ASSERT(solver.absDeterminant());
+  VERIFY_RAISES_ASSERT(solver.logAbsDeterminant());
+  VERIFY_RAISES_ASSERT(solver.signDeterminant());
+}
+
+// factorize_preordered() breaks out of its column loop on a bad pivot but still sets m_factorizationIsOk,
+// leaving the tail of D -- and of L's diagonal -- unwritten. The determinant accessors read exactly those,
+// so they check info() too, as the dense LLT ones do.
+template <typename SparseMatrixType>
+void test_simplicial_cholesky_determinant_asserts() {
+  typedef typename SparseMatrixType::Scalar Scalar;
+  const Index n = 6;
+
+  // A zero pivot stops all four classes; SimplicialLLT alone also rejects a negative one.
+  SparseMatrixType zero_pivot(n, n), negative_pivot(n, n);
+  for (Index i = 0; i < n; ++i) {
+    zero_pivot.insert(i, i) = (i == 0) ? Scalar(0) : Scalar(1);
+    negative_pivot.insert(i, i) = (i == n - 1) ? Scalar(-1) : Scalar(1);
+  }
+  zero_pivot.makeCompressed();
+  negative_pivot.makeCompressed();
+
+  SimplicialLLT<SparseMatrixType> llt(zero_pivot);
+  VERIFY(llt.info() == NumericalIssue);
+  verify_determinant_asserts(llt);
+
+  SimplicialLLT<SparseMatrixType> indefinite_llt(negative_pivot);
+  VERIFY(indefinite_llt.info() == NumericalIssue);
+  verify_determinant_asserts(indefinite_llt);
+
+  SimplicialLDLT<SparseMatrixType> ldlt(zero_pivot);
+  VERIFY(ldlt.info() == NumericalIssue);
+  verify_determinant_asserts(ldlt);
+
+  SimplicialNonHermitianLLT<SparseMatrixType> nhllt(zero_pivot);
+  VERIFY(nhllt.info() == NumericalIssue);
+  verify_determinant_asserts(nhllt);
+
+  SimplicialNonHermitianLDLT<SparseMatrixType> nhldlt(zero_pivot);
+  VERIFY(nhldlt.info() == NumericalIssue);
+  verify_determinant_asserts(nhldlt);
+
+  // The deprecated SimplicialCholesky exposes determinant() alone, and reads the same tail.
+  SimplicialCholesky<SparseMatrixType> deprecated(zero_pivot);
+  VERIFY(deprecated.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(deprecated.determinant());
+
+  // info() alone would not reject an unfactorized decomposition: it is constructed Success.
+  SimplicialLDLT<SparseMatrixType> unfactorized;
+  verify_determinant_asserts(unfactorized);
+}
+
 template <typename T, typename I_, int flag>
 void test_simplicial_cholesky_T() {
   typedef SparseMatrix<T, flag, I_> SparseMatrixType;
@@ -49,6 +104,17 @@ void test_simplicial_cholesky_T() {
   check_sparse_nonhermitian_determinant(nhllt_colmajor_upper_amd);
   check_sparse_nonhermitian_determinant(nhldlt_colmajor_lower_amd);
   check_sparse_nonhermitian_determinant(nhldlt_colmajor_upper_amd);
+
+  check_sparse_spd_log_abs_determinant(llt_colmajor_lower_amd);
+  check_sparse_spd_log_abs_determinant(llt_colmajor_upper_amd);
+  check_sparse_spd_log_abs_determinant(ldlt_colmajor_lower_amd);
+  check_sparse_spd_log_abs_determinant(ldlt_colmajor_upper_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhllt_colmajor_lower_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhllt_colmajor_upper_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhldlt_colmajor_lower_amd);
+  check_sparse_nonhermitian_log_abs_determinant(nhldlt_colmajor_upper_amd);
+
+  test_simplicial_cholesky_determinant_asserts<SparseMatrixType>();
 
   check_sparse_spd_solving(ldlt_colmajor_lower_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);
   check_sparse_spd_solving(ldlt_colmajor_upper_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);

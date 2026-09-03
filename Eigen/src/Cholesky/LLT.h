@@ -194,6 +194,64 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   template <typename VectorType>
   LLT& rankUpdate(const VectorType& vec, const RealScalar& sigma = 1);
 
+  /** \returns the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \note The decomposed matrix is positive definite, so this is the determinant itself.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the Cholesky
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Cholesky decomposition,
+   * which is \c 1 since that matrix is positive definite.
+   *
+   * This method is provided for compatibility with the other decompositions, thus enabling generic code.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
   void _solve_impl(const RhsType& rhs, DstType& dst) const;
@@ -433,6 +491,34 @@ LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v
     m_info = Success;
 
   return *this;
+}
+
+// A = L L^*, with L real and positive on the diagonal, so det(A) = prod(L_ii)^2 > 0.
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::Scalar LLT<MatrixType_, UpLo_>::determinant() const {
+  return Scalar(absDeterminant());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return numext::abs2(m_matrix.diagonal().real().prod());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return RealScalar(2) * m_matrix.diagonal().real().array().log().sum();
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::Scalar LLT<MatrixType_, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return Scalar(1);
 }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

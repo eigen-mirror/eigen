@@ -269,10 +269,65 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
    *
    * \warning a determinant can be very big or small, so for matrices
    * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
    *
-   * \sa MatrixBase::determinant()
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
    */
   typename internal::traits<MatrixType>::Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \note Returns exactly zero when rank() finds the decomposition rank-deficient, as the
+   * rank-revealing QR decompositions do. determinant() is not gated that way: it returns the
+   * product of the pivots whatever the rank.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \note Returns \c -infinity when rank() finds the decomposition rank-deficient.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which
+   * *this is the LU decomposition. It has only linear complexity
+   * (that is, O(n) where n is the dimension of the square matrix)
+   * as the LU decomposition has already been computed.
+   *
+   * \note This is only for square matrices.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \note Returns zero when rank() finds the decomposition rank-deficient, matching the documented
+   * sign of a singular matrix.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
   RealScalar pivotCoeff(Index i) const {
@@ -451,6 +506,30 @@ typename internal::traits<MatrixType>::Scalar FullPivLU<MatrixType, PermutationI
   eigen_assert(m_isInitialized && "LU is not initialized.");
   eigen_assert(m_lu.rows() == m_lu.cols() && "You can't take the determinant of a non-square matrix!");
   return Scalar(m_det_pq) * Scalar(m_lu.diagonal().prod());
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename FullPivLU<MatrixType, PermutationIndex>::RealScalar FullPivLU<MatrixType, PermutationIndex>::absDeterminant()
+    const {
+  eigen_assert(m_isInitialized && "LU is not initialized.");
+  eigen_assert(m_lu.rows() == m_lu.cols() && "You can't take the determinant of a non-square matrix!");
+  return isInjective() ? numext::abs(m_lu.diagonal().prod()) : RealScalar(0);
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename FullPivLU<MatrixType, PermutationIndex>::RealScalar
+FullPivLU<MatrixType, PermutationIndex>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "LU is not initialized.");
+  eigen_assert(m_lu.rows() == m_lu.cols() && "You can't take the determinant of a non-square matrix!");
+  return isInjective() ? m_lu.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
+}
+
+template <typename MatrixType, typename PermutationIndex>
+typename FullPivLU<MatrixType, PermutationIndex>::Scalar FullPivLU<MatrixType, PermutationIndex>::signDeterminant()
+    const {
+  eigen_assert(m_isInitialized && "LU is not initialized.");
+  eigen_assert(m_lu.rows() == m_lu.cols() && "You can't take the determinant of a non-square matrix!");
+  return isInjective() ? Scalar(m_det_pq) * m_lu.diagonal().array().sign().prod() : Scalar(0);
 }
 
 /** \returns the matrix represented by the decomposition,

@@ -264,6 +264,8 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
   };
 
   mutable ComputationInfo m_info;
+  // Set once factorize() has run, success or not: factorize_preordered() breaks out on a bad pivot, leaving
+  // the tails of m_diag and of m_matrix's diagonal unwritten. Readers of those also need m_info == Success.
   bool m_factorizationIsOk;
   bool m_analysisIsOk;
 
@@ -455,8 +457,39 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
     Scalar detL = Base::m_matrix.diagonal().prod();
     return numext::abs2(detL);
+  }
+
+  /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
+  RealScalar absDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    return numext::abs2(Base::m_matrix.diagonal().prod());
+  }
+
+  /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
+   * factorization.
+   *
+   * Unlike determinant(), this stays finite for the large factorizations where a determinant overflows or underflows.
+   */
+  RealScalar logAbsDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    return RealScalar(2) * Base::m_matrix.diagonal().cwiseAbs().array().log().sum();
+  }
+
+  /** \returns the sign of the determinant of the underlying matrix, which is \c 1 since that matrix is positive
+   * definite.
+   *
+   * This method is provided for compatibility with the other decompositions, thus enabling generic code.
+   */
+  Scalar signDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    return Scalar(1);
   }
 };
 
@@ -543,7 +576,36 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
   void factorize(const MatrixType& a) { Base::template factorize<true, false>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
-  Scalar determinant() const { return Base::m_diag.prod(); }
+  Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Base::m_diag.prod();
+  }
+
+  /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
+  RealScalar absDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return numext::abs(Base::m_diag.real().prod());
+  }
+
+  /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
+   * factorization.
+   *
+   * Unlike determinant(), this stays finite for the large factorizations where a determinant overflows or underflows.
+   */
+  RealScalar logAbsDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Base::m_diag.real().cwiseAbs().array().log().sum();
+  }
+
+  /** \returns the sign of the determinant of the underlying matrix from the current factorization */
+  Scalar signDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Scalar(Base::m_diag.real().array().sign().prod());
+  }
 };
 
 /** \ingroup SparseCholesky_Module
@@ -626,8 +688,36 @@ class SimplicialNonHermitianLLT
 
   /** \returns the determinant of the underlying matrix from the current factorization */
   Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
     Scalar detL = Base::m_matrix.diagonal().prod();
     return detL * detL;
+  }
+
+  /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
+  RealScalar absDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    return numext::abs2(Base::m_matrix.diagonal().prod());
+  }
+
+  /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
+   * factorization.
+   *
+   * Unlike determinant(), this stays finite for the large factorizations where a determinant overflows or underflows.
+   */
+  RealScalar logAbsDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    return RealScalar(2) * Base::m_matrix.diagonal().cwiseAbs().array().log().sum();
+  }
+
+  /** \returns the sign of the determinant of the underlying matrix from the current factorization */
+  Scalar signDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LLT is not factorized, or its factorization failed");
+    Scalar signL = Base::m_matrix.diagonal().array().sign().prod();
+    return signL * signL;
   }
 };
 
@@ -715,7 +805,36 @@ class SimplicialNonHermitianLDLT
   void factorize(const MatrixType& a) { Base::template factorize<true, true>(a); }
 
   /** \returns the determinant of the underlying matrix from the current factorization */
-  Scalar determinant() const { return Base::m_diag.prod(); }
+  Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Base::m_diag.prod();
+  }
+
+  /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
+  RealScalar absDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return numext::abs(Base::m_diag.prod());
+  }
+
+  /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
+   * factorization.
+   *
+   * Unlike determinant(), this stays finite for the large factorizations where a determinant overflows or underflows.
+   */
+  RealScalar logAbsDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Base::m_diag.cwiseAbs().array().log().sum();
+  }
+
+  /** \returns the sign of the determinant of the underlying matrix from the current factorization */
+  Scalar signDeterminant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial LDLT is not factorized, or its factorization failed");
+    return Base::m_diag.array().sign().prod();
+  }
 };
 
 /** \deprecated use SimplicialLDLT or class SimplicialLLT
@@ -846,6 +965,8 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
   }
 
   Scalar determinant() const {
+    eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
+                 "Simplicial Cholesky is not factorized, or its factorization failed");
     if (m_LDLT) {
       return Base::m_diag.prod();
     } else {

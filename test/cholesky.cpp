@@ -604,6 +604,128 @@ void cholesky_ldlt_rankupdate_zero_components(const MatrixType& m) {
   }
 }
 
+// A = Q D Q^*, with Q unitary and D real, is Hermitian with det(A) = prod(D_ii).
+// Drawing the |D_ii| from an annulus keeps A well conditioned and log|det(A)| away from zero.
+template <typename MatrixType>
+void cholesky_determinant(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  RealVectorType d(size);
+  for (Index i = 0; i < size; ++i) d(i) = internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8));
+
+  const RealScalar absdet = d.prod();
+  const RealScalar logabsdet = d.array().log().sum();
+  const MatrixType spd = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+
+  LLT<MatrixType, Lower> lltlo(spd);
+  VERIFY(lltlo.info() == Success);
+  check_determinant(lltlo, Scalar(absdet), logabsdet);
+
+  LLT<MatrixType, Upper> lltup(spd);
+  VERIFY(lltup.info() == Success);
+  check_determinant(lltup, Scalar(absdet), logabsdet);
+
+  // Negating D leaves |det(A)| alone and makes A negative definite, so det(A) picks up a factor (-1)^n.
+  // LDLT's D is purely diagonal and so does not cover the indefinite case; BunchKaufman does, and
+  // test/bunchkaufman.cpp checks the same identities there.
+  d = -d;
+  const RealScalar det = d.prod();
+  const MatrixType negdef = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+
+  LDLT<MatrixType, Lower> ldltlo(negdef);
+  VERIFY(ldltlo.info() == Success);
+  check_determinant(ldltlo, Scalar(det), logabsdet);
+
+  LDLT<MatrixType, Upper> ldltup(negdef);
+  VERIFY(ldltup.info() == Success);
+  check_determinant(ldltup, Scalar(det), logabsdet);
+}
+
+// The determinant of an empty matrix is the empty product, 1.
+template <typename MatrixType>
+void cholesky_determinant_empty() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  MatrixType empty(0, 0);
+
+  LLT<MatrixType> llt(empty);
+  VERIFY_IS_EQUAL(llt.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(llt.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(llt.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(llt.signDeterminant(), Scalar(1));
+
+  LDLT<MatrixType> ldlt(empty);
+  VERIFY_IS_EQUAL(ldlt.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(ldlt.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(ldlt.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(ldlt.signDeterminant(), Scalar(1));
+}
+
+// logAbsDeterminant() exists to survive the range where the determinant itself does not: with n = 200 and
+// a diagonal of 10^4, det = 10^800 overflows every supported float type while log|det| = 800 log 10 does not.
+template <typename MatrixType>
+void cholesky_determinant_overflow() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  const Index size = 200;
+  for (bool overflow : {true, false}) {
+    const RealScalar scale = overflow ? RealScalar(1e4) : RealScalar(1e-4);
+    const MatrixType a = MatrixType::Identity(size, size) * Scalar(scale);
+    const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
+
+    LLT<MatrixType> llt(a);
+    VERIFY(llt.info() == Success);
+    VERIFY(determinant_out_of_range(llt.absDeterminant(), overflow));
+    VERIFY_IS_APPROX(llt.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(llt.signDeterminant(), Scalar(1));
+
+    LDLT<MatrixType> ldlt(a);
+    VERIFY(ldlt.info() == Success);
+    VERIFY(determinant_out_of_range(ldlt.absDeterminant(), overflow));
+    VERIFY_IS_APPROX(ldlt.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(ldlt.signDeterminant(), Scalar(1));
+  }
+}
+
+// A failed factorization does not represent the input, so the four accessors assert rather than answer from
+// it: for [[0,1],[1,0]] LDLT reports NumericalIssue with D = 0, where det = -1. m_isInitialized alone does
+// not catch that, since compute() sets it either way.
+template <typename MatrixType>
+void cholesky_determinant_failed_factorization(Index size) {
+  eigen_assert(size >= 2);
+
+  // A zero diagonal with non-zero off-diagonal entries makes the first pivot invalid while the matrix is
+  // not; both factorizations give up on it.
+  const MatrixType indefinite = MatrixType::Ones(size, size) - MatrixType::Identity(size, size);
+
+  LDLT<MatrixType, Lower> ldltlo(indefinite);
+  VERIFY(ldltlo.info() == NumericalIssue);
+  VERIFY(!ldltlo.reconstructedMatrix().isApprox(indefinite));
+  VERIFY_RAISES_ASSERT(ldltlo.determinant())
+  VERIFY_RAISES_ASSERT(ldltlo.absDeterminant())
+  VERIFY_RAISES_ASSERT(ldltlo.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(ldltlo.signDeterminant())
+
+  LDLT<MatrixType, Upper> ldltup(indefinite);
+  VERIFY(ldltup.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(ldltup.determinant())
+  VERIFY_RAISES_ASSERT(ldltup.absDeterminant())
+  VERIFY_RAISES_ASSERT(ldltup.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(ldltup.signDeterminant())
+
+  LLT<MatrixType, Lower> lltlo(indefinite);
+  VERIFY(lltlo.info() == NumericalIssue);
+  VERIFY_RAISES_ASSERT(lltlo.determinant())
+  VERIFY_RAISES_ASSERT(lltlo.absDeterminant())
+  VERIFY_RAISES_ASSERT(lltlo.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(lltlo.signDeterminant())
+}
+
 template <typename MatrixType>
 void cholesky_verify_assert() {
   MatrixType tmp;
@@ -615,6 +737,10 @@ void cholesky_verify_assert() {
   VERIFY_RAISES_ASSERT(llt.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(llt.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(llt.solveInPlace(tmp))
+  VERIFY_RAISES_ASSERT(llt.determinant())
+  VERIFY_RAISES_ASSERT(llt.absDeterminant())
+  VERIFY_RAISES_ASSERT(llt.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(llt.signDeterminant())
 
   LDLT<MatrixType> ldlt;
   VERIFY_RAISES_ASSERT(ldlt.matrixL())
@@ -626,6 +752,10 @@ void cholesky_verify_assert() {
   VERIFY_RAISES_ASSERT(ldlt.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(ldlt.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(ldlt.solveInPlace(tmp))
+  VERIFY_RAISES_ASSERT(ldlt.determinant())
+  VERIFY_RAISES_ASSERT(ldlt.absDeterminant())
+  VERIFY_RAISES_ASSERT(ldlt.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(ldlt.signDeterminant())
 }
 
 // Test Cholesky decomposition at blocking and vectorization boundaries.
@@ -731,9 +861,21 @@ EIGEN_DECLARE_TEST(cholesky) {
     CALL_SUBTEST_2(cholesky_ldlt_rankupdate_zero_components(MatrixXd(s, s)));
     CALL_SUBTEST_6(cholesky_ldlt_rankupdate_zero_components(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    // Bounded so that the determinant itself, not just its logarithm, stays in range.
+    s = internal::random<int>(1, 30);
+    CALL_SUBTEST_2(cholesky_determinant<MatrixXd>(s));
+    CALL_SUBTEST_8(cholesky_determinant<MatrixXf>(s));
+    CALL_SUBTEST_6(cholesky_determinant<MatrixXcd>(s));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
   // empty matrix, regression test for Bug 785:
   CALL_SUBTEST_2(cholesky(MatrixXd(0, 0)));
+  CALL_SUBTEST_2(cholesky_determinant_empty<MatrixXd>());
+  CALL_SUBTEST_8(cholesky_determinant_overflow<MatrixXf>());
+  CALL_SUBTEST_3(cholesky_determinant_failed_factorization<Matrix2d>(2));
+  CALL_SUBTEST_2(cholesky_determinant_failed_factorization<MatrixXd>(internal::random<int>(2, 20)));
+  CALL_SUBTEST_6(cholesky_determinant_failed_factorization<MatrixXcd>(internal::random<int>(2, 20)));
 
   // This does not work yet:
   // CALL_SUBTEST_2( cholesky(Matrix<double,0,0>()) );

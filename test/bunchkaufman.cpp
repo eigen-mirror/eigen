@@ -17,6 +17,7 @@
 #include <Eigen/Cholesky>
 #include <Eigen/QR>
 #include <Eigen/Eigenvalues>
+#include "fp_control.h"
 #include "solverbase.h"
 
 template <typename MatrixType, int UpLo>
@@ -272,6 +273,172 @@ void bunchkaufman_blocking_boundary() {
   }
 }
 
+// A = Q D Q^*, with Q unitary and D real, is Hermitian with det(A) = prod(D_ii). Mixed signs make A
+// indefinite, so the factorization mixes 1x1 and 2x2 blocks of D; drawing the |D_ii| from an annulus keeps
+// A well conditioned, hence the inertia -- and with it signDeterminant() -- unambiguous.
+template <typename MatrixType>
+void bunchkaufman_determinant(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+
+  MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  RealVectorType d(size);
+  for (Index i = 0; i < size; ++i) {
+    d(i) = internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8));
+    if (internal::random<bool>()) d(i) = -d(i);
+  }
+  const MatrixType a = q * d.template cast<Scalar>().asDiagonal() * q.adjoint();
+
+  const RealScalar det = d.prod();
+  const RealScalar logabsdet = d.array().abs().log().sum();
+
+  BunchKaufman<MatrixType, Lower> bklo(a);
+  VERIFY(bklo.info() == Success);
+  check_determinant(bklo, Scalar(det), logabsdet);
+  // Unlike the other decompositions, this sign is read off the inertia rather than accumulated from a
+  // product of signs, so it is exact.
+  VERIFY_IS_EQUAL(bklo.signDeterminant(), Scalar(numext::sign(det)));
+
+  BunchKaufman<MatrixType, Upper> bkup(a);
+  VERIFY(bkup.info() == Success);
+  check_determinant(bkup, Scalar(det), logabsdet);
+  // Unlike the other decompositions, this sign is read off the inertia rather than accumulated from a
+  // product of signs, so it is exact.
+  VERIFY_IS_EQUAL(bkup.signDeterminant(), Scalar(numext::sign(det)));
+}
+
+// The determinant of an empty matrix is the empty product, 1.
+template <typename MatrixType>
+void bunchkaufman_determinant_empty() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  BunchKaufman<MatrixType> bk{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(bk.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(bk.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(bk.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(1));
+}
+
+// det(D) can be representable while the block determinants it is built from are not. The blocks below are
+// [[s/2, s], [s, s/2]] with det = -3s^2/4 at s = 2^600 and s = 2^-600, one overflowing and one
+// underflowing, whose product is exactly 9/16. Multiplying the blocks directly gives inf * 0 = NaN.
+void bunchkaufman_determinant_mixed_scale() {
+  MatrixXd a = MatrixXd::Zero(4, 4);
+  for (int b = 0; b < 2; ++b) {
+    const double s = numext::ldexp(1.0, b == 0 ? 600 : -600);
+    a(2 * b, 2 * b) = a(2 * b + 1, 2 * b + 1) = 0.5 * s;
+    a(2 * b + 1, 2 * b) = a(2 * b, 2 * b + 1) = s;
+  }
+
+  // (-3/4)^2 (2^600 2^-600)^2 = 9/16, exactly, both factors being powers of two.
+  const double det = 0.5625;
+
+  BunchKaufman<MatrixXd, Lower> bklo(a);
+  VERIFY(bklo.info() == Success);
+  check_determinant(bklo, det, numext::log(det));
+
+  BunchKaufman<MatrixXd, Upper> bkup(a);
+  VERIFY(bkup.info() == Success);
+  check_determinant(bkup, det, numext::log(det));
+}
+
+// Bunch-Kaufman selects a 2x2 block only where |d11 d22| <= alpha^2 |d21|^2, alpha = (1+sqrt(17))/8 < 1, so
+// det D_k = d11 d22 - |d21|^2 < 0 always. Subnormal |d21| underflows that determinant to zero, leaving the
+// log and the sign as the only accessors that can report it; both need det D_k / |d21|^2 = O(1), which
+// 1/|d21| overflows on, and the resulting infinity flips the block's inertia.
+template <typename MatrixType>
+void bunchkaufman_determinant_subnormal_block() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  if (!subnormalDivisionIsExact<RealScalar>()) {
+    const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division";
+    std::cout << "SKIP: bunchkaufman_determinant_subnormal_block needs an environment that divides by subnormals "
+                 "per IEEE 754 ("
+              << reason << ")." << std::endl;
+    return;
+  }
+
+  // Entries are exact integer multiples of the smallest subnormal u, so det A = (k11 k22 - k21^2) u^2 with
+  // the bracket an exact int, and log|det A| = log|k11 k22 - k21^2| + 2 log u -- a reference that shares no
+  // expression with the code under test. The off-diagonal stays real to keep the entries exact; the complex
+  // instantiation still reaches numext::abs() on a subnormal.
+  const RealScalar u = (std::numeric_limits<RealScalar>::denorm_min)();
+  const int k11[] = {0, 1, 2, 100};
+  const int k22[] = {0, 1, 2, 100};
+  const int k21[] = {1, 4, 8, 300};
+
+  for (int c = 0; c < 4; ++c) {
+    const int idet = k11[c] * k22[c] - k21[c] * k21[c];
+    VERIFY(idet < 0);
+    const RealScalar logabsdet = numext::log(RealScalar(-idet)) + RealScalar(2) * numext::log(u);
+
+    MatrixType a(2, 2);
+    a << Scalar(RealScalar(k11[c]) * u), Scalar(RealScalar(k21[c]) * u), Scalar(RealScalar(k21[c]) * u),
+        Scalar(RealScalar(k22[c]) * u);
+    // Flushing subnormal results to zero empties the matrix even where the division probe passed.
+    if (numext::is_exactly_zero(numext::abs(a.coeff(1, 0)))) return;
+
+    BunchKaufman<MatrixType, Lower> bk(a);
+    // c == 0 has d11 = d22 = 0, where unblocked()'s own scaled determinant is 0*inf and it reports
+    // NumericalIssue; the accessors below are exact either way.
+    if (k11[c] != 0) VERIFY(bk.info() == Success);
+
+    VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
+    VERIFY_IS_APPROX(bk.logAbsDeterminant(), logabsdet);
+    // det A is of order u^2, so zero is all these two can report.
+    VERIFY_IS_EQUAL(bk.absDeterminant(), RealScalar(0));
+    VERIFY_IS_EQUAL(bk.determinant(), Scalar(0));
+    VERIFY(!bk.isPositive());
+    VERIFY(!bk.isNegative());
+  }
+}
+
+// The criterion bounds |d11| against alpha|d21| but bounds |d22| only against the largest entry of its own
+// row, which can dwarf |d21|. So d22/d21 can overflow, and the scaled determinant comes out +inf, or 0*inf
+// = NaN where d11 is zero; either one counts the block as definite with the sign of its trace, and the
+// trace is positive here. The criterion puts the true value below 1, which is what rejects both.
+void bunchkaufman_inertia_wide_2x2_block() {
+  // The 2x2 block is (d11, d21, d22) = (a00, 1e-10, 1e299), determinant a00*1e299 - 1e-20 < 0 in both
+  // rows below, so it contributes one eigenvalue of each sign. info() is NumericalIssue: unblocked()
+  // forms the same product through 1/d21 and NaNs the trailing update, so the inertia is the only part
+  // of the factorization that is meaningful for these.
+  for (double a00 : {0.0, 1e-320}) {
+    MatrixXd a = MatrixXd::Zero(4, 4);
+    a(0, 0) = a00;
+    a(1, 0) = a(0, 1) = 1e-10;
+    a(1, 1) = 1e299;
+    a(3, 1) = a(1, 3) = 2e299;
+
+    BunchKaufman<MatrixXd> bk(a);
+    VERIFY(!bk.isPositive());
+    VERIFY(!bk.isNegative());
+  }
+}
+
+// The scaling above divides by numext::abs(d21), so it relies on that magnitude not underflowing: for
+// |3u + 4iu| Eigen's hypot scales by the larger component instead of summing squares, giving 5u exactly
+// where u^2 would be zero. Not template code, because building the off-diagonal needs a complex literal.
+void bunchkaufman_determinant_subnormal_block_complex() {
+  typedef std::complex<double> Scalar;
+
+  if (!subnormalDivisionIsExact<double>()) return;
+
+  const double u = (std::numeric_limits<double>::denorm_min)();
+  MatrixXcd a(2, 2);
+  a << Scalar(u, 0), Scalar(3 * u, 4 * u), Scalar(3 * u, -4 * u), Scalar(u, 0);
+  BunchKaufman<MatrixXcd, Lower> bk(a);
+
+  // det = u^2 - |3u + 4iu|^2 = -24 u^2.
+  VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
+  VERIFY_IS_APPROX(bk.logAbsDeterminant(), numext::log(24.0) + 2.0 * numext::log(u));
+  VERIFY(!bk.isPositive());
+  VERIFY(!bk.isNegative());
+}
+
 template <typename MatrixType>
 void bunchkaufman_verify_assert() {
   MatrixType tmp;
@@ -286,6 +453,10 @@ void bunchkaufman_verify_assert() {
   VERIFY_RAISES_ASSERT(bk.matrixLDLT())
   VERIFY_RAISES_ASSERT(bk.reconstructedMatrix())
   VERIFY_RAISES_ASSERT(bk.solve(tmp))
+  VERIFY_RAISES_ASSERT(bk.determinant())
+  VERIFY_RAISES_ASSERT(bk.absDeterminant())
+  VERIFY_RAISES_ASSERT(bk.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(bk.signDeterminant())
 }
 
 // Build a random Hermitian (real symmetric) indefinite matrix of the same type/size as `m`.
@@ -397,6 +568,12 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
     CALL_SUBTEST_6(bunchkaufman(MatrixXcd(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
 
+    // Bounded so that the determinant itself, not just its logarithm, stays in range.
+    s = internal::random<int>(1, 30);
+    CALL_SUBTEST_5(bunchkaufman_determinant<MatrixXd>(s));
+    CALL_SUBTEST_6(bunchkaufman_determinant<MatrixXcd>(s));
+    TEST_SET_BUT_UNUSED_VARIABLE(s);
+
     s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_5(bunchkaufman_inertia_and_conditioning<MatrixXd>(s));
     s = internal::random<int>(2, EIGEN_TEST_MAX_SIZE / 2);
@@ -417,6 +594,17 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
 
   // Empty-matrix edge case.
   CALL_SUBTEST_5(bunchkaufman(MatrixXd(0, 0)));
+  CALL_SUBTEST_5(bunchkaufman_determinant_empty<MatrixXd>());
+
+  // Subnormal 2x2 block: the determinant underflows, its log and sign do not.
+  CALL_SUBTEST_5(bunchkaufman_determinant_subnormal_block<MatrixXd>());
+  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block<MatrixXcd>());
+  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex());
+  CALL_SUBTEST_8(bunchkaufman_determinant_subnormal_block<MatrixXf>());
+  CALL_SUBTEST_5(bunchkaufman_inertia_wide_2x2_block());
+
+  // Mixed-scale 2x2 blocks: the block determinants leave the representable range, their product does not.
+  CALL_SUBTEST_5(bunchkaufman_determinant_mixed_scale());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));
