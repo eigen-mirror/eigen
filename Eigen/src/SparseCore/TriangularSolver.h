@@ -192,24 +192,20 @@ using rhs_matching_slice = std::integral_constant<
               std::is_same<typename traits<Rhs>::StorageIndex, typename traits<Lhs>::StorageIndex>::value>;
 
 // The reach for a column arrives in one of three compile-time-known orders, but the
-// output column must store ascending inner index. reach_reorder encapsulates the
-// per-order fix-up via partial specialization: an unordered reach (Ordered == false,
-// the pointer/DFS path -- Upper irrelevant) is sorted; the iterator reach is already
-// in solve order -- ascending for lower (no-op), descending for upper (reverse).
+// output column must store ascending inner index. An unordered reach (Ordered == false,
+// the pointer/DFS path -- Upper irrelevant) is sorted ascending here; the iterator reach
+// already arrives in solve order, ascending for lower and descending for upper, so it
+// needs no pass of its own -- the descending one is read back to front at insertion.
 template <bool Ordered, bool Upper, typename StorageIndex>
 struct reach_reorder {  // Ordered == false: unordered pointer/DFS reach
   static void run(StorageIndex* first, StorageIndex* last) { std::sort(first, last); }
 };
-template <typename StorageIndex>
-struct reach_reorder<true, false, StorageIndex> {  // iterator reach, lower: already ascending
+template <bool Upper, typename StorageIndex>
+struct reach_reorder<true, Upper, StorageIndex> {  // iterator reach: already in solve order
   static void run(StorageIndex* /*first*/, StorageIndex* /*last*/) {}
 };
-template <typename StorageIndex>
-struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: descending
-  static void run(StorageIndex* first, StorageIndex* last) { std::reverse(first, last); }
-};
 
-// Common per-column finish: reorder the reach xi[top..n) to ascending inner index,
+// Common per-column finish: read the reach xi[top..n) in ascending inner index order,
 // insert reading values from xwork, and clear xwork and mark for the next column.
 // The reach is a structural bound, not a numeric one: a reached coefficient can be
 // exactly zero (a zero rhs entry, or numerical cancellation), so skip exact zeros at
@@ -218,8 +214,11 @@ struct reach_reorder<true, true, StorageIndex> {  // iterator reach, upper: desc
 template <bool Ordered, bool Upper, typename Res, typename StorageIndex, typename Scalar>
 void reach_insert_column(Res& res, Index col, StorageIndex* xi, Index top, Index n, Scalar* xwork, uint8_t* mark) {
   reach_reorder<Ordered, Upper, StorageIndex>::run(xi + top, xi + n);
+  // Only the iterator upper reach is descending; it is read back to front, so k walks
+  // up while the load walks down. Every other order is ascending by this point.
+  constexpr bool Descending = Ordered && Upper;
   for (Index k = top; k < n; ++k) {
-    StorageIndex j = xi[k];
+    StorageIndex j = xi[Descending ? top + n - 1 - k : k];
     if (!numext::is_exactly_zero(xwork[j])) res.insert(j, col) = xwork[j];
     xwork[j] = Scalar(0);
     mark[j] = 0;
