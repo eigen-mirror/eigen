@@ -664,6 +664,20 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
+/** Whether numext::madd uses std::fma for scalars. Defaults to the hardware: fused where a single
+ * instruction exists, which keeps the scalar and vectorized paths consistent, and unfused otherwise,
+ * where software fma costs 2-3x on Intel and up to 30x on WASM. Resolved here rather than in Macros.h,
+ * which Eigen/Core includes first, because the architecture branches above settle
+ * EIGEN_VECTORIZE_FMA -- the ARM one only a few lines up.
+ */
+#ifndef EIGEN_SCALAR_MADD_USE_FMA
+#ifdef EIGEN_VECTORIZE_FMA
+#define EIGEN_SCALAR_MADD_USE_FMA 1
+#else
+#define EIGEN_SCALAR_MADD_USE_FMA 0
+#endif
+#endif
+
 namespace Eigen {
 
 inline static const char* SimdInstructionSetsInUse(void) {

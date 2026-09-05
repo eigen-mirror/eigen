@@ -261,6 +261,24 @@ void check_complex_sign() {
   }
 }
 
+// internal::twoprod splits x*y into hi + lo with x*y = hi + lo exactly, which holds only if its
+// multiply-add is genuinely fused: a non-fused x*y - hi folds against the already-rounded product and
+// silently yields lo = 0, leaving every double-word computation built on it with no low word at all.
+template <typename T>
+void check_twoprod() {
+  for (int k = 0; k < 100; ++k) {
+    const T x = internal::random<T>(T(-1), T(1));
+    const T y = internal::random<T>(T(-1), T(1));
+    T hi, lo;
+    internal::twoprod(x, y, hi, lo);
+    VERIFY_IS_EQUAL(hi, x * y);
+    // fma is exact by IEEE-754 contract, so this is the definition of the low word rather than an
+    // independent approximation of it.
+    EIGEN_USING_STD(fma);
+    VERIFY_IS_EQUAL(lo, fma(x, y, -hi));
+  }
+}
+
 template <typename T>
 void check_arg() {
   typedef typename NumTraits<T>::Real Real;
@@ -599,6 +617,9 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST(check_complex_sign<std::complex<float>>());
     CALL_SUBTEST(check_complex_sign<std::complex<double>>());
+
+    CALL_SUBTEST(check_twoprod<float>());
+    CALL_SUBTEST(check_twoprod<double>());
 
     CALL_SUBTEST(check_arg<std::complex<float>>());
     CALL_SUBTEST(check_arg<std::complex<double>>());
