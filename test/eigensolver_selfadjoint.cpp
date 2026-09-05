@@ -486,6 +486,23 @@ void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
   VERIFY_IS_APPROX(eig2.eigenvalues(), eig2v.eigenvalues());
 }
 
+template <typename RealScalar>
+void selfadjointeigensolver_dense_deflation_scale_invariance() {
+  const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
+  const RealScalar scales[] = {RealScalar(1), RealScalar(2)};
+  for (RealScalar scale : scales) {
+    Matrix<RealScalar, 2, 1> diag = Matrix<RealScalar, 2, 1>::Constant(scale);
+    Matrix<RealScalar, Dynamic, 1> subdiag(1);
+    subdiag[0] = RealScalar(1.25) * epsilon * scale;
+    Matrix<std::complex<RealScalar>, Dynamic, Dynamic> eigenvectors =
+        Matrix<std::complex<RealScalar>, Dynamic, Dynamic>::Identity(2, 2);
+
+    const ComputationInfo info = internal::computeFromTridiagonal_impl<false>(diag, subdiag, 30, true, eigenvectors);
+    VERIFY_IS_EQUAL(info, Success);
+    VERIFY(diag[0] < diag[1]);
+  }
+}
+
 // Test computeFromTridiagonal with wide dynamic range across decoupled blocks.
 // This exercises the per-block scaling in computeFromTridiagonal_impl: a zero on the
 // subdiagonal decouples the matrix into blocks with vastly different scales. Global
@@ -967,6 +984,8 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
+  CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<float>());
+  CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<double>());
   CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
 
   for (int i = 0; i < g_repeat; i++) {

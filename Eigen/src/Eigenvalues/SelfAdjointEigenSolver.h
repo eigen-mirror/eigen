@@ -568,13 +568,21 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
 
   using RealScalar = typename DiagType::RealScalar;
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
-  const RealScalar precision_inv = RealScalar(1) / NumTraits<RealScalar>::epsilon();
+  const RealScalar precision = NumTraits<RealScalar>::epsilon();
+  const RealScalar precision_inv = RealScalar(1) / precision;
 
   // Helper lambda for the deflation test.
   auto deflate = [&](Index lo, Index hi) {
     for (Index i = lo; i < hi; ++i) {
-      if (numext::abs(subdiag[i]) < considerAsZero) {
+      const RealScalar absSubdiag = numext::abs(subdiag[i]);
+      if (absSubdiag < considerAsZero) {
         subdiag[i] = RealScalar(0);
+      } else if (!PerBlockScaling) {
+        // Homogeneous in the global scale: both sides are linear in it, so prescaling cannot change which couplings
+        // are discarded (the previous test was quadratic on the left).
+        if (absSubdiag <= precision * numext::maxi(numext::abs(diag[i]), numext::abs(diag[i + 1]))) {
+          subdiag[i] = RealScalar(0);
+        }
       } else {
         const RealScalar scaled_subdiag = precision_inv * subdiag[i];
         if (scaled_subdiag * scaled_subdiag <= (numext::abs(diag[i]) + numext::abs(diag[i + 1]))) {
