@@ -53,9 +53,10 @@ struct OneShotSolverScratch {
 
 inline void ensure_sized(DeviceBuffer& buf, size_t needed) {
   if (needed > buf.size()) {
-    // Replacing an in-use buffer is safe: device_free is stream-ordered
-    // (or fully synchronous on the cudaMalloc fallback path), so the free
-    // waits for previously enqueued work touching the old buffer.
+    // Replacing an in-use buffer is safe: device_free is stream-ordered (or
+    // fully synchronous on the cudaMalloc fallback path) and DeviceBufferPool
+    // holds a released block back until the device has retired the work
+    // enqueued before the release, so nothing reuses the old buffer early.
     buf = DeviceBuffer(needed);
   }
 }

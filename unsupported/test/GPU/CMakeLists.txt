@@ -83,6 +83,10 @@ ei_add_gpu_test(device_matrix
   EXTRA_LIBS CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
 ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 
+# DeviceBufferPool release ordering: CUDA runtime only, plus std::thread for the stream gate.
+find_package(Threads REQUIRED)
+ei_add_gpu_test(device_buffer_pool EXTRA_LIBS Threads::Threads)
+
 # cuBLAS integration. OFF by default; later MRs in the stack opt in.
 option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
 if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)

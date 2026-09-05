@@ -137,7 +137,15 @@ struct CudaStreamDeleter {
 using UniqueStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, CudaStreamDeleter>;
 
 // Recycles allocations up to kSmallBufferThreshold bytes (e.g. DeviceScalar) to
-// avoid cudaMalloc/cudaFree overhead. Larger allocations bypass the pool.
+// avoid cudaMalloc/cudaFree overhead on devices without memory pools; where
+// cudaMallocAsync exists it is both stream-ordered and cheaper than this pool's
+// release event, so DeviceBuffer bypasses the pool there (bench_overhead:
+// CudaMallocAsyncFree vs PoolAllocFree). Larger allocations always bypass it.
+// Invariant: a block is recycled only after the device has retired every
+// operation enqueued before its release on any blocking stream: deallocate()
+// records an event on the legacy default stream (the ordering device_free
+// relies on), the free list stays in release order, and events on one stream
+// retire in order, so allocate() scans until the first pending entry.
 template <size_t SmallBufferThreshold = 256, size_t MaxPoolSize = 64>
 struct DeviceBufferPool {
   static constexpr size_t kSmallBufferThreshold = SmallBufferThreshold;
@@ -146,6 +154,7 @@ struct DeviceBufferPool {
   struct Entry {
     void* ptr;
     size_t bytes;
+    cudaEvent_t release_event;
   };
 
   // Lifetime marker for the thread-local pool. thread_local destruction runs
@@ -165,28 +174,42 @@ struct DeviceBufferPool {
   DeviceBufferPool() { threadState() = State::kAlive; }
 
   ~DeviceBufferPool() {
-    for (auto& e : free_list_) device_free(e.ptr);
+    for (const Entry& entry : free_list_) freeBlock(entry.ptr, entry.release_event);
+    for (cudaEvent_t event : spare_events_) (void)cudaEventDestroy(event);
     threadState() = State::kDestroyed;
   }
 
+  // First fit among the retired blocks, oldest release first; the first pending
+  // entry ends the scan because every later one is pending too.
   void* allocate(size_t bytes) {
-    for (size_t i = 0; i < free_list_.size(); ++i) {
-      if (free_list_[i].bytes >= bytes) {
-        void* p = free_list_[i].ptr;
-        free_list_[i] = free_list_.back();
-        free_list_.pop_back();
+    for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
+      if (cudaEventQuery(it->release_event) != cudaSuccess) break;
+      if (it->bytes >= bytes) {
+        void* p = it->ptr;
+        spare_events_.push_back(it->release_event);
+        free_list_.erase(it);
         return p;
       }
     }
     return device_malloc(bytes);
   }
 
-  void deallocate(void* p, size_t bytes) {
-    if (free_list_.size() < kMaxPoolSize) {
-      free_list_.push_back({p, bytes});
-    } else {
+  // Called from a noexcept deleter: every failure falls back to device_free.
+  void deallocate(void* p, size_t bytes) noexcept {
+    if (free_list_.size() >= kMaxPoolSize) {
       device_free(p);
+      return;
     }
+    cudaEvent_t release_event = acquireEvent();
+    if (release_event == nullptr) {
+      device_free(p);
+      return;
+    }
+    if (cudaEventRecord(release_event, /*legacy default stream*/ nullptr) != cudaSuccess) {
+      freeBlock(p, release_event);
+      return;
+    }
+    free_list_.push_back({p, bytes, release_event});
   }
 
   static DeviceBufferPool& threadLocal() {
@@ -195,11 +218,33 @@ struct DeviceBufferPool {
   }
 
  private:
+  // Returns a spare event, or a newly created one; nullptr if creation fails.
+  cudaEvent_t acquireEvent() noexcept {
+    if (!spare_events_.empty()) {
+      cudaEvent_t event = spare_events_.back();
+      spare_events_.pop_back();
+      return event;
+    }
+    cudaEvent_t event = nullptr;
+    if (cudaEventCreateWithFlags(&event, cudaEventDisableTiming) != cudaSuccess) return nullptr;
+    return event;
+  }
+
+  // Gives up a block and the event tracking its release. Destroying a pending
+  // event is non-blocking; the runtime defers it until the event completes.
+  static void freeBlock(void* p, cudaEvent_t release_event) noexcept {
+    (void)cudaEventDestroy(release_event);
+    device_free(p);
+  }
+
   std::vector<Entry> free_list_;
+  // Events of recycled entries; free_list_.size() + spare_events_.size() <= kMaxPoolSize.
+  std::vector<cudaEvent_t> spare_events_;
 };
 
-// Stateful deleter that returns small buffers to the thread-local pool and
-// device_free's larger ones. size==0 means "always device_free" (adopted ptrs).
+// Stateful deleter that returns pooled buffers to the thread-local pool and
+// device_free's the rest. size==0 means "always device_free" (adopted pointers
+// and allocations that went straight to device_malloc).
 struct PooledCudaFreeDeleter {
   size_t size = 0;
 
@@ -221,17 +266,14 @@ class DeviceBuffer {
 
   explicit DeviceBuffer(size_t bytes) : bytes_(bytes) {
     if (bytes > 0) {
-      void* p = nullptr;
-      // Bypass the pool once its thread_local has been destroyed (allocation
-      // from a static/TLS destructor); the matching deleter then also takes
-      // the direct device_free path.
-      if (bytes <= DeviceBufferPool<>::kSmallBufferThreshold &&
-          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed) {
-        p = DeviceBufferPool<>::threadLocal().allocate(bytes);
-      } else {
-        p = device_malloc(bytes);
-      }
-      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{bytes});
+      // The pool serves small blocks only on the cudaMalloc fallback path, and
+      // not once its thread_local has been destroyed (allocation from a
+      // static/TLS destructor). A deleter size of 0 keeps the other
+      // allocations on the direct device_free path.
+      const bool pooled = bytes <= DeviceBufferPool<>::kSmallBufferThreshold && !device_supports_memory_pools() &&
+                          DeviceBufferPool<>::threadState() != DeviceBufferPool<>::State::kDestroyed;
+      void* p = pooled ? DeviceBufferPool<>::threadLocal().allocate(bytes) : device_malloc(bytes);
+      ptr_ = std::unique_ptr<void, PooledCudaFreeDeleter>(p, PooledCudaFreeDeleter{pooled ? bytes : 0});
     }
   }
 
