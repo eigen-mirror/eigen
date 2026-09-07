@@ -23,6 +23,22 @@ jobs skip tests whose binary and environment match a first-attempt pass recorded
 count that falls between pipelines, or a test job reporting "No tests were found", is expected rather than a
 regression; scheduled and web pipelines never skip, and `EIGEN_CI_TEST_CACHE: "off"` opts a job out.
 
+Build jobs keep a second GitLab cache, the ccache pool holding `.ccache/`, keyed
+`$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache`. The pool is the job's own slug, or its parent's for a job that
+compiles a subset of another's targets with the same flags (the `:affected` tier); the scope is `-mr<iid>` in a merge
+request pipeline, `-<ref slug>` off the default branch, and empty on it, so only default-branch builds write the
+unscoped pool that `fallback_keys` names. A restore replaces `.ccache/` rather than merging into it, so one pool
+shared by every pipeline is last-writer-wins: merge requests on unrelated bases overwrote each other's objects and
+compiled at a 0.35% hit rate. GitLab appends its clear-cache index and `-protected` or `-non_protected` to both keys,
+so a Developer-started merge request pipeline cannot read the pool the scheduled builds fill. Two tiers opt out by
+setting `EIGEN_CI_CCACHE_SCOPE` back to `""` in the job: the smoke tier (`.smoketest:build`), because it runs on merge
+request events only and scoping it would leave its shared pool with no writer at all, and Windows, whose runner has no
+distributed cache, so per-merge-request archives would accumulate on that disk unbounded.
+Any self-hosted runner without `[runners.cache]` keeps one archive per key forever —
+[`prune_runner_cache.py`](../ci/scripts/prune_runner_cache.py) caps such a directory (`--max-gb`, LRU by mtime) and
+drops superseded clear-cache generations (`--stale-index-below`); its unit tests,
+[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:scripts`.
+
 ## Test Tiers On Merge Requests
 
 Three tiers, in increasing cost:

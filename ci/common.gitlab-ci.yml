@@ -190,6 +190,18 @@
   variables:
     EIGEN_CI_CTEST_REGEX_FILE: affected/ctest_regex.txt
 
+# The smoke tier keeps the shared ccache pool that every other tier scopes per
+# merge request (EIGEN_CI_CCACHE_SCOPE, set in the workflow rules; a job
+# variable outranks one from a workflow rule, which is what makes this opt-out
+# work).  These jobs run on merge request events only, so scoping them would
+# leave `<slug>-ccache` with no writer at all: the pool a first build falls
+# back to would freeze at whatever wrote it last and rot from there.  Sharing
+# it costs little here -- a smoke build is minutes, and its objects are the
+# ones most likely to match another merge request's.
+.smoketest:build:
+  variables:
+    EIGEN_CI_CCACHE_SCOPE: ""
+
 .rules:libeigen:scheduled-or-web:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"

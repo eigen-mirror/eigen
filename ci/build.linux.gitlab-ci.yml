@@ -48,14 +48,25 @@
   # a fresh clone whose checkout mtimes are newer than any restored build
   # output, so ninja rebuilt every target despite a successfully restored
   # cache. ccache keys on file content and compiler, which survives the
-  # re-clone. No ${CI_COMMIT_REF_SLUG} in the key: pipelines share one cache
-  # pool per EIGEN_CI_CCACHE_POOL. GitLab still splits each pool by a suffix:
-  # `-protected` for a pipeline on a protected ref or started by a Maintainer
-  # or Owner, `-non_protected` otherwise. A Developer-started merge request
-  # pipeline therefore has a pool the scheduled master builds never fill; a
-  # maintainer starting that pipeline puts it on the shared one.
+  # re-clone.
+  #
+  # Restoring a cache replaces .ccache/ rather than merging into it, so an
+  # unscoped pool is last-writer-wins: merge requests on different bases
+  # overwrite each other's objects. Job 16273375875 restored a full 4 GB pool
+  # and still missed 1431 of 1436 compiles, with no direct-mode hits at all.
+  # EIGEN_CI_CCACHE_SCOPE gives each merge request its own pool; the fallback
+  # key is the shared pool the default-branch builds fill, which is what a
+  # first build draws on.
+  #
+  # GitLab splits every pool by a suffix -- `-protected` for a pipeline on a
+  # protected ref or started by a Maintainer or Owner, `-non_protected`
+  # otherwise -- and appends the same suffix to the fallback key. A
+  # Developer-started merge request pipeline therefore cannot read the pool the
+  # scheduled builds fill; a maintainer starting that pipeline can.
   cache:
-    key: "$EIGEN_CI_CCACHE_POOL-ccache"
+    key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
+    fallback_keys:
+      - "$EIGEN_CI_CCACHE_POOL-ccache"
     paths:
       - .ccache/
     # Push the cache even when the build fails: the retry pipeline after a
@@ -772,7 +783,7 @@ build:linux:riscv64:clang-21:default:
 # riscv64 smoke tests, which need a self-hosted runner no fork has.  See
 # test.linux.gitlab-ci.yml.
 build:linux:riscv64:gcc-15:default:smoketest:
-  extends: build:linux:riscv64:gcc-15:default
+  extends: [ build:linux:riscv64:gcc-15:default, .smoketest:build ]
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
@@ -780,7 +791,7 @@ build:linux:riscv64:gcc-15:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:riscv64:clang-21:default:smoketest:
-  extends: build:linux:riscv64:clang-21:default
+  extends: [ build:linux:riscv64:clang-21:default, .smoketest:build ]
   variables:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest:upstream-runner, rules]
@@ -792,7 +803,7 @@ build:linux:riscv64:clang-21:default:smoketest:
 # Tests run on their respective native runners (see test.linux.gitlab-ci.yml).
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:
-  extends: build:linux:cross:x86-64:gcc-10:default
+  extends: [ build:linux:cross:x86-64:gcc-10:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -802,7 +813,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
-  extends: build:linux:cross:x86-64:clang-14:default
+  extends: [ build:linux:cross:x86-64:clang-14:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -812,7 +823,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:aarch64:gcc-10:default:smoketest:
-  extends: build:linux:cross:aarch64:gcc-10:default
+  extends: [ build:linux:cross:aarch64:gcc-10:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"
@@ -822,7 +833,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
     - saas-linux-large-amd64
 
 build:linux:aarch64:clang-14:default:smoketest:
-  extends: build:linux:cross:aarch64:clang-14:default
+  extends: [ build:linux:cross:aarch64:clang-14:default, .smoketest:build ]
   image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
     EIGEN_CI_SKIP_APT: "true"

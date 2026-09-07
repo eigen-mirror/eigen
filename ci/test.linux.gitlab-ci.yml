@@ -18,11 +18,13 @@
     - saas-linux-2xlarge-amd64
   allow_failure:
     exit_codes: 42
-  # Pass-cache manifest consumed by test.linux.script.sh.  Same shared
-  # per-job-name pool policy as the build jobs' ccache (rationale in
-  # build.linux.gitlab-ci.yml); merge-request pipelines are the only
-  # writers (the script no-ops elsewhere), so scheduled full-matrix runs
-  # keep their seed diversity.
+  # Pass-cache manifest consumed by test.linux.script.sh.  One shared pool per
+  # job name, deliberately unscoped where the build jobs' ccache is now keyed
+  # per merge request: `test_cache.py record` merges its entries into the
+  # restored manifest instead of replacing a directory, so concurrent merge
+  # requests add to this cache rather than overwrite each other.  Merge-request
+  # pipelines are the only writers (the script no-ops elsewhere), so scheduled
+  # full-matrix runs keep their seed diversity.
   cache:
     key: "$CI_JOB_NAME_SLUG-testcache"
     paths:

@@ -39,10 +39,15 @@
   # Cache the ccache directory, not ${EIGEN_CI_BUILDDIR}, mirroring
   # build.linux.gitlab-ci.yml: ccache keys on file content and compiler, so
   # hits survive a re-checkout that re-stamps every source mtime (which made
-  # the old build-directory cache rebuild everything anyway). No
-  # ${CI_COMMIT_REF_SLUG} in the keys: pipelines share one cache pool per
-  # EIGEN_CI_CCACHE_POOL, split by GitLab's protection suffix as described in
-  # the Linux template. Both entries push even when the build fails
+  # the old build-directory cache rebuild everything anyway). Deliberately not
+  # scoped by EIGEN_CI_CCACHE_SCOPE the way the Linux template is: the Windows
+  # runner has no shared cache server, so every archive is runner-local and
+  # nothing ever evicts one. Shared pools are bounded at one archive per job;
+  # per-merge-request pools would grow without bound, by four MSVC pools per
+  # `all-tests` merge request (22 of them in the 60 days to 2026-09-03), for
+  # little gain -- Windows builds run only under a label, so a merge request
+  # seldom builds here twice. Keys stay split by GitLab's protection suffix as
+  # described in the Linux template. Both entries push even when the build fails
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:

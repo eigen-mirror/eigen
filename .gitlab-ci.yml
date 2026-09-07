@@ -19,9 +19,28 @@ workflow:
     on_new_commit: interruptible
     on_job_failure: none
   rules:
+    # A scheduled pipeline off the default branch keeps `auto_cancel: none`,
+    # but is scoped like any other non-default ref: only default-branch builds
+    # write the shared pool.
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+      variables:
+        EIGEN_CI_CCACHE_SCOPE: "-$CI_COMMIT_REF_SLUG"
     - if: $CI_PIPELINE_SOURCE == "schedule"
       auto_cancel:
         on_new_commit: none
+    # Give each merge request its own ccache pool, keyed by IID so it survives
+    # a force-push or a rebase: rebuild N of an MR then reuses rebuild N-1
+    # instead of whatever unrelated pipeline wrote the shared pool last.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      variables:
+        EIGEN_CI_CCACHE_SCOPE: "-mr$CI_MERGE_REQUEST_IID"
+    # Same for a branch pipeline off the default branch, so only default-branch
+    # builds write the shared pool.
+    - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      variables:
+        EIGEN_CI_CCACHE_SCOPE: "-$CI_COMMIT_REF_SLUG"
     - when: always
 
 stages:
@@ -58,6 +77,11 @@ variables:
   # Unset for every other job, which keeps their existing behaviour.
   EIGEN_CI_BUILD_TARGET_FILE: ""
   EIGEN_CI_CTEST_REGEX_FILE: ""
+  # ccache pool suffix, set per pipeline by the workflow rules above and empty
+  # on the default branch.  A job variable outranks one from a workflow rule,
+  # so a job opts out of scoping by setting this back to "" -- which is what
+  # .smoketest:build does, and the only reason to set it in a job.
+  EIGEN_CI_CCACHE_SCOPE: ""
 
 include:
   - "/ci/checkformat.gitlab-ci.yml"
