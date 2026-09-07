@@ -454,10 +454,6 @@ EIGEN_STRONG_INLINE Packet4l pnegate(const Packet4l& a) {
   return psub(pzero(a), a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4l pconj(const Packet4l& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4l pcmp_le(const Packet4l& a, const Packet4l& b) {
   return _mm256_xor_si256(_mm256_cmpgt_epi64(a, b), _mm256_set1_epi32(-1));
 }
@@ -701,10 +697,6 @@ EIGEN_STRONG_INLINE Packet4l pabs<Packet4l>(const Packet4l& a) {
   return psub(cmp, pxor(a, cmp));
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ul pabs<Packet4ul>(const Packet4ul& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4l pmul<Packet4l>(const Packet4l& a, const Packet4l& b) {
   // 64-bit mul requires avx512, so do this with 32-bit multiplication
   __m256i upper32_a = _mm256_srli_epi64(a, 32);
@@ -893,19 +885,6 @@ EIGEN_STRONG_INLINE Packet4d pnegate(const Packet4d& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8i pnegate(const Packet8i& a) {
   return psub(pzero(a), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8f pconj(const Packet8f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4d pconj(const Packet4d& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8i pconj(const Packet8i& a) {
-  return a;
 }
 
 template <>
@@ -1821,11 +1800,6 @@ EIGEN_STRONG_INLINE Packet8i pabs(const Packet8i& a) {
   return _mm256_insertf128_si256(_mm256_castsi128_si256(lo), (hi), 1);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet8ui pabs(const Packet8ui& a) {
-  return a;
-}
-
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 EIGEN_STRONG_INLINE Packet8h psignbit(const Packet8h& a) {
@@ -1845,18 +1819,10 @@ EIGEN_STRONG_INLINE Packet8f psignbit(const Packet8f& a) {
   return _mm256_castsi256_ps(parithmetic_shift_right<31>(Packet8i(_mm256_castps_si256(a))));
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet8ui psignbit(const Packet8ui& /*unused*/) {
-  return _mm256_setzero_si256();
-}
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE Packet4d psignbit(const Packet4d& a) {
   return _mm256_castsi256_pd(_mm256_cmpgt_epi64(_mm256_setzero_si256(), _mm256_castpd_si256(a)));
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ul psignbit(const Packet4ul& /*unused*/) {
-  return _mm256_setzero_si256();
 }
 #endif
 
@@ -2289,11 +2255,6 @@ EIGEN_STRONG_INLINE Packet8h pcmp_lt_or_nan(const Packet8h& a, const Packet8h& b
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet8h pconj(const Packet8h& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet8h pnegate(const Packet8h& a) {
   Packet8h sign_mask = _mm_set1_epi16(static_cast<short>(0x8000u));
   return _mm_xor_si128(a, sign_mask);
@@ -2658,11 +2619,6 @@ EIGEN_STRONG_INLINE Packet8bf pcmp_lt(const Packet8bf& a, const Packet8bf& b) {
 template <>
 EIGEN_STRONG_INLINE Packet8bf pcmp_lt_or_nan(const Packet8bf& a, const Packet8bf& b) {
   return Pack16To8(pcmp_lt_or_nan(Bf16ToF32(a), Bf16ToF32(b)));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8bf pconj(const Packet8bf& a) {
-  return a;
 }
 
 template <>

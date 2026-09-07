@@ -523,23 +523,6 @@ EIGEN_STRONG_INLINE Packet8l pnegate(const Packet8l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet16f pconj(const Packet16f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8d pconj(const Packet8d& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16i pconj(const Packet16i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8l pconj(const Packet8l& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet16f pmul<Packet16f>(const Packet16f& a, const Packet16f& b) {
   return _mm512_mul_ps(a, b);
 }
@@ -2276,11 +2259,6 @@ EIGEN_STRONG_INLINE Packet16h pcmp_lt_or_nan(const Packet16h& a, const Packet16h
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet16h pconj(const Packet16h& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet16h pnegate(const Packet16h& a) {
   Packet16h sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_xor_si256(a, sign_mask);
@@ -2773,11 +2751,6 @@ template <>
 EIGEN_STRONG_INLINE Packet16bf pnegate(const Packet16bf& a) {
   Packet16bf sign_mask = _mm256_set1_epi16(static_cast<short>(0x8000u));
   return _mm256_xor_si256(a, sign_mask);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet16bf pconj(const Packet16bf& a) {
-  return a;
 }
 
 template <>

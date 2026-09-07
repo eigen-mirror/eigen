@@ -357,8 +357,12 @@ EIGEN_DEVICE_FUNC inline Packet pnegate(const Packet& a) {
 
 /** \internal \returns conj(a) (coeff-wise) */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet pconj(const Packet& a) {
-  return numext::conj(a);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pconj(const Packet& a) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
+    return numext::conj(a);
+  else
+    return a;
 }
 
 /** \internal \returns a * b (coeff-wise) */
@@ -620,9 +624,13 @@ EIGEN_DEVICE_FUNC inline bool pselect<bool>(const bool& cond, const bool& a, con
   return cond ? a : b;
 }
 
+/** \internal Whether plain pmin/pmax already propagate NaN for \a Packet. */
+template <typename Packet>
+struct pminmax_propagates_nan : bool_constant<false> {};
+
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If either \a a or \a b are NaN, the result is implementation defined. */
-template <int NaNPropagation, bool IsInteger>
+template <int NaNPropagation, bool IsInteger, bool NativePropagatesNaN = false>
 struct pminmax_impl {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
@@ -633,7 +641,7 @@ struct pminmax_impl {
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If either \a a or \a b are NaN, NaN is returned. */
 template <>
-struct pminmax_impl<PropagateNaN, false> {
+struct pminmax_impl<PropagateNaN, false, false> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
     // pselect is an ordinary call, so op(a, b) is evaluated even where an operand is NaN;
@@ -649,8 +657,8 @@ struct pminmax_impl<PropagateNaN, false> {
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
     If both \a a and \a b are NaN, NaN is returned.
     Equivalent to std::fmin(a, b).  */
-template <>
-struct pminmax_impl<PropagateNumbers, false> {
+template <bool NativePropagatesNaN>
+struct pminmax_impl<PropagateNumbers, false, NativePropagatesNaN> {
   template <typename Packet, typename Op>
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a, const Packet& b, Op op) {
     Packet not_nan_mask_a = pcmp_eq(a, a);
@@ -673,7 +681,9 @@ EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
 template <int NaNPropagation, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmin(const Packet& a, const Packet& b) {
   constexpr bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger;
-  return pminmax_impl<NaNPropagation, IsInteger>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmin<Packet>)));
+  constexpr bool NativePropagatesNaN = pminmax_propagates_nan<Packet>::value;
+  return pminmax_impl<NaNPropagation, IsInteger, NativePropagatesNaN>::run(
+      a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmin<Packet>)));
 }
 
 /** \internal \returns the max of \a a and \a b  (coeff-wise)
@@ -688,24 +698,23 @@ EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
 template <int NaNPropagation, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmax(const Packet& a, const Packet& b) {
   constexpr bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger;
-  return pminmax_impl<NaNPropagation, IsInteger>::run(a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmax<Packet>)));
+  constexpr bool NativePropagatesNaN = pminmax_propagates_nan<Packet>::value;
+  return pminmax_impl<NaNPropagation, IsInteger, NativePropagatesNaN>::run(
+      a, b, EIGEN_BINARY_OP_NAN_PROPAGATION(Packet, (pmax<Packet>)));
 }
 
 /** \internal \returns the absolute value of \a a */
-template <typename Packet>
+template <typename Packet, std::enable_if_t<!(NumTraits<typename unpacket_traits<Packet>::type>::IsInteger &&
+                                              !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned),
+                                            int> = 0>
 EIGEN_DEVICE_FUNC inline Packet pabs(const Packet& a) {
   return numext::abs(a);
 }
-template <>
-EIGEN_DEVICE_FUNC inline unsigned int pabs(const unsigned int& a) {
-  return a;
-}
-template <>
-EIGEN_DEVICE_FUNC inline unsigned long pabs(const unsigned long& a) {
-  return a;
-}
-template <>
-EIGEN_DEVICE_FUNC inline unsigned long long pabs(const unsigned long long& a) {
+
+template <typename Packet, std::enable_if_t<NumTraits<typename unpacket_traits<Packet>::type>::IsInteger &&
+                                                !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned,
+                                            int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pabs(const Packet& a) {
   return a;
 }
 
@@ -1150,7 +1159,7 @@ EIGEN_DEVICE_FUNC inline void prefetch(const Scalar* addr) {
 
 /** \internal \returns the reversed elements of \a a*/
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline Packet preverse(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet preverse(const Packet& a) {
   return a;
 }
 
@@ -1479,8 +1488,13 @@ predux_half(const Packet& a) {
   return a;
 }
 
+template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size == 1, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op) {
+  return pfirst(a);
+}
+
 // Slow generic implementation of Packet reduction.
-template <typename Packet, typename Op>
+template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size != 1, int> = 0>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op op) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const size_t n = unpacket_traits<Packet>::size;
@@ -1494,15 +1508,20 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(co
   return elements[0];
 }
 
+template <typename Packet, std::enable_if_t<unpacket_traits<Packet>::size == 1, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_one_element(const Packet& a) {
+  return pfirst(a);
+}
+
 /** \internal \returns the sum of the elements of \a a*/
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux(const Packet& a) {
-  return a;
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux(const Packet& a) {
+  return predux_one_element(a);
 }
 
 /** \internal \returns the product of the elements of \a a */
 template <typename Packet>
-EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_mul(const Packet& a) {
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_mul(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   return predux_helper(a, EIGEN_BINARY_OP_NAN_PROPAGATION(Scalar, (pmul<Scalar>)));
 }
@@ -1748,14 +1767,15 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet prsqrt(const Packet&
 }
 
 template <typename Packet, bool IsScalar = is_scalar<Packet>::value,
-          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>
+          bool IsInteger = NumTraits<typename unpacket_traits<Packet>::type>::IsInteger,
+          bool IsUnsigned = IsInteger && !NumTraits<typename unpacket_traits<Packet>::type>::IsSigned>
 struct psignbit_impl;
-template <typename Packet, bool IsInteger>
-struct psignbit_impl<Packet, true, IsInteger> {
+template <typename Packet, bool IsInteger, bool IsUnsigned>
+struct psignbit_impl<Packet, true, IsInteger, IsUnsigned> {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return numext::signbit(a); }
 };
 template <typename Packet>
-struct psignbit_impl<Packet, false, false> {
+struct psignbit_impl<Packet, false, false, false> {
   // generic implementation if not specialized in PacketMath.h
   // slower than arithmetic shift
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -1766,9 +1786,13 @@ struct psignbit_impl<Packet, false, false> {
   }
 };
 template <typename Packet>
-struct psignbit_impl<Packet, false, true> {
-  // generic implementation for integer packets
+struct psignbit_impl<Packet, false, true, false> {
+  // generic implementation for signed integer packets
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return pcmp_lt(a, pzero(a)); }
+};
+template <typename Packet>
+struct psignbit_impl<Packet, false, true, true> {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static constexpr Packet run(const Packet& a) { return pzero(a); }
 };
 /** \internal \returns the sign bit of \a a as a bitmask*/
 template <typename Packet>

@@ -896,79 +896,6 @@ EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2f pconj(const Packet2f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4c pconj(const Packet4c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8c pconj(const Packet8c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16c pconj(const Packet16c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4uc pconj(const Packet4uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8uc pconj(const Packet8uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pconj(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4s pconj(const Packet4s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8s pconj(const Packet8s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4us pconj(const Packet4us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pconj(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2i pconj(const Packet2i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ui pconj(const Packet2ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pconj(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pconj(const Packet2l& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pconj(const Packet2ul& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2f pmul<Packet2f>(const Packet2f& a, const Packet2f& b) {
   return vmul_f32(a, b);
 }
@@ -1333,14 +1260,9 @@ EIGEN_STRONG_INLINE Packet2f pmin<PropagateNumbers, Packet2f>(const Packet2f& a,
 #endif
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pmin<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmin<Packet4f>(a, b);
-}
-
+struct pminmax_propagates_nan<Packet2f> : bool_constant<true> {};
 template <>
-EIGEN_STRONG_INLINE Packet2f pmin<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return pmin<Packet2f>(a, b);
-}
+struct pminmax_propagates_nan<Packet4f> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet4c pmin<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -1426,16 +1348,6 @@ EIGEN_STRONG_INLINE Packet2f pmax<PropagateNumbers, Packet2f>(const Packet2f& a,
   return vmaxnm_f32(a, b);
 }
 #endif
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmax<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmax<Packet4f>(a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2f pmax<PropagateNaN, Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return pmax<Packet2f>(a, b);
-}
 
 template <>
 EIGEN_STRONG_INLINE Packet4c pmax<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -3269,18 +3181,6 @@ EIGEN_STRONG_INLINE Packet16c pabs(const Packet16c& a) {
   return vabsq_s8(a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4uc pabs(const Packet4uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8uc pabs(const Packet8uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pabs(const Packet16uc& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4s pabs(const Packet4s& a) {
   return vabs_s16(a);
 }
@@ -3289,28 +3189,12 @@ EIGEN_STRONG_INLINE Packet8s pabs(const Packet8s& a) {
   return vabsq_s16(a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4us pabs(const Packet4us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pabs(const Packet8us& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet2i pabs(const Packet2i& a) {
   return vabs_s32(a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pabs(const Packet4i& a) {
   return vabsq_s32(a);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ui pabs(const Packet2ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
@@ -3325,11 +3209,6 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
   return veorq_s64(vreinterpretq_s64_u64(sum), mask);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) {
-  return a;
-}
-
 template <>
 EIGEN_STRONG_INLINE Packet2f psignbit(const Packet2f& a) {
   return vreinterpret_f32_s32(vshr_n_s32(vreinterpret_s32_f32(a), 31));
@@ -4844,11 +4723,6 @@ EIGEN_STRONG_INLINE Packet4bf ptrunc<Packet4bf>(const Packet4bf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4bf pconj(const Packet4bf& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4bf padd<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
   return F32ToBf16(padd<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
@@ -5107,11 +4981,6 @@ EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet2d pmul<Packet2d>(const Packet2d& a, const Packet2d& b) {
   return vmulq_f64(a, b);
 }
@@ -5169,18 +5038,11 @@ EIGEN_STRONG_INLINE Packet2d pmax<PropagateNumbers, Packet2d>(const Packet2d& a,
 #endif
 
 template <>
-EIGEN_STRONG_INLINE Packet2d pmin<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmin<Packet2d>(a, b);
-}
+struct pminmax_propagates_nan<Packet2d> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) {
   return vmaxq_f64(a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pmax<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmax<Packet2d>(a, b);
 }
 
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
@@ -5468,21 +5330,17 @@ struct unpacket_traits<Packet8hf> : neon_unpacket_default<Packet8hf, half> {
 };
 
 template <>
+struct pminmax_propagates_nan<Packet4hf> : bool_constant<true> {};
+template <>
+struct pminmax_propagates_nan<Packet8hf> : bool_constant<true> {};
+
+template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet8hf pset1(const half& from) {
   return vdupq_n_f16(from.x);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4hf pset1(const half& from) {
   return vdup_n_f16(from.x);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet8hf pconj(const Packet8hf& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4hf pconj(const Packet4hf& a) {
-  return a;
 }
 
 #define EIGEN_MAKE_HALF_BITWISE_BINOP(name, op)                                                     \
@@ -6279,20 +6137,6 @@ EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet8hf);
 EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet4hf);
 
 #undef EIGEN_MAKE_HALF_NEG_FMA
-
-#define EIGEN_MAKE_HALF_NAN_MAXMIN(name, packet)                                                              \
-  template <>                                                                                                 \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE packet name<PropagateNaN, packet>(const packet& a, const packet& b) { \
-    return name<packet>(a, b);                                                                                \
-  }                                                                                                           \
-  static_assert(true, "Trailing semicolon required")
-
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmin, Packet8hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmin, Packet4hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmax, Packet8hf);
-EIGEN_MAKE_HALF_NAN_MAXMIN(pmax, Packet4hf);
-
-#undef EIGEN_MAKE_HALF_NAN_MAXMIN
 
 #endif  // end EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 

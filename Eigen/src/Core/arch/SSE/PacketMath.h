@@ -597,23 +597,6 @@ EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pconj(const Packet2l& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) {
   return _mm_mul_ps(a, b);
 }
@@ -1202,10 +1185,6 @@ EIGEN_STRONG_INLINE Packet4i psignbit(const Packet4i& a) {
   return _mm_srai_epi32(a, 31);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4ui psignbit(const Packet4ui& a) {
-  return pzero(a);
-}
-template <>
 EIGEN_STRONG_INLINE Packet2l psignbit(const Packet2l& a) {
   Packet4i tmp = psignbit<Packet4i>(Packet4i(a));
   return Packet2l(_mm_shuffle_epi32(tmp, (shuffle_mask<1, 1, 3, 3>::mask)));
@@ -1273,11 +1252,6 @@ EIGEN_STRONG_INLINE Packet4i pabs(const Packet4i& a) {
   return _mm_sub_epi32(_mm_xor_si128(a, signbit), signbit);
 #endif
 }
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
-}
-
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
@@ -1427,14 +1401,6 @@ EIGEN_STRONG_INLINE Packet2d ploads<Packet2d>(const double* from) {
 template <>
 EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
   return vec4f_swizzle1(_mm_castsi128_ps(ploadu_si64(reinterpret_cast<const void*>(from))), 0, 0, 1, 1);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  return pset1<Packet2d>(from[0]);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l ploaddup<Packet2l>(const int64_t* from) {
-  return pset1<Packet2l>(from[0]);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int* from) {

@@ -213,20 +213,6 @@ EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  EIGEN_MSA_DEBUG;
-
-  return a;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  EIGEN_MSA_DEBUG;
-
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) {
   EIGEN_MSA_DEBUG;
 
@@ -912,13 +898,6 @@ EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
   EIGEN_MSA_DEBUG;
 
   return (Packet2d)__builtin_msa_bnegi_d((v2u64)a, 63);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  EIGEN_MSA_DEBUG;
-
-  return a;
 }
 
 template <>

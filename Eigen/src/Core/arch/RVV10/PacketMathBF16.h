@@ -173,11 +173,6 @@ EIGEN_STRONG_INLINE Packet1Xbf psignbit(const Packet1Xbf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1Xbf pconj(const Packet1Xbf& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet1Xbf pmul<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
   Packet2Xf c;
   return F32ToBf16(__riscv_vfwmaccbf16_vv_f32m2(pzero<Packet2Xf>(c), a, b, unpacket_traits<Packet1Xbf>::size));
@@ -524,11 +519,6 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xbf psignbit(const Packet2Xbf& a) {
   return __riscv_vreinterpret_v_i16m2_bf16m2(
       __riscv_vsra_vx_i16m2(__riscv_vreinterpret_v_bf16m2_i16m2(a), 15, unpacket_traits<Packet2Xs>::size));
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2Xbf pconj(const Packet2Xbf& a) {
-  return a;
 }
 
 template <>

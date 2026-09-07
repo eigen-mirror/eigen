@@ -366,11 +366,6 @@ EIGEN_STRONG_INLINE Packet2cd pset1<Packet2cd>(const std::complex<double>& from)
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet2cd ploaddup<Packet2cd>(const std::complex<double>* from) {
-  return pset1<Packet2cd>(*from);
-}
-
-template <>
 EIGEN_STRONG_INLINE void pstore<std::complex<double> >(std::complex<double>* to, const Packet2cd& from) {
   EIGEN_DEBUG_ALIGNED_STORE _mm256_store_pd((double*)to, from.v);
 }

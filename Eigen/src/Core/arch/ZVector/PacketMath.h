@@ -449,15 +449,6 @@ EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4i pmadd(const Packet4i& a, const Packet4i& b, const Packet4i& c) {
   return padd<Packet4i>(pmul<Packet4i>(a, b), c);
 }
@@ -1156,10 +1147,6 @@ EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b
 template <>
 EIGEN_STRONG_INLINE Packet4f pnegate<Packet4f>(const Packet4f& a) {
   return (-a);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pconj<Packet4f>(const Packet4f& a) {
-  return a;
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pmadd<Packet4f>(const Packet4f& a, const Packet4f& b, const Packet4f& c) {

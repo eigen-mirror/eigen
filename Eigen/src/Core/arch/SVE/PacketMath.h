@@ -122,11 +122,6 @@ EIGEN_STRONG_INLINE PacketXi pnegate(const PacketXi& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXi pconj(const PacketXi& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE PacketXi pmul<PacketXi>(const PacketXi& a, const PacketXi& b) {
   return svmul_s32_x(svptrue_b32(), a, b);
 }
@@ -411,11 +406,6 @@ EIGEN_STRONG_INLINE PacketXl psub<PacketXl>(const PacketXl& a, const PacketXl& b
 template <>
 EIGEN_STRONG_INLINE PacketXl pnegate(const PacketXl& a) {
   return svneg_s64_x(svptrue_b64(), a);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXl pconj(const PacketXl& a) {
-  return a;
 }
 
 template <>
@@ -727,11 +717,6 @@ EIGEN_STRONG_INLINE PacketXf pnegate(const PacketXf& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXf pconj(const PacketXf& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE PacketXf pmul<PacketXf>(const PacketXf& a, const PacketXf& b) {
   return svmul_f32_x(svptrue_b32(), a, b);
 }
@@ -747,13 +732,11 @@ EIGEN_STRONG_INLINE PacketXf pmadd(const PacketXf& a, const PacketXf& b, const P
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXf pmin<PacketXf>(const PacketXf& a, const PacketXf& b) {
-  return svmin_f32_x(svptrue_b32(), a, b);
-}
+struct pminmax_propagates_nan<PacketXf> : bool_constant<true> {};
 
 template <>
-EIGEN_STRONG_INLINE PacketXf pmin<PropagateNaN, PacketXf>(const PacketXf& a, const PacketXf& b) {
-  return pmin<PacketXf>(a, b);
+EIGEN_STRONG_INLINE PacketXf pmin<PacketXf>(const PacketXf& a, const PacketXf& b) {
+  return svmin_f32_x(svptrue_b32(), a, b);
 }
 
 template <>
@@ -764,11 +747,6 @@ EIGEN_STRONG_INLINE PacketXf pmin<PropagateNumbers, PacketXf>(const PacketXf& a,
 template <>
 EIGEN_STRONG_INLINE PacketXf pmax<PacketXf>(const PacketXf& a, const PacketXf& b) {
   return svmax_f32_x(svptrue_b32(), a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXf pmax<PropagateNaN, PacketXf>(const PacketXf& a, const PacketXf& b) {
-  return pmax<PacketXf>(a, b);
 }
 
 template <>
@@ -1100,11 +1078,6 @@ EIGEN_STRONG_INLINE PacketXd pnegate(const PacketXd& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXd pconj(const PacketXd& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE PacketXd pmul<PacketXd>(const PacketXd& a, const PacketXd& b) {
   return svmul_f64_x(svptrue_b64(), a, b);
 }
@@ -1120,13 +1093,11 @@ EIGEN_STRONG_INLINE PacketXd pmadd(const PacketXd& a, const PacketXd& b, const P
 }
 
 template <>
-EIGEN_STRONG_INLINE PacketXd pmin<PacketXd>(const PacketXd& a, const PacketXd& b) {
-  return svmin_f64_x(svptrue_b64(), a, b);
-}
+struct pminmax_propagates_nan<PacketXd> : bool_constant<true> {};
 
 template <>
-EIGEN_STRONG_INLINE PacketXd pmin<PropagateNaN, PacketXd>(const PacketXd& a, const PacketXd& b) {
-  return pmin<PacketXd>(a, b);
+EIGEN_STRONG_INLINE PacketXd pmin<PacketXd>(const PacketXd& a, const PacketXd& b) {
+  return svmin_f64_x(svptrue_b64(), a, b);
 }
 
 template <>
@@ -1137,11 +1108,6 @@ EIGEN_STRONG_INLINE PacketXd pmin<PropagateNumbers, PacketXd>(const PacketXd& a,
 template <>
 EIGEN_STRONG_INLINE PacketXd pmax<PacketXd>(const PacketXd& a, const PacketXd& b) {
   return svmax_f64_x(svptrue_b64(), a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXd pmax<PropagateNaN, PacketXd>(const PacketXd& a, const PacketXd& b) {
-  return pmax<PacketXd>(a, b);
 }
 
 template <>

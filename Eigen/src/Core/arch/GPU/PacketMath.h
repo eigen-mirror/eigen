@@ -283,15 +283,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pnegate(const double2& a) {
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pconj(const float4& a) {
-  return a;
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pconj(const double2& a) {
-  return a;
-}
-
-template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pmul<float4>(const float4& a, const float4& b) {
   return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
 }
@@ -818,8 +809,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 psub(const half2& a, const half2& b)
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pnegate(const half2& a) { return __hneg2(a); }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pconj(const half2& a) { return a; }
-
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmul(const half2& a, const half2& b) { return __hmul2(a, b); }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmadd(const half2& a, const half2& b, const half2& c) {
@@ -1291,11 +1280,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pnegate(const Packet4h2& a) {
   r_alias[2] = pnegate(a_alias[2]);
   r_alias[3] = pnegate(a_alias[3]);
   return r;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pconj(const Packet4h2& a) {
-  return a;
 }
 
 template <>

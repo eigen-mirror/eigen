@@ -1101,15 +1101,6 @@ EIGEN_STRONG_INLINE Packet4i pnegate(const Packet4i& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) {
   return vec_madd(a, b, p4f_MZERO);
 }
@@ -1893,16 +1884,8 @@ EIGEN_STRONG_INLINE Packet8s pabs(const Packet8s& a) {
   return vec_abs(a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet8us pabs(const Packet8us& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet16c pabs(const Packet16c& a) {
   return vec_abs(a);
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pabs(const Packet16uc& a) {
-  return a;
 }
 template <>
 EIGEN_STRONG_INLINE Packet8bf pabs(const Packet8bf& a) {
@@ -3308,11 +3291,6 @@ EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
 #else
   return vec_xor(a, p2d_MZERO);
 #endif
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
 }
 
 template <>
