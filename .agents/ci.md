@@ -106,9 +106,9 @@ Rows worth knowing before relying on them:
 - No affected-tier configuration enables CUDA, HIP or SYCL, so a diff confined to GPU test sources would select targets
   no host build has and read green having run nothing. Those paths add the existing CUDA jobs instead, which build
   `buildtests_gpu` and run the whole `gpu` label: coverage of the GPU suite, not of the affected subset.
-- `arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/HIP` and `arch/SYCL` backends have no matching test
-  configuration, so a change there gets only the four unconditional jobs and the same hollow result; `gpu-tests` is no
-  help either, since the GPU jobs it gates are all CUDA.
+- `arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/SYCL` backend have no matching test configuration, so a change
+  there gets only the four unconditional jobs and the same hollow result; `gpu-tests` is no help either, since the GPU
+  jobs it gates are all CUDA or ROCm.
 
 ## Worktree-Safe Formatting
 

@@ -15,20 +15,6 @@
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
 
-#if defined(EIGEN_GPU_COMPILE_PHASE)
-
-#include <cfloat>
-
-#if defined(EIGEN_CUDA_ARCH)
-#include <math_constants.h>
-#endif
-
-#if defined(EIGEN_HIP_DEVICE_COMPILE)
-#include "Eigen/src/Core/arch/HIP/hcc/math_constants.h"
-#endif
-
-#endif
-
 // Define portable (u)int{32,64} types
 #include <cstdint>
 
