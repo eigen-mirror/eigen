@@ -18,60 +18,16 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Packet>
-struct sse_add_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return padd<Packet>(a, b); }
-};
-
-template <typename Packet>
-struct sse_mul_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmul<Packet>(a, b); }
-};
-
-template <typename Packet>
-struct sse_min_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmin<Packet>(a, b); }
-};
-
-template <int NaNPropagation, typename Packet>
-struct sse_min_prop_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) {
-    return pmin<NaNPropagation, Packet>(a, b);
-  }
-};
-
-template <typename Packet>
-struct sse_max_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) { return pmax<Packet>(a, b); }
-};
-
-template <int NaNPropagation, typename Packet>
-struct sse_max_prop_wrapper {
-  static EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) {
-    return pmax<NaNPropagation, Packet>(a, b);
-  }
-};
-
-template <typename Packet, typename Op>
-struct sse_predux_common;
-
-template <typename Packet>
-struct sse_predux_impl : sse_predux_common<Packet, sse_add_wrapper<Packet>> {};
-
-template <typename Packet>
-struct sse_predux_mul_impl : sse_predux_common<Packet, sse_mul_wrapper<Packet>> {};
-
-template <typename Packet>
-struct sse_predux_min_impl : sse_predux_common<Packet, sse_min_wrapper<Packet>> {};
-
-template <int NaNPropagation, typename Packet>
-struct sse_predux_min_prop_impl : sse_predux_common<Packet, sse_min_prop_wrapper<NaNPropagation, Packet>> {};
-
-template <typename Packet>
-struct sse_predux_max_impl : sse_predux_common<Packet, sse_max_wrapper<Packet>> {};
-
-template <int NaNPropagation, typename Packet>
-struct sse_predux_max_prop_impl : sse_predux_common<Packet, sse_max_prop_wrapper<NaNPropagation, Packet>> {};
+// Lane 0 of the result is lane 1 of a; the other lanes are unspecified. That is all
+// the 4->2->1 reductions below need from it, so take whichever single instruction the
+// target offers.
+EIGEN_STRONG_INLINE Packet4f sse_lane1(const Packet4f& a) {
+#ifdef EIGEN_VECTORIZE_SSE3
+  return _mm_movehdup_ps(a);
+#else
+  return _mm_shuffle_ps(a, a, 1);
+#endif
+}
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet16b -- -- -- -- -- -- -- -- -- -- -- -- */
 
@@ -104,35 +60,33 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16b& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4i -- -- -- -- -- -- -- -- -- -- -- -- */
 
-template <typename Op>
-struct sse_predux_common<Packet4i, Op> {
-  static EIGEN_STRONG_INLINE int run(const Packet4i& a) {
-    Packet4i tmp;
-    tmp = Op::packetOp(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
-    tmp = Op::packetOp(tmp, _mm_unpackhi_epi32(tmp, tmp));
-    return _mm_cvtsi128_si32(tmp);
-  }
-};
-
 template <>
 EIGEN_STRONG_INLINE int predux(const Packet4i& a) {
-  return sse_predux_impl<Packet4i>::run(a);
+  Packet4i tmp = _mm_add_epi32(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = _mm_add_epi32(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return _mm_cvtsi128_si32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE int predux_mul(const Packet4i& a) {
-  return sse_predux_mul_impl<Packet4i>::run(a);
+  Packet4i tmp = pmul<Packet4i>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmul<Packet4i>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return _mm_cvtsi128_si32(tmp);
 }
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE int predux_min(const Packet4i& a) {
-  return sse_predux_min_impl<Packet4i>::run(a);
+  Packet4i tmp = pmin<Packet4i>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmin<Packet4i>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return _mm_cvtsi128_si32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE int predux_max(const Packet4i& a) {
-  return sse_predux_max_impl<Packet4i>::run(a);
+  Packet4i tmp = pmax<Packet4i>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmax<Packet4i>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return _mm_cvtsi128_si32(tmp);
 }
 #endif
 
@@ -143,35 +97,33 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4i& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4ui -- -- -- -- -- -- -- -- -- -- -- -- */
 
-template <typename Op>
-struct sse_predux_common<Packet4ui, Op> {
-  static EIGEN_STRONG_INLINE uint32_t run(const Packet4ui& a) {
-    Packet4ui tmp;
-    tmp = Op::packetOp(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
-    tmp = Op::packetOp(tmp, _mm_unpackhi_epi32(tmp, tmp));
-    return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
-  }
-};
-
 template <>
 EIGEN_STRONG_INLINE uint32_t predux(const Packet4ui& a) {
-  return sse_predux_impl<Packet4ui>::run(a);
+  Packet4ui tmp = _mm_add_epi32(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = _mm_add_epi32(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
 }
 
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_mul(const Packet4ui& a) {
-  return sse_predux_mul_impl<Packet4ui>::run(a);
+  Packet4ui tmp = pmul<Packet4ui>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmul<Packet4ui>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
 }
 
 #ifdef EIGEN_VECTORIZE_SSE4_1
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_min(const Packet4ui& a) {
-  return sse_predux_min_impl<Packet4ui>::run(a);
+  Packet4ui tmp = pmin<Packet4ui>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmin<Packet4ui>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
 }
 
 template <>
 EIGEN_STRONG_INLINE uint32_t predux_max(const Packet4ui& a) {
-  return sse_predux_max_impl<Packet4ui>::run(a);
+  Packet4ui tmp = pmax<Packet4ui>(a, _mm_shuffle_epi32(a, _MM_SHUFFLE(0, 1, 2, 3)));
+  tmp = pmax<Packet4ui>(tmp, _mm_unpackhi_epi32(tmp, tmp));
+  return static_cast<uint32_t>(_mm_cvtsi128_si32(tmp));
 }
 #endif
 
@@ -182,18 +134,10 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2l -- -- -- -- -- -- -- -- -- -- -- -- */
 
-template <typename Op>
-struct sse_predux_common<Packet2l, Op> {
-  static EIGEN_STRONG_INLINE int64_t run(const Packet2l& a) {
-    Packet2l tmp;
-    tmp = Op::packetOp(a, _mm_unpackhi_epi64(a, a));
-    return pfirst(tmp);
-  }
-};
-
 template <>
 EIGEN_STRONG_INLINE int64_t predux(const Packet2l& a) {
-  return sse_predux_impl<Packet2l>::run(a);
+  Packet2l tmp = _mm_add_epi64(a, _mm_unpackhi_epi64(a, a));
+  return pfirst(tmp);
 }
 
 template <>
@@ -203,68 +147,62 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet2l& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4f -- -- -- -- -- -- -- -- -- -- -- -- */
 
-template <typename Op>
-struct sse_predux_common<Packet4f, Op> {
-  static EIGEN_STRONG_INLINE float run(const Packet4f& a) {
-    Packet4f tmp;
-    tmp = Op::packetOp(a, _mm_movehl_ps(a, a));
-#ifdef EIGEN_VECTORIZE_SSE3
-    tmp = Op::packetOp(tmp, _mm_movehdup_ps(tmp));
-#else
-    tmp = Op::packetOp(tmp, _mm_shuffle_ps(tmp, tmp, 1));
-#endif
-    return _mm_cvtss_f32(tmp);
-  }
-};
-
 template <>
 EIGEN_STRONG_INLINE float predux(const Packet4f& a) {
-#ifdef EIGEN_VECTORIZE_AVX
-  return sse_predux_impl<Packet4f>::run(a);
-#else
-  // See predux(const Packet2d&): on legacy SSE the final 2->1 step is scalar.
+  // The 2->1 step is the low-lane form, as for Packet2d. It reads an already-reduced
+  // temporary rather than the live packet, so unlike Packet2d it needs no encoding split.
   Packet4f tmp = _mm_add_ps(a, _mm_movehl_ps(a, a));
-#ifdef EIGEN_VECTORIZE_SSE3
-  return _mm_cvtss_f32(_mm_add_ss(tmp, _mm_movehdup_ps(tmp)));
-#else
-  return _mm_cvtss_f32(_mm_add_ss(tmp, _mm_shuffle_ps(tmp, tmp, 1)));
-#endif
-#endif
+  tmp = _mm_add_ss(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_mul(const Packet4f& a) {
-  return sse_predux_mul_impl<Packet4f>::run(a);
+  Packet4f tmp = _mm_mul_ps(a, _mm_movehl_ps(a, a));
+  tmp = _mm_mul_ss(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min(const Packet4f& a) {
-  return sse_predux_min_impl<Packet4f>::run(a);
+  Packet4f tmp = pmin<Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmin<Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet4f& a) {
-  return sse_predux_min_prop_impl<PropagateNumbers, Packet4f>::run(a);
+  Packet4f tmp = pmin<PropagateNumbers, Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmin<PropagateNumbers, Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNaN>(const Packet4f& a) {
-  return sse_predux_min_prop_impl<PropagateNaN, Packet4f>::run(a);
+  Packet4f tmp = pmin<PropagateNaN, Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmin<PropagateNaN, Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max(const Packet4f& a) {
-  return sse_predux_max_impl<Packet4f>::run(a);
+  Packet4f tmp = pmax<Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmax<Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNumbers>(const Packet4f& a) {
-  return sse_predux_max_prop_impl<PropagateNumbers, Packet4f>::run(a);
+  Packet4f tmp = pmax<PropagateNumbers, Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmax<PropagateNumbers, Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet4f& a) {
-  return sse_predux_max_prop_impl<PropagateNaN, Packet4f>::run(a);
+  Packet4f tmp = pmax<PropagateNaN, Packet4f>(a, _mm_movehl_ps(a, a));
+  tmp = pmax<PropagateNaN, Packet4f>(tmp, sse_lane1(tmp));
+  return _mm_cvtss_f32(tmp);
 }
 
 template <>
@@ -274,63 +212,77 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet2d -- -- -- -- -- -- -- -- -- -- -- -- */
 
-template <typename Op>
-struct sse_predux_common<Packet2d, Op> {
-  static EIGEN_STRONG_INLINE double run(const Packet2d& a) {
-    Packet2d tmp;
-    tmp = Op::packetOp(a, _mm_unpackhi_pd(a, a));
-    return _mm_cvtsd_f64(tmp);
-  }
-};
-
+// The 2->1 step is not packed: a packed step pins the result in a vector register, so
+// neighbouring reductions -- one per coefficient of a small coeff-based product -- are
+// not re-packed into one store (~16% on clang/AVX2). Take the high lane first: pfirst(a)
+// is a's register, so reading it first keeps a live across the shuffle and gcc copies it
+// out. Without VEX the low-lane form wins when a is an accumulator rather than the data.
 template <>
 EIGEN_STRONG_INLINE double predux(const Packet2d& a) {
 #ifdef EIGEN_VECTORIZE_AVX
-  // With VEX (3-operand) encoding the packed reduction is fine.
-  return sse_predux_impl<Packet2d>::run(a);
+  const double hi = pfirst(preverse(a));
+  return pfirst(a) + hi;
 #else
-  // Legacy SSE (two-operand) encoding: a packed final reduction step writes a
-  // live, unused high lane that couples into the dependency graph and
-  // pessimizes fused kernels with many small reductions (e.g. chained
-  // fixed-size matrix products) by ~25%. A scalar add produces the same low
-  // lane without that false coupling.
-  return _mm_cvtsd_f64(_mm_add_sd(a, _mm_unpackhi_pd(a, a)));
+  return _mm_cvtsd_f64(_mm_add_sd(a, preverse(a)));
 #endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_mul(const Packet2d& a) {
-  return sse_predux_mul_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pfirst(a) * hi;
+#else
+  return _mm_cvtsd_f64(_mm_mul_sd(a, preverse(a)));
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min(const Packet2d& a) {
-  return sse_predux_min_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pmin<double>(pfirst(a), hi);
+#else
+  // _mm_unpackhi_pd, not preverse: clang folds this whole reduction into a scalar
+  // load from lane 1, and only recognises that spelling.
+  return _mm_cvtsd_f64(pmin<Packet2d>(a, _mm_unpackhi_pd(a, a)));
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNumbers>(const Packet2d& a) {
-  return sse_predux_min_prop_impl<PropagateNumbers, Packet2d>::run(a);
+  Packet2d tmp = pmin<PropagateNumbers, Packet2d>(a, _mm_unpackhi_pd(a, a));
+  return _mm_cvtsd_f64(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_min<PropagateNaN>(const Packet2d& a) {
-  return sse_predux_min_prop_impl<PropagateNaN, Packet2d>::run(a);
+  Packet2d tmp = pmin<PropagateNaN, Packet2d>(a, _mm_unpackhi_pd(a, a));
+  return _mm_cvtsd_f64(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max(const Packet2d& a) {
-  return sse_predux_max_impl<Packet2d>::run(a);
+#ifdef EIGEN_VECTORIZE_AVX
+  const double hi = pfirst(preverse(a));
+  return pmax<double>(pfirst(a), hi);
+#else
+  // _mm_unpackhi_pd, not preverse: clang folds this whole reduction into a scalar
+  // load from lane 1, and only recognises that spelling.
+  return _mm_cvtsd_f64(pmax<Packet2d>(a, _mm_unpackhi_pd(a, a)));
+#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNumbers>(const Packet2d& a) {
-  return sse_predux_max_prop_impl<PropagateNumbers, Packet2d>::run(a);
+  Packet2d tmp = pmax<PropagateNumbers, Packet2d>(a, _mm_unpackhi_pd(a, a));
+  return _mm_cvtsd_f64(tmp);
 }
 
 template <>
 EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet2d& a) {
-  return sse_predux_max_prop_impl<PropagateNaN, Packet2d>::run(a);
+  Packet2d tmp = pmax<PropagateNaN, Packet2d>(a, _mm_unpackhi_pd(a, a));
+  return _mm_cvtsd_f64(tmp);
 }
 
 template <>

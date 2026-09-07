@@ -223,6 +223,58 @@ static void BM_SelfAdjointEig_ComputeDirect(benchmark::State& state) {
 }
 
 // ============================================================================
+// Chained fixed-size blocks — bundle-adjustment projection Jacobian
+// ============================================================================
+
+template <typename Scalar, int N>
+struct ChainedBlocks {
+  Matrix<Scalar, 2, N, RowMajor> b0, b1, b2, b3, b4;
+};
+
+template <typename Scalar, int N>
+EIGEN_DONT_INLINE void do_chained_blocks(const Matrix<Scalar, N, N>& A, const Matrix<Scalar, N, N>& B,
+                                         const Matrix<Scalar, N, 1>& u, const Matrix<Scalar, N, 1>& v,
+                                         const Matrix<Scalar, N, 1>& w, const Matrix<Scalar, N, 1>& x,
+                                         const Matrix<Scalar, 4, 1>& params, Matrix<Scalar, 2, 1>& output,
+                                         ChainedBlocks<Scalar, N>& blocks) {
+  using Blk = Matrix<Scalar, 2, N, RowMajor>;
+  const Matrix<Scalar, N, 1> a = A * u + v;
+  const Matrix<Scalar, N, 1> b = B.transpose() * (a - w);
+  const Matrix<Scalar, N, 1> c = b - x;
+  const Scalar iz = Scalar(1) / c(N - 1), iz2 = iz * iz;
+  const Scalar k0 = params(0), k1 = params(1);
+  Blk J = Blk::Zero();
+  J(0, 0) = k0 * iz;
+  J(1, 1) = k1 * iz;
+  J(0, N - 1) = -k0 * c(0) * iz2;
+  J(1, N - 1) = -k1 * c(1) * iz2;
+  blocks.b0 = J * B.transpose();
+  blocks.b1 = blocks.b0 * A;
+  blocks.b2 = -blocks.b1;
+  blocks.b3 = blocks.b0 + blocks.b1;
+  blocks.b4 = blocks.b3 - blocks.b2;
+  output << k0 * c(0) * iz + params(2), k1 * c(1) * iz + params(3);
+}
+
+template <typename Scalar, int N>
+static void BM_ChainedBlocks(benchmark::State& state) {
+  using Mat = Matrix<Scalar, N, N>;
+  using Vec = Matrix<Scalar, N, 1>;
+  Mat A = Mat::Random(), B = Mat::Random();
+  Vec u = Vec::Random(), v = Vec::Random(), w = Vec::Random(), x = Vec::Random();
+  Matrix<Scalar, 4, 1> params = Matrix<Scalar, 4, 1>::Random();
+  // Pin the inverted coordinate to 1 so the reciprocal stays in a normal range.
+  x(N - 1) += (B.transpose() * (A * u + v - w) - x)(N - 1) - Scalar(1);
+  Matrix<Scalar, 2, 1> output;
+  ChainedBlocks<Scalar, N> blocks;
+  for (auto _ : state) {
+    do_chained_blocks<Scalar, N>(A, B, u, v, w, x, params, output, blocks);
+    benchmark::DoNotOptimize(blocks.b4.data());
+    benchmark::DoNotOptimize(output.data());
+  }
+}
+
+// ============================================================================
 // Registration — focus on robotics/CV sizes
 // ============================================================================
 
@@ -317,3 +369,9 @@ BENCHMARK(BM_SelfAdjointEig_ComputeDirect<float, 2>);
 BENCHMARK(BM_SelfAdjointEig_ComputeDirect<float, 3>);
 BENCHMARK(BM_SelfAdjointEig_ComputeDirect<double, 2>);
 BENCHMARK(BM_SelfAdjointEig_ComputeDirect<double, 3>);
+
+// Chained 2xN blocks — projection Jacobian of a bundle adjustment step
+BENCHMARK(BM_ChainedBlocks<float, 3>);
+BENCHMARK(BM_ChainedBlocks<float, 4>);
+BENCHMARK(BM_ChainedBlocks<double, 3>);
+BENCHMARK(BM_ChainedBlocks<double, 4>);
