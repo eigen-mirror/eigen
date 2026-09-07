@@ -22,9 +22,10 @@ LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
 headers directly, which trips Eigen's internal-header guard, and a PostToolUse
 payload is not a unified diff.
 
-No compilation database is required: ``-std=c++14 -I<repo>`` is enough to parse
-any file in the C++14 trees, which keeps the hook usable in a fresh checkout
-with no build directory.
+No compilation database is required: ``-std=c++14 -I<repo>`` parses any file
+in the C++14 trees, with ``test/`` added for the test sources and
+``unsupported/`` for the unsupported ones, which keeps the hook usable in a
+fresh checkout with no build directory.
 
 The hook fails open — a missing clang-tidy, an unparsable file, a translation
 unit that does not compile, or any unexpected error exits 0 rather than blocking
@@ -107,10 +108,18 @@ def cuda_include_dir(default_root="/usr/local/cuda"):
 
 
 def compile_args(rel_path, root=REPO_ROOT):
-    """Include paths sufficient to parse ``rel_path`` without a compile database."""
+    """Include paths sufficient to parse ``rel_path`` without a compile database.
+
+    Test sources reach ``main.h`` through ``test/``; the unsupported ones also
+    include their module umbrellas as ``<Eigen/Tensor>``, which resolves only
+    with ``unsupported/`` on the path.  These are the directories
+    ``unsupported/test/CMakeLists.txt`` adds for them.
+    """
     args = ["-std=c++14", "-I" + root]
     if rel_path.startswith(("test/", "unsupported/test/")):
         args += ["-I" + os.path.join(root, "test")]
+    if rel_path.startswith("unsupported/test/"):
+        args += ["-I" + os.path.join(root, "unsupported")]
     cuda = cuda_include_dir()
     if cuda:
         args += ["-isystem", cuda]

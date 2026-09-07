@@ -103,8 +103,13 @@ def test_compile_args():
     assert "-std=c++14" in args and "-I" + REPO_ROOT in args
     # Test sources include main.h from test/.
     assert any(a.endswith("/test") for a in compile_args("test/block.cpp"))
-    assert any(a.endswith("/test") for a in compile_args("unsupported/test/cxx11_tensor_block_access.cpp"))
+    assert any(a.endswith("/test") for a in compile_args("unsupported/test/tensor_block_access.cpp"))
     assert not any(a.endswith("/test") for a in compile_args("Eigen/src/Core/Block.h"))
+    # Unsupported test sources include their umbrellas as <Eigen/Tensor>, which
+    # only resolves with unsupported/ on the path; nothing else needs it.
+    assert any(a.endswith("/unsupported") for a in compile_args("unsupported/test/tensor_block_access.cpp"))
+    assert not any(a.endswith("/unsupported") for a in compile_args("test/block.cpp"))
+    assert not any(a.endswith("/unsupported") for a in compile_args("unsupported/Eigen/src/Tensor/TensorBlock.h"))
 
 
 def test_cuda_include_dir():
@@ -219,6 +224,29 @@ def test_new_src_header_is_checked():
                          "typedef int AddedAlias;\n")
 
         diagnostics, skipped = run_clang_tidy({"Eigen/src/Core/Added.h": {2}}, root=tmp)
+        assert not skipped, skipped
+        assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
+
+
+def test_unsupported_test_source_is_checked():
+    """An unsupported test source includes its module umbrella as <Eigen/X>,
+    which resolves only through unsupported/; without that path every such
+    file was skipped as a translation unit that did not compile."""
+    if shutil.which("clang-tidy") is None:
+        print("SKIP test_unsupported_test_source_is_checked (clang-tidy not installed)")
+        return
+    with tempfile.TemporaryDirectory(prefix="tidy_unsupported_test_") as tmp:
+        os.makedirs(os.path.join(tmp, "unsupported", "Eigen"))
+        os.makedirs(os.path.join(tmp, "unsupported", "test"))
+        with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
+            handle.write("Checks: '-*,modernize-use-using'\n")
+        with open(os.path.join(tmp, "unsupported", "Eigen", "Probe"), "w") as handle:
+            handle.write("#define EIGEN_PROBE_MODULE_H\n")
+        with open(os.path.join(tmp, "unsupported", "test", "probe.cpp"), "w") as handle:
+            handle.write("#include <Eigen/Probe>\n"
+                         "typedef int AddedAlias;\n")
+
+        diagnostics, skipped = run_clang_tidy({"unsupported/test/probe.cpp": {2}}, root=tmp)
         assert not skipped, skipped
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
 
