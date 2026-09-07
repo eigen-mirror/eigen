@@ -629,7 +629,9 @@ template <typename Packet>
 struct pminmax_propagates_nan : bool_constant<false> {};
 
 /** \internal \returns the min or max of \a a and \a b (coeff-wise)
-    If either \a a or \a b are NaN, the result is implementation defined. */
+    If either \a a or \a b are NaN, the result is implementation defined, except that a
+    PropagateNaN request on a packet whose plain pmin/pmax already propagates NaN
+    (\a NativePropagatesNaN) returns NaN. */
 template <int NaNPropagation, bool IsInteger, bool NativePropagatesNaN = false>
 struct pminmax_impl {
   template <typename Packet, typename Op>
@@ -1488,13 +1490,8 @@ predux_half(const Packet& a) {
   return a;
 }
 
-template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size == 1, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op) {
-  return pfirst(a);
-}
-
 // Slow generic implementation of Packet reduction.
-template <typename Packet, typename Op, std::enable_if_t<unpacket_traits<Packet>::size != 1, int> = 0>
+template <typename Packet, typename Op>
 EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_helper(const Packet& a, Op op) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const size_t n = unpacket_traits<Packet>::size;
