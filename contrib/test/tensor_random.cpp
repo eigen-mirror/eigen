@@ -85,15 +85,15 @@ static void test_uniform_range(Eigen::Index size) {
 // Every draw is a pure function of (seed, index), which is what functor_traits reports as IsRepeatable and what
 // lets the nullary evaluator serve blocks. So a materialized block has to hold exactly what the coefficient path
 // produces at the same tensor-linear indices, and evaluating one expression twice has to repeat the fill.
-template <typename Scalar, typename Generator>
-static void test_block_materialization() {
-  using Tensor2 = Tensor<Scalar, 2>;
-  using Expr = TensorCwiseNullaryOp<Generator, const Tensor2>;
+template <typename Scalar, typename Generator, int Layout, int NumDims>
+static void test_block_shape(const DSizes<Index, NumDims>& dims, const DSizes<Index, NumDims>& origin,
+                             const DSizes<Index, NumDims>& sizes) {
+  using TensorT = Tensor<Scalar, NumDims, Layout>;
+  using Expr = TensorCwiseNullaryOp<Generator, const TensorT>;
   using Evaluator = TensorEvaluator<const Expr, DefaultDevice>;
   VERIFY(int(Evaluator::BlockAccess) == 1);
 
-  const Index rows = 17, cols = 23;
-  Tensor2 shape(rows, cols);
+  TensorT shape(dims);
   const Expr expr = shape.template random<Generator>(Generator(1234));
 
   DefaultDevice device;
@@ -101,24 +101,52 @@ static void test_block_materialization() {
   eval.evalSubExprsIfNeeded(nullptr);
   internal::TensorBlockScratchAllocator<DefaultDevice> scratch(device);
 
-  // A block strictly inside the tensor, so that its rows are separated in linear-index space.
-  const Index origin_row = 3, origin_col = 5;
-  const DSizes<Index, 2> sizes(8, 11);
-  internal::TensorBlockDescriptor<2, Index> desc(origin_row + origin_col * rows, sizes);
+  const DSizes<Index, NumDims> tensor_strides = internal::strides<Layout>(dims);
+  const DSizes<Index, NumDims> block_strides = internal::strides<Layout>(sizes);
+  Index offset = 0;
+  for (int d = 0; d < NumDims; ++d) offset += origin[d] * tensor_strides[d];
+
+  internal::TensorBlockDescriptor<NumDims, Index> desc(offset, sizes);
   auto block = eval.block(desc, scratch);
   const Scalar* data = block.data();
   VERIFY(data != nullptr);
-  for (Index c = 0; c < sizes[1]; ++c) {
-    for (Index r = 0; r < sizes[0]; ++r) {
-      VERIFY_IS_EQUAL(data[r + c * sizes[0]], eval.coeff(origin_row + r + (origin_col + c) * rows));
+
+  DSizes<Index, NumDims> coord;
+  for (int d = 0; d < NumDims; ++d) coord[d] = 0;
+  for (Index i = 0; i < sizes.TotalSize(); ++i) {
+    Index in_block = 0;
+    Index in_tensor = 0;
+    for (int d = 0; d < NumDims; ++d) {
+      in_block += coord[d] * block_strides[d];
+      in_tensor += (origin[d] + coord[d]) * tensor_strides[d];
+    }
+    VERIFY_IS_EQUAL(data[in_block], eval.coeff(in_tensor));
+    for (int d = 0; d < NumDims; ++d) {
+      const int dim = (Layout == ColMajor) ? d : NumDims - 1 - d;
+      if (++coord[dim] < sizes[dim]) break;
+      coord[dim] = 0;
     }
   }
   block.cleanup();
   eval.cleanup();
 
-  Tensor2 first = expr;
-  Tensor2 second = expr;
+  TensorT first = expr;
+  TensorT second = expr;
   for (Index i = 0; i < first.size(); ++i) VERIFY_IS_EQUAL(first(i), second(i));
+}
+
+template <typename Scalar, typename Generator>
+static void test_block_materialization() {
+  // Blocks strictly inside the tensor, so their runs are separated in linear-index space: 2-D in both layouts,
+  // then 3-D, where the innermost dimension is a partial run either way.
+  test_block_shape<Scalar, Generator, ColMajor>(DSizes<Index, 2>(17, 23), DSizes<Index, 2>(3, 5),
+                                                DSizes<Index, 2>(8, 11));
+  test_block_shape<Scalar, Generator, RowMajor>(DSizes<Index, 2>(17, 23), DSizes<Index, 2>(3, 5),
+                                                DSizes<Index, 2>(8, 11));
+  test_block_shape<Scalar, Generator, ColMajor>(DSizes<Index, 3>(9, 7, 5), DSizes<Index, 3>(2, 1, 1),
+                                                DSizes<Index, 3>(5, 4, 3));
+  test_block_shape<Scalar, Generator, RowMajor>(DSizes<Index, 3>(9, 7, 5), DSizes<Index, 3>(2, 1, 1),
+                                                DSizes<Index, 3>(5, 4, 3));
 }
 
 template <typename Scalar>
