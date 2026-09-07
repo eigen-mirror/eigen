@@ -383,9 +383,7 @@ void bunchkaufman_determinant_subnormal_block() {
     if (numext::is_exactly_zero(numext::abs(a.coeff(1, 0)))) return;
 
     BunchKaufman<MatrixType, Lower> bk(a);
-    // c == 0 has d11 = d22 = 0, where unblocked()'s own scaled determinant is 0*inf and it reports
-    // NumericalIssue; the accessors below are exact either way.
-    if (k11[c] != 0) VERIFY(bk.info() == Success);
+    VERIFY(bk.info() == Success);
 
     VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
     VERIFY_IS_APPROX(bk.logAbsDeterminant(), logabsdet);
@@ -398,15 +396,15 @@ void bunchkaufman_determinant_subnormal_block() {
 }
 
 // The criterion bounds |d11| against alpha|d21| but bounds |d22| only against the largest entry of its own
-// row, which can dwarf |d21|. So d22/d21 can overflow, and the scaled determinant comes out +inf, or 0*inf
-// = NaN where d11 is zero; either one counts the block as definite with the sign of its trace, and the
-// trace is positive here. The criterion puts the true value below 1, which is what rejects both.
+// row, which can dwarf |d21|. So d22/d21 can overflow, and the scaled determinant comes out +-inf, or 0*inf
+// = NaN where d11 is zero; +inf and NaN count the block as definite with the sign of its trace, which is
+// positive here. The criterion puts the true magnitude below 1, which is what rejects all three.
 void bunchkaufman_inertia_wide_2x2_block() {
-  // The 2x2 block is (d11, d21, d22) = (a00, 1e-10, 1e299), determinant a00*1e299 - 1e-20 < 0 in both
-  // rows below, so it contributes one eigenvalue of each sign. info() is NumericalIssue: unblocked()
-  // forms the same product through 1/d21 and NaNs the trailing update, so the inertia is the only part
-  // of the factorization that is meaningful for these.
-  for (double a00 : {0.0, 1e-320}) {
+  // The 2x2 block is (d11, d21, d22) = (a00, 1e-10, 1e299), determinant a00*1e299 - 1e-20 < 0 for every
+  // a00 below, so it contributes one eigenvalue of each sign. The block's inverse has entries of order
+  // d22/det ~ 1e319, so L = U D^{-1} is not representable and the factorization reports NumericalIssue
+  // (its own scaled determinant sees d22/d21 overflow); the inertia is still exact.
+  for (double a00 : {0.0, 1e-320, -1e-320}) {
     MatrixXd a = MatrixXd::Zero(4, 4);
     a(0, 0) = a00;
     a(1, 0) = a(0, 1) = 1e-10;
@@ -414,6 +412,7 @@ void bunchkaufman_inertia_wide_2x2_block() {
     a(3, 1) = a(1, 3) = 2e299;
 
     BunchKaufman<MatrixXd> bk(a);
+    VERIFY(bk.info() == NumericalIssue);
     VERIFY(!bk.isPositive());
     VERIFY(!bk.isNegative());
   }
@@ -536,6 +535,150 @@ void bunchkaufman_extreme_scale_large(Index n) {
   }
 }
 
+// The off-diagonal of the subnormal 2x2 pivot block below: 4s, or (3 + 4i) s with the same |.| = 5s structure as
+// the determinant test above. Two overloads because a complex literal cannot be spelled in template code.
+template <typename Scalar>
+Scalar subnormal_block_off_diagonal(const Scalar& s, std::false_type /*IsComplex*/) {
+  return Scalar(4) * s;
+}
+template <typename Scalar>
+Scalar subnormal_block_off_diagonal(const typename NumTraits<Scalar>::Real& s, std::true_type /*IsComplex*/) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  return Scalar(RealScalar(3) * s, RealScalar(4) * s);
+}
+
+// Issue #3142: a 2x2 pivot block with a subnormal off-diagonal. D_k = s [[1, 4], [4, 1]] (d21 = (3+4i) s when
+// complex) is an ordinary 2x2 pivot, det D_k = -15 s^2 (-24 s^2), but 1/d21 overflows once d21 is subnormal, and a
+// reciprocal hoisted out of the factor-column and D-solve loops made both 0*inf. A is the identity apart from D_k
+// at rows p, p+1 and the m rows below it, coupled to it by small-integer multiples of s, so P = I, L - I is the
+// O(1) block C D_k^{-1}, and the Schur complement I - C D_k^{-1} C^* is I up to O(s) off-diagonal entries.
+template <typename MatrixType, typename BKType>
+void verify_subnormal_2x2_block(const MatrixType& A, const BKType& bk,
+                                const Matrix<typename MatrixType::Scalar, Dynamic, 1>& b,
+                                const Matrix<typename MatrixType::Scalar, Dynamic, 1>& x_true, Index m,
+                                const typename MatrixType::RealScalar& s) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  const RealScalar u = (std::numeric_limits<RealScalar>::denorm_min)();
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+
+  VERIFY(bk.info() == Success);
+  VERIFY(bk.matrixLDLT().allFinite());
+  VERIFY_IS_EQUAL(bk.signDeterminant(), Scalar(-1));
+  // The O(1) entries reconstruct exactly; an entry of order s is rebuilt from a few products that each round at
+  // the quantum u.
+  VERIFY((A - bk.reconstructedMatrix()).cwiseAbs().maxCoeff() <= RealScalar(8) * u);
+  // The D solve divides by d21 before anything else and is then a few roundings of O(1) values up to 2 in
+  // magnitude. A factor entry t*(ak*u0 - u1)/conj(d21) forms its numerator at the scale of s, about three
+  // roundings at the quantum u, so it is off by up to 3u/|d21| <= 3u/(4s); the substitution adds m*max|x| = 4
+  // of those to x.
+  const Matrix<Scalar, Dynamic, 1> x = bk.solve(b);
+  VERIFY(x.allFinite());
+  const RealScalar quantum = m > 0 ? u / s : RealScalar(0);
+  VERIFY((x - x_true).cwiseAbs().maxCoeff() <= RealScalar(16) * eps + RealScalar(4) * quantum);
+}
+
+template <typename MatrixType>
+void bunchkaufman_subnormal_2x2_block(Index n, Index p, Index m, const typename MatrixType::RealScalar& s) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+
+  MatrixType A = MatrixType::Identity(n, n);
+  A(p, p) = A(p + 1, p + 1) = Scalar(s);
+  const Scalar d21 = subnormal_block_off_diagonal<Scalar>(s, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
+  A(p + 1, p) = d21;
+  A(p, p + 1) = numext::conj(d21);
+  // Flushing subnormal results to zero empties the block even where the division probe passed.
+  if (numext::is_exactly_zero(numext::abs(A(p + 1, p)))) return;
+  // Couplings of magnitude at most 3s stay below |d21|, so the pivot search keeps row p+1 as the column
+  // maximum and selects the 2x2 block without an interchange.
+  for (Index i = 0; i < m; ++i) {
+    const Index r = p + 2 + i;
+    A(r, p) = A(p, r) = Scalar(RealScalar(i + 1) * s);
+    A(r, p + 1) = A(p + 1, r) = Scalar(RealScalar(2 * i - 3) * s);
+  }
+  VectorType x_true(n);
+  for (Index i = 0; i < n; ++i) x_true(i) = Scalar(RealScalar(i % 5) - RealScalar(2));
+  // Rows of order s are exact small-integer multiples of s; the others round to the integer x_true(i).
+  const VectorType b = A * x_true;
+
+  BunchKaufman<MatrixType, Lower> bk_lo(A);
+  verify_subnormal_2x2_block(A, bk_lo, b, x_true, m, s);
+  BunchKaufman<MatrixType, Upper> bk_up(A);
+  verify_subnormal_2x2_block(A, bk_up, b, x_true, m, s);
+}
+
+template <typename MatrixType>
+void bunchkaufman_subnormal_2x2_block() {
+  typedef typename MatrixType::RealScalar RealScalar;
+  if (!subnormalDivisionIsExact<RealScalar>()) {
+    const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
+                                                                             : "the compiler relaxed the division";
+    std::cout << "SKIP: bunchkaufman_subnormal_2x2_block needs an environment that divides by subnormals per "
+                 "IEEE 754 ("
+              << reason << ")." << std::endl;
+    return;
+  }
+  // s = min/1024 is subnormal with digits-10 significant bits, and 1/(4s) = 256/min overflows in every IEEE
+  // format. The coupled cases need those bits: their factor columns round at the quantum u relative to s.
+  const RealScalar s = (std::numeric_limits<RealScalar>::min)() / RealScalar(1024);
+  // The issue's two shapes -- the block last (no trailing update) and first -- at denorm_min itself where the
+  // block is real: every quotient is then dyadic and exact. A complex quotient of denorm_min-scale operands is
+  // exact only under a complex division that scales both operands, which the C++ runtime may or may not do, so
+  // the complex instantiations use s, where 3s*0.75 and 2.25s are representable under any of the algorithms.
+  const RealScalar s0 =
+      NumTraits<typename MatrixType::Scalar>::IsComplex ? s : (std::numeric_limits<RealScalar>::denorm_min)();
+  bunchkaufman_subnormal_2x2_block<MatrixType>(4, 2, 0, s0);
+  bunchkaufman_subnormal_2x2_block<MatrixType>(4, 0, 0, s0);
+  bunchkaufman_subnormal_2x2_block<MatrixType>(4, 0, 2, s);
+  // Above the panel width the blocked driver runs: block in the first panel, straddling the panel boundary
+  // (deferred to the next panel), opening the second panel, and last in the unblocked tail.
+  const Index n = 2 * internal::bunch_kaufman_blocksize<typename MatrixType::Scalar>() + 2;
+  for (Index p : {Index(0), n / 2 - 2, n / 2, n - 2}) {
+    bunchkaufman_subnormal_2x2_block<MatrixType>(n, p, p + 2 < n ? 2 : 0, s);
+  }
+}
+
+template <typename BKType, typename VectorType>
+void verify_near_max_scale(const BKType& bk, const VectorType& b, const VectorType& x_true) {
+  typedef typename VectorType::RealScalar RealScalar;
+  VERIFY(bk.info() == Success);
+  VERIFY(bk.matrixLDLT().allFinite());
+  // x_true = e_2 comes back through cancellations (6/5 - 6/5 and -3/5 + 3/5, or 18/25 - 18/25 and
+  // -9/25 + 9/25) of values that each carry a few roundings.
+  VERIFY((bk.solve(b) - x_true).cwiseAbs().maxCoeff() <= RealScalar(16) * NumTraits<RealScalar>::epsilon());
+}
+
+// A 2x2 pivot block at the top of the representable range: A = M [[1/2, 1, 0], [1, s/2, 9/10], [0, 9/10, 0]]
+// with M = max and s = +-1: d21 = M, ak = s/2, akm1 = 1/2, denom = s/4 - 1, and the factor row below the
+// block is (6/5, -3/5) for s = 1 and (18/25, -9/25) for s = -1. Scaling ak*u0 - u1 = -9M/10 by t before
+// dividing by d21 overflows although the entries are finite; for s = -1 so does denom*d21, which would zero
+// the row with info() == Success. n = 3 runs unblocked(), the identity wider than the panel partial_factor().
+// L D L^* is not checked: (L D)(2, 1) = 6M/5 - 3M/10 overflows in the middle of its own evaluation.
+template <typename MatrixType>
+void bunchkaufman_near_max_scale() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  const RealScalar M = (std::numeric_limits<RealScalar>::max)();
+  for (Index n : {Index(3), 2 * internal::bunch_kaufman_blocksize<Scalar>() + 2}) {
+    for (RealScalar s : {RealScalar(1), RealScalar(-1)}) {
+      MatrixType A = MatrixType::Identity(n, n);
+      A(0, 0) = Scalar(M / RealScalar(2));
+      A(1, 1) = Scalar(s * M / RealScalar(2));
+      A(1, 0) = A(0, 1) = Scalar(M);
+      A(2, 1) = A(1, 2) = Scalar(RealScalar(0.9) * M);
+      A(2, 2) = Scalar(0);
+      const VectorType b = A.col(2);
+      VectorType e2 = VectorType::Zero(n);
+      e2(2) = Scalar(1);
+      verify_near_max_scale(BunchKaufman<MatrixType, Lower>(A), b, e2);
+      verify_near_max_scale(BunchKaufman<MatrixType, Upper>(A), b, e2);
+    }
+  }
+}
+
 // Regression: the size constructor must pre-allocate the panel workspace so that a subsequent compute()
 // on a problem of that size performs no heap allocation. n is chosen above the panel width so the
 // blocked path (the one that uses the workspace) runs. (Uses the default stack-allocation limit so the
@@ -627,6 +770,16 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   CALL_SUBTEST_5(bunchkaufman_extreme_scale_large<double>(100));
   CALL_SUBTEST_6(bunchkaufman_extreme_scale_large<std::complex<double> >(8));
   CALL_SUBTEST_6(bunchkaufman_extreme_scale_large<std::complex<double> >(100));
+
+  // Issue #3142: subnormal 2x2 pivot blocks through the unblocked and blocked paths and the D solve.
+  CALL_SUBTEST_5(bunchkaufman_subnormal_2x2_block<MatrixXd>());
+  CALL_SUBTEST_6(bunchkaufman_subnormal_2x2_block<MatrixXcd>());
+  CALL_SUBTEST_8(bunchkaufman_subnormal_2x2_block<MatrixXf>());
+  CALL_SUBTEST_8(bunchkaufman_subnormal_2x2_block<MatrixXcf>());
+  CALL_SUBTEST_5(bunchkaufman_near_max_scale<MatrixXd>());
+  CALL_SUBTEST_6(bunchkaufman_near_max_scale<MatrixXcd>());
+  CALL_SUBTEST_8(bunchkaufman_near_max_scale<MatrixXf>());
+  CALL_SUBTEST_8(bunchkaufman_near_max_scale<MatrixXcf>());
 
   // No-malloc regression: the size constructor pre-allocates the panel workspace.
   CALL_SUBTEST_8(bunchkaufman_no_malloc<double>());
