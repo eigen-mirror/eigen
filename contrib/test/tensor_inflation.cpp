@@ -108,9 +108,10 @@ template <int DataLayout>
 static void test_inflation_block_access_gating() {
   // Inflation reads its argument through coeff() in block(), so it must only
   // advertise BlockAccess when the argument itself is safe for block-style
-  // (concurrent, repeated) evaluation. A random-generator nullary is not
-  // repeatable, and a TensorRef exposes no block access; both must disable
-  // the tiled path. A plain tensor and a cwise expression keep it.
+  // (concurrent, repeated) evaluation. A random-generator nullary is repeatable
+  // -- every draw is a pure function of (seed, index) -- so it keeps the tiled
+  // path, as a plain tensor and a cwise expression do. A TensorRef exposes no
+  // block access and must disable it.
   typedef Tensor<float, 3, DataLayout> TensorType;
   typedef Eigen::array<ptrdiff_t, 3> Strides;
 
@@ -125,7 +126,7 @@ static void test_inflation_block_access_gating() {
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
   EIGEN_STATIC_ASSERT((Eigen::TensorEvaluator<const CwiseInflate, Eigen::DefaultDevice>::BlockAccess),
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
-  EIGEN_STATIC_ASSERT((!Eigen::TensorEvaluator<const RandomInflate, Eigen::DefaultDevice>::BlockAccess),
+  EIGEN_STATIC_ASSERT((Eigen::TensorEvaluator<const RandomInflate, Eigen::DefaultDevice>::BlockAccess),
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
   EIGEN_STATIC_ASSERT((!Eigen::TensorEvaluator<const RefInflate, Eigen::DefaultDevice>::BlockAccess),
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
