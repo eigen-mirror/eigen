@@ -259,6 +259,10 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported:
     EIGEN_CI_CXX_COMPILER: nvc++
     EIGEN_CI_INSTALL: ""
     EIGEN_CI_CROSS_INSTALL: ""
+    # Override CMake's NVHPC -fast default at both compilation and linking.
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-Kieee
+      -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-Kieee
     # NVHPC's compiler frontend is very memory-hungry with template-heavy code.
     # The 2xlarge runner has 128 GB, so 16 jobs gives ~8 GB per process.
     # The shuffled-batch build strategy spreads memory-hungry targets across
