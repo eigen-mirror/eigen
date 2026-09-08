@@ -53,7 +53,6 @@ path = [
     "doc/AsciiQuickReference.txt",
     "doc/snippets/.krazy",
     "ci/CTest2JUnit.xsl",
-    "ci/scripts/benchmark_targets.txt",
 ]
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"

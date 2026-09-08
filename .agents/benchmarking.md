@@ -24,10 +24,9 @@ configuration as unavailable.
 Consult [`benchmarks/CMakeLists.txt`](../benchmarks/CMakeLists.txt) and
 [`unsupported/benchmarks/CMakeLists.txt`](../unsupported/benchmarks/CMakeLists.txt) for current targets and compile
 settings. CUDA benchmarks also have a standalone project and instructions in
-[`unsupported/benchmarks/GPU/CMakeLists.txt`](../unsupported/benchmarks/GPU/CMakeLists.txt). The CI scripts
-[`build.benchmark.sh`](../ci/scripts/build.benchmark.sh) and
-[`run.benchmark.sh`](../ci/scripts/run.benchmark.sh) describe the supported-tree scheduled build and result format;
-do not assume they validate `unsupported/benchmarks` changes.
+[`unsupported/benchmarks/GPU/CMakeLists.txt`](../unsupported/benchmarks/GPU/CMakeLists.txt). No CI job builds or runs
+benchmarks, so the pipeline validates neither a benchmark's own compilation nor a performance claim: build and run
+both locally, and report the measurement conditions this guide requires.
 
 ## Adding A Benchmark
 
