@@ -34,8 +34,22 @@
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
+# Keeps a GPU-scoped schedule (EIGEN_CI_SCHEDULE_SCOPE=gpu, see .gitlab-ci.yml)
+# from running anything but the GPU jobs.  Every rule set that fires on
+# "schedule" except .rules:libeigen:gpu opens with it: the job-level lists in
+# the build, test and deploy files splice it in as their first entry with
+# `- !reference [.rules:libeigen:gpu-schedule-guard, rules]`, while the three
+# .rules:libeigen:* sets below restate the two lines, since a !reference inside
+# a set that is itself !reference'd would nest.
+.rules:libeigen:gpu-schedule-guard:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+      when: never
+
 .rules:libeigen:all-tests:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
@@ -58,8 +72,19 @@
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/affected-tests/"
       changes:
         - Eigen/src/Core/arch/GPU/**/*
+        # The two scalar headers carry their own device code paths, the .inc
+        # files are the CUDA/HIP alias layer, EigenTesting.cmake holds the
+        # nvcc/hipcc dispatch, and the harness headers decide what a GPU test
+        # can express; a change to any of them is invisible to a host build.
+        - Eigen/src/Core/arch/Default/Half.h
+        - Eigen/src/Core/arch/Default/BFloat16.h
+        - Eigen/src/Core/util/GpuHipCuda*.inc
+        - cmake/EigenTesting.cmake
         - test/*.cu
         - test/gpu_common.h
+        - test/gpu_test_helper.h
+        - test/main.h
+        - unsupported/Eigen/src/Tensor/*Gpu*.h
         - unsupported/test/*.cu
         - unsupported/test/GPU/**/*
     # `gpu-tests` is the platform label for GPU and already stands alone above,
@@ -204,11 +229,15 @@
 
 .rules:libeigen:scheduled-or-web:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
 
 .rules:libeigen:scheduled-or-web:default-branch:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 

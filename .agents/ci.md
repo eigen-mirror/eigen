@@ -100,7 +100,7 @@ platforms beyond the four unconditional jobs on two independent triggers, either
 | `arch/SVE` | `sve-tests` | SVE cross builds and test runs at 128, 256 and 512 bits under qemu | yes |
 | `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
-| `arch/GPU`, `test/*.cu`, `test/gpu_common.h`, `unsupported/test/*.cu`, `unsupported/test/GPU/**` | `gpu-tests` | the CUDA build and test jobs | no |
+| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files, `cmake/EigenTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
 
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
 nothing else. Apart from `gpu-tests`, none of them does anything without `affected-tests`. `all-platforms` is a
@@ -125,6 +125,16 @@ Rows worth knowing before relying on them:
 - `arch/ZVector`, `arch/MSA`, `arch/HVX` and the `arch/SYCL` backend have no matching test configuration, so a change
   there gets only the four unconditional jobs and the same hollow result; `gpu-tests` is no help either, since the GPU
   jobs it gates are all CUDA or ROCm.
+
+The CUDA matrix is CUDA 11.8 with gcc-10 and clang-14 on GitLab's SaaS T4 runners (sm_75), and CUDA 12.6 with gcc-13
+and clang-19 plus CUDA 13.3 with gcc-13 on the project's L4 runner (sm_89); the ROCm job is build-only. The Linux CUDA
+test jobs are `allow_failure: true`, so a red GPU job renders as a warning and a green pipeline is not evidence that
+the GPU tests passed. Hence the policy for a merge request that touches any path in the GPU row: apply `gpu-tests`
+(and `affected-tests` when it also changes shared headers), name the GPU jobs that ran and their status in the
+description, and re-run the L4 jobs after rebasing onto another GPU-touching change. A scheduled pipeline whose
+`EIGEN_CI_SCHEDULE_SCOPE` variable is `gpu` runs only these jobs, which is how a second, cheaper GPU schedule coexists
+with the weekly full run.
+
 
 ## Worktree-Safe Formatting
 

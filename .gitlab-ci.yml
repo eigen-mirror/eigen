@@ -82,6 +82,13 @@ variables:
   # so a job opts out of scoping by setting this back to "" -- which is what
   # .smoketest:build does, and the only reason to set it in a job.
   EIGEN_CI_CCACHE_SCOPE: ""
+  # Scope of a scheduled pipeline.  Empty runs the full matrix.  "gpu" runs the
+  # GPU build and test jobs alone, so a second schedule can exercise the GPU
+  # runners more often than the weekly full run without paying for the rest of
+  # the matrix.  Set it as a variable on that schedule in the project's CI
+  # settings; every non-GPU rule set that fires on "schedule" opens with
+  # .rules:libeigen:gpu-schedule-guard.
+  EIGEN_CI_SCHEDULE_SCOPE: ""
 
 include:
   - "/ci/checkformat.gitlab-ci.yml"
