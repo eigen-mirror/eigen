@@ -372,6 +372,41 @@ void product_sweep(int max_m, int max_k, int max_n) {
   }
 }
 
+// The bound for S * (S * S)^T is |S| * (|S| * |S|)^T, not |S|^3: transposition keeps every entry's
+// magnitude but reorders the chain. For the nilpotent S below the two differ in kind — |S|^3 is
+// identically zero while the two evaluation orders still disagree by a rounding error.
+template <int>
+void product_transposed_triple_bound() {
+  Matrix3d square;
+  square << 0, 0.3, 0, 0, 0, 0.7, 0, 0, 0;
+  const Matrix3d abs_sq = square.cwiseAbs();
+  const Matrix3d abs_sq2 = abs_sq * abs_sq;
+  VERIFY((abs_sq2 * abs_sq).isZero(0));
+  VERIFY(product_error_bound(abs_sq, abs_sq2.transpose(), 4) > 0);
+  VERIFY(verifyProduct(square * (square * square).transpose(), square * square.transpose() * square.transpose(), abs_sq,
+                       abs_sq2.transpose(), 4));
+}
+
+// verifyProduct() must not accept an overflowed result. Narrowed to half, the triple-product bound
+// for all-one 100x100 operands is already infinite, and inf <= inf would then pass any result.
+template <int>
+void product_verify_rejects_nonfinite() {
+  using MatrixXh = Matrix<half, Dynamic, Dynamic>;
+  const Index n = 100;
+  const MatrixXh abs_a = MatrixXh::Constant(n, n, half(float(n)));
+  const MatrixXh abs_b = MatrixXh::Constant(n, n, half(1.0f));
+  const double bound = product_error_bound(abs_a, abs_b, 4);
+  VERIFY((numext::isfinite)(bound));
+  VERIFY(bound > static_cast<double>(NumTraits<half>::highest()));
+
+  const MatrixXh zero = MatrixXh::Zero(n, n);
+  const MatrixXh inf = MatrixXh::Constant(n, n, half(std::numeric_limits<float>::infinity()));
+  const MatrixXh nan = MatrixXh::Constant(n, n, half(std::numeric_limits<float>::quiet_NaN()));
+  VERIFY(verifyProduct(zero, zero, abs_a, abs_b, 4));
+  VERIFY(!verifyProduct(inf, zero, abs_a, abs_b, 4));
+  VERIFY(!verifyProduct(nan, zero, abs_a, abs_b, 4));
+}
+
 EIGEN_DECLARE_TEST(product_small) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product(Matrix<float, 3, 2>()));
@@ -416,6 +451,8 @@ EIGEN_DECLARE_TEST(product_small) {
   }
 
   CALL_SUBTEST_6(product_small_regressions<0>());
+  CALL_SUBTEST_6(product_transposed_triple_bound<0>());
+  CALL_SUBTEST_6(product_verify_rejects_nonfinite<0>());
 
   // Deterministic sweep at transition boundaries (outside g_repeat).
   CALL_SUBTEST_54(product_transition_sizes<float>());

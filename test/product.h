@@ -57,15 +57,16 @@ void product(const MatrixType& m) {
   /* this test covers the following files:
      Identity.h Product.h
   */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> RowVectorType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> ColVectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RowSquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> ColSquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
-                 MatrixType::Flags & RowMajorBit ? ColMajor : RowMajor>
-      OtherMajorMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RowVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using ColVectorType = Matrix<Scalar, MatrixType::ColsAtCompileTime, 1>;
+  using RowSquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using ColSquareMatrixType = Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime>;
+  using RealMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
+  using RealRowSquareMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using OtherMajorMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
+                                      MatrixType::Flags & RowMajorBit ? ColMajor : RowMajor>;
 
   // We want a tighter epsilon for not-approx tests.  Otherwise, for certain
   // low-precision types (e.g. bfloat16), the bound ends up being relatively large
@@ -111,13 +112,14 @@ void product(const MatrixType& m) {
   // begin testing Product.h: only associativity for now
   // (we use Transpose.h but this doesn't count as a test for it)
   {
-    // Associativity: (m1 * m1^T) * m2 vs m1 * (m1^T * m2).
-    // Two chained products with inner dims cols and rows. Intermediate entries
-    // of m1*m1^T are O(sqrt(cols)), amplifying the second product's error.
-    // Probabilistic bound (Higham & Mary 2019): ~lambda * sqrt(k) * epsilon
-    // per inner product, times sqrt(cols) amplification from chained product.
-    RealScalar tol = product_tolerance<Scalar>((std::max)(rows, cols), 3);
-    VERIFY(verifyIsApprox((m1 * m1.transpose()) * m2, m1 * (m1.transpose() * m2), tol));
+    // Associativity: (m1 * m1^T) * m2 vs m1 * (m1^T * m2). Both sides chain two
+    // products, so each carries an error of order eps * |m1| |m1|^T |m2|, while
+    // the result itself vanishes as m1^T * m2 does. The difference must
+    // therefore be bounded against the magnitude of the intermediates, not
+    // against a multiple of the result.
+    const RealMatrixType abs_m1 = m1.cwiseAbs(), abs_m2 = m2.cwiseAbs();
+    VERIFY(verifyProduct((m1 * m1.transpose()) * m2, m1 * (m1.transpose() * m2), (abs_m1 * abs_m1.transpose()).eval(),
+                         abs_m2, 3));
   }
   m3 = m1;
   m3 *= m1.transpose() * m2;
@@ -330,22 +332,26 @@ void product(const MatrixType& m) {
 
   // regression for blas_trais
   {
-    // Triple products of rows x rows matrices. Each side computes 2-3
-    // products with inner dim = rows. Probabilistic bound with amplification
-    // from chained products with O(sqrt(rows)) intermediate entries.
-    RealScalar tol = product_tolerance<Scalar>(rows, 4);
-    VERIFY(
-        verifyIsApprox(square * (square * square).transpose(), square * square.transpose() * square.transpose(), tol));
-    VERIFY(verifyIsApprox(square * (-(square * square)), -square * square * square, tol));
-    VERIFY(verifyIsApprox(square * (s1 * (square * square)), s1 * square * square * square, tol));
-    VERIFY(
-        verifyIsApprox(square * (square * square).conjugate(), square * square.conjugate() * square.conjugate(), tol));
+    // Triple products of rows x rows matrices, each side chaining two or three
+    // products. As above, the error scales with the magnitude of the
+    // intermediates. Conjugation leaves that magnitude at |square|^3;
+    // transposition keeps every entry's magnitude but reorders the chain, so
+    // square * (square * square)^T is bounded by |square| * (|square|^2)^T.
+    const RealRowSquareMatrixType abs_sq = square.cwiseAbs();
+    const RealRowSquareMatrixType abs_sq2 = abs_sq * abs_sq;
+    VERIFY(verifyProduct(square * (square * square).transpose(), square * square.transpose() * square.transpose(),
+                         abs_sq, abs_sq2.transpose(), 4));
+    VERIFY(verifyProduct(square * (-(square * square)), -square * square * square, abs_sq2, abs_sq, 4));
+    VERIFY(verifyProduct(square * (s1 * (square * square)), s1 * square * square * square, abs_sq2,
+                         (numext::abs(s1) * abs_sq).eval(), 4));
+    VERIFY(verifyProduct(square * (square * square).conjugate(), square * square.conjugate() * square.conjugate(),
+                         abs_sq2, abs_sq, 4));
   }
 
   // destination with a non-default inner-stride
   // see bug 1741
   if (!MatrixType::IsRowMajor) {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * rows, 2 * rows);
     Map<RowSquareMatrixType, 0, Stride<Dynamic, 2> > map1(buffer.data(), rows, rows, Stride<Dynamic, 2>(2 * rows, 2));
     buffer.setZero();
