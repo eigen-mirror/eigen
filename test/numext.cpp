@@ -261,23 +261,65 @@ void check_complex_sign() {
   }
 }
 
-// internal::twoprod splits x*y into hi + lo with x*y = hi + lo exactly, which holds only if its
-// multiply-add is genuinely fused: a non-fused x*y - hi folds against the already-rounded product and
-// silently yields lo = 0, leaving every double-word computation built on it with no low word at all.
+// The FMA implementation must retain the product's rounding error even when scalar madd is unfused.
+template <typename T>
+void check_twoprod_pair(const T& x, const T& y) {
+  T hi, lo;
+  internal::twoprod(x, y, hi, lo);
+  VERIFY_IS_EQUAL(hi, x * y);
+  // fma is exact by IEEE-754 contract, so this is the definition of the low word rather than an
+  // independent approximation of it.
+  EIGEN_USING_STD(fma);
+  VERIFY_IS_EQUAL(lo, fma(x, y, -hi));
+  VERIFY_IS_EQUAL(internal::twoprod_low(x, y, hi), fma(x, y, -hi));
+}
+
 template <typename T>
 void check_twoprod() {
+  // (1 + epsilon) * (1 - epsilon) = 1 - epsilon^2 exposes a lost low word in every IEEE type.
+  const T epsilon = NumTraits<T>::epsilon();
+  check_twoprod_pair(T(1) + epsilon, T(1) - epsilon);
   for (int k = 0; k < 100; ++k) {
-    const T x = internal::random<T>(T(-1), T(1));
-    const T y = internal::random<T>(T(-1), T(1));
-    T hi, lo;
-    internal::twoprod(x, y, hi, lo);
-    VERIFY_IS_EQUAL(hi, x * y);
-    // fma is exact by IEEE-754 contract, so this is the definition of the low word rather than an
-    // independent approximation of it.
-    EIGEN_USING_STD(fma);
-    VERIFY_IS_EQUAL(lo, fma(x, y, -hi));
+    check_twoprod_pair(internal::random<T>(T(-1), T(1)), internal::random<T>(T(-1), T(1)));
   }
 }
+
+#ifdef EIGEN_VECTORIZE_FMA
+// Custom scalars can return a lazy expression from unary minus.
+struct TwoprodScalar {
+  struct Negation {
+    const TwoprodScalar& operand;
+  };
+
+  TwoprodScalar() = default;
+  explicit TwoprodScalar(double v) : value(v) {}
+  TwoprodScalar(const Negation& negation) : value(-negation.operand.value) {}
+
+  Negation operator-() const { return {*this}; }
+  TwoprodScalar operator*(const TwoprodScalar& other) const { return TwoprodScalar(value * other.value); }
+
+  friend TwoprodScalar fma(const TwoprodScalar& x, const TwoprodScalar& y, const TwoprodScalar& z) {
+    return TwoprodScalar(std::fma(x.value, y.value, z.value));
+  }
+
+  double value = 0;
+};
+
+void check_twoprod_negation_expression() {
+  STATIC_CHECK(internal::is_scalar<TwoprodScalar>::value);
+  STATIC_CHECK(internal::has_fma<TwoprodScalar>::value);
+  STATIC_CHECK((!std::is_same<decltype(-std::declval<TwoprodScalar>()), TwoprodScalar>::value));
+  const double epsilon = NumTraits<double>::epsilon();
+  for (double sign : {-1.0, 1.0}) {
+    const TwoprodScalar x(sign * (1 + epsilon)), y(1 - epsilon);
+    TwoprodScalar hi, lo;
+    internal::twoprod(x, y, hi, lo);
+    VERIFY_IS_EQUAL(hi.value, sign);
+    VERIFY_IS_EQUAL(lo.value, -sign * epsilon * epsilon);
+    VERIFY_IS_EQUAL(internal::twoprod_low(x, y, hi).value, -sign * epsilon * epsilon);
+  }
+}
+#endif
 
 template <typename T>
 void check_arg() {
@@ -620,6 +662,12 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST(check_twoprod<float>());
     CALL_SUBTEST(check_twoprod<double>());
+    CALL_SUBTEST(check_twoprod<long double>());
+    CALL_SUBTEST(check_twoprod<half>());
+    CALL_SUBTEST(check_twoprod<bfloat16>());
+#ifdef EIGEN_VECTORIZE_FMA
+    CALL_SUBTEST(check_twoprod_negation_expression());
+#endif
 
     CALL_SUBTEST(check_arg<std::complex<float>>());
     CALL_SUBTEST(check_arg<std::complex<double>>());

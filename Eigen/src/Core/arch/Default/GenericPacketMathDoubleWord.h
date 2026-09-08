@@ -35,6 +35,18 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Pa
 }
 
 #ifdef EIGEN_VECTORIZE_FMA
+// Given x, y, and xy = fl(x*y), return the residual such that x*y = xy + residual exactly.
+template <typename Packet, std::enable_if_t<!is_scalar<Packet>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
+  return pmsub(x, y, xy);
+}
+
+template <typename Scalar, std::enable_if_t<is_scalar<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
+  // Error-free products require FMA even when EIGEN_SCALAR_MADD_USE_FMA disables fusion in scalar madd.
+  return numext::fma(x, y, Scalar(-xy));
+}
+
 // This function implements the extended precision product of
 // a pair of floating point numbers. Given {x, y}, it computes the pair
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
@@ -42,14 +54,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twosum(const Packet& x, const Pa
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
   p_hi = pmul(x, y);
-  p_lo = pmsub(x, y, p_hi);
-}
-
-// A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
-// x * y = xy + p_lo holds exactly.
-template <typename Packet>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
-  return pmsub(x, y, xy);
+  p_lo = twoprod_low(x, y, p_hi);
 }
 
 #else
