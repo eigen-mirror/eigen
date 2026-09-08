@@ -423,7 +423,7 @@ struct all_visitor {
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return !predux_any(pcmp_eq(p, pzero(p))); }
+  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return predux_all(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res && (value != Scalar(0)); }
@@ -433,12 +433,6 @@ struct all_visitor {
   EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
   bool res = true;
 };
-// Bool packets already contain the truth values that all()/any() need, so avoid constructing an equivalent comparison
-// mask before reducing them.
-template <>
-EIGEN_DEVICE_FUNC inline bool all_visitor<bool>::all_predux(const Packet& p) const {
-  return predux_mul(p);
-}
 template <typename Scalar>
 struct functor_traits<all_visitor<Scalar>> {
   enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
@@ -477,12 +471,7 @@ struct count_visitor {
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = value != Scalar(0) ? 1 : 0; }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = value != Scalar(0) ? 1 : 0; }
-  EIGEN_DEVICE_FUNC inline Index count_redux(const Packet& p) const {
-    const Packet cst_one = pset1<Packet>(Scalar(1));
-    Packet true_vals = pandnot(cst_one, pcmp_eq(p, pzero(p)));
-    Scalar num_true = predux(true_vals);
-    return static_cast<Index>(num_true);
-  }
+  EIGEN_DEVICE_FUNC inline Index count_redux(const Packet& p) const { return predux_count(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = count_redux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = count_redux(p); }
   EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) {
@@ -501,8 +490,7 @@ struct functor_traits<count_visitor<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::AddCost,
     LinearAccess = true,
-    // predux is problematic for bool
-    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd && !std::is_same<Scalar, bool>::value
+    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd
   };
 };
 

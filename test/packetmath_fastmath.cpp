@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "main.h"
+#include "fp_control.h"
 
 template <typename Scalar, typename Packet>
 EIGEN_DONT_INLINE void store_ptrue(Scalar* output) {
@@ -24,6 +25,63 @@ EIGEN_DONT_INLINE void select_with_mask(const Scalar* mask, const Scalar* a, con
 template <typename Scalar, typename Packet>
 EIGEN_DONT_INLINE bool mask_any(const Scalar* mask) {
   return Eigen::internal::predux_any(Eigen::internal::ploadu<Packet>(mask));
+}
+
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE bool mask_all(const Scalar* mask) {
+  return Eigen::internal::predux_all(Eigen::internal::ploadu<Packet>(mask));
+}
+
+template <typename Scalar, typename Packet>
+void verify_mask_reduction_impl() {
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  Scalar mask[packet_size];
+
+  std::memset(static_cast<void*>(mask), 0, sizeof(mask));
+  VERIFY(!(mask_any<Scalar, Packet>(mask)));
+  VERIFY(!(mask_all<Scalar, Packet>(mask)));
+  VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 0);
+
+  for (int lane = 0; lane < packet_size; ++lane) {
+    std::memset(static_cast<void*>(mask), 0, sizeof(mask));
+    std::memset(static_cast<void*>(mask + lane), 0xff, sizeof(Scalar));
+    VERIFY((mask_any<Scalar, Packet>(mask)));
+    VERIFY_IS_EQUAL((mask_all<Scalar, Packet>(mask)), packet_size == 1);
+    VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 1);
+  }
+
+  std::memset(static_cast<void*>(mask), 0xff, sizeof(mask));
+  VERIFY((mask_all<Scalar, Packet>(mask)));
+}
+
+template <typename Scalar, typename Packet>
+void verify_mask_reduction() {
+  verify_mask_reduction_impl<Scalar, Packet>();
+  const Eigen::ScopedFlushToZero flush_to_zero;
+  if (flush_to_zero.isSupported()) verify_mask_reduction_impl<Scalar, Packet>();
+}
+
+// For bit-test backends, a low-bit truth mask must survive FTZ even though its floating-point encoding is subnormal.
+// Do not apply this to backends that consume only the sign bits of canonical comparison masks.
+template <typename Scalar, typename Packet>
+void verify_low_bit_mask_any_ftz() {
+  const Eigen::ScopedFlushToZero flush_to_zero;
+  VERIFY(flush_to_zero.isSupported());
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  const Bits true_bits = 1;
+  Scalar mask[packet_size];
+  std::memset(static_cast<void*>(mask), 0, sizeof(mask));
+  VERIFY(!(mask_any<Scalar, Packet>(mask)));
+  for (int lane = 0; lane < packet_size; ++lane) {
+    std::memset(static_cast<void*>(mask), 0, sizeof(mask));
+    std::memcpy(static_cast<void*>(mask + lane), &true_bits, sizeof(Scalar));
+    VERIFY((mask_any<Scalar, Packet>(mask)));
+  }
+  for (int lane = 0; lane < packet_size; ++lane) {
+    std::memcpy(static_cast<void*>(mask + lane), &true_bits, sizeof(Scalar));
+  }
+  VERIFY((mask_any<Scalar, Packet>(mask)));
 }
 
 // Keep the finite inputs opaque while compiling the reduction itself with fast-math optimizations.
@@ -149,6 +207,7 @@ struct packetmath_fastmath_runner<Scalar, true> {
       VERIFY((mask_any<Scalar, Packet>(mask)));
     }
 
+    verify_mask_reduction<Scalar, Packet>();
     verify_minmax_reduction<Scalar, Packet>();
   }
 };
@@ -186,6 +245,12 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
 
 #if defined(EIGEN_VECTORIZE_RVV10)
+  CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet1Xf>()));
+  CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet2Xf>()));
+  CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet4Xf>()));
+  CALL_SUBTEST((verify_mask_reduction<double, Eigen::internal::Packet1Xd>()));
+  CALL_SUBTEST((verify_mask_reduction<double, Eigen::internal::Packet2Xd>()));
+  CALL_SUBTEST((verify_mask_reduction<double, Eigen::internal::Packet4Xd>()));
   CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet1Xf>()));
   CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet2Xf>()));
   CALL_SUBTEST((verify_minmax_reduction<float, Eigen::internal::Packet4Xf>()));
@@ -195,7 +260,33 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10FP16)
+  CALL_SUBTEST((verify_mask_reduction<Eigen::half, Eigen::internal::Packet1Xh>()));
+  CALL_SUBTEST((verify_mask_reduction<Eigen::half, Eigen::internal::Packet2Xh>()));
   CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet1Xh>()));
   CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet2Xh>()));
+#endif
+
+#if defined(EIGEN_VECTORIZE_RVV10BF16)
+  CALL_SUBTEST((verify_mask_reduction<Eigen::bfloat16, Eigen::internal::Packet1Xbf>()));
+  CALL_SUBTEST((verify_mask_reduction<Eigen::bfloat16, Eigen::internal::Packet2Xbf>()));
+#endif
+
+#if defined(EIGEN_VECTORIZE_NEON)
+  CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet2f>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<float, Eigen::internal::Packet2f>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::bfloat16, Eigen::internal::Packet4bf>()));
+#if EIGEN_ARCH_ARM64
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<double, Eigen::internal::Packet2d>()));
+#endif
+#endif
+
+#if defined(EIGEN_VECTORIZE_AVX512FP16)
+  CALL_SUBTEST((verify_mask_reduction<Eigen::half, Eigen::internal::Packet16h>()));
+  CALL_SUBTEST((verify_mask_reduction<Eigen::half, Eigen::internal::Packet8h>()));
+  VERIFY((ptrue_mask_any<Eigen::half, Eigen::internal::Packet16h>()));
+  VERIFY((ptrue_mask_any<Eigen::half, Eigen::internal::Packet8h>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::half, Eigen::internal::Packet32h>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::half, Eigen::internal::Packet16h>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::half, Eigen::internal::Packet8h>()));
 #endif
 }

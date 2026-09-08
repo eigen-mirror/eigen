@@ -554,12 +554,22 @@ EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  return __builtin_msa_bnz_v((v16u8)a);
+}
+
+template <>
 EIGEN_STRONG_INLINE int32_t predux<Packet4i>(const Packet4i& a) {
   EIGEN_MSA_DEBUG;
 
   Packet4i s = padd(a, __builtin_msa_shf_w(a, EIGEN_MSA_SHF_I8(2, 3, 0, 1)));
   s = padd(s, __builtin_msa_shf_w(s, EIGEN_MSA_SHF_I8(1, 0, 3, 2)));
   return s[0];
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4i& a) {
+  return __builtin_msa_bnz_v((v16u8)a);
 }
 
 // Other reduction functions:
@@ -1071,6 +1081,11 @@ EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
 
   Packet2d s = padd(a, preverse(a));
   return s[0];
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  return __builtin_msa_bnz_v((v16u8)a);
 }
 
 // Other reduction functions:

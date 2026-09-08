@@ -1894,6 +1894,62 @@ template <>
 EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   return pfirst<Packet2d>(__lsx_vfadd_d(a, preverse(a)));
 }
+
+template <typename Packet>
+EIGEN_STRONG_INLINE bool predux_any_lsx(const Packet& a) {
+  return __lsx_bnz_v((__m128i)a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16c& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8s& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4i& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2l& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16uc& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8us& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2ul& a) {
+  return predux_any_lsx(a);
+}
+
 template <>
 EIGEN_STRONG_INLINE int8_t predux<Packet16c>(const Packet16c& a) {
   Packet8s tmp1 = __lsx_vhaddw_h_b(a, a);

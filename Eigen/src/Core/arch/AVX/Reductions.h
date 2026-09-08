@@ -189,6 +189,13 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet8f& a) {
   return _mm256_movemask_ps(a) != 0x0;
 }
 
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet8f& a) {
+  const unsigned int mask =
+      static_cast<unsigned int>(_mm256_movemask_ps(_mm256_cmp_ps(a, _mm256_setzero_ps(), _CMP_NEQ_UQ)));
+  return Index(popcount(mask));
+}
+
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet4d -- -- -- -- -- -- -- -- -- -- -- -- */
 
 template <>
@@ -250,6 +257,13 @@ EIGEN_STRONG_INLINE double predux_max<PropagateNaN>(const Packet4d& a) {
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4d& a) {
   return _mm256_movemask_pd(a) != 0x0;
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet4d& a) {
+  const unsigned int mask =
+      static_cast<unsigned int>(_mm256_movemask_pd(_mm256_cmp_pd(a, _mm256_setzero_pd(), _CMP_NEQ_UQ)));
+  return Index(popcount(mask));
 }
 
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet8h -- -- -- -- -- -- -- -- -- -- -- -- */

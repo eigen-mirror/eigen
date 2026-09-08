@@ -2767,7 +2767,14 @@ EIGEN_STRONG_INLINE unsigned char predux_max<Packet16uc>(const Packet16uc& a) {
 
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
-  return vec_any_ne(x, pzero(x));
+  const Packet4ui zero = {0, 0, 0, 0};
+  return vec_any_ne(reinterpret_cast<Packet4ui>(x), zero);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8bf& x) {
+  const Packet8us zero = {0, 0, 0, 0, 0, 0, 0, 0};
+  return vec_any_ne(x.m_val, zero);
 }
 
 template <typename T>
@@ -3639,6 +3646,12 @@ EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   b = reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4f>(a), reinterpret_cast<Packet4f>(a), 8));
   sum = a + b;
   return pfirst<Packet2d>(sum);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  const Packet2ul zero = {0, 0};
+  return vec_any_ne(reinterpret_cast<Packet2ul>(a), zero);
 }
 
 // Other reduction functions:

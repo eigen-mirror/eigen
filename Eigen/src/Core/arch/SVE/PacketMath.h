@@ -298,6 +298,11 @@ EIGEN_STRONG_INLINE numext::int32_t predux<PacketXi>(const PacketXi& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const PacketXi& a) {
+  return svptest_any(svptrue_b32(), svcmpne_n_s32(svptrue_b32(), a, 0));
+}
+
+template <>
 EIGEN_STRONG_INLINE numext::int32_t predux_mul<PacketXi>(const PacketXi& a) {
   // Multiply the vector by its reverse.
   svint32_t prod = svmul_s32_x(svptrue_b32(), a, svrev_s32(a));
@@ -918,6 +923,24 @@ EIGEN_STRONG_INLINE float predux<PacketXf>(const PacketXf& a) {
   return svaddv_f32(svptrue_b32(), a);
 }
 
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const PacketXf& a) {
+  const svuint32_t bits = svreinterpret_u32_f32(a);
+  return svptest_any(svptrue_b32(), svcmpne_n_u32(svptrue_b32(), bits, 0));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const PacketXf& a) {
+  const svbool_t all = svptrue_b32();
+  return !svptest_any(all, svcmpeq_n_f32(all, a, 0.0f));
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const PacketXf& a) {
+  const svbool_t all = svptrue_b32();
+  return static_cast<Index>(svcntp_b32(all, svcmpne_n_f32(all, a, 0.0f)));
+}
+
 // Other reduction functions:
 // mul
 template <>
@@ -1268,6 +1291,24 @@ EIGEN_STRONG_INLINE PacketXd pabs(const PacketXd& a) {
 template <>
 EIGEN_STRONG_INLINE double predux<PacketXd>(const PacketXd& a) {
   return svaddv_f64(svptrue_b64(), a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const PacketXd& a) {
+  const svuint64_t bits = svreinterpret_u64_f64(a);
+  return svptest_any(svptrue_b64(), svcmpne_n_u64(svptrue_b64(), bits, 0));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const PacketXd& a) {
+  const svbool_t all = svptrue_b64();
+  return !svptest_any(all, svcmpeq_n_f64(all, a, 0.0));
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const PacketXd& a) {
+  const svbool_t all = svptrue_b64();
+  return static_cast<Index>(svcntp_b64(all, svcmpne_n_f64(all, a, 0.0)));
 }
 
 template <>

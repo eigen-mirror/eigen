@@ -552,6 +552,25 @@ struct reverse_test {
   }
 };
 
+template <typename Scalar>
+struct packet_any_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+    using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
+    const Packet zero = Eigen::internal::pzero(Packet());
+    const Packet sequence = Eigen::internal::plset<Packet>(Scalar(0));
+    const Packet mixed = Eigen::internal::pcmp_eq(sequence, Eigen::internal::pset1<Packet>(Scalar(1)));
+    out[3 * i] = float(Eigen::internal::predux_any(zero));
+    out[3 * i + 1] = float(Eigen::internal::predux_any(Eigen::internal::ptrue(zero)));
+    out[3 * i + 2] = float(Eigen::internal::predux_any(mixed));
+#else
+    out[3 * i] = 0;
+    out[3 * i + 1] = 1;
+    out[3 * i + 2] = 1;
+#endif
+  }
+};
+
 template <typename T>
 void test_reverse() {
   typedef typename T::Scalar Scalar;
@@ -649,6 +668,9 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST((test_reverse<Eigen::Array<float, 32, 1>>()));
   CALL_SUBTEST((test_reverse<Eigen::Array<double, 32, 1>>()));
   CALL_SUBTEST((test_reverse<Eigen::Array<Eigen::half, 32, 1>>()));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<float>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<double>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<Eigen::half>(), nthreads, in, out));
 
   typedef Matrix<float, 6, 6> Matrix6f;
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));

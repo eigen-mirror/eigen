@@ -1007,17 +1007,27 @@ EIGEN_STRONG_INLINE float predux_min(const Packet8f& a) {
   return predux_generic(a, pmin<Packet8f>);
 }
 
+template <HVXPacketSize T>
+EIGEN_STRONG_INLINE bool predux_any_hvx(const HVXPacket<T>& a) {
+  const Index packet_size = unpacket_traits<HVXPacket<T>>::size;
+  HVX_Vector reduced = a.Get();
+  for (int i = 1; i < packet_size; i <<= 1) {
+    reduced |= Q6_V_vror_VR(reduced, i * sizeof(float));
+  }
+  return Q6_R_vextract_VR(reduced, 0) != 0;
+}
+
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet32f& a) {
-  return predux_generic(a, por<Packet32f>) != 0.0f;
+  return predux_any_hvx(a);
 }
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet16f& a) {
-  return predux_generic(a, por<Packet16f>) != 0.0f;
+  return predux_any_hvx(a);
 }
 template <>
 EIGEN_STRONG_INLINE bool predux_any(const Packet8f& a) {
-  return predux_generic(a, por<Packet8f>) != 0.0f;
+  return predux_any_hvx(a);
 }
 
 static const float index_vsf[32]

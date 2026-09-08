@@ -1716,6 +1716,45 @@ void packetmath_redux_infinities() {
   VERIFY_IS_EQUAL(internal::predux_max(negative_infinity), -infinity);
 }
 
+#if defined(EIGEN_VECTORIZE_SSE2)
+void packetmath_packet16b_reductions() {
+  const internal::Packet16b packet(_mm_setr_epi8(0, 1, -1, 2, 0, -128, 127, 0, 0, 0, 3, -2, 0, 42, 0, -1));
+  VERIFY_IS_EQUAL(internal::predux_count(packet), 9);
+  VERIFY(!internal::predux_all(packet));
+
+  const internal::Packet16b all_nonzero(_mm_set1_epi8(-1));
+  VERIFY(internal::predux_all(all_nonzero));
+
+  EIGEN_ALIGN16 bool values[16];
+  for (int i = 0; i < 16; ++i) values[i] = i % 3 != 0;
+  const internal::Packet16b canonical_packet = internal::pload<internal::Packet16b>(values);
+  VERIFY_IS_EQUAL(internal::predux_count_impl<internal::Packet16b>::run(canonical_packet), 10);
+}
+
+void packetmath_packet16b_select() {
+  EIGEN_ALIGN16 bool condition[16];
+  EIGEN_ALIGN16 bool then_values[16];
+  EIGEN_ALIGN16 bool else_values[16];
+  EIGEN_ALIGN16 bool actual[16];
+
+  for (int i = 0; i < 16; ++i) {
+    condition[i] = (i % 3) == 0;
+    then_values[i] = (i % 2) == 0;
+    else_values[i] = (i % 5) == 0;
+  }
+
+  const internal::Packet16b condition_packet = internal::pload<internal::Packet16b>(condition);
+  const internal::Packet16b mask = internal::pcmp_eq(condition_packet, internal::pzero(condition_packet));
+  const internal::Packet16b selected = internal::pselect(mask, internal::pload<internal::Packet16b>(else_values),
+                                                         internal::pload<internal::Packet16b>(then_values));
+  internal::pstore(actual, selected);
+
+  for (int i = 0; i < 16; ++i) {
+    VERIFY_IS_EQUAL(actual[i], condition[i] ? then_values[i] : else_values[i]);
+  }
+}
+#endif
+
 template <typename Scalar, typename Packet>
 void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
@@ -1762,15 +1801,13 @@ void packetmath_notcomplex() {
 
   {
     unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
-    // predux_all - not needed yet
-    // for (unsigned int i=0; i<PacketSize*sizeof(Scalar); ++i) data1_bits[i] = 0xff;
-    // VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
-    // for(int k=0; k<PacketSize; ++k)
-    // {
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0x0;
-    //   VERIFY( (!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
-    //   for (unsigned int i=0; i<sizeof(Scalar); ++i) data1_bits[k*sizeof(Scalar)+i] = 0xff;
-    // }
+    for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0xff;
+    VERIFY(internal::predux_all(internal::pload<Packet>(data1)) && "internal::predux_all(1111)");
+    for (int k = 0; k < PacketSize; ++k) {
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x0;
+      VERIFY((!internal::predux_all(internal::pload<Packet>(data1))) && "internal::predux_all(0101)");
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
+    }
 
     // predux_any
     for (unsigned int i = 0; i < PacketSize * sizeof(Scalar); ++i) data1_bits[i] = 0x0;
@@ -1778,7 +1815,23 @@ void packetmath_notcomplex() {
     for (int k = 0; k < PacketSize; ++k) {
       for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
       VERIFY(internal::predux_any(internal::pload<Packet>(data1)) && "internal::predux_any(0101)");
+      VERIFY_IS_EQUAL(internal::predux_count(internal::pload<Packet>(data1)), k + 1);
+    }
+    for (int k = 0; k < PacketSize; ++k) {
       for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x00;
+    }
+    data1[0] = Scalar(-0.0);
+    VERIFY_IS_EQUAL(internal::predux_count(internal::pload<Packet>(data1)), 0);
+
+    for (int k = 0; k < PacketSize; ++k) {
+      data1[k] = Scalar(1);
+      VERIFY_IS_EQUAL(internal::predux_count(internal::pload<Packet>(data1)), k + 1);
+    }
+
+    if (!NumTraits<Scalar>::IsInteger) {
+      for (int k = 0; k < PacketSize; ++k) data2[k] = Scalar(0);
+      data2[PacketSize - 1] = NumTraits<Scalar>::quiet_NaN();
+      VERIFY_IS_EQUAL(internal::predux_count(internal::pload<Packet>(data2)), 1);
     }
   }
 
@@ -2286,6 +2339,10 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_13(test::runner<half>::run());
     CALL_SUBTEST_14((packetmath<bool, internal::packet_traits<bool>::type>()));
     CALL_SUBTEST_14((packetmath_scatter_gather<bool, internal::packet_traits<bool>::type>()));
+#if defined(EIGEN_VECTORIZE_SSE2)
+    CALL_SUBTEST_14(packetmath_packet16b_reductions());
+    CALL_SUBTEST_14(packetmath_packet16b_select());
+#endif
     CALL_SUBTEST_15(test::runner<bfloat16>::run());
     g_first_pass = false;
   }

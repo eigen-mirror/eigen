@@ -1571,10 +1571,33 @@ EIGEN_DEVICE_FUNC inline typename unpacket_traits<Packet>::type predux_max(const
 
 #undef EIGEN_BINARY_OP_NAN_PROPAGATION
 
-/** \internal \returns true if all coeffs of \a a means "true"
- * It is supposed to be called on values returned by pcmp_*.
- */
-// TODO: implement predux_all when needed.
+template <typename Packet, bool IsBoolean = std::is_same<typename unpacket_traits<Packet>::type, bool>::value>
+struct predux_count_impl {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Packet& a) {
+    using Scalar = typename unpacket_traits<Packet>::type;
+    const Packet true_values = pandnot(pset1<Packet>(Scalar(1)), pcmp_eq(a, pzero(a)));
+    return static_cast<Index>(numext::real(predux(true_values)));
+  }
+};
+
+template <typename Packet>
+struct predux_count_impl<Packet, true> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Index run(const Packet& a) {
+    using Scalar = typename unpacket_traits<Packet>::type;
+    constexpr int PacketSize = unpacket_traits<Packet>::size;
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar values[PacketSize];
+    pstoreu<Scalar>(values, a);
+    Index result = 0;
+    for (int i = 0; i < PacketSize; ++i) result += values[i] ? 1 : 0;
+    return result;
+  }
+};
+
+/** \internal \returns the number of nonzero coefficients in \a a. */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index predux_count(const Packet& a) {
+  return predux_count_impl<Packet>::run(a);
+}
 
 /** \internal \returns true if any coeffs of \a a means "true"
  * It is supposed to be called on values returned by pcmp_*.
@@ -1586,9 +1609,26 @@ EIGEN_DEVICE_FUNC inline bool predux_any(const Packet& a) {
   //  - Scalar(1)
   //  - bits full of ones (NaN for floats),
   //  - or first bit equals to 1 (1 for ints, smallest denormal for floats).
-  // For all these cases, taking the sum is just fine, and this boils down to a no-op for scalars.
+  // This arithmetic fallback boils down to a no-op for scalars. Vector backends whose masks use floating-point bit
+  // patterns must specialize this with an integer-bit reduction because fast-math or FTZ can discard those values.
   using Scalar = typename unpacket_traits<Packet>::type;
   return numext::not_equal_strict(predux(a), Scalar(0));
+}
+
+template <typename Packet, bool IsBoolean = std::is_same<typename unpacket_traits<Packet>::type, bool>::value>
+struct predux_all_impl {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Packet& a) { return !predux_any(pcmp_eq(a, pzero(a))); }
+};
+
+template <typename Packet>
+struct predux_all_impl<Packet, true> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(const Packet& a) { return predux_mul(a); }
+};
+
+/** \internal \returns true if every coefficient in \a a is nonzero. */
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_all(const Packet& a) {
+  return predux_all_impl<Packet>::run(a);
 }
 
 /***************************************************************************

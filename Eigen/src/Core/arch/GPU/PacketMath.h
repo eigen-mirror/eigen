@@ -244,6 +244,16 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pcmp_le<double2>(const double2& a, const double2& b) {
   return make_double2(le_mask(a.x, b.x), le_mask(a.y, b.y));
 }
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const float4& a) {
+  return (__float_as_int(a.x) | __float_as_int(a.y) | __float_as_int(a.z) | __float_as_int(a.w)) != 0;
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const double2& a) {
+  return (__double_as_longlong(a.x) | __double_as_longlong(a.y)) != 0;
+}
 #endif  // EIGEN_HAS_GPU_DEVICE_FUNCTIONS
 
 template <>
@@ -841,6 +851,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux(const half2& a) {
   return __hadd(__low2half(a), __high2half(a));
 }
 
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const half2& a) {
+  const Eigen::half low(__low2half(a));
+  const Eigen::half high(__high2half(a));
+  return (half_impl::raw_half_as_uint16(low) | half_impl::raw_half_as_uint16(high)) != 0;
+}
+
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_max(const half2& a) {
   __half first = __low2half(a);
   __half second = __high2half(a);
@@ -1354,6 +1370,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux<Packet4h2>(const Packet
   const half2* a_alias = reinterpret_cast<const half2*>(&a);
 
   return predux(a_alias[0]) + predux(a_alias[1]) + predux(a_alias[2]) + predux(a_alias[3]);
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const Packet4h2& a) {
+  const half2* a_alias = reinterpret_cast<const half2*>(&a);
+  return predux_any(a_alias[0]) | predux_any(a_alias[1]) | predux_any(a_alias[2]) | predux_any(a_alias[3]);
 }
 
 template <>

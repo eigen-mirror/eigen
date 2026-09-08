@@ -310,6 +310,21 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double predux<cl::sycl::cl_double2>(const 
 }
 
 template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool predux_any(const cl::sycl::cl_half8& a) {
+  return cl::sycl::any(a.template as<cl::sycl::cl_short8>() != cl::sycl::cl_short8(0));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool predux_any(const cl::sycl::cl_float4& a) {
+  return cl::sycl::any(a.template as<cl::sycl::cl_int4>() != cl::sycl::cl_int4(0));
+}
+
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool predux_any(const cl::sycl::cl_double2& a) {
+  return cl::sycl::any(a.template as<cl::sycl::cl_long2>() != cl::sycl::cl_long2(0));
+}
+
+template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Eigen::half predux_max<cl::sycl::cl_half8>(const cl::sycl::cl_half8& a) {
   return Eigen::half(cl::sycl::fmax(cl::sycl::fmax(cl::sycl::fmax(a.s0(), a.s1()), cl::sycl::fmax(a.s2(), a.s3())),
                                     cl::sycl::fmax(cl::sycl::fmax(a.s4(), a.s5()), cl::sycl::fmax(a.s6(), a.s7()))));
