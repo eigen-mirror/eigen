@@ -225,6 +225,11 @@ template <typename Xpr>
 bool structured_exponent_bound_finite(const Xpr& x, int& e) {
   using ScalarTraits = NumTraits<typename Xpr::Scalar>;
   using RealScalar = typename ScalarTraits::Real;
+  // maxCoeff() asserts on an empty input, and a degenerate operand -- a rank-0
+  // factor, a solve with no right-hand sides -- reaches here legitimately.
+  // An empty operand bounds nothing, so its exponent bound is 0.
+  e = 0;
+  if (x.size() == 0) return true;
   RealScalar m;
   if (ScalarTraits::IsComplex)
     // realView() reduces over both components in one pass, vectorized for

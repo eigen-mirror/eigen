@@ -34,7 +34,9 @@ namespace Eigen {
  *     matrices as an implicit operator; products, solves, least squares,
  *     eigendecomposition, SVD, inverse and determinant all factor through the
  *     operands, and diagonal (in particular identity) factors are stored and
- *     applied in diagonal form.
+ *     applied in diagonal form;
+ *   - \c DiagonalPlusLowRank : a diagonal matrix plus a rank-k correction, with
+ *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion.
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
@@ -73,6 +75,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/LookAheadLevinson.h"
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
+#include "src/StructuredMatrices/DiagonalPlusLowRank.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
