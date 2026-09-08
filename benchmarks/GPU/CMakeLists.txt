@@ -38,3 +38,7 @@ eigen_add_gpu_benchmark(bench_gpu_elementwise bench_gpu_elementwise.cu)
 # Launch overhead: an executor launch of a tiny expression against a raw <<<>>> launch, LAUNCH_GPU_KERNEL and
 # cudaLaunchKernel.
 eigen_add_gpu_benchmark(bench_gpu_launch bench_gpu_launch.cu)
+# Contraction against cuBLAS, which is the gap a library dispatch would close.
+eigen_add_gpu_benchmark(bench_gpu_contraction bench_gpu_contraction.cu LIBRARIES CUDA::cublas)
+# What a temporary costs: the device's synchronous allocation against the stream-ordered one.
+eigen_add_gpu_benchmark(bench_gpu_alloc bench_gpu_alloc.cu)
