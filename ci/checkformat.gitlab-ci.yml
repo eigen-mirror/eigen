@@ -65,7 +65,12 @@ checkformat:clangtidy:
   only:
     - merge_requests
   allow_failure: true
-  timeout: 15m
+  # Each selected compilation-database entry is a separate one-to-two-minute
+  # parse after ~2 minutes of setup; an MR touching several split tests
+  # (!2940: eleven test files, nine parts) needs ~20 minutes, and the 15m cap
+  # left its last files unchecked. The job is advisory, so the cap only costs
+  # runner minutes when there is that much to check.
+  timeout: 1h
   tags:
     - saas-linux-medium-amd64
   variables:
