@@ -36,11 +36,17 @@ namespace Eigen {
  *     operands, and diagonal (in particular identity) factors are stored and
  *     applied in diagonal form;
  *   - \c DiagonalPlusLowRank : a diagonal matrix plus a rank-k correction, with
- *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion.
+ *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion;
+ *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner
+ *     products and O(n^2) Björck-Pereyra primal/dual solves
+ *     (\c BjorckPereyra).
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
  * also keep a precomputed DFT symbol that every product reuses.
+ * The operator types derive from \c EigenBase and store only their generating
+ * vectors; the FFT-backed operators (\c Circulant, \c Toeplitz, \c Bccb) also
+ * keep a precomputed DFT symbol that every product reuses.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
@@ -55,6 +61,11 @@ namespace Eigen {
  * ones reusing the cached symbol), which in particular feeds the least-squares
  * solvers \c LSMR and \c LeastSquaresConjugateGradient (again with
  * \c IdentityPreconditioner).
+ * The \c Circulant, \c Toeplitz and \c Hankel operators are closed under
+ * transposition (\c transpose(),
+ * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
+ * cached symbol), which in particular feeds the least-squares solvers \c LSMR
+ * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).
  * \c Circulant additionally exposes its closed-form eigendecomposition and SVD
  * in the Fourier basis, a pseudo-inverse (minimum-norm least-squares) solve,
  * \c rank(), \c inverse() and \c determinant().
@@ -76,6 +87,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
 #include "src/StructuredMatrices/DiagonalPlusLowRank.h"
+#include "src/StructuredMatrices/Vandermonde.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"

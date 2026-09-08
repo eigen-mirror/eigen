@@ -125,6 +125,8 @@ else()
     ei_add_property(EIGEN_MISSING_BACKENDS "OpenGL, ")
 endif()
 
+ei_add_test(structured_vandermonde)
+ei_add_test(structured_vandermonde_int_index)
 ei_add_test(polynomialsolver)
 ei_add_test(polynomialutils)
 ei_add_test(splines)

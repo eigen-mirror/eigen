@@ -39,6 +39,11 @@ constexpr Index structured_direct_threshold() { return 32; }
 // fewer than a couple of packets (measured crossover on AVX2 hardware).
 constexpr Index structured_scalar_threshold() { return 16; }
 
+// Numerical scale exponents are independent of Eigen's configurable dimension
+// index. A 32-bit Index can overflow while accumulating O(n^2) factor
+// exponents for dimensions that are otherwise practical.
+using structured_exponent_type = numext::int64_t;
+
 /** \internal Balanced mantissa*2^e arithmetic shared by the structured
  * operators' determinant-style accumulations (the split fraction/exponent
  * convention of LINPACK's xGEDI; see the per-class references).
@@ -51,7 +56,8 @@ constexpr Index structured_scalar_threshold() { return 16; }
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_balance_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  static Scalar run(const Scalar& z, Index& exponent) {
+  template <typename Exponent>
+  static Scalar run(const Scalar& z, Exponent& exponent) {
     const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
     if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
     int e;
@@ -67,7 +73,8 @@ struct structured_balance_impl {
 
 template <typename Scalar>
 struct structured_balance_impl<Scalar, false> {
-  static Scalar run(const Scalar& x, Index& exponent) {
+  template <typename Exponent>
+  static Scalar run(const Scalar& x, Exponent& exponent) {
     const Scalar mag = numext::abs(x);
     if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
     int e;
@@ -79,8 +86,8 @@ struct structured_balance_impl<Scalar, false> {
   static Scalar apply_exponent(const Scalar& x, int e) { return numext::ldexp(x, e); }
 };
 
-template <typename Scalar>
-Scalar structured_balance(const Scalar& z, Index& exponent) {
+template <typename Scalar, typename Exponent>
+Scalar structured_balance(const Scalar& z, Exponent& exponent) {
   return structured_balance_impl<Scalar>::run(z, exponent);
 }
 
@@ -88,9 +95,9 @@ Scalar structured_balance(const Scalar& z, Index& exponent) {
  * component-wise for complex scalars. ldexp saturates cleanly to zero /
  * infinity (preserving signs) once the exponent leaves the representable
  * range; the clamp only guards the narrowing to int. */
-template <typename Scalar>
-Scalar structured_ldexp_clamped(const Scalar& z, Index exponent) {
-  constexpr Index kMaxExponent = Index(1) << 24;
+template <typename Scalar, typename Exponent>
+Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
+  constexpr Exponent kMaxExponent = Exponent(1) << 24;
   const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
 }
@@ -113,6 +120,27 @@ Scalar structured_scaled_reciprocal(const Scalar& z) {
   Index e = 0;
   const Scalar zs = structured_balance(z, e);
   return structured_ldexp_clamped(Scalar(1) / zs, -e);
+}
+
+/** \internal \returns \c a - b guarded against spurious overflow: when the
+ * plain difference of two finite values overflows to infinity, it is
+ * recomputed from the halved operands with \a e set to 1 so the caller can
+ * carry the factor of two in its running exponent (the balanced accumulations
+ * fold it into \c exponent at the call site). The recomputation is exact where
+ * it matters: a difference of finite values only overflows when both operands
+ * are huge, normal values, whose halves and halved difference are exactly
+ * representable. For complex scalars the finiteness tests are component-wise;
+ * a subnormal component riding along with a huge one loses its last bit to the
+ * halving, an error far below one ulp of the factor's magnitude. Non-finite
+ * operands (genuine Inf/NaN nodes) propagate untouched, with \a e = 0. */
+template <typename Scalar>
+Scalar structured_guarded_diff(const Scalar& a, const Scalar& b, int& e) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  e = 0;
+  const Scalar t = a - b;
+  if ((numext::isfinite)(t) || !(numext::isfinite)(a) || !(numext::isfinite)(b)) return t;
+  e = 1;
+  return a * RealScalar(0.5) - b * RealScalar(0.5);
 }
 
 /** \internal \returns the indices sorted by decreasing precomputed modulus
@@ -337,7 +365,7 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     // The length-one DFT is the identity and is unsupported by kissfft. The
     // pointwise step still runs, scaled around just as the transforms are on the
     // general path.
-    const int budget = std::numeric_limits<RealScalar>::max_exponent - 2;
+    const int budget = NumTraits<RealScalar>::max_exponent() - 2;
     ComplexVector xf(1);
     for (Index k = 0; k < rhs.cols(); ++k) {
       int colExp;
@@ -357,9 +385,10 @@ void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTrait
     return;
   }
 
-  int log2p = 0;
-  for (Index t = p; t > 0; t /= 2) ++log2p;
-  const int budget = std::numeric_limits<RealScalar>::max_exponent - 2 * log2p - 2;
+  // The bit width of p (>= 1 here), an upper bound for the ceil(log2 p) of the
+  // magnitude bound above -- one bit looser at power-of-two transform lengths.
+  const int log2p = log2_floor(static_cast<std::make_unsigned_t<Index>>(p)) + 1;
+  const int budget = NumTraits<RealScalar>::max_exponent() - 2 * log2p - 2;
 
   auto&& fft = structured_fft_engine<RealScalar>();
   ComplexVector xt = ComplexVector::Zero(p);
@@ -450,12 +479,14 @@ struct structured_product_impl : generic_product_impl_base<Op, Rhs, structured_p
   template <typename Dest>
   static void evalTo(Dest& dst, const Op& lhs, const Rhs& rhs) {
     dst.setZero();
-    lhs.addProduct(dst, rhs, Scalar(1));
+    scaleAndAddTo(dst, lhs, rhs, Scalar(1));
   }
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Op& lhs, const Rhs& rhs, const Scalar& alpha) {
-    lhs.addProduct(dst, rhs, alpha);
+    using RhsNested = typename nested_eval<Rhs, Op::RowsAtCompileTime>::type;
+    RhsNested actualRhs(rhs);
+    lhs.addProduct(dst, actualRhs, alpha);
   }
 };
 
