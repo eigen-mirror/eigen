@@ -82,8 +82,15 @@ for bench_exe in "${bench_list[@]}"; do
   outfile="${results_dir}/${bench_name}.json"
 
   echo "=== Running ${bench_name} (${reps} repetitions) ==="
+  # --benchmark_format selects the *console* format and --benchmark_out_format
+  # the file format; setting the former to json duplicates the whole result set
+  # into the job log, which overruns GitLab's 4 MB trace cap.  The console gets
+  # the aggregates only; --benchmark_display_aggregates_only does not affect the
+  # file reporter, so the artifact still carries every repetition.
   if ! "${bench_exe}" \
-    --benchmark_format=json \
+    --benchmark_format=console \
+    --benchmark_display_aggregates_only=true \
+    --benchmark_out_format=json \
     --benchmark_out="${outfile}" \
     --benchmark_repetitions="${reps}" \
     --benchmark_report_aggregates_only=false \
