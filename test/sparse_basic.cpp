@@ -549,6 +549,9 @@ void sparse_basic(const SparseMatrixType& ref) {
       triplets.push_back(TripletType(r, c, v));
       refMat_sum(r, c) += v;
     }
+    triplets.emplace_back(0, 0, Scalar(0));
+    triplets.emplace_back(0, 0, Scalar(2));
+    refMat_sum(0, 0) += Scalar(2);
 
     std::vector<TripletType> moreTriplets;
     moreTriplets.reserve(ntriplets);
@@ -561,6 +564,9 @@ void sparse_basic(const SparseMatrixType& ref) {
       moreTriplets.push_back(TripletType(r, c, v));
       refMat_sum_more(r, c) += v;
     }
+    moreTriplets.emplace_back(0, 0, Scalar(0));
+    moreTriplets.emplace_back(0, 0, Scalar(3));
+    refMat_sum_more(0, 0) += Scalar(3);
 
     // setFromTriplets sorts internally by (outer, inner), so non-commutative
     // reductions (std::multiplies, "last wins") depend on sorted order.
@@ -574,14 +580,17 @@ void sparse_basic(const SparseMatrixType& ref) {
 
     DenseMatrix refMat_prod = DenseMatrix::Zero(rows, cols);
     DenseMatrix refMat_last = DenseMatrix::Zero(rows, cols);
+    // A stored zero still participates in duplicate reductions.
+    Matrix<bool, Dynamic, Dynamic> visited = Matrix<bool, Dynamic, Dynamic>::Constant(rows, cols, false);
     {
       auto sorted = triplets;
       std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
       for (const auto& t : sorted) {
-        if (std::abs(refMat_prod(t.row(), t.col())) == 0)
+        if (!visited(t.row(), t.col()))
           refMat_prod(t.row(), t.col()) = t.value();
         else
           refMat_prod(t.row(), t.col()) *= t.value();
+        visited(t.row(), t.col()) = true;
         refMat_last(t.row(), t.col()) = t.value();
       }
     }
@@ -592,10 +601,11 @@ void sparse_basic(const SparseMatrixType& ref) {
       auto sorted = moreTriplets;
       std::stable_sort(sorted.begin(), sorted.end(), triplet_comp());
       for (const auto& t : sorted) {
-        if (std::abs(refMat_prod_more(t.row(), t.col())) == 0)
+        if (!visited(t.row(), t.col()))
           refMat_prod_more(t.row(), t.col()) = t.value();
         else
           refMat_prod_more(t.row(), t.col()) *= t.value();
+        visited(t.row(), t.col()) = true;
         refMat_last_more(t.row(), t.col()) = t.value();
       }
     }
