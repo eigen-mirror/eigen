@@ -113,6 +113,12 @@ macro(ei_gpu_testing_enable)
         set(CMAKE_HIP_COMPILER "${ROCM_PATH}/llvm/bin/clang++")
       endif()
     endif()
+    # Compiler ABI detection needs architectures even on build-only hosts without an AMD GPU.
+    if(NOT DEFINED EIGEN_HIP_ARCHITECTURES)
+      set(EIGEN_HIP_ARCHITECTURES
+          gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151
+          CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
+    endif()
     if(NOT CMAKE_HIP_ARCHITECTURES)
       set(CMAKE_HIP_ARCHITECTURES "${EIGEN_HIP_ARCHITECTURES}")
     endif()

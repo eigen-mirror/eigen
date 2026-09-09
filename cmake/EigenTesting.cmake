@@ -10,12 +10,6 @@ macro(ei_add_property prop value)
   endif()
 endmacro()
 
-if(EIGEN_TEST_HIP AND NOT DEFINED EIGEN_HIP_ARCHITECTURES)
-  set(EIGEN_HIP_ARCHITECTURES
-      gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151
-      CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
-endif()
-
 #internal. See documentation of ei_add_test for details.
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
