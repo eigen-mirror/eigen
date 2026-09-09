@@ -265,6 +265,9 @@ for file in "${CHANGED_FILES[@]}"; do
       if [[ "${file}" =~ /arch/([^/]+)/ ]] && [ "${BASH_REMATCH[1]}" != "Default" ]; then
         NOTE=" [${BASH_REMATCH[1]} backend: linted only if the host target selects it]"
         FORCE_INCLUDE=""
+      elif [[ "${file}" =~ /Tensor/[^/]*Sycl[^/]*\.h$ ]]; then
+        NOTE=" [SYCL backend: linted only when EIGEN_USE_SYCL is enabled]"
+        FORCE_INCLUDE=""
       fi
 
       DRIVER="${TIDY_TMPDIR}/tidy_driver_${file//\//_}.cpp"
