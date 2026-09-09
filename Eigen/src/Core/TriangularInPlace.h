@@ -42,8 +42,10 @@ EIGEN_DEVICE_FUNC inline Index triangular_in_place_block_size(Index size, Index 
 }
 
 template <typename MatrixType>
-using triangular_in_place_workspace = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
-                                             (int(traits<MatrixType>::Flags) & RowMajorBit) ? RowMajor : ColMajor>;
+struct triangular_in_place_workspace {
+  using type = Matrix<typename MatrixType::Scalar, Dynamic, Dynamic,
+                      (int(traits<MatrixType>::Flags) & RowMajorBit) ? RowMajor : ColMajor>;
+};
 
 // Unblocked lower triangular inverse, columns bottom-up so that the trailing block already holds
 // X22 = L22^-1 when column j is reached: then X(j+1:, j) = -X22 L(j+1:, j) / L(j, j), one TRMV per
@@ -86,7 +88,7 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   const Index block_size = triangular_in_place_block_size(n, kTriangularInverseMinBlockSize);
   // One block-sized panel, whose first column doubles as the TRMV scratch of the unblocked kernel:
   // that kernel runs on L11 only after the panel's other uses in the same iteration are finished.
-  triangular_in_place_workspace<MatrixType> work(block_size, block_size);
+  typename triangular_in_place_workspace<MatrixType>::type work(block_size, block_size);
   for (Index k = ((n - 1) / block_size) * block_size; k >= 0; k -= block_size) {
     const Index bs = numext::mini(block_size, n - k);
     const Index rs = n - k - bs;
@@ -157,7 +159,7 @@ void triangular_adjoint_square_lower(MatrixType& mat) {
     return;
   }
   const Index block_size = triangular_in_place_block_size(n, kAdjointSquareMinBlockSize);
-  triangular_in_place_workspace<MatrixType> work(block_size, block_size);
+  typename triangular_in_place_workspace<MatrixType>::type work(block_size, block_size);
   for (Index k = 0; k < n; k += block_size) {
     const Index bs = numext::mini(block_size, n - k);
     const Index rs = n - k - bs;
