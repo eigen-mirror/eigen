@@ -33,7 +33,7 @@
 #include <hip/hip_runtime.h>
 #endif
 
-#ifdef EIGEN_EXCEPTIONS
+#if defined(EIGEN_EXCEPTIONS) || defined(EIGEN_GPU_COMPILE_PHASE)
 #include <new>
 #endif
 
