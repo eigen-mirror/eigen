@@ -68,7 +68,7 @@ void verify_mask_reduction() {
 }
 
 template <typename Scalar, typename Packet>
-void verify_16bit_count() {
+void verify_16bit_reductions() {
   using Bits = Eigen::numext::uint16_t;
   static_assert(sizeof(Scalar) == sizeof(Bits), "requires 16-bit scalars");
   constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
@@ -80,6 +80,13 @@ void verify_16bit_count() {
         std::memcpy(static_cast<void*>(values + i), &value, sizeof(value));
       }
       VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(values)), Index((bits & 0x7fff) != 0));
+      VERIFY(!(mask_all<Scalar, Packet>(values)));
+      for (int i = 0; i < packet_size; ++i) {
+        const Bits value = i == lane ? static_cast<Bits>(bits) : Bits(0xffff);
+        std::memcpy(static_cast<void*>(values + i), &value, sizeof(value));
+      }
+      VERIFY_IS_EQUAL((mask_all<Scalar, Packet>(values)), (bits & 0x7fff) != 0);
+      VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(values)), Index(packet_size - 1 + ((bits & 0x7fff) != 0)));
     }
   }
 }
@@ -269,9 +276,9 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
 
 #if defined(EIGEN_VECTORIZE_AVX512)
 #if !defined(EIGEN_VECTORIZE_AVX512FP16)
-  CALL_SUBTEST((verify_16bit_count<Eigen::half, Eigen::internal::Packet16h>()));
+  CALL_SUBTEST((verify_16bit_reductions<Eigen::half, Eigen::internal::Packet16h>()));
 #endif
-  CALL_SUBTEST((verify_16bit_count<Eigen::bfloat16, Eigen::internal::Packet16bf>()));
+  CALL_SUBTEST((verify_16bit_reductions<Eigen::bfloat16, Eigen::internal::Packet16bf>()));
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)

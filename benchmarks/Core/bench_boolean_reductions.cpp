@@ -67,6 +67,12 @@ struct PacketAny {
 };
 
 template <typename Packet>
+struct PacketAll {
+  static bool run(const Packet& packet) { return internal::predux_all(packet); }
+  static bool reference(bool, bool all) { return all; }
+};
+
+template <typename Packet>
 struct PacketOr {
   static bool run(const Packet& packet) { return internal::predux(packet); }
   static bool reference(bool any, bool) { return any; }
@@ -150,6 +156,19 @@ EIGEN_BENCH_AVX512_PACKET(internal::Packet8h);
 #endif
 
 #undef EIGEN_BENCH_AVX512_PACKET
+
+#define EIGEN_BENCH_AVX512_PACKET_ALL(PACKET)                            \
+  BENCHMARK_TEMPLATE(BM_PacketReduction, PACKET, PacketAll, AllFalse);   \
+  BENCHMARK_TEMPLATE(BM_PacketReduction, PACKET, PacketAll, AllTrue);    \
+  BENCHMARK_TEMPLATE(BM_PacketReduction, PACKET, PacketAll, FirstFalse); \
+  BENCHMARK_TEMPLATE(BM_PacketReduction, PACKET, PacketAll, LastFalse)
+
+#ifndef EIGEN_VECTORIZE_AVX512FP16
+EIGEN_BENCH_AVX512_PACKET_ALL(internal::Packet16h);
+#endif
+EIGEN_BENCH_AVX512_PACKET_ALL(internal::Packet16bf);
+
+#undef EIGEN_BENCH_AVX512_PACKET_ALL
 #endif
 
 }  // namespace
