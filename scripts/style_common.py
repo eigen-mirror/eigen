@@ -26,7 +26,9 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CXX_EXT = {".h", ".hpp", ".hxx", ".cpp", ".cc", ".cxx", ".cu", ".cuh", ".inc"}
-EXTENSIONLESS_HEADER_TREES = ("Eigen/", "unsupported/Eigen/")
+# unsupported/Eigen/ still holds the legacy umbrella shims, which are
+# extensionless headers too.
+EXTENSIONLESS_HEADER_TREES = ("Eigen/", "contrib/Eigen/", "unsupported/Eigen/")
 
 
 def is_cxx_path(rel_path):

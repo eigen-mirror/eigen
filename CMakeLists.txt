@@ -795,6 +795,7 @@ endif(EIGEN_BUILD_TESTING)
 #==============================================================================
 # Other Build Configurations.
 #==============================================================================
+add_subdirectory(contrib)
 add_subdirectory(unsupported)
 
 if(EIGEN_BUILD_BLAS)
@@ -814,7 +815,7 @@ if (EIGEN_BUILD_DEMOS)
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)
-  # must be after test and unsupported, for configuring buildtests.in
+  # must be after test and contrib, for configuring buildtests.in
   add_subdirectory(scripts EXCLUDE_FROM_ALL)
   configure_file(scripts/cdashtesting.cmake.in cdashtesting.cmake @ONLY)
 endif()

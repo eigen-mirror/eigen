@@ -49,7 +49,7 @@ def test_line_filter_json():
 def test_module_of():
     assert module_of("Eigen/src/Core/Block.h") == "Core"
     assert module_of("Eigen/src/Core/arch/AVX/PacketMath.h") == "Core"
-    assert module_of("unsupported/Eigen/src/Tensor/TensorBlock.h") == "Tensor"
+    assert module_of("contrib/Eigen/src/Tensor/TensorBlock.h") == "Tensor"
     assert module_of("test/block.cpp") is None
     assert module_of("Eigen/Core") is None
 
@@ -58,7 +58,7 @@ def test_umbrella_resolution():
     # Read from the module's InternalHeaderCheck.h `#error` directive.
     assert umbrella_for("Eigen/src/Core/Block.h") == "Eigen/Core"
     # The Tensor module's umbrella lives outside its own directory tree.
-    assert umbrella_for("unsupported/Eigen/src/Tensor/TensorBlock.h") == "unsupported/Eigen/Tensor"
+    assert umbrella_for("contrib/Eigen/src/Tensor/TensorBlock.h") == "contrib/Eigen/Tensor"
     # Arch backends nested below the module root carry no directive of their
     # own and fall back to <root>/<Module>.
     assert umbrella_for("Eigen/src/Core/arch/AVX/PacketMath.h") == "Eigen/Core"
@@ -66,7 +66,7 @@ def test_umbrella_resolution():
     assert umbrella_for("Eigen/src/CholmodSupport/CholmodSupport.h") is None
     # Every module in the tree must resolve, or the hook silently skips files.
     unresolved = []
-    for tree in ("Eigen/src", "unsupported/Eigen/src"):
+    for tree in ("Eigen/src", "contrib/Eigen/src"):
         for module in sorted(os.listdir(os.path.join(REPO_ROOT, tree))):
             rel = "%s/%s/InternalHeaderCheck.h" % (tree, module)
             if not os.path.isfile(os.path.join(REPO_ROOT, rel)):
@@ -103,13 +103,13 @@ def test_compile_args():
     assert "-std=c++14" in args and "-I" + REPO_ROOT in args
     # Test sources include main.h from test/.
     assert any(a.endswith("/test") for a in compile_args("test/block.cpp"))
-    assert any(a.endswith("/test") for a in compile_args("unsupported/test/tensor_block_access.cpp"))
+    assert any(a.endswith("/test") for a in compile_args("contrib/test/tensor_block_access.cpp"))
     assert not any(a.endswith("/test") for a in compile_args("Eigen/src/Core/Block.h"))
-    # Unsupported test sources include their umbrellas as <Eigen/Tensor>, which
-    # only resolves with unsupported/ on the path; nothing else needs it.
-    assert any(a.endswith("/unsupported") for a in compile_args("unsupported/test/tensor_block_access.cpp"))
-    assert not any(a.endswith("/unsupported") for a in compile_args("test/block.cpp"))
-    assert not any(a.endswith("/unsupported") for a in compile_args("unsupported/Eigen/src/Tensor/TensorBlock.h"))
+    # Contrib test sources include their umbrellas as <Eigen/Tensor>, which
+    # only resolves with contrib/ on the path; nothing else needs it.
+    assert any(a.endswith("/contrib") for a in compile_args("contrib/test/tensor_block_access.cpp"))
+    assert not any(a.endswith("/contrib") for a in compile_args("test/block.cpp"))
+    assert not any(a.endswith("/contrib") for a in compile_args("contrib/Eigen/src/Tensor/TensorBlock.h"))
 
 
 def test_cuda_include_dir():
@@ -125,7 +125,7 @@ def test_cuda_include_dir():
             with open(os.path.join(include, "cuda_runtime.h"), "w", encoding="utf-8") as handle:
                 handle.write("\n")
             assert cuda_include_dir(absent) == include
-            assert compile_args("unsupported/Eigen/src/GPU/DeviceMatrix.h")[-2:] == ["-isystem", include]
+            assert compile_args("contrib/Eigen/src/GPU/DeviceMatrix.h")[-2:] == ["-isystem", include]
     finally:
         for name, value in saved.items():
             if value is None:
@@ -228,25 +228,25 @@ def test_new_src_header_is_checked():
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
 
 
-def test_unsupported_test_source_is_checked():
-    """An unsupported test source includes its module umbrella as <Eigen/X>,
-    which resolves only through unsupported/; without that path every such
+def test_contrib_test_source_is_checked():
+    """A contrib test source includes its module umbrella as <Eigen/X>,
+    which resolves only through contrib/; without that path every such
     file was skipped as a translation unit that did not compile."""
     if shutil.which("clang-tidy") is None:
-        print("SKIP test_unsupported_test_source_is_checked (clang-tidy not installed)")
+        print("SKIP test_contrib_test_source_is_checked (clang-tidy not installed)")
         return
-    with tempfile.TemporaryDirectory(prefix="tidy_unsupported_test_") as tmp:
-        os.makedirs(os.path.join(tmp, "unsupported", "Eigen"))
-        os.makedirs(os.path.join(tmp, "unsupported", "test"))
+    with tempfile.TemporaryDirectory(prefix="tidy_contrib_test_") as tmp:
+        os.makedirs(os.path.join(tmp, "contrib", "Eigen"))
+        os.makedirs(os.path.join(tmp, "contrib", "test"))
         with open(os.path.join(tmp, ".clang-tidy"), "w") as handle:
             handle.write("Checks: '-*,modernize-use-using'\n")
-        with open(os.path.join(tmp, "unsupported", "Eigen", "Probe"), "w") as handle:
+        with open(os.path.join(tmp, "contrib", "Eigen", "Probe"), "w") as handle:
             handle.write("#define EIGEN_PROBE_MODULE_H\n")
-        with open(os.path.join(tmp, "unsupported", "test", "probe.cpp"), "w") as handle:
+        with open(os.path.join(tmp, "contrib", "test", "probe.cpp"), "w") as handle:
             handle.write("#include <Eigen/Probe>\n"
                          "typedef int AddedAlias;\n")
 
-        diagnostics, skipped = run_clang_tidy({"unsupported/test/probe.cpp": {2}}, root=tmp)
+        diagnostics, skipped = run_clang_tidy({"contrib/test/probe.cpp": {2}}, root=tmp)
         assert not skipped, skipped
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
 

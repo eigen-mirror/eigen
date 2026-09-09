@@ -50,10 +50,10 @@ test:linux:x86-64:gcc-10:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:gcc-10:default:unsupported:
+test:linux:x86-64:gcc-10:default:contrib:
   extends: .test:linux:x86-64:gcc-10:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:gcc-10:avx:
   extends: .test:linux:x86-64
@@ -66,10 +66,10 @@ test:linux:x86-64:gcc-10:avx:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:gcc-10:avx:unsupported:
+test:linux:x86-64:gcc-10:avx:contrib:
   extends: .test:linux:x86-64:gcc-10:avx
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:gcc-10:avx2:
   extends: .test:linux:x86-64
@@ -82,10 +82,10 @@ test:linux:x86-64:gcc-10:avx2:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:gcc-10:avx2:unsupported:
+test:linux:x86-64:gcc-10:avx2:contrib:
   extends: .test:linux:x86-64:gcc-10:avx2
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:gcc-10:avx512dq:
   extends: .test:linux:x86-64
@@ -103,10 +103,10 @@ test:linux:x86-64:gcc-10:avx512dq:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:gcc-10:avx512dq:unsupported:
+test:linux:x86-64:gcc-10:avx512dq:contrib:
   extends: .test:linux:x86-64:gcc-10:avx512dq
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 # GCC-13 for AVX512-FP16 (_Float16 support).
 .test:linux:x86-64:gcc-13:default:
@@ -116,7 +116,7 @@ test:linux:x86-64:gcc-10:avx512dq:unsupported:
     EIGEN_CI_INSTALL: g++-13
 
 # The corresponding test jobs (test:linux:x86-64:gcc-13:avx512fp16:{official,
-# unsupported}) are intentionally omitted: we do not currently have a runner
+# contrib}) are intentionally omitted: we do not currently have a runner
 # whose CPU supports AVX512-FP16, so running them produces wholesale SIGILL
 # failures.  The build:linux:cross:x86-64:gcc-13:avx512fp16:* jobs remain so
 # that AVX512-FP16 code paths are still compile-checked.
@@ -133,10 +133,10 @@ test:linux:x86-64:clang-14:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-14:default:unsupported:
+test:linux:x86-64:clang-14:default:contrib:
   extends: .test:linux:x86-64:clang-14:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:clang-14:avx2:
   extends: .test:linux:x86-64
@@ -149,10 +149,10 @@ test:linux:x86-64:clang-14:avx2:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-14:avx2:unsupported:
+test:linux:x86-64:clang-14:avx2:contrib:
   extends: .test:linux:x86-64:clang-14:avx2
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:clang-14:avx512dq:
   extends: .test:linux:x86-64
@@ -170,10 +170,10 @@ test:linux:x86-64:clang-14:avx512dq:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-14:avx512dq:unsupported:
+test:linux:x86-64:clang-14:avx512dq:contrib:
   extends: .test:linux:x86-64:clang-14:avx512dq
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 # Generic vector extension backend.
 .test:linux:x86-64:clang-19:generic:avx512dq:
@@ -192,10 +192,10 @@ test:linux:x86-64:clang-19:generic:avx512dq:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-19:generic:avx512dq:unsupported:
+test:linux:x86-64:clang-19:generic:avx512dq:contrib:
   extends: .test:linux:x86-64:clang-19:generic:avx512dq
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:x86-64:clang-19:cxx20:nightly:
   extends: .test:linux:x86-64
@@ -213,10 +213,10 @@ test:linux:x86-64:clang-19:cxx20:nightly:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-19:cxx20:nightly:unsupported:
+test:linux:x86-64:clang-19:cxx20:nightly:contrib:
   extends: .test:linux:x86-64:clang-19:cxx20:nightly
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### Sanitizers ###############################################################
 
@@ -236,11 +236,11 @@ test:linux:x86-64:clang-19:default:asan-ubsan:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:clang-19:default:asan-ubsan:unsupported:
+test:linux:x86-64:clang-19:default:asan-ubsan:contrib:
   extends: .test:linux:x86-64:clang-19:default:asan-ubsan
-  needs: [ build:linux:cross:x86-64:clang-19:default:asan-ubsan:unsupported ]
+  needs: [ build:linux:cross:x86-64:clang-19:default:asan-ubsan:contrib ]
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### NVHPC ####################################################################
 
@@ -259,11 +259,11 @@ test:linux:x86-64:nvhpc-26.1:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:x86-64:nvhpc-26.1:default:unsupported:
+test:linux:x86-64:nvhpc-26.1:default:contrib:
   extends: .test:linux:x86-64:nvhpc-26.1:default
-  needs: [ build:linux:x86-64:nvhpc-26.1:default:unsupported ]
+  needs: [ build:linux:x86-64:nvhpc-26.1:default:contrib ]
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### CUDA #####################################################################
 .test:linux:cuda:
@@ -404,10 +404,10 @@ test:linux:arm:gcc-10:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:arm:gcc-10:default:unsupported:
+test:linux:arm:gcc-10:default:contrib:
   extends: .test:linux:arm:gcc-10:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:arm:clang-14:default:
   extends: .test:linux:arm
@@ -420,10 +420,10 @@ test:linux:arm:clang-14:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:arm:clang-14:default:unsupported:
+test:linux:arm:clang-14:default:contrib:
   extends: .test:linux:arm:clang-14:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### SME ######################################################################
 
@@ -522,13 +522,13 @@ test:linux:sme512:gcc-14:no-f64f64:official:
     QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
     EIGEN_CI_CTEST_REGEX: product_sme
 
-# Full nightly SME test run: the complete Official + Unsupported ctest suite
+# Full nightly SME test run: the complete Official + Contrib ctest suite
 # against the full build above, at a single representative SVL (512: the logical
 # block matches the ZA tile grid exactly, exercising the multi-vector-load fast
 # path in sme_process). Cross-SVL geometry is already covered by the per-SVL
 # product_* subset jobs above, so one SVL is enough for the full run. Extends
 # ...:default (not ...:default:official) so no product_* CTEST_REGEX is
-# inherited -- these select by label instead. Official/Unsupported are split
+# inherited -- these select by label instead. Official/Contrib are split
 # into two jobs, and Official is sharded further below. The 3h job timeout is
 # the GitLab SaaS hosted-runner maximum (a slow host overran 2h). Inherits
 # .rules:libeigen:all-tests, so it runs on the nightly schedule and on
@@ -550,10 +550,10 @@ test:linux:sme512:gcc-14:full:official:
     # Overriding EIGEN_CI_CTEST_ARGS replaces the whole value; restate --timeout.
     EIGEN_CI_CTEST_ARGS: --timeout 3000 -I $CI_NODE_INDEX,,$CI_NODE_TOTAL
 
-test:linux:sme512:gcc-14:full:unsupported:
+test:linux:sme512:gcc-14:full:contrib:
   extends: .test:linux:sme512:gcc-14:full
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
     # tensor_thread_pool: threaded tests are useless under single-threaded TCG
     # (same exclusion as .test:linux:qemu). FFT: overruns even the raised 3000s
     # timeout under TCG at EIGEN_REPEAT=2; it is kissfft-based scalar/complex
@@ -586,10 +586,10 @@ test:linux:sme512:gcc-14:full:unsupported:
     # Threaded tests are meaningless under single-threaded TCG, and FFT overruns
     # even the raised timeout at EIGEN_REPEAT=2 -- it is kissfft-based scalar and
     # complex code with no SVE-specific path, and every native job covers it.
-    # On the anchor rather than the :unsupported jobs so the affected-tier jobs,
+    # On the anchor rather than the :contrib jobs so the affected-tier jobs,
     # which apply no label filter and so run both labels in one pass, inherit it
     # too; the :official jobs are unaffected either way, as both names are
-    # Unsupported tests.
+    # Contrib tests.
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
     # Name the compiler the artifacts were built with, not the default-version
     # cross g++. The test stage does compile: the failtest targets are
@@ -598,7 +598,7 @@ test:linux:sme512:gcc-14:full:unsupported:
     # without that exact binary fails all 62 failtests at once -- and the _ko
     # halves then pass vacuously, WILL_FAIL being unable to tell the asserted
     # compile error from a missing compiler. Only the affected tier sees this:
-    # the :official and :unsupported jobs filter by label, and failtests carry
+    # the :official and :contrib jobs filter by label, and failtests carry
     # neither label. (The buildsystem scenarios, which bake in the same path,
     # no longer register here: test/buildsystem/CMakeLists.txt skips emulator
     # builds, whose consumer binaries cannot run on the host.)
@@ -642,30 +642,30 @@ test:linux:sve128:gcc-13:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve128:gcc-13:unsupported:
+test:linux:sve128:gcc-13:contrib:
   extends: .test:linux:sve:vl128
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 test:linux:sve256:gcc-13:official:
   extends: .test:linux:sve:vl256
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve256:gcc-13:unsupported:
+test:linux:sve256:gcc-13:contrib:
   extends: .test:linux:sve:vl256
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 test:linux:sve512:gcc-13:official:
   extends: .test:linux:sve:vl512
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:sve512:gcc-13:unsupported:
+test:linux:sve512:gcc-13:contrib:
   extends: .test:linux:sve:vl512
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### aarch64 ##################################################################
 
@@ -688,10 +688,10 @@ test:linux:aarch64:gcc-10:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:aarch64:gcc-10:default:unsupported:
+test:linux:aarch64:gcc-10:default:contrib:
   extends: .test:linux:aarch64:gcc-10:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:aarch64:clang-14:default:
   extends: .test:linux:aarch64
@@ -704,10 +704,10 @@ test:linux:aarch64:clang-14:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:aarch64:clang-14:default:unsupported:
+test:linux:aarch64:clang-14:default:contrib:
   extends: .test:linux:aarch64:clang-14:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### ppc64le ##################################################################
 
@@ -728,10 +728,10 @@ test:linux:ppc64le:gcc-14:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:ppc64le:gcc-14:default:unsupported:
+test:linux:ppc64le:gcc-14:default:contrib:
   extends: .test:linux:ppc64le:gcc-14:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:ppc64le:clang-16:default:
   extends: .test:linux:ppc64le
@@ -744,10 +744,10 @@ test:linux:ppc64le:clang-16:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:ppc64le:clang-16:default:unsupported:
+test:linux:ppc64le:clang-16:default:contrib:
   extends: .test:linux:ppc64le:clang-16:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### loongarch64 ##############################################################
 
@@ -768,10 +768,10 @@ test:linux:loongarch64:gcc-14:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:loongarch64:gcc-14:default:unsupported:
+test:linux:loongarch64:gcc-14:default:contrib:
   extends: .test:linux:loongarch64:gcc-14:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 ##### riscv64 ##################################################################
 
@@ -796,10 +796,10 @@ test:linux:riscv64:gcc-15:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:gcc-15:default:unsupported:
+test:linux:riscv64:gcc-15:default:contrib:
   extends: .test:linux:riscv64:gcc-15:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 .test:linux:riscv64:clang-21:default:
   extends: .test:linux:riscv64
@@ -812,10 +812,10 @@ test:linux:riscv64:clang-21:default:official:
   variables:
     EIGEN_CI_CTEST_LABEL: Official
 
-test:linux:riscv64:clang-21:default:unsupported:
+test:linux:riscv64:clang-21:default:contrib:
   extends: .test:linux:riscv64:clang-21:default
   variables:
-    EIGEN_CI_CTEST_LABEL: Unsupported
+    EIGEN_CI_CTEST_LABEL: Contrib
 
 # Unlike the other smoke jobs, these two are namespace-guarded: they inherit
 # `tags: [riscv]` from .test:linux:riscv64, a single self-hosted machine that
@@ -939,6 +939,7 @@ test:linux:buildsystem:
         - Eigen/Version
         - blas/CMakeLists.txt
         - lapack/CMakeLists.txt
+        - contrib/**/CMakeLists.txt
         - unsupported/**/CMakeLists.txt
         - doc/CMakeLists.txt
         - doc/TopicCMakeGuide.dox
@@ -957,7 +958,7 @@ test:linux:buildsystem:
 ##### MR Affected Tests ########################################################
 # Paired with the affected build jobs.  No CTest label is set: the regex from
 # select:tests is the only filter, so a selection spanning Official and
-# Unsupported tests runs in one job.
+# Contrib tests runs in one job.
 #
 # Each job shares its trigger rule with the build job it needs; see
 # .rules:libeigen:affected-tests:* in ci/common.gitlab-ci.yml.

@@ -81,7 +81,7 @@ Computations* are standard references for choosing error measures and adversaria
 
 - Test the scalar path, generic packet fallback, and every affected backend specialization that is available. Build
   and run [`test/packetmath.cpp`](../test/packetmath.cpp) and, for special functions,
-  [`unsupported/test/special_packetmath.cpp`](../unsupported/test/special_packetmath.cpp). Report backends that were
+  [`contrib/test/special_packetmath.cpp`](../contrib/test/special_packetmath.cpp). Report backends that were
   not available locally.
 - Compare packet results with the scalar contract for special values, but use MPFR rather than assuming the scalar
   standard-library result is accurate enough to set a new finite-input ULP target.

@@ -84,9 +84,9 @@
         - test/gpu_common.h
         - test/gpu_test_helper.h
         - test/main.h
-        - unsupported/Eigen/src/Tensor/*Gpu*.h
-        - unsupported/test/*.cu
-        - unsupported/test/GPU/**/*
+        - contrib/Eigen/src/Tensor/*Gpu*.h
+        - contrib/test/*.cu
+        - contrib/test/GPU/**/*
     # `gpu-tests` is the platform label for GPU and already stands alone above,
     # so it composes with `affected-tests` without another entry.  It is also
     # why `all-platforms` covers no GPU job, and none of the compile-only sets

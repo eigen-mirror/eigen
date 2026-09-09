@@ -1,18 +1,18 @@
 # Tensor and Thread-Pool Changes
 
-Use this guide for `unsupported/Eigen/Tensor`, `Eigen/ThreadPool`, Core's custom GEMM thread-pool backend, and explicit
+Use this guide for `contrib/Eigen/Tensor`, `Eigen/ThreadPool`, Core's custom GEMM thread-pool backend, and explicit
 thread-pool devices. The repository-root `AGENTS.md` still applies.
 
 ## Compatibility and risk
 
-Tensor and ThreadPool are foundational to TensorFlow and other downstream users. "Unsupported" describes Tensor's
-API-stability policy, not its importance. Changes to signatures, header layout, evaluation order, allocation,
+Tensor and ThreadPool are foundational to TensorFlow and other downstream users. The `contrib/` location describes
+Tensor's API-stability policy, not its importance. Changes to signatures, header layout, evaluation order, allocation,
 synchronization, numerical behavior, or performance can have a large downstream impact.
 
-- Prefer additive changes and preserve public header paths. Use `<unsupported/Eigen/Tensor>` and
+- Prefer additive changes and preserve public header paths. Use `<contrib/Eigen/Tensor>` and
   `<Eigen/ThreadPool>`; never expose implementation-header includes to users.
-- Paths below `unsupported/Eigen/CXX11/` are backward-compatibility forwarding shims only. New code must use the
-  canonical `unsupported/Eigen/` headers and must not add new headers under `CXX11/`.
+- Paths below `unsupported/Eigen/`, including `unsupported/Eigen/CXX11/`, are backward-compatibility forwarding
+  shims only. New code must use the canonical `contrib/Eigen/` headers and must not add headers under either.
 - Preserve `EIGEN_DEVICE_FUNC` on code reachable by CUDA, HIP, or SYCL device evaluation.
 - Treat evaluator flags, layouts, scalar/packet/block paths, zero-sized tensors, aliasing, and asynchronous object
   lifetimes as part of the behavior under test.
@@ -57,7 +57,7 @@ It is distinct from implicit GEMM parallelization. Changes belong with the devic
 
 ### Tensor `ThreadPoolDevice`
 
-Define `EIGEN_USE_THREADS` before `<unsupported/Eigen/Tensor>`, then construct a `ThreadPoolDevice` over an existing
+Define `EIGEN_USE_THREADS` before `<contrib/Eigen/Tensor>`, then construct a `ThreadPoolDevice` over an existing
 `ThreadPoolInterface` and evaluate explicitly:
 
 ```cpp
@@ -69,7 +69,7 @@ output.device(device) = expression;
 The device does not own the pool. The pool, allocator, input storage, output storage, and callback state must remain
 alive until synchronous evaluation returns or asynchronous completion is signaled. Tensor's executor, contraction,
 reduction, and device code have `ThreadPoolDevice`-specific paths; a serial `DefaultDevice` test alone is insufficient.
-See `unsupported/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
+See `contrib/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
 
 ## Evaluator capability flags and cost
 
@@ -111,5 +111,5 @@ lane (`TensorStriding.h` is the reference).
 - Tensor behavior shared with accelerators: also follow `simd-gpu.md` and run the locally available device tests.
 - Report unavailable sanitizers, GPU toolchains, platforms, and downstream TensorFlow validation explicitly.
 
-Use `test/CMakeLists.txt`, `unsupported/test/CMakeLists.txt`, and the checked-out CMake configuration as the source of
+Use `test/CMakeLists.txt`, `contrib/test/CMakeLists.txt`, and the checked-out CMake configuration as the source of
 truth for target names. Do not maintain a duplicate test or backend inventory here.

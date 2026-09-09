@@ -24,7 +24,7 @@ payload is not a unified diff.
 
 No compilation database is required: ``-std=c++14 -I<repo>`` parses any file
 in the C++14 trees, with ``test/`` added for the test sources and
-``unsupported/`` for the unsupported ones, which keeps the hook usable in a
+``contrib/`` for the contrib ones, which keeps the hook usable in a
 fresh checkout with no build directory.
 
 The hook fails open — a missing clang-tidy, an unparsable file, a translation
@@ -48,8 +48,12 @@ from style_common import (REPO_ROOT, diff_added_lines, hook_edit_snippets,  # no
 
 # Parsing an umbrella costs about a second, so keep the hook off trees whose
 # conventions these checks do not describe (bench/, demos/, doc/ examples).
-CHECKED_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
-SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
+# unsupported/Eigen/ is kept for the legacy umbrella shims that still live
+# there; the implementation tree itself is contrib/, which has no shims and
+# so needs the src-tree rules.
+CHECKED_TREES = ("Eigen/", "contrib/Eigen/", "unsupported/Eigen/", "test/", "contrib/test/", "failtest/", "blas/",
+                 "lapack/")
+SRC_TREES = ("Eigen/src/", "contrib/Eigen/src/")
 # Modules whose umbrella needs a third-party header we cannot assume is present.
 EXTERNAL_DEP_MODULES = ("AccelerateSupport", "CholmodSupport", "KLUSupport", "MetisSupport",
                         "PaStiXSupport", "PardisoSupport", "SPQRSupport", "SuperLUSupport",
@@ -60,7 +64,7 @@ TIMEOUT_SECONDS = 30
 
 def module_of(rel_path):
     """Return the ``Eigen/src/<Module>`` name owning ``rel_path``, else None."""
-    m = re.match(r"^(?:unsupported/)?Eigen/src/([^/]+)/", rel_path)
+    m = re.match(r"^(?:contrib/)?Eigen/src/([^/]+)/", rel_path)
     return m.group(1) if m else None
 
 
@@ -83,7 +87,7 @@ def umbrella_for(rel_path, root=REPO_ROOT):
             continue
         if hit and os.path.isfile(os.path.join(root, hit.group(1))):
             return hit.group(1)
-    fallback = ("unsupported/Eigen/" if rel_path.startswith("unsupported/") else "Eigen/") + module
+    fallback = ("contrib/Eigen/" if rel_path.startswith("contrib/") else "Eigen/") + module
     return fallback if os.path.isfile(os.path.join(root, fallback)) else None
 
 
@@ -110,16 +114,16 @@ def cuda_include_dir(default_root="/usr/local/cuda"):
 def compile_args(rel_path, root=REPO_ROOT):
     """Include paths sufficient to parse ``rel_path`` without a compile database.
 
-    Test sources reach ``main.h`` through ``test/``; the unsupported ones also
+    Test sources reach ``main.h`` through ``test/``; the contrib ones also
     include their module umbrellas as ``<Eigen/Tensor>``, which resolves only
-    with ``unsupported/`` on the path.  These are the directories
-    ``unsupported/test/CMakeLists.txt`` adds for them.
+    with ``contrib/`` on the path.  These are the directories
+    ``contrib/test/CMakeLists.txt`` adds for them.
     """
     args = ["-std=c++14", "-I" + root]
-    if rel_path.startswith(("test/", "unsupported/test/")):
+    if rel_path.startswith(("test/", "contrib/test/")):
         args += ["-I" + os.path.join(root, "test")]
-    if rel_path.startswith("unsupported/test/"):
-        args += ["-I" + os.path.join(root, "unsupported")]
+    if rel_path.startswith("contrib/test/"):
+        args += ["-I" + os.path.join(root, "contrib")]
     cuda = cuda_include_dir()
     if cuda:
         args += ["-isystem", cuda]

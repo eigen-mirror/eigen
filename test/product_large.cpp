@@ -83,7 +83,7 @@ void product_large_regressions() {
 
     // An explicit override has to govern blocking on its own. The detected per-CPU L3 share also
     // feeds the rhs-panel budget, so leaving it set would silently overrule callers that force
-    // small cache sizes to exercise multi-pass blocking (unsupported/test/tensor_contraction.cpp
+    // small cache sizes to exercise multi-pass blocking (contrib/test/tensor_contraction.cpp
     // does exactly that).
     setCpuCacheSizes(896, 1920, 2944);
     std::ptrdiff_t forced_l1, forced_l2, forced_l3, forced_l3_per_cpu = -1;

@@ -5,26 +5,26 @@ ships in the same merge request; correctness tests still ship separately and run
 
 ## Projects and Builds
 
-The supported and unsupported benchmark trees are separate, standalone CMake projects. They are not part of Eigen's
+The supported and contrib benchmark trees are separate, standalone CMake projects. They are not part of Eigen's
 main test build and both require Google Benchmark:
 
 ```bash
 cmake -G Ninja -S benchmarks -B build-bench -DCMAKE_BUILD_TYPE=Release
 cmake --build build-bench --target <benchmark-target>
 
-cmake -G Ninja -S unsupported/benchmarks -B build-unsupported-bench -DCMAKE_BUILD_TYPE=Release
-cmake --build build-unsupported-bench --target <benchmark-target>
+cmake -G Ninja -S contrib/benchmarks -B build-contrib-bench -DCMAKE_BUILD_TYPE=Release
+cmake --build build-contrib-bench --target <benchmark-target>
 ```
 
-The unsupported parent project automatically adds its GPU subtree when it detects `CUDAToolkit`. That configuration
+The contrib parent project automatically adds its GPU subtree when it detects `CUDAToolkit`. That configuration
 also requires a working CUDA compiler and architecture selection. On a host with only a partial toolkit installation,
-configure CPU-only unsupported benchmarks with `-DCMAKE_DISABLE_FIND_PACKAGE_CUDAToolkit=TRUE` or report the GPU
+configure CPU-only contrib benchmarks with `-DCMAKE_DISABLE_FIND_PACKAGE_CUDAToolkit=TRUE` or report the GPU
 configuration as unavailable.
 
 Consult [`benchmarks/CMakeLists.txt`](../benchmarks/CMakeLists.txt) and
-[`unsupported/benchmarks/CMakeLists.txt`](../unsupported/benchmarks/CMakeLists.txt) for current targets and compile
+[`contrib/benchmarks/CMakeLists.txt`](../contrib/benchmarks/CMakeLists.txt) for current targets and compile
 settings. CUDA benchmarks also have a standalone project and instructions in
-[`unsupported/benchmarks/GPU/CMakeLists.txt`](../unsupported/benchmarks/GPU/CMakeLists.txt). No CI job builds or runs
+[`contrib/benchmarks/GPU/CMakeLists.txt`](../contrib/benchmarks/GPU/CMakeLists.txt). No CI job builds or runs
 benchmarks, so the pipeline validates neither a benchmark's own compilation nor a performance claim: build and run
 both locally, and report the measurement conditions this guide requires.
 

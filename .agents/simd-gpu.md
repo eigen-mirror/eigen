@@ -1,7 +1,7 @@
 # SIMD and GPU Changes
 
 Use this guide for packet math, architecture backends, device annotations, CUDA/HIP/SYCL code, Tensor device
-execution, and the `unsupported/Eigen/GPU` module. The repository-root `AGENTS.md` still applies.
+execution, and the `contrib/Eigen/GPU` module. The repository-root `AGENTS.md` still applies.
 
 ## Packet math
 
@@ -48,7 +48,7 @@ operators reached from device code.
 - Define configuration macros before the first Eigen public header and keep index configuration consistent across
   translation units that exchange Eigen objects.
 - Include public module headers in tests and examples. Implementation headers under `Eigen/src/` and
-  `unsupported/Eigen/src/` are not user include points.
+  `contrib/Eigen/src/` are not user include points.
 
 ## Three GPU models
 
@@ -66,18 +66,18 @@ objects cross the host/device boundary.
 
 ### Tensor devices
 
-`unsupported/Eigen/Tensor` evaluates expressions through an explicit device. `GpuDevice` handles CUDA/HIP and
+`contrib/Eigen/Tensor` evaluates expressions through an explicit device. `GpuDevice` handles CUDA/HIP and
 `SyclDevice` handles SYCL; Tensor GPU kernels remain part of the Tensor implementation. Device-resident storage is
 normally supplied through `TensorMap`, and the destination selects execution with `out.device(device) = expression`.
-Consult `unsupported/Eigen/src/Tensor/README.md` and the nearby device implementation before changing memory,
+Consult `contrib/Eigen/src/Tensor/README.md` and the nearby device implementation before changing memory,
 synchronization, or callback semantics.
 
-### `unsupported/Eigen/GPU`
+### `contrib/Eigen/GPU`
 
 This is a host-side NVIDIA-library wrapper selected explicitly with `Eigen::gpu` types. `gpu::DeviceMatrix` is not a
 `MatrixBase` expression, and a supported expression maps to a CUDA library operation rather than Core coefficient
-evaluation or packet fusion. Define `EIGEN_USE_GPU` before including `<unsupported/Eigen/GPU>`, and consult
-`unsupported/Eigen/src/GPU/README.md`. Its tests under `unsupported/test/GPU/` are intentionally host-compiled `.cpp`
+evaluation or packet fusion. Define `EIGEN_USE_GPU` before including `<contrib/Eigen/GPU>`, and consult
+`contrib/Eigen/src/GPU/README.md`. Its tests under `contrib/test/GPU/` are intentionally host-compiled `.cpp`
 files.
 
 Asynchrony makes otherwise-ordinary refactors unsafe in this module. Freeing, reusing, or destroying memory, streams,
@@ -94,7 +94,7 @@ a null stream is a valid stream with build-configurable meaning, not a "none" se
 - Core device-callability changes: build and run the relevant `gpu_basic` or `gpu_example` target with the available
   CUDA/HIP compiler.
 - Tensor device changes: run the operation's CPU Tensor test plus the matching CUDA/HIP/SYCL test where available.
-- `unsupported/Eigen/GPU` changes: run the focused target under `unsupported/test/GPU/` and any affected library
+- `contrib/Eigen/GPU` changes: run the focused target under `contrib/test/GPU/` and any affected library
   integration target enabled by the local toolkit.
 - Report backends or hardware that were unavailable. Do not claim cross-backend validation from a host-only build.
 

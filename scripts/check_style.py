@@ -44,21 +44,24 @@ from style_common import (REPO_ROOT, added_lines_from_diff, added_from_structure
                           hook_post_image_and_added, is_cxx_path, read_post_image)
 
 # Trees whose headers and tests must compile as C++14 (see AGENTS.md rule 3).
-CXX14_TREES = ("Eigen/", "unsupported/Eigen/", "test/", "unsupported/test/", "failtest/", "blas/", "lapack/")
+# unsupported/Eigen/ is kept for the legacy umbrella shims that still live there;
+# the implementation tree itself is contrib/.
+CXX14_TREES = ("Eigen/", "contrib/Eigen/", "unsupported/Eigen/", "test/", "contrib/test/", "failtest/", "blas/",
+               "lapack/")
 # Guarded exceptions with a documented newer requirement: SYCL sources build
 # only in the C++17 SYCL configurations, while duccfft and the structured-
 # binding failtests explicitly select C++17 in their test CMakeLists files.
 CXX17_PREFIXES = ("Eigen/src/Core/arch/SYCL/",)
 CXX17_FILES = {
     "test/sycl_basic.cpp",
-    "unsupported/Eigen/src/FFT/duccfft_impl.h",
-    "unsupported/test/duccfft.cpp",
+    "contrib/Eigen/src/FFT/duccfft_impl.h",
+    "contrib/test/duccfft.cpp",
     "failtest/structured_bindings_dynamic_matrix.cpp",
     "failtest/structured_bindings_dynamic_array.cpp",
     "failtest/structured_bindings_rowmajor.cpp",
 }
 # Library implementation headers, where numext:: is required over std:: math.
-LIBRARY_SRC_TREES = ("Eigen/src/", "unsupported/Eigen/src/")
+LIBRARY_SRC_TREES = ("Eigen/src/", "contrib/Eigen/src/")
 
 DOXYGEN = re.compile(r"^\s*(/\*\*|/\*!|///|//!)")
 LICENSE = re.compile(r"SPDX|Copyright|License|Mozilla Public", re.I)
@@ -303,8 +306,8 @@ def check_conventions(rel_path, code_lines, added, findings):
     cxx17_path = (
         rel_path in CXX17_FILES
         or rel_path.startswith(CXX17_PREFIXES)
-        or (rel_path.startswith("unsupported/Eigen/src/Tensor/") and rel_path.endswith("Sycl.h"))
-        or (rel_path.startswith("unsupported/test/") and rel_path.endswith("_sycl.cpp"))
+        or (rel_path.startswith("contrib/Eigen/src/Tensor/") and rel_path.endswith("Sycl.h"))
+        or (rel_path.startswith("contrib/test/") and rel_path.endswith("_sycl.cpp"))
     )
     if rel_path.startswith(CXX14_TREES) and not cxx17_path:
         checks += CXX14_CHECKS

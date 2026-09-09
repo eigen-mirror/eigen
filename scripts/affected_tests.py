@@ -6,7 +6,7 @@
 
 Eigen is header-only, so a test is affected by a change exactly when its
 translation unit textually includes the changed file.  This script builds the
-include graph over ``Eigen/``, ``unsupported/Eigen/`` and the test trees, then
+include graph over ``Eigen/``, ``contrib/Eigen/``, ``unsupported/Eigen/`` and the test trees, then
 maps changed paths to the CMake test targets that reach them.
 
 The graph follows every ``#include`` regardless of preprocessor guards, so the
@@ -63,10 +63,12 @@ import subprocess
 import sys
 
 # Directories scanned to build the include graph.
-SCAN_ROOTS = ("Eigen", "unsupported/Eigen", "test", "unsupported/test", "failtest")
+# unsupported/Eigen holds only the legacy umbrella shims now, but they are
+# still headers a change can propagate through, so the graph keeps them.
+SCAN_ROOTS = ("Eigen", "contrib/Eigen", "unsupported/Eigen", "test", "contrib/test", "failtest")
 
 # Directories whose .cpp files are test translation units.
-TEST_ROOTS = ("test", "unsupported/test")
+TEST_ROOTS = ("test", "contrib/test")
 
 # Subtrees of TEST_ROOTS that are not part of this build.  test/buildsystem/
 # holds standalone CMake projects that test:linux:buildsystem configures on
@@ -115,8 +117,8 @@ IGNORED_PATTERNS = (
     "debug/*",
     "demos/*",
     "doc/*",
-    "unsupported/benchmarks/*",
-    "unsupported/doc/*",
+    "contrib/benchmarks/*",
+    "contrib/doc/*",
 )
 
 # Changes matching these patterns invalidate the include-graph mapping itself

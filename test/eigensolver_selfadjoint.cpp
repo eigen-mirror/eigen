@@ -19,7 +19,7 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/SparseCore>
-#include <unsupported/Eigen/MatrixFunctions>
+#include <contrib/Eigen/MatrixFunctions>
 
 template <typename Scalar>
 struct selfadjoint_eigensolver_test_rescale {

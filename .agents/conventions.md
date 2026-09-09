@@ -14,7 +14,7 @@ current form, and a file being edited heavily should come out uniform rather tha
   `template <...> constexpr T Cls<...>::kName;` definition exists (`arch/Default/Half.h` has the form). Pass a prvalue
   (`+kName`, `Index(kName)`) or add the definition; the test suite builds optimized and will not catch the omission.
 - Prefer `using` to `typedef`, `nullptr` to `NULL`, `= default` and default member initializers to empty constructor
-  bodies that assign each member. `using` binds in every tree, `test/` and `unsupported/` included: those were left
+  bodies that assign each member. `using` binds in every tree, `test/` and `contrib/` included: those were left
   out of the sweep that converted `Eigen/src`, so the aliases surrounding new code there are mostly still `typedef`
   and matching the neighbours reproduces the form the sweep removed. Do not rely on CI to catch it — the
   `modernize-use-using` gap recorded at [`scripts/check_style.py`](../scripts/check_style.py) leaves function-local

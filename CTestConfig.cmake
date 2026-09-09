@@ -15,5 +15,5 @@ set(CTEST_DROP_LOCATION "/submit.php?project=Eigen")
 set(CTEST_DROP_SITE_CDASH TRUE)
 #set(CTEST_PROJECT_SUBPROJECTS
 #Official
-#Unsupported
+#Contrib
 #)

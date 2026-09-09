@@ -78,7 +78,7 @@
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, psqrt)                     \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, ptanh)
 
-// F16 wrappers for unsupported/SpecialFunctions.
+// F16 wrappers for contrib/SpecialFunctions.
 #define EIGEN_INSTANTIATE_SPECIAL_FUNCS_F16(PACKET_F, PACKET_F16) \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, perf)                 \
   F16_PACKET_FUNCTION(PACKET_F, PACKET_F16, pndtri)

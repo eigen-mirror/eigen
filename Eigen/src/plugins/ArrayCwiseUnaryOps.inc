@@ -36,7 +36,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(abs2, internal::scalar_abs2_op, Abs2ReturnType)
 /** \returns an expression of the coefficient-wise exponential of *this.
  *
  * This function computes the coefficient-wise exponential. The function MatrixBase::exp() in the
- * unsupported module MatrixFunctions computes the matrix exponential.
+ * contrib module MatrixFunctions computes the matrix exponential.
  *
  * Example: \include Cwise_exp.cpp
  * Output: \verbinclude Cwise_exp.out
@@ -83,7 +83,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(expm1, internal::scalar_expm1_op, Expm1ReturnType)
 /** \returns an expression of the coefficient-wise logarithm of *this.
  *
  * This function computes the coefficient-wise logarithm. The function MatrixBase::log() in the
- * unsupported module MatrixFunctions computes the matrix logarithm.
+ * contrib module MatrixFunctions computes the matrix logarithm.
  *
  * Example: \include Cwise_log.cpp
  * Output: \verbinclude Cwise_log.out
@@ -122,7 +122,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(log2, internal::scalar_log2_op, Log2ReturnType)
 /** \returns an expression of the coefficient-wise square root of *this.
  *
  * This function computes the coefficient-wise square root. The function MatrixBase::sqrt() in the
- * unsupported module MatrixFunctions computes the matrix square root.
+ * contrib module MatrixFunctions computes the matrix square root.
  *
  * Example: \include Cwise_sqrt.cpp
  * Output: \verbinclude Cwise_sqrt.out
@@ -167,7 +167,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(sign, internal::scalar_sign_op, SignReturnType)
 /** \returns an expression of the coefficient-wise cosine of *this.
  *
  * This function computes the coefficient-wise cosine. The function MatrixBase::cos() in the
- * unsupported module MatrixFunctions computes the matrix cosine.
+ * contrib module MatrixFunctions computes the matrix cosine.
  *
  * Example: \include Cwise_cos.cpp
  * Output: \verbinclude Cwise_cos.out
@@ -179,7 +179,7 @@ EIGEN_MAKE_CWISE_UNARY_OP(cos, internal::scalar_cos_op, CosReturnType)
 /** \returns an expression of the coefficient-wise sine of *this.
  *
  * This function computes the coefficient-wise sine. The function MatrixBase::sin() in the
- * unsupported module MatrixFunctions computes the matrix sine.
+ * contrib module MatrixFunctions computes the matrix sine.
  *
  * Example: \include Cwise_sin.cpp
  * Output: \verbinclude Cwise_sin.out
@@ -559,7 +559,7 @@ using UnaryPowReturnType =
  * \param exponent the scalar exponent value.
  *
  * This function computes the coefficient-wise power. The function MatrixBase::pow() in the
- * unsupported module MatrixFunctions computes the matrix power.
+ * contrib module MatrixFunctions computes the matrix power.
  *
  * Example: \include Cwise_pow.cpp
  * Output: \verbinclude Cwise_pow.out

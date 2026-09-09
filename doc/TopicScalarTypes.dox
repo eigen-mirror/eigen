@@ -61,7 +61,7 @@ Any user-defined type with the usual arithmetic operators can be used as a scala
 specializing NumTraits for it and providing the math functions that make sense for the type. The
 full recipe, with complete examples (an automatic-differentiation type and a GMP rational type),
 is given in \ref TopicCustomizing_CustomScalar. Ready-made support for the MPFR arbitrary-precision
-type is available in the unsupported module <a href="unsupported/group__MPRealSupport__Module.html">MPRealSupport</a>.
+type is available in the contrib module <a href="contrib/group__MPRealSupport__Module.html">MPRealSupport</a>.
 
 */
 

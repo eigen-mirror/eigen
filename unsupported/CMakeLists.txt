@@ -1,14 +1,9 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
+# Backward-compatibility shell for the legacy unsupported/ tree. The real
+# content moved to ../contrib/ in Eigen 5.x; only forwarding headers remain
+# here so that existing user code with #include <unsupported/Eigen/...> keeps
+# building. Tests, docs, and benchmarks live under ../contrib/.
+
 add_subdirectory(Eigen)
-if(EIGEN_BUILD_DOC)
-  add_subdirectory(doc EXCLUDE_FROM_ALL)
-endif()
-if(EIGEN_BUILD_TESTING)
-  if(EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-    add_subdirectory(test) # CTest automatic test building relies on the "all" target.
-  else()
-    add_subdirectory(test EXCLUDE_FROM_ALL)
-  endif()
-endif()

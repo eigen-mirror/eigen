@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#include "../unsupported/Eigen/StructuredMatrices"
+#include "../contrib/Eigen/StructuredMatrices"
 
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD
 using Scalar = int;

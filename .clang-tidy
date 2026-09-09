@@ -36,7 +36,7 @@ Checks: >
 
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'Eigen/.*|test/.*|blas/.*|lapack/.*|unsupported/Eigen/.*'
+HeaderFilterRegex: 'Eigen/.*|test/.*|blas/.*|lapack/.*|contrib/Eigen/.*'
 
 # Eigen uses its own assert macros.
 CheckOptions:

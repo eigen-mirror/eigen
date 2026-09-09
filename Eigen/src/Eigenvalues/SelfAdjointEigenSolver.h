@@ -343,7 +343,7 @@ class SelfAdjointEigenSolver {
    * Example: \include SelfAdjointEigenSolver_operatorSqrt.cpp
    * Output: \verbinclude SelfAdjointEigenSolver_operatorSqrt.out
    *
-   * \sa operatorInverseSqrt(), <a href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
+   * \sa operatorInverseSqrt(), <a href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
   EIGEN_DEVICE_FUNC MatrixType operatorSqrt() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
@@ -359,7 +359,7 @@ class SelfAdjointEigenSolver {
    * have been computed before.
    *
    * \sa operatorInverseSqrt(), operatorSqrt(),
-   * <a href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
+   * <a href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
   EIGEN_DEVICE_FUNC MatrixType operatorExp() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
@@ -383,7 +383,7 @@ class SelfAdjointEigenSolver {
    * Output: \verbinclude SelfAdjointEigenSolver_operatorInverseSqrt.out
    *
    * \sa operatorSqrt(), MatrixBase::inverse(), <a
-   * href="unsupported/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
+   * href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
   EIGEN_DEVICE_FUNC MatrixType operatorInverseSqrt() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");

@@ -79,16 +79,16 @@ def test_scoping():
     # Sources with a documented C++17 requirement are exempt from the C++14 checks...
     assert_clean("test/sycl_basic.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("Eigen/src/Core/arch/SYCL/PacketMath.h", "if constexpr (kSize > 4) {}\n")
-    assert_clean("unsupported/Eigen/src/Tensor/TensorDeviceSycl.h", "if constexpr (kSize > 4) {}\n")
-    assert_clean("unsupported/test/tensor_sycl.cpp", "if constexpr (kSize > 4) {}\n")
-    assert_clean("unsupported/Eigen/src/FFT/duccfft_impl.h", "if constexpr (kSize > 4) {}\n")
-    assert_clean("unsupported/test/duccfft.cpp", "if constexpr (kSize > 4) {}\n")
+    assert_clean("contrib/Eigen/src/Tensor/TensorDeviceSycl.h", "if constexpr (kSize > 4) {}\n")
+    assert_clean("contrib/test/tensor_sycl.cpp", "if constexpr (kSize > 4) {}\n")
+    assert_clean("contrib/Eigen/src/FFT/duccfft_impl.h", "if constexpr (kSize > 4) {}\n")
+    assert_clean("contrib/test/duccfft.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_dynamic_matrix.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_dynamic_array.cpp", "if constexpr (kSize > 4) {}\n")
     assert_clean("failtest/structured_bindings_rowmajor.cpp", "if constexpr (kSize > 4) {}\n")
     # A coincidental substring is not a documented C++17 requirement.
     assert_flags("test/not_sycl_related.cpp", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
-    assert_flags("unsupported/Eigen/src/FFT/kissfft_impl.h", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
+    assert_flags("contrib/Eigen/src/FFT/kissfft_impl.h", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # ...but not from the other conventions.
     assert_flags("test/sycl_basic.cpp", "std::integral_constant<bool, true> b;\n", "bool_constant")
 

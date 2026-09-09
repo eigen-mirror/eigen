@@ -69,7 +69,7 @@ variables:
   # If a test regex is specified, that will be selected.
   # Otherwise, we will try a label if specified.
   EIGEN_CI_CTEST_REGEX: ""
-  # Valid CTest labels: Official, Unsupported, gpu, smoketest.
+  # Valid CTest labels: Official, Contrib, gpu, smoketest.
   EIGEN_CI_CTEST_LABEL: ""
   EIGEN_CI_CTEST_ARGS: ""
   # Affected-test tier: paths to the selection written by the select:tests job.

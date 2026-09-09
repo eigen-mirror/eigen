@@ -17,7 +17,7 @@ ALIASES                = "only_for_vectors=This is only for vectors (either row-
                          "lu_module=This is defined in the %LU module. \code #include <Eigen/LU> \endcode" \
                          "qr_module=This is defined in the %QR module. \code #include <Eigen/QR> \endcode" \
                          "svd_module=This is defined in the %SVD module. \code #include <Eigen/SVD> \endcode" \
-                         "specialfunctions_module=This is defined in the \b unsupported SpecialFunctions module. \code #include <Eigen/SpecialFunctions> \endcode" \
+                         "specialfunctions_module=This is defined in the \b contrib SpecialFunctions module. \code #include <contrib/Eigen/SpecialFunctions> \endcode" \
                          label=\bug \
                          "matrixworld=<a href='#matrixonly' style='color:green;text-decoration: none;'>*</a>" \
                          "arrayworld=<a href='#arrayonly' style='color:blue;text-decoration: none;'>*</a>" \
@@ -63,8 +63,8 @@ EXCLUDE                = ${Eigen_SOURCE_DIR}/Eigen/Eigen2Support \
                          ${Eigen_SOURCE_DIR}/doc/examples \
                          ${Eigen_SOURCE_DIR}/doc/special_examples \
                          ${Eigen_SOURCE_DIR}/doc/snippets \
-                         ${Eigen_SOURCE_DIR}/unsupported/doc/examples \
-                         ${Eigen_SOURCE_DIR}/unsupported/doc/snippets
+                         ${Eigen_SOURCE_DIR}/contrib/doc/examples \
+                         ${Eigen_SOURCE_DIR}/contrib/doc/snippets
 
 #                        ${Eigen_SOURCE_DIR}/Eigen/src/Core/products \
 #                        ${Eigen_SOURCE_DIR}/Eigen/src/Core/util/ForwardDeclarations.h \
@@ -94,10 +94,10 @@ EXAMPLE_PATH           = ${Eigen_SOURCE_DIR}/doc/snippets \
                          ${Eigen_BINARY_DIR}/doc/examples \
                          ${Eigen_SOURCE_DIR}/doc/special_examples \
                          ${Eigen_BINARY_DIR}/doc/special_examples \
-                         ${Eigen_SOURCE_DIR}/unsupported/doc/snippets \
-                         ${Eigen_BINARY_DIR}/unsupported/doc/snippets \
-                         ${Eigen_SOURCE_DIR}/unsupported/doc/examples \
-                         ${Eigen_BINARY_DIR}/unsupported/doc/examples
+                         ${Eigen_SOURCE_DIR}/contrib/doc/snippets \
+                         ${Eigen_BINARY_DIR}/contrib/doc/snippets \
+                         ${Eigen_SOURCE_DIR}/contrib/doc/examples \
+                         ${Eigen_BINARY_DIR}/contrib/doc/examples
 IMAGE_PATH             = ${Eigen_BINARY_DIR}/doc/html
 # Prevent README.md from being considered a directory description (i.e. for Tensor).
 IMPLICIT_DIR_DOCS      = NO

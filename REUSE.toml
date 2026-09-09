@@ -69,7 +69,7 @@ SPDX-FileCopyrightText = [
 SPDX-License-Identifier = "BSD-3-Clause"
 
 [[annotations]]
-path = "unsupported/Eigen/src/LevenbergMarquardt/CopyrightMINPACK.txt"
+path = "contrib/Eigen/src/LevenbergMarquardt/CopyrightMINPACK.txt"
 SPDX-FileCopyrightText = [
     "Jorge More - Argonne National Laboratory",
     "Burt Garbow - Argonne National Laboratory",

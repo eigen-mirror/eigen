@@ -21,7 +21,7 @@ default.
 | Numerical kernels, decompositions, solvers, accuracy | [`.agents/numerics.md`](.agents/numerics.md) |
 | Sparse matrices, sparse solvers, external sparse backends | [`.agents/sparse.md`](.agents/sparse.md) |
 | Performance changes and benchmarks | [`.agents/benchmarking.md`](.agents/benchmarking.md) |
-| Packet math, CUDA, HIP, SYCL, `unsupported/Eigen/GPU` | [`.agents/simd-gpu.md`](.agents/simd-gpu.md) |
+| Packet math, CUDA, HIP, SYCL, `contrib/Eigen/GPU` | [`.agents/simd-gpu.md`](.agents/simd-gpu.md) |
 | Tensor, ThreadPool, and multithreading | [`.agents/tensor-threadpool.md`](.agents/tensor-threadpool.md) |
 | Formatting, lint, and GitLab CI | [`.agents/ci.md`](.agents/ci.md) |
 | Doxygen blocks, `doc/` pages, snippets, and examples | [`.agents/docs.md`](.agents/docs.md) |
@@ -43,7 +43,7 @@ default.
    actually produced the change is accurate attribution, not an invented one, and is permitted.
 3. **Respect the header-only and C++14 contracts.** Supported headers must compile as C++14 unless a guarded backend has
    a documented newer requirement. User code, examples, and public-behavior tests include umbrella headers such as
-   `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `unsupported/Eigen/src/`. Focused tests of private
+   `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `contrib/Eigen/src/`. Focused tests of private
    utilities may follow an established direct-include pattern, but those paths remain private even where a header is not
    mechanically guarded. Definitions in public headers must have valid header linkage and avoid ODR violations.
 4. **Protect compatibility.** Treat supported public names, signatures, header paths, semantics, and ABI-affecting
@@ -94,15 +94,16 @@ default.
 ## Repository essentials
 
 Eigen is a header-only expression-template library. Consumers include module headers under `Eigen/` or
-`unsupported/Eigen/`. The top-level CMake project builds tests, documentation, demos, and BLAS/LAPACK shims rather than
+`contrib/Eigen/`. The top-level CMake project builds tests, documentation, demos, and BLAS/LAPACK shims rather than
 a core Eigen library; benchmarks use separate CMake projects. `Eigen/Dense` aggregates the dense modules, while
 `Eigen/Eigen` includes `Dense` and `Sparse`. External backend support modules and `Eigen/ThreadPool` remain separate
 includes. The upstream project is on GitLab; its GitHub repository is a read-only mirror.
 
 The supported implementation is under `Eigen/src/`; tests are under `test/`. Modules with looser API-stability
-guarantees are under `unsupported/Eigen/`, with tests under `unsupported/test/`. "Unsupported" does not imply low
-impact: Tensor is a foundational TensorFlow dependency. Public umbrella headers are the source of truth for a module's
-exported internals.
+guarantees are under `contrib/Eigen/`, with tests under `contrib/test/`. Legacy `unsupported/Eigen/...` include paths
+remain valid: one-line forwarding shims under `unsupported/Eigen/` point at the `contrib/` headers and are installed
+alongside them. "Contrib" does not imply low impact: Tensor is a foundational TensorFlow dependency. Public umbrella
+headers are the source of truth for a module's exported internals.
 
 The `lapack/*.f` files are vendored netlib LAPACK reference sources and are read-only here: do not edit them ad hoc,
 and flag a merge request that changes one unless it is an explicit refresh from a named netlib release, in which case
@@ -184,7 +185,7 @@ ctest --test-dir build -R '^<test-name>$' --output-on-failure --no-tests=error
 For a split test such as `foo_3`, build that exact target and match it exactly with CTest, keeping `--no-tests=error`:
 a filter that matches nothing otherwise exits 0. The generated `buildtests.sh` and `check.sh` wrappers accept
 source/test-name regexes and are useful for building all matching parts.
-Use `buildtests`, `BuildOfficial`, `BuildUnsupported`, `buildsmoketests`, or `check` only when the requested validation
+Use `buildtests`, `BuildOfficial`, `BuildContrib`, `buildsmoketests`, or `check` only when the requested validation
 warrants that scope. See [`.agents/testing.md`](.agents/testing.md) for the current test framework, split rules,
 configuration variants, and failure-test workflow.
 

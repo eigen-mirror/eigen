@@ -40,16 +40,16 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 )
 
-set(EIGEN_DOXY_PROJECT_NAME             "Eigen-unsupported")
-set(EIGEN_DOXY_OUTPUT_DIRECTORY_SUFFIX  "/unsupported")
-set(EIGEN_DOXY_INPUT                    "\"${Eigen_SOURCE_DIR}/unsupported/doc\" \"${Eigen_SOURCE_DIR}/unsupported/Eigen\"")
+set(EIGEN_DOXY_PROJECT_NAME             "Eigen-Contrib")
+set(EIGEN_DOXY_OUTPUT_DIRECTORY_SUFFIX  "/contrib")
+set(EIGEN_DOXY_INPUT                    "\"${Eigen_SOURCE_DIR}/contrib/doc\" \"${Eigen_SOURCE_DIR}/contrib/Eigen\"")
 set(EIGEN_DOXY_HTML_COLORSTYLE_HUE      "0")
 set(EIGEN_DOXY_TAGFILES                 "\"${Eigen_BINARY_DIR}/doc/Eigen.doxytags=..\"")
 #set(EIGEN_DOXY_TAGFILES                 "")
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
-  ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile-unsupported
+  ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile-contrib
 )
 
 configure_file(
@@ -68,8 +68,8 @@ configure_file(
 )
 
 configure_file(
-  ${Eigen_SOURCE_DIR}/unsupported/doc/eigendoxy_layout.xml.in
-  ${Eigen_BINARY_DIR}/doc/unsupported/eigendoxy_layout.xml
+  ${Eigen_SOURCE_DIR}/contrib/doc/eigendoxy_layout.xml.in
+  ${Eigen_BINARY_DIR}/doc/contrib/eigendoxy_layout.xml
 )
 
 set(examples_targets "")
@@ -94,30 +94,30 @@ add_custom_target(
 )
 
 add_custom_target(
-  doc-unsupported-prerequisites
+  doc-contrib-prerequisites
   ALL
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${Eigen_BINARY_DIR}/doc/html/unsupported
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/Eigen_Silly_Professor_64x64.png  ${CMAKE_CURRENT_BINARY_DIR}/html/unsupported/
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ftv2pnode.png                    ${CMAKE_CURRENT_BINARY_DIR}/html/unsupported/
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ftv2node.png                     ${CMAKE_CURRENT_BINARY_DIR}/html/unsupported/
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${Eigen_BINARY_DIR}/doc/html/contrib
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/Eigen_Silly_Professor_64x64.png  ${CMAKE_CURRENT_BINARY_DIR}/html/contrib/
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ftv2pnode.png                    ${CMAKE_CURRENT_BINARY_DIR}/html/contrib/
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ftv2node.png                     ${CMAKE_CURRENT_BINARY_DIR}/html/contrib/
   WORKING_DIRECTORY ${Eigen_BINARY_DIR}/doc
 )
 
 add_dependencies(doc-eigen-prerequisites all_snippets all_examples)
-add_dependencies(doc-unsupported-prerequisites unsupported_snippets unsupported_examples)
+add_dependencies(doc-contrib-prerequisites contrib_snippets contrib_examples)
 
 add_custom_target(doc ALL
   COMMAND doxygen
-  COMMAND doxygen Doxyfile-unsupported
+  COMMAND doxygen Doxyfile-contrib
   COMMAND ${CMAKE_COMMAND} -E copy ${Eigen_BINARY_DIR}/doc/html/group__TopicUnalignedArrayAssert.html ${Eigen_BINARY_DIR}/doc/html/TopicUnalignedArrayAssert.html
   COMMAND ${CMAKE_COMMAND} -E rename html eigen-doc
-  COMMAND ${CMAKE_COMMAND} -E remove eigen-doc/eigen-doc.tgz eigen-doc/unsupported/_formulas.log eigen-doc/_formulas.log
+  COMMAND ${CMAKE_COMMAND} -E remove eigen-doc/eigen-doc.tgz eigen-doc/contrib/_formulas.log eigen-doc/_formulas.log
   COMMAND ${CMAKE_COMMAND} -E tar cfz eigen-doc.tgz eigen-doc
   COMMAND ${CMAKE_COMMAND} -E rename eigen-doc.tgz eigen-doc/eigen-doc.tgz
   COMMAND ${CMAKE_COMMAND} -E rename eigen-doc html
   WORKING_DIRECTORY ${Eigen_BINARY_DIR}/doc)
 
-add_dependencies(doc doc-eigen-prerequisites doc-unsupported-prerequisites)
+add_dependencies(doc doc-eigen-prerequisites doc-contrib-prerequisites)
 
 # This target writes below CMAKE_INSTALL_PREFIX like any install rule, so it
 # follows EIGEN_INSTALL: with the option off, Eigen places no file there.

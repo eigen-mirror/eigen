@@ -62,8 +62,8 @@ ei_add_test(after_gpu)
         "add_executable(installed_consumer ../main.cpp)\n",
     "test/buildsystem/consumers/subproject/CMakeLists.txt":
         "add_executable(subproject_consumer ../main.cpp)\n",
-    "unsupported/test/extra.cpp": '#include "../../test/main.h"\n',
-    "unsupported/test/CMakeLists.txt": "ei_add_test(extra)\n",
+    "contrib/test/extra.cpp": '#include "../../test/main.h"\n',
+    "contrib/test/CMakeLists.txt": "ei_add_test(extra)\n",
     "failtest/svd_int.cpp": "#include <Eigen/SVD>\n",
     "failtest/const_block.cpp": "#include <Eigen/Core>\n",
     "failtest/CMakeLists.txt": 'ei_add_failtest("svd_int")\nei_add_failtest("const_block")\n',
@@ -95,9 +95,9 @@ def targets_of(selection):
 def test_fixture_graph(root):
     graph = IncludeGraph(root)
     sources = sorted(test_registrations(graph).targets)
-    check(sources == ["test/after_gpu.cpp", "test/bdcsvd.cpp", "test/block.cpp",
-                      "test/dense.cpp", "test/gpu_basic.cu", "test/multitu.cpp",
-                      "test/multitu_main.cpp", "unsupported/test/extra.cpp"],
+    check(sources == ["contrib/test/extra.cpp", "test/after_gpu.cpp", "test/bdcsvd.cpp",
+                      "test/block.cpp", "test/dense.cpp", "test/gpu_basic.cu",
+                      "test/multitu.cpp", "test/multitu_main.cpp"],
           "test sources discovered in both trees, got %s" % sources)
 
     # A leaf header reaches only the tests whose closure includes it.
@@ -138,7 +138,7 @@ def test_fixture_graph(root):
     # own CMakeLists.txt -- which must not trip the full-rebuild rule.
     sel = select(graph, ["doc/TopicLazyEvaluation.dox", "README.md", ".agents/ci.md",
                          "benchmarks/Core/bench_reductions.cpp",
-                         "unsupported/benchmarks/GPU/CMakeLists.txt",
+                         "contrib/benchmarks/GPU/CMakeLists.txt",
                          "doc/CMakeLists.txt", "debug/gdb/printers.py"])
     check(sel.mode == "none", "docs and benchmarks select nothing, got %s (%s)"
           % (sel.mode, sel.reasons))
@@ -195,7 +195,7 @@ def test_fixture_graph(root):
 
     # Mixed changes union their selections.
     graph = IncludeGraph(root)
-    sel = select(graph, ["Eigen/src/SVD/BDCSVD.h", "unsupported/test/extra.cpp"])
+    sel = select(graph, ["Eigen/src/SVD/BDCSVD.h", "contrib/test/extra.cpp"])
     check(sel.mode == "targets" and targets_of(sel) == ["bdcsvd", "dense", "extra"],
           "mixed changes union, got %s" % targets_of(sel))
 
@@ -318,13 +318,13 @@ def test_cuda_registrations(root):
 
 FOREACH_FIXTURE = {
     "test/main.h": "",
-    "unsupported/test/GPU/gpu_test_helpers.h": '#include "../../../test/main.h"\n',
-    "unsupported/test/GPU/device_matrix.cpp": '#include "gpu_test_helpers.h"\n',
-    "unsupported/test/GPU/cusolver_llt.cpp": '#include "gpu_test_helpers.h"\n',
-    "unsupported/test/GPU/cusolver_qr.cpp": '#include "gpu_test_helpers.h"\n',
-    "unsupported/test/GPU/from_variable.cpp": '#include "gpu_test_helpers.h"\n',
-    "unsupported/test/GPU/unregistered.cpp": '#include "gpu_test_helpers.h"\n',
-    "unsupported/test/GPU/CMakeLists.txt": """function(ei_add_gpu_test test_name)
+    "contrib/test/GPU/gpu_test_helpers.h": '#include "../../../test/main.h"\n',
+    "contrib/test/GPU/device_matrix.cpp": '#include "gpu_test_helpers.h"\n',
+    "contrib/test/GPU/cusolver_llt.cpp": '#include "gpu_test_helpers.h"\n',
+    "contrib/test/GPU/cusolver_qr.cpp": '#include "gpu_test_helpers.h"\n',
+    "contrib/test/GPU/from_variable.cpp": '#include "gpu_test_helpers.h"\n',
+    "contrib/test/GPU/unregistered.cpp": '#include "gpu_test_helpers.h"\n',
+    "contrib/test/GPU/CMakeLists.txt": """function(ei_add_gpu_test test_name)
   ei_add_test(${test_name} "" "CUDA::cudart_static")
   foreach(t ${_targets})
     add_dependencies(buildtests_gpu ${t})
@@ -356,32 +356,32 @@ def test_foreach_registrations():
         graph = IncludeGraph(root)
         sources = test_registrations(graph).targets
 
-        check(sources.get("unsupported/test/GPU/device_matrix.cpp") == "device_matrix",
+        check(sources.get("contrib/test/GPU/device_matrix.cpp") == "device_matrix",
               "a literal ei_add_gpu_test registers its source, got %s"
-              % sources.get("unsupported/test/GPU/device_matrix.cpp"))
-        check(sources.get("unsupported/test/GPU/cusolver_llt.cpp") == "cusolver_llt"
-              and sources.get("unsupported/test/GPU/cusolver_qr.cpp") == "cusolver_qr",
+              % sources.get("contrib/test/GPU/device_matrix.cpp"))
+        check(sources.get("contrib/test/GPU/cusolver_llt.cpp") == "cusolver_llt"
+              and sources.get("contrib/test/GPU/cusolver_qr.cpp") == "cusolver_qr",
               "foreach(... IN ITEMS ...) expands to one registration per item, got %s"
               % sorted(sources))
 
         # ei_add_test(${test_name}) inside the wrapper's own body is a function
         # parameter, not a loop item, so it must not register anything.
-        check("unsupported/test/GPU/test_name.cpp" not in sources
+        check("contrib/test/GPU/test_name.cpp" not in sources
               and "test_name" not in set(sources.values()),
               "the wrapper's own parameter is not a registration, got %s" % sorted(sources))
 
         # A .cpp whose only registration iterates a variable, and one with no
         # registration at all, must both reach the error path rather than being
         # assumed registered because of where they live.
-        for path in ("unsupported/test/GPU/from_variable.cpp",
-                     "unsupported/test/GPU/unregistered.cpp"):
+        for path in ("contrib/test/GPU/from_variable.cpp",
+                     "contrib/test/GPU/unregistered.cpp"):
             check(path not in sources, "%s is not registered, got %s" % (path, sources.get(path)))
             sel = select(graph, [path])
             check(sel.mode == "error",
                   "%s fails selection, got %s (%s)" % (path, sel.mode, sel.reasons))
 
         # The header the registered tests share still reaches them.
-        sel = select(graph, ["unsupported/test/GPU/gpu_test_helpers.h"], max_fraction=1.0)
+        sel = select(graph, ["contrib/test/GPU/gpu_test_helpers.h"], max_fraction=1.0)
         check(sel.mode == "targets"
               and targets_of(sel) == ["cusolver_llt", "cusolver_qr", "device_matrix"],
               "the GPU header reaches its registered tests, got %s (%s)"
@@ -492,22 +492,22 @@ def test_real_tree():
 
     # Every GPU module test is registered by a call the parser can see, so a
     # source added without a registration reaches the error path.
-    gpu_dir = os.path.join(root, "unsupported", "test", "GPU")
+    gpu_dir = os.path.join(root, "contrib", "test", "GPU")
     if os.path.isdir(gpu_dir):
-        gpu_sources = sorted("unsupported/test/GPU/" + name for name in os.listdir(gpu_dir)
+        gpu_sources = sorted("contrib/test/GPU/" + name for name in os.listdir(gpu_dir)
                              if name.endswith(".cpp"))
         unmapped = [rel for rel in gpu_sources if rel not in source_targets]
         check(gpu_sources and not unmapped,
               "every GPU test source is registered, got %s unmapped of %d"
               % (unmapped, len(gpu_sources)))
-        check(source_targets.get("unsupported/test/GPU/cusolver_svd.cpp") == "cusolver_svd",
+        check(source_targets.get("contrib/test/GPU/cusolver_svd.cpp") == "cusolver_svd",
               "a foreach-registered GPU test maps to its target, got %s"
-              % source_targets.get("unsupported/test/GPU/cusolver_svd.cpp"))
+              % source_targets.get("contrib/test/GPU/cusolver_svd.cpp"))
         probe = os.path.join(gpu_dir, "affected_tests_probe.cpp")
         with open(probe, "w") as handle:
             handle.write('#include "gpu_test_helpers.h"\n')
         try:
-            sel = select(IncludeGraph(root), ["unsupported/test/GPU/affected_tests_probe.cpp"])
+            sel = select(IncludeGraph(root), ["contrib/test/GPU/affected_tests_probe.cpp"])
             check(sel.mode == "error",
                   "an unregistered GPU source fails selection, got %s" % sel.mode)
         finally:

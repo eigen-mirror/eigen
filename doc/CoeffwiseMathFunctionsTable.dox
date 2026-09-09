@@ -568,7 +568,7 @@ means that the STL's function \c std::foo will be potentially called if it is co
 <tr>
 <th colspan="4">Error and gamma functions</th>
 </tr>
-<tr> <td colspan="4">  Require \c \#include \c <unsupported/Eigen/SpecialFunctions> </td></tr>
+<tr> <td colspan="4">  Require \c \#include \c <contrib/Eigen/SpecialFunctions> </td></tr>
 <tr>
   <td class="code">
   \anchor cwisetable_erf
@@ -647,7 +647,7 @@ means that the STL's function \c std::foo will be potentially called if it is co
 <tr>
 <th colspan="4">Special functions</th>
 </tr>
-<tr> <td colspan="4">  Require \c \#include \c <unsupported/Eigen/SpecialFunctions> </td></tr>
+<tr> <td colspan="4">  Require \c \#include \c <contrib/Eigen/SpecialFunctions> </td></tr>
 <tr>
   <td class="code">
   \anchor cwisetable_polygamma

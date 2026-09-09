@@ -1,4 +1,4 @@
-#include "../unsupported/Eigen/SpecialFunctions"
+#include "../contrib/Eigen/SpecialFunctions"
 
 // A custom scalar that does not provide erf. Eigen's approximations are tuned
 // for float and double and are not valid for it, so numext::erf must be

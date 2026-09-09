@@ -87,7 +87,7 @@ module_include_for_header() {
   # Restrict to header files inside the src trees.
   if [[ "${header}" =~ ^Eigen/src/([^/]+)/ ]]; then
     module="${BASH_REMATCH[1]}"
-  elif [[ "${header}" =~ ^unsupported/Eigen/src/([^/]+)/ ]]; then
+  elif [[ "${header}" =~ ^contrib/Eigen/src/([^/]+)/ ]]; then
     module="${BASH_REMATCH[1]}"
   else
     return 1
@@ -112,8 +112,8 @@ module_include_for_header() {
   # nested deeper than the module's top-level src/ (e.g. arch-specific
   # backends under Eigen/src/Core/arch/<ISA>/) that don't carry their own
   # `#error` directive.
-  if [[ "${header}" =~ ^unsupported/ ]]; then
-    hint="unsupported/Eigen/${module}"
+  if [[ "${header}" =~ ^contrib/ ]]; then
+    hint="contrib/Eigen/${module}"
   else
     hint="Eigen/${module}"
   fi
@@ -184,7 +184,7 @@ third_party_include_missing_from() {
   # quoted third-party include in the tree is reachable without an
   # EIGEN_USE_* macro this job does not define.
   case "${spelling}" in
-    Eigen/*|unsupported/*|./*|../*) return 0 ;;
+    Eigen/*|contrib/*|unsupported/*|./*|../*) return 0 ;;
   esac
   directive=$(sed -n "${location##*:}p" "${location%:*}" 2>/dev/null)
   if [[ "${directive}" =~ ^[[:space:]]*#[[:space:]]*include[[:space:]]*\" ]]; then

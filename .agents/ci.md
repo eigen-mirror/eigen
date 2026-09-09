@@ -214,7 +214,7 @@ The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted
 `.clang-tidy` policy is authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
 
 A module that reaches a third-party header the machine does not install — `<cuda_runtime.h>` from
-`unsupported/Eigen/src/GPU`, `<cholmod.h>` from `CholmodSupport` — is still checked, but clang parses a truncated
+`contrib/Eigen/src/GPU`, `<cholmod.h>` from `CholmodSupport` — is still checked, but clang parses a truncated
 translation unit, so the driver marks the heading `— partial: <header> is not installed` and reports that file's
 findings without failing the job. Installing the dependency gets the module checked in full; for CUDA the driver
 looks under `CUDAToolkit_ROOT`, `CUDA_HOME`, `CUDA_PATH`, then `/usr/local/cuda`, and so does

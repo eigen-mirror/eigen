@@ -188,11 +188,12 @@ function(bs_assert_not_installed regex what)
 endfunction()
 
 # Asserts the install tree holds nothing Eigen contributes: headers from the
-# supported and unsupported trees, the signature file, eigen3.pc, and the
-# CMake package files.
+# supported and contributed trees, the legacy unsupported/ shims, the signature
+# file, eigen3.pc, and the CMake package files.
 function(bs_assert_no_eigen_installed)
   bs_assert_not_installed("/Eigen/Core$" "supported Eigen header")
-  bs_assert_not_installed("/unsupported/Eigen/Tensor$" "unsupported Eigen header")
+  bs_assert_not_installed("/contrib/Eigen/Tensor$" "contributed Eigen header")
+  bs_assert_not_installed("/unsupported/Eigen/Tensor$" "legacy unsupported Eigen shim")
   bs_assert_not_installed("signature_of_eigen3_matrix_library$" "Eigen signature file")
   bs_assert_not_installed("eigen3\\.pc$" "eigen3.pc")
   bs_assert_not_installed("Eigen3Config\\.cmake$" "Eigen3 CMake package")
@@ -203,7 +204,8 @@ endfunction()
 function(bs_assert_eigen_headers_installed)
   bs_assert_installed("/Eigen/Core$" "supported Eigen header")
   bs_assert_installed("/Eigen/Dense$" "Eigen/Dense umbrella")
-  bs_assert_installed("/unsupported/Eigen/Tensor$" "unsupported Eigen header")
+  bs_assert_installed("/contrib/Eigen/Tensor$" "contributed Eigen header")
+  bs_assert_installed("/unsupported/Eigen/Tensor$" "legacy unsupported Eigen shim")
   bs_assert_installed("signature_of_eigen3_matrix_library$" "Eigen signature file")
 endfunction()
 

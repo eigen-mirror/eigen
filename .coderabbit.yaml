@@ -132,14 +132,14 @@ reviews:
           verification over a Python reference. If such tests are missing,
           request them.
         - **Performance-sensitive changes ship with a benchmark** under
-          `benchmarks/` or `unsupported/benchmarks/`. Don't defer to a
+          `benchmarks/` or `contrib/benchmarks/`. Don't defer to a
           follow-up MR.
         - **Preserve `EIGEN_DEVICE_FUNC`.** It is pervasive on coefficient-
           level methods so the same code compiles for host and CUDA / HIP /
           SYCL device. Dropping it silently breaks GPU builds and is rarely
           caught locally — flag any removal or omission on new methods.
         - **Header-only contract.** Never include from `Eigen/src/...` (or
-          `unsupported/Eigen/src/...`) directly; reach implementation via
+          `contrib/Eigen/src/...`) directly; reach implementation via
           the umbrella module headers (`Eigen/Core`, `Eigen/Dense`, …).
           `InternalHeaderCheck.h` makes direct internal includes a hard
           error. Old internal headers do not get backward-compatibility
@@ -190,7 +190,7 @@ reviews:
           across **every** backend that supports the type, with
           `arch/Default/` providing scalar fallbacks. A missing or divergent
           backend specialization usually shows up first in
-          `test/packetmath.cpp` or `unsupported/test/special_packetmath.cpp`
+          `test/packetmath.cpp` or `contrib/test/special_packetmath.cpp`
           — flag PRs that add a packet op in one backend without the others.
     - path: "{Eigen/ThreadPool,Eigen/src/ThreadPool/**}"
       instructions: |
@@ -219,12 +219,12 @@ reviews:
         `TEST` / `TYPED_TEST` while bridging `VERIFY_*` to gtest
         expectations; once it lands, the "do not switch to gtest" rule
         flips for new tests.
-    - path: "unsupported/Eigen/**"
+    - path: "contrib/Eigen/**"
       instructions: |
-        "Unsupported" here means looser API-stability guarantees, **not**
+        The `contrib/` tree means looser API-stability guarantees, **not**
         low-traffic or low-stakes. The Tensor module
-        (`unsupported/Eigen/Tensor`, sources under
-        `unsupported/Eigen/src/Tensor/`) is TensorFlow's core compute
+        (`contrib/Eigen/Tensor`, sources under
+        `contrib/Eigen/src/Tensor/`) is TensorFlow's core compute
         backend; treat its signatures, header layout, semantics, and
         performance on contraction / reduction / morphing kernels as
         load-bearing. Prefer additive changes, keep header paths stable,
@@ -235,7 +235,7 @@ reviews:
         preserve their public API. `unsupported/Eigen/CXX11/` is backward-
         compatibility forwarding shims only — do not place new headers
         there.
-    - path: "unsupported/Eigen/src/GPU/**"
+    - path: "contrib/Eigen/src/GPU/**"
       instructions: |
         Host-side dispatch to NVIDIA libraries (cuBLAS / cuSOLVER / cuFFT /
         cuSPARSE / cuDSS) on device-resident operands (`gpu::DeviceMatrix`).

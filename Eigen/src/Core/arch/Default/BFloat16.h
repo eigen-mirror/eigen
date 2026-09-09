@@ -59,7 +59,7 @@ limitations under the License.
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psqrt)                     \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, ptanh)
 
-// BF16 wrappers for unsupported/SpecialFunctions.
+// BF16 wrappers for contrib/SpecialFunctions.
 #define EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16(PACKET_F, PACKET_BF16) \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, perf)                 \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pndtri)

@@ -21,12 +21,12 @@ Experimental features may, in any release:
 \li Features whose documentation carries the explicit warning "This is not considered to be part of
     the stable public API yet", which links to this page.
 \li Everything in the \c Eigen::internal namespace, and the private implementation headers under
-    <tt>Eigen/src/</tt> and <tt>unsupported/Eigen/src/</tt>. Include the public module headers such
+    <tt>Eigen/src/</tt> and <tt>contrib/Eigen/src/</tt>. Include the public module headers such
     as <tt><Eigen/Core></tt> instead; names not reachable through them are implementation details,
     even where a header does not mechanically enforce this.
-\li The modules under <a href="unsupported/index.html"><tt>unsupported/Eigen/</tt></a>. These are
+\li The modules under <a href="contrib/index.html"><tt>contrib/Eigen/</tt></a>. These are
     contributed modules maintained with looser API-stability guarantees than the main library.
-    "Unsupported" does not mean low quality or low usage — the Tensor module, for instance, is a
+    "Contrib" does not mean low quality or low usage — the Tensor module, for instance, is a
     foundational dependency of TensorFlow — but their APIs may evolve between minor releases.
 
 Undocumented behavior of otherwise stable classes (for example, the exact layout of a

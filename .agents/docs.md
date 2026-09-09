@@ -2,7 +2,7 @@
 
 Use this guide when editing a Doxygen block, a page under [`doc/`](../doc), a snippet or example, or a documented public
 name. The documentation is the Doxygen comments in the headers, the topic pages in `doc/*.dox`, and the programs under
-[`doc/snippets`](../doc/snippets), [`doc/examples`](../doc/examples) and their `unsupported/doc` counterparts, which the
+[`doc/snippets`](../doc/snippets), [`doc/examples`](../doc/examples) and their `contrib/doc` counterparts, which the
 `doc` target compiles and runs to produce the output the pages embed. Keep the Doxygen block above a changed
 declaration describing the current behavior, preconditions, and return value, and give a module `README` that names a
 moved value the same update.
@@ -25,8 +25,8 @@ inside the name itself is fine — `\ref MatrixBase::cross()` is a qualified sym
 The `doc` target also compiles and runs the configured examples and snippets, by way of the `all_snippets` and
 `all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks
 the documentation build even when every comment is well formed, so search those directories before changing one.
-"Configured" is the operative word: `unsupported/doc/examples/CMakeLists.txt` adds its `SYCL` subdirectory only under
-`EIGEN_TEST_SYCL`, which `build:linux:docs` does not set, so a broken unsupported SYCL example leaves this target green.
+"Configured" is the operative word: `contrib/doc/examples/CMakeLists.txt` adds its `SYCL` subdirectory only under
+`EIGEN_TEST_SYCL`, which `build:linux:docs` does not set, so a broken contrib SYCL example leaves this target green.
 Treat the target as coverage for the sets the configuration actually enables, and check the conditional before citing
 it as coverage.
 
