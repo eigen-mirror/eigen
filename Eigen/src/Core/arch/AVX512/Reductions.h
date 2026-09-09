@@ -287,7 +287,7 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16h& a) {
 
 template <>
 EIGEN_STRONG_INLINE bool predux_all(const Packet16h& a) {
-  return predux_all(half2float(a));
+  return predux_count_16bit(a.m_val) == 16;
 }
 
 template <>
@@ -345,7 +345,7 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE bool predux_all(const Packet16bf& a) {
-  return predux_all(Bf16ToF32(a));
+  return predux_count_16bit(a.m_val) == 16;
 }
 
 template <>
