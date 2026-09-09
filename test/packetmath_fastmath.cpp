@@ -67,6 +67,23 @@ void verify_mask_reduction() {
   if (flush_to_zero.isSupported()) verify_mask_reduction_impl<Scalar, Packet>();
 }
 
+template <typename Scalar, typename Packet>
+void verify_16bit_count() {
+  using Bits = Eigen::numext::uint16_t;
+  static_assert(sizeof(Scalar) == sizeof(Bits), "requires 16-bit scalars");
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  Scalar values[packet_size];
+  for (unsigned int bits = 0; bits < 65536; ++bits) {
+    for (int lane = 0; lane < packet_size; ++lane) {
+      for (int i = 0; i < packet_size; ++i) {
+        const Bits value = i == lane ? static_cast<Bits>(bits) : Bits(i % 2 ? 0x8000 : 0);
+        std::memcpy(static_cast<void*>(values + i), &value, sizeof(value));
+      }
+      VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(values)), Index((bits & 0x7fff) != 0));
+    }
+  }
+}
+
 // For bit-test backends, a low-bit truth mask must survive FTZ even though its floating-point encoding is subnormal.
 // Do not apply this to backends that consume only the sign bits of canonical comparison masks.
 template <typename Scalar, typename Packet>
@@ -249,6 +266,13 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::half>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::bfloat16>::run());
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
+
+#if defined(EIGEN_VECTORIZE_AVX512)
+#if !defined(EIGEN_VECTORIZE_AVX512FP16)
+  CALL_SUBTEST((verify_16bit_count<Eigen::half, Eigen::internal::Packet16h>()));
+#endif
+  CALL_SUBTEST((verify_16bit_count<Eigen::bfloat16, Eigen::internal::Packet16bf>()));
+#endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet1Xf>()));
