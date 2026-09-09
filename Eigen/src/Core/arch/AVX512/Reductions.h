@@ -229,6 +229,14 @@ EIGEN_STRONG_INLINE Index predux_count(const Packet8d& a) {
   return Index(popcount(static_cast<unsigned int>(_mm512_cmp_pd_mask(a, _mm512_setzero_pd(), _CMP_NEQ_UQ))));
 }
 
+// Count 16-bit floating-point lanes through integer bits so fast-math cannot treat NaN masks as zero.
+EIGEN_STRONG_INLINE Index predux_count_16bit(const __m256i& a) {
+  const __m256i magnitude = _mm256_and_si256(a, _mm256_set1_epi16(0x7fff));
+  const __m256i zeros = _mm256_cmpeq_epi16(magnitude, _mm256_setzero_si256());
+  const unsigned int zero_bytes = static_cast<unsigned int>(_mm256_movemask_epi8(zeros));
+  return Index(16 - popcount(zero_bytes) / 2);
+}
+
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 /* -- -- -- -- -- -- -- -- -- -- -- -- Packet16h -- -- -- -- -- -- -- -- -- -- -- -- */
 
@@ -280,6 +288,11 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16h& a) {
 template <>
 EIGEN_STRONG_INLINE bool predux_all(const Packet16h& a) {
   return predux_all(half2float(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet16h& a) {
+  return predux_count_16bit(a.m_val);
 }
 #endif
 
@@ -333,6 +346,11 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet16bf& a) {
 template <>
 EIGEN_STRONG_INLINE bool predux_all(const Packet16bf& a) {
   return predux_all(Bf16ToF32(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE Index predux_count(const Packet16bf& a) {
+  return predux_count_16bit(a.m_val);
 }
 
 }  // end namespace internal
