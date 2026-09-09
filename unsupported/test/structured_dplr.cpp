@@ -552,14 +552,16 @@ void test_dplr_capacitance_fast_path(Index n, Index k) {
   random_dplr<Scalar>(n, k, d, U, V);
   DiagonalPlusLowRank<Scalar> A(d, U, V);
 
+  // Match the stored reciprocal: scalar and packet complex division can round differently.
+  const Vec dinv = d.cwiseInverse();
   Mat capRef = Mat::Identity(k, k);
-  capRef.noalias() += V.adjoint() * d.cwiseInverse().asDiagonal() * U;
+  capRef.noalias() += V.adjoint() * dinv.asDiagonal() * U;
   VERIFY_IS_CWISE_EQUAL(A.capacitance(), capRef);
 
   Vec b = Vec::Random(n);
   PartialPivLU<Mat> capLU(capRef);
-  Vec xRef = d.cwiseInverse().asDiagonal() * b;
-  xRef.noalias() -= d.cwiseInverse().asDiagonal() * (U * capLU.solve(V.adjoint() * xRef));
+  Vec xRef = dinv.asDiagonal() * b;
+  xRef.noalias() -= dinv.asDiagonal() * (U * capLU.solve(V.adjoint() * xRef));
   VERIFY_IS_CWISE_EQUAL(A.solve(b), xRef);
 }
 
