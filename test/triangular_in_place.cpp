@@ -145,6 +145,7 @@ void adjoint_square_in_place(Index n) {
   const MatrixType t = ill_conditioned_triangular<MatrixType>(n);
   MatrixType a = t;
   internal::triangular_adjoint_square_in_place<UpLo>(a);
+  VERIFY((a.diagonal().imag().array() == RealScalar(0)).all());
 
   const DenseType td = t.template triangularView<UpLo>().toDenseMatrix();
   const DenseType expected = UpLo == Lower ? DenseType(td.adjoint() * td) : DenseType(td * td.adjoint());
@@ -180,6 +181,7 @@ EIGEN_DECLARE_TEST(triangular_in_place) {
       CALL_SUBTEST_5(triangular_inverse_on_strided_map<MatrixXd>(n));
       CALL_SUBTEST_7(adjoint_square_both_triangles<MatrixXd>(n));
       CALL_SUBTEST_8(adjoint_square_both_triangles<MatrixXcd>(n));
+      CALL_SUBTEST_8((adjoint_square_both_triangles<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>(n)));
       CALL_SUBTEST_9(adjoint_square_both_triangles<MatrixXf>(n));
       CALL_SUBTEST_10((adjoint_square_both_triangles<Matrix<double, Dynamic, Dynamic, RowMajor>>(n)));
     }

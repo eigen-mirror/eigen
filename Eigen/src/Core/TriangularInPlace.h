@@ -176,7 +176,13 @@ void triangular_adjoint_square_lower(MatrixType& mat) {
       if (rs > 0) B.noalias() += mat.block(k + bs, k, rs, bs).adjoint() * mat.block(k + bs, 0, rs, k);
     }
     triangular_adjoint_square_unblocked(L11);
-    if (rs > 0) L11.template selfadjointView<Lower>().rankUpdate(mat.block(k + bs, k, rs, bs).adjoint());
+    if (rs > 0) {
+      L11.template selfadjointView<Lower>().rankUpdate(mat.block(k + bs, k, rs, bs).adjoint());
+      // Fused complex products can leave a rounding residual in the imaginary diagonal.
+      EIGEN_IF_CONSTEXPR (NumTraits<typename MatrixType::Scalar>::IsComplex) {
+        L11.diagonal() = L11.diagonal().real().template cast<typename MatrixType::Scalar>();
+      }
+    }
   }
 }
 

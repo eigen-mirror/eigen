@@ -636,8 +636,8 @@ struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
       llt.solveInPlace(dst);
     }
     // Mirror; (i, j) reads (j, i), which lies in the computed triangle and is never written here, so
-    // the aliasing is benign. The computed diagonal is exactly real (a squaredNorm above the
-    // threshold, a real scalar below it), so the result is exactly self-adjoint.
+    // the aliasing is benign. LAUUM makes the computed diagonal exactly real, as does the real-scalar
+    // solve below the threshold, so the result is exactly self-adjoint.
     dst.template triangularView<kMirrorMode>() = dst.adjoint();
   }
 };
