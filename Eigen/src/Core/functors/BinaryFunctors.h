@@ -85,7 +85,7 @@ struct scalar_product_op : binary_op_base<LhsScalar, RhsScalar> {
 #endif
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
   operator()(const LhsScalar& a, const RhsScalar& b) const {
-    return a * b;
+    return internal::mul(a, b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b) const {

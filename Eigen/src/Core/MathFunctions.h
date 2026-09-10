@@ -212,13 +212,42 @@ template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct conj_impl : conj_default_impl<Scalar, IsComplex> {};
 
 /****************************************************************************
+ * Implementation of mul                                                  *
+ ****************************************************************************/
+
+// Unsigned operands narrower than int promote to int, where a product whose wrapped value is representable
+// can still overflow: (unsigned short)0xffff squared is 0xfffe0001 > INT_MAX. Multiplying in unsigned int,
+// wider than every such operand, wraps instead. Mixed operand types, signed types, and bool keep operator*.
+template <typename Lhs, typename Rhs,
+          bool NarrowUnsigned = std::is_same<Lhs, Rhs>::value && std::is_unsigned<Lhs>::value &&
+                                !std::is_same<Lhs, bool>::value && (sizeof(Lhs) < sizeof(int))>
+struct mul_impl {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_ALWAYS_INLINE auto run(const Lhs& a, const Rhs& b) { return a * b; }
+};
+
+template <typename Scalar>
+struct mul_impl<Scalar, Scalar, true> {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_ALWAYS_INLINE Scalar run(const Scalar& a, const Scalar& b) {
+    return static_cast<Scalar>(static_cast<unsigned int>(a) * static_cast<unsigned int>(b));
+  }
+};
+
+/** \internal \returns a * b, wrapping rather than overflowing the signed type that integral promotion
+ * would give narrow unsigned operands. The result keeps operator*'s type, which for an expression-template
+ * Scalar is a lazy expression: consume it rather than binding it to auto. */
+template <typename Lhs, typename Rhs>
+EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE auto mul(const Lhs& a, const Rhs& b) {
+  return mul_impl<Lhs, Rhs>::run(a, b);
+}
+
+/****************************************************************************
  * Implementation of abs2                                                 *
  ****************************************************************************/
 
 template <typename Scalar, bool IsComplex>
 struct abs2_impl_default {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return x * x; }
+  EIGEN_DEVICE_FUNC static inline RealScalar run(const Scalar& x) { return internal::mul(x, x); }
 };
 
 template <typename Scalar>
@@ -516,11 +545,11 @@ struct pow_impl<ScalarX, ScalarY, true> {
   static EIGEN_DEVICE_FUNC inline ScalarX run(ScalarX x, ScalarY y) {
     ScalarX res(1);
     eigen_assert(!NumTraits<ScalarY>::IsSigned || y >= 0);
-    if (y & 1) res *= x;
+    if (y & 1) res = internal::mul(res, x);
     y >>= 1;
     while (y) {
-      x *= x;
-      if (y & 1) res *= x;
+      x = internal::mul(x, x);
+      if (y & 1) res = internal::mul(res, x);
       y >>= 1;
     }
     return res;

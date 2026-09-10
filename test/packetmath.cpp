@@ -2287,6 +2287,23 @@ void packetmath_scatter_gather() {
   }
 }
 
+// At saturated unsigned short operands the scalar pmul family must wrap, not overflow the int that
+// integral promotion would otherwise multiply in.
+void packetmath_unsigned_short() {
+  // Volatile inputs keep sanitizer builds from folding away the promotions.
+  volatile unsigned short values[] = {0, 1, 32768, 40232, 58075, 65535};
+  const unsigned short c = 65535;
+  for (unsigned short a : values) {
+    for (unsigned short b : values) {
+      VERIFY_IS_EQUAL(internal::pmul(a, b), REF_MUL(a, b));
+      VERIFY_IS_EQUAL(internal::pmadd(a, b, c), REF_MADD(a, b, c));
+      VERIFY_IS_EQUAL(internal::pmsub(a, b, c), REF_MSUB(a, b, c));
+      VERIFY_IS_EQUAL(internal::pnmadd(a, b, c), REF_NMADD(a, b, c));
+      VERIFY_IS_EQUAL(internal::pnmsub(a, b, c), REF_NMSUB(a, b, c));
+    }
+  }
+}
+
 namespace Eigen {
 namespace test {
 
@@ -2330,6 +2347,7 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_4(test::runner<uint8_t>::run());
     CALL_SUBTEST_5(test::runner<int16_t>::run());
     CALL_SUBTEST_6(test::runner<uint16_t>::run());
+    CALL_SUBTEST_6(packetmath_unsigned_short());
     CALL_SUBTEST_7(test::runner<int32_t>::run());
     CALL_SUBTEST_8(test::runner<uint32_t>::run());
     CALL_SUBTEST_9(test::runner<int64_t>::run());

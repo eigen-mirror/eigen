@@ -903,7 +903,7 @@ struct functor_traits<scalar_inverse_op<Scalar>> {
  */
 template <typename Scalar>
 struct scalar_square_op {
-  EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const { return a * a; }
+  EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const { return internal::mul(a, a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return internal::pmul(a, a);
@@ -934,7 +934,9 @@ struct functor_traits<scalar_square_op<bool>> {
  */
 template <typename Scalar>
 struct scalar_cube_op {
-  EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const { return a * a * a; }
+  EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const {
+    return internal::mul(a, internal::mul(a, a));
+  }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return internal::pmul(a, pmul(a, a));
