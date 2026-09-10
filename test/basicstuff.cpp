@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 #include "random_without_cast_overflow.h"
 
 template <typename MatrixType>
@@ -33,13 +34,13 @@ void basicStuff(const MatrixType& m) {
 
   // this test relies a lot on Random.h, and there's not much more that we can do
   // to test it, hence I consider that we will have tested Random.h
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols), m3(rows, cols),
-             mzero = MatrixType::Zero(rows, cols),
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = random_for_arithmetic<MatrixType>(rows, cols),
+             m3(rows, cols), mzero = MatrixType::Zero(rows, cols),
              square = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>::Random(rows, rows);
-  VectorType v1 = VectorType::Random(rows), vzero = VectorType::Zero(rows);
-  SquareMatrixType sm1 = SquareMatrixType::Random(rows, rows), sm2(rows, rows);
+  VectorType v1 = random_for_arithmetic<VectorType>(rows), vzero = VectorType::Zero(rows);
+  SquareMatrixType sm1 = random_for_arithmetic<SquareMatrixType>(rows, rows), sm2(rows, rows);
 
-  Scalar x = internal::random<Scalar>();
+  Scalar x = random_scalar_for_arithmetic<Scalar>();
   if (x == Scalar(0)) x = Scalar(1);
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
@@ -116,6 +117,8 @@ void basicStuff(const MatrixType& m) {
 
   // check == / != operators
   VERIFY(m1 == m1);
+  // Bounded integer fixtures can coincide by chance; force one coefficient apart.
+  m2(r, c) = m1(r, c) + Scalar(1);
   VERIFY(m1 != m2);
   VERIFY(!(m1 == m2));
   VERIFY(!(m1 != m1));

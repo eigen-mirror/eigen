@@ -13,6 +13,7 @@
 
 #include "main.h"
 #include "product_test_helpers.h"
+#include "random_for_arithmetic.h"
 #include <Eigen/QR>
 
 template <typename Derived1, typename Derived2>
@@ -315,12 +316,12 @@ void product(const MatrixType& m) {
   // Aliasing
   {
     ColVectorType x(cols);
-    x.setRandom();
+    x = random_for_arithmetic<ColVectorType>(cols);
     ColVectorType z(x);
     ColVectorType y(cols);
     y.setZero();
     ColSquareMatrixType A(cols, cols);
-    A.setRandom();
+    A = random_for_arithmetic<ColSquareMatrixType>(cols, cols);
     // CwiseBinaryOp
     VERIFY_IS_APPROX(x = y + A * x, A * z);
     x = z;

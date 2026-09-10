@@ -14,6 +14,7 @@ static bool g_called;
   { g_called |= (!std::is_same<LhsScalar, RhsScalar>::value); }
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 #include "fp_control.h"
 
 template <typename MatrixType>
@@ -30,9 +31,10 @@ void linearStructure(const MatrixType& m) {
 
   // this test relies a lot on Random.h, and there's not much more that we can do
   // to test it, hence I consider that we will have tested Random.h
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols), m3(rows, cols);
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = random_for_arithmetic<MatrixType>(rows, cols),
+             m3(rows, cols);
 
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
   if (s1 == Scalar(0)) s1 = Scalar(1);
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
@@ -43,7 +45,7 @@ void linearStructure(const MatrixType& m) {
   VERIFY_IS_APPROX(-m2 + m1 + m2, m1);
   VERIFY_IS_APPROX(m1 * s1, s1 * m1);
   if (NumTraits<Scalar>::IsInteger) {
-    // Modular arithmetic is exactly distributive.
+    // Bounded integer arithmetic is exactly distributive.
     VERIFY_IS_APPROX((m1 + m2) * s1, s1 * m1 + s1 * m2);
     VERIFY_IS_APPROX((-m1 + m2) * s1, -s1 * m1 + s1 * m2);
   } else {
@@ -135,8 +137,8 @@ void linearStructure_mixed_storage() {
   for (int si = 0; si < 7; ++si) {
     Index n = sizes[si];
     if (n <= 0) continue;
-    ColMat mc = ColMat::Random(n, n);
-    RowMat mr = RowMat::Random(n, n);
+    ColMat mc = random_for_arithmetic<ColMat>(n, n);
+    RowMat mr = random_for_arithmetic<RowMat>(n, n);
 
     // ColMajor + RowMajor → ColMajor
     ColMat sum_c = mc + mr;

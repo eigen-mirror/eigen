@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 using Eigen::placeholders::all;
 using Eigen::placeholders::last;
@@ -245,7 +246,7 @@ void reshape_copies(Index rows, Index cols) {
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
   typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
   typedef Matrix<Scalar, Dynamic, 1> Vec;
-  Mat m = Mat::Random(rows, cols);
+  Mat m = random_for_arithmetic<Mat>(rows, cols);
 
   Vec v = m.reshaped();
   for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(v(k), m(k % rows, k / rows));
@@ -257,17 +258,17 @@ void reshape_copies(Index rows, Index cols) {
   d.reshaped() = v;
   VERIFY_IS_EQUAL(d, m);
 
-  Vec w = Vec::Random(m.size());
+  Vec w = random_for_arithmetic<Vec>(m.size());
   Vec expected = w + v;
   w += m.reshaped();
   VERIFY_IS_EQUAL(w, expected);
 
-  RowMat rm = RowMat::Random(rows, cols);
+  RowMat rm = random_for_arithmetic<RowMat>(rows, cols);
   Vec rv = rm.template reshaped<AutoOrder>();
   for (Index k = 0; k < rm.size(); ++k) VERIFY_IS_EQUAL(rv(k), rm(k / cols, k % cols));
 
   // Expression-sourced reshapes forward the nested evaluator's linear accesses and packets.
-  Mat a = Mat::Random(rows, cols), b = Mat::Random(rows, cols);
+  Mat a = random_for_arithmetic<Mat>(rows, cols), b = random_for_arithmetic<Mat>(rows, cols);
   Mat s = a + b;
   Vec ev = (a + b).reshaped();
   for (Index k = 0; k < s.size(); ++k) VERIFY_IS_EQUAL(ev(k), s(k % rows, k / rows));
@@ -278,7 +279,7 @@ void reshape_copies(Index rows, Index cols) {
   VERIFY_IS_APPROX((a + b).reshaped().sum(), s.sum());
 
   // Linear scalar accesses into a matrix-shaped row-major reshape must forward the index as-is.
-  RowMat ra = RowMat::Random(rows, cols), rb = RowMat::Random(rows, cols);
+  RowMat ra = random_for_arithmetic<RowMat>(rows, cols), rb = random_for_arithmetic<RowMat>(rows, cols);
   RowMat rer = (ra + rb).template reshaped<RowMajor>(cols, rows);
   for (Index k = 0; k < rer.size(); ++k) {
     VERIFY_IS_EQUAL(rer(k / rows, k % rows), ra(k / cols, k % cols) + rb(k / cols, k % cols));
@@ -290,7 +291,7 @@ void reshape_copies(Index rows, Index cols) {
   for (Index k = 0; k < m.size(); ++k) VERIFY_IS_EQUAL(vr(m.size() - 1 - k), m(k % rows, k / rows));
 
   RowMat rvr(rows, cols);
-  RowMat rw = RowMat::Random(cols, rows);
+  RowMat rw = random_for_arithmetic<RowMat>(cols, rows);
   rvr.reverse().template reshaped<RowMajor>(cols, rows) = rw;
   for (Index k = 0; k < rw.size(); ++k) {
     const Index reversed = rw.size() - 1 - k;

@@ -16,6 +16,7 @@
 #endif
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 #include <iterator>
 #include <numeric>
 
@@ -120,11 +121,11 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
   typedef Matrix<Scalar, 1, Cols> RowVectorType;
   typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMatrixType;
   typedef Matrix<Scalar, Rows, Cols, RowMajor> RowMatrixType;
-  VectorType v = VectorType::Random(rows);
+  VectorType v = random_for_arithmetic<VectorType>(rows);
   const VectorType& cv(v);
-  ColMatrixType A = ColMatrixType::Random(rows, cols);
+  ColMatrixType A = random_for_arithmetic<ColMatrixType>(rows, cols);
   const ColMatrixType& cA(A);
-  RowMatrixType B = RowMatrixType::Random(rows, cols);
+  RowMatrixType B = random_for_arithmetic<RowMatrixType>(rows, cols);
   using Eigen::placeholders::last;
 
   Index i, j;
@@ -372,11 +373,11 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       typename ColMatrixType::ColXpr Acol = A.col(j);
       std::sort(Acol.begin(), Acol.end());
       VERIFY(is_sorted(Acol.cbegin(), Acol.cend()));
-      A.setRandom();
+      A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
 
       std::sort(A.col(j).begin(), A.col(j).end());
       VERIFY(is_sorted(A.col(j).cbegin(), A.col(j).cend()));
-      A.setRandom();
+      A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
     }
 
     // on a row of a rowmajor matrix -> pointer-based iterator and runtime increment
@@ -386,11 +387,11 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       VERIFY_IS_EQUAL(std::distance(Arow.begin(), Arow.end()), cols);
       std::sort(Arow.begin(), Arow.end());
       VERIFY(is_sorted(Arow.cbegin(), Arow.cend()));
-      A.setRandom();
+      A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
 
       std::sort(A.row(i).begin(), A.row(i).end());
       VERIFY(is_sorted(A.row(i).cbegin(), A.row(i).cend()));
-      A.setRandom();
+      A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
     }
 
     // with a generic iterator
@@ -398,12 +399,12 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       Reshaped<RowMatrixType, RowMatrixType::SizeAtCompileTime, 1> B1 = B.reshaped();
       std::sort(B1.begin(), B1.end());
       VERIFY(is_sorted(B1.cbegin(), B1.cend()));
-      B.setRandom();
+      B = random_for_arithmetic<RowMatrixType>(B.rows(), B.cols());
 
       // assertion because nested expressions are different
       // std::sort(B.reshaped().begin(),B.reshaped().end());
       // VERIFY(is_sorted(B.reshaped().cbegin(),B.reshaped().cend()));
-      // B.setRandom();
+      // B = random_for_arithmetic<RowMatrixType>(B.rows(), B.cols());
     }
   }
 
@@ -421,13 +422,13 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
 
   // stress random access as required by std::nth_element
   if (rows >= 3) {
-    v.setRandom();
+    v = random_for_arithmetic<VectorType>(v.rows(), v.cols());
     VectorType v1 = v;
     std::sort(v1.begin(), v1.end());
     std::nth_element(v.begin(), v.begin() + rows / 2, v.end());
     VERIFY_IS_APPROX(v1(rows / 2), v(rows / 2));
 
-    v.setRandom();
+    v = random_for_arithmetic<VectorType>(v.rows(), v.cols());
     v1 = v;
     std::sort(v1.begin() + rows / 2, v1.end());
     std::nth_element(v.begin() + rows / 2, v.begin() + rows / 4, v.end());
@@ -458,7 +459,7 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
       ++j;
     }
     VERIFY_IS_APPROX(A, B);
-    B.setRandom();
+    B = random_for_arithmetic<RowMatrixType>(B.rows(), B.cols());
 
     i = 0;
     for (auto r : A.rowwise()) {
@@ -474,8 +475,8 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
 
   // check rows/cols iterators with STL algorithms
   {
-    RowVectorType row = RowVectorType::Random(cols);
-    VectorType col = VectorType::Random(rows);
+    RowVectorType row = random_for_arithmetic<RowVectorType>(cols);
+    VectorType col = random_for_arithmetic<VectorType>(rows);
     // Prevent overflows for integer types.
     if (Eigen::NumTraits<Scalar>::IsInteger) {
       Scalar kMaxVal = Scalar(1000);
@@ -505,7 +506,8 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
     }));
 
     i = internal::random<Index>(0, A.rows() - 1);
-    A.setRandom();
+    A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
+    A.col(0).setOnes();  // every row is nonzero before row i is zeroed
     A.row(i).setZero();
     VERIFY_IS_EQUAL(
         std::find_if(A.rowwise().begin(), A.rowwise().end(),
@@ -519,7 +521,8 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
         (A.rows() - 1) - i);
 
     j = internal::random<Index>(0, A.cols() - 1);
-    A.setRandom();
+    A = random_for_arithmetic<ColMatrixType>(A.rows(), A.cols());
+    A.row(0).setOnes();  // every column is nonzero before column j is zeroed
     A.col(j).setZero();
     VERIFY_IS_EQUAL(
         std::find_if(A.colwise().begin(), A.colwise().end(),

@@ -11,6 +11,7 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 template <typename MatrixType>
 struct Wrapper {
@@ -28,7 +29,7 @@ void ctor_init1(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m0 = MatrixType::Random(rows, cols);
+  MatrixType m0 = random_for_arithmetic<MatrixType>(rows, cols);
 
   VERIFY_EVALUATION_COUNT(MatrixType m1(m0), 1);
   VERIFY_EVALUATION_COUNT(MatrixType m2(m0 + m0), 1);

@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 template <typename MatrixType, typename Index, typename Scalar>
 std::enable_if_t<!NumTraits<typename MatrixType::Scalar>::IsComplex, typename MatrixType::Scalar> block_real_only(
@@ -76,11 +77,11 @@ void block(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m1_copy = m1, m2 = MatrixType::Random(rows, cols), m3(rows, cols),
-             ones = MatrixType::Ones(rows, cols);
-  VectorType v1 = VectorType::Random(rows);
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m1_copy = m1,
+             m2 = random_for_arithmetic<MatrixType>(rows, cols), m3(rows, cols), ones = MatrixType::Ones(rows, cols);
+  VectorType v1 = random_for_arithmetic<VectorType>(rows);
 
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   Index r1 = internal::random<Index>(0, rows - 1);
   Index r2 = internal::random<Index>(r1, rows - 1);

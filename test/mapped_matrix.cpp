@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 #define EIGEN_TESTMAP_MAX_SIZE 256
 
@@ -52,7 +53,7 @@ void map_class_matrix(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
 
   Index rows = m.rows(), cols = m.cols(), size = rows * cols;
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   // array1 and array2 -> aligned heap allocation
   Scalar* array1 = internal::aligned_new<Scalar>(size);
@@ -93,7 +94,7 @@ void map_class_matrix(const MatrixType& m) {
   map3.setZero();
   VERIFY_IS_EQUAL(map3, MatrixType::Zero(rows, cols));
 
-  map1 = MatrixType::Random(rows, cols);
+  map1 = random_for_arithmetic<MatrixType>(rows, cols);
   map2 = map1;
   map3 = map1;
   MatrixType ma1 = map1;
@@ -186,7 +187,7 @@ void map_inner_stride_boundary() {
     if (n <= 0) continue;
     typedef Matrix<Scalar, Dynamic, 1> Vec;
     // InnerStride<2>: every other element
-    Vec data = Vec::Random(2 * n);
+    Vec data = random_for_arithmetic<Vec>(2 * n);
     Map<Vec, 0, InnerStride<2>> strided(data.data(), n);
 
     // Test assignment to/from strided map
@@ -198,7 +199,7 @@ void map_inner_stride_boundary() {
     for (Index k = 0; k < n; ++k) VERIFY_IS_APPROX(result(k), Scalar(2) * data(2 * k));
 
     // Test strided map + dense vector
-    Vec other = Vec::Random(n);
+    Vec other = random_for_arithmetic<Vec>(n);
     Vec sum_result = strided + other;
     for (Index k = 0; k < n; ++k) VERIFY_IS_APPROX(sum_result(k), data(2 * k) + other(k));
 
@@ -223,7 +224,7 @@ void map_outer_stride_boundary() {
     Index rows = inner_sizes[si];
     if (rows <= 0) continue;
     typedef Matrix<Scalar, Dynamic, 1> Vec;
-    Vec data = Vec::Random(outer_stride * cols);
+    Vec data = random_for_arithmetic<Vec>(outer_stride * cols);
     Map<Mat, 0, OuterStride<>> mapped(data.data(), rows, cols, OuterStride<>(outer_stride));
 
     // Test that mapped values match expected layout
@@ -238,7 +239,7 @@ void map_outer_stride_boundary() {
     VERIFY_IS_APPROX(mapped.sum(), ref_sum);
 
     // Test matrix product with mapped matrix
-    Vec x = Vec::Random(cols);
+    Vec x = random_for_arithmetic<Vec>(cols);
     Vec y = mapped * x;
     Vec y_ref = dense * x;
     VERIFY_IS_APPROX(y, y_ref);

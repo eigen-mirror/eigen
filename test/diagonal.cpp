@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 template <typename MatrixType>
 void diagonal(const MatrixType& m) {
@@ -17,9 +18,9 @@ void diagonal(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols);
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = random_for_arithmetic<MatrixType>(rows, cols);
 
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   // check diagonal()
   VERIFY_IS_APPROX(m1.diagonal(), m1.transpose().diagonal());
@@ -96,8 +97,8 @@ void diagonal_of_product() {
     Index n = sizes[si];
     if (n <= 0) continue;
 
-    Mat A = Mat::Random(n, n);
-    Mat B = Mat::Random(n, n);
+    Mat A = random_for_arithmetic<Mat>(n, n);
+    Mat B = random_for_arithmetic<Mat>(n, n);
 
     // Lazy diagonal vs explicit product diagonal
     Vec diag_lazy = (A * B).diagonal();
@@ -107,8 +108,8 @@ void diagonal_of_product() {
     // Also test non-square: A is m×k, B is k×n
     for (int k : {1, 3, (int)n}) {
       if (k <= 0) continue;
-      Mat C = Mat::Random(n, k);
-      Mat D = Mat::Random(k, n);
+      Mat C = random_for_arithmetic<Mat>(n, k);
+      Mat D = random_for_arithmetic<Mat>(k, n);
       Vec diag_lazy2 = (C * D).diagonal();
       Vec diag_explicit2 = (C * D).eval().diagonal();
       VERIFY_IS_APPROX(diag_lazy2, diag_explicit2);

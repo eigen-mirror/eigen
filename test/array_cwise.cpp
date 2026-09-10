@@ -13,6 +13,7 @@
 
 #include <vector>
 #include "main.h"
+#include "random_for_arithmetic.h"
 #include "random_without_cast_overflow.h"
 
 static_assert(
@@ -571,25 +572,15 @@ void array_generic(const ArrayType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  ArrayType m1 = ArrayType::Random(rows, cols);
-  if (NumTraits<RealScalar>::IsInteger && NumTraits<RealScalar>::IsSigned && !NumTraits<Scalar>::IsComplex) {
-    // Here we cap the size of the values in m1 such that pow(3)/cube()
-    // doesn't overflow and result in undefined behavior. Notice that because
-    // pow(int, int) promotes its inputs and output to double (according to
-    // the C++ standard), we have to make sure that the result fits in 53 bits
-    // for int64,
-    RealScalar max_val =
-        numext::mini(RealScalar(std::cbrt(NumTraits<RealScalar>::highest())), RealScalar(std::cbrt(1LL << 53))) / 2;
-    m1.array() = (m1.abs().array() <= max_val).select(m1, Scalar(max_val));
-  }
-  ArrayType m2 = ArrayType::Random(rows, cols), m3(rows, cols);
+  ArrayType m1 = random_for_arithmetic<ArrayType>(rows, cols);
+  ArrayType m2 = random_for_arithmetic<ArrayType>(rows, cols), m3(rows, cols);
   ArrayType m4 = m1;  // copy constructor
   VERIFY_IS_APPROX(m1, m4);
 
-  ColVectorType cv1 = ColVectorType::Random(rows);
-  RowVectorType rv1 = RowVectorType::Random(cols);
+  ColVectorType cv1 = random_for_arithmetic<ColVectorType>(rows);
+  RowVectorType rv1 = random_for_arithmetic<RowVectorType>(cols);
 
-  Scalar s1 = internal::random<Scalar>(), s2 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>(), s2 = random_scalar_for_arithmetic<Scalar>();
 
   // scalar addition
   VERIFY_IS_APPROX(m1 + s1, s1 + m1);
@@ -623,7 +614,7 @@ void array_generic(const ArrayType& m) {
 
   m3 = m1;
   m4 = m1;
-  m2 = ArrayType::Random(rows, cols);
+  m2 = random_for_arithmetic<ArrayType>(rows, cols);
   m2 = (m2 == 0).select(1, m2);
   ArrayType::Map(m4.data(), m4.rows(), m4.cols()) /= ArrayType::Map(m2.data(), m2.rows(), m2.cols());
   VERIFY_IS_APPROX(m4, m3 / m2);
@@ -750,7 +741,8 @@ void comparisons(const ArrayType& m) {
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
-  ArrayType m1 = ArrayType::Random(rows, cols), m2 = ArrayType::Random(rows, cols), m3(rows, cols), m4 = m1;
+  ArrayType m1 = random_for_arithmetic<ArrayType>(rows, cols), m2 = random_for_arithmetic<ArrayType>(rows, cols),
+            m3(rows, cols), m4 = m1;
 
   m4 = (m4.abs() == Scalar(0)).select(1, m4);
 

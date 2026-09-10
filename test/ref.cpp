@@ -16,6 +16,7 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 #define TEST_CHECK_STATIC_ASSERTIONS
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 // test Ref.h
 
@@ -45,7 +46,7 @@ void ref_matrix(const MatrixType &m) {
 
   Index rows = m.rows(), cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = m1;
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = m1;
 
   Index i = internal::random<Index>(0, rows - 1);
   Index j = internal::random<Index>(0, cols - 1);
@@ -62,7 +63,7 @@ void ref_matrix(const MatrixType &m) {
   m2.block(i, j, brows, bcols).setOnes();
   VERIFY_IS_EQUAL(m1, m2);
 
-  m2.block(i, j, brows, bcols).setRandom();
+  m2.block(i, j, brows, bcols) = random_for_arithmetic<DynMatrixType>(brows, bcols);
   rm2 = m2.block(i, j, brows, bcols);
   VERIFY_IS_EQUAL(m1, m2);
 
@@ -93,8 +94,9 @@ void ref_vector(const VectorType &m) {
 
   Index size = m.size();
 
-  VectorType v1 = VectorType::Random(size), v2 = v1;
-  MatrixType mat1 = MatrixType::Random(size, size), mat2 = mat1, mat3 = MatrixType::Random(size, size);
+  VectorType v1 = random_for_arithmetic<VectorType>(size), v2 = v1;
+  MatrixType mat1 = random_for_arithmetic<MatrixType>(size, size), mat2 = mat1,
+             mat3 = random_for_arithmetic<MatrixType>(size, size);
 
   Index i = internal::random<Index>(0, size - 1);
   Index bsize = internal::random<Index>(1, size - i);
@@ -122,7 +124,7 @@ void ref_vector(const VectorType &m) {
   v2.segment(i, bsize).setOnes();
   VERIFY_IS_EQUAL(v1, v2);
 
-  v2.segment(i, bsize).setRandom();
+  v2.segment(i, bsize) = random_for_arithmetic<DynMatrixType>(bsize);
   rv2 = v2.segment(i, bsize);
   VERIFY_IS_EQUAL(v1, v2);
 
