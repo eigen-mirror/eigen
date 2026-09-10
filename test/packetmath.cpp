@@ -1762,14 +1762,14 @@ void packetmath_abs_bits() {
   constexpr int PacketSize = unpacket_traits<Packet>::size;
   constexpr Bits Sign = Bits(1) << (8 * sizeof(Scalar) - 1);
   constexpr Bits MinNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
-  constexpr Bits Infinity = (Sign - 1) ^ (MinNormal - 1);
+  constexpr Bits Inf = (Sign - 1) ^ (MinNormal - 1);
   Scalar input[PacketSize], output[PacketSize];
   const auto check = [&] {
     internal::pstoreu(output, internal::pabs(internal::ploadu<Packet>(input)));
     for (int i = 0; i < PacketSize; ++i) {
       const Bits expected = numext::bit_cast<Bits>(input[i]) & (Sign - 1);
       const Bits actual = numext::bit_cast<Bits>(output[i]);
-      if (std::is_same<Scalar, Packet>::value && std::is_floating_point<Scalar>::value && expected > Infinity) {
+      if (std::is_same<Scalar, Packet>::value && std::is_floating_point<Scalar>::value && expected > Inf) {
         // Scalar floating-point loads/stores (notably x87) may quiet signaling NaNs. Preserve all other bits.
         VERIFY(actual == expected || actual == Bits(expected | (MinNormal >> 1)));
       } else {
@@ -1792,10 +1792,10 @@ void packetmath_abs_bits() {
                               MinNormal,
                               Bits(MinNormal + 1),
                               numext::bit_cast<Bits>(Scalar(1)),
-                              Bits(Infinity - 1),
-                              Infinity,
-                              Bits(Infinity | 1),
-                              Bits(Infinity | (MinNormal >> 1)),
+                              Bits(Inf - 1),
+                              Inf,
+                              Bits(Inf | 1),
+                              Bits(Inf | (MinNormal >> 1)),
                               Bits(Sign - 1)};
       const int count = sizeof(samples) / sizeof(samples[0]);
       for (int offset = 0; offset < count; ++offset) {
