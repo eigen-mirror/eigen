@@ -42,7 +42,10 @@ namespace Eigen {
  *     (\c BjorckPereyra);
  *   - \c Cauchy    : a Cauchy matrix stored as its node vectors, solved in
  *     O(n^2) with genuine partial pivoting through the displacement structure
- *     (\c CauchyLU, Gohberg-Kailath-Olshevsky).
+ *     (\c CauchyLU, Gohberg-Kailath-Olshevsky);
+ *   - \c DPR1EigenSolver : the direct O(n^2) secular-equation eigensolver for
+ *     real symmetric diagonal-plus-rank-one matrices D + rho*z*z^T, with
+ *     LAPACK-style deflation and Gu-Eisenstat orthogonal eigenvectors.
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
@@ -89,6 +92,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/DiagonalPlusLowRank.h"
 #include "src/StructuredMatrices/Vandermonde.h"
 #include "src/StructuredMatrices/Cauchy.h"
+#include "src/StructuredMatrices/DPR1EigenSolver.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
