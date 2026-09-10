@@ -345,9 +345,10 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
 
   // Only functors whose functor_traits declare IsRepeatable (e.g. the
-  // scalar_constant_op behind constant(), cwiseMax(Scalar) and clip()) are
-  // known to be pure; unannotated custom functors conservatively default to
-  // non-repeatable, like the random generators whose calls advance PRNG state.
+  // scalar_constant_op behind constant(), cwiseMax(Scalar) and clip(), and the
+  // index-seeded random generators) are known to be pure; unannotated custom
+  // functors conservatively default to non-repeatable, since a functor that
+  // carries state between calls cannot be re-evaluated or visited out of order.
   static constexpr bool RepeatableFunctor = internal::tensor_functor_is_repeatable<NullaryOp>::value;
 
   // nullary_wrapper dispatches to an indexed operator() whenever one exists,

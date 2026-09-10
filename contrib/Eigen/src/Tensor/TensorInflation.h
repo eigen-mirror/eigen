@@ -83,10 +83,11 @@ struct TensorEvaluator<const TensorInflationOp<Strides, ArgType>, Device> {
     // block() reads the argument through coeff(), and under a ThreadPool the
     // tiled executor shares this evaluator across concurrent block tasks, so
     // the argument must be safe to read repeatedly and concurrently. Either bit
-    // establishes that: BlockAccess is what non-repeatable nullary functors
-    // (random generators) clear, and RawAccess means coeff() is a plain buffer
-    // read. Requiring BlockAccess alone would needlessly exclude raw arguments
-    // whose scalar is not arithmetic, such as complex tensors.
+    // establishes that: BlockAccess is what a nullary functor that carries
+    // state between calls clears (the built-in random generators are pure in
+    // seed and index and keep it), and RawAccess means coeff() is a plain
+    // buffer read. Requiring BlockAccess alone would needlessly exclude raw
+    // arguments whose scalar is not arithmetic, such as complex tensors.
     BlockAccess =
         (TensorEvaluator<ArgType, Device>::BlockAccess || TensorEvaluator<ArgType, Device>::RawAccess) && NumDims > 0,
     // The coeff/packet path pays a div/mod walk plus a hole check per output

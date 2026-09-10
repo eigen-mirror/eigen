@@ -997,6 +997,25 @@ This is for example useful to add random values to an existing tensor.
 The generation of random values can be customized in the same manner
 as for `setRandom()`.
 
+With the built-in generators every value is a pure function of the
+generator's seed and the element's index, so a random expression evaluates
+to the same values each time it is used, whether by coefficient, by packet,
+by block, or across threads:
+
+```cpp
+auto expr = a.random();
+Eigen::Tensor<float, 2> first = expr;
+Eigen::Tensor<float, 2> second = expr;  // the same values as first
+```
+
+This also holds when no seed is given: the default seed of zero selects one
+when the generator is constructed. To draw a new fill, construct a new random
+expression or call `setRandom()` again; to reproduce a fill, pass a seed:
+
+```cpp
+Eigen::Tensor<float, 2> b = a.random(Eigen::internal::UniformRandomGenerator<float>(42));
+```
+
 ```cpp
 Eigen::Tensor<float, 2> a(2, 3);
 a.setConstant(1.0f);

@@ -104,7 +104,7 @@ void test_execute_nullary_expr(Device d) {
 }
 
 template <typename RandomGenerator>
-void test_stateful_random_capabilities(const RandomGenerator& generator) {
+void test_random_capabilities(const RandomGenerator& generator) {
   Tensor<float, 2> src(128, 128);
   Tensor<float, 2> dst(128, 128);
   src.setZero();
@@ -116,14 +116,12 @@ void test_stateful_random_capabilities(const RandomGenerator& generator) {
   using RandomExpr = decltype(random);
   using DefaultRandomEvaluator = TensorEvaluator<const RandomExpr, DefaultDevice>;
   using ThreadPoolRandomEvaluator = TensorEvaluator<const RandomExpr, ThreadPoolDevice>;
-  static_assert(!DefaultRandomEvaluator::BlockAccess,
-                "DefaultDevice random expressions must preserve their linear call order");
-  static_assert(!ThreadPoolRandomEvaluator::BlockAccess,
-                "ThreadPoolDevice random expressions must not share state across block tasks");
-  static_assert(DefaultRandomEvaluator::PacketAccess,
-                "Disabling DefaultDevice block access must preserve packet access");
-  static_assert(ThreadPoolRandomEvaluator::PacketAccess,
-                "Disabling ThreadPoolDevice block access must preserve packet access");
+  // Element i is a pure function of (seed, i), so a block is materialized with the elements' own tensor-linear
+  // indices and no traversal order can change what a fill produces.
+  static_assert(DefaultRandomEvaluator::BlockAccess, "DefaultDevice random expressions must serve blocks");
+  static_assert(ThreadPoolRandomEvaluator::BlockAccess, "ThreadPoolDevice random expressions must serve blocks");
+  static_assert(DefaultRandomEvaluator::PacketAccess, "DefaultDevice random expressions must keep packet access");
+  static_assert(ThreadPoolRandomEvaluator::PacketAccess, "ThreadPoolDevice random expressions must keep packet access");
 
   using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
   static_assert(
@@ -132,18 +130,25 @@ void test_stateful_random_capabilities(const RandomGenerator& generator) {
   static_assert(internal::IsVectorizable<ThreadPoolDevice, const Assign>::value ==
                     (PacketType<float, ThreadPoolDevice>::size > 1),
                 "ThreadPoolDevice random expressions must use packets when vectorization is available");
-  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::Off,
-                "DefaultDevice expressions containing random leaves must use coefficient evaluation");
-  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::Off,
-                "ThreadPoolDevice expressions containing random leaves must use coefficient evaluation");
+  // The shuffle prefers block access and the random leaf no longer declines it, so the expression is tiled.
+  static_assert(internal::IsTileable<DefaultDevice, const Assign>::value == TiledEvaluation::On,
+                "DefaultDevice expressions containing random leaves must be tileable");
+  static_assert(internal::IsTileable<ThreadPoolDevice, const Assign>::value == TiledEvaluation::On,
+                "ThreadPoolDevice expressions containing random leaves must be tileable");
 
   Eigen::ThreadPool tp(4);
   ThreadPoolDevice device(&tp, 4);
   dst.device(device) = expr;
 
+  // Tiled evaluation across four threads has to agree coefficient for coefficient with linear coefficient
+  // evaluation on one thread. That equality is what declaring the generators repeatable promises.
+  Tensor<float, 2> reference(128, 128);
+  DefaultAssign(reference, expr);
+
   bool all_equal = true;
   for (Index i = 0; i < dst.size(); ++i) {
     VERIFY((numext::isfinite)(dst.coeff(i)));
+    VERIFY_IS_EQUAL(dst.coeff(i), reference.coeff(i));
     all_equal = all_equal && dst.coeff(i) == dst.coeff(0);
   }
   VERIFY(!all_equal);
@@ -904,8 +909,8 @@ EIGEN_DECLARE_TEST(tensor_executor) {
 
   CALL_SUBTEST_8((test_execute_ternary_tiled<ColMajor>(default_device, tp_device)));
   CALL_SUBTEST_8((test_execute_ternary_tiled<RowMajor>(default_device, tp_device)));
-  CALL_SUBTEST_8(test_stateful_random_capabilities(internal::UniformRandomGenerator<float>(123)));
-  CALL_SUBTEST_8(test_stateful_random_capabilities(internal::NormalRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_random_capabilities(internal::UniformRandomGenerator<float>(123)));
+  CALL_SUBTEST_8(test_random_capabilities(internal::NormalRandomGenerator<float>(123)));
   CALL_SUBTEST_8(test_custom_nullary_functor_block_access());
 
   CALL_SUBTEST_COMBINATIONS(9, test_execute_reshape, float, 2);

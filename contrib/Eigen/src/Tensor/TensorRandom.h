@@ -44,6 +44,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t PCG_XSH_RS_state(uint64_t seed) {
   return seed * 6364136223846793005ULL + 0xda3e39cb94b95bdbULL;
 }
 
+// The state that the PCG stream of element `index` starts from: the base state stepped along the SplitMix64 Weyl
+// sequence and mixed (splitmix64_mix, RandomImpl.h), so it is a pure function of (seed, index) and unrelated between
+// neighbouring indices. The mixing matters because PCG_XSH_RS_generator derives its first output from the state it
+// is handed: without it, the low bits of base + index * increment would pass straight into that output.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE uint64_t PCG_XSH_RS_state_for_index(uint64_t base_state, uint64_t index) {
+  return splitmix64_mix(base_state + index * 0x9e3779b97f4a7c15ULL);
+}
+
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T RandomToTypeUniform(uint64_t* state, uint64_t stream) {
   unsigned rnd = PCG_XSH_RS_generator(state, stream);
@@ -113,74 +121,49 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double RandomToTypeUniform<double>(uint64_
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<float> RandomToTypeUniform<std::complex<float> >(uint64_t* state,
                                                                                                     uint64_t stream) {
-  return std::complex<float>(RandomToTypeUniform<float>(state, stream), RandomToTypeUniform<float>(state, stream));
+  const float real = RandomToTypeUniform<float>(state, stream);
+  const float imag = RandomToTypeUniform<float>(state, stream);
+  return std::complex<float>(real, imag);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<double> RandomToTypeUniform<std::complex<double> >(uint64_t* state,
                                                                                                       uint64_t stream) {
-  return std::complex<double>(RandomToTypeUniform<double>(state, stream), RandomToTypeUniform<double>(state, stream));
+  const double real = RandomToTypeUniform<double>(state, stream);
+  const double imag = RandomToTypeUniform<double>(state, stream);
+  return std::complex<double>(real, imag);
 }
 
+// Element i is drawn from its own PCG stream, seeded from (seed, i) by PCG_XSH_RS_state_for_index. The functor
+// therefore holds no evolving state: a fill is the same on every device, thread count and packet width, sharing
+// the functor between threads is race-free, and the copy every GPU thread receives cannot replay the same numbers.
 template <typename T>
 class UniformRandomGenerator {
  public:
   static constexpr bool PacketAccess = true;
 
   // Uses the given "seed" if non-zero, otherwise uses a random seed.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UniformRandomGenerator(uint64_t seed = 0) {
-    m_state = PCG_XSH_RS_state(seed);
-#ifdef EIGEN_USE_SYCL
-    // In SYCL, the constructor runs on the CPU where thread IDs are unavailable.
-    // We initialize m_state here with just the clock seed; the per-thread
-    // component (i * 6364136223846793005ULL) is added in operator() when
-    // the thread ID becomes available, completing the PCG state setup.
-    m_exec_once = false;
-#endif
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UniformRandomGenerator(const UniformRandomGenerator& other) {
-    m_state = other.m_state;
-#ifdef EIGEN_USE_SYCL
-    m_exec_once = other.m_exec_once;
-#endif
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE UniformRandomGenerator(uint64_t seed = 0) : m_state(PCG_XSH_RS_state(seed)) {}
 
   template <typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T operator()(Index i) const {
-#ifdef EIGEN_USE_SYCL
-    if (!m_exec_once) {
-      // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread
-      // The (i * 6364136223846793005ULL) is the remaining part of the PCG_XSH_RS_state on the GPU side
-      m_state += (i * 6364136223846793005ULL);
-      m_exec_once = true;
-    }
-#endif
-    T result = RandomToTypeUniform<T>(&m_state, i);
-    return result;
+    const uint64_t index = static_cast<uint64_t>(i);
+    uint64_t state = PCG_XSH_RS_state_for_index(m_state, index);
+    return RandomToTypeUniform<T>(&state, index);
   }
 
   template <typename Packet, typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(Index i) const {
     const int packetSize = internal::unpacket_traits<Packet>::size;
     EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) T values[packetSize];
-#ifdef EIGEN_USE_SYCL
-    if (!m_exec_once) {
-      // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread
-      m_state += (i * 6364136223846793005ULL);
-      m_exec_once = true;
-    }
-#endif
     EIGEN_UNROLL_LOOP
     for (int j = 0; j < packetSize; ++j) {
-      values[j] = RandomToTypeUniform<T>(&m_state, i);
+      values[j] = (*this)(i + j);
     }
     return internal::pload<Packet>(values);
   }
 
  private:
-  mutable uint64_t m_state;
-#ifdef EIGEN_USE_SYCL
-  mutable bool m_exec_once;
-#endif
+  uint64_t m_state;
 };
 
 template <typename Scalar>
@@ -189,7 +172,9 @@ struct functor_traits<UniformRandomGenerator<Scalar> > {
     // Rough estimate for floating point, multiplied by ceil(sizeof(T) / sizeof(float)).
     Cost = 12 * NumTraits<Scalar>::AddCost * ((sizeof(Scalar) + sizeof(float) - 1) / sizeof(float)),
     PacketAccess = UniformRandomGenerator<Scalar>::PacketAccess,
-    IsRepeatable = false
+    // Element i is a pure function of (seed, i), so re-evaluating the expression or visiting the indices in
+    // block order reproduces the same fill. This is what lets the nullary evaluator serve blocks.
+    IsRepeatable = true
   };
 };
 
@@ -228,73 +213,48 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::bfloat16 RandomToTypeNormal<Eigen::
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<float> RandomToTypeNormal<std::complex<float> >(uint64_t* state,
                                                                                                    uint64_t stream) {
-  return std::complex<float>(RandomToTypeNormal<float>(state, stream), RandomToTypeNormal<float>(state, stream));
+  const float real = RandomToTypeNormal<float>(state, stream);
+  const float imag = RandomToTypeNormal<float>(state, stream);
+  return std::complex<float>(real, imag);
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<double> RandomToTypeNormal<std::complex<double> >(uint64_t* state,
                                                                                                      uint64_t stream) {
-  return std::complex<double>(RandomToTypeNormal<double>(state, stream), RandomToTypeNormal<double>(state, stream));
+  const double real = RandomToTypeNormal<double>(state, stream);
+  const double imag = RandomToTypeNormal<double>(state, stream);
+  return std::complex<double>(real, imag);
 }
 
+// Per-element streams as in UniformRandomGenerator; the rejection loop of RandomToTypeNormal draws as many values
+// as it needs from element i's own stream.
 template <typename T>
 class NormalRandomGenerator {
  public:
   static constexpr bool PacketAccess = true;
 
   // Uses the given "seed" if non-zero, otherwise uses a random seed.
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NormalRandomGenerator(uint64_t seed = 0) {
-    m_state = PCG_XSH_RS_state(seed);
-#ifdef EIGEN_USE_SYCL
-    // In SYCL, the constructor runs on the CPU where thread IDs are unavailable.
-    // We initialize m_state here with just the clock seed; the per-thread
-    // component (i * 6364136223846793005ULL) is added in operator() when
-    // the thread ID becomes available, completing the PCG state setup.
-    m_exec_once = false;
-#endif
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NormalRandomGenerator(const NormalRandomGenerator& other) {
-    m_state = other.m_state;
-#ifdef EIGEN_USE_SYCL
-    m_exec_once = other.m_exec_once;
-#endif
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE NormalRandomGenerator(uint64_t seed = 0) : m_state(PCG_XSH_RS_state(seed)) {}
 
   template <typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T operator()(Index i) const {
-#ifdef EIGEN_USE_SYCL
-    if (!m_exec_once) {
-      // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread
-      m_state += (i * 6364136223846793005ULL);
-      m_exec_once = true;
-    }
-#endif
-    T result = RandomToTypeNormal<T>(&m_state, i);
-    return result;
+    const uint64_t index = static_cast<uint64_t>(i);
+    uint64_t state = PCG_XSH_RS_state_for_index(m_state, index);
+    return RandomToTypeNormal<T>(&state, index);
   }
 
   template <typename Packet, typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(Index i) const {
     const int packetSize = internal::unpacket_traits<Packet>::size;
     EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) T values[packetSize];
-#ifdef EIGEN_USE_SYCL
-    if (!m_exec_once) {
-      // This is the second stage of adding thread Id to the CPU clock seed and build unique seed per thread
-      m_state += (i * 6364136223846793005ULL);
-      m_exec_once = true;
-    }
-#endif
     EIGEN_UNROLL_LOOP
     for (int j = 0; j < packetSize; ++j) {
-      values[j] = RandomToTypeNormal<T>(&m_state, i);
+      values[j] = (*this)(i + j);
     }
     return internal::pload<Packet>(values);
   }
 
  private:
-  mutable uint64_t m_state;
-#ifdef EIGEN_USE_SYCL
-  mutable bool m_exec_once;
-#endif
+  uint64_t m_state;
 };
 
 template <typename Scalar>
@@ -305,7 +265,8 @@ struct functor_traits<NormalRandomGenerator<Scalar> > {
     Cost = 3 * functor_traits<UniformRandomGenerator<Scalar> >::Cost + 15 * NumTraits<Scalar>::AddCost +
            8 * NumTraits<Scalar>::AddCost + 3 * functor_traits<scalar_log_op<Scalar> >::Cost / 2,
     PacketAccess = NormalRandomGenerator<Scalar>::PacketAccess,
-    IsRepeatable = false
+    // Pure in (seed, index) as UniformRandomGenerator is: the rejection loop draws from element i's own stream.
+    IsRepeatable = true
   };
 };
 

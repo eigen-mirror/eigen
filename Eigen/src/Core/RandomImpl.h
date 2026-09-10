@@ -22,6 +22,16 @@ namespace internal {
  * Implementation of random                                               *
  ****************************************************************************/
 
+// The SplitMix64 finalizer (Steele, Lea and Flood, "Fast splittable pseudorandom number generators", OOPSLA
+// 2014): a bijection on 64-bit words with full avalanche, Stafford's "Mix13" variant of the MurmurHash3 finalizer.
+// Applied to a Weyl sequence (state += 0x9E3779B97F4A7C15) it is the SplitMix64 generator; applied to a seed plus
+// an index it seeds independent per-index streams.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE numext::uint64_t splitmix64_mix(numext::uint64_t z) {
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
+}
+
 template <typename Scalar, bool IsComplex, bool IsInteger>
 struct random_default_impl {};
 
