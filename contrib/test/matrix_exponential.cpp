@@ -139,19 +139,33 @@ void testCustomComplexScalingPath() {
   }
 }
 
+template <typename Scalar>
+void testAtomicTaylorConvergence() {
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  // The eigenvalues +-a are 1/16 apart, within matrix_function_separation, so A is a single atomic block.
+  const Scalar a = Scalar(1) / Scalar(32);
+  MatrixType A;
+  A << a, 1, 0, -a;
+  // A^2 = a^2 I, hence exp(A) = cosh(a) I + sinh(a)/a A. Reference: MPFR, 256 bits.
+  MatrixType expected;
+  expected << Scalar(1.031743407499102670938747815281507144194498326641816096008L),
+      Scalar(1.000162768364137425450217952562469769436361163924174806184L), Scalar(0),
+      Scalar(0.969233234476344081848109193246352783604725753896555170622L);
+  const MatrixType actual = A.matrixFunction(expfn);
+  const Scalar bound = 8 * NumTraits<Scalar>::epsilon() * expected.cwiseAbs().maxCoeff();
+  VERIFY(actual.allFinite());
+  VERIFY((actual - expected).cwiseAbs().maxCoeff() <= bound);
+}
+
 EIGEN_DECLARE_TEST(matrix_exponential) {
+  CALL_SUBTEST_1(testAtomicTaylorConvergence<float>());
+  CALL_SUBTEST_2(testAtomicTaylorConvergence<double>());
+  CALL_SUBTEST_9(testAtomicTaylorConvergence<long double>());
   // matrixFunction() dominates the largest cases. The factors retain at least 1.6x headroom over the largest relative
   // errors observed in extended GCC and Clang test runs.
-  //
-  // test2dRotation's matrix has eigenvalues +-i*angle, so for angle <= matrix_function_separation / 2 both lie in one
-  // cluster and matrixFunction() evaluates a single 2x2 block through MatrixFunctionAtomic, whose Taylor series stops
-  // after a fixed 1.1 * rows + 10 terms. The residual is then about angle^13 / 13! <= 1.1e-28 in absolute terms and
-  // does not shrink with the scalar precision. That floor is far below epsilon for float, double and x87 80-bit long
-  // double, but dominates where long double is binary128 (aarch64, riscv64, loongarch64, s390x) or IBM double-double
-  // (ppc64le), so the long double bound takes the larger of the rounding and truncation terms.
   CALL_SUBTEST_2(test2dRotation<double>(256 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_1(test2dRotation<float>(128 * NumTraits<float>::epsilon()));
-  CALL_SUBTEST_8(test2dRotation<long double>((numext::maxi)(256 * NumTraits<long double>::epsilon(), 4e-28L)));
+  CALL_SUBTEST_8(test2dRotation<long double>(256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_2(test2dHyperbolicRotation<double>(32 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_1(test2dHyperbolicRotation<float>(32 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_8(test2dHyperbolicRotation<long double>(32 * NumTraits<long double>::epsilon()));

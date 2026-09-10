@@ -71,7 +71,10 @@ MatrixType MatrixFunctionAtomic<MatrixType>::compute(const MatrixType& A) {
   MatrixType F = m_f(avgEival, 0) * MatrixType::Identity(rows, rows);
   MatrixType P = Ashifted;
   MatrixType Fincr;
-  for (Index s = 1; double(s) < 1.1 * double(rows) + 10.0; s++) {  // upper limit is fairly arbitrary
+  // Reaching epsilon takes more terms as the mantissa lengthens, never fewer than ten.
+  const Index extraIterations = numext::maxi<Index>(10, NumTraits<RealScalar>::digits());
+  // s < 1.1 * rows + extraIterations, both sides scaled by ten to compare exactly.
+  for (Index s = 1; 10 * s < 11 * rows + 10 * extraIterations; ++s) {
     Fincr = m_f(avgEival, static_cast<int>(s)) * P;
     F += Fincr;
     P = Scalar(RealScalar(1) / RealScalar(s + 1)) * P * Ashifted;
