@@ -39,14 +39,14 @@ namespace Eigen {
  *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion;
  *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner
  *     products and O(n^2) Björck-Pereyra primal/dual solves
- *     (\c BjorckPereyra).
+ *     (\c BjorckPereyra);
+ *   - \c Cauchy    : a Cauchy matrix stored as its node vectors, solved in
+ *     O(n^2) with genuine partial pivoting through the displacement structure
+ *     (\c CauchyLU, Gohberg-Kailath-Olshevsky).
  *
  * The operator types derive from \c EigenBase and store only compact generators
  * or factors. The FFT-backed operators (\c Circulant, \c Toeplitz and \c Hankel)
  * also keep a precomputed DFT symbol that every product reuses.
- * The operator types derive from \c EigenBase and store only their generating
- * vectors; the FFT-backed operators (\c Circulant, \c Toeplitz, \c Bccb) also
- * keep a precomputed DFT symbol that every product reuses.
  * Because they expose \c operator* returning an Eigen product expression, they
  * also plug directly into the matrix-free iterative solvers
  * (\c ConjugateGradient, \c GMRES, \c MINRES, ...) without forming the dense
@@ -88,6 +88,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/KroneckerOperator.h"
 #include "src/StructuredMatrices/DiagonalPlusLowRank.h"
 #include "src/StructuredMatrices/Vandermonde.h"
+#include "src/StructuredMatrices/Cauchy.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"

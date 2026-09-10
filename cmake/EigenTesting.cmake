@@ -394,7 +394,7 @@ macro(ei_add_failtest testname)
   # cannot tell the compile error it asserts from a build system that failed for
   # an unrelated reason, so a race there passes vacuously.
   set_tests_properties(${test_target_ok} ${test_target_ko} PROPERTIES
-                       RESOURCE_LOCK eigen_failtest_build)
+                       RESOURCE_LOCK eigen_failtest_build LABELS failtest)
 endmacro()
 
 # print a summary of the different options

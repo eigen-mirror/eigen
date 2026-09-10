@@ -121,6 +121,11 @@ Because that test action is a build in the shared binary directory, `ei_add_fail
 collide whenever a regeneration is pending. The failure is not only noisy: `_ko` is `WILL_FAIL`, so a build system
 that errors for an unrelated reason satisfies it just as well as the compile error it is supposed to assert.
 
+The RISC-V affected tier runs the `failtest` label on an amd64 job with the original cross compiler. Its native
+runtime job excludes those compile tests and the nested `buildsystem` scenarios: the runtime image has neither Ninja
+nor a compiler, and the cached compiler paths name amd64 executables. The separate `test:linux:buildsystem` job covers
+the nested consumers when build-system files change.
+
 ## Clang-Tidy Compilation Database
 
 For a source in the compilation database the driver narrows that database first, through

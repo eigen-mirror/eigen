@@ -140,6 +140,7 @@ set(ei_smoke_test_list
   stdvector_1
   stdvector_overload_1
   stl_iterators_1
+  structured_cauchy
   structured_matrices_1
   structured_matrices_5
   structured_matrices_13

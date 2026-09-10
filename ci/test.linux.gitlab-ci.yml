@@ -1020,6 +1020,22 @@ test:linux:loongarch64:gcc-14:default:affected:
 test:linux:riscv64:gcc-15:default:affected:
   extends: [ .test:linux:riscv64:gcc-15:default, .affected:test ]
   needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
+  variables:
+    # Compile tests need the amd64 cross toolchain; nested build-system consumers run in test:linux:buildsystem.
+    EIGEN_CI_CTEST_EXCLUDE: (_ok|_ko)$|^buildsystem_
+  rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
+
+test:linux:cross:riscv64:gcc-15:failtest:affected:
+  extends: [ .test:linux, .affected:test ]
+  image: ${EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_BUILD}
+  needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
+  variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
+    EIGEN_CI_INSTALL: ""
+    EIGEN_CI_CTEST_ARGS: -L failtest
+    EIGEN_CI_TEST_CACHE: "off"
+  tags:
+    - saas-linux-medium-amd64
   rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
 
 # Three vector lengths: the SVE packet code has VL-dependent fold counts and

@@ -63,6 +63,7 @@ else()
 endif()
 
 ei_add_test(NNLS)
+ei_add_test(structured_cauchy)
 
 ei_add_test(sparse_extra   "" "")
 
