@@ -12,6 +12,7 @@
 #include <utility>
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
+#include "fp_control.h"
 
 using internal::unpacket_traits;
 
@@ -1756,6 +1757,62 @@ void packetmath_packet16b_select() {
 #endif
 
 template <typename Scalar, typename Packet>
+void packetmath_abs_bits() {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int PacketSize = unpacket_traits<Packet>::size;
+  constexpr Bits Sign = Bits(1) << (8 * sizeof(Scalar) - 1);
+  constexpr Bits MinNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
+  constexpr Bits Infinity = (Sign - 1) ^ (MinNormal - 1);
+  Scalar input[PacketSize], output[PacketSize];
+  const auto check = [&] {
+    internal::pstoreu(output, internal::pabs(internal::ploadu<Packet>(input)));
+    for (int i = 0; i < PacketSize; ++i) {
+      const Bits expected = numext::bit_cast<Bits>(input[i]) & (Sign - 1);
+      const Bits actual = numext::bit_cast<Bits>(output[i]);
+      if (std::is_same<Scalar, Packet>::value && std::is_floating_point<Scalar>::value && expected > Infinity) {
+        // Scalar floating-point loads/stores (notably x87) may quiet signaling NaNs. Preserve all other bits.
+        VERIFY(actual == expected || actual == Bits(expected | (MinNormal >> 1)));
+      } else {
+        VERIFY_IS_EQUAL(actual, expected);
+      }
+    }
+  };
+  const auto run = [&] {
+    EIGEN_IF_CONSTEXPR (sizeof(Scalar) == 2) {
+      // Exhaust half/bfloat16 encodings, including signaling NaNs and their payloads.
+      for (int first = 0; first < 65536; first += PacketSize) {
+        for (int i = 0; i < PacketSize; ++i) input[i] = numext::bit_cast<Scalar>(Bits(first + i));
+        check();
+      }
+    } else {
+      const Bits samples[] = {Bits(0),
+                              Bits(1),
+                              Bits(2),
+                              Bits(MinNormal - 1),
+                              MinNormal,
+                              Bits(MinNormal + 1),
+                              numext::bit_cast<Bits>(Scalar(1)),
+                              Bits(Infinity - 1),
+                              Infinity,
+                              Bits(Infinity | 1),
+                              Bits(Infinity | (MinNormal >> 1)),
+                              Bits(Sign - 1)};
+      const int count = sizeof(samples) / sizeof(samples[0]);
+      for (int offset = 0; offset < count; ++offset) {
+        for (Bits sign : {Bits(0), Sign}) {
+          for (int i = 0; i < PacketSize; ++i)
+            input[i] = numext::bit_cast<Scalar>(Bits(samples[(offset + i) % count] | sign));
+          check();
+        }
+      }
+    }
+  };
+  run();
+  ScopedFlushToZero flush_to_zero;
+  run();
+}
+
+template <typename Scalar, typename Packet>
 void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
 
@@ -2304,12 +2361,29 @@ void packetmath_unsigned_short() {
   }
 }
 
+void packetmath_bfloat16_abs_array() {
+  // Keep public evaluator coverage with complete packets and a scalar tail.
+  constexpr Index count = 2 * internal::packet_traits<bfloat16>::size + 1;
+  const numext::uint16_t samples[] = {0x8000, 0x8001, 0x807f, 0x8080, 0xbf80, 0xff80, 0xff81, 0xffff};
+  Array<bfloat16, Dynamic, 1> input(count), result(count);
+  for (Index i = 0; i < count; ++i) {
+    input(i) = numext::bit_cast<bfloat16>(samples[i % 8]);
+  }
+  input(count - 1) = numext::bit_cast<bfloat16>(numext::uint16_t(0xffff));
+  result = input.abs();
+  for (Index i = 0; i < count; ++i) {
+    const auto expected = static_cast<numext::uint16_t>(numext::bit_cast<numext::uint16_t>(input(i)) & 0x7fff);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(result(i)), expected);
+  }
+}
+
 namespace Eigen {
 namespace test {
 
 template <typename Scalar, typename PacketType>
 struct runall<Scalar, PacketType, false, false> {  // i.e. float or double
   static void run() {
+    if (g_first_pass) packetmath_abs_bits<Scalar, PacketType>();
     packetmath<Scalar, PacketType>();
     packetmath_scatter_gather<Scalar, PacketType>();
     packetmath_notcomplex<Scalar, PacketType>();
@@ -2364,6 +2438,12 @@ EIGEN_DECLARE_TEST(packetmath) {
     CALL_SUBTEST_15(test::runner<bfloat16>::run());
     g_first_pass = false;
   }
+
+  CALL_SUBTEST_15(packetmath_bfloat16_abs_array());
+  CALL_SUBTEST_15({
+    ScopedFlushToZero flush_to_zero;
+    packetmath_bfloat16_abs_array();
+  });
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));

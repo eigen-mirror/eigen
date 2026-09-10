@@ -4647,7 +4647,7 @@ EIGEN_STRONG_INLINE Packet4bf ploaddup<Packet4bf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pabs(const Packet4bf& a) {
-  return F32ToBf16(pabs<Packet4f>(Bf16ToF32(a)));
+  return Packet4bf(vand_u16(a, vdup_n_u16(0x7fff)));
 }
 
 template <>
