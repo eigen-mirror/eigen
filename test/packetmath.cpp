@@ -1763,12 +1763,18 @@ void packetmath_abs_bits() {
   constexpr Bits Sign = Bits(1) << (8 * sizeof(Scalar) - 1);
   constexpr Bits MinNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
   constexpr Bits Inf = (Sign - 1) ^ (MinNormal - 1);
+  // Move operands between the Scalar arrays and their bit patterns with memcpy only. Reading output[i] through
+  // bit_cast lets GCC 14 on ppc64le extract the lane from the pabs result with the signaling xscvspdp conversion,
+  // which quiets a signaling NaN before its bits are compared.
+  Bits input_bits[PacketSize], output_bits[PacketSize];
   Scalar input[PacketSize], output[PacketSize];
   const auto check = [&] {
+    std::memcpy(input, input_bits, sizeof(input));
     internal::pstoreu(output, internal::pabs(internal::ploadu<Packet>(input)));
+    std::memcpy(output_bits, output, sizeof(output));
     for (int i = 0; i < PacketSize; ++i) {
-      const Bits expected = numext::bit_cast<Bits>(input[i]) & (Sign - 1);
-      const Bits actual = numext::bit_cast<Bits>(output[i]);
+      const Bits expected = input_bits[i] & (Sign - 1);
+      const Bits actual = output_bits[i];
       if (std::is_same<Scalar, Packet>::value && std::is_floating_point<Scalar>::value && expected > Inf) {
         // Scalar floating-point loads/stores (notably x87) may quiet signaling NaNs. Preserve all other bits.
         VERIFY(actual == expected || actual == Bits(expected | (MinNormal >> 1)));
@@ -1781,7 +1787,7 @@ void packetmath_abs_bits() {
     EIGEN_IF_CONSTEXPR (sizeof(Scalar) == 2) {
       // Exhaust half/bfloat16 encodings, including signaling NaNs and their payloads.
       for (int first = 0; first < 65536; first += PacketSize) {
-        for (int i = 0; i < PacketSize; ++i) input[i] = numext::bit_cast<Scalar>(Bits(first + i));
+        for (int i = 0; i < PacketSize; ++i) input_bits[i] = Bits(first + i);
         check();
       }
     } else {
@@ -1800,8 +1806,7 @@ void packetmath_abs_bits() {
       const int count = sizeof(samples) / sizeof(samples[0]);
       for (int offset = 0; offset < count; ++offset) {
         for (Bits sign : {Bits(0), Sign}) {
-          for (int i = 0; i < PacketSize; ++i)
-            input[i] = numext::bit_cast<Scalar>(Bits(samples[(offset + i) % count] | sign));
+          for (int i = 0; i < PacketSize; ++i) input_bits[i] = Bits(samples[(offset + i) % count] | sign);
           check();
         }
       }
