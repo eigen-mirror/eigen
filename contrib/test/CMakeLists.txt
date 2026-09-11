@@ -51,6 +51,7 @@ ei_add_test(matrix_square_root)
 ei_add_test(alignedvector3)
 
 ei_add_test(FFT)
+ei_add_test(structured_bccb)
 
 ei_add_test(EulerAngles)
 

@@ -11,7 +11,7 @@
 //  [1] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
 //      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
 //      powers of two, the technique behind structured_exponent_bound() and the
-//      column scaling in structured_fft_apply().
+//      column scaling in structured_fft_apply() and Bccb::applySymbol().
 //  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
 //      Scaling by a power of two is exact, so the scaled transforms introduce
 //      no roundoff beyond the transforms themselves.
