@@ -2792,10 +2792,14 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32Dup(float* result, Index co
 
 template <const Index size, bool non_unit_stride>
 EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index rows, bfloat16*& src, Index resInc) {
-  constexpr Index extra = ((size < 4) ? 4 : size);
   while (i + size <= rows) {
+    const Index count = size == 1 ? rows - i : size;
     PacketBlock<Packet8bf, (size + 7) / 8> r32;
-    r32.packet[0] = loadBF16fromResult<non_unit_stride, 0>(src, resInc);
+    EIGEN_IF_CONSTEXPR (size < 8) {
+      r32.packet[0] = pgather_partial<bfloat16, Packet8bf>(src, non_unit_stride ? resInc : 1, count);
+    } else {
+      r32.packet[0] = loadBF16fromResult<non_unit_stride, 0>(src, resInc);
+    }
     EIGEN_IF_CONSTEXPR (size >= 16) {
       r32.packet[1] = loadBF16fromResult<non_unit_stride, 8>(src, resInc);
     }
@@ -2804,8 +2808,8 @@ EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index 
       r32.packet[3] = loadBF16fromResult<non_unit_stride, 24>(src, resInc);
     }
     storeConvertBlockBF16<size>(result + i, r32, rows & 3);
-    i += extra;
-    src += extra * resInc;
+    i += count;
+    if (i < rows) src += count * resInc;
     EIGEN_IF_CONSTEXPR (size != 32) break;
   }
 }
@@ -2813,7 +2817,7 @@ EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index 
 template <bool non_unit_stride>
 EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float* result, Index cols, Index rows, bfloat16* src,
                                                       Index resInc) {
-  for (Index col = 0; col < cols; col++, src += (rows * resInc), result += rows) {
+  for (Index col = 0; col < cols; col++, result += rows) {
     Index i = 0;
     bfloat16* src2 = src;
     convertPointerBF16toF32<32, non_unit_stride>(i, result, rows, src2, resInc);
@@ -2821,6 +2825,7 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float* result, Index cols,
     convertPointerBF16toF32<8, non_unit_stride>(i, result, rows, src2, resInc);
     convertPointerBF16toF32<4, non_unit_stride>(i, result, rows, src2, resInc);
     convertPointerBF16toF32<1, non_unit_stride>(i, result, rows, src2, resInc);
+    if (col + 1 < cols) src += rows * resInc;
   }
 }
 

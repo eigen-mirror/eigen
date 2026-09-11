@@ -11,6 +11,39 @@
 #include "product.h"
 #include <Eigen/LU>
 
+#if (defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)) && defined(__unix__)
+#include <sys/mman.h>
+#include <unistd.h>
+
+template <int>
+void gemv_bfloat16_strided_tail() {
+  using MatrixType = Matrix<bfloat16, Dynamic, Dynamic, RowMajor>;
+  using VectorType = Matrix<bfloat16, Dynamic, 1>;
+  const long page_size = sysconf(_SC_PAGESIZE);
+  VERIFY(page_size > 0);
+  char* storage =
+      static_cast<char*>(mmap(nullptr, 2 * page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+  VERIFY(storage != MAP_FAILED);
+  VERIFY_IS_EQUAL(mprotect(storage + page_size, page_size, PROT_NONE), 0);
+
+  // Put the last result coefficient against an inaccessible page: even one excess gather must fail.
+  for (Index rows : {1, 2, 3, 4, 5, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33}) {
+    for (Index stride : {1, 2, 3, 17}) {
+      const Index span = (rows - 1) * stride + 1;
+      VERIFY(span * Index(sizeof(bfloat16)) <= page_size);
+      bfloat16* values = reinterpret_cast<bfloat16*>(storage + page_size - span * sizeof(bfloat16));
+      for (Index i = 0; i < rows; ++i) new (values + i * stride) bfloat16(1);
+      Map<VectorType, 0, InnerStride<Dynamic>> result(values, rows, InnerStride<Dynamic>(stride));
+      const MatrixType A = MatrixType::Ones(rows, 65);
+      const VectorType x = VectorType::Ones(65);
+      result.noalias() += A * x;
+      VERIFY_IS_CWISE_EQUAL(result, VectorType::Constant(rows, bfloat16(66)));
+    }
+  }
+  VERIFY_IS_EQUAL(munmap(storage, 2 * page_size), 0);
+}
+#endif
+
 template <typename T>
 void test_aliasing() {
   int rows = internal::random<int>(1, 12);
@@ -345,6 +378,9 @@ void bug_1622() {
 }
 
 EIGEN_DECLARE_TEST(product_large) {
+#if (defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)) && defined(__unix__)
+  CALL_SUBTEST_11(gemv_bfloat16_strided_tail<0>());
+#endif
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
