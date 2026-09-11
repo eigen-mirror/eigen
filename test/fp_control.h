@@ -60,7 +60,7 @@ namespace Eigen {
 // and IV-j (FCSR/MSACSR FS).
 class ScopedFlushToZero {
  public:
-  ScopedFlushToZero() : environment_saved_(false), active_(false), control_state_(0), vector_control_state_(0) {
+  ScopedFlushToZero() {
 #if EIGEN_TEST_HAS_RUNTIME_FTZ
     environment_saved_ = std::fegetenv(&environment_) == 0;
 
@@ -201,11 +201,17 @@ class ScopedFlushToZero {
 
   static std::uint32_t mipsFlushToZeroMask() { return std::uint32_t(1) << 24; }
 
-  std::fenv_t environment_ EIGEN_UNUSED;
-  bool environment_saved_ EIGEN_UNUSED;
-  bool active_;
-  std::uint64_t control_state_ EIGEN_UNUSED;
-  std::uint32_t vector_control_state_ EIGEN_UNUSED;
+  // Declared only on the paths that use them: GCC 10 ignores `unused` on data
+  // members, and clang warns on a private field no member function touches.
+  bool active_ = false;
+#if EIGEN_TEST_HAS_RUNTIME_FTZ
+  std::fenv_t environment_;
+  bool environment_saved_ = false;
+  std::uint64_t control_state_ = 0;
+#if defined(__mips_msa)
+  std::uint32_t vector_control_state_ = 0;
+#endif
+#endif
 };
 
 // Whether dividing a normal value by a subnormal divisor yields its IEEE 754
