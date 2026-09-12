@@ -49,21 +49,23 @@ inline int GetGpuDeviceAttribute(GpuDeviceAttr attribute, int device) {
 }
 
 inline const std::vector<GpuDeviceAttributes>& GetGpuDeviceAttributes() {
+  // The device count is dynamic; keep the cache alive for GpuDevice users in static destructors.
   static const std::vector<GpuDeviceAttributes>* kAttributes = [] {
     int num_devices = 0;
     EIGEN_GPU_RUNTIME_CHECK(gpuGetDeviceCount(&num_devices));
     auto* attributes = new std::vector<GpuDeviceAttributes>(num_devices);
     for (int device = 0; device < num_devices; ++device) {
-      GpuDeviceAttributes& attribute = (*attributes)[device];
-      attribute.multiProcessorCount = GetGpuDeviceAttribute(gpuDevAttrMultiProcessorCount, device);
-      attribute.maxThreadsPerBlock = GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerBlock, device);
-      attribute.maxThreadsPerMultiProcessor = GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerMultiProcessor, device);
-      attribute.sharedMemPerBlock = GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlock, device);
-      attribute.sharedMemPerBlockOptin = GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlockOptin, device);
-      attribute.computeCapabilityMajor = GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMajor, device);
-      attribute.computeCapabilityMinor = GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMinor, device);
-      attribute.warpSize = GetGpuDeviceAttribute(gpuDevAttrWarpSize, device);
-      attribute.memoryPoolsSupported = GetGpuDeviceAttribute(gpuDevAttrMemoryPoolsSupported, device);
+      (*attributes)[device] = {
+          /*multiProcessorCount=*/GetGpuDeviceAttribute(gpuDevAttrMultiProcessorCount, device),
+          /*maxThreadsPerBlock=*/GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerBlock, device),
+          /*maxThreadsPerMultiProcessor=*/GetGpuDeviceAttribute(gpuDevAttrMaxThreadsPerMultiProcessor, device),
+          /*sharedMemPerBlock=*/GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlock, device),
+          /*sharedMemPerBlockOptin=*/GetGpuDeviceAttribute(gpuDevAttrMaxSharedMemoryPerBlockOptin, device),
+          /*computeCapabilityMajor=*/GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMajor, device),
+          /*computeCapabilityMinor=*/GetGpuDeviceAttribute(gpuDevAttrComputeCapabilityMinor, device),
+          /*warpSize=*/GetGpuDeviceAttribute(gpuDevAttrWarpSize, device),
+          /*memoryPoolsSupported=*/GetGpuDeviceAttribute(gpuDevAttrMemoryPoolsSupported, device),
+      };
     }
     return attributes;
   }();
