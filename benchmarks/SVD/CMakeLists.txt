@@ -3,3 +3,5 @@
 
 eigen_add_benchmark(bench_svd bench_svd.cpp)
 eigen_add_benchmark(bench_bidiag bench_bidiag.cpp)
+eigen_add_benchmark(bench_make_jacobi bench_make_jacobi.cpp)
+eigen_add_benchmark(bench_jacobisvd_rotations bench_jacobisvd_rotations.cpp)

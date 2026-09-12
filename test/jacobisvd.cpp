@@ -14,6 +14,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 #include "main.h"
 #include <Eigen/SVD>
+#include <cfenv>
 
 #define SVD_DEFAULT(M) JacobiSVD<M>
 #define SVD_FOR_MIN_NORM(M) JacobiSVD<M, ColPivHouseholderQRPreconditioner>
@@ -130,11 +131,36 @@ void jacobisvd_mixed_option_enum_regression() {
   STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
+void jacobisvd_large_tau_regression() {
+  Matrix3f m;
+  m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
+      -8.6602544784545898438f, 0.0f, 2.1855694285477511585f;
+
+#ifdef FE_OVERFLOW
+  std::fenv_t environment;
+  const bool check_overflow = std::feholdexcept(&environment) == 0;
+  if (!check_overflow) std::cout << "SKIP: JacobiSVD overflow flag check: feholdexcept failed.\n";
+#else
+  std::cout << "SKIP: JacobiSVD overflow flag check: FE_OVERFLOW is unavailable.\n";
+#endif
+  JacobiSVD<Matrix3f> svd(m, ComputeFullU | ComputeFullV);
+#ifdef FE_OVERFLOW
+  if (check_overflow) {
+    const int overflow = std::fetestexcept(FE_OVERFLOW);
+    const int restored = std::fesetenv(&environment);
+    VERIFY_IS_EQUAL(restored, 0);
+    VERIFY_IS_EQUAL(overflow, 0);
+  }
+#endif
+  svd_check_full(m, svd);
+}
+
 EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
   CALL_SUBTEST_3((jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()));
   CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_4((jacobisvd_large_tau_regression()));
 
   CALL_SUBTEST_11((jacobisvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_12((jacobisvd_thin_full_options<Matrix2d>()));

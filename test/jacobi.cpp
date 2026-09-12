@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include <Eigen/SVD>
 
 template <typename MatrixType, typename JacobiScalar>
@@ -125,10 +126,120 @@ void jacobi_makegivens_safe_scaling() {
   verify_makeGivens<Scalar>(rtmax, safmin);
 }
 
+template <typename Scalar>
+void jacobi_makejacobi_large_tau() {
+  using std::abs;
+  using std::sqrt;
+
+  const Scalar rtmax = sqrt((std::numeric_limits<Scalar>::max)());
+  for (int factor = 1; factor <= 2; ++factor) {
+    const Scalar deno = Scalar(1) / (Scalar(factor) * rtmax);
+    const Scalar y = deno * Scalar(0.5);
+    for (int delta_sign = -1; delta_sign <= 1; delta_sign += 2) {
+      const Scalar x = delta_sign > 0 ? Scalar(1) : Scalar(0);
+      const Scalar z = delta_sign > 0 ? Scalar(0) : Scalar(1);
+      JacobiRotation<Scalar> rotation;
+      rotation.makeJacobi(x, y, z);
+
+      const Scalar offdiag =
+          rotation.c() * rotation.s() * (x - z) + (rotation.c() * rotation.c() - rotation.s() * rotation.s()) * y;
+      VERIFY(!numext::is_exactly_zero(rotation.s()));
+      VERIFY(abs(offdiag) <= NumTraits<Scalar>::epsilon() * abs(y));
+    }
+  }
+}
+
+template <typename Scalar>
+void jacobi_makejacobi_complex() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using std::abs;
+  using std::sqrt;
+
+  const RealScalar rtmax = sqrt((std::numeric_limits<RealScalar>::max)());
+  // Allow rounding in the rotation and in the complex off-diagonal residual.
+  const RealScalar tolerance = RealScalar(16) * NumTraits<RealScalar>::epsilon();
+  for (const RealScalar magnitude :
+       {RealScalar(0.5) / rtmax, RealScalar(0.25) / rtmax, RealScalar(0.25), RealScalar(0.5), RealScalar(1)}) {
+    for (int real_sign : {-1, 1}) {
+      for (int imag_sign : {-1, 1}) {
+        const Scalar y(RealScalar(real_sign) * RealScalar(0.6) * magnitude,
+                       RealScalar(imag_sign) * RealScalar(0.8) * magnitude);
+        for (int delta_sign : {-1, 0, 1}) {
+          const RealScalar x = RealScalar(delta_sign);
+          const RealScalar z = RealScalar(0);
+          JacobiRotation<Scalar> rotation;
+          VERIFY(rotation.makeJacobi(x, y, z));
+
+          const Scalar c = rotation.c();
+          const Scalar s = rotation.s();
+          VERIFY_IS_EQUAL(numext::imag(c), RealScalar(0));
+          VERIFY(numext::real(c) > RealScalar(0));
+          VERIFY(abs(s) > RealScalar(0));
+          VERIFY(abs(numext::abs2(c) + numext::abs2(s) - RealScalar(1)) <= tolerance);
+
+          // (J* B J)(0,1), with J = [c conj(s); -s c] and B = [x y; conj(y) z].
+          const Scalar conjugate_s = numext::conj(s);
+          const Scalar offdiag = c * conjugate_s * (x - z) + c * c * y - conjugate_s * conjugate_s * numext::conj(y);
+          VERIFY(abs(offdiag) <= tolerance * abs(y));
+        }
+      }
+    }
+  }
+}
+
+template <typename Scalar>
+void jacobi_makejacobi_extreme_phase() {
+  const Scalar tolerance = Scalar(8) * NumTraits<Scalar>::epsilon();
+  const Scalar expected = numext::sqrt(Scalar(0.5));
+  ScopedFlushToZero flushToZero;
+  for (const Scalar magnitude :
+       {(std::numeric_limits<Scalar>::max)() / Scalar(4), (std::numeric_limits<Scalar>::min)() * Scalar(4)}) {
+    for (const Scalar sign : {Scalar(-1), Scalar(1)}) {
+      JacobiRotation<Scalar> rotation;
+      rotation.makeJacobi(Scalar(0), sign * magnitude, Scalar(0));
+      VERIFY(numext::abs(rotation.c() - expected) <= tolerance);
+      VERIFY(numext::abs(rotation.s() - sign * expected) <= tolerance);
+    }
+  }
+}
+
+template <typename Scalar>
+void jacobi_makejacobi_ratio_boundaries() {
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  // Allow rounding in the rotation and the scaled 2x2 residual.
+  const Scalar tolerance = Scalar(8) * eps;
+  for (const Scalar scale : {(std::numeric_limits<Scalar>::min)() * Scalar(4), Scalar(1),
+                             (std::numeric_limits<Scalar>::max)() / Scalar(8)}) {
+    for (const Scalar ratio : {Scalar(0), eps, Scalar(0.5), Scalar(1) - eps, Scalar(1), Scalar(1) + eps, Scalar(2)}) {
+      for (const Scalar sign : {Scalar(-1), Scalar(1)}) {
+        JacobiRotation<Scalar> rotation;
+        VERIFY(rotation.makeJacobi(scale * ratio, sign * scale * Scalar(0.5), Scalar(0)));
+        const Scalar c = rotation.c();
+        const Scalar s = rotation.s();
+        VERIFY(c > Scalar(0));
+        VERIFY(numext::abs(c * c + s * s - Scalar(1)) <= tolerance);
+        const Scalar residual = c * s * ratio + (c * c - s * s) * sign * Scalar(0.5);
+        VERIFY(numext::abs(residual) <= tolerance);
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(jacobi) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<float>()));
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_large_tau<float>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_large_tau<double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<float>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<float>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<long double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<half>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<bfloat16>()));
+    CALL_SUBTEST_8((jacobi_makejacobi_complex<std::complex<float>>()));
+    CALL_SUBTEST_8((jacobi_makejacobi_complex<std::complex<double>>()));
 
     CALL_SUBTEST_1((jacobi<Matrix3f, float>()));
     CALL_SUBTEST_2((jacobi<Matrix4d, double>()));
