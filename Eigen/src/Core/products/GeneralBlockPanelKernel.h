@@ -385,6 +385,9 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     }
     // WARNING Below, we assume that Traits::nr is a power of two.
     Index nc = numext::mini<Index>(rhs_panel_budget / (2 * k * sizeof(RhsScalar)), max_nc) & (~(Traits::nr - 1));
+    // As in the threaded branch, a budget below one kernel-width panel still takes nr columns: a zero
+    // width would divide by zero below.
+    nc = numext::maxi<Index>(nc, Traits::nr);
     if (n > nc) {
       // We are really blocking over the columns:
       // -> reduce blocking size to make sure the last block is as large as possible

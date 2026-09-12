@@ -75,9 +75,15 @@ BENCHMARK(BM_TRSV<double, Lower>)->Arg(32)->Arg(128)->Arg(512)->Name("TRSV_doubl
 // clang-format off
 BENCHMARK(BM_TRSM_Left<float, Lower>)->ArgsProduct({{64, 256, 512}, {1, 16, 64}})->Name("TRSM_Left_float_Lower");
 BENCHMARK(BM_TRSM_Left<double, Lower>)->ArgsProduct({{64, 256, 512}, {1, 16, 64}})->Name("TRSM_Left_double_Lower");
+// Operands from below to well beyond the last-level cache (issue #3162). Clang AVX-512 builds on hosts
+// with an L2 of 2 MiB or more solve the float ones of size 1024 with the unblocked kernel.
+BENCHMARK(BM_TRSM_Left<float, Lower>)->ArgsProduct({{1024, 2048, 4096}, {1024, 4096}})->Name("TRSM_Left_float_Lower_Large");
+BENCHMARK(BM_TRSM_Left<double, Lower>)->ArgsProduct({{1024, 2048, 4096}, {1024, 4096}})->Name("TRSM_Left_double_Lower_Large");
 
 // ---------- TRSM Right benchmarks ----------
 
 BENCHMARK(BM_TRSM_Right<float, Lower>)->ArgsProduct({{64, 256, 512}, {1, 16, 64}})->Name("TRSM_Right_float_Lower");
 BENCHMARK(BM_TRSM_Right<double, Lower>)->ArgsProduct({{64, 256, 512}, {1, 16, 64}})->Name("TRSM_Right_double_Lower");
+BENCHMARK(BM_TRSM_Right<float, Lower>)->ArgsProduct({{1024, 2048, 4096}, {1024, 4096}})->Name("TRSM_Right_float_Lower_Large");
+BENCHMARK(BM_TRSM_Right<double, Lower>)->ArgsProduct({{1024, 2048, 4096}, {1024, 4096}})->Name("TRSM_Right_double_Lower_Large");
 // clang-format on

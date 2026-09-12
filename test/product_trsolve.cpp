@@ -360,6 +360,95 @@ void trsolve_no_malloc_all() {
   }
 }
 
+// The blocked solvers take their k-block depth, and a solve on the left its column panels, from the
+// cache sizes (issue #3162). Both take effect only for operands larger than the cache, which test-sized
+// solves are not on most hosts, so the caches are set here for a budget of 520 columns of the operand:
+// 1100 right-hand sides then span two full panels and a partial one, and on x86 the depth rises above
+// the blocking's on either side. Both storage orders of the right-hand side reach both kernels from
+// either side, since the dispatcher transposes a row-major operand.
+template <typename Scalar>
+void trsolve_panels(int size, int cols, bool allCases) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMatrixX = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+
+  const std::ptrdiff_t l1 = 32768, l2 = 65536;
+  const std::ptrdiff_t panelL3 = 4 * 520 * std::ptrdiff_t(size) * std::ptrdiff_t(sizeof(Scalar));
+  setCpuCacheSizes(l1, l2, panelL3);
+  const std::ptrdiff_t budget = internal::triangular_solve_budget<Scalar>(l2, panelL3);
+  // Reach: the budget holds fewer columns than the right-hand side has, and the operand exceeds it,
+  // which deepens the k-blocks wherever the blocking leaves room.
+  VERIFY(internal::triangular_solve_panel_columns(Index(size), Index(cols), budget,
+                                                  Index(internal::gebp_traits<Scalar, Scalar>::nr)) < cols);
+  VERIFY(std::ptrdiff_t(size) * cols > budget);
+
+  // Scaling the off-diagonal part by 1/size keeps the triangles well conditioned whether the diagonal
+  // is used or, for the unit views, taken as 1.
+  MatrixX cmLhs = MatrixX::Random(size, size) / RealScalar(size);
+  cmLhs.diagonal().array() += RealScalar(1);
+  RowMatrixX rmLhs = cmLhs;
+  MatrixX cmRhs(size, cols);
+  RowMatrixX rmRhs(size, cols);
+  MatrixX ref(size, cols);
+
+  VERIFY_TRSM(cmLhs.template triangularView<Lower>(), cmRhs);
+  VERIFY_TRSM(cmLhs.template triangularView<Upper>(), cmRhs);
+  VERIFY_TRSM(cmLhs.template triangularView<Lower>(), rmRhs);
+  VERIFY_TRSM(cmLhs.template triangularView<Upper>(), rmRhs);
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Lower>(), cmRhs);
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Upper>(), cmRhs);
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Lower>(), rmRhs);
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Upper>(), rmRhs);
+  if (!allCases) return;
+
+  VERIFY_TRSM(cmLhs.template triangularView<UnitLower>(), cmRhs);
+  VERIFY_TRSM(cmLhs.adjoint().template triangularView<Upper>(), rmRhs);
+  VERIFY_TRSM(rmLhs.template triangularView<Lower>(), cmRhs);
+  VERIFY_TRSM(rmLhs.conjugate().template triangularView<UnitUpper>(), rmRhs);
+
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<UnitUpper>(), rmRhs);
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.adjoint().template triangularView<Lower>(), cmRhs);
+  VERIFY_TRSM_ONTHERIGHT(rmLhs.template triangularView<Lower>(), rmRhs);
+  VERIFY_TRSM_ONTHERIGHT(rmLhs.conjugate().template triangularView<UnitUpper>(), cmRhs);
+
+  // A runtime inner stride, by which the panel origins must not be scaled.
+  MatrixX buffer(2 * size, 2 * cols);
+  Map<MatrixX, 0, Stride<Dynamic, Dynamic> > cmMap(buffer.data(), size, cols, Stride<Dynamic, Dynamic>(2 * size, 2));
+  Map<RowMatrixX, 0, Stride<Dynamic, Dynamic> > rmMap(buffer.data(), size, cols, Stride<Dynamic, Dynamic>(2 * cols, 2));
+  buffer.setZero();
+  VERIFY_TRSM(cmLhs.template triangularView<Lower>(), cmMap);
+  buffer.setZero();
+  VERIFY_TRSM(cmLhs.template triangularView<Upper>(), rmMap);
+  buffer.setZero();
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Upper>(), cmMap);
+  buffer.setZero();
+  VERIFY_TRSM_ONTHERIGHT(cmLhs.template triangularView<Lower>(), rmMap);
+
+  // A few rows beside a column-major triangle half of which exceeds the budget: only the triangle makes
+  // this solve on the right deep.
+  const std::ptrdiff_t triangleL3 = std::ptrdiff_t(size) * size * std::ptrdiff_t(sizeof(Scalar));
+  setCpuCacheSizes(l1, l2, triangleL3);
+  const std::ptrdiff_t triangleBudget = internal::triangular_solve_budget<Scalar>(l2, triangleL3);
+  VERIFY(std::ptrdiff_t(size) * size / 2 > triangleBudget && std::ptrdiff_t(size) * 7 <= triangleBudget);
+  RowMatrixX fewRows(size, 7);
+  VERIFY_TRSM_ONTHERIGHT(rmLhs.template triangularView<Lower>(), fewRows);
+  VERIFY_TRSM_ONTHERIGHT(rmLhs.template triangularView<Upper>(), fewRows);
+}
+
+template <int>
+void trsolve_panels_all() {
+  std::ptrdiff_t l1, l2, l3, l3_per_cpu;
+  internal::manage_caching_sizes(GetAction, &l1, &l2, &l3, &l3_per_cpu);
+  // 193 raises the depth of every x86 build except SSE2 float and double, which 391 raises; both leave a
+  // partial last k-block at every depth they reach.
+  trsolve_panels<float>(193, 1100, true);
+  trsolve_panels<double>(193, 1100, true);
+  trsolve_panels<std::complex<double> >(193, 1100, true);
+  trsolve_panels<float>(391, 1100, false);
+  trsolve_panels<double>(391, 1100, false);
+  internal::manage_caching_sizes(SetAction, &l1, &l2, &l3, &l3_per_cpu);
+}
+
 EIGEN_DECLARE_TEST(product_trsolve) {
   for (int i = 0; i < g_repeat; i++) {
     // matrices
@@ -391,4 +480,5 @@ EIGEN_DECLARE_TEST(product_trsolve) {
   CALL_SUBTEST_15(trsolve_strided_boundary<0>());
   CALL_SUBTEST_16(trsolve_indexed_view());
   CALL_SUBTEST_17(trsolve_no_malloc_all<0>());
+  CALL_SUBTEST_18(trsolve_panels_all<0>());
 }
