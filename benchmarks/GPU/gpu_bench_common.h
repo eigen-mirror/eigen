@@ -36,7 +36,7 @@ namespace eigen_bench {
 template <typename T>
 class DeviceBuffer {
  public:
-  explicit DeviceBuffer(size_t size) : size_(size), data_(nullptr) {
+  explicit DeviceBuffer(size_t size) : size_(size) {
     EIGEN_GPU_RUNTIME_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_), size * sizeof(T)));
   }
   ~DeviceBuffer() { EIGEN_GPU_RUNTIME_CHECK(cudaFree(data_)); }
@@ -65,7 +65,7 @@ class DeviceBuffer {
 
  private:
   size_t size_;
-  T* data_;
+  T* data_ = nullptr;
 };
 
 // Elapsed device time between two events recorded on one stream.
