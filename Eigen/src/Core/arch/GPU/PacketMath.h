@@ -129,26 +129,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pset1<double2>(const double& from)
 template <typename T>
 using lane_bits_t = typename numext::get_integer_by_size<sizeof(T)>::unsigned_type;
 
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T bitwise_and(const T& a, const T& b) {
-  using Bits = lane_bits_t<T>;
-  return numext::bit_cast<T>(static_cast<Bits>(numext::bit_cast<Bits>(a) & numext::bit_cast<Bits>(b)));
-}
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T bitwise_or(const T& a, const T& b) {
-  using Bits = lane_bits_t<T>;
-  return numext::bit_cast<T>(static_cast<Bits>(numext::bit_cast<Bits>(a) | numext::bit_cast<Bits>(b)));
-}
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T bitwise_xor(const T& a, const T& b) {
-  using Bits = lane_bits_t<T>;
-  return numext::bit_cast<T>(static_cast<Bits>(numext::bit_cast<Bits>(a) ^ numext::bit_cast<Bits>(b)));
-}
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T bitwise_andnot(const T& a, const T& b) {
-  using Bits = lane_bits_t<T>;
-  return numext::bit_cast<T>(static_cast<Bits>(numext::bit_cast<Bits>(a) & ~numext::bit_cast<Bits>(b)));
-}
+#define EIGEN_MAKE_BITWISE_BINOP(name, op)                                                                 \
+  template <typename T>                                                                                    \
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T bitwise_##name(const T& a, const T& b) {                         \
+    using Bits = lane_bits_t<T>;                                                                           \
+    return numext::bit_cast<T>(static_cast<Bits>(numext::bit_cast<Bits>(a) op numext::bit_cast<Bits>(b))); \
+  }
+
+EIGEN_MAKE_BITWISE_BINOP(and, &)
+EIGEN_MAKE_BITWISE_BINOP(or, |)
+EIGEN_MAKE_BITWISE_BINOP(xor, ^)
+EIGEN_MAKE_BITWISE_BINOP(andnot, &~)
+
+#undef EIGEN_MAKE_BITWISE_BINOP
 
 // A comparison returns an all-ones lane where it holds and an all-zero lane elsewhere, so that the result can be
 // consumed bitwise by pselect, pand and pandnot.

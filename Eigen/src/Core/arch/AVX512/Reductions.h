@@ -231,10 +231,15 @@ EIGEN_STRONG_INLINE Index predux_count(const Packet8d& a) {
 
 // Count 16-bit floating-point lanes through integer bits so fast-math cannot treat NaN masks as zero.
 EIGEN_STRONG_INLINE Index predux_count_16bit(const __m256i& a) {
+#if defined(EIGEN_VECTORIZE_AVX512VL) && defined(__AVX512BW__)
+  const unsigned int nonzero_lanes = _cvtmask16_u32(_mm256_test_epi16_mask(a, _mm256_set1_epi16(0x7fff)));
+  return Index(popcount(nonzero_lanes));
+#else
   const __m256i magnitude = _mm256_and_si256(a, _mm256_set1_epi16(0x7fff));
   const __m256i zeros = _mm256_cmpeq_epi16(magnitude, _mm256_setzero_si256());
   const unsigned int zero_bytes = static_cast<unsigned int>(_mm256_movemask_epi8(zeros));
   return Index(16 - popcount(zero_bytes) / 2);
+#endif
 }
 
 #ifndef EIGEN_VECTORIZE_AVX512FP16
