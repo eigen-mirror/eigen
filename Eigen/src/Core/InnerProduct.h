@@ -289,7 +289,8 @@ struct rewrap_unary<T const, Target> : rewrap_unary<T, Target const> {};
 
 template <typename Op, typename Xpr, typename Target>
 struct rewrap_unary<CwiseUnaryOp<Op, Xpr>, Target> {
-  using type = CwiseUnaryOp<Op, typename rewrap_unary<Xpr, Target>::type>;
+  // unaryExpr() nests its operand as const; Xpr itself need not be (adjoint() nests a non-const Transpose).
+  using type = CwiseUnaryOp<Op, std::add_const_t<typename rewrap_unary<Xpr, Target>::type>>;
 
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr type apply(CwiseUnaryOp<Op, Xpr> const& base,
                                                                     Target const& target) {
