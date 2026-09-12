@@ -14,14 +14,15 @@
 #include "gpu_bench_common.h"
 
 #include <cub/cub.cuh>
+#include <iterator>
 
 namespace {
 
 using eigen_bench::DeviceBuffer;
 
-const int kLaunchesPerIteration = 4;
-const int kIterations = 10;
-const std::vector<int64_t> kFullSizes = {1 << 20, 1 << 24, 1 << 26};
+constexpr int kLaunchesPerIteration = 4;
+constexpr int kIterations = 10;
+constexpr int64_t kFullSizes[] = {1 << 20, 1 << 24, 1 << 26};
 // The three matrix shapes the partial reductions consume are registered as (rows, columns) pairs rather than as a
 // product of two lists, whose cross product would ask for tensors of up to 2^40 elements: the square case, a wide
 // one whose reduced extent is short, and a tall one whose reduced extent is long.
@@ -210,9 +211,15 @@ void BM_CubSegmentedReduceSum(benchmark::State& state) {
 
 }  // namespace
 
-#define EIGEN_GPU_FULL_REDUCTION_BENCHMARKS(NAME)                                                       \
-  BENCHMARK_TEMPLATE(NAME, float)->ArgsProduct({kFullSizes})->UseManualTime()->Iterations(kIterations); \
-  BENCHMARK_TEMPLATE(NAME, double)->ArgsProduct({kFullSizes})->UseManualTime()->Iterations(kIterations);
+#define EIGEN_GPU_FULL_REDUCTION_BENCHMARKS(NAME)                     \
+  BENCHMARK_TEMPLATE(NAME, float)                                     \
+      ->ArgsProduct({{std::begin(kFullSizes), std::end(kFullSizes)}}) \
+      ->UseManualTime()                                               \
+      ->Iterations(kIterations);                                      \
+  BENCHMARK_TEMPLATE(NAME, double)                                    \
+      ->ArgsProduct({{std::begin(kFullSizes), std::end(kFullSizes)}}) \
+      ->UseManualTime()                                               \
+      ->Iterations(kIterations);
 
 // Explicit shapes rather than a product: the product of the two ranges asks for tensors of up to 2^40 elements.
 // Args is (rows, columns), so for the outer reduction it reads as (outputs, reduced extent) and the last three
