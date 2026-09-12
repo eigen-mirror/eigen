@@ -58,7 +58,31 @@ BENCH_CWISE_UNARY(Asinh, a.asinh(), -5, 5)
 BENCH_CWISE_UNARY(Acosh, a.acosh(), 1.01, 10)
 BENCH_CWISE_UNARY(Atanh, a.atanh(), -0.99, 0.99)
 BENCH_CWISE_UNARY(Log10, a.log10(), 0.01, 100)
-BENCH_CWISE_UNARY(Erf, Eigen::erf(a), -4, 4)
+
+// mode: 0 = ordinary inputs, 1 = subnormal inputs, 2 = one subnormal per 64 coefficients.
+template <typename Scalar>
+static void BM_Erf(benchmark::State& state) {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr Bits sign = Bits(1) << (8 * sizeof(Scalar) - 1);
+  constexpr Bits minNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
+  const Index n = state.range(0);
+  const int mode = int(state.range(1));
+  Array<Scalar, Dynamic, 1> a(n), b(n);
+  for (Index i = 0; i < n; ++i) {
+    a(i) = Scalar(double(i % 257 - 128) / 32.0);
+    if (mode == 1 || (mode == 2 && i % 64 == 0)) {
+      const Bits magnitude = Bits(1 + (Bits(i) * 37) % (minNormal - 1));
+      a(i) = numext::bit_cast<Scalar>(Bits(magnitude | (i % 2 ? sign : Bits(0))));
+    }
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    b = Eigen::erf(a);
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
+}
 
 // Simple operations (should be very fast / memory-bound)
 BENCH_CWISE_UNARY(Abs, a.abs(), -100, 100)
@@ -182,7 +206,10 @@ BENCHMARK(BM_Asinh<float>) CWISE_SIZES ->Name("Asinh_float");
 BENCHMARK(BM_Acosh<float>) CWISE_SIZES ->Name("Acosh_float");
 BENCHMARK(BM_Atanh<float>) CWISE_SIZES ->Name("Atanh_float");
 BENCHMARK(BM_Log10<float>) CWISE_SIZES ->Name("Log10_float");
-BENCHMARK(BM_Erf<float>) CWISE_SIZES ->Name("Erf_float");
+BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_float");
+BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
 BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
 BENCHMARK(BM_Cube<float>) CWISE_SIZES ->Name("Cube_float");
@@ -219,7 +246,8 @@ BENCHMARK(BM_Asinh<double>) CWISE_SIZES ->Name("Asinh_double");
 BENCHMARK(BM_Acosh<double>) CWISE_SIZES ->Name("Acosh_double");
 BENCHMARK(BM_Atanh<double>) CWISE_SIZES ->Name("Atanh_double");
 BENCHMARK(BM_Log10<double>) CWISE_SIZES ->Name("Log10_double");
-BENCHMARK(BM_Erf<double>) CWISE_SIZES ->Name("Erf_double");
+BENCHMARK(BM_Erf<double>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_double");
 BENCHMARK(BM_Abs<double>) CWISE_SIZES ->Name("Abs_double");
 BENCHMARK(BM_Square<double>) CWISE_SIZES ->Name("Square_double");
 BENCHMARK(BM_Cube<double>) CWISE_SIZES ->Name("Cube_double");

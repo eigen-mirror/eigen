@@ -11,9 +11,101 @@
 
 #include <limits>
 #include "packetmath_test_shared.h"
+#include "fp_control.h"
 #include "../Eigen/SpecialFunctions"
 
 using internal::unpacket_traits;
+
+#if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
+template <typename Scalar, typename Packet>
+void packet_erf_subnormals() {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int PacketSize = unpacket_traits<Packet>::size;
+  constexpr Bits Sign = Bits(1) << (8 * sizeof(Scalar) - 1);
+  constexpr Bits MinNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
+  const Bits samples[] = {Bits(1), Bits(2), Bits(3), Bits(MinNormal / 2), Bits(MinNormal - 1)};
+  // In this interval the cubic term of erf is negligible even relative to one subnormal ULP.
+  const double slope = 2.0 / std::sqrt(std::acos(-1.0));
+  for (Bits n : samples) {
+    for (Bits sign : {Bits(0), Sign}) {
+      for (int lane = 0; lane < PacketSize; ++lane) {
+        Scalar input[PacketSize], output[PacketSize];
+        for (int i = 0; i < PacketSize; ++i) input[i] = Scalar(0.5);
+        input[lane] = numext::bit_cast<Scalar>(Bits(sign | n));
+        internal::pstoreu(output, internal::perf(internal::ploadu<Packet>(input)));
+        const Bits actual = numext::bit_cast<Bits>(output[lane]);
+        const Bits expected = Bits(std::floor(double(n) * slope + 0.5));
+        VERIFY_IS_EQUAL(Bits(actual & Sign), sign);
+        const int error = int(actual & (Sign - 1)) - int(expected);
+        VERIFY(std::abs(error) <= (sizeof(Scalar) == sizeof(float) ? 1 : 0));
+        if (n == 1) VERIFY_IS_EQUAL(actual, Bits(sign | n));
+        for (int i = 0; i < PacketSize; ++i) {
+          if (i != lane) VERIFY_IS_APPROX(output[i], Scalar(std::erf(0.5)));
+        }
+      }
+    }
+  }
+
+  // Recovering one lane must not change zeros, infinities, or NaNs in its neighbors.
+  const Scalar neighbors[] = {Scalar(0), numext::bit_cast<Scalar>(Sign), std::numeric_limits<Scalar>::infinity(),
+                              std::numeric_limits<Scalar>::quiet_NaN()};
+  for (Scalar neighbor : neighbors) {
+    Scalar values[PacketSize], before[PacketSize], after[PacketSize];
+    for (int i = 0; i < PacketSize; ++i) values[i] = neighbor;
+    internal::pstoreu(before, internal::perf(internal::ploadu<Packet>(values)));
+    if ((numext::bit_cast<Bits>(neighbor) & (Sign - 1)) == 0) {
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY_IS_EQUAL(numext::bit_cast<Bits>(before[i]), numext::bit_cast<Bits>(neighbor));
+    }
+    values[0] = numext::bit_cast<Scalar>(Bits(1));
+    internal::pstoreu(after, internal::perf(internal::ploadu<Packet>(values)));
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(after[0]), Bits(1));
+    for (int i = 1; i < PacketSize; ++i)
+      VERIFY_IS_EQUAL(numext::bit_cast<Bits>(after[i]), numext::bit_cast<Bits>(before[i]));
+  }
+
+  // Check the public evaluator with packet bodies and an ordinary scalar tail, also while scalar arithmetic flushes.
+  Array<Scalar, Dynamic, 1> input(3 * internal::packet_traits<Scalar>::size + 1), output(input.size());
+  for (Index i = 0; i + 1 < input.size(); ++i)
+    input(i) = numext::bit_cast<Scalar>(Bits(Bits(1) | (i % 2 ? Sign : Bits(0))));
+  input(input.size() - 1) = Scalar(0.5);
+  output = input.erf();
+  for (Index i = 0; i + 1 < input.size(); ++i)
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(output(i)), numext::bit_cast<Bits>(input(i)));
+  VERIFY_IS_APPROX(output(output.size() - 1), Scalar(std::erf(0.5)));
+}
+
+void neon_erf_subnormals_float() {
+  packet_erf_subnormals<float, internal::Packet2f>();
+  packet_erf_subnormals<float, internal::Packet4f>();
+
+  // Rounded values straddling the subnormal/normal output boundary and the largest subnormal input.
+  const numext::uint32_t inputs[] = {0x00716fe1u, 0x00716fe2u, 0x00716fe3u, 0x007fffffu};
+  const numext::uint32_t expected[] = {0x007fffffu, 0x00800000u, 0x00800001u, 0x00906eb9u};
+  float input[4], output[4];
+  for (int i = 0; i < 4; ++i) input[i] = numext::bit_cast<float>(inputs[i]);
+  internal::pstoreu(output, internal::perf(internal::ploadu<internal::Packet4f>(input)));
+  for (int i = 0; i < 4; ++i) {
+    const int error = int(numext::bit_cast<numext::uint32_t>(output[i])) - int(expected[i]);
+    VERIFY(std::abs(error) <= 1);
+  }
+}
+
+void neon_erf_subnormals_bfloat16() {
+  packet_erf_subnormals<bfloat16, internal::Packet4bf>();
+  // Exhaustive bfloat16 subnormals, with both signs, checked without floating-point subnormal conversions.
+  for (unsigned int n = 1; n < 128; ++n) {
+    const numext::uint16_t expectedBits =
+        numext::uint16_t(std::floor(double(n) * (2.0 / std::sqrt(std::acos(-1.0))) + 0.5));
+    bfloat16 values[4], result[4];
+    for (int i = 0; i < 4; ++i) values[i] = numext::bit_cast<bfloat16>(numext::uint16_t(n | (i % 2 ? 0x8000 : 0)));
+    internal::pstoreu(result, internal::perf(internal::ploadu<internal::Packet4bf>(values)));
+    for (int i = 0; i < 4; ++i)
+      VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(result[i]),
+                      numext::uint16_t(expectedBits | (i % 2 ? 0x8000 : 0)));
+  }
+}
+#endif
 
 #if EIGEN_ARCH_ARM
 // Note: 32-bit arm always flushes subnormals to zero.
@@ -213,6 +305,15 @@ struct runall {
 }  // namespace Eigen
 
 EIGEN_DECLARE_TEST(special_packetmath) {
+#if EIGEN_ARCH_ARM && defined(EIGEN_VECTORIZE_NEON)
+  CALL_SUBTEST_1(neon_erf_subnormals_float());
+  CALL_SUBTEST_4(neon_erf_subnormals_bfloat16());
+  {
+    const Eigen::ScopedFlushToZero flush_to_zero;
+    CALL_SUBTEST_1(neon_erf_subnormals_float());
+    CALL_SUBTEST_4(neon_erf_subnormals_bfloat16());
+  }
+#endif
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test::runner<float>::run());
