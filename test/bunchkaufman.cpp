@@ -120,7 +120,7 @@ void bunchkaufman_inertia_and_conditioning(Index n) {
   RealVectorType d(n);
   Index expect_pos = 0, expect_neg = 0;
   for (Index k = 0; k < n; ++k) {
-    RealScalar mag = pow(RealScalar(10), internal::random<RealScalar>(-s, s));
+    RealScalar mag = numext::pow(RealScalar(10), internal::random<RealScalar>(-s, s));
     RealScalar sign = internal::random<bool>() ? RealScalar(1) : RealScalar(-1);
     d(k) = sign * mag;
     if (d(k) > 0)
@@ -488,8 +488,8 @@ void bunchkaufman_extreme_scale() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, 2, 2> Mat2;
   typedef Matrix<Scalar, 2, 1> Vec2;
-  const RealScalar tol = sqrt(test_precision<RealScalar>());
-  for (RealScalar mag : {pow(RealScalar(10), RealScalar(200)), pow(RealScalar(10), RealScalar(-200))}) {
+  const RealScalar tol = numext::sqrt(test_precision<RealScalar>());
+  for (RealScalar mag : {numext::pow(RealScalar(10), RealScalar(200)), numext::pow(RealScalar(10), RealScalar(-200))}) {
     const Scalar off = Scalar(mag);
     Mat2 A;
     A << Scalar(0), numext::conj(off), off, Scalar(0);
@@ -516,13 +516,14 @@ void bunchkaufman_extreme_scale_large(Index n) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
   typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  const RealScalar tol = sqrt(test_precision<RealScalar>());
+  const RealScalar tol = numext::sqrt(test_precision<RealScalar>());
   MatrixType M = MatrixType::Random(n, n);
   MatrixType A = M + M.adjoint();
   A.diagonal().setZero();
   // 1e+-175 is past the squaring threshold (|entry|^2 over/underflows double), so the pre-fix code
   // (which forms det = d11*d22 - |d21|^2) produces NaN/Inf here, while the scaled formulas stay exact.
-  for (RealScalar sigma : {pow(RealScalar(10), RealScalar(175)), pow(RealScalar(10), RealScalar(-175))}) {
+  for (RealScalar sigma :
+       {numext::pow(RealScalar(10), RealScalar(175)), numext::pow(RealScalar(10), RealScalar(-175))}) {
     const MatrixType As = A * Scalar(sigma);
     BunchKaufman<MatrixType, Lower> bk(As);
     VERIFY(bk.info() == Success);
@@ -575,7 +576,8 @@ void verify_subnormal_2x2_block(const MatrixType& A, const BKType& bk,
   const Matrix<Scalar, Dynamic, 1> x = bk.solve(b);
   VERIFY(x.allFinite());
   const RealScalar quantum = m > 0 ? u / s : RealScalar(0);
-  VERIFY((x - x_true).cwiseAbs().maxCoeff() <= RealScalar(16) * eps + RealScalar(4) * quantum);
+  const RealScalar tol = RealScalar(16) * eps + RealScalar(4) * quantum;
+  VERIFY((x - x_true).cwiseAbs().maxCoeff() <= tol);
 }
 
 template <typename MatrixType>

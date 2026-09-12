@@ -536,8 +536,8 @@ struct bunch_kaufman<Lower> {
         // stays O(1). Divide by d21 itself, never by a hoisted reciprocal: 1/d21 overflows once |d21|
         // is subnormal, where these quotients are still finite (issue #3142).
         const Scalar cjd = numext::conj(d21);
-        const Scalar ak = d22 / d21;
-        const Scalar akm1 = d11 / cjd;
+        const Scalar ak = numext::divide(d22, d21);
+        const Scalar akm1 = numext::divide(d11, cjd);
         const RealScalar denom = numext::real(ak * akm1) - RealScalar(1);
         // The pivot criterion gives |d11 d22| <= alpha^2 |d21|^2 with alpha < 1, so in exact arithmetic
         // -1 - alpha^2 < denom < alpha^2 - 1. Outside that range ak overflowed -- the criterion bounds
@@ -567,8 +567,8 @@ struct bunch_kaufman<Lower> {
           for (Index j = 0; j < rs; ++j) {
             const Scalar u0 = c0.coeff(j);
             const Scalar u1 = c1.coeff(j);
-            const Scalar l0 = t * ((ak * u0 - u1) / cjd);
-            const Scalar l1 = t * ((akm1 * u1 - u0) / d21);
+            const Scalar l0 = t * numext::divide(ak * u0 - u1, cjd);
+            const Scalar l1 = t * numext::divide(akm1 * u1 - u0, d21);
             const Index len = rs - j;
             mat.col(k + 2 + j).tail(len) -= numext::conj(l0) * c0.tail(len) + numext::conj(l1) * c1.tail(len);
             c0.coeffRef(j) = l0;
@@ -708,8 +708,8 @@ struct bunch_kaufman<Lower> {
         // over/underflow on extreme-scaled blocks). The deferred level-3 trailing update below uses W
         // (= L*D, original scale), so it carries no 1/det factor either.
         const Scalar cjd = numext::conj(d21);
-        const Scalar ak = d22 / d21;
-        const Scalar akm1 = d11 / cjd;
+        const Scalar ak = numext::divide(d22, d21);
+        const Scalar akm1 = numext::divide(d11, cjd);
         const RealScalar denom = numext::real(ak * akm1) - RealScalar(1);
         if (info == 0 && !(denom < RealScalar(0) && denom > RealScalar(-2))) info = jc + 1;
         const Index rs = n - jc - 2;
@@ -847,12 +847,12 @@ void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) cons
       // extreme-scaled blocks, e.g. [[0,s],[s,0]], s=1e+-200). Every quotient divides by d21 itself:
       // a hoisted 1/d21 overflows once |d21| is subnormal (issue #3142).
       const Scalar cjd = numext::conj(d21);
-      const Scalar ak = d22 / d21;
-      const Scalar akm1 = d11 / cjd;
+      const Scalar ak = numext::divide(d22, d21);
+      const Scalar akm1 = numext::divide(d11, cjd);
       const RealScalar t = RealScalar(1) / (numext::real(ak * akm1) - RealScalar(1));
       for (Index j = 0; j < x.cols(); ++j) {
-        const Scalar bk = x.coeff(k + 1, j) / d21;
-        const Scalar bkm1 = x.coeff(k, j) / cjd;
+        const Scalar bk = numext::divide(x.coeff(k + 1, j), d21);
+        const Scalar bkm1 = numext::divide(x.coeff(k, j), cjd);
         x.coeffRef(k, j) = t * (ak * bkm1 - bk);
         x.coeffRef(k + 1, j) = t * (akm1 * bk - bkm1);
       }

@@ -230,6 +230,28 @@ void check_complex_packet_arithmetic() {
   Vector2 expected_conjugate_product;
   expected_conjugate_product << numext::conj(values.coeff(0)) * factor, numext::conj(values.coeff(1)) * factor;
   VERIFY_IS_APPROX(conjugate_product, expected_conjugate_product);
+
+  // numext::divide guards against intermediate overflow (c^2 + d^2) near max representable bounds.
+  const RealScalar max_val = (std::numeric_limits<RealScalar>::max)();
+  const Scalar big_num(RealScalar(0.9) * max_val, RealScalar(0));
+  const Scalar big_denom(max_val, RealScalar(0));
+  const Scalar safe_div_result = numext::divide(big_num, big_denom);
+  VERIFY((numext::isfinite)(safe_div_result.real()));
+  VERIFY_IS_APPROX(safe_div_result, Scalar(RealScalar(0.9), RealScalar(0)));
+  VERIFY_IS_APPROX(numext::divide(RealScalar(0.9) * max_val, max_val), RealScalar(0.9));
+
+  // Verify vectorized expression division (vec / denom) on numbers that would cause
+  // intermediate overflow (c^2 + d^2 > max) in naive complex division.
+  const RealScalar intermediate_scale = numext::sqrt(max_val) * RealScalar(2);
+  const Scalar intermediate_num(RealScalar(0.9) * intermediate_scale, RealScalar(0));
+  const Scalar intermediate_denom(intermediate_scale, RealScalar(0));
+  Matrix<Scalar, Dynamic, 1> vec(8);
+  vec.fill(intermediate_num);
+  Matrix<Scalar, Dynamic, 1> vec_div = vec / intermediate_denom;
+  for (Index i = 0; i < vec.size(); ++i) {
+    VERIFY((numext::isfinite)(vec_div(i).real()));
+    VERIFY_IS_APPROX(vec_div(i), Scalar(RealScalar(0.9), RealScalar(0)));
+  }
 }
 
 template <typename RealScalar>

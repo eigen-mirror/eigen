@@ -2275,6 +2275,38 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide(const std::
 
 }  // end namespace internal
 
+namespace numext {
+
+/** \internal
+ * \brief Scalar division that guards against intermediate overflow for complex types.
+ *
+ * For real types, this evaluates a / b.
+ * For complex types, this evaluates a / b using Smith's method to prevent intermediate
+ * overflow (c^2 + d^2) when b is near the boundary of the representable range, consistent
+ * with the vectorized complex division path in GenericPacketMathComplex.h.
+ */
+template <typename LhsScalar, typename RhsScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto divide(const LhsScalar& a, const RhsScalar& b) -> decltype(a / b) {
+  return a / b;
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> divide(const std::complex<T>& a, const std::complex<T>& b) {
+  return internal::complex_divide_smith(a, b);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> divide(const T& a, const std::complex<T>& b) {
+  return internal::complex_divide_smith(std::complex<T>(a, T(0)), b);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> divide(const std::complex<T>& a, const T& b) {
+  return a / b;
+}
+
+}  // end namespace numext
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_MATHFUNCTIONS_H
