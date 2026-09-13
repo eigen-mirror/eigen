@@ -783,25 +783,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
 
     // computeRoots produces theoretically sorted roots, but floating-point
     // rounding in the trigonometric formulas can break the ordering.
-    // Enforce sorting with a branchless min/max network (3 elements).
-    {
-      Scalar tmp;
-      if (eivals(0) > eivals(1)) {
-        tmp = eivals(0);
-        eivals(0) = eivals(1);
-        eivals(1) = tmp;
-      }
-      if (eivals(1) > eivals(2)) {
-        tmp = eivals(1);
-        eivals(1) = eivals(2);
-        eivals(2) = tmp;
-      }
-      if (eivals(0) > eivals(1)) {
-        tmp = eivals(0);
-        eivals(0) = eivals(1);
-        eivals(1) = tmp;
-      }
-    }
+    // Enforce sorting with a fixed 3-element compare-swap network.
+    if (eivals(0) > eivals(1)) numext::swap(eivals(0), eivals(1));
+    if (eivals(1) > eivals(2)) numext::swap(eivals(1), eivals(2));
+    if (eivals(0) > eivals(1)) numext::swap(eivals(0), eivals(1));
 
     // compute the eigenvectors
     if (computeEigenvectors) {
