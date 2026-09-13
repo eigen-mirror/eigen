@@ -1100,9 +1100,7 @@ EIGEN_GPU_PACKET4H2_BINARY(pcmp_le)
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux<Packet4h2>(const Packet4h2& a) {
-  const half2 sum =
-      padd<half2>(padd<half2>(lane_half2(a, 0), lane_half2(a, 1)), padd<half2>(lane_half2(a, 2), lane_half2(a, 3)));
-  return predux<half2>(sum);
+  return predux(lane_half2(a, 0)) + predux(lane_half2(a, 1)) + predux(lane_half2(a, 2)) + predux(lane_half2(a, 3));
 }
 
 template <>

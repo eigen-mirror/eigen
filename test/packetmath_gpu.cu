@@ -1034,6 +1034,13 @@ void packetmath_gpu_half_core() {
     check_ternary<Packet, op_pmadd>(numbers.a, numbers.b, numbers.a, expected, bits);
   }
 
+  // Adjacent opposite-sign lanes cancel before any cross-pair addition can overflow.
+  Buffer<Scalar> cancellation(8);
+  cancellation << Scalar(60000), Scalar(-60000), Scalar(60000), Scalar(-60000), Scalar(0), Scalar(0), Scalar(0),
+      Scalar(0);
+  check_redux<Packet, op_predux>(
+      cancellation, [](const Scalar*) { return Scalar(0); }, bits);
+
   // Reductions follow the lane tree of the implementation, so the reference rounds in the same order.
   const Buffer<Scalar> finite = [&] {
     std::vector<Scalar> v;
@@ -1046,8 +1053,8 @@ void packetmath_gpu_half_core() {
   check_redux<Packet, op_predux>(
       finite,
       [](const Scalar* p) {
-        return half_add(half_add(half_add(p[0], p[2]), half_add(p[4], p[6])),
-                        half_add(half_add(p[1], p[3]), half_add(p[5], p[7])));
+        return half_add(half_add(half_add(half_add(p[0], p[1]), half_add(p[2], p[3])), half_add(p[4], p[5])),
+                        half_add(p[6], p[7]));
       },
       bits);
   check_redux<Packet, op_predux_mul>(
