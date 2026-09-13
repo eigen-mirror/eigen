@@ -178,13 +178,15 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
           for (int i = 0; i < spin_count_ && !t->f; ++i) *t = GlobalSteal();
           // Notify `spinning_state_` that we are no longer spinning.
           bool has_no_notify_task = StopSpinning();
-          // If a task was submitted to the queue without a call to
-          // `ec_.Notify()` (if `IsNotifyParkedThreadRequired()` returned
-          // false), and we didn't steal anything above, we must try to
-          // steal one more time, to make sure that this task will be
-          // executed. We will not necessarily find it, because it might
-          // have been already stolen by some other thread.
-          if (has_no_notify_task && !t->f) *t = GlobalSteal();
+          // A suppressed notification can belong to a different task than the
+          // one we just stole. Pass it on before executing a potentially blocking task.
+          if (has_no_notify_task) {
+            if (t->f) {
+              if (NonEmptyQueueIndex() != -1) ec_.Notify(false);
+            } else {
+              *t = GlobalSteal();
+            }
+          }
         }
       }
     }
@@ -510,7 +512,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
   // checks if there were any tasks submitted into the pool without notifying
   // parked threads, and decrements the count by one. Returns true if the number
   // of tasks submitted without notification was decremented. In this case,
-  // caller thread might have to call Steal() one more time.
+  // caller must either steal again or notify another worker.
   bool StopSpinning() {
     uint64_t spinning = spinning_state_.load(std::memory_order_relaxed);
     for (;;) {
@@ -523,7 +525,8 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       bool has_no_notify_task = state.num_no_notification > 0;
       if (has_no_notify_task) --state.num_no_notification;
 
-      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_relaxed)) {
+      // Acquire the queue publication paired with the suppressed notification.
+      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_acquire)) {
         return has_no_notify_task;
       }
     }
@@ -546,7 +549,9 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       // Increment the number of tasks submitted without notification.
       ++state.num_no_notification;
 
-      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_relaxed)) {
+      // Publish the queued task to the spinner that consumes this notification.
+      if (spinning_state_.compare_exchange_weak(spinning, state.Encode(), std::memory_order_release,
+                                                std::memory_order_relaxed)) {
         return false;
       }
     }
