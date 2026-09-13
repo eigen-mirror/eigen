@@ -1008,8 +1008,9 @@ void packetmath_gpu_bfloat16_fallback() {
       pairs, [](Scalar x, Scalar y) { return Eigen::internal::psub(x, y); }, bits);
   check_binary<Scalar, op_pdiv>(
       pairs, [](Scalar x, Scalar y) { return Eigen::internal::pdiv(x, y); }, bits);
+  // A one-ulp sqrtf error can cross a bfloat16 rounding boundary.
   check_unary<Scalar, op_psqrt>(
-      in, [](Scalar x) { return Eigen::internal::psqrt(x); }, bits);
+      in, [](Scalar x) { return Eigen::internal::psqrt(x); }, compare_ulps<Scalar>{kSqrtFloatUlps});
   check_unary<Scalar, op_pfloor>(
       in, [](Scalar x) { return Eigen::internal::pfloor(x); }, bits);
 }
