@@ -63,14 +63,26 @@ scale_binary_bits_by_power_of_two(const typename binary_floating_point_traits<Sc
     }
   }
   exponent += int(factorExponentBits >> Binary::kFractionBits) - Binary::kExponentBias;
-  eigen_internal_assert(exponent > 0 && exponent < int(Binary::kExponentMask >> Binary::kFractionBits));
-  return (valueBits & Binary::kSignBit) | (Bits(exponent) << Binary::kFractionBits) |
-         (significand & Binary::kFractionMask);
+  eigen_internal_assert(exponent < int(Binary::kExponentMask >> Binary::kFractionBits));
+  const Bits sign = valueBits & Binary::kSignBit;
+  if (exponent > 0) return sign | (Bits(exponent) << Binary::kFractionBits) | (significand & Binary::kFractionMask);
+
+  // Subnormal result m * 2^(exponent - 1) denorm_min, m = significand | kExponentUnit < 2 * kExponentUnit: round to
+  // nearest, ties to even, as IEEE 754 multiplication does. A carry into kExponentUnit encodes the smallest normal; for
+  // shift > kFractionBits + 1 the result is below denorm_min / 2 and rounds to a signed zero.
+  const int shift = 1 - exponent;
+  if (shift > Binary::kFractionBits + 1) return sign;
+  const Bits mantissa = significand | Binary::kExponentUnit;
+  const Bits halfway = Bits(1) << (shift - 1);
+  const Bits remainder = mantissa & ((halfway << 1) - 1);
+  Bits rounded = mantissa >> shift;
+  if (remainder > halfway || (remainder == halfway && (rounded & Bits(1)) != 0)) ++rounded;
+  return sign | rounded;
 }
 
-// Recovery-only multiplication: factor is a positive normal power of two and every nonzero finite result must be
-// normal and finite. Our tiny-input scaling factors guarantee this; no output rounding is needed. Keep the integer-only
-// ABI so compilers cannot replace reconstruction with FTZ/DAZ-sensitive floating-point arithmetic.
+// Multiplication by a positive normal power of two through integer significands, so FTZ/DAZ cannot flush a subnormal
+// input or result; a subnormal result rounds as IEEE 754 multiplication does, and no result may overflow. Keep the
+// integer-only ABI so compilers cannot replace reconstruction with FTZ/DAZ-sensitive floating-point arithmetic.
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar scale_binary_by_power_of_two(const Scalar& value, const Scalar& factor) {
   using Binary = binary_floating_point_traits<Scalar>;
@@ -102,7 +114,7 @@ struct scale_by_power_of_two_op {
 
 template <typename FactorScalar>
 struct functor_traits<scale_by_power_of_two_op<FactorScalar>> {
-  // Integer significand recovery is scalar and calls an out-of-line helper.
+  // Integer significand scaling is scalar and calls an out-of-line helper.
   static constexpr int Cost = 10 * NumTraits<FactorScalar>::MulCost;
   static constexpr bool PacketAccess = false;
   static constexpr bool IsRepeatable = true;
@@ -180,6 +192,49 @@ struct safe_scaling_operations {
       with_scaled_impl(src, maxCoeff, factors, func, false_type());
   }
 
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place_impl(MatrixType& matrix, const Scalar&,
+                                                                          const Factors& factors, false_type) {
+    unscale_in_place(matrix, factors);
+  }
+
+  // Below the recovery threshold, unscaling rounds coefficients that are significant relative to maxCoeff into the
+  // subnormal range, where FTZ/DAZ arithmetic would zero them.
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place_impl(MatrixType& matrix, const Scalar& maxCoeff,
+                                                                          const Factors& factors, true_type) {
+    if (!is_identity(factors) && needs_subnormal_recovery(maxCoeff))
+      matrix = matrix.unaryExpr(scale_by_power_of_two_op<Scalar>(factors.scale));
+    else
+      unscale_in_place_impl(matrix, maxCoeff, factors, false_type());
+  }
+
+  template <typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar recover_flushed_max_coeff_impl(const Src&, const Scalar& maxCoeff,
+                                                                                     false_type) {
+    return maxCoeff;
+  }
+
+  template <typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar recover_flushed_max_coeff_impl(const Src& src,
+                                                                                     const Scalar& maxCoeff,
+                                                                                     true_type) {
+    using Binary = binary_floating_point_traits<Scalar>;
+    using Bits = typename Binary::Bits;
+    if (Binary::magnitude(maxCoeff) != 0) return maxCoeff;
+    // A product expression has no coefficient access; its evaluator materializes it.
+    const evaluator<Src> coeffs(src);
+    Bits maxBits = 0;
+    for (Index col = 0; col < src.cols(); ++col) {
+      for (Index row = 0; row < src.rows(); ++row) {
+        const typename Src::Scalar coeff = coeffs.coeff(row, col);
+        maxBits = numext::maxi(
+            maxBits, numext::maxi(Binary::magnitude(numext::real(coeff)), Binary::magnitude(numext::imag(coeff))));
+      }
+    }
+    return numext::bit_cast<Scalar>(maxBits);
+  }
+
  public:
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Factors
   compute_ceiling_factors_with_normal_reciprocal(const Scalar& value) {
@@ -227,6 +282,25 @@ struct safe_scaling_operations {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place(ValueType& value, const Factors& factors) {
     if (factors.scale == Scalar(1)) return;
     value *= factors.scale;
+  }
+
+  template <typename MatrixType>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place(MatrixType& matrix, const Scalar& maxCoeff,
+                                                                     const Factors& factors) {
+    constexpr bool kPreserveSubnormalOutputs =
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename MatrixType::Scalar>::value;
+    unscale_in_place_impl(matrix, maxCoeff, factors, bool_constant<kPreserveSubnormalOutputs>());
+  }
+
+  // A SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reduces an all-subnormal matrix to a zero
+  // maximum, so rescan a zero maxCoeff from the representation. Any subnormal maximum, including the largest real or
+  // imaginary magnitude of a complex matrix, selects the same factors as the true one.
+  template <typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar recover_flushed_max_coeff(const Src& src,
+                                                                                const Scalar& maxCoeff) {
+    constexpr bool kPreserveSubnormalInputs =
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Src::Scalar>::value;
+    return recover_flushed_max_coeff_impl(src, maxCoeff, bool_constant<kPreserveSubnormalInputs>());
   }
 
   template <typename MatrixType>

@@ -238,6 +238,64 @@ void check_scale_binary_by_power_of_two() {
   }
 }
 
+// Rounds a subnormal result exactly where hardware arithmetic may flush it: the exact product m * 2^-k denorm_min is
+// normal in double, and its nearest integer, ties to even, is the expected magnitude's bit pattern (a carry into the
+// exponent field encodes the smallest normal).
+template <typename Scalar>
+void check_scale_binary_by_power_of_two_rounding() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  // Leading-bit significands in [kExponentUnit, 2 * kExponentUnit): ties and their neighbours at small shifts, and an
+  // all-ones tail that carries into the smallest normal.
+  const Bits significands[] = {Binary::kExponentUnit,
+                               Binary::kExponentUnit | Bits(1),
+                               Binary::kExponentUnit | Bits(2),
+                               Binary::kExponentUnit | Bits(3),
+                               Binary::kExponentUnit | Bits(5),
+                               Binary::kExponentUnit + (Binary::kExponentUnit >> 1),
+                               (Binary::kExponentUnit << 1) - Bits(1)};
+  // A biased input exponent e scales m by 2^(e - 1); the factor 2^-(e - 1 + k) cancels it and shifts by k.
+  const int exponentFields[] = {1, 2, Binary::kExponentBias - Binary::kFractionBits - 3};
+
+  ScopedFlushToZero flushToZero;
+  for (int field : exponentFields) {
+    for (int k = 0; k <= Binary::kFractionBits + 3; ++k) {
+      const Scalar factor = numext::ldexp(Scalar(1), -(field - 1 + k));
+      for (Bits m : significands) {
+        const Bits expected = Bits(std::nearbyint(std::ldexp(double(m), -k)));
+        for (Bits sign : {Bits(0), Bits(Binary::kSignBit)}) {
+          const Scalar value =
+              numext::bit_cast<Scalar>(sign | (Bits(field) << Binary::kFractionBits) | (m & Binary::kFractionMask));
+          VERIFY_IS_EQUAL(Binary::bits(internal::scale_binary_by_power_of_two(value, factor)), sign | expected);
+        }
+      }
+    }
+  }
+  // Subnormal inputs normalize before they round.
+  for (Bits magnitude : {Bits(1), Bits(3), Binary::kExponentUnit >> 1, Binary::kFractionMask}) {
+    for (int k = 1; k <= Binary::kFractionBits + 2; ++k) {
+      const Bits expected = Bits(std::nearbyint(std::ldexp(double(magnitude), -k)));
+      for (Bits sign : {Bits(0), Bits(Binary::kSignBit)}) {
+        const Scalar actual = internal::scale_binary_by_power_of_two(numext::bit_cast<Scalar>(sign | magnitude),
+                                                                     numext::ldexp(Scalar(1), -k));
+        VERIFY_IS_EQUAL(Binary::bits(actual), sign | expected);
+      }
+    }
+  }
+}
+
+// Under DAZ a comparison reads a subnormal as zero, so compare representations.
+template <typename RealScalar>
+bool same_bits(const RealScalar& a, const RealScalar& b) {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  return Binary::bits(a) == Binary::bits(b);
+}
+
+template <typename RealScalar>
+bool same_bits(const std::complex<RealScalar>& a, const std::complex<RealScalar>& b) {
+  return same_bits(a.real(), b.real()) && same_bits(a.imag(), b.imag());
+}
+
 template <typename Scalar>
 struct scaling_test_value {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -315,6 +373,62 @@ void check_subnormal_preserving_scaling() {
       internal::safe_scaling<RealScalar>::scale_to(scaledSubnormal, subnormalInput, subnormalMaxCoeff);
   VERIFY(subnormalFactors.scale != RealScalar(1) || subnormalFactors.invScale != RealScalar(1));
   VERIFY(numext::abs(scaledSubnormal(0)) > RealScalar(0));
+
+  // Unscaling restores the subnormal components exactly, still under FTZ.
+  internal::safe_scaling<RealScalar>::unscale_in_place(scaled, maxCoeff, factors);
+  internal::safe_scaling<RealScalar>::unscale_in_place(scaledSubnormal, subnormalMaxCoeff, subnormalFactors);
+  for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
+  VERIFY(same_bits(scaledSubnormal(0), subnormalInput(0)));
+
+  // A NaN, infinite or zero maxCoeff selects identity factors, and unscaling leaves the coefficients alone.
+  for (const RealScalar special :
+       {std::numeric_limits<RealScalar>::quiet_NaN(), std::numeric_limits<RealScalar>::infinity(), RealScalar(0)}) {
+    Matrix<Scalar, 2, 1> unchanged;
+    const auto specialFactors = internal::safe_scaling<RealScalar>::scale_to(unchanged, input, special);
+    internal::safe_scaling<RealScalar>::unscale_in_place(unchanged, special, specialFactors);
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(unchanged(i), input(i)));
+  }
+}
+
+// Unscaling rounds through integer significands exactly when 0 < maxCoeff < min / eps. With floor factors, eps / 2
+// unscales to min / 2 at the threshold and to min / 4 one ulp below it; FTZ flushes only the former.
+template <typename Scalar>
+void check_unscale_recovery_threshold() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Scaling = internal::safe_scaling<Scalar>;
+  const Scalar threshold = (std::numeric_limits<Scalar>::min)() / NumTraits<Scalar>::epsilon();
+  const Scalar belowThreshold = numext::nextafter(threshold, Scalar(0));
+  // Read through volatile so the products are formed at run time, under FTZ.
+  volatile Scalar halfEpsilon = NumTraits<Scalar>::epsilon() / Scalar(2);
+  Matrix<Scalar, 1, 1> atThreshold, below;
+  atThreshold(0) = halfEpsilon;
+  below(0) = halfEpsilon;
+
+  ScopedFlushToZero flushToZero;
+  Scaling::unscale_in_place(below, belowThreshold, Scaling::compute_floor_factors(belowThreshold));
+  VERIFY(same_bits(below(0), numext::bit_cast<Scalar>(Binary::kExponentUnit >> 2)));
+  Scaling::unscale_in_place(atThreshold, threshold, Scaling::compute_floor_factors(threshold));
+  if (flushToZero.isSupported()) VERIFY(same_bits(atThreshold(0), Scalar(0)));
+}
+
+// A reduction that flushes subnormal inputs returns zero; the rescan reads the largest real or imaginary magnitude from
+// the representation instead, and leaves a nonzero maximum alone.
+template <typename Scalar>
+void check_recover_flushed_max_coeff() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Scaling = internal::safe_scaling<RealScalar>;
+  using Value = scaling_test_value<Scalar>;
+  const RealScalar small = numext::bit_cast<RealScalar>(Bits(3));
+  const RealScalar large = numext::bit_cast<RealScalar>(Binary::kFractionMask);
+  Matrix<Scalar, 2, 2> m;
+  m << Value::run(small, RealScalar(0)), Value::run(-small, -large), Value::run(RealScalar(0), small),
+      Value::run(-small, RealScalar(0));
+  const RealScalar expected = NumTraits<Scalar>::IsComplex ? large : small;
+  VERIFY(same_bits(Scaling::recover_flushed_max_coeff(m, RealScalar(0)), expected));
+  VERIFY(same_bits(Scaling::recover_flushed_max_coeff(m, RealScalar(1)), RealScalar(1)));
+  VERIFY(same_bits(Scaling::recover_flushed_max_coeff(Matrix<Scalar, 2, 2>::Zero(), RealScalar(0)), RealScalar(0)));
 }
 
 EIGEN_DECLARE_TEST(safe_scaling) {
@@ -336,8 +450,16 @@ EIGEN_DECLARE_TEST(safe_scaling) {
   CALL_SUBTEST(check_arithmetic_scaling_expression<std::complex<double>>());
   CALL_SUBTEST(check_scale_binary_by_power_of_two<float>());
   CALL_SUBTEST(check_scale_binary_by_power_of_two<double>());
+  CALL_SUBTEST(check_scale_binary_by_power_of_two_rounding<float>());
+  CALL_SUBTEST(check_scale_binary_by_power_of_two_rounding<double>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<float>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<std::complex<float>>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<double>());
   CALL_SUBTEST(check_subnormal_preserving_scaling<std::complex<double>>());
+  CALL_SUBTEST(check_unscale_recovery_threshold<float>());
+  CALL_SUBTEST(check_unscale_recovery_threshold<double>());
+  CALL_SUBTEST(check_recover_flushed_max_coeff<float>());
+  CALL_SUBTEST(check_recover_flushed_max_coeff<std::complex<float>>());
+  CALL_SUBTEST(check_recover_flushed_max_coeff<double>());
+  CALL_SUBTEST(check_recover_flushed_max_coeff<std::complex<double>>());
 }

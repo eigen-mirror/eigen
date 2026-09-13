@@ -110,40 +110,67 @@ void schur_underflow_scale(Index size) {
     for (Index col = 0; col < row; ++col) VERIFY(numext::is_exactly_zero(T(row, col)));
 }
 
+// Under flush-to-zero, targets with runtime control see what ARMv7 NEON always does to subnormal SIMD results, and Arm
+// flushes subnormal inputs as well. The decomposition runs inside the scope; callers verify outside it.
+template <typename MatrixType>
+bool compute_schur(ComplexSchur<MatrixType>& schur, const MatrixType& A, bool flushToZero) {
+  if (!flushToZero) {
+    schur.compute(A);
+    return true;
+  }
+  ScopedFlushToZero scope;
+  if (scope.isSupported()) schur.compute(A);
+  return scope.isSupported();
+}
+
 // A matrix whose coefficients are all subnormal is still a matrix with a Schur decomposition, not the zero matrix.
 // Scaling by a power of two moves it into the normal range exactly, so the factorization stays accurate to the
 // quantization of the subnormal input.
 template <typename MatrixType>
-void schur_subnormal_scale(Index size) {
+void schur_subnormal_scale(Index size, bool flushToZero) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
   typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using WideScalar = std::complex<long double>;
+  using WideMatrix = Matrix<WideScalar, Dynamic, Dynamic>;
 
   const RealScalar denormalMin = std::numeric_limits<RealScalar>::denorm_min();
   const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
   if (!(denormalMin < normalMin)) return;  // Target has no subnormals, or flushes them to zero.
 
   // Every coefficient lands in the top of the subnormal range: none of them is normal, yet each still carries most of
-  // its mantissa, so an accurate decomposition remains possible.
+  // its mantissa, so an accurate decomposition remains possible. Maxima and reconstructions are taken in long double,
+  // whose arithmetic is scalar: a SIMD unit that flushes subnormals (ARMv7 NEON) would zero them.
   const MatrixType A = MatrixType::Random(size, size) * Scalar(normalMin / RealScalar(2));
-  if (!(A.cwiseAbs().maxCoeff() > RealScalar(0))) return;
-  VERIFY(A.cwiseAbs().maxCoeff() < normalMin);
+  const WideMatrix wideA = A.template cast<WideScalar>();
+  const long double maxA = wideA.cwiseAbs().maxCoeff();
+  VERIFY(maxA > 0 && maxA < static_cast<long double>(normalMin));
 
-  ComplexSchur<MatrixType> schurOfA(A);
+  ComplexSchur<MatrixType> schurOfA(size);
+  if (!compute_schur(schurOfA, A, flushToZero)) return;
   VERIFY_IS_EQUAL(schurOfA.info(), Success);
   const ComplexMatrixType& U = schurOfA.matrixU();
   const ComplexMatrixType& T = schurOfA.matrixT();
+  const WideMatrix wideU = U.template cast<WideScalar>();
+  const WideMatrix wideT = T.template cast<WideScalar>();
 
   // Unitary invariance gives ||T||_F = ||A||_F, so the largest coefficient of T cannot be more than a factor of the
   // dimension below the largest coefficient of A. Returning the zero matrix, as the unscaled reduction did, fails
   // this; isZero() would not, because every coefficient here is much smaller than one.
-  VERIFY(T.cwiseAbs().maxCoeff() >= A.cwiseAbs().maxCoeff() / RealScalar(size));
+  VERIFY(wideT.cwiseAbs().maxCoeff() >= maxA / static_cast<long double>(size));
   VERIFY_IS_APPROX(U * U.adjoint(), ComplexMatrixType::Identity(size, size));
-  // The reconstruction rounds back into the subnormal range, where the spacing is denorm_min rather than eps times
-  // the coefficient, so bound the residual by that spacing instead of by a relative tolerance.
-  const RealScalar residual = (A.template cast<ComplexScalar>() - U * T * U.adjoint()).cwiseAbs().maxCoeff();
-  VERIFY(residual <= RealScalar(4 * size * size) * denormalMin);
+  // T rounds back into the subnormal range, where the spacing is denorm_min rather than eps times the coefficient, so
+  // bound the residual by that spacing instead of by a relative tolerance.
+  const long double residual = (wideA - wideU * wideT * wideU.adjoint()).cwiseAbs().maxCoeff();
+  VERIFY(residual <= static_cast<long double>(4 * size * size) * static_cast<long double>(denormalMin));
+
+  // A triangular matrix is its own Schur form and power-of-two scaling is exact, so T reproduces it bit for bit.
+  MatrixType triangular = A;
+  triangular.template triangularView<StrictlyLower>().setZero();
+  compute_schur(schurOfA, triangular, flushToZero);
+  VERIFY_IS_EQUAL(schurOfA.info(), Success);
+  VERIFY_IS_EQUAL(U, ComplexMatrixType::Identity(size, size));
+  VERIFY_IS_EQUAL(WideMatrix(T.template cast<WideScalar>()), WideMatrix(triangular.template cast<WideScalar>()));
 }
 
 // Scaling divides by a power of two, so coefficients more than the exponent range below the largest one flush to zero.
@@ -226,9 +253,12 @@ EIGEN_DECLARE_TEST(schur_complex) {
     }
   }
 
-  CALL_SUBTEST_7((schur_subnormal_scale<Matrix4cd>(4)));
-  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXcf>(8)));
-  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXf>(8)));
+  CALL_SUBTEST_7((schur_subnormal_scale<Matrix4cd>(4, false)));
+  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXcf>(8, false)));
+  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXf>(8, false)));
+  CALL_SUBTEST_7((schur_subnormal_scale<Matrix4cd>(4, true)));
+  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXcf>(8, true)));
+  CALL_SUBTEST_7((schur_subnormal_scale<MatrixXf>(8, true)));
 
   CALL_SUBTEST_8((schur_dynamic_range<Matrix4cd>(4)));
   CALL_SUBTEST_8((schur_dynamic_range<MatrixXcf>(8)));
