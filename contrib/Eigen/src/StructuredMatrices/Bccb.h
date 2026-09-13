@@ -244,10 +244,9 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     // smallest-normal 1x1 operator stays invertible. A comparison with NaN is
     // false, so NaN symbol entries stay in the inverted set and propagate to the
     // output instead of being silently zeroed.
-    // Keep the reciprocal behind a scalar branch: select() evaluates both arms,
-    // so it would divide by thresholded zeros and potentially raise floating-point
-    // exceptions even though those coefficients are discarded.
-    for (Index k = 0; k < s.size(); ++k) sinv(k) = mods(k) < tol ? Complex(0) : Complex(1) / s(k);
+    // The packet path sanitizes discarded entries before division; exceptional
+    // packets retain the scalar branch and balanced reciprocal.
+    internal::structured_symbol_reciprocal(s.data(), mods.data(), tol, sinv.data(), s.size());
     Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
     if (!b.allFinite()) {
       // A non-finite right-hand side cannot go through the transforms (see
