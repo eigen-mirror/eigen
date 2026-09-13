@@ -394,7 +394,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
         m_device.parallel_for_setup(input_dim, global_range, local_range);
         const size_t local_memory_size = (local_range[0] + kernel_size - 1) * (local_range[1]);
-        gpu_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
+        eigen_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
         const array<Index, 1> indices{{m_indices[0]}};
         const array<Index, 1> kernel_dims{{m_kernelImpl.dimensions()[0]}};
         internal::IndexMapper<Index, InputDims, 1, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
@@ -428,7 +428,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
 
         const size_t local_memory_size =
             (local_range[0] + kernel_size[0] - 1) * (local_range[1] + kernel_size[1] - 1) * local_range[2];
-        gpu_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
+        eigen_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
         const array<Index, 2> indices{{m_indices[kernel_index[0]], m_indices[kernel_index[1]]}};
         const array<Index, 2> kernel_dims{
             {m_kernelImpl.dimensions()[kernel_index[0]], m_kernelImpl.dimensions()[kernel_index[1]]}};
@@ -474,7 +474,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         auto local_memory_range = (local_range + kernel_size - 1);
         const size_t local_memory_size = local_memory_range[0] * local_memory_range[1] * local_memory_range[2];
 
-        gpu_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
+        eigen_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
         typedef EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
                                        typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV3D>
             ConvKernel;
