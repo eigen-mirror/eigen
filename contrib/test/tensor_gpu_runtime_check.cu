@@ -92,10 +92,9 @@ static void test_runtime_call_check() {
   Eigen::GpuDevice device(&stream);
   g_num_gpu_errors = 0;
 
-  int host_src = 0;
   int host_dst = 0;
-  // A host pointer is not a device source for a device-to-host copy.
-  device.memcpyDeviceToHost(&host_dst, &host_src, sizeof(int));
+  // HIP can accept a host source here; a null source with a nonzero size is invalid on both runtimes.
+  device.memcpyDeviceToHost(&host_dst, nullptr, sizeof(int));
   VERIFY_IS_EQUAL(g_num_gpu_errors, 1);
   VERIFY_IS_EQUAL(g_last_gpu_error.code, kInvalidValue);
   VERIFY(g_last_gpu_error.expression.find("gpuMemcpyAsync") == 0);
