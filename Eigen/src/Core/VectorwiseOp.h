@@ -619,6 +619,19 @@ class VectorwiseOp {
     return m_matrix + extendedTo(other.derived());
   }
 
+  /** Returns the expression of the sum of the vector \a other to each subvector of \a xpr */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      CwiseBinaryOp<internal::scalar_sum_op<typename OtherDerived::Scalar, Scalar>,
+                    const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>
+      operator+(const DenseBase<OtherDerived>& other, const VectorwiseOp& xpr) {
+    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
+    return CwiseBinaryOp<internal::scalar_sum_op<typename OtherDerived::Scalar, Scalar>,
+                         const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>(
+        xpr.extendedTo(other.derived()), xpr._expression());
+  }
+
   /** Returns the expression of the difference between each subvector of \c *this and the vector \a other */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC CwiseBinaryOp<internal::scalar_difference_op<Scalar, typename OtherDerived::Scalar>,
@@ -627,6 +640,19 @@ class VectorwiseOp {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
     return m_matrix - extendedTo(other.derived());
+  }
+
+  /** Returns the expression of the difference between the vector \a other and each subvector of \a xpr */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      CwiseBinaryOp<internal::scalar_difference_op<typename OtherDerived::Scalar, Scalar>,
+                    const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>
+      operator-(const DenseBase<OtherDerived>& other, const VectorwiseOp& xpr) {
+    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
+    return CwiseBinaryOp<internal::scalar_difference_op<typename OtherDerived::Scalar, Scalar>,
+                         const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>(
+        xpr.extendedTo(other.derived()), xpr._expression());
   }
 
   /** Returns the expression where each subvector is the product of the vector \a other
@@ -641,6 +667,20 @@ class VectorwiseOp {
     return m_matrix * extendedTo(other.derived());
   }
 
+  /** Returns the expression of the product of the vector \a other with each subvector of \a xpr */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      CwiseBinaryOp<internal::scalar_product_op<typename OtherDerived::Scalar, Scalar>,
+                    const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>
+      operator*(const DenseBase<OtherDerived>& other, const VectorwiseOp& xpr) {
+    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
+    EIGEN_STATIC_ASSERT_ARRAYXPR(ExpressionType)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
+    return CwiseBinaryOp<internal::scalar_product_op<typename OtherDerived::Scalar, Scalar>,
+                         const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>(
+        xpr.extendedTo(other.derived()), xpr._expression());
+  }
+
   /** Returns the expression where each subvector is the quotient of the corresponding
    * subvector of \c *this by the vector \a other */
   template <typename OtherDerived>
@@ -651,6 +691,72 @@ class VectorwiseOp {
     EIGEN_STATIC_ASSERT_ARRAYXPR(ExpressionType)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
     return m_matrix / extendedTo(other.derived());
+  }
+
+  /** Returns the coefficient-wise quotient of vector \a other by each subvector of \a xpr. */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      CwiseBinaryOp<internal::scalar_quotient_op<typename OtherDerived::Scalar, Scalar>,
+                    const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>
+      operator/(const DenseBase<OtherDerived>& other, const VectorwiseOp& xpr) {
+    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
+    EIGEN_STATIC_ASSERT_ARRAYXPR(ExpressionType)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
+    return CwiseBinaryOp<internal::scalar_quotient_op<typename OtherDerived::Scalar, Scalar>,
+                         const typename ExtendedType<OtherDerived>::Type, const ExpressionTypeNestedCleaned>(
+        xpr.extendedTo(other.derived()), xpr._expression());
+  }
+
+  /** \returns an expression of a custom coefficient-wise operator of each subvector of \c *this and \a other */
+  template <typename CustomBinaryOp, typename OtherDerived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const
+      CwiseBinaryOp<CustomBinaryOp, const ExpressionTypeNestedCleaned, const typename ExtendedType<OtherDerived>::Type>
+      binaryExpr(const DenseBase<OtherDerived>& other, const CustomBinaryOp& func = CustomBinaryOp()) const {
+    EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
+    EIGEN_STATIC_ASSERT_SAME_XPR_KIND(ExpressionType, OtherDerived)
+    return CwiseBinaryOp<CustomBinaryOp, const ExpressionTypeNestedCleaned,
+                         const typename ExtendedType<OtherDerived>::Type>(_expression(), extendedTo(other.derived()),
+                                                                          func);
+  }
+
+  /** \returns an expression of the coefficient-wise min of each subvector of \c *this and \a other */
+  template <int NaNPropagation = PropagateFast, typename OtherDerived>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+      CwiseBinaryOp<internal::scalar_min_op<Scalar, typename OtherDerived::Scalar, NaNPropagation>,
+                    const ExpressionTypeNestedCleaned, const typename ExtendedType<OtherDerived>::Type>
+      cwiseMin(const DenseBase<OtherDerived>& other) const {
+    return binaryExpr(other, internal::scalar_min_op<Scalar, typename OtherDerived::Scalar, NaNPropagation>());
+  }
+
+  /** \returns an expression of the coefficient-wise min of each subvector of \c *this and scalar \a other */
+  template <int NaNPropagation = PropagateFast>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+      CwiseBinaryOp<internal::scalar_min_op<Scalar, Scalar, NaNPropagation>, const ExpressionTypeNestedCleaned,
+                    const typename ExpressionTypeNestedCleaned::ConstantReturnType>
+      cwiseMin(const Scalar& other) const {
+    return CwiseBinaryOp<internal::scalar_min_op<Scalar, Scalar, NaNPropagation>, const ExpressionTypeNestedCleaned,
+                         const typename ExpressionTypeNestedCleaned::ConstantReturnType>(
+        _expression(), ExpressionTypeNestedCleaned::Constant(m_matrix.rows(), m_matrix.cols(), other));
+  }
+
+  /** \returns an expression of the coefficient-wise max of each subvector of \c *this and \a other */
+  template <int NaNPropagation = PropagateFast, typename OtherDerived>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+      CwiseBinaryOp<internal::scalar_max_op<Scalar, typename OtherDerived::Scalar, NaNPropagation>,
+                    const ExpressionTypeNestedCleaned, const typename ExtendedType<OtherDerived>::Type>
+      cwiseMax(const DenseBase<OtherDerived>& other) const {
+    return binaryExpr(other, internal::scalar_max_op<Scalar, typename OtherDerived::Scalar, NaNPropagation>());
+  }
+
+  /** \returns an expression of the coefficient-wise max of each subvector of \c *this and scalar \a other */
+  template <int NaNPropagation = PropagateFast>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
+      CwiseBinaryOp<internal::scalar_max_op<Scalar, Scalar, NaNPropagation>, const ExpressionTypeNestedCleaned,
+                    const typename ExpressionTypeNestedCleaned::ConstantReturnType>
+      cwiseMax(const Scalar& other) const {
+    return CwiseBinaryOp<internal::scalar_max_op<Scalar, Scalar, NaNPropagation>, const ExpressionTypeNestedCleaned,
+                         const typename ExpressionTypeNestedCleaned::ConstantReturnType>(
+        _expression(), ExpressionTypeNestedCleaned::Constant(m_matrix.rows(), m_matrix.cols(), other));
   }
 
   using Normalized_NonzeroNormType =
