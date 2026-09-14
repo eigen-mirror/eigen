@@ -46,3 +46,34 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
   check_hip_architectures("gfx906;gfx1100" "" "gfx906;gfx1100")
   check_hip_architectures("gfx906" "gfx942" "gfx942")
 endif()
+
+function(check_cuda_route route architectures expected_result expected_flags)
+  execute_process(
+    COMMAND "${CMAKE_COMMAND}" -G "${GENERATOR}"
+            -S "${BS_CONSUMER_DIR}/gpu_architectures"
+            -B "${WORK_DIR}/${route}-${architectures}"
+            "-DEIGEN_SOURCE_DIR=${EIGEN_SOURCE_DIR}"
+            "-DROUTE=${route}" "-DARCHITECTURES=${architectures}" "-DEXPECTED_FLAGS=${expected_flags}"
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE output)
+  if(expected_result STREQUAL "FAILURE")
+    if(result EQUAL 0 OR NOT output MATCHES "architectures only, for example 75;89")
+      bs_fail("${route} must reject ${architectures} with a numeric-architecture diagnostic:\n${output}")
+    endif()
+  elseif(NOT result EQUAL 0)
+    bs_fail("${route} rejected ${architectures}:\n${output}")
+  endif()
+endfunction()
+
+check_cuda_route(nvc 75 SUCCESS " -cuda -gpu=cc75 ")
+check_cuda_route(nvc "75,89" SUCCESS " -cuda -gpu=cc75 -gpu=cc89 ")
+check_cuda_route(windows-clang 75 SUCCESS " --cuda-path=/cuda --cuda-gpu-arch=sm_75 ")
+check_cuda_route(windows-clang "75,89" SUCCESS " --cuda-path=/cuda --cuda-gpu-arch=sm_75 --cuda-gpu-arch=sm_89 ")
+foreach(arch native OFF all all-major 89-real 89-virtual sm_89 "75,native")
+  check_cuda_route(nvc "${arch}" FAILURE "")
+  check_cuda_route(windows-clang "${arch}" FAILURE "")
+endforeach()
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+  foreach(arch native OFF all all-major 89-real 89-virtual "75,89-real")
+    check_cuda_route(cuda-language "${arch}" SUCCESS "")
+  endforeach()
+endif()
