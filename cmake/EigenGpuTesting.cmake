@@ -41,6 +41,13 @@ macro(ei_gpu_testing_enable)
 
     if(EIGEN_TEST_CUDA_NVC OR (EIGEN_TEST_CUDA_CLANG AND WIN32))
       set(EIGEN_GPU_TEST_MODE "cuda-as-cxx")
+      # CMake's named and suffixed architectures cannot be used verbatim in these compiler flags.
+      foreach(arch IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
+        if(NOT arch MATCHES "^[0-9]+$")
+          message(FATAL_ERROR "EIGEN_CUDA_COMPUTE_ARCH=${EIGEN_CUDA_COMPUTE_ARCH}: this compiler route takes numeric "
+                              "architectures only, for example 75;89.")
+        endif()
+      endforeach()
       if(EIGEN_TEST_CUDA_NVC)
         string(APPEND CMAKE_CXX_FLAGS " -cuda")
         foreach(arch IN LISTS EIGEN_CUDA_COMPUTE_ARCH)
