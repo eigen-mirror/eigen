@@ -246,6 +246,7 @@ void triangular_solve_over_reach_iter(const Eval& mat, const StorageIndex* xi, I
             hasDiag = true;
           }
         eigen_assert(hasDiag && "sparse triangular solve: missing diagonal");
+        EIGEN_UNUSED_VARIABLE(hasDiag);
         x[j] /= d;  // d == 0 when the diagonal is missing -> inf/NaN, consistent with the pointer path
       }
       Scalar xj = x[j];
