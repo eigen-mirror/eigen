@@ -7,11 +7,10 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-// Device-side packet math: test/packetmath.cpp never runs on a GPU, and under nvcc the host pass has no float4
-// comparisons or bit operations at all. Thread i applies one operation to packet i (gpu_common.h's run_on_gpu); the
-// host computes the reference and compares as the operation's contract says: bit-exact, full-bit masks, or a named
-// ULP budget. Parts: 1 float4 core, 3 double2 core, 7 scalar fallbacks and preinterpret; 2/4 (math), 5/6 (half)
-// and 8 (warp-level) are reserved.
+// Device-side packet math: test/packetmath.cpp never runs on a GPU. Thread i applies one operation to packet i
+// (gpu_common.h's run_on_gpu); the host compares against a reference using bit-exact results, full-bit masks, or a
+// named ULP budget. Parts: 1/3 float4/double2 core, 2/4 float4/double2 math, 5/6 half core/math, 7 scalar fallbacks
+// and preinterpret.
 
 #define EIGEN_TEST_NO_LONGDOUBLE
 #define EIGEN_TEST_NO_COMPLEX
@@ -27,16 +26,28 @@
 #include <string>
 #include <vector>
 
+// Packet4h2 is an alias of ulonglong2, which exists in both passes but has unpacket_traits only in the device pass:
+// eight halves in four half2 lanes.
+namespace Eigen {
+namespace test {
+template <>
+struct packet_layout<ulonglong2> {
+  using Scalar = half;
+  static constexpr int kSize = 8;
+};
+}  // namespace test
+}  // namespace Eigen
+
 namespace {
 
 using Eigen::Index;
 using Eigen::internal::packet_traits;
-using Eigen::internal::unpacket_traits;
 namespace test = Eigen::test;
 using Eigen::numext::bit_cast;
 using test::special_values;
 
 using test::Buffer;
+using test::packet_layout;
 
 // Named budgets. rsqrt is the one approximate intrinsic among the core operations: the CUDA Math API documents
 // 2 ulp for rsqrtf and 1 ulp for rsqrt. The float reference rounds 1/sqrt from double. The double reference uses
@@ -102,7 +113,7 @@ const uint64_t kSqrtFloatUlps = 1;
   struct NAME {                                                                       \
     static const char* name() { return #NAME; }                                       \
     template <typename P>                                                             \
-    EIGEN_PACKET_TEST_FUNC static typename unpacket_traits<P>::type run(const P& a) { \
+    EIGEN_PACKET_TEST_FUNC static typename packet_layout<P>::Scalar run(const P& a) { \
       return EXPR;                                                                    \
     }                                                                                 \
   };
@@ -165,52 +176,62 @@ EIGEN_GPU_TEST_REDUX_OP(op_predux_max, Eigen::internal::predux_max(a))
 
 template <typename Packet, typename Op>
 struct unary_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     Eigen::internal::pstore(out + i * kSize, Op::run(Eigen::internal::pload<Packet>(in + i * kSize)));
+#endif
   }
 };
 
 // The operands of packet i are stored back to back: a at 2i, b at 2i + 1 (and c at 3i + 2 for three operands).
 template <typename Packet, typename Op>
 struct binary_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     const Packet a = Eigen::internal::pload<Packet>(in + (2 * i) * kSize);
     const Packet b = Eigen::internal::pload<Packet>(in + (2 * i + 1) * kSize);
     Eigen::internal::pstore(out + i * kSize, Op::run(a, b));
+#endif
   }
 };
 
 template <typename Packet, typename Op>
 struct ternary_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     const Packet a = Eigen::internal::pload<Packet>(in + (3 * i) * kSize);
     const Packet b = Eigen::internal::pload<Packet>(in + (3 * i + 1) * kSize);
     const Packet c = Eigen::internal::pload<Packet>(in + (3 * i + 2) * kSize);
     Eigen::internal::pstore(out + i * kSize, Op::run(a, b, c));
+#endif
   }
 };
 
 template <typename Packet, typename Op>
 struct redux_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     out[i] = Op::run(Eigen::internal::pload<Packet>(in + i * kSize));
+#endif
   }
 };
 
 template <typename Packet>
 struct plset_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     Eigen::internal::pstore(out + i * kSize, Eigen::internal::plset<Packet>(in[i]));
+#endif
   }
 };
 
@@ -218,7 +239,38 @@ struct plset_kernel {
 template <typename Scalar, typename Bits>
 struct preinterpret_scalar_kernel {
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Bits* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     out[i] = Eigen::internal::preinterpret<Bits>(in[i]);
+#endif
+  }
+};
+
+// Casts. The evaluator hands the narrowing form two source packets and the widening form one, from which it
+// takes the leading DstPacketSize lanes; these kernels use exactly those two forms.
+struct half_to_float_kernel {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Eigen::half* in, float* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+    const ulonglong2 a = Eigen::internal::pload<ulonglong2>(in + 8 * i);
+    Eigen::internal::pstore(out + 4 * i, Eigen::internal::pcast<ulonglong2, float4>(a));
+#else
+    EIGEN_UNUSED_VARIABLE(i);
+    EIGEN_UNUSED_VARIABLE(in);
+    EIGEN_UNUSED_VARIABLE(out);
+#endif
+  }
+};
+
+struct float_to_half_kernel {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const float* in, Eigen::half* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+    const float4 a = Eigen::internal::pload<float4>(in + 8 * i);
+    const float4 b = Eigen::internal::pload<float4>(in + 8 * i + 4);
+    Eigen::internal::pstore(out + 8 * i, Eigen::internal::pcast<float4, ulonglong2>(a, b));
+#else
+    EIGEN_UNUSED_VARIABLE(i);
+    EIGEN_UNUSED_VARIABLE(in);
+    EIGEN_UNUSED_VARIABLE(out);
+#endif
   }
 };
 
@@ -249,9 +301,11 @@ enum Trait { EIGEN_GPU_TEST_TRAIT_FLAGS(EIGEN_GPU_TEST_TRAIT_ENUM) kNumTraits };
 template <typename Scalar>
 struct traits_kernel {
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const int*, int* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
     if (i != 0) return;
     int k = 0;
     EIGEN_GPU_TEST_TRAIT_FLAGS(EIGEN_GPU_TEST_TRAIT_VALUE)
+#endif
   }
 };
 
@@ -370,6 +424,39 @@ struct binary_inputs {
   }
 };
 
+// Every value a half can hold, in bit-pattern order. 65536 lanes is 8192 packets, which the device sweeps in
+// microseconds, so the unary operations are tested exhaustively rather than sampled.
+std::vector<Eigen::half> all_half_values() {
+  std::vector<Eigen::half> values;
+  values.reserve(1 << 16);
+  for (int bits = 0; bits < (1 << 16); ++bits) {
+    values.push_back(Eigen::numext::bit_cast<Eigen::half>(static_cast<Eigen::numext::uint16_t>(bits)));
+  }
+  return values;
+}
+
+// Pairs covering the whole domain in both operands: every value against a value a stride away, plus the cross
+// product of the special values. 40503 is coprime with 65536, so the second operand also runs over everything.
+binary_inputs<Eigen::half> all_half_pairs(bool exclude_nan) {
+  const std::vector<Eigen::half> values = all_half_values();
+  binary_inputs<Eigen::half> pairs;
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    const Eigen::half a = values[i], b = values[(i * 40503) % values.size()];
+    if (exclude_nan && ((Eigen::numext::isnan)(a) || (Eigen::numext::isnan)(b))) continue;
+    pairs.push(a, b);
+  }
+  const std::vector<float> specials = special_values<float>();
+  for (float x : specials) {
+    for (float y : specials) {
+      const Eigen::half a(x), b(y);
+      if (exclude_nan && ((Eigen::numext::isnan)(a) || (Eigen::numext::isnan)(b))) continue;
+      pairs.push(a, b);
+    }
+  }
+  while (pairs.size() % 8 != 0) pairs.push(Eigen::half(1), Eigen::half(1));
+  return pairs;
+}
+
 template <typename Scalar>
 bool never(Scalar, Scalar) {
   return false;
@@ -407,9 +494,9 @@ struct compare_ulps {
   } while (0)
 
 template <typename Packet, typename Op, typename Ref, typename Compare>
-void check_unary(const Buffer<typename unpacket_traits<Packet>::type>& in, Ref ref, Compare compare) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+void check_unary(const Buffer<typename packet_layout<Packet>::Scalar>& in, Ref ref, Compare compare) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   Buffer<Scalar> out(in.size());
   out.setConstant(Scalar(-7));
   run_on_gpu(unary_kernel<Packet, Op>(), int(in.size()) / kSize, in, out);
@@ -419,9 +506,9 @@ void check_unary(const Buffer<typename unpacket_traits<Packet>::type>& in, Ref r
 }
 
 template <typename Packet, typename Op, typename Ref, typename Compare>
-void check_binary(const binary_inputs<typename unpacket_traits<Packet>::type>& inputs, Ref ref, Compare compare) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+void check_binary(const binary_inputs<typename packet_layout<Packet>::Scalar>& inputs, Ref ref, Compare compare) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   const Buffer<Scalar> in = inputs.interleaved(kSize);
   Buffer<Scalar> out(inputs.size());
   out.setConstant(Scalar(-7));
@@ -433,9 +520,9 @@ void check_binary(const binary_inputs<typename unpacket_traits<Packet>::type>& i
 
 // A comparison must return an all-ones lane where the predicate holds and an all-zero lane elsewhere.
 template <typename Packet, typename Op, typename Pred>
-void check_compare(const binary_inputs<typename unpacket_traits<Packet>::type>& inputs, Pred pred) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+void check_compare(const binary_inputs<typename packet_layout<Packet>::Scalar>& inputs, Pred pred) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   const Buffer<Scalar> in = inputs.interleaved(kSize);
   Buffer<Scalar> out(inputs.size());
   out.setConstant(Scalar(-7));
@@ -446,12 +533,12 @@ void check_compare(const binary_inputs<typename unpacket_traits<Packet>::type>& 
 }
 
 template <typename Packet, typename Op, typename Compare>
-void check_ternary(const std::vector<typename unpacket_traits<Packet>::type>& a,
-                   const std::vector<typename unpacket_traits<Packet>::type>& b,
-                   const std::vector<typename unpacket_traits<Packet>::type>& c,
-                   const Buffer<typename unpacket_traits<Packet>::type>& expected, Compare compare) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+void check_ternary(const std::vector<typename packet_layout<Packet>::Scalar>& a,
+                   const std::vector<typename packet_layout<Packet>::Scalar>& b,
+                   const std::vector<typename packet_layout<Packet>::Scalar>& c,
+                   const Buffer<typename packet_layout<Packet>::Scalar>& expected, Compare compare) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   const int n = int(a.size());
   Buffer<Scalar> in(3 * n);
   for (int p = 0; p < n / kSize; ++p) {
@@ -468,9 +555,9 @@ void check_ternary(const std::vector<typename unpacket_traits<Packet>::type>& a,
 }
 
 template <typename Packet, typename Op, typename Ref, typename Compare>
-void check_redux(const Buffer<typename unpacket_traits<Packet>::type>& in, Ref ref, Compare compare) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+void check_redux(const Buffer<typename packet_layout<Packet>::Scalar>& in, Ref ref, Compare compare) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   const int n = int(in.size()) / kSize;
   Buffer<Scalar> out(n);
   out.setConstant(Scalar(-7));
@@ -480,14 +567,48 @@ void check_redux(const Buffer<typename unpacket_traits<Packet>::type>& in, Ref r
   VERIFY_OP(compare(expected.data(), out.data(), n));
 }
 
+// Runs a kernel once per packet on the device, for the shared data-movement cases.
+struct launch_on_gpu {
+  template <typename Kernel, typename Input, typename Output>
+  void operator()(const Kernel& kernel, int count, const Input& input, Output& output) const {
+    run_on_gpu(kernel, count, input, output);
+  }
+};
+
+// plset with every input as a base, large values and negative zero included. `ref` adds a lane index in the type's
+// own arithmetic, since a half sum has to round exactly once; that addition need not keep a NaN payload.
+template <typename Packet, typename Ref>
+void check_plset(const Buffer<typename packet_layout<Packet>::Scalar>& in, Ref ref) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
+  Buffer<Scalar> out(in.size() * kSize), expected(in.size() * kSize);
+  out.setConstant(Scalar(-7));
+  run_on_gpu(plset_kernel<Packet>(), int(in.size()), in, out);
+  for (Index k = 0; k < out.size(); ++k) {
+    expected[k] = (k % kSize == 0) ? in[k / kSize] : ref(in[k / kSize], int(k % kSize));
+  }
+  VERIFY(test::areEqualBits(expected.data(), out.data(), int(out.size())) && "plset");
+}
+
+// ptrue and pzero: every bit of every lane set, or every bit cleared.
+template <typename Packet, typename Op>
+void check_full_mask(const Buffer<typename packet_layout<Packet>::Scalar>& in, bool expect_zero) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  Buffer<Scalar> out(in.size());
+  out.setConstant(Scalar(-7));
+  run_on_gpu(unary_kernel<Packet, Op>(), int(in.size()) / packet_layout<Packet>::kSize, in, out);
+  const Buffer<bool> zero_mask = Buffer<bool>::Constant(in.size(), expect_zero);
+  VERIFY_OP(test::areFullBitMasks(out.data(), zero_mask.data(), int(in.size())));
+}
+
 // Points where the standard fixes the result exactly, whatever the implementation's accuracy elsewhere. The
 // comparison is bitwise, so the sign of a zero counts; NaN matches NaN whatever the payload.
 template <typename Packet, typename Op>
 void check_special_values(
-    const std::vector<std::pair<typename unpacket_traits<Packet>::type, typename unpacket_traits<Packet>::type>>&
+    const std::vector<std::pair<typename packet_layout<Packet>::Scalar, typename packet_layout<Packet>::Scalar>>&
         cases) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  const int kSize = packet_layout<Packet>::kSize;
   std::vector<Scalar> in_values, expected_values;
   for (const auto& one : cases) {
     in_values.push_back(one.first);
@@ -513,7 +634,7 @@ template <typename Scalar>
 void packetmath_gpu_real_math() {
   using Packet = typename packet_traits<Scalar>::type;
   using Wider = typename wider_type<Scalar>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+  const int kSize = packet_layout<Packet>::kSize;
   const MathUlpBudget& budget = std::is_same<Scalar, double>::value ? kDoubleUlps : kFloatUlps;
 
   const std::vector<int> traits = device_traits<Scalar>();
@@ -586,7 +707,7 @@ Scalar rsqrt_reference(Scalar x) {
 template <typename Scalar>
 void packetmath_gpu_real_core() {
   using Packet = typename packet_traits<Scalar>::type;
-  const int kSize = unpacket_traits<Packet>::size;
+  const int kSize = packet_layout<Packet>::kSize;
   using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   const compare_bits<Scalar> bits{true};
   const compare_bits<Scalar> bits_and_payload{false};
@@ -611,17 +732,8 @@ void packetmath_gpu_real_core() {
   // Loads and stores keep every bit, NaN payloads included.
   check_unary<Packet, op_identity>(
       in, [](Scalar x) { return x; }, bits_and_payload);
-  test::packetmath_data_movement<Packet>(in, [](const auto& kernel, int count, const auto& input, auto& output) {
-    run_on_gpu(kernel, count, input, output);
-  });
-  {
-    Buffer<Scalar> out(in.size()), expected(in.size());
-    out.setConstant(Scalar(-7));
-    run_on_gpu(plset_kernel<Packet>(), n, in, out);
-    for (Index k = 0; k < in.size(); ++k)
-      expected[k] = (k % kSize == 0) ? in[k / kSize] : in[k / kSize] + Scalar(k % kSize);
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size())) && "plset");
-  }
+  test::packetmath_data_movement<Packet>(in, launch_on_gpu());
+  check_plset<Packet>(in, [](Scalar base, int lane) { return Scalar(base + Scalar(lane)); });
 
   // Sign manipulation and rounding: fixed bit for bit, including the sign of a zero.
   check_unary<Packet, op_pnegate>(
@@ -658,18 +770,8 @@ void packetmath_gpu_real_core() {
         in, [](Scalar x) { return std::sqrt(x); }, bits);
   }
   check_unary<Packet, op_prsqrt>(in, rsqrt_reference<Scalar>, compare_ulps<Scalar>{rsqrt_ulps});
-  {
-    Buffer<Scalar> out(in.size());
-    out.setConstant(Scalar(-7));
-    // ptrue/pzero: all bits set, all bits cleared. areFullBitMasks reads bool lanes, so the expectation is
-    // stored as bool rather than as bytes reinterpreted through a bool pointer.
-    const Buffer<bool> expect_ones = Buffer<bool>::Constant(in.size(), false);
-    const Buffer<bool> expect_zeros = Buffer<bool>::Constant(in.size(), true);
-    run_on_gpu(unary_kernel<Packet, op_ptrue>(), n, in, out);
-    VERIFY(test::areFullBitMasks(out.data(), expect_ones.data(), int(in.size())) && "ptrue");
-    run_on_gpu(unary_kernel<Packet, op_pzero>(), n, in, out);
-    VERIFY(test::areFullBitMasks(out.data(), expect_zeros.data(), int(in.size())) && "pzero");
-  }
+  check_full_mask<Packet, op_ptrue>(in, /*expect_zero=*/false);
+  check_full_mask<Packet, op_pzero>(in, /*expect_zero=*/true);
 
   // Arithmetic: IEEE operations, so the host's own results are the reference, bit for bit.
   const binary_inputs<Scalar> pairs(kSize, 1 << 17, never<Scalar>);
@@ -822,6 +924,239 @@ void packetmath_gpu_real_core() {
 }
 
 // ------------------------------------------------------------------------------------------------------------------
+// Parts 5 and 6: the half packets. Packet4h2 is eight halves in four half2 lanes and exists only in the device
+// pass. References are computed in float and rounded once, which is exact for the arithmetic operations because a
+// float mantissa is at least twice a half's plus two bits.
+
+using HalfPacket = ulonglong2;
+
+// A half operation whose reference is the float computation rounded back.
+Eigen::half half_of(float x) { return Eigen::half(x); }
+Eigen::half half_add(Eigen::half a, Eigen::half b) { return half_of(float(a) + float(b)); }
+Eigen::half half_mul(Eigen::half a, Eigen::half b) { return half_of(float(a) * float(b)); }
+
+void packetmath_gpu_half_core() {
+  using Scalar = Eigen::half;
+  using Packet = HalfPacket;
+  using Bits = uint16_t;
+  const int kSize = packet_layout<Packet>::kSize;
+  const compare_bits<Scalar> bits{true};
+  const compare_bits<Scalar> bits_and_payload{false};
+  const auto values = test::areEqual<Scalar>;
+
+  const std::vector<int> traits = device_traits<Scalar>();
+  std::cout << "device packet_traits<half>:";
+  for (int k = 0; k < kNumTraits; ++k) std::cout << " " << kTraitNames[k] << "=" << traits[k];
+  std::cout << std::endl;
+  VERIFY_IS_EQUAL(traits[kVectorizable], 1);
+  VERIFY_IS_EQUAL(traits[ksize], kSize);
+  // The hygiene sweep turned these off: there is no rounding operation and no psign for the half packets.
+  VERIFY_IS_EQUAL(traits[kHasRound], 0);
+  VERIFY_IS_EQUAL(traits[kHasSign], 0);
+  check_advertised_ops_are_covered(traits, {kHasAdd, kHasSub, kHasMul, kHasDiv, kHasNegate, kHasAbs, kHasMin, kHasMax,
+                                            kHasSqrt, kHasRsqrt, kHasSetLinear, kHasConj, kHasAbsDiff});
+
+  // Exhaustive: every value a half can hold.
+  const std::vector<Scalar> all = all_half_values();
+  const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(all.data(), all.size());
+  const int n = int(in.size()) / kSize;
+
+  check_unary<Packet, op_identity>(
+      in, [](Scalar x) { return x; }, bits_and_payload);
+  // The sign of a NaN survives neither __hneg2 nor __habs2, as on the float packets; the value stays NaN.
+  check_unary<Packet, op_pnegate>(
+      in, [](Scalar x) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) ^ 0x8000u)); }, bits);
+  check_unary<Packet, op_pabs>(
+      in, [](Scalar x) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) & 0x7fffu)); }, bits);
+  check_unary<Packet, op_pconj>(
+      in, [](Scalar x) { return x; }, bits_and_payload);
+
+  // The half2 intrinsics quiet a signalling NaN, so data movement matches NaNs by value. The lane index is added in
+  // half, so the plset reference rounds once, as the packet does.
+  test::packetmath_data_movement<Packet>(in, launch_on_gpu(), /*nan_payloads=*/false);
+  check_plset<Packet>(in, [](Scalar base, int lane) { return half_add(base, half_of(float(lane))); });
+
+  // Arithmetic. Rounding once from float is the correctly rounded half result.
+  const binary_inputs<Scalar> pairs = all_half_pairs(/*exclude_nan=*/false);
+  const binary_inputs<Scalar> numbers = all_half_pairs(/*exclude_nan=*/true);
+  check_binary<Packet, op_padd>(pairs, half_add, bits);
+  check_binary<Packet, op_psub>(
+      pairs, [](Scalar x, Scalar y) { return half_of(float(x) - float(y)); }, bits);
+  check_binary<Packet, op_pmul>(pairs, half_mul, bits);
+  check_binary<Packet, op_pdiv>(
+      pairs, [](Scalar x, Scalar y) { return half_of(float(x) / float(y)); }, bits);
+  // Plain min/max leave a NaN operand implementation-defined, as for the float packets.
+  check_binary<Packet, op_pmin>(
+      numbers, [](Scalar x, Scalar y) { return float(x) < float(y) ? x : y; }, values);
+  check_binary<Packet, op_pmax>(
+      numbers, [](Scalar x, Scalar y) { return float(x) > float(y) ? x : y; }, values);
+
+  // Bit operations act on the 16-bit representation.
+  check_binary<Packet, op_pand>(
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) & bit_cast<Bits>(y))); },
+      bits_and_payload);
+  check_binary<Packet, op_por>(
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) | bit_cast<Bits>(y))); },
+      bits_and_payload);
+  check_binary<Packet, op_pxor>(
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) ^ bit_cast<Bits>(y))); },
+      bits_and_payload);
+  check_binary<Packet, op_pandnot>(
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) & ~bit_cast<Bits>(y))); },
+      bits_and_payload);
+
+  // Comparisons produce all-ones or all-zero 16-bit lanes.
+  check_compare<Packet, op_pcmp_eq>(pairs, [](Scalar x, Scalar y) { return float(x) == float(y); });
+  check_compare<Packet, op_pcmp_lt>(pairs, [](Scalar x, Scalar y) { return float(x) < float(y); });
+  check_compare<Packet, op_pcmp_le>(pairs, [](Scalar x, Scalar y) { return float(x) <= float(y); });
+
+  check_full_mask<Packet, op_ptrue>(in, /*expect_zero=*/false);
+  check_full_mask<Packet, op_pzero>(in, /*expect_zero=*/true);
+  {
+    // pselect with full-bit masks picks lane by lane.
+    const int count = numbers.size();
+    std::vector<Scalar> mask(count);
+    Buffer<Scalar> selected(count);
+    for (int k = 0; k < count; ++k) {
+      const bool set = Eigen::internal::random<bool>();
+      mask[k] = set ? bit_cast<Scalar>(Bits(0xffffu)) : bit_cast<Scalar>(Bits(0x0000u));
+      selected[k] = set ? numbers.a[k] : numbers.b[k];
+    }
+    check_ternary<Packet, op_pselect>(mask, numbers.a, numbers.b, selected, bits_and_payload);
+  }
+  {
+    // pmadd is __hfma2: one rounding, so the reference is the float fma rounded once.
+    const int count = numbers.size();
+    Buffer<Scalar> expected(count);
+    for (int k = 0; k < count; ++k) {
+      expected[k] = half_of(std::fma(float(numbers.a[k]), float(numbers.b[k]), float(numbers.a[k])));
+    }
+    check_ternary<Packet, op_pmadd>(numbers.a, numbers.b, numbers.a, expected, bits);
+  }
+
+  // Reductions follow the lane tree of the implementation, so the reference rounds in the same order.
+  const Buffer<Scalar> finite = [&] {
+    std::vector<Scalar> v;
+    for (Index k = 0; k < in.size(); ++k) {
+      const float x = float(in[k]);
+      v.push_back((std::isfinite)(x) && std::abs(x) < 4.0f ? in[k] : Scalar(1));
+    }
+    return Eigen::Map<const Buffer<Scalar>>(v.data(), v.size()).eval();
+  }();
+  check_redux<Packet, op_predux>(
+      finite,
+      [](const Scalar* p) {
+        return half_add(half_add(half_add(p[0], p[2]), half_add(p[4], p[6])),
+                        half_add(half_add(p[1], p[3]), half_add(p[5], p[7])));
+      },
+      bits);
+  check_redux<Packet, op_predux_mul>(
+      finite,
+      [](const Scalar* p) {
+        return half_mul(half_mul(half_mul(p[0], p[2]), half_mul(p[4], p[6])),
+                        half_mul(half_mul(p[1], p[3]), half_mul(p[5], p[7])));
+      },
+      bits);
+  check_redux<Packet, op_predux_min>(
+      finite,
+      [](const Scalar* p) {
+        Scalar m = p[0];
+        for (int l = 1; l < 8; ++l) m = float(p[l]) < float(m) ? p[l] : m;
+        return m;
+      },
+      values);
+  check_redux<Packet, op_predux_max>(
+      finite,
+      [](const Scalar* p) {
+        Scalar m = p[0];
+        for (int l = 1; l < 8; ++l) m = float(p[l]) > float(m) ? p[l] : m;
+        return m;
+      },
+      values);
+  check_redux<Packet, op_pfirst>(
+      in, [](const Scalar* p) { return p[0]; }, bits_and_payload);
+
+  // Casts, in the two forms the evaluator uses.
+  {
+    const int packets = int(in.size()) / kSize;
+    Buffer<float> as_float(packets * 4);
+    as_float.setConstant(-7.0f);
+    run_on_gpu(half_to_float_kernel(), packets, in, as_float);
+    for (int k = 0; k < packets * 4; ++k) {
+      const float want = static_cast<float>(in[(k / 4) * kSize + (k % 4)]);
+      VERIFY(test::areEqualBits(&want, as_float.data() + k, 1) && "pcast<Packet4h2, float4>");
+    }
+
+    // The narrowing cast has to round, so its inputs must not be representable as half to begin with: a float
+    // widened from a half is, and would let any rounding rule pass. Every tie of the half grid is generated
+    // instead -- the midpoint between each pair of adjacent halves, from the subnormals up to the largest finite
+    // one -- with the neighbours of each tie, then the overflow and underflow boundaries.
+    std::vector<float> float_values;
+    for (unsigned bits = 0; bits + 1 < 0x7c00u; ++bits) {
+      const float below = float(bit_cast<Scalar>(Bits(bits)));
+      const float above = float(bit_cast<Scalar>(Bits(bits + 1)));
+      const float tie = 0.5f * (below + above);  // rounds to even, so to one of the two only every other time
+      for (float value : {tie, std::nextafterf(tie, below), std::nextafterf(tie, above)}) {
+        float_values.push_back(value);
+        float_values.push_back(-value);
+      }
+    }
+    const float largest_half = float(bit_cast<Scalar>(Bits(0x7bffu)));
+    const float overflow_tie = 65520.0f;  // halfway from the largest half to where the next one would be
+    for (float value :
+         {largest_half, std::nextafterf(largest_half, 1e30f), std::nextafterf(overflow_tie, 0.0f), overflow_tie,
+          std::nextafterf(overflow_tie, 1e30f), 65536.0f, (std::numeric_limits<float>::max)(),
+          std::numeric_limits<float>::infinity(), std::numeric_limits<float>::denorm_min(), 0.0f}) {
+      float_values.push_back(value);
+      float_values.push_back(-value);
+    }
+    while (float_values.size() % 8 != 0) float_values.push_back(0.0f);
+
+    const int cast_packets = int(float_values.size()) / 8;
+    const Buffer<float> floats = Eigen::Map<const Buffer<float>>(float_values.data(), Index(float_values.size()));
+    Buffer<Scalar> as_half(float_values.size());
+    as_half.setConstant(Scalar(-7));
+    run_on_gpu(float_to_half_kernel(), cast_packets, floats, as_half);
+    Buffer<Scalar> want(float_values.size());
+    for (Index k = 0; k < want.size(); ++k) want[k] = half_of(floats[k]);
+    VERIFY(test::areEqualBits(want.data(), as_half.data(), int(want.size())) && "pcast<float4, Packet4h2>");
+  }
+}
+
+void packetmath_gpu_half_math() {
+  using Scalar = Eigen::half;
+  using Packet = HalfPacket;
+  using Bits = uint16_t;
+
+  const std::vector<Scalar> all = all_half_values();
+  const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(all.data(), all.size());
+  Buffer<Scalar> positive(in.size());
+  for (Index k = 0; k < in.size(); ++k) positive[k] = bit_cast<Scalar>(Bits(bit_cast<Bits>(in[k]) & 0x7fffu));
+
+  // h2sqrt, h2rsqrt, h2log and h2exp against the float computation rounded to half. The device functions are not
+  // documented to be correctly rounded in half, so allow one half ULP.
+  const uint64_t kHalfMathUlps = 1;
+  check_unary<Packet, op_psqrt>(
+      positive, [](Scalar x) { return half_of(std::sqrt(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+  check_unary<Packet, op_prsqrt>(
+      positive, [](Scalar x) { return half_of(1.0f / std::sqrt(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+  check_unary<Packet, op_plog>(
+      positive, [](Scalar x) { return half_of(std::log(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+  check_unary<Packet, op_pexp>(
+      in, [](Scalar x) { return half_of(std::exp(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+  check_unary<Packet, op_plog1p>(
+      in, [](Scalar x) { return half_of(std::log1p(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+  check_unary<Packet, op_pexpm1>(
+      in, [](Scalar x) { return half_of(std::expm1(float(x))); }, compare_ulps<Scalar>{kHalfMathUlps});
+
+  const Scalar zero(0.0f), one(1.0f), inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
+  check_special_values<Packet, op_pexp>({{zero, one}, {-zero, one}, {-inf, zero}, {inf, inf}, {nan, nan}});
+  check_special_values<Packet, op_plog>({{one, zero}, {zero, -inf}, {-one, nan}, {inf, inf}, {nan, nan}});
+  check_special_values<Packet, op_psqrt>({{zero, zero}, {-zero, -zero}, {one, one}, {inf, inf}, {nan, nan}});
+}
+
+// ------------------------------------------------------------------------------------------------------------------
 // Part 7: types without a device packet run the scalar fallbacks of GenericPacketMath.h, which must agree with the
 // host's scalar fallbacks bit for bit; preinterpret is the bit_cast the cast path relies on.
 
@@ -934,7 +1269,7 @@ void packetmath_gpu_bfloat16_fallback() {
 template <typename Scalar>
 void packetmath_gpu_preinterpret() {
   using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::signed_type;
-  const int kSize = unpacket_traits<typename packet_traits<Scalar>::type>::size;
+  const int kSize = packet_layout<typename packet_traits<Scalar>::type>::kSize;
   const Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 10);
   Buffer<Bits> out(in.size());
   out.setZero();
@@ -967,6 +1302,8 @@ EIGEN_DECLARE_TEST(packetmath_gpu) {
   CALL_SUBTEST_2(packetmath_gpu_real_math<float>());
   CALL_SUBTEST_3(packetmath_gpu_real_core<double>());
   CALL_SUBTEST_4(packetmath_gpu_real_math<double>());
+  CALL_SUBTEST_5(packetmath_gpu_half_core());
+  CALL_SUBTEST_6(packetmath_gpu_half_math());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<int32_t>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<int64_t>());
   CALL_SUBTEST_7(packetmath_gpu_integer_fallback<uint8_t>());

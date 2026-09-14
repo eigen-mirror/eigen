@@ -30,10 +30,25 @@ bool g_first_pass = true;
 #else
 #define EIGEN_PACKET_TEST_FUNC
 #endif
+// Whether such a body is compiled at all: always in ordinary C++, and only in the device pass of CUDA or HIP, whose
+// host pass may not know the packet types a body uses (the GPU half packets).
+#if !defined(EIGEN_GPUCC) || defined(EIGEN_GPU_COMPILE_PHASE)
+#define EIGEN_PACKET_TEST_KERNEL_BODY 1
+#else
+#define EIGEN_PACKET_TEST_KERNEL_BODY 0
+#endif
 
 namespace Eigen {
 
 namespace test {
+
+// The scalar type and lane count of a packet as host code sees them. A test whose packets have unpacket_traits only
+// in a GPU device pass (the half packets) specializes it.
+template <typename Packet>
+struct packet_layout {
+  using Scalar = typename internal::unpacket_traits<Packet>::type;
+  static constexpr int kSize = internal::unpacket_traits<Packet>::size;
+};
 
 template <typename Scalar>
 std::vector<Scalar> special_values() {

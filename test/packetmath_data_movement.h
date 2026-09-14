@@ -9,110 +9,131 @@
 namespace Eigen {
 namespace test {
 
-using internal::unpacket_traits;
-
 template <typename Scalar>
 using Buffer = Array<Scalar, Dynamic, 1>;
 
 // Loads and stores with their own addressing. `offset` misaligns the unaligned forms.
 template <typename Packet>
 struct ploadu_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int offset;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::ploadu<Packet>(in + i * kSize + offset));
+#endif
   }
 };
 template <typename Packet>
 struct pstoreu_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int offset;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstoreu(out + i * kSize + offset, internal::pload<Packet>(in + i * kSize));
+#endif
   }
 };
 template <typename Packet, int Alignment>
 struct ploadt_ro_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int offset;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::ploadt_ro<Packet, Alignment>(in + i * kSize + offset));
+#endif
   }
 };
 template <typename Packet>
 struct ploaddup_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int offset;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::ploaddup<Packet>(in + i * (kSize / 2) + offset));
+#endif
   }
 };
 template <typename Packet>
 struct pset1_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::pset1<Packet>(in[i]));
+#endif
   }
 };
 template <typename Packet>
 struct pgather_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int stride;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::pgather<Scalar, Packet>(in + i * kSize * stride, stride));
+#endif
   }
 };
 template <typename Packet>
 struct pscatter_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   int stride;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pscatter<Scalar, Packet>(out + i * kSize * stride, internal::pload<Packet>(in + i * kSize), stride);
+#endif
   }
 };
 template <typename Packet>
 struct ptranspose_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::PacketBlock<Packet, kSize> block;
     for (int r = 0; r < kSize; ++r) block.packet[r] = internal::pload<Packet>(in + (i * kSize + r) * kSize);
     internal::ptranspose(block);
     for (int r = 0; r < kSize; ++r) internal::pstore(out + (i * kSize + r) * kSize, block.packet[r]);
+#endif
   }
 };
 // Thread i copies its first (i mod (kSize + 1)) lanes; the rest of the output keeps its sentinel.
 template <typename Packet>
 struct partial_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     const Index n = i % (kSize + 1);
     internal::pstore_partial(out + i * kSize, internal::pload_partial<Packet>(in + i * kSize, n), n);
+#endif
   }
 };
 template <typename Packet>
 struct preverse_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  static constexpr int kSize = packet_layout<Packet>::kSize;
   EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
+#if EIGEN_PACKET_TEST_KERNEL_BODY
     internal::pstore(out + i * kSize, internal::preverse(internal::pload<Packet>(in + i * kSize)));
+#endif
   }
 };
 
 // The input owns aligned storage and contains at least max(4, packet size) complete packets.
 // run(kernel, count, input, output) executes one kernel invocation per packet (or transpose block).
+// With `nan_payloads` false, any NaN matches any NaN: the GPU half packets quiet a signalling NaN in transit.
 template <typename Packet, typename Run>
-void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::type>& in, const Run& run) {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  constexpr int kSize = unpacket_traits<Packet>::size;
+void packetmath_data_movement(const Buffer<typename packet_layout<Packet>::Scalar>& in, const Run& run,
+                              bool nan_payloads = true) {
+  using Scalar = typename packet_layout<Packet>::Scalar;
+  constexpr int kSize = packet_layout<Packet>::kSize;
+  const bool nan_is_nan = !nan_payloads;
   VERIFY(in.size() >= kSize * (kSize > 4 ? kSize : 4) && in.size() % kSize == 0);
   const int n = int(in.size()) / kSize;
   {
@@ -122,39 +143,39 @@ void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::typ
     for (int offset = 0; offset < kSize; ++offset) {
       out.setConstant(Scalar(-7));
       run(ploadu_kernel<Packet>{offset}, n, padded, out);
-      VERIFY(areEqualBits(padded.data() + offset, out.data(), int(in.size()), false) && "ploadu");
+      VERIFY(areEqualBits(padded.data() + offset, out.data(), int(in.size()), nan_is_nan) && "ploadu");
       run(ploadt_ro_kernel<Packet, Unaligned>{offset}, n, padded, out);
-      VERIFY(areEqualBits(padded.data() + offset, out.data(), int(in.size()), false) && "ploadt_ro<Unaligned>");
+      VERIFY(areEqualBits(padded.data() + offset, out.data(), int(in.size()), nan_is_nan) && "ploadt_ro<Unaligned>");
       out_padded.setConstant(Scalar(-7));
       expected_padded.setConstant(Scalar(-7));
       expected_padded.segment(offset, in.size()) = in;
       run(pstoreu_kernel<Packet>{offset}, n, in, out_padded);
-      VERIFY(areEqualBits(expected_padded.data(), out_padded.data(), int(out_padded.size()), false) && "pstoreu");
+      VERIFY(areEqualBits(expected_padded.data(), out_padded.data(), int(out_padded.size()), nan_is_nan) && "pstoreu");
     }
   }
   {
     Buffer<Scalar> out(in.size());
     out.setConstant(Scalar(-7));
     run(ploadt_ro_kernel<Packet, Aligned>{0}, n, in, out);
-    VERIFY(areEqualBits(in.data(), out.data(), int(in.size()), false) && "ploadt_ro<Aligned>");
+    VERIFY(areEqualBits(in.data(), out.data(), int(in.size()), nan_is_nan) && "ploadt_ro<Aligned>");
     Buffer<Scalar> expected(in.size());
     if (kSize > 1) {
       for (int offset = 0; offset < 4; ++offset) {
         run(ploaddup_kernel<Packet>{offset}, n, in, out);
         for (Index k = 0; k < in.size(); ++k) expected[k] = in[(k / kSize) * (kSize / 2) + (k % kSize) / 2 + offset];
-        VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), false) && "ploaddup");
+        VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), nan_is_nan) && "ploaddup");
       }
     }
     run(pset1_kernel<Packet>(), n, in, out);
     for (Index k = 0; k < in.size(); ++k) expected[k] = in[k / kSize];
-    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), false) && "pset1");
+    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), nan_is_nan) && "pset1");
     out.setConstant(Scalar(-7));
     run(partial_kernel<Packet>(), n, in, out);
     for (Index k = 0; k < in.size(); ++k) {
       const Index lanes = (k / kSize) % (kSize + 1);
       expected[k] = (k % kSize) < lanes ? in[k] : Scalar(-7);
     }
-    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), false) && "pload_partial/pstore_partial");
+    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), nan_is_nan) && "pload_partial/pstore_partial");
   }
   {
     const int stride = 3;
@@ -164,11 +185,11 @@ void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::typ
     Buffer<Scalar> out(in.size());
     out.setConstant(Scalar(-7));
     run(pgather_kernel<Packet>{stride}, n, strided, out);
-    VERIFY(areEqualBits(in.data(), out.data(), int(in.size()), false) && "pgather");
+    VERIFY(areEqualBits(in.data(), out.data(), int(in.size()), nan_is_nan) && "pgather");
     Buffer<Scalar> scattered(in.size() * stride);
     scattered.setConstant(Scalar(-7));
     run(pscatter_kernel<Packet>{stride}, n, in, scattered);
-    VERIFY(areEqualBits(strided.data(), scattered.data(), int(strided.size()), false) && "pscatter");
+    VERIFY(areEqualBits(strided.data(), scattered.data(), int(strided.size()), nan_is_nan) && "pscatter");
   }
   {
     // A kSize x kSize block per thread.
@@ -185,7 +206,7 @@ void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::typ
         }
       }
     }
-    VERIFY(areEqualBits(expected.data(), out.data(), int(out.size()), false) && "ptranspose");
+    VERIFY(areEqualBits(expected.data(), out.data(), int(out.size()), nan_is_nan) && "ptranspose");
   }
   {
     Buffer<Scalar> out(in.size());
@@ -193,7 +214,7 @@ void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::typ
     run(preverse_kernel<Packet>(), n, in, out);
     Buffer<Scalar> expected(in.size());
     for (Index k = 0; k < in.size(); ++k) expected[k] = in[(k / kSize) * kSize + (kSize - 1 - k % kSize)];
-    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), false) && "preverse");
+    VERIFY(areEqualBits(expected.data(), out.data(), int(in.size()), nan_is_nan) && "preverse");
   }
 }
 
