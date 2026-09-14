@@ -39,7 +39,9 @@ using test::special_values;
 using test::Buffer;
 
 // Named budgets. rsqrt is the one approximate intrinsic among the core operations: the CUDA Math API documents
-// 2 ulp for rsqrtf and 1 ulp for rsqrt, and the reference below is rounded once more from the wider type.
+// 2 ulp for rsqrtf and 1 ulp for rsqrt. The float reference rounds 1/sqrt from double. The double reference uses
+// long double, which is double itself under MSVC; rounding y = sqrt(x) and then 1/y is still within 1.5 ulp of
+// 1/sqrt(x), so a device result within 1 ulp is at most 2 representable steps from the reference.
 const uint64_t kRsqrtFloatUlps = 3;
 const uint64_t kRsqrtDoubleUlps = 2;
 // nvcc compiles sqrtf to a correctly rounded sqrt (-prec-sqrt=true is its default); clang as the CUDA compiler
@@ -52,13 +54,13 @@ const uint64_t kSqrtFloatUlps = 1;
 #endif
 
 // ------------------------------------------------------------------------------------------------------------------
-// Operations: a static run() per packet type, with device-only bodies (EIGEN_TEST_DEVICE_ONLY).
+// Operations: a static run() per packet type, with device-only bodies (EIGEN_PACKET_TEST_FUNC).
 
 #define EIGEN_GPU_TEST_UNARY_OP(NAME, EXPR)           \
   struct NAME {                                       \
     static const char* name() { return #NAME; }       \
     template <typename P>                             \
-    EIGEN_TEST_DEVICE_ONLY static P run(const P& a) { \
+    EIGEN_PACKET_TEST_FUNC static P run(const P& a) { \
       return EXPR;                                    \
     }                                                 \
   };
@@ -66,7 +68,7 @@ const uint64_t kSqrtFloatUlps = 1;
   struct NAME {                                                   \
     static const char* name() { return #NAME; }                   \
     template <typename P>                                         \
-    EIGEN_TEST_DEVICE_ONLY static P run(const P& a, const P& b) { \
+    EIGEN_PACKET_TEST_FUNC static P run(const P& a, const P& b) { \
       return EXPR;                                                \
     }                                                             \
   };
@@ -74,7 +76,7 @@ const uint64_t kSqrtFloatUlps = 1;
   struct NAME {                                                               \
     static const char* name() { return #NAME; }                               \
     template <typename P>                                                     \
-    EIGEN_TEST_DEVICE_ONLY static P run(const P& a, const P& b, const P& c) { \
+    EIGEN_PACKET_TEST_FUNC static P run(const P& a, const P& b, const P& c) { \
       return EXPR;                                                            \
     }                                                                         \
   };
@@ -82,7 +84,7 @@ const uint64_t kSqrtFloatUlps = 1;
   struct NAME {                                                                       \
     static const char* name() { return #NAME; }                                       \
     template <typename P>                                                             \
-    EIGEN_TEST_DEVICE_ONLY static typename unpacket_traits<P>::type run(const P& a) { \
+    EIGEN_PACKET_TEST_FUNC static typename unpacket_traits<P>::type run(const P& a) { \
       return EXPR;                                                                    \
     }                                                                                 \
   };
@@ -131,14 +133,16 @@ EIGEN_GPU_TEST_REDUX_OP(op_predux_min, Eigen::internal::predux_min(a))
 EIGEN_GPU_TEST_REDUX_OP(op_predux_max, Eigen::internal::predux_max(a))
 
 // ------------------------------------------------------------------------------------------------------------------
-// Kernels: thread i owns packet i. Aligned loads are legitimate because gpuMalloc returns 256-byte aligned memory
-// and every packet here is at most 16 bytes.
+// Kernels: thread i owns packet i. pload<float4> and pload<double2> dereference their argument as the packet, whose
+// alignment is Aligned16. Every aligned load and store here addresses a whole number of 16-byte packets past a
+// gpuMalloc base, which cudaMalloc documents as "suitably aligned for any kind of variable" (hipMalloc documents no
+// alignment).
 
 template <typename Packet, typename Op>
 struct unary_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
     Eigen::internal::pstore(out + i * kSize, Op::run(Eigen::internal::pload<Packet>(in + i * kSize)));
   }
 };
@@ -148,7 +152,7 @@ template <typename Packet, typename Op>
 struct binary_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
     const Packet a = Eigen::internal::pload<Packet>(in + (2 * i) * kSize);
     const Packet b = Eigen::internal::pload<Packet>(in + (2 * i + 1) * kSize);
     Eigen::internal::pstore(out + i * kSize, Op::run(a, b));
@@ -159,7 +163,7 @@ template <typename Packet, typename Op>
 struct ternary_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
     const Packet a = Eigen::internal::pload<Packet>(in + (3 * i) * kSize);
     const Packet b = Eigen::internal::pload<Packet>(in + (3 * i + 1) * kSize);
     const Packet c = Eigen::internal::pload<Packet>(in + (3 * i + 2) * kSize);
@@ -171,7 +175,7 @@ template <typename Packet, typename Op>
 struct redux_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
     out[i] = Op::run(Eigen::internal::pload<Packet>(in + i * kSize));
   }
 };
@@ -180,7 +184,7 @@ template <typename Packet>
 struct plset_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
   static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Scalar* out) const {
     Eigen::internal::pstore(out + i * kSize, Eigen::internal::plset<Packet>(in[i]));
   }
 };
@@ -188,7 +192,7 @@ struct plset_kernel {
 // preinterpret between a scalar and its same-size integer, as the evaluator's cast path uses it on the device.
 template <typename Scalar, typename Bits>
 struct preinterpret_scalar_kernel {
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Bits* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const Scalar* in, Bits* out) const {
     out[i] = Eigen::internal::preinterpret<Bits>(in[i]);
   }
 };
@@ -219,7 +223,7 @@ enum Trait { EIGEN_GPU_TEST_TRAIT_FLAGS(EIGEN_GPU_TEST_TRAIT_ENUM) kNumTraits };
 
 template <typename Scalar>
 struct traits_kernel {
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const int*, int* out) const {
+  EIGEN_PACKET_TEST_FUNC void operator()(int i, const int*, int* out) const {
     if (i != 0) return;
     int k = 0;
     EIGEN_GPU_TEST_TRAIT_FLAGS(EIGEN_GPU_TEST_TRAIT_VALUE)
@@ -238,7 +242,6 @@ std::vector<int> device_traits() {
 // Every flag the device advertises must be covered by a part of this test, deferred to a reserved part by name,
 // or a known gap. HasSign: float4/double2 have no psign and the generic form (numext::sign on the packet) does not
 // compile, so the flag is a promise the backend does not keep until it gains one.
-template <typename Scalar>
 void check_advertised_ops_are_covered(const std::vector<int>& traits, const std::vector<Trait>& covered_here) {
   const std::vector<Trait> deferred = {kHasExp, kHasExpm1, kHasLog, kHasLog1p};
   const std::vector<Trait> known_gaps = {kHasSign};
@@ -489,7 +492,7 @@ void packetmath_gpu_real_core() {
   VERIFY_IS_EQUAL(traits[ksize], kSize);
   // HasCmp is 1 for float and 0 for double although pcmp_eq/lt/le exist for both packets; the comparisons below
   // are exercised either way, and the flag is the backend's to fix.
-  check_advertised_ops_are_covered<Scalar>(
+  check_advertised_ops_are_covered(
       traits, {kHasAdd, kHasSub, kHasMul, kHasDiv, kHasNegate, kHasAbs, kHasMin, kHasMax, kHasCmp, kHasRound, kHasSqrt,
                kHasRsqrt, kHasAbsDiff, kHasSetLinear, kHasConj});
 
@@ -749,7 +752,8 @@ void check_scalar_fallback_common(const binary_inputs<Scalar>& pairs, const Buff
 template <typename Scalar>
 binary_inputs<Scalar> integer_pairs(int count) {
   binary_inputs<Scalar> pairs;
-  // Magnitudes small enough that the sum and product of two stay in range for every integer type tested.
+  // Signed operands stay within 100 in magnitude, so their sums and products stay in range; unsigned operands reach
+  // 200, whose uint8_t sums and products wrap, as the REF_* references do.
   const Scalar bound = Scalar(NumTraits<Scalar>::IsSigned ? 100 : 200);
   for (int k = 0; k < count; ++k) {
     pairs.push(Eigen::internal::random<Scalar>(NumTraits<Scalar>::IsSigned ? Scalar(-bound) : Scalar(0), bound),

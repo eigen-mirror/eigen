@@ -22,6 +22,15 @@
 
 bool g_first_pass = true;
 
+// Marks the body of a packet test kernel or operation. CUDA and HIP compile it for the device only, since their host
+// pass can lack the packet operations it calls, so there it runs only through run_on_gpu; ordinary C++ compiles it for
+// the host.
+#if defined(EIGEN_GPUCC)
+#define EIGEN_PACKET_TEST_FUNC __device__
+#else
+#define EIGEN_PACKET_TEST_FUNC
+#endif
+
 namespace Eigen {
 
 namespace test {

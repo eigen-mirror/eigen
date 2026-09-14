@@ -6,13 +6,6 @@
 
 #include "packetmath_test_shared.h"
 
-// CUDA/HIP packet bodies must only instantiate in the device pass; ordinary C++ runs them on the host.
-#if defined(EIGEN_GPUCC)
-#define EIGEN_PACKET_TEST_FUNC __device__
-#else
-#define EIGEN_PACKET_TEST_FUNC
-#endif
-
 namespace Eigen {
 namespace test {
 
@@ -207,5 +200,4 @@ void packetmath_data_movement(const Buffer<typename unpacket_traits<Packet>::typ
 }  // namespace test
 }  // namespace Eigen
 
-#undef EIGEN_PACKET_TEST_FUNC
 #endif  // EIGEN_TEST_PACKETMATH_DATA_MOVEMENT_H
