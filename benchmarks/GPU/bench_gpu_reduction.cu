@@ -223,8 +223,8 @@ void BM_CubSegmentedReduceSum(benchmark::State& state) {
 
 // Explicit shapes rather than a product: the product of the two ranges asks for tensors of up to 2^40 elements.
 // Args is (rows, columns), so for the outer reduction it reads as (outputs, reduced extent) and the last three
-// shapes straddle the band OuterReducer::run admits doubles to OuterReductionKernel in: a reduced extent below
-// its floor, a shape inside the band, and an output count above its ceiling on a 36-multiprocessor device. For
+// shapes straddle the former CUDA double-sum band: a reduced extent below its floor, a shape inside the band,
+// and an output count above its ceiling on a 36-multiprocessor device. HIP retains that band. For
 // the inner reduction and the CUB baseline the two extents swap roles.
 #define EIGEN_GPU_PARTIAL_REDUCTION_SHAPES(NAME, TYPE) \
   BENCHMARK_TEMPLATE(NAME, TYPE)                       \
