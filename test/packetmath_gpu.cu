@@ -32,6 +32,7 @@ using Eigen::Index;
 using Eigen::internal::packet_traits;
 using Eigen::internal::unpacket_traits;
 namespace test = Eigen::test;
+using Eigen::numext::bit_cast;
 
 template <typename Scalar>
 using Buffer = Eigen::Array<Scalar, Eigen::Dynamic, 1>;
@@ -481,29 +482,12 @@ bool either_nan(Scalar x, Scalar y) {
 // ------------------------------------------------------------------------------------------------------------------
 // Comparators.
 
-// Bit-level view of a scalar, for the reference side of the bitwise operations.
-template <typename Scalar>
-using scalar_bits_t = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-template <typename Scalar>
-scalar_bits_t<Scalar> bits_of(Scalar x) {
-  return Eigen::numext::bit_cast<scalar_bits_t<Scalar>>(x);
-}
-template <typename Scalar>
-Scalar from_bits(scalar_bits_t<Scalar> b) {
-  return Eigen::numext::bit_cast<Scalar>(b);
-}
-
 template <typename Scalar>
 struct compare_bits {
   bool nan_is_nan;
   bool operator()(const Scalar* ref, const Scalar* vec, int n) const {
     return test::areEqualBits(ref, vec, n, nan_is_nan);
   }
-};
-// Value equality: +0 and -0 agree, NaN matches NaN.
-template <typename Scalar>
-struct compare_values {
-  bool operator()(const Scalar* ref, const Scalar* vec, int n) const { return test::areEqual(ref, vec, n); }
 };
 template <typename Scalar>
 struct compare_ulps {
@@ -618,7 +602,7 @@ void packetmath_gpu_real_core() {
   using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
   const compare_bits<Scalar> bits{true};
   const compare_bits<Scalar> bits_and_payload{false};
-  const compare_values<Scalar> values;
+  const auto values = test::areEqual<Scalar>;
   const uint64_t rsqrt_ulps = std::is_same<Scalar, double>::value ? kRsqrtDoubleUlps : kRsqrtFloatUlps;
 
   // The device's view of the type, and what this part covers of it.
@@ -757,14 +741,10 @@ void packetmath_gpu_real_core() {
 
   // Arithmetic: IEEE operations, so the host's own results are the reference, bit for bit.
   const binary_inputs<Scalar> pairs(kSize, 1 << 17, never<Scalar>);
-  check_binary<Packet, op_padd>(
-      pairs, [](Scalar x, Scalar y) { return x + y; }, bits);
-  check_binary<Packet, op_psub>(
-      pairs, [](Scalar x, Scalar y) { return x - y; }, bits);
-  check_binary<Packet, op_pmul>(
-      pairs, [](Scalar x, Scalar y) { return x * y; }, bits);
-  check_binary<Packet, op_pdiv>(
-      pairs, [](Scalar x, Scalar y) { return x / y; }, bits);
+  check_binary<Packet, op_padd>(pairs, test::REF_ADD<Scalar>, bits);
+  check_binary<Packet, op_psub>(pairs, test::REF_SUB<Scalar>, bits);
+  check_binary<Packet, op_pmul>(pairs, test::REF_MUL<Scalar>, bits);
+  check_binary<Packet, op_pdiv>(pairs, test::REF_DIV<Scalar>, bits);
   // The sign of a zero difference is not part of pabsdiff's contract.
   check_binary<Packet, op_pabsdiff>(
       pairs, [](Scalar x, Scalar y) { return x < y ? y - x : x - y; }, values);
@@ -794,13 +774,17 @@ void packetmath_gpu_real_core() {
 
   // Bit operations act on the representation, payloads included.
   check_binary<Packet, op_pand>(
-      pairs, [](Scalar x, Scalar y) { return from_bits<Scalar>(Bits(bits_of(x) & bits_of(y))); }, bits_and_payload);
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) & bit_cast<Bits>(y))); },
+      bits_and_payload);
   check_binary<Packet, op_por>(
-      pairs, [](Scalar x, Scalar y) { return from_bits<Scalar>(Bits(bits_of(x) | bits_of(y))); }, bits_and_payload);
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) | bit_cast<Bits>(y))); },
+      bits_and_payload);
   check_binary<Packet, op_pxor>(
-      pairs, [](Scalar x, Scalar y) { return from_bits<Scalar>(Bits(bits_of(x) ^ bits_of(y))); }, bits_and_payload);
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) ^ bit_cast<Bits>(y))); },
+      bits_and_payload);
   check_binary<Packet, op_pandnot>(
-      pairs, [](Scalar x, Scalar y) { return from_bits<Scalar>(Bits(bits_of(x) & ~bits_of(y))); }, bits_and_payload);
+      pairs, [](Scalar x, Scalar y) { return bit_cast<Scalar>(Bits(bit_cast<Bits>(x) & ~bit_cast<Bits>(y))); },
+      bits_and_payload);
 
   // Comparisons: full-bit masks, false on any NaN operand.
   check_compare<Packet, op_pcmp_eq>(pairs, [](Scalar x, Scalar y) { return x == y; });
@@ -917,10 +901,8 @@ void check_scalar_fallback_common(const binary_inputs<Scalar>& pairs, const Buff
   const std::vector<int> traits = device_traits<Scalar>();
   VERIFY_IS_EQUAL(traits[kVectorizable], 0);
   VERIFY_IS_EQUAL(traits[ksize], 1);
-  check_binary<Scalar, op_padd>(
-      pairs, [](Scalar x, Scalar y) { return Eigen::internal::padd(x, y); }, bits);
-  check_binary<Scalar, op_pmul>(
-      pairs, [](Scalar x, Scalar y) { return Eigen::internal::pmul(x, y); }, bits);
+  check_binary<Scalar, op_padd>(pairs, test::REF_ADD<Scalar>, bits);
+  check_binary<Scalar, op_pmul>(pairs, test::REF_MUL<Scalar>, bits);
   check_binary<Scalar, op_pmin>(
       pairs, [](Scalar x, Scalar y) { return Eigen::internal::pmin(x, y); }, bits);
   check_binary<Scalar, op_pmax>(
@@ -970,18 +952,15 @@ void packetmath_gpu_integer_fallback() {
   const binary_inputs<Scalar> pairs = integer_pairs<Scalar>(1 << 12);
   const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(pairs.a.data(), pairs.size());
   check_scalar_fallback_common<Scalar>(pairs, in);
-  check_unary<Scalar, op_pnegate>(
-      in, [](Scalar x) { return Eigen::internal::pnegate(x); }, bits);
+  check_unary<Scalar, op_pnegate>(in, test::negate<Scalar>, bits);
   check_unary<Scalar, op_pabs>(
       in, [](Scalar x) { return Eigen::internal::pabs(x); }, bits);
-  check_binary<Scalar, op_psub>(
-      pairs, [](Scalar x, Scalar y) { return Eigen::internal::psub(x, y); }, bits);
+  check_binary<Scalar, op_psub>(pairs, test::REF_SUB<Scalar>, bits);
   binary_inputs<Scalar> nonzero = pairs;
   for (Scalar& y : nonzero.b) {
     if (y == Scalar(0)) y = Scalar(1);
   }
-  check_binary<Scalar, op_pdiv>(
-      nonzero, [](Scalar x, Scalar y) { return Eigen::internal::pdiv(x, y); }, bits);
+  check_binary<Scalar, op_pdiv>(nonzero, test::REF_DIV<Scalar>, bits);
   check_binary<Scalar, op_pandnot>(
       pairs, [](Scalar x, Scalar y) { return Eigen::internal::pandnot(x, y); }, bits);
 }
@@ -1009,14 +988,11 @@ void packetmath_gpu_bfloat16_fallback() {
   }
   const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(pairs.a.data(), pairs.size());
   check_scalar_fallback_common<Scalar>(pairs, in);
-  check_unary<Scalar, op_pnegate>(
-      in, [](Scalar x) { return Eigen::internal::pnegate(x); }, bits);
+  check_unary<Scalar, op_pnegate>(in, test::negate<Scalar>, bits);
   check_unary<Scalar, op_pabs>(
       in, [](Scalar x) { return Eigen::internal::pabs(x); }, bits);
-  check_binary<Scalar, op_psub>(
-      pairs, [](Scalar x, Scalar y) { return Eigen::internal::psub(x, y); }, bits);
-  check_binary<Scalar, op_pdiv>(
-      pairs, [](Scalar x, Scalar y) { return Eigen::internal::pdiv(x, y); }, bits);
+  check_binary<Scalar, op_psub>(pairs, test::REF_SUB<Scalar>, bits);
+  check_binary<Scalar, op_pdiv>(pairs, test::REF_DIV<Scalar>, bits);
   // A one-ulp sqrtf error can cross a bfloat16 rounding boundary.
   check_unary<Scalar, op_psqrt>(
       in, [](Scalar x) { return Eigen::internal::psqrt(x); }, compare_ulps<Scalar>{kSqrtFloatUlps});

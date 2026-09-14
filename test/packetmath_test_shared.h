@@ -26,6 +26,62 @@ namespace Eigen {
 
 namespace test {
 
+template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
+inline T REF_ADD(const T& a, const T& b) {
+  return a + b;
+}
+template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, int> = 0>
+inline T REF_ADD(const T& a, const T& b) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  return static_cast<T>(static_cast<UnsignedT>(a) + static_cast<UnsignedT>(b));
+}
+template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
+inline T REF_SUB(const T& a, const T& b) {
+  return a - b;
+}
+template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, int> = 0>
+inline T REF_SUB(const T& a, const T& b) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  return static_cast<T>(static_cast<UnsignedT>(a) - static_cast<UnsignedT>(b));
+}
+template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || std::is_same<T, bool>::value, int> = 0>
+inline T REF_MUL(const T& a, const T& b) {
+  return a * b;
+}
+template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && !std::is_same<T, bool>::value, int> = 0>
+inline T REF_MUL(const T& a, const T& b) {
+  // Evaluate in an unsigned type at least as wide as int so that sub-int
+  // operands are not promoted back to signed int (whose product can overflow);
+  // the result then wraps modulo 2^bits just like pmul.
+  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned>;
+  return static_cast<T>(static_cast<UnsignedT>(a) * static_cast<UnsignedT>(b));
+}
+
+template <typename T>
+inline T REF_DIV(const T& a, const T& b) {
+  return a / b;
+}
+
+template <>
+inline bool REF_ADD(const bool& a, const bool& b) {
+  return a || b;
+}
+
+template <>
+inline bool REF_SUB(const bool& a, const bool& b) {
+  return a ^ b;
+}
+
+template <>
+inline bool REF_MUL(const bool& a, const bool& b) {
+  return a && b;
+}
+
+template <>
+inline bool REF_DIV(const bool& a, const bool& b) {
+  return a && b;
+}
+
 template <typename T, std::enable_if_t<NumTraits<T>::IsSigned && NumTraits<T>::IsInteger, bool> = true>
 T negate(const T& x) {
   // `-x` is UB at the minimum representable value; go through the unsigned type instead, the
@@ -62,7 +118,15 @@ EIGEN_DONT_INLINE bool isApproxAbs(const Scalar& a, const Scalar& b, const typen
 }
 
 template <typename Scalar>
-inline void print_mismatch(const Scalar* ref, const Scalar* vec, int size) {
+inline void print_mismatch(const Scalar* ref, const Scalar* vec, int size, int at = -1) {
+  if (at >= 0 && size > 8) {
+    const int begin = (std::max)(0, at - 4);
+    const int end = (std::min)(size, begin + 8);
+    std::cout << "lanes [" << begin << ", " << end << ") ";
+    ref += begin;
+    vec += begin;
+    size = end - begin;
+  }
   std::cout << "ref: [" << Map<const Matrix<Scalar, 1, Dynamic> >(ref, size) << "]"
             << " != vec: [" << Map<const Matrix<Scalar, 1, Dynamic> >(vec, size) << "]\n";
 }
@@ -71,7 +135,7 @@ template <typename Scalar>
 bool areApproxAbs(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& refvalue) {
   for (int i = 0; i < size; ++i) {
     if (!isApproxAbs(a[i], b[i], refvalue)) {
-      print_mismatch(a, b, size);
+      print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
       return false;
@@ -85,7 +149,7 @@ bool areApprox(const Scalar* a, const Scalar* b, int size) {
   for (int i = 0; i < size; ++i) {
     if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i]) &&
         !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
-      print_mismatch(a, b, size);
+      print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
       return false;
@@ -98,7 +162,7 @@ template <typename Scalar>
 bool areEqual(const Scalar* a, const Scalar* b, int size) {
   for (int i = 0; i < size; ++i) {
     if (numext::not_equal_strict(a[i], b[i]) && !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
-      print_mismatch(a, b, size);
+      print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
       return false;
@@ -126,16 +190,6 @@ bool areFullBitMasks(const Scalar* data, const bool* zero_mask, int size) {
   return true;
 }
 
-// print_mismatch for a buffer of any length: the eight lanes around position `at`.
-template <typename Scalar>
-inline void print_mismatch_window(const Scalar* ref, const Scalar* vec, int size, int at) {
-  const int window = 8;
-  const int begin = (std::max)(0, at - window / 2);
-  const int end = (std::min)(size, begin + window);
-  std::cout << "lanes [" << begin << ", " << end << ") ";
-  print_mismatch(ref + begin, vec + begin, end - begin);
-}
-
 // Bitwise equality lane by lane; with `nan_is_nan`, two NaNs match whatever their payloads. Use it where a
 // contract fixes the result bit for bit (loads and stores, bit operations, correctly rounded arithmetic, the sign of
 // a zero) and areEqual's value comparison would pass +0 for -0.
@@ -144,7 +198,7 @@ bool areEqualBits(const Scalar* a, const Scalar* b, int size, bool nan_is_nan = 
   for (int i = 0; i < size; ++i) {
     const bool both_nan = nan_is_nan && (numext::isnan)(a[i]) && (numext::isnan)(b[i]);
     if (!both_nan && !biteq(a[i], b[i])) {
-      print_mismatch_window(a, b, size, i);
+      print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Bits differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
       return false;
@@ -180,7 +234,7 @@ bool areWithinUlps(const Scalar* ref, const Scalar* vec, int size, uint64_t max_
   for (int i = 0; i < size; ++i) {
     const uint64_t distance = ulp_distance(ref[i], vec[i]);
     if (distance > max_ulps) {
-      print_mismatch_window(ref, vec, size, i);
+      print_mismatch(ref, vec, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << " by " << distance << " ulps (budget "
                 << max_ulps << "): " << ref[i] << " vs " << vec[i] << std::endl;
       return false;
@@ -194,7 +248,7 @@ bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTra
   for (int i = 0; i < size; ++i) {
     if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i], precision) &&
         !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
-      print_mismatch(a, b, size);
+      print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
       return false;
