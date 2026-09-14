@@ -13,39 +13,9 @@
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
 #include "fp_control.h"
+#include "packetmath_data_movement.h"
 
 using internal::unpacket_traits;
-
-template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
-inline T REF_ADD(const T& a, const T& b) {
-  return a + b;
-}
-template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, int> = 0>
-inline T REF_ADD(const T& a, const T& b) {
-  using UnsignedT = std::make_unsigned_t<T>;
-  return static_cast<T>(static_cast<UnsignedT>(a) + static_cast<UnsignedT>(b));
-}
-template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
-inline T REF_SUB(const T& a, const T& b) {
-  return a - b;
-}
-template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, int> = 0>
-inline T REF_SUB(const T& a, const T& b) {
-  using UnsignedT = std::make_unsigned_t<T>;
-  return static_cast<T>(static_cast<UnsignedT>(a) - static_cast<UnsignedT>(b));
-}
-template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || std::is_same<T, bool>::value, int> = 0>
-inline T REF_MUL(const T& a, const T& b) {
-  return a * b;
-}
-template <typename T, std::enable_if_t<NumTraits<T>::IsInteger && !std::is_same<T, bool>::value, int> = 0>
-inline T REF_MUL(const T& a, const T& b) {
-  // Evaluate in an unsigned type at least as wide as int so that sub-int
-  // operands are not promoted back to signed int (whose product can overflow);
-  // the result then wraps modulo 2^bits just like pmul.
-  using UnsignedT = std::common_type_t<std::make_unsigned_t<T>, unsigned>;
-  return static_cast<T>(static_cast<UnsignedT>(a) * static_cast<UnsignedT>(b));
-}
 
 template <typename Scalar, typename EnableIf = void>
 struct madd_impl {
@@ -122,10 +92,6 @@ inline T REF_NMSUB(const T& a, const T& b, const T& c) {
   return madd_impl<T>::nmsub(a, b, c);
 }
 template <typename T>
-inline T REF_DIV(const T& a, const T& b) {
-  return a / b;
-}
-template <typename T>
 inline T REF_RECIPROCAL(const T& a) {
   return T(1) / a;
 }
@@ -160,24 +126,8 @@ EIGEN_DONT_INLINE Packet REF_PCMP_EQ(const Packet& a, const Packet& b) {
 
 // Specializations for bool.
 template <>
-inline bool REF_ADD(const bool& a, const bool& b) {
-  return a || b;
-}
-template <>
-inline bool REF_SUB(const bool& a, const bool& b) {
-  return a ^ b;
-}
-template <>
-inline bool REF_MUL(const bool& a, const bool& b) {
-  return a && b;
-}
-template <>
 inline bool REF_MADD(const bool& a, const bool& b, const bool& c) {
   return (a && b) || c;
-}
-template <>
-inline bool REF_DIV(const bool& a, const bool& b) {
-  return a && b;
 }
 template <>
 inline bool REF_RECIPROCAL(const bool& a) {
@@ -596,7 +546,7 @@ struct packetmath_minus_zero_add_test<Scalar, Packet, std::enable_if_t<!NumTrait
       data1[i] = Scalar(-0.0);
       data1[i + PacketSize] = Scalar(-0.0);
     }
-    CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasAdd, REF_ADD, internal::padd);
+    CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasAdd, test::REF_ADD, internal::padd);
   }
 };
 
@@ -671,7 +621,7 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
       CHECK_CWISE2_MASK(internal::pcmp_le, internal::pcmp_le);
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMin, (std::min), internal::pmin);
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
-      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, REF_MUL, internal::pmul);
+      CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, test::REF_MUL, internal::pmul);
       CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
       CHECK_CWISE1(ref_abs, internal::pabs);
     };
@@ -812,17 +762,13 @@ void packetmath() {
   }
 
   internal::pstore(data2, internal::pload<Packet>(data1));
-  VERIFY(test::areApprox(data1, data2, PacketSize) && "aligned load/store");
+  VERIFY(test::areEqualBits(data1, data2, PacketSize, false) && "aligned load/store");
 
-  for (int offset = 0; offset < PacketSize; ++offset) {
-    internal::pstore(data2, internal::ploadu<Packet>(data1 + offset));
-    VERIFY(test::areApprox(data1 + offset, data2, PacketSize) && "internal::ploadu");
-  }
-
-  for (int offset = 0; offset < PacketSize; ++offset) {
-    internal::pstoreu(data2 + offset, internal::pload<Packet>(data1));
-    VERIFY(test::areApprox(data1, data2 + offset, PacketSize) && "internal::pstoreu");
-  }
+  const test::Buffer<Scalar> movement_input = Map<const test::Buffer<Scalar>>(data1, size);
+  test::packetmath_data_movement<Packet>(movement_input,
+                                         [](const auto& kernel, int count, const auto& input, auto& output) {
+                                           for (int i = 0; i < count; ++i) kernel(i, input.data(), output.data());
+                                         });
 
   for (int M = 0; M < PacketSize; ++M) {
     for (int N = 0; N <= PacketSize; ++N) {
@@ -834,23 +780,23 @@ void packetmath() {
 
       if (M == 0) {
         internal::pstore_partial(data2, internal::pload_partial<Packet>(data1, N), N);
-        VERIFY(test::areApprox(data1, data2, N) && "aligned loadN/storeN");
+        VERIFY(test::areEqualBits(data1, data2, N, false) && "aligned loadN/storeN");
 
         for (int offset = 0; offset < PacketSize; ++offset) {
           internal::pstore_partial(data2, internal::ploadu_partial<Packet>(data1 + offset, N), N);
-          VERIFY(test::areApprox(data1 + offset, data2, N) && "internal::ploadu_partial");
+          VERIFY(test::areEqualBits(data1 + offset, data2, N, false) && "internal::ploadu_partial");
         }
 
         for (int offset = 0; offset < PacketSize; ++offset) {
           internal::pstoreu_partial(data2 + offset, internal::pload_partial<Packet>(data1, N), N);
-          VERIFY(test::areApprox(data1, data2 + offset, N) && "internal::pstoreu_partial");
+          VERIFY(test::areEqualBits(data1, data2 + offset, N, false) && "internal::pstoreu_partial");
         }
       }
 
       if (N + M > PacketSize) continue;  // Don't read or write past end of Packet
 
       internal::pstore_partial(data2, internal::pload_partial<Packet>(data1, N, M), N, M);
-      VERIFY(test::areApprox(data1, data2, N) && "aligned offset loadN/storeN");
+      VERIFY(test::areEqualBits(data1, data2, N, false) && "aligned offset loadN/storeN");
     }
   }
 
@@ -862,7 +808,7 @@ void packetmath() {
       for (unsigned long long umask = 0; umask < max_umask; ++umask) {
         h.store(data2, h.load(data1 + offset, umask));
         for (int k = 0; k < PacketSize; ++k) data3[k] = ((umask & (0x1ull << k)) >> k) ? data1[k + offset] : Scalar(0);
-        VERIFY(test::areApprox(data3, data2, PacketSize) && "internal::ploadu masked");
+        VERIFY(test::areEqualBits(data3, data2, PacketSize, false) && "internal::ploadu masked");
       }
     }
   }
@@ -876,7 +822,7 @@ void packetmath() {
         internal::pstore(data2, internal::pset1<Packet>(Scalar(0)));
         h.store(data2, h.loadu(data1 + offset), umask);
         for (int k = 0; k < PacketSize; ++k) data3[k] = ((umask & (0x1ull << k)) >> k) ? data1[k + offset] : Scalar(0);
-        VERIFY(test::areApprox(data3, data2, PacketSize) && "internal::pstoreu masked");
+        VERIFY(test::areEqualBits(data3, data2, PacketSize, false) && "internal::pstoreu masked");
       }
     }
   }
@@ -885,22 +831,16 @@ void packetmath() {
   VERIFY((!PacketTraits::Vectorizable) || PacketTraits::HasSub);
   VERIFY((!PacketTraits::Vectorizable) || PacketTraits::HasMul);
 
-  CHECK_CWISE2_IF(PacketTraits::HasAdd, REF_ADD, internal::padd);
-  CHECK_CWISE2_IF(PacketTraits::HasSub, REF_SUB, internal::psub);
-  CHECK_CWISE2_IF(PacketTraits::HasMul, REF_MUL, internal::pmul);
-  CHECK_CWISE2_IF(PacketTraits::HasDiv, REF_DIV, internal::pdiv);
+  CHECK_CWISE2_IF(PacketTraits::HasAdd, test::REF_ADD, internal::padd);
+  CHECK_CWISE2_IF(PacketTraits::HasSub, test::REF_SUB, internal::psub);
+  CHECK_CWISE2_IF(PacketTraits::HasMul, test::REF_MUL, internal::pmul);
+  CHECK_CWISE2_IF(PacketTraits::HasDiv, test::REF_DIV, internal::pdiv);
 
   negate_test<Scalar, Packet>(data1, data2, ref, PacketSize);
   CHECK_CWISE1_IF(PacketTraits::HasReciprocal, REF_RECIPROCAL, internal::preciprocal);
   CHECK_CWISE1(numext::conj, internal::pconj);
 
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
-
-  for (int offset = 0; offset < 3; ++offset) {
-    for (int i = 0; i < PacketSize; ++i) ref[i] = data1[offset];
-    internal::pstore(data2, internal::pset1<Packet>(data1[offset]));
-    VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::pset1");
-  }
 
   {
     for (int i = 0; i < PacketSize * 4; ++i) ref[i] = data1[i / PacketSize];
@@ -910,7 +850,7 @@ void packetmath() {
     internal::pstore(data2 + 1 * PacketSize, A1);
     internal::pstore(data2 + 2 * PacketSize, A2);
     internal::pstore(data2 + 3 * PacketSize, A3);
-    VERIFY(test::areApprox(ref, data2, 4 * PacketSize) && "internal::pbroadcast4");
+    VERIFY(test::areEqualBits(ref, data2, 4 * PacketSize, false) && "internal::pbroadcast4");
   }
 
   {
@@ -919,19 +859,10 @@ void packetmath() {
     internal::pbroadcast2<Packet>(data1, A0, A1);
     internal::pstore(data2 + 0 * PacketSize, A0);
     internal::pstore(data2 + 1 * PacketSize, A1);
-    VERIFY(test::areApprox(ref, data2, 2 * PacketSize) && "internal::pbroadcast2");
+    VERIFY(test::areEqualBits(ref, data2, 2 * PacketSize, false) && "internal::pbroadcast2");
   }
 
   VERIFY(internal::isApprox(data1[0], internal::pfirst(internal::pload<Packet>(data1))) && "internal::pfirst");
-
-  if (PacketSize > 1) {
-    // apply different offsets to check that ploaddup is robust to unaligned inputs
-    for (int offset = 0; offset < 4; ++offset) {
-      for (int i = 0; i < PacketSize / 2; ++i) ref[2 * i + 0] = ref[2 * i + 1] = data1[offset + i];
-      internal::pstore(data2, internal::ploaddup<Packet>(data1 + offset));
-      VERIFY(test::areApprox(ref, data2, PacketSize) && "ploaddup");
-    }
-  }
 
   if (PacketSize > 2) {
     // apply different offsets to check that ploadquad is robust to unaligned inputs
@@ -939,22 +870,23 @@ void packetmath() {
       for (int i = 0; i < PacketSize / 4; ++i)
         ref[4 * i + 0] = ref[4 * i + 1] = ref[4 * i + 2] = ref[4 * i + 3] = data1[offset + i];
       internal::pstore(data2, internal::ploadquad<Packet>(data1 + offset));
-      VERIFY(test::areApprox(ref, data2, PacketSize) && "ploadquad");
+      VERIFY(test::areEqualBits(ref, data2, PacketSize, false) && "ploadquad");
     }
   }
 
-  // Match the packet reduction's accumulation precision. REF_ADD also preserves signed wrapping and Boolean OR
+  // Match the packet reduction's accumulation precision. test::REF_ADD also preserves signed wrapping and Boolean OR
   // semantics and avoids MSVC C4804 for raw Boolean addition.
   using ReduxReferenceScalar = predux_reference_scalar_t<Packet>;
   ReduxReferenceScalar redux_ref(0);
-  for (int i = 0; i < PacketSize; ++i) redux_ref = REF_ADD(redux_ref, static_cast<ReduxReferenceScalar>(data1[i]));
+  for (int i = 0; i < PacketSize; ++i)
+    redux_ref = test::REF_ADD(redux_ref, static_cast<ReduxReferenceScalar>(data1[i]));
   ref[0] = static_cast<Scalar>(redux_ref);
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
   if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
-    for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] = REF_ADD(ref[i % HalfPacketSize], data1[i]);
+    for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] = test::REF_ADD(ref[i % HalfPacketSize], data1[i]);
     internal::pstore(data2, internal::predux_half(internal::pload<Packet>(data1)));
     VERIFY(test::areApprox(ref, data2, HalfPacketSize) && "internal::predux_half");
   }
@@ -972,29 +904,13 @@ void packetmath() {
     // Prevent very small product results by adjusting range.  Otherwise,
     // we may end up with multiplying e.g. 32 Eigen::halfs with values < 1.
     for (int i = 0; i < PacketSize; ++i) {
-      data1[i] = REF_MUL(internal::random<Scalar>(Scalar(0.5), Scalar(1)),
-                         (internal::random<bool>() ? Scalar(-1) : Scalar(1)));
+      data1[i] = test::REF_MUL(internal::random<Scalar>(Scalar(0.5), Scalar(1)),
+                               (internal::random<bool>() ? Scalar(-1) : Scalar(1)));
     }
   }
   ref[0] = Scalar(1);
-  for (int i = 0; i < PacketSize; ++i) ref[0] = REF_MUL(ref[0], data1[i]);
+  for (int i = 0; i < PacketSize; ++i) ref[0] = test::REF_MUL(ref[0], data1[i]);
   VERIFY(internal::isApprox(ref[0], internal::predux_mul(internal::pload<Packet>(data1))) && "internal::predux_mul");
-
-  for (int i = 0; i < PacketSize; ++i) ref[i] = data1[PacketSize - i - 1];
-  internal::pstore(data2, internal::preverse(internal::pload<Packet>(data1)));
-  VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::preverse");
-
-  internal::PacketBlock<Packet> kernel;
-  for (int i = 0; i < PacketSize; ++i) {
-    kernel.packet[i] = internal::pload<Packet>(data1 + i * PacketSize);
-  }
-  ptranspose(kernel);
-  for (int i = 0; i < PacketSize; ++i) {
-    internal::pstore(data2, kernel.packet[i]);
-    for (int j = 0; j < PacketSize; ++j) {
-      VERIFY(test::isApproxAbs(data2[j], data1[i + j * PacketSize], refvalue) && "ptranspose");
-    }
-  }
 
   // GeneralBlockPanelKernel also checks PacketBlock<Packet,(PacketSize%4)==0?4:PacketSize>;
   if (PacketSize > 4 && PacketSize % 4 == 0) {
@@ -1531,11 +1447,6 @@ struct packetmath_minmax_propagation_test {
 template <typename Scalar, typename Packet>
 struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
   using PacketTraits = internal::packet_traits<Scalar>;
-  using Bits = std::make_unsigned_t<typename internal::make_integer<Scalar>::type>;
-
-  static bool same_bits(const Scalar& a, const Scalar& b) {
-    return numext::bit_cast<Bits>(a) == numext::bit_cast<Bits>(b);
-  }
 
   // NaN payloads are not pinned down across backends, so a NaN result only has to stay a NaN.
   static void verify_semantics(const Scalar& a, const Scalar& b, const Scalar& plain, const Scalar& fast,
@@ -1546,24 +1457,18 @@ struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumT
       if (a_is_nan && b_is_nan) {
         VERIFY((numext::isnan)(numbers));
       } else {
-        VERIFY(same_bits(numbers, a_is_nan ? b : a));
+        VERIFY(test::biteq(numbers, a_is_nan ? b : a));
       }
     } else {
-      VERIFY(same_bits(nan, plain));
-      VERIFY(same_bits(fast, plain));
+      VERIFY(test::biteq(nan, plain));
+      VERIFY(test::biteq(fast, plain));
     }
   }
 
   static void run() {
     constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-    const Scalar values[] = {Scalar(0),
-                             Scalar(-0.0),
-                             Scalar(1),
-                             Scalar(-1),
-                             NumTraits<Scalar>::infinity(),
-                             -NumTraits<Scalar>::infinity(),
-                             NumTraits<Scalar>::quiet_NaN()};
-    constexpr int kNumValues = int(sizeof(values) / sizeof(values[0]));
+    const std::vector<Scalar> values = test::special_values<Scalar>();
+    const int kNumValues = int(values.size());
 
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar lhs[PacketSize];
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar rhs[PacketSize];
@@ -2357,7 +2262,7 @@ void packetmath_unsigned_short() {
   const unsigned short c = 65535;
   for (unsigned short a : values) {
     for (unsigned short b : values) {
-      VERIFY_IS_EQUAL(internal::pmul(a, b), REF_MUL(a, b));
+      VERIFY_IS_EQUAL(internal::pmul(a, b), test::REF_MUL(a, b));
       VERIFY_IS_EQUAL(internal::pmadd(a, b, c), REF_MADD(a, b, c));
       VERIFY_IS_EQUAL(internal::pmsub(a, b, c), REF_MSUB(a, b, c));
       VERIFY_IS_EQUAL(internal::pnmadd(a, b, c), REF_NMADD(a, b, c));
