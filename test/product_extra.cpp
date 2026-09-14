@@ -753,7 +753,54 @@ void alpha_zero_skips_kernel() {
   }
 }
 
+template <typename RealScalar, int Options>
+void complex_gemm_scalar_accumulation() {
+  using Scalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  for (Index n : {5, 8, 9}) {
+    Matrix<Scalar, Dynamic, Dynamic> lhs(n, n);
+    Matrix<Scalar, Dynamic, Dynamic, RowMajor> rhs(n, n);
+    for (Index j = 0; j < n; ++j) {
+      for (Index i = 0; i < n; ++i) {
+        lhs(i, j) = Scalar(RealScalar((i + j) % 5 - 2), RealScalar((2 * i + j) % 3 - 1));
+        rhs(i, j) = Scalar(RealScalar((i + 2 * j) % 3 - 1), RealScalar((i + j) % 5 - 2));
+      }
+    }
+    const auto check = [&](const auto& a, const auto& b) {
+      MatrixType expected = MatrixType::Zero(n, n);
+      for (Index j = 0; j < n; ++j)
+        for (Index i = 0; i < n; ++i)
+          for (Index k = 0; k < n; ++k) expected(i, j) += a.coeff(i, k) * b.coeff(k, j);
+      MatrixType actual(n, n);
+      actual.noalias() = a * b;
+      VERIFY_IS_EQUAL(actual, expected);
+      // Integer components keep every operation exact, including a non-real alpha.
+      const Scalar alpha(2, -1);
+      actual.setOnes();
+      actual.noalias() += alpha * (a * b);
+      VERIFY_IS_EQUAL(actual, MatrixType(MatrixType::Ones(n, n) + alpha * expected));
+      VERIFY_IS_EQUAL((expected - a * b).cwiseAbs().maxCoeff(), RealScalar(0));
+    };
+    check(lhs, rhs);
+    check(lhs.conjugate(), rhs);
+    check(lhs, rhs.conjugate());
+    check(lhs.conjugate(), rhs.conjugate());
+  }
+
+  const MatrixType u = MatrixType::Identity(8, 8) * Scalar(0, 1);
+  const MatrixType t = MatrixType::Constant(8, 8, Scalar(0, 1));
+  VERIFY_IS_EQUAL((t - u * t * u.adjoint()).cwiseAbs().maxCoeff(), RealScalar(0));
+}
+
 EIGEN_DECLARE_TEST(product_extra) {
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, RowMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, RowMajor>()));
+#ifndef EIGEN_TEST_NO_LONGDOUBLE
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<long double, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<long double, RowMajor>()));
+#endif
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product_extra(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));

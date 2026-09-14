@@ -409,38 +409,8 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     r = pmadd(tmp, alpha, r);
   }
 
-  template <typename ResPacketType, typename AccPacketType>
-  EIGEN_STRONG_INLINE void acc(const AccPacketType& c, const ResPacketType& alpha, ResPacketType& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-
-  EIGEN_STRONG_INLINE void acc(const Packet1Xf& c, const Packet1Xcf& alpha, Packet1Xcf& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-
-  EIGEN_STRONG_INLINE void acc(const Packet1Xd& c, const Packet1Xcd& alpha, Packet1Xcd& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-
-#if EIGEN_RISCV64_DEFAULT_LMUL >= 2
-  EIGEN_STRONG_INLINE void acc(const Packet2Xf& c, const Packet2Xcf& alpha, Packet2Xcf& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-
-  EIGEN_STRONG_INLINE void acc(const Packet2Xd& c, const Packet2Xcd& alpha, Packet2Xcd& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-#endif
-
-#if EIGEN_RISCV64_DEFAULT_LMUL == 4
-  EIGEN_STRONG_INLINE void acc(const Packet4Xf& c, const Packet4Xcf& alpha, Packet4Xcf& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-
-  EIGEN_STRONG_INLINE void acc(const Packet4Xd& c, const Packet4Xcd& alpha, Packet4Xcd& r) const {
-    r = cj.pmadd(c, alpha, r);
-  }
-#endif
+  // madd() already applied the operand conjugations; neither c nor alpha is conjugated here.
+  EIGEN_STRONG_INLINE void acc(const Scalar& c, const Scalar& alpha, Scalar& r) const { r += alpha * c; }
 
  protected:
   conj_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs> cj;
