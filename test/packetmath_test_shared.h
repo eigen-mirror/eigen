@@ -268,13 +268,19 @@ typename numext::get_integer_by_size<sizeof(Scalar)>::signed_type ordered_positi
 }
 
 // Distance in units in the last place between two values of the same floating-point type. Two NaNs are zero apart,
-// a NaN and a number as far apart as possible. (test/ulp_accuracy measures signed errors with its own fold, which
-// maps -0 below +0 and treats infinities as incomparable; the budgets it reports are not this distance.)
+// a NaN and a number as far apart as possible. Infinities and the sign of zero are exact: an infinity is as far as
+// possible from any other value, and +0 from -0, so no budget admits an overflow or a lost sign. (test/ulp_accuracy
+// measures signed errors with its own fold, which maps -0 below +0 and treats infinities as incomparable; the budgets
+// it reports are not this distance.)
 template <typename Scalar>
 uint64_t ulp_distance(Scalar a, Scalar b) {
+  constexpr uint64_t kFar = (std::numeric_limits<uint64_t>::max)();
   const bool a_nan = (numext::isnan)(a);
   const bool b_nan = (numext::isnan)(b);
-  if (a_nan || b_nan) return (a_nan && b_nan) ? 0 : (std::numeric_limits<uint64_t>::max)();
+  if (a_nan || b_nan) return (a_nan && b_nan) ? 0 : kFar;
+  if ((numext::isinf)(a) || (numext::isinf)(b) || (numext::is_exactly_zero(a) && numext::is_exactly_zero(b))) {
+    return biteq(a, b) ? 0 : kFar;
+  }
   const int64_t pa = static_cast<int64_t>(ordered_position(a));
   const int64_t pb = static_cast<int64_t>(ordered_position(b));
   return pa > pb ? uint64_t(pa) - uint64_t(pb) : uint64_t(pb) - uint64_t(pa);

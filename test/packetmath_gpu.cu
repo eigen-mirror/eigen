@@ -533,6 +533,12 @@ void packetmath_gpu_real_core() {
       in, [](Scalar x) { return std::round(x); }, bits);
   check_unary<Packet, op_preinterpret_self>(
       in, [](Scalar x) { return x; }, bits_and_payload);
+  // No ULP budget admits a lost zero sign or an overflow.
+  const uint64_t kFar = (std::numeric_limits<uint64_t>::max)();
+  VERIFY_IS_EQUAL(test::ulp_distance(Scalar(0), Scalar(-0.0)), kFar);
+  VERIFY_IS_EQUAL(test::ulp_distance(std::numeric_limits<Scalar>::infinity(), (std::numeric_limits<Scalar>::max)()),
+                  kFar);
+  VERIFY_IS_EQUAL(test::ulp_distance(Scalar(0), std::numeric_limits<Scalar>::denorm_min()), uint64_t(1));
   if (std::is_same<Scalar, float>::value) {
     check_unary<Packet, op_psqrt>(
         in, [](Scalar x) { return std::sqrt(x); }, compare_ulps<Scalar>{kSqrtFloatUlps});
