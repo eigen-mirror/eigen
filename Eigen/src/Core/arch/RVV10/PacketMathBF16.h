@@ -272,6 +272,35 @@ EIGEN_STRONG_INLINE Packet1Xbf pcmp_lt_or_nan<Packet1Xbf>(const Packet1Xbf& a, c
                                static_cast<numext::uint16_t>(0), mask, unpacket_traits<Packet1Xbf>::size));
 }
 
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80. The generic forms compare
+// the widened floats, and -ffinite-math-only folds the a >= a of pisnan to true.
+template <>
+EIGEN_STRONG_INLINE Packet1Xbf pisinf<Packet1Xbf>(const Packet1Xbf& a) {
+  const vuint16m1_t abs_bits =
+      __riscv_vand_vx_u16m1(__riscv_vreinterpret_v_bf16m1_u16m1(a), 0x7fffu, unpacket_traits<Packet1Xbf>::size);
+  const PacketMask16 mask = __riscv_vmseq_vx_u16m1_b16(abs_bits, 0x7f80u, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vxm_i16m1(
+      __riscv_vreinterpret_v_bf16m1_i16m1(pzero<Packet1Xbf>(a)), -1, mask, unpacket_traits<Packet1Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xbf pisnan<Packet1Xbf>(const Packet1Xbf& a) {
+  const vuint16m1_t abs_bits =
+      __riscv_vand_vx_u16m1(__riscv_vreinterpret_v_bf16m1_u16m1(a), 0x7fffu, unpacket_traits<Packet1Xbf>::size);
+  const PacketMask16 mask = __riscv_vmsgtu_vx_u16m1_b16(abs_bits, 0x7f80u, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vxm_i16m1(
+      __riscv_vreinterpret_v_bf16m1_i16m1(pzero<Packet1Xbf>(a)), -1, mask, unpacket_traits<Packet1Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet1Xbf pisfinite<Packet1Xbf>(const Packet1Xbf& a) {
+  const vuint16m1_t abs_bits =
+      __riscv_vand_vx_u16m1(__riscv_vreinterpret_v_bf16m1_u16m1(a), 0x7fffu, unpacket_traits<Packet1Xbf>::size);
+  const PacketMask16 mask = __riscv_vmsltu_vx_u16m1_b16(abs_bits, 0x7f80u, unpacket_traits<Packet1Xbf>::size);
+  return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vxm_i16m1(
+      __riscv_vreinterpret_v_bf16m1_i16m1(pzero<Packet1Xbf>(a)), -1, mask, unpacket_traits<Packet1Xbf>::size));
+}
+
 EIGEN_STRONG_INLINE Packet1Xbf pselect(const PacketMask16& mask, const Packet1Xbf& a, const Packet1Xbf& b) {
   return __riscv_vreinterpret_v_i16m1_bf16m1(__riscv_vmerge_vvm_i16m1(__riscv_vreinterpret_v_bf16m1_i16m1(b),
                                                                       __riscv_vreinterpret_v_bf16m1_i16m1(a), mask,
@@ -631,6 +660,34 @@ EIGEN_STRONG_INLINE Packet2Xbf pcmp_lt_or_nan<Packet2Xbf>(const Packet2Xbf& a, c
   return __riscv_vreinterpret_v_u16m2_bf16m2(
       __riscv_vmerge_vxm_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(ptrue<Packet2Xbf>(a)),
                                static_cast<numext::uint16_t>(0), mask, unpacket_traits<Packet2Xbf>::size));
+}
+
+// See the Packet1Xbf classification above.
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf pisinf<Packet2Xbf>(const Packet2Xbf& a) {
+  const vuint16m2_t abs_bits =
+      __riscv_vand_vx_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(a), 0x7fffu, unpacket_traits<Packet2Xbf>::size);
+  const PacketMask8 mask = __riscv_vmseq_vx_u16m2_b8(abs_bits, 0x7f80u, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vmerge_vxm_i16m2(
+      __riscv_vreinterpret_v_bf16m2_i16m2(pzero<Packet2Xbf>(a)), -1, mask, unpacket_traits<Packet2Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf pisnan<Packet2Xbf>(const Packet2Xbf& a) {
+  const vuint16m2_t abs_bits =
+      __riscv_vand_vx_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(a), 0x7fffu, unpacket_traits<Packet2Xbf>::size);
+  const PacketMask8 mask = __riscv_vmsgtu_vx_u16m2_b8(abs_bits, 0x7f80u, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vmerge_vxm_i16m2(
+      __riscv_vreinterpret_v_bf16m2_i16m2(pzero<Packet2Xbf>(a)), -1, mask, unpacket_traits<Packet2Xbf>::size));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet2Xbf pisfinite<Packet2Xbf>(const Packet2Xbf& a) {
+  const vuint16m2_t abs_bits =
+      __riscv_vand_vx_u16m2(__riscv_vreinterpret_v_bf16m2_u16m2(a), 0x7fffu, unpacket_traits<Packet2Xbf>::size);
+  const PacketMask8 mask = __riscv_vmsltu_vx_u16m2_b8(abs_bits, 0x7f80u, unpacket_traits<Packet2Xbf>::size);
+  return __riscv_vreinterpret_v_i16m2_bf16m2(__riscv_vmerge_vxm_i16m2(
+      __riscv_vreinterpret_v_bf16m2_i16m2(pzero<Packet2Xbf>(a)), -1, mask, unpacket_traits<Packet2Xbf>::size));
 }
 
 EIGEN_STRONG_INLINE Packet2Xbf pselect(const PacketMask8& mask, const Packet2Xbf& a, const Packet2Xbf& b) {

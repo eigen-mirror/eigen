@@ -2670,6 +2670,13 @@ EIGEN_STRONG_INLINE Packet16bf F32ToBf16(const Packet16f& a) {
   return r;
 }
 
+// Discard the low 16 bits of each float. Only valid when every lane already holds an exact
+// bfloat16 value, in which case this agrees with F32ToBf16 but skips its rounding and NaN
+// canonicalization. pmin/pmax qualify: they return one of their operands bit for bit.
+EIGEN_STRONG_INLINE Packet16bf F32ToBf16Truncate(const Packet16f& a) {
+  return _mm512_cvtepi32_epi16(_mm512_srli_epi32(_mm512_castps_si512(a), 16));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet16bf ptrue(const Packet16bf& a) {
   return Packet16bf(ptrue<Packet8i>(Packet8i(a)));
@@ -2704,27 +2711,27 @@ EIGEN_STRONG_INLINE Packet16bf pselect(const Packet16bf& mask, const Packet16bf&
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pround<Packet16bf>(const Packet16bf& a) {
-  return F32ToBf16(pround<Packet16f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pround<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf print<Packet16bf>(const Packet16bf& a) {
-  return F32ToBf16(print<Packet16f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(print<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pceil<Packet16bf>(const Packet16bf& a) {
-  return F32ToBf16(pceil<Packet16f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pceil<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pfloor<Packet16bf>(const Packet16bf& a) {
-  return F32ToBf16(pfloor<Packet16f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pfloor<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf ptrunc<Packet16bf>(const Packet16bf& a) {
-  return F32ToBf16(ptrunc<Packet16f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(ptrunc<Packet16f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -2745,6 +2752,28 @@ EIGEN_STRONG_INLINE Packet16bf pcmp_lt(const Packet16bf& a, const Packet16bf& b)
 template <>
 EIGEN_STRONG_INLINE Packet16bf pcmp_lt_or_nan(const Packet16bf& a, const Packet16bf& b) {
   return Pack32To16(pcmp_lt_or_nan(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80.
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisinf<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpeq_epi16(_mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)), _mm256_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisnan<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpgt_epi16(_mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)), _mm256_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet16bf pisfinite<Packet16bf>(const Packet16bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm256_cmpgt_epi16(_mm256_set1_epi16(kInf), _mm256_and_si256(a, _mm256_set1_epi16(kAbsMask)));
 }
 
 template <>
@@ -2801,12 +2830,12 @@ EIGEN_STRONG_INLINE Packet16bf pdiv<Packet16bf>(const Packet16bf& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pmin<Packet16bf>(const Packet16bf& a, const Packet16bf& b) {
-  return F32ToBf16(pmin<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pmax<Packet16bf>(const Packet16bf& a, const Packet16bf& b) {
-  return F32ToBf16(pmax<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<Packet16f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>

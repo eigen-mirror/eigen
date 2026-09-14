@@ -39,9 +39,11 @@ EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_BF16(Packet4f, Packet4bf)
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pfrexp(const Packet4bf& a, Packet4bf& exponent) {
+  // Both results are exact: the mantissa keeps the input's significand, and the exponent is a
+  // small integer.
   Packet4f fexponent;
-  const Packet4bf out = F32ToBf16(pfrexp<Packet4f>(Bf16ToF32(a), fexponent));
-  exponent = F32ToBf16(fexponent);
+  const Packet4bf out = F32ToBf16Truncate(pfrexp<Packet4f>(Bf16ToF32(a), fexponent));
+  exponent = F32ToBf16Truncate(fexponent);
   return out;
 }
 

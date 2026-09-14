@@ -35,9 +35,11 @@ EIGEN_STRONG_INLINE Packet16h pldexp(const Packet16h& a, const Packet16h& expone
 
 template <>
 EIGEN_STRONG_INLINE Packet16bf pfrexp(const Packet16bf& a, Packet16bf& exponent) {
+  // Both results are exact: the mantissa keeps the input's significand, and the exponent is a
+  // small integer.
   Packet16f fexponent;
-  const Packet16bf out = F32ToBf16(pfrexp<Packet16f>(Bf16ToF32(a), fexponent));
-  exponent = F32ToBf16(fexponent);
+  const Packet16bf out = F32ToBf16Truncate(pfrexp<Packet16f>(Bf16ToF32(a), fexponent));
+  exponent = F32ToBf16Truncate(fexponent);
   return out;
 }
 

@@ -162,10 +162,11 @@ tests, a guard that stops matching yields an empty selection rather than a failu
   fails only at -O0; see [`conventions.md`](conventions.md). Build one Debug tree when adding such constants.
 - Compiler fast-math coverage is limited to targets registered with those flags in `test/CMakeLists.txt`.
   The smoke list includes `packetmath_fastmath`, `packetmath_fastmath_generic_16` where vector extensions are
-  available, and parts of `fastmath`, `bdcsvd_fastmath`, and `stable_norm_fastmath`; these compile with `-ffast-math`
-  where supported. Ordinary `packetmath` uses Eigen's `EIGEN_FAST_MATH=1` approximation switch, which does not enable
-  the compiler flag. Add focused coverage when a changed path falls outside the existing fast-math tests;
-  [`numerics.md`](numerics.md) records the special-value hazards.
+  available, `bfloat16_classification_fastmath`, and parts of `fastmath`, `bdcsvd_fastmath`, and
+  `stable_norm_fastmath`; these compile with `-ffast-math` where supported. Ordinary `packetmath` uses Eigen's
+  `EIGEN_FAST_MATH=1` approximation switch, which does not enable the compiler flag. Add focused coverage when a
+  changed path falls outside the existing fast-math tests; [`numerics.md`](numerics.md) records the special-value
+  hazards.
 
 ## Numerical Assertions
 

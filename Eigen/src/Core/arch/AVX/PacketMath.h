@@ -2528,6 +2528,21 @@ EIGEN_STRONG_INLINE Packet8bf ploadquad<Packet8bf>(const bfloat16* from) {
   return _mm_set_epi16(b, b, b, b, a, a, a, a);
 }
 
+// Discard the low 16 bits of each float. Only valid when every lane already holds an exact
+// bfloat16 value, in which case this agrees with F32ToBf16 but skips its rounding and NaN
+// canonicalization. pmin/pmax qualify: they return one of their operands bit for bit.
+EIGEN_STRONG_INLINE Packet8bf F32ToBf16Truncate(const Packet8f& a) {
+  __m256i input = _mm256_castps_si256(a);
+#ifdef EIGEN_VECTORIZE_AVX2
+  __m256i t = _mm256_srli_epi32(input, 16);
+  return _mm_packus_epi32(_mm256_extractf128_si256(t, 0), _mm256_extractf128_si256(t, 1));
+#else
+  __m128i lo = _mm_srli_epi32(_mm256_extractf128_si256(input, 0), 16);
+  __m128i hi = _mm_srli_epi32(_mm256_extractf128_si256(input, 1), 16);
+  return _mm_packus_epi32(lo, hi);
+#endif
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8bf ptrue(const Packet8bf& a) {
   return _mm_cmpeq_epi32(a, a);
@@ -2541,12 +2556,12 @@ EIGEN_STRONG_INLINE Packet8bf pabs(const Packet8bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pmin<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {
-  return F32ToBf16(pmin<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pmax<Packet8bf>(const Packet8bf& a, const Packet8bf& b) {
-  return F32ToBf16(pmax<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<Packet8f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
@@ -2578,27 +2593,27 @@ EIGEN_STRONG_INLINE Packet8bf pselect(const Packet8bf& mask, const Packet8bf& a,
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pround<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pround<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pround<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf print<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(print<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(print<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pceil<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pceil<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pceil<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf pfloor<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(pfloor<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pfloor<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8bf ptrunc<Packet8bf>(const Packet8bf& a) {
-  return F32ToBf16(ptrunc<Packet8f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(ptrunc<Packet8f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -2619,6 +2634,28 @@ EIGEN_STRONG_INLINE Packet8bf pcmp_lt(const Packet8bf& a, const Packet8bf& b) {
 template <>
 EIGEN_STRONG_INLINE Packet8bf pcmp_lt_or_nan(const Packet8bf& a, const Packet8bf& b) {
   return Pack16To8(pcmp_lt_or_nan(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80.
+template <>
+EIGEN_STRONG_INLINE Packet8bf pisinf<Packet8bf>(const Packet8bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmpeq_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pisnan<Packet8bf>(const Packet8bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmpgt_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pisfinite<Packet8bf>(const Packet8bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return _mm_cmplt_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
 }
 
 template <>

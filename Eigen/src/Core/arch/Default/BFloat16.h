@@ -656,23 +656,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float bfloat16_to_float(__bfloat16_raw h) 
 // --- standard functions ---
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const bfloat16& a) {
-  EIGEN_USING_STD(isinf);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isinf)(a);  // Uses HIP hip_bfloat16 isinf operator
-#else
-  return (isinf)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) == 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const bfloat16& a) {
-  EIGEN_USING_STD(isnan);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isnan)(a);  // Uses HIP hip_bfloat16 isnan operator
-#else
-  return (isnan)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) > 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const bfloat16& a) {
-  return !(isinf EIGEN_NOT_A_MACRO(a)) && !(isnan EIGEN_NOT_A_MACRO(a));
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) < 0x7f80;
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 abs(const bfloat16& a) {
@@ -712,13 +702,27 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 tanh(const bfloat16& a) { return 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 asinh(const bfloat16& a) { return bfloat16(::asinhf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 acosh(const bfloat16& a) { return bfloat16(::acoshf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 atanh(const bfloat16& a) { return bfloat16(::atanhf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) { return bfloat16(::floorf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) { return bfloat16(::ceilf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) { return bfloat16(::rintf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) { return bfloat16(::roundf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) { return bfloat16(::truncf(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exact_float_to_bfloat16(float f) {
+  return raw_uint16_to_bfloat16(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint32_t>(f) >> 16));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) {
+  return exact_float_to_bfloat16(::floorf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) {
+  return exact_float_to_bfloat16(::ceilf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) {
+  return exact_float_to_bfloat16(::rintf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) {
+  return exact_float_to_bfloat16(::roundf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) {
+  return exact_float_to_bfloat16(::truncf(float(a)));
+}
+// fmod is exact: a - n*b is either a itself or a multiple of the ulp of b that is smaller than |b|.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmod(const bfloat16& a, const bfloat16& b) {
-  return bfloat16(::fmodf(float(a), float(b)));
+  return exact_float_to_bfloat16(::fmodf(float(a), float(b)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16(min)(const bfloat16& a, const bfloat16& b) {
@@ -736,13 +740,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16(max)(const bfloat16& a, const bfl
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmin(const bfloat16& a, const bfloat16& b) {
   const float f1 = static_cast<float>(a);
   const float f2 = static_cast<float>(b);
-  return bfloat16(::fminf(f1, f2));
+  return exact_float_to_bfloat16(::fminf(f1, f2));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmax(const bfloat16& a, const bfloat16& b) {
   const float f1 = static_cast<float>(a);
   const float f2 = static_cast<float>(b);
-  return bfloat16(::fmaxf(f1, f2));
+  return exact_float_to_bfloat16(::fmaxf(f1, f2));
 }
 
 EIGEN_DEVICE_FUNC inline bfloat16 fma(const bfloat16& a, const bfloat16& b, const bfloat16& c) {
@@ -774,7 +778,7 @@ struct random_impl<bfloat16> {
   }
   static EIGEN_DEVICE_FUNC inline bfloat16 run() {
     float result = Impl::run(MantissaBits);
-    return bfloat16(result);
+    return bfloat16_impl::exact_float_to_bfloat16(result);
   }
 };
 

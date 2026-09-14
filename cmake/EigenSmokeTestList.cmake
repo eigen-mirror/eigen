@@ -18,6 +18,8 @@ set(ei_smoke_test_list
   bdcsvd_9
   bdcsvd_fastmath
   bessel_functions_1
+  bfloat16_classification
+  bfloat16_classification_fastmath
   bfloat16_float
   blasutil_1
   block_5

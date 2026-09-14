@@ -4602,6 +4602,11 @@ EIGEN_STRONG_INLINE Packet4bf F32ToBf16(const Packet4f& p) {
   return vmovn_u32(input);
 }
 
+// Discard the low 16 bits of each float. Only valid when every lane already holds an exact
+// bfloat16 value, in which case this agrees with F32ToBf16 but skips its rounding and NaN
+// canonicalization. pmin/pmax qualify: they return one of their operands bit for bit.
+EIGEN_STRONG_INLINE Packet4bf F32ToBf16Truncate(const Packet4f& p) { return vshrn_n_u32(vreinterpretq_u32_f32(p), 16); }
+
 EIGEN_STRONG_INLINE Packet4f Bf16ToF32(const Packet4bf& p) {
   return Packet4f(vreinterpretq_f32_u32(vshlq_n_u32(vmovl_u16(p), 16)));
 }
@@ -4652,30 +4657,30 @@ EIGEN_STRONG_INLINE Packet4bf pabs(const Packet4bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmin<PropagateNumbers, Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmin<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmin<PropagateNaN, Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmin<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmin<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmin<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmin<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmax<PropagateNumbers, Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmax<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<PropagateNumbers, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmax<PropagateNaN, Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmax<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<PropagateNaN, Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pmax<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
-  return F32ToBf16(pmax<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+  return F32ToBf16Truncate(pmax<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
 }
 
 template <>
@@ -4710,27 +4715,27 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4bf pselect(const Packet4bf& mask, c
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf print<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(print<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(print<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pfloor<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pfloor<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pfloor<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pceil<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pceil<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pceil<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf pround<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(pround<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(pround<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet4bf ptrunc<Packet4bf>(const Packet4bf& a) {
-  return F32ToBf16(ptrunc<Packet4f>(Bf16ToF32(a)));
+  return F32ToBf16Truncate(ptrunc<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -4790,12 +4795,12 @@ EIGEN_STRONG_INLINE bfloat16 predux<Packet4bf>(const Packet4bf& a) {
 
 template <>
 EIGEN_STRONG_INLINE bfloat16 predux_max<Packet4bf>(const Packet4bf& a) {
-  return static_cast<bfloat16>(predux_max<Packet4f>(Bf16ToF32(a)));
+  return bfloat16_impl::exact_float_to_bfloat16(predux_max<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
 EIGEN_STRONG_INLINE bfloat16 predux_min<Packet4bf>(const Packet4bf& a) {
-  return static_cast<bfloat16>(predux_min<Packet4f>(Bf16ToF32(a)));
+  return bfloat16_impl::exact_float_to_bfloat16(predux_min<Packet4f>(Bf16ToF32(a)));
 }
 
 template <>
@@ -4835,6 +4840,28 @@ EIGEN_STRONG_INLINE Packet4bf pcmp_lt<Packet4bf>(const Packet4bf& a, const Packe
 template <>
 EIGEN_STRONG_INLINE Packet4bf pcmp_lt_or_nan<Packet4bf>(const Packet4bf& a, const Packet4bf& b) {
   return F32MaskToBf16Mask(pcmp_lt_or_nan<Packet4f>(Bf16ToF32(a), Bf16ToF32(b)));
+}
+
+// Classify on the raw bits, as the scalar isinf/isnan/isfinite do: |a| ==, >, < 0x7f80.
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisinf<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vceq_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisnan<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vcgt_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4bf pisfinite<Packet4bf>(const Packet4bf& a) {
+  constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
+  constexpr uint16_t kAbsMask = (1 << 15) - 1;
+  return vclt_u16(vand_u16(a, vdup_n_u16(kAbsMask)), vdup_n_u16(kInf));
 }
 
 template <>
