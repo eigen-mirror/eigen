@@ -813,6 +813,11 @@ void packetmath_gpu_real_core() {
     const int count = 1 << 16;
     std::vector<Scalar> a = random_values<Scalar>(count), b = random_values<Scalar>(count),
                         c = random_values<Scalar>(count);
+    const Scalar epsilon = NumTraits<Scalar>::epsilon();
+    const int rounding_case = int(a.size());
+    a.push_back(Scalar(1) + epsilon);
+    b.push_back(Scalar(1) - epsilon);
+    c.push_back(Scalar(-1));
     const std::vector<Scalar> specials = special_values<Scalar>();
     for (Scalar x : specials) {
       for (Scalar y : specials) {
@@ -830,8 +835,12 @@ void packetmath_gpu_real_core() {
     Buffer<Scalar> fused(n3), unfused(n3);
     for (int k = 0; k < n3; ++k) {
       fused[k] = std::fma(a[k], b[k], c[k]);
-      unfused[k] = a[k] * b[k] + c[k];
+      // A statement boundary alone still permits contraction with -ffp-contract=fast.
+      const volatile Scalar product = a[k] * b[k];
+      unfused[k] = product + c[k];
     }
+    VERIFY_IS_EQUAL(fused[rounding_case], -epsilon * epsilon);
+    VERIFY_IS_EQUAL(unfused[rounding_case], Scalar(0));
     const auto fused_or_not = [&](const Scalar* ref, const Scalar* vec, int m) {
       for (int k = 0; k < m; ++k) {
         const bool ok = test::ulp_distance(ref[k], vec[k]) == 0 || test::ulp_distance(unfused[k], vec[k]) == 0;
