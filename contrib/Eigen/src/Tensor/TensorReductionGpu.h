@@ -156,6 +156,11 @@ __device__ inline void atomicReduce(float* output, float accum, SumReducer<float
   atomicAdd(output, accum);
 }
 
+template <>
+__device__ inline void atomicReduce(double* output, double accum, SumReducer<double>&) {
+  atomicAdd(output, accum);
+}
+
 template <typename CoeffType, typename Index>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernel(const CoeffType val, Index num_preserved_coeffs,
                                                                  CoeffType* output) {
@@ -889,9 +894,14 @@ struct OuterReducer<Self, Op, GpuDevice> {
       return true;
     }
 
-    // Double reductions use compare-and-swap atomics. Restrict their parallel reduction to the shape band
-    // measured to amortize that contention on sm_89; outside it, use one thread per output.
-    if (std::is_same<OutputType, double>::value) {
+    // CUDA has native FP64 atomicAdd on every supported architecture (sm_60+). Keep the measured shape band
+    // for the other double reducers and for HIP, where atomicAdd may still use compare-and-swap.
+#if defined(EIGEN_CUDACC)
+    constexpr bool has_native_double_sum = std::is_same<Op, SumReducer<double>>::value;
+#else
+    constexpr bool has_native_double_sum = false;
+#endif
+    if (std::is_same<OutputType, double>::value && !has_native_double_sum) {
       const Index multi_processors = device.getNumGpuMultiProcessors();
       if (num_coeffs_to_reduce < 64 || num_preserved_vals < 8 * multi_processors ||
           num_preserved_vals > 64 * multi_processors) {
