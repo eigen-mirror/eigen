@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "twoprod_helpers.h"
 
 #if EIGEN_COMP_MSVC
 #include <cfenv>
@@ -684,6 +685,8 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_twoprod<long double>());
     CALL_SUBTEST(check_twoprod<half>());
     CALL_SUBTEST(check_twoprod<bfloat16>());
+    CALL_SUBTEST(check_twoprod_contraction<float>());
+    CALL_SUBTEST(check_twoprod_contraction<double>());
 #ifdef EIGEN_VECTORIZE_FMA
     CALL_SUBTEST(check_twoprod_negation_expression());
 #endif

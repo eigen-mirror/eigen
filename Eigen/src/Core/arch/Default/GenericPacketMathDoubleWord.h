@@ -59,6 +59,35 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 
 #else
 
+// Dekker's product requires separately rounded operations. GCC's C++ default -ffp-contract=fast may fuse
+// fl(x*y) into its consumers, so use fma for scalar types that <cmath> advertises as fast.
+// This does not prevent contraction in the remaining scalar or packet fallback paths.
+template <typename Scalar>
+struct has_fast_fma : std::false_type {};
+#ifdef FP_FAST_FMAF
+template <>
+struct has_fast_fma<float> : std::true_type {};
+#endif
+#ifdef FP_FAST_FMA
+template <>
+struct has_fast_fma<double> : std::true_type {};
+#endif
+#ifdef FP_FAST_FMAL
+template <>
+struct has_fast_fma<long double> : std::true_type {};
+#endif
+
+template <typename Scalar, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
+  return numext::fma(x, y, Scalar(-xy));
+}
+
+template <typename Scalar, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Scalar& x, const Scalar& y, Scalar& p_hi, Scalar& p_lo) {
+  p_hi = x * y;
+  p_lo = twoprod_low(x, y, p_hi);
+}
+
 // This function implements the Veltkamp splitting. Given a floating point
 // number x it returns the pair {x_hi, x_lo} such that x_hi + x_lo = x holds
 // exactly and that half of the significand of x fits in x_hi.
@@ -79,7 +108,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, P
 // Given floating point numbers {x, y} computes the pair
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
 // p_hi = fl(x * y).
-template <typename Packet>
+template <typename Packet, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
   Packet x_hi, x_lo, y_hi, y_lo;
   veltkamp_splitting(x, x_hi, x_lo);
@@ -94,7 +123,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 
 // A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
 // x * y = xy + p_lo holds exactly.
-template <typename Packet>
+template <typename Packet, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
   Packet x_hi, x_lo, y_hi, y_lo;
   veltkamp_splitting(x, x_hi, x_lo);
