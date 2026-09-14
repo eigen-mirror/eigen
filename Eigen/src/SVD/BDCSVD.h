@@ -300,7 +300,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   // we use a larger scalar to prevent a regression for relatively square matrices.
   constexpr Index kMinAspectRatio = 4;
   constexpr bool disableQrDecomp = static_cast<int>(QRDecomposition) == static_cast<int>(DisableQRDecomposition);
-  m_useQrDecomp = !disableQrDecomp && ((rows / kMinAspectRatio > cols) || (cols / kMinAspectRatio > rows));
+  m_useQrDecomp = !disableQrDecomp && ((rows / kMinAspectRatio >= cols) || (cols / kMinAspectRatio >= rows));
   if (m_useQrDecomp) {
     qrDecomp = HouseholderQR<MatrixX>((std::max)(rows, cols), (std::min)(rows, cols));
     reducedTriangle = MatrixX(diagSize(), diagSize());

@@ -525,9 +525,13 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       swap(muPrev, muCur);
     }
 
-    // rational interpolation: fit a function of the form a / mu + b through the two previous
-    // iterates and use its zero to compute the next iterate
-    bool useBisection = fPrev * fCur > Literal(0);
+    // Fit a / mu + b through the two previous iterates. Equal signs permit extrapolation; flat fits and
+    // samples whose reciprocals may overflow stay on bisection. The interval and residual checks below
+    // safeguard each interpolation step.
+    const RealScalar minNormal = (std::numeric_limits<RealScalar>::min)();
+    bool useBisection = fPrev * fCur > Literal(0) && !(abs(fCur - fPrev) > NumTraits<RealScalar>::epsilon() &&
+                                                       abs(fPrev) <= (std::numeric_limits<RealScalar>::max)() &&
+                                                       abs(muPrev) >= minNormal && abs(muCur) >= minNormal);
     while (!numext::is_exactly_zero(fCur) &&
            abs(muCur - muPrev) >
                Literal(8) * NumTraits<RealScalar>::epsilon() * numext::maxi<RealScalar>(abs(muCur), abs(muPrev)) &&

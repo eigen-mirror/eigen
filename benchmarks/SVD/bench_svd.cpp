@@ -73,7 +73,7 @@ static void BM_BDCSVDBidiagonal(benchmark::State& state) {
     ->Args({128, 128})->Args({256, 256})->Args({512, 512}) \
     ->Args({100, 4})->Args({1000, 4})->Args({1000, 10})
 
-// BDCSVD sizes: square + tall-skinny (triggers R-bidiagonalization when aspect ratio > 4).
+// BDCSVD sizes: square + tall-skinny (triggers R-bidiagonalization when aspect ratio >= 4).
 #define BDC_SIZES \
     ->Args({4, 4})->Args({8, 8})->Args({16, 16})->Args({32, 32})->Args({64, 64}) \
     ->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \

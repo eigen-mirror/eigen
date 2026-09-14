@@ -309,6 +309,73 @@ void bdcsvd_power_of_two_scaling() {
   checkSubnormalCoupling();
 }
 
+template <typename RealScalar>
+void bdcsvd_secular_extrapolation() {
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  for (Index n : {31, 32, 33, 63, 64, 65, 127, 128, 129}) {
+    Mat bidiagonal = Mat::Zero(n, n);
+    Vec diagonal = Vec::Random(n), superdiagonal = Vec::Random(n - 1);
+    for (int kind = 0; kind < 3; ++kind) {
+      if (kind == 1) {
+        diagonal.setOnes();
+        superdiagonal *= numext::sqrt(NumTraits<RealScalar>::epsilon());
+      } else if (kind == 2) {
+        diagonal = Vec::LinSpaced(n, RealScalar(0), RealScalar(1));
+        superdiagonal.setRandom();
+        for (Index i = 0; i + 1 < n; i += 7) superdiagonal(i) = RealScalar(0);
+      }
+      bidiagonal.diagonal() = diagonal;
+      bidiagonal.template diagonal<1>() = superdiagonal;
+      BDCSVD<Mat, ComputeFullU | ComputeFullV> svd(diagonal, superdiagonal);
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      // Reconstruction and orthogonality each accumulate O(n * epsilon) rounding.
+      const RealScalar bound = RealScalar(64 * n) * NumTraits<RealScalar>::epsilon();
+      VERIFY((bidiagonal - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
+             bound * bidiagonal.norm());
+      const Mat identity = Mat::Identity(n, n);
+      VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).norm() <= bound);
+      VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).norm() <= bound);
+      JacobiSVD<Mat> reference(bidiagonal);
+      VERIFY((svd.singularValues() - reference.singularValues()).norm() <= bound * bidiagonal.norm());
+      BDCSVD<Mat> valuesOnly(diagonal, superdiagonal);
+      VERIFY_IS_EQUAL(valuesOnly.info(), Success);
+      VERIFY((valuesOnly.singularValues() - reference.singularValues()).norm() <= bound * bidiagonal.norm());
+    }
+  }
+}
+
+template <typename Scalar, int StorageOrder>
+void bdcsvd_qr_crossover() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  constexpr int options = ComputeThinU | ComputeThinV;
+  for (Index n : {16, 31}) {
+    for (Index rows : {4 * n - 1, 4 * n, 4 * n + 3, 4 * n + 4}) {
+      Mat tall = Mat::Random(rows, n);
+      tall.col(1) = tall.col(0);
+      for (bool transpose : {false, true}) {
+        Mat a;
+        if (transpose)
+          a = tall.adjoint();
+        else
+          a = tall;
+        BDCSVD<Mat, options> svd(a);
+        BDCSVD<Mat, options | int(DisableQRDecomposition)> direct(a);
+        VERIFY_IS_EQUAL(svd.info(), Success);
+        VERIFY_IS_EQUAL(direct.info(), Success);
+        const RealScalar bound = RealScalar(64 * rows) * NumTraits<RealScalar>::epsilon();
+        VERIFY((a - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().adjoint()).norm() <=
+               bound * a.norm());
+        const Mat identity = Mat::Identity(n, n);
+        VERIFY((svd.matrixU().adjoint() * svd.matrixU() - identity).norm() <= bound);
+        VERIFY((svd.matrixV().adjoint() * svd.matrixV() - identity).norm() <= bound);
+        VERIFY((svd.singularValues() - direct.singularValues()).norm() <= bound * a.norm());
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_1((bdcsvd_asserts<Matrix3f>()));
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
@@ -391,4 +458,9 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
   CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions()));
   CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
+  CALL_SUBTEST_55((bdcsvd_secular_extrapolation<float>()));
+  CALL_SUBTEST_56((bdcsvd_secular_extrapolation<double>()));
+  CALL_SUBTEST_57((bdcsvd_qr_crossover<float, ColMajor>()));
+  CALL_SUBTEST_58((bdcsvd_qr_crossover<double, RowMajor>()));
+  CALL_SUBTEST_59((bdcsvd_qr_crossover<std::complex<double>, ColMajor>()));
 }
