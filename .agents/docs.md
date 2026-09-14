@@ -13,9 +13,14 @@ The documentation job is blocking and easy to miss. Unlike the clang-format, cod
 `build:linux:docs` in [`ci/build.linux.gitlab-ci.yml`](../ci/build.linux.gitlab-ci.yml) is not `allow_failure`, and
 [`doc/Doxyfile.in`](../doc/Doxyfile.in) sets `WARN_AS_ERROR = FAIL_ON_WARNINGS_PRINT`, so one Doxygen warning fails it.
 Its rules exclude the default merge-request pipeline: it runs on schedules, web pipelines, a merge request labeled
-`all-tests`, and a push to the default branch. A malformed `\ref` therefore passes an entire review green and breaks the
-pipeline on `master` after the merge. Apply the `all-tests` label to any merge request that touches Doxygen markup, a
-cross-reference target, or a documented name.
+`all-tests`, and a push to the default branch. A malformed `\ref` can therefore pass review with green CI and break the
+pipeline on `master` after the merge. For changes to Doxygen markup, a cross-reference target, a documented name, or a
+snippet, build the `doc` target locally with CI's pinned Doxygen version and report the result. If that validation is
+unavailable, name the missing coverage before merge.
+
+Recommend `affected-tests` with the relevant platform labels, or `affected-tests` with `all-platforms`, for test
+coverage as described in [`ci.md`](ci.md). These labels do not trigger `build:linux:docs`, so their pipelines cannot
+replace documentation validation. Do not add `all-tests` without the user's explicit permission for that label.
 
 The recurring authoring mistake is trailing punctuation absorbed into a cross-reference: a colon directly after
 `\ref name` becomes part of the symbol Doxygen tries to resolve, so `\ref adjoint: the ...` fails while

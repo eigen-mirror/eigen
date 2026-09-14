@@ -6,9 +6,11 @@ what a change needs from CI and how to run the same checks locally; how the sele
 plumbing work inside the jobs is in [`ci-internals.md`](ci-internals.md), and the blocking documentation job is in
 [`docs.md`](docs.md).
 
-Default MR pipelines run a limited smoke matrix; labels such as `affected-tests`, `all-tests` and `gpu-tests`, plus
-scheduled or manually started pipelines, enable broader jobs, and `affected-tests` composes with the `*-tests` platform
-labels and `all-platforms` to pick where it runs. A green default MR pipeline is not proof that every supported
+Default MR pipelines run a limited smoke matrix. Recommend `affected-tests` with the relevant `*-tests` platform
+labels, or `affected-tests` with `all-platforms` when the change needs coverage across the platforms that run the
+affected selection. The platform table below records the additional labels needed for GPU, SME, and AVX512-FP16
+coverage. Do not add `all-tests` without the user's explicit permission for that label; permission to push, rebase,
+address review, or validate an MR does not authorize it. A green default MR pipeline is not proof that every supported
 configuration was exercised.
 
 A pipeline is evidence only for the commit it ran on: after a push, amend, or rebase, check which SHA the pipeline and
@@ -47,7 +49,7 @@ Three tiers, in increasing cost:
 |---|---|---|
 | smoke | every MR with neither label below | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64, under gcc and clang |
 | affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 (gcc AVX2, clang baseline) and aarch64 (gcc, clang), plus any platform the diff or a `*-tests` label selects |
-| full | `all-tests` label | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
+| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
 
 One configuration sits outside all three tiers and runs only on schedules and web pipelines: the NVHPC (`nvc++`) build
 and test pair, whose frontend is slow enough that those two builds alone once took roughly a quarter of the project's
@@ -55,8 +57,9 @@ hosted-runner minutes. Start a web pipeline when a change plausibly affects `nvc
 scheduled run to find it.
 
 The affected tier exists because the smoke list samples: it is broad but shallow, so a change confined to one module
-gets only the one part of each related test that the list happens to name. Reach for `affected-tests` when a change is
-module-local and you want depth without paying for the full matrix.
+gets only the one part of each related test that the list happens to name. Use `affected-tests` for depth, then choose
+platform labels for the compilers and backends the change can affect. For a shared-header change needing broad platform
+coverage, recommend `affected-tests` with `all-platforms`; the selector already expands to the full suite when needed.
 
 The tiers do not stack: `affected-tests` and `all-tests` each suppress the smoke jobs, and the affected tier's four
 unconditional jobs use the smoke compilers, gcc-10 and clang-14 on x86-64 and aarch64. Two smoke configurations come
@@ -79,8 +82,8 @@ full suite; the `ci/*.gitlab-ci.yml` files select nothing.
 ### Platform-Triggered Configurations
 
 Every job in the default smoke matrix builds at baseline ISA, so a change under `Eigen/src/Core/arch/AVX512` gets no
-AVX-512 compilation at all unless someone applies `all-tests`. Under the `affected-tests` label the tier adds
-platforms beyond the four unconditional jobs on two independent triggers, either of which is enough:
+AVX-512 compilation there. The `affected-tests` tier adds platforms beyond the four unconditional
+jobs on two independent triggers, either of which is enough:
 
 - **the diff**, through `rules:changes:` on the backend directory — automatic, and the common case;
 - **a label**, through `$CI_MERGE_REQUEST_LABELS` — the axis orthogonal to the include graph. The graph decides
@@ -235,7 +238,7 @@ parts it left out, so a capped run names what it did not check rather than repor
 2. Format and check the task's changed lines and new files using the Worktree-Safe Formatting recipes above.
 3. Run the focused builds and tests documented in [`testing.md`](testing.md).
 4. Run applicable spelling, REUSE, and clang-tidy checks.
-5. Build the `doc` target when the change touches Doxygen markup, a documented name, or a snippet, and label the merge
-   request `all-tests` so the blocking documentation job ([`docs.md`](docs.md)) runs before the merge rather than after
-   it.
+5. Build the `doc` target locally when the change touches Doxygen markup, a documented name, or a snippet, and report
+   the Doxygen version and result. The recommended test labels do not trigger the documentation job;
+   [`docs.md`](docs.md) records its coverage and validation requirements.
 6. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.

@@ -67,6 +67,8 @@ default.
    See [`.agents/testing.md`](.agents/testing.md).
 8. **Treat external writes as deliberate actions.** Unless the user already asked for them, pause after the local commit
    before pushing, opening or updating a merge request, commenting on an issue, or making another external-system write.
+   Recommend `affected-tests` with the relevant platform labels, or with `all-platforms` for broader coverage; see
+   [`.agents/ci.md`](.agents/ci.md). Do not add `all-tests` without the user's explicit permission for that label.
 
 ## Standard workflow
 
