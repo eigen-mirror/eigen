@@ -578,6 +578,7 @@
 #define EIGEN_CUDA_SDK_VER 0
 #endif
 
+// CUDA 11.8 is the oldest toolkit in GPU CI (it supports the sm_89 runners), not a new packet-intrinsic requirement.
 #if defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER > 0 && EIGEN_CUDA_SDK_VER < 110800
 #error "Eigen requires CUDA 11.8 or later."
 #endif

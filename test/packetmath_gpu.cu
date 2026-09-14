@@ -275,7 +275,7 @@ struct float_to_half_kernel {
 };
 
 // The device pass's packet traits, written into an int array: the flags the host selects operations by are the
-// device's, not the host pass's, which differ under nvcc (EIGEN_HAS_GPU_DEVICE_FUNCTIONS).
+// device's, not the host pass's, where the half packets and their traits do not exist.
 #define EIGEN_GPU_TEST_TRAIT_FLAGS(X) \
   X(Vectorizable)                     \
   X(size)                             \
