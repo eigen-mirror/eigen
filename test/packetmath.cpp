@@ -13,6 +13,7 @@
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
 #include "fp_control.h"
+#include "packetmath_data_movement.h"
 
 using internal::unpacket_traits;
 
@@ -763,15 +764,11 @@ void packetmath() {
   internal::pstore(data2, internal::pload<Packet>(data1));
   VERIFY(test::areEqualBits(data1, data2, PacketSize, false) && "aligned load/store");
 
-  for (int offset = 0; offset < PacketSize; ++offset) {
-    internal::pstore(data2, internal::ploadu<Packet>(data1 + offset));
-    VERIFY(test::areEqualBits(data1 + offset, data2, PacketSize, false) && "internal::ploadu");
-  }
-
-  for (int offset = 0; offset < PacketSize; ++offset) {
-    internal::pstoreu(data2 + offset, internal::pload<Packet>(data1));
-    VERIFY(test::areEqualBits(data1, data2 + offset, PacketSize, false) && "internal::pstoreu");
-  }
+  const test::Buffer<Scalar> movement_input = Map<const test::Buffer<Scalar>>(data1, size);
+  test::packetmath_data_movement<Packet>(movement_input,
+                                         [](const auto& kernel, int count, const auto& input, auto& output) {
+                                           for (int i = 0; i < count; ++i) kernel(i, input.data(), output.data());
+                                         });
 
   for (int M = 0; M < PacketSize; ++M) {
     for (int N = 0; N <= PacketSize; ++N) {
@@ -845,12 +842,6 @@ void packetmath() {
 
   CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
-  for (int offset = 0; offset < 3; ++offset) {
-    for (int i = 0; i < PacketSize; ++i) ref[i] = data1[offset];
-    internal::pstore(data2, internal::pset1<Packet>(data1[offset]));
-    VERIFY(test::areEqualBits(ref, data2, PacketSize, false) && "internal::pset1");
-  }
-
   {
     for (int i = 0; i < PacketSize * 4; ++i) ref[i] = data1[i / PacketSize];
     Packet A0, A1, A2, A3;
@@ -872,15 +863,6 @@ void packetmath() {
   }
 
   VERIFY(internal::isApprox(data1[0], internal::pfirst(internal::pload<Packet>(data1))) && "internal::pfirst");
-
-  if (PacketSize > 1) {
-    // apply different offsets to check that ploaddup is robust to unaligned inputs
-    for (int offset = 0; offset < 4; ++offset) {
-      for (int i = 0; i < PacketSize / 2; ++i) ref[2 * i + 0] = ref[2 * i + 1] = data1[offset + i];
-      internal::pstore(data2, internal::ploaddup<Packet>(data1 + offset));
-      VERIFY(test::areEqualBits(ref, data2, PacketSize, false) && "ploaddup");
-    }
-  }
 
   if (PacketSize > 2) {
     // apply different offsets to check that ploadquad is robust to unaligned inputs
@@ -929,22 +911,6 @@ void packetmath() {
   ref[0] = Scalar(1);
   for (int i = 0; i < PacketSize; ++i) ref[0] = test::REF_MUL(ref[0], data1[i]);
   VERIFY(internal::isApprox(ref[0], internal::predux_mul(internal::pload<Packet>(data1))) && "internal::predux_mul");
-
-  for (int i = 0; i < PacketSize; ++i) ref[i] = data1[PacketSize - i - 1];
-  internal::pstore(data2, internal::preverse(internal::pload<Packet>(data1)));
-  VERIFY(test::areEqualBits(ref, data2, PacketSize, false) && "internal::preverse");
-
-  internal::PacketBlock<Packet> kernel;
-  for (int i = 0; i < PacketSize; ++i) {
-    kernel.packet[i] = internal::pload<Packet>(data1 + i * PacketSize);
-  }
-  ptranspose(kernel);
-  for (int i = 0; i < PacketSize; ++i) {
-    internal::pstore(data2, kernel.packet[i]);
-    for (int j = 0; j < PacketSize; ++j) {
-      VERIFY(test::isApproxAbs(data2[j], data1[i + j * PacketSize], refvalue) && "ptranspose");
-    }
-  }
 
   // GeneralBlockPanelKernel also checks PacketBlock<Packet,(PacketSize%4)==0?4:PacketSize>;
   if (PacketSize > 4 && PacketSize % 4 == 0) {
@@ -1501,14 +1467,8 @@ struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumT
 
   static void run() {
     constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-    const Scalar values[] = {Scalar(0),
-                             Scalar(-0.0),
-                             Scalar(1),
-                             Scalar(-1),
-                             NumTraits<Scalar>::infinity(),
-                             -NumTraits<Scalar>::infinity(),
-                             NumTraits<Scalar>::quiet_NaN()};
-    constexpr int kNumValues = int(sizeof(values) / sizeof(values[0]));
+    const std::vector<Scalar> values = test::special_values<Scalar>();
+    const int kNumValues = int(values.size());
 
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar lhs[PacketSize];
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar rhs[PacketSize];

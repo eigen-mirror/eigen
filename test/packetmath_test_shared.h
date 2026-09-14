@@ -26,6 +26,48 @@ namespace Eigen {
 
 namespace test {
 
+template <typename Scalar>
+std::vector<Scalar> special_values() {
+  using L = std::numeric_limits<Scalar>;
+  const Scalar largest_subnormal = (L::min)() - L::denorm_min();
+  return {Scalar(0),
+          Scalar(-0.0),
+          Scalar(1),
+          Scalar(-1),
+          Scalar(0.5),
+          Scalar(-0.5),
+          Scalar(2),
+          Scalar(-2),
+          Scalar(3),
+          Scalar(-3),
+          Scalar(0.25),
+          Scalar(0.75),
+          Scalar(1.5),
+          Scalar(-1.5),
+          Scalar(2.5),
+          Scalar(-2.5),
+          Scalar(-0.4),
+          Scalar(0.4),
+          Scalar(1e-3),
+          Scalar(-1e-3),
+          L::epsilon(),
+          -L::epsilon(),
+          Scalar(1) + L::epsilon(),
+          Scalar(1) - L::epsilon() / Scalar(2),
+          L::denorm_min(),
+          -L::denorm_min(),
+          largest_subnormal,
+          -largest_subnormal,
+          (L::min)(),
+          -(L::min)(),
+          (L::max)(),
+          -(L::max)(),
+          L::infinity(),
+          -L::infinity(),
+          L::quiet_NaN(),
+          -L::quiet_NaN()};
+}
+
 template <typename T, std::enable_if_t<!NumTraits<T>::IsInteger || !NumTraits<T>::IsSigned, int> = 0>
 inline T REF_ADD(const T& a, const T& b) {
   return a + b;

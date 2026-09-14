@@ -20,6 +20,7 @@
 // packetmath_test_shared.h brings in main.h, which has no include guard.
 #include "packetmath_test_shared.h"
 #include "gpu_common.h"
+#include "packetmath_data_movement.h"
 
 #include <algorithm>
 #include <cmath>
@@ -33,9 +34,9 @@ using Eigen::internal::packet_traits;
 using Eigen::internal::unpacket_traits;
 namespace test = Eigen::test;
 using Eigen::numext::bit_cast;
+using test::special_values;
 
-template <typename Scalar>
-using Buffer = Eigen::Array<Scalar, Eigen::Dynamic, 1>;
+using test::Buffer;
 
 // Named budgets. rsqrt is the one approximate intrinsic among the core operations: the CUDA Math API documents
 // 2 ulp for rsqrtf and 1 ulp for rsqrt, and the reference below is rounded once more from the wider type.
@@ -97,7 +98,6 @@ EIGEN_GPU_TEST_UNARY_OP(op_ptrunc, Eigen::internal::ptrunc(a))
 EIGEN_GPU_TEST_UNARY_OP(op_pround, Eigen::internal::pround(a))
 EIGEN_GPU_TEST_UNARY_OP(op_psqrt, Eigen::internal::psqrt(a))
 EIGEN_GPU_TEST_UNARY_OP(op_prsqrt, Eigen::internal::prsqrt(a))
-EIGEN_GPU_TEST_UNARY_OP(op_preverse, Eigen::internal::preverse(a))
 EIGEN_GPU_TEST_UNARY_OP(op_ptrue, Eigen::internal::ptrue(a))
 EIGEN_GPU_TEST_UNARY_OP(op_pzero, Eigen::internal::pzero(a))
 EIGEN_GPU_TEST_UNARY_OP(op_preinterpret_self, Eigen::internal::preinterpret<P>(a))
@@ -176,50 +176,6 @@ struct redux_kernel {
   }
 };
 
-// Loads and stores with their own addressing. `offset` misaligns the unaligned forms.
-template <typename Packet>
-struct ploadu_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  int offset;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstore(out + i * kSize, Eigen::internal::ploadu<Packet>(in + i * kSize + offset));
-  }
-};
-template <typename Packet>
-struct pstoreu_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  int offset;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstoreu(out + i * kSize + offset, Eigen::internal::pload<Packet>(in + i * kSize));
-  }
-};
-template <typename Packet, int Alignment>
-struct ploadt_ro_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  int offset;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstore(out + i * kSize, Eigen::internal::ploadt_ro<Packet, Alignment>(in + i * kSize + offset));
-  }
-};
-template <typename Packet>
-struct ploaddup_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstore(out + i * kSize, Eigen::internal::ploaddup<Packet>(in + i * (kSize / 2)));
-  }
-};
-template <typename Packet>
-struct pset1_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstore(out + i * kSize, Eigen::internal::pset1<Packet>(in[i]));
-  }
-};
 template <typename Packet>
 struct plset_kernel {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -228,46 +184,7 @@ struct plset_kernel {
     Eigen::internal::pstore(out + i * kSize, Eigen::internal::plset<Packet>(in[i]));
   }
 };
-template <typename Packet>
-struct pgather_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  int stride;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pstore(out + i * kSize, Eigen::internal::pgather<Scalar, Packet>(in + i * kSize * stride, stride));
-  }
-};
-template <typename Packet>
-struct pscatter_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  int stride;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::pscatter<Scalar, Packet>(out + i * kSize * stride, Eigen::internal::pload<Packet>(in + i * kSize),
-                                              stride);
-  }
-};
-template <typename Packet>
-struct ptranspose_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    Eigen::internal::PacketBlock<Packet, kSize> block;
-    for (int r = 0; r < kSize; ++r) block.packet[r] = Eigen::internal::pload<Packet>(in + (i * kSize + r) * kSize);
-    Eigen::internal::ptranspose(block);
-    for (int r = 0; r < kSize; ++r) Eigen::internal::pstore(out + (i * kSize + r) * kSize, block.packet[r]);
-  }
-};
-// Thread i copies its first (i mod (kSize + 1)) lanes; the rest of the output keeps its sentinel.
-template <typename Packet>
-struct partial_kernel {
-  using Scalar = typename unpacket_traits<Packet>::type;
-  static constexpr int kSize = unpacket_traits<Packet>::size;
-  EIGEN_TEST_DEVICE_ONLY void operator()(int i, const Scalar* in, Scalar* out) const {
-    const Index n = i % (kSize + 1);
-    Eigen::internal::pstore_partial(out + i * kSize, Eigen::internal::pload_partial<Packet>(in + i * kSize, n), n);
-  }
-};
+
 // preinterpret between a scalar and its same-size integer, as the evaluator's cast path uses it on the device.
 template <typename Scalar, typename Bits>
 struct preinterpret_scalar_kernel {
@@ -339,48 +256,6 @@ void check_advertised_ops_are_covered(const std::vector<int>& traits, const std:
 
 // ------------------------------------------------------------------------------------------------------------------
 // Inputs.
-
-template <typename Scalar>
-std::vector<Scalar> special_values() {
-  using L = std::numeric_limits<Scalar>;
-  const Scalar largest_subnormal = (L::min)() - L::denorm_min();
-  return {Scalar(0),
-          Scalar(-0.0),
-          Scalar(1),
-          Scalar(-1),
-          Scalar(0.5),
-          Scalar(-0.5),
-          Scalar(2),
-          Scalar(-2),
-          Scalar(3),
-          Scalar(-3),
-          Scalar(0.25),
-          Scalar(0.75),
-          Scalar(1.5),
-          Scalar(-1.5),
-          Scalar(2.5),
-          Scalar(-2.5),
-          Scalar(-0.4),
-          Scalar(0.4),
-          Scalar(1e-3),
-          Scalar(-1e-3),
-          L::epsilon(),
-          -L::epsilon(),
-          Scalar(1) + L::epsilon(),
-          Scalar(1) - L::epsilon() / Scalar(2),
-          L::denorm_min(),
-          -L::denorm_min(),
-          largest_subnormal,
-          -largest_subnormal,
-          (L::min)(),
-          -(L::min)(),
-          (L::max)(),
-          -(L::max)(),
-          L::infinity(),
-          -L::infinity(),
-          L::quiet_NaN(),
-          -L::quiet_NaN()};
-}
 
 // Every exponent step of the type, at a few mantissas, both signs.
 template <typename Scalar>
@@ -624,75 +499,16 @@ void packetmath_gpu_real_core() {
   // Loads and stores keep every bit, NaN payloads included.
   check_unary<Packet, op_identity>(
       in, [](Scalar x) { return x; }, bits_and_payload);
-  for (int offset = 1; offset < kSize; ++offset) {
-    Buffer<Scalar> out(in.size());
-    out.setConstant(Scalar(-7));
-    Buffer<Scalar> padded(in.size() + kSize);
-    padded << in, Buffer<Scalar>::Constant(kSize, Scalar(1));
-    run_on_gpu(ploadu_kernel<Packet>{offset}, n, padded, out);
-    VERIFY(test::areEqualBits(padded.data() + offset, out.data(), int(in.size()), false) && "ploadu");
-    run_on_gpu(ploadt_ro_kernel<Packet, Eigen::Unaligned>{offset}, n, padded, out);
-    VERIFY(test::areEqualBits(padded.data() + offset, out.data(), int(in.size()), false) && "ploadt_ro<Unaligned>");
-    Buffer<Scalar> out_padded(in.size() + kSize);
-    out_padded.setConstant(Scalar(-7));
-    run_on_gpu(pstoreu_kernel<Packet>{offset}, n, in, out_padded);
-    VERIFY(test::areEqualBits(in.data(), out_padded.data() + offset, int(in.size()), false) && "pstoreu");
-    VERIFY(out_padded[0] == Scalar(-7) && out_padded[in.size() + kSize - 1] == Scalar(-7) && "pstoreu bounds");
-  }
+  test::packetmath_data_movement<Packet>(in, [](const auto& kernel, int count, const auto& input, auto& output) {
+    run_on_gpu(kernel, count, input, output);
+  });
   {
-    Buffer<Scalar> out(in.size());
+    Buffer<Scalar> out(in.size()), expected(in.size());
     out.setConstant(Scalar(-7));
-    run_on_gpu(ploadt_ro_kernel<Packet, Eigen::Aligned>{0}, n, in, out);
-    VERIFY(test::areEqualBits(in.data(), out.data(), int(in.size()), false) && "ploadt_ro<Aligned>");
-    run_on_gpu(ploaddup_kernel<Packet>(), n, in, out);
-    Buffer<Scalar> expected(in.size());
-    for (Index k = 0; k < in.size(); ++k) expected[k] = in[(k / kSize) * (kSize / 2) + (k % kSize) / 2];
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size()), false) && "ploaddup");
-    run_on_gpu(pset1_kernel<Packet>(), n, in, out);
-    for (Index k = 0; k < in.size(); ++k) expected[k] = in[k / kSize];
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size()), false) && "pset1");
     run_on_gpu(plset_kernel<Packet>(), n, in, out);
     for (Index k = 0; k < in.size(); ++k)
       expected[k] = (k % kSize == 0) ? in[k / kSize] : in[k / kSize] + Scalar(k % kSize);
     VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size())) && "plset");
-    out.setConstant(Scalar(-7));
-    run_on_gpu(partial_kernel<Packet>(), n, in, out);
-    for (Index k = 0; k < in.size(); ++k) {
-      const Index lanes = (k / kSize) % (kSize + 1);
-      expected[k] = (k % kSize) < lanes ? in[k] : Scalar(-7);
-    }
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size()), false) && "pload_partial/pstore_partial");
-  }
-  {
-    const int stride = 3;
-    Buffer<Scalar> strided(in.size() * stride);
-    strided.setConstant(Scalar(-7));
-    for (Index k = 0; k < in.size(); ++k) strided[k * stride] = in[k];
-    Buffer<Scalar> out(in.size());
-    out.setConstant(Scalar(-7));
-    run_on_gpu(pgather_kernel<Packet>{stride}, n, strided, out);
-    VERIFY(test::areEqualBits(in.data(), out.data(), int(in.size()), false) && "pgather");
-    Buffer<Scalar> scattered(in.size() * stride);
-    scattered.setConstant(Scalar(-7));
-    run_on_gpu(pscatter_kernel<Packet>{stride}, n, in, scattered);
-    VERIFY(test::areEqualBits(strided.data(), scattered.data(), int(strided.size()), false) && "pscatter");
-  }
-  {
-    // A kSize x kSize block per thread.
-    const int blocks = n / kSize;
-    const int block_elements = kSize * kSize;
-    Buffer<Scalar> out(blocks * block_elements);
-    out.setConstant(Scalar(-7));
-    run_on_gpu(ptranspose_kernel<Packet>(), blocks, in, out);
-    Buffer<Scalar> expected(blocks * block_elements);
-    for (int block = 0; block < blocks; ++block) {
-      for (int r = 0; r < kSize; ++r) {
-        for (int c = 0; c < kSize; ++c) {
-          expected[block * block_elements + r * kSize + c] = in[block * block_elements + c * kSize + r];
-        }
-      }
-    }
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(out.size()), false) && "ptranspose");
   }
 
   // Sign manipulation and rounding: fixed bit for bit, including the sign of a zero.
@@ -725,10 +541,6 @@ void packetmath_gpu_real_core() {
   {
     Buffer<Scalar> out(in.size());
     out.setConstant(Scalar(-7));
-    run_on_gpu(unary_kernel<Packet, op_preverse>(), n, in, out);
-    Buffer<Scalar> expected(in.size());
-    for (Index k = 0; k < in.size(); ++k) expected[k] = in[(k / kSize) * kSize + (kSize - 1 - k % kSize)];
-    VERIFY(test::areEqualBits(expected.data(), out.data(), int(in.size()), false) && "preverse");
     // ptrue/pzero: all bits set, all bits cleared. areFullBitMasks reads bool lanes, so the expectation is
     // stored as bool rather than as bytes reinterpreted through a bool pointer.
     const Buffer<bool> expect_ones = Buffer<bool>::Constant(in.size(), false);
