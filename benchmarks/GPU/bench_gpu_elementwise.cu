@@ -155,7 +155,6 @@ void BM_D2DMemcpy(benchmark::State& state) {
 }  // namespace
 
 // bfloat16 has no device packet, so it is registered once, as the scalar path it is.
-// bfloat16 has no device packet, so it is registered once, as the scalar path it is.
 #define EIGEN_GPU_ELEMENTWISE_BENCHMARKS(NAME)                    \
   EIGEN_GPU_BENCHMARK_SIZES(NAME, float, Eigen::Aligned);         \
   EIGEN_GPU_BENCHMARK_SIZES(NAME, float, Eigen::Unaligned);       \
