@@ -524,21 +524,23 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   RealVectorType& diag = m_eivalues;
   EigenvectorsType& mat = m_eivec;
 
-  // Scale the matrix to [-1:1] to avoid overflow/underflow during tridiagonalization
-  // and subsequent QR iteration. This uniform scaling ensures the tridiagonal output is
-  // well-conditioned. Note: for block-diagonal matrices with widely separated scales, this
+  // Scale the matrix to O(1) to avoid overflow/underflow during tridiagonalization
+  // and subsequent QR iteration. Power-of-two factors avoid rounding representable scaled coefficients.
+  // Note: for block-diagonal matrices with widely separated scales, this
   // can underflow small blocks. Users with such matrices should tridiagonalize separately
   // and call computeFromTridiagonal(), which uses per-block scaling.
-  RealScalar scale = mat.cwiseAbs().template maxCoeff<PropagateNaN>();
-  if (!(numext::isfinite)(scale)) {
+  const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      mat, mat.cwiseAbs().template maxCoeff<PropagateNaN>());
+  if (!(numext::isfinite)(maxCoeff)) {
     // Input contains Inf or NaN.
     m_info = NoConvergence;
     m_isInitialized = true;
     m_eigenvectorsOk = false;
     return *this;
   }
-  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
-  mat.template triangularView<Lower>() /= scale;
+  const auto factors = internal::safe_scaling<RealScalar>::with_scaled(mat, maxCoeff, [&](const auto& scaled) {
+    mat.template triangularView<Lower>() = scaled.template triangularView<Lower>();
+  });
   m_subdiag.resize(n - 1);
   m_hcoeffs.resize(n - 1);
   internal::tridiagonalization_inplace(mat, diag, m_subdiag, m_hcoeffs, m_workspace, computeEigenvectors);
@@ -546,7 +548,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   m_info = internal::computeFromTridiagonal_impl<false>(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
 
   // Scale back the eigenvalues.
-  m_eivalues *= scale;
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_eivalues, maxCoeff, factors);
 
   m_isInitialized = true;
   m_eigenvectorsOk = computeEigenvectors;
@@ -592,7 +594,7 @@ namespace internal {
  * \internal
  * \brief Compute the eigendecomposition from a tridiagonal matrix
  *
- * \tparam PerBlockScaling If true, each deflation block is independently scaled to [-1,1] before
+ * \tparam PerBlockScaling If true, each deflation block is independently scaled to O(1) before
  *         QR iteration, following LAPACK's DSTERF approach. This prevents precision loss when entries
  *         span a wide range of magnitudes. When false, the caller is responsible for ensuring the
  *         entries are in a safe range (e.g. by pre-scaling the dense matrix before tridiagonalization).
@@ -645,7 +647,15 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   // block and scale the new one. This keeps the same outer loop structure (one QR step
   // per iteration) while ensuring each block is processed in scaled coordinates.
   Index scaled_start = -1, scaled_end = -1;
-  RealScalar block_scale = RealScalar(1);
+  RealScalar block_norm = RealScalar(0);
+  safe_scaling_factors<RealScalar> blockFactors;
+  const auto restore_block = [&]() {
+    if (scaled_start < 0) return;
+    auto diagonal = diag.segment(scaled_start, scaled_end - scaled_start + 1);
+    auto offDiagonal = subdiag.segment(scaled_start, scaled_end - scaled_start);
+    safe_scaling<RealScalar>::unscale_in_place(diagonal, block_norm, blockFactors);
+    safe_scaling<RealScalar>::unscale_in_place(offDiagonal, block_norm, blockFactors);
+  };
 
   while (end > 0) {
     deflate(start, end);
@@ -666,23 +676,15 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
     if (PerBlockScaling) {
       // Check if we've moved to a different block than the one currently scaled.
       if (start != scaled_start || end != scaled_end) {
-        // Unscale the previous block if it was scaled.
-        if (block_scale != RealScalar(1)) {
-          for (Index i = scaled_start; i <= scaled_end; ++i) diag[i] /= block_scale;
-          for (Index i = scaled_start; i < scaled_end; ++i) {
-            if (!numext::is_exactly_zero(subdiag[i])) subdiag[i] /= block_scale;
-          }
-          block_scale = RealScalar(1);
-        }
-        // Compute the norm and scale the new block to [-1:1].
-        RealScalar block_norm = RealScalar(0);
+        restore_block();
+        // Compute the norm and scale the new block to O(1).
+        block_norm = RealScalar(0);
         for (Index i = start; i <= end; ++i) block_norm = numext::maxi(block_norm, numext::abs(diag[i]));
         for (Index i = start; i < end; ++i) block_norm = numext::maxi(block_norm, numext::abs(subdiag[i]));
-        if (block_norm > RealScalar(0) && block_norm != RealScalar(1)) {
-          block_scale = RealScalar(1) / block_norm;
-          for (Index i = start; i <= end; ++i) diag[i] *= block_scale;
-          for (Index i = start; i < end; ++i) subdiag[i] *= block_scale;
-        }
+        auto diagonal = diag.segment(start, end - start + 1);
+        auto offDiagonal = subdiag.segment(start, end - start);
+        blockFactors = safe_scaling<RealScalar>::scale_to(diagonal, diagonal, block_norm);
+        safe_scaling<RealScalar>::scale_to(offDiagonal, offDiagonal, block_norm, blockFactors);
         scaled_start = start;
         scaled_end = end;
       }
@@ -693,12 +695,7 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   }
 
   // Unscale any remaining scaled block.
-  if (PerBlockScaling && block_scale != RealScalar(1)) {
-    for (Index i = scaled_start; i <= scaled_end; ++i) diag[i] /= block_scale;
-    for (Index i = scaled_start; i < scaled_end; ++i) {
-      if (!numext::is_exactly_zero(subdiag[i])) subdiag[i] /= block_scale;
-    }
-  }
+  if (PerBlockScaling) restore_block();
   if (iter <= maxIterations * n)
     info = Success;
   else

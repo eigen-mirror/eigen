@@ -968,7 +968,120 @@ void generalizedselfadjointeigensolver_no_malloc() {
   VERIFY_IS_APPROX(symmA * reused.eigenvectors(), symmB * reused.eigenvectors() * reused.eigenvalues().asDiagonal());
 }
 
+#if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_ALL)
+void selfadjoint_iterative_scaling_rounding() {
+  Matrix4f matrix = Matrix4f::Zero();
+  matrix.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x44123456)),
+      numext::bit_cast<float>(numext::uint32_t(0x4f123456)), numext::bit_cast<float>(numext::uint32_t(0x537dcf0e)),
+      numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  // A diagonal input requires no rotations: normalization must not round its representable eigenvalues.
+  for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+    SelfAdjointEigenSolver<Matrix4f> fixed(matrix, options);
+    SelfAdjointEigenSolver<MatrixXf> dynamic(matrix, options);
+    VERIFY_IS_EQUAL(fixed.info(), Success);
+    VERIFY_IS_EQUAL(dynamic.info(), Success);
+    VERIFY_IS_EQUAL(fixed.eigenvalues(), matrix.diagonal());
+    VERIFY_IS_EQUAL(dynamic.eigenvalues(), matrix.diagonal());
+  }
+  Matrix2f small = Matrix2f::Zero();
+  small.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x06aceabe)),
+      numext::bit_cast<float>(numext::uint32_t(0x072319ed));
+  // compute(), not computeDirect(): fixed-size matrices also use the iterative entry point.
+  SelfAdjointEigenSolver<Matrix2f> solver(small);
+  VERIFY_IS_EQUAL(solver.eigenvalues(), small.diagonal());
+
+  Vector2f diagonal = Vector2f::Zero();
+  Matrix<float, 1, 1> offDiagonal;
+  offDiagonal[0] = numext::bit_cast<float>(numext::uint32_t(0x54fca0e4));
+  solver.computeFromTridiagonal(diagonal, offDiagonal, EigenvaluesOnly);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_EQUAL(solver.eigenvalues()[0], -offDiagonal[0]);
+  VERIFY_IS_EQUAL(solver.eigenvalues()[1], offDiagonal[0]);
+}
+
+template <typename Scalar, int Options>
+void selfadjoint_iterative_scaling_blocks() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  using Vector = Matrix<Real, Dynamic, 1>;
+  MatrixType base = MatrixType::Zero(4, 4);
+  base.diagonal() << Scalar(2), Scalar(2), Scalar(10), Scalar(10);
+  Scalar phase = Scalar(1);
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+    phase = numext::sqrt(Scalar(-1));
+  }
+  base(1, 0) = phase;
+  base(0, 1) = numext::conj(phase);
+  base(3, 2) = Scalar(2) * phase;
+  base(2, 3) = numext::conj(base(3, 2));
+  Vector expected(4);
+  expected << Real(1), Real(3), Real(8), Real(12);
+  // 16*n*epsilon bounds the accumulated rotations and reconstruction for these well-separated 4x4 spectra.
+  const Real tolerance = Real(64) * NumTraits<Real>::epsilon();
+  for (int exponent : {-60, 0, 60}) {
+    const Real scale = numext::ldexp(Real(1), exponent);
+    MatrixType input = base * scale;
+    input.template triangularView<StrictlyUpper>().setConstant(Scalar(std::numeric_limits<Real>::quiet_NaN()));
+    for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+      SelfAdjointEigenSolver<MatrixType> solver(input, options);
+      VERIFY_IS_EQUAL(solver.info(), Success);
+      const Vector values = solver.eigenvalues() / scale;
+      VERIFY(values.allFinite());
+      VERIFY((values - expected).norm() <= tolerance * expected.norm());
+      if (options == ComputeEigenvectors) {
+        const MatrixType& vectors = solver.eigenvectors();
+        VERIFY(vectors.allFinite());
+        VERIFY((base * vectors - vectors * values.asDiagonal()).norm() <= tolerance * base.norm());
+        VERIFY((vectors.adjoint() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
+      }
+    }
+  }
+
+  // Two nontrivial blocks at different scales exercise restoration when the active block changes.
+  Vector diagonal = Vector::Zero(4), offDiagonal(3);
+  const Real large = numext::ldexp(Real(1.5), 60);
+  offDiagonal << Real(1.5), Real(0), large;
+  expected << -large, Real(-1.5), Real(1.5), large;
+  for (int options : {EigenvaluesOnly, ComputeEigenvectors}) {
+    SelfAdjointEigenSolver<MatrixType> solver;
+    solver.computeFromTridiagonal(diagonal, offDiagonal, options);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY(solver.eigenvalues().allFinite());
+    VERIFY(((solver.eigenvalues() - expected).array().abs() <= tolerance * expected.array().abs()).all());
+    if (options == ComputeEigenvectors) {
+      MatrixType matrix = MatrixType::Zero(4, 4);
+      matrix(0, 1) = matrix(1, 0) = Scalar(1.5);
+      matrix(2, 3) = matrix(3, 2) = Scalar(large);
+      const MatrixType& vectors = solver.eigenvectors();
+      VERIFY(vectors.allFinite());
+      const MatrixType residual = matrix * vectors - vectors * solver.eigenvalues().asDiagonal();
+      // Normalize each block separately so the large block cannot mask errors in the small one.
+      VERIFY((residual.template topRows<2>() / Real(1.5)).norm() <= tolerance);
+      VERIFY((residual.template bottomRows<2>() / large).norm() <= tolerance);
+      VERIFY((vectors.adjoint() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
+    }
+  }
+  // An interrupted QR iteration must still restore the active block's units.
+  diagonal << Real(1), Real(2), Real(3), Real(4);
+  offDiagonal.setOnes();
+  Vector scaledDiagonal = diagonal * large, scaledOffDiagonal = offDiagonal * large;
+  MatrixType unused;
+  const auto info = internal::computeFromTridiagonal_impl<true>(diagonal, offDiagonal, 1, false, unused);
+  const auto scaledInfo =
+      internal::computeFromTridiagonal_impl<true>(scaledDiagonal, scaledOffDiagonal, 1, false, unused);
+  VERIFY_IS_EQUAL(info, NoConvergence);
+  VERIFY_IS_EQUAL(scaledInfo, info);
+  VERIFY((scaledDiagonal / large - diagonal).norm() <= tolerance * diagonal.norm());
+  VERIFY((scaledOffDiagonal / large - offDiagonal).norm() <= tolerance * offDiagonal.norm());
+}
+#endif
+
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
+  CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding());
+  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<float, ColMajor>()));
+  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
+  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<double>, ColMajor>()));
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
