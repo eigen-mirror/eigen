@@ -230,6 +230,45 @@ void schur_zero(Index size) {
   VERIFY_IS_EQUAL(schurOfA.matrixU(), ComplexMatrixType::Identity(size, size));
 }
 
+template <typename RealScalar>
+void schur_shift_scaling() {
+  using Scalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  MatrixType base;
+  base << Scalar(1, 1), Scalar(2, -1), Scalar(-3, 1), Scalar(4, -2);
+  const MatrixType identity = MatrixType::Identity();
+  const int exponents[] = {std::numeric_limits<RealScalar>::min_exponent + 4,
+                           std::numeric_limits<RealScalar>::min_exponent / 2 - 8,
+                           -1,
+                           0,
+                           1,
+                           std::numeric_limits<RealScalar>::max_exponent / 2 - 8,
+                           std::numeric_limits<RealScalar>::max_exponent - 5};
+  for (int exponent : exponents) {
+    const RealScalar scale = numext::ldexp(RealScalar(1), exponent);
+    const MatrixType matrix = base * scale;
+    ComplexSchur<MatrixType> schur;
+    // Bypass compute()'s input normalization. The nonzero subdiagonal requires a QR shift at the requested scale.
+    schur.setMaxIterations(0).computeFromHessenberg(matrix, identity);
+    VERIFY_IS_EQUAL(schur.info(), NoConvergence);
+    schur.setMaxIterations(ComplexSchur<MatrixType>::m_maxIterationsPerRow * 2);
+    schur.computeFromHessenberg(matrix, identity);
+    VERIFY_IS_EQUAL(schur.info(), Success);
+    const MatrixType unitary = schur.matrixU();
+    const MatrixType normalizedT = schur.matrixT() * (RealScalar(1) / scale);
+    VERIFY(normalizedT.allFinite());
+    VERIFY(unitary.allFinite());
+    VERIFY_IS_EQUAL(normalizedT(1, 0), Scalar(0));
+    // Two-dimensional QR and reconstruction incur a bounded number of rounding errors per iteration.
+    const RealScalar tolerance = RealScalar(128) * NumTraits<RealScalar>::epsilon();
+    VERIFY((base - unitary * normalizedT * unitary.adjoint()).norm() <= tolerance * base.norm());
+    VERIFY((unitary * unitary.adjoint() - identity).norm() <= tolerance);
+    schur.computeFromHessenberg(matrix, identity, false);
+    VERIFY_IS_EQUAL(schur.info(), Success);
+    VERIFY_IS_EQUAL(schur.matrixT() * (RealScalar(1) / scale), normalizedT);
+  }
+}
+
 EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_1((schur<Matrix4cd>()));
   CALL_SUBTEST_2((schur<MatrixXcf>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -271,4 +310,6 @@ EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_10((schur_zero<Matrix4cd>(4)));
   CALL_SUBTEST_10((schur_zero<MatrixXcf>(8)));
   CALL_SUBTEST_10((schur_zero<MatrixXf>(8)));
+  CALL_SUBTEST_10(schur_shift_scaling<float>());
+  CALL_SUBTEST_10(schur_shift_scaling<double>());
 }

@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include <limits>
 #include <Eigen/Eigenvalues>
 
@@ -105,6 +106,47 @@ void test_bug2633() {
   VERIFY(schur.info() == Eigen::Success);
 }
 
+void real_schur_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller diagonal entry up by one ULP.
+  Matrix2f matrix = Matrix2f::Zero();
+  matrix(0, 0) = numext::bit_cast<float>(numext::uint32_t(0x58f6aaed));
+  matrix(0, 1) = numext::bit_cast<float>(numext::uint32_t(0x52123456));
+  matrix(1, 1) = numext::bit_cast<float>(numext::uint32_t(0x537dcf0e));
+
+  const RealSchur<Matrix2f> schur(matrix);
+  VERIFY_IS_EQUAL(schur.info(), Success);
+  VERIFY_IS_EQUAL(schur.matrixT(), matrix);
+
+  // Probe arithmetic, not just loads: FTZ can preserve an input yet flush a subnormal result.
+  volatile float normalMinInput = (std::numeric_limits<float>::min)();
+  volatile float epsilonInput = std::numeric_limits<float>::epsilon();
+  const float denormMin = normalMinInput * epsilonInput;
+  if (!(denormMin > 0.0f)) return;
+  matrix.setZero();
+  matrix.diagonal() << 1.5f, denormMin;
+  const RealSchur<Matrix2f> tailSchur(matrix);
+  VERIFY_IS_EQUAL(tailSchur.matrixT()(1, 1), denormMin);
+}
+
+template <typename Scalar>
+void real_schur_subnormal_restoration() {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  const Scalar normal_min = (std::numeric_limits<Scalar>::min)();
+  const Bits half_min_bits = numext::bit_cast<Bits>(normal_min) >> 1;
+  MatrixType matrix = MatrixType::Zero();
+  matrix(0, 0) = normal_min;
+  matrix(1, 1) = numext::bit_cast<Scalar>(half_min_bits);
+  const ScopedFlushToZero flush;
+  for (bool compute_u : {false, true}) {
+    const RealSchur<MatrixType> schur(matrix, compute_u);
+    VERIFY_IS_EQUAL(schur.info(), Success);
+    // Compare representations: DAZ can make an erroneous zero compare equal to a subnormal.
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(schur.matrixT()(1, 1)), half_min_bits);
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(schur.matrixT()(0, 0)), numext::bit_cast<Bits>(normal_min));
+  }
+}
+
 EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_1((schur<Matrix4f>()));
   CALL_SUBTEST_2((schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
@@ -115,4 +157,7 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_5(RealSchur<MatrixXf>(10));
 
   CALL_SUBTEST_6((test_bug2633()));
+  CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<float>());
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<double>());
 }

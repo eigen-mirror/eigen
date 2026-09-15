@@ -289,8 +289,8 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
   const Index n = m_matT.rows();
   eigen_assert(m_matT.cols() == n);
 
-  Scalar scale = m_matT.cwiseAbs().maxCoeff();
-  if (scale < considerAsZero) {
+  const Scalar maxCoeff = m_matT.cwiseAbs().maxCoeff();
+  if (maxCoeff < considerAsZero) {
     m_matT.setZero();
     if (computeU) m_matU.setIdentity(n, n);
     m_info = Success;
@@ -298,7 +298,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
     m_matUisUptodate = computeU;
     return *this;
   }
-  m_matT /= scale;
+  const auto factors = internal::safe_scaling<Scalar>::scale_in_place(m_matT, maxCoeff);
 
   // Step 1. Reduce to Hessenberg form
   internal::hessenberg_decomposition_inplace(m_matT, m_hCoeffs, m_workspaceVector, m_matU, computeU);
@@ -306,7 +306,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
   // Step 2. Reduce to real Schur form
   computeFromHessenberg(m_matT, m_matU, computeU);
 
-  m_matT *= scale;
+  internal::safe_scaling<Scalar>::unscale_in_place(m_matT, maxCoeff, factors);
 
   return *this;
 }

@@ -320,8 +320,8 @@ typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::compu
   // compute the shift as one of the eigenvalues of t, the 2x2
   // diagonal block on the bottom of the active submatrix
   Matrix<ComplexScalar, 2, 2> t = m_matT.template block<2, 2>(iu - 1, iu - 1);
-  RealScalar normt = t.cwiseAbs().sum();
-  t /= normt;  // the normalization by normt is to avoid under/overflow
+  const RealScalar normt = t.cwiseAbs().sum();
+  const auto factors = internal::safe_scaling<RealScalar>::scale_to(t, t, normt);
 
   ComplexScalar b = t.coeff(0, 1) * t.coeff(1, 0);
   ComplexScalar c = t.coeff(0, 0) - t.coeff(1, 1);
@@ -340,10 +340,9 @@ typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::compu
     eival1 = det / eival2;
 
   // choose the eigenvalue closest to the bottom entry of the diagonal
-  if (numext::norm1(eival1 - t.coeff(1, 1)) < numext::norm1(eival2 - t.coeff(1, 1)))
-    return normt * eival1;
-  else
-    return normt * eival2;
+  ComplexScalar shift = numext::norm1(eival1 - t.coeff(1, 1)) < numext::norm1(eival2 - t.coeff(1, 1)) ? eival1 : eival2;
+  internal::safe_scaling<RealScalar>::unscale_in_place(shift, factors);
+  return shift;
 }
 
 template <typename MatrixType>
