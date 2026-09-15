@@ -29,6 +29,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off_all_options
     exclude_from_all
     cuda_launcher_wrapper
+    hip_architectures
     suitesparse_reconfigure
     )
 
