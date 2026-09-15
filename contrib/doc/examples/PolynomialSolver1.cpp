@@ -25,8 +25,8 @@ int main() {
   cout << "Real roots: " << mapRR.transpose() << endl;
 
   cout << endl;
-  cout << "Illustration of the convergence problem with the QR algorithm: " << endl;
-  cout << "---------------------------------------------------------------" << endl;
+  cout << "A float polynomial with almost conjugate roots of almost the same modulus: " << endl;
+  cout << "--------------------------------------------------------------------------" << endl;
   Eigen::Matrix<float, 7, 1> hardCase_polynomial;
   hardCase_polynomial << -0.957, 0.9219, 0.3516, 0.9453, -0.4023, -0.5508, -0.03125;
   cout << "Hard case polynomial defined by floats: " << hardCase_polynomial.transpose() << endl;
@@ -38,8 +38,8 @@ int main() {
   }
   cout << "Norms of the evaluations of the polynomial at the roots: " << evals.transpose() << endl << endl;
 
-  cout << "Using double's almost always solves the problem for small degrees: " << endl;
-  cout << "-------------------------------------------------------------------" << endl;
+  cout << "The same polynomial solved with doubles: " << endl;
+  cout << "----------------------------------------" << endl;
   PolynomialSolver<double, 6> psolve6d(hardCase_polynomial.cast<double>());
   cout << "Complex roots: " << psolve6d.roots().transpose() << endl;
   for (int i = 0; i < 6; ++i) {

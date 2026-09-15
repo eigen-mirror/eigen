@@ -227,9 +227,190 @@ void polynomialsolver(int deg) {
   }
 }
 
+// Componentwise backward error |p(z)| / sum_k |a_k| |z|^k of a computed root, evaluated in WideReal so that the check
+// does not share the solver's rounding.
+template <typename WideReal, typename PolynomialType, typename RootType>
+WideReal root_backward_error(const PolynomialType& pols, const RootType& root) {
+  const std::complex<WideReal> z(WideReal(numext::real(root)), WideReal(numext::imag(root)));
+  std::complex<WideReal> value(0);
+  WideReal magnitude(0);
+  for (Index k = pols.size() - 1; k >= 0; --k) {
+    const std::complex<WideReal> coefficient(WideReal(numext::real(pols[k])), WideReal(numext::imag(pols[k])));
+    value = value * z + coefficient;
+    magnitude = magnitude * numext::abs(z) + numext::abs(coefficient);
+  }
+  return numext::abs(value) / magnitude;
+}
+
+// Every refined root must be an exact root of a nearby polynomial, and, where first-order perturbation theory applies,
+// within its condition bound of the same polynomial's roots solved in WideScalar. The roots of a real polynomial must
+// be real or exact conjugate pairs.
+template <typename Scalar, typename WideScalar, int Deg>
+void polynomialsolver_refinement_accuracy(int deg) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using WideReal = typename NumTraits<WideScalar>::Real;
+  using PolynomialType = Matrix<Scalar, internal::increment_if_fixed_size<Deg>::value, 1>;
+  using RootsType = Matrix<Scalar, Deg, 1>;
+  const RootsType roots = RootsType::Random(deg);
+  PolynomialType pols;
+  roots_to_monicPolynomial(roots, pols);
+  PolynomialSolver<Scalar, Deg> solver(pols);
+  const WideReal eps = WideReal(NumTraits<RealScalar>::epsilon());
+
+  // A Newton correction below one ulp bounds |p(z)| by eps |z p'(z)| <= deg eps sum_k |a_k| |z|^k; sampled roots of
+  // float and double polynomials up to degree 50 stay below 6 eps.
+  for (Index i = 0; i < deg; ++i)
+    VERIFY(root_backward_error<WideReal>(pols, solver.roots()[i]) <= WideReal(4 * deg) * eps);
+
+  if (!NumTraits<Scalar>::IsComplex) {
+    for (Index i = 0; i < deg; ++i) {
+      if (numext::imag(solver.roots()[i]) == RealScalar(0)) continue;
+      bool paired = false;
+      for (Index j = 0; j < deg && !paired; ++j)
+        paired = j != i && solver.roots()[j] == numext::conj(solver.roots()[i]);
+      VERIFY(paired);
+    }
+  }
+
+  // A coefficient perturbation of size delta moves a simple root r_j by at most
+  // delta * sum_k |r_j|^k / prod_{k != j} |r_j - r_k| to first order, valid while that is small against the gap to the
+  // nearest other root. Each such root must have a computed root within 16 times the bound at delta = eps max_k |a_k|.
+  const PolynomialSolver<WideScalar, Deg> reference(pols.template cast<WideScalar>().eval());
+  const WideReal delta = eps * WideReal(pols.cwiseAbs().maxCoeff());
+  for (Index j = 0; j < deg; ++j) {
+    const std::complex<WideReal> r = reference.roots()[j];
+    WideReal powerSum(0), power(1), derivative(1), gap = NumTraits<WideReal>::highest();
+    for (Index k = 0; k <= deg; ++k) {
+      powerSum += power;
+      power *= numext::abs(r);
+    }
+    for (Index k = 0; k < deg; ++k) {
+      if (k == j) continue;
+      const WideReal d = numext::abs(r - std::complex<WideReal>(reference.roots()[k]));
+      derivative *= d;
+      gap = numext::mini(gap, d);
+    }
+    const WideReal bound = WideReal(16) * delta * powerSum / derivative;
+    if (!(WideReal(4) * bound < gap)) continue;
+    WideReal distance = NumTraits<WideReal>::highest();
+    for (Index i = 0; i < deg; ++i) {
+      const std::complex<WideReal> z(WideReal(numext::real(solver.roots()[i])),
+                                     WideReal(numext::imag(solver.roots()[i])));
+      distance = numext::mini(distance, numext::abs(z - r));
+    }
+    VERIFY(distance <= bound);
+  }
+}
+
+// At |z| = 3 rounding dominates the residual of the pair 0.1 +- 3i, which is still an accurate root; comparing that
+// residual with the one at the real part 0.1 once reported the pair as a double real root.
+void polynomialsolver_complex_pair_kept() {
+  Matrix<std::complex<float>, 12, 1> roots;
+  roots << std::complex<float>(0.1f, 3.0f), std::complex<float>(0.1f, -3.0f), 0.2f, -0.2f, 0.4f, -0.4f, 0.6f, -0.6f,
+      0.8f, -0.8f, 1.0f, -1.0f;
+  Matrix<std::complex<float>, 13, 1> complexPolynomial;
+  roots_to_monicPolynomial(roots, complexPolynomial);
+  const Matrix<float, 13, 1> pols = complexPolynomial.real();
+  PolynomialSolver<float, 12> solver(pols);
+  Index farFromAxis = 0;
+  for (Index i = 0; i < 12; ++i) {
+    VERIFY(root_backward_error<double>(pols, solver.roots()[i]) <= 48 * double(NumTraits<float>::epsilon()));
+    if (numext::abs(numext::imag(solver.roots()[i])) > 1.0f) ++farFromAxis;
+  }
+  VERIFY_IS_EQUAL(farFromAxis, Index(2));
+}
+
+// The companion eigenvalue of a root at 1e-12 carries an absolute error of order eps, a backward error of about
+// 3e3 eps; refinement restores the root's full relative accuracy.
+void polynomialsolver_tiny_root() {
+  Matrix<double, 5, 1> roots;
+  roots << 1e-12, 0.25, -0.5, 0.75, -1.0;
+  Matrix<double, 6, 1> pols;
+  roots_to_monicPolynomial(roots, pols);
+  PolynomialSolver<double, 5> solver(pols);
+  const double eps = NumTraits<double>::epsilon();
+  bool found = false;
+  for (Index i = 0; i < 5; ++i) {
+    VERIFY(root_backward_error<long double>(pols, solver.roots()[i]) <= static_cast<long double>(20 * eps));
+    found = found || numext::abs(solver.roots()[i] - std::complex<double>(1e-12)) <= 16 * eps * 1e-12;
+  }
+  VERIFY(found);
+}
+
+template <typename Polynomial, typename Roots>
+void polynomialsolver_verify_root_set(const Polynomial& poly, const Roots& expected) {
+  using Scalar = typename Polynomial::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
+  const PolynomialSolver<Scalar, Roots::RowsAtCompileTime> solver(poly);
+  Array<bool, Dynamic, 1> matched = Array<bool, Dynamic, 1>::Constant(expected.size(), false);
+  VERIFY_IS_EQUAL(solver.roots().size(), expected.size());
+  // These exactly represented polynomials have well-separated simple roots or exact roots at zero.
+  const Real tolerance = Real(64) * NumTraits<Real>::epsilon();
+  for (Index i = 0; i < expected.size(); ++i) {
+    Index match = expected.size();
+    for (Index j = 0; j < expected.size(); ++j) {
+      if (!matched[j] && numext::abs(solver.roots()[i] - expected[j]) <= tolerance) {
+        match = j;
+        break;
+      }
+    }
+    VERIFY(match < expected.size());
+    matched[match] = true;
+  }
+}
+
+template <typename Scalar>
+void polynomialsolver_real_part_is_another_root() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<Real>;
+  Matrix<Scalar, 4, 1> poly;
+  Matrix<Complex, 3, 1> expected;
+  poly << 0, 1, 0, 1;
+  expected << Complex(0), Complex(0, 1), Complex(0, -1);
+  polynomialsolver_verify_root_set(poly, expected);
+  poly << -2, 4, -3, 1;
+  expected << Complex(1), Complex(1, 1), Complex(1, -1);
+  polynomialsolver_verify_root_set(poly, expected);
+
+  Matrix<Scalar, Dynamic, 1> repeated(5);
+  Matrix<Complex, Dynamic, 1> repeatedExpected(4);
+  repeated << 0, 0, 1, 0, 1;
+  repeatedExpected << Complex(0), Complex(0), Complex(0, 1), Complex(0, -1);
+  polynomialsolver_verify_root_set(repeated, repeatedExpected);
+}
+
+template <typename Scalar>
+void polynomialsolver_scaled_quadratic() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<Real>;
+  Matrix<Scalar, 3, 1> poly;
+  Matrix<Complex, 2, 1> expected;
+  expected << Complex(0, 1), Complex(0, -1);
+  const Real scales[] = {Real(1), NumTraits<Real>::highest() * Real(0.75), (std::numeric_limits<Real>::min)()};
+  for (Real scale : scales) {
+    poly << Scalar(scale), Scalar(0), Scalar(scale);
+    polynomialsolver_verify_root_set(poly, expected);
+  }
+}
+
+template <int Degree>
+void polynomialsolver_real_starts_for_complex_pair() {
+  Matrix<double, 7, 1> poly;
+  poly << 0.015754773452117808, -0.2921305061016638, 1.8654828811488313, -4.9912618133859823, 6.4755674799802918,
+      -4.0734106361481288, 1;
+  PolynomialSolver<double, Degree> solver(poly);
+  // A nearly double nonreal pair initially appears as two real eigenvalues. Unconverged real-axis refinement
+  // used to increase the maximum componentwise backward error from 2.2 eps to 3.1e5 eps.
+  const long double tolerance = 32 * static_cast<long double>(NumTraits<double>::epsilon());
+  for (Index i = 0; i < solver.roots().size(); ++i)
+    VERIFY(root_backward_error<long double>(poly, solver.roots()[i]) <= tolerance);
+}
+
 EIGEN_DECLARE_TEST(polynomialsolver) {
   CALL_SUBTEST_7(polynomialsolver_sugar_cluster());
   CALL_SUBTEST_13(polynomialsolver_sugar_filtering());
+  CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<6>());
+  CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<Dynamic>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((polynomialsolver<float, 1>(1)));
     CALL_SUBTEST_2((polynomialsolver<double, 2>(2)));
@@ -244,5 +425,21 @@ EIGEN_DECLARE_TEST(polynomialsolver) {
     CALL_SUBTEST_10((polynomialsolver<double, Dynamic>(internal::random<int>(9, 13))));
     CALL_SUBTEST_11((polynomialsolver<float, Dynamic>(1)));
     CALL_SUBTEST_12((polynomialsolver<std::complex<double>, Dynamic>(internal::random<int>(2, 13))));
+
+    CALL_SUBTEST_13((polynomialsolver_refinement_accuracy<float, double, 4>(4)));
+    CALL_SUBTEST_19((polynomialsolver_refinement_accuracy<float, double, 6>(6)));
+    CALL_SUBTEST_20((polynomialsolver_refinement_accuracy<float, double, 7>(7)));
+    CALL_SUBTEST_14((polynomialsolver_refinement_accuracy<float, double, Dynamic>(internal::random<int>(8, 13))));
+    CALL_SUBTEST_21((polynomialsolver_refinement_accuracy<std::complex<float>, std::complex<double>, Dynamic>(
+        internal::random<int>(2, 13))));
+    CALL_SUBTEST_22((polynomialsolver_refinement_accuracy<double, long double, Dynamic>(internal::random<int>(2, 20))));
   }
+  CALL_SUBTEST_15(polynomialsolver_complex_pair_kept());
+  CALL_SUBTEST_15(polynomialsolver_tiny_root());
+  CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<float>());
+  CALL_SUBTEST_23(polynomialsolver_real_part_is_another_root<double>());
+  CALL_SUBTEST_24(polynomialsolver_real_part_is_another_root<std::complex<double>>());
+  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<float>());
+  CALL_SUBTEST_17(polynomialsolver_scaled_quadratic<double>());
+  CALL_SUBTEST_25(polynomialsolver_scaled_quadratic<std::complex<double>>());
 }

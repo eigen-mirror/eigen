@@ -28,7 +28,8 @@
 
 /**
  * \defgroup Polynomials_Module Polynomials module
- * \brief This module provides a QR based polynomial solver.
+ * \brief This module provides a polynomial solver based on companion-matrix eigenvalues refined by Ehrlich-Aberth
+ * iterations.
  *
  * To use this module, add
  * \code
@@ -45,11 +46,11 @@
 
 /**
         \page polynomials Polynomials defines functions for dealing with polynomials
-        and a QR based polynomial solver.
+        and a polynomial solver.
         \ingroup Polynomials_Module
 
         The remainder of the page documents first the functions for evaluating, computing
-        polynomials, computing estimates about polynomials and next the QR based polynomial
+        polynomials, computing estimates about polynomials and next the polynomial
         solver.
 
         \section polynomialUtils convenient functions to deal with polynomials
@@ -99,8 +100,8 @@
 
 
         \section QR polynomial solver class
-        Computes the complex roots of a polynomial by computing the eigenvalues of the associated companion matrix with
-  the QR algorithm.
+        Computes the complex roots of a polynomial in two steps. The eigenvalues of the associated companion matrix,
+  computed with the QR algorithm, give a first approximation of the roots.
 
         The roots of \f$ p(x) = a_0 + a_1 x + a_2 x^2 + a_{3} x^3 + x^4 \f$ are the eigenvalues of
         \f$
@@ -113,26 +114,20 @@
         \end{array} \right ]
         \f$
 
-        However, the QR algorithm is not guaranteed to converge when there are several eigenvalues with same modulus.
-
-        Therefore the current polynomial solver is guaranteed to provide a correct result only when the complex roots
-  \f$r_1,r_2,...,r_d\f$ have distinct moduli i.e.
-
-        \f$ \forall i,j \in [1;d],~ \| r_i \| \neq \| r_j \| \f$.
-
-        With 32bit (float) floating types this problem shows up frequently.
-  However, almost always, correct accuracy is reached even in these cases for 64bit
-  (double) floating types and small polynomial degree (<20).
+        The QR algorithm is backward stable for the companion matrix, but a perturbation of that matrix is not a
+  perturbation of the coefficients of \f$ p \f$, so the eigenvalues can be much less accurate than the conditioning of
+  the roots allows, frequently so with 32bit (float) floating types. Each approximation is therefore refined by
+  simultaneous Ehrlich-Aberth iterations on \f$ p \f$ itself, targeting a residual within the rounding error of
+  evaluation. The number of sweeps is limited; an unfinished iterate whose residual increased falls back to its
+  initial eigenvalue estimate. A root of multiplicity \f$ m \f$ can only be located to about \f$ \epsilon^{1/m} \f$.
 
         \include PolynomialSolver1.cpp
 
         In the above example:
 
         -# a simple use of the polynomial solver is shown;
-        -# the accuracy problem with the QR algorithm is presented: a polynomial with almost conjugate roots is provided
-  to the solver. Those roots have almost same module therefore the QR algorithm failed to converge: the accuracy of the
-  last root is bad;
-        -# a simple way to circumvent the problem is shown: use doubles instead of floats.
+        -# a float polynomial with almost conjugate roots of almost the same modulus is solved, and the residuals of
+  its roots are compared with those of the same polynomial solved with doubles.
 
   Output: \verbinclude PolynomialSolver1.out
 */
