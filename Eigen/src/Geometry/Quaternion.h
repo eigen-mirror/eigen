@@ -544,8 +544,19 @@ using QuaternionMapAlignedd = Map<Quaternion<double>, Aligned>;
 namespace internal {
 template <int Arch, class Derived1, class Derived2, typename Scalar>
 struct quat_product {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Quaternion<Scalar> run(const QuaternionBase<Derived1>& a,
-                                                                      const QuaternionBase<Derived2>& b) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Quaternion<Scalar> run(const QuaternionBase<Derived1>& input_a,
+                                                                      const QuaternionBase<Derived2>& input_b) {
+    const Derived1* a_ptr = &input_a.derived();
+    const Derived2* b_ptr = &input_b.derived();
+#if EIGEN_ARCH_ARM && EIGEN_COMP_CLANG
+    EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
+      // Keep operand addresses opaque to LLVM's ARM load/store optimizer (llvm-project#223630).
+      // Register constraints avoid the spills introduced by the general optimization barrier.
+      asm("" : "+r"(a_ptr), "+r"(b_ptr));
+    }
+#endif
+    const Derived1& a = *a_ptr;
+    const Derived2& b = *b_ptr;
     return Quaternion<Scalar>(a.w() * b.w() - a.x() * b.x() - a.y() * b.y() - a.z() * b.z(),
                               a.w() * b.x() + a.x() * b.w() + a.y() * b.z() - a.z() * b.y(),
                               a.w() * b.y() + a.y() * b.w() + a.z() * b.x() - a.x() * b.z(),
