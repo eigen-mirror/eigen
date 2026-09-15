@@ -68,7 +68,7 @@ class GeneralizedEigenSolver {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -145,20 +145,45 @@ class GeneralizedEigenSolver {
    * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
    *    eigenvalues are computed; if false, only the eigenvalues are computed.
    *
-   * This constructor calls compute() to compute the generalized eigenvalues
-   * and eigenvectors.
+   * This constructor computes the generalized eigenvalues and eigenvectors
+   * as compute() does.
    *
    * \sa compute()
    */
-  GeneralizedEigenSolver(const MatrixType& A, const MatrixType& B, bool computeEigenvectors = true)
+  template <typename InputTypeA, typename InputTypeB>
+  GeneralizedEigenSolver(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
+                         bool computeEigenvectors = true)
       : m_eivec(A.rows(), A.cols()),
         m_alphas(A.cols()),
         m_betas(A.cols()),
         m_computeEigenvectors(false),
         m_isInitialized(false),
-        m_realQZ(A.cols()),
+        m_realQZ(A.derived(), B.derived(), computeEigenvectors),
         m_tmp(A.cols()) {
-    compute(A, B, computeEigenvectors);
+    computeFromQZ(computeEigenvectors);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  A  Square matrix whose eigendecomposition is to be computed.
+   * \param[in,out]  B  Square matrix whose eigendecomposition is to be computed.
+   * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
+   *    eigenvalues are computed; if false, only the eigenvalues are computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p A and \p B, whose
+   * contents are destroyed; the results are stored in the decomposition object. Otherwise this constructor behaves
+   * like GeneralizedEigenSolver(const EigenBase<InputTypeA>&, const EigenBase<InputTypeB>&, bool).
+   */
+  template <typename InputTypeA, typename InputTypeB>
+  GeneralizedEigenSolver(EigenBase<InputTypeA>& A, EigenBase<InputTypeB>& B, bool computeEigenvectors = true)
+      : m_eivec(A.rows(), A.cols()),
+        m_alphas(A.cols()),
+        m_betas(A.cols()),
+        m_computeEigenvectors(false),
+        m_isInitialized(false),
+        m_realQZ(A.derived(), B.derived(), computeEigenvectors),
+        m_tmp(A.cols()) {
+    computeFromQZ(computeEigenvectors);
   }
 
   /** \brief Returns the computed generalized eigenvectors.
@@ -245,7 +270,9 @@ class GeneralizedEigenSolver {
    *
    * This method reuses the allocated data in the GeneralizedEigenSolver object.
    */
-  GeneralizedEigenSolver& compute(const MatrixType& A, const MatrixType& B, bool computeEigenvectors = true);
+  template <typename InputTypeA, typename InputTypeB>
+  GeneralizedEigenSolver& compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B,
+                                  bool computeEigenvectors = true);
 
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
@@ -270,19 +297,28 @@ class GeneralizedEigenSolver {
   bool m_isInitialized;
   RealQZ<MatrixType> m_realQZ;
   ComplexVectorType m_tmp;
+
+ private:
+  GeneralizedEigenSolver& computeFromQZ(bool computeEigenvectors);
 };
 
 template <typename MatrixType>
-GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(const MatrixType& A,
-                                                                                const MatrixType& B,
+template <typename InputTypeA, typename InputTypeB>
+GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(const EigenBase<InputTypeA>& A,
+                                                                                const EigenBase<InputTypeB>& B,
                                                                                 bool computeEigenvectors) {
-  using std::abs;
-  using std::sqrt;
   eigen_assert(A.cols() == A.rows() && B.cols() == A.rows() && B.cols() == B.rows());
-  Index size = A.cols();
   // Reduce to generalized real Schur form:
   // A = Q S Z and B = Q T Z
-  m_realQZ.compute(A, B, computeEigenvectors);
+  m_realQZ.compute(A.derived(), B.derived(), computeEigenvectors);
+  return computeFromQZ(computeEigenvectors);
+}
+
+/** \internal Computes the generalized eigenvalues, and the eigenvectors when requested, from the QZ decomposition
+ * held by m_realQZ. */
+template <typename MatrixType>
+GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(bool computeEigenvectors) {
+  const Index size = m_realQZ.matrixS().cols();
   if (m_realQZ.info() == Success) {
     // Resize storage
     m_alphas.resize(size);
@@ -308,7 +344,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
           v.setConstant(Scalar(0.0));
           v.coeffRef(i) = Scalar(1.0);
           // For singular eigenvalues do nothing more
-          if (abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
+          if (numext::abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
             // Non-singular eigenvalue
             const Scalar alpha = real(m_alphas.coeffRef(i));
             const Scalar beta = m_betas.coeffRef(i);
@@ -352,7 +388,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
         Matrix<RealScalar, 2, 2> S2 = mS.template block<2, 2>(i, i) * Matrix<Scalar, 2, 1>(b, a).asDiagonal();
 
         Scalar p = Scalar(0.5) * (S2.coeff(0, 0) - S2.coeff(1, 1));
-        Scalar z = sqrt(abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
+        Scalar z = numext::sqrt(numext::abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
         const ComplexScalar alpha = ComplexScalar(S2.coeff(1, 1) + p, (beta > 0) ? z : -z);
         m_alphas.coeffRef(i) = conj(alpha);
         m_alphas.coeffRef(i + 1) = alpha;

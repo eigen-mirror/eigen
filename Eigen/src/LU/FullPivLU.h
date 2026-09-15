@@ -606,8 +606,8 @@ struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_> >
     // the rows and cols to bring the nonnegligible pivots to the top of the main diagonal.
     // This is needed to apply our triangular solvers.
     // FIXME: simplify once triangularView supports rectangular matrices.
-    Matrix<typename MatrixType::Scalar, Dynamic, Dynamic, traits<MatrixType>::Options, MaxSmallDimAtCompileTime,
-           MatrixType::MaxColsAtCompileTime>
+    Matrix<typename MatrixType::Scalar, Dynamic, Dynamic, plain_object_options<MatrixType>::value,
+           MaxSmallDimAtCompileTime, MatrixType::MaxColsAtCompileTime>
         m(dec().matrixLU().block(0, 0, rank(), cols));
     for (Index i = 0; i < rank(); ++i) {
       if (i) m.row(i).head(i).setZero();

@@ -58,10 +58,15 @@ class ComplexQZ {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
+
+  /** \brief Type of the matrices returned by matrixQ() and matrixZ(): a plain matrix with the shape and storage
+   * options of \p MatrixType_, and \p MatrixType_ itself unless that is a Ref<>. */
+  using PlainMatrixType =
+      Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
 
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using Vec2 = Matrix<Scalar, 2, 1>;
@@ -73,7 +78,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix Q.
    */
-  const MatrixType& matrixQ() const {
+  const PlainMatrixType& matrixQ() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Q;
@@ -83,7 +88,7 @@ class ComplexQZ {
    *
    * \returns A const reference to the matrix Z.
    */
-  const MatrixType& matrixZ() const {
+  const PlainMatrixType& matrixZ() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Z;
@@ -134,22 +139,50 @@ class ComplexQZ {
    * \param[in] B         input matrix B
    * \param[in] computeQZ If false, the matrices Q and Z are not computed
    *
-   * This constructor calls the compute() method to compute the QZ decomposition.
+   * This constructor computes the QZ decomposition as the compute() method does.
    * If input matrices are sparse, call the constructor that uses only the
    * size as input the computeSparse(...) method.
    */
-  ComplexQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true, unsigned int maxIters = 400)
+  template <typename InputTypeA, typename InputTypeB>
+  ComplexQZ(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true,
+            unsigned int maxIters = 400)
       : m_n(A.rows()),
         m_maxIters(maxIters),
         m_computeQZ(computeQZ),
-        m_S(A.rows(), A.cols()),
-        m_T(A.rows(), A.cols()),
+        m_S(A.derived()),
+        m_T(B.derived()),
         m_Q(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * m_n) {
-    compute(A, B, computeQZ);
+    computeInPlace(computeQZ);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out] A         input matrix A
+   * \param[in,out] B         input matrix B
+   * \param[in]     computeQZ If false, the matrices Q and Z are not computed
+   * \param[in]     maxIters  Maximum number of iterations
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p A and \p B, which then
+   * hold S and T; Q and Z are stored in the decomposition object. Otherwise this constructor behaves like
+   * ComplexQZ(const EigenBase<InputTypeA>&, const EigenBase<InputTypeB>&, bool, unsigned int).
+   */
+  template <typename InputTypeA, typename InputTypeB>
+  ComplexQZ(EigenBase<InputTypeA>& A, EigenBase<InputTypeB>& B, bool computeQZ = true, unsigned int maxIters = 400)
+      : m_n(A.rows()),
+        m_maxIters(maxIters),
+        m_computeQZ(computeQZ),
+        m_S(A.derived()),
+        m_T(B.derived()),
+        m_Q(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
+            computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
+        m_ws(2 * m_n) {
+    computeInPlace(computeQZ);
   }
 
   /** \brief Compute the QZ decomposition of complex input matrices
@@ -158,7 +191,8 @@ class ComplexQZ {
    * \param[in] B         Matrix B.
    * \param[in] computeQZ If false, the matrices Q and Z are not computed.
    */
-  void compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
+  template <typename InputTypeA, typename InputTypeB>
+  void compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true);
 
   /** \brief Compute the decomposition of sparse complex input matrices.
    * Main difference to the compute(...) method is that it computes a
@@ -194,7 +228,8 @@ class ComplexQZ {
   bool m_isInitialized = false;
   bool m_computeQZ;
   ComputationInfo m_info = InvalidInput;
-  MatrixType m_S, m_T, m_Q, m_Z;
+  MatrixType m_S, m_T;
+  PlainMatrixType m_Q, m_Z;
   RealScalar m_normOfT, m_normOfS;
   Vec m_ws;
 
@@ -207,8 +242,10 @@ class ComplexQZ {
 
   inline Mat2 computeZk2(const Row2& b);
 
+  void computeInPlace(bool computeQZ);
+
   // This is basically taken from Eigen3::RealQZ
-  void hessenbergTriangular(const MatrixType& A, const MatrixType& B);
+  void hessenbergTriangular();
 
   // This function can be called when m_Q and m_Z are initialized and m_S, m_T
   // are in hessenberg-triangular form
@@ -229,19 +266,32 @@ class ComplexQZ {
 };
 
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, bool computeQZ) {
-  m_computeQZ = computeQZ;
-  m_n = A.rows();
+template <typename InputTypeA, typename InputTypeB>
+void ComplexQZ<MatrixType_>::compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ) {
+  eigen_assert(A.rows() == A.cols() && "A is not a square matrix");
+  eigen_assert(A.rows() == B.rows() && A.rows() == B.cols() &&
+               "B is not a square matrix or B is not of the same size as A");
+  // Copy A and B, these will be the matrices on which we operate later
+  m_S = A.derived();
+  m_T = B.derived();
+  computeInPlace(computeQZ);
+}
 
-  eigen_assert(m_n == A.cols() && "A is not a square matrix");
-  eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
+/** \internal Computes the QZ decomposition of the pencil held in (m_S, m_T), which are overwritten by S and T. */
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
+  m_computeQZ = computeQZ;
+  m_n = m_S.rows();
+
+  eigen_assert(m_n == m_S.cols() && "A is not a square matrix");
+  eigen_assert(m_n == m_T.rows() && m_n == m_T.cols() && "B is not a square matrix or B is not of the same size as A");
 
   m_isInitialized = true;
   m_global_iter = 0;
   m_info = Success;
 
   // This will initialize m_Q and m_Z and bring m_S, m_T to hessenberg-triangular form
-  hessenbergTriangular(A, B);
+  hessenbergTriangular();
 
   // We assume that we already have that S is upper-Hessenberg and T is
   // upper-triangular. This is what the hessenbergTriangular(...) method does
@@ -250,22 +300,18 @@ void ComplexQZ<MatrixType_>::compute(const MatrixType& A, const MatrixType& B, b
 
 // This is basically taken from Eigen3::RealQZ
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::hessenbergTriangular(const MatrixType& A, const MatrixType& B) {
-  // Copy A and B, these will be the matrices on which we operate later
-  m_S = A;
-  m_T = B;
-
-  // Perform QR decomposition of the matrix Q
-  HouseholderQR<MatrixType> qr(m_T);
-  m_T = qr.matrixQR();
-  m_T.template triangularView<StrictlyLower>().setZero();
+void ComplexQZ<MatrixType_>::hessenbergTriangular() {
+  // Perform the QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
+  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qr(m_T);
 
   if (m_computeQZ) m_Q = qr.householderQ();
 
   // overwrite S with Q* x S
   m_S.applyOnTheLeft(qr.householderQ().adjoint());
 
-  if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
+  m_T.template triangularView<StrictlyLower>().setZero();
+
+  if (m_computeQZ) m_Z = PlainMatrixType::Identity(m_n, m_n);
 
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= m_n - 3; j++) {

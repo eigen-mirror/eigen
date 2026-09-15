@@ -31,6 +31,11 @@ void check_power_of_two_scaling_factor() {
     scaledInPlace(0) = value;
     internal::safe_scaling<T>::scale_in_place(scaledInPlace, value, factors);
     VERIFY_IS_EQUAL(scaledInPlace, scaled);
+    scaledInPlace(0) = value;
+    const auto inPlaceFactors = internal::safe_scaling<T>::scale_in_place(scaledInPlace, value);
+    VERIFY_IS_EQUAL(inPlaceFactors.scale, factors.scale);
+    VERIFY_IS_EQUAL(inPlaceFactors.invScale, factors.invScale);
+    VERIFY_IS_EQUAL(scaledInPlace, scaled);
 
     T restored;
     internal::safe_scaling<T>::unscale_to(restored, scaled(0), factors);
@@ -65,6 +70,7 @@ void check_power_of_two_scaling_factor() {
 
   check_round_trip((std::numeric_limits<T>::min)());
   check_round_trip(T(0.75));
+  check_round_trip(T(1.5));
   check_round_trip(T(3));
   check_round_trip((std::numeric_limits<T>::max)());
 
@@ -334,6 +340,11 @@ void check_arithmetic_scaling_expression() {
     VERIFY_IS_EQUAL(adjoint, expected.adjoint());
     VERIFY_IS_EQUAL(expressionFactors.scale, factors.scale);
     VERIFY_IS_EQUAL(expressionFactors.invScale, factors.invScale);
+    Vector2 inPlace = input;
+    const auto inPlaceFactors = Scaling::scale_in_place(inPlace, maxCoeff);
+    VERIFY_IS_EQUAL(inPlace, expected);
+    VERIFY_IS_EQUAL(inPlaceFactors.scale, factors.scale);
+    VERIFY_IS_EQUAL(inPlaceFactors.invScale, factors.invScale);
   }
 }
 
@@ -368,6 +379,12 @@ void check_subnormal_preserving_scaling() {
   VERIFY_IS_EQUAL(expressionFactors.invScale, factors.invScale);
   VERIFY_IS_EQUAL(scaledExpression, scaled);
 
+  Matrix<Scalar, 2, 1> scaledInPlace = input;
+  const auto inPlaceFactors = internal::safe_scaling<RealScalar>::scale_in_place(scaledInPlace, maxCoeff);
+  VERIFY_IS_EQUAL(inPlaceFactors.scale, factors.scale);
+  VERIFY_IS_EQUAL(inPlaceFactors.invScale, factors.invScale);
+  VERIFY_IS_EQUAL(scaledInPlace, scaled);
+
   Matrix<Scalar, 1, 1> scaledSubnormal;
   const auto subnormalFactors =
       internal::safe_scaling<RealScalar>::scale_to(scaledSubnormal, subnormalInput, subnormalMaxCoeff);
@@ -386,6 +403,10 @@ void check_subnormal_preserving_scaling() {
     Matrix<Scalar, 2, 1> unchanged;
     const auto specialFactors = internal::safe_scaling<RealScalar>::scale_to(unchanged, input, special);
     internal::safe_scaling<RealScalar>::unscale_in_place(unchanged, special, specialFactors);
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(unchanged(i), input(i)));
+    const auto inPlaceSpecialFactors = internal::safe_scaling<RealScalar>::scale_in_place(unchanged, special);
+    VERIFY_IS_EQUAL(inPlaceSpecialFactors.scale, RealScalar(1));
+    VERIFY_IS_EQUAL(inPlaceSpecialFactors.invScale, RealScalar(1));
     for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(unchanged(i), input(i)));
   }
 }

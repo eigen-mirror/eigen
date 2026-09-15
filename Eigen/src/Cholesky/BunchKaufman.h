@@ -168,7 +168,7 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
         m_n_zero(0),
         m_isInitialized(false),
         m_info(InvalidInput) {
-    compute(matrix.derived());
+    computeInPlace();
   }
 
   /** \returns a view of the unit upper triangular matrix U */
@@ -359,6 +359,8 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
    * For \c Conjugate == false the transpose of D is used instead (relevant for the complex case). */
   template <bool Conjugate, typename Derived>
   void solveInPlaceD(MatrixBase<Derived>& x) const;
+
+  BunchKaufman& computeInPlace();
 
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
@@ -931,9 +933,15 @@ template <typename MatrixType, int UpLo_>
 template <typename InputType>
 BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
   eigen_assert(a.rows() == a.cols());
-  const Index size = a.rows();
-
   m_matrix = a.derived();
+  return computeInPlace();
+}
+
+/** \internal Factorizes the matrix held in m_matrix, which is overwritten by the packed factors. */
+template <typename MatrixType, int UpLo_>
+BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::computeInPlace() {
+  eigen_assert(m_matrix.rows() == m_matrix.cols());
+  const Index size = m_matrix.rows();
 
   // L1 norm of the implicit self-adjoint matrix, for rcond().
   m_l1_norm = m_matrix.template selfadjointView<UpLo_>().l1Norm();

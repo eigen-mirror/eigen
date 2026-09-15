@@ -19,6 +19,9 @@
 
 namespace Eigen {
 
+template <typename MatrixType_>
+class EigenSolver;
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *
@@ -62,7 +65,7 @@ class RealSchur {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -72,6 +75,11 @@ class RealSchur {
 
   using EigenvalueType = Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
   using ColumnVectorType = Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
+
+  /** \brief Type of the matrix returned by matrixU(): a plain matrix with the shape and storage options of
+   * \p MatrixType_, and \p MatrixType_ itself unless that is a Ref<>. */
+  using MatrixUType =
+      Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
 
   /** \brief Default constructor.
    *
@@ -88,10 +96,11 @@ class RealSchur {
       : m_matT(size, size),
         m_matU(size, size),
         m_workspaceVector(size),
-        m_hess(size),
         m_isInitialized(false),
         m_matUisUptodate(false),
-        m_maxIters(-1) {}
+        m_maxIters(-1) {
+    if (size > 1) m_hCoeffs.resize(size - 1);
+  }
 
   /** \brief Constructor; computes real Schur decomposition of given matrix.
    *
@@ -108,11 +117,30 @@ class RealSchur {
       : m_matT(matrix.rows(), matrix.cols()),
         m_matU(matrix.rows(), matrix.cols()),
         m_workspaceVector(matrix.rows()),
-        m_hess(matrix.rows()),
         m_isInitialized(false),
         m_matUisUptodate(false),
         m_maxIters(-1) {
     compute(matrix.derived(), computeU);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix    Square matrix whose Schur decomposition is to be computed.
+   * \param[in]      computeU  If true, both T and U are computed; if false, only T is computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
+   * the quasi-triangular matrix T returned by matrixT(); U is stored in the decomposition object. This overload is
+   * only available for Ref<>; owning matrix types use the constructor taking a const input.
+   */
+  template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
+  explicit RealSchur(EigenBase<InputType>& matrix, bool computeU = true)
+      : m_matT(matrix.derived()),
+        m_matU(matrix.rows(), matrix.cols()),
+        m_workspaceVector(matrix.rows()),
+        m_isInitialized(false),
+        m_matUisUptodate(false),
+        m_maxIters(-1) {
+    computeInPlace(computeU);
   }
 
   /** \brief Returns the orthogonal matrix in the Schur decomposition.
@@ -126,7 +154,7 @@ class RealSchur {
    *
    * \sa RealSchur(const MatrixType&, bool) for an example
    */
-  const MatrixType& matrixU() const {
+  const MatrixUType& matrixU() const {
     eigen_assert(m_isInitialized && "RealSchur is not initialized.");
     eigen_assert(m_matUisUptodate && "The matrix U has not been computed during the RealSchur decomposition.");
     return m_matU;
@@ -218,10 +246,17 @@ class RealSchur {
   static const int m_maxIterationsPerRow = 40;
 
  private:
+  // EigenSolver computes the eigenvectors of T and back-transforms U within this storage.
+  friend class EigenSolver<MatrixType>;
+
+  using CoeffVectorType =
+      Matrix<Scalar, RowsAtCompileTime == Dynamic ? Dynamic : RowsAtCompileTime - 1, 1, Options & ~RowMajor,
+             MaxRowsAtCompileTime == Dynamic ? Dynamic : MaxRowsAtCompileTime - 1, 1>;
+
   MatrixType m_matT;
-  MatrixType m_matU;
+  MatrixUType m_matU;
   ColumnVectorType m_workspaceVector;
-  HessenbergDecomposition<MatrixType> m_hess;
+  CoeffVectorType m_hCoeffs;
   ComputationInfo m_info;
   bool m_isInitialized;
   bool m_matUisUptodate;
@@ -229,6 +264,7 @@ class RealSchur {
 
   using Vector3s = Matrix<Scalar, 3, 1>;
 
+  RealSchur& computeInPlace(bool computeU);
   Scalar computeNormOfT();
   Index findSmallSubdiagEntry(Index iu, const Scalar& considerAsZero);
   void splitOffTwoRows(Index iu, bool computeU, const Scalar& exshift);
@@ -241,31 +277,34 @@ class RealSchur {
 template <typename MatrixType>
 template <typename InputType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeU) {
-  const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
-
   eigen_assert(matrix.cols() == matrix.rows());
-  Index maxIters = m_maxIters;
-  if (maxIters == -1) maxIters = m_maxIterationsPerRow * matrix.rows();
+  m_matT = matrix.derived();
+  return computeInPlace(computeU);
+}
 
-  Scalar scale = matrix.derived().cwiseAbs().maxCoeff();
+/** \internal Computes the Schur decomposition of the matrix held in m_matT, which is overwritten by T. */
+template <typename MatrixType>
+RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(bool computeU) {
+  const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
+  const Index n = m_matT.rows();
+  eigen_assert(m_matT.cols() == n);
+
+  Scalar scale = m_matT.cwiseAbs().maxCoeff();
   if (scale < considerAsZero) {
-    m_matT.setZero(matrix.rows(), matrix.cols());
-    if (computeU) m_matU.setIdentity(matrix.rows(), matrix.cols());
+    m_matT.setZero();
+    if (computeU) m_matU.setIdentity(n, n);
     m_info = Success;
     m_isInitialized = true;
     m_matUisUptodate = computeU;
     return *this;
   }
+  m_matT /= scale;
 
   // Step 1. Reduce to Hessenberg form
-  m_hess.compute(matrix.derived() / scale);
+  internal::hessenberg_decomposition_inplace(m_matT, m_hCoeffs, m_workspaceVector, m_matU, computeU);
 
   // Step 2. Reduce to real Schur form
-  // Note: we copy m_hess.matrixQ() into m_matU here and not in computeFromHessenberg
-  //       to be able to pass our working-space buffer for the Householder to Dense evaluation.
-  m_workspaceVector.resize(matrix.cols());
-  if (computeU) m_hess.matrixQ().evalTo(m_matU, m_workspaceVector);
-  computeFromHessenberg(m_hess.matrixH(), m_matU, computeU);
+  computeFromHessenberg(m_matT, m_matU, computeU);
 
   m_matT *= scale;
 
@@ -275,7 +314,7 @@ template <typename MatrixType>
 template <typename HessMatrixType, typename OrthMatrixType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMatrixType& matrixH,
                                                                     const OrthMatrixType& matrixQ, bool computeU) {
-  m_matT = matrixH;
+  if (!internal::is_same_dense(m_matT, matrixH)) m_matT = matrixH;
   m_workspaceVector.resize(m_matT.cols());
   if (computeU && !internal::is_same_dense(m_matU, matrixQ)) m_matU = matrixQ;
 

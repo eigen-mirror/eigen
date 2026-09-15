@@ -439,6 +439,24 @@ struct size_of_xpr_at_compile_time
 
 template <typename T, typename StorageKind = typename traits<T>::StorageKind>
 struct plain_matrix_type;
+
+/* plain_object_options : the Options template argument (storage order and alignment) of the plain object that a
+ * decomposition's MatrixType stores: the type's own for a Matrix or Array, the referenced type's for a Ref, whose own
+ * Options is a pointer-alignment requirement instead.
+ */
+template <typename T>
+struct plain_object_options {
+  static constexpr int value = int(traits<T>::Options);
+};
+template <typename PlainObjectType, int Options, typename StrideType>
+struct plain_object_options<Ref<PlainObjectType, Options, StrideType>> : plain_object_options<PlainObjectType> {};
+
+/* is_ref : whether T is a Ref<>, i.e. a decomposition instantiated on it works in the referenced memory. */
+template <typename T>
+struct is_ref : std::false_type {};
+template <typename PlainObjectType, int Options, typename StrideType>
+struct is_ref<Ref<PlainObjectType, Options, StrideType>> : std::true_type {};
+
 template <typename T, typename BaseClassType, int Flags>
 struct plain_matrix_type_dense;
 template <typename T>

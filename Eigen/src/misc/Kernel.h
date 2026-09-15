@@ -24,9 +24,9 @@ namespace internal {
 template <typename DecompositionType>
 struct traits<kernel_retval_base<DecompositionType> > {
   using MatrixType = typename DecompositionType::MatrixType;
-  using ReturnType =
-      Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, Dynamic, traits<MatrixType>::Options,
-             MatrixType::MaxColsAtCompileTime, MatrixType::MaxColsAtCompileTime>;
+  using ReturnType = Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, Dynamic,
+                            plain_object_options<MatrixType>::value, MatrixType::MaxColsAtCompileTime,
+                            MatrixType::MaxColsAtCompileTime>;
 };
 
 template <typename DecompositionType_>

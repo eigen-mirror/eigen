@@ -80,7 +80,7 @@ class Tridiagonalization {
   enum {
     Size = MatrixType::RowsAtCompileTime,
     SizeMinusOne = Size == Dynamic ? Dynamic : (Size > 1 ? Size - 1 : 1),
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxSize = MatrixType::MaxRowsAtCompileTime,
     MaxSizeMinusOne = MaxSize == Dynamic ? Dynamic : (MaxSize > 1 ? MaxSize - 1 : 1)
   };
@@ -132,6 +132,21 @@ class Tridiagonalization {
    */
   template <typename InputType>
   explicit Tridiagonalization(const EigenBase<InputType>& matrix)
+      : m_matrix(matrix.derived()), m_hCoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1), m_isInitialized(false) {
+    internal::tridiagonalization_inplace(m_matrix, m_hCoeffs);
+    m_isInitialized = true;
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix  Selfadjoint matrix whose tridiagonal decomposition is to be computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
+   * the packed representation returned by packedMatrix(). Otherwise this constructor behaves like
+   * Tridiagonalization(const EigenBase<InputType>&).
+   */
+  template <typename InputType>
+  explicit Tridiagonalization(EigenBase<InputType>& matrix)
       : m_matrix(matrix.derived()), m_hCoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1), m_isInitialized(false) {
     internal::tridiagonalization_inplace(m_matrix, m_hCoeffs);
     m_isInitialized = true;

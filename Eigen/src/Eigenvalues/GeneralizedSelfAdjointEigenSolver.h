@@ -105,10 +105,35 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa compute(const MatrixType&, const MatrixType&, int)
    */
-  GeneralizedSelfAdjointEigenSolver(const MatrixType& matA, const MatrixType& matB,
+  template <typename InputTypeA, typename InputTypeB>
+  GeneralizedSelfAdjointEigenSolver(const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB,
                                     int options = ComputeEigenvectors | Ax_lBx)
       : Base(matA.cols()) {
-    compute(matA, matB, options);
+    compute(matA.derived(), matB.derived(), options);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matA  Selfadjoint matrix in matrix pencil.
+   *                       Only the lower triangular part of the matrix is referenced.
+   * \param[in,out]  matB  Positive-definite matrix in matrix pencil.
+   *                       Only the lower triangular part of the matrix is referenced.
+   * \param[in]  options A or-ed set of flags {#ComputeEigenvectors,#EigenvaluesOnly} | {#Ax_lBx,#ABx_lx,#BAx_lx}.
+   *                     Default is #ComputeEigenvectors|#Ax_lBx.
+   *
+   * This constructor is only available when \p MatrixType is a Ref<>. The decomposition is then computed within
+   * the memory of \p matA and \p matB: \p matB receives the Cholesky factor of B and \p matA the transformed
+   * matrix C, then, with #ComputeEigenvectors, the eigenvectors, which eigenvectors() refers to. The forms
+   * #ABx_lx and #BAx_lx allocate one temporary of the size of \p matA for the products that cannot run in place.
+   */
+  template <typename InputTypeA, typename InputTypeB, bool IsRef = internal::is_ref<MatrixType>::value,
+            std::enable_if_t<IsRef, int> = 0>
+  GeneralizedSelfAdjointEigenSolver(EigenBase<InputTypeA>& matA, EigenBase<InputTypeB>& matB,
+                                    int options = ComputeEigenvectors | Ax_lBx)
+      : Base(matA, typename Base::BindStorageTag()), m_cholB(matB.derived()), m_matC(matA.derived()) {
+    // Complete the upper triangle from the referenced lower one.
+    m_matC = m_matC.template selfadjointView<Lower>();
+    computeInPlace(options);
   }
 
   /** \brief Computes generalized eigendecomposition of given matrix pencil.
@@ -153,7 +178,8 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
    *
    * \sa GeneralizedSelfAdjointEigenSolver(const MatrixType&, const MatrixType&, int)
    */
-  GeneralizedSelfAdjointEigenSolver& compute(const MatrixType& matA, const MatrixType& matB,
+  template <typename InputTypeA, typename InputTypeB>
+  GeneralizedSelfAdjointEigenSolver& compute(const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB,
                                              int options = ComputeEigenvectors | Ax_lBx);
 
  protected:
@@ -161,12 +187,29 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   // or computed with once, does not allocate again.
   LLT<MatrixType> m_cholB;
   MatrixType m_matC;
+
+ private:
+  GeneralizedSelfAdjointEigenSolver& computeInPlace(int options);
 };
 
 template <typename MatrixType>
+template <typename InputTypeA, typename InputTypeB>
 GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
-    const MatrixType& matA, const MatrixType& matB, int options) {
+    const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB, int options) {
   eigen_assert(matA.cols() == matA.rows() && matB.rows() == matA.rows() && matB.cols() == matB.rows());
+
+  // Compute the cholesky decomposition of matB = L L' = U'U
+  m_cholB.compute(matB.derived());
+  m_matC = matA.derived().template selfadjointView<Lower>();
+  return computeInPlace(options);
+}
+
+/** \internal Computes the generalized eigendecomposition from the Cholesky factor of B held by m_cholB and the
+ * selfadjoint matrix A held in full by m_matC, which is overwritten by the transformed matrix C. */
+template <typename MatrixType>
+GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::computeInPlace(
+    int options) {
+  eigen_assert(m_matC.cols() == m_matC.rows() && m_cholB.rows() == m_matC.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                ((options & GenEigMask) == 0 || (options & GenEigMask) == Ax_lBx || (options & GenEigMask) == ABx_lx ||
                 (options & GenEigMask) == BAx_lx) &&
@@ -174,13 +217,12 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 
   bool computeEigVecs = ((options & EigVecMask) == 0) || ((options & EigVecMask) == ComputeEigenvectors);
 
-  // Compute the cholesky decomposition of matB = L L' = U'U
-  m_cholB.compute(matB);
-
   int type = (options & GenEigMask);
   if (type == 0) type = Ax_lBx;
 
-  m_matC = matA.template selfadjointView<Lower>();
+  // In the inplace decomposition the eigenvector storage is the matrix A itself, i.e. m_matC: the products of the
+  // ABx_lx and BAx_lx forms, which cannot run in place, then go through a temporary instead.
+  const bool eivecIsMatC = internal::is_same_dense(Base::m_eivec, m_matC);
 
   if (type == Ax_lBx) {
     // compute C = inv(L) A inv(L')
@@ -194,8 +236,13 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
   } else if (type == ABx_lx) {
     // compute C = L' A L, using Base::m_eivec for the intermediate product: Base::compute()
     // overwrites it before reading it.
-    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
-    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
+    if (eivecIsMatC) {
+      typename Base::PlainMatrixType tmp = m_matC * m_cholB.matrixL();
+      m_matC.noalias() = m_cholB.matrixU() * tmp;
+    } else {
+      Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+      m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
+    }
 
     Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
@@ -203,16 +250,25 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
     if (computeEigVecs) m_cholB.matrixU().solveInPlace(Base::m_eivec);
   } else if (type == BAx_lx) {
     // compute C = L' A L
-    Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
-    m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
+    if (eivecIsMatC) {
+      typename Base::PlainMatrixType tmp = m_matC * m_cholB.matrixL();
+      m_matC.noalias() = m_cholB.matrixU() * tmp;
+    } else {
+      Base::m_eivec.noalias() = m_matC * m_cholB.matrixL();
+      m_matC.noalias() = m_cholB.matrixU() * Base::m_eivec;
+    }
 
     Base::compute(m_matC, computeEigVecs ? ComputeEigenvectors : EigenvaluesOnly);
 
     // transform back the eigen vectors: evecs = L * evecs, using m_matC as the
     // intermediate: Base::compute() has consumed it.
     if (computeEigVecs) {
-      m_matC.noalias() = m_cholB.matrixL() * Base::m_eivec;
-      Base::m_eivec = m_matC;
+      if (eivecIsMatC) {
+        Base::m_eivec = m_cholB.matrixL() * Base::m_eivec;
+      } else {
+        m_matC.noalias() = m_cholB.matrixL() * Base::m_eivec;
+        Base::m_eivec = m_matC;
+      }
     }
   }
 

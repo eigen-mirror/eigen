@@ -22,7 +22,7 @@ void wilkinson_shift_avoids_squared_subdiagonal() {
       RealScalar diag[2] = {td, -td};
       RealScalar subdiag[1] = {RealScalar(subdiag_sign) * subdiag_before};
 
-      internal::tridiagonal_qr_step<RealScalar, RealScalar, int>(diag, subdiag, 0, 1, nullptr, 2);
+      internal::tridiagonal_qr_step<RealScalar, int, Matrix<RealScalar, 2, 2>>(diag, subdiag, 0, 1, nullptr);
 
       // A Wilkinson shift nearly diagonalizes this 2x2 block in one step. Reassociating its fallback through e^2
       // under fast-math makes the correction underflow under FTZ and instead leaves the off-diagonal unchanged.
@@ -49,7 +49,7 @@ void selfadjoint_eigensolver_preserves_tiny_block() {
   Matrix<RealScalar, 3, 3> matrix;
   matrix << RealScalar(1), RealScalar(0), RealScalar(0), RealScalar(0), td, e, RealScalar(0), e, -td;
 
-  SelfAdjointEigenSolver<Matrix<RealScalar, 3, 3> > solver(matrix, EigenvaluesOnly);
+  SelfAdjointEigenSolver<Matrix<RealScalar, 3, 3>> solver(matrix, EigenvaluesOnly);
   VERIFY_IS_EQUAL(solver.info(), Success);
   const RealScalar kRelative = RealScalar(8) * epsilon;
   VERIFY(numext::abs(solver.eigenvalues()(0) + e) <= kRelative * e);

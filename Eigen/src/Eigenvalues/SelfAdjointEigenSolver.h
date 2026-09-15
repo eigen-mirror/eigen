@@ -111,7 +111,7 @@ class SelfAdjointEigenSolver {
   enum {
     Size = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
 
@@ -119,7 +119,18 @@ class SelfAdjointEigenSolver {
   using Scalar = typename MatrixType::Scalar;
   using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
 
-  using EigenvectorsType = Matrix<Scalar, Size, Size, ColMajor, MaxColsAtCompileTime, MaxColsAtCompileTime>;
+  /** \brief Plain matrix type with the shape and storage options of \p MatrixType_; \p MatrixType_ itself unless
+   * that is a Ref<>. */
+  using PlainMatrixType =
+      Matrix<Scalar, Size, ColsAtCompileTime, Options, MatrixType::MaxRowsAtCompileTime, MaxColsAtCompileTime>;
+
+  /** \brief Type of the matrix returned by eigenvectors().
+   *
+   * A column-major plain matrix, or \p MatrixType_ itself when that is a Ref<>: the \link InplaceDecomposition
+   * inplace decomposition \endlink then stores the eigenvectors in the referenced matrix. */
+  using EigenvectorsType =
+      std::conditional_t<internal::is_ref<MatrixType>::value, MatrixType,
+                         Matrix<Scalar, Size, Size, ColMajor, MaxColsAtCompileTime, MaxColsAtCompileTime>>;
 
   /** \brief Real scalar type for \p MatrixType_.
    *
@@ -208,6 +219,24 @@ class SelfAdjointEigenSolver {
         m_isInitialized(false),
         m_eigenvectorsOk(false) {
     compute(matrix.derived(), options);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix  Selfadjoint matrix whose eigendecomposition is to
+   *    be computed. Only the lower triangular part of the matrix is referenced.
+   * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, whose content is
+   * destroyed: with #ComputeEigenvectors it holds the eigenvectors afterwards and eigenvectors() refers to it, with
+   * #EigenvaluesOnly its content is unspecified. This overload is only available for Ref<>; owning matrix types
+   * use the constructor taking a const input.
+   */
+  template <typename InputType, bool IsRef = internal::is_ref<MatrixType>::value, std::enable_if_t<IsRef, int> = 0>
+  EIGEN_DEVICE_FUNC explicit SelfAdjointEigenSolver(EigenBase<InputType>& matrix, int options = ComputeEigenvectors)
+      : SelfAdjointEigenSolver(matrix, BindStorageTag()) {
+    m_eivec.template triangularView<StrictlyUpper>().setZero();
+    computeInPlace(options);
   }
 
   /** \brief Computes eigendecomposition of given matrix.
@@ -345,7 +374,7 @@ class SelfAdjointEigenSolver {
    *
    * \sa operatorInverseSqrt(), <a href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
-  EIGEN_DEVICE_FUNC MatrixType operatorSqrt() const {
+  EIGEN_DEVICE_FUNC PlainMatrixType operatorSqrt() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec * m_eivalues.cwiseSqrt().asDiagonal() * m_eivec.adjoint();
@@ -361,7 +390,7 @@ class SelfAdjointEigenSolver {
    * \sa operatorInverseSqrt(), operatorSqrt(),
    * <a href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
-  EIGEN_DEVICE_FUNC MatrixType operatorExp() const {
+  EIGEN_DEVICE_FUNC PlainMatrixType operatorExp() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec * m_eivalues.array().exp().matrix().asDiagonal() * m_eivec.adjoint();
@@ -385,7 +414,7 @@ class SelfAdjointEigenSolver {
    * \sa operatorSqrt(), MatrixBase::inverse(), <a
    * href="contrib/group__MatrixFunctions__Module.html">MatrixFunctions Module</a>
    */
-  EIGEN_DEVICE_FUNC MatrixType operatorInverseSqrt() const {
+  EIGEN_DEVICE_FUNC PlainMatrixType operatorInverseSqrt() const {
     eigen_assert(m_isInitialized && "SelfAdjointEigenSolver is not initialized.");
     eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
     return m_eivec * m_eivalues.cwiseInverse().cwiseSqrt().asDiagonal() * m_eivec.adjoint();
@@ -410,6 +439,25 @@ class SelfAdjointEigenSolver {
  protected:
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
+  /** \internal Tag of the constructor that binds the eigenvector storage without computing anything. */
+  struct BindStorageTag {};
+
+  /** \internal Binds the eigenvector storage to \a matrix, or copies it when #EigenvectorsType is a plain matrix, and
+   * allocates the workspace without computing anything. */
+  template <typename InputType>
+  EIGEN_DEVICE_FUNC SelfAdjointEigenSolver(EigenBase<InputType>& matrix, BindStorageTag)
+      : m_eivec(matrix.derived()),
+        m_workspace(matrix.cols()),
+        m_eivalues(matrix.cols()),
+        m_subdiag(matrix.rows() > 1 ? matrix.rows() - 1 : 1),
+        m_hcoeffs(matrix.cols() > 1 ? matrix.cols() - 1 : 1),
+        m_isInitialized(false),
+        m_eigenvectorsOk(false) {}
+
+  /** \internal Computes the eigendecomposition of the selfadjoint matrix held in m_eivec, whose lower triangle is
+   * referenced; the eigenvectors overwrite it when requested. */
+  EIGEN_DEVICE_FUNC SelfAdjointEigenSolver& computeInPlace(int options);
+
   EigenvectorsType m_eivec;
   VectorType m_workspace;
   RealVectorType m_eivalues;
@@ -432,18 +480,16 @@ namespace internal {
  * \param subdiag the sub-diagonal part of the input selfadjoint tridiagonal matrix
  * \param start starting index of the submatrix to work on
  * \param end last+1 index of the submatrix to work on
- * \param matrixQ pointer to the column-major matrix holding the eigenvectors, can be 0
- * \param n size of the input matrix
+ * \param matrixQ pointer to the matrix accumulating the eigenvectors, can be null
  *
- * For compilation efficiency reasons, this procedure does not use eigen expression
- * for its arguments.
+ * For compilation efficiency reasons, the tridiagonal matrix is passed as raw pointers.
  *
  * Implemented from Golub's "Matrix Computations", algorithm 8.3.2:
  * "implicit symmetric QR step with Wilkinson shift"
  */
-template <typename RealScalar, typename Scalar, typename Index>
+template <typename RealScalar, typename Index, typename MatrixQType>
 EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end,
-                                                  Scalar* matrixQ, Index n);
+                                                  MatrixQType* matrixQ);
 }  // namespace internal
 
 template <typename MatrixType>
@@ -451,19 +497,23 @@ template <typename InputType>
 EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::compute(
     const EigenBase<InputType>& a_matrix, int options) {
   const InputType& matrix(a_matrix.derived());
-
-  EIGEN_USING_STD(abs);
   eigen_assert(matrix.cols() == matrix.rows());
+  m_eivec = matrix.template triangularView<Lower>();
+  return computeInPlace(options);
+}
+
+template <typename MatrixType>
+EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeInPlace(int options) {
+  eigen_assert(m_eivec.cols() == m_eivec.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
-  Index n = matrix.cols();
+  Index n = m_eivec.cols();
   m_eivalues.resize(n, 1);
 
   if (n == 1) {
-    m_eivec = matrix;
     m_eivalues.coeffRef(0, 0) = numext::real(m_eivec.coeff(0, 0));
-    if (computeEigenvectors) m_eivec.setOnes(n, n);
+    if (computeEigenvectors) m_eivec.setOnes();
     m_info = (numext::isfinite)(m_eivalues.coeffRef(0, 0)) ? Success : NoConvergence;
     m_isInitialized = true;
     m_eigenvectorsOk = computeEigenvectors;
@@ -479,7 +529,6 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   // well-conditioned. Note: for block-diagonal matrices with widely separated scales, this
   // can underflow small blocks. Users with such matrices should tridiagonalize separately
   // and call computeFromTridiagonal(), which uses per-block scaling.
-  mat = matrix.template triangularView<Lower>();
   RealScalar scale = mat.cwiseAbs().maxCoeff();
   if (!(numext::isfinite)(scale)) {
     // Input contains Inf or NaN.
@@ -559,7 +608,6 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
                                                               const Index maxIterations, bool computeEigenvectors,
                                                               MatrixType& eivec) {
   ComputationInfo info;
-  using Scalar = typename MatrixType::Scalar;
 
   Index n = diag.size();
   Index end = n - 1;
@@ -641,7 +689,7 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
     }
 
     internal::tridiagonal_qr_step(diag.data(), subdiag.data(), start, end,
-                                  computeEigenvectors ? eivec.data() : (Scalar*)0, n);
+                                  computeEigenvectors ? &eivec : static_cast<MatrixType*>(nullptr));
   }
 
   // Unscale any remaining scaled block.
@@ -694,6 +742,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
   using VectorType = typename SolverType::RealVectorType;
   using Scalar = typename SolverType::Scalar;
   using EigenvectorsType = typename SolverType::EigenvectorsType;
+  using PlainMatrixType = typename SolverType::PlainMatrixType;
 
   /** \internal
    * Computes the roots of the characteristic polynomial of \a m.
@@ -738,7 +787,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     roots(2) = c2_over_3 + Scalar(2) * rho * cos_theta;
   }
 
-  EIGEN_DEVICE_FUNC static inline bool extract_kernel(MatrixType& mat, Ref<VectorType> res,
+  EIGEN_DEVICE_FUNC static inline bool extract_kernel(PlainMatrixType& mat, Ref<VectorType> res,
                                                       Ref<VectorType> representative) {
     EIGEN_USING_STD(abs);
     EIGEN_USING_STD(sqrt);
@@ -773,10 +822,10 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
     Scalar shift = mat.trace() / Scalar(3);
     // TODO: avoid this copy. Currently necessary to suppress bogus values when determining maxCoeff and for
     // computing the eigenvectors later.
-    MatrixType scaledMat = mat.template selfadjointView<Lower>();
+    PlainMatrixType scaledMat = mat.template selfadjointView<Lower>();
     scaledMat.diagonal().array() -= shift;
     Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > 0) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    if (scale > 0) direct_selfadjoint_eigensolver_matrix_scaling<PlainMatrixType>::run(scaledMat, scale);
 
     // compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -794,7 +843,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 3, false> {
         // All three eigenvalues are numerically the same
         eivecs.setIdentity();
       } else {
-        MatrixType tmp;
+        PlainMatrixType tmp;
         tmp = scaledMat;
 
         // Compute the eigenvector of the most distinct eigenvalue
@@ -849,6 +898,7 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
   using VectorType = typename SolverType::RealVectorType;
   using Scalar = typename SolverType::Scalar;
   using EigenvectorsType = typename SolverType::EigenvectorsType;
+  using PlainMatrixType = typename SolverType::PlainMatrixType;
 
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
     EIGEN_USING_STD(sqrt);
@@ -872,11 +922,11 @@ struct direct_selfadjoint_eigenvalues<SolverType, 2, false> {
 
     // Shift the matrix to the mean eigenvalue and map the matrix coefficients to [-1:1] to avoid over- and underflow.
     Scalar shift = mat.trace() / Scalar(2);
-    MatrixType scaledMat = mat;
+    PlainMatrixType scaledMat = mat;
     scaledMat.coeffRef(0, 1) = mat.coeff(1, 0);
     scaledMat.diagonal().array() -= shift;
     Scalar scale = scaledMat.cwiseAbs().maxCoeff();
-    if (scale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<MatrixType>::run(scaledMat, scale);
+    if (scale > Scalar(0)) direct_selfadjoint_eigensolver_matrix_scaling<PlainMatrixType>::run(scaledMat, scale);
 
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);
@@ -924,11 +974,10 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
 
 namespace internal {
 
-// Francis implicit QR step. matrixQ, if non-null, is column-major: SelfAdjointEigenSolver's
-// EigenvectorsType is hardcoded ColMajor regardless of the user's MatrixType storage order.
-template <typename RealScalar, typename Scalar, typename Index>
+// Francis implicit QR step; the rotations accumulate into *matrixQ when it is non-null.
+template <typename RealScalar, typename Index, typename MatrixQType>
 EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* subdiag, Index start, Index end,
-                                                  Scalar* matrixQ, Index n) {
+                                                  MatrixQType* matrixQ) {
   // Wilkinson Shift.
   RealScalar td = (diag[end - 1] - diag[end]) * RealScalar(0.5);
   RealScalar e = subdiag[end - 1];
@@ -989,8 +1038,17 @@ EIGEN_DEVICE_FUNC static void tridiagonal_qr_step(RealScalar* diag, RealScalar* 
 
     // apply the givens rotation to the unit matrix Q = Q * G
     if (matrixQ) {
-      Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor> > q(matrixQ, n, n);
-      q.applyOnTheRight(k, k + 1, rot);
+      // Contiguous column-major storage is rotated through a dynamic-size map: the rotation kernel then dispatches
+      // on the runtime alignment for fixed-size matrices too, and rounds as it always did. Other storage (a
+      // row-major Ref<>) is rotated through the matrix type itself.
+      EIGEN_IF_CONSTEXPR (!MatrixQType::IsRowMajor && int(MatrixQType::InnerStrideAtCompileTime) == 1) {
+        using Scalar = typename MatrixQType::Scalar;
+        Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<>> q(
+            matrixQ->data(), matrixQ->rows(), matrixQ->cols(), OuterStride<>(matrixQ->outerStride()));
+        q.applyOnTheRight(k, k + 1, rot);
+      } else {
+        matrixQ->applyOnTheRight(k, k + 1, rot);
+      }
     }
   }
 }

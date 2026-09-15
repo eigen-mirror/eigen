@@ -2,7 +2,7 @@ namespace Eigen {
 
 /** \eigenManualPage InplaceDecomposition Inplace matrix decompositions
 
-Starting from %Eigen 3.3, the LU, Cholesky, and QR decompositions can operate \em inplace, that is, directly within the given input matrix.
+Starting from %Eigen 3.3, the LU, Cholesky, and QR decompositions can operate \em inplace, that is, directly within the given input matrix; the Hessenberg, tridiagonal, Schur, and QZ reductions and the dense eigensolvers followed.
 This feature is especially useful when dealing with huge matrices, and or when the available memory is very limited (embedded systems).
 
 To this end, the respective decomposition class must be instantiated with a Ref<> matrix type, and the decomposition object must be constructed with the input matrix as argument. As an example, let us consider an inplace LU decomposition with partial pivoting.
@@ -103,6 +103,7 @@ Here is the list of matrix decompositions supporting this inplace mechanism:
 
 - class LLT
 - class LDLT
+- class BunchKaufman
 - class PartialPivLU
 - class FullPivLU
 - class HouseholderQR
@@ -111,6 +112,34 @@ Here is the list of matrix decompositions supporting this inplace mechanism:
 - class FullPivHouseholderQR
 - class CompleteOrthogonalDecomposition
 - class RandCompleteOrthogonalDecomposition
+- class HessenbergDecomposition
+- class Tridiagonalization
+- class RealSchur
+- class ComplexSchur (complex \c MatrixType only)
+- class RealQZ
+- class ComplexQZ
+- class SelfAdjointEigenSolver
+- class GeneralizedSelfAdjointEigenSolver
+- class EigenSolver
+- class ComplexEigenSolver (complex \c MatrixType only)
+- class GeneralizedEigenSolver
+
+The factorizations store their packed factors in the input matrix, as in the LU example above. For the reductions
+and eigensolvers, the input matrix is used as the workspace of the algorithm; what it holds afterwards depends on
+the class:
+
+- HessenbergDecomposition and Tridiagonalization: the packed representation returned by packedMatrix().
+- RealSchur, ComplexSchur, RealQZ, and ComplexQZ: the (quasi-)triangular factors T, or S and T; the unitary
+  factors are stored in the decomposition object.
+- SelfAdjointEigenSolver and GeneralizedSelfAdjointEigenSolver: the eigenvectors when they are requested, and
+  eigenvectors() then refers to the input matrix; otherwise, unspecified values. The generalized solver also
+  factorizes \c B in place.
+- EigenSolver, ComplexEigenSolver, and GeneralizedEigenSolver: unspecified values; the results are stored in the
+  decomposition object.
+
+Since the decomposition object then refers to the input matrix, the input matrix must outlive it, as in the LU
+example. The QZ and generalized eigensolver classes take two matrices, and both must be passed as non-const
+lvalues to select the inplace constructor.
 
 */
 

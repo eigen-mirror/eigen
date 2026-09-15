@@ -65,7 +65,7 @@ class RealQZ {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -75,6 +75,11 @@ class RealQZ {
 
   using EigenvalueType = Matrix<ComplexScalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
   using ColumnVectorType = Matrix<Scalar, ColsAtCompileTime, 1, Options & ~RowMajor, MaxColsAtCompileTime, 1>;
+
+  /** \brief Type of the matrices returned by matrixQ() and matrixZ(): a plain matrix with the shape and storage
+   * options of \p MatrixType_, and \p MatrixType_ itself unless that is a Ref<>. */
+  using PlainMatrixType =
+      Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options, MaxRowsAtCompileTime, MaxColsAtCompileTime>;
 
   /** \brief Default constructor.
    *
@@ -103,25 +108,49 @@ class RealQZ {
    * \param[in]  B          Matrix B.
    * \param[in]  computeQZ  If false, Q and Z are not computed.
    *
-   * This constructor calls compute() to compute the QZ decomposition.
+   * This constructor computes the QZ decomposition as compute() does.
    */
-  RealQZ(const MatrixType& A, const MatrixType& B, bool computeQZ = true)
-      : m_S(A.rows(), A.cols()),
-        m_T(A.rows(), A.cols()),
+  template <typename InputTypeA, typename InputTypeB>
+  RealQZ(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true)
+      : m_S(A.derived()),
+        m_T(B.derived()),
         m_Q(A.rows(), A.cols()),
         m_Z(A.rows(), A.cols()),
         m_workspace(A.rows() * 2),
         m_maxIters(400),
         m_isInitialized(false),
         m_computeQZ(true) {
-    compute(A, B, computeQZ);
+    computeInPlace(computeQZ);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  A          Matrix A.
+   * \param[in,out]  B          Matrix B.
+   * \param[in]      computeQZ  If false, Q and Z are not computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p A and \p B, which then
+   * hold S and T; Q and Z are stored in the decomposition object. Otherwise this constructor behaves like
+   * RealQZ(const EigenBase<InputTypeA>&, const EigenBase<InputTypeB>&, bool).
+   */
+  template <typename InputTypeA, typename InputTypeB>
+  RealQZ(EigenBase<InputTypeA>& A, EigenBase<InputTypeB>& B, bool computeQZ = true)
+      : m_S(A.derived()),
+        m_T(B.derived()),
+        m_Q(A.rows(), A.cols()),
+        m_Z(A.rows(), A.cols()),
+        m_workspace(A.rows() * 2),
+        m_maxIters(400),
+        m_isInitialized(false),
+        m_computeQZ(true) {
+    computeInPlace(computeQZ);
   }
 
   /** \brief Returns matrix Q in the QZ decomposition.
    *
    * \returns A const reference to the matrix Q.
    */
-  const MatrixType& matrixQ() const {
+  const PlainMatrixType& matrixQ() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Q;
@@ -131,7 +160,7 @@ class RealQZ {
    *
    * \returns A const reference to the matrix Z.
    */
-  const MatrixType& matrixZ() const {
+  const PlainMatrixType& matrixZ() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
     eigen_assert(m_computeQZ && "The matrices Q and Z have not been computed during the QZ decomposition.");
     return m_Z;
@@ -162,7 +191,8 @@ class RealQZ {
    * \param[in]  computeQZ  If false, Q and Z are not computed.
    * \returns    Reference to \c *this
    */
-  RealQZ& compute(const MatrixType& A, const MatrixType& B, bool computeQZ = true);
+  template <typename InputTypeA, typename InputTypeB>
+  RealQZ& compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true);
 
   /** \brief Reports whether previous computation was successful.
    *
@@ -189,7 +219,8 @@ class RealQZ {
   }
 
  private:
-  MatrixType m_S, m_T, m_Q, m_Z;
+  MatrixType m_S, m_T;
+  PlainMatrixType m_Q, m_Z;
   Matrix<Scalar, Dynamic, 1> m_workspace;
   ComputationInfo m_info;
   Index m_maxIters;
@@ -203,6 +234,7 @@ class RealQZ {
   using Matrix2s = Matrix<Scalar, 2, 2>;
   using JRs = JacobiRotation<Scalar>;
 
+  RealQZ& computeInPlace(bool computeQZ);
   void hessenbergTriangular();
   void computeNorms();
   Index findSmallSubdiagEntry(Index iu);
@@ -218,15 +250,14 @@ template <typename MatrixType>
 void RealQZ<MatrixType>::hessenbergTriangular() {
   const Index dim = m_S.cols();
 
-  // perform QR decomposition of T, overwrite T with R, save Q
-  HouseholderQR<MatrixType> qrT(m_T);
-  m_T = qrT.matrixQR();
-  m_T.template triangularView<StrictlyLower>().setZero();
+  // perform QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
+  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qrT(m_T);
   m_Q = qrT.householderQ();
+  m_T.template triangularView<StrictlyLower>().setZero();
   // overwrite S with Q* S
   m_S.applyOnTheLeft(m_Q.adjoint());
   // init Z as Identity
-  if (m_computeQZ) m_Z = MatrixType::Identity(dim, dim);
+  if (m_computeQZ) m_Z = PlainMatrixType::Identity(dim, dim);
   // reduce S to upper Hessenberg with Givens rotations
   for (Index j = 0; j <= dim - 3; j++) {
     for (Index i = dim - 1; i >= j + 2; i--) {
@@ -500,16 +531,26 @@ inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
 }
 
 template <typename MatrixType>
-RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const MatrixType& A_in, const MatrixType& B_in, bool computeQZ) {
-  const Index dim = A_in.cols();
+template <typename InputTypeA, typename InputTypeB>
+RealQZ<MatrixType>& RealQZ<MatrixType>::compute(const EigenBase<InputTypeA>& A_in, const EigenBase<InputTypeB>& B_in,
+                                                bool computeQZ) {
+  eigen_assert(A_in.rows() == A_in.cols() && B_in.rows() == A_in.cols() && B_in.cols() == A_in.cols() &&
+               "Need square matrices of the same dimension");
+  m_S = A_in.derived();
+  m_T = B_in.derived();
+  return computeInPlace(computeQZ);
+}
 
-  eigen_assert(A_in.rows() == dim && A_in.cols() == dim && B_in.rows() == dim && B_in.cols() == dim &&
+/** \internal Computes the QZ decomposition of the pencil held in (m_S, m_T), which are overwritten by S and T. */
+template <typename MatrixType>
+RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
+  const Index dim = m_S.cols();
+
+  eigen_assert(m_S.rows() == dim && m_T.rows() == dim && m_T.cols() == dim &&
                "Need square matrices of the same dimension");
 
   m_isInitialized = true;
   m_computeQZ = computeQZ;
-  m_S = A_in;
-  m_T = B_in;
   m_workspace.resize(dim * 2);
   m_global_iter = 0;
 

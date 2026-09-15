@@ -23,8 +23,11 @@ template <typename MatrixType>
 struct HessenbergDecompositionMatrixHReturnType;
 template <typename MatrixType>
 struct traits<HessenbergDecompositionMatrixHReturnType<MatrixType>> {
-  using ReturnType = MatrixType;
+  using ReturnType = typename MatrixType::PlainObject;
 };
+
+template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType>
+void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs, WorkspaceType& temp);
 
 }  // namespace internal
 
@@ -67,7 +70,7 @@ class HessenbergDecomposition {
   enum {
     Size = MatrixType::RowsAtCompileTime,
     SizeMinusOne = Size == Dynamic ? Dynamic : Size - 1,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxSize = MatrixType::MaxRowsAtCompileTime,
     MaxSizeMinusOne = MaxSize == Dynamic ? Dynamic : MaxSize - 1
   };
@@ -118,13 +121,21 @@ class HessenbergDecomposition {
   template <typename InputType>
   explicit HessenbergDecomposition(const EigenBase<InputType>& matrix)
       : m_matrix(matrix.derived()), m_temp(matrix.rows()), m_isInitialized(false) {
-    if (matrix.rows() < 2) {
-      m_isInitialized = true;
-      return;
-    }
-    m_hCoeffs.resize(matrix.rows() - 1, 1);
-    _compute(m_matrix, m_hCoeffs, m_temp);
-    m_isInitialized = true;
+    computeInPlace();
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix  Square matrix whose Hessenberg decomposition is to be computed.
+   *
+   * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, which then holds
+   * the packed representation returned by packedMatrix(). Otherwise this constructor behaves like
+   * HessenbergDecomposition(const EigenBase<InputType>&).
+   */
+  template <typename InputType>
+  explicit HessenbergDecomposition(EigenBase<InputType>& matrix)
+      : m_matrix(matrix.derived()), m_temp(matrix.rows()), m_isInitialized(false) {
+    computeInPlace();
   }
 
   /** \brief Computes Hessenberg decomposition of given matrix.
@@ -147,13 +158,7 @@ class HessenbergDecomposition {
   template <typename InputType>
   HessenbergDecomposition& compute(const EigenBase<InputType>& matrix) {
     m_matrix = matrix.derived();
-    if (matrix.rows() < 2) {
-      m_isInitialized = true;
-      return *this;
-    }
-    m_hCoeffs.resize(matrix.rows() - 1, 1);
-    _compute(m_matrix, m_hCoeffs, m_temp);
-    m_isInitialized = true;
+    computeInPlace();
     return *this;
   }
 
@@ -256,7 +261,16 @@ class HessenbergDecomposition {
  private:
   using VectorType = Matrix<Scalar, 1, Size, int(Options) | int(RowMajor), 1, MaxSize>;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  static void _compute(MatrixType& matA, CoeffVectorType& hCoeffs, VectorType& temp);
+
+  void computeInPlace() {
+    if (m_matrix.rows() < 2) {
+      m_isInitialized = true;
+      return;
+    }
+    m_hCoeffs.resize(m_matrix.rows() - 1, 1);
+    internal::hessenberg_decomposition_inplace(m_matrix, m_hCoeffs, m_temp);
+    m_isInitialized = true;
+  }
 
  protected:
   MatrixType m_matrix;
@@ -265,11 +279,14 @@ class HessenbergDecomposition {
   bool m_isInitialized;
 };
 
+namespace internal {
+
 /** \internal
  * Performs a Hessenberg decomposition of \a matA in place.
  *
  * \param matA the input square matrix
  * \param hCoeffs returned Householder coefficients
+ * \param temp workspace of at least matA.rows() coefficients
  *
  * The result is written in the whole of \a matA: the upper part, including
  * the subdiagonal, holds the Hessenberg matrix H, while the part strictly
@@ -277,10 +294,12 @@ class HessenbergDecomposition {
  *
  * Implemented from Golub's "%Matrix Computations", algorithm 7.4.2.
  *
- * \sa packedMatrix()
+ * \sa HessenbergDecomposition::packedMatrix()
  */
-template <typename MatrixType>
-void HessenbergDecomposition<MatrixType>::_compute(MatrixType& matA, CoeffVectorType& hCoeffs, VectorType& temp) {
+template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType>
+void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs, WorkspaceType& temp) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   eigen_assert(matA.rows() == matA.cols());
   Index n = matA.rows();
   temp.resize(n);
@@ -318,7 +337,29 @@ void HessenbergDecomposition<MatrixType>::_compute(MatrixType& matA, CoeffVector
   }
 }
 
-namespace internal {
+/** \internal
+ * Reduces \a matA in place to the Hessenberg matrix H of \f$ A = Q H Q^* \f$.
+ *
+ * \param matA the input square matrix, overwritten by H
+ * \param hCoeffs returned Householder coefficients
+ * \param temp workspace of at least matA.rows() coefficients
+ * \param matQ returned unitary matrix Q, if \a computeQ is true
+ * \param computeQ whether to compute Q
+ *
+ * Unlike the packed form above, \a matA holds only H afterwards: Q is formed from the Householder vectors below the
+ * subdiagonal before they are cleared.
+ */
+template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType, typename MatrixQType>
+void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs, WorkspaceType& temp,
+                                      MatrixQType& matQ, bool computeQ) {
+  using HouseholderSequenceType =
+      HouseholderSequence<MatrixType, remove_all_t<typename CoeffVectorType::ConjugateReturnType>>;
+  const Index n = matA.rows();
+  hCoeffs.resize(n - 1);
+  hessenberg_decomposition_inplace(matA, hCoeffs, temp);
+  if (computeQ) HouseholderSequenceType(matA, hCoeffs.conjugate()).setLength(n - 1).setShift(1).evalTo(matQ, temp);
+  if (n > 2) matA.bottomLeftCorner(n - 2, n - 2).template triangularView<Lower>().setZero();
+}
 
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *

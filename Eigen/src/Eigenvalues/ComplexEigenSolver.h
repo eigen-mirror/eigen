@@ -55,7 +55,7 @@ class ComplexEigenSolver {
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
     ColsAtCompileTime = MatrixType::ColsAtCompileTime,
-    Options = internal::traits<MatrixType>::Options,
+    Options = internal::plain_object_options<MatrixType>::value,
     MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime,
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
@@ -93,8 +93,7 @@ class ComplexEigenSolver {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via compute().
    */
-  ComplexEigenSolver()
-      : m_eivec(), m_eivalues(), m_schur(), m_isInitialized(false), m_eigenvectorsOk(false), m_matX() {}
+  ComplexEigenSolver() : m_eivec(), m_eivalues(), m_schur(), m_isInitialized(false), m_eigenvectorsOk(false) {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -103,12 +102,7 @@ class ComplexEigenSolver {
    * \sa ComplexEigenSolver()
    */
   explicit ComplexEigenSolver(Index size)
-      : m_eivec(size, size),
-        m_eivalues(size),
-        m_schur(size),
-        m_isInitialized(false),
-        m_eigenvectorsOk(false),
-        m_matX(size, size) {}
+      : m_eivec(size, size), m_eivalues(size), m_schur(size), m_isInitialized(false), m_eigenvectorsOk(false) {}
 
   /** \brief Constructor; computes eigendecomposition of given matrix.
    *
@@ -117,17 +111,37 @@ class ComplexEigenSolver {
    *    eigenvalues are computed; if false, only the eigenvalues are
    *    computed.
    *
-   * This constructor calls compute() to compute the eigendecomposition.
+   * This constructor computes the eigendecomposition as compute() does.
    */
   template <typename InputType>
   explicit ComplexEigenSolver(const EigenBase<InputType>& matrix, bool computeEigenvectors = true)
       : m_eivec(matrix.rows(), matrix.cols()),
         m_eivalues(matrix.cols()),
-        m_schur(matrix.rows()),
+        m_schur(matrix.derived(), computeEigenvectors),
         m_isInitialized(false),
-        m_eigenvectorsOk(false),
-        m_matX(matrix.rows(), matrix.cols()) {
-    compute(matrix.derived(), computeEigenvectors);
+        m_eigenvectorsOk(false) {
+    computeFromSchur(computeEigenvectors);
+  }
+
+  /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
+   *
+   * \param[in,out]  matrix  Square matrix whose eigendecomposition is to be computed.
+   * \param[in]  computeEigenvectors  If true, both the eigenvectors and the
+   *    eigenvalues are computed; if false, only the eigenvalues are
+   *    computed.
+   *
+   * When \p MatrixType is a Ref<> (which requires a complex scalar type), the decomposition is computed within the
+   * memory of \p matrix, whose content is destroyed; the results are stored in the decomposition object. Otherwise
+   * this constructor behaves like ComplexEigenSolver(const EigenBase<InputType>&, bool).
+   */
+  template <typename InputType>
+  explicit ComplexEigenSolver(EigenBase<InputType>& matrix, bool computeEigenvectors = true)
+      : m_eivec(matrix.rows(), matrix.cols()),
+        m_eivalues(matrix.cols()),
+        m_schur(matrix.derived(), computeEigenvectors),
+        m_isInitialized(false),
+        m_eigenvectorsOk(false) {
+    computeFromSchur(computeEigenvectors);
   }
 
   /** \brief Returns the eigenvectors of given matrix.
@@ -229,12 +243,13 @@ class ComplexEigenSolver {
 
   EigenvectorType m_eivec;
   EigenvalueType m_eivalues;
+  // Holds the Schur form of the last matrix; computing the eigenvectors overwrites T with the eigenvectors of T.
   ComplexSchur<MatrixType> m_schur;
   bool m_isInitialized;
   bool m_eigenvectorsOk;
-  EigenvectorType m_matX;
 
  private:
+  ComplexEigenSolver& computeFromSchur(bool computeEigenvectors);
   void doComputeEigenvectors(RealScalar matrixnorm);
   void sortEigenvalues(bool computeEigenvectors);
 };
@@ -249,7 +264,13 @@ ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::compute(const Ei
   // Do a complex Schur decomposition, A = U T U^*
   // The eigenvalues are on the diagonal of T.
   m_schur.compute(matrix.derived(), computeEigenvectors);
+  return computeFromSchur(computeEigenvectors);
+}
 
+/** \internal Computes the eigenvalues, and the eigenvectors when requested, from the Schur decomposition held by
+ * m_schur. */
+template <typename MatrixType>
+ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
   if (m_schur.info() == Success) {
     m_eivalues = m_schur.matrixT().diagonal();
     if (computeEigenvectors) doComputeEigenvectors(m_schur.matrixT().norm());
@@ -266,29 +287,31 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
   const Index n = m_eivalues.size();
 
   // Compute X such that T = X D X^(-1), where D is the diagonal of T.
-  // The matrix X is unit triangular.
-  m_matX = EigenvectorType::Zero(n, n);
+  // The matrix X is unit triangular. It overwrites T column by column from the last one: X(i,k) reads T(i,k) before
+  // replacing it, T(i,i+1..k-1) and T(i,i), T(k,k), which lie in columns not yet overwritten, and X(i+1..k-1,k),
+  // already computed.
+  typename ComplexSchur<MatrixType>::MatrixTType& matX = m_schur.m_matT;
+  matX.template triangularView<StrictlyLower>().setZero();
   for (Index k = n - 1; k >= 0; k--) {
-    m_matX.coeffRef(k, k) = ComplexScalar(1.0, 0.0);
     // Compute X(i,k) using the (i,k) entry of the equation X T = D X
     for (Index i = k - 1; i >= 0; i--) {
-      m_matX.coeffRef(i, k) = -m_schur.matrixT().coeff(i, k);
+      matX.coeffRef(i, k) = -matX.coeff(i, k);
       if (k - i - 1 > 0)
-        m_matX.coeffRef(i, k) -=
-            (m_schur.matrixT().row(i).segment(i + 1, k - i - 1) * m_matX.col(k).segment(i + 1, k - i - 1)).value();
-      ComplexScalar z = m_schur.matrixT().coeff(i, i) - m_schur.matrixT().coeff(k, k);
+        matX.coeffRef(i, k) -= (matX.row(i).segment(i + 1, k - i - 1) * matX.col(k).segment(i + 1, k - i - 1)).value();
+      ComplexScalar z = matX.coeff(i, i) - matX.coeff(k, k);
       if (z == ComplexScalar(0)) {
         // If the i-th and k-th eigenvalue are equal, then z equals 0.
         // Use a small value instead, to prevent division by zero.
         numext::real_ref(z) = numext::maxi(std::numeric_limits<RealScalar>::epsilon() * matrixnorm,
                                            (std::numeric_limits<RealScalar>::min)());
       }
-      m_matX.coeffRef(i, k) = m_matX.coeff(i, k) / z;
+      matX.coeffRef(i, k) /= z;
     }
+    matX.coeffRef(k, k) = ComplexScalar(1.0, 0.0);
   }
 
   // Compute V as V = U X; now A = U T U^* = U X D X^(-1) U^* = V D V^(-1)
-  m_eivec.noalias() = m_schur.matrixU() * m_matX;
+  m_eivec.noalias() = m_schur.matrixU() * matX;
   // .. and normalize the eigenvectors
   for (Index k = 0; k < n; k++) {
     m_eivec.col(k).stableNormalize();
