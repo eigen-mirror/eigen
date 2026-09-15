@@ -579,6 +579,29 @@ void check_nextafter() {
 }
 
 template <typename T>
+void check_strict_equal() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  const T half(0.5);
+
+  VERIFY(numext::equal_strict(zero, zero));
+  VERIFY(numext::equal_strict(one, one));
+  VERIFY(numext::equal_strict(half, half));
+  VERIFY(!numext::equal_strict(zero, one));
+  VERIFY(!numext::equal_strict(one, two));
+
+  VERIFY(numext::not_equal_strict(zero, one));
+  VERIFY(numext::not_equal_strict(one, two));
+  VERIFY(!numext::not_equal_strict(one, one));
+
+  VERIFY(numext::is_exactly_zero(zero));
+  VERIFY(!numext::is_exactly_zero(one));
+  VERIFY(numext::is_exactly_one(one));
+  VERIFY(!numext::is_exactly_one(zero));
+}
+
+template <typename T>
 void check_ceil_power_of_two() {
   const T zero(0);
   const T one(1);
@@ -730,6 +753,12 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_ceil_power_of_two<float>());
     CALL_SUBTEST(check_ceil_power_of_two<double>());
     CALL_SUBTEST(check_ceil_power_of_two<long double>());
+
+    CALL_SUBTEST(check_strict_equal<half>());
+    CALL_SUBTEST(check_strict_equal<bfloat16>());
+    CALL_SUBTEST(check_strict_equal<float>());
+    CALL_SUBTEST(check_strict_equal<double>());
+    CALL_SUBTEST(check_strict_equal<long double>());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());

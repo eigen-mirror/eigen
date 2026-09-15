@@ -2014,8 +2014,8 @@ EIGEN_STRONG_INLINE long double ceil_power_of_two(const long double& value) {
   EIGEN_USING_STD(ldexp);
   int exponent = 0;
   const long double fraction = frexp(value, &exponent);
-  if (fraction == 0.0L) return 0.0L;
-  if (fraction == 0.5L) --exponent;
+  if (numext::is_exactly_zero(fraction)) return 0.0L;
+  if (numext::equal_strict(fraction, 0.5L)) --exponent;
   if (exponent < std::numeric_limits<long double>::min_exponent - 1)
     exponent = std::numeric_limits<long double>::min_exponent - 1;
   return ldexp(1.0L, exponent);

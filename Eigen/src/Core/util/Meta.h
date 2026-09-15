@@ -406,6 +406,13 @@ template <>
 constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const double& x, const double& y) {
   return std::equal_to<double>()(x, y);
 }
+
+#ifndef EIGEN_GPU_COMPILE_PHASE
+template <>
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool equal_strict(const long double& x, const long double& y) {
+  return std::equal_to<long double>()(x, y);
+}
+#endif
 #endif
 
 /**
@@ -441,6 +448,13 @@ template <>
 constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const double& x, const double& y) {
   return std::not_equal_to<double>()(x, y);
 }
+
+#ifndef EIGEN_GPU_COMPILE_PHASE
+template <>
+constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const long double& x, const long double& y) {
+  return std::not_equal_to<long double>()(x, y);
+}
+#endif
 #endif
 
 }  // end namespace numext
