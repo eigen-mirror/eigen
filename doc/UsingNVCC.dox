@@ -15,6 +15,9 @@ This support can be disabled by defining \c EIGEN_NO_CUDA (or \c EIGEN_NO_HIP fo
 before including any %Eigen header.
 This might be useful to disable some warnings when a \c .cu file makes use of %Eigen on the host side only.
 
+%Eigen requires CUDA 11.8 or later and compute capability 6.0 (\c sm_60) or later; CUDA 13 itself requires
+\c sm_75. For HIP the floor is ROCm 5.6.
+
 \warning Host SIMD vectorization must be disabled in \c .cu files. It is \b strongly
 \b recommended to move all costly host-side computation from \c .cu files to regular \c .cpp files.
 

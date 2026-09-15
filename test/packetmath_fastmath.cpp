@@ -33,6 +33,11 @@ EIGEN_DONT_INLINE bool mask_all(const Scalar* mask) {
 }
 
 template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE Index mask_count(const Scalar* mask) {
+  return Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask));
+}
+
+template <typename Scalar, typename Packet>
 void verify_mask_reduction_impl() {
   constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
   Scalar mask[packet_size];
@@ -40,18 +45,19 @@ void verify_mask_reduction_impl() {
   std::memset(static_cast<void*>(mask), 0, sizeof(mask));
   VERIFY(!(mask_any<Scalar, Packet>(mask)));
   VERIFY(!(mask_all<Scalar, Packet>(mask)));
-  VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 0);
+  VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(mask)), 0);
 
   for (int lane = 0; lane < packet_size; ++lane) {
     std::memset(static_cast<void*>(mask), 0, sizeof(mask));
     std::memset(static_cast<void*>(mask + lane), 0xff, sizeof(Scalar));
     VERIFY((mask_any<Scalar, Packet>(mask)));
     VERIFY_IS_EQUAL((mask_all<Scalar, Packet>(mask)), packet_size == 1);
-    VERIFY_IS_EQUAL(Eigen::internal::predux_count(Eigen::internal::ploadu<Packet>(mask)), 1);
+    VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(mask)), 1);
   }
 
   std::memset(static_cast<void*>(mask), 0xff, sizeof(mask));
   VERIFY((mask_all<Scalar, Packet>(mask)));
+  VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(mask)), packet_size);
 }
 
 template <typename Scalar, typename Packet>
@@ -59,6 +65,30 @@ void verify_mask_reduction() {
   verify_mask_reduction_impl<Scalar, Packet>();
   const Eigen::ScopedFlushToZero flush_to_zero;
   if (flush_to_zero.isSupported()) verify_mask_reduction_impl<Scalar, Packet>();
+}
+
+template <typename Scalar, typename Packet>
+void verify_16bit_reductions() {
+  using Bits = Eigen::numext::uint16_t;
+  static_assert(sizeof(Scalar) == sizeof(Bits), "requires 16-bit scalars");
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  Scalar values[packet_size];
+  for (unsigned int bits = 0; bits < 65536; ++bits) {
+    for (int lane = 0; lane < packet_size; ++lane) {
+      for (int i = 0; i < packet_size; ++i) {
+        const Bits value = i == lane ? static_cast<Bits>(bits) : Bits(i % 2 ? 0x8000 : 0);
+        std::memcpy(static_cast<void*>(values + i), &value, sizeof(value));
+      }
+      VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(values)), Index((bits & 0x7fff) != 0));
+      VERIFY(!(mask_all<Scalar, Packet>(values)));
+      for (int i = 0; i < packet_size; ++i) {
+        const Bits value = i == lane ? static_cast<Bits>(bits) : Bits(0xffff);
+        std::memcpy(static_cast<void*>(values + i), &value, sizeof(value));
+      }
+      VERIFY_IS_EQUAL((mask_all<Scalar, Packet>(values)), (bits & 0x7fff) != 0);
+      VERIFY_IS_EQUAL((mask_count<Scalar, Packet>(values)), Index(packet_size - 1 + ((bits & 0x7fff) != 0)));
+    }
+  }
 }
 
 // For bit-test backends, a low-bit truth mask must survive FTZ even though its floating-point encoding is subnormal.
@@ -243,6 +273,13 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::half>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::bfloat16>::run());
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
+
+#if defined(EIGEN_VECTORIZE_AVX512)
+#if !defined(EIGEN_VECTORIZE_AVX512FP16)
+  CALL_SUBTEST((verify_16bit_reductions<Eigen::half, Eigen::internal::Packet16h>()));
+#endif
+  CALL_SUBTEST((verify_16bit_reductions<Eigen::bfloat16, Eigen::internal::Packet16bf>()));
+#endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet1Xf>()));
