@@ -26,10 +26,10 @@ void test_gmres_T() {
 }
 
 void test_gmres_solve_with_guess_tolerance() {
-  const Index size = 20;
+  const SparseMatrix<double>::StorageIndex size = 20;
   SparseMatrix<double> matrix(size, size);
   std::vector<Triplet<double> > triplets;
-  for (Index i = 0; i < size; ++i) {
+  for (SparseMatrix<double>::StorageIndex i = 0; i < size; ++i) {
     triplets.emplace_back(i, i, 2.0 + double(i) / double(size));
     if (i > 0) triplets.emplace_back(i, i - 1, -0.25);
     if (i + 1 < size) triplets.emplace_back(i, i + 1, 0.125);
@@ -59,10 +59,10 @@ void test_gmres_solve_with_guess_tolerance() {
 }
 
 void test_gmres_large_restart() {
-  const Index size = 4;
+  const SparseMatrix<double>::StorageIndex size = 4;
   SparseMatrix<double> matrix(size, size);
   std::vector<Triplet<double> > triplets;
-  for (Index i = 0; i < size; ++i) {
+  for (SparseMatrix<double>::StorageIndex i = 0; i < size; ++i) {
     triplets.emplace_back(i, i, 2.0 + double(i));
   }
   matrix.setFromTriplets(triplets.begin(), triplets.end());

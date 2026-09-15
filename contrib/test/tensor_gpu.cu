@@ -434,7 +434,7 @@ void test_gpu_contraction() {
 
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     // Absolute slack for accumulation-order differences between device and host contractions.
-    if (fabs(t_result.data()[i] - m_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
+    if (numext::abs(t_result.data()[i] - m_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
       std::cout << "mismatch detected at index " << i << ": " << t_result.data()[i] << " vs " << m_result.data()[i]
                 << std::endl;
       assert(false);

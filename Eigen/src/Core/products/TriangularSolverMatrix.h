@@ -218,6 +218,7 @@ Index triangular_solve_panel_columns(Index size, Index cols, std::ptrdiff_t budg
 template <typename Scalar, typename Index>
 Index triangular_solve_kc(Index size, Index otherSize, Index extent, std::ptrdiff_t budget, bool slabRuns,
                           level3_blocking<Scalar, Scalar>& blocking) {
+  EIGEN_UNUSED_VARIABLE(extent);
   const bool deep = std::ptrdiff_t(size) * otherSize > budget || (slabRuns && std::ptrdiff_t(size) * size / 2 > budget);
   if (!deep || blocking.blockA() != nullptr) return blocking.kc();
   Index kc = size, mc = size, nc = otherSize;

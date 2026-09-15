@@ -48,10 +48,6 @@ namespace Eigen {
   inline ComplexSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >&                                              \
   ComplexSchur<Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> >::compute(const EigenBase<InputType>& matrix,         \
                                                                        bool computeU) {                            \
-    typedef Matrix<EIGTYPE, Dynamic, Dynamic, EIGCOLROW> MatrixType;                                               \
-    typedef MatrixType::RealScalar RealScalar;                                                                     \
-    typedef std::complex<RealScalar> ComplexScalar;                                                                \
-                                                                                                                   \
     eigen_assert(matrix.cols() == matrix.rows());                                                                  \
                                                                                                                    \
     m_matUisUptodate = false;                                                                                      \

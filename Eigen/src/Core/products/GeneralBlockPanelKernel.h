@@ -335,7 +335,7 @@ void evaluateProductBlockingSizesHeuristic(Index& k, Index& m, Index& n, Index n
     // but can overfill the physical L1. Recompute max_kc using 85% of actual L1
     // to leave headroom for RHS streaming, prefetch buffers, and stack.
     {
-      const Index phys_l1_eff = phys_l1 * 85 / 100;
+      const Index phys_l1_eff = convert_index<Index>(phys_l1 * 85 / 100);
       const Index max_kc_phys = numext::maxi<Index>(((phys_l1_eff - k_sub) / k_div) & (~(k_peeling - 1)), k_peeling);
       if (max_kc_phys < k) {
         k = (old_k % max_kc_phys) == 0 ? max_kc_phys

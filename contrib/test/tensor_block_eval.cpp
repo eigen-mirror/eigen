@@ -142,7 +142,7 @@ inline Eigen::IndexList<Eigen::type2index<1>, Index> OneByM(Index m) {
 // TensorSliceOp (reading a tensor block is same to taking a tensor slice).
 
 template <typename T, int NumDims, int Layout, typename Expression, typename GenBlockParams>
-static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
+static void VerifyBlockEvaluator(const Expression& expr, GenBlockParams gen_block) {
   using Device = DefaultDevice;
   auto d = Device();
 
@@ -151,7 +151,7 @@ static void VerifyBlockEvaluator(Expression expr, GenBlockParams gen_block) {
   TensorBlockScratch scratch(d);
 
   // TensorEvaluator is needed to produce tensor blocks of the expression.
-  auto eval = TensorEvaluator<const decltype(expr), Device>(expr, d);
+  auto eval = TensorEvaluator<const Expression, Device>(expr, d);
   eval.evalSubExprsIfNeeded(nullptr);
 
   // Choose a random offsets, sizes and TensorBlockDescriptor.

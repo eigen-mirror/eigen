@@ -406,7 +406,46 @@ static void test_chip_raw_data_row_major() {
   VERIFY_IS_EQUAL(chip4.data(), static_cast<float*>(0));
 }
 
+template <int Rank, int Layout>
+EIGEN_DONT_INLINE Tensor<double, Rank - 1, Layout> runtime_axis_chip(const Tensor<double, Rank, Layout>& input,
+                                                                     Index offset, Index axis) {
+  return input.chip(offset, axis);
+}
+
+template <int Rank, int Layout, int Axis>
+void test_runtime_axis_block_chip() {
+  DSizes<Index, Rank> dimensions;
+  for (int i = 0; i < Rank; ++i) dimensions[i] = 3 + i;
+  Tensor<double, Rank, Layout> input(dimensions);
+  for (Index i = 0; i < input.size(); ++i) input.data()[i] = double(i);
+  for (Index offset : {Index(0), dimensions[Axis] - 1}) {
+    const Tensor<double, Rank - 1, Layout> result = runtime_axis_chip(input, offset, Axis);
+    const Tensor<double, Rank - 1, Layout> expected = input.template chip<Axis>(offset);
+    VERIFY_IS_EQUAL(result.size(), expected.size());
+    for (Index i = 0; i < result.size(); ++i) VERIFY_IS_EQUAL(result.data()[i], expected.data()[i]);
+
+    Tensor<double, Rank, Layout> actual = input;
+    Tensor<double, Rank, Layout> reference = input;
+    actual.chip(offset, Axis) = result + result;
+    reference.template chip<Axis>(offset) = expected + expected;
+    for (Index i = 0; i < actual.size(); ++i) VERIFY_IS_EQUAL(actual.data()[i], reference.data()[i]);
+  }
+}
+
+template <int Layout>
+void test_runtime_axis_block_chips() {
+  test_runtime_axis_block_chip<3, Layout, 0>();
+  test_runtime_axis_block_chip<3, Layout, 1>();
+  test_runtime_axis_block_chip<3, Layout, 2>();
+  test_runtime_axis_block_chip<4, Layout, 0>();
+  test_runtime_axis_block_chip<4, Layout, 1>();
+  test_runtime_axis_block_chip<4, Layout, 2>();
+  test_runtime_axis_block_chip<4, Layout, 3>();
+}
+
 EIGEN_DECLARE_TEST(tensor_chipping) {
+  CALL_SUBTEST(test_runtime_axis_block_chips<ColMajor>());
+  CALL_SUBTEST(test_runtime_axis_block_chips<RowMajor>());
   CALL_SUBTEST(test_simple_chip<ColMajor>());
   CALL_SUBTEST(test_simple_chip<RowMajor>());
   CALL_SUBTEST(test_dynamic_chip<ColMajor>());

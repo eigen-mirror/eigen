@@ -583,7 +583,7 @@ void check_strict_equal() {
   const T zero(0);
   const T one(1);
   const T two(2);
-  const T half(0.5);
+  const T half = one / two;
 
   VERIFY(numext::equal_strict(zero, zero));
   VERIFY(numext::equal_strict(one, one));

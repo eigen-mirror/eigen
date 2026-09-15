@@ -187,7 +187,7 @@ static void test_gpu_random_normal_distribution() {
   int num_within_one_sigma = 0;
   int num_equal_to_first = 0;
   for (int i = 0; i < n; ++i) {
-    const double x = out(i);
+    const double x = static_cast<double>(out(i));
     sum += x;
     sum_of_squares += x * x;
     if (std::abs(x) < 1.0) ++num_within_one_sigma;

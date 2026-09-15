@@ -593,7 +593,6 @@ void test_bccb_determinant_scaled() {
   typedef Matrix<Complex, Dynamic, Dynamic> CMat;
 
   const Index n2 = 25, n1 = 40;  // N = 1000
-  const Index nLead = 653;
 
   // Symbol magnitudes `lead` on the first nLead column-major-flattened indices
   // (the accumulation order of determinant()) and `rest` elsewhere, so the
@@ -601,7 +600,8 @@ void test_bccb_determinant_scaled() {
   // the true determinant lead^nLead * rest^(N - nLead) is representable. The
   // generator is recovered through the dense inverse 2-D DFT matrices,
   // independently of the implementation under test.
-  auto makeOperator = [n2, n1, nLead](double lead, double rest) {
+  auto makeOperator = [n2, n1](double lead, double rest) {
+    constexpr Index nLead = 653;
     CMat S(n2, n1);
     for (Index k1 = 0; k1 < n1; ++k1)
       for (Index k2 = 0; k2 < n2; ++k2) S(k2, k1) = Complex(k1 * n2 + k2 < nLead ? lead : rest);

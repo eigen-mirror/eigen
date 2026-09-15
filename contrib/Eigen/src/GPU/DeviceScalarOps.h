@@ -83,23 +83,23 @@ inline void device_scalar_neg(const double* a, double* c, cudaStream_t stream) {
 // c[i] = a[i] * b[i].
 inline void device_cwiseProduct(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMul_32f_Ctx(a, b, c, static_cast<size_t>(n), npp_ctx);
+  nppsMul_32f_Ctx(a, b, c, n, npp_ctx);
 }
 
 inline void device_cwiseProduct(const double* a, const double* b, double* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMul_64f_Ctx(a, b, c, static_cast<size_t>(n), npp_ctx);
+  nppsMul_64f_Ctx(a, b, c, n, npp_ctx);
 }
 
 // c[i] = a[i] / b[i], with operands swapped as in device_scalar_div.
 inline void device_cwiseQuotient(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_32f_Ctx(b, a, c, static_cast<size_t>(n), npp_ctx);
+  nppsDiv_32f_Ctx(b, a, c, n, npp_ctx);
 }
 
 inline void device_cwiseQuotient(const double* a, const double* b, double* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_64f_Ctx(b, a, c, static_cast<size_t>(n), npp_ctx);
+  nppsDiv_64f_Ctx(b, a, c, n, npp_ctx);
 }
 
 }  // namespace internal

@@ -206,9 +206,9 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index linearizedIndex(const array<Index, NumIndices>& indices) const {
     EIGEN_IF_CONSTEXPR (Options & RowMajor) {
-      return m_storage.dimensions().IndexOfRowMajor(indices);
+      return internal::convert_index<Index>(m_storage.dimensions().IndexOfRowMajor(indices));
     } else {
-      return m_storage.dimensions().IndexOfColMajor(indices);
+      return internal::convert_index<Index>(m_storage.dimensions().IndexOfColMajor(indices));
     }
   }
 };

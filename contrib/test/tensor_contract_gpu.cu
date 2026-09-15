@@ -60,7 +60,7 @@ void test_gpu_contraction(int m_size, int k_size, int n_size) {
   gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     // Absolute slack for accumulation-order differences between device and host contractions.
-    if (fabs(t_result(i) - t_result_gpu(i)) < 1024 * NumTraits<float>::epsilon()) {
+    if (numext::abs(t_result(i) - t_result_gpu(i)) < 1024 * NumTraits<float>::epsilon()) {
       continue;
     }
     if (Eigen::internal::isApprox(t_result(i), t_result_gpu(i), 1024 * NumTraits<float>::epsilon())) {
@@ -215,7 +215,7 @@ void test_scalar(int m_size, int k_size, int n_size) {
   t_result = t_left.contract(t_right, dims);
 
   gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
-  if (fabs(t_result() - t_result_gpu()) > 1024 * NumTraits<float>::epsilon() &&
+  if (numext::abs(t_result() - t_result_gpu()) > 1024 * NumTraits<float>::epsilon() &&
       !Eigen::internal::isApprox(t_result(), t_result_gpu(), 1024 * NumTraits<float>::epsilon())) {
     std::cout << "mismatch detected: " << t_result() << " vs " << t_result_gpu() << std::endl;
     assert(false);

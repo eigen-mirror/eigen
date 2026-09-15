@@ -273,8 +273,9 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     const Index chip_dim = m_dim.actualDim();
 
     DSizes<Index, NumInputDims> input_block_dims;
-    for (int i = 0; i < NumInputDims; ++i) {
-      input_block_dims[i] = i < chip_dim ? desc.dimension(i) : i > chip_dim ? desc.dimension(i - 1) : 1;
+    input_block_dims[chip_dim] = 1;
+    for (int i = 0; i < NumDims; ++i) {
+      input_block_dims[i < chip_dim ? i : i + 1] = desc.dimension(i);
     }
 
     ArgTensorBlockDesc arg_desc(srcCoeff(desc.offset()), input_block_dims);
@@ -282,10 +283,9 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     // Try to reuse destination buffer for materializing argument block.
     if (desc.HasDestinationBuffer()) {
       DSizes<Index, NumInputDims> arg_destination_strides;
-      for (int i = 0; i < NumInputDims; ++i) {
-        arg_destination_strides[i] = i < chip_dim   ? desc.destination().strides()[i]
-                                     : i > chip_dim ? desc.destination().strides()[i - 1]
-                                                    : 0;  // for dimensions of size `1` stride should never be used.
+      arg_destination_strides[chip_dim] = 0;  // The size-one chipped dimension does not use its stride.
+      for (int i = 0; i < NumDims; ++i) {
+        arg_destination_strides[i < chip_dim ? i : i + 1] = desc.destination().strides()[i];
       }
 
       arg_desc.template AddDestinationBuffer<Layout>(desc.destination().template data<ScalarNoConst>(),
@@ -469,8 +469,9 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
     const Index chip_dim = this->m_dim.actualDim();
 
     DSizes<Index, NumInputDims> input_block_dims;
-    for (int i = 0; i < NumInputDims; ++i) {
-      input_block_dims[i] = i < chip_dim ? desc.dimension(i) : i > chip_dim ? desc.dimension(i - 1) : 1;
+    input_block_dims[chip_dim] = 1;
+    for (int i = 0; i < NumDims; ++i) {
+      input_block_dims[i < chip_dim ? i : i + 1] = desc.dimension(i);
     }
 
     typedef TensorReshapingOp<const DSizes<Index, NumInputDims>, const typename TensorBlock::XprType> TensorBlockExpr;

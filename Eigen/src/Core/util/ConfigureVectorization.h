@@ -13,14 +13,14 @@
 #define EIGEN_CONFIGURE_VECTORIZATION_H
 
 // Prepare for using the generic clang backend if requested.
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_GENERIC_VECTOR_SIZE_BYTES)
+#define EIGEN_GENERIC_VECTOR_SIZE_BYTES 64
+#endif
 #if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE) && !defined(EIGEN_DONT_ALIGN)
 #if !EIGEN_ARCH_VECTOR_EXTENSIONS
 #error "The compiler does not support clang vector extensions."
 #endif
 #define EIGEN_VECTORIZE
-#ifndef EIGEN_GENERIC_VECTOR_SIZE_BYTES
-#define EIGEN_GENERIC_VECTOR_SIZE_BYTES 64
-#endif
 #define EIGEN_MAX_ALIGN_BYTES EIGEN_GENERIC_VECTOR_SIZE_BYTES
 #endif
 

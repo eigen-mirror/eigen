@@ -130,6 +130,12 @@ static void test_fixed_size_scalar_ref() {
 
   ref.coeffRef(0) = Vector2d(1.0, 2.0);
   VERIFY_IS_APPROX(input.coeff(0), Vector2d(1.0, 2.0));
+
+  // Four doubles require over-aligned evaluator storage when AVX is enabled in C++14.
+  Tensor<Vector4d, 1> wide_input(2);
+  TensorRef<Tensor<Vector4d, 1>> wide_ref(wide_input);
+  wide_ref.coeffRef(0) = Vector4d::Ones();
+  VERIFY_IS_EQUAL(wide_input.coeff(0), Vector4d::Ones());
 }
 
 static void test_ref_of_ref() {

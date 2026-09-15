@@ -45,6 +45,7 @@ template <typename Dimensions, typename Expr, typename Device>
 class TensorLazyEvaluatorReadOnly
     : public TensorLazyBaseEvaluator<Dimensions, typename TensorEvaluator<Expr, Device>::Scalar> {
  public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   typedef typename TensorEvaluator<Expr, Device>::Scalar Scalar;
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
@@ -65,7 +66,9 @@ class TensorLazyEvaluatorReadOnly
   EIGEN_DEVICE_FUNC virtual const Dimensions& dimensions() const { return m_dims; }
   EIGEN_DEVICE_FUNC virtual const Scalar* data() const { return m_impl.data(); }
 
-  EIGEN_DEVICE_FUNC virtual const Scalar coeff(DenseIndex index) const { return m_impl.coeff(index); }
+  EIGEN_DEVICE_FUNC virtual const Scalar coeff(DenseIndex index) const {
+    return m_impl.coeff(internal::convert_index<typename EvalType::Index>(index));
+  }
   EIGEN_DEVICE_FUNC virtual Scalar& coeffRef(DenseIndex /*index*/) {
     eigen_assert(false && "can't reference the coefficient of a rvalue");
     return m_dummy;
@@ -88,7 +91,9 @@ class TensorLazyEvaluatorWritable : public TensorLazyEvaluatorReadOnly<Dimension
   TensorLazyEvaluatorWritable(const Expr& expr, const Device& device) : Base(expr, device) {}
   virtual ~TensorLazyEvaluatorWritable() = default;
 
-  EIGEN_DEVICE_FUNC virtual Scalar& coeffRef(DenseIndex index) { return this->m_impl.coeffRef(index); }
+  EIGEN_DEVICE_FUNC virtual Scalar& coeffRef(DenseIndex index) {
+    return this->m_impl.coeffRef(internal::convert_index<typename Base::EvalType::Index>(index));
+  }
 };
 
 template <typename Dimensions, typename Expr, typename Device, bool IsWritable>

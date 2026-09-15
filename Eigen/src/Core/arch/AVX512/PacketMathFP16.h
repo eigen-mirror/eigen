@@ -1015,7 +1015,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet32h, 32>& a) {
     q[8 * i + 7] = _mm512_unpackhi_epi64(p[8 * i + 3], p[8 * i + 7]);
   }
 
-  __m512i f[32];
+  __m512i f[32] = {};
 
 #define PACKET32H_TRANSPOSE_HELPER(X, Y)                                                            \
   do {                                                                                              \
