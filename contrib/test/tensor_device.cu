@@ -459,7 +459,14 @@ void test_device_attributes() {
   // Every architecture Eigen supports can opt in to at least what a block gets by default.
   VERIFY(gpu_device.sharedMemPerBlockOptin() >= gpu_device.sharedMemPerBlock());
   int pools = 0;
-  VERIFY(gpuDeviceGetAttribute(&pools, gpuDevAttrMemoryPoolsSupported, device) == gpuSuccess);
+#if !defined(EIGEN_USE_HIP)
+  int driver_version = 0;
+  VERIFY(cudaDriverGetVersion(&driver_version) == cudaSuccess);
+  if (driver_version >= 11020)
+#endif
+  {
+    VERIFY(gpuDeviceGetAttribute(&pools, gpuDevAttrMemoryPoolsSupported, device) == gpuSuccess);
+  }
   VERIFY_IS_EQUAL(gpu_device.memoryPoolsSupported(), pools != 0);
 }
 

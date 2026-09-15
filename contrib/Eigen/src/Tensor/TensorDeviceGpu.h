@@ -43,8 +43,25 @@ struct GpuDeviceAttributes {
 // aliases the enumerators but not the type.
 template <typename GpuDeviceAttr>
 inline int GetGpuDeviceAttribute(GpuDeviceAttr attribute, int device) {
+#if !defined(EIGEN_USE_HIP)
+  if (attribute == gpuDevAttrMemoryPoolsSupported) {
+    int driver_version = 0;
+    EIGEN_GPU_RUNTIME_CHECK(cudaDriverGetVersion(&driver_version));
+    // CUDA minor-version compatibility permits drivers that predate this attribute.
+    if (driver_version < 11020) return 0;
+  }
+#endif
   int value = 0;
-  EIGEN_GPU_RUNTIME_CHECK(gpuDeviceGetAttribute(&value, attribute, device));
+  const gpuError_t error = gpuDeviceGetAttribute(&value, attribute, device);
+#if defined(EIGEN_USE_HIP)
+  // HIP 5.x declares the opt-in enumerator but does not implement the query.
+  if (attribute == gpuDevAttrMaxSharedMemoryPerBlockOptin && error == hipErrorInvalidValue) {
+    (void)hipGetLastError();
+    EIGEN_GPU_RUNTIME_CHECK(gpuDeviceGetAttribute(&value, gpuDevAttrMaxSharedMemoryPerBlock, device));
+    return value;
+  }
+#endif
+  EIGEN_GPU_RUNTIME_CHECK(error);
   return value;
 }
 
@@ -350,10 +367,10 @@ struct GpuDevice {
   // the opt-in shared-memory limit or memory-pool support portably. Like the properties above, they describe the
   // device the stream and its allocations belong to, which need not be the device the calling thread is bound to.
   EIGEN_STRONG_INLINE int warpSize() const { return stream_->deviceAttributes().warpSize; }
-  // The shared memory a kernel may request with gpuFuncSetAttribute, which exceeds sharedMemPerBlock on every
-  // architecture since Volta.
+  // The shared memory a kernel may request with gpuFuncSetAttribute, or the ordinary block limit when HIP does
+  // not implement the opt-in attribute.
   EIGEN_STRONG_INLINE int sharedMemPerBlockOptin() const { return stream_->deviceAttributes().sharedMemPerBlockOptin; }
-  // Whether gpuMallocAsync and its pool are available on this device.
+  // Whether gpuMallocAsync and its pool are available on this device and driver.
   EIGEN_STRONG_INLINE bool memoryPoolsSupported() const {
     return stream_->deviceAttributes().memoryPoolsSupported != 0;
   }

@@ -588,8 +588,13 @@ cudaFree(d_c);
 
 For HIP, replace `cuda*` calls with the corresponding `hip*` calls.
 
-Every runtime call `GpuDevice` makes, and every kernel launch, is checked: a
-failure is reported on `stderr` as `file:line: call: error name: description`
+`GpuDevice` caches attributes for the device that owns its stream. When HIP
+does not implement the opt-in shared-memory attribute, `sharedMemPerBlockOptin()`
+returns the ordinary block limit. `memoryPoolsSupported()` returns false on CUDA
+drivers older than 11.2, which do not support the memory-pool attribute query.
+
+Every runtime call `GpuDevice` makes, and every kernel launch, is checked: an
+unexpected failure is reported on `stderr` as `file:line: call: error name: description`
 and stops the program, through `std::abort()` when `EIGEN_NO_DEBUG` (or
 `NDEBUG`) is defined and a failed `eigen_assert` otherwise. Define
 `EIGEN_GPU_RUNTIME_CHECK(call)` before including the Tensor header to route
