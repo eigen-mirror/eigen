@@ -59,6 +59,5 @@ void test_minres_extreme_rhs() {
 
 EIGEN_DECLARE_TEST(minres) {
   CALL_SUBTEST_1(test_minres_T<double>());
-  //  CALL_SUBTEST_2(test_minres_T<std::complex<double> >());
   CALL_SUBTEST_3(test_minres_extreme_rhs());
 }

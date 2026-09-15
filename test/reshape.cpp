@@ -132,7 +132,7 @@ void reshape4x4(const MatType& m0) {
   check_auto_reshape4x4<RowMajor>(m);
   check_auto_reshape4x4<AutoOrder>(m);
   check_auto_reshape4x4<ColMajor>(m.transpose());
-  check_auto_reshape4x4<ColMajor>(m.transpose());
+  check_auto_reshape4x4<RowMajor>(m.transpose());
   check_auto_reshape4x4<AutoOrder>(m.transpose());
 
   check_direct_access_reshape4x4(m, fix<MatType::Flags & RowMajorBit>);
@@ -323,16 +323,10 @@ EIGEN_DECLARE_TEST(reshape) {
   RowMatrixXi rmx = RowMatrixXi::Random(4, 4);
   RowMatrix4i rm4 = RowMatrix4i::Random(4, 4);
 
-  // reshape4x4 takes its argument by const reference, so the const casts below
-  // deduce the same MatType as the mutable calls. They stay in the same subtest
-  // so that they do not cost a second translation unit.
-
-  // test dynamic-size matrix, mutable and const
+  // test dynamic-size matrix
   CALL_SUBTEST_1(reshape4x4(mx));
-  CALL_SUBTEST_1(reshape4x4(static_cast<const MatrixXi>(mx)));
-  // test static-size matrix, mutable and const
+  // test static-size matrix
   CALL_SUBTEST_2(reshape4x4(m4));
-  CALL_SUBTEST_2(reshape4x4(static_cast<const Matrix4i>(m4)));
 
   CALL_SUBTEST_3(reshape4x4(rmx));
   CALL_SUBTEST_4(reshape4x4(rm4));

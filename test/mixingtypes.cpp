@@ -9,18 +9,6 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#if defined(EIGEN_TEST_PART_7)
-
-// ignore double-promotion diagnostic for clang and gcc, if we check for static assertion anyway:
-// TODO do the same for MSVC?
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wdouble-promotion"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
-#endif
-
-#endif
-
 // Subtests 1, 2, 3, 8 and 9 build without vectorization; 4, 5, 6, 10 and 11 are their
 // vectorized counterparts.
 #if defined(EIGEN_TEST_PART_1) || defined(EIGEN_TEST_PART_2) || defined(EIGEN_TEST_PART_3) || \
@@ -138,13 +126,6 @@ void mixingtypes_scalar(int size = SizeAtCompileType) {
   // check outer product
   VERIFY_IS_APPROX((vf * vcf.transpose()).eval(), (vf.template cast<complex<float> >() * vcf.transpose()).eval());
 
-  // coeff wise product
-
-  VERIFY_IS_APPROX((vf * vcf.transpose()).eval(), (vf.template cast<complex<float> >() * vcf.transpose()).eval());
-
-  Mat_cd mcd2 = mcd;
-  VERIFY_IS_APPROX(mcd.array() *= md.array(), mcd2.array() *= md.array().template cast<std::complex<double> >());
-
   rcd.setZero();
   VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = sd * mcd * md),
                    Mat_cd((sd * mcd * md.template cast<CD>().eval()).template triangularView<Upper>()));
@@ -171,13 +152,18 @@ void mixingtypes_scalar(int size = SizeAtCompileType) {
     VERIFY_IS_APPROX(mcd.array() / md.array(), mcd.array() / md.template cast<CD>().eval().array());
   }
 
-  if (md.array().abs().minCoeff() > epsd || mcd.array().abs().minCoeff() > epsd) {
-    VERIFY_IS_APPROX(md.array().pow(mcd.array()), md.template cast<CD>().eval().array().pow(mcd.array()));
-    VERIFY_IS_APPROX(mcd.array().pow(md.array()), mcd.array().pow(md.template cast<CD>().eval().array()));
+  // Norm-based comparisons require finite powers; zero bases are checked separately below.
+  const Mat_d power_base_d = (md.array().abs() > epsd).select(md.array(), 1.0);
+  const Mat_cd power_base_cd = (mcd.array().abs() > epsd).select(mcd.array(), CD(1));
+  VERIFY_IS_APPROX(power_base_d.array().pow(mcd.array()),
+                   power_base_d.template cast<CD>().eval().array().pow(mcd.array()));
+  VERIFY_IS_APPROX(power_base_cd.array().pow(md.array()),
+                   power_base_cd.array().pow(md.template cast<CD>().eval().array()));
 
-    VERIFY_IS_APPROX(pow(md.array(), mcd.array()), md.template cast<CD>().eval().array().pow(mcd.array()));
-    VERIFY_IS_APPROX(pow(mcd.array(), md.array()), mcd.array().pow(md.template cast<CD>().eval().array()));
-  }
+  VERIFY_IS_APPROX(pow(power_base_d.array(), mcd.array()),
+                   power_base_d.template cast<CD>().eval().array().pow(mcd.array()));
+  VERIFY_IS_APPROX(pow(power_base_cd.array(), md.array()),
+                   power_base_cd.array().pow(md.template cast<CD>().eval().array()));
 
   rcd = mcd;
   VERIFY_IS_APPROX(rcd = md, md.template cast<CD>().eval());
@@ -374,6 +360,36 @@ void mixingtypes_product_d(int size = SizeAtCompileType) {
   //   selfadjointView<Upper>(), scd*vd.adjoint().template cast<CD>().eval()*mcd.template selfadjointView<Upper>());
 }
 
+template <typename Real>
+void mixingtypes_zero_power() {
+  using Complex = std::complex<Real>;
+  // Runtime inputs avoid compiler folding of 0^0 that differs from the library call.
+  volatile Real zero = 0;
+  volatile Real exponents[5][2] = {{2, 0}, {0, 0}, {-1, 0}, {Real(-0.329765), Real(0.755738)}, {Real(0.5), Real(0.25)}};
+  const Array<Real, 5, 1> real_bases = Array<Real, 5, 1>::Constant(Real(zero));
+  const Array<Complex, 5, 1> complex_bases = Array<Complex, 5, 1>::Constant(Complex(Real(zero)));
+  Array<Complex, 5, 1> complex_exponents;
+  for (Index i = 0; i < real_bases.size(); ++i)
+    complex_exponents[i] = Complex(Real(exponents[i][0]), Real(exponents[i][1]));
+  const Array<Real, 5, 1> real_exponents = complex_exponents.real();
+  Array<Complex, 5, 2> expected, member_power, free_power;
+  for (Index i = 0; i < real_bases.size(); ++i) {
+    // The real/complex std::pow overloads can differ at zero; compare each component, including NaN and Inf.
+    expected(i, 0) = std::pow(real_bases[i], complex_exponents[i]);
+    expected(i, 1) = std::pow(complex_bases[i], real_exponents[i]);
+  }
+  member_power.col(0) = real_bases.pow(complex_exponents);
+  member_power.col(1) = complex_bases.pow(real_exponents);
+  free_power.col(0) = Eigen::pow(real_bases, complex_exponents);
+  free_power.col(1) = Eigen::pow(complex_bases, real_exponents);
+  VERIFY_IS_CWISE_EQUAL(member_power.real(), expected.real());
+  VERIFY_IS_CWISE_EQUAL(member_power.imag(), expected.imag());
+  VERIFY_IS_CWISE_EQUAL(free_power.real(), expected.real());
+  VERIFY_IS_CWISE_EQUAL(free_power.imag(), expected.imag());
+  VERIFY_IS_EQUAL(member_power(0, 0), Complex(0));
+  VERIFY_IS_EQUAL(member_power(0, 1), Complex(0));
+}
+
 template <int SizeAtCompileType>
 void mixingtypes(int size = SizeAtCompileType) {
   mixingtypes_scalar<SizeAtCompileType>(size);
@@ -384,6 +400,10 @@ void mixingtypes(int size = SizeAtCompileType) {
 EIGEN_DECLARE_TEST(mixingtypes) {
   g_called = false;  // Silence -Wunneeded-internal-declaration and set_but_not_used.
   VERIFY(true || g_called);
+  CALL_SUBTEST_3(mixingtypes_zero_power<float>());
+  CALL_SUBTEST_3(mixingtypes_zero_power<double>());
+  CALL_SUBTEST_6(mixingtypes_zero_power<float>());
+  CALL_SUBTEST_6(mixingtypes_zero_power<double>());
   for (int i = 0; i < g_repeat; i++) {
     // The fixed sizes stay whole. Only the Dynamic cases are worth three units each: they
     // are the ones that instantiate the full GEMM and GEMV machinery.

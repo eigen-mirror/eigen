@@ -97,11 +97,6 @@ void product_large_regressions() {
     setCpuCacheSizes(l1, l2, l3);
     VERIFY(l1 == l1CacheSize());
     VERIFY(l2 == l2CacheSize());
-    std::ptrdiff_t k1 = internal::random<int>(10, 100) * 16;
-    std::ptrdiff_t m1 = internal::random<int>(10, 100) * 16;
-    std::ptrdiff_t n1 = internal::random<int>(10, 100) * 16;
-    // only makes sure it compiles fine
-    internal::computeProductBlockingSizes<float, float, std::ptrdiff_t>(k1, m1, n1, 1);
 
     // Regression test for small synthetic caches with AVX512 and multiple threads.
     // The L2 model can report that fewer than one nr-wide RHS panel fits.
@@ -161,60 +156,22 @@ void product_large_regressions() {
 // matrices, since the Householder application uses row-major GEMV internally.
 template <int>
 void bug_gemv_rowmajor_large_stride() {
-  // Direct GEMV test: row-major A with stride (= cols) triggering n8=0.
-  // The threshold is stride * sizeof(Scalar) > 32000.
-  // For double: cols > 4000. For float: cols > 8000.
-  {
-    const int rows = 100;
-    const int cols = 5000;  // cols * sizeof(double) = 40000 > 32000
-    Matrix<double, Dynamic, Dynamic, RowMajor> A(rows, cols);
-    A.setRandom();
-    VectorXd x = VectorXd::Random(cols);
-    VectorXd y = A * x;
-    VectorXd y_ref = VectorXd::Zero(rows);
-    for (int i = 0; i < rows; ++i)
-      for (int j = 0; j < cols; ++j) y_ref(i) += A(i, j) * x(j);
-    VERIFY_IS_APPROX(y, y_ref);
-  }
-
-  // QR orthogonality test: this is the high-level symptom.
-  // HouseholderQR of a col-major (m x n) matrix with m > 4000
-  // uses row-major GEMV internally during Householder application.
-  {
-    const int m = 5000;
-    const int n = 50;
-    MatrixXd A = MatrixXd::Random(m, n);
-    MatrixXd Q = A.householderQr().householderQ() * MatrixXd::Identity(m, n);
-    MatrixXd QtQ = Q.adjoint() * Q;
-    VERIFY_IS_APPROX(QtQ, MatrixXd::Identity(n, n));
-  }
-}
-
-// Regression test for row-major GEMV run_small_cols bug.
-// When cols is small (e.g., 2), and loop variables (like n8) are 0 due
-// to row or stride limits, the remainder loops previously used `if` checks
-// like `if (i < n4)`. This incorrectly skips rows if multiple remainder
-// blocks are needed (e.g., 9 rows).
-template <int>
-void bug_gemv_run_small_cols() {
-  const int rows = 9;       // > 8, covers 8-row loop step but tests remainder cleanup
-  const int cols = 2;       // triggers run_small_cols (cols < PacketSize)
-  const int stride = 5000;  // 5000 * sizeof(double) > 32000, forces n8 = 0
-
-  Matrix<double, Dynamic, Dynamic, RowMajor> A_full(rows, stride);
-  A_full.setRandom();
-  auto A = A_full.leftCols(cols);
-
-  VectorXd x = VectorXd::Random(cols);
-  VectorXd y = A * x;
-  VectorXd y_ref = A.eval() * x;  // No stride.
-
-  VERIFY_IS_APPROX(y, y_ref);
+  // HouseholderQR of a col-major (m x n) matrix with m > 4000 uses row-major GEMV
+  // internally during Householder application. The direct GEMV check at this stride
+  // is gemv_rowmajor_large_stride_varied_rows.
+  const int m = 5000;
+  const int n = 50;
+  MatrixXd A = MatrixXd::Random(m, n);
+  MatrixXd Q = A.householderQr().householderQ() * MatrixXd::Identity(m, n);
+  MatrixXd QtQ = Q.adjoint() * Q;
+  VERIFY_IS_APPROX(QtQ, MatrixXd::Identity(n, n));
 }
 
 // Systematic test of row-major GEMV run_small_cols and main run() remainder paths.
 // Varies cols from 1-7 (covers float PacketSize=8 and double PacketSize=4 boundaries)
-// and rows across values that exercise all n8/n4/n2/n1 remainder combinations.
+// and rows across values that exercise all n8/n4/n2/n1 remainder combinations. The
+// large-stride block covers the run_small_cols regression where remainder loops used
+// `if (i < n4)` and skipped rows once several remainder blocks were needed (rows = 9).
 template <int>
 void gemv_small_cols_systematic() {
   const int test_cols[] = {1, 2, 3, 4, 5, 6, 7};
@@ -415,7 +372,6 @@ EIGEN_DECLARE_TEST(product_large) {
 
   CALL_SUBTEST_6(product_large_regressions<0>());
   CALL_SUBTEST_6(bug_gemv_rowmajor_large_stride<0>());
-  CALL_SUBTEST_6(bug_gemv_run_small_cols<0>());
   CALL_SUBTEST_6(gemv_small_cols_systematic<0>());
   CALL_SUBTEST_6(gemv_rowmajor_large_stride_varied_rows<0>());
   CALL_SUBTEST_6(product_extreme_aspect_ratios<0>());

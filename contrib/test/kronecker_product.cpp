@@ -107,10 +107,6 @@ EIGEN_DECLARE_TEST(kronecker_product) {
   CALL_SUBTEST(check_kronecker_product(DM_fix_ab));
   CALL_SUBTEST(check_kronecker_product(kroneckerProduct(DM_a.topLeftCorner<2, 3>(), DM_b)));
 
-  for (int i = 0; i < DM_fix_ab.rows(); ++i)
-    for (int j = 0; j < DM_fix_ab.cols(); ++j)
-      VERIFY_IS_APPROX(kroneckerProduct(DM_a, DM_b).coeff(i, j), DM_fix_ab(i, j));
-
   // test DM_block = kroneckerProduct(DM,DM)
   MatrixXd DM_block_ab(10, 15);
   DM_block_ab.block<6, 6>(2, 5) = kroneckerProduct(DM_a, DM_b);

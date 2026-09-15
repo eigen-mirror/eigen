@@ -229,24 +229,21 @@ void test_scalar(int m_size, int k_size, int n_size) {
 template <int DataLayout>
 void test_gpu_contraction_m() {
   for (int k = 32; k < 256; k++) {
-    test_gpu_contraction<ColMajor>(k, 128, 128);
-    test_gpu_contraction<RowMajor>(k, 128, 128);
+    test_gpu_contraction<DataLayout>(k, 128, 128);
   }
 }
 
 template <int DataLayout>
 void test_gpu_contraction_k() {
   for (int k = 32; k < 256; k++) {
-    test_gpu_contraction<ColMajor>(128, k, 128);
-    test_gpu_contraction<RowMajor>(128, k, 128);
+    test_gpu_contraction<DataLayout>(128, k, 128);
   }
 }
 
 template <int DataLayout>
 void test_gpu_contraction_n() {
   for (int k = 32; k < 256; k++) {
-    test_gpu_contraction<ColMajor>(128, 128, k);
-    test_gpu_contraction<RowMajor>(128, 128, k);
+    test_gpu_contraction<DataLayout>(128, 128, k);
   }
 }
 

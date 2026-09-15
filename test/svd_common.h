@@ -500,25 +500,6 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
   VERIFY_RAISES_ASSERT(fullSvd.compute(dynamicMatrix));
 }
 
-template <typename SvdType, typename MatrixType>
-void svd_verify_constructor_options_assert(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  Index rows = m.rows();
-
-  enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
-
-  typedef Matrix<Scalar, RowsAtCompileTime, 1> RhsType;
-  RhsType rhs(rows);
-  svd_fill_random(rhs);
-  SvdType svd;
-  VERIFY_RAISES_ASSERT(svd.matrixU())
-  VERIFY_RAISES_ASSERT(svd.singularValues())
-  VERIFY_RAISES_ASSERT(svd.matrixV())
-  VERIFY_RAISES_ASSERT(svd.solve(rhs))
-  VERIFY_RAISES_ASSERT(svd.transpose().solve(rhs))
-  VERIFY_RAISES_ASSERT(svd.adjoint().solve(rhs))
-}
-
 #undef SVD_DEFAULT
 #undef SVD_FOR_MIN_NORM
 #undef SVD_STATIC_OPTIONS

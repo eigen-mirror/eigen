@@ -34,23 +34,6 @@ static void test_simple_index_pairs() {
 }
 
 template <int DataLayout>
-static void test_index_pairs_dim() {
-  Tensor<float, 4, DataLayout> tensor(2, 3, 5, 7);
-  tensor.setRandom();
-  tensor = (tensor + tensor.constant(0.5)).log();
-
-  Tensor<Pair<DenseIndex, float>, 4, DataLayout> index_pairs(2, 3, 5, 7);
-
-  index_pairs = tensor.index_pairs();
-
-  for (Eigen::DenseIndex n = 0; n < tensor.size(); ++n) {
-    const Pair<DenseIndex, float>& v = index_pairs(n);  //(i, j, k, l);
-    VERIFY_IS_EQUAL(v.first, n);
-    VERIFY_IS_EQUAL(v.second, tensor(n));
-  }
-}
-
-template <int DataLayout>
 static void test_argmax_pair_reducer() {
   Tensor<float, 4, DataLayout> tensor(2, 3, 5, 7);
   tensor.setRandom();
@@ -273,8 +256,6 @@ static void test_argmin_dim() {
 EIGEN_DECLARE_TEST(tensor_argmax) {
   CALL_SUBTEST(test_simple_index_pairs<RowMajor>());
   CALL_SUBTEST(test_simple_index_pairs<ColMajor>());
-  CALL_SUBTEST(test_index_pairs_dim<RowMajor>());
-  CALL_SUBTEST(test_index_pairs_dim<ColMajor>());
   CALL_SUBTEST(test_argmax_pair_reducer<RowMajor>());
   CALL_SUBTEST(test_argmax_pair_reducer<ColMajor>());
   CALL_SUBTEST(test_argmin_pair_reducer<RowMajor>());

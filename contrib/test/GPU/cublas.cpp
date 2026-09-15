@@ -373,25 +373,6 @@ void test_gemm_chain(Index n) {
   VERIFY((D - D_ref).norm() < tol);
 }
 
-// ---- Square identity check: A * I = A ---------------------------------------
-
-template <typename Scalar>
-void test_gemm_identity(Index n) {
-  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
-
-  Mat A = Mat::Random(n, n);
-  Mat eye = Mat::Identity(n, n);
-
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
-  auto d_I = gpu::DeviceMatrix<Scalar>::fromHost(eye);
-
-  gpu::DeviceMatrix<Scalar> d_C;
-  d_C = d_A * d_I;
-
-  Mat C = d_C.toHost();
-  VERIFY_IS_APPROX(C, A);
-}
-
 // ---- LLT solve expression: d_X = d_A.llt().solve(d_B) ----------------------
 
 template <typename MatrixType>
@@ -762,7 +743,6 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
   CALL_SUBTEST(test_gemm_chain<Scalar>(64));
-  CALL_SUBTEST(test_gemm_identity<Scalar>(64));
 
   // Solver expressions — zero-size edge cases (use dedicated tests, not residual-based)
 

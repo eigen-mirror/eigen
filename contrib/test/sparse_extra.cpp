@@ -55,35 +55,18 @@ void sparse_extra(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
   const Index cols = ref.cols();
   typedef typename SparseMatrixType::Scalar Scalar;
-  enum { Flags = SparseMatrixType::Flags };
 
   double density = (std::max)(8. / (rows * cols), 0.01);
   typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  Scalar eps = 1e-6;
 
   SparseMatrixType m(rows, cols);
   DenseMatrix refMat = DenseMatrix::Zero(rows, cols);
-  DenseVector vec1 = DenseVector::Random(rows);
 
   std::vector<Vector2i> zeroCoords;
   std::vector<Vector2i> nonzeroCoords;
   initSparse<Scalar>(density, refMat, m, 0, &zeroCoords, &nonzeroCoords);
 
   if (zeroCoords.size() == 0 || nonzeroCoords.size() == 0) return;
-
-  // test coeff and coeffRef
-  for (int i = 0; i < (int)zeroCoords.size(); ++i) {
-    VERIFY_IS_MUCH_SMALLER_THAN(m.coeff(zeroCoords[i].x(), zeroCoords[i].y()), eps);
-    EIGEN_IF_CONSTEXPR ((std::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags> >::value))
-      VERIFY_RAISES_ASSERT(m.coeffRef(zeroCoords[0].x(), zeroCoords[0].y()) = 5);
-  }
-  VERIFY_IS_APPROX(m, refMat);
-
-  m.coeffRef(nonzeroCoords[0].x(), nonzeroCoords[0].y()) = Scalar(5);
-  refMat.coeffRef(nonzeroCoords[0].x(), nonzeroCoords[0].y()) = Scalar(5);
-
-  VERIFY_IS_APPROX(m, refMat);
 
   // random setter
   //   {

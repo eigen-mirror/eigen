@@ -640,7 +640,6 @@ EIGEN_DECLARE_TEST(redux) {
     CALL_SUBTEST_10(vectorRedux(ArrayX<int64_t>(size)));
   }
   // Bool reductions (deterministic, outside g_repeat)
-  CALL_SUBTEST_11(boolRedux(1, 1));
   CALL_SUBTEST_11(boolRedux(4, 4));
   CALL_SUBTEST_11(boolRedux(7, 13));
   CALL_SUBTEST_11(boolRedux(63, 63));

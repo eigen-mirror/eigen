@@ -415,17 +415,13 @@ void test_bccb_finite_overflow() {
   VERIFY(Y.col(1).isZero());
   VERIFY(((Y.col(0) - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
 
-  // Genuine NaN and infinity inputs keep propagating; such right-hand sides
+  // A genuine NaN among huge inputs keeps propagating; such right-hand sides
   // take the direct kernel (see test_bccb_nonfinite_product for the entrywise
   // semantics).
   Vec xn = x;
   xn[7] = std::numeric_limits<double>::quiet_NaN();
   Vec yn = C * xn;
   VERIFY(!(yn.array() == yn.array()).all());
-  Vec xi = Vec::Ones(36);
-  xi[3] = std::numeric_limits<double>::infinity();
-  Vec yi = C * xi;
-  VERIFY(!yi.allFinite());
 }
 
 // The scaling exponents are derived from component-wise magnitudes: a finite

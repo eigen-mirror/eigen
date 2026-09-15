@@ -39,6 +39,20 @@ void check_solverbase(const MatrixType& matrix, const SolverType& solver, Index 
   VERIFY_IS_APPROX(matrix * m2, matrix * solver_solution);
 }
 
+// Induced 1-norm, the reference for condition estimates.
+template <typename MatrixType>
+typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
+  return m.cwiseAbs().colwise().sum().maxCoeff();
+}
+
+// Induced 1-norm of the self-adjoint matrix stored in the UpLo triangle of m.
+template <typename MatrixType, int UpLo>
+typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
+  if (m.cols() == 0) return typename MatrixType::RealScalar(0);
+  MatrixType symm = m.template selfadjointView<UpLo>();
+  return symm.cwiseAbs().colwise().sum().maxCoeff();
+}
+
 // Checks the four determinant accessors of a decomposition against a reference determinant \a det and a
 // reference \a logabsdet = log|det| formed independently of it. Callers must keep \a det itself in range.
 template <typename SolverType, typename Scalar>

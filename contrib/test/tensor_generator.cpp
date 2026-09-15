@@ -20,8 +20,8 @@ struct Generator1D {
 
 template <int DataLayout>
 static void test_1D() {
-  Tensor<float, 1> vec(6);
-  Tensor<float, 1> result = vec.generate(Generator1D());
+  Tensor<float, 1, DataLayout> vec(6);
+  Tensor<float, 1, DataLayout> result = vec.generate(Generator1D());
 
   for (int i = 0; i < 6; ++i) {
     VERIFY_IS_EQUAL(result(i), i);
@@ -38,8 +38,8 @@ struct Generator2D {
 
 template <int DataLayout>
 static void test_2D() {
-  Tensor<float, 2> matrix(512, 512);
-  Tensor<float, 2> result = matrix.generate(Generator2D());
+  Tensor<float, 2, DataLayout> matrix(512, 512);
+  Tensor<float, 2, DataLayout> result = matrix.generate(Generator2D());
 
   for (int i = 0; i < 512; ++i) {
     for (int j = 0; j < 512; ++j) {
@@ -60,8 +60,8 @@ static void test_gaussian() {
   std_devs[1] = 2.7f;
   internal::GaussianGenerator<float, Eigen::DenseIndex, 2> gaussian_gen(means, std_devs);
 
-  Tensor<float, 2> matrix(rows, cols);
-  Tensor<float, 2> result = matrix.generate(gaussian_gen);
+  Tensor<float, 2, DataLayout> matrix(rows, cols);
+  Tensor<float, 2, DataLayout> result = matrix.generate(gaussian_gen);
 
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < cols; ++j) {

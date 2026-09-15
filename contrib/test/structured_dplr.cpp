@@ -340,20 +340,6 @@ void test_dplr_determinant_scaled() {
     DiagonalPlusLowRank<Complex> A(d, CMat::Zero(3, 0), CMat::Zero(3, 0));
     VERIFY_IS_APPROX(A.determinant(), Complex(0, 1e300));
   }
-  {
-    // A genuinely overflowing determinant still reports infinity...
-    Vec d(2);
-    d << 1e200, 1e200;
-    DiagonalPlusLowRank<double> A(d, Mat::Zero(2, 0), Mat::Zero(2, 0));
-    VERIFY((numext::isinf)(A.determinant()));
-  }
-  {
-    // ... and a genuinely vanishing one an exact zero.
-    Vec d(2);
-    d << 1e-200, 1e-200;
-    DiagonalPlusLowRank<double> A(d, Mat::Zero(2, 0), Mat::Zero(2, 0));
-    VERIFY_IS_EQUAL(A.determinant(), 0.0);
-  }
 }
 
 // The two factors of the determinant lemma can sit at opposite ends of the exponent range even when

@@ -167,28 +167,6 @@ void test_spmm_transpose(Index rows, Index cols, Index nrhs) {
   VERIFY((Y_gpu - Y_cpu).norm() / (Y_cpu.norm() + RealScalar(1)) < tol);
 }
 
-// ---- Identity matrix: I * x = x --------------------------------------------
-
-template <typename Scalar>
-void test_identity(Index n) {
-  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-
-  // Build sparse identity.
-  SpMat eye(n, n);
-  eye.setIdentity();
-  eye.makeCompressed();
-
-  Vec x = Vec::Random(n);
-
-  gpu::SparseContext<Scalar> ctx;
-  Vec y = ctx.multiply(eye, x);
-
-  RealScalar tol = NumTraits<Scalar>::epsilon();
-  VERIFY((y - x).norm() < tol);
-}
-
 // ---- Pattern replacement at unchanged host pointers -------------------------
 
 // Regression test: assigning a different same-shape/same-nnz sparsity pattern
@@ -441,7 +419,6 @@ void test_scalar() {
 #endif
   CALL_SUBTEST(test_spmm<Scalar>(64, 64, 4));
   CALL_SUBTEST(test_spmm_transpose<Scalar>(128, 64, 4));
-  CALL_SUBTEST(test_identity<Scalar>(64));
   CALL_SUBTEST(test_pattern_replacement<Scalar>(64));
   CALL_SUBTEST(test_reuse<Scalar>(64));
   CALL_SUBTEST(test_empty<Scalar>());

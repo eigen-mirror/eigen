@@ -127,50 +127,6 @@ static void test_reshape_as_lvalue(const Eigen::SyclDevice& sycl_device) {
 }
 
 template <typename DataType, int DataLayout, typename IndexType>
-static void test_simple_slice(const Eigen::SyclDevice& sycl_device) {
-  IndexType sizeDim1 = 2;
-  IndexType sizeDim2 = 3;
-  IndexType sizeDim3 = 5;
-  IndexType sizeDim4 = 7;
-  IndexType sizeDim5 = 11;
-  array<IndexType, 5> tensorRange = {{sizeDim1, sizeDim2, sizeDim3, sizeDim4, sizeDim5}};
-  Tensor<DataType, 5, DataLayout, IndexType> tensor(tensorRange);
-  tensor.setRandom();
-  array<IndexType, 5> slice1_range = {{1, 1, 1, 1, 1}};
-  Tensor<DataType, 5, DataLayout, IndexType> slice1(slice1_range);
-
-  DataType* gpu_data1 = static_cast<DataType*>(sycl_device.allocate(tensor.size() * sizeof(DataType)));
-  DataType* gpu_data2 = static_cast<DataType*>(sycl_device.allocate(slice1.size() * sizeof(DataType)));
-  TensorMap<Tensor<DataType, 5, DataLayout, IndexType>> gpu1(gpu_data1, tensorRange);
-  TensorMap<Tensor<DataType, 5, DataLayout, IndexType>> gpu2(gpu_data2, slice1_range);
-  Eigen::DSizes<IndexType, 5> indices(1, 2, 3, 4, 5);
-  Eigen::DSizes<IndexType, 5> sizes(1, 1, 1, 1, 1);
-  sycl_device.memcpyHostToDevice(gpu_data1, tensor.data(), (tensor.size()) * sizeof(DataType));
-  gpu2.device(sycl_device) = gpu1.slice(indices, sizes);
-  sycl_device.memcpyDeviceToHost(slice1.data(), gpu_data2, (slice1.size()) * sizeof(DataType));
-  VERIFY_IS_EQUAL(slice1(0, 0, 0, 0, 0), tensor(1, 2, 3, 4, 5));
-
-  array<IndexType, 5> slice2_range = {{1, 1, 2, 2, 3}};
-  Tensor<DataType, 5, DataLayout, IndexType> slice2(slice2_range);
-  DataType* gpu_data3 = static_cast<DataType*>(sycl_device.allocate(slice2.size() * sizeof(DataType)));
-  TensorMap<Tensor<DataType, 5, DataLayout, IndexType>> gpu3(gpu_data3, slice2_range);
-  Eigen::DSizes<IndexType, 5> indices2(1, 1, 3, 4, 5);
-  Eigen::DSizes<IndexType, 5> sizes2(1, 1, 2, 2, 3);
-  gpu3.device(sycl_device) = gpu1.slice(indices2, sizes2);
-  sycl_device.memcpyDeviceToHost(slice2.data(), gpu_data3, (slice2.size()) * sizeof(DataType));
-  for (IndexType i = 0; i < 2; ++i) {
-    for (IndexType j = 0; j < 2; ++j) {
-      for (IndexType k = 0; k < 3; ++k) {
-        VERIFY_IS_EQUAL(slice2(0, 0, i, j, k), tensor(1, 1, 3 + i, 4 + j, 5 + k));
-      }
-    }
-  }
-  sycl_device.deallocate(gpu_data1);
-  sycl_device.deallocate(gpu_data2);
-  sycl_device.deallocate(gpu_data3);
-}
-
-template <typename DataType, int DataLayout, typename IndexType>
 static void test_strided_slice_as_rhs_sycl(const Eigen::SyclDevice& sycl_device) {
   IndexType sizeDim1 = 2;
   IndexType sizeDim2 = 3;
@@ -410,8 +366,6 @@ template <typename DataType, typename dev_Selector>
 void sycl_morphing_test_per_device(dev_Selector s) {
   QueueInterface queueInterface(s);
   auto sycl_device = Eigen::SyclDevice(&queueInterface);
-  test_simple_slice<DataType, RowMajor, int64_t>(sycl_device);
-  test_simple_slice<DataType, ColMajor, int64_t>(sycl_device);
   test_simple_reshape<DataType, RowMajor, int64_t>(sycl_device);
   test_simple_reshape<DataType, ColMajor, int64_t>(sycl_device);
   test_reshape_as_lvalue<DataType, RowMajor, int64_t>(sycl_device);

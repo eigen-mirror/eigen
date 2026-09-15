@@ -327,23 +327,23 @@ static void test_simple_reductions() {
 
     VERIFY_IS_APPROX(mean1(), mean2());
   }
+}
 
-  {
-    Tensor<int, 1> ints(10);
-    std::iota(ints.data(), ints.data() + ints.dimension(0), 0);
+static void test_all_any() {
+  Tensor<int, 1> ints(10);
+  std::iota(ints.data(), ints.data() + ints.dimension(0), 0);
 
-    TensorFixedSize<bool, Sizes<>> all_;
-    all_ = ints.all();
-    VERIFY(!all_());
-    all_ = (ints >= ints.constant(0)).all();
-    VERIFY(all_());
+  TensorFixedSize<bool, Sizes<>> all_;
+  all_ = ints.all();
+  VERIFY(!all_());
+  all_ = (ints >= ints.constant(0)).all();
+  VERIFY(all_());
 
-    TensorFixedSize<bool, Sizes<>> any;
-    any = (ints > ints.constant(10)).any();
-    VERIFY(!any());
-    any = (ints < ints.constant(1)).any();
-    VERIFY(any());
-  }
+  TensorFixedSize<bool, Sizes<>> any;
+  any = (ints > ints.constant(10)).any();
+  VERIFY(!any());
+  any = (ints < ints.constant(1)).any();
+  VERIFY(any());
 }
 
 template <int DataLayout>
@@ -758,6 +758,7 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST((test_simple_reductions<float, RowMajor>()));
   CALL_SUBTEST((test_simple_reductions<Eigen::half, ColMajor>()));
   CALL_SUBTEST((test_simple_reductions<Eigen::bfloat16, ColMajor>()));
+  CALL_SUBTEST(test_all_any());
   CALL_SUBTEST(test_reductions_in_expr<ColMajor>());
   CALL_SUBTEST(test_reductions_in_expr<RowMajor>());
   CALL_SUBTEST(test_full_reductions<ColMajor>());

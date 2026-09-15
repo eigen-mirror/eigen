@@ -32,10 +32,6 @@ void test_concat_dynamic(const MatrixType& m) {
     expected.topRows(rows) = a;
     expected.bottomRows(rows) = b;
     VERIFY_IS_APPROX(expected, vcat(a, b).eval());
-
-    // Also verify through assignment to MatrixX
-    MatrixX result = vcat(a, b);
-    VERIFY_IS_APPROX(expected, result);
   }
 
   // Horizontal concatenation: stack columns
@@ -44,9 +40,6 @@ void test_concat_dynamic(const MatrixType& m) {
     expected.leftCols(cols) = a;
     expected.rightCols(cols) = b;
     VERIFY_IS_APPROX(expected, hcat(a, b).eval());
-
-    MatrixX result = hcat(a, b);
-    VERIFY_IS_APPROX(expected, result);
   }
 
   // Test with different-sized operands
@@ -266,16 +259,7 @@ void test_concat_rvalue_temporaries() {
   MatrixX a = MatrixX::Random(3, 3);
   MatrixX b = MatrixX::Random(3, 3);
 
-  // Test 5a: Product temporaries (Product expression creates temporaries)
-  {
-    MatrixX result = vcat(a * MatrixX::Identity(3, 3), b * MatrixX::Identity(3, 3));
-    MatrixX expected(6, 3);
-    expected.topRows(3) = a;
-    expected.bottomRows(3) = b;
-    VERIFY_IS_APPROX(expected, result);
-  }
-
-  // Test 5b: Additive temporaries
+  // Test 5a: Additive temporaries
   {
     MatrixX result = hcat(a + MatrixX::Zero(3, 3), b + MatrixX::Zero(3, 3));
     MatrixX expected(3, 6);
@@ -862,6 +846,18 @@ void test_concat_packet_segment() {
   // Sweep sizes chosen to exercise: inside-lhs, straddle-boundary, inside-rhs
   // for every packet-width scenario (float: 4/8/16, double: 2/4/8).
   for (int lhsInner : {1, 2, 3, 5, 7, 9, 11, 13, 15, 17}) {
+    // Horizontal, col-major: inner=rows — packet extends along rows —
+    // never crosses col boundary. Verifies non-straddle path still works.
+    {
+      MatrixX a = MatrixX::Random(lhsInner, 3);
+      MatrixX b = MatrixX::Random(lhsInner, 5);
+      MatrixX result = hcat(a, b);
+      VERIFY_IS_EQUAL(result.rows(), lhsInner);
+      VERIFY_IS_EQUAL(result.cols(), 8);
+      VERIFY_IS_APPROX(result.leftCols(3), a);
+      VERIFY_IS_APPROX(result.rightCols(5), b);
+    }
+
     for (int rhsInner : {1, 2, 3, 5, 7, 9, 11}) {
       const int outer = 3;
 
@@ -875,18 +871,6 @@ void test_concat_packet_segment() {
         VERIFY_IS_EQUAL(result.cols(), outer);
         VERIFY_IS_APPROX(result.topRows(lhsInner), a);
         VERIFY_IS_APPROX(result.bottomRows(rhsInner), b);
-      }
-
-      // Horizontal, col-major: inner=rows — packet extends along rows —
-      // never crosses col boundary. Verifies non-straddle path still works.
-      {
-        MatrixX a = MatrixX::Random(lhsInner, 3);
-        MatrixX b = MatrixX::Random(lhsInner, 5);
-        MatrixX result = hcat(a, b);
-        VERIFY_IS_EQUAL(result.rows(), lhsInner);
-        VERIFY_IS_EQUAL(result.cols(), 8);
-        VERIFY_IS_APPROX(result.leftCols(3), a);
-        VERIFY_IS_APPROX(result.rightCols(5), b);
       }
 
       // Horizontal, row-major: inner=cols, packet extends along cols —

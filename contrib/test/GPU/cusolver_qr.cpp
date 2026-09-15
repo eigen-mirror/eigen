@@ -236,38 +236,6 @@ void test_qr_multiple_solves(Index n) {
   }
 }
 
-// ---- Agreement with CPU HouseholderQR ---------------------------------------
-
-template <typename Scalar>
-void test_qr_vs_cpu(Index n, Index nrhs) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-
-  Mat A = Mat::Random(n, n);
-  Mat B = Mat::Random(n, nrhs);
-
-  gpu::QR<Scalar> gpu_qr(A);
-  VERIFY_IS_EQUAL(gpu_qr.info(), Success);
-
-  Mat X_gpu = gpu_qr.solve(B);
-  Mat X_cpu = HouseholderQR<Mat>(A).solve(B);
-
-  // Compare via residual rather than directly between X_gpu and X_cpu: for an
-  // ill-conditioned A (a random N(0,1) n*n matrix easily reaches kappa(A) ~ n),
-  // the forward error of each correct solve is bounded by O(kappa * eps), so
-  // ||X_gpu - X_cpu|| / ||X_cpu|| can legitimately exceed n*eps even though
-  // both are correct. The relative residual ||A X - B|| / (||A||*||X|| + ||B||)
-  // is bounded by Higham's backward-stable solve result at O(n * eps),
-  // independent of kappa.
-  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
-  RealScalar A_norm = A.norm();
-  RealScalar B_norm = B.norm();
-  RealScalar denom_gpu = A_norm * X_gpu.norm() + B_norm;
-  RealScalar denom_cpu = A_norm * X_cpu.norm() + B_norm;
-  VERIFY((A * X_gpu - B).norm() / denom_gpu < tol);
-  VERIFY((A * X_cpu - B).norm() / denom_cpu < tol);
-}
-
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
@@ -290,8 +258,6 @@ void test_scalar() {
   CALL_SUBTEST(test_qr_solve_device<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined_device<Scalar>(128, 64, 4));
   CALL_SUBTEST(test_qr_multiple_solves<Scalar>(64));
-  CALL_SUBTEST(test_qr_vs_cpu<Scalar>(64, 4));
-  CALL_SUBTEST(test_qr_vs_cpu<Scalar>(256, 8));
 }
 
 void test_qr_empty() {

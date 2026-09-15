@@ -122,40 +122,6 @@ void check_reference_bindings() {
 
 template <typename Scalar>
 void check_matrix_bindings() {
-  // 2x2 matrix (column-major order)
-  {
-    Matrix<Scalar, 2, 2> m;
-    m << Scalar(1), Scalar(2), Scalar(3), Scalar(4);
-    auto [m00, m10, m01, m11] = m;
-    // Column-major: (0,0), (1,0), (0,1), (1,1)
-    VERIFY_IS_EQUAL(m00, Scalar(1));
-    VERIFY_IS_EQUAL(m10, Scalar(3));
-    VERIFY_IS_EQUAL(m01, Scalar(2));
-    VERIFY_IS_EQUAL(m11, Scalar(4));
-  }
-}
-
-template <typename Scalar>
-void check_storage_order_semantics() {
-  // Row vectors are forced to RowMajor by Eigen (a 1xN can't meaningfully be
-  // column-major). Ensure decomposition still matches the single-row layout.
-  {
-    Matrix<Scalar, 1, 3> rv;
-    rv << Scalar(1), Scalar(2), Scalar(3);
-    auto [a, b, c] = rv;
-    VERIFY_IS_EQUAL(a, Scalar(1));
-    VERIFY_IS_EQUAL(b, Scalar(2));
-    VERIFY_IS_EQUAL(c, Scalar(3));
-  }
-  // Nx1 column vectors are ColMajor regardless and decompose top-to-bottom.
-  {
-    Matrix<Scalar, 3, 1> cv;
-    cv << Scalar(4), Scalar(5), Scalar(6);
-    auto [a, b, c] = cv;
-    VERIFY_IS_EQUAL(a, Scalar(4));
-    VERIFY_IS_EQUAL(b, Scalar(5));
-    VERIFY_IS_EQUAL(c, Scalar(6));
-  }
   // 2D ColMajor matrix decomposes in column-major order: (0,0),(1,0),(0,1),(1,1).
   // 2D RowMajor is rejected via static_assert — see failtest/structured_bindings_rowmajor.cpp.
   {
@@ -231,8 +197,6 @@ EIGEN_DECLARE_TEST(structured_bindings) {
   CALL_SUBTEST_5(check_tuple_size());
   CALL_SUBTEST_5(check_tuple_element());
   CALL_SUBTEST_5(check_sfinae_friendly_detection());
-  CALL_SUBTEST_6(check_storage_order_semantics<double>());
-  CALL_SUBTEST_6(check_storage_order_semantics<int>());
 }
 
 #else

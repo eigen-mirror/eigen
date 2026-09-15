@@ -214,6 +214,16 @@ class ScopedFlushToZero {
 #endif
 };
 
+// min * 1/2 is subnormal, so the product is exactly zero precisely when results
+// are flushed to zero. The volatile operands keep the compiler from folding the
+// probe under IEEE semantics the run time does not use.
+template <typename Scalar>
+EIGEN_DONT_INLINE Scalar underflowProbe() {
+  volatile Scalar normal_min = (std::numeric_limits<Scalar>::min)();
+  volatile Scalar one_half = Scalar(0.5);
+  return normal_min * one_half;
+}
+
 // Whether dividing a normal value by a subnormal divisor yields its IEEE 754
 // quotient here.  Two things defeat it: hardware that flushes subnormal inputs
 // (x86 DAZ, Arm FZ, MIPS FS) reads the divisor as zero, and a compiler

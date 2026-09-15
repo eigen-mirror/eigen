@@ -398,10 +398,6 @@ struct vectorization_logic_half {
                        CompleteUnrolling));
 
     if (PacketSize > 1) {
-      typedef Matrix<Scalar, 3, 3, ColMajor> Matrix33c;
-      VERIFY(
-          test_assign(Matrix33c().row(2), Matrix33c().row(1) + Matrix33c().row(1), LinearTraversal, CompleteUnrolling));
-
       // Unrolling depends on read costs and unroll limits, which vary - ignore.
       VERIFY(test_assign(Matrix3(), Matrix3().cwiseQuotient(Matrix3()),
                          PacketTraits::HasDiv ? LinearVectorizedTraversal : LinearTraversal, -1));

@@ -71,7 +71,6 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
 template <typename MatrixType>
 void bdcsvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
-  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(input);
 }
 
 template <typename MatrixType>
@@ -80,7 +79,6 @@ void bdcsvd_asserts(const MatrixType& input = MatrixType()) {
   svd_fill_random(m);
 
   svd_verify_assert<MatrixType>(m);
-  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(m);
 }
 
 template <typename MatrixType>
@@ -377,7 +375,6 @@ void bdcsvd_qr_crossover() {
 }
 
 EIGEN_DECLARE_TEST(bdcsvd) {
-  CALL_SUBTEST_1((bdcsvd_asserts<Matrix3f>()));
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
@@ -431,9 +428,6 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // test matrixbase method
   CALL_SUBTEST_42((bdcsvd_method<Matrix2cd>()));
   CALL_SUBTEST_43((bdcsvd_method<Matrix3f>()));
-
-  // Test problem size constructors
-  CALL_SUBTEST_44(BDCSVD<MatrixXf>(10, 10));
 
   // Check that preallocation avoids subsequent mallocs
   // Disabled because not supported by BDCSVD

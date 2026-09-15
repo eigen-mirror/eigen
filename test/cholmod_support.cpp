@@ -77,6 +77,4 @@ EIGEN_DECLARE_TEST(cholmod_support) {
   CALL_SUBTEST_21((test_cholmod_T<std::complex<double>, ColMajor, int>()));
   CALL_SUBTEST_22((test_cholmod_T<std::complex<double>, ColMajor, long>()));
   // TODO complex row-major matrices do not work at the moment:
-  // CALL_SUBTEST_23( (test_cholmod_T<std::complex<double>, RowMajor, int >()) );
-  // CALL_SUBTEST_24( (test_cholmod_T<std::complex<double>, RowMajor, long>()) );
 }

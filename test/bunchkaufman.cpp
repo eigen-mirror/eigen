@@ -20,13 +20,6 @@
 #include "fp_control.h"
 #include "solverbase.h"
 
-template <typename MatrixType, int UpLo>
-typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
-  if (m.cols() == 0) return typename MatrixType::RealScalar(0);
-  MatrixType symm = m.template selfadjointView<UpLo>();
-  return symm.cwiseAbs().colwise().sum().maxCoeff();
-}
-
 // Reconstruct the block-diagonal D from vectorD() / subDiagonal() and check that
 // P^T L D L^* P == A and that matrixL()/matrixU() are consistent.
 template <typename MatrixType, typename BKType>

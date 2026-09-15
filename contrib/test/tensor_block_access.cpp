@@ -140,44 +140,6 @@ static void test_block_mapper_maps_every_element() {
   VERIFY_IS_EQUAL(*coeff_set.rbegin(), total_coeffs - 1);
 }
 
-template <int Layout, int NumDims>
-static Index GetInputIndex(Index output_index, const array<Index, NumDims>& output_to_input_dim_map,
-                           const array<Index, NumDims>& input_strides, const array<Index, NumDims>& output_strides) {
-  int input_index = 0;
-  EIGEN_IF_CONSTEXPR (Layout == ColMajor) {
-    for (int i = NumDims - 1; i > 0; --i) {
-      const Index idx = output_index / output_strides[i];
-      input_index += idx * input_strides[output_to_input_dim_map[i]];
-      output_index -= idx * output_strides[i];
-    }
-    return input_index + output_index * input_strides[output_to_input_dim_map[0]];
-  } else {
-    for (int i = 0; i < NumDims - 1; ++i) {
-      const Index idx = output_index / output_strides[i];
-      input_index += idx * input_strides[output_to_input_dim_map[i]];
-      output_index -= idx * output_strides[i];
-    }
-    return input_index + output_index * input_strides[output_to_input_dim_map[NumDims - 1]];
-  }
-}
-
-template <int Layout, int NumDims>
-static array<Index, NumDims> ComputeStrides(const array<Index, NumDims>& sizes) {
-  array<Index, NumDims> strides;
-  EIGEN_IF_CONSTEXPR (Layout == ColMajor) {
-    strides[0] = 1;
-    for (int i = 1; i < NumDims; ++i) {
-      strides[i] = strides[i - 1] * sizes[i - 1];
-    }
-  } else {
-    strides[NumDims - 1] = 1;
-    for (int i = NumDims - 2; i >= 0; --i) {
-      strides[i] = strides[i + 1] * sizes[i + 1];
-    }
-  }
-  return strides;
-}
-
 template <typename Scalar, typename StorageIndex, int Dim>
 class EqualityChecker {
   const Scalar* input_data;

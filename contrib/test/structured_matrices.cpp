@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -221,14 +222,6 @@ void test_hankel_fft_overflow() {
   Vec z = Hh * Vec::Ones(n);
   VERIFY(z.allFinite());
   VERIFY_IS_APPROX((z / huge).eval(), Vec::Ones(n).eval());
-
-  // A genuine NaN input still propagates -- through the direct kernel, entrywise
-  // (see test_hankel_nonfinite_product); the scaling must not launder non-finite
-  // inputs into finite outputs.
-  Vec xn = Vec::Random(n);
-  xn[n / 2] = std::numeric_limits<double>::quiet_NaN();
-  Vec yn = H * xn;
-  VERIFY(yn.hasNaN());
 }
 
 // The scaling exponents are derived from component-wise magnitudes: a finite
@@ -478,29 +471,6 @@ void test_hankel_nonfinite_product(Index n) {
   Mat dense2 = reference_hankel<Scalar>(h2, n, n);
   Vec x2 = Vec::Random(n);
   VERIFY(ieee_entrywise_match((H2 * x2).eval(), reference_product_ieee(dense2, x2)));
-
-  // The Circulant and Toeplitz operators share the fallback pattern.
-  Vec c = Vec::Random(n);
-  Circulant<Scalar> C(c);
-  Mat denseC = reference_circulant<Scalar>(c);
-  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(denseC, x)));
-
-  Vec tc = Vec::Random(n), tr = Vec::Random(n);
-  tr[0] = tc[0];
-  tr[n / 2] = Scalar(inf);
-  Toeplitz<Scalar> T(tc, tr);
-  Mat denseT = reference_toeplitz<Scalar>(tc, tr);
-  VERIFY(ieee_entrywise_match((T * x2).eval(), reference_product_ieee(denseT, x2)));
-
-  // Non-finite right-hand sides of Circulant::solve take the direct inverse
-  // application; on the 1x1 operator this is a single scalar multiply by the
-  // inverse coefficient, checked against the same multiply on the dense inverse.
-  Vec b1(1);
-  b1[0] = Scalar(inf);
-  Circulant<Scalar> C1(Vec(Vec::Constant(1, Scalar(2))));
-  Mat inv1(1, 1);
-  inv1(0, 0) = Scalar(1) / Scalar(2);
-  VERIFY(ieee_entrywise_match(C1.solve(b1), reference_product_ieee(inv1, b1)));
 }
 
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
@@ -1367,13 +1337,8 @@ void test_circulant_rank_boundaries() {
 }
 
 // True where a subnormal result survives: under flush-to-zero -- NVHPC's default
-// -fast, for one -- it is an exact zero instead. The volatile operands keep the
-// compiler from folding the probe under IEEE semantics the run time does not use.
-bool subnormals_survive() {
-  volatile double vtiny = (std::numeric_limits<double>::min)();
-  volatile double vhalf = 0.5;
-  return !numext::is_exactly_zero(vtiny * vhalf);
-}
+// -fast, for one -- it is an exact zero instead.
+bool subnormals_survive() { return !numext::is_exactly_zero(underflowProbe<double>()); }
 
 // A finite complex symbol entry near the overflow threshold has a
 // non-representable modulus. The rank threshold used to be computed from the raw

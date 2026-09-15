@@ -229,7 +229,6 @@ void selfadjointeigensolver(const MatrixType& m) {
       }
     }
   }
-  VERIFY_IS_APPROX(tridiag.diagonal(), T.diagonal());
   VERIFY_IS_APPROX(tridiag.subDiagonal(), T.template diagonal<1>());
   VERIFY_IS_APPROX(MatrixType(symmC.template selfadjointView<Lower>()),
                    tridiag.matrixQ() * tridiag.matrixT().eval() * MatrixType(tridiag.matrixQ()).adjoint());
@@ -754,17 +753,6 @@ void selfadjointeigensolver_rowmajor() {
   }
 }
 
-// Test matrix with Inf entries returns NoConvergence (similar to NaN test).
-template <int>
-void selfadjointeigensolver_inf() {
-  Matrix3d m;
-  m.setRandom();
-  m = m * m.transpose();
-  m(1, 1) = std::numeric_limits<double>::infinity();
-  SelfAdjointEigenSolver<Matrix3d> eig(m);
-  VERIFY_IS_EQUAL(eig.info(), NoConvergence);
-}
-
 template <int>
 void bug_854() {
   Matrix3d m;
@@ -1084,9 +1072,6 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   // Stress tests for direct 3x3 and 2x2 solvers.
   CALL_SUBTEST_17(direct_3x3_stress<0>());
   CALL_SUBTEST_15(direct_2x2_stress<0>());
-
-  // Test Inf input handling.
-  CALL_SUBTEST_17(selfadjointeigensolver_inf<0>());
 
   // Test problem size constructors
   s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4);

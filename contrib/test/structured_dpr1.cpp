@@ -22,13 +22,6 @@ EIGEN_DONT_INLINE Scalar dpr1_subnormal_input_probe() {
 }
 
 template <typename Scalar>
-EIGEN_DONT_INLINE Scalar dpr1_underflow_probe() {
-  volatile Scalar normalMin = (std::numeric_limits<Scalar>::min)();
-  volatile Scalar oneHalf = Scalar(0.5);
-  return normalMin * oneHalf;
-}
-
-template <typename Scalar>
 bool dpr1_preserves_subnormal_inputs() {
   return std::numeric_limits<Scalar>::has_denorm == std::denorm_present &&
          dpr1_subnormal_input_probe<Scalar>() != Scalar(0);
@@ -36,7 +29,7 @@ bool dpr1_preserves_subnormal_inputs() {
 
 template <typename Scalar>
 bool dpr1_has_gradual_underflow() {
-  return std::numeric_limits<Scalar>::has_denorm == std::denorm_present && dpr1_underflow_probe<Scalar>() != Scalar(0);
+  return std::numeric_limits<Scalar>::has_denorm == std::denorm_present && underflowProbe<Scalar>() != Scalar(0);
 }
 
 // Full quality check of one decomposition: eigenvalues against a dense
@@ -539,17 +532,17 @@ void test_dpr1_tiny_scale() {
 }
 
 void test_dpr1_ftz_mode() {
-  const double underflowBefore = dpr1_underflow_probe<double>();
+  const double underflowBefore = underflowProbe<double>();
   bool flushToZeroSupported = false;
   {
     ScopedFlushToZero flushToZero;
     flushToZeroSupported = flushToZero.isSupported();
     if (flushToZeroSupported) {
-      VERIFY_IS_EQUAL(dpr1_underflow_probe<double>(), 0.0);
+      VERIFY_IS_EQUAL(underflowProbe<double>(), 0.0);
       test_dpr1_edges<double>();
     }
   }
-  if (flushToZeroSupported) VERIFY_IS_EQUAL(dpr1_underflow_probe<double>(), underflowBefore);
+  if (flushToZeroSupported) VERIFY_IS_EQUAL(underflowProbe<double>(), underflowBefore);
 }
 
 // A huge diagonal spread makes every z entry individually negligible even though

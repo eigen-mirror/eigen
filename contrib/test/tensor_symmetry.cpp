@@ -79,27 +79,6 @@ struct checkIdx {
   }
 };
 
-static void test_symgroups_static() {
-  std::array<int, 7> identity{{0, 1, 2, 3, 4, 5, 6}};
-
-  // Simple static symmetry group
-  StaticSGroup<AntiSymmetry<0, 1>, Hermiticity<0, 2>> group;
-
-  std::set<uint64_t> found;
-  std::map<uint64_t, int> expected;
-  expected[123456] = 0;
-  expected[1023456] = NegationFlag;
-  expected[2103456] = ConjugationFlag;
-  expected[1203456] = ConjugationFlag | NegationFlag;
-  expected[2013456] = ConjugationFlag | NegationFlag;
-  expected[213456] = ConjugationFlag;
-
-  VERIFY_IS_EQUAL(group.size(), 6u);
-  VERIFY_IS_EQUAL(group.globalFlags(), GlobalImagFlag);
-  group.apply<checkIdx, int>(identity, 0, found, expected);
-  VERIFY_IS_EQUAL(found.size(), 6u);
-}
-
 static void test_symgroups_dynamic() {
   std::vector<int> identity;
   for (int i = 0; i <= 6; i++) identity.push_back(i);
@@ -121,8 +100,6 @@ static void test_symgroups_dynamic() {
   expected[2013456] = ConjugationFlag | NegationFlag;
   expected[213456] = ConjugationFlag;
 
-  VERIFY_IS_EQUAL(group.size(), 6u);
-  VERIFY_IS_EQUAL(group.globalFlags(), GlobalImagFlag);
   group.apply<checkIdx, int>(identity, 0, found, expected);
   VERIFY_IS_EQUAL(found.size(), 6u);
 }
@@ -132,8 +109,7 @@ static void test_symgroups_selection() {
   std::array<int, 10> identity10{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}};
 
   {
-    // Do the same test as in test_symgroups_static but
-    // require selection via SGroup
+    // Simple static symmetry group, selected via SGroup
     SGroup<AntiSymmetry<0, 1>, Hermiticity<0, 2>> group;
 
     std::set<uint64_t> found;
@@ -785,7 +761,6 @@ static void test_tensor_randacc() {
 }
 
 EIGEN_DECLARE_TEST(tensor_symmetry) {
-  CALL_SUBTEST(test_symgroups_static());
   CALL_SUBTEST(test_symgroups_dynamic());
   CALL_SUBTEST(test_symgroups_selection());
   CALL_SUBTEST(test_tensor_epsilon());

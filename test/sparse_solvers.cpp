@@ -229,11 +229,6 @@ void sparse_solvers(int rows, int cols) {
       }
     }
 
-    // test deprecated API
-    initSparse<Scalar>(density, refMat2, m2, ForceNonZeroDiag | MakeLowerTriangular, &zeroCoords, &nonzeroCoords);
-    VERIFY_IS_APPROX(refMat2.template triangularView<Lower>().solve(vec2),
-                     m2.template triangularView<Lower>().solve(vec3));
-
     // test empty triangular matrix
     {
       m2.resize(0, 0);

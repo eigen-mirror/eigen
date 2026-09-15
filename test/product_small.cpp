@@ -190,7 +190,6 @@ void test_lazy_l3() {
   CALL_SUBTEST((test_lazy_all_layout<T, 6, 5, 4>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 4, 4, 5>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 3, 4, 6>()));
-  CALL_SUBTEST((test_lazy_all_layout<T, 2, 6, 4>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 7, 8, 8>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 8, -1, 4>(8, cols)));
   CALL_SUBTEST((test_lazy_all_layout<T, 3, 4, -1>(3, 4, depth)));

@@ -68,9 +68,6 @@ void product_extra(const MatrixType& m) {
   VERIFY_IS_APPROX((s1 * v1.conjugate()) * (-m1.conjugate() * s2),
                    (s1 * v1.conjugate()).eval() * (-m1.conjugate() * s2).eval());
 
-  VERIFY_IS_APPROX((-m1.adjoint() * s2) * (s1 * v1.adjoint()),
-                   (-m1.adjoint() * s2).eval() * (s1 * v1.adjoint()).eval());
-
   // test the vector-matrix product with non aligned starts
   Index i = internal::random<Index>(0, m1.rows() - 2);
   Index j = internal::random<Index>(0, m1.cols() - 2);

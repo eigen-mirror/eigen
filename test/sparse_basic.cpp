@@ -340,10 +340,6 @@ void sparse_basic(const SparseMatrixType& ref) {
     VERIFY_IS_APPROX((RealScalar(0.5) * refM4 + m3.cwiseProduct(m3)).eval(),
                      RealScalar(0.5) * refM4 + refM3.cwiseProduct(refM3));
 
-    VERIFY_IS_APPROX((RealScalar(0.5) * refM4 + RealScalar(0.5) * m3).eval(),
-                     RealScalar(0.5) * refM4 + RealScalar(0.5) * refM3);
-    VERIFY_IS_APPROX((RealScalar(0.5) * refM4 + m3 * RealScalar(0.5)).eval(),
-                     RealScalar(0.5) * refM4 + RealScalar(0.5) * refM3);
     VERIFY_IS_APPROX((RealScalar(0.5) * refM4 + (m3 + m3)).eval(), RealScalar(0.5) * refM4 + (refM3 + refM3));
     VERIFY_IS_APPROX(((refM3 + m3) + RealScalar(0.5) * m3).eval(), RealScalar(0.5) * refM3 + (refM3 + refM3));
     VERIFY_IS_APPROX((RealScalar(0.5) * refM4 + (refM3 + m3)).eval(), RealScalar(0.5) * refM4 + (refM3 + refM3));

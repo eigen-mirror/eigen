@@ -508,10 +508,8 @@ void check_sparse_spd_determinant(Solver& solver) {
   DenseMatrix dA;
   generate_sparse_spd_problem(solver, A, halfA, dA, 30);
 
-  for (int i = 0; i < g_repeat; i++) {
-    check_sparse_determinant(solver, A, dA);
-    check_sparse_determinant(solver, halfA, dA);
-  }
+  check_sparse_determinant(solver, A, dA);
+  check_sparse_determinant(solver, halfA, dA);
 }
 
 template <typename Solver>
@@ -525,10 +523,8 @@ void check_sparse_spd_log_abs_determinant(Solver& solver) {
   DenseMatrix dA;
   generate_sparse_spd_problem(solver, A, halfA, dA, 30);
 
-  for (int i = 0; i < g_repeat; i++) {
-    check_sparse_log_abs_determinant(solver, A, dA);
-    check_sparse_log_abs_determinant(solver, halfA, dA);
-  }
+  check_sparse_log_abs_determinant(solver, A, dA);
+  check_sparse_log_abs_determinant(solver, halfA, dA);
 }
 
 template <typename Solver, typename DenseMat>

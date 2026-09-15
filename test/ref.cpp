@@ -286,14 +286,12 @@ void call_ref() {
   RowVector3f c = RowVector3f::Random();
   const VectorXf &ac(a);
   VectorBlock<VectorXf> ab(a, 0, 3);
-  const VectorBlock<VectorXf> abc(a, 0, 3);
 
   VERIFY_EVALUATION_COUNT(call_ref_1(a, a), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(b, b.transpose()), 0);
   //   call_ref_1(ac,a<c);           // does not compile because ac is const
   VERIFY_EVALUATION_COUNT(call_ref_1(ab, ab), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(a.head(4), a.head(4)), 0);
-  VERIFY_EVALUATION_COUNT(call_ref_1(abc, abc), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(A.col(3), A.col(3)), 0);
   //   call_ref_1(A.row(3),A.row(3));    // does not compile because innerstride!=1
   VERIFY_EVALUATION_COUNT(call_ref_3(A.row(3), A.row(3).transpose()), 0);
@@ -303,7 +301,6 @@ void call_ref() {
   MatrixXf tmp = A * A.col(1);
   VERIFY_EVALUATION_COUNT(call_ref_2(A * A.col(1), tmp), 1);  // evaluated into a temp
   VERIFY_EVALUATION_COUNT(call_ref_2(ac.head(5), ac.head(5)), 0);
-  VERIFY_EVALUATION_COUNT(call_ref_2(ac, ac), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(a, a), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(ab, ab), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(a.head(4), a.head(4)), 0);

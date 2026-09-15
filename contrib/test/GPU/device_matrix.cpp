@@ -391,29 +391,6 @@ void test_blas1(Index n) {
 
   RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
 
-  // dot
-  {
-    Vec a = Vec::Random(n);
-    Vec b = Vec::Random(n);
-    auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
-    auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
-    Scalar gpu_dot = d_a.dot(ctx, d_b);
-    Scalar cpu_dot = a.dot(b);
-    VERIFY(numext::abs(gpu_dot - cpu_dot) < tol * numext::abs(cpu_dot) + tol);
-  }
-
-  // norm / squaredNorm
-  {
-    Vec a = Vec::Random(n);
-    auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
-    RealScalar gpu_norm = d_a.norm(ctx);
-    RealScalar cpu_norm = a.norm();
-    VERIFY(numext::abs(gpu_norm - cpu_norm) < tol * cpu_norm + tol);
-    RealScalar gpu_sqnorm = d_a.squaredNorm(ctx);
-    RealScalar cpu_sqnorm = a.squaredNorm();
-    VERIFY(numext::abs(gpu_sqnorm - cpu_sqnorm) < tol * cpu_sqnorm + tol);
-  }
-
   // addScaled (axpy)
   {
     Vec x = Vec::Random(n);

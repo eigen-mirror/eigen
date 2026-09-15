@@ -211,7 +211,6 @@ void sparse_block(const SparseMatrixType& ref) {
         VERIFY_IS_APPROX(m.block(i, j, h, w).row(r), refMat.block(i, j, h, w).row(r));
         for (Index c = 0; c < w; c++) {
           VERIFY_IS_APPROX(m.block(i, j, h, w).row(r).coeff(c), refMat.block(i, j, h, w).row(r).coeff(c));
-          VERIFY_IS_APPROX(m.block(i, j, h, w).coeff(r, c), refMat.block(i, j, h, w).coeff(r, c));
         }
       }
 
@@ -228,9 +227,6 @@ void sparse_block(const SparseMatrixType& ref) {
           VERIFY_IS_APPROX(m.middleRows(i, h).coeff(r, c), refMat.middleRows(i, h).coeff(r, c));
           if (!numext::is_exactly_zero(m.middleCols(j, w).coeff(r, c))) {
             VERIFY_IS_APPROX(m.middleCols(j, w).coeffRef(r, c), refMat.middleCols(j, w).coeff(r, c));
-          }
-          if (!numext::is_exactly_zero(m.middleRows(i, h).coeff(r, c))) {
-            VERIFY_IS_APPROX(m.middleRows(i, h).coeff(r, c), refMat.middleRows(i, h).coeff(r, c));
           }
         }
       }
@@ -433,11 +429,7 @@ void sparse_block(const SparseMatrixType& ref) {
       VERIFY_IS_EQUAL(v.innerNonZeroPtr(), (const StorageIndex*)0);
     } else {
       VERIFY(!v.isCompressed());
-      if (SparseMatrixType::IsRowMajor) {
-        VERIFY_IS_EQUAL(v.innerNonZeroPtr(), m2.innerNonZeroPtr() + j0);
-      } else {
-        VERIFY_IS_EQUAL(v.innerNonZeroPtr(), m2.innerNonZeroPtr() + j0);
-      }
+      VERIFY_IS_EQUAL(v.innerNonZeroPtr(), m2.innerNonZeroPtr() + j0);
     }
     VERIFY_IS_EQUAL(v.valuePtr(), m2.valuePtr());
     VERIFY_IS_EQUAL(v.innerIndexPtr(), m2.innerIndexPtr());

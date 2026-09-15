@@ -28,8 +28,8 @@ set(ei_smoke_test_list
   bunchkaufman_5
   BVH
   cholesky_1
-  cholmod_support_23
-  cholmod_support_24
+  cholmod_support_21
+  cholmod_support_22
   conservative_resize_1
   constructor_1
   corners_1
@@ -78,9 +78,9 @@ set(ei_smoke_test_list
   unaryview_3
   matrix_square_root_1
   meta
-  minres_2
+  minres_1
   miscmatrices_1
-  mixingtypes_7
+  mixingtypes_4
   nestbyvalue
   nesting_ops_1
   nomalloc_1

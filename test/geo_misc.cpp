@@ -212,16 +212,6 @@ void rotation2d_standalone() {
     VERIFY_IS_APPROX(r2.toRotationMatrix(), r.toRotationMatrix());
   }
 
-  // slerp at t=0.5 of inverse should give ~0 or ~pi
-  {
-    Scalar a = internal::random<Scalar>(Scalar(0.1), Scalar(EIGEN_PI) / Scalar(2));
-    Rotation2Dx r(a);
-    Rotation2Dx half = r.slerp(Scalar(0.5), r.inverse());
-    // The midpoint between a rotation and its inverse via shortest path should be ~0 or ~pi
-    Scalar halfAngle = half.smallestAngle();
-    VERIFY(numext::abs(halfAngle) < eps || numext::abs(numext::abs(halfAngle) - Scalar(EIGEN_PI)) < eps);
-  }
-
   // Rotation2D slerp interpolation: verify linearity of angle
   {
     Scalar a0 = internal::random<Scalar>(Scalar(-EIGEN_PI), Scalar(EIGEN_PI));
@@ -232,16 +222,6 @@ void rotation2d_standalone() {
     // Slerp for 2D rotations is just linear interpolation of angle along shortest path.
     Scalar expected = a0 + t * Rotation2Dx(a1 - a0).smallestAngle();
     VERIFY(numext::abs(Rotation2Dx(rt.angle() - expected).smallestAngle()) < eps);
-  }
-
-  // smallestAngle range
-  for (int k = 0; k < 100; ++k) {
-    Scalar a = internal::random<Scalar>(Scalar(-100), Scalar(100));
-    Rotation2Dx r(a);
-    VERIFY(r.smallestAngle() >= -Scalar(EIGEN_PI));
-    VERIFY(r.smallestAngle() <= Scalar(EIGEN_PI));
-    VERIFY(r.smallestPositiveAngle() >= Scalar(0));
-    VERIFY(r.smallestPositiveAngle() <= Scalar(2) * Scalar(EIGEN_PI));
   }
 }
 

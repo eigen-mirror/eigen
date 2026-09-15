@@ -18,7 +18,7 @@ struct test_tensor_ostream_impl {};
 template <typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 0, Layout> {
   static void run() {
-    Eigen::Tensor<Scalar, 0> t;
+    Eigen::Tensor<Scalar, 0, Layout> t;
     t.setValues(1);
     std::ostringstream os;
     os << t.format(Eigen::TensorIOFormat::Plain());
@@ -29,7 +29,7 @@ struct test_tensor_ostream_impl<Scalar, 0, Layout> {
 template <typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 1, Layout> {
   static void run() {
-    Eigen::Tensor<Scalar, 1> t = {3};
+    Eigen::Tensor<Scalar, 1, Layout> t = {3};
     t.setValues({1, 2, 3});
     std::ostringstream os;
     os << t.format(Eigen::TensorIOFormat::Plain());
@@ -40,7 +40,7 @@ struct test_tensor_ostream_impl<Scalar, 1, Layout> {
 template <typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 2, Layout> {
   static void run() {
-    Eigen::Tensor<Scalar, 2> t = {3, 2};
+    Eigen::Tensor<Scalar, 2, Layout> t = {3, 2};
     t.setValues({{1, 2}, {3, 4}, {5, 6}});
     std::ostringstream os;
     os << t.format(Eigen::TensorIOFormat::Plain());
@@ -51,7 +51,7 @@ struct test_tensor_ostream_impl<Scalar, 2, Layout> {
 template <typename Scalar, int Layout>
 struct test_tensor_ostream_impl<Scalar, 3, Layout> {
   static void run() {
-    Eigen::Tensor<Scalar, 3> t = {4, 3, 2};
+    Eigen::Tensor<Scalar, 3, Layout> t = {4, 3, 2};
     t.setValues({{{1, 2}, {3, 4}, {5, 6}},
                  {{7, 8}, {9, 10}, {11, 12}},
                  {{13, 14}, {15, 16}, {17, 18}},
@@ -65,7 +65,7 @@ struct test_tensor_ostream_impl<Scalar, 3, Layout> {
 template <int Layout>
 struct test_tensor_ostream_impl<bool, 2, Layout> {
   static void run() {
-    Eigen::Tensor<bool, 2> t = {3, 2};
+    Eigen::Tensor<bool, 2, Layout> t = {3, 2};
     t.setValues({{false, true}, {true, false}, {false, false}});
     std::ostringstream os;
     os << t.format(Eigen::TensorIOFormat::Plain());
@@ -76,7 +76,7 @@ struct test_tensor_ostream_impl<bool, 2, Layout> {
 template <typename Scalar, int Layout>
 struct test_tensor_ostream_impl<std::complex<Scalar>, 2, Layout> {
   static void run() {
-    Eigen::Tensor<std::complex<Scalar>, 2> t = {3, 2};
+    Eigen::Tensor<std::complex<Scalar>, 2, Layout> t = {3, 2};
     t.setValues({{std::complex<Scalar>(1, 2), std::complex<Scalar>(12, 3)},
                  {std::complex<Scalar>(-4, 2), std::complex<Scalar>(0, 5)},
                  {std::complex<Scalar>(-1, 4), std::complex<Scalar>(5, 27)}});

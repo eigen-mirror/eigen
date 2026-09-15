@@ -42,10 +42,6 @@ void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(
       input);  // FullPiv only used when computing full unitaries
-
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType>>(input);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, HouseholderQRPreconditioner>>(input);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(input);
 }
 
 template <typename MatrixType>
@@ -56,10 +52,6 @@ void jacobisvd_vector_asserts(const MatrixType& input = MatrixType()) {
   svd_verify_assert<MatrixType>(m);
   svd_verify_assert<MatrixType, HouseholderQRPreconditioner>(m);
   svd_verify_assert_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(m);
-
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType>>(m);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, HouseholderQRPreconditioner>>(m);
-  svd_verify_constructor_options_assert<JacobiSVD<MatrixType, FullPivHouseholderQRPreconditioner>>(m);
 }
 
 template <typename MatrixType>

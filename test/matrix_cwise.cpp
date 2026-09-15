@@ -165,16 +165,12 @@ void test_cwise_real(const MatrixType& m) {
   // Supported binary ops.
   m1.setRandom(rows, cols);
   m2.setRandom(rows, cols);
-  VERIFY_IS_CWISE_EQUAL(m1.cwiseMin(m2),
-                        cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMin<PropagateFast>(m2),
                         cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMin<PropagateNaN>(m2),
                         cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMin<PropagateNumbers>(m2),
                         cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
-  VERIFY_IS_CWISE_EQUAL(m1.cwiseMax(m2),
-                        cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::maxi(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMax<PropagateFast>(m2),
                         cwise_ref(m1, m2, [](const Scalar& x, const Scalar& y) { return Eigen::numext::maxi(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMax<PropagateNaN>(m2),
@@ -184,8 +180,6 @@ void test_cwise_real(const MatrixType& m) {
   // Scalar comparison.
   Scalar mean = Eigen::NumTraits<Scalar>::highest() / Scalar(2) + Eigen::NumTraits<Scalar>::lowest() / Scalar(2);
   m4.setConstant(rows, cols, mean);
-  VERIFY_IS_CWISE_EQUAL(m1.cwiseMin(mean),
-                        cwise_ref(m1, m4, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMin<PropagateFast>(mean),
                         cwise_ref(m1, m4, [](const Scalar& x, const Scalar& y) { return Eigen::numext::mini(x, y); }));
   VERIFY_IS_CWISE_EQUAL(m1.template cwiseMin<PropagateNaN>(mean),

@@ -325,9 +325,6 @@ void check_twoprod_negation_expression() {
 template <typename T>
 void check_arg() {
   typedef typename NumTraits<T>::Real Real;
-  VERIFY_IS_EQUAL(numext::abs(T(0)), T(0));
-  VERIFY_IS_EQUAL(numext::abs(T(1)), T(1));
-
   for (int k = 0; k < 100; ++k) {
     T x = internal::random<T>();
     Real y = numext::arg(x);

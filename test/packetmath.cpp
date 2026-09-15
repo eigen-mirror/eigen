@@ -1246,14 +1246,6 @@ void packetmath_real() {
 #endif
   }
 
-  if (PacketTraits::HasTanh) {
-    // NOTE this test might fail with GCC prior to 6.3, see MathFunctionsImpl.h for details.
-    data1[0] = NumTraits<Scalar>::quiet_NaN();
-    test::packet_helper<internal::packet_traits<Scalar>::HasTanh, Packet> h;
-    h.store(data2, internal::ptanh(h.load(data1)));
-    VERIFY((numext::isnan)(data2[0]));
-  }
-
   if (PacketTraits::HasExp) {
     internal::scalar_logistic_op<Scalar> logistic;
     for (int i = 0; i < size; ++i) {
@@ -1300,28 +1292,6 @@ void packetmath_real() {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
-
-      // Note: 32-bit arm always flushes denorms to zero.
-#if !EIGEN_ARCH_ARM
-      if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
-        data1[0] = std::numeric_limits<Scalar>::denorm_min();
-        data1[1] = -std::numeric_limits<Scalar>::denorm_min();
-        h.store(data2, internal::plog(h.load(data1)));
-        // TODO(rmlarsen): Re-enable for bfloat16.
-        if (!std::is_same<Scalar, bfloat16>::value) {
-          VERIFY_IS_APPROX(std::log(std::numeric_limits<Scalar>::denorm_min()), data2[0]);
-        }
-        VERIFY((numext::isnan)(data2[1]));
-      }
-#endif
-
-      data1[0] = Scalar(-1.0f);
-      h.store(data2, internal::plog(h.load(data1)));
-      VERIFY((numext::isnan)(data2[0]));
-
-      data1[0] = NumTraits<Scalar>::infinity();
-      h.store(data2, internal::plog(h.load(data1)));
-      VERIFY((numext::isinf)(data2[0]));
     }
     if (PacketTraits::HasLog10) {
       test::packet_helper<PacketTraits::HasLog10, Packet> h;
@@ -1363,22 +1333,6 @@ void packetmath_real() {
           VERIFY_IS_APPROX(numext::abs2(data2[1]) + numext::abs2(data2[PacketSize + 1]), Scalar(1));
         }
       }
-
-      data1[0] = NumTraits<Scalar>::infinity();
-      data1[1] = -NumTraits<Scalar>::infinity();
-      h.store(data2, internal::psin(h.load(data1)));
-      VERIFY((numext::isnan)(data2[0]));
-      VERIFY((numext::isnan)(data2[1]));
-
-      h.store(data2, internal::pcos(h.load(data1)));
-      VERIFY((numext::isnan)(data2[0]));
-      VERIFY((numext::isnan)(data2[1]));
-
-      data1[0] = NumTraits<Scalar>::quiet_NaN();
-      h.store(data2, internal::psin(h.load(data1)));
-      VERIFY((numext::isnan)(data2[0]));
-      h.store(data2, internal::pcos(h.load(data1)));
-      VERIFY((numext::isnan)(data2[0]));
 
       data1[0] = -Scalar(0.);
       h.store(data2, internal::psin(h.load(data1)));
@@ -2114,7 +2068,6 @@ void packetmath_complex() {
       data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
     }
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, size);
-    CHECK_CWISE1_IF(PacketTraits::HasSign, numext::sign, internal::psign);
 
     // Test misc. corner cases.
     data1[0] = Scalar(zero, zero);

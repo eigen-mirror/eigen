@@ -177,7 +177,6 @@ void sparse_product() {
     VERIFY_IS_APPROX(dm4 = m2t.transpose() * refMat3t.transpose(),
                      refMat4 = refMat2t.transpose() * refMat3t.transpose());
 
-    VERIFY_IS_APPROX(dm4 = m2 * refMat3, refMat4 = refMat2 * refMat3);
     VERIFY_IS_APPROX(dm4 = dm4 + m2 * refMat3, refMat4 = refMat4 + refMat2 * refMat3);
     VERIFY_IS_APPROX(dm4 += m2 * refMat3, refMat4 += refMat2 * refMat3);
     VERIFY_IS_APPROX(dm4 -= m2 * refMat3, refMat4 -= refMat2 * refMat3);

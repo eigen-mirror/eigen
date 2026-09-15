@@ -224,7 +224,6 @@ void check_indexed_view() {
   VERIFY_IS_APPROX(A(seq(n - 1 - 5, n - 1 - 2), seq(n - 1 - 5, n - 1 - 2)),
                    A(seq(last - 5, last - 2), seq(last - 5, last - 2)));
 
-  VERIFY_IS_APPROX(A.col(A.cols() - 1), A(all, last));
   VERIFY_IS_APPROX(A(A.rows() - 2, A.cols() / 2), A(last - 1, lastp1 / 2));
   VERIFY_IS_APPROX(a(a.size() - 2), a(last - 1));
   VERIFY_IS_APPROX(a(a.size() / 2), a((last + 1) / 2));
@@ -305,18 +304,12 @@ void check_indexed_view() {
     VERIFY_IS_CWISE_EQUAL(r({idx[0], idx[1], idx[2]}), r(c_array));
     VERIFY_IS_CWISE_EQUAL(r({idx[0], idx[1], idx[2]}), r(std_vector));
     VERIFY_IS_CWISE_EQUAL(r({idx[0], idx[1], idx[2]}), r(eigen_matrix));
-    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(c_array));
-    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(eigen_matrix));
-    VERIFY_IS_CWISE_EQUAL(r(eigen_matrix), r(c_array));
 
     const ArrayXd& r_ref = r;
     // const access
     VERIFY_IS_CWISE_EQUAL(r_ref({idx[0], idx[1], idx[2]}), r_ref(c_array));
     VERIFY_IS_CWISE_EQUAL(r_ref({idx[0], idx[1], idx[2]}), r_ref(std_vector));
     VERIFY_IS_CWISE_EQUAL(r_ref({idx[0], idx[1], idx[2]}), r_ref(eigen_matrix));
-    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(c_array));
-    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(eigen_matrix));
-    VERIFY_IS_CWISE_EQUAL(r_ref(eigen_matrix), r_ref(c_array));
   }
 
   {
@@ -342,9 +335,6 @@ void check_indexed_view() {
                           R(std_vector_rows, std_vector_cols));
     VERIFY_IS_CWISE_EQUAL(R({r_idx[0], r_idx[1], r_idx[2]}, {c_idx[0], c_idx[1], c_idx[2], c_idx[3]}),
                           R(eigen_matrix_rows, eigen_matrix_cols));
-    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(c_array_rows, c_array_cols));
-    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(eigen_matrix_rows, eigen_matrix_cols));
-    VERIFY_IS_CWISE_EQUAL(R(eigen_matrix_rows, eigen_matrix_cols), R(c_array_rows, c_array_cols));
 
     const ArrayXXd& R_ref = R;
     // const access

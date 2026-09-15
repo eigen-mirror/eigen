@@ -15,11 +15,6 @@
 using namespace std;
 
 template <typename MatrixType>
-typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
-  return m.cwiseAbs().colwise().sum().maxCoeff();
-}
-
-template <typename MatrixType>
 void lu_non_invertible() {
   typedef typename MatrixType::RealScalar RealScalar;
   /* this test covers the following files:

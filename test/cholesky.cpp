@@ -16,13 +16,6 @@
 #include <Eigen/QR>
 #include "solverbase.h"
 
-template <typename MatrixType, int UpLo>
-typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
-  if (m.cols() == 0) return typename MatrixType::RealScalar(0);
-  MatrixType symm = m.template selfadjointView<UpLo>();
-  return symm.cwiseAbs().colwise().sum().maxCoeff();
-}
-
 template <typename MatrixType, template <typename, int> class CholType>
 void test_chol_update(const MatrixType& symm) {
   typedef typename MatrixType::Scalar Scalar;

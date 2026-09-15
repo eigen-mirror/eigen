@@ -107,22 +107,15 @@ static void test_striding_as_lvalue() {
   }
 }
 
-// setRandom() draws integers from the full range of T, so the values scaled
-// below would overflow. Bounded draws keep them representable for every T.
-template <typename T, int NumDims, int DataLayout>
-static void set_bounded_random(Tensor<T, NumDims, DataLayout>& tensor) {
-  for (Index i = 0; i < tensor.size(); ++i) {
-    tensor.coeffRef(i) = internal::random<T>(T(-10), T(10));
-  }
-}
-
 template <typename T, int DataLayout>
 static void test_striding_packet_paths() {
   // Sizes with partial-packet tails; expression-sourced reads so the packet
   // path is exercised, sweeping strides that keep the inner dimension intact
   // (contiguous inner runs), that stride it (gathers), and the identity.
+  // setRandom() draws integers from the full range of T, so the values scaled
+  // below would overflow; bounded draws keep them representable for every T.
   Tensor<T, 3, DataLayout> tensor(17, 5, 7);
-  set_bounded_random(tensor);
+  setRandomDataInRange(tensor, T(-10), T(10));
 
   const ptrdiff_t stride_sets[][3] = {{1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}, {2, 2, 2}, {3, 1, 2}};
   for (const auto& s : stride_sets) {
@@ -143,7 +136,7 @@ static void test_striding_packet_paths() {
     Tensor<T, 3, DataLayout> dst(17, 5, 7);
     dst.setZero();
     Tensor<T, 3, DataLayout> src((17 + s[0] - 1) / s[0], (5 + s[1] - 1) / s[1], (7 + s[2] - 1) / s[2]);
-    set_bounded_random(src);
+    setRandomDataInRange(src, T(-10), T(10));
     dst.stride(strides) = src * src.constant(T(3));
     for (Index i = 0; i < src.dimension(0); ++i) {
       for (Index j = 0; j < src.dimension(1); ++j) {

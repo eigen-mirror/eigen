@@ -1633,9 +1633,6 @@ EIGEN_DECLARE_TEST(tensor_gpu) {
   CALL_SUBTEST_9(test_gpu_i1e<float>());
   CALL_SUBTEST_9(test_gpu_i1e<double>());
 
-  CALL_SUBTEST_9(test_gpu_i1e<float>());
-  CALL_SUBTEST_9(test_gpu_i1e<double>());
-
   CALL_SUBTEST_9(test_gpu_igamma_der_a<float>());
   CALL_SUBTEST_9(test_gpu_igamma_der_a<double>());
 

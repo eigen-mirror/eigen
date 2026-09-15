@@ -522,22 +522,6 @@ void inline tensorOutofBound(const Dev &sycl_device) {
 }
 
 template <typename Dev>
-void inline tensorTensor(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
-  std::chrono::time_point<std::chrono::system_clock> start, end;
-  start = std::chrono::system_clock::now();
-  // Tensor Tensor Contraction
-  test_sycl_contraction<ColMajor, DataType, IndexType>(sycl_device, 128, 128, 128);
-  test_sycl_contraction<RowMajor, DataType, IndexType>(sycl_device, 128, 128, 128);
-  end = std::chrono::system_clock::now();
-  std::chrono::duration<double> elapsed_seconds = end - start;
-  std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-  std::cout << "tensor tensor tests finished computation at " << std::ctime(&end_time)
-            << "elapsed time: " << elapsed_seconds.count() << "s\n";
-}
-
-template <typename Dev>
 void inline tensorTensor_m(const Dev &sycl_device) {
   typedef float DataType;
   typedef int64_t IndexType;
@@ -829,7 +813,6 @@ EIGEN_DECLARE_TEST(tensor_contract_sycl) {
     QueueInterface queueInterface(device);
     auto sycl_device = Eigen::SyclDevice(&queueInterface);
     CALL_SUBTEST_1(tensorOutofBound(sycl_device));
-    CALL_SUBTEST_2(tensorTensor(sycl_device));
     CALL_SUBTEST_2(tensorTensor_m(sycl_device));
     CALL_SUBTEST_2(tensorTensor_n(sycl_device));
     CALL_SUBTEST_2(tensorTensor_k(sycl_device));

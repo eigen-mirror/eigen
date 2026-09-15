@@ -4,13 +4,6 @@
 #include "main.h"
 #include "fp_control.h"
 
-template <typename RealScalar>
-EIGEN_DONT_INLINE RealScalar underflow_probe() {
-  volatile RealScalar normal_min = (std::numeric_limits<RealScalar>::min)();
-  volatile RealScalar one_half = RealScalar(0.5);
-  return normal_min * one_half;
-}
-
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC) && EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC
 EIGEN_DONT_INLINE half fp16_underflow_probe(half normal_min, half one_half) { return normal_min * one_half; }
 
@@ -82,18 +75,18 @@ void stable_norm_ftz_boundaries() {
   mixed(0) = large;
   const RealScalar expected_norm = large * sqrt(RealScalar(1) + RealScalar(block_size - 1) / RealScalar(65536));
 
-  const RealScalar underflow_before = underflow_probe<RealScalar>();
+  const RealScalar underflow_before = underflowProbe<RealScalar>();
   bool flush_to_zero_supported = false;
   {
     Eigen::ScopedFlushToZero flush_to_zero;
     flush_to_zero_supported = flush_to_zero.isSupported();
-    if (flush_to_zero_supported) VERIFY_IS_EQUAL(underflow_probe<RealScalar>(), RealScalar(0));
+    if (flush_to_zero_supported) VERIFY_IS_EQUAL(underflowProbe<RealScalar>(), RealScalar(0));
     VERIFY_IS_APPROX(reciprocal_boundary.stableNormalized(), expected_normalized);
     reciprocal_boundary.stableNormalize();
     VERIFY_IS_APPROX(reciprocal_boundary, expected_normalized);
     VERIFY_IS_APPROX(mixed.stableNorm(), expected_norm);
   }
-  if (flush_to_zero_supported) VERIFY_IS_EQUAL(underflow_probe<RealScalar>(), underflow_before);
+  if (flush_to_zero_supported) VERIFY_IS_EQUAL(underflowProbe<RealScalar>(), underflow_before);
 }
 
 template <typename RealScalar>

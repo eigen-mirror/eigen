@@ -130,14 +130,6 @@ void transformations() {
 
   // angle-axis conversion
   AngleAxisx aa = AngleAxisx(q1);
-  VERIFY_IS_APPROX(q1 * v1, Quaternionx(aa) * v1);
-
-  // The following test is stable only if 2*angle != angle and v1 is not colinear with axis
-  if ((abs(aa.angle()) > test_precision<Scalar>()) &&
-      (abs(aa.axis().dot(v1.normalized())) < (Scalar(1) - Scalar(4) * test_precision<Scalar>()))) {
-    VERIFY(!(q1 * v1).isApprox(Quaternionx(AngleAxisx(aa.angle() * 2, aa.axis())) * v1));
-  }
-
   aa.fromRotationMatrix(aa.toRotationMatrix());
   VERIFY_IS_APPROX(q1 * v1, Quaternionx(aa) * v1);
   // The following test is stable only if 2*angle != angle and v1 is not colinear with axis

@@ -120,10 +120,10 @@ void symm(int size = Size, int othersize = OtherSize) {
 // two-pass trailing transpose -- are otherwise never reached through the public
 // API.  Both operand positions (selfadjoint on the LHS and on the RHS) and both
 // stored triangles are checked against a dense reference.
-template <typename Scalar>
+template <typename Scalar, int DenseStorageOrder = EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION>
 void symm_rowmajor_selfadjoint(Index size, Index othersize) {
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
-  typedef Matrix<Scalar, Dynamic, Dynamic> ColMat;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using DenseMat = Matrix<Scalar, Dynamic, Dynamic, DenseStorageOrder>;
 
   RowMat m1 = RowMat::Random(size, size);
   m1 = (m1 + m1.adjoint()).eval();  // exactly self-adjoint
@@ -131,16 +131,16 @@ void symm_rowmajor_selfadjoint(Index size, Index othersize) {
   RowMat up = m1.template triangularView<Upper>();
 
   // Selfadjoint on the LHS: packs the RowMajor operand via symm_pack_lhs.
-  ColMat rhs = ColMat::Random(size, othersize);
-  ColMat ref = m1 * rhs;
-  VERIFY_IS_APPROX((lo.template selfadjointView<Lower>() * rhs).eval(), ref);
-  VERIFY_IS_APPROX((up.template selfadjointView<Upper>() * rhs).eval(), ref);
+  DenseMat rhs = DenseMat::Random(size, othersize);
+  DenseMat ref = m1 * rhs;
+  VERIFY_IS_APPROX(DenseMat(lo.template selfadjointView<Lower>() * rhs), ref);
+  VERIFY_IS_APPROX(DenseMat(up.template selfadjointView<Upper>() * rhs), ref);
 
   // Selfadjoint on the RHS: packs the RowMajor operand via symm_pack_rhs.
-  ColMat lhs = ColMat::Random(othersize, size);
-  ColMat ref2 = lhs * m1;
-  VERIFY_IS_APPROX((lhs * lo.template selfadjointView<Lower>()).eval(), ref2);
-  VERIFY_IS_APPROX((lhs * up.template selfadjointView<Upper>()).eval(), ref2);
+  DenseMat lhs = DenseMat::Random(othersize, size);
+  DenseMat ref2 = lhs * m1;
+  VERIFY_IS_APPROX(DenseMat(lhs * lo.template selfadjointView<Lower>()), ref2);
+  VERIFY_IS_APPROX(DenseMat(lhs * up.template selfadjointView<Upper>()), ref2);
 }
 
 // Test symmetric products at blocking boundary sizes.
@@ -274,27 +274,6 @@ void symm_pack_buffers() {
   }
 }
 
-// A physically RowMajor selfadjoint operand. The symm<> tests above always
-// build ColMajor operands, so without this the RowMajor symm_pack_lhs/rhs
-// instantiations are never reached through the public API.
-template <typename Scalar>
-void symm_rowmajor_operand(Index n, Index m) {
-  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
-  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-  RowMat s = RowMat::Random(n, n);
-  s = (s + s.adjoint()).eval();
-  RowMat lo = s.template triangularView<Lower>();
-  RowMat up = s.template triangularView<Upper>();
-  ColMat b = ColMat::Random(n, m), c = ColMat::Random(m, n);
-
-  ColMat ref = ColMat(s) * b;
-  VERIFY_IS_APPROX(ColMat(lo.template selfadjointView<Lower>() * b), ref);
-  VERIFY_IS_APPROX(ColMat(up.template selfadjointView<Upper>() * b), ref);
-  ColMat ref2 = c * ColMat(s);
-  VERIFY_IS_APPROX(ColMat(c * lo.template selfadjointView<Lower>()), ref2);
-  VERIFY_IS_APPROX(ColMat(c * up.template selfadjointView<Upper>()), ref2);
-}
-
 template <int>
 void symm_packers_and_rowmajor_operands() {
   symm_pack_buffers<float>();
@@ -305,9 +284,12 @@ void symm_packers_and_rowmajor_operands() {
   const Index sizes[] = {1, 2, 7, 8, 9, 24, 25, 31, 32, 33, 47, 48, 49, 65};
   for (Index n : sizes) {
     for (Index m : {1, 3, 17}) {
-      symm_rowmajor_operand<float>(n, m);
-      symm_rowmajor_operand<double>(n, m);
-      symm_rowmajor_operand<std::complex<float> >(n, m);
+      symm_rowmajor_selfadjoint<float, ColMajor>(n, m);
+      symm_rowmajor_selfadjoint<double, ColMajor>(n, m);
+      symm_rowmajor_selfadjoint<std::complex<float>, ColMajor>(n, m);
+      symm_rowmajor_selfadjoint<float, RowMajor>(n, m);
+      symm_rowmajor_selfadjoint<double, RowMajor>(n, m);
+      symm_rowmajor_selfadjoint<std::complex<float>, RowMajor>(n, m);
     }
   }
 }

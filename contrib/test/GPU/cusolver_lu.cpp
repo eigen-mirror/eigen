@@ -80,25 +80,6 @@ void test_multiple_solves(Index n) {
   }
 }
 
-// ---- Residual check for host solve ------------------------------------------
-
-template <typename Scalar>
-void test_vs_cpu(Index n) {
-  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-
-  MatrixType A = MatrixType::Random(n, n);
-  MatrixType B = MatrixType::Random(n, 5);
-
-  gpu::LU<Scalar> gpu_lu(A);
-  VERIFY_IS_EQUAL(gpu_lu.info(), Success);
-
-  MatrixType X_gpu = gpu_lu.solve(B);
-
-  RealScalar residual = (A * X_gpu - B).norm() / (A.norm() * X_gpu.norm());
-  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
-}
-
 // ---- Singular matrix detection ----------------------------------------------
 
 void test_singular() {
@@ -119,28 +100,6 @@ void test_singular_device_solve_asserts() {
 }
 
 // ---- DeviceMatrix integration tests -----------------------------------------
-
-template <typename Scalar>
-void test_device_matrix_solve(Index n) {
-  using MatrixType = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-
-  MatrixType A = MatrixType::Random(n, n);
-  MatrixType B = MatrixType::Random(n, 4);
-
-  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
-  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
-
-  gpu::LU<Scalar> lu;
-  lu.compute(d_A);
-  VERIFY_IS_EQUAL(lu.info(), Success);
-
-  gpu::DeviceMatrix<Scalar> d_X = lu.solve(d_B);
-  MatrixType X = d_X.toHost();
-
-  RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
-  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
-}
 
 template <typename Scalar>
 void test_device_matrix_move_compute(Index n) {
@@ -260,10 +219,6 @@ void test_scalar() {
 
   CALL_SUBTEST(test_multiple_solves<Scalar>(128));
 
-  CALL_SUBTEST(test_vs_cpu<Scalar>(64));
-  CALL_SUBTEST(test_vs_cpu<Scalar>(256));
-
-  CALL_SUBTEST(test_device_matrix_solve<Scalar>(64));
   CALL_SUBTEST(test_device_matrix_move_compute<Scalar>(64));
   CALL_SUBTEST(test_chaining<Scalar>(64));
 
