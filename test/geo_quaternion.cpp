@@ -177,6 +177,14 @@ void quaternion(void) {
   Quaternion<double> q1d = q1.template cast<double>();
   VERIFY_IS_APPROX(q1d.template cast<Scalar>(), q1);
 
+  // test assignment from 4D quaternion vector
+  {
+    Matrix<Scalar, 4, 1> vec4 = q1.coeffs();
+    AngleAxisx aa;
+    aa = vec4;
+    VERIFY_IS_APPROX(Quaternionx(aa), q1);
+  }
+
   // test bug 369 - improper alignment.
   Quaternionx* q = new Quaternionx;
   delete q;

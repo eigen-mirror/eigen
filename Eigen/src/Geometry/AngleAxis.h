@@ -213,6 +213,9 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const Quaterni
 template <typename Scalar>
 template <typename Derived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const MatrixBase<Derived>& mat) {
+  if (mat.size() == 4) {
+    return *this = QuaternionType(mat);
+  }
   return fromRotationMatrix(mat);
 }
 
