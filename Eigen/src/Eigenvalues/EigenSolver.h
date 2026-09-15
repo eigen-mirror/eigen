@@ -455,6 +455,9 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeE
 
     // Compute eigenvectors.
     if (computeEigenvectors) doComputeEigenvectors();
+  } else if (!m_realSchur.m_matT.allFinite()) {
+    // RealSchur reports both nonfinite input and iteration exhaustion as NoConvergence.
+    m_info = NumericalIssue;
   }
 
   m_isInitialized = true;

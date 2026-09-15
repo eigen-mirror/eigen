@@ -529,7 +529,7 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   // well-conditioned. Note: for block-diagonal matrices with widely separated scales, this
   // can underflow small blocks. Users with such matrices should tridiagonalize separately
   // and call computeFromTridiagonal(), which uses per-block scaling.
-  RealScalar scale = mat.cwiseAbs().maxCoeff();
+  RealScalar scale = mat.cwiseAbs().template maxCoeff<PropagateNaN>();
   if (!(numext::isfinite)(scale)) {
     // Input contains Inf or NaN.
     m_info = NoConvergence;

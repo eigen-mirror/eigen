@@ -244,23 +244,28 @@ void inplace_selfadjoint_eigensolver(Index size) {
   }
 }
 
-// NaN inputs compare status only: a 2x2 RealSchur can report Success without a QR iteration.
 template <typename MatrixType>
 void inplace_special_values(Index size) {
   using RealScalar = typename MatrixType::RealScalar;
-  for (int kind = 0; kind < 2; ++kind) {
+  for (Index kind = 0; kind <= 2 * size; ++kind) {
     MatrixType A0 = MatrixType::Zero(size, size);
-    if (kind == 1) A0(0, 0) = std::numeric_limits<RealScalar>::quiet_NaN();
+    if (kind > 0) {
+      const Index index = (kind - 1) % size;
+      A0(index, index) =
+          kind <= size ? std::numeric_limits<RealScalar>::quiet_NaN() : std::numeric_limits<RealScalar>::infinity();
+    }
     MatrixType A = A0;
     RealSchur<Ref<MatrixType>> schur(A);
     RealSchur<MatrixType> schur0(A0);
     VERIFY_IS_EQUAL(schur.info(), schur0.info());
+    VERIFY_IS_EQUAL(schur.info(), kind == 0 ? Success : NoConvergence);
     if (schur.info() == Success && kind == 0) verify_inplace_similarity(A0, schur.matrixU(), schur.matrixT());
 
     MatrixType B = A0;
     SelfAdjointEigenSolver<Ref<MatrixType>> saes(B);
     SelfAdjointEigenSolver<MatrixType> saes0(A0);
     VERIFY_IS_EQUAL(saes.info(), saes0.info());
+    VERIFY_IS_EQUAL(saes.info(), kind == 0 ? Success : NoConvergence);
     if (saes.info() == Success && kind == 0) {
       VERIFY_IS_EQUAL(saes.eigenvalues(), saes0.eigenvalues());
       VERIFY(saes.eigenvectors().isUnitary(RealScalar(128 * size) * NumTraits<RealScalar>::epsilon()));
@@ -270,6 +275,7 @@ void inplace_special_values(Index size) {
     EigenSolver<Ref<MatrixType>> es(C);
     EigenSolver<MatrixType> es0(A0);
     VERIFY_IS_EQUAL(es.info(), es0.info());
+    VERIFY_IS_EQUAL(es.info(), kind == 0 ? Success : NumericalIssue);
     if (es.info() == Success && kind == 0) {
       VERIFY_IS_EQUAL(es.eigenvalues(), es0.eigenvalues());
       VERIFY((es.eigenvectors().colwise().norm().array() > RealScalar(0)).all());
@@ -396,6 +402,7 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, 3, 3, RowMajor | DontAlign>>()));
   CALL_SUBTEST_10((inplace_special_values<MatrixXd>(2)));
+  CALL_SUBTEST_10((inplace_special_values<MatrixXd>(1)));
   CALL_SUBTEST_11(inplace_plain_lower_triangle());
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ>()));
