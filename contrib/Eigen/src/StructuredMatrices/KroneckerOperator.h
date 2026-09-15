@@ -85,17 +85,24 @@ struct kron_factor_is_dense_matrix : std::false_type {};
 template <typename Scalar, int Rows, int Cols, int Options, int MaxRows, int MaxCols>
 struct kron_factor_is_dense_matrix<Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxCols>> : std::true_type {};
 
-/** \internal \returns the expression of \a M rescaled by \c 2^e entrywise
- * (componentwise for complex scalars): exact where the result is representable,
- * with correct saturation to 0/Inf and correctly rounded subnormals beyond --
- * unlike a multiplication by \c 2^e, whose factor may itself be
- * unrepresentable. Coefficient-wise, hence safe to assign onto \a M itself.
- * The expression holds \a M by reference: consume it within the full
- * expression that builds it. */
-template <typename Xpr>
-auto kron_ldexp_entries(const Xpr& M, int e) {
+// Apply 2^e without forming a possibly unrepresentable scale factor. For
+// std::complex storage, realView exposes both components to the real ldexp packets.
+template <typename Xpr, std::enable_if_t<!NumTraits<typename Xpr::Scalar>::IsComplex, bool> = true>
+void kron_ldexp_entries(Xpr& M, int e) {
+  M.array() = M.array().ldexp(e);
+}
+
+template <typename Xpr, std::enable_if_t<complex_array_access<typename Xpr::Scalar>::value, bool> = true>
+void kron_ldexp_entries(Xpr& M, int e) {
+  M.realView().array() = M.realView().array().ldexp(e);
+}
+
+template <typename Xpr, std::enable_if_t<NumTraits<typename Xpr::Scalar>::IsComplex &&
+                                             !complex_array_access<typename Xpr::Scalar>::value,
+                                         bool> = true>
+void kron_ldexp_entries(Xpr& M, int e) {
   using Scalar = typename Xpr::Scalar;
-  return M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
+  M = M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
 }
 
 template <typename Factor, bool IsDiagonal = kron_factor_is_diagonal<Factor>::value>
@@ -174,8 +181,11 @@ class kron_factor_solver {
   using Scalar = typename Factor::Scalar;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
-  explicit kron_factor_solver(const Factor& f)
-      : m_exponent(structured_exponent_bound(f)), m_lu(kron_ldexp_entries(f, -m_exponent)) {}
+  explicit kron_factor_solver(const Factor& f) : m_exponent(structured_exponent_bound(f)) {
+    DenseMatrix normalized = f;
+    kron_ldexp_entries(normalized, -m_exponent);
+    m_lu.compute(normalized);
+  }
   int exponent() const { return m_exponent; }
   /** \internal \returns \f$ F_{norm}^{-1} M \f$. */
   template <typename Xpr>
@@ -200,7 +210,9 @@ class kron_factor_solver<Factor, true> {
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   explicit kron_factor_solver(const Factor& f)
-      : m_exponent(structured_exponent_bound(f.diagonal())), m_d(kron_ldexp_entries(f.diagonal(), -m_exponent)) {}
+      : m_exponent(structured_exponent_bound(f.diagonal())), m_d(f.diagonal()) {
+    kron_ldexp_entries(m_d, -m_exponent);
+  }
   int exponent() const { return m_exponent; }
   template <typename Xpr>
   DenseMatrix solveLeft(const Xpr& M) const {
@@ -422,14 +434,14 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index k = 0; k < b.cols(); ++k) {
       bc = b.col(k);
       const int ec = internal::structured_exponent_bound(bc);
-      if (ec != 0) bc = internal::kron_ldexp_entries(bc, -ec);
+      if (ec != 0) internal::kron_ldexp_entries(bc, -ec);
       X = solverA.solveTransposedRight(solverB.solveLeft(bc.reshaped(n2, n1)));
       // Fold the combined exponent back. The entrywise ldexp saturates exactly
       // where the true solution over- or underflows; a multiplicative fold could
       // not (the combined exponent can exceed the representable range of any
       // fixed number of power-of-two factors).
       const int e = ec - solverA.exponent() - solverB.exponent();
-      if (e != 0) X = internal::kron_ldexp_entries(X, e);
+      if (e != 0) internal::kron_ldexp_entries(X, e);
       x.col(k) = X.reshaped();
     }
     return x;
@@ -469,30 +481,30 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       x.setZero();
       return x;
     }
+    const SingularModes modesA(sa), modesB(sb);
+    Matrix<RealScalar, Dynamic, Dynamic, ColMajor> divisors(kB, kA);
+    Matrix<int, Dynamic, Dynamic, ColMajor> exponents(kB, kA);
+    Matrix<bool, Dynamic, Dynamic, ColMajor> retained(kB, kA);
+    for (Index j = 0; j < kA; ++j)
+      for (Index i = 0; i < kB; ++i) {
+        retained(i, j) = modesA.retains(modesB, j, i, tol);
+        divisors(i, j) = modesA.mantissas[j] * modesB.mantissas[i];
+        exponents(i, j) = -(modesA.exponents[j] + modesB.exponents[i]);
+      }
     DenseVector bc(m1 * m2);
     DenseMatrix M(kB, kA), X(m_B.cols(), m_A.cols());
     for (Index k = 0; k < b.cols(); ++k) {
       bc = b.col(k);
       // By [1], M = U_B^H mat(b) conj(U_A) matricizes (U_A (x) U_B)^H b.
       M.noalias() = svdB.matrixU().adjoint() * bc.reshaped(m2, m1) * svdA.matrixU().conjugate();
-      // Invert only the pairwise products at/above the product-level threshold
-      // and the smallest normal number, both decided like in rank(). The negated
-      // ratio comparison keeps NaN ratios in the inverted set, so a NaN input
-      // propagates to the output instead of being silently zeroed. The division
-      // splits each singular value into mantissa and exponent [2]: the product
-      // sigma_i(B) * sigma_j(A) itself can overflow, or underflow to zero, even
-      // when the quotient is representable. Applying the exact power of two
-      // first keeps every intermediate within a factor of four of the true
-      // quotient.
+      // Apply the exponent before dividing by the mantissa product [2]: the
+      // singular-value product or its reciprocal need not be representable.
       for (Index j = 0; j < kA; ++j)
         for (Index i = 0; i < kB; ++i) {
-          if (!((sa[j] / sa[0]) * (sb[i] / sb[0]) < tol) && reachesMinNormal(sa[j], sb[i])) {
-            int ea, eb;
-            const RealScalar ma = std::frexp(sa[j], &ea), mb = std::frexp(sb[i], &eb);
-            M(i, j) = internal::structured_ldexp_clamped(M(i, j), Index(-(ea + eb))) / (ma * mb);
-          } else {
+          if (retained(i, j))
+            M(i, j) = internal::structured_ldexp_clamped(M(i, j), Index(exponents(i, j))) / divisors(i, j);
+          else
             M(i, j) = Scalar(0);
-          }
         }
       X.noalias() = svdB.matrixV() * M * svdA.matrixV().transpose();
       x.col(k) = X.reshaped();
@@ -522,11 +534,12 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     // ratios below 0/0).
     if (sa[0] == RealScalar(0) || sb[0] == RealScalar(0)) return 0;
     const RealScalar tol = relativeRankThreshold();
+    const SingularModes modesA(sa), modesB(sb);
     Index r = 0;
     for (Index i = 0; i < sa.size(); ++i)
       for (Index j = 0; j < sb.size(); ++j)
         // Negated ratio comparison so NaN ratios count as non-zero.
-        if (!((sa[i] / sa[0]) * (sb[j] / sb[0]) < tol) && reachesMinNormal(sa[i], sb[j])) ++r;
+        if (modesA.retains(modesB, i, j, tol)) ++r;
     return r;
   }
 
@@ -750,26 +763,33 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon();
   }
 
-  /** \internal Whether the pairwise singular-value product \c s1*s2 reaches the
-   * smallest normal number -- the clamp \c SVDBase places under its
-   * pseudo-inversion threshold, so that subnormal singular values (whose
-   * reciprocals overflow) are treated as exact zeros. The boundary itself is
-   * kept, matching the \c >= convention of \c SVDBase::rank(). The product is
-   * compared exponent-safely: the frexp mantissas lie in [0.5, 1), so their
-   * product in [0.25, 1) can neither over- nor underflow, and the exponents add
-   * as integers. Non-finite singular values return true so they stay in the
-   * inverted set and propagate. */
-  static bool reachesMinNormal(const RealScalar& s1, const RealScalar& s2) {
-    int e1, e2;
-    const RealScalar m = std::frexp(s1, &e1) * std::frexp(s2, &e2);
-    if (!(numext::isfinite)(m)) return true;  // NaN or Inf singular values must propagate
-    if (m == RealScalar(0)) return false;     // an exactly zero product
-    // Renormalize the mantissa product into [0.5, 1), so that s1*s2 = m * 2^e
-    // reaches the smallest normal number 2^(min_exponent - 1) iff e is at least
-    // min_exponent.
-    const int e = m < RealScalar(0.5) ? e1 + e2 - 1 : e1 + e2;
-    return e >= std::numeric_limits<RealScalar>::min_exponent;
-  }
+  // Factor-level ratios and frexp decompositions are independent of the RHS and
+  // of the other factor. Keep rank() and pseudo-inversion on the same predicate.
+  struct SingularModes {
+    explicit SingularModes(const RealVector& s) : ratios(s.size()), mantissas(s.size()), exponents(s.size()) {
+      for (Index i = 0; i < s.size(); ++i) {
+        ratios[i] = s[i] / s[0];
+        exponents[i] = 0;
+        EIGEN_USING_STD(frexp);
+        mantissas[i] = frexp(s[i], &exponents[i]);
+      }
+    }
+
+    bool retains(const SingularModes& other, Index i, Index j, RealScalar tol) const {
+      // Negation keeps NaN ratios in the inverted set, matching SVDBase.
+      if (ratios[i] * other.ratios[j] < tol) return false;
+      const RealScalar m = mantissas[i] * other.mantissas[j];
+      if (!(numext::isfinite)(m)) return true;
+      if (m == RealScalar(0)) return false;
+      // s_i*s_j = m*2^(e_i+e_j), with m in [0.25,1). Test the
+      // smallest-normal clamp without forming an overflowing/underflowing product.
+      const int e = exponents[i] + other.exponents[j] - (m < RealScalar(0.5) ? 1 : 0);
+      return e >= std::numeric_limits<RealScalar>::min_exponent;
+    }
+
+    RealVector ratios, mantissas;
+    Matrix<int, Dynamic, 1> exponents;
+  };
 
   /** \internal \returns the mantissa of \c det(M)^power in the balanced form
    * \c m * 2^e, adding \c e into \a exponent. The determinant is accumulated

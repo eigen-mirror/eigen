@@ -187,11 +187,18 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   }
 
   /** \internal Writes the dense representation into \a dst; column \c j is the
-   * generator rotated downwards by \c j, so only contiguous segment copies are
-   * involved. Invoked through \c dense = circulant; */
+   * generator rotated downwards by \c j. Row-major destinations use reversed
+   * generator segments along each row. Invoked through \c dense = circulant; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
     const Index n = rows();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < n; ++i) {
+        dst.row(i).head(i + 1) = m_col.head(i + 1).reverse().transpose();
+        dst.row(i).tail(n - i - 1) = m_col.tail(n - i - 1).reverse().transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       dst.col(j).head(j) = m_col.tail(j);
       dst.col(j).tail(n - j) = m_col.head(n - j);
@@ -202,6 +209,13 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   template <typename Dest>
   void addTo(Dest& dst) const {
     const Index n = rows();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < n; ++i) {
+        dst.row(i).head(i + 1) += m_col.head(i + 1).reverse().transpose();
+        dst.row(i).tail(n - i - 1) += m_col.tail(n - i - 1).reverse().transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       dst.col(j).head(j) += m_col.tail(j);
       dst.col(j).tail(n - j) += m_col.head(n - j);
@@ -212,6 +226,13 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   template <typename Dest>
   void subTo(Dest& dst) const {
     const Index n = rows();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < n; ++i) {
+        dst.row(i).head(i + 1) -= m_col.head(i + 1).reverse().transpose();
+        dst.row(i).tail(n - i - 1) -= m_col.tail(n - i - 1).reverse().transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       dst.col(j).head(j) -= m_col.tail(j);
       dst.col(j).tail(n - j) -= m_col.head(n - j);
@@ -360,8 +381,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * unlike the other methods of this class this costs O(n^2) storage. */
   ComplexMatrix eigenvectors() const {
     const Index n = rows();
+    const ComplexVector roots = fourierRoots();
     ComplexMatrix F(n, n);
-    for (Index k = 0; k < n; ++k) fourierColumn(F, k, k);
+    for (Index k = 0; k < n; ++k) fourierColumn(F, roots, k, k);
     return F;
   }
 
@@ -387,9 +409,10 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     ComplexVector s;
     RealVector mods;
     const std::vector<Index> perm = svdOrdering(s, mods);
+    const ComplexVector roots = fourierRoots();
     ComplexMatrix U(n, n);
     for (Index t = 0; t < n; ++t) {
-      fourierColumn(U, perm[t], t);
+      fourierColumn(U, roots, perm[t], t);
       const RealScalar a = mods[perm[t]];
       if (a > RealScalar(0)) U.col(t) *= s[perm[t]] / a;
     }
@@ -404,8 +427,9 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     ComplexVector s;
     RealVector mods;
     const std::vector<Index> perm = svdOrdering(s, mods);
+    const ComplexVector roots = fourierRoots();
     ComplexMatrix V(n, n);
-    for (Index t = 0; t < n; ++t) fourierColumn(V, perm[t], t);
+    for (Index t = 0; t < n; ++t) fourierColumn(V, roots, perm[t], t);
     return V;
   }
 
@@ -562,23 +586,34 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   std::vector<Index> svdOrdering(ComplexVector& s, RealVector& mods) const {
     const Index n = rows();
     s = symbol();
-    mods = s.cwiseAbs();
-    if (!NumTraits<Scalar>::IsComplex)
-      for (Index k = 1; 2 * k < n; ++k) mods[n - k] = mods[k];
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+      const Index pairs = (n - 1) / 2;
+      mods.resize(n);
+      mods.head(n - pairs) = s.head(n - pairs).cwiseAbs();
+      mods.tail(pairs) = mods.segment(1, pairs).reverse();
+    } else {
+      mods = s.cwiseAbs();
+    }
     return internal::structured_svd_permutation(mods);
   }
 
-  /** \internal Writes the unit-norm Fourier eigenvector \c f_k into column
-   * \a dstCol of \a F: (f_k)_j = exp(2 pi i j k / n) / sqrt(n). The index product
-   * j*k is accumulated incrementally modulo n, so the argument passed to polar()
-   * stays O(2 pi) -- keeping full accuracy for any n -- and no Index overflow can
-   * occur. */
-  void fourierColumn(ComplexMatrix& F, Index k, Index dstCol) const {
+  // Cache the n distinct roots once per Fourier matrix, preserving polar()'s
+  // bounded arguments and rounding while avoiding n^2 trigonometric evaluations.
+  ComplexVector fourierRoots() const {
     const Index n = rows();
     const RealScalar scale = RealScalar(1) / numext::sqrt(RealScalar(n));
-    Index jk = 0;  // j * k mod n
+    ComplexVector roots(n);
+    for (Index j = 0; j < n; ++j)
+      roots[j] = std::polar(scale, RealScalar(2 * EIGEN_PI) * RealScalar(j) / RealScalar(n));
+    return roots;
+  }
+
+  // Column k uses roots[j*k mod n]; incremental modular indexing avoids j*k overflow.
+  void fourierColumn(ComplexMatrix& F, const ComplexVector& roots, Index k, Index dstCol) const {
+    const Index n = rows();
+    Index jk = 0;
     for (Index j = 0; j < n; ++j) {
-      F(j, dstCol) = std::polar(scale, RealScalar(2 * EIGEN_PI) * RealScalar(jk) / RealScalar(n));
+      F(j, dstCol) = roots[jk];
       jk += k;
       if (jk >= n) jk -= n;
     }

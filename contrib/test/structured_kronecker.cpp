@@ -243,7 +243,6 @@ void test_kron_solve(Index n1, Index n2) {
 
 template <typename Scalar>
 void test_kron_least_squares(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
@@ -252,8 +251,8 @@ void test_kron_least_squares(Index m1, Index n1, Index m2, Index n2) {
 
   // The minimum-norm least-squares solution is unique, so the factored
   // pseudo-inverse must match the dense complete orthogonal decomposition.
-  Vec b = Vec::Random(m1 * m2);
-  Vec x = K.leastSquaresSolve(b);
+  Mat b = Mat::Random(m1 * m2, 3);
+  Mat x = K.leastSquaresSolve(b);
   VERIFY_IS_APPROX(x, dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
@@ -271,8 +270,8 @@ void test_kron_least_squares_rank_deficient(Index m1, Index n1, Index m2, Index 
   Mat dense = reference_kron<Scalar>(A, B);
   VERIFY_IS_EQUAL(K.rank(), dense.completeOrthogonalDecomposition().rank());
 
-  Vec b = Vec::Random(m1 * m2);
-  Vec x = K.leastSquaresSolve(b);
+  Mat b = Mat::Random(m1 * m2, 3);
+  Mat x = K.leastSquaresSolve(b);
   VERIFY_IS_APPROX(x, dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
@@ -525,27 +524,27 @@ void test_kron_solve_normalized() {
 
   // (a) Identity operator, tiny right-hand side: B^-1 * b = 1e-400 used to
   // underflow silently to zero.
-  Mat A(1, 1), B(1, 1);
-  A << 1e-200;
-  B << 1e200;
-  KroneckerOperator<Mat, Mat> K(A, B);
-  Vec b(1);
-  b << 1e-200;
-  Vec x = K.solve(b);
-  VERIFY_IS_APPROX(x[0], 1e-200);
+  for (Index n : {Index(1), Index(5)}) {
+    Mat A = Mat::Identity(n, n), B = Mat::Identity(n, n);
+    A *= 1e-200;
+    B *= 1e200;
+    KroneckerOperator<Mat, Mat> K(A, B);
+    Vec b = Vec::Constant(n * n, 1e-200);
+    Vec x = K.solve(b);
+    VERIFY_IS_APPROX((x / 1e-200).eval(), Vec::Ones(n * n).eval());
 
-  // (b) B^-1 ~ 1e310 is not representable, yet the operator is ~0.01 and the
-  // solution ~100: in the normalized frame every intermediate is bounded by the
-  // conditioning of the factors.
-  Mat A2(1, 1), B2(1, 1);
-  A2 << 1e308;
-  B2 << 1e-310;  // subnormal
-  KroneckerOperator<Mat, Mat> K2(A2, B2);
-  Vec b2(1);
-  b2 << 1.0;
-  Vec x2 = K2.solve(b2);
-  VERIFY(x2.allFinite());
-  VERIFY_IS_APPROX(x2[0], 1.0 / (A2(0, 0) * B2(0, 0)));
+    // (b) B^-1 ~ 1e310 is not representable, yet the operator is ~0.01 and the
+    // solution ~100: in the normalized frame every intermediate is bounded by the
+    // conditioning of the factors.
+    Mat A2 = Mat::Identity(n, n), B2 = Mat::Identity(n, n);
+    A2 *= 1e308;
+    B2 *= 1e-310;  // subnormal
+    KroneckerOperator<Mat, Mat> K2(A2, B2);
+    Vec b2 = Vec::Ones(n * n);
+    Vec x2 = K2.solve(b2);
+    VERIFY(x2.allFinite());
+    VERIFY_IS_APPROX(x2, Vec::Constant(n * n, 1.0 / (A2(0, 0) * B2(0, 0))).eval());
+  }
 }
 
 // Moderate inputs must be bit-identical to the unnormalized evaluation: partial

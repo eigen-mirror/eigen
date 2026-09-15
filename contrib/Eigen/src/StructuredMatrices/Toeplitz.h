@@ -175,11 +175,19 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
 
   /** \internal Writes the dense representation into \a dst; the head of column
    * \c j is a reversed slice of the row generator (entry \c i holds \c r[j-i])
-   * and its tail the leading part of the column generator. Invoked through
-   * \c dense = toeplitz; */
+   * and its tail the leading part of the column generator. Row-major destinations
+   * use the corresponding row segments. Invoked through \c dense = toeplitz; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
     const Index m = rows(), n = cols();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < m; ++i) {
+        const Index h = numext::mini(i + 1, n);
+        dst.row(i).head(h) = m_col.segment(i - h + 1, h).reverse().transpose();
+        if (i + 1 < n) dst.row(i).tail(n - i - 1) = m_row.segment(1, n - i - 1).transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       const Index h = numext::mini(j, m);
       dst.col(j).head(h) = m_row.segment(j - h + 1, h).reverse();
@@ -191,6 +199,14 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   template <typename Dest>
   void addTo(Dest& dst) const {
     const Index m = rows(), n = cols();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < m; ++i) {
+        const Index h = numext::mini(i + 1, n);
+        dst.row(i).head(h) += m_col.segment(i - h + 1, h).reverse().transpose();
+        if (i + 1 < n) dst.row(i).tail(n - i - 1) += m_row.segment(1, n - i - 1).transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       const Index h = numext::mini(j, m);
       dst.col(j).head(h) += m_row.segment(j - h + 1, h).reverse();
@@ -202,6 +218,14 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   template <typename Dest>
   void subTo(Dest& dst) const {
     const Index m = rows(), n = cols();
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < m; ++i) {
+        const Index h = numext::mini(i + 1, n);
+        dst.row(i).head(h) -= m_col.segment(i - h + 1, h).reverse().transpose();
+        if (i + 1 < n) dst.row(i).tail(n - i - 1) -= m_row.segment(1, n - i - 1).transpose();
+      }
+      return;
+    }
     for (Index j = 0; j < n; ++j) {
       const Index h = numext::mini(j, m);
       dst.col(j).head(h) -= m_row.segment(j - h + 1, h).reverse();

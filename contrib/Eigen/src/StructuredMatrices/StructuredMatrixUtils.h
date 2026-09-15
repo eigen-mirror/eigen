@@ -520,19 +520,16 @@ struct structured_symbol_divide {
   RealScalar tol;
   template <typename SymbolType>
   int exponent_growth(const SymbolType&) const {
-    int reciprocalExp = 0;
-    for (Index k = 0; k < mods->size(); ++k) {
-      const RealScalar mod = mods->coeff(k);
-      if (!(mod < tol) && mod > RealScalar(0) && (numext::isfinite)(mod)) {
-        int modExp;
-        EIGEN_USING_STD(frexp);
-        frexp(mod, &modExp);
-        // mod = fraction * 2^modExp with fraction in [0.5, 1), so 1/mod <=
-        // 2^(1-modExp); one more bit keeps the bound strict.
-        reciprocalExp = numext::maxi(reciprocalExp, 2 - modExp);
-      }
-    }
-    return reciprocalExp;
+    if (mods->size() == 0) return 0;
+    const auto retained = (RealScalar(1) - mods->cwiseTypedLess(tol).array()) *
+                          mods->cwiseTypedGreater(RealScalar(0)).array() * mods->array().isFiniteTyped();
+    const RealScalar smallest = retained.select(mods->array(), NumTraits<RealScalar>::infinity()).minCoeff();
+    if (!(numext::isfinite)(smallest)) return 0;
+    int modExp;
+    EIGEN_USING_STD(frexp);
+    frexp(smallest, &modExp);
+    // The smallest retained modulus maximizes 2-frexp(mod).exponent.
+    return numext::maxi(0, 2 - modExp);
   }
   template <typename XfType, typename SymbolType>
   void operator()(XfType& xf, const SymbolType& symbol) const {

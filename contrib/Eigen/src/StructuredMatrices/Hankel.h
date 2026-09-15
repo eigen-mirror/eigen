@@ -224,21 +224,34 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   }
 
   /** \internal Writes the dense representation into \a dst; column \c j is the
-   * contiguous slice \c h[j..j+m-1]. Invoked through \c dense = hankel; */
+   * contiguous slice \c h[j..j+m-1]. Row-major destinations copy the contiguous
+   * slice \c h[i..i+n-1] into row i. Invoked through \c dense = hankel; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < rows(); ++i) dst.row(i) = m_h.segment(i, cols()).transpose();
+      return;
+    }
     for (Index j = 0; j < cols(); ++j) dst.col(j) = m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst += (*this), see evalTo(). */
   template <typename Dest>
   void addTo(Dest& dst) const {
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < rows(); ++i) dst.row(i) += m_h.segment(i, cols()).transpose();
+      return;
+    }
     for (Index j = 0; j < cols(); ++j) dst.col(j) += m_h.segment(j, rows());
   }
 
   /** \internal Computes \c dst -= (*this), see evalTo(). */
   template <typename Dest>
   void subTo(Dest& dst) const {
+    EIGEN_IF_CONSTEXPR (Dest::IsRowMajor) {
+      for (Index i = 0; i < rows(); ++i) dst.row(i) -= m_h.segment(i, cols()).transpose();
+      return;
+    }
     for (Index j = 0; j < cols(); ++j) dst.col(j) -= m_h.segment(j, rows());
   }
 
@@ -382,11 +395,24 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     if (p > 0 && rows() != cols()) {
       Index s = (rows() - cols()) % p;
       if (s < 0) s += p;
+      // Contiguous real buffers let sin/cos use packets; complex component views
+      // alone have stride two and would force scalar trigonometric evaluation.
+      Array<RealScalar, 64, 1> angles, values;
+      Matrix<Complex, 64, 1> phases;
       Index fs = 0;  // f * s mod p
-      for (Index f = 0; f < p; ++f) {
-        sym[f] *= std::polar(RealScalar(1), RealScalar(2 * EIGEN_PI) * RealScalar(fs) / RealScalar(p));
-        fs += s;
-        if (fs >= p) fs -= p;
+      for (Index f = 0; f < p;) {
+        const Index count = numext::mini<Index>(64, p - f);
+        for (Index i = 0; i < count; ++i) {
+          angles[i] = RealScalar(2 * EIGEN_PI) * RealScalar(fs) / RealScalar(p);
+          fs += s;
+          if (fs >= p) fs -= p;
+        }
+        values.head(count) = angles.head(count).cos();
+        phases.head(count).real() = values.head(count);
+        values.head(count) = angles.head(count).sin();
+        phases.head(count).imag() = values.head(count);
+        sym.segment(f, count).array() *= phases.head(count).array();
+        f += count;
       }
     }
     return sym;

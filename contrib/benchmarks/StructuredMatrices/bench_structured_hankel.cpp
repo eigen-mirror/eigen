@@ -93,3 +93,27 @@ static void BM_HankelProductSkinnyColDense(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_HankelProductSkinnyColDense)->Arg(4096)->Arg(65536)->Arg(1048576);
+
+template <typename Scalar>
+static void BM_HankelTranspose(benchmark::State& state) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const Index m = state.range(0), n = state.range(1);
+  const Vector h = Vector::Random(m + n - 1);
+  const Hankel<Scalar> op(h.head(m), h.tail(n));
+  const auto symbol = op.symbol();
+  const auto roundTrip = op.transpose().transpose().symbol();
+  const Real error = (roundTrip - symbol).norm() / symbol.norm();
+  if (!(error <= Real(16) * NumTraits<Real>::epsilon())) {
+    state.SkipWithError("incorrect transpose symbol");
+    return;
+  }
+  state.counters["relative_error"] = double(error);
+  for (auto _ : state) {
+    auto transposed = op.transpose();
+    benchmark::DoNotOptimize(transposed);
+  }
+}
+BENCHMARK_TEMPLATE(BM_HankelTranspose, float)->Args({48, 33})->Args({256, 512})->Args({2048, 1024});
+BENCHMARK_TEMPLATE(BM_HankelTranspose, double)->Args({48, 33})->Args({256, 512})->Args({2048, 1024});
+BENCHMARK_TEMPLATE(BM_HankelTranspose, std::complex<double>)->Args({48, 33})->Args({256, 512})->Args({2048, 1024});

@@ -50,7 +50,13 @@ void test_circulant_product(Index n) {
   // The operator agrees with the independently-built dense matrix, both through
   // coeff access and assigned to a dense matrix via its evaluator.
   Mat Cd = C;
-  VERIFY_IS_APPROX(Cd, dense);
+  VERIFY_IS_EQUAL(Cd, dense);
+  Matrix<Scalar, Dynamic, Dynamic, RowMajor> rowMajor = C;
+  VERIFY_IS_EQUAL(rowMajor, dense);
+  rowMajor += C;
+  VERIFY_IS_EQUAL(rowMajor, (Scalar(2) * dense).eval());
+  rowMajor -= C;
+  VERIFY_IS_EQUAL(rowMajor, dense);
   for (Index t = 0; t < (std::min)(n, Index(5)); ++t) {
     Index i = internal::random<Index>(0, n - 1), j = internal::random<Index>(0, n - 1);
     VERIFY_IS_APPROX(C.coeff(i, j), dense(i, j));
@@ -125,7 +131,13 @@ void test_toeplitz_product(Index m, Index n) {
   Mat dense = reference_toeplitz<Scalar>(c, r);
 
   Mat Td = T;
-  VERIFY_IS_APPROX(Td, dense);
+  VERIFY_IS_EQUAL(Td, dense);
+  Matrix<Scalar, Dynamic, Dynamic, RowMajor> rowMajor = T;
+  VERIFY_IS_EQUAL(rowMajor, dense);
+  rowMajor += T;
+  VERIFY_IS_EQUAL(rowMajor, (Scalar(2) * dense).eval());
+  rowMajor -= T;
+  VERIFY_IS_EQUAL(rowMajor, dense);
 
   Vec x = Vec::Random(n);
   VERIFY_IS_APPROX((T * x).eval(), (dense * x).eval());
@@ -157,7 +169,13 @@ void test_hankel_product(Index m, Index n) {
   VERIFY_IS_EQUAL(Vec(H.lastRow()), Vec(h.tail(n)));
 
   Mat Hd = H;
-  VERIFY_IS_APPROX(Hd, dense);
+  VERIFY_IS_EQUAL(Hd, dense);
+  Matrix<Scalar, Dynamic, Dynamic, RowMajor> rowMajor = H;
+  VERIFY_IS_EQUAL(rowMajor, dense);
+  rowMajor += H;
+  VERIFY_IS_EQUAL(rowMajor, (Scalar(2) * dense).eval());
+  rowMajor -= H;
+  VERIFY_IS_EQUAL(rowMajor, dense);
   for (Index t = 0; t < (std::min)(m, Index(5)); ++t) {
     Index i = internal::random<Index>(0, m - 1), j = internal::random<Index>(0, n - 1);
     VERIFY_IS_APPROX(H.coeff(i, j), dense(i, j));
@@ -515,7 +533,10 @@ void test_hankel_transpose(Index m, Index n) {
   // rounding (the phase factors cancel only approximately when m != n).
   Hankel<Scalar> Htt = H.transpose().transpose();
   VERIFY_IS_EQUAL(Htt.generator(), h);
-  VERIFY_IS_APPROX(Htt.symbol(), H.symbol());
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const auto symbol = H.symbol();
+  const auto roundTrip = Htt.symbol();
+  VERIFY((roundTrip - symbol).norm() <= RealScalar(16) * NumTraits<RealScalar>::epsilon() * symbol.norm());
   Mat Httd = Htt;
   VERIFY_IS_APPROX(Httd, dense);
 }
@@ -1772,6 +1793,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_eigen<double>(40)));
     CALL_SUBTEST_7((test_circulant_eigen<std::complex<double>>(21)));
     CALL_SUBTEST_7((test_circulant_svd<double>(1)));
+    CALL_SUBTEST_7((test_circulant_svd<double>(19)));
     CALL_SUBTEST_7((test_circulant_svd<double>(18)));  // conjugate-pair moduli routinely differ in the last bits
     CALL_SUBTEST_7((test_circulant_svd<double>(24)));
     CALL_SUBTEST_7((test_circulant_svd<std::complex<double>>(18)));

@@ -198,8 +198,10 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
   // Leading p x p principal submatrix built directly from the generators.
   static DenseMatrix leadingBlock(const DenseVector& c, const DenseVector& r, Index p) {
     DenseMatrix B(p, p);
-    for (Index j = 0; j < p; ++j)
-      for (Index i = 0; i < p; ++i) B(i, j) = (i >= j) ? c[i - j] : r[j - i];
+    for (Index j = 0; j < p; ++j) {
+      B.col(j).head(j) = r.segment(1, j).reverse();
+      B.col(j).tail(p - j) = c.head(p - j);
+    }
     return B;
   }
 
