@@ -46,6 +46,7 @@ class bdcsvd_impl {
   using ArrayXr = Array<RealScalar, Dynamic, 1>;
   using ArrayXi = Array<Index, 1, Dynamic>;
   using ArrayRef = Ref<ArrayXr>;
+  using ConstArrayRef = Ref<const ArrayXr>;
   using IndicesRef = Ref<ArrayXi>;
 
   bdcsvd_impl() : m_algoswap(16), m_compU(false), m_compV(false), m_numIters(0), m_info(Success) {}
@@ -72,7 +73,7 @@ class bdcsvd_impl {
  private:
   void computeSVDofM(Index firstCol, Index n, MatrixXr& U, VectorType& singVals, MatrixXr& V);
   void computeSingVals(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm, VectorType& singVals,
-                       ArrayRef shifts, ArrayRef mus);
+                       ArrayRef shifts, ArrayRef mus, ArrayRef workspace);
   void perturbCol0(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm, const VectorType& singVals,
                    const ArrayRef& shifts, const ArrayRef& mus, ArrayRef zhat);
   void computeSingVecs(const ArrayRef& zhat, const ArrayRef& diag, const IndicesRef& perm, const VectorType& singVals,
@@ -85,8 +86,8 @@ class bdcsvd_impl {
                                                            RealScalar secondNumerator, RealScalar secondDenominator);
   static EIGEN_STRONG_INLINE RealScalar sequentialQuotient(RealScalar numerator, RealScalar firstDenominator,
                                                            RealScalar secondDenominator);
-  static RealScalar secularEq(RealScalar x, const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
-                              const ArrayRef& diagShifted, RealScalar shift);
+  static RealScalar secularEq(RealScalar x, const ConstArrayRef& col0, const ConstArrayRef& diag,
+                              const ConstArrayRef& diagShifted, RealScalar shift);
   template <typename SVDType>
   void computeBaseCase(SVDType& svd, Index n, Index firstCol, Index firstRowW, Index firstColW, Index shift);
 
@@ -376,7 +377,9 @@ void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& 
   Map<ArrayXr> zhat(m_workspace.data() + 3 * n, n);
 
   // Compute singVals, shifts, and mus
-  computeSingVals(col0, diag, perm, singVals, shifts, mus);
+  // U is filled by computeSingVecs below; reuse its storage to pack the active secular terms.
+  Map<ArrayXr> secularWorkspace(U.data(), 2 * n);
+  computeSingVals(col0, diag, perm, singVals, shifts, mus, secularWorkspace);
 
   // Compute zhat
   perturbCol0(col0, diag, perm, singVals, shifts, mus, zhat);
@@ -426,23 +429,22 @@ EIGEN_STRONG_INLINE typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<Re
 }
 
 template <typename RealScalar_>
-typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularEq(RealScalar mu, const ArrayRef& col0,
-                                                                                  const ArrayRef& diag,
-                                                                                  const IndicesRef& perm,
-                                                                                  const ArrayRef& diagShifted,
+typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<RealScalar_>::secularEq(RealScalar mu,
+                                                                                  const ConstArrayRef& col0,
+                                                                                  const ConstArrayRef& diag,
+                                                                                  const ConstArrayRef& diagShifted,
                                                                                   RealScalar shift) {
-  Index m = perm.size();
   RealScalar res = Literal(1);
-  for (Index i = 0; i < m; ++i) {
-    Index j = perm(i);
-    res += productOfQuotients(col0(j), diagShifted(j) - mu, col0(j), diag(j) + shift + mu);
+  for (Index i = 0; i < col0.size(); ++i) {
+    res += productOfQuotients(col0(i), diagShifted(i) - mu, col0(i), diag(i) + shift + mu);
   }
   return res;
 }
 
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
-                                               VectorType& singVals, ArrayRef shifts, ArrayRef mus) {
+                                               VectorType& singVals, ArrayRef shifts, ArrayRef mus,
+                                               ArrayRef workspace) {
   // See Ren-Cang Li, "Solving Secular Equations Stably and Efficiently",
   // LAPACK Working Note 89 (1994), and LAPACK's xLASD4/xLASD5 for the
   // stability rationale behind pole-relative shifts and safeguarded steps.
@@ -450,6 +452,18 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
   using std::swap;
 
   Index n = col0.size();
+  const Index m = perm.size();
+  // perm is strictly increasing, so its last entry identifies a contiguous prefix.
+  const bool contiguous = m == 0 || perm(m - 1) == m - 1;
+  if (!contiguous) {
+    for (Index i = 0; i < m; ++i) {
+      workspace(i) = col0(perm(i));
+      workspace(m + i) = diag(perm(i));
+    }
+  }
+  // Bind the views once for the repeated secularEq evaluations.
+  const ConstArrayRef activeCol0 = Map<const ArrayXr>(contiguous ? col0.data() : workspace.data(), m);
+  const ConstArrayRef activeDiag = Map<const ArrayXr>(contiguous ? diag.data() : workspace.data() + m, m);
   Index actual_n = n;
   // Note that here actual_n is computed based on col0(i)==0 instead of diag(i)==0 as above
   // because 1) we have diag(i)==0 => col0(i)==0 and 2) if col0(i)==0, then diag(i) is already a singular value.
@@ -484,23 +498,24 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
 
     // first decide whether it's closer to the left end or the right end
     RealScalar mid = left + (right - left) / Literal(2);
-    RealScalar fMid = secularEq(mid, col0, diag, perm, diag, Literal(0));
+    RealScalar fMid = secularEq(mid, activeCol0, activeDiag, activeDiag, Literal(0));
     RealScalar shift = (k == actual_n - 1 || fMid > Literal(0)) ? left : right;
 
     // measure everything relative to shift
-    Map<ArrayXr> diagShifted(m_workspace.data() + 4 * n, n);
-    diagShifted = diag - shift;
+    Map<ArrayXr> diagShifted(m_workspace.data() + 4 * n, m);
+    const ConstArrayRef shiftedRef(diagShifted);
+    diagShifted = activeDiag - shift;
 
     if (k != actual_n - 1) {
       // check that after the shift, f(mid) is still negative:
       RealScalar midShifted = (right - left) / RealScalar(2);
       // we can test exact equality here, because shift comes from `... ? left : right`
       if (numext::equal_strict(shift, right)) midShifted = -midShifted;
-      RealScalar fMidShifted = secularEq(midShifted, col0, diag, perm, diagShifted, shift);
+      RealScalar fMidShifted = secularEq(midShifted, activeCol0, activeDiag, shiftedRef, shift);
       if (fMidShifted > 0) {
         // fMid was erroneous, fix it:
         shift = fMidShifted > Literal(0) ? left : right;
-        diagShifted = diag - shift;
+        diagShifted = activeDiag - shift;
       }
     }
 
@@ -518,8 +533,8 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       muCur = -(right - left) * RealScalar(0.5);
     }
 
-    RealScalar fPrev = secularEq(muPrev, col0, diag, perm, diagShifted, shift);
-    RealScalar fCur = secularEq(muCur, col0, diag, perm, diagShifted, shift);
+    RealScalar fPrev = secularEq(muPrev, activeCol0, activeDiag, shiftedRef, shift);
+    RealScalar fCur = secularEq(muCur, activeCol0, activeDiag, shiftedRef, shift);
     if (abs(fPrev) < abs(fCur)) {
       swap(fPrev, fCur);
       swap(muPrev, muCur);
@@ -543,7 +558,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       RealScalar b = fCur - a / muCur;
       // And find mu such that f(mu)==0:
       RealScalar muZero = -a / b;
-      RealScalar fZero = secularEq(muZero, col0, diag, perm, diagShifted, shift);
+      RealScalar fZero = secularEq(muZero, activeCol0, activeDiag, shiftedRef, shift);
 
       muPrev = muCur;
       fPrev = fCur;
@@ -582,14 +597,14 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
         else
           rightShifted = -(std::numeric_limits<RealScalar>::min)();
       }
-      RealScalar fLeft = secularEq(leftShifted, col0, diag, perm, diagShifted, shift);
+      RealScalar fLeft = secularEq(leftShifted, activeCol0, activeDiag, shiftedRef, shift);
       eigen_internal_assert(fLeft < Literal(0));
 
       if (fLeft < Literal(0)) {
         while (rightShifted - leftShifted > Literal(2) * NumTraits<RealScalar>::epsilon() *
                                                 numext::maxi<RealScalar>(abs(leftShifted), abs(rightShifted))) {
           RealScalar midShifted = (leftShifted + rightShifted) / Literal(2);
-          fMid = secularEq(midShifted, col0, diag, perm, diagShifted, shift);
+          fMid = secularEq(midShifted, activeCol0, activeDiag, shiftedRef, shift);
           eigen_internal_assert((numext::isfinite)(fMid));
 
           if (fLeft * fMid < Literal(0)) {

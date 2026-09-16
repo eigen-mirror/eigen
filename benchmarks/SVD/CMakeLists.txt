@@ -4,6 +4,7 @@
 eigen_add_benchmark(bench_svd bench_svd.cpp)
 eigen_add_benchmark(bench_svd_secular bench_svd_secular.cpp)
 eigen_add_benchmark(bench_svd_secular_float bench_svd_secular.cpp DEFINITIONS SCALAR=float)
+eigen_add_benchmark(bench_bdcsvd_bidiagonal bench_bdcsvd_bidiagonal.cpp)
 eigen_add_benchmark(bench_bidiag bench_bidiag.cpp)
 eigen_add_benchmark(bench_make_jacobi bench_make_jacobi.cpp)
 eigen_add_benchmark(bench_jacobisvd_rotations bench_jacobisvd_rotations.cpp)
