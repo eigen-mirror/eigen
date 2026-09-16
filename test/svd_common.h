@@ -52,6 +52,26 @@ void svd_check_full(const MatrixType& m, const SvdType& svd) {
   VERIFY_IS_UNITARY(v);
 }
 
+template <typename MatrixType, typename SvdType, typename RhsType, typename SolutionType>
+bool svd_check_normal_equation(const MatrixType& m, const SvdType& svd, const RhsType& rhs, const SolutionType& x) {
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar matrix_norm = m.stableNorm();
+  const RealScalar rhs_norm = rhs.stableNorm();
+  // Truncation gives A^H (A X - B) = -sum_{i >= rank} sigma_i v_i u_i^H B.
+  const RealScalar truncated =
+      svd.rank() < svd.singularValues().size() ? svd.singularValues()(svd.rank()) * rhs_norm : RealScalar(0);
+  const typename SolutionType::PlainObject normal_lhs = m.adjoint() * (m * x);
+  const typename SolutionType::PlainObject normal_rhs = m.adjoint() * rhs;
+  const RealScalar normal_error = (normal_lhs - normal_rhs).stableNorm();
+  // For C = A^H A and D = A^H B, perturbations bounded by eta*||A||^2 and eta*||A||*||B|| give
+  // ||C X - D|| <= eta*||A||*(||A||*||X|| + ||B||). This includes cancellation in A*X.
+  // Use eta = 8*(rows + cols)*eps as the backward-error budget for the decomposition,
+  // solve, and checking products (including complex arithmetic).
+  const RealScalar roundoff = 8 * RealScalar(m.rows() + m.cols()) * NumTraits<RealScalar>::epsilon();
+  const RealScalar normal_tolerance = (roundoff * matrix_norm) * (matrix_norm * x.stableNorm() + rhs_norm) + truncated;
+  return (numext::isfinite)(normal_tolerance) && normal_error <= normal_tolerance;
+}
+
 template <typename MatrixType, typename SvdType>
 void svd_least_square(const MatrixType& m, SvdType& svd) {
   typedef typename MatrixType::Scalar Scalar;
@@ -80,21 +100,9 @@ void svd_least_square(const MatrixType& m, SvdType& svd) {
 
     // evaluate normal equation which works also for least-squares solutions
     if (std::is_same<RealScalar, double>::value || svd.rank() == m.diagonal().size()) {
-      // This test is not stable with single precision.
-      // This is likely because squaring m significantly affects the precision.
       if (std::is_same<RealScalar, float>::value) ++g_test_level;
 
-      // solve() zeroes the singular values below the threshold, so x satisfies the normal equations
-      // only up to the truncated part, m^H (m x - rhs) = -sum_{i >= rank} sigma_i (u_i^H rhs) v_i,
-      // whose norm is at most sigma_rank * ||rhs||.
-      const RealScalar truncated =
-          svd.rank() < svd.singularValues().size() ? svd.singularValues()(svd.rank()) * rhs_norm : RealScalar(0);
-      const SolutionType normal_lhs = m.adjoint() * (m * x);
-      const SolutionType normal_rhs = m.adjoint() * rhs;
-      const RealScalar normal_error = (normal_lhs - normal_rhs).norm();
-      const RealScalar normal_tolerance =
-          test_precision<RealScalar>() * numext::mini(normal_lhs.norm(), normal_rhs.norm()) + truncated;
-      VERIFY_LE(normal_error, normal_tolerance);
+      VERIFY(svd_check_normal_equation(m, svd, rhs, x));
 
       if (std::is_same<RealScalar, float>::value) --g_test_level;
     }
@@ -120,6 +128,68 @@ void svd_least_square(const MatrixType& m, SvdType& svd) {
     }
   }
   svd.setThreshold(Default);
+}
+
+template <typename Scalar, int StorageOrder>
+void svd_normal_equation_roundoff() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  const RealScalar delta = std::is_same<RealScalar, float>::value ? RealScalar(1) / 32 : RealScalar(1) / 1048576;
+  const RealScalar large_scale = numext::sqrt((std::numeric_limits<RealScalar>::max)()) * RealScalar(16);
+  const RealScalar scales[] = {RealScalar(1), large_scale, RealScalar(1) / large_scale};
+  MatrixType m(3, 2), rhs(3, 2), x(2, 2), exact(2, 2);
+  rhs << 0, 0, 1, -2, 1, 3;
+  // [3 7; delta -delta; 0 0] has x = [0.7; -0.3]/delta for b = [0; 1; 1].
+  // Rounding x perturbs the cancelling first row by O(eps/delta).
+  exact << RealScalar(0.7) / delta, -RealScalar(1.4) / delta, -RealScalar(0.3) / delta, RealScalar(0.6) / delta;
+  Scalar phase(1);
+  maybe_set_imag_part<Scalar>::run(phase, RealScalar(1));
+  for (RealScalar scale : scales) {
+    m << 3, 7, delta, -delta, 0, 0;
+    m.col(0) *= phase;
+    m *= scale;
+    SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) svd(m);
+    VERIFY_IS_EQUAL(svd.info(), Success);
+    VERIFY_IS_EQUAL(svd.rank(), 2);
+    x = svd.solve(rhs);
+    VERIFY(svd_check_normal_equation(m, svd, rhs, x));
+    x = exact / scale;
+    x.row(0) /= phase;
+    VERIFY(svd_check_normal_equation(m, svd, rhs, x));
+    x.setZero();
+    VERIFY(!svd_check_normal_equation(m, svd, rhs, x));
+  }
+
+  // Sharpness: C = D = 1, delta_C = -eta, delta_D = eta gives
+  // X = (1 + eta)/(1 - eta), |X - 1| = eta*(|X| + 1).
+  // Here eta = 16*eps: the rounded X is accepted, but one more ULP is rejected.
+  m = MatrixType::Ones(1, 1);
+  rhs = MatrixType::Ones(1, 1);
+  x.resize(1, 1);
+  SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) scalar_svd(m);
+  x(0, 0) = Scalar(RealScalar(1) + 32 * NumTraits<RealScalar>::epsilon());
+  VERIFY(svd_check_normal_equation(m, scalar_svd, rhs, x));
+  x(0, 0) = Scalar(RealScalar(1) + 33 * NumTraits<RealScalar>::epsilon());
+  VERIFY(!svd_check_normal_equation(m, scalar_svd, rhs, x));
+
+  // A discarded singular direction must contribute its truncation allowance.
+  m.setZero(3, 2);
+  rhs.resize(3, 2);
+  m(0, 0) = Scalar(1);
+  m(1, 1) = Scalar(numext::sqrt(NumTraits<RealScalar>::epsilon()));
+  rhs << 1, -2, 1, -2, 1, 3;
+  SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) svd(m);
+  svd.setThreshold(2 * numext::sqrt(NumTraits<RealScalar>::epsilon()));
+  VERIFY_IS_EQUAL(svd.rank(), 1);
+  x = svd.solve(rhs);
+  VERIFY(svd_check_normal_equation(m, svd, rhs, x));
+  x.setZero();
+  VERIFY(!svd_check_normal_equation(m, svd, rhs, x));
+
+  x.setConstant(Scalar(std::numeric_limits<RealScalar>::infinity()));
+  VERIFY(!svd_check_normal_equation(m, svd, rhs, x));
+  x.setConstant(Scalar(std::numeric_limits<RealScalar>::quiet_NaN()));
+  VERIFY(!svd_check_normal_equation(m, svd, rhs, x));
 }
 
 // check minimal norm solutions, the input matrix m is only used to recover problem size

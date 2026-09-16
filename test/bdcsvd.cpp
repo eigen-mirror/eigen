@@ -375,6 +375,11 @@ void bdcsvd_qr_crossover() {
 }
 
 EIGEN_DECLARE_TEST(bdcsvd) {
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<double>, ColMajor>()));
+
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));

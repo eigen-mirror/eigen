@@ -202,6 +202,11 @@ void jacobisvd_power_of_two_scaling() {
 }
 
 EIGEN_DECLARE_TEST(jacobisvd) {
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<double>, ColMajor>()));
+
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
   CALL_SUBTEST_3((jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()));
