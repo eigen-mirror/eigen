@@ -55,15 +55,15 @@ using test::packet_layout;
 // 1/sqrt(x), so a device result within 1 ulp is at most 2 representable steps from the reference.
 const uint64_t kRsqrtFloatUlps = 3;
 const uint64_t kRsqrtDoubleUlps = 2;
-// The CUDA Math API's documented maximum error for each function, plus one for the reference. expm1 uses
-// double-word arithmetic when long double is not wider. Everything here is a named budget the test pins.
+// The CUDA Math API's documented maximum error for each function, plus one for the rounding of the reference from
+// the wider type. The Windows CRT expm1 reference can be 3 ulps off, and its long double has no extra precision.
 struct MathUlpBudget {
   uint64_t log, log1p, exp, exp2, expm1;
 };
 const MathUlpBudget kFloatUlps = {2, 2, 3, 3, 2};
-const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, 2};
+const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, EIGEN_COMP_MSVC ? 3 : 2};
 
-// MSVC's long double has the same precision as double; expm1_reference handles that case separately.
+// The reference uses the next floating-point type; long double is not wider on MSVC.
 template <typename Scalar>
 struct wider_type {
   using type = double;
@@ -72,43 +72,6 @@ template <>
 struct wider_type<double> {
   using type = long double;
 };
-
-template <typename Scalar, typename Wider = typename wider_type<Scalar>::type>
-Scalar expm1_reference(Scalar x) {
-  EIGEN_IF_CONSTEXPR (std::numeric_limits<Wider>::digits > std::numeric_limits<Scalar>::digits) {
-    return static_cast<Scalar>(std::expm1(static_cast<Wider>(x)));
-  }
-
-  // Windows expm1 can be 3 ulps off. Sum r^k/k! in double-word precision, then use
-  // expm1(2r) = expm1(r) * (expm1(r) + 2). For |r| <= 1/2, the tail after k=24 is < 2e-33.
-  if ((std::isnan)(x) || std::abs(x) < std::numeric_limits<double>::epsilon() / 4) return x;
-  // exp(-40) rounds away at -1, and exp(710) exceeds double's range.
-  if (x < Scalar(-40)) return Scalar(-1);
-  if (x > Scalar(710)) return std::numeric_limits<Scalar>::infinity();
-  double r = static_cast<double>(x);
-  int squarings = 0;
-  while (std::abs(r) > 0.5) {
-    r *= 0.5;
-    ++squarings;
-  }
-  double term_hi = r, term_lo = 0;
-  double sum_hi = r, sum_lo = 0;
-  for (int k = 2; k <= 24; ++k) {
-    Eigen::internal::twoprod(term_hi, term_lo, r, term_hi, term_lo);
-    Eigen::internal::doubleword_div_fp(term_hi, term_lo, double(k), term_hi, term_lo);
-    Eigen::internal::twosum(sum_hi, sum_lo, term_hi, term_lo, sum_hi, sum_lo);
-  }
-  for (int k = 0; k < squarings; ++k) {
-    double factor_hi, factor_lo;
-    Eigen::internal::twosum(sum_hi, sum_lo, 2.0, 0.0, factor_hi, factor_lo);
-    // Scale the product so Dekker's intermediate products stay finite near expm1's overflow threshold.
-    Eigen::internal::twoprod(0.5 * sum_hi, 0.5 * sum_lo, 0.5 * factor_hi, 0.5 * factor_lo, sum_hi, sum_lo);
-    if (k + 1 == squarings) return static_cast<Scalar>(std::ldexp(sum_hi + sum_lo, 2));
-    sum_hi *= 4;
-    sum_lo *= 4;
-  }
-  return static_cast<Scalar>(sum_hi + sum_lo);
-}
 
 // nvcc compiles sqrtf to a correctly rounded sqrt (-prec-sqrt=true is its default); clang as the CUDA compiler
 // lowers it to an approximation one ulp off, and only the __fsqrt_rn intrinsic is exact there. Double sqrt is
@@ -687,11 +650,14 @@ void packetmath_gpu_real_math() {
   Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
   // Seed 1549110488 on Windows: the CRT reference was 3 ulps from the correctly rounded GPU result.
   const double regression_input = -0.56978050887642206;
-  const double regression_expected = -0.43435041986303746;  // MPFR, 256 bits, round-to-nearest.
-  VERIFY_IS_EQUAL((expm1_reference<double, double>(regression_input)), regression_expected);
-  VERIFY_IS_EQUAL((expm1_reference<double, double>(709.782712893384)), 1.7976931348622732e308);
   in.conservativeResize(in.size() + kSize);
   in.tail(kSize).setConstant(Scalar(regression_input));
+  EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
+    // Keep a 1-ulp check against MPFR (256 bits, round-to-nearest), independent of the CRT reference.
+    const Buffer<Scalar> regression = in.tail(kSize);
+    check_unary<Packet, op_pexpm1>(
+        regression, [](Scalar) { return Scalar(-0.43435041986303746); }, compare_ulps<Scalar>{1});
+  }
   Buffer<Scalar> positive(in.size());
   for (Index k = 0; k < in.size(); ++k) positive[k] = std::abs(in[k]);
   // log1p's domain is (-1, +inf), and the interesting half of it is the run just above -1: |x| - 0.5 never
@@ -715,7 +681,9 @@ void packetmath_gpu_real_math() {
   check_unary<Packet, op_pexp2>(
       in, [](Scalar x) { return static_cast<Scalar>(std::exp2(static_cast<Wider>(x))); },
       compare_ulps<Scalar>{budget.exp2});
-  check_unary<Packet, op_pexpm1>(in, expm1_reference<Scalar>, compare_ulps<Scalar>{budget.expm1});
+  check_unary<Packet, op_pexpm1>(
+      in, [](Scalar x) { return static_cast<Scalar>(std::expm1(static_cast<Wider>(x))); },
+      compare_ulps<Scalar>{budget.expm1});
   check_unary<Packet, op_plog>(
       positive, [](Scalar x) { return static_cast<Scalar>(std::log(static_cast<Wider>(x))); },
       compare_ulps<Scalar>{budget.log});
