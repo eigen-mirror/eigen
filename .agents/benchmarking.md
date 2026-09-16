@@ -3,6 +3,22 @@
 Use this guidance for performance-sensitive changes and benchmark reviews. Performance claims need a benchmark that
 ships in the same merge request; correctness tests still ship separately and run before timing.
 
+## Performance Hypothesis
+
+Performance-critical changes should start from an explicit hypothesis about what limits performance and how the
+proposed change reduces that cost. Ground the hypothesis in a cost model appropriate to the operation, considering
+the relevant computer architecture and compiler code generation. Where useful, use roofline or speed-of-light
+analysis to estimate the available improvement.
+
+A lightweight model is often sufficient:
+
+> "This loop is bandwidth-bound; eliminating this temporary removes one write and one read per coefficient."
+
+For this example, assembly analysis can check whether those accesses disappear, while benchmarks test whether the
+reduction improves performance at the relevant sizes. Check the model's assumptions, including whether bandwidth
+limits the operation, whether the compiler already eliminates the temporary, and how the working set fits in cache.
+Scale the analysis to the change; a formal model is not required for every contribution.
+
 ## Projects and Builds
 
 The supported and contrib benchmark trees are separate, standalone CMake projects. They are not part of Eigen's
@@ -80,9 +96,39 @@ benchmark sources must not reference. A grid that appears to need it is expressi
    not as wins or regressions.
 
 When the machine cannot be made quiet enough for the effect size, deterministic counters are the honest measurement:
-callgrind instruction counts, allocation counts (e.g. `-Wl,--wrap=malloc`), with identical result checksums across
+Callgrind instruction counts, allocation counts (e.g. `-Wl,--wrap=malloc`), with identical result checksums across
 both variants. Report them as counter measurements naming the tool, not as timings; that plus a statement that wall
 clock was inconclusive is a complete performance claim, where an unqualified ratio from a loaded host is not.
 
 Never infer a general speedup from one convenient size or one warm run. State the tested domain, include regressions
 as well as improvements, and keep numerical accuracy results separate from performance measurements.
+
+## Supporting Performance Evidence
+
+A good merge request connects the hypothesis, the code change, and supporting evidence. Benchmark measurements
+establish the observed performance effect; Callgrind counts and/or assembly analysis help test whether the change
+realizes the predicted reduction in cost. For performance-critical changes, strongly prefer this complementary
+evidence even when timings are stable. Choose the tools that test the hypothesis; neither Callgrind nor assembly
+analysis is mandatory for every contribution.
+
+- **Callgrind:** Compare before/after instruction counts (`Ir`) for the affected operation using identical inputs,
+  compiler flags, ISA, and a fixed number of iterations. Isolate the operation from startup, unrelated allocation, input
+  generation, and benchmark calibration; pausing the benchmark timer does not pause Callgrind collection. Report
+  counts per operation and the measured region, rather than comparing whole-process totals from runs with different
+  amounts of work. Use optimized builds with debug information for attribution, and retain the commands, tool version,
+  and relevant `callgrind_annotate` output. See the
+  [Callgrind manual](https://valgrind.org/docs/manual/cl-manual.html) for collection controls. Label optional cache
+  and branch simulation results as simulated events.
+- **Assembly:** Compare the generated code for the same representative instantiation before and after the change,
+  using the benchmark's compiler, optimization flags, and target ISA. Inspect the hot loop in the benchmark binary
+  or a small reproducer that evaluates the same Eigen expression and keeps its result observable. Include a short
+  annotated excerpt or diff showing the relevant change, such as removed loads, stores, shuffles, branches, spills,
+  or calls; vectorization; or changed loop dependencies. Record the build and disassembly commands and explain how
+  the inspected code relates to the benchmark case.
+
+Connect this evidence to the measured results in the contribution's performance summary. Instruction counts and
+assembly explain mechanisms; fewer instructions alone do not establish a speedup on a particular CPU. Investigate
+results that contradict the hypothesis or disagree with timings, and report unresolved uncertainty. State the
+workloads and configurations over which the evidence supports the claim. If tooling cannot analyze the relevant ISA
+or backend, state that limitation and use applicable evidence; do not silently change the target and attribute those
+results to the original configuration.
