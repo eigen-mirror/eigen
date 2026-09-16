@@ -49,18 +49,32 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   target_compile_definitions(${targetname} PRIVATE EIGEN_TEST_MAX_SIZE=${EIGEN_TEST_MAX_SIZE})
 
+  set(test_compile_options "")
   if(MSVC)
-    target_compile_options(${targetname} PRIVATE "/bigobj")
+    list(APPEND test_compile_options "/bigobj")
   endif()
 
   # let the user pass flags.
   if(${ARGC} GREATER 2)
     separate_arguments(compile_options NATIVE_COMMAND "${ARGV2}")
-    target_compile_options(${targetname} PRIVATE ${compile_options})
+    list(APPEND test_compile_options ${compile_options})
   endif()
+  list(APPEND test_compile_options ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
 
-  if(EIGEN_TEST_CUSTOM_CXX_FLAGS)
-    target_compile_options(${targetname} PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS})
+  if(is_gpu_test AND MSVC AND EIGEN_GPU_TEST_MODE STREQUAL "cuda-language"
+     AND CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+    # nvcc treats bare /options as input files. Definitions must reach both compilation passes.
+    foreach(option IN LISTS test_compile_options)
+      if(option MATCHES "^/D(.+)")
+        target_compile_definitions(${targetname} PRIVATE "${CMAKE_MATCH_1}")
+      elseif(option MATCHES "^/")
+        target_compile_options(${targetname} PRIVATE "-Xcompiler=${option}")
+      else()
+        target_compile_options(${targetname} PRIVATE "${option}")
+      endif()
+    endforeach()
+  else()
+    target_compile_options(${targetname} PRIVATE ${test_compile_options})
   endif()
 
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)

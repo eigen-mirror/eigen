@@ -22,6 +22,7 @@ endif()
 
 set(EIGEN_BUILDSYSTEM_SCENARIOS
     gpu_architectures
+    gpu_compile_options
     gpu_runtime_linkage
     find_package
     find_package_version_reject
