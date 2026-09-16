@@ -467,6 +467,13 @@ build:linux:cross:arm:clang-14:default:
 
 ######## aarch64 ###############################################################
 
+# Cross-compiled on amd64, as the smoke tier has always built it; the paired
+# test jobs run the artifact on a native arm64 runner.  On the arm64 pool host
+# and target match, so common.linux.before_script.sh picks the native compiler
+# and the build gets the 8 vCPU that pool tops out at rather than 32.  The
+# open-source cost factor is flat per minute rather than per runner size, so
+# that was also the dearer runner: 102-115 min for a full-suite build against
+# 20-34 for the same selection on the x86-64 jobs over 2026-09.
 .build:linux:cross:aarch64:
   extends: .build:linux:cross
   variables:
@@ -474,7 +481,7 @@ build:linux:cross:arm:clang-14:default:
     EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
     EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv8.2-a+fp16
   tags:
-    - saas-linux-large-arm64
+    - saas-linux-2xlarge-amd64
 
 ######## SME ###################################################################
 
@@ -899,12 +906,6 @@ build:linux:cross:aarch64:gcc-10:default:affected:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .affected:build ]
   variables:
     EIGEN_CI_CCACHE_POOL: build-linux-cross-aarch64-gcc-10-default
-    # An affected selection can be one heavy test family with nothing lighter
-    # to spread it out.  At ninja's default -j10, the polynomialsolver parts
-    # (3.7-6.6 GiB each under gcc-10) exhausted this 8-vCPU, 32 GB runner, which
-    # thrashed to the 3-hour timeout without finishing a compile; five compiles
-    # of up to 5.2 GiB fit.
-    EIGEN_CI_BUILD_JOBS: "5"
   rules: !reference [.rules:libeigen:affected-tests, rules]
 
 build:linux:cross:aarch64:clang-14:default:affected:
