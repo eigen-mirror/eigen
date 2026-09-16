@@ -59,10 +59,19 @@ struct traits<Diagonal<MatrixType, DiagIndex> > : traits<MatrixType> {
     Flags = (unsigned int)MatrixTypeNested_::Flags & (RowMajorBit | MaskLvalueBit | DirectAccessBit) &
             ~RowMajorBit,  // FIXME DirectAccessBit should not be handled by expressions
     MatrixTypeOuterStride = outer_stride_at_compile_time<MatrixType>::value,
-    InnerStrideAtCompileTime = MatrixTypeOuterStride == Dynamic ? Dynamic : MatrixTypeOuterStride + 1,
     OuterStrideAtCompileTime = 0
   };
+  static constexpr int MatrixTypeInnerStride = inner_stride_at_compile_time<MatrixType>::value;
+  static constexpr int InnerStrideAtCompileTime = MatrixTypeOuterStride == Dynamic || MatrixTypeInnerStride == Dynamic
+                                                      ? Dynamic
+                                                      : MatrixTypeOuterStride + MatrixTypeInnerStride;
 };
+
+template <typename MatrixType, int DiagIndex>
+constexpr int traits<Diagonal<MatrixType, DiagIndex>>::MatrixTypeInnerStride;
+
+template <typename MatrixType, int DiagIndex>
+constexpr int traits<Diagonal<MatrixType, DiagIndex>>::InnerStrideAtCompileTime;
 }  // namespace internal
 
 template <typename MatrixType, int DiagIndex_>
@@ -86,7 +95,9 @@ class Diagonal : public internal::dense_xpr_base<Diagonal<MatrixType, DiagIndex_
 
   EIGEN_DEVICE_FUNC constexpr Index cols() const noexcept { return 1; }
 
-  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return m_matrix.outerStride() + 1; }
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept {
+    return m_matrix.outerStride() + m_matrix.innerStride();
+  }
 
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return 0; }
 

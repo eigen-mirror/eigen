@@ -174,9 +174,12 @@ struct safe_scaling_operations {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void with_scaled_impl(const Src& src, const Scalar&,
                                                                      const Factors& factors, const Func& func,
                                                                      false_type) {
-    if (is_identity(factors))
-      func(src);
-    else EIGEN_IF_CONSTEXPR (IsPowerOfTwo_)
+    if (is_identity(factors)) {
+      // Keep the copy distinct from multiplication by one, which flushes subnormals under FTZ.
+      const Src* unscaled = &src;
+      EIGEN_OPTIMIZATION_BARRIER(unscaled);
+      func(*unscaled);
+    } else EIGEN_IF_CONSTEXPR (IsPowerOfTwo_)
       func(src * factors.invScale);
     else
       func(src / factors.scale);
@@ -272,7 +275,9 @@ struct safe_scaling_operations {
   template <typename Dest, typename Src>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_to(Dest&& dest, const Src& src, const Factors& factors) {
     if (factors.scale == Scalar(1)) {
-      dest = src;
+      const Src* unscaled = &src;
+      EIGEN_OPTIMIZATION_BARRIER(unscaled);
+      dest = *unscaled;
       return;
     }
     dest = src * factors.scale;

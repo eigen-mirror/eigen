@@ -83,6 +83,34 @@ void diagonal_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(m1.diagonal(-(rows + 1)));
 }
 
+template <int Options, int OuterStride, int InnerStride>
+void diagonal_strided() {
+  using Mat = Matrix<int, 4, 4, Options>;
+  using StridedMap = Map<Mat, 0, Stride<OuterStride, InnerStride>>;
+  using Diag = typename StridedMap::DiagonalReturnType;
+  static_assert(Diag::InnerStrideAtCompileTime == (OuterStride == Dynamic || InnerStride == Dynamic ? Dynamic : 13),
+                "The diagonal stride must include both matrix strides");
+  VERIFY_IS_EQUAL(internal::traits<Diag>::InnerStrideAtCompileTime, Diag::InnerStrideAtCompileTime);
+  Matrix<int, 48, 1> storage = Matrix<int, 48, 1>::LinSpaced(48, 0, 47);
+  Matrix<int, 48, 1> expected = storage;
+  StridedMap matrix(storage.data() + 1, 4, 4, Stride<OuterStride, InnerStride>(11, 2));
+  for (Index offset : {Index(-2), Index(0), Index(1)}) {
+    auto diagonal = matrix.diagonal(offset);
+    VERIFY_IS_EQUAL(diagonal.innerStride(), 13);
+    Ref<Matrix<int, Dynamic, 1>, 0, Eigen::InnerStride<Dynamic>> view(diagonal);
+    for (Index i = 0; i < diagonal.size(); ++i) {
+      const Index row = i + (offset < 0 ? -offset : 0);
+      const Index col = i + (offset > 0 ? offset : 0);
+      VERIFY_IS_EQUAL(view(i), matrix(row, col));
+      const Index index = 1 + (Options == RowMajor ? row * 11 + col * 2 : row * 2 + col * 11);
+      expected(index) -= 3;
+    }
+    // A block uses the diagonal's direct-access stride rather than its coefficient accessor.
+    diagonal.head(diagonal.size()).array() -= 3;
+    VERIFY_IS_EQUAL(storage, expected);
+  }
+}
+
 // Test that (A * B).diagonal() gives the same result as (A * B).eval().diagonal().
 // The diagonal-of-product path uses LazyProduct evaluation (see ProductEvaluators.h),
 // which avoids computing the full product. Verify this optimization is correct.
@@ -157,6 +185,14 @@ void select_boundary() {
 }
 
 EIGEN_DECLARE_TEST(diagonal) {
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, 11, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, 11, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, Dynamic, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, Dynamic, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, 11, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, 11, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, Dynamic, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, Dynamic, Dynamic>()));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonal(Matrix<float, 1, 1>()));
     CALL_SUBTEST_1(diagonal(Matrix<float, 4, 9>()));

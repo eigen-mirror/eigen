@@ -432,6 +432,36 @@ void check_unscale_recovery_threshold() {
   if (flushToZero.isSupported()) VERIFY(same_bits(atThreshold(0), Scalar(0)));
 }
 
+template <typename Scalar>
+void check_identity_scaling() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Scaling = internal::safe_scaling<RealScalar>;
+  Matrix<Scalar, 2, 1> input;
+  input(0) = scaling_test_value<Scalar>::run(RealScalar(1), RealScalar(-1));
+  input(1) = scaling_test_value<Scalar>::run(numext::bit_cast<RealScalar>(Binary::kExponentUnit >> 1),
+                                             numext::bit_cast<RealScalar>(+Binary::kSignBit));
+  const ScopedFlushToZero flush;
+  for (RealScalar maxCoeff : {RealScalar(0), RealScalar(1), RealScalar(1.5), NumTraits<RealScalar>::infinity(),
+                              NumTraits<RealScalar>::quiet_NaN()}) {
+    // Keep the factor selection at run time, where a compiler can merge a copy with multiplication by one.
+    volatile RealScalar runtimeMaxCoeff = maxCoeff;
+    Matrix<Scalar, 2, 1> scaled, restored;
+    const auto factors = Scaling::scale_to(scaled, input, RealScalar(runtimeMaxCoeff));
+    VERIFY_IS_EQUAL(factors.scale, RealScalar(1));
+    VERIFY_IS_EQUAL(factors.invScale, RealScalar(1));
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
+    Scaling::unscale_to(restored, input, factors);
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(restored(i), input(i)));
+    Scaling::with_scaled(input, RealScalar(runtimeMaxCoeff), [&](const auto& expression) { scaled = expression; });
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
+    Scaling::scale_in_place(scaled, RealScalar(runtimeMaxCoeff));
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
+    Scaling::unscale_in_place(scaled, factors);
+    for (Index i = 0; i < input.size(); ++i) VERIFY(same_bits(scaled(i), input(i)));
+  }
+}
+
 // A reduction that flushes subnormal inputs returns zero; the rescan reads the largest real or imaginary magnitude from
 // the representation instead, and leaves a nonzero maximum alone.
 template <typename Scalar>
@@ -442,7 +472,7 @@ void check_recover_flushed_max_coeff() {
   using Scaling = internal::safe_scaling<RealScalar>;
   using Value = scaling_test_value<Scalar>;
   const RealScalar small = numext::bit_cast<RealScalar>(Bits(3));
-  const RealScalar large = numext::bit_cast<RealScalar>(Binary::kFractionMask);
+  const RealScalar large = numext::bit_cast<RealScalar>(Bits(Binary::kFractionMask));
   Matrix<Scalar, 2, 2> m;
   m << Value::run(small, RealScalar(0)), Value::run(-small, -large), Value::run(RealScalar(0), small),
       Value::run(-small, RealScalar(0));
@@ -453,6 +483,10 @@ void check_recover_flushed_max_coeff() {
 }
 
 EIGEN_DECLARE_TEST(safe_scaling) {
+  CALL_SUBTEST(check_identity_scaling<float>());
+  CALL_SUBTEST(check_identity_scaling<double>());
+  CALL_SUBTEST(check_identity_scaling<std::complex<float>>());
+  CALL_SUBTEST(check_identity_scaling<std::complex<double>>());
   CALL_SUBTEST(check_power_of_two_scaling_factor<half>());
   CALL_SUBTEST(check_power_of_two_scaling_factor<bfloat16>());
   CALL_SUBTEST(check_power_of_two_scaling_factor<float>());
