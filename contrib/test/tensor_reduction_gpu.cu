@@ -53,11 +53,7 @@ static void test_full_reductions() {
 }
 
 template <typename Type, int DataLayout>
-static void test_first_dim_reductions() {
-  int dim_x = 33;
-  int dim_y = 1;
-  int dim_z = 128;
-
+static void test_first_dim_reductions(int dim_x = 33, int dim_y = 1, int dim_z = 128) {
   Tensor<Type, 3, DataLayout> in(dim_x, dim_y, dim_z);
   in.setRandom();
 
@@ -93,11 +89,7 @@ static void test_first_dim_reductions() {
 }
 
 template <typename Type, int DataLayout>
-static void test_last_dim_reductions() {
-  int dim_x = 128;
-  int dim_y = 1;
-  int dim_z = 33;
-
+static void test_last_dim_reductions(int dim_x = 128, int dim_y = 1, int dim_z = 33) {
   Tensor<Type, 3, DataLayout> in(dim_x, dim_y, dim_z);
   in.setRandom();
 
@@ -141,12 +133,23 @@ EIGEN_DECLARE_TEST(tensor_reduction_gpu) {
   CALL_SUBTEST_3((test_first_dim_reductions<float, ColMajor>()));
   CALL_SUBTEST_3((test_first_dim_reductions<double, ColMajor>()));
   CALL_SUBTEST_4((test_first_dim_reductions<float, RowMajor>()));
-  // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_4((test_first_dim_reductions<double, RowMajor>()))
+  CALL_SUBTEST_4((test_first_dim_reductions<double, RowMajor>()));
 
   CALL_SUBTEST_5((test_last_dim_reductions<float, ColMajor>()));
-  // Outer reductions of doubles aren't supported just yet.
-  //  CALL_SUBTEST_5((test_last_dim_reductions<double, ColMajor>()));
+  CALL_SUBTEST_5((test_last_dim_reductions<double, ColMajor>()));
   CALL_SUBTEST_6((test_last_dim_reductions<float, RowMajor>()));
   CALL_SUBTEST_6((test_last_dim_reductions<double, RowMajor>()));
+
+  // CUDA double sums also reach OuterReductionKernel below and above the former shape band. HIP keeps that band.
+  {
+    Eigen::GpuStreamDevice stream;
+    Eigen::GpuDevice device(&stream);
+    const int multi_processors = device.getNumGpuMultiProcessors();
+    for (int outputs : {4 * multi_processors, 16 * multi_processors, 65 * multi_processors}) {
+      CALL_SUBTEST_7((test_last_dim_reductions<double, ColMajor>(outputs, 1, 128)));
+      CALL_SUBTEST_7((test_first_dim_reductions<double, RowMajor>(128, 1, outputs)));
+    }
+    CALL_SUBTEST_7((test_last_dim_reductions<double, ColMajor>(16 * multi_processors, 1, 33)));
+    CALL_SUBTEST_7((test_first_dim_reductions<double, RowMajor>(33, 1, 16 * multi_processors)));
+  }
 }
