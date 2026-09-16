@@ -308,11 +308,11 @@ Index tridiagonal_inverse_iteration_block(const RealScalar* sdiag, const RealSca
     if (!converged) ++nonconv;
 
     // Normalize to unit 2-norm with a deterministic sign (largest-magnitude entry positive). The
-    // iterate can carry huge entries (~1/eps times the start) on a nearly singular solve, so divide
-    // by the infinity norm first -- otherwise squaredNorm() would overflow and zero out the vector.
+    // iterate can carry huge entries (~1/eps times the start) on a nearly singular solve, so scale
+    // before taking the norm -- otherwise squaredNorm() would overflow and zero out the vector.
     Index jmax = 0;
     const RealScalar binf = b.cwiseAbs().maxCoeff(&jmax);
-    if (!numext::is_exactly_zero(binf)) b /= binf;
+    safe_scaling<RealScalar>::scale_to(b, b, binf);
     const RealScalar nrm2 = b.norm();
     RealScalar scl = numext::is_exactly_zero(nrm2) ? RealScalar(1) : RealScalar(1) / nrm2;
     if (b[jmax] < RealScalar(0)) scl = -scl;
@@ -360,15 +360,21 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
 
   // Normalize T (and the shifts) to O(1) so the deliberately near-singular factor/solve cannot
-  // overflow or underflow; eigenvectors are invariant under this uniform scaling. Divide each entry
-  // directly by the largest magnitude rather than multiplying by its reciprocal: when that magnitude
-  // is subnormal, 1/scale overflows to infinity (which would disable the normalization and let the
-  // iterate underflow to an all-zero "eigenvector"), whereas entry/scale stays O(1) and finite.
-  RealScalar scale = diag.cwiseAbs().maxCoeff();
-  scale = numext::maxi(scale, subdiag.cwiseAbs().maxCoeff());
-  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);  // T == 0: any orthonormal basis works
-  const Matrix<RealScalar, Dynamic, 1> sdiag = diag.array() / scale;
-  const Matrix<RealScalar, Dynamic, 1> ssub = subdiag.array() / scale;
+  // overflow or underflow; eigenvectors are invariant under this uniform scaling.
+  const RealScalar maxCoeff = numext::maxi(diag.cwiseAbs().maxCoeff(), subdiag.cwiseAbs().maxCoeff());
+  Matrix<RealScalar, Dynamic, 1> sdiag(n), ssub(n - 1);
+  const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
+  safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
+  Matrix<RealScalar, Dynamic, 1> xj_scaled(m);
+  safe_scaling<RealScalar>::scale_to(xj_scaled, eivals, maxCoeff, factors);
+  if (maxCoeff > RealScalar(0) && maxCoeff < (std::numeric_limits<RealScalar>::min)()) {
+    // The first scale is clamped to normal range. Finish normalization in a second finite step
+    // so the absolute pivot floor and growth threshold still see an O(1) matrix.
+    const RealScalar scaledMax = numext::maxi(sdiag.cwiseAbs().maxCoeff(), ssub.cwiseAbs().maxCoeff());
+    const auto remaining = safe_scaling<RealScalar>::scale_in_place(sdiag, scaledMax);
+    safe_scaling<RealScalar>::scale_in_place(ssub, scaledMax, remaining);
+    safe_scaling<RealScalar>::scale_in_place(xj_scaled, scaledMax, remaining);
+  }
 
   // Infinity norm of the scaled T: max_i (|e_{i-1}| + |d_i| + |e_i|), missing boundary off-diagonals zero.
   RealScalar onenrm = numext::abs(sdiag[0]) + numext::abs(ssub[0]);
@@ -391,13 +397,12 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
   // top of its predecessor is nudged up by pertol so the two factorizations stay distinct; a gap larger
   // than ortol starts a new cluster (within which the eigenvectors are reorthogonalized). The
   // perturbation is at most ~pertol << ortol, so it never moves a column across a cluster boundary.
-  Matrix<RealScalar, Dynamic, 1> xj_scaled(m);
   Matrix<Index, Dynamic, 1> clstart(m);
   {
     Index gpind = 0;
     RealScalar xjm = RealScalar(0);  // previous (possibly perturbed) shift
     for (Index j = 0; j < m; ++j) {
-      RealScalar xj = eivals[j] / scale;
+      RealScalar xj = xj_scaled[j];
       if (j > 0) {
         // The xSTEIN nudge 10*eps*|xj| separates coincident shifts so their factorizations differ.
         // Capped at a fraction of the cluster threshold: at low precision (bfloat16: 10*eps ~ 0.08)
@@ -539,20 +544,25 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   const RealScalar safemin = numext::maxi(RealScalar(1) / NumTraits<RealScalar>::highest(),
                                           (RealScalar(1) + eps) * (std::numeric_limits<RealScalar>::min)());
   VectorType alpha_all(n), beta_sq_all(n), bscale(nblocks), bpivmin(nblocks), btol(nblocks);
+  RealScalar gscale = RealScalar(0);
   for (Index b = 0; b < nblocks; ++b) {
     const Index b0 = bstart(b), nb = bstart(b + 1) - b0;
     RealScalar s = diag.segment(b0, nb).cwiseAbs().maxCoeff();
     if (nb > 1) s = numext::maxi(s, subdiag.segment(b0, nb - 1).cwiseAbs().maxCoeff());
     if (numext::is_exactly_zero(s)) s = RealScalar(1);
-    bscale(b) = s;
-    alpha_all.segment(b0, nb) = diag.segment(b0, nb) / s;
+    gscale = numext::maxi(gscale, s);
+    auto alpha = alpha_all.segment(b0, nb);
+    const auto factors = safe_scaling<RealScalar>::scale_to(alpha, diag.segment(b0, nb), s);
+    bscale(b) = factors.scale;
     RealScalar max_bsq = RealScalar(0);
     if (nb > 1) {
-      beta_sq_all.segment(b0, nb - 1) = (subdiag.segment(b0, nb - 1) / s).array().square();
-      max_bsq = beta_sq_all.segment(b0, nb - 1).maxCoeff();
+      auto beta = beta_sq_all.segment(b0, nb - 1);
+      safe_scaling<RealScalar>::scale_to(beta, subdiag.segment(b0, nb - 1), s, factors);
+      beta = beta.array().square();
+      max_bsq = beta.maxCoeff();
     }
     bpivmin(b) = safemin * numext::maxi(max_bsq, RealScalar(1));
-    // Normalized block rows are bounded by 3 in magnitude, which bounds the block's infinity norm.
+    // In original units, block row sums are bounded by 3*s, independently of the chosen scaling factor.
     btol(b) = RealScalar(2.1) * (RealScalar(3) * RealScalar(nb) * eps + RealScalar(4) * safemin) * s;
   }
 
@@ -568,7 +578,6 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   // once even at count knife-edges. A copy its own interval cannot supply is carried into the next
   // interval; copies left at the end pair up with the blocks holding leftover span capacity (a
   // miscount that let a block absorb a foreign copy freed exactly one such slot elsewhere).
-  RealScalar gscale = bscale.maxCoeff();
   const RealScalar gtol = RealScalar(2.1) * (RealScalar(3) * RealScalar(n) * eps + RealScalar(4) * safemin) * gscale;
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);

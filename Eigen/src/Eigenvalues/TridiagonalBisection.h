@@ -377,16 +377,14 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // off-diagonal and during the Sturm recurrence; eigenvalues scale linearly, so the
   // scaling is undone at the very end. (The caller has already verified the input is
   // finite.) This mirrors the uniform scaling done in SelfAdjointEigenSolver::compute().
-  // Divide each entry directly by the scale rather than multiplying by its reciprocal: when the scale
-  // is subnormal, 1/scale overflows to infinity, the normalization silently disables itself, and the
-  // Sturm recurrence underflows and returns wrong eigenvalues.
-  RealScalar scale = diag.cwiseAbs().maxCoeff();
-  if (n >= 2) scale = numext::maxi(scale, subdiag.cwiseAbs().maxCoeff());
-  if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
+  RealScalar maxCoeff = diag.cwiseAbs().maxCoeff();
+  if (n >= 2) maxCoeff = numext::maxi(maxCoeff, subdiag.cwiseAbs().maxCoeff());
 
   // Local contiguous copies of the scaled matrix data, |off-diagonal|, and its square.
-  const ArrayType alpha = diag.array() / scale;
-  const ArrayType beta_abs = (n >= 2) ? ArrayType(subdiag.array().abs() / scale) : ArrayType(0);
+  ArrayType alpha(n), beta_abs(n - 1);
+  const auto factors = safe_scaling<RealScalar>::scale_to(alpha, diag.array(), maxCoeff);
+  if (n >= 2) safe_scaling<RealScalar>::scale_to(beta_abs, subdiag.array().abs(), maxCoeff, factors);
+  const RealScalar scale = factors.scale;
   const ArrayType beta_sq = (n >= 2) ? ArrayType(beta_abs.square()) : ArrayType(0);
 
   // Smallest pivot allowed during the Sturm recurrence (positive, floored so
@@ -421,7 +419,7 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // below the pivot floor the Sturm counts are meaningless anyway, and stopping there keeps the
   // bracket midpoints out of the subnormal range, where hardware with flush-to-zero packet
   // arithmetic (ARMv7 NEON) would evaluate them inconsistently between the packet and scalar paths.
-  abs_tol = numext::maxi(abs_tol, numext::maxi(eps * tnorm, RealScalar(2) * pivmin));
+  abs_tol = numext::maxi(abs_tol / scale, numext::maxi(eps * tnorm, RealScalar(2) * pivmin));
   // Widen the Gershgorin bracket so that, despite rounding in the Sturm recurrence, count() really does
   // reach 0 at lambda_min and n at lambda_max. The n*eps*tnorm term bounds the worst-case count error
   // accumulated over the n recurrence steps; the 2*pivmin term covers the pivot floor. The 2.1 prefactor
@@ -550,7 +548,8 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   }
 
   // Undo the normalization.
-  eivalues = (mid_all.head(m_out) * scale).matrix();
+  eivalues = mid_all.head(m_out).matrix();
+  safe_scaling<RealScalar>::unscale_in_place(eivalues, maxCoeff, factors);
   return m_out;
 }
 
