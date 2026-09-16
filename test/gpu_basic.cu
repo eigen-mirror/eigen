@@ -456,11 +456,13 @@ struct float_nan_minmax_test {
     out[1] = Eigen::numext::mini(one, nan);
     out[2] = Eigen::numext::maxi(nan, one);
     out[3] = Eigen::numext::maxi(one, nan);
+    out[4] = Eigen::numext::mini(nan, nan);
+    out[5] = Eigen::numext::maxi(nan, nan);
   }
 };
 
 void test_float_nan_minmax() {
-  Eigen::ArrayXf in(2), out_ref(4), out_gpu(4);
+  Eigen::ArrayXf in(2), out_ref(6), out_gpu(6);
   in << std::numeric_limits<float>::quiet_NaN(), 1.f;
   out_ref.setConstant(-1.f);
   out_gpu.setConstant(-1.f);
@@ -470,10 +472,18 @@ void test_float_nan_minmax() {
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
   VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+#if defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC)
   VERIFY((numext::isnan)(out_ref(0)));
-  VERIFY_IS_EQUAL(out_ref(1), 1.f);
   VERIFY((numext::isnan)(out_ref(2)));
+#else
+  // Without relaxed constexpr, numext::mini/maxi select the number-preferring fmin/fmax overloads.
+  VERIFY_IS_EQUAL(out_ref(0), 1.f);
+  VERIFY_IS_EQUAL(out_ref(2), 1.f);
+#endif
+  VERIFY_IS_EQUAL(out_ref(1), 1.f);
   VERIFY_IS_EQUAL(out_ref(3), 1.f);
+  VERIFY((numext::isnan)(out_ref(4)));
+  VERIFY((numext::isnan)(out_ref(5)));
 #endif
 }
 
