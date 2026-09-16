@@ -7,9 +7,9 @@
 
 using namespace Eigen;
 
-template <typename Scalar>
+template <typename Scalar, int StorageOrder>
 static void BM_EigenSolverStride(benchmark::State& state) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
   const Index n = state.range(0);
   const bool computeVectors = state.range(1) != 0;
   std::srand(1);
@@ -34,5 +34,11 @@ static void BM_EigenSolverStride(benchmark::State& state) {
   }
 }
 
-BENCHMARK_TEMPLATE(BM_EigenSolverStride, float)->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});
-BENCHMARK_TEMPLATE(BM_EigenSolverStride, double)->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});
+BENCHMARK_TEMPLATE(BM_EigenSolverStride, float, ColMajor)
+    ->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});
+BENCHMARK_TEMPLATE(BM_EigenSolverStride, double, ColMajor)
+    ->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});
+BENCHMARK_TEMPLATE(BM_EigenSolverStride, float, RowMajor)
+    ->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});
+BENCHMARK_TEMPLATE(BM_EigenSolverStride, double, RowMajor)
+    ->ArgsProduct({{32, 128, 500, 512, 768, 1000, 1001, 1024}, {0, 1}});

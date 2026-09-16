@@ -475,11 +475,7 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
   const Index size = eivec.cols();
   const Scalar eps = NumTraits<Scalar>::epsilon();
 
-  // inefficient! this is already computed in RealSchur
-  Scalar norm(0);
-  for (Index j = 0; j < size; ++j) {
-    norm += matT.row(j).segment(numext::maxi(j - 1, Index(0)), size - numext::maxi(j - 1, Index(0))).cwiseAbs().sum();
-  }
+  const Scalar norm = internal::hessenberg_abs_sum<Upper>(matT);
 
   // Backsubstitute to find vectors of upper triangular form
   if (norm == Scalar(0)) {

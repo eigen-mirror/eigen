@@ -418,6 +418,7 @@ using std::size_t;
 #include "src/Core/PermutationMatrix.h"
 #include "src/Core/Transpositions.h"
 #include "src/Core/TriangularMatrix.h"
+#include "src/Core/MatrixNorms.h"
 #include "src/Core/SelfAdjointView.h"
 #include "src/Core/products/GeneralBlockPanelKernel.h"
 #include "src/Core/DeviceWrapper.h"

@@ -386,13 +386,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMa
 /** \internal Computes and returns vector L1 norm of T */
 template <typename MatrixType>
 inline typename MatrixType::Scalar RealSchur<MatrixType>::computeNormOfT() {
-  const Index size = m_matT.cols();
-  // m_matT is upper-Hessenberg, so per column only rows [0, j+1] are nonzero.
-  // The column-wise loop touches ~n^2/2 entries; scanning the full matrix
-  // would double that, and TriangularView has no direct cwiseAbs().sum().
-  Scalar norm(0);
-  for (Index j = 0; j < size; ++j) norm += m_matT.col(j).segment(0, (std::min)(size, j + 2)).cwiseAbs().sum();
-  return norm;
+  return internal::hessenberg_abs_sum<Upper>(m_matT);
 }
 
 /** \internal Look for single small sub-diagonal element and returns its index */

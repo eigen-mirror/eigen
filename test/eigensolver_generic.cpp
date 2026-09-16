@@ -210,6 +210,8 @@ EIGEN_DECLARE_TEST(eigensolver_generic) {
     CALL_SUBTEST_2(eigensolver(MatrixXd(2, 2)));
     CALL_SUBTEST_3(eigensolver(Matrix<double, 1, 1>()));
     CALL_SUBTEST_4(eigensolver(Matrix2d()));
+    CALL_SUBTEST_6((eigensolver(Matrix<float, Dynamic, Dynamic, RowMajor>(17, 17))));
+    CALL_SUBTEST_7((eigensolver(Matrix<double, Dynamic, Dynamic, RowMajor>(17, 17))));
   }
 
   CALL_SUBTEST_1(eigensolver_verify_assert(Matrix4f()));

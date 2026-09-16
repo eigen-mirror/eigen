@@ -661,13 +661,8 @@ void ComplexQZ<MatrixType_>::push_down_zero_ST(Index k, Index l) {
 /** \internal Computes vector L1 norms of S and T when in Hessenberg-Triangular form already */
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::computeNorms() {
-  const Index size = m_S.cols();
-  m_normOfS = RealScalar(0);
-  m_normOfT = RealScalar(0);
-  for (Index j = 0; j < size; ++j) {
-    m_normOfS += m_S.col(j).segment(0, (std::min)(size, j + 2)).cwiseAbs().sum();
-    m_normOfT += m_T.row(j).segment(j, size - j).cwiseAbs().sum();
-  }
+  m_normOfS = internal::hessenberg_abs_sum<Upper>(m_S);
+  m_normOfT = internal::triangular_abs_sum<Upper>(m_T);
 }
 
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0). Copied from Eigen3 RealQZ

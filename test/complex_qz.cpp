@@ -76,10 +76,14 @@ EIGEN_DECLARE_TEST(complex_qz) {
     Eigen::MatrixXcf A_float, B_float;
     generate_random_matrix_pair(dim, A_float, B_float);
     CALL_SUBTEST_3(complex_qz(A_float, B_float));
+    CALL_SUBTEST_5((complex_qz(Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>(A_float),
+                               Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>(B_float))));
 
     // Test for double complex matrices
     Eigen::MatrixXcd A_double, B_double;
     generate_random_matrix_pair(dim, A_double, B_double);
     CALL_SUBTEST_4(complex_qz(A_double, B_double));
+    CALL_SUBTEST_6((complex_qz(Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(A_double),
+                               Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>(B_double))));
   }
 }

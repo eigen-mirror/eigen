@@ -109,6 +109,8 @@ EIGEN_DECLARE_TEST(real_qz) {
     CALL_SUBTEST_2(real_qz(MatrixXd(2, 2)));
     CALL_SUBTEST_3(real_qz(Matrix<double, 1, 1>()));
     CALL_SUBTEST_4(real_qz(Matrix2d()));
+    CALL_SUBTEST_5((real_qz(Matrix<float, Dynamic, Dynamic, RowMajor>(17, 17))));
+    CALL_SUBTEST_6((real_qz(Matrix<double, Dynamic, Dynamic, RowMajor>(17, 17))));
 
     CALL_SUBTEST_2(real_qz_iteration_cap_regression<MatrixXd>());
   }
