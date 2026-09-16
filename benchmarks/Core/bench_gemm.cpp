@@ -62,7 +62,7 @@ BENCHMARK(BM_EigenGemm)
 // The reference below calls sgemm_/dgemm_ directly, so it is real-only.
 #if defined(HAVE_BLAS) && !defined(EIGEN_BENCH_COMPLEX_SCALAR)
 extern "C" {
-#include <Eigen/src/misc/blas.h>
+#include <Eigen/src/Core/util/blas.h>
 }
 
 // c += a * b, matching gemm() above.

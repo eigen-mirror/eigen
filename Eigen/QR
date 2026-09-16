@@ -34,7 +34,7 @@
  * \endcode
  */
 
-#include "src/misc/RankRevealingBase.h"
+#include "src/Core/RankRevealingBase.h"
 
 // IWYU pragma: begin_exports
 #include "src/QR/HouseholderQR.h"
@@ -43,7 +43,7 @@
 #include "src/QR/RandColPivHouseholderQR.h"
 #include "src/QR/CompleteOrthogonalDecomposition.h"
 #ifdef EIGEN_USE_LAPACKE
-#include "src/misc/lapacke_helpers.h"
+#include "src/LAPACKESupport/lapacke_helpers.h"
 #include "src/QR/HouseholderQR_LAPACKE.h"
 #include "src/QR/ColPivHouseholderQR_LAPACKE.h"
 #endif

@@ -34,8 +34,9 @@ void lu_non_invertible() {
   }
 
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
-  typedef typename internal::kernel_retval_base<FullPivLU<MatrixType> >::ReturnType KernelMatrixType;
-  typedef typename internal::image_retval_base<FullPivLU<MatrixType> >::ReturnType ImageMatrixType;
+  using KernelMatrixType = typename decltype(std::declval<FullPivLU<MatrixType>>().kernel())::PlainObject;
+  using ImageMatrixType =
+      typename decltype(std::declval<FullPivLU<MatrixType>>().image(std::declval<const MatrixType&>()))::PlainObject;
   typedef Matrix<typename MatrixType::Scalar, ColsAtCompileTime, ColsAtCompileTime> CMatrixType;
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, RowsAtCompileTime> RMatrixType;
 
@@ -436,7 +437,77 @@ void lu_strided_pivots() {
   }
 }
 
+template <typename Scalar, int Options>
+void lu_subspace_expressions() {
+  using Mat = Matrix<Scalar, 4, 4, Options>;
+  Mat original = Mat::Zero();
+  original(0, 3) = Scalar(8);
+  original(2, 1) = Scalar(2);
+  original(2, 2) = Scalar(1);
+  FullPivLU<Mat, long> lu(original);
+  const auto kernel = lu.kernel();
+  const auto image = lu.image(original);
+  using KernelMatrix = typename decltype(kernel)::PlainObject;
+  using ImageMatrix = typename decltype(image)::PlainObject;
+  STATIC_CHECK(KernelMatrix::RowsAtCompileTime == 4);
+  STATIC_CHECK(KernelMatrix::MaxColsAtCompileTime == 4);
+  STATIC_CHECK(ImageMatrix::RowsAtCompileTime == 4);
+  STATIC_CHECK(ImageMatrix::MaxColsAtCompileTime == 4);
+  STATIC_CHECK(KernelMatrix::IsRowMajor == (Options == RowMajor));
+  STATIC_CHECK(ImageMatrix::IsRowMajor == (Options == RowMajor));
+
+  VERIFY_IS_EQUAL(kernel.rows(), 4);
+  VERIFY_IS_EQUAL(kernel.cols(), 2);
+  VERIFY_IS_EQUAL(image.rows(), 4);
+  VERIFY_IS_EQUAL(image.cols(), 2);
+  const KernelMatrix nullspace = kernel;
+  const ImageMatrix range = image;
+  VERIFY_IS_EQUAL(nullspace.fullPivLu().rank(), 2);
+  VERIFY_IS_EQUAL((original * kernel).norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(kernel + kernel, Scalar(2) * nullspace);
+  VERIFY_IS_APPROX(image + image, Scalar(2) * range);
+  VERIFY_IS_APPROX(range.col(0), original.col(3));
+  VERIFY_IS_APPROX(range.col(1), original.col(1));
+
+  Mat destination = Mat::Constant(Scalar(7));
+  destination.template leftCols<2>() = kernel;
+  destination.template rightCols<2>() = image;
+  VERIFY_IS_APPROX(destination.template leftCols<2>(), nullspace);
+  VERIFY_IS_APPROX(destination.template rightCols<2>(), range);
+
+  Mat factorStorage = original;
+  FullPivLU<Ref<Mat>, long> inplace(factorStorage);
+  factorStorage.template middleCols<2>(1) = inplace.image(original);
+  VERIFY_IS_APPROX(factorStorage.template middleCols<2>(1), range);
+
+  original.setZero();
+  lu.compute(original);
+  VERIFY_IS_EQUAL(lu.image(original).cols(), 1);
+  VERIFY_IS_EQUAL(lu.image(original).eval().norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(lu.kernel(), Mat::Identity());
+  original.setIdentity();
+  lu.compute(original);
+  VERIFY_IS_EQUAL(lu.kernel().cols(), 1);
+  VERIFY_IS_EQUAL(lu.kernel().eval().norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(lu.image(original), original);
+
+  // The pivots are 8, 1, -2, 0: thresholding must select columns 0 and 2, not a prefix.
+  original.setZero();
+  original(0, 0) = Scalar(8);
+  original.template block<2, 2>(1, 1) << Scalar(1), Scalar(1), Scalar(1), Scalar(-1);
+  lu.compute(original).setThreshold(typename Mat::RealScalar(0.1875));
+  VERIFY_IS_EQUAL(lu.rank(), 2);
+  const ImageMatrix thresholded = lu.image(original);
+  VERIFY_IS_APPROX(thresholded.col(0), original.col(0));
+  VERIFY_IS_APPROX(thresholded.col(1), original.col(2));
+}
+
 EIGEN_DECLARE_TEST(lu) {
+  CALL_SUBTEST_16((lu_subspace_expressions<float, ColMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<double, RowMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<std::complex<double>, ColMajor>()));
+
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(lu_non_invertible<Matrix3f>());
     CALL_SUBTEST_1(lu_invertible<Matrix3f>());

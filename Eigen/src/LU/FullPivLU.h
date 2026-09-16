@@ -17,6 +17,11 @@
 namespace Eigen {
 
 namespace internal {
+template <typename DecompositionType>
+struct kernel_retval;
+template <typename DecompositionType>
+struct image_retval;
+
 template <typename MatrixType_, typename PermutationIndex_>
 struct traits<FullPivLU<MatrixType_, PermutationIndex_> > : traits<MatrixType_> {
   using XprKind = MatrixXpr;
@@ -557,50 +562,53 @@ MatrixType FullPivLU<MatrixType, PermutationIndex>::reconstructedMatrix() const 
 /********* Implementation of kernel() **************************************************/
 
 namespace internal {
-template <typename MatrixType_, typename PermutationIndex_>
-struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_> >
-    : kernel_retval_base<FullPivLU<MatrixType_, PermutationIndex_> > {
-  using DecompositionType = FullPivLU<MatrixType_, PermutationIndex_>;
-  EIGEN_MAKE_KERNEL_HELPERS(DecompositionType)
+template <typename MatrixType, typename PermutationIndex>
+auto fullpivlu_nonzero_pivots(const FullPivLU<MatrixType, PermutationIndex>& dec, Index rank) {
+  constexpr int MaxSmallDimAtCompileTime =
+      min_size_prefer_fixed(MatrixType::MaxColsAtCompileTime, MatrixType::MaxRowsAtCompileTime);
+  Matrix<Index, Dynamic, 1, 0, MaxSmallDimAtCompileTime, 1> pivots(rank);
+  const typename MatrixType::RealScalar premultiplied_threshold = dec.maxPivot() * dec.threshold();
+  Index p = 0;
+  for (Index i = 0; i < dec.nonzeroPivots(); ++i)
+    if (numext::abs(dec.matrixLU().coeff(i, i)) > premultiplied_threshold) pivots.coeffRef(p++) = i;
+  eigen_internal_assert(p == rank);
+  return pivots;
+}
 
-  enum {
-    MaxSmallDimAtCompileTime = min_size_prefer_fixed(MatrixType::MaxColsAtCompileTime, MatrixType::MaxRowsAtCompileTime)
-  };
+template <typename MatrixType_, typename PermutationIndex_>
+struct traits<kernel_retval<FullPivLU<MatrixType_, PermutationIndex_>>> {
+  using ReturnType = Matrix<typename MatrixType_::Scalar, MatrixType_::ColsAtCompileTime, Dynamic,
+                            plain_object_options<MatrixType_>::value, MatrixType_::MaxColsAtCompileTime,
+                            MatrixType_::MaxColsAtCompileTime>;
+};
+
+template <typename MatrixType_, typename PermutationIndex_>
+struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_>>
+    : ReturnByValue<kernel_retval<FullPivLU<MatrixType_, PermutationIndex_>>> {
+  using DecompositionType = FullPivLU<MatrixType_, PermutationIndex_>;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+
+  static constexpr int MaxSmallDimAtCompileTime =
+      min_size_prefer_fixed(MatrixType::MaxColsAtCompileTime, MatrixType::MaxRowsAtCompileTime);
+
+  explicit kernel_retval(const DecompositionType& dec)
+      : m_dec(dec), m_rank(dec.rank()), m_cols(m_rank == dec.cols() ? 1 : dec.cols() - m_rank) {}
+
+  Index rows() const { return m_dec.cols(); }
+  Index cols() const { return m_cols; }
 
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    using std::abs;
-    const Index cols = dec().matrixLU().cols(), dimker = cols - rank();
+    const Index cols = m_dec.matrixLU().cols(), dimker = cols - m_rank;
     if (dimker == 0) {
-      // The Kernel is just {0}, so it doesn't have a basis properly speaking, but let's
-      // avoid crashing/asserting as that depends on floating point calculations. Let's
-      // just return a single column vector filled with zeros.
+      // Represent the zero space by a single zero column.
       dst.setZero();
       return;
     }
 
-    /* Let us use the following lemma:
-     *
-     * Lemma: If the matrix A has the LU decomposition PAQ = LU,
-     * then Ker A = Q(Ker U).
-     *
-     * Proof: trivial: just keep in mind that P, Q, L are invertible.
-     */
-
-    /* Thus, all we need to do is to compute Ker U, and then apply Q.
-     *
-     * U is upper triangular, with eigenvalues sorted so that any zeros appear at the end.
-     * Thus, the diagonal of U ends with exactly
-     * dimKer zero's. Let us use that to construct dimKer linearly
-     * independent vectors in Ker U.
-     */
-
-    Matrix<Index, Dynamic, 1, 0, MaxSmallDimAtCompileTime, 1> pivots(rank());
-    RealScalar premultiplied_threshold = dec().maxPivot() * dec().threshold();
-    Index p = 0;
-    for (Index i = 0; i < dec().nonzeroPivots(); ++i)
-      if (abs(dec().matrixLU().coeff(i, i)) > premultiplied_threshold) pivots.coeffRef(p++) = i;
-    eigen_internal_assert(p == rank());
+    // PAQ = LU implies ker(A) = Q ker(U).
+    const auto pivots = fullpivlu_nonzero_pivots(m_dec, m_rank);
 
     // Construct a temporary trapezoid matrix m by taking the U matrix and permuting
     // the rows and cols to bring the nonnegligible pivots to the top of the main diagonal.
@@ -608,62 +616,72 @@ struct kernel_retval<FullPivLU<MatrixType_, PermutationIndex_> >
     // FIXME: simplify once triangularView supports rectangular matrices.
     Matrix<typename MatrixType::Scalar, Dynamic, Dynamic, plain_object_options<MatrixType>::value,
            MaxSmallDimAtCompileTime, MatrixType::MaxColsAtCompileTime>
-        m(dec().matrixLU().block(0, 0, rank(), cols));
-    for (Index i = 0; i < rank(); ++i) {
+        m(m_dec.matrixLU().block(0, 0, m_rank, cols));
+    for (Index i = 0; i < m_rank; ++i) {
       if (i) m.row(i).head(i).setZero();
-      m.row(i).tail(cols - i) = dec().matrixLU().row(pivots.coeff(i)).tail(cols - i);
+      m.row(i).tail(cols - i) = m_dec.matrixLU().row(pivots.coeff(i)).tail(cols - i);
     }
-    m.block(0, 0, rank(), rank()).template triangularView<StrictlyLower>().setZero();
-    for (Index i = 0; i < rank(); ++i) m.col(i).swap(m.col(pivots.coeff(i)));
+    m.block(0, 0, m_rank, m_rank).template triangularView<StrictlyLower>().setZero();
+    for (Index i = 0; i < m_rank; ++i) m.col(i).swap(m.col(pivots.coeff(i)));
 
     // ok, we have our trapezoid matrix, we can apply the triangular solver.
     // notice that the math behind this suggests that we should apply this to the
     // negative of the RHS, but for performance we just put the negative sign elsewhere, see below.
-    m.topLeftCorner(rank(), rank()).template triangularView<Upper>().solveInPlace(m.topRightCorner(rank(), dimker));
+    m.topLeftCorner(m_rank, m_rank).template triangularView<Upper>().solveInPlace(m.topRightCorner(m_rank, dimker));
 
     // now we must undo the column permutation that we had applied!
-    for (Index i = rank() - 1; i >= 0; --i) m.col(i).swap(m.col(pivots.coeff(i)));
+    for (Index i = m_rank - 1; i >= 0; --i) m.col(i).swap(m.col(pivots.coeff(i)));
 
     // see the negative sign in the next line, that's what we were talking about above.
-    for (Index i = 0; i < rank(); ++i) dst.row(dec().permutationQ().indices().coeff(i)) = -m.row(i).tail(dimker);
-    for (Index i = rank(); i < cols; ++i) dst.row(dec().permutationQ().indices().coeff(i)).setZero();
-    for (Index k = 0; k < dimker; ++k) dst.coeffRef(dec().permutationQ().indices().coeff(rank() + k), k) = Scalar(1);
+    for (Index i = 0; i < m_rank; ++i) dst.row(m_dec.permutationQ().indices().coeff(i)) = -m.row(i).tail(dimker);
+    for (Index i = m_rank; i < cols; ++i) dst.row(m_dec.permutationQ().indices().coeff(i)).setZero();
+    for (Index k = 0; k < dimker; ++k) dst.coeffRef(m_dec.permutationQ().indices().coeff(m_rank + k), k) = Scalar(1);
   }
+
+ private:
+  const DecompositionType& m_dec;
+  Index m_rank, m_cols;
 };
 
 /***** Implementation of image() *****************************************************/
 
 template <typename MatrixType_, typename PermutationIndex_>
-struct image_retval<FullPivLU<MatrixType_, PermutationIndex_> >
-    : image_retval_base<FullPivLU<MatrixType_, PermutationIndex_> > {
-  using DecompositionType = FullPivLU<MatrixType_, PermutationIndex_>;
-  EIGEN_MAKE_IMAGE_HELPERS(DecompositionType)
+struct traits<image_retval<FullPivLU<MatrixType_, PermutationIndex_>>> {
+  using ReturnType = Matrix<typename MatrixType_::Scalar, MatrixType_::RowsAtCompileTime, Dynamic,
+                            plain_object_options<MatrixType_>::value, MatrixType_::MaxRowsAtCompileTime,
+                            MatrixType_::MaxColsAtCompileTime>;
+};
 
-  enum {
-    MaxSmallDimAtCompileTime = min_size_prefer_fixed(MatrixType::MaxColsAtCompileTime, MatrixType::MaxRowsAtCompileTime)
-  };
+template <typename MatrixType_, typename PermutationIndex_>
+struct image_retval<FullPivLU<MatrixType_, PermutationIndex_>>
+    : ReturnByValue<image_retval<FullPivLU<MatrixType_, PermutationIndex_>>> {
+  using DecompositionType = FullPivLU<MatrixType_, PermutationIndex_>;
+  using MatrixType = MatrixType_;
+
+  image_retval(const DecompositionType& dec, const MatrixType& originalMatrix)
+      : m_dec(dec), m_rank(dec.rank()), m_originalMatrix(originalMatrix) {}
+
+  Index rows() const { return m_dec.rows(); }
+  Index cols() const { return m_rank == 0 ? 1 : m_rank; }
 
   template <typename Dest>
   void evalTo(Dest& dst) const {
-    using std::abs;
-    if (rank() == 0) {
-      // The Image is just {0}, so it doesn't have a basis properly speaking, but let's
-      // avoid crashing/asserting as that depends on floating point calculations. Let's
-      // just return a single column vector filled with zeros.
+    if (m_rank == 0) {
+      // Represent the zero space by a single zero column.
       dst.setZero();
       return;
     }
 
-    Matrix<Index, Dynamic, 1, 0, MaxSmallDimAtCompileTime, 1> pivots(rank());
-    RealScalar premultiplied_threshold = dec().maxPivot() * dec().threshold();
-    Index p = 0;
-    for (Index i = 0; i < dec().nonzeroPivots(); ++i)
-      if (abs(dec().matrixLU().coeff(i, i)) > premultiplied_threshold) pivots.coeffRef(p++) = i;
-    eigen_internal_assert(p == rank());
-
-    for (Index i = 0; i < rank(); ++i)
-      dst.col(i) = originalMatrix().col(dec().permutationQ().indices().coeff(pivots.coeff(i)));
+    // Select pivots before writing: dst may overlap an inplace decomposition's storage.
+    const auto pivots = fullpivlu_nonzero_pivots(m_dec, m_rank);
+    for (Index i = 0; i < m_rank; ++i)
+      dst.col(i) = m_originalMatrix.col(m_dec.permutationQ().indices().coeff(pivots.coeff(i)));
   }
+
+ private:
+  const DecompositionType& m_dec;
+  Index m_rank;
+  const MatrixType& m_originalMatrix;
 };
 
 /***** Implementation of solve() *****************************************************/

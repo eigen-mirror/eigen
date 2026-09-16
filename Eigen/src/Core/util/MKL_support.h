@@ -147,7 +147,7 @@
 #define EIGEN_BLAS_SYM(NAME) EIGEN_CAT(NAME, EIGEN_BLAS_POSTFIX)
 
 #if defined(EIGEN_USE_BLAS) && !defined(EIGEN_USE_MKL)
-#include "../../misc/blas.h"
+#include "blas.h"
 #endif
 
 // IWYU pragma: private

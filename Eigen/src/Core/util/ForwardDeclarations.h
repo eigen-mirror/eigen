@@ -192,14 +192,6 @@ template <typename XprType, DirectionType Direction>
 class subvector_stl_iterator;
 template <typename XprType, DirectionType Direction>
 class subvector_stl_reverse_iterator;
-template <typename DecompositionType>
-struct kernel_retval_base;
-template <typename DecompositionType>
-struct kernel_retval;
-template <typename DecompositionType>
-struct image_retval_base;
-template <typename DecompositionType>
-struct image_retval;
 }  // end namespace internal
 
 namespace internal {

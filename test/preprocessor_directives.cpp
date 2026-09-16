@@ -34,7 +34,7 @@ static_assert(std::is_same<Eigen::DenseIndex, EIGEN_DEFAULT_DENSE_INDEX_TYPE>::v
               "Eigen::DenseIndex no longer follows EIGEN_DEFAULT_DENSE_INDEX_TYPE");
 
 // Outside of MKL, the BLAS integer type must follow EIGEN_BLAS_INT, which the
-// external BLAS prototypes in Eigen/src/misc/blas.h are declared with.
+// external BLAS prototypes in Eigen/src/Core/util/blas.h are declared with.
 #if !defined(EIGEN_USE_MKL)
 static_assert(std::is_same<Eigen::BlasIndex, EIGEN_BLAS_INT>::value,
               "Eigen::BlasIndex no longer follows EIGEN_BLAS_INT");
