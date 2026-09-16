@@ -128,13 +128,13 @@ void real_schur_power_of_two_scaling() {
   VERIFY_IS_EQUAL(tailSchur.matrixT()(1, 1), denormMin);
 }
 
-template <typename Scalar>
-void real_schur_subnormal_restoration() {
+template <typename MatrixType>
+void real_schur_subnormal_restoration(Index n = MatrixType::RowsAtCompileTime) {
+  using Scalar = typename MatrixType::Scalar;
   using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  using MatrixType = Matrix<Scalar, 2, 2>;
   const Scalar normal_min = (std::numeric_limits<Scalar>::min)();
   const Bits half_min_bits = numext::bit_cast<Bits>(normal_min) >> 1;
-  MatrixType matrix = MatrixType::Zero();
+  MatrixType matrix = MatrixType::Zero(n, n);
   matrix(0, 0) = normal_min;
   matrix(1, 1) = numext::bit_cast<Scalar>(half_min_bits);
   const ScopedFlushToZero flush;
@@ -144,6 +144,123 @@ void real_schur_subnormal_restoration() {
     // Compare representations: DAZ can make an erroneous zero compare equal to a subnormal.
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(schur.matrixT()(1, 1)), half_min_bits);
     VERIFY_IS_EQUAL(numext::bit_cast<Bits>(schur.matrixT()(0, 0)), numext::bit_cast<Bits>(normal_min));
+  }
+}
+
+template <typename Scalar, int StorageOrder>
+void schur_workspace_stride() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  // The middle size selects the padded workspace for both float and double; its neighbours do not.
+  const Index strideSize = 1024 / sizeof(Scalar);
+  for (Index n : {strideSize - 1, strideSize, strideSize + 1}) {
+    const Mat identity = Mat::Identity(n, n);
+    Mat a = Mat::Random(n, n);
+    const Scalar bound = Scalar(64 * n) * NumTraits<Scalar>::epsilon();
+    RealSchur<Mat> solver(n);
+    solver.compute(a);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Mat u = solver.matrixU(), t = solver.matrixT();
+    verifyIsQuasiTriangular(t);
+    VERIFY((a - u * t * u.transpose()).norm() <= bound * a.norm());
+    VERIFY((u.transpose() * u - identity).norm() <= bound);
+
+    solver.compute(a, false);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.matrixT(), t);
+
+    HessenbergDecomposition<Mat> hess(a);
+    const Mat h = hess.matrixH(), q = hess.matrixQ();
+    solver.computeFromHessenberg(h, q, true);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY((a - solver.matrixU() * solver.matrixT() * solver.matrixU().transpose()).norm() <= bound * a.norm());
+
+    solver.setMaxIterations(1).computeFromHessenberg(h, q, true);
+    VERIFY_IS_EQUAL(solver.info(), NoConvergence);
+    // Partial results must be copied out of the workspace too.
+    VERIFY((a - solver.matrixU() * solver.matrixT() * solver.matrixU().transpose()).norm() <= bound * a.norm());
+    solver.setMaxIterations(-1);
+
+    // A decoupled trailing block exercises active windows smaller than the padded matrix.
+    a.bottomLeftCorner(n / 2, n - n / 2).setZero();
+    EigenSolver<Mat> eig(a);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+    VERIFY((a * eig.pseudoEigenvectors() - eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix()).norm() <=
+           bound * a.norm() * eig.pseudoEigenvectors().norm());
+    solver.compute(identity);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.matrixT(), identity);
+    VERIFY_IS_EQUAL(solver.matrixU(), identity);
+
+    // Exercise subnormal restoration across the padded-workspace boundary too.
+    real_schur_subnormal_restoration<Mat>(n);
+
+    a.setZero();
+    for (Scalar nonfinite : {NumTraits<Scalar>::quiet_NaN(), NumTraits<Scalar>::infinity()}) {
+      a(n - 1, n - 1) = nonfinite;
+      solver.compute(a);
+      VERIFY_IS_EQUAL(solver.info(), NoConvergence);
+      VERIFY(!(numext::isfinite)(solver.matrixT()(n - 1, n - 1)));
+      VERIFY_RAISES_ASSERT(solver.matrixU());
+      eig.compute(a, false);
+      VERIFY_IS_EQUAL(eig.info(), NumericalIssue);
+    }
+  }
+}
+
+template <typename Scalar, int StorageOrder>
+void schur_workspace_ref() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using StridedRef = Ref<Mat, 0, Stride<Dynamic, Dynamic>>;
+  const Index strideSize = 1024 / sizeof(Scalar);
+  for (Index n : {strideSize - 1, strideSize}) {
+    const Mat a = Mat::Random(n, n);
+    const Mat identity = Mat::Identity(n, n);
+    const Scalar bound = Scalar(64 * n) * NumTraits<Scalar>::epsilon();
+    HessenbergDecomposition<Mat> hess(a);
+    const Mat h = hess.matrixH(), q = hess.matrixQ();
+    for (Index inner : {Index(1), Index(2)}) {
+      for (Index extra : {Index(0), Index(1)}) {
+        const Index outer = n * inner + extra;
+        Matrix<Scalar, Dynamic, 1> storage = Matrix<Scalar, Dynamic, 1>::Constant(n * outer + 2, Scalar(17));
+        Map<Mat, 0, Stride<Dynamic, Dynamic>> matrix(storage.data() + 1, n, n, Stride<Dynamic, Dynamic>(outer, inner));
+        matrix = a;
+        RealSchur<StridedRef> solver(matrix);
+        VERIFY_IS_EQUAL(solver.info(), Success);
+        VERIFY(internal::is_same_dense(matrix, solver.matrixT()));
+        VERIFY((a - solver.matrixU() * matrix * solver.matrixU().transpose()).norm() <= bound * a.norm());
+        VERIFY((solver.matrixU().transpose() * solver.matrixU() - identity).norm() <= bound);
+
+        const Mat input = a * Scalar(8);
+        solver.compute(input, false);
+        VERIFY_IS_EQUAL(solver.info(), Success);
+        VERIFY_IS_EQUAL(input, a * Scalar(8));
+        VERIFY_RAISES_ASSERT(solver.matrixU());
+        for (Index maxIters : {Index(1), Index(-1)}) {
+          solver.setMaxIterations(maxIters).compute(input);
+          VERIFY_IS_EQUAL(solver.info(), maxIters == -1 ? Success : NoConvergence);
+          VERIFY((input - solver.matrixU() * matrix * solver.matrixU().transpose()).norm() <= bound * input.norm());
+          solver.computeFromHessenberg(h, q, true);
+          VERIFY_IS_EQUAL(solver.info(), maxIters == -1 ? Success : NoConvergence);
+          VERIFY((a - solver.matrixU() * matrix * solver.matrixU().transpose()).norm() <= bound * a.norm());
+        }
+        // Exercise aliased input with an already suitable stride as well as a cache-conflicting one.
+        matrix = h;
+        solver.computeFromHessenberg(matrix, q, true);
+        VERIFY_IS_EQUAL(solver.info(), Success);
+        VERIFY((a - solver.matrixU() * matrix * solver.matrixU().transpose()).norm() <= bound * a.norm());
+        solver.compute(Mat::Zero(n, n));
+        VERIFY_IS_EQUAL(solver.info(), Success);
+        VERIFY_IS_EQUAL(matrix, Mat::Zero(n, n));
+        VERIFY_IS_EQUAL(solver.matrixU(), identity);
+        VERIFY(internal::is_same_dense(matrix, solver.matrixT()));
+        for (Index i = 0; i < storage.size(); ++i) {
+          const Index offset = i - 1;
+          const bool inMatrix =
+              offset >= 0 && offset / outer < n && offset % outer < n * inner && offset % outer % inner == 0;
+          if (!inMatrix) VERIFY_IS_EQUAL(storage(i), Scalar(17));
+        }
+      }
+    }
   }
 }
 
@@ -160,6 +277,14 @@ EIGEN_DECLARE_TEST(schur_real) {
 
   CALL_SUBTEST_6((test_bug2633()));
   CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
-  CALL_SUBTEST_6(real_schur_subnormal_restoration<float>());
-  CALL_SUBTEST_6(real_schur_subnormal_restoration<double>());
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2f>());
+  CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2d>());
+  CALL_SUBTEST_7((schur_workspace_stride<float, ColMajor>()));
+  CALL_SUBTEST_8((schur_workspace_stride<double, ColMajor>()));
+  CALL_SUBTEST_9((schur_workspace_stride<float, RowMajor>()));
+  CALL_SUBTEST_10((schur_workspace_stride<double, RowMajor>()));
+  CALL_SUBTEST_11((schur_workspace_ref<float, ColMajor>()));
+  CALL_SUBTEST_12((schur_workspace_ref<double, ColMajor>()));
+  CALL_SUBTEST_13((schur_workspace_ref<float, RowMajor>()));
+  CALL_SUBTEST_14((schur_workspace_ref<double, RowMajor>()));
 }

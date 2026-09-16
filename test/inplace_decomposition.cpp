@@ -404,6 +404,8 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_10((inplace_special_values<MatrixXd>(2)));
   CALL_SUBTEST_10((inplace_special_values<MatrixXd>(1)));
   CALL_SUBTEST_11(inplace_plain_lower_triangle());
+  CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(128)));
+  CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(129)));
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ>()));
   EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;

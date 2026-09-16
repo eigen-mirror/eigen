@@ -195,21 +195,21 @@ struct safe_scaling_operations {
       with_scaled_impl(src, maxCoeff, factors, func, false_type());
   }
 
-  template <typename MatrixType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place_impl(MatrixType& matrix, const Scalar&,
-                                                                          const Factors& factors, false_type) {
-    unscale_in_place(matrix, factors);
+  template <typename Dest, typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_to_impl(Dest& dest, const Src& src, const Scalar&,
+                                                                    const Factors& factors, false_type) {
+    unscale_to(dest, src, factors);
   }
 
   // Below the recovery threshold, unscaling rounds coefficients that are significant relative to maxCoeff into the
   // subnormal range, where FTZ/DAZ arithmetic would zero them.
-  template <typename MatrixType>
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place_impl(MatrixType& matrix, const Scalar& maxCoeff,
-                                                                          const Factors& factors, true_type) {
+  template <typename Dest, typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_to_impl(Dest& dest, const Src& src, const Scalar& maxCoeff,
+                                                                    const Factors& factors, true_type) {
     if (!is_identity(factors) && needs_subnormal_recovery(maxCoeff))
-      matrix = matrix.unaryExpr(scale_by_power_of_two_op<Scalar>(factors.scale));
+      dest = src.unaryExpr(scale_by_power_of_two_op<Scalar>(factors.scale));
     else
-      unscale_in_place_impl(matrix, maxCoeff, factors, false_type());
+      unscale_to_impl(dest, src, maxCoeff, factors, false_type());
   }
 
   template <typename Src>
@@ -292,9 +292,16 @@ struct safe_scaling_operations {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_in_place(MatrixType& matrix, const Scalar& maxCoeff,
                                                                      const Factors& factors) {
+    if (factors.scale == Scalar(1)) return;
+    unscale_to(matrix, matrix, maxCoeff, factors);
+  }
+
+  template <typename Dest, typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void unscale_to(Dest&& dest, const Src& src, const Scalar& maxCoeff,
+                                                               const Factors& factors) {
     constexpr bool kPreserveSubnormalOutputs =
-        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename MatrixType::Scalar>::value;
-    unscale_in_place_impl(matrix, maxCoeff, factors, bool_constant<kPreserveSubnormalOutputs>());
+        IsPowerOfTwo_ && use_subnormal_preserving_scaling<Scalar, typename Src::Scalar>::value;
+    unscale_to_impl(dest, src, maxCoeff, factors, bool_constant<kPreserveSubnormalOutputs>());
   }
 
   // A SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reduces an all-subnormal matrix to a zero

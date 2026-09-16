@@ -277,6 +277,7 @@ EIGEN_DECLARE_TEST(schur_complex) {
 
   // Test problem size constructors
   CALL_SUBTEST_5(ComplexSchur<MatrixXf>(10));
+  CALL_SUBTEST_11((schur<MatrixXcd>(128)));
 
   CALL_SUBTEST_6((schur_underflow_scale<Matrix4cd>(4)));
   CALL_SUBTEST_6((schur_underflow_scale<MatrixXcf>(8)));

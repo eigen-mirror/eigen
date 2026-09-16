@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: MPL-2.0
 
 eigen_add_benchmark(bench_eigensolver bench_eigensolver.cpp)
+eigen_add_benchmark(bench_geev bench_geev.cpp)
+eigen_add_benchmark(bench_geev_float bench_geev.cpp DEFINITIONS SCALAR=float)
+eigen_add_benchmark(bench_schur_workspace bench_schur_workspace.cpp)
+eigen_add_benchmark(bench_schur_workspace_float bench_schur_workspace.cpp DEFINITIONS SCALAR=float)
 eigen_add_benchmark(bench_eigensolver_double bench_eigensolver.cpp DEFINITIONS SCALAR=double)
 eigen_add_benchmark(bench_eigensolver_stride bench_eigensolver_stride.cpp)
 eigen_add_benchmark(bench_schur_norm bench_schur_norm.cpp)

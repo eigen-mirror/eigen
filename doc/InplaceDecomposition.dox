@@ -137,6 +137,20 @@ the class:
 - EigenSolver, ComplexEigenSolver, and GeneralizedEigenSolver: unspecified values; the results are stored in the
   decomposition object.
 
+RealSchur may use a separate workspace even when instantiated with Ref<>. For an n-by-n matrix with n >= 128 and
+an outer stride in bytes divisible by 1024, it allocates a temporary padded matrix of n*(n+1) coefficients, performs
+the Hessenberg reduction and Schur iteration there, and copies T back to the bound input matrix. This also applies
+to compute(); computeFromHessenberg() uses the same padding policy for the Schur iteration. Zero inputs still
+incur the temporary allocation at these sizes and strides.
+
+To avoid this temporary, bind a Ref<> with an outer stride in bytes that is not divisible by 1024. For example,
+a 512-by-512 double matrix can use a 513-by-512 column-major backing matrix and bind its top 512 rows; the outer
+stride is then 513*sizeof(double) bytes. Defining EIGEN_NO_MALLOC, or disabling allocation or deallocation through
+EIGEN_RUNTIME_NO_MALLOC, also suppresses padding and uses the bound storage, which may be slower. These controls
+do not eliminate other allocations: construction and resizing of solver storage, forming Schur vectors, or
+evaluating input expressions may still require memory. Inplace decomposition does not guarantee allocation-free
+construction or computation.
+
 Since the decomposition object then refers to the input matrix, the input matrix must outlive it, as in the LU
 example. The QZ and generalized eigensolver classes take two matrices, and both must be passed as non-const
 lvalues to select the inplace constructor.
