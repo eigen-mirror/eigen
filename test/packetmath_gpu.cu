@@ -56,14 +56,14 @@ using test::packet_layout;
 const uint64_t kRsqrtFloatUlps = 3;
 const uint64_t kRsqrtDoubleUlps = 2;
 // The CUDA Math API's documented maximum error for each function, plus one for the rounding of the reference from
-// the wider type. Everything here is a named budget the test pins, so a toolkit regression is a test failure.
+// the wider type. The Windows CRT expm1 reference can be 3 ulps off, and its long double has no extra precision.
 struct MathUlpBudget {
   uint64_t log, log1p, exp, exp2, expm1;
 };
 const MathUlpBudget kFloatUlps = {2, 2, 3, 3, 2};
-const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, 2};
+const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, EIGEN_COMP_MSVC ? 3 : 2};
 
-// The reference is computed one type wider and rounded once.
+// The reference uses the next floating-point type; long double is not wider on MSVC.
 template <typename Scalar>
 struct wider_type {
   using type = double;
@@ -628,7 +628,7 @@ void check_special_values(
 
 // ------------------------------------------------------------------------------------------------------------------
 // Parts 2 and 4: the transcendental operations. Accuracy over the ordinary range is a named ULP budget against a
-// reference computed one type wider; the values the standard fixes are checked exactly.
+// host reference; the values the standard fixes are checked exactly.
 
 template <typename Scalar>
 void packetmath_gpu_real_math() {
@@ -647,7 +647,17 @@ void packetmath_gpu_real_math() {
 
   // Inputs the logarithms accept: positive, plus the special values, which the budgeted comparison tolerates
   // because a NaN reference matches a NaN result.
-  const Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
+  Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
+  // Seed 1549110488 on Windows: the CRT reference was 3 ulps from the correctly rounded GPU result.
+  const double regression_input = -0.56978050887642206;
+  in.conservativeResize(in.size() + kSize);
+  in.tail(kSize).setConstant(Scalar(regression_input));
+  EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
+    // Keep a 1-ulp check against MPFR (256 bits, round-to-nearest), independent of the CRT reference.
+    const Buffer<Scalar> regression = in.tail(kSize);
+    check_unary<Packet, op_pexpm1>(
+        regression, [](Scalar) { return Scalar(-0.43435041986303746); }, compare_ulps<Scalar>{1});
+  }
   Buffer<Scalar> positive(in.size());
   for (Index k = 0; k < in.size(); ++k) positive[k] = std::abs(in[k]);
   // log1p's domain is (-1, +inf), and the interesting half of it is the run just above -1: |x| - 0.5 never
