@@ -45,15 +45,19 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
     "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151")
   check_hip_architectures("gfx906;gfx1100" "" "gfx906;gfx1100")
   check_hip_architectures("gfx906" "gfx942" "gfx942")
+  check_hip_architectures("gfx906" "OFF" "OFF")
 endif()
 
+# Trailing arguments are passed to the consumer's configure.
 function(check_cuda_route route architectures expected_result expected_flags)
+  string(MD5 configuration "${ARGN}")
+  string(SUBSTRING "${configuration}" 0 8 configuration)
   execute_process(
     COMMAND "${CMAKE_COMMAND}" -G "${GENERATOR}"
             -S "${BS_CONSUMER_DIR}/gpu_architectures"
-            -B "${WORK_DIR}/${route}-${architectures}"
+            -B "${WORK_DIR}/${route}-${architectures}-${configuration}"
             "-DEIGEN_SOURCE_DIR=${EIGEN_SOURCE_DIR}"
-            "-DROUTE=${route}" "-DARCHITECTURES=${architectures}" "-DEXPECTED_FLAGS=${expected_flags}"
+            "-DROUTE=${route}" "-DARCHITECTURES=${architectures}" "-DEXPECTED_FLAGS=${expected_flags}" ${ARGN}
     RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE output)
   if(expected_result STREQUAL "FAILURE")
     if(result EQUAL 0 OR NOT output MATCHES "architectures only, for example 75;89")
@@ -72,8 +76,21 @@ foreach(arch native OFF all all-major 89-real 89-virtual sm_89 "75,native")
   check_cuda_route(nvc "${arch}" FAILURE "")
   check_cuda_route(windows-clang "${arch}" FAILURE "")
 endforeach()
+check_cuda_route(cuda-language 75 SUCCESS "")
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
   foreach(arch native OFF all all-major 89-real 89-virtual "75,89-real")
     check_cuda_route(cuda-language "${arch}" SUCCESS "")
   endforeach()
 endif()
+
+# An explicit nvcc selects the toolkit around it unless CUDAToolkit_ROOT does, and only nvcc does.
+set(toolkit "${WORK_DIR}/cuda-12.8")
+set(nvcc "${toolkit}/bin/nvcc")
+if(CMAKE_HOST_WIN32)
+  string(APPEND nvcc ".exe")
+endif()
+file(WRITE "${nvcc}" "")
+check_cuda_route(cuda-language 75 SUCCESS "" "-DCMAKE_CUDA_COMPILER=${nvcc}" "-DEXPECTED_TOOLKIT_ROOT=${toolkit}")
+check_cuda_route(cuda-language 75 SUCCESS "" "-DCMAKE_CUDA_COMPILER=${nvcc}"
+                 "-DCUDAToolkit_ROOT=${WORK_DIR}/cuda-13.4" "-DEXPECTED_TOOLKIT_ROOT=${WORK_DIR}/cuda-13.4")
+check_cuda_route(nvc 75 SUCCESS " -cuda -gpu=cc75 " "-DCMAKE_CUDA_COMPILER=${nvcc}")

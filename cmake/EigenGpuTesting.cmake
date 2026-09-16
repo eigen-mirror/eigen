@@ -35,7 +35,15 @@ macro(ei_gpu_testing_enable)
   set(EIGEN_GPU_TEST_MODE "none")
 
   if(EIGEN_TEST_CUDA)
-    # Honours CUDAToolkit_ROOT, which is how one of several installed toolkits is chosen.
+    # Honours CUDAToolkit_ROOT, which is how one of several installed toolkits is chosen. Without it, an explicit nvcc
+    # selects its own toolkit, <root>/bin/nvcc. find_package derives that only once the CUDA language is enabled, which
+    # needs the toolkit version first; a toolkit other than the compiler's links a second CUDA runtime.
+    if(CMAKE_CUDA_COMPILER AND NOT EIGEN_TEST_CUDA_NVC AND NOT EIGEN_TEST_CUDA_CLANG AND
+       NOT DEFINED CUDAToolkit_ROOT AND NOT DEFINED ENV{CUDAToolkit_ROOT})
+      get_filename_component(CUDAToolkit_ROOT "${CMAKE_CUDA_COMPILER}" PROGRAM)
+      get_filename_component(CUDAToolkit_ROOT "${CUDAToolkit_ROOT}" DIRECTORY)
+      get_filename_component(CUDAToolkit_ROOT "${CUDAToolkit_ROOT}" DIRECTORY)
+    endif()
     find_package(CUDAToolkit 11.8 REQUIRED)
     ei_cuda_resolve_compute_arch()
 
@@ -87,17 +95,17 @@ macro(ei_gpu_testing_enable)
       if(NOT CMAKE_CUDA_COMPILER_LAUNCHER AND CMAKE_CXX_COMPILER_LAUNCHER)
         set(CMAKE_CUDA_COMPILER_LAUNCHER "${CMAKE_CXX_COMPILER_LAUNCHER}")
       endif()
+      # Compiler identification compiles with CMAKE_CUDA_FLAGS, so flags it depends on go in before the language is
+      # enabled: clang looks in /usr/local/cuda unless told otherwise, which need not be the toolkit found above, and
+      # refuses a version it does not support; custom flags may carry nvcc's -allow-unsupported-compiler.
       if(EIGEN_TEST_CUDA_CLANG)
-        # clang looks in /usr/local/cuda unless told otherwise, which need not be the toolkit found above, and it
-        # refuses a version it does not support. This has to be in the flags before the language is enabled,
-        # because compiler identification compiles with them.
         string(APPEND CMAKE_CUDA_FLAGS " --cuda-path=${CUDAToolkit_TARGET_DIR}")
       endif()
+      string(APPEND CMAKE_CUDA_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
       enable_language(CUDA)
       if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
         string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr -Xcudafe \"--display_error_number\"")
       endif()
-      string(APPEND CMAKE_CUDA_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
       message(STATUS "CUDA tests: ${CMAKE_CUDA_COMPILER_ID} ${CMAKE_CUDA_COMPILER_VERSION}, "
                      "architectures ${CMAKE_CUDA_ARCHITECTURES}")
     endif()
@@ -126,7 +134,8 @@ macro(ei_gpu_testing_enable)
           gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1150;gfx1151
           CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
     endif()
-    if(NOT CMAKE_HIP_ARCHITECTURES)
+    # A nonempty false value such as OFF is CMake's request for no architecture flags, not an absent setting.
+    if("${CMAKE_HIP_ARCHITECTURES}" STREQUAL "")
       set(CMAKE_HIP_ARCHITECTURES "${EIGEN_HIP_ARCHITECTURES}")
     endif()
     enable_language(HIP)
