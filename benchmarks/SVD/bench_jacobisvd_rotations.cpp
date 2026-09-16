@@ -7,9 +7,9 @@
 #include <complex>
 #include <cstdlib>
 
-template <typename Scalar, int Options>
+template <typename Scalar, int Options, int StorageOrder = Eigen::ColMajor>
 static void BM_JacobiSVDRotations(benchmark::State& state) {
-  using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, StorageOrder>;
   using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
   const Eigen::Index rows = state.range(0);
   const Eigen::Index cols = state.range(1);
@@ -50,7 +50,13 @@ static void BM_JacobiSVDRotations(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations());
 }
 
+#ifdef EIGEN_BENCH_JACOBI_BLOCKED
+// With 32 rotations per block, n=33 first applies a contiguous block and n=34 first saves a distant row.
+#define JACOBI_ROTATION_SHAPES \
+  ->Args({31, 31})->Args({32, 32})->Args({33, 33})->Args({34, 34})->Args({65, 65})->Args({129, 129})
+#else
 #define JACOBI_ROTATION_SHAPES ->Args({3, 3})->Args({16, 16})->Args({64, 64})->Args({64, 16})
+#endif
 
 BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, float, 0) JACOBI_ROTATION_SHAPES;
 BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, double, 0) JACOBI_ROTATION_SHAPES;
@@ -62,5 +68,13 @@ BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, std::complex<float>, Eigen::ComputeThi
 JACOBI_ROTATION_SHAPES;
 BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, std::complex<double>, Eigen::ComputeThinU | Eigen::ComputeThinV)
 JACOBI_ROTATION_SHAPES;
+
+#ifdef EIGEN_BENCH_JACOBI_BLOCKED
+BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, double, Eigen::ComputeThinU | Eigen::ComputeThinV, Eigen::RowMajor)
+JACOBI_ROTATION_SHAPES;
+BENCHMARK_TEMPLATE(BM_JacobiSVDRotations, std::complex<double>, Eigen::ComputeThinU | Eigen::ComputeThinV,
+                   Eigen::RowMajor)
+JACOBI_ROTATION_SHAPES;
+#endif
 
 #undef JACOBI_ROTATION_SHAPES

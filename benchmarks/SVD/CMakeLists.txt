@@ -7,6 +7,8 @@ eigen_add_benchmark(bench_svd_secular_float bench_svd_secular.cpp DEFINITIONS SC
 eigen_add_benchmark(bench_bidiag bench_bidiag.cpp)
 eigen_add_benchmark(bench_make_jacobi bench_make_jacobi.cpp)
 eigen_add_benchmark(bench_jacobisvd_rotations bench_jacobisvd_rotations.cpp)
+eigen_add_benchmark(bench_jacobisvd_blocked bench_jacobisvd_rotations.cpp
+  DEFINITIONS EIGEN_BENCH_JACOBI_BLOCKED EIGEN_JACOBI_SVD_BLOCKING_THRESHOLD=16)
 eigen_add_benchmark(bench_jacobisvd_scaling_float bench_svd_scaling.cpp DEFINITIONS SCALAR=float)
 eigen_add_benchmark(bench_jacobisvd_scaling_double bench_svd_scaling.cpp)
 eigen_add_benchmark(bench_bdcsvd_scaling_float bench_svd_scaling.cpp DEFINITIONS SCALAR=float EIGEN_BENCH_BDCSVD)
