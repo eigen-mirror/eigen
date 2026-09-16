@@ -6,6 +6,20 @@ set -x
 
 echo "Running ${CI_JOB_NAME}"
 
+echo "Host machine configuration:"
+uname -a
+cat /etc/os-release || true
+lscpu || true
+free -h || true
+df -h . || true
+
+# GPU builds can run on hosts without a GPU or its diagnostic tools.
+for gpu_info in nvidia-smi rocm-smi; do
+  if command -v "${gpu_info}" > /dev/null 2>&1; then
+    "${gpu_info}" || echo "${gpu_info} failed; GPU diagnostics unavailable."
+  fi
+done
+
 # Get architecture and display CI configuration.
 export ARCH=`uname -m`
 export NPROC=`nproc`

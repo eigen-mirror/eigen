@@ -277,11 +277,6 @@ test:linux:x86-64:nvhpc-26.1:default:contrib:
     EIGEN_CI_TEST_CACHE: "off"
   cache: []
   rules: !reference [.rules:libeigen:gpu, rules]
-  # Name the GPU and driver the job landed on before anything else; the log is
-  # the record of which tagged runner handled it.
-  before_script:
-    - nvidia-smi
-    - . ci/scripts/common.linux.before_script.sh
   # The oldest CUDA jobs inherit this GitLab SaaS T4 (sm_75) tag. Newer jobs
   # override it through .test:linux:cuda:l4 below.
   tags:
@@ -310,9 +305,6 @@ test:linux:cuda-11.8:clang-14:
   image: nvidia/cuda:11.8.0-devel-ubuntu20.04
   needs: [ build:linux:cuda-11.8:clang-14 ]
   before_script:
-    # This override replaces the template's before_script, so repeat its
-    # first step.
-    - nvidia-smi
     # Ubuntu 20.04 lacks clang-14.  Add the LLVM apt repo before
     # the common before_script installs EIGEN_CI_INSTALL packages.
     - apt-get update -y > /dev/null
