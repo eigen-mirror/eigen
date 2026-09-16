@@ -683,14 +683,20 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
     } else {
       U.col(k).setZero();
       if (m_compV) V.col(k).setZero();
+      const RealScalar shift = shifts(k);
+      const RealScalar mu = mus(k);
+      const RealScalar singularValue = singVals(k);
       for (Index l = 0; l < m; ++l) {
         Index i = perm(l);
-        RealScalar diff = diag(i) - shifts(k);
+        const RealScalar diagonal = diag(i);
+        const RealScalar z = zhat(i);
+        RealScalar diff = diagonal - shift;
         EIGEN_OPTIMIZATION_BARRIER(diff)
-        diff -= mus(k);
+        diff -= mu;
         EIGEN_OPTIMIZATION_BARRIER(diff)
-        U(i, k) = sequentialQuotient(zhat(i), diff, diag(i) + singVals[k]);
-        if (m_compV && l > 0) V(i, k) = sequentialQuotient(diag(i) * zhat(i), diff, diag(i) + singVals[k]);
+        const RealScalar sum = diagonal + singularValue;
+        U(i, k) = sequentialQuotient(z, diff, sum);
+        if (m_compV && l > 0) V(i, k) = sequentialQuotient(diagonal * z, diff, sum);
       }
       U(n, k) = Literal(0);
       // LAPACK's xLASD3 normalizes these vectors with xNRM2. Use the scaled

@@ -60,6 +60,10 @@ static void BM_SVDSecular(benchmark::State& state) {
   for (auto _ : state) {
     compute();
     benchmark::DoNotOptimize(svd.singularValues().data());
+    if (Options != 0) {
+      benchmark::DoNotOptimize(svd.matrixU().data());
+      benchmark::DoNotOptimize(svd.matrixV().data());
+    }
     benchmark::ClobberMemory();
   }
 }
@@ -68,7 +72,9 @@ static void BM_SVDSecular(benchmark::State& state) {
   ->Args({16, 16})        \
       ->Args({32, 32})    \
       ->Args({64, 64})    \
+      ->Args({65, 65})    \
       ->Args({128, 128})  \
+      ->Args({129, 129})  \
       ->Args({256, 256})  \
       ->Args({257, 257})  \
       ->Args({512, 512})
