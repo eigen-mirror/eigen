@@ -98,11 +98,26 @@ macro(ei_gpu_testing_enable)
       # Compiler identification compiles with CMAKE_CUDA_FLAGS, so flags it depends on go in before the language is
       # enabled: clang looks in /usr/local/cuda unless told otherwise, which need not be the toolkit found above, and
       # refuses a version it does not support; custom flags may carry nvcc's -allow-unsupported-compiler.
+      set(eigen_cuda_flags "${EIGEN_CUDA_CXX_FLAGS}")
       if(EIGEN_TEST_CUDA_CLANG)
-        string(APPEND CMAKE_CUDA_FLAGS " --cuda-path=${CUDAToolkit_TARGET_DIR}")
+        string(PREPEND eigen_cuda_flags "--cuda-path=${CUDAToolkit_TARGET_DIR} ")
       endif()
-      string(APPEND CMAKE_CUDA_FLAGS " ${EIGEN_CUDA_CXX_FLAGS}")
+      set(eigen_cuda_flags_initialized FALSE)
+      if(DEFINED CMAKE_CUDA_FLAGS)
+        set(eigen_cuda_flags_initialized TRUE)
+      else()
+        set(CMAKE_CUDA_FLAGS "$ENV{CUDAFLAGS} ${CMAKE_CUDA_FLAGS_INIT}")
+      endif()
+      string(APPEND CMAKE_CUDA_FLAGS " ${eigen_cuda_flags}")
       enable_language(CUDA)
+      if(NOT eigen_cuda_flags_initialized)
+        # Reveal CMake's initialized cache, including platform defaults added after compiler identification.
+        # Keep Eigen's additions out of that cache so reconfiguration neither duplicates nor retains old flags.
+        unset(CMAKE_CUDA_FLAGS)
+        string(APPEND CMAKE_CUDA_FLAGS " ${eigen_cuda_flags}")
+      endif()
+      unset(eigen_cuda_flags)
+      unset(eigen_cuda_flags_initialized)
       if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
         string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr -Xcudafe \"--display_error_number\"")
       endif()
