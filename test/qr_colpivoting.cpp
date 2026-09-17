@@ -427,6 +427,8 @@ EIGEN_DECLARE_TEST(qr_colpivoting) {
     CALL_SUBTEST_1(qr<MatrixXf>());
     CALL_SUBTEST_2(qr<MatrixXd>());
     CALL_SUBTEST_3(qr<MatrixXcd>());
+    CALL_SUBTEST_10((qr<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+    CALL_SUBTEST_11((qr<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
     CALL_SUBTEST_4((qr_fixedsize<Matrix<float, 3, 5>, 4>()));
     CALL_SUBTEST_5((qr_fixedsize<Matrix<double, 6, 2>, 3>()));
     CALL_SUBTEST_5((qr_fixedsize<Matrix<double, 1, 1>, 1>()));

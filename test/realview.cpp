@@ -46,6 +46,12 @@ void test_realview_readonly(const T&) {
 
   A.setRandom();
   VERIFY_IS_APPROX(A.matrix().cwiseAbs2().sum(), A.realView().matrix().cwiseAbs2().sum());
+  for (Index col = 0; col < cols; ++col) {
+    VERIFY_IS_APPROX(A.colwise().squaredNorm()(col), A.col(col).matrix().squaredNorm());
+  }
+  for (Index row = 0; row < rows; ++row) {
+    VERIFY_IS_APPROX(A.rowwise().squaredNorm()(row), A.row(row).matrix().squaredNorm());
+  }
 
   RealScalar alpha = internal::random(RealScalar(1), RealScalar(2));
 

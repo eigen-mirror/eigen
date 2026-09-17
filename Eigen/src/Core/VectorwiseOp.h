@@ -120,6 +120,45 @@ EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(minCoeff, (Size - 1) * NumTraits<Scalar>::AddCo
 EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(maxCoeff, (Size - 1) * NumTraits<Scalar>::AddCost, 1, internal::scalar_max_op);
 EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(prod, (Size - 1) * NumTraits<Scalar>::MulCost, 1, internal::scalar_product_op);
 
+template <typename ResultType, typename Scalar>
+struct member_squaredNorm {
+  using result_type = ResultType;
+  static constexpr bool Vectorizable = false;
+  template <int Size>
+  struct Cost : std::integral_constant<int, Size * functor_traits<scalar_abs2_op<Scalar>>::Cost +
+                                                (Size - 1) * NumTraits<ResultType>::AddCost> {};
+  template <typename XprType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const {
+    return mat.matrix().squaredNorm();
+  }
+};
+
+template <typename ExpressionType, int Direction,
+          bool ComplexInnerReduction =
+              NumTraits<typename ExpressionType::Scalar>::IsComplex &&
+              complex_array_access<typename ExpressionType::Scalar>::value &&
+              (Direction == (ExpressionType::IsRowMajor ? Horizontal : Vertical)) &&
+              ((int(evaluator<ExpressionType>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0)>
+struct partial_squared_norm {
+  using Scalar = typename ExpressionType::Scalar;
+  using RealScalar = typename ExpressionType::RealScalar;
+  using Type = PartialReduxExpr<const CwiseUnaryOp<scalar_abs2_op<Scalar>, const ExpressionType>,
+                                member_sum<RealScalar, RealScalar>, Direction>;
+  EIGEN_DEVICE_FUNC static Type run(const ExpressionType& matrix) { return Type(matrix.cwiseAbs2()); }
+};
+
+// Keep scalars without array-oriented access and scalar-only expressions on abs2(): realView()
+// copies/evaluates their coefficients twice. Packet expressions still evaluate scalar tails
+// and reductions shorter than one packet twice.
+template <typename ExpressionType, int Direction>
+struct partial_squared_norm<ExpressionType, Direction, true> {
+  using Type =
+      PartialReduxExpr<const ExpressionType,
+                       member_squaredNorm<typename ExpressionType::RealScalar, typename ExpressionType::Scalar>,
+                       Direction>;
+  EIGEN_DEVICE_FUNC static Type run(const ExpressionType& matrix) { return Type(matrix); }
+};
+
 template <int p, typename ResultType, typename Scalar>
 struct member_lpnorm {
   using result_type = ResultType;
@@ -350,9 +389,7 @@ class VectorwiseOp {
 
   using MinCoeffReturnType = typename ReturnType<Eigen::internal::member_minCoeff>::Type;
   using MaxCoeffReturnType = typename ReturnType<Eigen::internal::member_maxCoeff>::Type;
-  using SquaredNormReturnType =
-      PartialReduxExpr<const CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const ExpressionTypeNestedCleaned>,
-                       internal::member_sum<RealScalar, RealScalar>, Direction>;
+  using SquaredNormReturnType = typename internal::partial_squared_norm<ExpressionTypeNestedCleaned, Direction>::Type;
   using NormReturnType = CwiseUnaryOp<internal::scalar_sqrt_op<RealScalar>, const SquaredNormReturnType>;
   using BlueNormReturnType = typename ReturnType<Eigen::internal::member_blueNorm, RealScalar>::Type;
   using StableNormReturnType = typename ReturnType<Eigen::internal::member_stableNorm, RealScalar>::Type;
@@ -414,7 +451,7 @@ class VectorwiseOp {
    *
    * \sa DenseBase::squaredNorm() */
   EIGEN_DEVICE_FUNC const SquaredNormReturnType squaredNorm() const {
-    return SquaredNormReturnType(m_matrix.cwiseAbs2());
+    return internal::partial_squared_norm<ExpressionTypeNestedCleaned, Direction>::run(m_matrix);
   }
 
   /** \returns a row (or column) vector expression of the norm

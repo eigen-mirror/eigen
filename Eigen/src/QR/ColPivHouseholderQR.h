@@ -390,14 +390,9 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   m_colsTranspositions.resize(m_qr.cols());
   Index number_of_transpositions = 0;
 
-  m_colNormsUpdated.resize(cols);
-  m_colNormsDirect.resize(cols);
-  for (Index k = 0; k < cols; ++k) {
-    // colNormsDirect(k) caches the most recent directly computed norm of
-    // column k.
-    m_colNormsDirect.coeffRef(k) = m_qr.col(k).norm();
-    m_colNormsUpdated.coeffRef(k) = m_colNormsDirect.coeffRef(k);
-  }
+  // m_colNormsDirect caches the most recent directly computed column norms.
+  m_colNormsDirect = m_qr.colwise().norm();
+  m_colNormsUpdated = m_colNormsDirect;
 
   RealScalar threshold_helper =
       numext::abs2<RealScalar>(m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon()) / RealScalar(rows);
