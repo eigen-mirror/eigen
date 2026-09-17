@@ -288,9 +288,42 @@ void packetmath_real() {
 
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasLGamma, std::lgamma, internal::plgamma);
   CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErf, std::erf, internal::perf);
-  // FIXME(rmlarsen): This test occasionally fails due to difference in tiny subnormal results
-  // near the underflow boundary. I am not sure which version is correct.
-  CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasErfc, MAYBE_FLUSH(std::erfc), internal::perfc);
+  if (PacketTraits::HasErfc) {
+    constexpr uint64_t kMaxSubnormalUlps = 4;
+    test::packet_helper<PacketTraits::HasErfc, Packet> h;
+    const auto check_erfc = [&]() {
+      for (int i = 0; i < PacketSize; ++i) ref[i] = Scalar(MAYBE_FLUSH(std::erfc)(data1[i]));
+      h.store(data2, internal::perfc(h.load(data1)));
+      for (int i = 0; i < PacketSize; ++i) {
+        if (numext::abs(ref[i]) < (std::numeric_limits<Scalar>::min)()) {
+          // Subnormal spacing is denorm_min, so a relative tolerance can demand exact rounding.
+          // Allow four ULPs for the approximation and libm reference together (checked against MPFR).
+          VERIFY(test::areWithinUlps(ref + i, data2 + i, 1, kMaxSubnormalUlps) && "internal::perfc");
+        } else {
+          VERIFY(test::areApprox(ref + i, data2 + i, 1) && "internal::perfc");
+        }
+      }
+    };
+    check_erfc();
+
+    if (g_first_pass) {
+      // #3131: glibc differs by one ULP from MPFR160 at these inputs, including zero/denorm_min pairs.
+      const Scalar inputs[] = {Scalar(9.835620880126953125), Scalar(10.054194450378418), Scalar(27.226017111108366)};
+      for (Scalar x : inputs) {
+        for (int i = 0; i < PacketSize; ++i) data1[i] = x;
+        check_erfc();
+      }
+
+      // erfc(x) ~ exp(-x*x)/(sqrt(pi)*x): straddle the normal/subnormal and subnormal/zero boundaries.
+      const double lo = std::sqrt(-std::log(double((std::numeric_limits<Scalar>::min)()))) - 1;
+      const double hi = std::sqrt(-std::log(double(std::numeric_limits<Scalar>::denorm_min()))) + 1;
+      for (int sample = 0; sample < 128; ++sample) {
+        for (int i = 0; i < PacketSize; ++i)
+          data1[i] = Scalar(lo + (hi - lo) * (sample * PacketSize + i) / (128 * PacketSize - 1));
+        check_erfc();
+      }
+    }
+  }
 }
 
 namespace Eigen {
