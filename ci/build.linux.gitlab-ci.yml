@@ -993,19 +993,19 @@ build:linux:cross:sme:gcc-14:no-f64f64:affected:
 # The VL sweep is the point of the affected tier for SVE: a change to the packet
 # code is exactly what breaks at one vector length and not another.
 build:linux:cross:sve:gcc-13:vl128:affected:
-  extends: build:linux:cross:sve:gcc-13:vl128
+  extends: [ build:linux:cross:sve:gcc-13:vl128, .affected:build ]
   variables:
     EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl128
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl512:affected:
-  extends: build:linux:cross:sve:gcc-13:vl512
+  extends: [ build:linux:cross:sve:gcc-13:vl512, .affected:build ]
   variables:
     EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl512
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
 
 build:linux:cross:sve:gcc-13:vl256:affected:
-  extends: build:linux:cross:sve:gcc-13:vl256
+  extends: [ build:linux:cross:sve:gcc-13:vl256, .affected:build ]
   variables:
     EIGEN_CI_CCACHE_POOL: build-linux-cross-sve-gcc-13-vl256
   rules: !reference [.rules:libeigen:affected-tests:sve, rules]
