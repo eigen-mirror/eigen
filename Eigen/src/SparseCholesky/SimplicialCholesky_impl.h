@@ -302,6 +302,23 @@ void SimplicialCholeskyBase<Derived>::analyzePattern_preordered(const CholMatrix
 template <typename Derived>
 template <bool DoLDLT, bool NonHermitian>
 void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType& ap) {
+  EIGEN_IF_CONSTEXPR (internal::packet_traits<Scalar>::Vectorizable && internal::packet_traits<Scalar>::HasMul &&
+                      internal::packet_traits<Scalar>::HasSub && !NumTraits<Scalar>::IsComplex) {
+    const StorageIndex* outer = m_matrix.outerIndexPtr();
+    for (Index i = 0; i < m_matrix.cols(); ++i) {
+      // Exclude the diagonal (LLT) and the entry appended after the last update.
+      if (outer[i + 1] - outer[i] > internal::kSparseScatterPacketMinSize + (DoLDLT ? 0 : 1)) {
+        factorize_preordered_impl<DoLDLT, NonHermitian, true>(ap);
+        return;
+      }
+    }
+  }
+  factorize_preordered_impl<DoLDLT, NonHermitian, false>(ap);
+}
+
+template <typename Derived>
+template <bool DoLDLT, bool NonHermitian, bool UsePackets>
+void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrixType& ap) {
   using std::sqrt;
   const StorageIndex size = StorageIndex(ap.rows());
 
@@ -359,8 +376,10 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
         yi = l_ki = yi / Lx[Lp[i]];
 
       Index p2 = Lp[i] + nonZerosPerCol[i];
-      Index p;
-      for (p = Lp[i] + (DoLDLT ? 0 : 1); p < p2; ++p) y[Li[p]] -= getSymm(Lx[p]) * yi;
+      Index p = Lp[i] + (DoLDLT ? 0 : 1);
+      EIGEN_IF_CONSTEXPR (UsePackets)
+        p += internal::sparse_scatter_sub_packets<!NonHermitian>(y, Li + p, Lx + p, p2 - p, yi);
+      for (; p < p2; ++p) y[Li[p]] -= getSymm(Lx[p]) * yi;
       d -= getDiag(l_ki * getSymm(yi));
       Li[p] = k; /* store L(k,i) in column form of L */
       Lx[p] = l_ki;

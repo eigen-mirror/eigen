@@ -122,7 +122,47 @@ void test_simplicial_cholesky_T() {
   check_sparse_nonhermitian_solving(nhldlt_colmajor_upper_nat, (std::min)(300, EIGEN_TEST_MAX_SIZE), 1000);
 }
 
+template <typename Scalar>
+void test_simplicial_cholesky_scatter(Index bandwidth) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using SparseMatrixType = SparseMatrix<Scalar, ColMajor, long long>;
+  const Index n = 67;
+  DenseMatrix matrix = DenseMatrix::Zero(n, n);
+  for (Index j = 0; j < n; ++j) {
+    matrix(j, j) = Scalar(2 * bandwidth + 1);
+    for (Index i = j + 1; i < (std::min)(n, j + bandwidth + 1); ++i) {
+      matrix(i, j) = Scalar(0.125) + Scalar(0.0625) * internal::random<Scalar>();
+      matrix(j, i) = numext::conj(matrix(i, j));
+    }
+  }
+  SparseMatrixType sparse = matrix.sparseView();
+  SimplicialLLT<SparseMatrixType, Lower, NaturalOrdering<long long>> solver;
+  SimplicialLDLT<SparseMatrixType, Lower, NaturalOrdering<long long>> ldlt;
+  solver.analyzePattern(sparse);
+  ldlt.analyzePattern(sparse);
+  // Reconstruction error scales with the O(n * epsilon) factorization backward error.
+  const RealScalar tolerance = RealScalar(16 * n) * NumTraits<RealScalar>::epsilon();
+  DenseMatrix lower;
+  for (int repeat = 0; repeat < 2; ++repeat) {
+    solver.factorize(sparse);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    lower = solver.matrixL();
+    VERIFY((lower * lower.adjoint() - matrix).norm() <= tolerance * matrix.norm());
+    ldlt.factorize(sparse);
+    VERIFY_IS_EQUAL(ldlt.info(), Success);
+    lower = ldlt.matrixL();
+    VERIFY((lower * ldlt.vectorD().asDiagonal() * lower.adjoint() - matrix).norm() <= tolerance * matrix.norm());
+    matrix.diagonal().array() += Scalar(1);
+    sparse.diagonal().array() += Scalar(1);
+  }
+}
+
 EIGEN_DECLARE_TEST(simplicial_cholesky) {
+  CALL_SUBTEST_31(test_simplicial_cholesky_scatter<float>(3));
+  CALL_SUBTEST_31(test_simplicial_cholesky_scatter<float>(37));
+  CALL_SUBTEST_32(test_simplicial_cholesky_scatter<std::complex<float>>(3));
+  CALL_SUBTEST_32(test_simplicial_cholesky_scatter<std::complex<float>>(37));
   CALL_SUBTEST_11((test_simplicial_cholesky_T<double, int, ColMajor>()));
   CALL_SUBTEST_12((test_simplicial_cholesky_T<std::complex<double>, int, ColMajor>()));
   CALL_SUBTEST_13((test_simplicial_cholesky_T<double, long int, ColMajor>()));

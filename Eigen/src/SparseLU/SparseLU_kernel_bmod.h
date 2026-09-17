@@ -87,8 +87,8 @@ EIGEN_DONT_INLINE void LU_kernel_bmod<SegSizeAtCompileTime>::run(const Index seg
   }
 
   // Scatter l into SPA dense[]
-  for (i = 0; i < nrow; i++) {
-    irow = lsub(isub++);
+  for (i = sparse_scatter_sub_packets(dense.data(), lsub.data() + isub, l); i < nrow; i++) {
+    irow = lsub(isub + i);
     dense(irow) -= l(i);
   }
 }

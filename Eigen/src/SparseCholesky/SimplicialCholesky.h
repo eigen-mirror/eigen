@@ -240,6 +240,8 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
 
   template <bool DoLDLT, bool NonHermitian>
   void factorize_preordered(const CholMatrixType& a);
+  template <bool DoLDLT, bool NonHermitian, bool UsePackets>
+  void factorize_preordered_impl(const CholMatrixType& a);
 
   template <bool DoLDLT, bool NonHermitian>
   void analyzePattern(const MatrixType& a) {

@@ -34,6 +34,7 @@
 
 // IWYU pragma: begin_exports
 #include "src/SparseCore/SparseUtil.h"
+#include "src/SparseCore/SparseScatter.h"
 #include "src/SparseCore/SparseMatrixBase.h"
 #include "src/SparseCore/SparseAssign.h"
 #include "src/SparseCore/CompressedStorage.h"
