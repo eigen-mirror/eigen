@@ -238,7 +238,7 @@ class ComplexQZ {
     return numext::abs(x) <= tol;
   }
 
-  void do_QZ_step(Index p, Index q);
+  void do_QZ_step(Index p, Index q, unsigned int iter);
 
   inline Mat2 computeZk2(const Row2& b);
 
@@ -448,7 +448,7 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
       if (z >= f) {
         push_down_zero_ST(z, l);
       } else {
-        do_QZ_step(f, m_n - l - 1);
+        do_QZ_step(f, m_n - l - 1, local_iter);
         local_iter++;
         m_global_iter++;
       }
@@ -475,22 +475,32 @@ inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(
 }
 
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q) {
+void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q, unsigned int iter) {
   // This is certainly not the most efficient way of doing this,
   // but a readable one.
   const auto a = [p, this](Index i, Index j) { return m_S(p + i - 1, p + j - 1); };
   const auto b = [p, this](Index i, Index j) { return m_T(p + i - 1, p + j - 1); };
   const Index m = m_n - p - q;  // Size of the inner block
   Scalar x, y, z;
-  // We could introduce doing exceptional shifts from time to time.
-  Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
-         W3 = a(m, m - 1) / b(m - 1, m - 1);
+  if (iter > 0 && iter % 10 == 0) {
+    // Break stalled double-shift iterations with a single shift displaced by the trailing subdiagonals.
+    const RealScalar displacement =
+        numext::abs(a(m, m - 1) / b(m - 1, m - 1)) + numext::abs(a(m - 1, m - 2) / b(m - 2, m - 2));
+    const Scalar shift = a(m, m) / b(m, m) + displacement;
+    // (S*T^-1 - shift*I)*e1 has only two nonzero entries.
+    x = a(1, 1) / b(1, 1) - shift;
+    y = a(2, 1) / b(1, 1);
+    z = Scalar(0);
+  } else {
+    Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
+           W3 = a(m, m - 1) / b(m - 1, m - 1);
 
-  x = (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
-      a(1, 2) / b(2, 2) - a(1, 1) / b(1, 1) * b(1, 2) / b(2, 2);
-  y = (a(2, 2) / b(2, 2) - a(1, 1) / b(1, 1)) - a(2, 1) / b(1, 1) * b(1, 2) / b(2, 2) - W1 - W2 +
-      W3 * (b(m - 1, m) / b(m, m));
-  z = a(3, 2) / b(2, 2);
+    x = (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
+        a(1, 2) / b(2, 2) - a(1, 1) / b(1, 1) * b(1, 2) / b(2, 2);
+    y = (a(2, 2) / b(2, 2) - a(1, 1) / b(1, 1)) - a(2, 1) / b(1, 1) * b(1, 2) / b(2, 2) - W1 - W2 +
+        W3 * (b(m - 1, m) / b(m, m));
+    z = a(3, 2) / b(2, 2);
+  }
   Vec3 X;
   const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
   for (Index k = p; k < p + m - 2; k++) {

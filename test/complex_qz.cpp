@@ -57,7 +57,79 @@ void complex_qz(const MatrixType& A, const MatrixType& B) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
+template <typename MatrixType, typename QZType>
+void verify_complex_qz_convergence(const MatrixType& a, const MatrixType& b, const QZType& qz) {
+  using RealScalar = typename MatrixType::RealScalar;
+  // Accumulated rounding in the unitary transformations is O(n * epsilon).
+  const RealScalar tolerance = RealScalar(128 * a.rows()) * NumTraits<RealScalar>::epsilon();
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  VERIFY((a - qz.matrixQ() * qz.matrixS() * qz.matrixZ()).norm() <= tolerance * a.norm());
+  VERIFY((b - qz.matrixQ() * qz.matrixT() * qz.matrixZ()).norm() <= tolerance * b.norm());
+  VERIFY(qz.matrixQ().isUnitary(tolerance));
+  VERIFY(qz.matrixZ().isUnitary(tolerance));
+  const MatrixType lowerS = qz.matrixS().template triangularView<StrictlyLower>();
+  const MatrixType lowerT = qz.matrixT().template triangularView<StrictlyLower>();
+  VERIFY(lowerS.norm() <= tolerance * a.norm());
+  VERIFY(lowerT.norm() <= tolerance * b.norm());
+}
+
+template <typename MatrixType>
+void complex_qz_exceptional_shift() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  for (Index dim : {3, 4, 5, 8}) {
+    for (Scalar phase : {Scalar(1), Scalar(0, 1)}) {
+      // With corner -1 and phase 1, the exceptional shift 2 is equidistant from the eigenvalues exp(+-i*pi/dim).
+      for (RealScalar corner : {RealScalar(1), RealScalar(-1)}) {
+        // The trailing 2x2 block has two zero shifts: ordinary double shifts cycle without deflation.
+        MatrixType a = MatrixType::Zero(dim, dim), b = MatrixType::Identity(dim, dim);
+        a.diagonal(-1).setConstant(phase);
+        a(0, dim - 1) = corner * phase;
+        for (Index j = 0; j < dim; ++j) {
+          b(j, j) = Scalar(1 << (j % 3));
+          a.col(j) *= b(j, j);
+        }
+        const RealScalar tolerance = RealScalar(128 * dim) * NumTraits<RealScalar>::epsilon();
+
+        ComplexQZ<MatrixType> qz(a, b);
+        verify_complex_qz_convergence(a, b, qz);
+        // a*b^-1 = phase*P with P^dim = corner*I, so lambda_k = phase*w_k with w_k^dim = corner. These are
+        // 2*sin(pi/dim) apart with unit condition number (y^* b x = 1 for unit left y and |x| <= 1), so each moves by
+        // at most the backward error, including the dropped strictly lower parts of S and T.
+        const Matrix<Scalar, Dynamic, 1> lambda = qz.matrixS().diagonal().cwiseQuotient(qz.matrixT().diagonal());
+        const RealScalar eigenvalueTolerance = RealScalar(2) * tolerance * (a.norm() + b.norm());
+        for (Index k = 0; k < dim; ++k) {
+          const RealScalar angle = (RealScalar(2 * k) + (corner < 0 ? RealScalar(1) : RealScalar(0))) *
+                                   RealScalar(EIGEN_PI) / RealScalar(dim);
+          const Scalar expected = phase * std::polar(RealScalar(1), angle);
+          VERIFY((lambda.array() - expected).abs().minCoeff() <= eigenvalueTolerance);
+        }
+
+        ComplexQZ<MatrixType> limited(a, b, true, 1);
+        VERIFY_IS_EQUAL(limited.info(), NoConvergence);
+        VERIFY_IS_EQUAL(limited.iterations(), 1);
+
+        MatrixType inplaceA = a, inplaceB = b;
+        ComplexQZ<Ref<MatrixType>> inplace(inplaceA, inplaceB);
+        verify_complex_qz_convergence(a, b, inplace);
+
+        const MatrixType s = qz.matrixS(), t = qz.matrixT();
+        qz.compute(a, b, false);
+        VERIFY_IS_EQUAL(qz.info(), Success);
+        VERIFY((qz.matrixS() - s).norm() <= tolerance * a.norm());
+        VERIFY((qz.matrixT() - t).norm() <= tolerance * b.norm());
+        qz.compute(a, b);
+        verify_complex_qz_convergence(a, b, qz);
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(complex_qz) {
+  CALL_SUBTEST_7((complex_qz_exceptional_shift<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_exceptional_shift<MatrixXcd>()));
+  CALL_SUBTEST_9((complex_qz_exceptional_shift<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_10((complex_qz_exceptional_shift<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   for (int i = 0; i < g_repeat; i++) {
     // Check for very small, fixed-sized double- and float complex matrices
     Eigen::Matrix2cd A_2x2, B_2x2;
