@@ -10,9 +10,14 @@ save
 *.qm
 core
 core.*
+# Keep the benchmark source directory visible on case-insensitive filesystems.
+!benchmarks/Core/
 *.bak
 *~
 *.build*
+# Keep the build-system test job's script, whose name matches the rule above.
+!ci/scripts/test.buildsystem.script.sh
+.tidy-build/
 *.moc.*
 *.moc
 ui_*
@@ -40,4 +45,6 @@ Makefile
 !Eigen/Core
 !Eigen/src/Core
 CLAUDE.md
+.claude/*
+!.claude/settings.json
 .DS_Store

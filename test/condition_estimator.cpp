@@ -10,11 +10,7 @@
 
 #include "main.h"
 #include <Eigen/Dense>
-
-template <typename MatrixType>
-typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
-  return m.cwiseAbs().colwise().sum().maxCoeff();
-}
+#include "solverbase.h"
 
 template <typename MatrixType>
 void rcond_partial_piv_lu() {

@@ -33,12 +33,13 @@ namespace Eigen {
  */
 
 namespace internal {
+
 template <typename MatrixType, unsigned int UpLo>
-struct traits<SelfAdjointView<MatrixType, UpLo> > : traits<MatrixType> {
-  typedef typename ref_selector<MatrixType>::non_const_type MatrixTypeNested;
-  typedef remove_all_t<MatrixTypeNested> MatrixTypeNestedCleaned;
-  typedef MatrixType ExpressionType;
-  typedef typename MatrixType::PlainObject FullMatrixType;
+struct traits<SelfAdjointView<MatrixType, UpLo>> : traits<MatrixType> {
+  using MatrixTypeNested = typename ref_selector<MatrixType>::non_const_type;
+  using MatrixTypeNestedCleaned = remove_all_t<MatrixTypeNested>;
+  using ExpressionType = MatrixType;
+  using FullMatrixType = typename MatrixType::PlainObject;
   enum {
     Mode = UpLo | SelfAdjoint,
     FlagsLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
@@ -54,22 +55,24 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
  public:
   EIGEN_STATIC_ASSERT(UpLo == Lower || UpLo == Upper, SELFADJOINTVIEW_ACCEPTS_UPPER_AND_LOWER_MODE_ONLY)
 
-  typedef MatrixType_ MatrixType;
-  typedef TriangularBase<SelfAdjointView> Base;
-  typedef typename internal::traits<SelfAdjointView>::MatrixTypeNested MatrixTypeNested;
-  typedef typename internal::traits<SelfAdjointView>::MatrixTypeNestedCleaned MatrixTypeNestedCleaned;
-  typedef MatrixTypeNestedCleaned NestedExpression;
+  using MatrixType = MatrixType_;
+  using Base = TriangularBase<SelfAdjointView>;
+  using MatrixTypeNested = typename internal::traits<SelfAdjointView>::MatrixTypeNested;
+  using MatrixTypeNestedCleaned = typename internal::traits<SelfAdjointView>::MatrixTypeNestedCleaned;
+  using NestedExpression = MatrixTypeNestedCleaned;
 
   /** \brief The type of coefficients in this matrix */
-  typedef typename internal::traits<SelfAdjointView>::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using Scalar = typename internal::traits<SelfAdjointView>::Scalar;
+  /** Real part of #Scalar */
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using StorageIndex = typename MatrixType::StorageIndex;
 
   enum {
     Mode = internal::traits<SelfAdjointView>::Mode,
     Flags = internal::traits<SelfAdjointView>::Flags,
     TransposeMode = ((int(Mode) & int(Upper)) ? Lower : 0) | ((int(Mode) & int(Lower)) ? Upper : 0)
   };
-  typedef typename MatrixType::PlainObject PlainObject;
+  using PlainObject = typename MatrixType::PlainObject;
 
   EIGEN_DEVICE_FUNC explicit inline SelfAdjointView(MatrixType& matrix) : m_matrix(matrix) {}
   using Base::operator*;
@@ -133,15 +136,15 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& nestedExpression() const noexcept { return m_matrix; }
   EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedCleaned& nestedExpression() noexcept { return m_matrix; }
 
-  EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), UpLo>
-      operator*(const Scalar& s) const {
+  EIGEN_DEVICE_FUNC const SelfAdjointView<
+      const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, internal::scalar_product_op), UpLo>
+  operator*(const Scalar& s) const {
     return (nestedExpression() * s).template selfadjointView<UpLo>();
   }
 
-  friend EIGEN_DEVICE_FUNC const
-      SelfAdjointView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), UpLo>
-      operator*(const Scalar& s, const SelfAdjointView& mat) {
+  friend EIGEN_DEVICE_FUNC const SelfAdjointView<
+      const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, internal::scalar_product_op), UpLo>
+  operator*(const Scalar& s, const SelfAdjointView& mat) {
     return (s * mat.nestedExpression()).template selfadjointView<UpLo>();
   }
 
@@ -213,23 +216,7 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * (complex) scalars the unstored entries are conjugates of stored ones, and
    * since |conj(x)| = |x| the result matches the L1 norm of the full matrix.
    */
-  EIGEN_DEVICE_FUNC typename NumTraits<Scalar>::Real l1Norm() const {
-    typedef typename NumTraits<Scalar>::Real RealScalar_;
-    RealScalar_ norm = RealScalar_(0);
-    const Index n = m_matrix.rows();
-    for (Index col = 0; col < n; ++col) {
-      RealScalar_ abs_col_sum;
-      EIGEN_IF_CONSTEXPR (UpLo == Lower) {
-        abs_col_sum =
-            m_matrix.col(col).tail(n - col).template lpNorm<1>() + m_matrix.row(col).head(col).template lpNorm<1>();
-      } else {
-        abs_col_sum =
-            m_matrix.col(col).head(col).template lpNorm<1>() + m_matrix.row(col).tail(n - col).template lpNorm<1>();
-      }
-      if (abs_col_sum > norm) norm = abs_col_sum;
-    }
-    return norm;
-  }
+  EIGEN_DEVICE_FUNC RealScalar l1Norm() const { return internal::selfadjoint_l1_norm<UpLo>(m_matrix); }
 
   /////////// Cholesky module ///////////
 
@@ -239,10 +226,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
 
   /////////// Eigenvalue module ///////////
 
-  /** Real part of #Scalar */
-  typedef typename NumTraits<Scalar>::Real RealScalar;
   /** Return type of eigenvalues() */
-  typedef Matrix<RealScalar, internal::traits<MatrixType>::ColsAtCompileTime, 1> EigenvaluesReturnType;
+  using EigenvaluesReturnType = Matrix<RealScalar, internal::traits<MatrixType>::ColsAtCompileTime, 1>;
 
   EIGEN_DEVICE_FUNC EigenvaluesReturnType eigenvalues() const;
   EIGEN_DEVICE_FUNC RealScalar operatorNorm() const;
@@ -261,8 +246,8 @@ namespace internal {
 //      make it work)
 template <typename MatrixType, unsigned int Mode>
 struct evaluator_traits<SelfAdjointView<MatrixType, Mode> > {
-  typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
-  typedef SelfAdjointShape Shape;
+  using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
+  using Shape = SelfAdjointShape;
 };
 
 template <int UpLo, int SetOpposite, typename DstEvaluatorTypeT, typename SrcEvaluatorTypeT, typename Functor,
@@ -271,18 +256,18 @@ class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEval
                                          Version>
     : public generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version> {
  protected:
-  typedef generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version> Base;
-  typedef typename Base::DstXprType DstXprType;
-  typedef typename Base::SrcXprType SrcXprType;
+  using Base = generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version>;
+  using DstXprType = typename Base::DstXprType;
+  using SrcXprType = typename Base::SrcXprType;
   using Base::m_dst;
   using Base::m_functor;
   using Base::m_src;
 
  public:
-  typedef typename Base::DstEvaluatorType DstEvaluatorType;
-  typedef typename Base::SrcEvaluatorType SrcEvaluatorType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::AssignmentTraits AssignmentTraits;
+  using DstEvaluatorType = typename Base::DstEvaluatorType;
+  using SrcEvaluatorType = typename Base::SrcEvaluatorType;
+  using Scalar = typename Base::Scalar;
+  using AssignmentTraits = typename Base::AssignmentTraits;
 
   EIGEN_DEVICE_FUNC triangular_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
                                                        const Functor& func, DstXprType& dstExpr)

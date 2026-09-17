@@ -19,8 +19,8 @@ namespace Eigen {
  *
  * If A is the original matrix and Ap is the permuted matrix,
  * the fill-reducing permutation is defined as follows :
- * Row (column) i of A is the matperm(i) row (column) of Ap.
- * WARNING: As computed by METIS, this corresponds to the vector iperm (instead of perm)
+ * Row (column) i of Ap is the matperm(i) row (column) of A.
+ * WARNING: As computed by METIS, this corresponds to the vector perm (instead of iperm)
  */
 template <typename StorageIndex>
 class MetisOrdering {
@@ -101,7 +101,8 @@ class MetisOrdering {
     int output_error;
 
     // Call the fill-reducing routine from METIS
-    output_error = METIS_NodeND(&m, m_indexPtr.data(), m_innerIndices.data(), NULL, NULL, perm.data(), iperm.data());
+    output_error =
+        METIS_NodeND(&m, m_indexPtr.data(), m_innerIndices.data(), nullptr, nullptr, perm.data(), iperm.data());
 
     if (output_error != METIS_OK) {
       // FIXME The ordering interface should define a class of possible errors

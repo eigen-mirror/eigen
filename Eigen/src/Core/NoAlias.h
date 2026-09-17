@@ -34,7 +34,7 @@ namespace Eigen {
 template <typename ExpressionType, template <typename> class StorageBase>
 class NoAlias {
  public:
-  typedef typename ExpressionType::Scalar Scalar;
+  using Scalar = typename ExpressionType::Scalar;
 
   EIGEN_DEVICE_FUNC constexpr explicit NoAlias(ExpressionType& expression) : m_expression(expression) {}
 

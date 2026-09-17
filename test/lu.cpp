@@ -10,13 +10,9 @@
 
 #include "main.h"
 #include <Eigen/LU>
+#include <Eigen/QR>
 #include "solverbase.h"
 using namespace std;
-
-template <typename MatrixType>
-typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
-  return m.cwiseAbs().colwise().sum().maxCoeff();
-}
 
 template <typename MatrixType>
 void lu_non_invertible() {
@@ -38,8 +34,9 @@ void lu_non_invertible() {
   }
 
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
-  typedef typename internal::kernel_retval_base<FullPivLU<MatrixType> >::ReturnType KernelMatrixType;
-  typedef typename internal::image_retval_base<FullPivLU<MatrixType> >::ReturnType ImageMatrixType;
+  using KernelMatrixType = typename decltype(std::declval<FullPivLU<MatrixType>>().kernel())::PlainObject;
+  using ImageMatrixType =
+      typename decltype(std::declval<FullPivLU<MatrixType>>().image(std::declval<const MatrixType&>()))::PlainObject;
   typedef Matrix<typename MatrixType::Scalar, ColsAtCompileTime, ColsAtCompileTime> CMatrixType;
   typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, RowsAtCompileTime> RMatrixType;
 
@@ -165,6 +162,129 @@ void lu_partial_piv(Index size = MatrixType::ColsAtCompileTime) {
   VERIFY(rcond_est > rcond / 10 && rcond_est < rcond * 10);
 }
 
+// Regression test: FullPivLU took the maximum of an empty column-sum vector when computing its l1 norm,
+// so it could not be constructed at all from a matrix with zero columns. PartialPivLU already guarded the
+// same reduction. The determinant of an empty matrix is the empty product, 1.
+template <typename MatrixType>
+void lu_empty() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index n = 5;
+
+  FullPivLU<MatrixType> lu{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY(lu.isInvertible());
+  VERIFY_IS_EQUAL(lu.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(lu.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(lu.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
+
+  lu.compute(MatrixType(0, n));
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY_IS_EQUAL(lu.dimensionOfKernel(), n);
+  VERIFY(!lu.isInjective());
+
+  lu.compute(MatrixType(n, 0));
+  VERIFY_IS_EQUAL(lu.rank(), Index(0));
+  VERIFY_IS_EQUAL(lu.dimensionOfKernel(), Index(0));
+  VERIFY(!lu.isSurjective());
+
+  PartialPivLU<MatrixType> plu{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(plu.determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(plu.absDeterminant(), RealScalar(1));
+  VERIFY_IS_EQUAL(plu.logAbsDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
+}
+
+// A = Q D Q^*, with Q unitary, has det(A) = det(D) because det(Q) det(Q^*) = |det(Q)|^2 = 1.
+template <typename MatrixType>
+void lu_determinant(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  MatrixType d = MatrixType::Zero(size, size);
+  setRandomWellConditionedDiagonal(d);
+  const MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
+  const MatrixType a = q * d * q.adjoint();
+
+  const Scalar det = d.diagonal().prod();
+  const RealScalar logabsdet = d.diagonal().cwiseAbs().array().log().sum();
+
+  check_determinant(FullPivLU<MatrixType>(a), det, logabsdet);
+  check_determinant(PartialPivLU<MatrixType>(a), det, logabsdet);
+}
+
+// logAbsDeterminant() exists to survive the range where the determinant itself does not: with n = 200 and
+// a diagonal of 10^4, det = 10^800 overflows every supported float type while log|det| = 800 log 10 does not.
+template <typename MatrixType>
+void lu_determinant_overflow() {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  const Index size = 200;
+  for (bool overflow : {true, false}) {
+    const RealScalar scale = overflow ? RealScalar(1e4) : RealScalar(1e-4);
+    const MatrixType a = MatrixType::Identity(size, size) * Scalar(scale);
+    const RealScalar logabsdet = RealScalar(size) * numext::log(scale);
+
+    PartialPivLU<MatrixType> plu(a);
+    VERIFY(determinant_out_of_range(plu.absDeterminant(), overflow));
+    VERIFY_IS_APPROX(plu.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(plu.signDeterminant(), Scalar(1));
+
+    FullPivLU<MatrixType> lu(a);
+    VERIFY(determinant_out_of_range(lu.absDeterminant(), overflow));
+    VERIFY_IS_APPROX(lu.logAbsDeterminant(), logabsdet);
+    VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(1));
+  }
+}
+
+// A rank-deficient decomposition has no determinant worth reporting, and FullPivLU is the one LU that
+// knows it. The three accessors that can express that gate on rank, so they agree with the rank-revealing
+// QR decompositions; determinant() keeps its documented behaviour of returning the pivot product.
+template <typename MatrixType>
+void lu_determinant_rank_deficient(Index size) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+
+  const Index rank = internal::random<Index>(1, size - 1);
+  MatrixType a(size, size);
+  createRandomPIMatrixOfRank(rank, size, size, a);
+
+  // The generated singular values are 0 or 1, so any threshold well inside that gap recovers the rank.
+  const RealScalar threshold(0.01);
+
+  FullPivLU<MatrixType> lu;
+  lu.setThreshold(threshold);
+  lu.compute(a);
+  VERIFY_IS_EQUAL(lu.rank(), rank);
+  VERIFY(!lu.isInvertible());
+  VERIFY_IS_EQUAL(lu.absDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(lu.logAbsDeterminant(), -NumTraits<RealScalar>::infinity());
+  VERIFY_IS_EQUAL(lu.signDeterminant(), Scalar(0));
+
+  ColPivHouseholderQR<MatrixType> qr;
+  qr.setThreshold(threshold);
+  qr.compute(a);
+  VERIFY_IS_EQUAL(qr.rank(), rank);
+  VERIFY_IS_EQUAL(qr.absDeterminant(), lu.absDeterminant());
+  VERIFY_IS_EQUAL(qr.logAbsDeterminant(), lu.logAbsDeterminant());
+  VERIFY_IS_EQUAL(qr.signDeterminant(), lu.signDeterminant());
+
+  // determinant() is deliberately not gated. Pin that on a matrix whose smallest pivot is below the
+  // threshold but nonzero, where the two answers are visibly different rather than both roundoff.
+  MatrixType b = MatrixType::Identity(size, size);
+  b(size - 1, size - 1) = Scalar(RealScalar(1e-30));
+  FullPivLU<MatrixType> blu;
+  blu.setThreshold(RealScalar(1e-3));
+  blu.compute(b);
+  VERIFY_IS_EQUAL(blu.rank(), size - 1);
+  VERIFY_IS_EQUAL(blu.absDeterminant(), RealScalar(0));
+  VERIFY_IS_EQUAL(blu.logAbsDeterminant(), -NumTraits<RealScalar>::infinity());
+  VERIFY_IS_EQUAL(blu.signDeterminant(), Scalar(0));
+  VERIFY_IS_APPROX(numext::abs(blu.determinant()), RealScalar(1e-30));
+}
+
 template <typename MatrixType>
 void lu_verify_assert() {
   MatrixType tmp;
@@ -179,6 +299,9 @@ void lu_verify_assert() {
   VERIFY_RAISES_ASSERT(lu.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(lu.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(lu.determinant())
+  VERIFY_RAISES_ASSERT(lu.absDeterminant())
+  VERIFY_RAISES_ASSERT(lu.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(lu.signDeterminant())
   VERIFY_RAISES_ASSERT(lu.rank())
   VERIFY_RAISES_ASSERT(lu.dimensionOfKernel())
   VERIFY_RAISES_ASSERT(lu.isInjective())
@@ -193,6 +316,9 @@ void lu_verify_assert() {
   VERIFY_RAISES_ASSERT(plu.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(plu.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(plu.determinant())
+  VERIFY_RAISES_ASSERT(plu.absDeterminant())
+  VERIFY_RAISES_ASSERT(plu.logAbsDeterminant())
+  VERIFY_RAISES_ASSERT(plu.signDeterminant())
   VERIFY_RAISES_ASSERT(plu.inverse())
 }
 
@@ -281,7 +407,107 @@ void lu_rowmajor_boundary() {
   }
 }
 
+template <typename Scalar, int StorageOrder>
+void lu_strided_pivots() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  for (Index n : {17, 32, 33, 127, 128, 129, 256, 512}) {
+    Mat a = Mat::Random(n, n);
+    // A cyclic permutation forces overlapping row swaps across panel boundaries.
+    const Index shift = n / 2 + 1;
+    a.bottomLeftCorner(n - shift, n - shift).diagonal().array() += RealScalar(2 * n);
+    a.topRightCorner(shift, shift).diagonal().array() += RealScalar(2 * n);
+    for (Index padding : {0, 7}) {
+      const Index stride = n + padding;
+      Matrix<Scalar, Dynamic, 1> storage = Matrix<Scalar, Dynamic, 1>::Constant(stride * n + 2, Scalar(7));
+      Map<Mat, 0, OuterStride<>> work(storage.data() + 1, n, n, OuterStride<>(stride));
+      work = a;
+      PartialPivLU<Ref<Mat>> lu(work);
+      VERIFY_IS_EQUAL(lu.matrixLU().data(), work.data());
+      const RealScalar bound = RealScalar(32 * n) * NumTraits<RealScalar>::epsilon() * a.norm();
+      const Mat lower = work.template triangularView<UnitLower>();
+      const Mat upper = work.template triangularView<Upper>();
+      VERIFY((lu.permutationP() * a - lower * upper).norm() <= bound);
+      VERIFY_IS_EQUAL(lu.permutationP().indices()[0], n - shift);
+      VERIFY_IS_EQUAL(storage[0], Scalar(7));
+      VERIFY_IS_EQUAL(storage[storage.size() - 1], Scalar(7));
+      for (Index j = 0; j < n; ++j)
+        for (Index i = n; i < stride; ++i) VERIFY_IS_EQUAL(storage[1 + j * stride + i], Scalar(7));
+    }
+  }
+}
+
+template <typename Scalar, int Options>
+void lu_subspace_expressions() {
+  using Mat = Matrix<Scalar, 4, 4, Options>;
+  Mat original = Mat::Zero();
+  original(0, 3) = Scalar(8);
+  original(2, 1) = Scalar(2);
+  original(2, 2) = Scalar(1);
+  FullPivLU<Mat, long> lu(original);
+  const auto kernel = lu.kernel();
+  const auto image = lu.image(original);
+  using KernelMatrix = typename decltype(kernel)::PlainObject;
+  using ImageMatrix = typename decltype(image)::PlainObject;
+  STATIC_CHECK(KernelMatrix::RowsAtCompileTime == 4);
+  STATIC_CHECK(KernelMatrix::MaxColsAtCompileTime == 4);
+  STATIC_CHECK(ImageMatrix::RowsAtCompileTime == 4);
+  STATIC_CHECK(ImageMatrix::MaxColsAtCompileTime == 4);
+  STATIC_CHECK(KernelMatrix::IsRowMajor == (Options == RowMajor));
+  STATIC_CHECK(ImageMatrix::IsRowMajor == (Options == RowMajor));
+
+  VERIFY_IS_EQUAL(kernel.rows(), 4);
+  VERIFY_IS_EQUAL(kernel.cols(), 2);
+  VERIFY_IS_EQUAL(image.rows(), 4);
+  VERIFY_IS_EQUAL(image.cols(), 2);
+  const KernelMatrix nullspace = kernel;
+  const ImageMatrix range = image;
+  VERIFY_IS_EQUAL(nullspace.fullPivLu().rank(), 2);
+  VERIFY_IS_EQUAL((original * kernel).norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(kernel + kernel, Scalar(2) * nullspace);
+  VERIFY_IS_APPROX(image + image, Scalar(2) * range);
+  VERIFY_IS_APPROX(range.col(0), original.col(3));
+  VERIFY_IS_APPROX(range.col(1), original.col(1));
+
+  Mat destination = Mat::Constant(Scalar(7));
+  destination.template leftCols<2>() = kernel;
+  destination.template rightCols<2>() = image;
+  VERIFY_IS_APPROX(destination.template leftCols<2>(), nullspace);
+  VERIFY_IS_APPROX(destination.template rightCols<2>(), range);
+
+  Mat factorStorage = original;
+  FullPivLU<Ref<Mat>, long> inplace(factorStorage);
+  factorStorage.template middleCols<2>(1) = inplace.image(original);
+  VERIFY_IS_APPROX(factorStorage.template middleCols<2>(1), range);
+
+  original.setZero();
+  lu.compute(original);
+  VERIFY_IS_EQUAL(lu.image(original).cols(), 1);
+  VERIFY_IS_EQUAL(lu.image(original).eval().norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(lu.kernel(), Mat::Identity());
+  original.setIdentity();
+  lu.compute(original);
+  VERIFY_IS_EQUAL(lu.kernel().cols(), 1);
+  VERIFY_IS_EQUAL(lu.kernel().eval().norm(), typename Mat::RealScalar(0));
+  VERIFY_IS_APPROX(lu.image(original), original);
+
+  // The pivots are 8, 1, -2, 0: thresholding must select columns 0 and 2, not a prefix.
+  original.setZero();
+  original(0, 0) = Scalar(8);
+  original.template block<2, 2>(1, 1) << Scalar(1), Scalar(1), Scalar(1), Scalar(-1);
+  lu.compute(original).setThreshold(typename Mat::RealScalar(0.1875));
+  VERIFY_IS_EQUAL(lu.rank(), 2);
+  const ImageMatrix thresholded = lu.image(original);
+  VERIFY_IS_APPROX(thresholded.col(0), original.col(0));
+  VERIFY_IS_APPROX(thresholded.col(1), original.col(2));
+}
+
 EIGEN_DECLARE_TEST(lu) {
+  CALL_SUBTEST_16((lu_subspace_expressions<float, ColMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<double, RowMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_16((lu_subspace_expressions<std::complex<double>, ColMajor>()));
+
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(lu_non_invertible<Matrix3f>());
     CALL_SUBTEST_1(lu_invertible<Matrix3f>());
@@ -297,20 +523,29 @@ EIGEN_DECLARE_TEST(lu) {
     CALL_SUBTEST_3(lu_non_invertible<MatrixXf>());
     CALL_SUBTEST_3(lu_invertible<MatrixXf>());
     CALL_SUBTEST_3(lu_verify_assert<MatrixXf>());
+    CALL_SUBTEST_3(lu_determinant<MatrixXf>(internal::random<int>(1, 30)));
 
     CALL_SUBTEST_4(lu_non_invertible<MatrixXd>());
     CALL_SUBTEST_4(lu_invertible<MatrixXd>());
     CALL_SUBTEST_4(lu_partial_piv<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_4(lu_verify_assert<MatrixXd>());
+    CALL_SUBTEST_4(lu_empty<MatrixXd>());
+    CALL_SUBTEST_4(lu_determinant<MatrixXd>(internal::random<int>(1, 30)));
+    CALL_SUBTEST_4(lu_determinant_rank_deficient<MatrixXd>(internal::random<int>(2, 30)));
+    CALL_SUBTEST_3(lu_determinant_overflow<MatrixXf>());
 
     CALL_SUBTEST_5(lu_non_invertible<MatrixXcf>());
     CALL_SUBTEST_5(lu_invertible<MatrixXcf>());
     CALL_SUBTEST_5(lu_verify_assert<MatrixXcf>());
+    CALL_SUBTEST_5(lu_determinant<MatrixXcf>(internal::random<int>(1, 30)));
 
     CALL_SUBTEST_6(lu_non_invertible<MatrixXcd>());
     CALL_SUBTEST_6(lu_invertible<MatrixXcd>());
     CALL_SUBTEST_6(lu_partial_piv<MatrixXcd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_6(lu_verify_assert<MatrixXcd>());
+    CALL_SUBTEST_6(lu_empty<MatrixXcd>());
+    CALL_SUBTEST_6(lu_determinant<MatrixXcd>(internal::random<int>(1, 30)));
+    CALL_SUBTEST_6(lu_determinant_rank_deficient<MatrixXcd>(internal::random<int>(2, 30)));
 
     CALL_SUBTEST_7((lu_non_invertible<Matrix<float, Dynamic, 16> >()));
 
@@ -320,6 +555,13 @@ EIGEN_DECLARE_TEST(lu) {
 
     CALL_SUBTEST_9(test_2889());
   }
+
+  CALL_SUBTEST_10((lu_strided_pivots<float, ColMajor>()));
+  CALL_SUBTEST_11((lu_strided_pivots<double, ColMajor>()));
+  CALL_SUBTEST_12((lu_strided_pivots<std::complex<float>, ColMajor>()));
+  CALL_SUBTEST_13((lu_strided_pivots<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_14((lu_strided_pivots<double, RowMajor>()));
+  CALL_SUBTEST_15((lu_strided_pivots<std::complex<double>, RowMajor>()));
 
   // Blocking and vectorization boundary tests (deterministic, outside g_repeat).
   CALL_SUBTEST_3(lu_blocking_boundary<float>());

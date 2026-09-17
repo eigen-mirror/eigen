@@ -239,6 +239,33 @@ void inner_product_boundary_sizes() {
   }
 }
 
+// dot() maps operands with a runtime unit stride to contiguous vectors and rewraps their unary ops around the map.
+// adjoint() nests a non-const Transpose, so the rewrap must produce the const-nested type unaryExpr() returns.
+template <typename Scalar>
+void inner_product_adjoint_rewrap() {
+  // Column-major so that row(r) has a compile-time non-unit stride and the raw maps below walk a row and a column.
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using StridedMap = Map<const Vec, Unaligned, InnerStride<Dynamic>>;
+  const Index n = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
+  const Index r = internal::random<Index>(0, n - 1);
+  Mat m = Mat::Random(n, n);
+  Vec v = Vec::Random(n);
+  Scalar expected(0);
+  for (Index k = 0; k < n; ++k) expected += m(r, k) * v(k);
+
+  // Compile-time non-unit stride: the map path is instantiated but not taken.
+  VERIFY_IS_APPROX(m.row(r).adjoint().dot(v), expected);
+  VERIFY_IS_APPROX(v.dot(m.row(r).adjoint()), numext::conj(expected));
+  // Runtime strides: n skips the map, 1 takes it.
+  StridedMap row(m.data() + r, n, InnerStride<Dynamic>(n));
+  StridedMap column(m.data() + r * n, n, InnerStride<Dynamic>(1));
+  VERIFY_IS_APPROX(row.adjoint().dot(v), expected);
+  VERIFY_IS_APPROX(v.dot(row.adjoint()), numext::conj(expected));
+  VERIFY_IS_APPROX(column.adjoint().dot(v), (m.col(r).transpose() * v).value());
+  VERIFY_IS_APPROX(v.dot(column.adjoint()), numext::conj((m.col(r).transpose() * v).value()));
+}
+
 // Test transposeInPlace at vectorization boundary sizes.
 // BlockedInPlaceTranspose uses PacketSize-blocked loops with a scalar remainder (line 273),
 // exercising off-by-one-prone transitions.
@@ -310,6 +337,11 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_15(inner_product_boundary_sizes<double>());
   CALL_SUBTEST_16(inner_product_boundary_sizes<std::complex<float>>());
   CALL_SUBTEST_17(inner_product_boundary_sizes<std::complex<double>>());
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_19(inner_product_adjoint_rewrap<double>());
+    CALL_SUBTEST_19(inner_product_adjoint_rewrap<std::complex<float>>());
+    CALL_SUBTEST_19(inner_product_adjoint_rewrap<std::complex<double>>());
+  }
 
   // transposeInPlace at vectorization boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_18(transposeInPlace_boundary<float>());

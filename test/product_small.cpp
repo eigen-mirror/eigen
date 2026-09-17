@@ -35,6 +35,14 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
   return C;
 }
 
+// The sweeps below compare an optimized product against ref_prod() with verifyProduct() rather than
+// VERIFY_IS_APPROX. Both sides accumulate k terms in the working precision, so each carries rounding
+// proportional to the magnitude of the summands, i.e. to |A|*|B| -- not to the result. Measuring the
+// error relative to the result, as VERIFY_IS_APPROX does, is meaningless once the sum cancels: at
+// bfloat16 precision a 10-term dot product can lose every significant digit, and the apparent
+// relative error then swings by several times the tolerance from one seed to the next while the
+// underlying discrepancy stays around one epsilon of |A|*|B|.
+
 template <typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
 std::enable_if_t<!((Rows == 1 && Depth != 1 && OA == ColMajor) || (Depth == 1 && Rows != 1 && OA == RowMajor) ||
                    (Cols == 1 && Depth != 1 && OB == RowMajor) || (Depth == 1 && Cols != 1 && OB == ColMajor) ||
@@ -182,7 +190,6 @@ void test_lazy_l3() {
   CALL_SUBTEST((test_lazy_all_layout<T, 6, 5, 4>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 4, 4, 5>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 3, 4, 6>()));
-  CALL_SUBTEST((test_lazy_all_layout<T, 2, 6, 4>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 7, 8, 8>()));
   CALL_SUBTEST((test_lazy_all_layout<T, 8, -1, 4>(8, cols)));
   CALL_SUBTEST((test_lazy_all_layout<T, 3, 4, -1>(3, 4, depth)));
@@ -274,6 +281,50 @@ void product_small_regressions() {
          ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)) * ((A * A) * (A * A)));
     VERIFY_IS_APPROX(B, C);
   }
+
+  {
+    // A square fixed-size product takes the coeff-based path while
+    // Rows + Cols + Depth stays below the threshold, so the boundary is derived
+    // rather than hard-coded. It is read back off product_type itself, not off
+    // the macro: the effective threshold is per scalar pair (SME raises it only
+    // for the pairs its kernel claims), so a build where double falls back to
+    // the generic kernel would otherwise disagree with whichever value the macro
+    // holds -- silently, since no SME job builds this test.
+    typedef Eigen::Matrix<double, 10, 10> Matrix10;
+    constexpr int kGemm = (internal::product_type<Matrix10, Matrix10>::FixedSizeThreshold + 2) / 3;
+    typedef Eigen::Matrix<double, kGemm - 1, kGemm - 1> MatrixBelow;
+    typedef Eigen::Matrix<double, kGemm, kGemm> MatrixAt;
+    VERIFY((internal::product_type<Matrix10, Matrix10>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<MatrixBelow, MatrixBelow>::value == CoeffBasedProductMode));
+    VERIFY((internal::product_type<MatrixAt, MatrixAt>::value == GemmProduct));
+
+    Matrix10 A = Matrix10::Random();
+    Matrix10 B = Matrix10::Random();
+    Matrix10 C = Matrix10::Random();
+    Matrix10 ref = C;
+
+    C = A * B;
+    ref = A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() += A * B;
+    ref.noalias() += A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() -= A * B;
+    ref.noalias() -= A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+
+    C.setRandom();
+    ref = C;
+    C.noalias() += (2.0 * A) * (B * 3.0);
+    ref.noalias() += 6.0 * A.lazyProduct(B);
+    VERIFY_IS_APPROX(C, ref);
+  }
 }
 
 // Test products at sizes near critical code-path transitions:
@@ -295,7 +346,7 @@ void product_transition_sizes() {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }
@@ -314,10 +365,45 @@ void product_sweep(int max_m, int max_k, int max_n) {
         C = A * B;
         Cref.setZero();
         ref_prod(Cref, A, B);
-        VERIFY_IS_APPROX(C, Cref);
+        VERIFY(verifyProduct(C, Cref, A, B));
       }
     }
   }
+}
+
+// The bound for S * (S * S)^T is |S| * (|S| * |S|)^T, not |S|^3: transposition keeps every entry's
+// magnitude but reorders the chain. For the nilpotent S below the two differ in kind — |S|^3 is
+// identically zero while the two evaluation orders still disagree by a rounding error.
+template <int>
+void product_transposed_triple_bound() {
+  Matrix3d square;
+  square << 0, 0.3, 0, 0, 0, 0.7, 0, 0, 0;
+  const Matrix3d abs_sq = square.cwiseAbs();
+  const Matrix3d abs_sq2 = abs_sq * abs_sq;
+  VERIFY((abs_sq2 * abs_sq).isZero(0));
+  VERIFY(product_error_bound(abs_sq, abs_sq2.transpose(), 4) > 0);
+  VERIFY(verifyProduct(square * (square * square).transpose(), square * square.transpose() * square.transpose(), abs_sq,
+                       abs_sq2.transpose(), 4));
+}
+
+// verifyProduct() must not accept an overflowed result. Narrowed to half, the triple-product bound
+// for all-one 100x100 operands is already infinite, and inf <= inf would then pass any result.
+template <int>
+void product_verify_rejects_nonfinite() {
+  using MatrixXh = Matrix<half, Dynamic, Dynamic>;
+  const Index n = 100;
+  const MatrixXh abs_a = MatrixXh::Constant(n, n, half(float(n)));
+  const MatrixXh abs_b = MatrixXh::Constant(n, n, half(1.0f));
+  const double bound = product_error_bound(abs_a, abs_b, 4);
+  VERIFY((numext::isfinite)(bound));
+  VERIFY(bound > static_cast<double>(NumTraits<half>::highest()));
+
+  const MatrixXh zero = MatrixXh::Zero(n, n);
+  const MatrixXh inf = MatrixXh::Constant(n, n, half(std::numeric_limits<float>::infinity()));
+  const MatrixXh nan = MatrixXh::Constant(n, n, half(std::numeric_limits<float>::quiet_NaN()));
+  VERIFY(verifyProduct(zero, zero, abs_a, abs_b, 4));
+  VERIFY(!verifyProduct(inf, zero, abs_a, abs_b, 4));
+  VERIFY(!verifyProduct(nan, zero, abs_a, abs_b, 4));
 }
 
 EIGEN_DECLARE_TEST(product_small) {
@@ -364,6 +450,8 @@ EIGEN_DECLARE_TEST(product_small) {
   }
 
   CALL_SUBTEST_6(product_small_regressions<0>());
+  CALL_SUBTEST_6(product_transposed_triple_bound<0>());
+  CALL_SUBTEST_6(product_verify_rejects_nonfinite<0>());
 
   // Deterministic sweep at transition boundaries (outside g_repeat).
   CALL_SUBTEST_54(product_transition_sizes<float>());

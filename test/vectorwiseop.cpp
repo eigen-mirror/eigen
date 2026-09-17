@@ -12,6 +12,14 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 
 #include "main.h"
+#include <Eigen/Geometry>
+
+template <typename Scalar>
+struct broadcast_affine_op {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& lhs, const Scalar& rhs) const {
+    return lhs + Scalar(2) * rhs;
+  }
+};
 
 template <typename ArrayType>
 void vectorwiseop_array(const ArrayType& m) {
@@ -32,11 +40,13 @@ void vectorwiseop_array(const ArrayType& m) {
   m2 = m1;
   m2.colwise() += colvec;
   VERIFY_IS_APPROX(m2, m1.colwise() + colvec);
+  VERIFY_IS_APPROX(m2, colvec + m1.colwise());
   VERIFY_IS_APPROX(m2.col(c), m1.col(c) + colvec);
 
   m2 = m1;
   m2.rowwise() += rowvec;
   VERIFY_IS_APPROX(m2, m1.rowwise() + rowvec);
+  VERIFY_IS_APPROX(m2, rowvec + m1.rowwise());
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) + rowvec);
 
   // test subtraction
@@ -54,11 +64,13 @@ void vectorwiseop_array(const ArrayType& m) {
   m2 = m1;
   m2.colwise() *= colvec;
   VERIFY_IS_APPROX(m2, m1.colwise() * colvec);
+  VERIFY_IS_APPROX(m2, colvec * m1.colwise());
   VERIFY_IS_APPROX(m2.col(c), m1.col(c) * colvec);
 
   m2 = m1;
   m2.rowwise() *= rowvec;
   VERIFY_IS_APPROX(m2, m1.rowwise() * rowvec);
+  VERIFY_IS_APPROX(m2, rowvec * m1.rowwise());
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) * rowvec);
 
   // test quotient
@@ -188,11 +200,13 @@ void vectorwiseop_matrix(const MatrixType& m) {
   m2 = m1;
   m2.colwise() += colvec;
   VERIFY_IS_APPROX(m2, m1.colwise() + colvec);
+  VERIFY_IS_APPROX(m2, colvec + m1.colwise());
   VERIFY_IS_APPROX(m2.col(c), m1.col(c) + colvec);
 
   m2 = m1;
   m2.rowwise() += rowvec;
   VERIFY_IS_APPROX(m2, m1.rowwise() + rowvec);
+  VERIFY_IS_APPROX(m2, rowvec + m1.rowwise());
   VERIFY_IS_APPROX(m2.row(r), m1.row(r) + rowvec);
 
   // test subtraction
@@ -401,7 +415,176 @@ void vectorwiseop_mixedscalar() {
 
   Matrix4cd c = a.array().rowwise() * b.array().transpose();
   Matrix4cd d = a.array().rowwise() * b_real.array().transpose();
+  Matrix4cd e = b.array().transpose() * a.array().rowwise();
+  Matrix4cd f = b_real.array().transpose() * a.array().rowwise();
   VERIFY_IS_CWISE_EQUAL(c, d);
+  VERIFY_IS_CWISE_EQUAL(c, e);
+  VERIFY_IS_CWISE_EQUAL(d, f);
+}
+
+template <typename ArrayType>
+void vectorwiseop_array_extensions(const ArrayType& m) {
+  typedef typename ArrayType::Scalar Scalar;
+  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
+  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+
+  Index rows = m.rows();
+  Index cols = m.cols();
+
+  ArrayType m1 = ArrayType::Random(rows, cols) + ArrayType::Constant(rows, cols, Scalar(2));
+  ArrayType expected(rows, cols);
+  ColVectorType colvec = ColVectorType::Random(rows);
+  RowVectorType rowvec = RowVectorType::Random(cols);
+  broadcast_affine_op<Scalar> op;
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = colvec - m1.col(j);
+  VERIFY_IS_APPROX(expected, colvec - m1.colwise());
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = rowvec - m1.row(i);
+  VERIFY_IS_APPROX(expected, rowvec - m1.rowwise());
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = colvec / m1.col(j);
+  VERIFY_IS_APPROX(expected, colvec / m1.colwise());
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = rowvec / m1.row(i);
+  VERIFY_IS_APPROX(expected, rowvec / m1.rowwise());
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).binaryExpr(colvec, op);
+  VERIFY_IS_APPROX(expected, m1.colwise().binaryExpr(colvec, op));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).binaryExpr(rowvec, op);
+  VERIFY_IS_APPROX(expected, m1.rowwise().binaryExpr(rowvec, op));
+
+  m1 = ArrayType::Random(rows, cols);
+  m1(0, 0) = Scalar(-2);
+  m1(rows - 1, cols - 1) = Scalar(2);
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).cwiseMin(colvec);
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMin(colvec));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).cwiseMin(rowvec);
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMin(rowvec));
+
+  expected = m1.cwiseMin(Scalar(0.25));
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMin(Scalar(0.25)));
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMin(Scalar(0.25)));
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).cwiseMax(colvec);
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMax(colvec));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).cwiseMax(rowvec);
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMax(rowvec));
+
+  expected = m1.cwiseMax(Scalar(-0.25));
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMax(Scalar(-0.25)));
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMax(Scalar(-0.25)));
+}
+
+template <typename MatrixType>
+void vectorwiseop_matrix_extensions(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> ColVectorType;
+  typedef Matrix<Scalar, 1, MatrixType::ColsAtCompileTime> RowVectorType;
+
+  Index rows = m.rows();
+  Index cols = m.cols();
+
+  MatrixType m1 = MatrixType::Random(rows, cols), expected(rows, cols);
+  ColVectorType colvec = ColVectorType::Random(rows);
+  RowVectorType rowvec = RowVectorType::Random(cols);
+  broadcast_affine_op<Scalar> op;
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = colvec - m1.col(j);
+  VERIFY_IS_APPROX(expected, colvec - m1.colwise());
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = rowvec - m1.row(i);
+  VERIFY_IS_APPROX(expected, rowvec - m1.rowwise());
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).binaryExpr(colvec, op);
+  VERIFY_IS_APPROX(expected, m1.colwise().binaryExpr(colvec, op));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).binaryExpr(rowvec, op);
+  VERIFY_IS_APPROX(expected, m1.rowwise().binaryExpr(rowvec, op));
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).cwiseMin(colvec);
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMin(colvec));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).cwiseMin(rowvec);
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMin(rowvec));
+
+  expected = m1.cwiseMin(Scalar(0.25));
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMin(Scalar(0.25)));
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMin(Scalar(0.25)));
+
+  for (Index j = 0; j < cols; ++j) expected.col(j) = m1.col(j).cwiseMax(colvec);
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMax(colvec));
+
+  for (Index i = 0; i < rows; ++i) expected.row(i) = m1.row(i).cwiseMax(rowvec);
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMax(rowvec));
+
+  expected = m1.cwiseMax(Scalar(-0.25));
+  VERIFY_IS_APPROX(expected, m1.colwise().cwiseMax(Scalar(-0.25)));
+  VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMax(Scalar(-0.25)));
+}
+
+void vectorwiseop_operand_order() {
+  Array<std::string, 2, 3> strings;
+  strings.setConstant("R");
+  Array<std::string, 2, 1> column;
+  column.setConstant("L");
+  Array<std::string, 1, 3> row;
+  row.setConstant("L");
+  const Array<std::string, 2, 3> column_sum = column + strings.colwise();
+  const Array<std::string, 2, 3> row_sum = row + strings.rowwise();
+  for (Index i = 0; i < strings.size(); ++i) {
+    VERIFY_IS_EQUAL(column_sum(i), std::string("LR"));
+    VERIFY_IS_EQUAL(row_sum(i), std::string("LR"));
+  }
+
+  Array<Quaterniond, 2, 3> quaternions;
+  quaternions.setConstant(Quaterniond(0, 0, 1, 0));
+  Array<Quaterniond, 2, 1> column_quaternions;
+  column_quaternions.setConstant(Quaterniond(0, 1, 0, 0));
+  Array<Quaterniond, 1, 3> row_quaternions;
+  row_quaternions.setConstant(Quaterniond(0, 1, 0, 0));
+  const Array<Quaterniond, 2, 3> column_product = column_quaternions * quaternions.colwise();
+  const Array<Quaterniond, 2, 3> row_product = row_quaternions * quaternions.rowwise();
+  const Quaterniond expected(0, 0, 0, 1);  // i*j = k, whereas j*i = -k.
+  for (Index i = 0; i < quaternions.size(); ++i) {
+    VERIFY_IS_CWISE_EQUAL(column_product(i).coeffs(), expected.coeffs());
+    VERIFY_IS_CWISE_EQUAL(row_product(i).coeffs(), expected.coeffs());
+  }
+}
+
+template <int NaNPropagation>
+void vectorwiseop_minmax_nan() {
+  const double nan = NumTraits<double>::quiet_NaN();
+  Array22d a;
+  a << nan, 2, -3, nan;
+  Array2d v;
+  v << 1, nan;
+  const Array22d min_col = a.colwise().cwiseMin<NaNPropagation>(v);
+  const Array22d max_col = a.colwise().cwiseMax<NaNPropagation>(v);
+  const Array22d min_row = a.transpose().rowwise().cwiseMin<NaNPropagation>(v.transpose());
+  const Array22d max_row = a.transpose().rowwise().cwiseMax<NaNPropagation>(v.transpose());
+  for (Index i = 0; i < 2; ++i) {
+    for (Index j = 0; j < 2; ++j) {
+      const bool a_nan = (numext::isnan)(a(i, j));
+      const bool v_nan = (numext::isnan)(v(i));
+      const bool expect_nan = NaNPropagation == PropagateNaN ? a_nan || v_nan : a_nan && v_nan;
+      VERIFY_IS_EQUAL((numext::isnan)(min_col(i, j)), expect_nan);
+      VERIFY_IS_EQUAL((numext::isnan)(max_col(i, j)), expect_nan);
+      VERIFY_IS_EQUAL((numext::isnan)(min_row(j, i)), expect_nan);
+      VERIFY_IS_EQUAL((numext::isnan)(max_row(j, i)), expect_nan);
+      if (!expect_nan) {
+        const double lo = a_nan ? v(i) : v_nan ? a(i, j) : (std::min)(a(i, j), v(i));
+        const double hi = a_nan ? v(i) : v_nan ? a(i, j) : (std::max)(a(i, j), v(i));
+        VERIFY_IS_EQUAL(min_col(i, j), lo);
+        VERIFY_IS_EQUAL(max_col(i, j), hi);
+        VERIFY_IS_EQUAL(min_row(j, i), lo);
+        VERIFY_IS_EQUAL(max_row(j, i), hi);
+      }
+    }
+  }
 }
 
 // Test partial reductions on RowMajor matrices.
@@ -452,11 +635,16 @@ void vectorwiseop_rowmajor() {
 
   VERIFY_IS_APPROX(ColMajorMatrix(mc.colwise() + cv), ColMajorMatrix(mr.colwise() + cv));
   VERIFY_IS_APPROX(ColMajorMatrix(mc.rowwise() + rv), ColMajorMatrix(mr.rowwise() + rv));
+  VERIFY_IS_APPROX(ColMajorMatrix(cv + mc.colwise()), ColMajorMatrix(cv + mr.colwise()));
+  VERIFY_IS_APPROX(ColMajorMatrix(rv + mc.rowwise()), ColMajorMatrix(rv + mr.rowwise()));
   VERIFY_IS_APPROX(ColMajorMatrix(mc.colwise() - cv), ColMajorMatrix(mr.colwise() - cv));
   VERIFY_IS_APPROX(ColMajorMatrix(mc.rowwise() - rv), ColMajorMatrix(mr.rowwise() - rv));
 }
 
 EIGEN_DECLARE_TEST(vectorwiseop) {
+  CALL_SUBTEST_11(vectorwiseop_operand_order());
+  CALL_SUBTEST_11(vectorwiseop_minmax_nan<PropagateNaN>());
+  CALL_SUBTEST_11(vectorwiseop_minmax_nan<PropagateNumbers>());
   CALL_SUBTEST_1(vectorwiseop_array(Array22cd()));
   CALL_SUBTEST_2(vectorwiseop_array(Array<double, 3, 2>()));
   CALL_SUBTEST_3(vectorwiseop_array(ArrayXXf(3, 4)));
@@ -478,4 +666,8 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_10(vectorwiseop_rowmajor<float>());
   CALL_SUBTEST_10(vectorwiseop_rowmajor<double>());
   CALL_SUBTEST_10(vectorwiseop_rowmajor<std::complex<float>>());
+  CALL_SUBTEST_11(vectorwiseop_array_extensions(Array<float, 3, 4>()));
+  CALL_SUBTEST_11(vectorwiseop_array_extensions(ArrayXXd(3, 4)));
+  CALL_SUBTEST_12(vectorwiseop_matrix_extensions(Matrix<float, 4, 5>()));
+  CALL_SUBTEST_12(vectorwiseop_matrix_extensions(MatrixXd(3, 4)));
 }

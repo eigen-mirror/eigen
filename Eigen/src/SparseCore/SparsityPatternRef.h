@@ -92,7 +92,7 @@ template <typename Derived>
 SparsityPatternRef<typename Derived::StorageIndex> make_col_major_pattern_ref(
     const SparseMatrixBase<Derived>& amat_base, Matrix<typename Derived::StorageIndex, Dynamic, 1>& outer_buf,
     Matrix<typename Derived::StorageIndex, Dynamic, 1>& inner_buf) {
-  typedef typename Derived::StorageIndex StorageIndex;
+  using StorageIndex = typename Derived::StorageIndex;
   const Derived& amat = amat_base.derived();
   internal::evaluator<Derived> amat_eval(amat);
   const Index n_cols = amat.cols();

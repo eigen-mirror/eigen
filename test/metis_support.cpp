@@ -11,7 +11,7 @@
 #include "sparse_solver.h"
 #include <Eigen/SparseLU>
 #include <Eigen/MetisSupport>
-#include <unsupported/Eigen/SparseExtra>
+#include <contrib/Eigen/SparseExtra>
 
 template <typename T>
 void test_metis_T() {

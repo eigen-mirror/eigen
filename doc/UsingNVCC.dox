@@ -15,6 +15,9 @@ This support can be disabled by defining \c EIGEN_NO_CUDA (or \c EIGEN_NO_HIP fo
 before including any %Eigen header.
 This might be useful to disable some warnings when a \c .cu file makes use of %Eigen on the host side only.
 
+%Eigen requires CUDA 11.8 or later and compute capability 6.0 (\c sm_60) or later; CUDA 13 itself requires
+\c sm_75. For HIP the floor is ROCm 5.6.
+
 \warning Host SIMD vectorization must be disabled in \c .cu files. It is \b strongly
 \b recommended to move all costly host-side computation from \c .cu files to regular \c .cpp files.
 
@@ -27,7 +30,7 @@ Define \c EIGEN_NO_HIP to disable this. Internally, both CUDA and HIP are unifie
 
 \section TopicCUDA_KnownIssues Known issues
 
- - On 64-bit systems %Eigen uses \c long \c int as the default type for indexes and sizes.
+ - On 64-bit systems %Eigen uses \c std::ptrdiff_t, a 64-bit type, as the default type for indexes and sizes.
    On CUDA/HIP devices, it would make sense to default to 32-bit \c int.
    However, to keep host and device code compatible, this cannot be done automatically by %Eigen,
    and the user is thus required to define \c EIGEN_DEFAULT_DENSE_INDEX_TYPE to \c int throughout

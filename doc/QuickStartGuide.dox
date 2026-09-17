@@ -8,7 +8,7 @@ This is a very short guide on how to get started with Eigen. It has a dual purpo
 
 \section GettingStartedInstallation How to "install" Eigen?
 
-In order to use Eigen, you just need to download and extract Eigen's source code (see <a href="http://eigen.tuxfamily.org/index.php?title=Main_Page#Download">the wiki</a> for download instructions). In fact, the header files in the \c Eigen subdirectory are the only files required to compile programs using Eigen. The header files are the same for all platforms. It is not necessary to use CMake or install anything.
+In order to use Eigen, you just need to download and extract Eigen's source code (releases are published on <a href="https://gitlab.com/libeigen/eigen/-/releases">Eigen's GitLab project</a>). In fact, the header files in the \c Eigen subdirectory are the only files required to compile programs using Eigen. The header files are the same for all platforms. It is not necessary to use CMake or install anything.
 
 
 \section GettingStartedFirstProgram A simple first program
@@ -26,7 +26,7 @@ There is no library to link to. The only thing that you need to keep in mind whe
 
 \code g++ -I /path/to/eigen/ my_program.cpp -o my_program \endcode
 
-On Linux or Mac OS X, another option is to symlink or copy the Eigen folder into \c /usr/local/include/. This way, you can compile the program with:
+On Linux or macOS, another option is to symlink or copy the Eigen folder into \c /usr/local/include/. This way, you can compile the program with:
 
 \code g++ my_program.cpp -o my_program \endcode
 

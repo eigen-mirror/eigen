@@ -195,6 +195,14 @@ struct functor_traits {
   enum { Cost = 10, PacketAccess = false, IsRepeatable = false };
 };
 
+// Marks a binary functor as commutative: f(a, b) == f(b, a). Reductions may then reorder
+// operands, not merely re-associate them, which enables faster accumulation. Deliberately a
+// separate trait rather than a functor_traits member: user code specializes functor_traits
+// wholesale, so a new member there would break every existing specialization. The default is
+// conservative; operand order is preserved unless a functor opts in.
+template <typename Func>
+struct functor_is_commutative : std::false_type {};
+
 // estimates the cost of lazily evaluating a generic functor by unwinding the expression
 template <typename Xpr>
 struct nested_functor_cost {
@@ -410,9 +418,13 @@ constexpr unsigned compute_matrix_flags(int Options) {
   return DirectAccessBit | LvalueBit | NestByRefBit | row_major_bit;
 }
 
+/** \internal Compile-time product of two dimensions: Dynamic when either factor is unknown, and also when the
+ * product would not fit in \c int -- no fixed-size dimension or size that large is usable anyway, and the
+ * overflowing multiplication would be ill-formed in a constant expression. */
 constexpr int size_at_compile_time(int rows, int cols) {
   if (rows == 0 || cols == 0) return 0;
   if (rows == Dynamic || cols == Dynamic) return Dynamic;
+  if (rows > (std::numeric_limits<int>::max)() / cols) return Dynamic;
   return rows * cols;
 }
 
@@ -427,6 +439,24 @@ struct size_of_xpr_at_compile_time
 
 template <typename T, typename StorageKind = typename traits<T>::StorageKind>
 struct plain_matrix_type;
+
+/* plain_object_options : the Options template argument (storage order and alignment) of the plain object that a
+ * decomposition's MatrixType stores: the type's own for a Matrix or Array, the referenced type's for a Ref, whose own
+ * Options is a pointer-alignment requirement instead.
+ */
+template <typename T>
+struct plain_object_options {
+  static constexpr int value = int(traits<T>::Options);
+};
+template <typename PlainObjectType, int Options, typename StrideType>
+struct plain_object_options<Ref<PlainObjectType, Options, StrideType>> : plain_object_options<PlainObjectType> {};
+
+/* is_ref : whether T is a Ref<>, i.e. a decomposition instantiated on it works in the referenced memory. */
+template <typename T>
+struct is_ref : std::false_type {};
+template <typename PlainObjectType, int Options, typename StrideType>
+struct is_ref<Ref<PlainObjectType, Options, StrideType>> : std::true_type {};
+
 template <typename T, typename BaseClassType, int Flags>
 struct plain_matrix_type_dense;
 template <typename T>
@@ -846,15 +876,14 @@ template <typename T1, typename T2>
 struct possibly_same_dense : bool_constant<has_direct_access<T1>::value && has_direct_access<T2>::value &&
                                            std::is_same<typename T1::Scalar, typename T2::Scalar>::value> {};
 
-template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2,
-                                     std::enable_if_t<possibly_same_dense<T1, T2>::value>* = 0) {
+template <typename T1, typename T2, std::enable_if_t<possibly_same_dense<T1, T2>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool is_same_dense(const T1& mat1, const T2& mat2) {
   return (mat1.data() == mat2.data()) && (mat1.innerStride() == mat2.innerStride()) &&
          (mat1.outerStride() == mat2.outerStride());
 }
 
-template <typename T1, typename T2>
-EIGEN_DEVICE_FUNC bool is_same_dense(const T1&, const T2&, std::enable_if_t<!possibly_same_dense<T1, T2>::value>* = 0) {
+template <typename T1, typename T2, std::enable_if_t<!possibly_same_dense<T1, T2>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool is_same_dense(const T1&, const T2&) {
   return false;
 }
 
@@ -942,7 +971,9 @@ struct block_xpr_helper<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
 
   // For block-of-block expressions, we need to combine the InnerPannel trait
   // with that of the block subexpression.
-  static constexpr bool is_inner_panel(bool inner_panel) { return InnerPanel && inner_panel; }
+  static constexpr bool is_inner_panel(bool inner_panel) {
+    return NestedXprHelper::is_inner_panel(InnerPanel && inner_panel);
+  }
 
   // Only enable non-const base function if XprType is not const (otherwise we get a duplicates definition).
   template <typename T = XprType, typename EnableIf = std::enable_if_t<!std::is_const<T>::value>>

@@ -23,25 +23,25 @@ template <typename T>
 struct make_integer;
 template <>
 struct make_integer<float> {
-  typedef numext::int32_t type;
+  using type = numext::int32_t;
 };
 template <>
 struct make_integer<double> {
-  typedef numext::int64_t type;
+  using type = numext::int64_t;
 };
 template <>
 struct make_integer<half> {
-  typedef numext::int16_t type;
+  using type = numext::int16_t;
 };
 template <>
 struct make_integer<bfloat16> {
-  typedef numext::int16_t type;
+  using type = numext::int16_t;
 };
 
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic_get_biased_exponent(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
   static constexpr int mantissa_bits = numext::numeric_limits<Scalar>::digits - 1;
   return pcast<PacketI, Packet>(plogical_shift_right<mantissa_bits>(preinterpret<PacketI>(pabs(a))));
 }
@@ -50,8 +50,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic_get_biased_exponent(
 // Assumes IEEE floating point format.
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Packet& exponent) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef std::make_unsigned_t<typename make_integer<Scalar>::type> ScalarUI;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using ScalarUI = std::make_unsigned_t<typename make_integer<Scalar>::type>;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 
@@ -112,17 +112,16 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   //     b = floor(e/4);
   //     c1 = 2^b
   //     c2 = 2^(e - 3b)
-  //   out = a * c1^3 * c2  (= a * 2^e)
+  //   out = (((a * c1) * c1) * c1) * c2  (= a * 2^e)
   //
-  // Re-associate as (a * c1) * (c1 * c1) * c2 so c1*c1 runs in parallel with
-  // a*c1; the dependent-multiply chain is 3 deep instead of 4.  Multiplying
-  // by c1 (the downscale factor) first is required for safety: for negative
-  // exponents the remainder factor c2 = 2^(e-3b) can be > 1 (e.g. e=-1 ->
-  // b=-1 -> c2=4), so a*c2 would overflow at |a| near max even when the
-  // final ldexp result is finite.
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  // Every partial product must contain 'a'. Reassociating scale factors can
+  // overflow (for example c1*c1 at e=256 for float), making pldexp(0, 256)
+  // NaN and finite denormal results infinite. Apply c1 before c2 because c2
+  // may exceed one for negative exponents (e.g. c2=4 for e=-1), overflowing
+  // values near max even when the final result is finite.
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using ScalarI = typename unpacket_traits<PacketI>::type;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 
@@ -135,9 +134,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
   const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  const Packet c1_squared = pmul(c1, c1);
-  const Packet a_c1 = pmul(a, c1);
-  return pmul(pmul(a_c1, c1_squared), c2);
+  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);                                                    // a * 2^e
 }
 
 // Explicitly multiplies
@@ -151,9 +148,9 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
 // Assumes IEEE floating point format
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_fast(const Packet& a, const Packet& exponent) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
-  typedef typename unpacket_traits<Packet>::type Scalar;
-  typedef typename unpacket_traits<PacketI>::type ScalarI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using ScalarI = typename unpacket_traits<PacketI>::type;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 

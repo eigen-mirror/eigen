@@ -30,7 +30,7 @@ namespace Eigen {
 template <typename StorageIndex>
 class AMDOrdering {
  public:
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
 
   /** Compute the permutation vector from a sparse matrix.
    * Only the sparsity pattern of \a mat is read; scalar values are not.
@@ -79,7 +79,7 @@ class AMDOrdering {
 template <typename StorageIndex>
 class NaturalOrdering {
  public:
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
 
   /** Compute the permutation vector from a column-major sparse matrix */
   template <typename MatrixType>
@@ -99,13 +99,13 @@ class NaturalOrdering {
 template <typename StorageIndex>
 class COLAMDOrdering {
  public:
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
 
   /** Compute the permutation vector \a perm from the sparse matrix \a mat. */
   template <typename MatrixType>
   void operator()(const MatrixType& mat, PermutationType& perm) const {
-    typedef typename MatrixType::StorageIndex MatrixStorageIndex;
+    using MatrixStorageIndex = typename MatrixType::StorageIndex;
     Matrix<MatrixStorageIndex, Dynamic, 1> outer_buf, inner_buf;
     internal::SparsityPatternRef<MatrixStorageIndex> pat =
         internal::make_col_major_pattern_ref(mat, outer_buf, inner_buf);

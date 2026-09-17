@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 template <typename MatrixType>
 void diagonal(const MatrixType& m) {
@@ -17,9 +18,9 @@ void diagonal(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols);
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = random_for_arithmetic<MatrixType>(rows, cols);
 
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   // check diagonal()
   VERIFY_IS_APPROX(m1.diagonal(), m1.transpose().diagonal());
@@ -82,6 +83,34 @@ void diagonal_assert(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(m1.diagonal(-(rows + 1)));
 }
 
+template <int Options, int OuterStride, int InnerStride>
+void diagonal_strided() {
+  using Mat = Matrix<int, 4, 4, Options>;
+  using StridedMap = Map<Mat, 0, Stride<OuterStride, InnerStride>>;
+  using Diag = typename StridedMap::DiagonalReturnType;
+  static_assert(Diag::InnerStrideAtCompileTime == (OuterStride == Dynamic || InnerStride == Dynamic ? Dynamic : 13),
+                "The diagonal stride must include both matrix strides");
+  VERIFY_IS_EQUAL(internal::traits<Diag>::InnerStrideAtCompileTime, Diag::InnerStrideAtCompileTime);
+  Matrix<int, 48, 1> storage = Matrix<int, 48, 1>::LinSpaced(48, 0, 47);
+  Matrix<int, 48, 1> expected = storage;
+  StridedMap matrix(storage.data() + 1, 4, 4, Stride<OuterStride, InnerStride>(11, 2));
+  for (Index offset : {Index(-2), Index(0), Index(1)}) {
+    auto diagonal = matrix.diagonal(offset);
+    VERIFY_IS_EQUAL(diagonal.innerStride(), 13);
+    Ref<Matrix<int, Dynamic, 1>, 0, Eigen::InnerStride<Dynamic>> view(diagonal);
+    for (Index i = 0; i < diagonal.size(); ++i) {
+      const Index row = i + (offset < 0 ? -offset : 0);
+      const Index col = i + (offset > 0 ? offset : 0);
+      VERIFY_IS_EQUAL(view(i), matrix(row, col));
+      const Index index = 1 + (Options == RowMajor ? row * 11 + col * 2 : row * 2 + col * 11);
+      expected(index) -= 3;
+    }
+    // A block uses the diagonal's direct-access stride rather than its coefficient accessor.
+    diagonal.head(diagonal.size()).array() -= 3;
+    VERIFY_IS_EQUAL(storage, expected);
+  }
+}
+
 // Test that (A * B).diagonal() gives the same result as (A * B).eval().diagonal().
 // The diagonal-of-product path uses LazyProduct evaluation (see ProductEvaluators.h),
 // which avoids computing the full product. Verify this optimization is correct.
@@ -96,8 +125,8 @@ void diagonal_of_product() {
     Index n = sizes[si];
     if (n <= 0) continue;
 
-    Mat A = Mat::Random(n, n);
-    Mat B = Mat::Random(n, n);
+    Mat A = random_for_arithmetic<Mat>(n, n);
+    Mat B = random_for_arithmetic<Mat>(n, n);
 
     // Lazy diagonal vs explicit product diagonal
     Vec diag_lazy = (A * B).diagonal();
@@ -107,8 +136,8 @@ void diagonal_of_product() {
     // Also test non-square: A is m×k, B is k×n
     for (int k : {1, 3, (int)n}) {
       if (k <= 0) continue;
-      Mat C = Mat::Random(n, k);
-      Mat D = Mat::Random(k, n);
+      Mat C = random_for_arithmetic<Mat>(n, k);
+      Mat D = random_for_arithmetic<Mat>(k, n);
       Vec diag_lazy2 = (C * D).diagonal();
       Vec diag_explicit2 = (C * D).eval().diagonal();
       VERIFY_IS_APPROX(diag_lazy2, diag_explicit2);
@@ -156,6 +185,14 @@ void select_boundary() {
 }
 
 EIGEN_DECLARE_TEST(diagonal) {
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, 11, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, 11, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, Dynamic, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, Dynamic, 2>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, 11, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, 11, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<ColMajor, Dynamic, Dynamic>()));
+  CALL_SUBTEST_5((diagonal_strided<RowMajor, Dynamic, Dynamic>()));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonal(Matrix<float, 1, 1>()));
     CALL_SUBTEST_1(diagonal(Matrix<float, 4, 9>()));

@@ -13,6 +13,42 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 
+template <typename Packet>
+EIGEN_DONT_INLINE Packet packet_product_runtime(const Packet& lhs, const Packet& rhs) {
+  return internal::pmul(lhs, rhs);
+}
+
+// Some SIMD units flush subnormal operands and results to zero regardless of any library-side care
+// (ARMv7 NEON is hard-wired FTZ while its scalar VFP unit honors subnormals). Sections that feed
+// genuinely subnormal data through vectorized kernels cannot even observe their inputs on such
+// hardware, so they are gated on this runtime probe of the packet path. The volatile load prevents
+// constant folding, while the EIGEN_DONT_INLINE wrapper prevents Clang from scalarizing the packet
+// product and applying scalar IEEE semantics.
+template <typename RealScalar>
+bool packet_path_flushes_subnormals() {
+  typedef typename internal::packet_traits<RealScalar>::type Packet;
+  volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar tiny = vtiny;
+  const RealScalar half_tiny =
+      internal::pfirst(packet_product_runtime(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
+  return numext::is_exactly_zero(half_tiny);
+}
+
+// Dense (n x n) symmetric tridiagonal matrix from its diagonal d and sub-diagonal e, for
+// residual / reconstruction checks against the solver output.
+template <typename DiagType, typename SubType>
+Matrix<typename DiagType::Scalar, Dynamic, Dynamic> dense_symmetric_tridiag(const DiagType& d, const SubType& e) {
+  typedef typename DiagType::Scalar RealScalar;
+  const Index n = d.size();
+  Matrix<RealScalar, Dynamic, Dynamic> T = Matrix<RealScalar, Dynamic, Dynamic>::Zero(n, n);
+  T.diagonal() = d;
+  if (n > 1) {
+    T.diagonal(-1) = e;
+    T.diagonal(1) = e;
+  }
+  return T;
+}
+
 // Test TridiagonalEigenSolver (SIMD Sturm-sequence spectral bisection) on the full
 // structured-tridiagonal catalog: compare against the implicit-QR path of
 // SelfAdjointEigenSolver::computeFromTridiagonal(), exercise index/value range subset
@@ -103,6 +139,33 @@ void tridiagonal_eigensolver_bisection() {
     VERIFY_IS_EQUAL(blow.eigenvalues().size(), Index(1));  // [1, 2) = {1}: includes the eigenvalue at the closed end 1
     VERIFY_IS_APPROX(blow.eigenvalues()(0), RealScalar(1));
 
+    // The half-open endpoint semantics must survive rounding in the Sturm recurrence, not just the
+    // exact-count diagonal case above: [[-3, 2], [2, -3]] has spectrum {-5, -1} exactly, but the
+    // recurrence rounds through 2/3-type values, so counts taken exactly at an endpoint eigenvalue
+    // are a coin flip (float used to drop -5 entirely, double used to keep -1). The endpoint
+    // resolution against the converged eigenvalues must return exactly {-5}.
+    VectorType dcross(2), ecross(1);
+    dcross << RealScalar(-3), RealScalar(-3);
+    ecross << RealScalar(2);
+    TridiagonalEigenSolver<RealScalar> bcross;
+    bcross.computeEigenvalues(dcross, ecross, EigenvalueRange::values(-5.0L, -1.0L));
+    VERIFY_IS_EQUAL(bcross.eigenvalues().size(), Index(1));
+    VERIFY_IS_APPROX(bcross.eigenvalues()(0), RealScalar(-5));
+
+    // Infinite endpoints mean unbounded on that side; the endpoint-tolerance arithmetic must not
+    // poison the result (inf - inf = NaN used to return an empty spectrum). A finite long double
+    // endpoint that narrows to infinity in RealScalar (1e300 for float) behaves the same way.
+    TridiagonalEigenSolver<RealScalar> binf;
+    binf.computeEigenvalues(d, e,
+                            EigenvalueRange::values(-std::numeric_limits<long double>::infinity(),
+                                                    std::numeric_limits<long double>::infinity()));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(3));
+    binf.computeEigenvalues(d, e, EigenvalueRange::values(1.5L, std::numeric_limits<long double>::infinity()));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(2));
+    VERIFY_IS_APPROX(binf.eigenvalues()(0), RealScalar(2));
+    binf.computeEigenvalues(d, e, EigenvalueRange::values(1.5L, 1e300L));
+    VERIFY_IS_EQUAL(binf.eigenvalues().size(), Index(2));
+
     // Fixed-size input vectors work, including subset selection (the solver's own storage is
     // dynamic, so a subset shorter than the input is not a problem).
     Matrix<RealScalar, 3, 1> fd;
@@ -141,7 +204,8 @@ void tridiagonal_eigensolver_bisection() {
   // A subnormal-magnitude matrix exercises the normalization: dividing entries by the (subnormal) max
   // magnitude keeps the scaled matrix O(1), whereas multiplying by 1/scale would overflow to infinity
   // and return wrong eigenvalues. Compare against the same matrix in a normal range, scaled back down.
-  {
+  // Skipped on flush-to-zero packet hardware, where the subnormal inputs read as zero (see the probe).
+  if (!packet_path_flushes_subnormals<RealScalar>()) {
     const Index nn = 7;
     VectorType bd(nn), be(nn - 1);
     test::tridiag_1_2_1(bd, be);
@@ -211,12 +275,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     const Index n = diag.size();
 
     // Dense form of T for residual / reconstruction checks.
-    MatrixType T = MatrixType::Zero(n, n);
-    T.diagonal() = diag;
-    if (n > 1) {
-      T.diagonal(-1) = offdiag;
-      T.diagonal(1) = offdiag;
-    }
+    const MatrixType T = dense_symmetric_tridiag(diag, offdiag);
     RealScalar scale = T.cwiseAbs().maxCoeff();
     if (!(numext::isfinite)(scale)) return;  // skip non-finite inputs, like the eigenvalue path
     if (numext::is_exactly_zero(scale)) scale = RealScalar(1);
@@ -299,10 +358,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL(fz.info(), Success);
     VERIFY_IS_EQUAL(fz.eigenvectors().cols(), Index(4));
     {
-      MatrixType Tf = MatrixType::Zero(4, 4);
-      Tf.diagonal() = fdiag;
-      Tf.diagonal(-1) = fsub;
-      Tf.diagonal(1) = fsub;
+      const MatrixType Tf = dense_symmetric_tridiag(fdiag, fsub);
       const MatrixType Vf = fz.eigenvectors();
       VERIFY((Vf.transpose() * Vf - MatrixType::Identity(4, 4)).cwiseAbs().maxCoeff() <= RealScalar(64) * eps);
       VERIFY((Tf * Vf - Vf * fz.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <=
@@ -320,13 +376,12 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL((staged.eigenvectors() - fz.eigenvectors()).cwiseAbs().maxCoeff(), RealScalar(0));
 
     // A matrix whose entries are all subnormal must still yield genuine unit-norm, orthonormal
-    // eigenvectors rather than all-zero columns. Inverse iteration normalizes the tridiagonal by
-    // dividing its entries directly by the largest magnitude; doing so (rather than multiplying by its
-    // reciprocal) keeps the normalization finite even when that magnitude is subnormal, where 1/scale
-    // overflows to infinity and would otherwise let the iterate underflow to zero. The eigenvalues are
+    // eigenvectors rather than all-zero columns. Normalization must avoid forming 1/scale when
+    // that reciprocal overflows; subnormal blocks require two finite scaling steps. The eigenvalues are
     // taken from the same matrix in a normal magnitude range (then scaled back down), so this exercises
     // the eigenvector normalization in isolation from the eigenvalue solver.
-    {
+    // Skipped on flush-to-zero packet hardware, where the subnormal inputs read as zero (see the probe).
+    if (!packet_path_flushes_subnormals<RealScalar>()) {
       const Index n = 6;
       VectorType base_d(n), base_e(n - 1);
       test::tridiag_1_2_1(base_d, base_e);
@@ -347,12 +402,74 @@ void tridiagonal_eigensolver_eigenvectors() {
       VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <=
              RealScalar(64) * RealScalar(n) * eps);
       // Residual in normal-range coordinates (the eigenvectors are invariant under the uniform scale).
-      MatrixType Tn = MatrixType::Zero(n, n);
-      Tn.diagonal() = base_d;
-      Tn.diagonal(-1) = base_e;
-      Tn.diagonal(1) = base_e;
+      const MatrixType Tn = dense_symmetric_tridiag(base_d, base_e);
       for (Index i = 0; i < n; ++i)
         VERIFY((Tn * V.col(i) - ref.eigenvalues()(i) * V.col(i)).norm() <= RealScalar(256) * RealScalar(n) * eps);
+    }
+
+    // Numerically disconnected blocks at wildly different scales: each 1x1 block's eigenvector is
+    // the corresponding unit vector, exactly (components outside the owning block are exact zeros).
+    // Processing the blocks with one global perturbation floor (eps * ||T||) would swamp the pivots
+    // of the small blocks and return arbitrary mixtures of the first four vectors instead.
+    {
+      VectorType d(5), e = VectorType::Zero(4);
+      d << RealScalar(1), RealScalar(2), RealScalar(3), RealScalar(4), RealScalar(1e16);
+      TridiagonalEigenSolver<RealScalar> blocks;
+      blocks.computeEigenvectors(d, e, d);  // the diagonal is the exact (ascending) spectrum
+      VERIFY_IS_EQUAL(blocks.info(), Success);
+      VERIFY_IS_EQUAL((blocks.eigenvectors() - MatrixType::Identity(5, 5)).cwiseAbs().maxCoeff(), RealScalar(0));
+
+      // Any single requested eigenvalue must select its own block. The localization windows are
+      // expressed at each block's own scale; a window at the global scale (~ eps * 1e16 here) spans
+      // all four small blocks at once and used to hand w = (3) to the first block.
+      for (Index j = 0; j < 5; ++j) {
+        VectorType wone(1);
+        wone << d(j);
+        TridiagonalEigenSolver<RealScalar> one;
+        one.computeEigenvectors(d, e, wone);
+        VERIFY_IS_EQUAL(one.info(), Success);
+        VERIFY_IS_EQUAL((one.eigenvectors().col(0) - MatrixType::Identity(5, 5).col(j)).cwiseAbs().maxCoeff(),
+                        RealScalar(0));
+      }
+    }
+
+    // A huge disconnected block must not force splitting of a strongly connected small block: a
+    // splitting safety floor expressed at the global scale used to break the trailing 2x2 into
+    // singletons, returning coordinate vectors with O(1) local residual.
+    {
+      const RealScalar big = (std::numeric_limits<RealScalar>::max)() / RealScalar(1e10);
+      VectorType d(3), e(2), w(3);
+      d << big, RealScalar(1), RealScalar(2);
+      e << RealScalar(0), RealScalar(0.5);
+      // Exact spectrum: big and (3 -+ sqrt(2))/2 from the trailing 2x2 block.
+      w << RealScalar((3.0 - std::sqrt(2.0)) / 2.0), RealScalar((3.0 + std::sqrt(2.0)) / 2.0), big;
+      TridiagonalEigenSolver<RealScalar> conn;
+      conn.computeEigenvectors(d, e, w);
+      VERIFY_IS_EQUAL(conn.info(), Success);
+      const MatrixType Vc = conn.eigenvectors();
+      const MatrixType Tc = dense_symmetric_tridiag(d, e);
+      for (Index j = 0; j < 3; ++j)
+        VERIFY((Tc * Vc.col(j) - w(j) * Vc.col(j)).stableNorm() <=
+               RealScalar(64) * eps * numext::maxi(RealScalar(1), numext::abs(w(j))));
+      // The small-block vectors have no support on the big block, exactly.
+      VERIFY_IS_EQUAL(numext::abs(Vc(0, 0)), RealScalar(0));
+      VERIFY_IS_EQUAL(numext::abs(Vc(0, 1)), RealScalar(0));
+      VERIFY(numext::abs(Vc.col(0).dot(Vc.col(1))) <= RealScalar(8) * eps);
+    }
+
+    // Non-finite input to the direct eigenvector path is rejected up front and reported via info(),
+    // mirroring computeEigenvalues(): NaN data or shifts must not produce NaN vectors with Success.
+    {
+      VectorType d = VectorType::Ones(3), e = VectorType::Zero(2), w = VectorType::Ones(3);
+      TridiagonalEigenSolver<RealScalar> bad;
+      VectorType dnan = d;
+      dnan(1) = std::numeric_limits<RealScalar>::quiet_NaN();
+      bad.computeEigenvectors(dnan, e, w);
+      VERIFY_IS_EQUAL(bad.info(), NoConvergence);
+      VectorType wnan = w;
+      wnan(2) = std::numeric_limits<RealScalar>::quiet_NaN();
+      bad.computeEigenvectors(d, e, wnan);
+      VERIFY_IS_EQUAL(bad.info(), NoConvergence);
     }
 
     // Convergence is reported through info() rather than hard-coded to Success: inverse iteration
@@ -367,11 +484,200 @@ void tridiagonal_eigensolver_eigenvectors() {
   }
 }
 
+// Scalar types narrower than float (half, bfloat16) are computed internally in float (see
+// TridiagonalEigenSolver::ComputeScalar): Sturm counts and bisection targets stay exact past the
+// narrow type's ~1/eps integer ceiling, the start-vector RNG cannot overflow to infinity, and the
+// coincident-shift perturbation (~0.08|x| at bfloat16 precision) cannot jump into a neighbouring
+// eigenspace. Each block below used to fail in the corresponding way.
+template <typename RealScalar>
+void tridiagonal_eigensolver_narrow() {
+  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+
+  // (a) 2x2 [2, 1; 1, 2]: exact eigenpairs (1, 3) with vectors (1, -1)/sqrt(2), (1, 1)/sqrt(2).
+  // With the RNG overflow this returned an all-NaN eigenvector matrix with info() == Success.
+  {
+    VectorType d(2), e(1);
+    d << RealScalar(2), RealScalar(2);
+    e << RealScalar(1);
+    TridiagonalEigenSolver<RealScalar> es(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    VERIFY(es.eigenvectors().allFinite());
+    VERIFY_IS_APPROX(es.eigenvalues()(0), RealScalar(1));
+    VERIFY_IS_APPROX(es.eigenvalues()(1), RealScalar(3));
+    const MatrixType V = es.eigenvectors();
+    VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
+    const MatrixType T = dense_symmetric_tridiag(d, e);
+    VERIFY((T * V - V * es.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
+  }
+
+  // (b) Identity of dimension 257 (> 1/eps for bfloat16): every eigenvalue is exactly 1. With the
+  // Sturm counts held in the narrow type this returned eigenvalues as large as 5.19.
+  {
+    const Index n = 257;
+    const VectorType d = VectorType::Constant(n, RealScalar(1));
+    const VectorType e = VectorType::Zero(n - 1);
+    TridiagonalEigenSolver<RealScalar> es;
+    es.computeEigenvalues(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    VERIFY_IS_EQUAL(es.eigenvalues().size(), n);
+    for (Index i = 0; i < n; ++i) VERIFY_IS_EQUAL(es.eigenvalues()(i), RealScalar(1));
+  }
+
+  // (c) diag (1, 1, 1 + 2^-4), zero off-diagonal: the eigenvectors for the two eigenvalues at 1
+  // must span exactly the first two coordinates. An un-capped shift perturbation at this precision
+  // used to select the third eigenspace for the second vector.
+  {
+    VectorType d(3), e = VectorType::Zero(2), w(2);
+    d << RealScalar(1), RealScalar(1), RealScalar(1.0625f);
+    w << RealScalar(1), RealScalar(1);
+    TridiagonalEigenSolver<RealScalar> es;
+    es.computeEigenvectors(d, e, w);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const MatrixType V = es.eigenvectors();
+    VERIFY_IS_EQUAL(numext::abs(V(2, 0)), RealScalar(0));
+    VERIFY_IS_EQUAL(numext::abs(V(2, 1)), RealScalar(0));
+    VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
+  }
+
+  // (d) 1-2-1 Toeplitz of dimension 64, staged full solve: the eigenvector pass must shift by the
+  // retained unrounded float eigenvalues. Shifts rounded to RealScalar collapse neighbouring
+  // eigenvalues and used to return near-parallel columns (Gram error ~0.4 in bfloat16).
+  {
+    const Index n = 64;
+    const VectorType d = VectorType::Constant(n, RealScalar(2.0f));
+    const VectorType e = VectorType::Constant(n - 1, RealScalar(1.0f));
+    TridiagonalEigenSolver<RealScalar> es(d, e);
+    VERIFY_IS_EQUAL(es.info(), Success);
+    const MatrixType V = es.eigenvectors();
+    VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
+  }
+}
+
+void tridiagonal_eigensolver_power_of_two_scaling() {
+  // An input sensitive to normalization rounding; bisection promises normwise accuracy, not correct rounding.
+  Vector3f diag;
+  diag << numext::bit_cast<float>(numext::uint32_t(0xf055994f)), numext::bit_cast<float>(numext::uint32_t(0x6fb2331a)),
+      numext::bit_cast<float>(numext::uint32_t(0x70d02374));
+  Vector2f subdiag;
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x70b84b8a)),
+      numext::bit_cast<float>(numext::uint32_t(0x6fc495b1));
+  Vector3f expected;
+  expected << numext::bit_cast<float>(numext::uint32_t(0xf0e811b7)),
+      numext::bit_cast<float>(numext::uint32_t(0x708f34f5)), numext::bit_cast<float>(numext::uint32_t(0x70eac055));
+
+  TridiagonalEigenSolver<float> eigenvalues;
+  eigenvalues.computeEigenvalues(diag, subdiag);
+  VERIFY_IS_EQUAL(eigenvalues.info(), Success);
+  VERIFY(eigenvalues.eigenvalues().allFinite());
+  const Matrix3d bisectionMatrix = dense_symmetric_tridiag(diag, subdiag).cast<double>();
+  const double bisectionNorm = bisectionMatrix.cwiseAbs().rowwise().sum().maxCoeff();
+  // Allow O(n*eps*||T||_inf) Sturm-count displacement, the final bracket width and reference rounding.
+  // Eight covers the 2.1*n*eps bracket expansion on both sides, with room for the latter two terms.
+  const double eigenvalueTolerance = 8.0 * double(diag.size()) * double(NumTraits<float>::epsilon()) * bisectionNorm;
+  VERIFY((eigenvalues.eigenvalues().cast<double>() - expected.cast<double>()).cwiseAbs().maxCoeff() <=
+         eigenvalueTolerance);
+
+  // Exercise normalization-sensitive inverse iteration with rounded supplied eigenvalues.
+  diag << numext::bit_cast<float>(numext::uint32_t(0x44d75b8b)), numext::bit_cast<float>(numext::uint32_t(0x45b9403d)),
+      numext::bit_cast<float>(numext::uint32_t(0x4554211f));
+  subdiag << numext::bit_cast<float>(numext::uint32_t(0x45609c76)),
+      numext::bit_cast<float>(numext::uint32_t(0xc590ed04));
+  expected << numext::bit_cast<float>(numext::uint32_t(0xc4e47d7d)),
+      numext::bit_cast<float>(numext::uint32_t(0x45173159)), numext::bit_cast<float>(numext::uint32_t(0x46235731));
+
+  TridiagonalEigenSolver<float> eigenvectors;
+  eigenvectors.computeEigenvectors(diag, subdiag, expected);
+  VERIFY_IS_EQUAL(eigenvectors.info(), Success);
+  const Matrix3d matrix = dense_symmetric_tridiag(diag, subdiag).cast<double>();
+  const Matrix3d vectors = eigenvectors.eigenvectors().cast<double>();
+  VERIFY(vectors.allFinite());
+  const double residual = (matrix * vectors - vectors * expected.cast<double>().asDiagonal()).cwiseAbs().maxCoeff();
+  // Match the inverse-iteration suite's 128*n*eps allowance for perturbed pivots, repeated solves and normalization.
+  const double tolerance = 128.0 * double(diag.size()) * double(NumTraits<float>::epsilon());
+  VERIFY(residual <= tolerance * matrix.cwiseAbs().maxCoeff());
+  VERIFY((vectors.transpose() * vectors - Matrix3d::Identity()).cwiseAbs().maxCoeff() <= tolerance);
+}
+
+template <typename Scalar>
+void tridiagonal_eigensolver_scaling_units() {
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  Vector diag(4), subdiag(3);
+  diag << Scalar(2), Scalar(2), Scalar(10), Scalar(10);
+  subdiag << Scalar(1), Scalar(0), Scalar(2);
+  Vector expected(4);
+  expected << Scalar(1), Scalar(3), Scalar(8), Scalar(12);
+  const MatrixType matrix = dense_symmetric_tridiag(diag, subdiag);
+  const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon();
+  for (int exponent : {-60, 0, 60}) {
+    const Scalar scale = numext::ldexp(Scalar(1), exponent);
+    const Vector d = diag * scale, e = subdiag * scale;
+    TridiagonalEigenSolver<Scalar> solver(d, e);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Vector values = solver.eigenvalues() / scale;
+    VERIFY(values.allFinite());
+    VERIFY((values - expected).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
+    const MatrixType vectors = solver.eigenvectors();
+    VERIFY(vectors.allFinite());
+    VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance * matrix.norm());
+    VERIFY((vectors.transpose() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
+    solver.computeEigenvalues(d, e, EigenvalueRange::values(double(scale) * 2, double(scale) * 9));
+    VERIFY_IS_EQUAL(solver.eigenvalues().size(), 2);
+    VERIFY((solver.eigenvalues() / scale - expected.segment(1, 2)).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
+
+    // The internal absolute tolerance is in input units, not normalized units.
+    Vector approximate;
+    const Scalar abs_tol = scale / Scalar(128);
+    internal::tridiagonal_bisection(d, e, EigenvalueRange::all(), abs_tol, approximate);
+    VERIFY((approximate / scale - expected).cwiseAbs().maxCoeff() <= Scalar(1) / Scalar(128) + tolerance);
+  }
+}
+
+template <typename Scalar>
+void tridiagonal_eigensolver_subnormal_staged() {
+  if (packet_path_flushes_subnormals<Scalar>()) return;
+  using Vector = Matrix<Scalar, 4, 1>;
+  using Subdiag = Matrix<Scalar, 3, 1>;
+  using MatrixType = Matrix<Scalar, 4, 4>;
+  const Vector diag = Vector::Constant(Scalar(2));
+  const Subdiag subdiag = Subdiag::Ones();
+  const MatrixType matrix = dense_symmetric_tridiag(diag, subdiag);
+  for (int divisor : {64, 1024, 4096}) {
+    const Scalar scale = (std::numeric_limits<Scalar>::min)() / Scalar(divisor);
+    const Vector d = diag * scale;
+    const Subdiag e = subdiag * scale;
+    TridiagonalEigenSolver<Scalar> solver;
+    solver.computeEigenvalues(d, e);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    solver.computeEigenvectors();
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    const Vector values = solver.eigenvalues() / scale;
+    const MatrixType vectors = solver.eigenvectors();
+    VERIFY(values.allFinite());
+    VERIFY(vectors.allFinite());
+    // Restored eigenvalues have absolute quantization denorm_min/scale. This matrix has
+    // norm <= 4 and minimum eigenvalue gap 1, so both residual and orthogonality see this error.
+    const Scalar quantization = std::numeric_limits<Scalar>::denorm_min() / scale;
+    const Scalar tolerance = Scalar(128 * 4) * NumTraits<Scalar>::epsilon() + Scalar(8 * 4) * quantization;
+    VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance);
+    VERIFY((vectors.transpose() * vectors - MatrixType::Identity()).norm() <= tolerance);
+  }
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
+  CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
+  CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());
     CALL_SUBTEST_3(tridiagonal_eigensolver_eigenvectors<double>());
     CALL_SUBTEST_4(tridiagonal_eigensolver_eigenvectors<float>());
+    CALL_SUBTEST_5(tridiagonal_eigensolver_narrow<Eigen::half>());
+    CALL_SUBTEST_6(tridiagonal_eigensolver_narrow<Eigen::bfloat16>());
   }
 }

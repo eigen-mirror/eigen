@@ -43,7 +43,7 @@ struct inner_sort_impl;
 template <typename Derived>
 class SparseCompressedBase : public SparseMatrixBase<Derived> {
  public:
-  typedef SparseMatrixBase<Derived> Base;
+  using Base = SparseMatrixBase<Derived>;
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseCompressedBase)
   using Base::operator=;
   using Base::IsRowMajor;
@@ -52,7 +52,7 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
   class ReverseInnerIterator;
 
  protected:
-  typedef typename Base::IndexVector IndexVector;
+  using IndexVector = typename Base::IndexVector;
   Eigen::Map<IndexVector> innerNonZeros() {
     return Eigen::Map<IndexVector>(innerNonZeroPtr(), isCompressed() ? 0 : derived().outerSize());
   }
@@ -294,7 +294,7 @@ class SparseCompressedBase<Derived>::InnerIterator {
  protected:
   const Scalar* m_values = nullptr;
   const StorageIndex* m_indices = nullptr;
-  typedef internal::variable_if_dynamic<Index, Derived::IsVectorAtCompileTime ? 0 : Dynamic> OuterType;
+  using OuterType = internal::variable_if_dynamic<Index, Derived::IsVectorAtCompileTime ? 0 : Dynamic>;
   const OuterType m_outer{0};
   Index m_id = 0;
   Index m_end = 0;
@@ -367,7 +367,7 @@ class SparseCompressedBase<Derived>::ReverseInnerIterator {
  protected:
   const Scalar* m_values;
   const StorageIndex* m_indices;
-  typedef internal::variable_if_dynamic<Index, Derived::IsVectorAtCompileTime ? 0 : Dynamic> OuterType;
+  using OuterType = internal::variable_if_dynamic<Index, Derived::IsVectorAtCompileTime ? 0 : Dynamic>;
   const OuterType m_outer;
   Index m_start;
   Index m_id;
@@ -522,8 +522,8 @@ class CompressedStorageIterator {
 
 template <typename Derived, class Comp, bool IsVector>
 struct inner_sort_impl {
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::StorageIndex StorageIndex;
+  using Scalar = typename Derived::Scalar;
+  using StorageIndex = typename Derived::StorageIndex;
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
@@ -549,8 +549,8 @@ struct inner_sort_impl {
 };
 template <typename Derived, class Comp>
 struct inner_sort_impl<Derived, Comp, true> {
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::StorageIndex StorageIndex;
+  using Scalar = typename Derived::Scalar;
+  using StorageIndex = typename Derived::StorageIndex;
   static inline void run(SparseCompressedBase<Derived>& obj, Index, Index) {
     const StorageIndex* outer = obj.outerIndexPtr();
     Index begin_offset = (outer && obj.outerSize() > 0) ? internal::convert_index<Index>(outer[0]) : 0;
@@ -571,25 +571,25 @@ struct inner_sort_impl<Derived, Comp, true> {
 
 template <typename Derived>
 struct evaluator<SparseCompressedBase<Derived>> : evaluator_base<Derived> {
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::InnerIterator InnerIterator;
+  using Scalar = typename Derived::Scalar;
+  using InnerIterator = typename Derived::InnerIterator;
 
   enum { CoeffReadCost = NumTraits<Scalar>::ReadCost, Flags = Derived::Flags };
 
-  evaluator() : m_matrix(0), m_zero(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
-  explicit evaluator(const Derived& mat) : m_matrix(&mat), m_zero(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
+  evaluator() : m_matrix(0) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
+  explicit evaluator(const Derived& mat) : m_matrix(&mat) { EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost); }
 
   inline Index nonZerosEstimate() const { return m_matrix->nonZeros(); }
 
   operator Derived&() { return m_matrix->const_cast_derived(); }
   operator const Derived&() const { return *m_matrix; }
 
-  typedef typename DenseCoeffsBase<Derived, ReadOnlyAccessors>::CoeffReturnType CoeffReturnType;
+  using CoeffReturnType = typename DenseCoeffsBase<Derived, ReadOnlyAccessors>::CoeffReturnType;
   const Scalar& coeff(Index row, Index col) const {
     Index p = find(row, col);
 
     if (p == Dynamic)
-      return m_zero;
+      return zero();
     else
       return m_matrix->const_cast_derived().valuePtr()[p];
   }
@@ -606,8 +606,16 @@ struct evaluator<SparseCompressedBase<Derived>> : evaluator_base<Derived> {
     return p.found ? p.value : Dynamic;
   }
 
+  // Stable storage for the structural zero coeff() hands out by reference. Kept
+  // out of the evaluator itself: product_evaluator and friends reconstruct their
+  // base evaluator in place with construct_at, which would leak any member that
+  // owns resources when Scalar is not trivially destructible.
+  static const Scalar& zero() {
+    static const Scalar kZero(0);
+    return kZero;
+  }
+
   const Derived* m_matrix;
-  const Scalar m_zero;
 };
 
 }  // namespace internal

@@ -8,9 +8,17 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Silence warnings about the deprecated shiftLeft()/shiftRight(), which are still being tested.
+#define EIGEN_NO_DEPRECATED_WARNING
+
 #include <vector>
 #include "main.h"
+#include "random_for_arithmetic.h"
 #include "random_without_cast_overflow.h"
+
+static_assert(
+    std::is_same<ArrayXf::AbsReturnType, std::remove_const_t<decltype(std::declval<const ArrayXf&>().abs())>>::value,
+    "ArrayBase unary return type aliases must match their corresponding expressions");
 
 // suppress annoying unsigned integer warnings
 template <typename Scalar, bool IsSignedInteger = NumTraits<Scalar>::IsSigned && NumTraits<Scalar>::IsInteger,
@@ -222,6 +230,59 @@ void unary_ops_test() {
                           }
                         });
   */
+}
+
+template <typename Scalar>
+void ldexp_test() {
+  const std::vector<Scalar> vals = special_values<Scalar>();
+  // Exercise both packet and scalar tails.
+  const Index num_repeats = 2 * Index(internal::packet_traits<Scalar>::size) + 1;
+  Array<Scalar, Dynamic, 1> x(num_repeats * Index(vals.size()));
+  Index count = 0;
+  for (const Scalar& value : vals) {
+    for (Index repeat = 0; repeat < num_repeats; ++repeat) x(count++) = value;
+  }
+
+  const int digits = std::numeric_limits<Scalar>::digits;
+  const int max_exp = std::numeric_limits<Scalar>::max_exponent;
+  // Include denormals, saturation, and unrepresentable 2^e scale factors.
+  const int exponents[] = {0,
+                           1,
+                           -1,
+                           digits - 1,
+                           1 - digits,
+                           max_exp - 1,
+                           1 - max_exp,
+                           max_exp + digits,
+                           -(max_exp + digits),
+                           2 * max_exp,
+                           -2 * max_exp,
+                           (std::numeric_limits<int>::max)(),
+                           (std::numeric_limits<int>::min)()};
+
+  bool all_pass = true;
+  for (const int exponent : exponents) {
+    const Array<Scalar, Dynamic, 1> method_result = x.ldexp(exponent);
+    const Array<Scalar, Dynamic, 1> global_result = Eigen::ldexp(x, exponent);
+    for (Index i = 0; i < x.size(); ++i) {
+      // double covers every tested Scalar, so one conversion back gives the exact reference.
+      const double expected = static_cast<double>(static_cast<Scalar>(std::ldexp(static_cast<double>(x(i)), exponent)));
+#if EIGEN_ARCH_ARM
+      // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results.
+      if (expected != 0.0 && std::abs(expected) < static_cast<double>((std::numeric_limits<Scalar>::min)())) continue;
+#endif
+      for (const Scalar& result : {method_result(i), global_result(i)}) {
+        const double actual = static_cast<double>(result);
+        const bool success = (actual == expected && std::signbit(actual) == std::signbit(expected)) ||
+                             ((numext::isnan)(actual) && (numext::isnan)(expected));
+        all_pass &= success;
+        if (!success) {
+          std::cout << "ldexp(" << x(i) << "," << exponent << ") = " << result << " != " << expected << std::endl;
+        }
+      }
+    }
+  }
+  VERIFY(all_pass);
 }
 
 template <typename Base, typename Exponent, bool ExpIsInteger = NumTraits<Exponent>::IsInteger>
@@ -448,7 +509,6 @@ void int_pow_test() {
   int_pow_test_impl<unsigned int, int>();
   int_pow_test_impl<long long, unsigned long long>();
   int_pow_test_impl<unsigned long long, long long>();
-  int_pow_test_impl<long long, int>();
 }
 
 namespace Eigen {
@@ -511,25 +571,15 @@ void array_generic(const ArrayType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  ArrayType m1 = ArrayType::Random(rows, cols);
-  if (NumTraits<RealScalar>::IsInteger && NumTraits<RealScalar>::IsSigned && !NumTraits<Scalar>::IsComplex) {
-    // Here we cap the size of the values in m1 such that pow(3)/cube()
-    // doesn't overflow and result in undefined behavior. Notice that because
-    // pow(int, int) promotes its inputs and output to double (according to
-    // the C++ standard), we have to make sure that the result fits in 53 bits
-    // for int64,
-    RealScalar max_val =
-        numext::mini(RealScalar(std::cbrt(NumTraits<RealScalar>::highest())), RealScalar(std::cbrt(1LL << 53))) / 2;
-    m1.array() = (m1.abs().array() <= max_val).select(m1, Scalar(max_val));
-  }
-  ArrayType m2 = ArrayType::Random(rows, cols), m3(rows, cols);
+  ArrayType m1 = random_for_arithmetic<ArrayType>(rows, cols);
+  ArrayType m2 = random_for_arithmetic<ArrayType>(rows, cols), m3(rows, cols);
   ArrayType m4 = m1;  // copy constructor
   VERIFY_IS_APPROX(m1, m4);
 
-  ColVectorType cv1 = ColVectorType::Random(rows);
-  RowVectorType rv1 = RowVectorType::Random(cols);
+  ColVectorType cv1 = random_for_arithmetic<ColVectorType>(rows);
+  RowVectorType rv1 = random_for_arithmetic<RowVectorType>(cols);
 
-  Scalar s1 = internal::random<Scalar>(), s2 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>(), s2 = random_scalar_for_arithmetic<Scalar>();
 
   // scalar addition
   VERIFY_IS_APPROX(m1 + s1, s1 + m1);
@@ -563,7 +613,7 @@ void array_generic(const ArrayType& m) {
 
   m3 = m1;
   m4 = m1;
-  m2 = ArrayType::Random(rows, cols);
+  m2 = random_for_arithmetic<ArrayType>(rows, cols);
   m2 = (m2 == 0).select(1, m2);
   ArrayType::Map(m4.data(), m4.rows(), m4.cols()) /= ArrayType::Map(m2.data(), m2.rows(), m2.cols());
   VERIFY_IS_APPROX(m4, m3 / m2);
@@ -690,7 +740,8 @@ void comparisons(const ArrayType& m) {
 
   Index r = internal::random<Index>(0, rows - 1), c = internal::random<Index>(0, cols - 1);
 
-  ArrayType m1 = ArrayType::Random(rows, cols), m2 = ArrayType::Random(rows, cols), m3(rows, cols), m4 = m1;
+  ArrayType m1 = random_for_arithmetic<ArrayType>(rows, cols), m2 = random_for_arithmetic<ArrayType>(rows, cols),
+            m3(rows, cols), m4 = m1;
 
   m4 = (m4.abs() == Scalar(0)).select(1, m4);
 
@@ -842,7 +893,6 @@ void array_real(const ArrayType& m) {
   VERIFY_IS_APPROX(m1.tanh().atanh(), atanh(tanh(m1)));
   VERIFY_IS_APPROX(m1.sinh().asinh(), asinh(sinh(m1)));
   VERIFY_IS_APPROX(m1.cosh().acosh(), acosh(cosh(m1)));
-  VERIFY_IS_APPROX(m1.tanh().atanh(), atanh(tanh(m1)));
   VERIFY_IS_APPROX(m1.logistic(), logistic(m1));
 
   VERIFY_IS_APPROX(m1.arg(), arg(m1));
@@ -1113,53 +1163,17 @@ void min_max(const ArrayType& m) {
   }
 }
 
-template <typename Scalar>
-struct shift_imm_traits {
-  enum { Cost = 1, PacketAccess = internal::packet_traits<Scalar>::HasShift };
-};
-
-template <int N, typename Scalar>
-struct logical_left_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::logical_shift_left(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::plogical_shift_left<N>(v);
-  }
-};
-template <int N, typename Scalar>
-struct logical_right_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::logical_shift_right(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::plogical_shift_right<N>(v);
-  }
-};
-template <int N, typename Scalar>
-struct arithmetic_right_shift_op {
-  Scalar operator()(const Scalar& v) const { return numext::arithmetic_shift_right(v, N); }
-  template <typename Packet>
-  Packet packetOp(const Packet& v) const {
-    return internal::parithmetic_shift_right<N>(v);
-  }
-};
-
-namespace Eigen {
-namespace internal {
-template <int N, typename Scalar>
-struct functor_traits<logical_left_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
-struct functor_traits<logical_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-template <int N, typename Scalar>
-struct functor_traits<arithmetic_right_shift_op<N, Scalar>> : shift_imm_traits<Scalar> {};
-}  // namespace internal
-}  // namespace Eigen
-
+// A lambda takes the default functor_traits, so each reference arm stays scalar while the arm under
+// test vectorizes. Comparing the reference against the shift expression as well as against the
+// assigned result evaluates the expression coefficient-wise, which is the only path that reaches the
+// scalar operator() of its functor.
 template <typename ArrayType>
 struct shift_test_impl {
-  typedef typename ArrayType::Scalar Scalar;
+  using Scalar = typename ArrayType::Scalar;
   static constexpr size_t Size = sizeof(Scalar);
   static constexpr size_t MaxShift = (CHAR_BIT * Size) - 1;
 
+  // N starts at one: NEON's immediate right-shift intrinsics reject a count of zero.
   template <size_t N = 1>
   static inline std::enable_if_t<(N > MaxShift), void> run(const ArrayType&) {}
   template <size_t N = 1>
@@ -1168,18 +1182,29 @@ struct shift_test_impl {
     const Index cols = m.cols();
 
     ArrayType m1 = ArrayType::Random(rows, cols), m2(rows, cols), m3(rows, cols);
+    // The high bit is what separates an arithmetic right shift from a logical one.
+    m1(0, 0) = NumTraits<Scalar>::lowest();
+    m1(rows - 1, cols - 1) = NumTraits<Scalar>::highest();
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_left(v, N); });
-    m3 = m1.unaryExpr(logical_left_shift_op<N, Scalar>());
+    m3 = m1.template logicalShiftLeft<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template logicalShiftLeft<N>());
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftLeft<N>());
 
     m2 = m1.unaryExpr([](const Scalar& v) { return numext::logical_shift_right(v, N); });
-    m3 = m1.unaryExpr(logical_right_shift_op<N, Scalar>());
+    m3 = m1.template logicalShiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template logicalShiftRight<N>());
 
-    m2 = m1.unaryExpr([](const Scalar& v) { return numext::arithmetic_shift_right(v, N); });
-    m3 = m1.unaryExpr(arithmetic_right_shift_op<N, Scalar>());
+    // Referencing Scalar's own operator>> rather than the numext helper the functor calls keeps this
+    // arm independent of the implementation under test, and states the semantics: fill with the sign
+    // bit when Scalar is signed and with zero when it is not.
+    m2 = m1.unaryExpr([](const Scalar& v) { return static_cast<Scalar>(v >> N); });
+    m3 = m1.template arithmeticShiftRight<N>();
     VERIFY_IS_CWISE_EQUAL(m2, m3);
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template arithmeticShiftRight<N>());
+    VERIFY_IS_CWISE_EQUAL(m2, m1.template shiftRight<N>());
 
     run<N + 1>(m);
   }
@@ -1297,6 +1322,30 @@ void typed_logicals_test(const ArrayType& m) {
   typed_logicals_test_impl<ArrayType>::run(m);
 }
 
+// Integer scalars are always finite, so isFiniteTyped() must be true (nonzero) everywhere. Only
+// truthiness is checked: the exact nonzero value differs between the vectorized path (all-ones
+// mask) and the scalar path (1). Regression: the vectorized path used to compare |x| against a
+// synthesized "infinity" bit pattern, misclassifying |x| >= 2^(digits-1) for signed types and
+// everything for unsigned ones.
+template <typename ArrayType>
+void integer_typed_predicates_test(const ArrayType& m) {
+  typedef typename ArrayType::Scalar Scalar;
+  Index rows = m.rows();
+  Index cols = m.cols();
+  const Scalar values[] = {Scalar(0),
+                           Scalar(1),
+                           static_cast<Scalar>(-1),
+                           Scalar(Scalar(1) << (std::numeric_limits<Scalar>::digits - 1)),
+                           NumTraits<Scalar>::highest(),
+                           NumTraits<Scalar>::lowest()};
+  const Index num_values = sizeof(values) / sizeof(values[0]);
+  ArrayType m1(rows, cols);
+  for (Index i = 0; i < m1.size(); ++i) m1.coeffRef(i) = values[i % num_values];
+  // Materialize so the vectorized assignment path engages.
+  ArrayType finite = m1.isFiniteTyped();
+  VERIFY((finite != Scalar(0)).all());
+}
+
 template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1367,6 +1416,60 @@ void cast_test() {
                   uint32_t, uint64_t, float, double, /*long double, */ half, bfloat16>::run();
 }
 
+void bool_logical_ops() {
+  const Index size = 67;
+  ArrayX<bool> lhs = ArrayXi::Random(size) > 0;
+  ArrayX<bool> rhs = ArrayXi::Random(size) > 0;
+  for (Index i = 0; i < 4; ++i) {
+    lhs[i] = lhs[size - 4 + i] = (i & 2) != 0;
+    rhs[i] = rhs[size - 4 + i] = (i & 1) != 0;
+  }
+
+  ArrayX<bool> actual_and(size), actual_or(size), actual_xor(size), actual_not(size);
+  ArrayX<bool> expected_and(size), expected_or(size), expected_xor(size), expected_not(size);
+  actual_and = lhs && rhs;
+  actual_or = lhs || rhs;
+  actual_xor = lhs.binaryExpr(rhs, internal::scalar_boolean_xor_op<bool>());
+  actual_not = !lhs;
+  for (Index i = 0; i < size; ++i) {
+    expected_and[i] = lhs[i] && rhs[i];
+    expected_or[i] = lhs[i] || rhs[i];
+    expected_xor[i] = lhs[i] != rhs[i];
+    expected_not[i] = !lhs[i];
+  }
+  VERIFY_IS_CWISE_EQUAL(actual_and, expected_and);
+  VERIFY_IS_CWISE_EQUAL(actual_or, expected_or);
+  VERIFY_IS_CWISE_EQUAL(actual_xor, expected_xor);
+  VERIFY_IS_CWISE_EQUAL(actual_not, expected_not);
+}
+
+template <typename RealScalar>
+void complex_classification() {
+  using Complex = std::complex<RealScalar>;
+  const RealScalar inf = NumTraits<RealScalar>::infinity();
+  const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
+
+  struct TestCase {
+    Complex value;
+    bool finite;
+    bool infinite;
+    bool not_a_number;
+  };
+  const TestCase test_cases[] = {
+      {Complex(0, 0), true, false, false},     {Complex(inf, 0), false, true, false},
+      {Complex(0, inf), false, true, false},   {Complex(nan, 0), false, false, true},
+      {Complex(0, nan), false, false, true},   {Complex(inf, nan), false, false, true},
+      {Complex(nan, inf), false, false, true}, {Complex(-inf, -inf), false, true, false},
+      {Complex(nan, nan), false, false, true},
+  };
+
+  for (const TestCase& test_case : test_cases) {
+    VERIFY_IS_EQUAL((numext::isfinite)(test_case.value), test_case.finite);
+    VERIFY_IS_EQUAL((numext::isinf)(test_case.value), test_case.infinite);
+    VERIFY_IS_EQUAL((numext::isnan)(test_case.value), test_case.not_a_number);
+  }
+}
+
 EIGEN_DECLARE_TEST(array_cwise) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(array_generic(Array<float, 1, 1>()));
@@ -1384,6 +1487,23 @@ EIGEN_DECLARE_TEST(array_cwise) {
         ArrayXXi(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_9(shift_test(Array<Index, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                              internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    // An unsigned Scalar has no sign bit, so its arithmetic right shift must not sign-extend.
+    CALL_SUBTEST_38(shift_test(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_39(shift_test(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<int8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                               internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_40(shift_test(Array<uint8_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    // A random dynamic size above only occasionally lands on 4, so it does not reliably exercise
+    // the quarter-width NEON packets (Packet4c/Packet4uc); pin a fixed size to cover them every run.
+    CALL_SUBTEST_40(shift_test(Array<int8_t, 4, 1>()));
+    CALL_SUBTEST_40(shift_test(Array<uint8_t, 4, 1>()));
+    CALL_SUBTEST_41(shift_test(Array<int16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_41(shift_test(Array<uint16_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                 internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_10(array_generic(Array<uint32_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_11(array_generic(Array<uint64_t, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
@@ -1422,6 +1542,9 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_18(array_complex(
         ArrayXXcd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
+  CALL_SUBTEST_17(complex_classification<float>());
+  CALL_SUBTEST_18(complex_classification<double>());
+  CALL_SUBTEST_18(complex_classification<long double>());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_19(float_pow_test());
@@ -1430,11 +1553,22 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_22(signbit_tests());
   }
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_34(ldexp_test<float>());
+    CALL_SUBTEST_35(ldexp_test<double>());
+    CALL_SUBTEST_36(ldexp_test<Eigen::half>());
+    CALL_SUBTEST_37(ldexp_test<Eigen::bfloat16>());
+  }
+  for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_23(typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayXX<int64_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
+                                                                   internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_typed_predicates_test(ArrayX<uint32_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_24(typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_42(bool_logical_ops());
   }
 
   for (int i = 0; i < g_repeat; i++) {

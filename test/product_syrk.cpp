@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "product_test_helpers.h"
 
 template <typename MatrixType>
 void syrk(const MatrixType& m) {
@@ -39,28 +40,32 @@ void syrk(const MatrixType& m) {
   VERIFY_IS_APPROX((m2.template selfadjointView<Lower>().rankUpdate(rhs2, s1)._expression()),
                    ((s1 * rhs2 * rhs2.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
   m2.setZero();
-  VERIFY_IS_APPROX(((m2.template triangularView<Lower>() += s1 * rhs2 * rhs22.adjoint()).nestedExpression()),
-                   ((s1 * rhs2 * rhs22.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+  VERIFY(verifyProduct((m2.template triangularView<Lower>() += s1 * rhs2 * rhs22.adjoint()).nestedExpression(),
+                       (s1 * rhs2 * rhs22.adjoint()).eval().template triangularView<Lower>().toDenseMatrix(), s1 * rhs2,
+                       rhs22.adjoint()));
 
   m2.setZero();
   VERIFY_IS_APPROX(m2.template selfadjointView<Upper>().rankUpdate(rhs2, s1)._expression(),
                    (s1 * rhs2 * rhs2.adjoint()).eval().template triangularView<Upper>().toDenseMatrix());
   m2.setZero();
-  VERIFY_IS_APPROX((m2.template triangularView<Upper>() += s1 * rhs22 * rhs2.adjoint()).nestedExpression(),
-                   (s1 * rhs22 * rhs2.adjoint()).eval().template triangularView<Upper>().toDenseMatrix());
+  VERIFY(verifyProduct((m2.template triangularView<Upper>() += s1 * rhs22 * rhs2.adjoint()).nestedExpression(),
+                       (s1 * rhs22 * rhs2.adjoint()).eval().template triangularView<Upper>().toDenseMatrix(),
+                       s1 * rhs22, rhs2.adjoint()));
 
   m2.setZero();
   VERIFY_IS_APPROX(m2.template selfadjointView<Lower>().rankUpdate(rhs1.adjoint(), s1)._expression(),
                    (s1 * rhs1.adjoint() * rhs1).eval().template triangularView<Lower>().toDenseMatrix());
   m2.setZero();
-  VERIFY_IS_APPROX((m2.template triangularView<Lower>() += s1 * rhs11.adjoint() * rhs1).nestedExpression(),
-                   (s1 * rhs11.adjoint() * rhs1).eval().template triangularView<Lower>().toDenseMatrix());
+  VERIFY(verifyProduct((m2.template triangularView<Lower>() += s1 * rhs11.adjoint() * rhs1).nestedExpression(),
+                       (s1 * rhs11.adjoint() * rhs1).eval().template triangularView<Lower>().toDenseMatrix(),
+                       s1 * rhs11.adjoint(), rhs1));
 
   m2.setZero();
   VERIFY_IS_APPROX(m2.template selfadjointView<Upper>().rankUpdate(rhs1.adjoint(), s1)._expression(),
                    (s1 * rhs1.adjoint() * rhs1).eval().template triangularView<Upper>().toDenseMatrix());
-  VERIFY_IS_APPROX((m2.template triangularView<Upper>() = s1 * rhs1.adjoint() * rhs11).nestedExpression(),
-                   (s1 * rhs1.adjoint() * rhs11).eval().template triangularView<Upper>().toDenseMatrix());
+  VERIFY(verifyProduct((m2.template triangularView<Upper>() = s1 * rhs1.adjoint() * rhs11).nestedExpression(),
+                       (s1 * rhs1.adjoint() * rhs11).eval().template triangularView<Upper>().toDenseMatrix(),
+                       s1 * rhs1.adjoint(), rhs11));
 
   m2.setZero();
   VERIFY_IS_APPROX(m2.template selfadjointView<Lower>().rankUpdate(rhs3.adjoint(), s1)._expression(),

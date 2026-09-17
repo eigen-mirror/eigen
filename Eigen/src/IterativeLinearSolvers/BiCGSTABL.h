@@ -50,8 +50,8 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditioner &precond, Index &iters,
                typename Dest::RealScalar &tol_error, Index L) {
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
   const Index N = rhs.size();
   L = numext::mini(L, x.rows());
 
@@ -60,8 +60,8 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
   const RealScalar tol = tol_error;
   const Index maxIters = iters;
 
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   DenseMatrixType rHat(N, L + 1);
   DenseMatrixType uHat(N, L + 1);
@@ -272,8 +272,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<Eigen::BiCGSTABL<MatrixType_, Preconditioner_>> {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -281,7 +281,7 @@ struct traits<Eigen::BiCGSTABL<MatrixType_, Preconditioner_>> {
 template <typename MatrixType_, typename Preconditioner_>
 class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Preconditioner_>> {
  protected:
-  typedef IterativeSolverBase<BiCGSTABL> Base;
+  using Base = IterativeSolverBase<BiCGSTABL>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -290,10 +290,10 @@ class BiCGSTABL : public IterativeSolverBase<BiCGSTABL<MatrixType_, Precondition
   Index m_L = 2;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
   /** Default constructor. */
   BiCGSTABL() = default;

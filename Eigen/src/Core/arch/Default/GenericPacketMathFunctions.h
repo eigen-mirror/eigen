@@ -47,7 +47,7 @@ namespace internal {
 // Sollya's fpminimax, giving faithfully-rounded results (max 1 ULP for log).
 template <typename Packet>
 EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const PacketI cst_min_normal = pset1<PacketI>(0x00800000);
   const PacketI cst_mant_mask = pset1<PacketI>(0x007fffff);
@@ -124,8 +124,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const
   //  - negative arg → NAN
   //  - 0 → -INF
   //  - +INF → +INF
-  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0xff800000u));
-  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0x7f800000u));
+  const Packet cst_minus_inf = por(psignmask<Packet>(), pinf<Packet>());
+  const Packet cst_pos_inf = pinf<Packet>();
   Packet invalid_mask = pcmp_lt_or_nan(_x, pzero(_x));
   Packet iszero_mask = pcmp_eq(_x, pzero(_x));
   Packet pos_inf_mask = pcmp_eq(_x, cst_pos_inf);
@@ -219,7 +219,7 @@ struct plog_range_reduce_double {
 template <typename Packet>
 struct plog_range_reduce_double<Packet, true> {
   EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
-    typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
     // 2^-1022: smallest positive normal double.
     const PacketI cst_min_normal = pset1<PacketI>(static_cast<int64_t>(0x0010000000000000LL));
     // Lower 52-bit mask (IEEE mantissa field).
@@ -287,8 +287,8 @@ EIGEN_STRONG_INLINE void plog_core_double(const Packet v, Packet& log_mantissa, 
  */
 template <typename Packet, bool base2>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(const Packet _x) {
-  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<uint64_t>(0xfff0000000000000ull));
-  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<uint64_t>(0x7ff0000000000000ull));
+  const Packet cst_minus_inf = por(psignmask<Packet>(), pinf<Packet>());
+  const Packet cst_pos_inf = pinf<Packet>();
 
   Packet log_mantissa, e;
   plog_core_double(_x, log_mantissa, e);
@@ -332,8 +332,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2_double(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(const Packet& x) {
   const Packet one = pset1<Packet>(1.0f);
-  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0xff800000u));
-  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<Eigen::numext::uint32_t>(0x7f800000u));
+  const Packet cst_minus_inf = por(psignmask<Packet>(), pinf<Packet>());
+  const Packet cst_pos_inf = pinf<Packet>();
 
   // u = 1 + x, with rounding. Recover the lost low bits: dx = x - (u - 1).
   Packet u = padd(one, x);
@@ -372,8 +372,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(c
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(const Packet& x) {
   const Packet one = pset1<Packet>(1.0);
-  const Packet cst_minus_inf = pset1frombits<Packet>(static_cast<uint64_t>(0xfff0000000000000ull));
-  const Packet cst_pos_inf = pset1frombits<Packet>(static_cast<uint64_t>(0x7ff0000000000000ull));
+  const Packet cst_minus_inf = por(psignmask<Packet>(), pinf<Packet>());
+  const Packet cst_pos_inf = pinf<Packet>();
 
   // u = 1 + x, with rounding.  Recover the lost low bits: dx = x - (u - 1).
   Packet u = padd(one, x);
@@ -409,7 +409,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(
  */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  using ScalarType = typename unpacket_traits<Packet>::type;
   const Packet one = pset1<Packet>(ScalarType(1));
   Packet xp1 = padd(x, one);
   Packet small_mask = pcmp_eq(xp1, one);
@@ -424,7 +424,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const P
  */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  using ScalarType = typename unpacket_traits<Packet>::type;
   const Packet one = pset1<Packet>(ScalarType(1));
   const Packet neg_one = pset1<Packet>(ScalarType(-1));
   Packet u = pexp(x);
@@ -448,7 +448,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 // exp(r) is computed using a 6th order minimax polynomial approximation.
 template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
-  typedef typename unpacket_traits<Packet>::integer_packet PacketI;
+  using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
@@ -590,7 +590,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
 //
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
+  using Scalar = typename unpacket_traits<Packet>::type;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
   constexpr int digits = std::numeric_limits<Scalar>::digits;
   constexpr Scalar max_cap = Scalar(max_exponent + 1);
@@ -610,12 +610,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Pa
     log10(x) ~= log(x) * hi + log(x) * lo, computed via fma. */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10_float(const Packet& x) {
-  typedef typename unpacket_traits<Packet>::type Scalar;
   // log10(e) in higher precision, split into hi+lo so log_x*(hi+lo) is reconstructed via FMA.
   // hi = round-to-nearest-float of log10(e); lo = float(log10(e) - hi).
   const Packet cst_log10e_hi = pset1<Packet>(0.4342944920063018f);
   const Packet cst_log10e_lo = pset1<Packet>(-1.0103049952192578e-08f);
-  const Packet cst_inf = pset1<Packet>(NumTraits<Scalar>::infinity());
+  const Packet cst_inf = pinf<Packet>();
   const Packet cst_zero = pzero(x);
 
   const Packet log_x = plog(x);
@@ -708,9 +707,9 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
                                            NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
                                            unpacket_traits<Packet>::vectorizable>> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-    typedef typename unpacket_traits<Packet>::type Scalar;
-    typedef typename Scalar::value_type RealScalar;
-    typedef typename unpacket_traits<Packet>::as_real RealPacket;
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using RealScalar = typename Scalar::value_type;
+    using RealPacket = typename unpacket_traits<Packet>::as_real;
 
     // Step 1. Compute (for each element z = x + i*y in a)
     //     l = abs(z) = sqrt(x^2 + y^2).
@@ -777,7 +776,7 @@ template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_ceil(const Packet& a) {
   using Scalar = typename unpacket_traits<Packet>::type;
   const Packet cst_1 = pset1<Packet>(Scalar(1));
-  const Packet sign_mask = pset1<Packet>(static_cast<Scalar>(-0.0));
+  const Packet sign_mask = psignmask<Packet>();
   Packet rint_a = generic_rint(a);
   // if rint(a) < a, then rint(a) == floor(a)
   Packet mask = pcmp_lt(rint_a, a);

@@ -18,9 +18,9 @@ namespace Eigen {
 template <typename T, size_t n>
 class array {
  public:
-  typedef T value_type;
-  typedef T* iterator;
-  typedef const T* const_iterator;
+  using value_type = T;
+  using iterator = T*;
+  using const_iterator = const T*;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE iterator begin() { return values; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const_iterator begin() const { return values; }
@@ -28,8 +28,8 @@ class array {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE iterator end() { return values + n; }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const_iterator end() const { return values + n; }
 
-  typedef std::reverse_iterator<iterator> reverse_iterator;
-  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   EIGEN_STRONG_INLINE reverse_iterator rbegin() { return reverse_iterator(end()); }
   EIGEN_STRONG_INLINE const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }

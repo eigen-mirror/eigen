@@ -80,9 +80,9 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
                              const typename Dest::RealScalar& conlim) {
   using numext::abs;
   using numext::sqrt;
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   const RealScalar zero(0);
   const RealScalar one(1);
@@ -276,8 +276,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<LSMR<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -311,6 +311,12 @@ struct traits<LSMR<MatrixType_, Preconditioner_> > {
  * the algorithm's stopping tolerances \c atol (relative error assumed in \c A)
  * and \c btol (relative error assumed in \c b); they can also be set
  * independently via setToleranceA() and setToleranceB().
+ *
+ * Unlike most other iterative solvers, error() does not report the relative
+ * residual \f$ ||Ax-b||/||b|| \f$: it reports the estimate
+ * \f$ ||A^T r|| / (||A||\,||r||) \f$, with \f$ r = b - Ax \f$, of the relative
+ * residual of the normal equations, the quantity that the least-squares
+ * stopping rule bounds by \c atol.
  *
  * The setDamping() method enables Tikhonov regularization: with a damping
  * \f$ \lambda > 0 \f$ the solver minimizes
@@ -347,7 +353,7 @@ struct traits<LSMR<MatrixType_, Preconditioner_> > {
 template <typename MatrixType_, typename Preconditioner_>
 class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<LSMR> Base;
+  using Base = IterativeSolverBase<LSMR>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -355,10 +361,10 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
   using Base::matrix;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
   /** Default constructor. */
   LSMR() : Base() {}

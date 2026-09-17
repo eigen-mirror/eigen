@@ -32,8 +32,8 @@ struct Packet2cf {
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
 struct packet_traits<std::complex<float> > : default_packet_traits {
-  typedef Packet2cf type;
-  typedef Packet2cf half;
+  using type = Packet2cf;
+  using half = Packet2cf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -58,9 +58,9 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet2cf> {
-  typedef std::complex<float> type;
-  typedef Packet2cf half;
-  typedef Packet4f as_real;
+  using type = std::complex<float>;
+  using half = Packet2cf;
+  using as_real = Packet4f;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -105,7 +105,7 @@ EIGEN_STRONG_INLINE Packet2cf pmul(const Packet2cf& a, const Packet2cf& b) {
 #ifdef EIGEN_VECTORIZE_SSE3
   __m128 result = _mm_addsub_ps(_mm_mul_ps(tmp2, b.v), tmp1);
 #else
-  const __m128 mask = _mm_setr_ps(-0.0f, 0.0f, -0.0f, 0.0f);
+  const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(0x80000000, 0x00000000, 0x80000000, 0x00000000));
   __m128 result = _mm_add_ps(_mm_mul_ps(tmp2, b.v), _mm_xor_ps(tmp1, mask));
 #endif
 #endif
@@ -229,8 +229,8 @@ struct Packet1cd {
 #ifndef EIGEN_VECTORIZE_AVX
 template <>
 struct packet_traits<std::complex<double> > : default_packet_traits {
-  typedef Packet1cd type;
-  typedef Packet1cd half;
+  using type = Packet1cd;
+  using half = Packet1cd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
@@ -255,9 +255,9 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet1cd> {
-  typedef std::complex<double> type;
-  typedef Packet1cd half;
-  typedef Packet2d as_real;
+  using type = std::complex<double>;
+  using half = Packet1cd;
+  using as_real = Packet2d;
   enum {
     size = 1,
     alignment = Aligned16,
@@ -299,7 +299,7 @@ EIGEN_STRONG_INLINE Packet1cd pmul(const Packet1cd& a, const Packet1cd& b) {
 #ifdef EIGEN_VECTORIZE_SSE3
   __m128d result = _mm_addsub_pd(_mm_mul_pd(tmp2, b.v), tmp1);
 #else
-  const __m128d mask = _mm_setr_pd(-0.0, 0.0);
+  const __m128d mask = _mm_castsi128_pd(_mm_set_epi64x(0x0, 0x8000000000000000ull));
   __m128d result = _mm_add_pd(_mm_mul_pd(tmp2, b.v), _mm_xor_pd(tmp1, mask));
 #endif
 #endif
@@ -342,11 +342,6 @@ pset1<Packet1cd>(const std::complex<double>& from) { /* here we really have to u
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* from) {
-  return pset1<Packet1cd>(*from);
-}
-
-template <>
 EIGEN_STRONG_INLINE void pstore<std::complex<double> >(std::complex<double>* to, const Packet1cd& from) {
   EIGEN_DEBUG_ALIGNED_STORE _mm_store_pd((double*)to, from.v);
 }
@@ -365,21 +360,6 @@ EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1cd>(const Packet1cd& a) {
   EIGEN_ALIGN16 double res[2];
   _mm_store_pd(res, a.v);
   return std::complex<double>(res[0], res[1]);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd preverse(const Packet1cd& a) {
-  return a;
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1cd, Packet2d)

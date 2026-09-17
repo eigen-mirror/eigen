@@ -41,10 +41,9 @@ struct umeyama_transform_matrix_type {
     HomogeneousDimension = int(MinRowsAtCompileTime) == Dynamic ? Dynamic : int(MinRowsAtCompileTime) + 1
   };
 
-  typedef Matrix<typename traits<MatrixType>::Scalar, HomogeneousDimension, HomogeneousDimension,
-                 AutoAlign | (traits<MatrixType>::Flags & RowMajorBit ? RowMajor : ColMajor), HomogeneousDimension,
-                 HomogeneousDimension>
-      type;
+  using type = Matrix<typename traits<MatrixType>::Scalar, HomogeneousDimension, HomogeneousDimension,
+                      AutoAlign | (traits<MatrixType>::Flags & RowMajorBit ? RowMajor : ColMajor), HomogeneousDimension,
+                      HomogeneousDimension>;
 };
 
 }  // namespace internal
@@ -90,9 +89,9 @@ struct umeyama_transform_matrix_type {
 template <typename Derived, typename OtherDerived>
 typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type umeyama(
     const MatrixBase<Derived>& src, const MatrixBase<OtherDerived>& dst, bool with_scaling = true) {
-  typedef typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type TransformationMatrixType;
-  typedef typename internal::traits<TransformationMatrixType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using TransformationMatrixType = typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type;
+  using Scalar = typename internal::traits<TransformationMatrixType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
   EIGEN_STATIC_ASSERT(
@@ -101,9 +100,9 @@ typename internal::umeyama_transform_matrix_type<Derived, OtherDerived>::type um
 
   enum { Dimension = internal::min_size_prefer_dynamic(Derived::RowsAtCompileTime, OtherDerived::RowsAtCompileTime) };
 
-  typedef Matrix<Scalar, Dimension, 1> VectorType;
-  typedef Matrix<Scalar, Dimension, Dimension> MatrixType;
-  typedef typename internal::plain_matrix_type_row_major<Derived>::type RowMajorMatrixType;
+  using VectorType = Matrix<Scalar, Dimension, 1>;
+  using MatrixType = Matrix<Scalar, Dimension, Dimension>;
+  using RowMajorMatrixType = typename internal::plain_matrix_type_row_major<Derived>::type;
 
   const Index m = src.rows();  // dimension
   const Index n = src.cols();  // number of measurements

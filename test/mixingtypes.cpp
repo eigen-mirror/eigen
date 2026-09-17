@@ -9,19 +9,10 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#if defined(EIGEN_TEST_PART_7)
-
-// ignore double-promotion diagnostic for clang and gcc, if we check for static assertion anyway:
-// TODO do the same for MSVC?
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wdouble-promotion"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
-#endif
-
-#endif
-
-#if defined(EIGEN_TEST_PART_1) || defined(EIGEN_TEST_PART_2) || defined(EIGEN_TEST_PART_3)
+// Subtests 1, 2, 3, 8 and 9 build without vectorization; 4, 5, 6, 10 and 11 are their
+// vectorized counterparts.
+#if defined(EIGEN_TEST_PART_1) || defined(EIGEN_TEST_PART_2) || defined(EIGEN_TEST_PART_3) || \
+    defined(EIGEN_TEST_PART_8) || defined(EIGEN_TEST_PART_9)
 
 #ifndef EIGEN_DONT_VECTORIZE
 #define EIGEN_DONT_VECTORIZE
@@ -42,8 +33,9 @@ using namespace std;
   VERIFY_IS_APPROX(XPR, REF);       \
   VERIFY(g_called&& #XPR " not properly optimized");
 
+// Scalar and coefficient-wise mixed-type operations, and compound assignment.
 template <int SizeAtCompileType>
-void mixingtypes(int size = SizeAtCompileType) {
+void mixingtypes_scalar(int size = SizeAtCompileType) {
   typedef std::complex<float> CF;
   typedef std::complex<double> CD;
   typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
@@ -134,35 +126,109 @@ void mixingtypes(int size = SizeAtCompileType) {
   // check outer product
   VERIFY_IS_APPROX((vf * vcf.transpose()).eval(), (vf.template cast<complex<float> >() * vcf.transpose()).eval());
 
-  // coeff wise product
+  rcd.setZero();
+  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = sd * mcd * md),
+                   Mat_cd((sd * mcd * md.template cast<CD>().eval()).template triangularView<Upper>()));
+  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = sd * md * mcd),
+                   Mat_cd((sd * md.template cast<CD>().eval() * mcd).template triangularView<Upper>()));
+  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = scd * mcd * md),
+                   Mat_cd((scd * mcd * md.template cast<CD>().eval()).template triangularView<Upper>()));
+  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = scd * md * mcd),
+                   Mat_cd((scd * md.template cast<CD>().eval() * mcd).template triangularView<Upper>()));
 
-  VERIFY_IS_APPROX((vf * vcf.transpose()).eval(), (vf.template cast<complex<float> >() * vcf.transpose()).eval());
+  VERIFY_IS_APPROX(md.array() * mcd.array(), md.template cast<CD>().eval().array() * mcd.array());
+  VERIFY_IS_APPROX(mcd.array() * md.array(), mcd.array() * md.template cast<CD>().eval().array());
 
-  Mat_cd mcd2 = mcd;
-  VERIFY_IS_APPROX(mcd.array() *= md.array(), mcd2.array() *= md.array().template cast<std::complex<double> >());
+  VERIFY_IS_APPROX(md.array() + mcd.array(), md.template cast<CD>().eval().array() + mcd.array());
+  VERIFY_IS_APPROX(mcd.array() + md.array(), mcd.array() + md.template cast<CD>().eval().array());
 
-  // check matrix-matrix products
-  VERIFY_IS_APPROX(sd * md * mcd, (sd * md).template cast<CD>().eval() * mcd);
-  VERIFY_IS_APPROX(sd * mcd * md, sd * mcd * md.template cast<CD>());
-  VERIFY_IS_APPROX(scd * md * mcd, scd * md.template cast<CD>().eval() * mcd);
-  VERIFY_IS_APPROX(scd * mcd * md, scd * mcd * md.template cast<CD>());
+  VERIFY_IS_APPROX(md.array() - mcd.array(), md.template cast<CD>().eval().array() - mcd.array());
+  VERIFY_IS_APPROX(mcd.array() - md.array(), mcd.array() - md.template cast<CD>().eval().array());
 
+  if (mcd.array().abs().minCoeff() > epsd) {
+    VERIFY_IS_APPROX(md.array() / mcd.array(), md.template cast<CD>().eval().array() / mcd.array());
+  }
+  if (md.array().abs().minCoeff() > epsd) {
+    VERIFY_IS_APPROX(mcd.array() / md.array(), mcd.array() / md.template cast<CD>().eval().array());
+  }
+
+  // Norm-based comparisons require finite powers; zero bases are checked separately below.
+  const Mat_d power_base_d = (md.array().abs() > epsd).select(md.array(), 1.0);
+  const Mat_cd power_base_cd = (mcd.array().abs() > epsd).select(mcd.array(), CD(1));
+  VERIFY_IS_APPROX(power_base_d.array().pow(mcd.array()),
+                   power_base_d.template cast<CD>().eval().array().pow(mcd.array()));
+  VERIFY_IS_APPROX(power_base_cd.array().pow(md.array()),
+                   power_base_cd.array().pow(md.template cast<CD>().eval().array()));
+
+  VERIFY_IS_APPROX(pow(power_base_d.array(), mcd.array()),
+                   power_base_d.template cast<CD>().eval().array().pow(mcd.array()));
+  VERIFY_IS_APPROX(pow(power_base_cd.array(), md.array()),
+                   power_base_cd.array().pow(md.template cast<CD>().eval().array()));
+
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd = md, md.template cast<CD>().eval());
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd += md, mcd + md.template cast<CD>().eval());
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd -= md, mcd - md.template cast<CD>().eval());
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.array() *= md.array(), mcd.array() * md.template cast<CD>().eval().array());
+  rcd = mcd;
+  if (md.array().abs().minCoeff() > epsd) {
+    VERIFY_IS_APPROX(rcd.array() /= md.array(), mcd.array() / md.template cast<CD>().eval().array());
+  }
+
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.noalias() += md + mcd * md,
+                   mcd + (md.template cast<CD>().eval()) + mcd * (md.template cast<CD>().eval()));
+
+  VERIFY_IS_APPROX(rcd.noalias() = md * md, ((md * md).eval().template cast<CD>()));
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.noalias() += md * md, mcd + ((md * md).eval().template cast<CD>()));
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.noalias() -= md * md, mcd - ((md * md).eval().template cast<CD>()));
+
+  VERIFY_IS_APPROX(rcd.noalias() = mcd + md * md, mcd + ((md * md).eval().template cast<CD>()));
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.noalias() += mcd + md * md, mcd + mcd + ((md * md).eval().template cast<CD>()));
+  rcd = mcd;
+  VERIFY_IS_APPROX(rcd.noalias() -= mcd + md * md, -((md * md).eval().template cast<CD>()));
+}
+
+// Mixed-type products in the float / complex<float> family. Split from the double
+// family because each carries its own GEMM and GEMV instantiations; together they made
+// the two Dynamic subtests the slowest units in the official test suite.
+template <int SizeAtCompileType>
+void mixingtypes_product_f(int size = SizeAtCompileType) {
+  typedef std::complex<float> CF;
+  typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
+  typedef Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType> Mat_cf;
+  typedef Matrix<float, SizeAtCompileType, 1> Vec_f;
+  typedef Matrix<std::complex<float>, SizeAtCompileType, 1> Vec_cf;
+
+  Mat_f mf = Mat_f::Random(size, size);
+  Mat_cf mcf = Mat_cf::Random(size, size);
+  Vec_f vf = Vec_f::Random(size, 1);
+  Vec_cf vcf = Vec_cf::Random(size, 1);
+  float sf = internal::random<float>();
+  complex<float> scf = internal::random<complex<float> >();
+
+  float epsf = std::sqrt(std::numeric_limits<float>::min EIGEN_EMPTY());
+
+  if (std::abs(sf) < epsf) sf = 1.0f;
+  if (std::abs(scf) < epsf) scf = CF(1);
+
+  // check matrix-matrix, matrix-vector and compound products
   VERIFY_IS_APPROX(sf * mf * mcf, sf * mf.template cast<CF>() * mcf);
   VERIFY_IS_APPROX(sf * mcf * mf, sf * mcf * mf.template cast<CF>());
   VERIFY_IS_APPROX(scf * mf * mcf, scf * mf.template cast<CF>() * mcf);
   VERIFY_IS_APPROX(scf * mcf * mf, scf * mcf * mf.template cast<CF>());
 
-  VERIFY_IS_APPROX(sd * md.adjoint() * mcd, (sd * md).template cast<CD>().eval().adjoint() * mcd);
-  VERIFY_IS_APPROX(sd * mcd.adjoint() * md, sd * mcd.adjoint() * md.template cast<CD>());
-  VERIFY_IS_APPROX(sd * md.adjoint() * mcd.adjoint(), (sd * md).template cast<CD>().eval().adjoint() * mcd.adjoint());
-  VERIFY_IS_APPROX(sd * mcd.adjoint() * md.adjoint(), sd * mcd.adjoint() * md.template cast<CD>().adjoint());
-  VERIFY_IS_APPROX(sd * md * mcd.adjoint(), (sd * md).template cast<CD>().eval() * mcd.adjoint());
-  VERIFY_IS_APPROX(sd * mcd * md.adjoint(), sd * mcd * md.template cast<CD>().adjoint());
-
   VERIFY_IS_APPROX(sf * mf.adjoint() * mcf, (sf * mf).template cast<CF>().eval().adjoint() * mcf);
   VERIFY_IS_APPROX(sf * mcf.adjoint() * mf, sf * mcf.adjoint() * mf.template cast<CF>());
   VERIFY_IS_APPROX(sf * mf.adjoint() * mcf.adjoint(), (sf * mf).template cast<CF>().eval().adjoint() * mcf.adjoint());
   VERIFY_IS_APPROX(sf * mcf.adjoint() * mf.adjoint(), sf * mcf.adjoint() * mf.template cast<CF>().adjoint());
+
   VERIFY_IS_APPROX(sf * mf * mcf.adjoint(), (sf * mf).template cast<CF>().eval() * mcf.adjoint());
   VERIFY_IS_APPROX(sf * mcf * mf.adjoint(), sf * mcf * mf.template cast<CF>().adjoint());
 
@@ -170,15 +236,6 @@ void mixingtypes(int size = SizeAtCompileType) {
   // (scalar) path: the small-fixed packet cascade only engages when lhs and rhs share a scalar
   // type, otherwise it would read a wrong-width packet out of an operand. See
   // product_packet_cascade_traits::Enable (this previously failed to compile for fixed sizes).
-  {
-    Mat_cd acc = Mat_cd::Random(size, size), refcd = acc;
-    acc.noalias() += md * mcd;
-    refcd += md.template cast<CD>().eval() * mcd;
-    VERIFY_IS_APPROX(acc, refcd);
-    acc.noalias() -= mcd * md;
-    refcd -= mcd * md.template cast<CD>().eval();
-    VERIFY_IS_APPROX(acc, refcd);
-  }
   {
     Mat_cf acc = Mat_cf::Random(size, size), refcf = acc;
     acc.noalias() += mf * mcf;
@@ -198,6 +255,59 @@ void mixingtypes(int size = SizeAtCompileType) {
   VERIFY_IS_APPROX(scf * vcf.adjoint() * mf, scf * vcf.adjoint() * mf.template cast<CF>().eval());
   VERIFY_IS_APPROX(sf * vf.adjoint() * mcf, sf * vf.adjoint().template cast<CF>().eval() * mcf);
   VERIFY_IS_APPROX(scf * vf.adjoint() * mcf, scf * vf.adjoint().template cast<CF>().eval() * mcf);
+}
+
+// Mixed-type products in the double / complex<double> family.
+template <int SizeAtCompileType>
+void mixingtypes_product_d(int size = SizeAtCompileType) {
+  typedef std::complex<double> CD;
+  typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
+  typedef Matrix<double, SizeAtCompileType, SizeAtCompileType> Mat_d;
+  typedef Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType> Mat_cf;
+  typedef Matrix<std::complex<double>, SizeAtCompileType, SizeAtCompileType> Mat_cd;
+  typedef Matrix<float, SizeAtCompileType, 1> Vec_f;
+  typedef Matrix<double, SizeAtCompileType, 1> Vec_d;
+  typedef Matrix<std::complex<float>, SizeAtCompileType, 1> Vec_cf;
+  typedef Matrix<std::complex<double>, SizeAtCompileType, 1> Vec_cd;
+
+  Mat_f mf = Mat_f::Random(size, size);
+  Mat_d md = mf.template cast<double>();
+  Mat_cf mcf = Mat_cf::Random(size, size);
+  Mat_cd mcd = mcf.template cast<complex<double> >();
+  Vec_f vf = Vec_f::Random(size, 1);
+  Vec_d vd = vf.template cast<double>();
+  Vec_cf vcf = Vec_cf::Random(size, 1);
+  Vec_cd vcd = vcf.template cast<complex<double> >();
+  double sd = internal::random<double>();
+  complex<double> scd = internal::random<complex<double> >();
+
+  double epsd = std::sqrt(std::numeric_limits<double>::min EIGEN_EMPTY());
+
+  if (std::abs(sd) < epsd) sd = 1.0;
+  if (std::abs(scd) < epsd) scd = CD(1);
+
+  // check matrix-matrix, matrix-vector and compound products
+  VERIFY_IS_APPROX(sd * md * mcd, (sd * md).template cast<CD>().eval() * mcd);
+  VERIFY_IS_APPROX(sd * mcd * md, sd * mcd * md.template cast<CD>());
+  VERIFY_IS_APPROX(scd * md * mcd, scd * md.template cast<CD>().eval() * mcd);
+  VERIFY_IS_APPROX(scd * mcd * md, scd * mcd * md.template cast<CD>());
+
+  VERIFY_IS_APPROX(sd * md.adjoint() * mcd, (sd * md).template cast<CD>().eval().adjoint() * mcd);
+  VERIFY_IS_APPROX(sd * mcd.adjoint() * md, sd * mcd.adjoint() * md.template cast<CD>());
+  VERIFY_IS_APPROX(sd * md.adjoint() * mcd.adjoint(), (sd * md).template cast<CD>().eval().adjoint() * mcd.adjoint());
+  VERIFY_IS_APPROX(sd * mcd.adjoint() * md.adjoint(), sd * mcd.adjoint() * md.template cast<CD>().adjoint());
+  VERIFY_IS_APPROX(sd * md * mcd.adjoint(), (sd * md).template cast<CD>().eval() * mcd.adjoint());
+  VERIFY_IS_APPROX(sd * mcd * md.adjoint(), sd * mcd * md.template cast<CD>().adjoint());
+
+  {
+    Mat_cd acc = Mat_cd::Random(size, size), refcd = acc;
+    acc.noalias() += md * mcd;
+    refcd += md.template cast<CD>().eval() * mcd;
+    VERIFY_IS_APPROX(acc, refcd);
+    acc.noalias() -= mcd * md;
+    refcd -= mcd * md.template cast<CD>().eval();
+    VERIFY_IS_APPROX(acc, refcd);
+  }
 
   VERIFY_IS_APPROX(sd * md * vcd, (sd * md).template cast<CD>().eval() * vcd);
   VERIFY_IS_APPROX(scd * md * vcd, (scd * md.template cast<CD>()).eval() * vcd);
@@ -248,81 +358,65 @@ void mixingtypes(int size = SizeAtCompileType) {
   //   VERIFY_IS_APPROX(sd*vd.adjoint()*mcd.template selfadjointView<Upper>(),  sd*vd.adjoint().template
   //   cast<CD>().eval()*mcd.template selfadjointView<Upper>()); VERIFY_IS_APPROX(scd*vd.adjoint()*mcd.template
   //   selfadjointView<Upper>(), scd*vd.adjoint().template cast<CD>().eval()*mcd.template selfadjointView<Upper>());
+}
 
-  rcd.setZero();
-  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = sd * mcd * md),
-                   Mat_cd((sd * mcd * md.template cast<CD>().eval()).template triangularView<Upper>()));
-  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = sd * md * mcd),
-                   Mat_cd((sd * md.template cast<CD>().eval() * mcd).template triangularView<Upper>()));
-  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = scd * mcd * md),
-                   Mat_cd((scd * mcd * md.template cast<CD>().eval()).template triangularView<Upper>()));
-  VERIFY_IS_APPROX(Mat_cd(rcd.template triangularView<Upper>() = scd * md * mcd),
-                   Mat_cd((scd * md.template cast<CD>().eval() * mcd).template triangularView<Upper>()));
-
-  VERIFY_IS_APPROX(md.array() * mcd.array(), md.template cast<CD>().eval().array() * mcd.array());
-  VERIFY_IS_APPROX(mcd.array() * md.array(), mcd.array() * md.template cast<CD>().eval().array());
-
-  VERIFY_IS_APPROX(md.array() + mcd.array(), md.template cast<CD>().eval().array() + mcd.array());
-  VERIFY_IS_APPROX(mcd.array() + md.array(), mcd.array() + md.template cast<CD>().eval().array());
-
-  VERIFY_IS_APPROX(md.array() - mcd.array(), md.template cast<CD>().eval().array() - mcd.array());
-  VERIFY_IS_APPROX(mcd.array() - md.array(), mcd.array() - md.template cast<CD>().eval().array());
-
-  if (mcd.array().abs().minCoeff() > epsd) {
-    VERIFY_IS_APPROX(md.array() / mcd.array(), md.template cast<CD>().eval().array() / mcd.array());
+template <typename Real>
+void mixingtypes_zero_power() {
+  using Complex = std::complex<Real>;
+  // Runtime inputs avoid compiler folding of 0^0 that differs from the library call.
+  volatile Real zero = 0;
+  volatile Real exponents[5][2] = {{2, 0}, {0, 0}, {-1, 0}, {Real(-0.329765), Real(0.755738)}, {Real(0.5), Real(0.25)}};
+  const Array<Real, 5, 1> real_bases = Array<Real, 5, 1>::Constant(Real(zero));
+  const Array<Complex, 5, 1> complex_bases = Array<Complex, 5, 1>::Constant(Complex(Real(zero)));
+  Array<Complex, 5, 1> complex_exponents;
+  for (Index i = 0; i < real_bases.size(); ++i)
+    complex_exponents[i] = Complex(Real(exponents[i][0]), Real(exponents[i][1]));
+  const Array<Real, 5, 1> real_exponents = complex_exponents.real();
+  Array<Complex, 5, 2> expected, member_power, free_power;
+  for (Index i = 0; i < real_bases.size(); ++i) {
+    // The real/complex std::pow overloads can differ at zero; compare each component, including NaN and Inf.
+    expected(i, 0) = std::pow(real_bases[i], complex_exponents[i]);
+    expected(i, 1) = std::pow(complex_bases[i], real_exponents[i]);
   }
-  if (md.array().abs().minCoeff() > epsd) {
-    VERIFY_IS_APPROX(mcd.array() / md.array(), mcd.array() / md.template cast<CD>().eval().array());
-  }
+  member_power.col(0) = real_bases.pow(complex_exponents);
+  member_power.col(1) = complex_bases.pow(real_exponents);
+  free_power.col(0) = Eigen::pow(real_bases, complex_exponents);
+  free_power.col(1) = Eigen::pow(complex_bases, real_exponents);
+  VERIFY_IS_CWISE_EQUAL(member_power.real(), expected.real());
+  VERIFY_IS_CWISE_EQUAL(member_power.imag(), expected.imag());
+  VERIFY_IS_CWISE_EQUAL(free_power.real(), expected.real());
+  VERIFY_IS_CWISE_EQUAL(free_power.imag(), expected.imag());
+  VERIFY_IS_EQUAL(member_power(0, 0), Complex(0));
+  VERIFY_IS_EQUAL(member_power(0, 1), Complex(0));
+}
 
-  if (md.array().abs().minCoeff() > epsd || mcd.array().abs().minCoeff() > epsd) {
-    VERIFY_IS_APPROX(md.array().pow(mcd.array()), md.template cast<CD>().eval().array().pow(mcd.array()));
-    VERIFY_IS_APPROX(mcd.array().pow(md.array()), mcd.array().pow(md.template cast<CD>().eval().array()));
-
-    VERIFY_IS_APPROX(pow(md.array(), mcd.array()), md.template cast<CD>().eval().array().pow(mcd.array()));
-    VERIFY_IS_APPROX(pow(mcd.array(), md.array()), mcd.array().pow(md.template cast<CD>().eval().array()));
-  }
-
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd = md, md.template cast<CD>().eval());
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd += md, mcd + md.template cast<CD>().eval());
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd -= md, mcd - md.template cast<CD>().eval());
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.array() *= md.array(), mcd.array() * md.template cast<CD>().eval().array());
-  rcd = mcd;
-  if (md.array().abs().minCoeff() > epsd) {
-    VERIFY_IS_APPROX(rcd.array() /= md.array(), mcd.array() / md.template cast<CD>().eval().array());
-  }
-
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.noalias() += md + mcd * md,
-                   mcd + (md.template cast<CD>().eval()) + mcd * (md.template cast<CD>().eval()));
-
-  VERIFY_IS_APPROX(rcd.noalias() = md * md, ((md * md).eval().template cast<CD>()));
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.noalias() += md * md, mcd + ((md * md).eval().template cast<CD>()));
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.noalias() -= md * md, mcd - ((md * md).eval().template cast<CD>()));
-
-  VERIFY_IS_APPROX(rcd.noalias() = mcd + md * md, mcd + ((md * md).eval().template cast<CD>()));
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.noalias() += mcd + md * md, mcd + mcd + ((md * md).eval().template cast<CD>()));
-  rcd = mcd;
-  VERIFY_IS_APPROX(rcd.noalias() -= mcd + md * md, -((md * md).eval().template cast<CD>()));
+template <int SizeAtCompileType>
+void mixingtypes(int size = SizeAtCompileType) {
+  mixingtypes_scalar<SizeAtCompileType>(size);
+  mixingtypes_product_f<SizeAtCompileType>(size);
+  mixingtypes_product_d<SizeAtCompileType>(size);
 }
 
 EIGEN_DECLARE_TEST(mixingtypes) {
   g_called = false;  // Silence -Wunneeded-internal-declaration and set_but_not_used.
   VERIFY(true || g_called);
+  CALL_SUBTEST_3(mixingtypes_zero_power<float>());
+  CALL_SUBTEST_3(mixingtypes_zero_power<double>());
+  CALL_SUBTEST_6(mixingtypes_zero_power<float>());
+  CALL_SUBTEST_6(mixingtypes_zero_power<double>());
   for (int i = 0; i < g_repeat; i++) {
+    // The fixed sizes stay whole. Only the Dynamic cases are worth three units each: they
+    // are the ones that instantiate the full GEMM and GEMV machinery.
     CALL_SUBTEST_1(mixingtypes<3>());
     CALL_SUBTEST_2(mixingtypes<4>());
-    CALL_SUBTEST_3(mixingtypes<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_3(mixingtypes_scalar<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_8(mixingtypes_product_f<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_9(mixingtypes_product_d<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
 
     CALL_SUBTEST_4(mixingtypes<3>());
     CALL_SUBTEST_5(mixingtypes<4>());
-    CALL_SUBTEST_6(mixingtypes<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_6(mixingtypes_scalar<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_10(mixingtypes_product_f<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_11(mixingtypes_product_d<Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
   }
 }

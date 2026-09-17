@@ -50,9 +50,9 @@ namespace internal {
 
 template <typename XprType, int Rows, int Cols, int Order>
 struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType> {
-  typedef typename traits<XprType>::Scalar Scalar;
-  typedef typename traits<XprType>::StorageKind StorageKind;
-  typedef typename traits<XprType>::XprKind XprKind;
+  using Scalar = typename traits<XprType>::Scalar;
+  using StorageKind = typename traits<XprType>::StorageKind;
+  using XprKind = typename traits<XprType>::XprKind;
   enum {
     MatrixRows = traits<XprType>::RowsAtCompileTime,
     MatrixCols = traits<XprType>::ColsAtCompileTime,
@@ -66,8 +66,11 @@ struct traits<Reshaped<XprType, Rows, Cols, Order> > : traits<XprType> {
                                                                                 : XprStorageOrder,
     HasSameStorageOrderAsXprType = (ReshapedStorageOrder == XprStorageOrder),
     InnerSize = (ReshapedStorageOrder == int(RowMajor)) ? int(ColsAtCompileTime) : int(RowsAtCompileTime),
-    InnerStrideAtCompileTime =
-        HasSameStorageOrderAsXprType ? int(inner_stride_at_compile_time<XprType>::value) : Dynamic,
+    // A mismatched ReshapedStorageOrder only happens for vector shapes, where the storage order is
+    // immaterial: the runtime innerStride() is the nested expression's in all cases (see below).
+    InnerStrideAtCompileTime = (HasSameStorageOrderAsXprType || RowsAtCompileTime == 1 || ColsAtCompileTime == 1)
+                                   ? int(inner_stride_at_compile_time<XprType>::value)
+                                   : Dynamic,
     OuterStrideAtCompileTime = Dynamic,
 
     HasDirectAccess = internal::has_direct_access<XprType>::value && (Order == int(XprStorageOrder)) &&
@@ -99,11 +102,11 @@ class ReshapedImpl;
 
 template <typename XprType, int Rows, int Cols, int Order>
 class Reshaped : public ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind> {
-  typedef ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind> Impl;
+  using Impl = ReshapedImpl<XprType, Rows, Cols, Order, typename internal::traits<XprType>::StorageKind>;
 
  public:
   // typedef typename Impl::Base Base;
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_GENERIC_PUBLIC_INTERFACE(Reshaped)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(Reshaped)
 
@@ -131,12 +134,11 @@ template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl<XprType, Rows, Cols, Order, Dense>
     : public internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
                                           internal::traits<Reshaped<XprType, Rows, Cols, Order> >::HasDirectAccess> {
-  typedef internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
-                                       internal::traits<Reshaped<XprType, Rows, Cols, Order> >::HasDirectAccess>
-      Impl;
+  using Impl = internal::ReshapedImpl_dense<XprType, Rows, Cols, Order,
+                                            internal::traits<Reshaped<XprType, Rows, Cols, Order>>::HasDirectAccess>;
 
  public:
-  typedef Impl Base;
+  using Base = Impl;
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl)
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr) : Impl(xpr) {}
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl(XprType& xpr, Index reshapeRows, Index reshapeCols)
@@ -149,15 +151,15 @@ namespace internal {
 template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
     : public internal::dense_xpr_base<Reshaped<XprType, Rows, Cols, Order> >::type {
-  typedef Reshaped<XprType, Rows, Cols, Order> ReshapedType;
+  using ReshapedType = Reshaped<XprType, Rows, Cols, Order>;
 
  public:
-  typedef typename internal::dense_xpr_base<ReshapedType>::type Base;
+  using Base = typename internal::dense_xpr_base<ReshapedType>::type;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
-  typedef typename internal::ref_selector<XprType>::non_const_type MatrixTypeNested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using MatrixTypeNested = typename internal::ref_selector<XprType>::non_const_type;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   class InnerIterator;
 
@@ -195,11 +197,11 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
 /** \internal Internal implementation of dense Reshaped in the direct access case. */
 template <typename XprType, int Rows, int Cols, int Order>
 class ReshapedImpl_dense<XprType, Rows, Cols, Order, true> : public MapBase<Reshaped<XprType, Rows, Cols, Order> > {
-  typedef Reshaped<XprType, Rows, Cols, Order> ReshapedType;
-  typedef typename internal::ref_selector<XprType>::non_const_type XprTypeNested;
+  using ReshapedType = Reshaped<XprType, Rows, Cols, Order>;
+  using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
 
  public:
-  typedef MapBase<ReshapedType> Base;
+  using Base = MapBase<ReshapedType>;
   EIGEN_DENSE_PUBLIC_INTERFACE(ReshapedType)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ReshapedImpl_dense)
 
@@ -235,10 +237,10 @@ struct reshaped_evaluator;
 template <typename ArgType, int Rows, int Cols, int Order>
 struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
     : reshaped_evaluator<ArgType, Rows, Cols, Order, traits<Reshaped<ArgType, Rows, Cols, Order> >::HasDirectAccess> {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
-  typedef typename XprType::Scalar Scalar;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
+  using Scalar = typename XprType::Scalar;
   // TODO: should check for smaller packet types
-  typedef typename packet_traits<Scalar>::type PacketScalar;
+  using PacketScalar = typename packet_traits<Scalar>::type;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost,
@@ -254,19 +256,31 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
     //                              : Dynamic,
     //     OuterStrideAtCompileTime = Dynamic,
 
-    FlagsLinearAccessBit =
-        (traits<XprType>::RowsAtCompileTime == 1 || traits<XprType>::ColsAtCompileTime == 1 || HasDirectAccess)
-            ? LinearAccessBit
-            : 0,
+    // Whether the coeff-based specialization below serves all accesses by forwarding the nested
+    // evaluator's own linear accesses; always false for the direct-access specialization.
+    ForwardLinearAccess = reshaped_evaluator<ArgType, Rows, Cols, Order, bool(HasDirectAccess)>::ForwardLinearAccess,
+
+    FlagsLinearAccessBit = (traits<XprType>::RowsAtCompileTime == 1 || traits<XprType>::ColsAtCompileTime == 1 ||
+                            HasDirectAccess || ForwardLinearAccess)
+                               ? LinearAccessBit
+                               : 0,
     FlagsRowMajorBit = (traits<XprType>::ReshapedStorageOrder == int(RowMajor)) ? RowMajorBit : 0,
     FlagsDirectAccessBit = HasDirectAccess ? DirectAccessBit : 0,
-    Flags0 = evaluator<ArgType>::Flags & (HereditaryBits & ~RowMajorBit),
+    // A direct-access reshape with unit inner stride is the nested expression's buffer, contiguous
+    // from data(), so the mapbase_evaluator packet paths apply whenever the nested evaluator's do.
+    // A forwarding coeff-based reshape serves the nested evaluator's own packets directly.
+    MaskPacketAccessBit = (HasDirectAccess && (traits<XprType>::InnerStrideAtCompileTime == 1)) || ForwardLinearAccess
+                              ? PacketAccessBit
+                              : 0,
+    Flags0 = evaluator<ArgType>::Flags & ((HereditaryBits & ~RowMajorBit) | MaskPacketAccessBit),
     Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit | FlagsDirectAccessBit,
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
+    // The view starts at the nested data() with no offset (direct access) or forwards the nested
+    // evaluator's accesses element-for-element, so its alignment carries over.
     Alignment = evaluator<ArgType>::Alignment
   };
-  typedef reshaped_evaluator<ArgType, Rows, Cols, Order, HasDirectAccess> reshaped_evaluator_type;
+  using reshaped_evaluator_type = reshaped_evaluator<ArgType, Rows, Cols, Order, HasDirectAccess>;
   EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType& xpr) : reshaped_evaluator_type(xpr) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
@@ -275,14 +289,21 @@ struct evaluator<Reshaped<ArgType, Rows, Cols, Order> >
 template <typename ArgType, int Rows, int Cols, int Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ false>
     : evaluator_base<Reshaped<ArgType, Rows, Cols, Order> > {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
 
   enum {
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost /* TODO + cost of index computations */,
 
-    Flags = (evaluator<ArgType>::Flags & (HereditaryBits /*| LinearAccessBit | DirectAccessBit*/)),
+    // The reshape enumerates the nested expression's elements in `Order`. When the nested
+    // evaluator's linear enumeration follows the same order -- its storage order matches, or it is
+    // vector-shaped so the order is immaterial -- the n-th reshaped element is the n-th nested
+    // element and every access forwards linearly, with no division/modulo index remapping.
+    NestedRowMajor = (int(evaluator<ArgType>::Flags) & RowMajorBit) != 0,
+    OrderMatchesNested = (Order == int(ColMajor)) != NestedRowMajor,
+    ForwardLinearAccess = (OrderMatchesNested || ArgType::RowsAtCompileTime == 1 || ArgType::ColsAtCompileTime == 1) &&
+                          ((int(evaluator<ArgType>::Flags) & LinearAccessBit) != 0)
 
-    Alignment = 0
+    // Flags and Alignment are defined by evaluator<Reshaped>, which derives from this evaluator.
   };
 
   EIGEN_DEVICE_FUNC constexpr explicit reshaped_evaluator(const XprType& xpr)
@@ -290,54 +311,170 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
 
-  typedef std::pair<Index, Index> RowCol;
+  using RowCol = std::pair<Index, Index>;
+
+  // The n-th element of the reshape in `Order` enumeration; under ForwardLinearAccess this is also
+  // the nested evaluator's linear index of that element.
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index linear_index(Index rowId, Index colId) const {
+    EIGEN_IF_CONSTEXPR (Order == ColMajor) {
+      return colId * m_xpr.rows() + rowId;
+    } else {
+      return colId + rowId * m_xpr.cols();
+    }
+  }
 
   EIGEN_DEVICE_FUNC constexpr inline RowCol index_remap(Index rowId, Index colId) const {
+    const Index nth_elem_idx = linear_index(rowId, colId);
     EIGEN_IF_CONSTEXPR (Order == ColMajor) {
-      const Index nth_elem_idx = colId * m_xpr.rows() + rowId;
       return RowCol(nth_elem_idx % m_xpr.nestedExpression().rows(), nth_elem_idx / m_xpr.nestedExpression().rows());
     } else {
-      const Index nth_elem_idx = colId + rowId * m_xpr.cols();
       return RowCol(nth_elem_idx / m_xpr.nestedExpression().cols(), nth_elem_idx % m_xpr.nestedExpression().cols());
     }
   }
 
   EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef(Index rowId, Index colId) {
     EIGEN_STATIC_ASSERT_LVALUE(XprType)
-    const RowCol row_col = index_remap(rowId, colId);
-    return m_argImpl.coeffRef(row_col.first, row_col.second);
+    return coeffRef_impl(rowId, colId, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef(Index rowId, Index colId) const {
-    const RowCol row_col = index_remap(rowId, colId);
-    return m_argImpl.coeffRef(row_col.first, row_col.second);
+    return coeffRef_impl(rowId, colId, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index rowId, Index colId) const {
-    const RowCol row_col = index_remap(rowId, colId);
-    return m_argImpl.coeff(row_col.first, row_col.second);
+    return coeff_impl(rowId, colId, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline Scalar& coeffRef(Index index) {
     EIGEN_STATIC_ASSERT_LVALUE(XprType)
-    const RowCol row_col = index_remap(Rows == 1 ? 0 : index, Rows == 1 ? index : 0);
-    return m_argImpl.coeffRef(row_col.first, row_col.second);
+    return coeffRef_impl(index, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const Scalar& coeffRef(Index index) const {
-    const RowCol row_col = index_remap(Rows == 1 ? 0 : index, Rows == 1 ? index : 0);
-    return m_argImpl.coeffRef(row_col.first, row_col.second);
+    return coeffRef_impl(index, bool_constant<ForwardLinearAccess>());
   }
 
   EIGEN_DEVICE_FUNC constexpr inline const CoeffReturnType coeff(Index index) const {
-    const RowCol row_col = index_remap(Rows == 1 ? 0 : index, Rows == 1 ? index : 0);
-    return m_argImpl.coeff(row_col.first, row_col.second);
+    return coeff_impl(index, bool_constant<ForwardLinearAccess>());
+  }
+
+  // The packet paths are advertised only under ForwardLinearAccess (see evaluator<Reshaped>), so
+  // they forward the nested evaluator's linear packets without index remapping.
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index rowId, Index colId) const {
+    return m_argImpl.template packet<LoadMode, PacketType>(linear_index(rowId, colId));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return m_argImpl.template packet<LoadMode, PacketType>(index);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index rowId, Index colId, const PacketType& x) {
+    m_argImpl.template writePacket<StoreMode, PacketType>(linear_index(rowId, colId), x);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
+    m_argImpl.template writePacket<StoreMode, PacketType>(index, x);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index rowId, Index colId, Index begin,
+                                                                 Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(linear_index(rowId, colId), begin, count);
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return m_argImpl.template packetSegment<LoadMode, PacketType>(index, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index rowId, Index colId, const PacketType& x,
+                                                                Index begin, Index count) {
+    m_argImpl.template writePacketSegment<StoreMode, PacketType>(linear_index(rowId, colId), x, begin, count);
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
+                                                                Index count) {
+    m_argImpl.template writePacketSegment<StoreMode, PacketType>(index, x, begin, count);
   }
 
  protected:
+  // Linear-access members map an index onto the vector shape's single row or column.
+  EIGEN_DEVICE_FUNC static constexpr Index vector_row(Index index) { return Rows == 1 ? 0 : index; }
+  EIGEN_DEVICE_FUNC static constexpr Index vector_col(Index index) { return Rows == 1 ? index : 0; }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index index, std::true_type /* ForwardLinearAccess */) const {
+    // The one-dimensional index already follows the nested evaluator's linear enumeration.
+    return m_argImpl.coeff(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index index, std::false_type /* not ForwardLinearAccess */) const {
+    return coeff_impl(vector_row(index), vector_col(index), std::false_type());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index rowId, Index colId, std::true_type /* ForwardLinearAccess */) const {
+    return m_argImpl.coeff(linear_index(rowId, colId));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType
+  coeff_impl(Index rowId, Index colId, std::false_type /* not ForwardLinearAccess */) const {
+    const RowCol row_col = index_remap(rowId, colId);
+    return m_argImpl.coeff(row_col.first, row_col.second);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index index,
+                                                                        std::true_type /* ForwardLinearAccess */) {
+    return m_argImpl.coeffRef(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index index,
+                                                                        std::false_type /* not ForwardLinearAccess */) {
+    return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index rowId, Index colId,
+                                                                        std::true_type /* ForwardLinearAccess */) {
+    return m_argImpl.coeffRef(linear_index(rowId, colId));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar& coeffRef_impl(Index rowId, Index colId,
+                                                                        std::false_type /* not ForwardLinearAccess */) {
+    const RowCol row_col = index_remap(rowId, colId);
+    return m_argImpl.coeffRef(row_col.first, row_col.second);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index index, std::true_type /* ForwardLinearAccess */) const {
+    return m_argImpl.coeffRef(index);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index index, std::false_type /* not ForwardLinearAccess */) const {
+    return coeffRef_impl(vector_row(index), vector_col(index), std::false_type());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index rowId, Index colId, std::true_type /* ForwardLinearAccess */) const {
+    return m_argImpl.coeffRef(linear_index(rowId, colId));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar& coeffRef_impl(
+      Index rowId, Index colId, std::false_type /* not ForwardLinearAccess */) const {
+    const RowCol row_col = index_remap(rowId, colId);
+    return m_argImpl.coeffRef(row_col.first, row_col.second);
+  }
+
   evaluator<ArgType> m_argImpl;
   const XprType& m_xpr;
 };
@@ -346,8 +483,11 @@ template <typename ArgType, int Rows, int Cols, int Order>
 struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ true>
     : mapbase_evaluator<Reshaped<ArgType, Rows, Cols, Order>,
                         typename Reshaped<ArgType, Rows, Cols, Order>::PlainObject> {
-  typedef Reshaped<ArgType, Rows, Cols, Order> XprType;
-  typedef typename XprType::Scalar Scalar;
+  using XprType = Reshaped<ArgType, Rows, Cols, Order>;
+  using Scalar = typename XprType::Scalar;
+
+  // Packets come from the mapbase_evaluator machinery, not from linear forwarding.
+  enum { ForwardLinearAccess = false };
 
   EIGEN_DEVICE_FUNC constexpr explicit reshaped_evaluator(const XprType& xpr)
       : mapbase_evaluator<XprType, typename XprType::PlainObject>(xpr) {

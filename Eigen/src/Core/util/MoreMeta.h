@@ -27,7 +27,7 @@ struct type_list {
 template <typename t, typename... tt>
 struct type_list<t, tt...> {
   constexpr static int count = sizeof...(tt) + 1;
-  typedef t first_type;
+  using first_type = t;
 };
 
 /* list manipulation: concatenate */
@@ -37,14 +37,14 @@ struct concat;
 
 template <typename... as, typename... bs>
 struct concat<type_list<as...>, type_list<bs...>> {
-  typedef type_list<as..., bs...> type;
+  using type = type_list<as..., bs...>;
 };
 
 template <typename... p>
 struct mconcat;
 template <typename a>
 struct mconcat<a> {
-  typedef a type;
+  using type = a;
 };
 template <typename a, typename b>
 struct mconcat<a, b> : concat<a, b> {};
@@ -61,47 +61,38 @@ struct take<n, type_list<a, as...>> : concat<type_list<a>, typename take<n - 1, 
 
 template <int n>
 struct take<n, type_list<>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <typename a, typename... as>
 struct take<0, type_list<a, as...>> {
-  typedef type_list<> type;
+  using type = type_list<>;
 };
 
 template <>
 struct take<0, type_list<>> {
-  typedef type_list<> type;
-};
-
-template <int n, typename... tt>
-struct h_skip_helper_type;
-template <int n, typename t, typename... tt>
-struct h_skip_helper_type<n, t, tt...> : h_skip_helper_type<n - 1, tt...> {};
-template <typename t, typename... tt>
-struct h_skip_helper_type<0, t, tt...> {
-  typedef type_list<t, tt...> type;
-};
-template <int n>
-struct h_skip_helper_type<n> {
-  typedef type_list<> type;
-};
-template <>
-struct h_skip_helper_type<0> {
-  typedef type_list<> type;
-};
-
-template <int n>
-struct h_skip {
-  template <typename... tt>
-  constexpr static typename h_skip_helper_type<n, tt...>::type helper(type_list<tt...>) {
-    return typename h_skip_helper_type<n, tt...>::type();
-  }
+  using type = type_list<>;
 };
 
 template <int n, typename a>
-struct skip {
-  typedef decltype(h_skip<n>::helper(a())) type;
+struct skip;
+
+template <int n, typename a, typename... as>
+struct skip<n, type_list<a, as...>> : skip<n - 1, type_list<as...>> {};
+
+template <typename a, typename... as>
+struct skip<0, type_list<a, as...>> {
+  using type = type_list<a, as...>;
+};
+
+template <int n>
+struct skip<n, type_list<>> {
+  using type = type_list<>;
+};
+
+template <>
+struct skip<0, type_list<>> {
+  using type = type_list<>;
 };
 
 template <int start, int count, typename a>
@@ -116,7 +107,7 @@ template <int n, typename a, typename... as>
 struct get<n, type_list<a, as...>> : get<n - 1, type_list<as...>> {};
 template <typename a, typename... as>
 struct get<0, type_list<a, as...>> {
-  typedef a type;
+  using type = a;
 };
 
 template <typename T, int n, T a, T... as>
@@ -124,17 +115,6 @@ struct get<n, std::integer_sequence<T, a, as...>> : get<n - 1, std::integer_sequ
 template <typename T, T a, T... as>
 struct get<0, std::integer_sequence<T, a, as...>> {
   constexpr static T value = a;
-};
-
-/* always get type, regardless of dummy; good for parameter pack expansion */
-
-template <typename T, T dummy, typename t>
-struct id_numeric {
-  typedef t type;
-};
-template <typename dummy, typename t>
-struct id_type {
-  typedef t type;
 };
 
 /* equality checking, flagged version */
@@ -146,33 +126,20 @@ struct is_same_gf : std::is_same<a, b> {
 
 /* apply_op to list */
 
-template <bool from_left,  // false
-          template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper {
-  typedef type_list<typename op<values, additional_param>::type...> type;
-};
+template <template <typename, typename> class op, typename additional_param, typename a>
+struct apply_op_from_left;
+
 template <template <typename, typename> class op, typename additional_param, typename... values>
-struct h_apply_op_helper<true, op, additional_param, values...> {
-  typedef type_list<typename op<additional_param, values>::type...> type;
-};
-
-template <bool from_left, template <typename, typename> class op, typename additional_param>
-struct h_apply_op {
-  template <typename... values>
-  constexpr static typename h_apply_op_helper<from_left, op, additional_param, values...>::type helper(
-      type_list<values...>) {
-    return typename h_apply_op_helper<from_left, op, additional_param, values...>::type();
-  }
+struct apply_op_from_left<op, additional_param, type_list<values...>> {
+  using type = type_list<typename op<additional_param, values>::type...>;
 };
 
 template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_left {
-  typedef decltype(h_apply_op<true, op, additional_param>::helper(a())) type;
-};
+struct apply_op_from_right;
 
-template <template <typename, typename> class op, typename additional_param, typename a>
-struct apply_op_from_right {
-  typedef decltype(h_apply_op<false, op, additional_param>::helper(a())) type;
+template <template <typename, typename> class op, typename additional_param, typename... values>
+struct apply_op_from_right<op, additional_param, type_list<values...>> {
+  using type = type_list<typename op<values, additional_param>::type...>;
 };
 
 /* see if an element is in a list */
@@ -274,31 +241,30 @@ constexpr auto arg_sum(Ts... ts) {
 
 /* generic array reductions */
 
-// can't reuse standard reduce() interface above because Intel's Compiler
-// *really* doesn't like it, so we just reimplement the stuff
-// (start from N - 1 and work down to 0 because specialization for
-// n == N - 1 also doesn't work in Intel's compiler, so it goes into
-// an infinite loop)
-template <typename Reducer, typename T, std::size_t N, std::size_t n = N - 1>
-struct h_array_reduce {
-  EIGEN_DEVICE_FUNC constexpr static auto run(const array<T, N>& arr, T identity) {
-    return Reducer::run(h_array_reduce<Reducer, T, N, n - 1>::run(arr, identity), array_get<n>(arr));
+template <typename Reducer, typename T, std::size_t N>
+struct array_reducer {
+  EIGEN_DEVICE_FUNC constexpr static auto run(const array<T, N>& arr, T) {
+    auto result = Reducer::run(arr[0], arr[1]);
+    for (std::size_t i = 2; i < N; ++i) {
+      result = Reducer::run(result, arr[i]);
+    }
+    return result;
   }
 };
 
-template <typename Reducer, typename T, std::size_t N>
-struct h_array_reduce<Reducer, T, N, 0> {
-  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, N>& arr, T) { return array_get<0>(arr); }
+template <typename Reducer, typename T>
+struct array_reducer<Reducer, T, 1> {
+  EIGEN_DEVICE_FUNC constexpr static T run(const array<T, 1>& arr, T) { return arr[0]; }
 };
 
 template <typename Reducer, typename T>
-struct h_array_reduce<Reducer, T, 0> {
+struct array_reducer<Reducer, T, 0> {
   EIGEN_DEVICE_FUNC constexpr static T run(const array<T, 0>&, T identity) { return identity; }
 };
 
 template <typename Reducer, typename T, std::size_t N>
 EIGEN_DEVICE_FUNC constexpr auto array_reduce(const array<T, N>& arr, T identity) {
-  return h_array_reduce<Reducer, T, N>::run(arr, identity);
+  return array_reducer<Reducer, T, N>::run(arr, identity);
 }
 
 /* standard array reductions */

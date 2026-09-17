@@ -11,8 +11,6 @@
 #ifndef EIGEN_TESTSPARSE_H
 #define EIGEN_TESTSPARSE_H
 
-#define EIGEN_YES_I_KNOW_SPARSE_MODULE_IS_NOT_STABLE_YET
-
 #include "main.h"
 
 #ifdef min
@@ -24,7 +22,6 @@
 #endif
 
 #include <unordered_map>
-#define EIGEN_UNORDERED_MAP_SUPPORT
 
 #include <Eigen/Cholesky>
 #include <Eigen/LU>

@@ -39,21 +39,21 @@ struct solve_traits;
 
 template <typename Decomposition, typename RhsType>
 struct solve_traits<Decomposition, RhsType, Dense> {
-  typedef typename make_proper_matrix_type<typename RhsType::Scalar, Decomposition::ColsAtCompileTime,
-                                           RhsType::ColsAtCompileTime, RhsType::PlainObject::Options,
-                                           Decomposition::MaxColsAtCompileTime, RhsType::MaxColsAtCompileTime>::type
-      PlainObject;
+  using PlainObject =
+      typename make_proper_matrix_type<typename RhsType::Scalar, Decomposition::ColsAtCompileTime,
+                                       RhsType::ColsAtCompileTime, RhsType::PlainObject::Options,
+                                       Decomposition::MaxColsAtCompileTime, RhsType::MaxColsAtCompileTime>::type;
 };
 
 template <typename Decomposition, typename RhsType>
 struct traits<Solve<Decomposition, RhsType> >
     : traits<
           typename solve_traits<Decomposition, RhsType, typename internal::traits<RhsType>::StorageKind>::PlainObject> {
-  typedef typename solve_traits<Decomposition, RhsType, typename internal::traits<RhsType>::StorageKind>::PlainObject
-      PlainObject;
-  typedef typename promote_index_type<typename Decomposition::StorageIndex, typename RhsType::StorageIndex>::type
-      StorageIndex;
-  typedef traits<PlainObject> BaseTraits;
+  using PlainObject =
+      typename solve_traits<Decomposition, RhsType, typename internal::traits<RhsType>::StorageKind>::PlainObject;
+  using StorageIndex =
+      typename promote_index_type<typename Decomposition::StorageIndex, typename RhsType::StorageIndex>::type;
+  using BaseTraits = traits<PlainObject>;
   enum { Flags = BaseTraits::Flags & RowMajorBit, CoeffReadCost = HugeCost };
 };
 
@@ -62,8 +62,8 @@ struct traits<Solve<Decomposition, RhsType> >
 template <typename Decomposition, typename RhsType>
 class Solve : public SolveImpl<Decomposition, RhsType, typename internal::traits<RhsType>::StorageKind> {
  public:
-  typedef typename internal::traits<Solve>::PlainObject PlainObject;
-  typedef typename internal::traits<Solve>::StorageIndex StorageIndex;
+  using PlainObject = typename internal::traits<Solve>::PlainObject;
+  using StorageIndex = typename internal::traits<Solve>::StorageIndex;
 
   Solve(const Decomposition &dec, const RhsType &rhs) : m_dec(dec), m_rhs(rhs) {}
 
@@ -81,10 +81,10 @@ class Solve : public SolveImpl<Decomposition, RhsType, typename internal::traits
 // Specialization of the Solve expression for dense results
 template <typename Decomposition, typename RhsType>
 class SolveImpl<Decomposition, RhsType, Dense> : public MatrixBase<Solve<Decomposition, RhsType> > {
-  typedef Solve<Decomposition, RhsType> Derived;
+  using Derived = Solve<Decomposition, RhsType>;
 
  public:
-  typedef MatrixBase<Solve<Decomposition, RhsType> > Base;
+  using Base = MatrixBase<Solve<Decomposition, RhsType>>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Derived)
 
  private:
@@ -96,7 +96,7 @@ class SolveImpl<Decomposition, RhsType, Dense> : public MatrixBase<Solve<Decompo
 template <typename Decomposition, typename RhsType, typename StorageKind>
 class SolveImpl : public internal::generic_xpr_base<Solve<Decomposition, RhsType>, MatrixXpr, StorageKind>::type {
  public:
-  typedef typename internal::generic_xpr_base<Solve<Decomposition, RhsType>, MatrixXpr, StorageKind>::type Base;
+  using Base = typename internal::generic_xpr_base<Solve<Decomposition, RhsType>, MatrixXpr, StorageKind>::type;
 };
 
 namespace internal {
@@ -105,9 +105,9 @@ namespace internal {
 template <typename Decomposition, typename RhsType>
 struct evaluator<Solve<Decomposition, RhsType> >
     : public evaluator<typename Solve<Decomposition, RhsType>::PlainObject> {
-  typedef Solve<Decomposition, RhsType> SolveType;
-  typedef typename SolveType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using SolveType = Solve<Decomposition, RhsType>;
+  using PlainObject = typename SolveType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   enum { Flags = Base::Flags | EvalBeforeNestingBit };
 
@@ -125,7 +125,7 @@ struct evaluator<Solve<Decomposition, RhsType> >
 // specialization must exist somewhere
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scalar, Scalar>, Dense2Dense> {
-  typedef Solve<DecType, RhsType> SrcXprType;
+  using SrcXprType = Solve<DecType, RhsType>;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
@@ -139,7 +139,7 @@ struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scala
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<Transpose<const DecType>, RhsType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
-  typedef Solve<Transpose<const DecType>, RhsType> SrcXprType;
+  using SrcXprType = Solve<Transpose<const DecType>, RhsType>;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();
@@ -156,9 +156,9 @@ struct Assignment<
     Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType> >,
           RhsType>,
     internal::assign_op<Scalar, Scalar>, Dense2Dense> {
-  typedef Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType> >,
-                RhsType>
-      SrcXprType;
+  using SrcXprType =
+      Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType>>,
+            RhsType>;
   static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
     Index dstRows = src.rows();
     Index dstCols = src.cols();

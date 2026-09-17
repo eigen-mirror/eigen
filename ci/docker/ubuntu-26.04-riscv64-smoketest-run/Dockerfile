@@ -10,6 +10,7 @@
 #   xsltproc  - converts CTest XML to JUnit in test.linux.after_script.sh
 #   libgomp1  - OpenMP runtime for test binaries (libstdc++6/libgcc-s1
 #               are already present in the Ubuntu 26.04 base image)
+#   python3   - drives the test pass cache (ci/scripts/test_cache.py)
 #
 # This image is assembled WITHOUT emulation: the first stage runs natively on
 # the amd64 build host, downloads the riscv64 .debs (and their dependency
@@ -44,7 +45,8 @@ RUN dpkg --add-architecture riscv64 && \
 RUN apt-get install -y --no-install-recommends --download-only \
       cmake:riscv64 \
       xsltproc:riscv64 \
-      libgomp1:riscv64 && \
+      libgomp1:riscv64 \
+      python3:riscv64 && \
     mkdir -p /rootfs && \
     for deb in /var/cache/apt/archives/*.deb; do dpkg-deb -x "$deb" /rootfs; done
 

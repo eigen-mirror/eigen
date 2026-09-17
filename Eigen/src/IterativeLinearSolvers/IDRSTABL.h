@@ -53,10 +53,10 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     Setup and type definitions.
   */
   using numext::abs;
-  typedef typename Dest::Scalar Scalar;
-  typedef typename Dest::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  using Scalar = typename Dest::Scalar;
+  using RealScalar = typename Dest::RealScalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   const Index N = x.rows();
 
@@ -265,7 +265,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
 
         // Obtain the update coefficients beta implicitly
         // beta=lu_sigma.solve(AR_T * u.block(N * (j - 1), 0, N, 1)
-        u.reshaped().head(u.rows() * j) -= U.topRows(N * j) * lu_solver.solve(AR_T * precond.solve(u.col(j - 1)));
+        u.leftCols(j).reshaped() -= U.topRows(N * j) * lu_solver.solve(AR_T * precond.solve(u.col(j - 1)));
 
         // u=[u;Au_{j-1}]
         u.col(j).noalias() = mat * precond.solve(u.col(j - 1));
@@ -283,7 +283,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
             auto v = V.col(i).segment(N * j, N);
             Scalar h = v.squaredNorm();
             h = v.dot(u.col(j)) / h;
-            u.reshaped().head(u.rows() * (j + 1)) -= h * V.block(0, i, N * (j + 1), 1);
+            u.leftCols(j + 1).reshaped() -= h * V.col(i).head(N * (j + 1));
           }
         }
         // Normalize u and assign to a column of V
@@ -297,7 +297,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
           u.leftCols(j + 1) /= normalization_constant;
         }
 
-        V.block(0, q - 1, N * (j + 1), 1).noalias() = u.reshaped().head(u.rows() * (j + 1));
+        V.col(q - 1).head(N * (j + 1)).noalias() = u.leftCols(j + 1).reshaped();
       }
 
       if (!break_normalization) {
@@ -365,8 +365,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -413,7 +413,7 @@ struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
 template <typename MatrixType_, typename Preconditioner_>
 class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner_>> {
  protected:
-  typedef IterativeSolverBase<IDRSTABL> Base;
+  using Base = IterativeSolverBase<IDRSTABL>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -423,10 +423,10 @@ class IDRSTABL : public IterativeSolverBase<IDRSTABL<MatrixType_, Preconditioner
   Index m_S = 4;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  public:
   /** Default constructor. */

@@ -134,15 +134,15 @@ template <typename PacketReturnType, int PacketSize>
 struct PacketWrapper {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC static Scalar scalarize(Index, PacketReturnType&) {
-    eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR  THE CHOSEN TYPE");
+  EIGEN_DEVICE_FUNC static Scalar scalarize(Index, const PacketReturnType&) {
+    eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR THE CHOSEN TYPE");
     abort();
   }
   EIGEN_DEVICE_FUNC static PacketReturnType convert_to_packet_type(Scalar in, Scalar) {
     return ::Eigen::internal::template plset<PacketReturnType>(in);
   }
-  EIGEN_DEVICE_FUNC static void set_packet(PacketReturnType, Scalar*) {
-    eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR  THE CHOSEN TYPE");
+  EIGEN_DEVICE_FUNC static void set_packet(PacketReturnType&, Scalar*) {
+    eigen_assert(false && "THERE IS NO PACKETIZE VERSION FOR THE CHOSEN TYPE");
     abort();
   }
 };
@@ -152,7 +152,7 @@ template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 4> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType& in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, const PacketReturnType& in) {
     switch (index) {
       case 0:
         return in.x();
@@ -182,7 +182,7 @@ template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 1> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index, PacketReturnType& in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index, const PacketReturnType& in) {
     return in;
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static PacketReturnType convert_to_packet_type(Scalar in, Scalar) {
@@ -195,7 +195,7 @@ template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 2> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
   template <typename Index>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, PacketReturnType& in) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE static Scalar scalarize(Index index, const PacketReturnType& in) {
     switch (index) {
       case 0:
         return in.x();

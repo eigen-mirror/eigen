@@ -129,17 +129,15 @@ void test_conversion() {
   VERIFY_IS_EQUAL(static_cast<float>(-bfloat16(3.0f)), -3.0f);
   VERIFY_IS_EQUAL(static_cast<float>(-bfloat16(-4.5f)), 4.5f);
 
-#if !EIGEN_COMP_MSVC
-  // Visual Studio errors out on divisions by 0
-  VERIFY((numext::isnan)(static_cast<float>(bfloat16(0.0 / 0.0))));
-  VERIFY((numext::isinf)(static_cast<float>(bfloat16(1.0 / 0.0))));
-  VERIFY((numext::isinf)(static_cast<float>(bfloat16(-1.0 / 0.0))));
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double infinity = std::numeric_limits<double>::infinity();
+  VERIFY((numext::isnan)(static_cast<float>(bfloat16(nan))));
+  VERIFY((numext::isinf)(static_cast<float>(bfloat16(infinity))));
+  VERIFY((numext::isinf)(static_cast<float>(bfloat16(-infinity))));
 
-  // Visual Studio errors out on divisions by 0
-  VERIFY((numext::isnan)(bfloat16(0.0 / 0.0)));
-  VERIFY((numext::isinf)(bfloat16(1.0 / 0.0)));
-  VERIFY((numext::isinf)(bfloat16(-1.0 / 0.0)));
-#endif
+  VERIFY((numext::isnan)(bfloat16(nan)));
+  VERIFY((numext::isinf)(bfloat16(infinity)));
+  VERIFY((numext::isinf)(bfloat16(-infinity)));
 
   // NaNs and infinities.
   VERIFY(!(numext::isinf)(static_cast<float>(bfloat16(3.38e38f))));  // Largest finite number.
@@ -180,6 +178,13 @@ void test_numtraits() {
             << numext::bit_cast<numext::uint16_t>(std::numeric_limits<bfloat16>::signaling_NaN()) << ")" << std::endl;
 
   VERIFY(NumTraits<bfloat16>::IsSigned);
+
+  // The bfloat16 machine epsilon is 2^-7 = 0x3c00, and NumTraits must agree
+  // with std::numeric_limits.
+  VERIFY_BFLOAT16_BITS_EQUAL(NumTraits<bfloat16>::epsilon(), 0x3c00);
+  VERIFY_BFLOAT16_BITS_EQUAL(std::numeric_limits<bfloat16>::epsilon(), 0x3c00);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(NumTraits<bfloat16>::epsilon()),
+                  numext::bit_cast<numext::uint16_t>(std::numeric_limits<bfloat16>::epsilon()));
 
   VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(std::numeric_limits<bfloat16>::infinity()),
                   numext::bit_cast<numext::uint16_t>(bfloat16(std::numeric_limits<float>::infinity())));
@@ -237,19 +242,19 @@ void test_comparison() {
   VERIFY(bfloat16(1.0f) != bfloat16(2.0f));
 
   // Comparisons with NaNs and infinities.
-#if !EIGEN_COMP_MSVC
-  // Visual Studio errors out on divisions by 0
-  VERIFY(!(bfloat16(0.0 / 0.0) == bfloat16(0.0 / 0.0)));
-  VERIFY(bfloat16(0.0 / 0.0) != bfloat16(0.0 / 0.0));
+  const bfloat16 nan(std::numeric_limits<double>::quiet_NaN());
+  const bfloat16 infinity(std::numeric_limits<double>::infinity());
+  const bfloat16 negative_infinity(-std::numeric_limits<double>::infinity());
+  VERIFY(!(nan == nan));
+  VERIFY(nan != nan);
 
-  VERIFY(!(bfloat16(1.0) == bfloat16(0.0 / 0.0)));
-  VERIFY(!(bfloat16(1.0) < bfloat16(0.0 / 0.0)));
-  VERIFY(!(bfloat16(1.0) > bfloat16(0.0 / 0.0)));
-  VERIFY(bfloat16(1.0) != bfloat16(0.0 / 0.0));
+  VERIFY(!(bfloat16(1.0) == nan));
+  VERIFY(!(bfloat16(1.0) < nan));
+  VERIFY(!(bfloat16(1.0) > nan));
+  VERIFY(bfloat16(1.0) != nan);
 
-  VERIFY(bfloat16(1.0) < bfloat16(1.0 / 0.0));
-  VERIFY(bfloat16(1.0) > bfloat16(-1.0 / 0.0));
-#endif
+  VERIFY(bfloat16(1.0) < infinity);
+  VERIFY(bfloat16(1.0) > negative_infinity);
 }
 
 void test_basic_functions() {
@@ -379,9 +384,11 @@ void test_nextafter() {
          std::numeric_limits<bfloat16>::infinity());
   VERIFY(numext::nextafter(-(std::numeric_limits<bfloat16>::max)(), -std::numeric_limits<bfloat16>::infinity()) ==
          -std::numeric_limits<bfloat16>::infinity());
+  // The neighbors of ±0 are the smallest subnormals with the sign of the
+  // direction, matching std::nextafter (IEEE-754 nextUp/nextDown of zero).
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(1.0f)), 0x0001);
-  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(1.0f)), 0x0000);
-  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-1.0f)), 0x8000);
+  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(1.0f)), 0x0001);
+  VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-1.0f)), 0x8001);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(-1.0f)), 0x8001);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(0.0f), bfloat16(-0.0f)), 0x8000);
   VERIFY_BFLOAT16_BITS_EQUAL(numext::nextafter(bfloat16(-0.0f), bfloat16(0.0f)), 0x0000);

@@ -20,11 +20,11 @@ namespace internal {
 
 template <>
 struct product_promote_storage_type<Sparse, Dense, OuterProduct> {
-  typedef Sparse ret;
+  using ret = Sparse;
 };
 template <>
 struct product_promote_storage_type<Dense, Sparse, OuterProduct> {
-  typedef Sparse ret;
+  using ret = Sparse;
 };
 
 // Type trait to detect if a sparse type supports direct compressed storage access
@@ -42,11 +42,11 @@ struct sparse_time_dense_product_impl;
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, typename DenseResType::Scalar,
                                       RowMajor, true> {
-  typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseResType> Res;
-  typedef typename evaluator<Lhs>::InnerIterator LhsInnerIterator;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename Res::Scalar ResScalar;
+  using Lhs = internal::remove_all_t<SparseLhsType>;
+  using Res = internal::remove_all_t<DenseResType>;
+  using LhsInnerIterator = typename evaluator<Lhs>::InnerIterator;
+  using LhsEval = evaluator<Lhs>;
+  using ResScalar = typename Res::Scalar;
 
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                   const typename Res::Scalar& alpha) {
@@ -174,11 +174,11 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 // ColMajor, single column (ColPerCol=true): CSC SpMV
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType, typename AlphaType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, AlphaType, ColMajor, true> {
-  typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseRhsType> Rhs;
-  typedef internal::remove_all_t<DenseResType> Res;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename LhsEval::InnerIterator LhsInnerIterator;
+  using Lhs = internal::remove_all_t<SparseLhsType>;
+  using Rhs = internal::remove_all_t<DenseRhsType>;
+  using Res = internal::remove_all_t<DenseResType>;
+  using LhsEval = evaluator<Lhs>;
+  using LhsInnerIterator = typename LhsEval::InnerIterator;
 
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res, const AlphaType& alpha) {
     runImpl(lhs, rhs, res, alpha, bool_constant<has_compressed_storage<Lhs>::value>());
@@ -187,8 +187,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   // Direct pointer path: works for both compressed and non-compressed storage.
   static void runImpl(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res, const AlphaType& alpha,
                       std::true_type /* has_compressed_storage */) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Lhs::StorageIndex StorageIndex;
+    using LhsScalar = typename Lhs::Scalar;
+    using StorageIndex = typename Lhs::StorageIndex;
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
@@ -204,7 +204,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
         // host-thread safety (see below), so it is only available where thread_local is
         // usable; under EIGEN_AVOID_THREAD_LOCAL fall through to the serial scatter.
 #if defined(EIGEN_HAS_OPENMP) && !defined(EIGEN_AVOID_THREAD_LOCAL)
-        typedef typename Res::Scalar ResScalar;
+        using ResScalar = typename Res::Scalar;
         const Index m = res.rows();
         const Index threads = Eigen::nbThreads();
         // Per-thread scratch + reduction: the natural per-column partition would
@@ -348,10 +348,10 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, typename DenseResType::Scalar,
                                       RowMajor, false> {
-  typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseResType> Res;
-  typedef evaluator<Lhs> LhsEval;
-  typedef typename LhsEval::InnerIterator LhsInnerIterator;
+  using Lhs = internal::remove_all_t<SparseLhsType>;
+  using Res = internal::remove_all_t<DenseResType>;
+  using LhsEval = evaluator<Lhs>;
+  using LhsInnerIterator = typename LhsEval::InnerIterator;
 
   static constexpr bool IsCompressedLhs = has_compressed_storage<Lhs>::value;
 
@@ -377,8 +377,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   // Direct pointer path: works for both compressed and non-compressed storage.
   static void processRow(const LhsEval& /*lhsEval*/, const SparseLhsType& lhs, const DenseRhsType& rhs, Res& res,
                          const typename Res::Scalar& alpha, Index i, std::true_type /* has_compressed_storage */) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Lhs::StorageIndex StorageIndex;
+    using LhsScalar = typename Lhs::Scalar;
+    using StorageIndex = typename Lhs::StorageIndex;
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
@@ -402,10 +402,10 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
 template <typename SparseLhsType, typename DenseRhsType, typename DenseResType>
 struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType, typename DenseResType::Scalar,
                                       ColMajor, false> {
-  typedef internal::remove_all_t<SparseLhsType> Lhs;
-  typedef internal::remove_all_t<DenseRhsType> Rhs;
-  typedef internal::remove_all_t<DenseResType> Res;
-  typedef typename evaluator<Lhs>::InnerIterator LhsInnerIterator;
+  using Lhs = internal::remove_all_t<SparseLhsType>;
+  using Rhs = internal::remove_all_t<DenseRhsType>;
+  using Res = internal::remove_all_t<DenseResType>;
+  using LhsInnerIterator = typename evaluator<Lhs>::InnerIterator;
 
   static void run(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                   const typename Res::Scalar& alpha) {
@@ -415,8 +415,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
   // Direct pointer path: works for both compressed and non-compressed storage.
   static void runImpl(const SparseLhsType& lhs, const DenseRhsType& rhs, DenseResType& res,
                       const typename Res::Scalar& alpha, std::true_type /* has_compressed_storage */) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Lhs::StorageIndex StorageIndex;
+    using LhsScalar = typename Lhs::Scalar;
+    using StorageIndex = typename Lhs::StorageIndex;
     const Lhs& mat = lhs;
     const LhsScalar* vals = mat.valuePtr();
     const StorageIndex* inds = mat.innerIndexPtr();
@@ -454,12 +454,12 @@ namespace internal {
 template <typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, SparseShape, DenseShape, ProductType>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, SparseShape, DenseShape, ProductType> > {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
   static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
-    typedef typename nested_eval<Lhs, ((Rhs::Flags & RowMajorBit) == 0) ? 1 : Rhs::ColsAtCompileTime>::type LhsNested;
-    typedef typename nested_eval<Rhs, ((Lhs::Flags & RowMajorBit) == 0) ? 1 : Dynamic>::type RhsNested;
+    using LhsNested = typename nested_eval<Lhs, ((Rhs::Flags & RowMajorBit) == 0) ? 1 : Rhs::ColsAtCompileTime>::type;
+    using RhsNested = typename nested_eval<Rhs, ((Lhs::Flags & RowMajorBit) == 0) ? 1 : Dynamic>::type;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
     internal::sparse_time_dense_product(lhsNested, rhsNested, dst, alpha);
@@ -473,13 +473,13 @@ struct generic_product_impl<Lhs, Rhs, SparseTriangularShape, DenseShape, Product
 template <typename Lhs, typename Rhs, int ProductType>
 struct generic_product_impl<Lhs, Rhs, DenseShape, SparseShape, ProductType>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, SparseShape, ProductType> > {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dst>
   static void scaleAndAddTo(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
-    typedef typename nested_eval<Lhs, ((Rhs::Flags & RowMajorBit) == 0) ? Dynamic : 1>::type LhsNested;
-    typedef typename nested_eval<Rhs, ((Lhs::Flags & RowMajorBit) == RowMajorBit) ? 1 : Lhs::RowsAtCompileTime>::type
-        RhsNested;
+    using LhsNested = typename nested_eval<Lhs, ((Rhs::Flags & RowMajorBit) == 0) ? Dynamic : 1>::type;
+    using RhsNested =
+        typename nested_eval<Rhs, ((Lhs::Flags & RowMajorBit) == RowMajorBit) ? 1 : Lhs::RowsAtCompileTime>::type;
     LhsNested lhsNested(lhs);
     RhsNested rhsNested(rhs);
 
@@ -496,23 +496,21 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SparseTriangularShape, Product
 template <typename LhsT, typename RhsT, bool NeedToTranspose>
 struct sparse_dense_outer_product_evaluator {
  protected:
-  typedef std::conditional_t<NeedToTranspose, RhsT, LhsT> Lhs1;
-  typedef std::conditional_t<NeedToTranspose, LhsT, RhsT> ActualRhs;
-  typedef Product<LhsT, RhsT, DefaultProduct> ProdXprType;
+  using Lhs1 = std::conditional_t<NeedToTranspose, RhsT, LhsT>;
+  using ActualRhs = std::conditional_t<NeedToTranspose, LhsT, RhsT>;
+  using ProdXprType = Product<LhsT, RhsT, DefaultProduct>;
 
   // if the actual left-hand side is a dense vector,
   // then build a sparse-view so that we can seamlessly iterate over it.
-  typedef std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1,
-                             SparseView<Lhs1> >
-      ActualLhs;
-  typedef std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1 const&,
-                             SparseView<Lhs1> >
-      LhsArg;
+  using ActualLhs = std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value, Lhs1,
+                                       SparseView<Lhs1>>;
+  using LhsArg = std::conditional_t<std::is_same<typename internal::traits<Lhs1>::StorageKind, Sparse>::value,
+                                    const Lhs1&, SparseView<Lhs1>>;
 
-  typedef evaluator<ActualLhs> LhsEval;
-  typedef evaluator<ActualRhs> RhsEval;
-  typedef typename evaluator<ActualLhs>::InnerIterator LhsIterator;
-  typedef typename ProdXprType::Scalar Scalar;
+  using LhsEval = evaluator<ActualLhs>;
+  using RhsEval = evaluator<ActualRhs>;
+  using LhsIterator = typename evaluator<ActualLhs>::InnerIterator;
+  using Scalar = typename ProdXprType::Scalar;
 
  public:
   enum { Flags = NeedToTranspose ? RowMajorBit : 0, CoeffReadCost = HugeCost };
@@ -568,10 +566,10 @@ struct sparse_dense_outer_product_evaluator {
 template <typename Lhs, typename Rhs>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, OuterProduct, SparseShape, DenseShape>
     : sparse_dense_outer_product_evaluator<Lhs, Rhs, Lhs::IsRowMajor> {
-  typedef sparse_dense_outer_product_evaluator<Lhs, Rhs, Lhs::IsRowMajor> Base;
+  using Base = sparse_dense_outer_product_evaluator<Lhs, Rhs, Lhs::IsRowMajor>;
 
-  typedef Product<Lhs, Rhs> XprType;
-  typedef typename XprType::PlainObject PlainObject;
+  using XprType = Product<Lhs, Rhs>;
+  using PlainObject = typename XprType::PlainObject;
 
   explicit product_evaluator(const XprType& xpr) : Base(xpr.lhs(), xpr.rhs()) {}
 };
@@ -579,10 +577,10 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, OuterProduct, Sparse
 template <typename Lhs, typename Rhs>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, OuterProduct, DenseShape, SparseShape>
     : sparse_dense_outer_product_evaluator<Lhs, Rhs, Rhs::IsRowMajor> {
-  typedef sparse_dense_outer_product_evaluator<Lhs, Rhs, Rhs::IsRowMajor> Base;
+  using Base = sparse_dense_outer_product_evaluator<Lhs, Rhs, Rhs::IsRowMajor>;
 
-  typedef Product<Lhs, Rhs> XprType;
-  typedef typename XprType::PlainObject PlainObject;
+  using XprType = Product<Lhs, Rhs>;
+  using PlainObject = typename XprType::PlainObject;
 
   explicit product_evaluator(const XprType& xpr) : Base(xpr.lhs(), xpr.rhs()) {}
 };

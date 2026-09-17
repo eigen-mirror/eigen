@@ -4,6 +4,8 @@
 #ifndef BLAS_H
 #define BLAS_H
 
+#include <stddef.h>
+
 #if defined(_WIN32)
 #if defined(EIGEN_BLAS_BUILD_DLL)
 #define EIGEN_BLAS_API __declspec(dllexport)
@@ -33,7 +35,7 @@ typedef unsigned long BLASULONG;
 #endif
 
 EIGEN_BLAS_API int BLASFUNC(lsame)(const char *, const char *);
-EIGEN_BLAS_API void BLASFUNC(xerbla)(const char *, int *info);
+EIGEN_BLAS_API void BLASFUNC(xerbla)(const char*, int* info, size_t len);
 
 EIGEN_BLAS_API float BLASFUNC(sdot)(int *, float *, int *, float *, int *);
 EIGEN_BLAS_API float BLASFUNC(sdsdot)(int *, float *, float *, int *, float *, int *);

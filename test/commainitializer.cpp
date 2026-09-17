@@ -73,9 +73,7 @@ void test_basics() {
 
   VERIFY_RAISES_ASSERT((m3 << 1, 2, 3, 4, 5, 6, 7, 8));
 
-#ifndef _MSC_VER
   VERIFY_RAISES_ASSERT((m3 << 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
-#endif
 
   double data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
   Matrix3d ref = Map<Matrix<double, 3, 3, RowMajor> >(data);

@@ -132,12 +132,14 @@ struct copy_using_evaluator_traits {
   static constexpr int ActualPacketSize = Vectorized ? unpacket_traits<PacketType>::size : 1;
   static constexpr int UnrollingLimit = EIGEN_UNROLLING_LIMIT * ActualPacketSize;
   static constexpr int CoeffReadCost = int(DstEvaluator::CoeffReadCost) + int(SrcEvaluator::CoeffReadCost);
-  static constexpr bool MayUnrollCompletely =
-      (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
   static constexpr bool MayUnrollInner =
       (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
 
  public:
+  // True when the whole assignment is a fixed-size kernel cheap enough to emit as straight-line
+  // code. Selects CompleteUnrolling, and gates the scalar tail in the SliceVectorized loop below.
+  static constexpr bool MayUnrollCompletely =
+      (SizeAtCompileTime != Dynamic) && (SizeAtCompileTime * CoeffReadCost <= UnrollingLimit);
   static constexpr int Unrolling =
       (Traversal == InnerVectorizedTraversal || Traversal == DefaultTraversal)
           ? (MayUnrollCompletely ? CompleteUnrolling
@@ -631,6 +633,41 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   using head_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, Unaligned, UsePacketSegment, !Alignable>;
   using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, Unaligned, UsePacketSegment, false>;
 
+  // All inner slices share one alignment offset: the loop bounds are outer-invariant and stay
+  // hoisted out of the outer loop. Keeping that loop free of per-slice bookkeeping is what makes
+  // slice vectorization competitive with compiler-vectorized scalar code when slices are short.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void runInvariant(Kernel& kernel, Index alignedStart,
+                                                                           Index innerSize, Index outerSize) {
+    const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
+    for (Index outer = 0; outer < outerSize; ++outer) {
+      head_loop::run(kernel, outer, 0, alignedStart);
+
+      // do the vectorizable part of the assignment
+      for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
+        kernel.template assignPacketByOuterInner<Alignment, Unaligned, PacketType>(outer, inner);
+
+      tail_loop::run(kernel, outer, alignedEnd, innerSize);
+    }
+  }
+
+#if EIGEN_UNALIGNED_VECTORIZE
+  // The slice alignment offset varies from one outer index to the next. Unaligned stores with
+  // outer-invariant bounds beat chasing the aligned position of every slice.
+  using unaligned_tail_loop =
+      unaligned_dense_assignment_loop<PacketType, Unaligned, Unaligned, UsePacketSegment, false>;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void runUnaligned(Kernel& kernel, Index innerSize,
+                                                                           Index outerSize) {
+    const Index packetEnd = numext::round_down(innerSize, PacketSize);
+    for (Index outer = 0; outer < outerSize; ++outer) {
+      for (Index inner = 0; inner < packetEnd; inner += PacketSize)
+        kernel.template assignPacketByOuterInner<Unaligned, Unaligned, PacketType>(outer, inner);
+
+      unaligned_tail_loop::run(kernel, outer, packetEnd, innerSize);
+    }
+  }
+#endif
+
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index innerSize = kernel.innerSize();
@@ -638,6 +675,13 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
     const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
     Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 
+    if (alignedStep == 0) {
+      runInvariant(kernel, alignedStart, innerSize, outerSize);
+      return;
+    }
+#if EIGEN_UNALIGNED_VECTORIZE
+    runUnaligned(kernel, innerSize, outerSize);
+#else
     for (Index outer = 0; outer < outerSize; ++outer) {
       const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
 
@@ -651,6 +695,7 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 
       alignedStart = numext::mini((alignedStart + alignedStep) % PacketSize, innerSize);
     }
+#endif
   }
 };
 
@@ -661,7 +706,14 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, InnerUnrolli
   static constexpr int PacketSize = unpacket_traits<PacketType>::size;
   static constexpr int InnerSize = Kernel::AssignmentTraits::InnerSizeAtCompileTime;
   static constexpr int VectorizableSize = numext::round_down(InnerSize, PacketSize);
-  static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
+
+  // The tail length is a compile-time constant here, so it can be emitted as a masked packet
+  // segment or as scalars. Scalars win for the same fixed-size kernels LinearVectorizedTraversal
+  // already emits them for: their destination is a temporary the enclosing expression reloads by
+  // packet, and on AVX a masked store forwards poorly to those loads. Everything else keeps the
+  // segment, where one packet evaluation replaces up to PacketSize - 1 scalar ones.
+  static constexpr bool UsePacketSegment =
+      Kernel::AssignmentTraits::UsePacketSegment && !Kernel::AssignmentTraits::MayUnrollCompletely;
 
   using packet_loop = copy_using_evaluator_innervec_InnerUnrolling<Kernel, 0, VectorizableSize, Unaligned, Unaligned>;
   using packet_segment_loop = copy_using_evaluator_innervec_segment<Kernel, VectorizableSize, InnerSize, Unaligned,
@@ -925,16 +977,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_assignment(const Dst& dst, const
 }
 
 // Deal with "assume-aliasing"
-template <typename Dst, typename Src, typename Func>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(
-    Dst& dst, const Src& src, const Func& func, std::enable_if_t<evaluator_assume_aliasing<Src>::value, void*> = 0) {
+template <typename Dst, typename Src, typename Func, std::enable_if_t<evaluator_assume_aliasing<Src>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
   typename plain_matrix_type<Src>::type tmp(src);
   call_assignment_no_alias(dst, tmp, func);
 }
 
-template <typename Dst, typename Src, typename Func>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(
-    Dst& dst, const Src& src, const Func& func, std::enable_if_t<!evaluator_assume_aliasing<Src>::value, void*> = 0) {
+template <typename Dst, typename Src, typename Func, std::enable_if_t<!evaluator_assume_aliasing<Src>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
   call_assignment_no_alias(dst, src, func);
 }
 

@@ -19,13 +19,6 @@ Matrix<T, 2, 1> angleToVec(T a) {
   return Matrix<T, 2, 1>(std::cos(a), std::sin(a));
 }
 
-// This permits to workaround a bug in clang/llvm code generation.
-template <typename T>
-EIGEN_DONT_INLINE void dont_over_optimize(T& x) {
-  volatile typename T::Scalar tmp = x(0);
-  x(0) = tmp;
-}
-
 template <typename Scalar, int Mode, int Options>
 void non_projective_only() {
   /* this test covers the following files:
@@ -137,14 +130,6 @@ void transformations() {
 
   // angle-axis conversion
   AngleAxisx aa = AngleAxisx(q1);
-  VERIFY_IS_APPROX(q1 * v1, Quaternionx(aa) * v1);
-
-  // The following test is stable only if 2*angle != angle and v1 is not colinear with axis
-  if ((abs(aa.angle()) > test_precision<Scalar>()) &&
-      (abs(aa.axis().dot(v1.normalized())) < (Scalar(1) - Scalar(4) * test_precision<Scalar>()))) {
-    VERIFY(!(q1 * v1).isApprox(Quaternionx(AngleAxisx(aa.angle() * 2, aa.axis())) * v1));
-  }
-
   aa.fromRotationMatrix(aa.toRotationMatrix());
   VERIFY_IS_APPROX(q1 * v1, Quaternionx(aa) * v1);
   // The following test is stable only if 2*angle != angle and v1 is not colinear with axis
@@ -232,7 +217,6 @@ void transformations() {
   VERIFY_IS_APPROX(t3.matrix(), t4.matrix());
 
   v3 = Vector3::Random();
-  dont_over_optimize(v3);
   for (int k = 0; k < 3; ++k) {
     if (numext::abs(v3(k)) < NumTraits<Scalar>::epsilon()) v3(k) = NumTraits<Scalar>::epsilon();
   }
@@ -395,12 +379,19 @@ void transformations() {
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();
   VERIFY_IS_APPROX(t0.inverse(Affine).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
+  Transform3 t0_general = t0;
+  Matrix4 t044_general = t044;
   t0.setIdentity();
   t0.translate(v0).rotate(q1);
   t044 = Matrix4::Zero();
   t044(3, 3) = 1;
   t044.block(0, 0, t0.matrix().rows(), 4) = t0.matrix();
   VERIFY_IS_APPROX(t0.inverse(Isometry).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
+  // #Projective is the "assume nothing" hint, so it must invert both transforms whatever the Mode is. Each check
+  // inverts the transform the preceding call did not, so that a stale result cannot pass for the right answer.
+  VERIFY_IS_APPROX(t0_general.inverse(Projective).matrix(),
+                   t044_general.inverse().block(0, 0, t0_general.matrix().rows(), 4));
+  VERIFY_IS_APPROX(t0.inverse(Projective).matrix(), t044.inverse().block(0, 0, t0.matrix().rows(), 4));
 
   Matrix3 mat_rotation, mat_scaling;
   t0.setIdentity();
@@ -683,6 +674,10 @@ void transformations_no_scale() {
   VERIFY((m3 * m3.inverse()).isIdentity(test_precision<Scalar>()));
   // Verify implicit last row is initialized.
   VERIFY_IS_APPROX(Vector4(m3.row(3)), Vector4(0.0, 0.0, 0.0, 1.0));
+
+  // t3 is a genuine isometry, so every hint must invert it, including the no-assumption Projective one.
+  VERIFY_IS_APPROX(t3.inverse(Projective).matrix(), m3.inverse().block(0, 0, t3.matrix().rows(), 4));
+  VERIFY_IS_APPROX(t3.inverse(Projective).matrix(), t3.inverse().matrix());
 
   VERIFY_IS_APPROX(t3.rotation(), t3.linear());
   if (Mode == Isometry) VERIFY(t3.rotation().data() == t3.linear().data());

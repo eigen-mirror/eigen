@@ -4,7 +4,8 @@ namespace Eigen {
 
 This page discusses several advanced methods for initializing matrices. It gives more details on the
 comma-initializer, which was introduced before. It also explains how to get special matrices such as the
-identity matrix and the zero matrix.
+identity matrix and the zero matrix. Construction from C++11 initializer lists, such as
+<tt>MatrixXd m{{1, 2}, {3, 4}}</tt>, is covered in \ref TutorialMatrixConstructors "the Matrix class tutorial".
 
 \eigenAutoToc
 

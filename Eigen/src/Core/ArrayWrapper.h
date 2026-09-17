@@ -30,7 +30,7 @@ namespace Eigen {
 namespace internal {
 template <typename ExpressionType>
 struct traits<ArrayWrapper<ExpressionType> > : public traits<remove_all_t<typename ExpressionType::Nested> > {
-  typedef ArrayXpr XprKind;
+  using XprKind = ArrayXpr;
   // Let's remove NestByRefBit
   enum {
     Flags0 = traits<remove_all_t<typename ExpressionType::Nested> >::Flags,
@@ -43,15 +43,15 @@ struct traits<ArrayWrapper<ExpressionType> > : public traits<remove_all_t<typena
 template <typename ExpressionType>
 class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> > {
  public:
-  typedef ArrayBase<ArrayWrapper> Base;
+  using Base = ArrayBase<ArrayWrapper>;
   EIGEN_DENSE_PUBLIC_INTERFACE(ArrayWrapper)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(ArrayWrapper)
-  typedef internal::remove_all_t<ExpressionType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<ExpressionType>;
 
-  typedef std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>
-      ScalarWithConstIfNotLvalue;
+  using ScalarWithConstIfNotLvalue =
+      std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>;
 
-  typedef typename internal::ref_selector<ExpressionType>::non_const_type NestedExpressionType;
+  using NestedExpressionType = typename internal::ref_selector<ExpressionType>::non_const_type;
 
   using Base::coeffRef;
 
@@ -106,7 +106,7 @@ class ArrayWrapper : public ArrayBase<ArrayWrapper<ExpressionType> > {
 namespace internal {
 template <typename ExpressionType>
 struct traits<MatrixWrapper<ExpressionType> > : public traits<remove_all_t<typename ExpressionType::Nested> > {
-  typedef MatrixXpr XprKind;
+  using XprKind = MatrixXpr;
   // Let's remove NestByRefBit
   enum {
     Flags0 = traits<remove_all_t<typename ExpressionType::Nested> >::Flags,
@@ -119,15 +119,15 @@ struct traits<MatrixWrapper<ExpressionType> > : public traits<remove_all_t<typen
 template <typename ExpressionType>
 class MatrixWrapper : public MatrixBase<MatrixWrapper<ExpressionType> > {
  public:
-  typedef MatrixBase<MatrixWrapper<ExpressionType> > Base;
+  using Base = MatrixBase<MatrixWrapper<ExpressionType>>;
   EIGEN_DENSE_PUBLIC_INTERFACE(MatrixWrapper)
   EIGEN_INHERIT_ASSIGNMENT_OPERATORS(MatrixWrapper)
-  typedef internal::remove_all_t<ExpressionType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<ExpressionType>;
 
-  typedef std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>
-      ScalarWithConstIfNotLvalue;
+  using ScalarWithConstIfNotLvalue =
+      std::conditional_t<internal::is_lvalue<ExpressionType>::value, Scalar, const Scalar>;
 
-  typedef typename internal::ref_selector<ExpressionType>::non_const_type NestedExpressionType;
+  using NestedExpressionType = typename internal::ref_selector<ExpressionType>::non_const_type;
 
   using Base::coeffRef;
 

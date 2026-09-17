@@ -5,6 +5,25 @@
 New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
+- `ArrayBase::logicalShiftRight<N>()`, a zero-filling right shift, alongside `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` as the spelled-out names for the existing shift operators [!2816]
+
+Bug fixes:
+- Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]
+- `MatrixBase::isLowerTriangular()` skipped the last strictly-upper coefficient of every column past the diagonal block, reporting some wide matrices as lower triangular [!2814]
+- `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()` did not compile in any configuration, their functors having dropped the shift count [!2814]
+- `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
+- `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
+- `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
+
+Deprecations:
+- `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]
+
+Other changes:
+- The top-level `unsupported/` directory was renamed to `contrib/`. Existing
+  user code with `#include <unsupported/Eigen/...>` continues to compile
+  unchanged via forwarding header shims. The CMake subproject label and
+  build-group target were renamed accordingly: `Unsupported` → `Contrib`,
+  `BuildUnsupported` → `BuildContrib`.
 
 ## [5.0.1] - 2025-11-11
 

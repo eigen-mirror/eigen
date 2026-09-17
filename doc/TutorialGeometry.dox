@@ -7,7 +7,7 @@ In this page, we will introduce the many possibilities offered by the \ref Geome
 \eigenAutoToc
 
 Eigen's Geometry module provides two different kinds of geometric transformations:
-  - Abstract transformations, such as rotations (represented by \ref AngleAxis "angle and axis" or by a \ref Quaternion "quaternion"), \ref Translation "translations", \ref Scaling() "scalings". These transformations are NOT represented as matrices, but you can nevertheless mix them with matrices and vectors in expressions, and convert them to matrices if you wish.
+  - Abstract transformations, such as rotations (represented by \ref AngleAxis "angle and axis" or by a \ref Quaternion "quaternion"), \ref Translation "translations", \ref UniformScaling "scalings". These transformations are NOT represented as matrices, but you can nevertheless mix them with matrices and vectors in expressions, and convert them to matrices if you wish.
   - Projective or affine transformation matrices: see the Transform class. These are really matrices.
 
 \note If you are working with OpenGL 4x4 matrices then Affine3f and Affine3d are what you want. Since Eigen defaults to column-major storage, you can directly use the Transform::data() method to pass your transformation matrix to OpenGL.
@@ -61,9 +61,9 @@ Transform<float,3,Affine> t = Translation3f(p) * AngleAxisf(a,axis) * Scaling(s)
 <tr><td>
 N-D Linear transformations \n
 <em class=note>(pure rotations, \n scaling, etc.)</em></td><td>\code
-Matrix<float,N> t = concatenation_of_rotations_and_scalings;
-Matrix<float,2> t = Rotation2Df(a) * Scaling(s);
-Matrix<float,3> t = AngleAxisf(a,axis) * Scaling(s);\endcode</td></tr>
+Matrix<float,N,N> t = concatenation_of_rotations_and_scalings;
+Matrix2f t = Rotation2Df(a) * Scaling(s);
+Matrix3f t = AngleAxisf(a,axis) * Scaling(s);\endcode</td></tr>
 </table>
 
 <strong>Notes on rotations</strong>\n To transform more than a single vector the preferred
@@ -89,7 +89,7 @@ AngleAxisf aa;  aa = Quaternionf(..);
 AngleAxisf aa;  aa = Matrix3f(..);       // assumes a pure rotation matrix
 Matrix2f m;     m  = Rotation2Df(..);
 Matrix3f m;     m  = Quaternionf(..);       Matrix3f m;   m = Scaling(..);
-Affine3f m;     m  = AngleAxis3f(..);       Affine3f m;   m = Scaling(..);
+Affine3f m;     m  = AngleAxisf(..);        Affine3f m;   m = Scaling(..);
 Affine3f m;     m  = Translation3f(..);     Affine3f m;   m = Matrix3f(..);
 Affine3f m(Translation3f(..));           // direct initialization
 \endcode</td></tr>
@@ -147,7 +147,7 @@ glLoadMatrixf(t.data());\endcode</td></tr>
 OpenGL compatibility \b 2D </td><td>\code
 Affine3f aux(Affine3f::Identity());
 aux.linear().topLeftCorner<2,2>() = t.linear();
-aux.translation().start<2>() = t.translation();
+aux.translation().head<2>() = t.translation();
 glLoadMatrixf(aux.data());\endcode</td></tr>
 </table>
 

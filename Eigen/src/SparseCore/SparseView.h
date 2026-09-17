@@ -21,8 +21,8 @@ namespace internal {
 
 template <typename MatrixType>
 struct traits<SparseView<MatrixType> > : traits<MatrixType> {
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Sparse StorageKind;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using StorageKind = Sparse;
   enum { Flags = int(traits<MatrixType>::Flags) & (RowMajorBit) };
 };
 
@@ -44,12 +44,12 @@ struct traits<SparseView<MatrixType> > : traits<MatrixType> {
  */
 template <typename MatrixType>
 class SparseView : public SparseMatrixBase<SparseView<MatrixType> > {
-  typedef typename MatrixType::Nested MatrixTypeNested;
-  typedef SparseMatrixBase<SparseView> Base;
+  using MatrixTypeNested = typename MatrixType::Nested;
+  using Base = SparseMatrixBase<SparseView>;
 
  public:
   EIGEN_SPARSE_PUBLIC_INTERFACE(SparseView)
-  typedef internal::remove_all_t<MatrixType> NestedExpression;
+  using NestedExpression = internal::remove_all_t<MatrixType>;
 
   explicit SparseView(const MatrixType& mat, const Scalar& reference = Scalar(0),
                       const RealScalar& epsilon = NumTraits<Scalar>::dummy_precision())
@@ -81,14 +81,14 @@ namespace internal {
 
 template <typename ArgType>
 struct unary_evaluator<SparseView<ArgType>, IteratorBased> : public evaluator_base<SparseView<ArgType> > {
-  typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
+  using EvalIterator = typename evaluator<ArgType>::InnerIterator;
 
  public:
-  typedef SparseView<ArgType> XprType;
+  using XprType = SparseView<ArgType>;
 
   class InnerIterator : public EvalIterator {
    protected:
-    typedef typename XprType::Scalar Scalar;
+    using Scalar = typename XprType::Scalar;
 
    public:
     EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& sve, Index outer)
@@ -127,12 +127,12 @@ struct unary_evaluator<SparseView<ArgType>, IteratorBased> : public evaluator_ba
 template <typename ArgType>
 struct unary_evaluator<SparseView<ArgType>, IndexBased> : public evaluator_base<SparseView<ArgType> > {
  public:
-  typedef SparseView<ArgType> XprType;
+  using XprType = SparseView<ArgType>;
 
  protected:
   enum { IsRowMajor = (XprType::Flags & RowMajorBit) == RowMajorBit };
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::StorageIndex StorageIndex;
+  using Scalar = typename XprType::Scalar;
+  using StorageIndex = typename XprType::StorageIndex;
 
  public:
   class InnerIterator {

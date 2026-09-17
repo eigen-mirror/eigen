@@ -24,36 +24,36 @@ struct triangular_solve_retval;
 
 template <typename MatrixType, unsigned int Mode, bool IsSelfAdjoint = (int(Mode) & int(SelfAdjoint)) != 0>
 struct triangular_base_return_types {
-  typedef internal::remove_all_t<typename MatrixType::ConjugateReturnType> MatrixConjugateReturnType;
+  using MatrixConjugateReturnType = internal::remove_all_t<typename MatrixType::ConjugateReturnType>;
   enum {
     TransposeMode = (int(Mode) & int(Upper) ? Lower : 0) | (int(Mode) & int(Lower) ? Upper : 0) |
                     (int(Mode) & int(UnitDiag)) | (int(Mode) & int(ZeroDiag))
   };
-  typedef TriangularView<std::add_const_t<MatrixType>, Mode> ConstView;
-  typedef TriangularView<const MatrixConjugateReturnType, Mode> ConjugateReturnType;
-  typedef TriangularView<const typename MatrixType::AdjointReturnType, TransposeMode> AdjointReturnType;
-  typedef TriangularView<typename MatrixType::TransposeReturnType, TransposeMode> TransposeReturnType;
-  typedef TriangularView<const typename MatrixType::ConstTransposeReturnType, TransposeMode> ConstTransposeReturnType;
+  using ConstView = TriangularView<std::add_const_t<MatrixType>, Mode>;
+  using ConjugateReturnType = TriangularView<const MatrixConjugateReturnType, Mode>;
+  using AdjointReturnType = TriangularView<const typename MatrixType::AdjointReturnType, TransposeMode>;
+  using TransposeReturnType = TriangularView<typename MatrixType::TransposeReturnType, TransposeMode>;
+  using ConstTransposeReturnType = TriangularView<const typename MatrixType::ConstTransposeReturnType, TransposeMode>;
 };
 
 template <typename MatrixType, unsigned int Mode>
 struct triangular_base_return_types<MatrixType, Mode, true> {
-  typedef internal::remove_all_t<typename MatrixType::ConjugateReturnType> MatrixConjugateReturnType;
+  using MatrixConjugateReturnType = internal::remove_all_t<typename MatrixType::ConjugateReturnType>;
   enum {
     TriangularPart = int(Mode) & int(Upper | Lower),
     TransposeMode = (int(Mode) & int(Upper) ? Lower : 0) | (int(Mode) & int(Lower) ? Upper : 0)
   };
-  typedef SelfAdjointView<std::add_const_t<MatrixType>, TriangularPart> ConstView;
-  typedef SelfAdjointView<const MatrixConjugateReturnType, TriangularPart> ConjugateReturnType;
-  typedef SelfAdjointView<const typename MatrixType::AdjointReturnType, TransposeMode> AdjointReturnType;
-  typedef SelfAdjointView<typename MatrixType::TransposeReturnType, TransposeMode> TransposeReturnType;
-  typedef SelfAdjointView<const typename MatrixType::ConstTransposeReturnType, TransposeMode> ConstTransposeReturnType;
+  using ConstView = SelfAdjointView<std::add_const_t<MatrixType>, TriangularPart>;
+  using ConjugateReturnType = SelfAdjointView<const MatrixConjugateReturnType, TriangularPart>;
+  using AdjointReturnType = SelfAdjointView<const typename MatrixType::AdjointReturnType, TransposeMode>;
+  using TransposeReturnType = SelfAdjointView<typename MatrixType::TransposeReturnType, TransposeMode>;
+  using ConstTransposeReturnType = SelfAdjointView<const typename MatrixType::ConstTransposeReturnType, TransposeMode>;
 };
 
 template <unsigned int Mode, typename Expression>
 EIGEN_DEVICE_FUNC inline typename triangular_base_return_types<Expression, Mode>::ConstView
 make_triangular_base_cwise_view(const Expression& expression) {
-  typedef typename triangular_base_return_types<Expression, Mode>::ConstView ReturnType;
+  using ReturnType = typename triangular_base_return_types<Expression, Mode>::ConstView;
   return ReturnType(expression);
 }
 
@@ -85,19 +85,19 @@ class TriangularBase : public EigenBase<Derived> {
                                                           internal::traits<Derived>::MaxColsAtCompileTime)
 
   };
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::StorageIndex StorageIndex;
-  typedef typename internal::traits<Derived>::FullMatrixType DenseMatrixType;
-  typedef typename internal::traits<Derived>::ExpressionType ExpressionType;
-  typedef DenseMatrixType DenseType;
-  typedef Derived const& Nested;
-  typedef internal::triangular_base_return_types<ExpressionType, Mode> ReturnTypes;
-  typedef typename ReturnTypes::ConstView ConstView;
-  typedef typename ReturnTypes::ConjugateReturnType ConjugateReturnType;
-  typedef typename ReturnTypes::AdjointReturnType AdjointReturnType;
-  typedef typename ReturnTypes::TransposeReturnType TransposeReturnType;
-  typedef typename ReturnTypes::ConstTransposeReturnType ConstTransposeReturnType;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using StorageIndex = typename internal::traits<Derived>::StorageIndex;
+  using DenseMatrixType = typename internal::traits<Derived>::FullMatrixType;
+  using ExpressionType = typename internal::traits<Derived>::ExpressionType;
+  using DenseType = DenseMatrixType;
+  using Nested = const Derived&;
+  using ReturnTypes = internal::triangular_base_return_types<ExpressionType, Mode>;
+  using ConstView = typename ReturnTypes::ConstView;
+  using ConjugateReturnType = typename ReturnTypes::ConjugateReturnType;
+  using AdjointReturnType = typename ReturnTypes::AdjointReturnType;
+  using TransposeReturnType = typename ReturnTypes::TransposeReturnType;
+  using ConstTransposeReturnType = typename ReturnTypes::ConstTransposeReturnType;
 
   EIGEN_DEVICE_FUNC inline TriangularBase() {
     eigen_assert(!((int(Mode) & int(UnitDiag)) && (int(Mode) & int(ZeroDiag))));
@@ -143,10 +143,23 @@ class TriangularBase : public EigenBase<Derived> {
     return derived() = DenseMatrixType::Identity(rows(), cols());
   }
 
+  /** \returns the coefficient of the \em underlying expression at position (\a row, \a col).
+   *
+   * \warning This is raw storage access: the unit diagonal of \c UnitLower / \c UnitUpper and the
+   * structural zeros of the view are \em not synthesized, so for coordinates outside the part
+   * referenced by \c Mode the stored value is returned as-is. Only evaluation of the view — for
+   * example assigning it to a dense matrix or calling toDenseMatrix() — produces the mathematical
+   * coefficients implied by \c Mode.
+   */
   EIGEN_DEVICE_FUNC inline Scalar coeff(Index row, Index col) const {
     check_coordinates_internal(row, col);
     return derived().nestedExpression().coeff(row, col);
   }
+  /** \returns a reference to the coefficient of the underlying expression at position (\a row, \a col).
+   *
+   * \warning See the warning of coeff(Index,Index): the unit diagonal and structural zeros of the
+   * view are not represented in storage and cannot be referenced.
+   */
   EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index row, Index col) {
     EIGEN_STATIC_ASSERT_LVALUE(Derived);
     check_coordinates_internal(row, col);
@@ -160,10 +173,15 @@ class TriangularBase : public EigenBase<Derived> {
     coeffRef(row, col) = other.coeff(row, col);
   }
 
+  /** Like coeff(Index,Index), but asserts (in debug builds) that (\a row, \a col) lies inside the
+   * part referenced by \c Mode; for \c UnitLower / \c UnitUpper and the strictly triangular modes
+   * that excludes the diagonal, whose implicit values are not stored. */
   EIGEN_DEVICE_FUNC inline Scalar operator()(Index row, Index col) const {
     check_coordinates(row, col);
     return coeff(row, col);
   }
+  /** Like coeffRef(Index,Index), but asserts (in debug builds) that (\a row, \a col) lies inside
+   * the part referenced by \c Mode. */
   EIGEN_DEVICE_FUNC inline Scalar& operator()(Index row, Index col) {
     check_coordinates(row, col);
     return coeffRef(row, col);
@@ -232,7 +250,7 @@ class TriangularBase : public EigenBase<Derived> {
    */
   template <bool Cond>
   EIGEN_DEVICE_FUNC inline std::conditional_t<Cond, ConjugateReturnType, ConstView> conjugateIf() const {
-    typedef std::conditional_t<Cond, ConjugateReturnType, ConstView> ReturnType;
+    using ReturnType = std::conditional_t<Cond, ConjugateReturnType, ConstView>;
     return ReturnType(derived().nestedExpression().template conjugateIf<Cond>());
   }
 
@@ -242,11 +260,17 @@ class TriangularBase : public EigenBase<Derived> {
   }
 
   /** \sa MatrixBase::transpose() */
-  template <class Dummy = int>
-  EIGEN_DEVICE_FUNC inline TransposeReturnType transpose(
-      std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*> = nullptr) {
+  template <class Dummy = int, std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*> = nullptr>
+  EIGEN_DEVICE_FUNC inline TransposeReturnType transpose() {
     typename ExpressionType::TransposeReturnType tmp(derived().nestedExpression());
     return TransposeReturnType(tmp);
+  }
+
+  template <class Dummy = int>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only argument.")
+  EIGEN_DEVICE_FUNC inline TransposeReturnType
+      transpose(std::enable_if_t<Eigen::internal::is_lvalue<ExpressionType>::value, Dummy*>) {
+    return transpose<Dummy>();
   }
 
   /** \sa MatrixBase::transpose() const */
@@ -300,11 +324,11 @@ class TriangularBase : public EigenBase<Derived> {
 namespace internal {
 template <typename MatrixType, unsigned int Mode_>
 struct traits<TriangularView<MatrixType, Mode_>> : traits<MatrixType> {
-  typedef typename ref_selector<MatrixType>::non_const_type MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNestedNonRef;
-  typedef remove_all_t<MatrixTypeNested> MatrixTypeNestedCleaned;
-  typedef typename MatrixType::PlainObject FullMatrixType;
-  typedef MatrixType ExpressionType;
+  using MatrixTypeNested = typename ref_selector<MatrixType>::non_const_type;
+  using MatrixTypeNestedNonRef = std::remove_reference_t<MatrixTypeNested>;
+  using MatrixTypeNestedCleaned = remove_all_t<MatrixTypeNested>;
+  using FullMatrixType = typename MatrixType::PlainObject;
+  using ExpressionType = MatrixType;
   enum {
     Mode = Mode_,
     FlagsLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
@@ -321,17 +345,17 @@ template <typename MatrixType_, unsigned int Mode_>
 class TriangularView
     : public TriangularViewImpl<MatrixType_, Mode_, typename internal::traits<MatrixType_>::StorageKind> {
  public:
-  typedef TriangularViewImpl<MatrixType_, Mode_, typename internal::traits<MatrixType_>::StorageKind> Base;
-  typedef typename internal::traits<TriangularView>::Scalar Scalar;
-  typedef MatrixType_ MatrixType;
+  using Base = TriangularViewImpl<MatrixType_, Mode_, typename internal::traits<MatrixType_>::StorageKind>;
+  using Scalar = typename internal::traits<TriangularView>::Scalar;
+  using MatrixType = MatrixType_;
 
  protected:
-  typedef typename internal::traits<TriangularView>::MatrixTypeNested MatrixTypeNested;
-  typedef typename internal::traits<TriangularView>::MatrixTypeNestedNonRef MatrixTypeNestedNonRef;
+  using MatrixTypeNested = typename internal::traits<TriangularView>::MatrixTypeNested;
+  using MatrixTypeNestedNonRef = typename internal::traits<TriangularView>::MatrixTypeNestedNonRef;
 
  public:
-  typedef typename internal::traits<TriangularView>::StorageKind StorageKind;
-  typedef typename internal::traits<TriangularView>::MatrixTypeNestedCleaned NestedExpression;
+  using StorageKind = typename internal::traits<TriangularView>::StorageKind;
+  using NestedExpression = typename internal::traits<TriangularView>::MatrixTypeNestedCleaned;
 
   enum {
     Mode = Mode_,
@@ -356,16 +380,7 @@ class TriangularView
     return Solve<TriangularView, Other>(*this, other.derived());
   }
 
-// workaround MSVC ICE
-#if EIGEN_COMP_MSVC
-  template <int Side, typename Other>
-  EIGEN_DEVICE_FUNC inline const internal::triangular_solve_retval<Side, TriangularView, Other> solve(
-      const MatrixBase<Other>& other) const {
-    return Base::template solve<Side>(other);
-  }
-#else
   using Base::solve;
-#endif
 
   /** \returns a selfadjoint view of the referenced triangular part which must be either \c #Upper or \c #Lower.
    *
@@ -410,21 +425,21 @@ class TriangularView
 template <typename MatrixType_, unsigned int Mode_>
 class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<TriangularView<MatrixType_, Mode_>> {
  public:
-  typedef TriangularView<MatrixType_, Mode_> TriangularViewType;
+  using TriangularViewType = TriangularView<MatrixType_, Mode_>;
 
-  typedef TriangularBase<TriangularViewType> Base;
-  typedef typename internal::traits<TriangularViewType>::Scalar Scalar;
+  using Base = TriangularBase<TriangularViewType>;
+  using Scalar = typename internal::traits<TriangularViewType>::Scalar;
 
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::PlainObject DenseMatrixType;
-  typedef DenseMatrixType PlainObject;
+  using MatrixType = MatrixType_;
+  using DenseMatrixType = typename MatrixType::PlainObject;
+  using PlainObject = DenseMatrixType;
 
  public:
   using Base::derived;
   using Base::evalToLazy;
   using Base::operator*;
 
-  typedef typename internal::traits<TriangularViewType>::StorageKind StorageKind;
+  using StorageKind = typename internal::traits<TriangularViewType>::StorageKind;
 
   enum { Mode = Mode_, Flags = internal::traits<TriangularViewType>::Flags };
 
@@ -476,16 +491,16 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
 
   // Scaling a unit triangular view would break its implicit unit diagonal, so only non-unit modes participate.
   template <unsigned int M = Mode, std::enable_if_t<(M & UnitDiag) == 0, int> = 0>
-  EIGEN_DEVICE_FUNC const
-      TriangularView<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, product), Mode>
-      operator*(const Scalar& s) const {
+  EIGEN_DEVICE_FUNC const TriangularView<
+      const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, internal::scalar_product_op), Mode>
+  operator*(const Scalar& s) const {
     return (derived().nestedExpression() * s).template triangularView<Mode>();
   }
 
   template <unsigned int M = Mode, std::enable_if_t<(M & UnitDiag) == 0, int> = 0>
-  friend EIGEN_DEVICE_FUNC const
-      TriangularView<const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, product), Mode>
-      operator*(const Scalar& s, const TriangularViewImpl& mat) {
+  friend EIGEN_DEVICE_FUNC const TriangularView<
+      const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar, MatrixType, internal::scalar_product_op), Mode>
+  operator*(const Scalar& s, const TriangularViewImpl& mat) {
     return (s * mat.derived().nestedExpression()).template triangularView<Mode>();
   }
 
@@ -499,7 +514,7 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
    *
    * The matrix \c *this must be triangular and invertible (i.e., all the coefficients of the
    * diagonal must be non zero). It works as a forward (resp. backward) substitution if \c *this
-   * is an upper (resp. lower) triangular matrix.
+   * is a lower (resp. upper) triangular matrix.
    *
    * Example: \include Triangular_solve.cpp
    * Output: \verbinclude Triangular_solve.out
@@ -532,6 +547,20 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
   EIGEN_DEVICE_FUNC void solveInPlace(const MatrixBase<OtherDerived>& other) const {
     return solveInPlace<OnTheLeft>(other);
   }
+
+  /** Replaces the referenced triangular part by its inverse.
+   *
+   * \c *this must be square and invertible; as with solveInPlace(), no check is made and a zero on the
+   * diagonal yields a non-finite result. The opposite triangle is neither read nor written, and with a
+   * \c #UnitDiag mode the diagonal itself is left alone as well.
+   *
+   * This is the operation of the \c *TRTRI LAPACK routines. It costs n^3/3 flops, where solving against an
+   * explicit identity right hand side costs n^3, and its only scratch is one block-sized panel of at most
+   * 128x128 coefficients, independent of the matrix size.
+   *
+   * \sa TriangularView::solveInPlace(), MatrixBase::inverse()
+   */
+  EIGEN_DEVICE_FUNC void inverseInPlace();
 
   /** Swaps the coefficients of the common triangular parts of two matrices */
   template <typename OtherDerived>
@@ -694,7 +723,9 @@ bool MatrixBase<Derived>::isLowerTriangular(const RealScalar& prec) const {
     }
   RealScalar threshold = maxAbsOnLowerPart * prec;
   for (Index j = 1; j < cols(); ++j) {
-    Index maxi = numext::mini(j, rows() - 1);
+    // Rows [0, min(j, rows())) of column j lie strictly above the diagonal. For a column past the diagonal block of a
+    // wide matrix that is the whole column, so the bound is rows(), not rows() - 1.
+    Index maxi = numext::mini(j, rows());
     for (Index i = 0; i < maxi; ++i)
       if (numext::abs(coeff(i, j)) > threshold) return false;
   }
@@ -715,14 +746,14 @@ namespace internal {
 //      it work)
 template <typename MatrixType, unsigned int Mode>
 struct evaluator_traits<TriangularView<MatrixType, Mode>> {
-  typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
-  typedef typename glue_shapes<typename evaluator_traits<MatrixType>::Shape, TriangularShape>::type Shape;
+  using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
+  using Shape = typename glue_shapes<typename evaluator_traits<MatrixType>::Shape, TriangularShape>::type;
 };
 
 template <typename MatrixType, unsigned int Mode>
 struct unary_evaluator<TriangularView<MatrixType, Mode>, IndexBased> : evaluator<internal::remove_all_t<MatrixType>> {
-  typedef TriangularView<MatrixType, Mode> XprType;
-  typedef evaluator<internal::remove_all_t<MatrixType>> Base;
+  using XprType = TriangularView<MatrixType, Mode>;
+  using Base = evaluator<internal::remove_all_t<MatrixType>>;
   EIGEN_DEVICE_FUNC unary_evaluator(const XprType& xpr) : Base(xpr.nestedExpression()) {}
 };
 
@@ -744,18 +775,18 @@ template <int UpLo, int Mode, int SetOpposite, typename DstEvaluatorTypeT, typen
 class triangular_dense_assignment_kernel
     : public generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version> {
  protected:
-  typedef generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version> Base;
-  typedef typename Base::DstXprType DstXprType;
-  typedef typename Base::SrcXprType SrcXprType;
+  using Base = generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor, Version>;
+  using DstXprType = typename Base::DstXprType;
+  using SrcXprType = typename Base::SrcXprType;
   using Base::m_dst;
   using Base::m_functor;
   using Base::m_src;
 
  public:
-  typedef typename Base::DstEvaluatorType DstEvaluatorType;
-  typedef typename Base::SrcEvaluatorType SrcEvaluatorType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::AssignmentTraits AssignmentTraits;
+  using DstEvaluatorType = typename Base::DstEvaluatorType;
+  using SrcEvaluatorType = typename Base::SrcEvaluatorType;
+  using Scalar = typename Base::Scalar;
+  using AssignmentTraits = typename Base::AssignmentTraits;
 
   EIGEN_DEVICE_FUNC triangular_dense_assignment_kernel(DstEvaluatorType& dst, const SrcEvaluatorType& src,
                                                        const Functor& func, DstXprType& dstExpr)
@@ -791,8 +822,8 @@ class triangular_dense_assignment_kernel
 template <int Mode, bool SetOpposite, typename DstXprType, typename SrcXprType, typename Functor>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_triangular_assignment_loop(DstXprType& dst, const SrcXprType& src,
                                                                            const Functor& func) {
-  typedef evaluator<DstXprType> DstEvaluatorType;
-  typedef evaluator<SrcXprType> SrcEvaluatorType;
+  using DstEvaluatorType = evaluator<DstXprType>;
+  using SrcEvaluatorType = evaluator<SrcXprType>;
 
   SrcEvaluatorType srcEvaluator(src);
 
@@ -801,9 +832,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_triangular_assignment_loop(DstXp
   if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
   DstEvaluatorType dstEvaluator(dst);
 
-  typedef triangular_dense_assignment_kernel<Mode&(Lower | Upper), Mode&(UnitDiag | ZeroDiag | SelfAdjoint),
-                                             SetOpposite, DstEvaluatorType, SrcEvaluatorType, Functor>
-      Kernel;
+  using Kernel = triangular_dense_assignment_kernel<Mode&(Lower | Upper), Mode&(UnitDiag | ZeroDiag | SelfAdjoint),
+                                                    SetOpposite, DstEvaluatorType, SrcEvaluatorType, Functor>;
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
   enum {
@@ -825,15 +855,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_triangular_assignment_loop(DstXp
 
 template <>
 struct AssignmentKind<TriangularShape, TriangularShape> {
-  typedef Triangular2Triangular Kind;
+  using Kind = Triangular2Triangular;
 };
 template <>
 struct AssignmentKind<DenseShape, TriangularShape> {
-  typedef Triangular2Dense Kind;
+  using Kind = Triangular2Dense;
 };
 template <>
 struct AssignmentKind<TriangularShape, DenseShape> {
-  typedef Dense2Triangular Kind;
+  using Kind = Dense2Triangular;
 };
 
 template <typename Shape>
@@ -873,15 +903,15 @@ struct Assignment<DstXprType, SrcXprType, Functor, Dense2Triangular> {
 template <typename Kernel, unsigned int Mode, int UnrollCount, bool SetOpposite>
 struct triangular_assignment_loop {
   // FIXME: this is not very clean, perhaps this information should be provided by the kernel?
-  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
-  typedef typename DstEvaluatorType::XprType DstXprType;
+  using DstEvaluatorType = typename Kernel::DstEvaluatorType;
+  using DstXprType = typename DstEvaluatorType::XprType;
 
   enum {
     col = (UnrollCount - 1) / DstXprType::RowsAtCompileTime,
     row = (UnrollCount - 1) % DstXprType::RowsAtCompileTime
   };
 
-  typedef typename Kernel::Scalar Scalar;
+  using Scalar = typename Kernel::Scalar;
 
   EIGEN_DEVICE_FUNC static inline void run(Kernel& kernel) {
     triangular_assignment_loop<Kernel, Mode, UnrollCount - 1, SetOpposite>::run(kernel);
@@ -907,9 +937,9 @@ struct triangular_assignment_loop<Kernel, Mode, 0, SetOpposite> {
 
 template <typename Kernel, unsigned int Mode, bool SetOpposite>
 struct triangular_assignment_loop<Kernel, Mode, Dynamic, SetOpposite> {
-  typedef typename Kernel::Scalar Scalar;
-  typedef typename Kernel::DstEvaluatorType DstEvaluatorType;
-  typedef typename Kernel::AssignmentTraits AssignmentTraits;
+  using Scalar = typename Kernel::Scalar;
+  using DstEvaluatorType = typename Kernel::DstEvaluatorType;
+  using AssignmentTraits = typename Kernel::AssignmentTraits;
 
   enum {
     IsRowMajor = (int(DstEvaluatorType::Flags) & RowMajorBit) != 0,
@@ -1043,7 +1073,7 @@ struct triangular_product_assignment_dispatcher<true> {
 template <typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
 struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   internal::assign_op<Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>, Dense2Triangular> {
-  typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
+  using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
@@ -1056,7 +1086,7 @@ template <typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
 struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   internal::add_assign_op<Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>,
                   Dense2Triangular> {
-  typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
+  using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::add_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };
@@ -1069,7 +1099,7 @@ template <typename DstXprType, typename Lhs, typename Rhs, typename Scalar>
 struct Assignment<DstXprType, Product<Lhs, Rhs, DefaultProduct>,
                   internal::sub_assign_op<Scalar, typename Product<Lhs, Rhs, DefaultProduct>::Scalar>,
                   Dense2Triangular> {
-  typedef Product<Lhs, Rhs, DefaultProduct> SrcXprType;
+  using SrcXprType = Product<Lhs, Rhs, DefaultProduct>;
   static void run(DstXprType& dst, const SrcXprType& src,
                   const internal::sub_assign_op<Scalar, typename SrcXprType::Scalar>& func) {
     enum { UseTriangularAssignmentLoop = is_dense_structured_diagonal_product<Lhs, Rhs>::value };

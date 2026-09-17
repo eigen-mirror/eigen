@@ -39,6 +39,9 @@ VectorType setupRandomSvs(const Index dim, const RealScalar max);
 template <typename VectorType, typename RealScalar>
 VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar max);
 
+template <typename MatrixType>
+void setRandomWellConditionedDiagonal(MatrixType& m);
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_COMP_ICC
@@ -238,6 +241,54 @@ VectorType setupRangeSvs(const Index dim, const RealScalar min, const RealScalar
   return min * (VectorType::Ones(dim) - svs) + max * svs;
 }
 
+/**
+ * Overwrites the diagonal of a matrix with random entries of modulus in [1/2, 1],
+ * leaving the other entries untouched.
+ *
+ * For a diagonal matrix built this way the condition number is at most 2 and
+ * `|det| >= 2^-dim`, which is what makes a determinant check against the product of
+ * the entries meaningful. Drawing unconstrained entries instead leaves the
+ * conditioning unbounded. For real scalars, the smallest magnitude among `dim`
+ * uniform draws from [-1, 1) falls below the `4*dim*eps*maxPivot` rank threshold
+ * with probability about `4*dim^2*eps` when `maxPivot` is of order one. Complex
+ * draws use independent real and imaginary components, so their near-zero
+ * probability is quadratic in the threshold, but they can likewise make the
+ * determinant check ill-conditioned.
+ *
+ * @tparam MatrixType type of the matrix whose diagonal is set
+ * @param m matrix whose diagonal is overwritten
+ */
+template <typename MatrixType>
+void setRandomWellConditionedDiagonal(MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  for (Index i = 0; i < m.diagonalSize(); ++i) {
+    // numext::sign is the unit-modulus phase for complex scalars and +-1 for real ones.
+    const Scalar z = internal::random<Scalar>();
+    const Scalar phase = numext::is_exactly_zero(z) ? Scalar(1) : numext::sign(z);
+    m.diagonal()(i) = phase * internal::random<RealScalar>(RealScalar(0.5), RealScalar(1));
+  }
+}
+
 }  // end namespace Eigen
+
+template <typename DataContainer>
+void setRandomDataInRange(DataContainer& data_container, typename DataContainer::Scalar min_value,
+                          typename DataContainer::Scalar max_value) {
+  for (Eigen::Index i = 0; i < data_container.size(); ++i) {
+    data_container.data()[i] = Eigen::internal::random<typename DataContainer::Scalar>(min_value, max_value);
+  }
+}
+
+template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
+MatrixType RandomMatrix(Eigen::Index rows, Eigen::Index cols, Scalar min, Scalar max) {
+  MatrixType M(rows, cols);
+  for (Eigen::Index i = 0; i < rows; ++i) {
+    for (Eigen::Index j = 0; j < cols; ++j) {
+      M(i, j) = Eigen::internal::random<Scalar>(min, max);
+    }
+  }
+  return M;
+}
 
 #endif  // EIGEN_RANDOM_MATRIX_HELPER

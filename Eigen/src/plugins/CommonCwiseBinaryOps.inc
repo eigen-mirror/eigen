@@ -17,7 +17,7 @@
  *
  * \sa class CwiseBinaryOp, operator-=()
  */
-EIGEN_MAKE_CWISE_BINARY_OP(operator-, difference)
+EIGEN_MAKE_CWISE_BINARY_OP(operator-, internal::scalar_difference_op)
 
 /** \returns an expression of the sum of \c *this and \a other
  *
@@ -25,7 +25,7 @@ EIGEN_MAKE_CWISE_BINARY_OP(operator-, difference)
  *
  * \sa class CwiseBinaryOp, operator+=()
  */
-EIGEN_MAKE_CWISE_BINARY_OP(operator+, sum)
+EIGEN_MAKE_CWISE_BINARY_OP(operator+, internal::scalar_sum_op)
 
 /** \returns an expression of a custom coefficient-wise operator \a func of *this and \a other
  *
@@ -49,13 +49,13 @@ binaryExpr(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other,
  *
  * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression.
  */
-EIGEN_MAKE_SCALAR_BINARY_OP(operator*, product)
+EIGEN_MAKE_SCALAR_BINARY_OP(operator*, internal::scalar_product_op)
 
 /** \returns an expression of \c *this divided by the scalar value \a scalar
  *
  * \tparam T is the scalar type of \a scalar. It must be compatible with the scalar type of the given expression.
  */
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator/, quotient)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(operator/, internal::scalar_quotient_op)
 
 /** \returns an expression of the coefficient-wise boolean \b and operator of \c *this and \a other
  *

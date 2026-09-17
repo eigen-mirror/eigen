@@ -33,10 +33,42 @@ static void test_create_destroy_empty_pool() {
   }
 }
 
-static void test_parallelism(bool allow_spinning) {
+static thread_local bool delaying_environment_worker = false;
+
+struct DelayingThreadEnvironment {
+  using EnvThread = StlThreadEnvironment::EnvThread;
+
+  struct Task {
+    std::function<void()> f;
+    Task() = default;
+    Task(Task&&) = default;
+    Task& operator=(Task&& other) {
+      f = std::move(other.f);
+      // Widen the interval between taking a task and retiring the worker's spinner.
+      if (f && delaying_environment_worker) std::this_thread::sleep_for(std::chrono::microseconds(100));
+      return *this;
+    }
+  };
+
+  EnvThread* CreateThread(std::function<void()> f) {
+    return new EnvThread([f = std::move(f)]() {
+      delaying_environment_worker = true;
+      f();
+    });
+  }
+  Task CreateTask(std::function<void()> f) {
+    Task task;
+    task.f = std::move(f);
+    return task;
+  }
+  void ExecuteTask(const Task& task) { task.f(); }
+};
+
+template <typename Environment = StlThreadEnvironment>
+static void test_parallelism(bool allow_spinning, int kThreads = 16) {
   // Test we never-ever fail to match available tasks with idle threads.
-  const int kThreads = 16;  // code below expects that this is a multiple of 4
-  ThreadPool tp(kThreads, allow_spinning);
+  // The phases below require a multiple of four threads.
+  ThreadPoolTempl<Environment> tp(kThreads, allow_spinning);
   VERIFY_IS_EQUAL(tp.NumThreads(), kThreads);
   VERIFY_IS_EQUAL(tp.CurrentThreadId(), -1);
   for (int iter = 0; iter < 100; ++iter) {
@@ -179,6 +211,7 @@ static void test_pool_partitions() {
 }
 
 EIGEN_DECLARE_TEST(threads_non_blocking_thread_pool) {
+  CALL_SUBTEST(test_parallelism<DelayingThreadEnvironment>(true, 4));
   CALL_SUBTEST(test_create_destroy_empty_pool());
   CALL_SUBTEST(test_parallelism(true));
   CALL_SUBTEST(test_parallelism(false));

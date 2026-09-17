@@ -32,10 +32,10 @@ namespace internal {
 template <typename Scalar_, typename StorageIndex_>
 class MappedSuperNodalMatrix {
  public:
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
-  typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
+  using ScalarVector = Matrix<Scalar, Dynamic, 1>;
 
  public:
   MappedSuperNodalMatrix() {}

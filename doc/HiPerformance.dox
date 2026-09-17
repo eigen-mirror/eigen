@@ -3,7 +3,7 @@ namespace Eigen {
 
 /** \page TopicWritingEfficientProductExpression Writing efficient matrix product expressions
 
-In general achieving good performance with Eigen does no require any special effort:
+In general achieving good performance with Eigen does not require any special effort:
 simply write your expressions in the most high level way. This is especially true
 for small fixed size matrices. For large matrices, however, it might be useful to
 take some care when writing your expressions in order to minimize useless evaluations
@@ -14,10 +14,10 @@ In particular we will focus on expressions matching level 2 and 3 BLAS routines,
 all kind of matrix products and triangular solvers.
 
 Indeed, in Eigen we have implemented a set of highly optimized routines which are very similar
-to BLAS's ones. Unlike BLAS, those routines are made available to user via a high level and
+to BLAS's ones. Unlike BLAS, those routines are made available to users via a high level and
 natural API. Each of these routines can compute in a single evaluation a wide variety of expressions.
 Given an expression, the challenge is then to map it to a minimal set of routines.
-As explained latter, this mechanism has some limitations, and knowing them will allow
+As explained later, this mechanism has some limitations, and knowing them will allow
 you to write faster code by making your expressions more Eigen friendly.
 
 \section GEMM General Matrix-Matrix product (GEMM)

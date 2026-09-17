@@ -47,6 +47,56 @@ struct coeff_wise {
   }
 };
 
+struct make_householder_small_tail {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
+    Eigen::Vector3f vector;
+    vector << 0.0f, 1e-20f, -2e-20f;
+    Eigen::Vector2f essential;
+    float tau;
+    float beta;
+    vector.makeHouseholder(essential, tau, beta);
+    out[4 * i] = tau;
+    out[4 * i + 1] = beta;
+    out[4 * i + 2] = essential[0];
+    out[4 * i + 3] = essential[1];
+  }
+};
+
+struct make_householder_complex_zero_tail {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* /*in*/, std::complex<float>* out) const {
+    Eigen::Vector2cf vector;
+    vector << std::complex<float>(0.0f, 1e-20f), std::complex<float>(0.0f, 0.0f);
+    Eigen::Matrix<std::complex<float>, 1, 1> essential;
+    std::complex<float> tau;
+    float beta;
+    vector.makeHouseholder(essential, tau, beta);
+    out[3 * i] = tau;
+    out[3 * i + 1] = std::complex<float>(beta, 0.0f);
+    out[3 * i + 2] = essential[0];
+  }
+};
+
+// Applies the complex operators inside Eigen's own templates, which see the device overloads only through
+// Eigen/Core's include order; complex_operators below finds them through its using-directive.
+template <typename ComplexType>
+struct complex_internal_operators {
+  EIGEN_DEVICE_FUNC void operator()(int i, const ComplexType* in, ComplexType* out) const {
+    const int num_operators = 8;
+    int out_idx = i * num_operators;
+    const ComplexType a = in[i];
+    const ComplexType b = in[i + 1];
+
+    out[out_idx++] = numext::negate(a);
+    out[out_idx++] = numext::conj(a);
+    out[out_idx++] = internal::padd(a, b);
+    out[out_idx++] = internal::psub(a, b);
+    out[out_idx++] = internal::pmul(a, b);
+    out[out_idx++] = internal::pdiv(a, b);
+    out[out_idx++] = internal::pnegate(a);
+    out[out_idx++] = internal::pconj(a);
+  }
+};
+
 template <typename T>
 struct complex_sqrt {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -331,6 +381,16 @@ struct selfadjoint_rank2_update {
   }
 };
 
+template <typename T, int UpLo>
+struct selfadjoint_l1_norm {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using namespace Eigen;
+    T M(in + i);
+    // l1Norm() has a separate device implementation, so the host result is the reference.
+    out[i] = M.template selfadjointView<UpLo>().l1Norm();
+  }
+};
+
 template <typename T>
 struct matrix_inverse {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -396,11 +456,13 @@ struct float_nan_minmax_test {
     out[1] = Eigen::numext::mini(one, nan);
     out[2] = Eigen::numext::maxi(nan, one);
     out[3] = Eigen::numext::maxi(one, nan);
+    out[4] = Eigen::numext::mini(nan, nan);
+    out[5] = Eigen::numext::maxi(nan, nan);
   }
 };
 
 void test_float_nan_minmax() {
-  Eigen::ArrayXf in(2), out_ref(4), out_gpu(4);
+  Eigen::ArrayXf in(2), out_ref(6), out_gpu(6);
   in << std::numeric_limits<float>::quiet_NaN(), 1.f;
   out_ref.setConstant(-1.f);
   out_gpu.setConstant(-1.f);
@@ -410,10 +472,18 @@ void test_float_nan_minmax() {
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
   VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+#if defined(EIGEN_CONSTEXPR_ARE_DEVICE_FUNC)
   VERIFY((numext::isnan)(out_ref(0)));
-  VERIFY_IS_EQUAL(out_ref(1), 1.f);
   VERIFY((numext::isnan)(out_ref(2)));
+#else
+  // Without relaxed constexpr, numext::mini/maxi select the number-preferring fmin/fmax overloads.
+  VERIFY_IS_EQUAL(out_ref(0), 1.f);
+  VERIFY_IS_EQUAL(out_ref(2), 1.f);
+#endif
+  VERIFY_IS_EQUAL(out_ref(1), 1.f);
   VERIFY_IS_EQUAL(out_ref(3), 1.f);
+  VERIFY((numext::isnan)(out_ref(4)));
+  VERIFY((numext::isnan)(out_ref(5)));
 #endif
 }
 
@@ -438,6 +508,31 @@ bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
   return true;
 }
 
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+// Host-side check that converting between Eigen::half and the vendor __half type preserves the
+// raw bits. This is a regression test for builds where Eigen::half stores a native fp16 type
+// (e.g. __fp16 on arm64): the host phase used to perform numeric value conversions instead of
+// bit reinterpretations, corrupting every raw-bit constant (NumTraits, numeric_limits, ...).
+void test_half_raw_bit_interop() {
+  const numext::uint16_t raw_bits[] = {0x0000, 0x3c00 /*1*/, 0x7c00 /*inf*/, 0x7e00 /*qNaN*/, 0xfbff /*lowest*/};
+  for (int i = 0; i < 5; ++i) {
+    const numext::uint16_t raw = raw_bits[i];
+    const Eigen::half h = numext::bit_cast<Eigen::half>(raw);
+    // Eigen::half -> __half must preserve the bits (sizeof(__half) == 2 on both CUDA and HIP).
+    // Call the conversion operator explicitly: a static_cast would be ambiguous because
+    // Eigen::half also converts to __half via operator float() and __half(float).
+    const __half v = h.operator __half();
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(v), raw);
+    // __half -> Eigen::half must preserve the bits as well.
+    const Eigen::half h2(v);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(h2), raw);
+  }
+  // Raw-bit constants must survive the host phase of a GPU build.
+  VERIFY((numext::isinf)(NumTraits<Eigen::half>::infinity()));
+  VERIFY((numext::isnan)(NumTraits<Eigen::half>::quiet_NaN()));
+}
+#endif
+
 template <typename Kernel, typename Input, typename Output>
 void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out) {
   Output out_ref, out_gpu;
@@ -451,6 +546,63 @@ void test_with_infs_nans(const Kernel& ker, int n, const Input& in, Output& out)
   run_on_gpu(ker, n, in, out_gpu);
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
   verifyIsApproxWithInfsNans(out_ref, out_gpu);
+#endif
+}
+
+// `preverse` falls back to returning the packet unchanged for any packet type
+// that does not override it, which is only correct for a packet of one element.
+// A GPU translation unit resolves both the host and the device side to the same
+// packet type, so running the same reversal on both and comparing them cannot
+// catch a missing override: check the reversed values instead.
+template <typename T>
+struct reverse_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    constexpr int size = T::SizeAtCompileTime;
+    Eigen::Map<T>(out + i * size) = T(in + i * size).reverse();
+  }
+};
+
+template <typename Scalar>
+struct packet_any_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+    using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
+    const Packet zero = Eigen::internal::pzero(Packet());
+    const Packet sequence = Eigen::internal::plset<Packet>(Scalar(0));
+    const Packet mixed = Eigen::internal::pcmp_eq(sequence, Eigen::internal::pset1<Packet>(Scalar(1)));
+    out[3 * i] = float(Eigen::internal::predux_any(zero));
+    out[3 * i + 1] = float(Eigen::internal::predux_any(Eigen::internal::ptrue(zero)));
+    out[3 * i + 2] = float(Eigen::internal::predux_any(mixed));
+#else
+    out[3 * i] = 0;
+    out[3 * i + 1] = 1;
+    out[3 * i + 2] = 1;
+#endif
+  }
+};
+
+template <typename T>
+void test_reverse() {
+  typedef typename T::Scalar Scalar;
+  constexpr int size = T::SizeAtCompileTime;
+  constexpr int n = 4;
+
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * size), out_ref(n * size), out_gpu(n * size);
+  for (int i = 0; i < n * size; ++i) in(i) = static_cast<Scalar>(i + 1);
+  out_ref.setZero();
+  out_gpu.setZero();
+
+  run_on_cpu(reverse_test<T>(), n, in, out_ref);
+  run_on_gpu(reverse_test<T>(), n, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < size; ++j) {
+      const Scalar expected = in(i * size + size - 1 - j);
+      VERIFY_IS_EQUAL(out_ref(i * size + j), expected);
+      VERIFY_IS_EQUAL(out_gpu(i * size + j), expected);
+    }
+  }
 #endif
 }
 
@@ -471,6 +623,8 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(coeff_wise<Array44f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(make_householder_small_tail(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(make_householder_complex_zero_tail(), nthreads, cfin, cfout));
 
 #if !defined(EIGEN_USE_HIP)
   // FIXME
@@ -505,16 +659,37 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   // Test std::complex.
   CALL_SUBTEST(run_and_compare_to_gpu(complex_operators<Vector3cf>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(complex_internal_operators<std::complex<float>>(), nthreads, cfin, cfout));
   CALL_SUBTEST(test_with_infs_nans(complex_sqrt<Vector3cf>(), nthreads, cfin, cfout));
 
   // numeric_limits
   CALL_SUBTEST(test_with_infs_nans(numeric_limits_test<Vector3f>(), 1, in, out));
+
+  // Eigen::half <-> __half raw-bit interop on the host.
+#if defined(EIGEN_HAS_GPU_FP16) && !defined(EIGEN_GPU_COMPILE_PHASE)
+  CALL_SUBTEST(test_half_raw_bit_interop());
+#endif
+
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
+
+  // `preverse` on every GPU packet type. 32 elements cover several packets of
+  // each, including `Packet4h2`, the widest at 8.
+  CALL_SUBTEST((test_reverse<Eigen::Array<float, 32, 1>>()));
+  CALL_SUBTEST((test_reverse<Eigen::Array<double, 32, 1>>()));
+  CALL_SUBTEST((test_reverse<Eigen::Array<Eigen::half, 32, 1>>()));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<float>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<double>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<Eigen::half>(), nthreads, in, out));
 
   typedef Matrix<float, 6, 6> Matrix6f;
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Upper>(), nthreads, in, out));
+
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Upper>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix6f, Lower>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix6f, Upper>(), nthreads, in, out));
 }

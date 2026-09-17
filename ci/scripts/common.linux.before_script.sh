@@ -6,6 +6,20 @@ set -x
 
 echo "Running ${CI_JOB_NAME}"
 
+echo "Host machine configuration:"
+uname -a
+cat /etc/os-release || true
+lscpu || true
+free -h || true
+df -h . || true
+
+# GPU builds can run on hosts without a GPU or its diagnostic tools.
+for gpu_info in nvidia-smi rocm-smi; do
+  if command -v "${gpu_info}" > /dev/null 2>&1; then
+    "${gpu_info}" || echo "${gpu_info} failed; GPU diagnostics unavailable."
+  fi
+done
+
 # Get architecture and display CI configuration.
 export ARCH=`uname -m`
 export NPROC=`nproc`
@@ -19,7 +33,13 @@ export | grep EIGEN
 export DEBIAN_FRONTEND=noninteractive
 if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
   apt-get update -y > /dev/null
-  apt-get install -y --no-install-recommends ninja-build cmake git xsltproc > /dev/null
+  # python3 drives the test pass cache; only the test jobs (the jobs that
+  # set EIGEN_CI_TEST_CACHE) consume it, so build jobs skip the install.
+  packages="ninja-build cmake git xsltproc ccache"
+  if [[ "${EIGEN_CI_TEST_CACHE}" == "on" ]]; then
+    packages="${packages} python3"
+  fi
+  apt-get install -y --no-install-recommends ${packages} > /dev/null
 fi
 
 # Install required dependencies and set up compilers.

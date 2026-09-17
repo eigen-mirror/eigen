@@ -163,13 +163,6 @@
 #endif
 #endif
 
-namespace Eigen {
-// AOCL-specific type definitions
-typedef std::complex<double> dcomplex;
-typedef std::complex<float> scomplex;
-typedef int BlasIndex;  // Standard BLAS index type
-}  // namespace Eigen
-
 #endif  // EIGEN_USE_AOCL_ALL || EIGEN_USE_AOCL_MT
 
 #endif  // EIGEN_AOCL_SUPPORT_H

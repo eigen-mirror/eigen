@@ -78,8 +78,6 @@ class NoAlias;
 template <typename ExpressionType>
 class NestByValue;
 template <typename ExpressionType>
-class ForceAlignedAccess;
-template <typename ExpressionType>
 class SwapWrapper;
 
 template <typename XprType, int BlockRows = Dynamic, int BlockCols = Dynamic, bool InnerPanel = false>
@@ -119,8 +117,6 @@ template <typename DiagonalVectorType_>
 class DiagonalWrapper;
 template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime = SizeAtCompileTime>
 class DiagonalMatrix;
-template <typename MatrixType, typename DiagonalType, int ProductOrder>
-class DiagonalProduct;
 template <typename MatrixType, int Index = 0>
 class Diagonal;
 template <typename Derived>
@@ -196,14 +192,6 @@ template <typename XprType, DirectionType Direction>
 class subvector_stl_iterator;
 template <typename XprType, DirectionType Direction>
 class subvector_stl_reverse_iterator;
-template <typename DecompositionType>
-struct kernel_retval_base;
-template <typename DecompositionType>
-struct kernel_retval;
-template <typename DecompositionType>
-struct image_retval_base;
-template <typename DecompositionType>
-struct image_retval;
 }  // end namespace internal
 
 namespace internal {
@@ -228,13 +216,6 @@ template <typename T, int ProductTag = internal::product_type<typename T::Lhs, t
           typename RhsScalar = typename traits<typename T::Rhs>::Scalar>
 struct product_evaluator;
 }  // namespace internal
-
-template <typename Lhs, typename Rhs, int ProductType = internal::product_type<Lhs, Rhs>::value>
-struct ProductReturnType;
-
-// this is a workaround for sun CC
-template <typename Lhs, typename Rhs>
-struct LazyProductReturnType;
 
 namespace internal {
 
@@ -404,11 +385,32 @@ class Concat;
 template <typename MatrixType, int Direction = BothDirections>
 class Reverse;
 
-#if defined(EIGEN_USE_LAPACKE) && defined(lapack_int)
-// Lapacke interface requires StorageIndex to be lapack_int
-typedef lapack_int DefaultPermutationIndex;
+/* EIGEN_HAS_LAPACK_INT: whether the lapack_int type from the LAPACKE headers is available. Most LAPACKE headers
+ * #define lapack_int (so defined(lapack_int) detects it), but some vendors instead expose lapack_int as a typedef
+ * and #define LAPACK_INT to advertise it. A user whose header does neither can predefine EIGEN_HAS_LAPACK_INT to
+ * 0 or 1 by hand.
+ */
+#ifndef EIGEN_HAS_LAPACK_INT
+#if defined(lapack_int) || defined(LAPACK_INT)
+#define EIGEN_HAS_LAPACK_INT 1
 #else
-typedef int DefaultPermutationIndex;
+#define EIGEN_HAS_LAPACK_INT 0
+#endif
+#endif
+
+#if defined(EIGEN_USE_LAPACKE) && EIGEN_HAS_LAPACK_INT
+// Lapacke interface requires StorageIndex to be lapack_int
+using DefaultPermutationIndex = lapack_int;
+#else
+using DefaultPermutationIndex = int;
+#endif
+
+// Plain static_assert (not EIGEN_STATIC_ASSERT): like the MKL_INT guard it must not be suppressible.
+#if defined(EIGEN_USE_LAPACKE) && defined(EIGEN_USE_BLAS) && EIGEN_HAS_LAPACK_INT
+static_assert(sizeof(lapack_int) == sizeof(BlasIndex),
+              "LAPACKE integer width (lapack_int) does not match the BLAS integer width (Eigen::BlasIndex). Build "
+              "both backends against the same integer interface: pair EIGEN_64BIT_BLAS with an ILP64 LAPACKE "
+              "(lapack_int = 64-bit), or use the 32-bit interface for both.");
 #endif
 
 template <typename MatrixType, typename PermutationIndex = DefaultPermutationIndex>
@@ -499,8 +501,8 @@ class MatrixComplexPowerReturnValue;
 namespace internal {
 template <typename Scalar>
 struct stem_function {
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef ComplexScalar type(ComplexScalar, int);
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using type = ComplexScalar(ComplexScalar, int);
 };
 }  // namespace internal
 

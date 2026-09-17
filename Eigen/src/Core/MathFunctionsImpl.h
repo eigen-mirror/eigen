@@ -164,7 +164,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
 
 template <typename Scalar>
 struct hypot_impl {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   static EIGEN_DEVICE_FUNC inline RealScalar run(const Scalar& x, const Scalar& y) {
     return positive_real_hypot<RealScalar>(numext::abs(x), numext::abs(y));
   }

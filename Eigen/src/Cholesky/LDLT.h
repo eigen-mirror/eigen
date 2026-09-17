@@ -22,9 +22,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, int UpLo_>
 struct traits<LDLT<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -58,13 +58,16 @@ enum SignMatrix { PositiveSemiDef, NegativeSemiDef, ZeroSign, Indefinite };
  *
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
- * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT
+ * D is purely diagonal, so this class cannot factor an indefinite matrix. For a self-adjoint matrix
+ * that is indefinite, use BunchKaufman, which produces a block-diagonal D.
+ *
+ * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT, class BunchKaufman
  */
 template <typename MatrixType_, int UpLo_>
 class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<LDLT> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<LDLT>;
   friend class SolverBase<LDLT>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(LDLT)
@@ -73,12 +76,12 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime,
     UpLo = UpLo_
   };
-  typedef Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1> TmpMatrixType;
+  using TmpMatrixType = Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1>;
 
-  typedef Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime> TranspositionType;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime> PermutationType;
+  using TranspositionType = Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime>;
+  using PermutationType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime>;
 
-  typedef internal::LDLT_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::LDLT_Traits<MatrixType, UpLo>;
 
   /** \brief Default Constructor.
    *
@@ -224,6 +227,65 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   template <typename Derived>
   LDLT& rankUpdate(const MatrixBase<Derived>& w, const RealScalar& alpha = 1);
 
+  /** \returns the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the Cholesky
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Cholesky decomposition,
+   * that is, \c 1, \c -1, or \c 0 if the matrix is singular.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
   /** \returns the internal LDLT decomposition matrix
    *
    * TODO: document the storage layout.
@@ -292,9 +354,9 @@ struct ldlt_inplace<Lower> {
   template <typename MatrixType, typename TranspositionType, typename Workspace>
   static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
     using std::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex IndexType;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using IndexType = typename TranspositionType::StorageIndex;
     eigen_assert(mat.rows() == mat.cols());
     const Index size = mat.rows();
     bool found_zero_pivot = false;
@@ -405,8 +467,8 @@ struct ldlt_inplace<Lower> {
   static bool updateInPlace(MatrixType& mat, MatrixBase<WDerived>& w,
                             const typename MatrixType::RealScalar& sigma = 1) {
     using numext::isfinite;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
 
     const Index size = mat.rows();
     eigen_assert(mat.cols() == size && w.size() == size);
@@ -424,8 +486,15 @@ struct ldlt_inplace<Lower> {
       RealScalar swj2 = sigma * numext::abs2(wj);
       RealScalar gamma = dj * alpha + swj2;
 
-      mat.coeffRef(j, j) += swj2 / alpha;
-      alpha += swj2 / dj;
+      // A zero contribution leaves both quantities unchanged, but spelling that out as an addition of swj2/alpha and
+      // swj2/dj evaluates 0/0 when alpha or the pivot is zero. The resulting NaN reaches the termination test above
+      // on the next iteration, which reads it as a low-rank signal and abandons the remainder of the update. Skip the
+      // no-op instead. A zero pivot with a nonzero contribution still yields an infinite alpha, so genuine low-rank
+      // termination is unaffected.
+      if (!numext::is_exactly_zero(swj2)) {
+        mat.coeffRef(j, j) += swj2 / alpha;
+        alpha += swj2 / dj;
+      }
 
       // Update the terms of L
       Index rs = size - j - 1;
@@ -464,16 +533,16 @@ struct ldlt_inplace<Upper> {
 
 template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, UnitLower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, UnitLower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
 };
 
 template <typename MatrixType>
 struct LDLT_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower> MatrixL;
-  typedef const TriangularView<const MatrixType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower>;
+  using MatrixU = const TriangularView<const MatrixType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
 };
@@ -505,16 +574,30 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputT
   return *this;
 }
 
-/** Update the LDLT decomposition:  given A = L D L^T, efficiently compute the decomposition of A + sigma w w^T.
+/** Update the LDLT decomposition: given a decomposition of \f$ A = P^TLDL^*P \f$, efficiently compute the
+ * decomposition of \f$ A + \sigma w w^* \f$.
+ *
+ * If \c *this holds no factorization yet, A is taken to be zero and the decomposition is built from scratch; info()
+ * then reports \c Success. An update applied to an existing factorization leaves info() unchanged, so a
+ * \c NumericalIssue already reported for that factorization stands until compute() replaces it or setZero() discards
+ * it. LLT::rankUpdate() differs on both counts: it requires an existing factorization and re-reports the status on
+ * every call.
+ *
+ * \note rcond(), isPositive() and isNegative() are not maintained across rank updates. rcond() keeps using the L1
+ * norm recorded by the last compute(), which is zero when there was none, and the definiteness flags are assigned
+ * only where this function builds a factorization from scratch, from the sign of \a sigma alone.
+ *
  * \param w a vector to be incorporated into the decomposition.
  * \param sigma a scalar, +1 for updates and -1 for "downdates," which correspond to removing previously-added column
- * vectors. Optional; default value is +1. \sa setZero()
+ * vectors. Optional; default value is +1.
+ *
+ * \sa setZero()
  */
 template <typename MatrixType, int UpLo_>
 template <typename Derived>
 LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
     const MatrixBase<Derived>& w, const typename LDLT<MatrixType, UpLo_>::RealScalar& sigma) {
-  typedef typename TranspositionType::StorageIndex IndexType;
+  using IndexType = typename TranspositionType::StorageIndex;
   const Index size = w.rows();
   if (m_isInitialized) {
     eigen_assert(m_matrix.rows() == size);
@@ -526,11 +609,43 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
     m_temporary.resize(size);
     m_sign = sigma >= 0 ? internal::PositiveSemiDef : internal::NegativeSemiDef;
     m_isInitialized = true;
+    // Assigned here rather than after the branch: updating an existing factorization keeps the status it already has.
+    m_info = Success;
   }
 
   internal::ldlt_inplace<UpLo>::update(m_matrix, m_transpositions, m_temporary, w, sigma);
 
   return *this;
+}
+
+// A = P^T L D L^* P with L unit lower triangular and D real diagonal, so det(A) = prod(D_ii).
+
+template <typename MatrixType_, int UpLo_>
+typename LDLT<MatrixType_, UpLo_>::Scalar LDLT<MatrixType_, UpLo_>::determinant() const {
+  eigen_assert(m_isInitialized && "LDLT is not initialized.");
+  eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
+  return Scalar(vectorD().real().prod());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LDLT<MatrixType_, UpLo_>::RealScalar LDLT<MatrixType_, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "LDLT is not initialized.");
+  eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
+  return numext::abs(vectorD().real().prod());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LDLT<MatrixType_, UpLo_>::RealScalar LDLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "LDLT is not initialized.");
+  eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
+  return vectorD().real().cwiseAbs().array().log().sum();
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LDLT<MatrixType_, UpLo_>::Scalar LDLT<MatrixType_, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "LDLT is not initialized.");
+  eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
+  return Scalar(vectorD().real().array().sign().prod());
 }
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN

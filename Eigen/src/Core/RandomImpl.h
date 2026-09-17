@@ -22,6 +22,16 @@ namespace internal {
  * Implementation of random                                               *
  ****************************************************************************/
 
+// The SplitMix64 finalizer (Steele, Lea and Flood, "Fast splittable pseudorandom number generators", OOPSLA
+// 2014): a bijection on 64-bit words with full avalanche, Stafford's "Mix13" variant of the MurmurHash3 finalizer.
+// Applied to a Weyl sequence (state += 0x9E3779B97F4A7C15) it is the SplitMix64 generator; applied to a seed plus
+// an index it seeds independent per-index streams.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE numext::uint64_t splitmix64_mix(numext::uint64_t z) {
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
+}
+
 template <typename Scalar, bool IsComplex, bool IsInteger>
 struct random_default_impl {};
 
@@ -29,24 +39,19 @@ template <typename Scalar>
 struct random_impl : random_default_impl<Scalar, NumTraits<Scalar>::IsComplex, NumTraits<Scalar>::IsInteger> {};
 
 template <typename Scalar>
-struct random_retval {
-  typedef Scalar type;
-};
-
-template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random(const Scalar& x, const Scalar& y) {
+inline Scalar random(const Scalar& x, const Scalar& y) {
   return EIGEN_MATHFUNC_IMPL(random, Scalar)::run(x, y);
 }
 
 template <typename Scalar>
-inline EIGEN_MATHFUNC_RETVAL(random, Scalar) random() {
+inline Scalar random() {
   return EIGEN_MATHFUNC_IMPL(random, Scalar)::run();
 }
 
 // TODO: replace or provide alternatives to this, e.g. std::random_device
 struct eigen_random_device {
   using ReturnType = int;
-  static constexpr int Entropy = meta_floor_log2<(unsigned int)(RAND_MAX) + 1>::value;
+  static constexpr int Entropy = floor_log2((unsigned int)(RAND_MAX) + 1);
   static constexpr ReturnType Highest = RAND_MAX;
   static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); }
 };
@@ -246,7 +251,7 @@ struct random_impl<bool> {
 
 template <typename Scalar>
 struct random_default_impl<Scalar, true, false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   using Impl = random_impl<RealScalar>;
   static EIGEN_DEVICE_FUNC inline Scalar run(const Scalar& x, const Scalar& y, int numRandomBits) {
     return Scalar(Impl::run(x.real(), y.real(), numRandomBits), Impl::run(x.imag(), y.imag(), numRandomBits));

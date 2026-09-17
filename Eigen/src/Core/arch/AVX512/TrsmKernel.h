@@ -967,7 +967,7 @@ void triSolve(Scalar* A_arr, Scalar* B_arr, int64_t M, int64_t numRHS, int64_t L
   constexpr int64_t numM = 8 * EIGEN_AVX_MAX_NUM_ROW;
 
   int64_t sizeBTemp = 0;
-  Scalar* B_temp = NULL;
+  Scalar* B_temp = nullptr;
   EIGEN_IF_CONSTEXPR (!isBRowMajor) {
     /**
      * If B is col-major, we copy it to a fixed-size temporary array of size at most ~numM*kB and
@@ -1182,8 +1182,12 @@ EIGEN_DONT_INLINE void trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1
   EIGEN_UNUSED_VARIABLE(otherIncr);
 #ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
+    // The unspecialized kernel takes an upper-triangular panel by its bottom-right element and
+    // indexes it backwards, while triangular_solve_matrix() hands these specializations the
+    // panel's top-left element. Move the origin before delegating.
+    const Index shift = ((Mode & Lower) == Lower) ? Index(0) : size - 1;
     trsmKernelL<float, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
-        size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
+        size, otherSize, _tri + shift + shift * triStride, triStride, _other + shift, otherIncr, otherStride);
     return;
   }
 #endif
@@ -1198,8 +1202,12 @@ EIGEN_DONT_INLINE void trsmKernelL<double, Index, Mode, false, TriStorageOrder, 
   EIGEN_UNUSED_VARIABLE(otherIncr);
 #ifdef EIGEN_RUNTIME_NO_MALLOC
   if (!is_malloc_allowed()) {
+    // The unspecialized kernel takes an upper-triangular panel by its bottom-right element and
+    // indexes it backwards, while triangular_solve_matrix() hands these specializations the
+    // panel's top-left element. Move the origin before delegating.
+    const Index shift = ((Mode & Lower) == Lower) ? Index(0) : size - 1;
     trsmKernelL<double, Index, Mode, false, TriStorageOrder, 1, /*Specialized=*/false>::kernel(
-        size, otherSize, _tri, triStride, _other, otherIncr, otherStride);
+        size, otherSize, _tri + shift + shift * triStride, triStride, _other + shift, otherIncr, otherStride);
     return;
   }
 #endif

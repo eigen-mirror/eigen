@@ -13,14 +13,14 @@
 #define EIGEN_CONFIGURE_VECTORIZATION_H
 
 // Prepare for using the generic clang backend if requested.
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_GENERIC_VECTOR_SIZE_BYTES)
+#define EIGEN_GENERIC_VECTOR_SIZE_BYTES 64
+#endif
 #if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE) && !defined(EIGEN_DONT_ALIGN)
 #if !EIGEN_ARCH_VECTOR_EXTENSIONS
 #error "The compiler does not support clang vector extensions."
 #endif
 #define EIGEN_VECTORIZE
-#ifndef EIGEN_GENERIC_VECTOR_SIZE_BYTES
-#define EIGEN_GENERIC_VECTOR_SIZE_BYTES 64
-#endif
 #define EIGEN_MAX_ALIGN_BYTES EIGEN_GENERIC_VECTOR_SIZE_BYTES
 #endif
 
@@ -52,15 +52,9 @@
 #endif
 
 // Align to the boundary that avoids false sharing.
-//   https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size
-// There is a bug in android NDK < r26 where the macro is defined but std::hardware_destructive_interference_size
-// still does not exist.
-#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201603 && \
-    (!EIGEN_OS_ANDROID || __NDK_MAJOR__ + 0 >= 26)
-#include <new>
-#define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(std::hardware_destructive_interference_size)
-#else
-// Overalign for the cache line size of 128 bytes (Apple M1)
+// Pinned to 128 bytes to preserve a stable ABI across architectures and standard libraries
+// and avoid GCC -Winterference-size warnings.
+#ifndef EIGEN_ALIGN_TO_AVOID_FALSE_SHARING
 #define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(128)
 #endif
 
@@ -79,8 +73,24 @@
 #elif defined(__AVX512F__)
 // 64 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
-#elif defined(EIGEN_VECTORIZE_SME)
-#define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
+// Deliberately no SME case: this block runs long before EIGEN_VECTORIZE_SME is
+// defined, so a test for it here is unreachable -- and moving it would be wrong
+// rather than merely late. Raising the value changes the alignment, and so the
+// ABI, of every fixed-size object relative to a NEON build of the same headers;
+// past 16 bytes aligned_malloc also switches to the prefixed
+// handmade_aligned_malloc, so a matrix allocated in an SME translation unit and
+// freed in a non-SME one corrupts the heap. Keeping 16 is not free: the SME GEMM
+// kernel is up to 3.4x faster at small sizes when the result matrix starts on a
+// 64-byte boundary, which is what 64 here would give every Eigen-owned matrix.
+#elif defined(EIGEN_ARM64_USE_SVE) && defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0)
+// A fixed-length SVE packet is __ARM_FEATURE_SVE_BITS/8 bytes wide and asks for
+// exactly that much alignment; a fixed-size object has to be able to offer it or
+// it never reaches the vectorized path.  The Alignment enum stops at 128.
+#if __ARM_FEATURE_SVE_BITS <= 1024
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES (__ARM_FEATURE_SVE_BITS / 8)
+#else
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
+#endif
 #elif defined(__AVX__)
 // 32 bytes static alignment is preferred only if really required
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 32
@@ -225,6 +235,30 @@
 #endif
 
 #if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
+
+// Whether the ARM SME backend can be built at all. Two hard requirements, both
+// properties of the translation unit rather than of the CPU:
+//   - SME2, not just SME: the micro-kernel's multi-vector loads (svld1_*_x2/x4)
+//     and svcount_t predicates are SME2 instructions.
+//   - scalable (VLA) SVE mode: the kernel derives its ZA-tile geometry from the
+//     runtime streaming vector length, so -msve-vector-bits=N would pin it to
+//     one SVL and silently miscompute at any other.
+#if defined(__ARM_FEATURE_SME2) && !(defined(__ARM_FEATURE_SVE_BITS) && (__ARM_FEATURE_SVE_BITS != 0))
+#define EIGEN_ARM64_SME_USABLE
+#endif
+
+// ... and whether it is the backend to use. SME is selected automatically when
+// it is usable: unlike SVE it needs no fixed vector length, and it only
+// replaces the GEMM kernels -- everything else keeps the NEON packet path. Two
+// escapes: EIGEN_ARM64_NO_SME turns it off, and EIGEN_ARM64_USE_SVE takes
+// precedence for callers who asked for SVE specifically.
+#if defined(EIGEN_ARM64_SME_USABLE) && !defined(EIGEN_ARM64_NO_SME) && !defined(EIGEN_ARM64_USE_SVE)
+#define EIGEN_ARM64_SME_SELECTED
+#endif
+
+#if defined(EIGEN_ARM64_USE_SME) && defined(EIGEN_ARM64_NO_SME)
+#error "EIGEN_ARM64_USE_SME and EIGEN_ARM64_NO_SME are mutually exclusive."
+#endif
 
 #if defined(EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
 
@@ -418,12 +452,13 @@ extern "C" {
 #undef vector
 #undef pixel
 
-#elif defined(EIGEN_ARM64_USE_SME) && !defined(__ARM_FEATURE_SME)
+#elif defined(EIGEN_ARM64_USE_SME) && !defined(EIGEN_ARM64_SME_USABLE)
 
-#error "EIGEN_ARM64_USE_SME requires compiler support for SME."
+#error \
+    "EIGEN_ARM64_USE_SME requires a compiler targeting SME2 in scalable (SVE VLA) mode: build with e.g. -march=armv9.2-a+sme2 and without -msve-vector-bits."
 
 #elif ((defined __ARM_NEON) || (defined __ARM_NEON__)) && !(defined EIGEN_ARM64_USE_SVE) && \
-    !(defined EIGEN_ARM64_USE_SME)
+    !(defined EIGEN_ARM64_SME_SELECTED)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_NEON
@@ -441,25 +476,44 @@ extern "C" {
 // to ensure a fixed length is set
 #if defined __ARM_FEATURE_SVE_BITS
 #define EIGEN_ARM64_SVE_VL __ARM_FEATURE_SVE_BITS
+
+// Architecture-mandated length constraints.
+static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
+                  ((EIGEN_ARM64_SVE_VL & (EIGEN_ARM64_SVE_VL - 1)) == 0),
+              "SVE vector length must be 2^n for some n in [7, 11]");
 #else
 #error "Eigen requires a fixed SVE vector length but EIGEN_ARM64_SVE_VL is not set."
 #endif
 
-// We currently require SME to be enabled explicitly via EIGEN_ARM64_USE_SME and
-// will not select the backend automatically
-#elif (defined __ARM_FEATURE_SME) && (defined EIGEN_ARM64_USE_SME)
+// TriangularMatrixMatrix.h puts a (2 * max(mr, nr))^2 panel of Scalar on the
+// stack, and mr is 3 * PacketSize, so for float -- the widest scalar this backend
+// vectorizes -- the panel is 9 * VL^2 / 64 bytes
+// -- 144 kB at VL=1024 and 576 kB at VL=2048, past the 128 kB default, and the
+// backend does not compile at those lengths without more room. Only raise Eigen's
+// default; an explicit user limit remains authoritative, including 0.
+#if defined(EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED) && \
+    EIGEN_STACK_ALLOCATION_LIMIT < (9 * EIGEN_ARM64_SVE_VL * EIGEN_ARM64_SVE_VL / 64)
+#undef EIGEN_STACK_ALLOCATION_LIMIT
+#define EIGEN_STACK_ALLOCATION_LIMIT (9 * EIGEN_ARM64_SVE_VL * EIGEN_ARM64_SVE_VL / 64)
+#endif
+
+// Selected automatically whenever the toolchain can provide it; see
+// EIGEN_ARM64_SME_SELECTED above for the conditions and the opt-out.
+#elif defined(EIGEN_ARM64_SME_SELECTED)
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_SME
 #include <arm_neon.h>
 #include <arm_sme.h>
 
-// The SME GEMM kernel derives its ZA-tile geometry from the runtime streaming
-// vector length (svcntsw()).  It is therefore built in scalable (VLA) SVE mode,
-// without -msve-vector-bits=N, so svcntsw() reflects the actual hardware SVL.
-#if defined __ARM_FEATURE_SVE_BITS && (__ARM_FEATURE_SVE_BITS != 0)
-#error \
-    "EIGEN_ARM64_USE_SME must be built without -msve-vector-bits (scalable/VLA mode): a fixed SVE vector length pins the kernel to one runtime streaming SVL and silently miscomputes at any other."
+// Double-precision outer products (FMOPA into a ZA.D tile) need the optional
+// FEAT_SME_F64F64, which each compiler reports differently: GCC defines the ACLE
+// macro, clang defines no macro but gates the builtin on the target feature.
+// Both halves are needed -- clang otherwise accepts svmopa_za64_f64_m without the
+// feature, so a missed gate faults at run time rather than at build time.
+#if !defined(EIGEN_ARM64_NO_SME_F64F64) && \
+    (defined(__ARM_FEATURE_SME_F64F64) || EIGEN_HAS_BUILTIN(__builtin_sme_svmopa_za64_f64_m))
+#define EIGEN_VECTORIZE_SME_F64F64
 #endif
 
 #elif EIGEN_ARCH_RISCV
@@ -488,11 +542,17 @@ extern "C" {
 #error "Eigen requires a fixed RVV vector length but -mrvv-vector-bits=zvl is not set."
 #endif
 
+// Raise Eigen's own default only, as the SVE block above does: an explicit limit is a caller
+// policy on stack safety, and rewriting it defeats the policy. nomalloc, bdcsvd, jacobisvd,
+// diagonalview and diagonalmatrices set 0 to switch the check off, and clobbering that re-enables
+// alloca underneath the very tests written to catch it.
+#ifdef EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED
 #undef EIGEN_STACK_ALLOCATION_LIMIT
 #if __riscv_v_fixed_vlen <= 512
 #define EIGEN_STACK_ALLOCATION_LIMIT 196608
 #else
 #define EIGEN_STACK_ALLOCATION_LIMIT 393216
+#endif
 #endif
 
 #if defined(__riscv_zvfh) && defined(__riscv_zfh)
@@ -547,6 +607,9 @@ extern "C" {
 #endif
 #endif
 
+// The backend blocks above are the only consumers; do not leak it into user code.
+#undef EIGEN_STACK_ALLOCATION_LIMIT_WAS_DEFAULTED
+
 // Following the Arm ACLE arm_neon.h should also include arm_fp16.h but not all
 // compilers seem to follow this. We therefore include it explicitly.
 // See also: https://bugs.llvm.org/show_bug.cgi?id=47955
@@ -600,6 +663,22 @@ extern "C" {
 /** \brief Namespace containing all symbols from the %Eigen library. */
 // IWYU pragma: private
 #include "../InternalHeaderCheck.h"
+
+/** Whether numext::madd uses std::fma for scalars. Defaults to the hardware: fused where a single
+ * instruction exists, which keeps the scalar and vectorized paths consistent, and unfused otherwise,
+ * where software fma costs 2-3x on Intel and up to 30x on WASM. Error-free transformations such as
+ * internal::twoprod ignore this setting: they call numext::fma when EIGEN_VECTORIZE_FMA is enabled
+ * or FP_FAST_FMA* advertises a fast scalar fma, and use Dekker's product elsewhere.
+ * Resolved here rather than in Macros.h, which Eigen/Core includes first, because the architecture
+ * branches above settle EIGEN_VECTORIZE_FMA -- the ARM one only a few lines up.
+ */
+#ifndef EIGEN_SCALAR_MADD_USE_FMA
+#ifdef EIGEN_VECTORIZE_FMA
+#define EIGEN_SCALAR_MADD_USE_FMA 1
+#else
+#define EIGEN_SCALAR_MADD_USE_FMA 0
+#endif
+#endif
 
 namespace Eigen {
 

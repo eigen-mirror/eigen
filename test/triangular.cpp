@@ -432,6 +432,44 @@ void triangular_rect(const MatrixType& m) {
   VERIFY_IS_APPROX(m2, m3);
 }
 
+// isLowerTriangular() and isUpperTriangular() must inspect every off-diagonal coefficient. In a wide matrix the
+// columns past the diagonal block are strictly upper down to their last row, which an off-by-one row bound in
+// isLowerTriangular() used to skip.
+template <typename MatrixType>
+void triangular_predicates(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+
+  const Index rows = m.rows();
+  const Index cols = m.cols();
+
+  const MatrixType m1 = MatrixType::Random(rows, cols);
+  const MatrixType lower = m1.template triangularView<Lower>();
+  const MatrixType upper = m1.template triangularView<Upper>();
+  VERIFY(lower.isLowerTriangular());
+  VERIFY(upper.isUpperTriangular());
+
+  MatrixType diag = MatrixType::Zero(rows, cols);
+  diag.diagonal().setConstant(Scalar(1));
+  VERIFY(diag.isLowerTriangular());
+  VERIFY(diag.isUpperTriangular());
+
+  // A single large coefficient off the diagonal must be caught by exactly one of the two predicates, wherever it sits.
+  const Scalar offending = Scalar(100);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      if (i == j) continue;
+      MatrixType m2 = diag;
+      m2(i, j) = offending;
+      if (i < j) {
+        VERIFY(!m2.isLowerTriangular());
+        VERIFY(m2.isUpperTriangular());
+      } else {
+        VERIFY(!m2.isUpperTriangular());
+        VERIFY(m2.isLowerTriangular());
+      }
+    }
+}
+
 // Test triangular solve and product at sizes that exercise GEBP blocking.
 // The standard test caps at maxsize=20, which never triggers the blocked code paths
 // in TriangularSolverMatrix.h (requires size >= 48 with EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS).
@@ -525,6 +563,21 @@ EIGEN_DECLARE_TEST(triangular) {
 
     CALL_SUBTEST_100(triangular_deprecated(Matrix<float, 5, 7>()));
     CALL_SUBTEST_100(triangular_deprecated(MatrixXd(r, c)));
+
+    // isLowerTriangular()/isUpperTriangular() on wide, tall and square shapes, including the 1xN and Nx1 edges.
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(2, 3)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(3, 2)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(3, 3)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(1, 4)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(4, 1)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXd(1, 1)));
+    CALL_SUBTEST_12(triangular_predicates(Matrix<float, 2, 5>()));
+    CALL_SUBTEST_12(triangular_predicates(Matrix<double, 5, 2>()));
+    CALL_SUBTEST_12(triangular_predicates(Matrix<std::complex<float>, 3, 7>()));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXcd(r, c)));
+    CALL_SUBTEST_12(triangular_predicates(MatrixXcd(c, r)));
+    CALL_SUBTEST_12(triangular_predicates(Matrix<float, Dynamic, Dynamic, RowMajor>(2, 5)));
+    CALL_SUBTEST_12(triangular_predicates(Matrix<float, Dynamic, Dynamic, RowMajor>(r, c)));
   }
 
   CALL_SUBTEST_1(bug_159());

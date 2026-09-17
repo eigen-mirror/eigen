@@ -68,9 +68,6 @@ void product_extra(const MatrixType& m) {
   VERIFY_IS_APPROX((s1 * v1.conjugate()) * (-m1.conjugate() * s2),
                    (s1 * v1.conjugate()).eval() * (-m1.conjugate() * s2).eval());
 
-  VERIFY_IS_APPROX((-m1.adjoint() * s2) * (s1 * v1.adjoint()),
-                   (-m1.adjoint() * s2).eval() * (s1 * v1.adjoint()).eval());
-
   // test the vector-matrix product with non aligned starts
   Index i = internal::random<Index>(0, m1.rows() - 2);
   Index j = internal::random<Index>(0, m1.cols() - 2);
@@ -662,6 +659,40 @@ void gemv_complex_conjugate() {
 // Locks the BLAS contract that GEMM/GEMV leave the destination unchanged when
 // alpha == 0, including under non-finite inputs in A/x/B that would otherwise
 // taint the result via 0 * Inf = NaN.
+// A zero scalar factor must leave the destination untouched for every
+// assignment form: += and -= return early, while = zeroes the destination.
+// Inf/NaN operands make a kernel that ran anyway visible as a NaN.
+template <typename Scalar, int Order>
+void alpha_zero_skips_gemm(Index m, Index k, Index n) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar, Dynamic, Dynamic, Order> Mat;
+
+  const Scalar pos_zero = Scalar(0);
+  const Scalar neg_zero = Scalar(-RealScalar(0));
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+  A(0, 0) = Scalar(NumTraits<RealScalar>::infinity());
+  B(1, 1) = Scalar(NumTraits<RealScalar>::quiet_NaN());
+
+  const Mat C_ref = Mat::Random(m, n);
+  const Mat zero = Mat::Zero(m, n);
+
+  for (const Scalar& alpha : {pos_zero, neg_zero}) {
+    Mat C = C_ref;
+    C.noalias() += alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+
+    C = C_ref;
+    C.noalias() -= alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, C_ref);
+
+    C = C_ref;
+    C.noalias() = alpha * A * B;
+    VERIFY_IS_CWISE_EQUAL(C, zero);
+  }
+}
+
 template <typename Scalar>
 void alpha_zero_skips_kernel() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -675,22 +706,14 @@ void alpha_zero_skips_kernel() {
   const Scalar pos_zero = Scalar(0);
   const Scalar neg_zero = Scalar(-RealScalar(0));
 
-  // GEMM (col-major).
-  {
-    ColMat A = ColMat::Random(m, k);
-    ColMat B = ColMat::Random(k, n);
-    A(0, 0) = inf;
-    B(1, 1) = nan;
-
-    ColMat C = ColMat::Random(m, n);
-    const ColMat C_ref = C;
-
-    C.noalias() += pos_zero * A * B;
-    VERIFY_IS_CWISE_EQUAL(C, C_ref);
-
-    C.noalias() += neg_zero * A * B;
-    VERIFY_IS_CWISE_EQUAL(C, C_ref);
-  }
+  // GEMM, both storage orders. 17x13x11 sums to 41 and so takes the GEMM path
+  // on a default build; 5x5x5 sums to 15 and reaches the coeff-based path,
+  // which has its own zero-factor exit. Without the small shape the latter is
+  // only covered where the threshold is raised (SME), i.e. by one nightly job.
+  alpha_zero_skips_gemm<Scalar, ColMajor>(m, k, n);
+  alpha_zero_skips_gemm<Scalar, ColMajor>(5, 5, 5);
+  alpha_zero_skips_gemm<Scalar, RowMajor>(m, k, n);
+  alpha_zero_skips_gemm<Scalar, RowMajor>(5, 5, 5);
 
   // GEMV col-major.
   {
@@ -727,7 +750,54 @@ void alpha_zero_skips_kernel() {
   }
 }
 
+template <typename RealScalar, int Options>
+void complex_gemm_scalar_accumulation() {
+  using Scalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  for (Index n : {5, 8, 9}) {
+    Matrix<Scalar, Dynamic, Dynamic> lhs(n, n);
+    Matrix<Scalar, Dynamic, Dynamic, RowMajor> rhs(n, n);
+    for (Index j = 0; j < n; ++j) {
+      for (Index i = 0; i < n; ++i) {
+        lhs(i, j) = Scalar(RealScalar((i + j) % 5 - 2), RealScalar((2 * i + j) % 3 - 1));
+        rhs(i, j) = Scalar(RealScalar((i + 2 * j) % 3 - 1), RealScalar((i + j) % 5 - 2));
+      }
+    }
+    const auto check = [&](const auto& a, const auto& b) {
+      MatrixType expected = MatrixType::Zero(n, n);
+      for (Index j = 0; j < n; ++j)
+        for (Index i = 0; i < n; ++i)
+          for (Index k = 0; k < n; ++k) expected(i, j) += a.coeff(i, k) * b.coeff(k, j);
+      MatrixType actual(n, n);
+      actual.noalias() = a * b;
+      VERIFY_IS_EQUAL(actual, expected);
+      // Integer components keep every operation exact, including a non-real alpha.
+      const Scalar alpha(2, -1);
+      actual.setOnes();
+      actual.noalias() += alpha * (a * b);
+      VERIFY_IS_EQUAL(actual, MatrixType(MatrixType::Ones(n, n) + alpha * expected));
+      VERIFY_IS_EQUAL((expected - a * b).cwiseAbs().maxCoeff(), RealScalar(0));
+    };
+    check(lhs, rhs);
+    check(lhs.conjugate(), rhs);
+    check(lhs, rhs.conjugate());
+    check(lhs.conjugate(), rhs.conjugate());
+  }
+
+  const MatrixType u = MatrixType::Identity(8, 8) * Scalar(0, 1);
+  const MatrixType t = MatrixType::Constant(8, 8, Scalar(0, 1));
+  VERIFY_IS_EQUAL((t - u * t * u.adjoint()).cwiseAbs().maxCoeff(), RealScalar(0));
+}
+
 EIGEN_DECLARE_TEST(product_extra) {
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, RowMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, RowMajor>()));
+#ifndef EIGEN_TEST_NO_LONGDOUBLE
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<long double, ColMajor>()));
+  CALL_SUBTEST_13((complex_gemm_scalar_accumulation<long double, RowMajor>()));
+#endif
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product_extra(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));

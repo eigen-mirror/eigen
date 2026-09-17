@@ -39,4 +39,39 @@ void check_solverbase(const MatrixType& matrix, const SolverType& solver, Index 
   VERIFY_IS_APPROX(matrix * m2, matrix * solver_solution);
 }
 
+// Induced 1-norm, the reference for condition estimates.
+template <typename MatrixType>
+typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
+  return m.cwiseAbs().colwise().sum().maxCoeff();
+}
+
+// Induced 1-norm of the self-adjoint matrix stored in the UpLo triangle of m.
+template <typename MatrixType, int UpLo>
+typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
+  if (m.cols() == 0) return typename MatrixType::RealScalar(0);
+  MatrixType symm = m.template selfadjointView<UpLo>();
+  return symm.cwiseAbs().colwise().sum().maxCoeff();
+}
+
+// Checks the four determinant accessors of a decomposition against a reference determinant \a det and a
+// reference \a logabsdet = log|det| formed independently of it. Callers must keep \a det itself in range.
+template <typename SolverType, typename Scalar>
+void check_determinant(const SolverType& solver, const Scalar& det, const typename NumTraits<Scalar>::Real& logabsdet) {
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  VERIFY_IS_APPROX(solver.determinant(), det);
+  VERIFY_IS_APPROX(solver.absDeterminant(), numext::abs(det));
+  // log|det| passes through zero, where a relative comparison says nothing; bound the error absolutely.
+  VERIFY_IS_MUCH_SMALLER_THAN(solver.logAbsDeterminant() - logabsdet, RealScalar(1));
+  VERIFY_IS_APPROX(solver.signDeterminant(), numext::sign(det));
+}
+
+// True when |det| has left the representable range in the direction it was expected to: exactly infinity
+// where the determinant overflowed, exactly zero where it underflowed. logAbsDeterminant() is still
+// meaningful there; determinant() and absDeterminant() are not. A NaN is neither, and testing !isfinite()
+// would accept one -- with it any inf - inf or 0 * inf artifact.
+template <typename RealScalar>
+bool determinant_out_of_range(const RealScalar& absdet, bool overflow) {
+  return overflow ? numext::equal_strict(absdet, NumTraits<RealScalar>::infinity()) : numext::is_exactly_zero(absdet);
+}
+
 #endif  // TEST_SOLVERBASE_H

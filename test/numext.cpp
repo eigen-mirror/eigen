@@ -9,6 +9,11 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "twoprod_helpers.h"
+
+#if EIGEN_COMP_MSVC
+#include <cfenv>
+#endif
 
 template <typename T, typename U>
 bool check_if_equal_or_nans(const T& actual, const U& expected) {
@@ -140,6 +145,47 @@ void check_negate() {
   }
 }
 
+#if EIGEN_COMP_MSVC
+#pragma float_control(precise, on, push)
+#pragma fenv_access(on)
+#endif
+
+template <typename T>
+void check_complex_exp() {
+  using Complex = std::complex<T>;
+  const T highest = (std::numeric_limits<T>::max)();
+  const T inf = std::numeric_limits<T>::infinity();
+  const T nan = std::numeric_limits<T>::quiet_NaN();
+
+  const Complex finite_inf = numext::exp(Complex(T(1), inf));
+  VERIFY((numext::isnan)(finite_inf.real()));
+  VERIFY((numext::isnan)(finite_inf.imag()));
+
+  const Complex finite_nan = numext::exp(Complex(T(1), nan));
+  VERIFY((numext::isnan)(finite_nan.real()));
+  VERIFY((numext::isnan)(finite_nan.imag()));
+
+#if EIGEN_COMP_MSVC
+  std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+  const Complex highest_inf = numext::exp(Complex(highest, inf));
+  VERIFY((numext::isnan)(highest_inf.real()));
+  VERIFY((numext::isnan)(highest_inf.imag()));
+#if EIGEN_COMP_MSVC
+  VERIFY((std::fetestexcept(FE_INVALID) & FE_INVALID) != 0);
+  std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+
+  const Complex inf_nan = numext::exp(Complex(inf, nan));
+  VERIFY((numext::isinf)(inf_nan.real()));
+  VERIFY((numext::isnan)(inf_nan.imag()));
+}
+
+#if EIGEN_COMP_MSVC
+#pragma fenv_access(off)
+#pragma float_control(pop)
+#endif
+
 template <typename T>
 std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, T> random_abs2_input() {
   const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
@@ -189,12 +235,96 @@ void check_abs<bool>() {
   }
 }
 
+// numext::sign(z) = z / |z| for complex z. The interesting inputs are the ends of the range, where
+// forming 1/|z| first would overflow (subnormal |z|) or itself be subnormal, hence inexact (|z| near max).
+template <typename T>
+void check_complex_sign() {
+  typedef typename NumTraits<T>::Real Real;
+  const Real zero(0), one(1);
+
+  VERIFY_IS_EQUAL(numext::sign(T(zero, zero)), T(zero, zero));
+  VERIFY_IS_EQUAL(numext::sign(T(one, zero)), T(one, zero));
+  VERIFY_IS_EQUAL(numext::sign(T(zero, -one)), T(zero, -one));
+
+  for (Real r : {std::numeric_limits<Real>::denorm_min(), (std::numeric_limits<Real>::min)(),
+                 (std::numeric_limits<Real>::max)()}) {
+    VERIFY_IS_EQUAL(numext::sign(T(r, zero)), T(one, zero));
+    VERIFY_IS_EQUAL(numext::sign(T(-r, zero)), T(-one, zero));
+    VERIFY_IS_EQUAL(numext::sign(T(zero, r)), T(zero, one));
+  }
+
+  // Off the axes the magnitude is only as accurate as abs() itself, which cannot resolve |z| for a z
+  // whose components are at the bottom of the subnormal range; from the smallest normal upwards it can.
+  for (Real r : {(std::numeric_limits<Real>::min)(), one, (std::numeric_limits<Real>::max)() / Real(2)}) {
+    const T s = numext::sign(T(r, r));
+    VERIFY_IS_APPROX(numext::abs(s), one);
+    VERIFY_IS_EQUAL(numext::real(s), numext::imag(s));
+  }
+}
+
+// The FMA implementation must retain the product's rounding error even when scalar madd is unfused.
+template <typename T>
+void check_twoprod_pair(const T& x, const T& y) {
+  T hi, lo;
+  internal::twoprod(x, y, hi, lo);
+  VERIFY_IS_EQUAL(hi, x * y);
+  // fma is exact by IEEE-754 contract, so this is the definition of the low word rather than an
+  // independent approximation of it.
+  EIGEN_USING_STD(fma);
+  VERIFY_IS_EQUAL(lo, fma(x, y, -hi));
+  VERIFY_IS_EQUAL(internal::twoprod_low(x, y, hi), fma(x, y, -hi));
+}
+
+template <typename T>
+void check_twoprod() {
+  // (1 + epsilon) * (1 - epsilon) = 1 - epsilon^2 exposes a lost low word in every IEEE type.
+  const T epsilon = NumTraits<T>::epsilon();
+  check_twoprod_pair(T(1) + epsilon, T(1) - epsilon);
+  for (int k = 0; k < 100; ++k) {
+    check_twoprod_pair(internal::random<T>(T(-1), T(1)), internal::random<T>(T(-1), T(1)));
+  }
+}
+
+#ifdef EIGEN_VECTORIZE_FMA
+// Custom scalars can return a lazy expression from unary minus.
+struct TwoprodScalar {
+  struct Negation {
+    const TwoprodScalar& operand;
+  };
+
+  TwoprodScalar() = default;
+  explicit TwoprodScalar(double v) : value(v) {}
+  TwoprodScalar(const Negation& negation) : value(-negation.operand.value) {}
+
+  Negation operator-() const { return {*this}; }
+  TwoprodScalar operator*(const TwoprodScalar& other) const { return TwoprodScalar(value * other.value); }
+
+  friend TwoprodScalar fma(const TwoprodScalar& x, const TwoprodScalar& y, const TwoprodScalar& z) {
+    return TwoprodScalar(std::fma(x.value, y.value, z.value));
+  }
+
+  double value = 0;
+};
+
+void check_twoprod_negation_expression() {
+  STATIC_CHECK(internal::is_scalar<TwoprodScalar>::value);
+  STATIC_CHECK(internal::has_fma<TwoprodScalar>::value);
+  STATIC_CHECK((!std::is_same<decltype(-std::declval<TwoprodScalar>()), TwoprodScalar>::value));
+  const double epsilon = NumTraits<double>::epsilon();
+  for (double sign : {-1.0, 1.0}) {
+    const TwoprodScalar x(sign * (1 + epsilon)), y(1 - epsilon);
+    TwoprodScalar hi, lo;
+    internal::twoprod(x, y, hi, lo);
+    VERIFY_IS_EQUAL(hi.value, sign);
+    VERIFY_IS_EQUAL(lo.value, -sign * epsilon * epsilon);
+    VERIFY_IS_EQUAL(internal::twoprod_low(x, y, hi).value, -sign * epsilon * epsilon);
+  }
+}
+#endif
+
 template <typename T>
 void check_arg() {
   typedef typename NumTraits<T>::Real Real;
-  VERIFY_IS_EQUAL(numext::abs(T(0)), T(0));
-  VERIFY_IS_EQUAL(numext::abs(T(1)), T(1));
-
   for (int k = 0; k < 100; ++k) {
     T x = internal::random<T>();
     Real y = numext::arg(x);
@@ -408,6 +538,86 @@ void check_signbit() {
 }
 
 template <typename T>
+void check_nextafter() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  // NumTraits::epsilon() is the ulp at 1. std::numeric_limits reports the far smaller representational gap for the
+  // non-IEEE IBM double-double `long double`, which is not the step nextafter takes.
+  const T eps = NumTraits<T>::epsilon();
+  const T denorm_min = std::numeric_limits<T>::denorm_min();
+  const T inf = std::numeric_limits<T>::infinity();
+  const T nan = std::numeric_limits<T>::quiet_NaN();
+  const T max = (std::numeric_limits<T>::max)();
+
+  // from == to returns to.
+  VERIFY(numext::equal_strict(numext::nextafter(one, one), one));
+  // Stepping up from 1 and back down returns 1.
+  VERIFY(numext::equal_strict(numext::nextafter(numext::nextafter(one, two), zero), one));
+  // One-ulp steps around 1.
+  VERIFY(numext::equal_strict(numext::nextafter(one, two), one + eps));
+  VERIFY(numext::equal_strict(numext::nextafter(one + eps, zero), one));
+  // The neighbors of ±0 are the smallest subnormals, with the sign of the direction.
+  VERIFY(numext::equal_strict(numext::nextafter(zero, one), denorm_min));
+  VERIFY(numext::equal_strict(numext::nextafter(zero, -one), -denorm_min));
+  VERIFY(numext::equal_strict(numext::nextafter(-zero, one), denorm_min));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(zero, -one)), -one));
+  // Stepping the smallest subnormals toward the other sign lands on the zero
+  // of the starting sign (IEEE-754 nextUp/nextDown).
+  VERIFY(numext::equal_strict(numext::nextafter(denorm_min, -one), zero));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(denorm_min, -one)), one));
+  VERIFY(numext::equal_strict(numext::copysign(one, numext::nextafter(-denorm_min, one)), -one));
+  // Infinities saturate and unsaturate by one step.
+  VERIFY(numext::equal_strict(numext::nextafter(max, inf), inf));
+  VERIFY(numext::equal_strict(numext::nextafter(inf, zero), max));
+  // NaNs propagate.
+  VERIFY((numext::isnan)(numext::nextafter(nan, one)));
+  VERIFY((numext::isnan)(numext::nextafter(one, nan)));
+}
+
+template <typename T>
+void check_strict_equal() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  const T half = one / two;
+
+  VERIFY(numext::equal_strict(zero, zero));
+  VERIFY(numext::equal_strict(one, one));
+  VERIFY(numext::equal_strict(half, half));
+  VERIFY(!numext::equal_strict(zero, one));
+  VERIFY(!numext::equal_strict(one, two));
+
+  VERIFY(numext::not_equal_strict(zero, one));
+  VERIFY(numext::not_equal_strict(one, two));
+  VERIFY(!numext::not_equal_strict(one, one));
+
+  VERIFY(numext::is_exactly_zero(zero));
+  VERIFY(!numext::is_exactly_zero(one));
+  VERIFY(numext::is_exactly_one(one));
+  VERIFY(!numext::is_exactly_one(zero));
+}
+
+template <typename T>
+void check_ceil_power_of_two() {
+  const T zero(0);
+  const T one(1);
+  const T two(2);
+  const T min = (std::numeric_limits<T>::min)();
+  const T denormMin = std::numeric_limits<T>::denorm_min();
+  const T inf = std::numeric_limits<T>::infinity();
+
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(zero), zero);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(denormMin), min);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(min), min);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(T(0.75)), one);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(one), one);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(one + NumTraits<T>::epsilon()), two);
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two(T(3)), T(4));
+  VERIFY_IS_EQUAL(numext::ceil_power_of_two((std::numeric_limits<T>::max)()), inf);
+}
+
+template <typename T>
 void check_shift() {
   using SignedT = typename numext::get_integer_by_size<sizeof(T)>::signed_type;
   using UnsignedT = typename numext::get_integer_by_size<sizeof(T)>::unsigned_type;
@@ -422,7 +632,10 @@ void check_shift() {
       T a_bsrl_ref = numext::bit_cast<T, UnsignedT>(numext::bit_cast<UnsignedT, T>(a) >> s);
       VERIFY_IS_EQUAL(a_bsrl, a_bsrl_ref);
       T a_bsra = numext::arithmetic_shift_right(a, s);
-      T a_bsra_ref = numext::bit_cast<T, SignedT>(numext::bit_cast<SignedT, T>(a) >> s);
+      // An unsigned T has no sign bit to propagate, so the arithmetic shift must agree with the
+      // logical one; this is what every backend's parithmetic_shift_right on unsigned packets does.
+      T a_bsra_ref =
+          NumTraits<T>::IsSigned ? numext::bit_cast<T, SignedT>(numext::bit_cast<SignedT, T>(a) >> s) : a_bsrl_ref;
       VERIFY_IS_EQUAL(a_bsra, a_bsra_ref);
     }
   }
@@ -464,6 +677,9 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_negate<std::complex<float>>());
     CALL_SUBTEST(check_negate<std::complex<double>>());
 
+    CALL_SUBTEST(check_complex_exp<float>());
+    CALL_SUBTEST(check_complex_exp<double>());
+
     CALL_SUBTEST(check_abs<bool>());
     CALL_SUBTEST(check_abs<signed char>());
     CALL_SUBTEST(check_abs<unsigned char>());
@@ -480,6 +696,20 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_abs<long double>());
     CALL_SUBTEST(check_abs<std::complex<float>>());
     CALL_SUBTEST(check_abs<std::complex<double>>());
+
+    CALL_SUBTEST(check_complex_sign<std::complex<float>>());
+    CALL_SUBTEST(check_complex_sign<std::complex<double>>());
+
+    CALL_SUBTEST(check_twoprod<float>());
+    CALL_SUBTEST(check_twoprod<double>());
+    CALL_SUBTEST(check_twoprod<long double>());
+    CALL_SUBTEST(check_twoprod<half>());
+    CALL_SUBTEST(check_twoprod<bfloat16>());
+    CALL_SUBTEST(check_twoprod_contraction<float>());
+    CALL_SUBTEST(check_twoprod_contraction<double>());
+#ifdef EIGEN_VECTORIZE_FMA
+    CALL_SUBTEST(check_twoprod_negation_expression());
+#endif
 
     CALL_SUBTEST(check_arg<std::complex<float>>());
     CALL_SUBTEST(check_arg<std::complex<double>>());
@@ -508,6 +738,24 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_signbit<int16_t>());
     CALL_SUBTEST(check_signbit<int32_t>());
     CALL_SUBTEST(check_signbit<int64_t>());
+
+    CALL_SUBTEST(check_nextafter<half>());
+    CALL_SUBTEST(check_nextafter<bfloat16>());
+    CALL_SUBTEST(check_nextafter<float>());
+    CALL_SUBTEST(check_nextafter<double>());
+    CALL_SUBTEST(check_nextafter<long double>());
+
+    CALL_SUBTEST(check_ceil_power_of_two<half>());
+    CALL_SUBTEST(check_ceil_power_of_two<bfloat16>());
+    CALL_SUBTEST(check_ceil_power_of_two<float>());
+    CALL_SUBTEST(check_ceil_power_of_two<double>());
+    CALL_SUBTEST(check_ceil_power_of_two<long double>());
+
+    CALL_SUBTEST(check_strict_equal<half>());
+    CALL_SUBTEST(check_strict_equal<bfloat16>());
+    CALL_SUBTEST(check_strict_equal<float>());
+    CALL_SUBTEST(check_strict_equal<double>());
+    CALL_SUBTEST(check_strict_equal<long double>());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());

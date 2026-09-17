@@ -736,6 +736,38 @@ EIGEN_STRONG_INLINE half predux<Packet8h>(const Packet8h& a) {
   return half(_mm_reduce_add_ph(a));
 }
 
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet32h& a) {
+  return avx512_predux_any(_mm512_castph_si512(a));
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16h& a) {
+  const __m256i bits = _mm256_castph_si256(a);
+  return _mm256_testz_si256(bits, bits) == 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8h& a) {
+  const __m128i bits = _mm_castph_si128(a);
+  return _mm_testz_si128(bits, bits) == 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet32h& a) {
+  return _mm512_cmp_ph_mask(a, _mm512_setzero_ph(), _CMP_EQ_OQ) == 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet16h& a) {
+  return _mm256_cmp_ph_mask(a, _mm256_setzero_ph(), _CMP_EQ_OQ) == 0;
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_all(const Packet8h& a) {
+  return _mm_cmp_ph_mask(a, _mm_setzero_ph(), _CMP_EQ_OQ) == 0;
+}
+
 // predux_half
 template <>
 EIGEN_STRONG_INLINE Packet16h predux_half<Packet32h>(const Packet32h& a) {
@@ -983,7 +1015,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet32h, 32>& a) {
     q[8 * i + 7] = _mm512_unpackhi_epi64(p[8 * i + 3], p[8 * i + 7]);
   }
 
-  __m512i f[32];
+  __m512i f[32] = {};
 
 #define PACKET32H_TRANSPOSE_HELPER(X, Y)                                                            \
   do {                                                                                              \

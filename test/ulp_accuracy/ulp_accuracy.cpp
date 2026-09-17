@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <Eigen/Core>
-#include <unsupported/Eigen/SpecialFunctions>
+#include <contrib/Eigen/SpecialFunctions>
 
 #ifdef EIGEN_HAS_MPFR
 #include <mpfr.h>

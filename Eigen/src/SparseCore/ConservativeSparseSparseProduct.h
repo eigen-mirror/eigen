@@ -21,9 +21,9 @@ namespace internal {
 template <typename Lhs, typename Rhs, typename ResultType>
 static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res,
                                                     bool sortedInsertion = false) {
-  typedef typename remove_all_t<Lhs>::Scalar LhsScalar;
-  typedef typename remove_all_t<Rhs>::Scalar RhsScalar;
-  typedef typename remove_all_t<ResultType>::Scalar ResScalar;
+  using LhsScalar = typename remove_all_t<Lhs>::Scalar;
+  using RhsScalar = typename remove_all_t<Rhs>::Scalar;
+  using ResScalar = typename remove_all_t<ResultType>::Scalar;
 
   // make sure to call innerSize/outerSize since we fake the storage order.
   Index rows = lhs.innerSize();
@@ -225,8 +225,8 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
 
 template <typename Lhs, typename Rhs, typename ResultType>
 static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
-  typedef typename remove_all_t<Lhs>::Scalar LhsScalar;
-  typedef typename remove_all_t<Rhs>::Scalar RhsScalar;
+  using LhsScalar = typename remove_all_t<Lhs>::Scalar;
+  using RhsScalar = typename remove_all_t<Rhs>::Scalar;
   Index cols = rhs.outerSize();
   eigen_assert(lhs.outerSize() == rhs.innerSize());
 

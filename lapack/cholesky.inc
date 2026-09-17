@@ -22,7 +22,7 @@ EIGEN_LAPACK_FUNC(potrf)(const char *uplo, int *n, RealScalar *pa, int *lda, int
     *info = -4;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "POTRF", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "POTRF", &e, kBlasNameLength);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
@@ -54,7 +54,7 @@ EIGEN_LAPACK_FUNC(potrs)
     *info = -7;
   if (*info != 0) {
     int e = -*info;
-    return xerbla_(SCALAR_SUFFIX_UP "POTRS", &e);
+    return xerbla_(SCALAR_SUFFIX_UP "POTRS", &e, kBlasNameLength);
   }
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);

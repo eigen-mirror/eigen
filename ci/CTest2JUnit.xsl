@@ -91,7 +91,7 @@
 	    </xsl:for-each>
 	</xsl:variable>
 
-	<testcase name="{$testcasename}" classname="{$testclassname}" time="{$exectime}">
+	<testcase name="{$testcasename}" classname="{$testclassname}" time="{normalize-space($exectime)}">
 	    <xsl:if test="@Status = 'passed'">
 	    </xsl:if>
 	    <xsl:if test="@Status = 'failed'">
@@ -109,7 +109,7 @@
 			</xsl:if>
 		    </xsl:for-each>
 		</xsl:variable>
-		<failure message="{$failtype} ({$failcode})"><xsl:value-of select="Results/Measurement/Value/text()" /></failure>
+		<failure message="{normalize-space($failtype)} ({normalize-space($failcode)})"><xsl:value-of select="Results/Measurement/Value/text()" /></failure>
 	    </xsl:if>
 	    <xsl:if test="@Status = 'notrun'">
 		<skipped><xsl:value-of select="Results/Measurement/Value/text()" /></skipped>

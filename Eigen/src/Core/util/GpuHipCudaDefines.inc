@@ -16,11 +16,11 @@
 // There is code in the Tensorflow codebase that will define EIGEN_USE_GPU,  but
 // for some reason gets sent to the gcc/host compiler instead of the gpu/nvcc/hipcc compiler
 // When compiling such files, gcc will end up trying to pick up the CUDA headers by
-// default (see the code within "unsupported/Eigen/Tensor" that is guarded by EIGEN_USE_GPU)
+// default (see the code within "contrib/Eigen/Tensor" that is guarded by EIGEN_USE_GPU)
 // This will obviously not work when trying to compile tensorflow on a system with no CUDA
 // To work around this issue for HIP systems (and leave the default behaviour intact), the
 // HIP tensorflow build defines EIGEN_USE_HIP when compiling all source files, and
-// "unsupported/Eigen/Tensor" has been updated to use HIP header when EIGEN_USE_HIP is
+// "contrib/Eigen/Tensor" has been updated to use HIP header when EIGEN_USE_HIP is
 // defined. In continuation of that requirement, the guard here needs to be EIGEN_USE_HIP as well
 
 #if defined(EIGEN_USE_HIP)
@@ -36,6 +36,16 @@
 #define gpuGetErrorName hipGetErrorName
 #define gpuGetErrorString hipGetErrorString
 #define gpuGetDeviceProperties hipGetDeviceProperties
+#define gpuDeviceGetAttribute hipDeviceGetAttribute
+#define gpuDevAttrMultiProcessorCount hipDeviceAttributeMultiprocessorCount
+#define gpuDevAttrMaxThreadsPerBlock hipDeviceAttributeMaxThreadsPerBlock
+#define gpuDevAttrMaxThreadsPerMultiProcessor hipDeviceAttributeMaxThreadsPerMultiProcessor
+#define gpuDevAttrMaxSharedMemoryPerBlock hipDeviceAttributeMaxSharedMemoryPerBlock
+#define gpuDevAttrMaxSharedMemoryPerBlockOptin hipDeviceAttributeSharedMemPerBlockOptin
+#define gpuDevAttrComputeCapabilityMajor hipDeviceAttributeComputeCapabilityMajor
+#define gpuDevAttrComputeCapabilityMinor hipDeviceAttributeComputeCapabilityMinor
+#define gpuDevAttrWarpSize hipDeviceAttributeWarpSize
+#define gpuDevAttrMemoryPoolsSupported hipDeviceAttributeMemoryPoolsSupported
 #define gpuStreamDefault hipStreamDefault
 #define gpuGetDevice hipGetDevice
 #define gpuSetDevice hipSetDevice
@@ -48,8 +58,6 @@
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuStreamQuery hipStreamQuery
-#define gpuSharedMemConfig hipSharedMemConfig
-#define gpuDeviceSetSharedMemConfig hipDeviceSetSharedMemConfig
 #define gpuStreamSynchronize hipStreamSynchronize
 #define gpuDeviceSynchronize hipDeviceSynchronize
 #define gpuMemcpy hipMemcpy
@@ -67,6 +75,16 @@
 #define gpuGetErrorName cudaGetErrorName
 #define gpuGetErrorString cudaGetErrorString
 #define gpuGetDeviceProperties cudaGetDeviceProperties
+#define gpuDeviceGetAttribute cudaDeviceGetAttribute
+#define gpuDevAttrMultiProcessorCount cudaDevAttrMultiProcessorCount
+#define gpuDevAttrMaxThreadsPerBlock cudaDevAttrMaxThreadsPerBlock
+#define gpuDevAttrMaxThreadsPerMultiProcessor cudaDevAttrMaxThreadsPerMultiProcessor
+#define gpuDevAttrMaxSharedMemoryPerBlock cudaDevAttrMaxSharedMemoryPerBlock
+#define gpuDevAttrMaxSharedMemoryPerBlockOptin cudaDevAttrMaxSharedMemoryPerBlockOptin
+#define gpuDevAttrComputeCapabilityMajor cudaDevAttrComputeCapabilityMajor
+#define gpuDevAttrComputeCapabilityMinor cudaDevAttrComputeCapabilityMinor
+#define gpuDevAttrWarpSize cudaDevAttrWarpSize
+#define gpuDevAttrMemoryPoolsSupported cudaDevAttrMemoryPoolsSupported
 #define gpuStreamDefault cudaStreamDefault
 #define gpuGetDevice cudaGetDevice
 #define gpuSetDevice cudaSetDevice
@@ -79,8 +97,6 @@
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuStreamQuery cudaStreamQuery
-#define gpuSharedMemConfig cudaSharedMemConfig
-#define gpuDeviceSetSharedMemConfig cudaDeviceSetSharedMemConfig
 #define gpuStreamSynchronize cudaStreamSynchronize
 #define gpuDeviceSynchronize cudaDeviceSynchronize
 #define gpuMemcpy cudaMemcpy

@@ -549,11 +549,6 @@ EIGEN_STRONG_INLINE Packet1cd pandnot<Packet1cd>(const Packet1cd& a, const Packe
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet1cd ploaddup<Packet1cd>(const std::complex<double>* from) {
-  return pset1<Packet1cd>(*from);
-}
-
-template <>
 EIGEN_STRONG_INLINE void prefetch<std::complex<double> >(const std::complex<double>* addr) {
   EIGEN_PPC_PREFETCH(addr);
 }
@@ -564,21 +559,6 @@ EIGEN_STRONG_INLINE std::complex<double> pfirst<Packet1cd>(const Packet1cd& a) {
   pstore<std::complex<double> >(res, a);
 
   return res[0];
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet1cd preverse(const Packet1cd& a) {
-  return a;
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<double> predux_mul<Packet1cd>(const Packet1cd& a) {
-  return pfirst(a);
 }
 
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet1cd, Packet2d)

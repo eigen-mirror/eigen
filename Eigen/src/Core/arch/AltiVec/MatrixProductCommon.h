@@ -55,22 +55,22 @@ template <typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float* result, Index cols, Index rows, const DataMapper& src);
 
 template <const Index size, bool non_unit_stride, Index delta>
-EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, Packet8bf data, Index resInc, Index extra = 0);
+EIGEN_ALWAYS_INLINE void storeBF16fromResult(bfloat16* dst, const Packet8bf& data, Index resInc, Index extra = 0);
 
 template <bool non_unit_stride = false>
 EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float* result, Index cols, Index rows, bfloat16* src,
                                                       Index resInc = 1);
 
 template <bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result,
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f& pAlpha, float* result,
                                       Index extra_cols, Index extra_rows);
 
 template <Index num_acc, bool extraRows, Index size = 4>
-EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float* result, Packet4f pAlpha,
+EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], float* result, const Packet4f& pAlpha,
                                              Index extra_rows);
 
 template <Index num_acc, Index size = 4>
-EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float* result, Packet4f pAlpha);
+EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float* result, const Packet4f& pAlpha);
 
 template <typename RhsMapper, bool linear>
 EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j);

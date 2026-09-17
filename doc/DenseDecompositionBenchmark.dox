@@ -9,7 +9,7 @@ For a more general overview on the features and numerical robustness of linear s
 This benchmark has been run on a laptop equipped with an Intel core i7 \@ 2,6 GHz, and compiled with clang with \b AVX and \b FMA instruction sets enabled but without multi-threading.
 It uses \b single \b precision \b float numbers. For double, you can get a good estimate by multiplying the timings by a factor 2.
 
-The square matrices are symmetric, and for the overconstrained matrices, the reported timmings include the cost to compute the symmetric covariance matrix \f$ A^T A \f$ for the first four solvers based on Cholesky and LU, as denoted by the \b * symbol (top-right corner part of the table).
+The square matrices are symmetric, and for the overconstrained matrices, the reported timings include the cost to compute the symmetric covariance matrix \f$ A^T A \f$ for the first four solvers based on Cholesky and LU, as denoted by the \b * symbol (top-right corner part of the table).
 Timings are in \b milliseconds, and factors are relative to the LLT decomposition which is the fastest but also the least general and robust.
 
 <table class="manual">

@@ -89,7 +89,7 @@ In all the previous examples, the functions had to be template functions. This a
 <td>
 \verbinclude function_taking_ref.out
 </td></tr></table>
-In the first two calls to inv_cond, no copy occur because the memory layout of the arguments matches the memory layout accepted by Ref<MatrixXf>. However, in the last call, we have a generic expression that will be automatically evaluated into a temporary MatrixXf by the Ref<> object.
+In the first two calls to inv_cond, no copy occurs because the memory layout of the arguments matches the memory layout accepted by Ref<MatrixXf>. However, in the last call, we have a generic expression that will be automatically evaluated into a temporary MatrixXf by the Ref<> object.
 
 A Ref object can also be writable. Here is an example of a function computing the covariance matrix of two input matrices where each row is an observation:
 \code
@@ -103,7 +103,7 @@ void cov(const Ref<const MatrixXf> x, const Ref<const MatrixXf> y, Ref<MatrixXf>
 \endcode
 and here are two examples calling cov without any copy:
 \code
-MatrixXf m1, m2, m3
+MatrixXf m1, m2, m3;
 cov(m1, m2, m3);
 cov(m1.leftCols<3>(), m2.leftCols<3>(), m3.topLeftCorner<3,3>());
 \endcode
@@ -151,7 +151,7 @@ cov(x,y, C.block(0,0,3,3));
 \endcode
 the compiler will fail, because it is not possible to convert the expression returned by \c MatrixXf::block() into a non-const \c MatrixXf&. This is the case because the compiler wants to protect you from writing your result to a temporary object. In this special case this protection is not intended -- we want to write to a temporary object. So how can we overcome this problem? 
 
-The solution which is preferred at the moment is based on a little \em hack. One needs to pass a const reference to the matrix and internally the constness needs to be cast away. The correct implementation for C98 compliant compilers would be
+The solution which is preferred at the moment is based on a little \em hack. One needs to pass a const reference to the matrix and internally the constness needs to be cast away. This is also the pattern %Eigen itself uses internally for writable expression arguments. The correct implementation would be
 \code
 template <typename Derived, typename OtherDerived>
 void cov(const MatrixBase<Derived>& x, const MatrixBase<Derived>& y, MatrixBase<OtherDerived> const & C)

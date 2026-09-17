@@ -71,13 +71,13 @@ class AlignedBox {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_, AmbientDim_)
   enum { AmbientDimAtCompileTime = AmbientDim_ };
-  typedef Scalar_ Scalar;
-  typedef NumTraits<Scalar> ScalarTraits;
-  typedef Eigen::Index Index;  ///< \deprecated since Eigen 3.3
-  typedef typename ScalarTraits::Real RealScalar;
-  typedef typename ScalarTraits::NonInteger NonInteger;
-  typedef Matrix<Scalar, AmbientDimAtCompileTime, 1> VectorType;
-  typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar>, const VectorType, const VectorType> VectorTypeSum;
+  using Scalar = Scalar_;
+  using ScalarTraits = NumTraits<Scalar>;
+  using Index = Eigen::Index;  ///< \deprecated since Eigen 3.3
+  using RealScalar = typename ScalarTraits::Real;
+  using NonInteger = typename ScalarTraits::NonInteger;
+  using VectorType = Matrix<Scalar, AmbientDimAtCompileTime, 1>;
+  using VectorTypeSum = CwiseBinaryOp<internal::scalar_sum_op<Scalar>, const VectorType, const VectorType>;
 
   /** Define constants to name the corners of a 1D, 2D or 3D axis aligned bounding box */
   enum CornerType {
@@ -156,8 +156,8 @@ class AlignedBox {
   EIGEN_DEVICE_FUNC inline VectorType&(max)() { return m_max; }
 
   /** \returns the center of the box */
-  EIGEN_DEVICE_FUNC inline const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar, quotient)
-      center() const {
+  EIGEN_DEVICE_FUNC inline const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(VectorTypeSum, RealScalar,
+                                                                        internal::scalar_quotient_op) center() const {
     return (m_min + m_max) / RealScalar(2);
   }
 

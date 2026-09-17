@@ -1,39 +1,17 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-//
-// This Source Code Form is subject to the terms of the Mozilla
-// Public License v. 2.0. If a copy of the MPL was not distributed
-// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
+//
+// Forwarding header: the top-level unsupported/ directory was renamed
+// to contrib/ in Eigen 5.x. New code should use
+//   #include <contrib/Eigen/KroneckerProduct>
+// directly. This shim preserves the legacy include path.
 
-#ifndef EIGEN_KRONECKER_PRODUCT_MODULE_H
-#define EIGEN_KRONECKER_PRODUCT_MODULE_H
+#ifndef EIGEN_UNSUPPORTED_KRONECKERPRODUCT_FORWARD_H
+#define EIGEN_UNSUPPORTED_KRONECKERPRODUCT_FORWARD_H
 
-#include "../../Eigen/Core"
-#include "../../Eigen/SparseCore"
+#include "../../contrib/Eigen/KroneckerProduct"  // IWYU pragma: export
 
-namespace Eigen {
-
-/**
- * \defgroup KroneckerProduct_Module KroneckerProduct module
- *
- * This module contains an experimental Kronecker product implementation.
- *
- * \code
- * #include <unsupported/Eigen/KroneckerProduct>
- * \endcode
- */
-
-}  // namespace Eigen
-
-#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
-
-// IWYU pragma: begin_exports
-#include "src/KroneckerProduct/KroneckerTensorProduct.h"
-// IWYU pragma: end_exports
-
-#include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
-
-#endif  // EIGEN_KRONECKER_PRODUCT_MODULE_H
+#endif  // EIGEN_UNSUPPORTED_KRONECKERPRODUCT_FORWARD_H

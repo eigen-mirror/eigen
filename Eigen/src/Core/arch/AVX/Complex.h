@@ -365,6 +365,8 @@ EIGEN_STRONG_INLINE Packet2cd pset1<Packet2cd>(const std::complex<double>& from)
   return Packet2cd(_mm256_broadcast_pd((const __m128d*)(const void*)&from));
 }
 
+// The generic ploaddup broadcasts a copy made by pload1_scalar, which keeps GCC from folding
+// the load into vbroadcastf128's memory operand; binding *from directly does not.
 template <>
 EIGEN_STRONG_INLINE Packet2cd ploaddup<Packet2cd>(const std::complex<double>* from) {
   return pset1<Packet2cd>(*from);

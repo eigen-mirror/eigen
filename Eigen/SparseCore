@@ -34,6 +34,7 @@
 
 // IWYU pragma: begin_exports
 #include "src/SparseCore/SparseUtil.h"
+#include "src/SparseCore/SparseScatter.h"
 #include "src/SparseCore/SparseMatrixBase.h"
 #include "src/SparseCore/SparseAssign.h"
 #include "src/SparseCore/CompressedStorage.h"
@@ -58,6 +59,7 @@
 #include "src/SparseCore/SparseDenseProduct.h"
 #include "src/SparseCore/SparseSelfAdjointView.h"
 #include "src/SparseCore/SparseTriangularView.h"
+#include "src/SparseCore/TriangularReachSolver.h"
 #include "src/SparseCore/TriangularSolver.h"
 #include "src/SparseCore/SparsePermutation.h"
 #include "src/SparseCore/SparseFuzzy.h"

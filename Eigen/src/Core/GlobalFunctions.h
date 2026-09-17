@@ -37,16 +37,10 @@
 #endif  // EIGEN_PARSED_BY_DOXYGEN
 
 #define EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(NAME, FUNCTOR)                                                  \
-                                                                                                               \
-  template <typename Derived>                                                                                  \
-  struct NAME##_retval<ArrayBase<Derived> > {                                                                  \
-    typedef const Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived> type; \
-  };                                                                                                           \
   template <typename Derived>                                                                                  \
   struct NAME##_impl<ArrayBase<Derived> > {                                                                    \
-    static inline typename NAME##_retval<ArrayBase<Derived> >::type run(const Eigen::ArrayBase<Derived>& x) {  \
-      return typename NAME##_retval<ArrayBase<Derived> >::type(x.derived());                                   \
-    }                                                                                                          \
+    using ReturnType = Eigen::CwiseUnaryOp<Eigen::internal::FUNCTOR<typename Derived::Scalar>, const Derived>; \
+    static inline const ReturnType run(const Eigen::ArrayBase<Derived>& x) { return ReturnType(x.derived()); } \
   };
 
 // IWYU pragma: private
@@ -185,19 +179,37 @@ inline const CwiseBinaryOp<internal::scalar_pow_op<Scalar, Derived::Scalar>, Con
 template <typename Scalar, typename Derived>
 EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
     typename internal::promote_scalar_arg<typename Derived::Scalar EIGEN_COMMA Scalar EIGEN_COMMA
-                                              EIGEN_SCALAR_BINARY_SUPPORTED(pow, Scalar,
+                                              EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar,
                                                                             typename Derived::Scalar)>::type,
-    Derived, pow) pow(const Scalar& x, const Eigen::ArrayBase<Derived>& exponents) {
-  typedef
+    Derived, internal::scalar_pow_op) pow(const Scalar& x, const Eigen::ArrayBase<Derived>& exponents) {
+  using PromotedScalar =
       typename internal::promote_scalar_arg<typename Derived::Scalar, Scalar,
-                                            EIGEN_SCALAR_BINARY_SUPPORTED(pow, Scalar, typename Derived::Scalar)>::type
-          PromotedScalar;
-  return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedScalar, Derived, pow)(
+                                            EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar,
+                                                                          typename Derived::Scalar)>::type;
+  return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedScalar, Derived, internal::scalar_pow_op)(
       typename internal::plain_constant_type<Derived, PromotedScalar>::type(
           exponents.derived().rows(), exponents.derived().cols(), internal::scalar_constant_op<PromotedScalar>(x)),
       exponents.derived());
 }
 #endif
+
+/** \returns an expression of the coefficients of \a x multiplied by \f$ 2^{exponent} \f$.
+ *
+ * The scaling is exact: it directly adjusts the floating-point exponent, so it produces
+ * correct results (including denormals) even when \f$ 2^{exponent} \f$ itself is not
+ * representable as a scalar.
+ *
+ * \sa ArrayBase::ldexp()
+ *
+ * \relates ArrayBase
+ */
+template <typename Derived>
+EIGEN_DEVICE_FUNC constexpr inline const CwiseUnaryOp<internal::scalar_ldexp_op<typename Derived::Scalar>,
+                                                      const Derived>
+ldexp(const Eigen::ArrayBase<Derived>& x, int exponent) {
+  return CwiseUnaryOp<internal::scalar_ldexp_op<typename Derived::Scalar>, const Derived>(
+      x.derived(), internal::scalar_ldexp_op<typename Derived::Scalar>(exponent));
+}
 
 /** \returns an expression of the coefficient-wise atan2(\a x, \a y). \a x and \a y must be of the same type.
  *

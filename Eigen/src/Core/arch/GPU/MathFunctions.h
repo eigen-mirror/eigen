@@ -61,7 +61,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pexp2<float4>(const float4& a) {
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pexp2<double2>(const double2& a) {
-  using ::exp;
+  using ::exp2;
   return make_double2(exp2(a.x), exp2(a.y));
 }
 

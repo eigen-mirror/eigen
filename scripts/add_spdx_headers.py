@@ -176,7 +176,7 @@ FORTRAN_LANGUAGES = {".f", ".F", ".f90"}
 
 
 def is_eigen_umbrella_header(rel: Path) -> bool:
-    """`Eigen/Core`, `unsupported/Eigen/Tensor`, etc. — extensionless C++ headers."""
+    """`Eigen/Core`, `contrib/Eigen/Tensor`, etc. — extensionless C++ headers."""
     parts = rel.parts
     if rel.suffix:
         return False
@@ -184,11 +184,11 @@ def is_eigen_umbrella_header(rel: Path) -> bool:
         return len(parts) == 2
     if (
         len(parts) >= 3
-        and parts[0] == "unsupported"
+        and parts[0] in ("contrib", "unsupported")
         and parts[1] == "Eigen"
         and parts[-1][:1].isupper()
     ):
-        # unsupported/Eigen/Tensor, ...
+        # contrib/Eigen/Tensor (real), unsupported/Eigen/Tensor (legacy shim), ...
         return True
     return False
 

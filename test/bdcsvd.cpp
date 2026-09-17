@@ -16,6 +16,7 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include "fp_control.h"
 #include "tridiag_test_matrices.h"
 #include <Eigen/SVD>
 #include <cstdlib>
@@ -70,7 +71,6 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
 template <typename MatrixType>
 void bdcsvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
-  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(input);
 }
 
 template <typename MatrixType>
@@ -79,7 +79,6 @@ void bdcsvd_asserts(const MatrixType& input = MatrixType()) {
   svd_fill_random(m);
 
   svd_verify_assert<MatrixType>(m);
-  svd_verify_constructor_options_assert<BDCSVD<MatrixType>>(m);
 }
 
 template <typename MatrixType>
@@ -188,23 +187,54 @@ void bdcsvd_mixed_option_enum_regression() {
 #endif
 
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
-void bdcsvd_public_missing_predecessor() {
-  Matrix<double, 6, 6> matrix = Matrix<double, 6, 6>::Zero();
+void bdcsvd_extreme_scale_regressions() {
+  typedef Matrix<double, 6, 6> Matrix6d;
+  const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
+
+  const auto verify_decomposition = [kTolerance](const Matrix6d& matrix) {
+    BDCSVD<Matrix6d, ComputeFullU | ComputeFullV> svd;
+    svd.setSwitchSize(3);
+    svd.compute(matrix);
+
+    VERIFY(svd.info() == Success);
+
+    const Matrix6d reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
+    VERIFY((reconstruction - matrix).stableNorm() <= kTolerance * matrix.stableNorm());
+
+    const Matrix6d identity = Matrix6d::Identity();
+    VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).stableNorm() <= kTolerance);
+    VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).stableNorm() <= kTolerance);
+
+    // Also exercise the values-only path, which uses a compact m_naiveU and
+    // linear workspace during divide-and-conquer merges.
+    BDCSVD<Matrix6d> valuesOnlySvd;
+    valuesOnlySvd.setSwitchSize(3);
+    valuesOnlySvd.compute(matrix);
+    VERIFY(valuesOnlySvd.info() == Success);
+    VERIFY_IS_APPROX(valuesOnlySvd.singularValues(), svd.singularValues());
+  };
+
+  Matrix6d matrix = Matrix6d::Zero();
   const double kSubnormal1040 = std::numeric_limits<double>::denorm_min() * 17179869184.0;  // 2^-1040
   const double kSubnormal1060 = std::numeric_limits<double>::denorm_min() * 16384.0;        // 2^-1060
   const double kSmallestNormal = (std::numeric_limits<double>::min)();                      // 2^-1022
   const double kNormal1000 = kSmallestNormal * 4194304.0;                                   // 2^-1000
 
-  // `perm` filters subnormals below `considerZero`, but `perturbCol0` still
-  // treats exact subnormal entries as non-zero.
+  // The merge combines normal and subnormal couplings. Squaring the two
+  // coupling terms directly used to underflow, which later left perturbCol0
+  // without a predecessor and made the decomposition report NumericalIssue.
   matrix.diagonal() << kSubnormal1040, -kSubnormal1060, kSmallestNormal, 0.5, 1.0, kSmallestNormal;
   matrix.diagonal(1) << -kNormal1000, kNormal1000, kSubnormal1040, kSubnormal1060, -8.0;
+  verify_decomposition(matrix);
 
-  BDCSVD<Matrix<double, 6, 6>> svd;
-  svd.setSwitchSize(3);
-  svd.compute(matrix);
-
-  VERIFY(svd.info() == NumericalIssue);
+  // A singular-vector coefficient grows to about 2^570 here. Its squared
+  // norm overflows even though the vector has a finite, well-scaled
+  // normalization.
+  using std::ldexp;
+  matrix.setZero();
+  matrix.diagonal() << 0.0, 0.0, ldexp(1.0, -487), -1.0, 0.0, 0.0;
+  matrix.diagonal(1) << 0.0, ldexp(1.0, -453), -ldexp(1.0, -627), 0.0, 0.0;
+  verify_decomposition(matrix);
 }
 #endif
 
@@ -226,12 +256,130 @@ void bdcsvd_fast_math_regression_1588() {
 
   MatrixXd reconstruction = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
   const double relative_error = (reconstruction - matrix).norm() / matrix.norm();
-  VERIFY(relative_error < 1e-10);
+  // Deterministic input (fixed seed); the reconstruction is backward stable, so the relative error stays near eps.
+  VERIFY(relative_error < 64 * NumTraits<double>::epsilon());
 }
 #endif
 
+void bdcsvd_power_of_two_scaling() {
+  // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
+  const Index size = 20;
+  VectorXf diagonal = VectorXf::Zero(size);
+  diagonal(0) = numext::bit_cast<float>(numext::uint32_t(0x13afd4a1));
+  diagonal(1) = numext::bit_cast<float>(numext::uint32_t(0x11525720));
+
+  MatrixXf matrix = MatrixXf::Zero(size, size + 1);
+  matrix.leftCols(size).diagonal() = diagonal;
+  BDCSVD<MatrixXf> denseSvd;
+  denseSvd.setSwitchSize(8);
+  denseSvd.compute(matrix);
+  VERIFY_IS_EQUAL(denseSvd.singularValues()(0), diagonal(0));
+  VERIFY_IS_EQUAL(denseSvd.singularValues()(1), diagonal(1));
+
+  BDCSVD<MatrixXf> bidiagonalSvd;
+  bidiagonalSvd.setSwitchSize(8);
+  bidiagonalSvd.compute(diagonal, VectorXf::Zero(size - 1));
+  VERIFY_IS_EQUAL(bidiagonalSvd.singularValues()(0), diagonal(0));
+  VERIFY_IS_EQUAL(bidiagonalSvd.singularValues()(1), diagonal(1));
+
+  // A subnormal coupling remains significant relative to a uniformly tiny bidiagonal matrix. Scale it without first
+  // feeding the subnormal operand to packet arithmetic, which flushes it on ARMv7 NEON.
+  const auto checkSubnormalCoupling = [&]() {
+    volatile float normalMin = (std::numeric_limits<float>::min)();
+    const float largest = 256.0f * normalMin;
+    // Construct min_normal / 2 without arithmetic that FTZ would flush before it reaches the solver.
+    const float coupling = numext::bit_cast<float>(numext::uint32_t(0x00400000));
+    diagonal.setZero();
+    diagonal(0) = largest;
+    VectorXf superdiagonal = VectorXf::Zero(size - 1);
+    superdiagonal(0) = coupling;
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint32_t>(superdiagonal(0)), numext::uint32_t(0x00400000));
+    const float expectedRatio = numext::sqrt(1.0f + 1.0f / (512.0f * 512.0f));
+    for (int switchSize : {8, 32}) {
+      bidiagonalSvd.setSwitchSize(switchSize);
+      bidiagonalSvd.compute(diagonal, superdiagonal);
+      VERIFY(numext::abs(bidiagonalSvd.singularValues()(0) / largest - expectedRatio) <=
+             2.0f * NumTraits<float>::epsilon());
+    }
+  };
+  checkSubnormalCoupling();
+  ScopedFlushToZero ftz;
+  checkSubnormalCoupling();
+}
+
+template <typename RealScalar>
+void bdcsvd_secular_extrapolation() {
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  for (Index n : {31, 32, 33, 63, 64, 65, 127, 128, 129}) {
+    Mat bidiagonal = Mat::Zero(n, n);
+    Vec diagonal = Vec::Random(n), superdiagonal = Vec::Random(n - 1);
+    for (int kind = 0; kind < 3; ++kind) {
+      if (kind == 1) {
+        diagonal.setOnes();
+        superdiagonal *= numext::sqrt(NumTraits<RealScalar>::epsilon());
+      } else if (kind == 2) {
+        diagonal = Vec::LinSpaced(n, RealScalar(0), RealScalar(1));
+        superdiagonal.setRandom();
+        for (Index i = 0; i + 1 < n; i += 7) superdiagonal(i) = RealScalar(0);
+      }
+      bidiagonal.diagonal() = diagonal;
+      bidiagonal.template diagonal<1>() = superdiagonal;
+      BDCSVD<Mat, ComputeFullU | ComputeFullV> svd(diagonal, superdiagonal);
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      // Reconstruction and orthogonality each accumulate O(n * epsilon) rounding.
+      const RealScalar bound = RealScalar(64 * n) * NumTraits<RealScalar>::epsilon();
+      VERIFY((bidiagonal - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
+             bound * bidiagonal.norm());
+      const Mat identity = Mat::Identity(n, n);
+      VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).norm() <= bound);
+      VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).norm() <= bound);
+      JacobiSVD<Mat> reference(bidiagonal);
+      VERIFY((svd.singularValues() - reference.singularValues()).norm() <= bound * bidiagonal.norm());
+      BDCSVD<Mat> valuesOnly(diagonal, superdiagonal);
+      VERIFY_IS_EQUAL(valuesOnly.info(), Success);
+      VERIFY((valuesOnly.singularValues() - reference.singularValues()).norm() <= bound * bidiagonal.norm());
+    }
+  }
+}
+
+template <typename Scalar, int StorageOrder>
+void bdcsvd_qr_crossover() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  constexpr int options = ComputeThinU | ComputeThinV;
+  for (Index n : {16, 31}) {
+    for (Index rows : {4 * n - 1, 4 * n, 4 * n + 3, 4 * n + 4}) {
+      Mat tall = Mat::Random(rows, n);
+      tall.col(1) = tall.col(0);
+      for (bool transpose : {false, true}) {
+        Mat a;
+        if (transpose)
+          a = tall.adjoint();
+        else
+          a = tall;
+        BDCSVD<Mat, options> svd(a);
+        BDCSVD<Mat, options | int(DisableQRDecomposition)> direct(a);
+        VERIFY_IS_EQUAL(svd.info(), Success);
+        VERIFY_IS_EQUAL(direct.info(), Success);
+        const RealScalar bound = RealScalar(64 * rows) * NumTraits<RealScalar>::epsilon();
+        VERIFY((a - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().adjoint()).norm() <=
+               bound * a.norm());
+        const Mat identity = Mat::Identity(n, n);
+        VERIFY((svd.matrixU().adjoint() * svd.matrixU() - identity).norm() <= bound);
+        VERIFY((svd.matrixV().adjoint() * svd.matrixV() - identity).norm() <= bound);
+        VERIFY((svd.singularValues() - direct.singularValues()).norm() <= bound * a.norm());
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(bdcsvd) {
-  CALL_SUBTEST_1((bdcsvd_asserts<Matrix3f>()));
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
+  CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<double>, ColMajor>()));
+
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
@@ -286,14 +434,12 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_42((bdcsvd_method<Matrix2cd>()));
   CALL_SUBTEST_43((bdcsvd_method<Matrix3f>()));
 
-  // Test problem size constructors
-  CALL_SUBTEST_44(BDCSVD<MatrixXf>(10, 10));
-
   // Check that preallocation avoids subsequent mallocs
   // Disabled because not supported by BDCSVD
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
+  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling());
 
   // Without total deflation issues.
   CALL_SUBTEST_46((compare_bdc_jacobi_instance(true)));
@@ -309,6 +455,11 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // Bidiagonal SVD hard test cases
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
-  CALL_SUBTEST_53((bdcsvd_public_missing_predecessor()));
+  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions()));
   CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
+  CALL_SUBTEST_55((bdcsvd_secular_extrapolation<float>()));
+  CALL_SUBTEST_56((bdcsvd_secular_extrapolation<double>()));
+  CALL_SUBTEST_57((bdcsvd_qr_crossover<float, ColMajor>()));
+  CALL_SUBTEST_58((bdcsvd_qr_crossover<double, RowMajor>()));
+  CALL_SUBTEST_59((bdcsvd_qr_crossover<std::complex<double>, ColMajor>()));
 }

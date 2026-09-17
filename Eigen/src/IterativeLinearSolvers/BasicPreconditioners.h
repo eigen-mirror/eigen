@@ -38,11 +38,11 @@ namespace Eigen {
   */
 template <typename Scalar_>
 class DiagonalPreconditioner {
-  typedef Scalar_ Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
+  using Scalar = Scalar_;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
 
  public:
-  typedef typename Vector::StorageIndex StorageIndex;
+  using StorageIndex = typename Vector::StorageIndex;
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 
   DiagonalPreconditioner() = default;
@@ -120,9 +120,9 @@ class DiagonalPreconditioner {
   */
 template <typename Scalar_>
 class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_> {
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef DiagonalPreconditioner<Scalar_> Base;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Base = DiagonalPreconditioner<Scalar_>;
   using Base::m_invdiag;
 
  public:

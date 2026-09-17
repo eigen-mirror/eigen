@@ -60,12 +60,15 @@ static void BM_BDCSVD(benchmark::State& state) {
     ->Args({128, 128})->Args({256, 256})->Args({512, 512}) \
     ->Args({100, 4})->Args({1000, 4})->Args({1000, 10})
 
-// BDCSVD sizes: square + tall-skinny (triggers R-bidiagonalization when aspect ratio > 4).
+// BDCSVD sizes: square + tall-skinny (triggers R-bidiagonalization when aspect ratio >= 4).
 #define BDC_SIZES \
     ->Args({4, 4})->Args({8, 8})->Args({16, 16})->Args({32, 32})->Args({64, 64}) \
     ->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \
     ->Args({100, 4})->Args({1000, 4})->Args({1000, 10})->Args({1000, 100}) \
     ->Args({10000, 10})->Args({10000, 100})
+
+// Complex JacobiSVD above the shapes bench_jacobisvd_rotations covers.
+#define JACOBI_COMPLEX_SIZES ->Args({128, 128})->Args({256, 256})->Args({512, 512})
 
 // JacobiSVD — float
 BENCHMARK(BM_JacobiSVD<float, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_float_ThinUV");
@@ -74,6 +77,12 @@ BENCHMARK(BM_JacobiSVD<float, 0>) JACOBI_SIZES ->Name("JacobiSVD_float_ValuesOnl
 // JacobiSVD — double
 BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV>) JACOBI_SIZES ->Name("JacobiSVD_double_ThinUV");
 BENCHMARK(BM_JacobiSVD<double, 0>) JACOBI_SIZES ->Name("JacobiSVD_double_ValuesOnly");
+
+// JacobiSVD — complex
+BENCHMARK(BM_JacobiSVD<std::complex<float>, ComputeThinU | ComputeThinV>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cfloat_ThinUV");
+BENCHMARK(BM_JacobiSVD<std::complex<float>, 0>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cfloat_ValuesOnly");
+BENCHMARK(BM_JacobiSVD<std::complex<double>, ComputeThinU | ComputeThinV>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cdouble_ThinUV");
+BENCHMARK(BM_JacobiSVD<std::complex<double>, 0>) JACOBI_COMPLEX_SIZES ->Name("JacobiSVD_cdouble_ValuesOnly");
 
 // BDCSVD — float
 BENCHMARK(BM_BDCSVD<float, ComputeThinU | ComputeThinV>) BDC_SIZES ->Name("BDCSVD_float_ThinUV");
@@ -85,6 +94,7 @@ BENCHMARK(BM_BDCSVD<double, 0>) BDC_SIZES ->Name("BDCSVD_double_ValuesOnly");
 
 #undef JACOBI_SIZES
 #undef BDC_SIZES
+#undef JACOBI_COMPLEX_SIZES
 // clang-format on
 
 // JacobiSVD — QR preconditioner comparison (double, 64x64, ThinUV)

@@ -25,16 +25,15 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
     : public generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
                                              swap_assign_op<typename DstEvaluatorTypeT::Scalar>, BuiltIn> {
  protected:
-  typedef generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
-                                          swap_assign_op<typename DstEvaluatorTypeT::Scalar>, BuiltIn>
-      Base;
+  using Base = generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
+                                               swap_assign_op<typename DstEvaluatorTypeT::Scalar>, BuiltIn>;
   using Base::m_dst;
   using Base::m_src;
 
  public:
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::DstXprType DstXprType;
-  typedef swap_assign_op<Scalar> Functor;
+  using Scalar = typename Base::Scalar;
+  using DstXprType = typename Base::DstXprType;
+  using Functor = swap_assign_op<Scalar>;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE generic_dense_assignment_kernel(DstEvaluatorTypeT &dst,
                                                                                   const SrcEvaluatorTypeT &src,

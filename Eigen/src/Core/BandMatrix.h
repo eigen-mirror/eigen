@@ -32,11 +32,11 @@ class BandMatrixBase : public EigenBase<Derived> {
     Subs = internal::traits<Derived>::Subs,
     Options = internal::traits<Derived>::Options
   };
-  typedef typename internal::traits<Derived>::Scalar Scalar;
-  typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime> DenseMatrixType;
-  typedef typename DenseMatrixType::StorageIndex StorageIndex;
-  typedef typename internal::traits<Derived>::CoefficientsType CoefficientsType;
-  typedef EigenBase<Derived> Base;
+  using Scalar = typename internal::traits<Derived>::Scalar;
+  using DenseMatrixType = Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime>;
+  using StorageIndex = typename DenseMatrixType::StorageIndex;
+  using CoefficientsType = typename internal::traits<Derived>::CoefficientsType;
+  using Base = EigenBase<Derived>;
 
  protected:
   enum {
@@ -99,9 +99,9 @@ class BandMatrixBase : public EigenBase<Derived> {
               : (ActualIndex < 0 ? min_size_prefer_dynamic(ColsAtCompileTime, RowsAtCompileTime + ActualIndex)
                                  : min_size_prefer_dynamic(RowsAtCompileTime, ColsAtCompileTime - ActualIndex))
     };
-    typedef Block<CoefficientsType, 1, DiagonalSize> BuildType;
-    typedef std::conditional_t<Conjugate, CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, BuildType>, BuildType>
-        Type;
+    using BuildType = Block<CoefficientsType, 1, DiagonalSize>;
+    using Type =
+        std::conditional_t<Conjugate, CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, BuildType>, BuildType>;
   };
 
   /** \returns a vector expression of the \a N -th sub or super diagonal */
@@ -171,9 +171,9 @@ class BandMatrixBase : public EigenBase<Derived> {
 
 template <typename Scalar_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 struct traits<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> > {
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef Eigen::Index StorageIndex;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using StorageIndex = Eigen::Index;
   enum {
     CoeffReadCost = NumTraits<Scalar>::ReadCost,
     RowsAtCompileTime = Rows_,
@@ -186,16 +186,16 @@ struct traits<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> > {
     Options = Options_,
     DataRowsAtCompileTime = ((Supers != Dynamic) && (Subs != Dynamic)) ? 1 + Supers + Subs : Dynamic
   };
-  typedef Matrix<Scalar, DataRowsAtCompileTime, ColsAtCompileTime, int(Options) & int(RowMajor) ? RowMajor : ColMajor>
-      CoefficientsType;
+  using CoefficientsType =
+      Matrix<Scalar, DataRowsAtCompileTime, ColsAtCompileTime, int(Options) & int(RowMajor) ? RowMajor : ColMajor>;
 };
 
 template <typename Scalar_, int Rows, int Cols, int Supers, int Subs, int Options>
 class BandMatrix : public BandMatrixBase<BandMatrix<Scalar_, Rows, Cols, Supers, Subs, Options> > {
  public:
-  typedef typename internal::traits<BandMatrix>::Scalar Scalar;
-  typedef typename internal::traits<BandMatrix>::StorageIndex StorageIndex;
-  typedef typename internal::traits<BandMatrix>::CoefficientsType CoefficientsType;
+  using Scalar = typename internal::traits<BandMatrix>::Scalar;
+  using StorageIndex = typename internal::traits<BandMatrix>::StorageIndex;
+  using CoefficientsType = typename internal::traits<BandMatrix>::CoefficientsType;
 
   explicit inline BandMatrix(Index rows = Rows, Index cols = Cols, Index supers = Supers, Index subs = Subs)
       : m_coeffs(1 + supers + subs, cols), m_rows(rows), m_supers(supers), m_subs(subs) {}
@@ -227,9 +227,9 @@ class BandMatrixWrapper;
 
 template <typename CoefficientsType_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 struct traits<BandMatrixWrapper<CoefficientsType_, Rows_, Cols_, Supers_, Subs_, Options_> > {
-  typedef typename CoefficientsType_::Scalar Scalar;
-  typedef typename CoefficientsType_::StorageKind StorageKind;
-  typedef typename CoefficientsType_::StorageIndex StorageIndex;
+  using Scalar = typename CoefficientsType_::Scalar;
+  using StorageKind = typename CoefficientsType_::StorageKind;
+  using StorageIndex = typename CoefficientsType_::StorageIndex;
   enum {
     CoeffReadCost = internal::traits<CoefficientsType_>::CoeffReadCost,
     RowsAtCompileTime = Rows_,
@@ -242,16 +242,16 @@ struct traits<BandMatrixWrapper<CoefficientsType_, Rows_, Cols_, Supers_, Subs_,
     Options = Options_,
     DataRowsAtCompileTime = ((Supers != Dynamic) && (Subs != Dynamic)) ? 1 + Supers + Subs : Dynamic
   };
-  typedef CoefficientsType_ CoefficientsType;
+  using CoefficientsType = CoefficientsType_;
 };
 
 template <typename CoefficientsType_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 class BandMatrixWrapper
     : public BandMatrixBase<BandMatrixWrapper<CoefficientsType_, Rows_, Cols_, Supers_, Subs_, Options_> > {
  public:
-  typedef typename internal::traits<BandMatrixWrapper>::Scalar Scalar;
-  typedef typename internal::traits<BandMatrixWrapper>::CoefficientsType CoefficientsType;
-  typedef typename internal::traits<BandMatrixWrapper>::StorageIndex StorageIndex;
+  using Scalar = typename internal::traits<BandMatrixWrapper>::Scalar;
+  using CoefficientsType = typename internal::traits<BandMatrixWrapper>::CoefficientsType;
+  using StorageIndex = typename internal::traits<BandMatrixWrapper>::StorageIndex;
 
   explicit inline BandMatrixWrapper(const CoefficientsType& coeffs, Index rows = Rows_, Index cols = Cols_,
                                     Index supers = Supers_, Index subs = Subs_)
@@ -295,8 +295,8 @@ class BandMatrixWrapper
  */
 template <typename Scalar, int Size, int Options>
 class TridiagonalMatrix : public BandMatrix<Scalar, Size, Size, Options & SelfAdjoint ? 0 : 1, 1, Options | RowMajor> {
-  typedef BandMatrix<Scalar, Size, Size, Options & SelfAdjoint ? 0 : 1, 1, Options | RowMajor> Base;
-  typedef typename Base::StorageIndex StorageIndex;
+  using Base = BandMatrix<Scalar, Size, Size, Options & SelfAdjoint ? 0 : 1, 1, Options | RowMajor>;
+  using StorageIndex = typename Base::StorageIndex;
 
  public:
   explicit TridiagonalMatrix(Index size = Size) : Base(size, size, Options & SelfAdjoint ? 0 : 1, 1) {}
@@ -316,18 +316,18 @@ struct BandShape {};
 template <typename Scalar_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 struct evaluator_traits<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> >
     : public evaluator_traits_base<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> > {
-  typedef BandShape Shape;
+  using Shape = BandShape;
 };
 
 template <typename CoefficientsType_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 struct evaluator_traits<BandMatrixWrapper<CoefficientsType_, Rows_, Cols_, Supers_, Subs_, Options_> >
     : public evaluator_traits_base<BandMatrixWrapper<CoefficientsType_, Rows_, Cols_, Supers_, Subs_, Options_> > {
-  typedef BandShape Shape;
+  using Shape = BandShape;
 };
 
 template <>
 struct AssignmentKind<DenseShape, BandShape> {
-  typedef EigenBase2EigenBase Kind;
+  using Kind = EigenBase2EigenBase;
 };
 
 }  // end namespace internal

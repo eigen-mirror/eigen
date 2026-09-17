@@ -25,7 +25,7 @@ struct all_t {};
 
 namespace placeholders {
 
-typedef symbolic::SymbolExpr<internal::symbolic_last_tag> last_t;
+using last_t = symbolic::SymbolExpr<internal::symbolic_last_tag>;
 
 /** \var last
  * \ingroup Core_Module
@@ -48,10 +48,9 @@ typedef symbolic::SymbolExpr<internal::symbolic_last_tag> last_t;
  */
 static constexpr const last_t last;
 
-typedef symbolic::AddExpr<symbolic::SymbolExpr<internal::symbolic_last_tag>,
-                          symbolic::ValueExpr<Eigen::internal::FixedInt<1>>>
-    lastp1_t;
-typedef Eigen::internal::all_t all_t;
+using lastp1_t = symbolic::AddExpr<symbolic::SymbolExpr<internal::symbolic_last_tag>,
+                                   symbolic::ValueExpr<Eigen::internal::FixedInt<1>>>;
+using all_t = Eigen::internal::all_t;
 
 /** \var lastp1
  * \ingroup Core_Module

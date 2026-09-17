@@ -12,14 +12,37 @@ if (KLU_INCLUDES AND KLU_LIBRARIES)
 endif ()
 
 # --- Try config-mode first (SuiteSparse >= 7.0) ---
-if(NOT KLU_INCLUDES OR NOT KLU_LIBRARIES)
-  find_package(KLU CONFIG QUIET)
-  if(KLU_FOUND AND TARGET SuiteSparse::KLU)
-    get_target_property(_klu_inc SuiteSparse::KLU INTERFACE_INCLUDE_DIRECTORIES)
-    if(_klu_inc)
-      set(KLU_INCLUDES "${_klu_inc}" CACHE PATH "KLU include directory")
-    endif()
-    set(KLU_LIBRARIES SuiteSparse::KLU CACHE STRING "KLU libraries")
+# Run this on every configure, not only when the cache is cold.  The variables
+# set below name an imported target, which exists only if the config package has
+# been loaded in the *current* run.  Returning early on a warm cache left
+# KLU_LIBRARIES naming a target that was never defined, so the first
+# configure of a build tree succeeded and every later one failed.
+find_package(KLU CONFIG QUIET)
+if(KLU_FOUND AND TARGET SuiteSparse::KLU)
+  # Extract include dirs and libraries from the imported target so that the
+  # legacy variables expected by Eigen's build system are populated.
+  get_target_property(_klu_inc SuiteSparse::KLU INTERFACE_INCLUDE_DIRECTORIES)
+  # SuiteSparse >= 7 exports these as a generator expression, e.g.
+  # $<TARGET_PROPERTY:SuiteSparse::SuiteSparseConfig,INTERFACE_INCLUDE_DIRECTORIES>.
+  # A generator expression cannot be cached and handed to callers that inspect
+  # include directories at configure time, so keep only literal paths and let
+  # the manual search below handle the rest.
+  set(_klu_inc_dirs "")
+  if(_klu_inc)
+    foreach(_dir IN LISTS _klu_inc)
+      if(NOT _dir MATCHES "\\$<")
+        list(APPEND _klu_inc_dirs "${_dir}")
+      endif()
+    endforeach()
+  endif()
+  if(_klu_inc_dirs)
+    # FORCE because a plain `set(... CACHE ...)` is a no-op when the entry
+    # already exists.  A build tree first configured before this fix still
+    # holds the unusable generator-expression value, and reconfiguring it
+    # would otherwise keep it forever.
+    set(KLU_INCLUDES "${_klu_inc_dirs}" CACHE PATH "KLU include directory" FORCE)
+    set(KLU_LIBRARIES SuiteSparse::KLU CACHE STRING "KLU libraries" FORCE)
+    # Mark as found and return early -- no need for the manual search below.
     mark_as_advanced(KLU_INCLUDES KLU_LIBRARIES)
     return()
   endif()

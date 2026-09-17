@@ -26,7 +26,7 @@ template <typename Decomposition, typename Rhs, typename Dest>
 std::enable_if_t<Rhs::ColsAtCompileTime != 1 && Dest::ColsAtCompileTime != 1> solve_sparse_through_dense_panels(
     const Decomposition& dec, const Rhs& rhs, Dest& dest) {
   EIGEN_STATIC_ASSERT((Dest::Flags & RowMajorBit) == 0, THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
-  typedef typename Dest::Scalar DestScalar;
+  using DestScalar = typename Dest::Scalar;
   // we process the sparse rhs per block of NbColsAtOnce columns temporarily stored into a dense matrix.
   static const Index NbColsAtOnce = 4;
   Index rhsCols = rhs.cols();
@@ -47,7 +47,7 @@ std::enable_if_t<Rhs::ColsAtCompileTime != 1 && Dest::ColsAtCompileTime != 1> so
 template <typename Decomposition, typename Rhs, typename Dest>
 std::enable_if_t<Rhs::ColsAtCompileTime == 1 || Dest::ColsAtCompileTime == 1> solve_sparse_through_dense_panels(
     const Decomposition& dec, const Rhs& rhs, Dest& dest) {
-  typedef typename Dest::Scalar DestScalar;
+  using DestScalar = typename Dest::Scalar;
   Index size = rhs.rows();
   Eigen::Matrix<DestScalar, Dynamic, 1> rhs_dense(rhs);
   Eigen::Matrix<DestScalar, Dynamic, 1> dest_dense(size);

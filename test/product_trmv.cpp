@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "product_test_helpers.h"
 
 template <typename MatrixType>
 void trmv(const MatrixType& m) {

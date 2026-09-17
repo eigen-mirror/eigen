@@ -230,6 +230,28 @@ void check_complex_packet_arithmetic() {
   Vector2 expected_conjugate_product;
   expected_conjugate_product << numext::conj(values.coeff(0)) * factor, numext::conj(values.coeff(1)) * factor;
   VERIFY_IS_APPROX(conjugate_product, expected_conjugate_product);
+
+  // numext::divide guards against intermediate overflow (c^2 + d^2) near max representable bounds.
+  const RealScalar max_val = (std::numeric_limits<RealScalar>::max)();
+  const Scalar big_num(RealScalar(0.9) * max_val, RealScalar(0));
+  const Scalar big_denom(max_val, RealScalar(0));
+  const Scalar safe_div_result = numext::divide(big_num, big_denom);
+  VERIFY((numext::isfinite)(safe_div_result.real()));
+  VERIFY_IS_APPROX(safe_div_result, Scalar(RealScalar(0.9), RealScalar(0)));
+  VERIFY_IS_APPROX(numext::divide(RealScalar(0.9) * max_val, max_val), RealScalar(0.9));
+
+  // Verify vectorized expression division (vec / denom) on numbers that would cause
+  // intermediate overflow (c^2 + d^2 > max) in naive complex division.
+  const RealScalar intermediate_scale = numext::sqrt(max_val) * RealScalar(2);
+  const Scalar intermediate_num(RealScalar(0.9) * intermediate_scale, RealScalar(0));
+  const Scalar intermediate_denom(intermediate_scale, RealScalar(0));
+  Matrix<Scalar, Dynamic, 1> vec(8);
+  vec.fill(intermediate_num);
+  Matrix<Scalar, Dynamic, 1> vec_div = vec / intermediate_denom;
+  for (Index i = 0; i < vec.size(); ++i) {
+    VERIFY((numext::isfinite)(vec_div(i).real()));
+    VERIFY_IS_APPROX(vec_div(i), Scalar(RealScalar(0.9), RealScalar(0)));
+  }
 }
 
 template <typename RealScalar>
@@ -279,12 +301,79 @@ void check_complex_householder_qr() {
   VERIFY_IS_APPROX(mat, q * r);
 }
 
+// The complex self-adjoint 1-norm takes sqrt(re^2 + im^2) in packets and falls back to the scalar
+// abs when a component is too large to square. The decision must not depend on an infinity or
+// NaN surviving fast-math: an approximate packet sqrt can turn the overflow into a NaN that a
+// maximum then discards. Large entries both on the diagonal and inside a packet of a column.
+template <typename RealScalar>
+void check_complex_selfadjoint_l1norm() {
+  typedef std::complex<RealScalar> Scalar;
+  RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
+  Matrix<Scalar, 8, 8> m = Matrix<Scalar, 8, 8>::Identity() * big;
+  VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), big);
+  VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), big);
+  m.setIdentity();
+  m(2, 0) = m(0, 2) = Scalar(big, big);
+  RealScalar expected = numext::abs(Scalar(big, big)) + RealScalar(1);
+  VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), expected);
+  VERIFY_IS_APPROX(m.template selfadjointView<Upper>().l1Norm(), expected);
+}
+
 template <typename RealScalar>
 void check_complex_fastmath() {
   check_complex_rowmajor_adjoint_product<RealScalar>();
   check_complex_packet_arithmetic<RealScalar>();
   check_complex_packet_math_functions<RealScalar>();
   check_complex_householder_qr<RealScalar>();
+  check_complex_selfadjoint_l1norm<RealScalar>();
+}
+
+// The packet implementations of these functions manipulate signs of non-zero values through a
+// -0.0 bitmask. Under fast-math flags compilers consider -0.0 and +0.0 interchangeable and may
+// substitute one such constant for the other (GCC's value numbering does this on RISC-V), which
+// silently zeroes the mask unless it is constructed from integer bits (see psignmask and
+// https://gitlab.com/libeigen/eigen/-/merge_requests/2698). Sign handling of *non-zero* inputs
+// and outputs is not relaxed by fast-math, so these checks must hold.
+template <typename Scalar>
+void check_sign_dependent_functions() {
+  typedef Array<Scalar, Dynamic, 1> ArrayType;
+  const Index n = 64;
+
+  ArrayType ya(n), xa(n);
+  for (Index i = 0; i < n; ++i) {
+    Scalar s = Scalar(1) + Scalar(i) / Scalar(n);
+    // All four quadrants.
+    ya[i] = (i & 1) ? s : -s;
+    xa[i] = (i & 2) ? Scalar(2) * s : Scalar(-2) * s;
+  }
+  // Cover the |x| == |y| special path of patan2 in all four quadrants.
+  ya[0] = Scalar(1), xa[0] = Scalar(1);
+  ya[1] = Scalar(1), xa[1] = Scalar(-1);
+  ya[2] = Scalar(-1), xa[2] = Scalar(1);
+  ya[3] = Scalar(-1), xa[3] = Scalar(-1);
+
+  const ArrayType atan2_result = ya.atan2(xa);
+  for (Index i = 0; i < n; ++i) {
+    VERIFY_IS_APPROX(atan2_result[i], std::atan2(ya[i], xa[i]));
+  }
+
+  // Mixed-sign inputs, no exact zeros, |w| up to ~3 to hit the small- and large-|x| branches.
+  const ArrayType w = ArrayType::LinSpaced(n, Scalar(-3), Scalar(3)) + Scalar(0.017);
+  const ArrayType w_unit = w / Scalar(3.2);  // in (-1, 1) for atanh
+  const ArrayType atan_result = w.atan();
+  const ArrayType sinh_result = w.sinh();
+  const ArrayType tanh_result = w.tanh();
+  const ArrayType asinh_result = w.asinh();
+  const ArrayType atanh_result = w_unit.atanh();
+  const ArrayType cbrt_result = w.cbrt();
+  for (Index i = 0; i < n; ++i) {
+    VERIFY_IS_APPROX(atan_result[i], std::atan(w[i]));
+    VERIFY_IS_APPROX(sinh_result[i], std::sinh(w[i]));
+    VERIFY_IS_APPROX(tanh_result[i], std::tanh(w[i]));
+    VERIFY_IS_APPROX(asinh_result[i], std::asinh(w[i]));
+    VERIFY_IS_APPROX(atanh_result[i], std::atanh(w_unit[i]));
+    VERIFY_IS_APPROX(cbrt_result[i], std::cbrt(w[i]));
+  }
 }
 
 EIGEN_DECLARE_TEST(fastmath) {
@@ -301,4 +390,6 @@ EIGEN_DECLARE_TEST(fastmath) {
 
   CALL_SUBTEST_1(check_complex_fastmath<float>());
   CALL_SUBTEST_2(check_complex_fastmath<double>());
+  CALL_SUBTEST_3(check_sign_dependent_functions<float>());
+  CALL_SUBTEST_4(check_sign_dependent_functions<double>());
 }

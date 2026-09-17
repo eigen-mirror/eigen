@@ -26,6 +26,25 @@
 
 using namespace Eigen;
 
+static void BM_GemvBfloat16Strided(benchmark::State& state) {
+  using Mat = Matrix<bfloat16, Dynamic, Dynamic, RowMajor>;
+  using Vec = Matrix<bfloat16, Dynamic, 1>;
+  const Index rows = state.range(0), cols = state.range(1), stride = state.range(2);
+  const Mat A = Mat::Ones(rows, cols);
+  const Vec x = Vec::Ones(cols);
+  Vec storage((rows - 1) * stride + 1);
+  Map<Vec, 0, InnerStride<Dynamic>> y(storage.data(), rows, InnerStride<Dynamic>(stride));
+  for (auto _ : state) {
+    y.noalias() = A * x;
+    benchmark::DoNotOptimize(y.data());
+    benchmark::ClobberMemory();
+  }
+  if (!(y.array() == bfloat16(cols)).all()) state.SkipWithError("Incorrect strided GEMV result");
+}
+BENCHMARK(BM_GemvBfloat16Strided)
+    ->ArgNames({"rows", "cols", "stride"})
+    ->ArgsProduct({{4, 5, 31, 32, 33, 128}, {65, 128}, {1, 2, 17}});
+
 // ---------- Benchmark helpers ----------
 
 // GEMV flop count: 2*m*n for real, 8*m*n for complex.

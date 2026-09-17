@@ -339,6 +339,73 @@ void test_numeric_limits(const Input& in, Output& out) {
   run_and_verify<true, true>(operation, 1, in, out);
 }
 
+template <typename Operation>
+void test_predux_any(Operation& operation) {
+  VectorXf in(1);
+  Matrix<int, 3, 1> out;
+  in.setZero();
+  out.setZero();
+
+  run_and_verify<false, true>(operation, 1, in, out);
+}
+
+void test_predux_any_float() {
+  auto operation = [](const float* in, int* out) {
+#ifdef SYCL_DEVICE_ONLY
+    const cl::sycl::cl_int4 int_none(0);
+    const cl::sycl::cl_int4 int_some(0, -1, 0, 0);
+    const cl::sycl::cl_int4 int_all(-1);
+    out[0] = internal::predux_any(int_none.template as<cl::sycl::cl_float4>());
+    out[1] = internal::predux_any(int_some.template as<cl::sycl::cl_float4>());
+    out[2] = internal::predux_any(int_all.template as<cl::sycl::cl_float4>());
+#else
+    EIGEN_UNUSED_VARIABLE(in);
+    out[0] = 0;
+    out[1] = 1;
+    out[2] = 1;
+#endif
+  };
+  test_predux_any(operation);
+}
+
+void test_predux_any_half() {
+  auto operation = [](const float* in, int* out) {
+#ifdef SYCL_DEVICE_ONLY
+    const cl::sycl::cl_short8 short_none(0);
+    const cl::sycl::cl_short8 short_some(0, -1, 0, 0, 0, 0, 0, 0);
+    const cl::sycl::cl_short8 short_all(-1);
+    out[0] = internal::predux_any(short_none.template as<cl::sycl::cl_half8>());
+    out[1] = internal::predux_any(short_some.template as<cl::sycl::cl_half8>());
+    out[2] = internal::predux_any(short_all.template as<cl::sycl::cl_half8>());
+#else
+    EIGEN_UNUSED_VARIABLE(in);
+    out[0] = 0;
+    out[1] = 1;
+    out[2] = 1;
+#endif
+  };
+  test_predux_any(operation);
+}
+
+void test_predux_any_double() {
+  auto operation = [](const float* in, int* out) {
+#ifdef SYCL_DEVICE_ONLY
+    const cl::sycl::cl_long2 long_none(0);
+    const cl::sycl::cl_long2 long_some(0, -1);
+    const cl::sycl::cl_long2 long_all(-1);
+    out[0] = internal::predux_any(long_none.template as<cl::sycl::cl_double2>());
+    out[1] = internal::predux_any(long_some.template as<cl::sycl::cl_double2>());
+    out[2] = internal::predux_any(long_all.template as<cl::sycl::cl_double2>());
+#else
+    EIGEN_UNUSED_VARIABLE(in);
+    out[0] = 0;
+    out[1] = 1;
+    out[2] = 1;
+#endif
+  };
+  test_predux_any(operation);
+}
+
 EIGEN_DECLARE_TEST(sycl_basic) {
   Eigen::VectorXf in, out;
   Eigen::VectorXcf cfin, cfout;
@@ -380,4 +447,8 @@ EIGEN_DECLARE_TEST(sycl_basic) {
   CALL_SUBTEST(test_matrix_inverse<Matrix4f>(num_elements, in, out));
 
   CALL_SUBTEST(test_numeric_limits<Vector3f>(in, out));
+  CALL_SUBTEST(test_predux_any_float());
+  const sycl::device device{sycl::default_selector_v};
+  if (device.has(sycl::aspect::fp16)) CALL_SUBTEST(test_predux_any_half());
+  if (device.has(sycl::aspect::fp64)) CALL_SUBTEST(test_predux_any_double());
 }

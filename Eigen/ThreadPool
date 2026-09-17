@@ -17,9 +17,8 @@
 
 /** \defgroup ThreadPool_Module ThreadPool Module
  *
- * This module provides 2 threadpool implementations
- *  - a simple reference implementation
- *  - a faster non blocking implementation
+ * This module provides a non blocking threadpool implementation, Eigen::ThreadPoolTempl, together with the
+ * Eigen::ThreadPool alias for its default thread environment.
  *
  * \code
  * #include <Eigen/ThreadPool>
@@ -65,7 +64,6 @@
 // IWYU pragma: begin_exports
 #include "src/ThreadPool/ThreadLocal.h"
 #include "src/ThreadPool/ThreadYield.h"
-#include "src/ThreadPool/ThreadCancel.h"
 #include "src/ThreadPool/EventCount.h"
 #include "src/ThreadPool/RunQueue.h"
 #include "src/ThreadPool/ThreadPoolInterface.h"

@@ -449,15 +449,6 @@ EIGEN_STRONG_INLINE Packet2d pnegate(const Packet2d& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4i pmadd(const Packet4i& a, const Packet4i& b, const Packet4i& c) {
   return padd<Packet4i>(pmul<Packet4i>(a, b), c);
 }
@@ -674,6 +665,12 @@ EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   b = reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4i>(a), reinterpret_cast<Packet4i>(a), 8));
   sum = padd<Packet2d>(a, b);
   return pfirst(sum);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  const Packet2ul zero = {0, 0};
+  return vec_any_ne(reinterpret_cast<Packet2ul>(a), zero);
 }
 
 // Other reduction functions:
@@ -999,6 +996,11 @@ EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
 }
 
 template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  return predux_any(a.v4f[0]) | predux_any(a.v4f[1]);
+}
+
+template <>
 EIGEN_STRONG_INLINE float predux_mul<Packet4f>(const Packet4f& a) {
   // Return predux_mul<Packet2d> of the subvectors product
   return static_cast<float>(pfirst(predux_mul(pmul(a.v4f[0], a.v4f[1]))));
@@ -1158,10 +1160,6 @@ EIGEN_STRONG_INLINE Packet4f pnegate<Packet4f>(const Packet4f& a) {
   return (-a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4f pconj<Packet4f>(const Packet4f& a) {
-  return a;
-}
-template <>
 EIGEN_STRONG_INLINE Packet4f pmadd<Packet4f>(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_madd(a, b, c);
 }
@@ -1245,6 +1243,12 @@ EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
   b = vec_sld(sum, sum, 4);
   sum = padd<Packet4f>(sum, b);
   return pfirst(sum);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  const Packet4ui zero = {0, 0, 0, 0};
+  return vec_any_ne(reinterpret_cast<Packet4ui>(a), zero);
 }
 
 // Other reduction functions:

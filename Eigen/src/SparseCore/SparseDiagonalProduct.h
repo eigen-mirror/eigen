@@ -39,16 +39,15 @@ template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseShape>
     : public sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType,
                                                Rhs::Flags & RowMajorBit ? SDP_AsScalarProduct : SDP_AsCwiseProduct> {
-  typedef Product<Lhs, Rhs, DefaultProduct> XprType;
+  using XprType = Product<Lhs, Rhs, DefaultProduct>;
   enum {
     CoeffReadCost = HugeCost,
     Flags = Rhs::Flags & RowMajorBit,
     Alignment = 0
   };  // FIXME: compute proper CoeffReadCost and propagate Flags.
 
-  typedef sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType,
-                                            Rhs::Flags & RowMajorBit ? SDP_AsScalarProduct : SDP_AsCwiseProduct>
-      Base;
+  using Base = sparse_diagonal_product_evaluator<Rhs, typename Lhs::DiagonalVectorType,
+                                                 Rhs::Flags & RowMajorBit ? SDP_AsScalarProduct : SDP_AsCwiseProduct>;
   explicit product_evaluator(const XprType& xpr) : Base(xpr.rhs(), xpr.lhs().diagonal()) {}
 };
 
@@ -56,16 +55,15 @@ template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseShape, DiagonalShape>
     : public sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>,
                                                Lhs::Flags & RowMajorBit ? SDP_AsCwiseProduct : SDP_AsScalarProduct> {
-  typedef Product<Lhs, Rhs, DefaultProduct> XprType;
+  using XprType = Product<Lhs, Rhs, DefaultProduct>;
   enum {
     CoeffReadCost = HugeCost,
     Flags = Lhs::Flags & RowMajorBit,
     Alignment = 0
   };  // FIXME: compute proper CoeffReadCost and propagate Flags.
 
-  typedef sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>,
-                                            Lhs::Flags & RowMajorBit ? SDP_AsCwiseProduct : SDP_AsScalarProduct>
-      Base;
+  using Base = sparse_diagonal_product_evaluator<Lhs, Transpose<const typename Rhs::DiagonalVectorType>,
+                                                 Lhs::Flags & RowMajorBit ? SDP_AsCwiseProduct : SDP_AsScalarProduct>;
   explicit product_evaluator(const XprType& xpr) : Base(xpr.lhs(), xpr.rhs().diagonal().transpose()) {}
 };
 
@@ -73,11 +71,11 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseSh
 // full result directly instead of first materializing an unscaled PlainObject.
 template <int Mode, int ProductOrder, typename SelfAdjointViewType, typename DiagonalType, typename Dest>
 struct sparse_selfadjoint_diagonal_product_impl {
-  typedef typename SelfAdjointViewType::MatrixTypeNested_ MatrixType;
-  typedef evaluator<MatrixType> MatrixEvaluator;
-  typedef typename MatrixEvaluator::InnerIterator MatrixIterator;
-  typedef typename Dest::StorageIndex StorageIndex;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
+  using MatrixType = typename SelfAdjointViewType::MatrixTypeNested_;
+  using MatrixEvaluator = evaluator<MatrixType>;
+  using MatrixIterator = typename MatrixEvaluator::InnerIterator;
+  using StorageIndex = typename Dest::StorageIndex;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
   enum { IsFullMode = Mode == int(Upper | Lower), IsLowerMode = (Mode & int(Lower)) == int(Lower) };
 
   static void run(Dest& dest, const SelfAdjointViewType& selfadjoint, const DiagonalType& diagonal) {
@@ -155,9 +153,9 @@ struct sparse_selfadjoint_diagonal_product_impl {
 template <typename Lhs, typename Rhs>
 struct materialized_left_sparse_product_evaluator_base
     : public evaluator<typename Product<Lhs, typename Rhs::PlainObject, DefaultProduct>::PlainObject> {
-  typedef Product<Lhs, Rhs, DefaultProduct> XprType;
-  typedef typename XprType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<Lhs, Rhs, DefaultProduct>;
+  using PlainObject = typename XprType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   explicit materialized_left_sparse_product_evaluator_base(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
@@ -172,9 +170,9 @@ struct materialized_left_sparse_product_evaluator_base
 template <typename Lhs, typename Rhs>
 struct materialized_right_sparse_product_evaluator_base
     : public evaluator<typename Product<typename Lhs::PlainObject, Rhs, DefaultProduct>::PlainObject> {
-  typedef Product<Lhs, Rhs, DefaultProduct> XprType;
-  typedef typename XprType::PlainObject PlainObject;
-  typedef evaluator<PlainObject> Base;
+  using XprType = Product<Lhs, Rhs, DefaultProduct>;
+  using PlainObject = typename XprType::PlainObject;
+  using Base = evaluator<PlainObject>;
 
   explicit materialized_right_sparse_product_evaluator_base(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
     internal::construct_at<Base>(this, m_result);
@@ -189,7 +187,7 @@ struct materialized_right_sparse_product_evaluator_base
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseTriangularShape>
     : product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseShape> {
-  typedef product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseShape> Base;
+  using Base = product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, DiagonalShape, SparseShape>;
   using Base::Base;
 };
 
@@ -202,7 +200,7 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, Diagonal
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseTriangularShape, DiagonalShape>
     : product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseShape, DiagonalShape> {
-  typedef product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseShape, DiagonalShape> Base;
+  using Base = product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseShape, DiagonalShape>;
   using Base::Base;
 };
 
@@ -215,8 +213,8 @@ struct product_evaluator<Product<Lhs, Rhs, DefaultProduct>, ProductTag, SparseSe
 template <typename SparseXprType, typename DiagonalCoeffType>
 struct sparse_diagonal_product_evaluator<SparseXprType, DiagonalCoeffType, SDP_AsScalarProduct> {
  protected:
-  typedef typename evaluator<SparseXprType>::InnerIterator SparseXprInnerIterator;
-  typedef typename SparseXprType::Scalar Scalar;
+  using SparseXprInnerIterator = typename evaluator<SparseXprType>::InnerIterator;
+  using Scalar = typename SparseXprType::Scalar;
 
  public:
   class InnerIterator : public SparseXprInnerIterator {
@@ -242,15 +240,15 @@ struct sparse_diagonal_product_evaluator<SparseXprType, DiagonalCoeffType, SDP_A
 
 template <typename SparseXprType, typename DiagCoeffType>
 struct sparse_diagonal_product_evaluator<SparseXprType, DiagCoeffType, SDP_AsCwiseProduct> {
-  typedef typename SparseXprType::Scalar Scalar;
-  typedef typename SparseXprType::StorageIndex StorageIndex;
+  using Scalar = typename SparseXprType::Scalar;
+  using StorageIndex = typename SparseXprType::StorageIndex;
 
-  typedef typename nested_eval<DiagCoeffType, SparseXprType::IsRowMajor ? SparseXprType::RowsAtCompileTime
-                                                                        : SparseXprType::ColsAtCompileTime>::type
-      DiagCoeffNested;
+  using DiagCoeffNested =
+      typename nested_eval<DiagCoeffType, SparseXprType::IsRowMajor ? SparseXprType::RowsAtCompileTime
+                                                                    : SparseXprType::ColsAtCompileTime>::type;
 
   class InnerIterator {
-    typedef typename evaluator<SparseXprType>::InnerIterator SparseXprIter;
+    using SparseXprIter = typename evaluator<SparseXprType>::InnerIterator;
 
    public:
     InnerIterator(const sparse_diagonal_product_evaluator& xprEval, Index outer)

@@ -16,6 +16,114 @@ if(EIGEN_TEST_HIP AND NOT DEFINED EIGEN_HIP_ARCHITECTURES)
       CACHE STRING "HIP GPU architectures to build Eigen's HIP tests for.")
 endif()
 
+# Renders a command as one line of POSIX shell source that runs it with these
+# exact argument boundaries.  CMAKE_<LANG>_COMPILER_LAUNCHER is a list in which
+# each element is one argv entry, and an element may itself contain spaces or
+# characters the shell would act on, so the elements cannot simply be joined.
+function(ei_quote_command_for_shell out_var)
+  set(quoted "")
+  foreach(arg IN LISTS ARGN)
+    # Single quotes protect every character but a single quote, which is
+    # spliced back in as '\'' -- close, escape, reopen.
+    string(REPLACE "'" "'\\''" arg "${arg}")
+    if(quoted)
+      string(APPEND quoted " ")
+    endif()
+    string(APPEND quoted "'${arg}'")
+  endforeach()
+  set(${out_var} "${quoted}" PARENT_SCOPE)
+endfunction()
+
+# The same for one line of cmd.exe batch source.
+function(ei_quote_command_for_batch out_var)
+  set(quoted "")
+  foreach(arg IN LISTS ARGN)
+    # Double quotes are the only grouping cmd.exe offers, it has no escape for
+    # a literal one, and it expands %VAR% and delayed !VAR! even between them.
+    # Refuse rather than write a wrapper that would run something else.
+    if(arg MATCHES "[\"%!]")
+      message(FATAL_ERROR "cannot quote '${arg}' for cmd.exe: a command line "
+                          "argument containing \" % or ! is not representable "
+                          "in a batch file")
+    endif()
+    if(quoted)
+      string(APPEND quoted " ")
+    endif()
+    string(APPEND quoted "\"${arg}\"")
+  endforeach()
+  set(${out_var} "${quoted}" PARENT_SCOPE)
+endfunction()
+
+# Writes <dir>/eigen-nvcc-launcher.{sh,bat}, which runs <nvcc> under the
+# launcher argv given in ARGN and forwards its own arguments unchanged, and
+# returns its path through out_var.
+function(ei_write_nvcc_launcher_wrapper out_var dir nvcc)
+  if(CMAKE_HOST_WIN32)
+    set(wrapper "${dir}/eigen-nvcc-launcher.bat")
+    ei_quote_command_for_batch(command ${ARGN} "${nvcc}")
+    file(WRITE "${wrapper}" "@echo off\n${command} %*\n")
+  else()
+    set(wrapper "${dir}/eigen-nvcc-launcher.sh")
+    ei_quote_command_for_shell(command ${ARGN} "${nvcc}")
+    file(WRITE "${wrapper}" "#!/bin/sh\nexec ${command} \"$@\"\n")
+    # file(CHMOD) would need CMake 3.19; this project's minimum is 3.17.
+    execute_process(COMMAND chmod +x "${wrapper}")
+  endif()
+  set(${out_var} "${wrapper}" PARENT_SCOPE)
+endfunction()
+
+# FindCUDA's cuda_add_executable() bakes CUDA_NVCC_EXECUTABLE into a generated
+# run_nvcc.cmake and runs it as a quoted `COMMAND "${CUDA_NVCC_EXECUTABLE}"`, so
+# it never consults CMAKE_CUDA_COMPILER_LAUNCHER -- and a launcher list such as
+# "ccache;nvcc" cannot be substituted either, because the COMMAND is one quoted
+# argument.  A wrapper script is therefore the only available hook.  Without it,
+# configuring ccache or sccache speeds up the C++ tests while silently skipping
+# every .cu translation unit, which are the slowest in the tree.
+#
+# Only the nvcc path needs this: EIGEN_TEST_CUDA_CLANG and EIGEN_TEST_CUDA_NVC
+# compile .cu as CXX and already pick up CMAKE_CXX_COMPILER_LAUNCHER.
+#
+# This can be deleted once the CUDA language is enabled directly, i.e. when
+# CMP0146 (see the top-level CMakeLists.txt) no longer has to be set to OLD.
+#
+# Caveat: the wrapper also fronts nvcc's -M dependency and -dlink passes, which
+# ccache does not cache; expect those as misses in the statistics.
+# Resolve EIGEN_CUDA_COMPUTE_ARCH once find_package(CUDA) has set CUDA_VERSION.
+# The cache entry defaults to empty, which selects the oldest architecture the
+# toolkit still compiles for: sm_60, Eigen's documented floor (see Macros.h),
+# or sm_75 from CUDA 13 on, which dropped offline compilation for Pascal and
+# Volta. Sets the directory-scope variable the arch flags are built from; an
+# explicit cache value is used as given.
+macro(ei_cuda_resolve_compute_arch)
+  if("${EIGEN_CUDA_COMPUTE_ARCH}" STREQUAL "")
+    if(CUDA_VERSION VERSION_LESS 13.0)
+      set(EIGEN_CUDA_COMPUTE_ARCH 60)
+    else()
+      set(EIGEN_CUDA_COMPUTE_ARCH 75)
+    endif()
+  endif()
+  set_property(GLOBAL PROPERTY EIGEN_CUDA_COMPUTE_ARCH_RESOLVED "${EIGEN_CUDA_COMPUTE_ARCH}")
+endmacro()
+
+macro(ei_cuda_use_compiler_launcher)
+  # Fall back to the C++ launcher.  A project using FindCUDA never enables the
+  # CUDA language, so CMAKE_CUDA_COMPILER_LAUNCHER is seldom set, whereas
+  # CMAKE_CXX_COMPILER_LAUNCHER usually is -- including in Eigen's own CI.
+  set(EIGEN_NVCC_LAUNCHER "${CMAKE_CUDA_COMPILER_LAUNCHER}")
+  if(NOT EIGEN_NVCC_LAUNCHER)
+    set(EIGEN_NVCC_LAUNCHER "${CMAKE_CXX_COMPILER_LAUNCHER}")
+  endif()
+  # The MATCHES guard makes this a one-time setup per directory: the set() below
+  # shadows the cache entry for the rest of this scope, and we are called once
+  # per test.
+  if(EIGEN_NVCC_LAUNCHER AND NOT CUDA_NVCC_EXECUTABLE MATCHES "eigen-nvcc-launcher")
+    ei_write_nvcc_launcher_wrapper(EIGEN_NVCC_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}"
+                                   "${CUDA_NVCC_EXECUTABLE}" ${EIGEN_NVCC_LAUNCHER})
+    set(CUDA_NVCC_EXECUTABLE "${EIGEN_NVCC_WRAPPER}")
+    message(STATUS "CUDA tests: nvcc routed through compiler launcher '${EIGEN_NVCC_LAUNCHER}'")
+  endif()
+endmacro()
+
 #internal. See documentation of ei_add_test for details.
 macro(ei_add_test_internal testname testname_with_suffix)
   set(targetname ${testname_with_suffix})
@@ -36,7 +144,12 @@ macro(ei_add_test_internal testname testname_with_suffix)
     set(is_gpu_test ON)
     if(EIGEN_TEST_HIP)
       hip_reset_flags()
-      hip_add_executable(${targetname} ${filename} HIPCC_OPTIONS -std=c++14)
+      # FindHIP's custom compile commands do not consume the native HIP_ARCHITECTURES target property.
+      set(hip_arch_flags "")
+      foreach(arch IN LISTS EIGEN_HIP_ARCHITECTURES)
+        list(APPEND hip_arch_flags "--offload-arch=${arch}")
+      endforeach()
+      hip_add_executable(${targetname} ${filename} HIPCC_OPTIONS -std=c++14 ${hip_arch_flags})
       target_compile_definitions(${targetname} PRIVATE -DEIGEN_USE_HIP)
       set_property(TARGET ${targetname} PROPERTY HIP_ARCHITECTURES "${EIGEN_HIP_ARCHITECTURES}")
     elseif(EIGEN_TEST_CUDA_CLANG)
@@ -70,6 +183,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
       endif()
       target_link_libraries(${targetname} ${CUDA_NVC_LINK_LIBRARIES})
     else()
+      ei_cuda_use_compiler_launcher()
       cuda_add_executable(${targetname} ${filename})
     endif()
   else()
@@ -277,6 +391,15 @@ macro(ei_add_failtest testname)
 
   # Expect the second test to fail
   set_tests_properties(${test_target_ko} PROPERTIES WILL_FAIL TRUE)
+
+  # The test action is a build in the shared binary directory, so two failtests
+  # running at once drive two concurrent builds over one build system.  A lock
+  # shared by the whole suite serializes those while leaving the ordinary tests
+  # free to run in parallel.  It matters most for ${test_target_ko}: WILL_FAIL
+  # cannot tell the compile error it asserts from a build system that failed for
+  # an unrelated reason, so a race there passes vacuously.
+  set_tests_properties(${test_target_ok} ${test_target_ko} PROPERTIES
+                       RESOURCE_LOCK eigen_failtest_build LABELS failtest)
 endmacro()
 
 # print a summary of the different options
@@ -422,10 +545,14 @@ macro(ei_testing_print_summary)
       message(STATUS "SYCL:              OFF")
     endif()
     if(EIGEN_TEST_CUDA)
+      get_property(EIGEN_CUDA_ARCH_SUMMARY GLOBAL PROPERTY EIGEN_CUDA_COMPUTE_ARCH_RESOLVED)
+      if(EIGEN_CUDA_ARCH_SUMMARY)
+        string(REPLACE ";" ", sm_" EIGEN_CUDA_ARCH_SUMMARY ", sm_${EIGEN_CUDA_ARCH_SUMMARY}")
+      endif()
       if(EIGEN_TEST_CUDA_CLANG)
-        message(STATUS "CUDA:              ON (using clang)")
+        message(STATUS "CUDA:              ON (using clang${EIGEN_CUDA_ARCH_SUMMARY})")
       else()
-        message(STATUS "CUDA:              ON (using nvcc)")
+        message(STATUS "CUDA:              ON (using nvcc${EIGEN_CUDA_ARCH_SUMMARY})")
       endif()
     else()
       message(STATUS "CUDA:              OFF")

@@ -50,10 +50,10 @@ namespace Eigen {
 namespace internal {
 template <typename Scalar_, int Options_, typename StorageIndex_>
 struct traits<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef Sparse StorageKind;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using StorageKind = Sparse;
+  using XprKind = MatrixXpr;
   enum {
     RowsAtCompileTime = Dynamic,
     ColsAtCompileTime = Dynamic,
@@ -67,14 +67,14 @@ struct traits<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int DiagIndex>
 struct traits<Diagonal<SparseMatrix<Scalar_, Options_, StorageIndex_>, DiagIndex>> {
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> MatrixType;
-  typedef typename ref_selector<MatrixType>::type MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNested_;
+  using MatrixType = SparseMatrix<Scalar_, Options_, StorageIndex_>;
+  using MatrixTypeNested = typename ref_selector<MatrixType>::type;
+  using MatrixTypeNested_ = std::remove_reference_t<MatrixTypeNested>;
 
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef StorageIndex_ StorageIndex;
-  typedef MatrixXpr XprKind;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using StorageIndex = StorageIndex_;
+  using XprKind = MatrixXpr;
 
   enum {
     RowsAtCompileTime = Dynamic,
@@ -120,7 +120,7 @@ struct functor_traits<sparse_reserve_op<Scalar>> {
 
 template <typename Scalar_, int Options_, typename StorageIndex_>
 class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
-  typedef SparseCompressedBase<SparseMatrix> Base;
+  using Base = SparseCompressedBase<SparseMatrix>;
   using Base::convert_index;
   friend class SparseVector<Scalar_, 0, StorageIndex_>;
   template <typename, typename, typename, typename, typename>
@@ -133,21 +133,21 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   using Base::operator+=;
   using Base::operator-=;
 
-  typedef Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex>> Map;
-  typedef Diagonal<SparseMatrix> DiagonalReturnType;
-  typedef Diagonal<const SparseMatrix> ConstDiagonalReturnType;
-  typedef typename Base::InnerIterator InnerIterator;
-  typedef typename Base::ReverseInnerIterator ReverseInnerIterator;
+  using Map = Eigen::Map<SparseMatrix<Scalar, Options_, StorageIndex>>;
+  using DiagonalReturnType = Diagonal<SparseMatrix>;
+  using ConstDiagonalReturnType = Diagonal<const SparseMatrix>;
+  using InnerIterator = typename Base::InnerIterator;
+  using ReverseInnerIterator = typename Base::ReverseInnerIterator;
 
   using Base::IsRowMajor;
-  typedef internal::CompressedStorage<Scalar, StorageIndex> Storage;
+  using Storage = internal::CompressedStorage<Scalar, StorageIndex>;
   enum { Options = Options_ };
 
-  typedef typename Base::IndexVector IndexVector;
-  typedef typename Base::ScalarVector ScalarVector;
+  using IndexVector = typename Base::IndexVector;
+  using ScalarVector = typename Base::ScalarVector;
 
  protected:
-  typedef SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex> TransposedSparseMatrix;
+  using TransposedSparseMatrix = SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
 
   Index m_outerSize;
   Index m_innerSize;
@@ -278,8 +278,9 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   /** \returns a reference to a novel non zero coefficient with coordinates \a row x \a col.
    * The non zero coefficient must \b not already exist.
    *
-   * If the matrix \c *this is in compressed mode, then \c *this is turned into uncompressed
-   * mode while reserving room for 2 x this->innerSize() non zeros if reserve(Index) has not been called earlier.
+   * If the matrix \c *this is in compressed mode, then \c *this is turned into uncompressed mode with no spare room;
+   * whenever an insertion finds no free slot in any inner vector, room for one additional element per inner vector is
+   * reserved.
    * In this case, the insertion procedure is optimized for a \e sequential insertion mode where elements are assumed to
    * be inserted by increasing outer-indices.
    *
@@ -636,7 +637,8 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     prune(default_prunning_func(reference, epsilon));
   }
 
-  /** Turns the matrix into compressed format, and suppresses all nonzeros which do not satisfy the predicate \a keep.
+  /** Suppresses all nonzeros which do not satisfy the predicate \a keep. The storage format is preserved: an
+   * uncompressed matrix remains uncompressed, so call makeCompressed() if a compressed result is required.
    * The functor type \a KeepFunc must implement the following function:
    * \code
    * bool operator() (const Index& row, const Index& col, const Scalar& value) const;
@@ -961,19 +963,6 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   /** \internal
    * \sa insert(Index,Index) */
   EIGEN_DEPRECATED EIGEN_DONT_INLINE Scalar& insertCompressed(Index row, Index col);
-
-  /** \internal
-   * A vector object that is equal to 0 everywhere but v at the position i */
-  class SingletonVector {
-    StorageIndex m_index;
-    StorageIndex m_value;
-
-   public:
-    typedef StorageIndex value_type;
-    SingletonVector(Index i, Index v) : m_index(convert_index(i)), m_value(convert_index(v)) {}
-
-    StorageIndex operator[](Index i) const { return i == m_index ? m_value : 0; }
-  };
 
   /** \internal
    * \sa insert(Index,Index) */
@@ -1370,6 +1359,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
 /** The same as setFromTriplets but triplets are assumed to be pre-sorted. This is faster and requires less temporary
  * storage. Two triplets `a` and `b` are appropriately ordered if: \code ColMajor: ((a.col() != b.col()) ? (a.col() <
  * b.col()) : (a.row() < b.row()) RowMajor: ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()) \endcode
+ * If the range is empty, the initial contents of \c *this are left untouched instead of being destroyed.
  */
 template <typename Scalar, int Options_, typename StorageIndex_>
 template <typename InputIterators>
@@ -1584,8 +1574,8 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     // pass 2
     for (StorageIndex j = 0; j < otherCopy.outerSize(); ++j) {
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) {
-        Index pos = internal::convert_index<Index>(positions[it.index()]);
-        positions[it.index()] = internal::convert_index<StorageIndex>(pos + 1);
+        Index pos = internal::convert_index<Index>(positions.coeff(it.index()));
+        positions.coeffRef(it.index()) = internal::convert_index<StorageIndex>(pos + 1);
         dest.m_data.index(pos) = j;
         dest.m_data.value(pos) = it.value();
       }
@@ -1765,8 +1755,8 @@ namespace internal {
 template <typename Scalar_, int Options_, typename StorageIndex_>
 struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
     : evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> {
-  typedef evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>> Base;
-  typedef SparseMatrix<Scalar_, Options_, StorageIndex_> SparseMatrixType;
+  using Base = evaluator<SparseCompressedBase<SparseMatrix<Scalar_, Options_, StorageIndex_>>>;
+  using SparseMatrixType = SparseMatrix<Scalar_, Options_, StorageIndex_>;
   evaluator() = default;
   explicit evaluator(const SparseMatrixType& mat) : Base(mat) {}
 };
@@ -1779,7 +1769,7 @@ struct evaluator<SparseMatrix<Scalar_, Options_, StorageIndex_>>
 template <typename Scalar, int Options, typename StorageIndex>
 class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
  public:
-  typedef SparseMatrix<Scalar, Options, StorageIndex> SparseMat;
+  using SparseMat = SparseMatrix<Scalar, Options, StorageIndex>;
 
   struct Header {
     typename SparseMat::Index rows;

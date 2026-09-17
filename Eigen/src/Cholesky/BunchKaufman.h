@@ -19,9 +19,9 @@ namespace Eigen {
 namespace internal {
 template <typename MatrixType_, int UpLo_>
 struct traits<BunchKaufman<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -74,8 +74,8 @@ inline Index bunch_kaufman_blocksize();
 template <typename MatrixType_, int UpLo_>
 class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<BunchKaufman> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<BunchKaufman>;
   friend class SolverBase<BunchKaufman>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(BunchKaufman)
@@ -85,13 +85,13 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
     UpLo = UpLo_
   };
 
-  typedef Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1> TmpVectorType;
+  using TmpVectorType = Matrix<Scalar, RowsAtCompileTime, 1, 0, MaxRowsAtCompileTime, 1>;
   // Panel workspace for the blocked algorithm (only allocated for large dynamic-sized problems).
-  typedef Matrix<Scalar, Dynamic, Dynamic> WorkspaceType;
-  typedef Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime> TranspositionType;
-  typedef PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime> PermutationType;
+  using WorkspaceType = Matrix<Scalar, Dynamic, Dynamic>;
+  using TranspositionType = Transpositions<RowsAtCompileTime, MaxRowsAtCompileTime>;
+  using PermutationType = PermutationMatrix<RowsAtCompileTime, MaxRowsAtCompileTime>;
 
-  typedef internal::BunchKaufman_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::BunchKaufman_Traits<MatrixType, UpLo>;
 
   /** \brief Default Constructor.
    *
@@ -168,7 +168,7 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
         m_n_zero(0),
         m_isInitialized(false),
         m_info(InvalidInput) {
-    compute(matrix.derived());
+    computeInPlace();
   }
 
   /** \returns a view of the unit upper triangular matrix U */
@@ -262,6 +262,61 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   MatrixType reconstructedMatrix() const;
 
+  /** \returns the determinant of the matrix of which *this is the Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() and signDeterminant() instead.
+   * Also, do not rely on the determinant being exactly zero for testing
+   * singularity or rank-deficiency.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Bunch-Kaufman
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the
+   * Bunch-Kaufman decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation. The 2x2 blocks of D are scaled by their off-diagonal entry before their
+   * determinant is formed, so a block whose own determinant is out of range still contributes a
+   * finite term.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Bunch-Kaufman decomposition,
+   * that is, \c 1, \c -1, or \c 0 if the matrix is singular.
+   *
+   * The sign is read off the inertia rather than computed from a product, so it is exact and cannot
+   * overflow: \f$ \mathrm{sign}(\det A) = (-1)^{n_-} \f$, with \f$ n_- \f$ the number of negative
+   * eigenvalues, which congruence leaves invariant (Sylvester's law of inertia).
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
   /** \returns the adjoint of \c *this, that is, a const reference to the decomposition itself as the underlying matrix
    * is self-adjoint.
    *
@@ -276,7 +331,9 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the factorization failed because of a zero pivot (the matrix is singular).
+   *          \c NumericalIssue if the factorization failed because of a zero pivot (the matrix is singular)
+   *          or because a 2x2 pivot block has no representable inverse (a NaN entry, or an off-diagonal
+   *          so much smaller than the diagonal that the scaled inverse overflows).
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
@@ -303,8 +360,20 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   template <bool Conjugate, typename Derived>
   void solveInPlaceD(MatrixBase<Derived>& x) const;
 
+  BunchKaufman& computeInPlace();
+
   /** \internal Compute the inertia (counts of positive / negative / zero eigenvalues) from D. */
   void computeInertia();
+
+  /** \internal \returns \f$ \det(D_k)/|d_{21}|^2 \f$ for a 2x2 block of D, which is real and shares the
+   * sign of \f$ \det(D_k) \f$ since \f$ |d_{21}| > 0 \f$ there. */
+  static RealScalar scaledBlockDeterminant(const RealScalar& d11, const RealScalar& d22, const RealScalar& d21);
+
+  /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
+   * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
+   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. Accumulated as a mantissa and a power of two,
+   * so that only the result has to be representable. */
+  RealScalar determinantD() const;
 
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -351,7 +420,7 @@ struct bunch_kaufman<Lower> {
   // the first column of the pivot block (== kk for a 1x1 pivot, == kk-1 for a 2x2 pivot).
   template <typename MatrixType>
   static void apply_symmetric_pivot(MatrixType& mat, Index kfirst, Index kk, Index kp, Index kstep) {
-    typedef typename MatrixType::Scalar Scalar;
+    using Scalar = typename MatrixType::Scalar;
     const Index n = mat.rows();
     const Index s = n - kp - 1;
     if (s > 0) mat.col(kk).tail(s).swap(mat.col(kp).tail(s));
@@ -381,9 +450,9 @@ struct bunch_kaufman<Lower> {
   template <typename MatrixType, typename TranspositionType, typename SubDiagType>
   static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag, Index k0 = 0) {
     using numext::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex StorageIndex;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using StorageIndex = typename TranspositionType::StorageIndex;
     const Index n = mat.rows();
     const RealScalar alpha = bunch_kaufman_alpha<RealScalar>();
     Index info = 0;
@@ -466,23 +535,28 @@ struct bunch_kaufman<Lower> {
         // (e.g. [[0,s],[s,0]], s=1e200, where det = -s^2 overflows/underflows). Instead divide
         // through by the off-diagonal d21, so the scaled determinant
         //   denom = real(ak*akm1) - 1 = det / |d21|^2     (with ak = d22/d21, akm1 = d11/conj(d21))
-        // stays O(1). The reciprocals MUST use Eigen's overflow-safe Scalar division.
-        const Scalar id = Scalar(1) / d21;
-        const Scalar icjd = numext::conj(id);  // 1 / conj(d21)
-        const Scalar ak = d22 * id;
-        const Scalar akm1 = d11 * icjd;
+        // stays O(1). Divide by d21 itself, never by a hoisted reciprocal: 1/d21 overflows once |d21|
+        // is subnormal, where these quotients are still finite (issue #3142).
+        const Scalar cjd = numext::conj(d21);
+        const Scalar ak = numext::divide(d22, d21);
+        const Scalar akm1 = numext::divide(d11, cjd);
         const RealScalar denom = numext::real(ak * akm1) - RealScalar(1);
-        // A non-finite 2x2 block (e.g. a NaN pulled in from a candidate row/column) is a numerical
-        // failure; flag it so it is reported rather than silently propagated.
-        if (info == 0 && (numext::isnan)(denom)) info = k + 1;
+        // The pivot criterion gives |d11 d22| <= alpha^2 |d21|^2 with alpha < 1, so in exact arithmetic
+        // -1 - alpha^2 < denom < alpha^2 - 1. Outside that range ak overflowed -- the criterion bounds
+        // |d22| only against the largest entry of its own row -- or a NaN entry was pulled into the
+        // block. Either way the block's inverse is not representable: report it rather than silently
+        // propagate it.
+        if (info == 0 && !(denom < RealScalar(0) && denom > RealScalar(-2))) info = k + 1;
 
         const Index rs = n - k - 2;
         if (rs > 0) {
           // Fused factor-column computation and trailing update, in a single pass over the lower
           // triangle of A22 (the xSYTF2/xHETF2 strategy). For each trailing column j, first form the
           // two unit lower factor entries of row j (the rows of U D^{-1}, in the scaled form above),
-          //   l0_j = (t*icjd)*(ak*u0_j - u1_j),   l1_j = (t*id)*(akm1*u1_j - u0_j),
-          // then update column j against the ORIGINAL pivot columns u = [u0 u1] (they carry the D
+          //   l0_j = t*((ak*u0_j - u1_j)/conj(d21)),   l1_j = t*((akm1*u1_j - u0_j)/d21),
+          // dividing before scaling by t: the quotient is denom*l_j, within a factor 1 + alpha^2 of the
+          // result, whereas t*(ak*u0_j - u1_j) can overflow (|t| < 1/(1 - alpha^2)) where l_j is finite.
+          // Then update column j against the ORIGINAL pivot columns u = [u0 u1] (they carry the D
           // scale, U = L*D, so no 1/det factor appears):
           //   A22(i,j) -= u0_i*conj(l0_j) + u1_i*conj(l1_j),   i >= j.
           // Rows < j of the pivot columns already hold L, rows >= j still hold U -- exactly the
@@ -490,15 +564,13 @@ struct bunch_kaufman<Lower> {
           // self-adjoint rank-1/rank-2 updates (syr + syr + syr2) this halves the flops and touches
           // the trailing triangle once instead of three times.
           const RealScalar t = RealScalar(1) / denom;
-          const Scalar tic = t * icjd;
-          const Scalar tid = t * id;
           auto c0 = mat.col(k).tail(rs);
           auto c1 = mat.col(k + 1).tail(rs);
           for (Index j = 0; j < rs; ++j) {
             const Scalar u0 = c0.coeff(j);
             const Scalar u1 = c1.coeff(j);
-            const Scalar l0 = tic * (ak * u0 - u1);
-            const Scalar l1 = tid * (akm1 * u1 - u0);
+            const Scalar l0 = t * numext::divide(ak * u0 - u1, cjd);
+            const Scalar l1 = t * numext::divide(akm1 * u1 - u0, d21);
             const Index len = rs - j;
             mat.col(k + 2 + j).tail(len) -= numext::conj(l0) * c0.tail(len) + numext::conj(l1) * c1.tail(len);
             c0.coeffRef(j) = l0;
@@ -530,9 +602,9 @@ struct bunch_kaufman<Lower> {
   static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W, TranspositionType& transpositions,
                               SubDiagType& subdiag, Index& info) {
     using numext::abs;
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
-    typedef typename TranspositionType::StorageIndex StorageIndex;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using StorageIndex = typename TranspositionType::StorageIndex;
     const Index n = mat.rows();
     const RealScalar alpha = bunch_kaufman_alpha<RealScalar>();
     constexpr bool is_complex = NumTraits<Scalar>::IsComplex;
@@ -637,23 +709,21 @@ struct bunch_kaufman<Lower> {
         // denom = det/|d21|^2 stays O(1); det = d11*d22 - |d21|^2 and abs2(d21) are never formed (they
         // over/underflow on extreme-scaled blocks). The deferred level-3 trailing update below uses W
         // (= L*D, original scale), so it carries no 1/det factor either.
-        const Scalar id = Scalar(1) / d21;
-        const Scalar icjd = numext::conj(id);  // 1 / conj(d21)
-        const Scalar ak = d22 * id;
-        const Scalar akm1 = d11 * icjd;
+        const Scalar cjd = numext::conj(d21);
+        const Scalar ak = numext::divide(d22, d21);
+        const Scalar akm1 = numext::divide(d11, cjd);
         const RealScalar denom = numext::real(ak * akm1) - RealScalar(1);
-        if (info == 0 && (numext::isnan)(denom)) info = jc + 1;
+        if (info == 0 && !(denom < RealScalar(0) && denom > RealScalar(-2))) info = jc + 1;
         const Index rs = n - jc - 2;
         if (rs > 0) {
-          // L(jc+2:n, jc:jc+1) = W(jc+2:n, j:j+1) * D^{-1}, as vectorized column expressions:
-          //   L_k = (t*icjd)*(ak*w0 - w1),  L_{k+1} = (t*id)*(akm1*w1 - w0).
+          // L(jc+2:n, jc:jc+1) = W(jc+2:n, j:j+1) * D^{-1}, as vectorized column expressions, divided
+          // before being scaled by t for the reason given in unblocked():
+          //   L_k = t*((ak*w0 - w1)/conj(d21)),  L_{k+1} = t*((akm1*w1 - w0)/d21).
           const RealScalar t = RealScalar(1) / denom;
-          const Scalar tic = t * icjd;
-          const Scalar tid = t * id;
           auto w0 = W.col(j).segment(jc + 2, rs);
           auto w1 = W.col(j + 1).segment(jc + 2, rs);
-          mat.col(jc).tail(rs) = tic * (ak * w0 - w1);
-          mat.col(jc + 1).tail(rs) = tid * (akm1 * w1 - w0);
+          mat.col(jc).tail(rs) = t * ((ak * w0 - w1) / cjd);
+          mat.col(jc + 1).tail(rs) = t * ((akm1 * w1 - w0) / d21);
         }
         subdiag.coeffRef(jc) = d21;
         subdiag.coeffRef(jc + 1) = Scalar(0);
@@ -719,16 +789,16 @@ struct bunch_kaufman<Upper> {
 
 template <typename MatrixType>
 struct BunchKaufman_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, UnitLower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, UnitLower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
 };
 
 template <typename MatrixType>
 struct BunchKaufman_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower> MatrixL;
-  typedef const TriangularView<const MatrixType, UnitUpper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, UnitLower>;
+  using MatrixU = const TriangularView<const MatrixType, UnitUpper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
 };
@@ -776,17 +846,15 @@ void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) cons
       const Scalar d21 = Conjugate ? m_subdiag.coeff(k) : numext::conj(m_subdiag.coeff(k));
       // Scaled 2x2 solve (LAPACK xSYTRS/xHETRS): divide through by d21 so the scaled determinant
       // denom = det/|d21|^2 is O(1); det = d11*d22 - |d21|^2 is never formed (it over/underflows on
-      // extreme-scaled blocks, e.g. [[0,s],[s,0]], s=1e+-200). Reciprocals use overflow-safe division.
-      const Scalar id = Scalar(1) / d21;
-      const Scalar icjd = numext::conj(id);  // 1 / conj(d21)
-      const Scalar ak = d22 * id;
-      const Scalar akm1 = d11 * icjd;
+      // extreme-scaled blocks, e.g. [[0,s],[s,0]], s=1e+-200). Every quotient divides by d21 itself:
+      // a hoisted 1/d21 overflows once |d21| is subnormal (issue #3142).
+      const Scalar cjd = numext::conj(d21);
+      const Scalar ak = numext::divide(d22, d21);
+      const Scalar akm1 = numext::divide(d11, cjd);
       const RealScalar t = RealScalar(1) / (numext::real(ak * akm1) - RealScalar(1));
       for (Index j = 0; j < x.cols(); ++j) {
-        const Scalar x0 = x.coeff(k, j);
-        const Scalar x1 = x.coeff(k + 1, j);
-        const Scalar bk = x1 * id;
-        const Scalar bkm1 = x0 * icjd;
+        const Scalar bk = numext::divide(x.coeff(k + 1, j), d21);
+        const Scalar bkm1 = numext::divide(x.coeff(k, j), cjd);
         x.coeffRef(k, j) = t * (ak * bkm1 - bk);
         x.coeffRef(k + 1, j) = t * (akm1 * bk - bkm1);
       }
@@ -802,6 +870,18 @@ void BunchKaufman<MatrixType, UpLo_>::solveInPlaceD(MatrixBase<Derived>& x) cons
   }
 }
 
+// det(D_k) itself over- or underflows on an extreme-scaled 2x2 block, so it is only ever formed scaled by
+// |d21|^2. Divide by |d21| twice rather than multiply by its reciprocal, which overflows once |d21| is
+// subnormal. The pivot criterion bounds |q| by a^2 < 1 with a = (1+sqrt(17))/8, so |q| >= 1 or NaN is an
+// artifact of d22/d21 overflowing -- the criterion bounds |d22| only against its own row -- and
+// det(D_k) = -|d21|^2 to within that same bound there.
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::scaledBlockDeterminant(
+    const RealScalar& d11, const RealScalar& d22, const RealScalar& d21) {
+  const RealScalar q = (d11 / d21) * (d22 / d21);
+  return (q > RealScalar(-1) && q < RealScalar(1)) ? q - RealScalar(1) : RealScalar(-1);
+}
+
 template <typename MatrixType, int UpLo_>
 void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
   const Index n = m_matrix.rows();
@@ -811,11 +891,8 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
-      const Scalar d21 = m_subdiag.coeff(k);
-      // Scaled determinant denom = det/|d21|^2 (|d21|^2 > 0 for a 2x2 block), so sign(denom) == sign(det);
-      // avoids forming det = d11*d22 - |d21|^2, which over/underflows on extreme-scaled 2x2 blocks.
-      const Scalar id = Scalar(1) / d21;
-      const RealScalar denom = numext::real((d22 * id) * (d11 * numext::conj(id))) - RealScalar(1);
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      const RealScalar denom = scaledBlockDeterminant(d11, d22, d21);
       if (denom < RealScalar(0)) {
         // Indefinite 2x2 block: one positive and one negative eigenvalue.
         ++m_n_pos;
@@ -856,9 +933,15 @@ template <typename MatrixType, int UpLo_>
 template <typename InputType>
 BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
   eigen_assert(a.rows() == a.cols());
-  const Index size = a.rows();
-
   m_matrix = a.derived();
+  return computeInPlace();
+}
+
+/** \internal Factorizes the matrix held in m_matrix, which is overwritten by the packed factors. */
+template <typename MatrixType, int UpLo_>
+BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::computeInPlace() {
+  eigen_assert(m_matrix.rows() == m_matrix.cols());
+  const Index size = m_matrix.rows();
 
   // L1 norm of the implicit self-adjoint matrix, for rcond().
   m_l1_norm = m_matrix.template selfadjointView<UpLo_>().l1Norm();
@@ -915,6 +998,87 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
   eigen_assert(m_matrix.rows() == bAndX.rows());
   bAndX = this->solve(bAndX);
   return true;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::determinantD() const {
+  const Index n = m_matrix.rows();
+  // det(D) is accumulated as mantissa * 2^exponent, the mantissa renormalized to [1/2, 1) after each
+  // block. Both a single 2x2 block determinant and the running product can leave the representable range
+  // while det(D) itself stays in it, and an overflowed block meeting an underflowed one gives NaN.
+  RealScalar mantissa(1);
+  Index exponent = 0;
+  Index k = 0;
+  while (k < n) {
+    RealScalar blockM, blockE;
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      RealScalar e21;
+      const RealScalar m21 = internal::pfrexp<RealScalar>(d21, e21);
+      blockM = m21 * m21 * scaledBlockDeterminant(d11, d22, d21);
+      blockE = RealScalar(2) * e21;
+      k += 2;
+    } else {
+      blockM = internal::pfrexp<RealScalar>(numext::real(m_matrix.coeff(k, k)), blockE);
+      k += 1;
+    }
+    // |blockM| < 2 and, unless the block is singular, above 1/16, so the product below stays normal and
+    // its rounding is the only error this step adds.
+    RealScalar renorm;
+    mantissa = internal::pfrexp<RealScalar>(mantissa * blockM, renorm);
+    exponent += Index(blockE) + Index(renorm);
+  }
+  // ldexp() saturates to zero or infinity but takes an int exponent; past this magnitude it has already
+  // saturated, so clamping first cannot change the result.
+  const Index limit = Index(NumTraits<RealScalar>::max_exponent()) - Index(NumTraits<RealScalar>::min_exponent()) +
+                      Index(NumTraits<RealScalar>::digits());
+  return numext::ldexp(mantissa, int(numext::mini(numext::maxi(exponent, -limit), limit)));
+}
+
+// A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::determinant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  return Scalar(determinantD());
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  return numext::abs(determinantD());
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  const Index n = m_matrix.rows();
+  RealScalar result(0);
+  Index k = 0;
+  while (k < n) {
+    if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
+      // log|det(D_k)| = 2 log|d21| + log|det(D_k)/|d21|^2|.
+      const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
+      const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
+      const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
+      const RealScalar scaled = scaledBlockDeterminant(d11, d22, d21);
+      result += RealScalar(2) * numext::log(d21) + numext::log(numext::abs(scaled));
+      k += 2;
+    } else {
+      result += numext::log(numext::abs(numext::real(m_matrix.coeff(k, k))));
+      k += 1;
+    }
+  }
+  return result;
+}
+
+template <typename MatrixType, int UpLo_>
+typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  if (m_n_zero > 0) return Scalar(0);
+  return Scalar((m_n_neg % 2 == 0) ? 1 : -1);
 }
 
 /** \returns the matrix represented by the decomposition, i.e., the product \f$ P^T L D L^* P \f$.

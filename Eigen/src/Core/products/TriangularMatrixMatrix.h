@@ -45,7 +45,7 @@ template <typename Scalar, typename Index, int Mode, int LhsStorageOrder, bool C
           bool ConjugateRhs, int ResInnerStride, int Version>
 struct product_triangular_matrix_matrix<Scalar, Index, Mode, true, LhsStorageOrder, ConjugateLhs, RhsStorageOrder,
                                         ConjugateRhs, ColMajor, ResInnerStride, Version> {
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
   enum {
     SmallPanelWidth = 2 * plain_enum_max(Traits::mr, Traits::nr),
     IsLower = (Mode & Lower) == Lower,
@@ -70,9 +70,9 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   Index depth = IsLower ? diagSize : _depth;
   Index cols = _cols;
 
-  typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-  typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
-  typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+  using LhsMapper = const_blas_data_mapper<Scalar, Index, LhsStorageOrder>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, RhsStorageOrder>;
+  using ResMapper = blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride>;
   LhsMapper lhs(lhs_, lhsStride);
   RhsMapper rhs(rhs_, rhsStride);
   ResMapper res(res_, resStride, resIncr);
@@ -176,7 +176,7 @@ template <typename Scalar, typename Index, int Mode, int LhsStorageOrder, bool C
           bool ConjugateRhs, int ResInnerStride, int Version>
 struct product_triangular_matrix_matrix<Scalar, Index, Mode, false, LhsStorageOrder, ConjugateLhs, RhsStorageOrder,
                                         ConjugateRhs, ColMajor, ResInnerStride, Version> {
-  typedef gebp_traits<Scalar, Scalar> Traits;
+  using Traits = gebp_traits<Scalar, Scalar>;
   enum {
     SmallPanelWidth = plain_enum_max(Traits::mr, Traits::nr),
     IsLower = (Mode & Lower) == Lower,
@@ -202,9 +202,9 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   Index depth = IsLower ? _depth : diagSize;
   Index cols = IsLower ? diagSize : _cols;
 
-  typedef const_blas_data_mapper<Scalar, Index, LhsStorageOrder> LhsMapper;
-  typedef const_blas_data_mapper<Scalar, Index, RhsStorageOrder> RhsMapper;
-  typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride> ResMapper;
+  using LhsMapper = const_blas_data_mapper<Scalar, Index, LhsStorageOrder>;
+  using RhsMapper = const_blas_data_mapper<Scalar, Index, RhsStorageOrder>;
+  using ResMapper = blas_data_mapper<typename Traits::ResScalar, Index, ColMajor, Unaligned, ResInnerStride>;
   LhsMapper lhs(lhs_, lhsStride);
   RhsMapper rhs(rhs_, rhsStride);
   ResMapper res(res_, resStride, resIncr);
@@ -309,16 +309,16 @@ template <int Mode, bool LhsIsTriangular, typename Lhs, typename Rhs>
 struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
   template <typename Dest>
   static void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const typename Dest::Scalar& alpha) {
-    typedef typename Lhs::Scalar LhsScalar;
-    typedef typename Rhs::Scalar RhsScalar;
-    typedef typename Dest::Scalar Scalar;
+    using LhsScalar = typename Lhs::Scalar;
+    using RhsScalar = typename Rhs::Scalar;
+    using Scalar = typename Dest::Scalar;
 
-    typedef internal::blas_traits<Lhs> LhsBlasTraits;
-    typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-    typedef internal::remove_all_t<ActualLhsType> ActualLhsTypeCleaned;
-    typedef internal::blas_traits<Rhs> RhsBlasTraits;
-    typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-    typedef internal::remove_all_t<ActualRhsType> ActualRhsTypeCleaned;
+    using LhsBlasTraits = internal::blas_traits<Lhs>;
+    using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
+    using ActualLhsTypeCleaned = internal::remove_all_t<ActualLhsType>;
+    using RhsBlasTraits = internal::blas_traits<Rhs>;
+    using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
+    using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
     internal::add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     internal::add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
@@ -333,10 +333,9 @@ struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
     RhsScalar rhs_alpha = RhsBlasTraits::extractScalarFactor(a_rhs);
     Scalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
 
-    typedef internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Scalar, Scalar,
-                                          Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime,
-                                          Lhs::MaxColsAtCompileTime, 4>
-        BlockingType;
+    using BlockingType = internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Scalar,
+                                                       Scalar, Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime,
+                                                       Lhs::MaxColsAtCompileTime, 4>;
 
     enum { IsLower = (Mode & Lower) == Lower };
     Index stripedRows = ((!LhsIsTriangular) || (IsLower)) ? lhs.rows() : (std::min)(lhs.rows(), lhs.cols());

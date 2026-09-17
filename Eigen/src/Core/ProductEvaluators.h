@@ -53,11 +53,13 @@ template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typena
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                const Product<Lhs, Rhs, DefaultProduct>>>
-    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, product), Rhs, DefaultProduct>> {
+    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs,
+                               DefaultProduct>> {
   using XprType = CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
-  using Base = evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, product), Rhs, DefaultProduct>>;
+  using Base = evaluator<
+      Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs, DefaultProduct>>;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
       : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
@@ -589,10 +591,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_run_packet_cascade(const Func
 template <typename Func, typename Dst, typename Lhs, typename Rhs>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_packet_assign(std::true_type, const Func& func, Dst& dst,
                                                                  const Lhs& lhs, const Rhs& rhs) {
-  using ProdXpr = Product<Lhs, Rhs, LazyProduct>;
-  using ProdEval = product_evaluator<ProdXpr, CoeffBasedProductMode, DenseShape, DenseShape>;
+  using ProdEval = product_evaluator<Product<Lhs, Rhs, LazyProduct>, CoeffBasedProductMode, DenseShape, DenseShape>;
   using Traits = product_packet_cascade_traits<ProdEval, Dst>;
-  const ProdEval prodEval{ProdXpr(lhs, rhs)};
+  const ProdEval prodEval(lhs, rhs);
   product_run_packet_cascade<Traits>(func, dst, prodEval);
 }
 template <typename Func, typename Dst, typename Lhs, typename Rhs>
@@ -690,17 +691,13 @@ template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, LazyCoeffBasedProductMode>
     : generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductMode> {};
 
-// Case 2: Evaluate coeff by coeff
-//
-// This is mostly taken from CoeffBasedProduct.h
-// The main difference is that we add an extra argument to the etor_product_*_impl::run() function
-// for the inner dimension of the product, because evaluator object do not know their size.
-
-template <int Traversal, int UnrollingIndex, typename Lhs, typename Rhs, typename RetScalar>
-struct etor_product_coeff_impl;
-
 template <int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
+
+struct product_empty_packet_evaluator {
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_empty_packet_evaluator(const Xpr&) {}
+};
 
 template <typename Lhs, typename Rhs, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape, DenseShape>
@@ -710,13 +707,16 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   using CoeffReturnType = typename XprType::CoeffReturnType;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_evaluator(const XprType& xpr)
-      : m_lhs(xpr.lhs()),
-        m_rhs(xpr.rhs()),
-        m_lhsImpl(m_lhs),  // FIXME the creation of the evaluator objects should result in a no-op, but check that!
-        m_rhsImpl(m_rhs),  //       Moreover, they are only useful for the packet path, so we could completely disable
-                           //       them when not needed, or perhaps declare them on the fly on the packet method... We
-                           //       have experiment to check what's best.
-        m_innerDim(xpr.lhs().cols()) {
+      : product_evaluator(xpr.lhs(), xpr.rhs()) {}
+
+  // Also construct directly from the product operands so packet-cascade callers
+  // do not have to materialize a temporary Product expression first.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE product_evaluator(const Lhs& lhs, const Rhs& rhs)
+      : m_lhs(lhs),
+        m_rhs(rhs),
+        m_lhsImpl(m_lhs),  // Real evaluator objects for packet products; empty placeholders for scalar-only products.
+        m_rhsImpl(m_rhs),
+        m_innerDim(lhs.cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::MulCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::AddCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
@@ -789,6 +789,10 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                                // TODO: enable vectorization for mixed types
                                | (SameType && (CanVectorizeLhs || CanVectorizeRhs) ? PacketAccessBit : 0) |
                                (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
+  using LhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), LhsEtorType, product_empty_packet_evaluator>;
+  using RhsPacketEtorType =
+      std::conditional_t<bool(int(Flags) & PacketAccessBit), RhsEtorType, product_empty_packet_evaluator>;
 
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
@@ -871,8 +875,8 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   add_const_on_value_type_t<LhsNested> m_lhs;
   add_const_on_value_type_t<RhsNested> m_rhs;
 
-  LhsEtorType m_lhsImpl;
-  RhsEtorType m_rhsImpl;
+  LhsPacketEtorType m_lhsImpl;
+  RhsPacketEtorType m_rhsImpl;
 
   variable_if_dynamic<Index, InnerSize> m_innerDim;
 };
@@ -1059,7 +1063,7 @@ struct diagonal_product_segment_impl<OnTheRight> {
 
 template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType>
 struct triangular_diagonal_product_impl {
-  typedef typename MatrixType::Scalar MatrixScalar;
+  using MatrixScalar = typename MatrixType::Scalar;
 
   template <typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
@@ -1134,7 +1138,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, TriangularShape, ProductTag>
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
@@ -1148,7 +1152,7 @@ struct generic_product_impl<Lhs, Rhs, TriangularShape, DiagonalShape, ProductTag
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, TriangularShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
 
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
@@ -1326,7 +1330,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, SelfAdjointShape, ProductTag>
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
   // The "Dense ?= scalar * Product" rewriting rule folds an outer alpha into the
   // SelfAdjointView via SelfAdjointView::operator*(scalar), whose nested
   // expression becomes (matrix * alpha). For complex alpha this is no longer
@@ -1337,9 +1341,8 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   using ActualLhsMatrix = decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>())
                                        .template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>());
   using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
-  typedef selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType,
-                                            typename Rhs::DiagonalVectorType>
-      Kernel;
+  using Kernel =
+      selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType, typename Rhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualLhsMatrix actualLhsMatrix(const typename Lhs::MatrixType& matrix) {
     return LhsBlasTraits::extract(matrix).template conjugateIf<bool(LhsBlasTraits::NeedToConjugate)>();
@@ -1369,15 +1372,15 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
 template <typename Lhs, typename Rhs, int ProductTag>
 struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTag>> {
-  typedef typename Product<Lhs, Rhs>::Scalar Scalar;
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
   // See note on the SelfAdjointShape, DiagonalShape specialization above for why
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
   using ActualRhsMatrix = decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>())
                                        .template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>());
   using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
-  typedef selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>
-      Kernel;
+  using Kernel =
+      selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ActualRhsMatrix actualRhsMatrix(const typename Rhs::MatrixType& matrix) {
     return RhsBlasTraits::extract(matrix).template conjugateIf<bool(RhsBlasTraits::NeedToConjugate)>();

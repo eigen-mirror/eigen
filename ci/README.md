@@ -8,5 +8,5 @@ Eigen's CI infrastructure uses three stages:
 
 For merge requests, only a small subset of tests are built/run, and only on a
 small subset of platforms.  This is to reduce our overall testing infrastructure
-resource usage.  In addition, we have nightly jobs that build and run the full
-suite of tests on most officially supported platforms.
+resource usage.  In addition, a weekly scheduled pipeline builds and runs the
+full suite of tests on most officially supported platforms.

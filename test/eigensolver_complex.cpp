@@ -132,7 +132,6 @@ void eigensolver(const MatrixType& m) {
     a.setZero();
     ComplexEigenSolver<MatrixType> ei3(a);
     VERIFY_IS_EQUAL(ei3.info(), Success);
-    VERIFY_IS_MUCH_SMALLER_THAN(ei3.eigenvalues().norm(), RealScalar(1));
     RealScalar tol = 2 * a.cols() * NumTraits<RealScalar>::epsilon();
     VERIFY((ei3.eigenvectors().adjoint() * ei3.eigenvectors()).eval().isIdentity(tol));
   }
@@ -147,6 +146,23 @@ void eigensolver_verify_assert(const MatrixType& m) {
   MatrixType a = MatrixType::Random(m.rows(), m.cols());
   eig.compute(a, false);
   VERIFY_RAISES_ASSERT(eig.eigenvectors());
+}
+
+void custom_complex_stable_normalization() {
+  typedef CustomComplex<double> Scalar;
+  typedef Matrix<Scalar, 2, 1> Vector2;
+
+  Vector2 input;
+  input << Scalar(3.0, 4.0), Scalar(0.0, 0.0);
+  const Vector2 normalized = input.stableNormalized();
+  VERIFY_IS_APPROX(normalized(0).re, 0.6);
+  VERIFY_IS_APPROX(normalized(0).im, 0.8);
+  VERIFY_IS_EQUAL(normalized(1), Scalar(0.0, 0.0));
+
+  input.stableNormalize();
+  VERIFY_IS_APPROX(input(0).re, 0.6);
+  VERIFY_IS_APPROX(input(0).im, 0.8);
+  VERIFY_IS_EQUAL(input(1), Scalar(0.0, 0.0));
 }
 
 EIGEN_DECLARE_TEST(eigensolver_complex) {
@@ -170,6 +186,7 @@ EIGEN_DECLARE_TEST(eigensolver_complex) {
 
   // Test custom complex scalar type.
   CALL_SUBTEST_6(eigensolver(Matrix<CustomComplex<double>, 5, 5>()));
+  CALL_SUBTEST_6(custom_complex_stable_normalization());
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

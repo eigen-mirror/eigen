@@ -11,6 +11,7 @@ version = 1
 
 [[annotations]]
 path = [
+    ".agents/*.md",
     "AGENTS.md",
     "CHANGELOG.md",
     "INSTALL",
@@ -23,6 +24,7 @@ SPDX-License-Identifier = "MPL-2.0"
 
 [[annotations]]
 path = [
+    ".claude/settings.json",
     ".clang-format",
     ".clang-tidy",
     ".coderabbit.yaml",
@@ -51,7 +53,6 @@ path = [
     "doc/AsciiQuickReference.txt",
     "doc/snippets/.krazy",
     "ci/CTest2JUnit.xsl",
-    "ci/scripts/benchmark_targets.txt",
 ]
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"
@@ -68,7 +69,7 @@ SPDX-FileCopyrightText = [
 SPDX-License-Identifier = "BSD-3-Clause"
 
 [[annotations]]
-path = "unsupported/Eigen/src/LevenbergMarquardt/CopyrightMINPACK.txt"
+path = "contrib/Eigen/src/LevenbergMarquardt/CopyrightMINPACK.txt"
 SPDX-FileCopyrightText = [
     "Jorge More - Argonne National Laboratory",
     "Burt Garbow - Argonne National Laboratory",

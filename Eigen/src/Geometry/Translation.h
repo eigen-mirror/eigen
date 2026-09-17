@@ -37,15 +37,15 @@ class Translation {
   /** dimension of the space */
   enum { Dim = Dim_ };
   /** the scalar type of the coefficients */
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
   /** corresponding vector type */
-  typedef Matrix<Scalar, Dim, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dim, 1>;
   /** corresponding linear transformation matrix type */
-  typedef Matrix<Scalar, Dim, Dim> LinearMatrixType;
+  using LinearMatrixType = Matrix<Scalar, Dim, Dim>;
   /** corresponding affine transformation type */
-  typedef Transform<Scalar, Dim, Affine> AffineTransformType;
+  using AffineTransformType = Transform<Scalar, Dim, Affine>;
   /** corresponding isometric transformation type */
-  typedef Transform<Scalar, Dim, Isometry> IsometryTransformType;
+  using IsometryTransformType = Transform<Scalar, Dim, Isometry>;
 
  protected:
   VectorType m_coeffs;
@@ -170,10 +170,10 @@ class Translation {
 
 /** \addtogroup Geometry_Module */
 //@{
-typedef Translation<float, 2> Translation2f;
-typedef Translation<double, 2> Translation2d;
-typedef Translation<float, 3> Translation3f;
-typedef Translation<double, 3> Translation3d;
+using Translation2f = Translation<float, 2>;
+using Translation2d = Translation<double, 2>;
+using Translation3f = Translation<float, 3>;
+using Translation3d = Translation<double, 3>;
 //@}
 
 template <typename Scalar, int Dim>

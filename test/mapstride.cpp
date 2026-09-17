@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 template <int Alignment, typename VectorType>
 void map_class_vector(const VectorType& m) {
@@ -54,8 +55,8 @@ void map_class_matrix(const MatrixType& _m) {
 
   Index rows = _m.rows(), cols = _m.cols();
 
-  MatrixType m = MatrixType::Random(rows, cols);
-  Scalar s1 = internal::random<Scalar>();
+  MatrixType m = random_for_arithmetic<MatrixType>(rows, cols);
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   Index arraysize = 4 * (rows + 4) * (cols + 4);
 

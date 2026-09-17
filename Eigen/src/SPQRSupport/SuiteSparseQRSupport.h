@@ -60,8 +60,8 @@ struct traits<SPQR_QProduct<SPQRType, Derived> > {
  * Use matrixQ() to get an expression and matrixQ().transpose() to get the transpose.
  * You can then apply it to a vector.
  *
- * R is the sparse triangular factor. Use matrixQR() to get it as SparseMatrix.
- * NOTE : The Index type of R is always SuiteSparse_long. You can get it with SPQR::Index
+ * R is the sparse triangular factor. Use matrixR() to get it as SparseMatrix.
+ * NOTE : The storage index type of R is always SuiteSparse_long. You can get it with SPQR::StorageIndex
  *
  * \tparam MatrixType_ The type of the sparse matrix A, must be a column-major SparseMatrix<>
  *
@@ -221,7 +221,8 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
   }
   /**
    * Gets the rank of the matrix.
-   * It should be equal to matrixQR().cols if the matrix is full-rank
+   * It should be equal to matrixR().rows() if the matrix is full-rank; matrixR().cols() is always the number of
+   * columns of the input matrix.
    */
   Index rank() const {
     eigen_assert(m_isInitialized && "Decomposition is not initialized.");

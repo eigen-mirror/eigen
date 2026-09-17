@@ -20,8 +20,8 @@ namespace internal {
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
-  typedef ArrayXpr XprKind;
-  typedef ArrayBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> XprBase;
+  using XprKind = ArrayXpr;
+  using XprBase = ArrayBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>;
 };
 }  // namespace internal
 
@@ -48,11 +48,11 @@ struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
  public:
-  typedef PlainObjectBase<Array> Base;
+  using Base = PlainObjectBase<Array>;
   EIGEN_DENSE_PUBLIC_INTERFACE(Array)
 
   enum { Options = Options_ };
-  typedef typename Base::PlainObject PlainObject;
+  using PlainObject = typename Base::PlainObject;
 
  protected:
   template <typename Derived, typename OtherDerived, bool IsVector>
@@ -64,30 +64,6 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   using Base::base;
   using Base::coeff;
   using Base::coeffRef;
-
-  /**
-   * The usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived>& other) {
-    return Base::operator=(other);
-  }
-
-  /** Set all the entries to \a value.
-   * \sa DenseBase::setConstant(), DenseBase::fill()
-   */
-  /* This overload is needed because the usage of
-   *   using Base::operator=;
-   * fails on MSVC. Since the code below is working with GCC and MSVC, we skipped
-   * the usage of 'using'. This should be done only for operator=.
-   */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
-    Base::setConstant(value);
-    return *this;
-  }
 
   /** Copies the value of the expression \a other into \c *this with automatic resizing.
    *
@@ -103,6 +79,14 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
     return Base::_set(other);
   }
 
+  /** Set all the entries to \a value.
+   * \sa DenseBase::setConstant(), DenseBase::fill()
+   */
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Scalar& value) {
+    Base::setConstant(value);
+    return *this;
+  }
+
   /**
    * \brief Assigns arrays to each other.
    *
@@ -111,15 +95,14 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    *
    * \callgraph
    */
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const Array& other) { return Base::_set(other); }
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array& operator=(const Array& other) { return Base::_set(other); }
 
   /** Default constructor.
    *
    * For fixed-size matrices, does nothing.
    *
    * For dynamic-size matrices, creates an empty matrix of size 0. Does not allocate any array. Such a matrix
-   * is called a null matrix. This constructor is the unique way to create null matrices: resizing
-   * a matrix to 0 is not supported.
+   * is called a null matrix. An existing matrix can also be turned into a null matrix by resizing it to 0.
    *
    * \sa resize(Index,Index)
    */
@@ -130,8 +113,8 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #endif
   /** \brief Move constructor */
   EIGEN_DEVICE_FUNC constexpr Array(Array&&) = default;
-  EIGEN_DEVICE_FUNC Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
-    Base::operator=(std::move(other));
+  EIGEN_DEVICE_FUNC constexpr Array& operator=(Array&& other) noexcept(std::is_nothrow_move_assignable<Scalar>::value) {
+    this->m_storage = std::move(other.m_storage);
     return *this;
   }
 
@@ -244,11 +227,16 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 
  public:
   /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
+  template <typename OtherDerived,
+            std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(const EigenBase<OtherDerived>& other) : Base(other.derived()) {}
+
   template <typename OtherDerived>
+  EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
-      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType> = PrivateType())
-      : Base(other.derived()) {}
+      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType>)
+      : Array(other) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return this->innerSize(); }
@@ -256,6 +244,15 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 #ifdef EIGEN_ARRAY_PLUGIN
 #include EIGEN_ARRAY_PLUGIN
 #endif
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const EigenBase<OtherDerived>& other) {
+    return Base::operator=(other);
+  }
+
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Array& operator=(const ReturnByValue<OtherDerived>& func) {
+    return Base::operator=(func);
+  }
 
  private:
   template <typename MatrixType, typename OtherDerived, bool SwapPointers>

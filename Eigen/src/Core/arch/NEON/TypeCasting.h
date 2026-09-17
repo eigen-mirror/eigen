@@ -1181,11 +1181,12 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const 
 #if EIGEN_ARCH_ARM64
   return vcombine_f32(vcvt_f32_f64(vcvtq_f64_s64(a)), vcvt_f32_f64(vcvtq_f64_s64(b)));
 #else
-  EIGEN_ALIGN_MAX int64_t lvals[4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2l>::alignment) int64_t lvals[4];
   pstore(lvals, a);
   pstore(lvals + 2, b);
-  EIGEN_ALIGN_MAX float fvals[4] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1]),
-                                    static_cast<float>(lvals[2]), static_cast<float>(lvals[3])};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet4f>::alignment)
+  float fvals[4] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1]), static_cast<float>(lvals[2]),
+                    static_cast<float>(lvals[3])};
   return pload<Packet4f>(fvals);
 #endif
 }
@@ -1195,9 +1196,10 @@ EIGEN_STRONG_INLINE Packet2f pcast<Packet2l, Packet2f>(const Packet2l& a) {
 #if EIGEN_ARCH_ARM64
   return vcvt_f32_f64(vcvtq_f64_s64(a));
 #else
-  EIGEN_ALIGN_MAX int64_t lvals[2];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2l>::alignment) int64_t lvals[2];
   pstore(lvals, a);
-  EIGEN_ALIGN_MAX float fvals[2] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1])};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2f>::alignment)
+  float fvals[2] = {static_cast<float>(lvals[0]), static_cast<float>(lvals[1])};
   return pload<Packet2f>(fvals);
 #endif
 }
@@ -1319,11 +1321,12 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, cons
 #if EIGEN_ARCH_ARM64
   return vcombine_f32(vcvt_f32_f64(vcvtq_f64_u64(a)), vcvt_f32_f64(vcvtq_f64_u64(b)));
 #else
-  EIGEN_ALIGN_MAX uint64_t uvals[4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2ul>::alignment) uint64_t uvals[4];
   pstore(uvals, a);
   pstore(uvals + 2, b);
-  EIGEN_ALIGN_MAX float fvals[4] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1]),
-                                    static_cast<float>(uvals[2]), static_cast<float>(uvals[3])};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet4f>::alignment)
+  float fvals[4] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1]), static_cast<float>(uvals[2]),
+                    static_cast<float>(uvals[3])};
   return pload<Packet4f>(fvals);
 #endif
 }
@@ -1332,9 +1335,10 @@ EIGEN_STRONG_INLINE Packet2f pcast<Packet2ul, Packet2f>(const Packet2ul& a) {
 #if EIGEN_ARCH_ARM64
   return vcvt_f32_f64(vcvtq_f64_u64(a));
 #else
-  EIGEN_ALIGN_MAX uint64_t uvals[2];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2ul>::alignment) uint64_t uvals[2];
   pstore(uvals, a);
-  EIGEN_ALIGN_MAX float fvals[2] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1])};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2f>::alignment)
+  float fvals[2] = {static_cast<float>(uvals[0]), static_cast<float>(uvals[1])};
   return pload<Packet2f>(fvals);
 #endif
 }

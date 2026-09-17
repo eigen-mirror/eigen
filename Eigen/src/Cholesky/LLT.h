@@ -14,15 +14,28 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+// Smallest n at which LLT::inverse() runs the POTRI sequence on a real scalar rather than solving
+// against an explicit identity. POTRI's n^3/3 runs in the unblocked TRTRI and LAUUM kernels at small
+// n, the solve's 3x at the blocked TRSM rate, so a wider ISA helps the competitor more and moves the
+// crossover right: on Zen 4 it is n = 32 under SSE2 and AVX2, 128 (double) to 256 (float) under
+// AVX-512. Complex is not thresholded: POTRI leads from n = 8 in all twelve configurations measured.
+#ifndef EIGEN_LLT_INVERSE_POTRI_THRESHOLD
+#if defined(EIGEN_VECTORIZE_AVX512)
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 256
+#else
+#define EIGEN_LLT_INVERSE_POTRI_THRESHOLD 32
+#endif
+#endif
+
 namespace Eigen {
 
 namespace internal {
 
 template <typename MatrixType_, int UpLo_>
 struct traits<LLT<MatrixType_, UpLo_> > : traits<MatrixType_> {
-  typedef MatrixXpr XprKind;
-  typedef SolverStorage StorageKind;
-  typedef int StorageIndex;
+  using XprKind = MatrixXpr;
+  using StorageKind = SolverStorage;
+  using StorageIndex = int;
   enum { Flags = 0 };
 };
 
@@ -63,15 +76,16 @@ struct LLT_Traits;
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
  * Note that during the decomposition, only the lower (or upper, as defined by UpLo_) triangular part of A is
- * considered. Therefore, the strict lower part does not have to store correct values.
+ * considered. Therefore, the strict upper part (or the strict lower part when UpLo_ is Upper) does not have to
+ * store correct values.
  *
  * \sa MatrixBase::llt(), SelfAdjointView::llt(), class LDLT
  */
 template <typename MatrixType_, int UpLo_>
 class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef SolverBase<LLT> Base;
+  using MatrixType = MatrixType_;
+  using Base = SolverBase<LLT>;
   friend class SolverBase<LLT>;
 
   EIGEN_GENERIC_PUBLIC_INTERFACE(LLT)
@@ -79,7 +93,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
 
   enum { PacketSize = internal::packet_traits<Scalar>::size, AlignmentMask = int(PacketSize) - 1, UpLo = UpLo_ };
 
-  typedef internal::LLT_Traits<MatrixType, UpLo> Traits;
+  using Traits = internal::LLT_Traits<MatrixType, UpLo>;
+  using PlainObject = typename MatrixType::PlainObject;
 
   /**
    * \brief Default Constructor.
@@ -167,6 +182,32 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
     return m_matrix;
   }
 
+  /** \returns the inverse of the matrix of which \c *this is the Cholesky decomposition.
+   *
+   * The result is computed as \f$ A^{-1} = L^{-*} L^{-1} \f$ by inverting the stored factor in place and
+   * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
+   * explicit identity right hand side. Beyond the destination, only a block-sized scratch panel of at most
+   * 128x128 coefficients is used, whatever the matrix size.
+   *
+   * Fewer flops is not fewer seconds at every size: for a real scalar below
+   * \c EIGEN_LLT_INVERSE_POTRI_THRESHOLD (32, or 256 where AVX-512 is enabled) the POTRI sequence runs in
+   * its unblocked kernels while the solve against an identity runs its 3x at the blocked TRSM rate, so that
+   * is what this method does there. Complex scalars always take the POTRI path. The result is exactly
+   * self-adjoint either way: one triangle is computed and mirrored onto the other.
+   *
+   * An in-place decomposition (see the class documentation) may overwrite its own factor with the result,
+   * as in <tt>storage = llt.inverse()</tt>; like any other write to the referenced matrix, that leaves the
+   * decomposition unusable afterwards.
+   *
+   * The matrix must be positive definite, that is, info() must be \c Success.
+   *
+   * \sa solve(), MatrixBase::inverse()
+   */
+  inline Inverse<LLT> inverse() const {
+    eigen_assert(m_isInitialized && "LLT is not initialized.");
+    return Inverse<LLT>(*this);
+  }
+
   MatrixType reconstructedMatrix() const;
 
   /** \brief Reports whether previous computation was successful.
@@ -193,6 +234,64 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   template <typename VectorType>
   LLT& rankUpdate(const VectorType& vec, const RealScalar& sigma = 1);
 
+  /** \returns the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa absDeterminant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  Scalar determinant() const;
+
+  /** \returns the absolute value of the determinant of the matrix of which *this is the Cholesky decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \note The decomposed matrix is positive definite, so this is the determinant itself.
+   *
+   * \warning a determinant can be very big or small, so for matrices
+   * of large enough dimension, there is a risk of overflow/underflow.
+   * One way to work around that is to use logAbsDeterminant() instead.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), logAbsDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar absDeterminant() const;
+
+  /** \returns the natural log of the absolute value of the determinant of the matrix of which *this is the Cholesky
+   * decomposition.
+   *
+   * It has only linear complexity (that is, O(n) where n is the dimension of the square matrix)
+   * as the Cholesky decomposition has already been computed.
+   *
+   * \note This method is useful to work around the risk of overflow/underflow that's inherent
+   * to determinant computation.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), signDeterminant(), MatrixBase::determinant()
+   */
+  RealScalar logAbsDeterminant() const;
+
+  /** \returns the sign of the determinant of the matrix of which *this is the Cholesky decomposition,
+   * which is \c 1 since that matrix is positive definite.
+   *
+   * This method is provided for compatibility with the other decompositions, thus enabling generic code.
+   *
+   * \pre info() returns \c Success. A failed factorization does not represent the input matrix.
+   *
+   * \sa determinant(), absDeterminant(), logAbsDeterminant(), MatrixBase::determinant()
+   */
+  Scalar signDeterminant() const;
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename RhsType, typename DstType>
   void _solve_impl(const RhsType& rhs, DstType& dst) const;
@@ -205,8 +304,8 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   /** \internal
-   * Used to compute and store L
-   * The strict upper part is not used and even not initialized.
+   * Used to compute and store L, or U when UpLo_ is Upper.
+   * The strict part of the other triangle is not used and even not initialized.
    */
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -223,13 +322,13 @@ template <typename MatrixType, typename VectorType>
 static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
                                    const typename MatrixType::RealScalar& sigma) {
   using std::sqrt;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::ColXpr ColXpr;
-  typedef internal::remove_all_t<ColXpr> ColXprCleaned;
-  typedef typename ColXprCleaned::SegmentReturnType ColXprSegment;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ColXpr = typename MatrixType::ColXpr;
+  using ColXprCleaned = internal::remove_all_t<ColXpr>;
+  using ColXprSegment = typename ColXprCleaned::SegmentReturnType;
   using TempVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1, 0, MatrixType::MaxRowsAtCompileTime, 1>;
-  typedef typename TempVectorType::SegmentReturnType TempVecSegment;
+  using TempVecSegment = typename TempVectorType::SegmentReturnType;
 
   Index n = mat.cols();
   eigen_assert(mat.rows() == n && vec.size() == n);
@@ -284,7 +383,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
 
 template <typename Scalar>
 struct llt_inplace<Scalar, Lower> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename MatrixType>
   static Index unblocked(MatrixType& mat) {
     using std::sqrt;
@@ -347,7 +446,7 @@ struct llt_inplace<Scalar, Lower> {
 
 template <typename Scalar>
 struct llt_inplace<Scalar, Upper> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   template <typename MatrixType>
   static EIGEN_STRONG_INLINE Index unblocked(MatrixType& mat) {
@@ -368,8 +467,8 @@ struct llt_inplace<Scalar, Upper> {
 
 template <typename MatrixType>
 struct LLT_Traits<MatrixType, Lower> {
-  typedef const TriangularView<const MatrixType, Lower> MatrixL;
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, Upper> MatrixU;
+  using MatrixL = const TriangularView<const MatrixType, Lower>;
+  using MatrixU = const TriangularView<const typename MatrixType::AdjointReturnType, Upper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m.adjoint()); }
   static bool inplace_decomposition(MatrixType& m) {
@@ -379,8 +478,8 @@ struct LLT_Traits<MatrixType, Lower> {
 
 template <typename MatrixType>
 struct LLT_Traits<MatrixType, Upper> {
-  typedef const TriangularView<const typename MatrixType::AdjointReturnType, Lower> MatrixL;
-  typedef const TriangularView<const MatrixType, Upper> MatrixU;
+  using MatrixL = const TriangularView<const typename MatrixType::AdjointReturnType, Lower>;
+  using MatrixU = const TriangularView<const MatrixType, Upper>;
   static inline MatrixL getL(const MatrixType& m) { return MatrixL(m.adjoint()); }
   static inline MatrixU getU(const MatrixType& m) { return MatrixU(m); }
   static bool inplace_decomposition(MatrixType& m) {
@@ -434,6 +533,34 @@ LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v
   return *this;
 }
 
+// A = L L^*, with L real and positive on the diagonal, so det(A) = prod(L_ii)^2 > 0.
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::Scalar LLT<MatrixType_, UpLo_>::determinant() const {
+  return Scalar(absDeterminant());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::absDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return numext::abs2(m_matrix.diagonal().real().prod());
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return RealScalar(2) * m_matrix.diagonal().real().array().log().sum();
+}
+
+template <typename MatrixType_, int UpLo_>
+typename LLT<MatrixType_, UpLo_>::Scalar LLT<MatrixType_, UpLo_>::signDeterminant() const {
+  eigen_assert(m_isInitialized && "LLT is not initialized.");
+  eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
+  return Scalar(1);
+}
+
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename MatrixType_, int UpLo_>
 template <typename RhsType, typename DstType>
@@ -472,6 +599,50 @@ void LLT<MatrixType, UpLo_>::solveInPlace(const MatrixBase<Derived>& bAndX) cons
   matrixL().solveInPlace(bAndX);
   matrixU().solveInPlace(bAndX);
 }
+
+namespace internal {
+
+/***** Implementation of inverse() *****************************************************/
+template <typename DstXprType, typename MatrixType, int UpLo_>
+struct Assignment<DstXprType, Inverse<LLT<MatrixType, UpLo_> >,
+                  internal::assign_op<typename DstXprType::Scalar, typename LLT<MatrixType, UpLo_>::Scalar>,
+                  Dense2Dense> {
+  using LltType = LLT<MatrixType, UpLo_>;
+  using SrcXprType = Inverse<LltType>;
+  static constexpr unsigned int kMirrorMode = UpLo_ == Lower ? StrictlyUpper : StrictlyLower;
+  static void run(DstXprType& dst, const SrcXprType& src,
+                  const internal::assign_op<typename DstXprType::Scalar, typename LltType::Scalar>&) {
+    const LltType& llt = src.nestedExpression();
+    eigen_assert(llt.info() == Success && "LLT::inverse(): the factorization failed.");
+    const Index size = llt.rows();
+    if ((dst.rows() != size) || (dst.cols() != size)) dst.resize(size, size);
+
+    // Complex is never thresholded; see EIGEN_LLT_INVERSE_POTRI_THRESHOLD.
+    constexpr Index kPotriThreshold =
+        NumTraits<typename LltType::Scalar>::IsComplex ? Index(0) : Index(EIGEN_LLT_INVERSE_POTRI_THRESHOLD);
+    // An in-place LLT<Ref<...>> may be asked to overwrite its own factor. The POTRI sequence does exactly
+    // that, so it takes the alias at every size; the solve fallback would read a factor that setIdentity()
+    // had already destroyed. extract_data() is null for a destination whose inner stride is not known to
+    // be 1 at compile time, which leaves the alias unknown rather than excluded, so that goes the same way.
+    const typename DstXprType::Scalar* dst_data = extract_data(dst);
+    const bool overwrites_factor = dst_data == nullptr || dst_data == llt.matrixLLT().data();
+    if (overwrites_factor || size >= kPotriThreshold) {
+      // A = L L^*, hence A^-1 = L^-* L^-1: invert the factor (xTRTRI), then square it (xLAUUM).
+      dst.template triangularView<UpLo_>() = llt.matrixLLT().template triangularView<UpLo_>();
+      dst.template triangularView<UpLo_>().inverseInPlace();
+      internal::triangular_adjoint_square_in_place<UpLo_>(dst);
+    } else {
+      dst.setIdentity();
+      llt.solveInPlace(dst);
+    }
+    // Mirror; (i, j) reads (j, i), which lies in the computed triangle and is never written here, so
+    // the aliasing is benign. LAUUM makes the computed diagonal exactly real, as does the real-scalar
+    // solve below the threshold, so the result is exactly self-adjoint.
+    dst.template triangularView<kMirrorMode>() = dst.adjoint();
+  }
+};
+
+}  // end namespace internal
 
 /** \returns the matrix represented by the decomposition,
  * i.e., it returns the product: L L^*.

@@ -76,9 +76,21 @@ These are typically used in conjunction with the coefficient-wise comparison and
 
 \subsection TutorialReductionsVisitorsBroadcastingReductionsUserdefined User defined reductions
 
-TODO
+The \link DenseBase::redux() redux() \endlink method lets you define your own reduction by passing a binary functor.
+The functor is called with two coefficients and must return one coefficient of the same scalar type. It should implement
+an associative operation, because Eigen is free to choose the order in which coefficients are combined.
 
-In the meantime you can have a look at the DenseBase::redux() function.
+The following example returns the coefficient with the largest absolute value, first over the whole matrix and then
+column-wise:
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include Tutorial_ReductionsVisitorsBroadcasting_reductions_userdefined.cpp
+</td>
+<td>
+\verbinclude Tutorial_ReductionsVisitorsBroadcasting_reductions_userdefined.out
+</td></tr></table>
 
 \section TutorialReductionsVisitorsBroadcastingVisitors Visitors
 Visitors are useful when one wants to obtain the location of a coefficient inside 
@@ -149,7 +161,7 @@ Here is another example that finds the column whose sum of elements is the maxim
 </td></tr></table>
 
 The previous example applies the \link DenseBase::sum() sum() \endlink reduction on each column
-though the \link DenseBase::colwise() colwise() \endlink visitor, obtaining a new matrix whose
+through the \link DenseBase::colwise() colwise() \endlink proxy, obtaining a new matrix whose
 size is 1x4.
 
 Therefore, if
@@ -197,7 +209,7 @@ form a four-by-two matrix which is then added to \c mat:
 The operators <tt>-=</tt>, <tt>+</tt> and <tt>-</tt> can also be used column-wise and row-wise. On arrays, we 
 can also use the operators <tt>*=</tt>, <tt>/=</tt>, <tt>*</tt> and <tt>/</tt> to perform coefficient-wise 
 multiplication and division column-wise or row-wise. These operators are not available on matrices because it
-is not clear what they would do. If you want multiply column 0 of a matrix \c mat with \c v(0), column 1 with 
+is not clear what they would do. If you want to multiply column 0 of a matrix \c mat with \c v(0), column 1 with
 \c v(1), and so on, then use <tt>mat = mat * v.asDiagonal()</tt>.
 
 It is important to point out that the vector to be added column-wise or row-wise must be of type Vector,

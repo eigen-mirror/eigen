@@ -29,20 +29,20 @@ namespace Eigen {
  */
 template <typename MatrixType, unsigned int Mode>
 class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<TriangularView<MatrixType, Mode> > {
-  typedef TriangularView<MatrixType, Mode> TriangularViewType;
+  using TriangularViewType = TriangularView<MatrixType, Mode>;
 
  protected:
   // dummy solve function to make TriangularView happy.
   void solve() const;
 
-  typedef SparseMatrixBase<TriangularViewType> Base;
+  using Base = SparseMatrixBase<TriangularViewType>;
 
  public:
   EIGEN_SPARSE_PUBLIC_INTERFACE(TriangularViewType)
 
-  typedef typename MatrixType::Nested MatrixTypeNested;
-  typedef std::remove_reference_t<MatrixTypeNested> MatrixTypeNestedNonRef;
-  typedef internal::remove_all_t<MatrixTypeNested> MatrixTypeNestedCleaned;
+  using MatrixTypeNested = typename MatrixType::Nested;
+  using MatrixTypeNestedNonRef = std::remove_reference_t<MatrixTypeNested>;
+  using MatrixTypeNestedCleaned = internal::remove_all_t<MatrixTypeNested>;
 
   template <typename RhsType, typename DstType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _solve_impl(const RhsType& rhs, DstType& dst) const {
@@ -70,12 +70,12 @@ namespace internal {
 
 template <typename ArgType, unsigned int Mode>
 struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator_base<TriangularView<ArgType, Mode> > {
-  typedef TriangularView<ArgType, Mode> XprType;
+  using XprType = TriangularView<ArgType, Mode>;
 
  protected:
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::StorageIndex StorageIndex;
-  typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
+  using Scalar = typename XprType::Scalar;
+  using StorageIndex = typename XprType::StorageIndex;
+  using EvalIterator = typename evaluator<ArgType>::InnerIterator;
 
   enum {
     SkipFirst =
@@ -93,7 +93,7 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
   inline Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
 
   class InnerIterator : public EvalIterator {
-    typedef EvalIterator Base;
+    using Base = EvalIterator;
 
    public:
     EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& xprEval, Index outer)

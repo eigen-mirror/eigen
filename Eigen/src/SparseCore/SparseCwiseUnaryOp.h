@@ -22,7 +22,7 @@ template <typename UnaryOp, typename ArgType>
 struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>
     : public evaluator_base<CwiseUnaryOp<UnaryOp, ArgType> > {
  public:
-  typedef CwiseUnaryOp<UnaryOp, ArgType> XprType;
+  using XprType = CwiseUnaryOp<UnaryOp, ArgType>;
 
   class InnerIterator;
 
@@ -39,7 +39,7 @@ struct unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>
   inline Index nonZerosEstimate() const { return m_argImpl.nonZerosEstimate(); }
 
  protected:
-  typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
+  using EvalIterator = typename evaluator<ArgType>::InnerIterator;
 
   const UnaryOp m_functor;
   evaluator<ArgType> m_argImpl;
@@ -49,8 +49,8 @@ template <typename UnaryOp, typename ArgType>
 class unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::InnerIterator
     : public unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::EvalIterator {
  protected:
-  typedef typename XprType::Scalar Scalar;
-  typedef typename unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::EvalIterator Base;
+  using Scalar = typename XprType::Scalar;
+  using Base = typename unary_evaluator<CwiseUnaryOp<UnaryOp, ArgType>, IteratorBased>::EvalIterator;
 
  public:
   EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
@@ -74,7 +74,7 @@ template <typename ViewOp, typename ArgType>
 struct unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>
     : public evaluator_base<CwiseUnaryView<ViewOp, ArgType> > {
  public:
-  typedef CwiseUnaryView<ViewOp, ArgType> XprType;
+  using XprType = CwiseUnaryView<ViewOp, ArgType>;
 
   class InnerIterator;
 
@@ -89,7 +89,7 @@ struct unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>
   }
 
  protected:
-  typedef typename evaluator<ArgType>::InnerIterator EvalIterator;
+  using EvalIterator = typename evaluator<ArgType>::InnerIterator;
 
   const ViewOp m_functor;
   evaluator<ArgType> m_argImpl;
@@ -99,8 +99,8 @@ template <typename ViewOp, typename ArgType>
 class unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::InnerIterator
     : public unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::EvalIterator {
  protected:
-  typedef typename XprType::Scalar Scalar;
-  typedef typename unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::EvalIterator Base;
+  using Scalar = typename XprType::Scalar;
+  using Base = typename unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::EvalIterator;
 
  public:
   EIGEN_STRONG_INLINE InnerIterator(const unary_evaluator& unaryOp, Index outer)
@@ -122,7 +122,7 @@ class unary_evaluator<CwiseUnaryView<ViewOp, ArgType>, IteratorBased>::InnerIter
 
 template <typename Derived>
 EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator*=(const Scalar& other) {
-  typedef typename internal::evaluator<Derived>::InnerIterator EvalIterator;
+  using EvalIterator = typename internal::evaluator<Derived>::InnerIterator;
   internal::evaluator<Derived> thisEval(derived());
   for (Index j = 0; j < outerSize(); ++j)
     for (EvalIterator i(thisEval, j); i; ++i) i.valueRef() *= other;
@@ -131,7 +131,7 @@ EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator*=(const Scalar&
 
 template <typename Derived>
 EIGEN_STRONG_INLINE Derived& SparseMatrixBase<Derived>::operator/=(const Scalar& other) {
-  typedef typename internal::evaluator<Derived>::InnerIterator EvalIterator;
+  using EvalIterator = typename internal::evaluator<Derived>::InnerIterator;
   internal::evaluator<Derived> thisEval(derived());
   for (Index j = 0; j < outerSize(); ++j)
     for (EvalIterator i(thisEval, j); i; ++i) i.valueRef() /= other;

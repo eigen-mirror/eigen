@@ -3,7 +3,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <unsupported/Eigen/FFT>
+#include <contrib/Eigen/FFT>
 #include <complex>
 #include <vector>
 

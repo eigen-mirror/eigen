@@ -37,22 +37,22 @@ namespace internal {
 
 template <typename Scalar_>
 struct traits<Rotation2D<Scalar_> > {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
 };
 }  // end namespace internal
 
 template <typename Scalar_>
 class Rotation2D : public RotationBase<Rotation2D<Scalar_>, 2> {
-  typedef RotationBase<Rotation2D<Scalar_>, 2> Base;
+  using Base = RotationBase<Rotation2D<Scalar_>, 2>;
 
  public:
   using Base::operator*;
 
   enum { Dim = 2 };
   /** the scalar type of the coefficients */
-  typedef Scalar_ Scalar;
-  typedef Matrix<Scalar, 2, 1> Vector2;
-  typedef Matrix<Scalar, 2, 2> Matrix2;
+  using Scalar = Scalar_;
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  using Matrix2 = Matrix<Scalar, 2, 2>;
 
  protected:
   Scalar m_angle;
@@ -167,10 +167,10 @@ class Rotation2D : public RotationBase<Rotation2D<Scalar_>, 2> {
 
 /** \ingroup Geometry_Module
  * single precision 2D rotation type */
-typedef Rotation2D<float> Rotation2Df;
+using Rotation2Df = Rotation2D<float>;
 /** \ingroup Geometry_Module
  * double precision 2D rotation type */
-typedef Rotation2D<double> Rotation2Dd;
+using Rotation2Dd = Rotation2D<double>;
 
 /** Set \c *this from a 2x2 rotation matrix \a mat.
  * In other words, this function extracts the rotation angle

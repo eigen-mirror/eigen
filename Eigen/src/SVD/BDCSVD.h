@@ -36,7 +36,7 @@ namespace internal {
 
 template <typename MatrixType_, int Options>
 struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> {
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
 };
 
 }  // end namespace internal
@@ -72,7 +72,7 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  */
 template <typename MatrixType_, int Options_>
 class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
-  typedef SVDBase<BDCSVD> Base;
+  using Base = SVDBase<BDCSVD>;
 
  public:
   using Base::cols;
@@ -81,11 +81,11 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::diagSize;
   using Base::rows;
 
-  typedef MatrixType_ MatrixType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
-  typedef typename NumTraits<RealScalar>::Literal Literal;
-  typedef typename Base::Index Index;
+  using MatrixType = MatrixType_;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
+  using Literal = typename NumTraits<RealScalar>::Literal;
+  using Index = typename Base::Index;
   enum {
     Options = Options_,
     QRDecomposition = internal::get_qr_preconditioner(Options),
@@ -99,17 +99,17 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
     MatrixOptions = Base::MatrixOptions
   };
 
-  typedef typename Base::MatrixUType MatrixUType;
-  typedef typename Base::MatrixVType MatrixVType;
-  typedef typename Base::SingularValuesType SingularValuesType;
+  using MatrixUType = typename Base::MatrixUType;
+  using MatrixVType = typename Base::MatrixVType;
+  using SingularValuesType = typename Base::SingularValuesType;
 
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> MatrixX;
-  typedef Matrix<RealScalar, Dynamic, Dynamic, ColMajor> MatrixXr;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
-  typedef Array<RealScalar, Dynamic, 1> ArrayXr;
-  typedef Array<Index, 1, Dynamic> ArrayXi;
-  typedef Ref<ArrayXr> ArrayRef;
-  typedef Ref<ArrayXi> IndicesRef;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic, ColMajor>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using ArrayXr = Array<RealScalar, Dynamic, 1>;
+  using ArrayXi = Array<Index, 1, Dynamic>;
+  using ArrayRef = Ref<ArrayXr>;
+  using IndicesRef = Ref<ArrayXi>;
 
   /** \brief Default Constructor.
    *
@@ -300,7 +300,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   // we use a larger scalar to prevent a regression for relatively square matrices.
   constexpr Index kMinAspectRatio = 4;
   constexpr bool disableQrDecomp = static_cast<int>(QRDecomposition) == static_cast<int>(DisableQRDecomposition);
-  m_useQrDecomp = !disableQrDecomp && ((rows / kMinAspectRatio > cols) || (cols / kMinAspectRatio > rows));
+  m_useQrDecomp = !disableQrDecomp && ((rows / kMinAspectRatio >= cols) || (cols / kMinAspectRatio >= rows));
   if (m_useQrDecomp) {
     qrDecomp = HouseholderQR<MatrixX>((std::max)(rows, cols), (std::min)(rows, cols));
     reducedTriangle = MatrixX(diagSize(), diagSize());
@@ -375,19 +375,16 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   }
 
   //**** step 0 - Copy the input matrix and apply scaling to reduce over/under-flows
-  RealScalar scale = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
-  if (!(numext::isfinite)(scale)) {
+  const RealScalar maxCoeff = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
+  if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
     return *this;
   }
 
-  if (numext::is_exactly_zero(scale)) scale = Literal(1);
-
-  if (m_isTranspose)
-    copyWorkspace = matrix.adjoint() / scale;
-  else
-    copyWorkspace = matrix / scale;
+  const auto factors = m_isTranspose
+                           ? internal::safe_scaling<RealScalar>::scale_to(copyWorkspace, matrix.adjoint(), maxCoeff)
+                           : internal::safe_scaling<RealScalar>::scale_to(copyWorkspace, matrix, maxCoeff);
 
   //**** step 1 - Bidiagonalization.
   // If the problem is sufficiently rectangular, we perform R-Bidiagonalization: compute A = Q(R/0)
@@ -413,6 +410,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   m_impl.computed().setZero();
   m_impl.computed().topRows(diagSize()).diagonal() = bid.bidiagonal().diagonal();
   m_impl.computed().topRows(diagSize()).template diagonal<-1>() = bid.bidiagonal().diagonal(1);
+  m_impl.splitNegligibleSuperdiagonal(diagSize());
   m_impl.divide(0, diagSize() - 1, 0, 0, 0);
   m_info = m_impl.info();
   m_numIters = m_impl.numIters();
@@ -424,7 +422,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   //**** step 3 - Copy singular values and vectors
   for (int i = 0; i < diagSize(); i++) {
     RealScalar a = abs(m_impl.computed().coeff(i, i));
-    m_singularValues.coeffRef(i) = a * scale;
+    internal::safe_scaling<RealScalar>::unscale_to(m_singularValues.coeffRef(i), a, factors);
     if (a < considerZero) {
       m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();
@@ -515,27 +513,31 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   // Check for non-finite inputs.
   const RealScalar diagScale = diagonal.cwiseAbs().template maxCoeff<PropagateNaN>();
   const RealScalar superdiagScale = n > 1 ? superdiagonal.cwiseAbs().template maxCoeff<PropagateNaN>() : RealScalar(0);
-  RealScalar scale = numext::maxi(diagScale, superdiagScale);
-  if (!(numext::isfinite)(scale)) {
+  const RealScalar maxCoeff = numext::maxi(diagScale, superdiagScale);
+  if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
     return *this;
   }
 
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
-  if (numext::is_exactly_zero(scale)) scale = Literal(1);
-
   //**** Small problem: build dense bidiagonal and delegate to JacobiSVD.
   if (n < m_impl.algoSwap()) {
     // Build the dense upper bidiagonal matrix.
     MatrixX B = MatrixX::Zero(n, n);
-    B.diagonal() = diagonal.template cast<Scalar>() / Scalar(scale);
-    if (n > 1) B.diagonal(1) = superdiagonal.template cast<Scalar>() / Scalar(scale);
+    auto diagonalDest = B.diagonal();
+    const auto factors =
+        internal::safe_scaling<RealScalar>::scale_to(diagonalDest, diagonal.template cast<Scalar>(), maxCoeff);
+    if (n > 1) {
+      auto superdiagonalDest = B.diagonal(1);
+      internal::safe_scaling<RealScalar>::scale_to(superdiagonalDest, superdiagonal.template cast<Scalar>(), maxCoeff,
+                                                   factors);
+    }
     smallSvd.compute(B);
     m_isInitialized = true;
     m_info = smallSvd.info();
     if (m_info == Success || m_info == NoConvergence) {
-      m_singularValues = smallSvd.singularValues() * scale;
+      internal::safe_scaling<RealScalar>::unscale_to(m_singularValues, smallSvd.singularValues(), factors);
       m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
       if (computeU()) m_matrixU = smallSvd.matrixU();
       if (computeV()) m_matrixV = smallSvd.matrixV();
@@ -548,16 +550,19 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   m_impl.naiveU().setZero();
   m_impl.naiveV().setZero();
   m_impl.computed().setZero();
-  for (Index i = 0; i < n; ++i) {
-    m_impl.computed()(i, i) = RealScalar(diagonal.coeff(i)) / scale;
-  }
-  for (Index i = 0; i < n - 1; ++i) {
-    m_impl.computed()(i + 1, i) = RealScalar(superdiagonal.coeff(i)) / scale;
+  auto diagonalDest = m_impl.computed().diagonal();
+  const auto factors =
+      internal::safe_scaling<RealScalar>::scale_to(diagonalDest, diagonal.template cast<RealScalar>(), maxCoeff);
+  if (n > 1) {
+    auto superdiagonalDest = m_impl.computed().template diagonal<-1>().head(n - 1);
+    internal::safe_scaling<RealScalar>::scale_to(superdiagonalDest, superdiagonal.template cast<RealScalar>(), maxCoeff,
+                                                 factors);
   }
 
   m_isTranspose = false;
 
   //**** Run D&C.
+  m_impl.splitNegligibleSuperdiagonal(n);
   m_impl.divide(0, n - 1, 0, 0, 0);
   m_info = m_impl.info();
   m_numIters = m_impl.numIters();
@@ -569,7 +574,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   //**** Extract singular values.
   for (int i = 0; i < diagSize(); i++) {
     RealScalar a = abs(m_impl.computed().coeff(i, i));
-    m_singularValues.coeffRef(i) = a * scale;
+    internal::safe_scaling<RealScalar>::unscale_to(m_singularValues.coeffRef(i), a, factors);
     if (a < considerZero) {
       m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();

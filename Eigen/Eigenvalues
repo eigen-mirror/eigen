@@ -55,7 +55,7 @@
 #elif defined(EIGEN_LAPACKE_SYSTEM)
 #include <lapacke.h>
 #else
-#include "src/misc/lapacke.h"
+#include "src/LAPACKESupport/lapacke.h"
 #endif
 #include "src/Eigenvalues/RealSchur_LAPACKE.h"
 #include "src/Eigenvalues/ComplexSchur_LAPACKE.h"

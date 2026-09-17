@@ -382,7 +382,7 @@ template <typename Scalar, typename DataMapper, typename Packet, typename Packet
 struct dhs_cpack {
   template <bool transpose>
   EIGEN_ALWAYS_INLINE void dhs_cblock(PacketBlock<PacketC, 8>& cblock, PacketBlock<Packet, 4>& block,
-                                      Packet16uc permute) {
+                                      const Packet16uc& permute) {
     if (transpose) {
       block.packet[0] = vec_perm(cblock.packet[0].v, cblock.packet[1].v, permute);
       block.packet[1] = vec_perm(cblock.packet[2].v, cblock.packet[3].v, permute);
@@ -1914,7 +1914,7 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_row_iteration(const DataMapper& res, cons
                                                      const Scalar* rhs_base, Index depth, Index strideA, Index offsetA,
                                                      Index strideB, Index row, Index rows, const Packet& pAlpha,
                                                      const Packet& pMask) {
-  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = NULL, *rhs_ptr2 = NULL;
+  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr;
   const Scalar* lhs_ptr = lhs_base + row * strideA + remaining_rows * offsetA;
   PacketBlock<Packet, accRows> accZero0, accZero1, accZero2, accZero3, accZero4, accZero5, accZero6, accZero7, acc;
 
@@ -2074,9 +2074,9 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_iteration(const DataMapper& res, const Sc
                                                  const Packet& pMask
 #endif
 ) {
-  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = NULL, *rhs_ptr2 = NULL;
-  const Scalar *lhs_ptr0 = NULL, *lhs_ptr1 = NULL, *lhs_ptr2 = NULL, *lhs_ptr3 = NULL, *lhs_ptr4 = NULL,
-               *lhs_ptr5 = NULL, *lhs_ptr6 = NULL, *lhs_ptr7 = NULL;
+  const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr;
+  const Scalar *lhs_ptr0 = nullptr, *lhs_ptr1 = nullptr, *lhs_ptr2 = nullptr, *lhs_ptr3 = nullptr, *lhs_ptr4 = nullptr,
+               *lhs_ptr5 = nullptr, *lhs_ptr6 = nullptr, *lhs_ptr7 = nullptr;
   PacketBlock<Packet, accRows> accZero0, accZero1, accZero2, accZero3, accZero4, accZero5, accZero6, accZero7;
   PacketBlock<Packet, accRows> acc;
 
@@ -2329,10 +2329,10 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_complex_row_iteration(const DataMapper& r
                                                              Index offsetA, Index strideB, Index row, Index rows,
                                                              const Packet& pAlphaReal, const Packet& pAlphaImag,
                                                              const Packet& pMask) {
-  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = NULL, *rhs_ptr_real2 = NULL;
-  const Scalar *rhs_ptr_imag0 = NULL, *rhs_ptr_imag1 = NULL, *rhs_ptr_imag2 = NULL;
+  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = nullptr, *rhs_ptr_real2 = nullptr;
+  const Scalar *rhs_ptr_imag0 = nullptr, *rhs_ptr_imag1 = nullptr, *rhs_ptr_imag2 = nullptr;
   const Scalar* lhs_ptr_real = lhs_base + advanceRows * row * strideA + remaining_rows * offsetA;
-  const Scalar* lhs_ptr_imag = NULL;
+  const Scalar* lhs_ptr_imag = nullptr;
   EIGEN_IF_CONSTEXPR (!LhsIsReal)
     lhs_ptr_imag = lhs_ptr_real + remaining_rows * strideA;
   else
@@ -2485,12 +2485,12 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_iteration(const DataMapper& res, 
                                                          Index offsetA, Index strideB, Index& row,
                                                          const Packet& pAlphaReal, const Packet& pAlphaImag,
                                                          const Packet& pMask) {
-  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = NULL, *rhs_ptr_real2 = NULL;
-  const Scalar *rhs_ptr_imag0 = NULL, *rhs_ptr_imag1 = NULL, *rhs_ptr_imag2 = NULL;
+  const Scalar *rhs_ptr_real0 = rhs_base, *rhs_ptr_real1 = nullptr, *rhs_ptr_real2 = nullptr;
+  const Scalar *rhs_ptr_imag0 = nullptr, *rhs_ptr_imag1 = nullptr, *rhs_ptr_imag2 = nullptr;
   const Index imag_delta = accCols * strideA;
   const Index imag_delta2 = accCols2 * strideA;
-  const Scalar *lhs_ptr_real0 = NULL, *lhs_ptr_real1 = NULL;
-  const Scalar *lhs_ptr_real2 = NULL, *lhs_ptr_real3 = NULL;
+  const Scalar *lhs_ptr_real0 = nullptr, *lhs_ptr_real1 = nullptr;
+  const Scalar *lhs_ptr_real2 = nullptr, *lhs_ptr_real3 = nullptr;
   PacketBlock<Packet, accRows> accReal0, accImag0, accReal1, accImag1;
   PacketBlock<Packet, accRows> accReal2, accImag2, accReal3, accImag3;
   PacketBlock<Packet, accRows> taccReal, taccImag;
@@ -2631,13 +2631,13 @@ EIGEN_ALWAYS_INLINE bool supportsMMA() {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet4f loadAndMultiplyF32(Packet4f acc, const Packet4f pAlpha, float* result) {
+EIGEN_ALWAYS_INLINE Packet4f loadAndMultiplyF32(const Packet4f& acc, const Packet4f& pAlpha, float* result) {
   Packet4f result_block = ploadu<Packet4f>(result);
   return pmadd(acc, pAlpha, result_block);
 }
 
 template <bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index rows, Index extra_rows) {
+EIGEN_ALWAYS_INLINE void storeF32(float*& result, const Packet4f& result_block, Index rows, Index extra_rows) {
   EIGEN_IF_CONSTEXPR (lhsExtraRows) {
     pstoreu_partial(result, result_block, extra_rows);
   } else {
@@ -2647,7 +2647,7 @@ EIGEN_ALWAYS_INLINE void storeF32(float*& result, Packet4f result_block, Index r
 }
 
 template <bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f pAlpha, float* result,
+EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Packet4f& pAlpha, float* result,
                                       Index extra_cols, Index extra_rows) {
   Index x = 0;
   EIGEN_IF_CONSTEXPR (rhsExtraCols) {
@@ -2669,7 +2669,7 @@ EIGEN_ALWAYS_INLINE void storeResults(Packet4f (&acc)[4], Index rows, const Pack
   }
 }
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(Packet8us data) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(const Packet8us& data) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_mergeh(data, z));
@@ -2678,7 +2678,7 @@ EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Hi(Packet8us data) {
 #endif
 }
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Lo(Packet8us data) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Lo(const Packet8us& data) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_mergel(data, z));
@@ -2730,7 +2730,7 @@ static Packet16uc p16uc_MERGE16_32_6 = {2, 3, 18, 19, 18, 19, 18, 19, 2, 3, 18, 
 static Packet16uc p16uc_MERGE16_32_7 = {4, 5, 20, 21, 20, 21, 20, 21, 4, 5, 20, 21, 20, 21, 20, 21};
 static Packet16uc p16uc_MERGE16_32_8 = {6, 7, 22, 23, 22, 23, 22, 23, 6, 7, 22, 23, 22, 23, 22, 23};
 
-EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Perm(Packet8us data, Packet16uc mask) {
+EIGEN_ALWAYS_INLINE Packet4f oneConvertBF16Perm(const Packet8us& data, const Packet16uc& mask) {
   Packet8us z = pset1<Packet8us>(0);
 #ifdef _BIG_ENDIAN
   return reinterpret_cast<Packet4f>(vec_perm(data, z, mask));
@@ -2792,10 +2792,14 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32Dup(float* result, Index co
 
 template <const Index size, bool non_unit_stride>
 EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index rows, bfloat16*& src, Index resInc) {
-  constexpr Index extra = ((size < 4) ? 4 : size);
   while (i + size <= rows) {
+    const Index count = size == 1 ? rows - i : size;
     PacketBlock<Packet8bf, (size + 7) / 8> r32;
-    r32.packet[0] = loadBF16fromResult<non_unit_stride, 0>(src, resInc);
+    EIGEN_IF_CONSTEXPR (size < 8) {
+      r32.packet[0] = pgather_partial<bfloat16, Packet8bf>(src, non_unit_stride ? resInc : 1, count);
+    } else {
+      r32.packet[0] = loadBF16fromResult<non_unit_stride, 0>(src, resInc);
+    }
     EIGEN_IF_CONSTEXPR (size >= 16) {
       r32.packet[1] = loadBF16fromResult<non_unit_stride, 8>(src, resInc);
     }
@@ -2804,8 +2808,8 @@ EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index 
       r32.packet[3] = loadBF16fromResult<non_unit_stride, 24>(src, resInc);
     }
     storeConvertBlockBF16<size>(result + i, r32, rows & 3);
-    i += extra;
-    src += extra * resInc;
+    i += count;
+    if (i < rows) src += count * resInc;
     EIGEN_IF_CONSTEXPR (size != 32) break;
   }
 }
@@ -2813,7 +2817,7 @@ EIGEN_ALWAYS_INLINE void convertPointerBF16toF32(Index& i, float* result, Index 
 template <bool non_unit_stride>
 EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float* result, Index cols, Index rows, bfloat16* src,
                                                       Index resInc) {
-  for (Index col = 0; col < cols; col++, src += (rows * resInc), result += rows) {
+  for (Index col = 0; col < cols; col++, result += rows) {
     Index i = 0;
     bfloat16* src2 = src;
     convertPointerBF16toF32<32, non_unit_stride>(i, result, rows, src2, resInc);
@@ -2821,6 +2825,7 @@ EIGEN_ALWAYS_INLINE void convertArrayPointerBF16toF32(float* result, Index cols,
     convertPointerBF16toF32<8, non_unit_stride>(i, result, rows, src2, resInc);
     convertPointerBF16toF32<4, non_unit_stride>(i, result, rows, src2, resInc);
     convertPointerBF16toF32<1, non_unit_stride>(i, result, rows, src2, resInc);
+    if (col + 1 < cols) src += rows * resInc;
   }
 }
 
@@ -2862,8 +2867,8 @@ EIGEN_ALWAYS_INLINE void addResults(Packet4f (&acc)[num_acc][4]) {
 }
 
 template <Index num_acc, bool rhsExtraCols, bool lhsExtraRows, Index num_rhs>
-EIGEN_ALWAYS_INLINE void outputResultsVSX(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f pAlpha, float* result,
-                                          const Index extra_cols, Index extra_rows) {
+EIGEN_ALWAYS_INLINE void outputResultsVSX(Packet4f (&acc)[num_acc][4], Index rows, const Packet4f& pAlpha,
+                                          float* result, const Index extra_cols, Index extra_rows) {
   tranposeResults<num_acc>(acc);
   addResults<num_acc>(acc);
 
@@ -2916,7 +2921,7 @@ EIGEN_ALWAYS_INLINE void KLoop(const float* indexA, const float* indexB, Packet4
 }
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packet4f pAlpha, const float* indexA,
+EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packet4f& pAlpha, const float* indexA,
                                             const float* indexB, Index strideB, Index offsetB, float* result,
                                             const Index extra_cols, const Index extra_rows) {
   constexpr Index num_rhs = num_acc;
@@ -2940,7 +2945,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoopBodyIter(Index depth, Index rows, const Packe
 #define MAX_BFLOAT16_ACC_VSX 4
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const float* indexA,
+void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packet4f& pAlpha, const float* indexA,
                     const float* indexB, Index strideB, Index offsetB, float* result) {
   constexpr Index step = (num_acc * 4);  // each accumulator has 4 elements
   const Index extra_cols = (rhsExtraCols) ? (cols & 3) : 0;
@@ -2957,7 +2962,7 @@ void colVSXLoopBody(Index& col, Index depth, Index cols, Index rows, const Packe
 }
 
 template <const Index num_acc, bool rhsExtraCols, bool lhsExtraRows>
-EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha,
+EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols, Index rows, const Packet4f& pAlpha,
                                               const float* indexA, const float* blockB, Index strideB, Index offsetB,
                                               float* result) {
   EIGEN_IF_CONSTEXPR (MAX_BFLOAT16_ACC_VSX > num_acc) {
@@ -2967,7 +2972,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoopBodyExtraN(Index col, Index depth, Index cols
 }
 
 template <bool rhsExtraCols, bool lhsExtraRows>
-void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const Packet4f pAlpha, const float* indexA,
+void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const Packet4f& pAlpha, const float* indexA,
                          const float* blockB, Index strideB, Index offsetB, float* result) {
   switch ((cols - col) >> 2) {
     case 3:
@@ -2991,9 +2996,9 @@ void colVSXLoopBodyExtra(Index col, Index depth, Index cols, Index rows, const P
 }
 
 template <Index size, bool lhsExtraRows = false>
-EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const Packet4f pAlpha, const bfloat16* indexA,
-                                     const float* indexA2, const float* blockB2, Index strideA, Index strideB,
-                                     Index offsetB, float* result2) {
+EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const Packet4f& pAlpha,
+                                     const bfloat16* indexA, const float* indexA2, const float* blockB2, Index strideA,
+                                     Index strideB, Index offsetB, float* result2) {
   Index delta_rows = 2 * (lhsExtraRows ? (rows & 3) : size);
   for (Index row = 0; row < size; row += 4) {
     convertArrayPointerBF16toF32Dup<lhsExtraRows>(const_cast<float*>(indexA2), strideA, delta_rows, indexA, row,
@@ -3020,7 +3025,7 @@ EIGEN_ALWAYS_INLINE void colVSXLoops(Index depth, Index cols, Index rows, const 
 
 template <Index size>
 EIGEN_ALWAYS_INLINE void calcVSXColLoops(const bfloat16*& indexA, const float* indexA2, Index& row, Index depth,
-                                         Index cols, Index rows, const Packet4f pAlpha, const float* indexB,
+                                         Index cols, Index rows, const Packet4f& pAlpha, const float* indexB,
                                          Index strideA, Index strideB, Index offsetA, Index offsetB, Index bigSuffix,
                                          float* result) {
   if ((size == 16) || (rows & size)) {
@@ -3431,10 +3436,12 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const float* blockA, const float* blockB, Index rows, Index depth, Index cols, float alpha,
     Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const float*, const float*, Index, Index, Index, float, Index, Index,
-                               Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  // The kernels below take Eigen::Index, which need not be the Index this kernel is instantiated with: a Tensor
+  // contraction instantiates gebp_kernel with the tensor's StorageIndex.
+  static void (*gemm_function)(const DataMapper&, const float*, const float*, Eigen::Index, Eigen::Index, Eigen::Index,
+                               float, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMA<float, Packet, RhsPacket, DataMapper, accRows, accCols> :
 #endif
@@ -3459,10 +3466,11 @@ void gebp_kernel<std::complex<float>, std::complex<float>, Index, DataMapper, mr
                                            const std::complex<float>* blockB, Index rows, Index depth, Index cols,
                                            std::complex<float> alpha, Index strideA, Index strideB, Index offsetA,
                                            Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const std::complex<float>*, Index, Index,
-                               Index, std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const std::complex<float>*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<float>, std::complex<float>, std::complex<float>,
                                                           float, Packet, Packetc, RhsPacket, DataMapper, accRows,
@@ -3490,10 +3498,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<float, std::complex<float>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const float* blockA, const std::complex<float>* blockB, Index rows, Index depth, Index cols,
     std::complex<float> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const float*, const std::complex<float>*, Index, Index, Index,
-                               std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const float*, const std::complex<float>*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index, Eigen::Index,
+                               Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<float, std::complex<float>, std::complex<float>, float,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3521,10 +3530,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<std::complex<float>, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const std::complex<float>* blockA, const float* blockB, Index rows, Index depth, Index cols,
     std::complex<float> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<float>::rows;
-  const Index accCols = quad_traits<float>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const float*, Index, Index, Index,
-                               std::complex<float>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<float>::rows;
+  const Eigen::Index accCols = quad_traits<float>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<float>*, const float*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, std::complex<float>, Eigen::Index, Eigen::Index, Eigen::Index,
+                               Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<float>, float, std::complex<float>, float,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3551,10 +3561,10 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const double* blockA, const double* blockB, Index rows, Index depth, Index cols,
     double alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const double*, const double*, Index, Index, Index, double, Index,
-                               Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const double*, const double*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, double, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMA<double, Packet, RhsPacket, DataMapper, accRows, accCols> :
 #endif
@@ -3579,10 +3589,11 @@ void gebp_kernel<std::complex<double>, std::complex<double>, Index, DataMapper, 
                                            const std::complex<double>* blockB, Index rows, Index depth, Index cols,
                                            std::complex<double> alpha, Index strideA, Index strideB, Index offsetA,
                                            Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const std::complex<double>*, Index,
-                               Index, Index, std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const std::complex<double>*,
+                               Eigen::Index, Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index,
+                               Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA())
           ? &Eigen::internal::gemm_complexMMA<std::complex<double>, std::complex<double>, std::complex<double>, double,
@@ -3611,10 +3622,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<std::complex<double>, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const std::complex<double>* blockA, const double* blockB, Index rows, Index depth,
     Index cols, std::complex<double> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const double*, Index, Index, Index,
-                               std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const std::complex<double>*, const double*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<std::complex<double>, double, std::complex<double>, double,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3642,10 +3654,11 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const double* blockA, const std::complex<double>* blockB, Index rows, Index depth,
     Index cols, std::complex<double> alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  const Index accRows = quad_traits<double>::rows;
-  const Index accCols = quad_traits<double>::size;
-  static void (*gemm_function)(const DataMapper&, const double*, const std::complex<double>*, Index, Index, Index,
-                               std::complex<double>, Index, Index, Index, Index) =
+  const Eigen::Index accRows = quad_traits<double>::rows;
+  const Eigen::Index accCols = quad_traits<double>::size;
+  static void (*gemm_function)(const DataMapper&, const double*, const std::complex<double>*, Eigen::Index,
+                               Eigen::Index, Eigen::Index, std::complex<double>, Eigen::Index, Eigen::Index,
+                               Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemm_complexMMA<double, std::complex<double>, std::complex<double>, double,
                                                           Packet, Packetc, RhsPacket, DataMapper, accRows, accCols,
@@ -3672,8 +3685,8 @@ template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs
 void gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs>::operator()(
     const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth, Index cols,
     bfloat16 alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
-  static void (*gemm_function)(const DataMapper&, const bfloat16*, const bfloat16*, Index, Index, Index, bfloat16,
-                               Index, Index, Index, Index) =
+  static void (*gemm_function)(const DataMapper&, const bfloat16*, const bfloat16*, Eigen::Index, Eigen::Index,
+                               Eigen::Index, bfloat16, Eigen::Index, Eigen::Index, Eigen::Index, Eigen::Index) =
 #ifdef EIGEN_MATRIX_PRODUCT_MMA_ALTIVEC_H
       (supportsMMA()) ? &Eigen::internal::gemmMMAbfloat16<DataMapper> :
 #endif

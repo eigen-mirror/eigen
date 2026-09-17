@@ -306,10 +306,10 @@ struct visitor_impl<Visitor, Derived, Dynamic, /*Vectorize=*/true, /*LinearAcces
 template <typename XprType>
 class visitor_evaluator {
  public:
-  typedef evaluator<XprType> Evaluator;
-  typedef typename XprType::Scalar Scalar;
+  using Evaluator = evaluator<XprType>;
+  using Scalar = typename XprType::Scalar;
   using Packet = typename packet_traits<Scalar>::type;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
 
   static constexpr bool PacketAccess = static_cast<bool>(Evaluator::Flags & PacketAccessBit);
   static constexpr bool LinearAccess = static_cast<bool>(Evaluator::Flags & LinearAccessBit);
@@ -423,7 +423,7 @@ struct all_visitor {
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return !predux_any(pcmp_eq(p, pzero(p))); }
+  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return predux_all(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = all_predux(p); }
   EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res && (value != Scalar(0)); }
@@ -456,6 +456,10 @@ struct any_visitor {
   EIGEN_DEVICE_FUNC inline bool done() const { return res; }
   bool res = false;
 };
+template <>
+EIGEN_DEVICE_FUNC inline bool any_visitor<bool>::any_predux(const Packet& p) const {
+  return predux(p);
+}
 template <typename Scalar>
 struct functor_traits<any_visitor<Scalar>> {
   enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
@@ -467,12 +471,7 @@ struct count_visitor {
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = value != Scalar(0) ? 1 : 0; }
   EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = value != Scalar(0) ? 1 : 0; }
-  EIGEN_DEVICE_FUNC inline Index count_redux(const Packet& p) const {
-    const Packet cst_one = pset1<Packet>(Scalar(1));
-    Packet true_vals = pandnot(cst_one, pcmp_eq(p, pzero(p)));
-    Scalar num_true = predux(true_vals);
-    return static_cast<Index>(num_true);
-  }
+  EIGEN_DEVICE_FUNC inline Index count_redux(const Packet& p) const { return predux_count(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = count_redux(p); }
   EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = count_redux(p); }
   EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) {
@@ -491,8 +490,7 @@ struct functor_traits<count_visitor<Scalar>> {
   enum {
     Cost = NumTraits<Scalar>::AddCost,
     LinearAccess = true,
-    // predux is problematic for bool
-    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd && !std::is_same<Scalar, bool>::value
+    PacketAccess = packet_traits<Scalar>::HasCmp && packet_traits<Scalar>::HasAdd
   };
 };
 

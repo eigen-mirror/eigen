@@ -17,14 +17,6 @@ struct FooReturnType {
   typedef int ReturnType;
 };
 
-struct MyInterface {
-  virtual void func() = 0;
-  virtual ~MyInterface() {}
-};
-struct MyImpl : public MyInterface {
-  void func() {}
-};
-
 using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
 using Eigen::internal::arg_prod;
@@ -38,8 +30,6 @@ using Eigen::internal::contained_in_list_gf;
 // Eigen::internal::get is intentionally left fully-qualified below: test/main.h
 // does `using namespace Eigen;`, and Eigen/src/Core/StructuredBindings.h defines
 // free functions `Eigen::get` that would otherwise clash with this metafunction.
-using Eigen::internal::id_numeric;
-using Eigen::internal::id_type;
 using Eigen::internal::is_same_gf;
 using Eigen::internal::mconcat;
 using Eigen::internal::skip;
@@ -52,6 +42,13 @@ struct dummy_b {};
 struct dummy_c {};
 struct dummy_d {};
 struct dummy_e {};
+
+struct widening_sum_op {
+  template <typename A, typename B>
+  EIGEN_DEVICE_FUNC constexpr static long long run(A a, B b) {
+    return static_cast<long long>(a) + static_cast<long long>(b);
+  }
+};
 
 // dummy operation for testing apply
 template <typename A, typename B>
@@ -157,6 +154,7 @@ static void test_slice() {
   VERIFY((std::is_same<typename skip<4, tl>::type, type_list<dummy_c, dummy_c>>::value));
   VERIFY((std::is_same<typename skip<5, tl>::type, type_list<dummy_c>>::value));
   VERIFY((std::is_same<typename skip<6, tl>::type, type_list<>>::value));
+  VERIFY((std::is_same<typename skip<7, tl>::type, type_list<>>::value));
 
   VERIFY((std::is_same<typename slice<0, 3, tl>::type, typename take<3, tl>::type>::value));
   VERIFY((std::is_same<typename slice<1, 3, tl>::type, type_list<dummy_a, dummy_b, dummy_b>>::value));
@@ -181,29 +179,6 @@ static void test_get() {
   VERIFY_IS_EQUAL(((int)Eigen::internal::get<5, il>::value), 42);
 }
 
-static void test_id_helper(dummy_a a, dummy_a b, dummy_a c) {
-  (void)a;
-  (void)b;
-  (void)c;
-}
-
-template <int... ii>
-static void test_id_numeric() {
-  test_id_helper(typename id_numeric<int, ii, dummy_a>::type()...);
-}
-
-template <typename... tt>
-static void test_id_type() {
-  test_id_helper(typename id_type<tt, dummy_a>::type()...);
-}
-
-static void test_id() {
-  // don't call VERIFY here, just assume it works if it compiles
-  // (otherwise it will complain that it can't find the function)
-  test_id_numeric<1, 4, 6>();
-  test_id_type<dummy_a, dummy_b, dummy_c>();
-}
-
 static void test_is_same_gf() {
   VERIFY((!is_same_gf<dummy_a, dummy_b>::value));
   VERIFY((!!is_same_gf<dummy_a, dummy_a>::value));
@@ -217,6 +192,8 @@ static void test_apply_op() {
                          type_list<dummy_e, dummy_c, dummy_d>>::value));
   VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, tl>::type,
                          type_list<dummy_e, dummy_d, dummy_b>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_left<dummy_op, dummy_a, type_list<>>::type, type_list<>>::value));
+  VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, type_list<>>::type, type_list<>>::value));
 }
 
 static void test_contained_in_list() {
@@ -249,13 +226,30 @@ static void test_arg_reductions() {
 }
 
 static void test_array_reductions() {
-  array<int, 6> a{{4, 8, 15, 16, 23, 42}};
-  array<int, 6> b{{42, 23, 16, 15, 8, 4}};
+  array<int, 6> a{4, 8, 15, 16, 23, 42};
+  array<int, 6> b{42, 23, 16, 15, 8, 4};
+  array<unsigned char, 0> empty{};
+  array<unsigned char, 1> singleton{200};
+  array<unsigned char, 2> narrow{200, 100};
+  array<unsigned char, 3> custom{200, 100, 50};
 
   VERIFY_IS_EQUAL((array_sum(a)), 108);
   VERIFY_IS_EQUAL((array_sum(b)), 108);
   VERIFY_IS_EQUAL((array_prod(a)), 7418880);
   VERIFY_IS_EQUAL((array_prod(b)), 7418880);
+  VERIFY((std::is_same<decltype(array_sum(empty)), unsigned char>::value));
+  VERIFY((std::is_same<decltype(array_sum(singleton)), unsigned char>::value));
+  VERIFY((std::is_same<decltype(array_sum(narrow)), int>::value));
+  VERIFY((std::is_same<decltype(array_prod(narrow)), int>::value));
+  VERIFY_IS_EQUAL((array_sum(empty)), 0);
+  VERIFY_IS_EQUAL((array_prod(empty)), 1);
+  VERIFY_IS_EQUAL((array_sum(singleton)), 200);
+  VERIFY_IS_EQUAL((array_prod(singleton)), 200);
+  VERIFY_IS_EQUAL((array_sum(narrow)), 300);
+  VERIFY_IS_EQUAL((array_prod(narrow)), 20000);
+  VERIFY(
+      (std::is_same<decltype(array_reduce<widening_sum_op>(custom, static_cast<unsigned char>(0))), long long>::value));
+  VERIFY_IS_EQUAL((array_reduce<widening_sum_op>(custom, static_cast<unsigned char>(0))), 350);
 }
 
 EIGEN_DECLARE_TEST(meta) {
@@ -316,18 +310,6 @@ EIGEN_DECLARE_TEST(meta) {
     VERIFY((std::is_convertible<decltype(A * B), MatrixXf>::value));
   }
 
-#if (EIGEN_COMP_GNUC_STRICT && EIGEN_COMP_GNUC <= 990) || (EIGEN_COMP_CLANG_STRICT && EIGEN_COMP_CLANG <= 990) || \
-    (EIGEN_COMP_MSVC && EIGEN_COMP_MSVC <= 1914)
-  // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1752,
-  // a fix in the c++ standard changes std::is_convertible behavior for abstract classes.
-  // So the following tests are expected to fail with recent compilers.
-
-  STATIC_CHECK((!std::is_convertible<MyInterface, MyImpl>::value));
-  STATIC_CHECK((!std::is_convertible<MyImpl, MyInterface>::value));
-  STATIC_CHECK((std::is_convertible<MyImpl, const MyInterface&>::value));
-
-#endif
-
   {
     VERIFY((std::is_convertible<decltype(fix<3>()), int>::value));
     VERIFY((!std::is_convertible<int, decltype(fix<DynamicIndex>())>::value));
@@ -338,10 +320,17 @@ EIGEN_DECLARE_TEST(meta) {
   VERIFY((!internal::has_ReturnType<MatrixXf>::value));
   VERIFY((!internal::has_ReturnType<int>::value));
 
+  // size_at_compile_time falls back to Dynamic rather than overflowing int
+  // (46341^2 is the first square past INT_MAX).
+  STATIC_CHECK((internal::size_at_compile_time(0, Dynamic) == 0));
+  STATIC_CHECK((internal::size_at_compile_time(3, Dynamic) == Dynamic));
+  STATIC_CHECK((internal::size_at_compile_time(46340, 46340) == 46340 * 46340));
+  STATIC_CHECK((internal::size_at_compile_time(46341, 46341) == Dynamic));
+  STATIC_CHECK((internal::size_at_compile_time(1 << 16, 1 << 16) == Dynamic));
+
   CALL_SUBTEST(test_concat());
   CALL_SUBTEST(test_slice());
   CALL_SUBTEST(test_get());
-  CALL_SUBTEST(test_id());
   CALL_SUBTEST(test_is_same_gf());
   CALL_SUBTEST(test_apply_op());
   CALL_SUBTEST(test_contained_in_list());

@@ -107,19 +107,13 @@ void testVectorType(const VectorType& base) {
     // random access version
     m = VectorType::LinSpaced(size, low, high);
     VERIFY_IS_APPROX(m, n);
-    VERIFY(internal::isApprox(m(m.size() - 1), high));
-    VERIFY(size == 1 || internal::isApprox(m(0), low));
     VERIFY_IS_EQUAL(m(m.size() - 1), high);
     if (!NumTraits<Scalar>::IsInteger) CALL_SUBTEST(check_extremity_accuracy(m, low, high));
   }
 
-  VERIFY(numext::real(m(m.size() - 1)) <= numext::real(high));
   VERIFY((m.array().real() <= numext::real(high)).all());
   VERIFY((m.array().real() >= numext::real(low)).all());
-
-  VERIFY(numext::real(m(m.size() - 1)) >= numext::real(low));
   if (size >= 1) {
-    VERIFY(internal::isApprox(m(0), low));
     VERIFY_IS_EQUAL(m(0), low);
   }
 

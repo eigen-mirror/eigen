@@ -132,17 +132,17 @@ std::ostream& print_matrix(std::ostream& s, const Derived& _m, const IOFormat& f
   }
 
   typename Derived::Nested m = _m;
-  typedef typename Derived::Scalar Scalar;
-  typedef std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
-                                 std::is_same<Scalar, numext::int8_t>::value ||
-                                 std::is_same<Scalar, numext::uint8_t>::value,
-                             int,
-                             std::conditional_t<std::is_same<Scalar, std::complex<char> >::value ||
-                                                    std::is_same<Scalar, std::complex<unsigned char> >::value ||
-                                                    std::is_same<Scalar, std::complex<numext::int8_t> >::value ||
-                                                    std::is_same<Scalar, std::complex<numext::uint8_t> >::value,
-                                                std::complex<int>, const Scalar&> >
-      PrintType;
+  using Scalar = typename Derived::Scalar;
+  using PrintType =
+      std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
+                             std::is_same<Scalar, numext::int8_t>::value ||
+                             std::is_same<Scalar, numext::uint8_t>::value,
+                         int,
+                         std::conditional_t<std::is_same<Scalar, std::complex<char> >::value ||
+                                                std::is_same<Scalar, std::complex<unsigned char> >::value ||
+                                                std::is_same<Scalar, std::complex<numext::int8_t> >::value ||
+                                                std::is_same<Scalar, std::complex<numext::uint8_t> >::value,
+                                            std::complex<int>, const Scalar&> >;
 
   Index width = 0;
 

@@ -20,9 +20,9 @@ namespace Eigen {
 namespace internal {
 template <typename UnaryOp, typename XprType>
 struct traits<CwiseUnaryOp<UnaryOp, XprType> > : traits<XprType> {
-  typedef typename result_of<UnaryOp(const typename XprType::Scalar&)>::type Scalar;
-  typedef typename XprType::Nested XprTypeNested;
-  typedef std::remove_reference_t<XprTypeNested> XprTypeNested_;
+  using Scalar = typename result_of<UnaryOp(const typename XprType::Scalar&)>::type;
+  using XprTypeNested = typename XprType::Nested;
+  using XprTypeNested_ = std::remove_reference_t<XprTypeNested>;
   enum { Flags = XprTypeNested_::Flags & RowMajorBit };
 };
 }  // namespace internal
@@ -39,10 +39,11 @@ class CwiseUnaryOpImpl;
  * \tparam XprType the type of the expression to which we are applying the unary operator
  *
  * This class represents an expression where a unary operator is applied to an expression.
- * It is the return type of all operations taking exactly 1 input expression, regardless of the
- * presence of other inputs such as scalars. For example, the operator* in the expression 3*matrix
- * is considered unary, because only the right-hand side is an expression, and its
- * return type is a specialization of CwiseUnaryOp.
+ * It is the return type of coefficient-wise operations taking a single input expression, such as unary negation
+ * or MatrixBase::unaryExpr(). Operators mixing an expression and a scalar, such as the operator* in the expression
+ * 3*matrix, are binary: the scalar is nested as a CwiseNullaryOp, so the return type is a specialization of
+ * CwiseBinaryOp. A scalar carried inside the functor does not make the expression binary; ArrayBase::pow(const
+ * ScalarExponent&) stores its exponent in the functor and still returns a CwiseUnaryOp.
  *
  * Most of the time, this is the only way that it is used, so you typically don't have to name
  * CwiseUnaryOp types explicitly.
@@ -53,10 +54,10 @@ template <typename UnaryOp, typename XprType>
 class CwiseUnaryOp : public CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>,
                      internal::no_assignment_operator {
  public:
-  typedef typename CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>::Base Base;
+  using Base = typename CwiseUnaryOpImpl<UnaryOp, XprType, typename internal::traits<XprType>::StorageKind>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseUnaryOp)
-  typedef typename internal::ref_selector<XprType>::type XprTypeNested;
-  typedef internal::remove_all_t<XprType> NestedExpression;
+  using XprTypeNested = typename internal::ref_selector<XprType>::type;
+  using NestedExpression = internal::remove_all_t<XprType>;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit CwiseUnaryOp(const XprType& xpr,
                                                                         const UnaryOp& func = UnaryOp())
@@ -88,7 +89,7 @@ class CwiseUnaryOp : public CwiseUnaryOpImpl<UnaryOp, XprType, typename internal
 template <typename UnaryOp, typename XprType, typename StorageKind>
 class CwiseUnaryOpImpl : public internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType> >::type {
  public:
-  typedef typename internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType> >::type Base;
+  using Base = typename internal::generic_xpr_base<CwiseUnaryOp<UnaryOp, XprType>>::type;
 };
 
 }  // end namespace Eigen

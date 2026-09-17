@@ -14,15 +14,15 @@ ei_set_build_string()
 add_custom_target(buildtests)
 
 # buildsmoketests is created up-front so that ei_add_test_internal — which
-# runs from inside test/ and unsupported/test/ — can attach the smoketest
+# runs from inside test/ and contrib/test/ — can attach the smoketest
 # label and the build dependency in the same directory scope where add_test()
 # was called.  CMake's set_property(TEST ...) and add_dependencies require
 # this scope match, so a single post-hoc registration from the top level
-# would silently fail for unsupported entries.
+# would silently fail for contrib entries.
 add_custom_target(buildsmoketests)
 
 # Load the smoke-test list once.  ei_smoke_test_list is then visible to both
-# test/ and unsupported/test/ as a parent-scope variable, and ei_add_test_internal
+# test/ and contrib/test/ as a parent-scope variable, and ei_add_test_internal
 # checks it on every test it registers.
 include(EigenSmokeTestList)
 
@@ -43,9 +43,6 @@ add_custom_target(check_gpu COMMAND "ctest" ${EIGEN_CTEST_ARGS}
                                             "-T" "test"
                                             "-L" "gpu")
 add_dependencies(check_gpu buildtests_gpu)
-
-# check whether /bin/bash exists (disabled as not used anymore)
-# find_file(EIGEN_BIN_BASH_EXISTS "/bin/bash" PATHS "/" NO_DEFAULT_PATH)
 
 # This call activates testing and generates the DartConfiguration.tcl
 include(CTest)
@@ -87,4 +84,3 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 elseif(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS /D_SCL_SECURE_NO_WARNINGS")
 endif()
-

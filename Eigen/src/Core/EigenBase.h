@@ -41,10 +41,10 @@ struct EigenBase {
    * Deprecation is not marked with a doxygen comment because there are too many existing usages to add the deprecation
    * attribute.
    */
-  typedef Eigen::Index Index;
+  using Index = Eigen::Index;
 
   // FIXME is it needed?
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
 
   /** \returns a reference to the derived object */
   EIGEN_DEVICE_FUNC constexpr Derived& derived() { return *static_cast<Derived*>(this); }

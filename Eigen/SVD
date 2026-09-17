@@ -41,7 +41,7 @@
 #elif defined(EIGEN_LAPACKE_SYSTEM)
 #include <lapacke.h>
 #else
-#include "src/misc/lapacke.h"
+#include "src/LAPACKESupport/lapacke.h"
 #endif
 #ifndef EIGEN_USE_LAPACKE_STRICT
 #include "src/SVD/JacobiSVD_LAPACKE.h"

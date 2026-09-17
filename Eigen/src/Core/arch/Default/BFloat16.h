@@ -59,7 +59,7 @@ limitations under the License.
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psqrt)                     \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, ptanh)
 
-// BF16 wrappers for unsupported/SpecialFunctions.
+// BF16 wrappers for contrib/SpecialFunctions.
 #define EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16(PACKET_F, PACKET_BF16) \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, perf)                 \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pndtri)
@@ -139,7 +139,7 @@ struct bfloat16_base : public __bfloat16_raw {
 
 // Class definition.
 struct bfloat16 : public bfloat16_impl::bfloat16_base {
-  typedef bfloat16_impl::__bfloat16_raw __bfloat16_raw;
+  using __bfloat16_raw = bfloat16_impl::__bfloat16_raw;
 
   EIGEN_DEVICE_FUNC EIGEN_CONSTEXPR bfloat16() {}
 
@@ -331,6 +331,15 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator-(const bfloat16& a) {
   numext::uint16_t x = numext::bit_cast<uint16_t>(a) ^ 0x8000;
   return numext::bit_cast<bfloat16>(x);
 }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t bfloat16_map_to_signed(numext::uint16_t bits) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  return (bits >> 15) ? -(bits & kAbsMask) : bits;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_is_ordered(numext::uint16_t a, numext::uint16_t b) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  constexpr numext::uint16_t kInf = 0x7f80;
+  return numext::maxi(a & kAbsMask, b & kAbsMask) <= kInf;
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16& operator+=(bfloat16& a, const bfloat16& b) {
   a = bfloat16(float(a) + float(b));
   return a;
@@ -365,23 +374,38 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator--(bfloat16& a, int) {
   --a;
   return original_value;
 }
+// Evaluate both predicates to keep comparison loops branch-free. Integer operands avoid Clang's
+// -Wbitwise-instead-of-logical warning.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const bfloat16& a, const bfloat16& b) {
-  return numext::equal_strict(float(a), float(b));
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) == bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) {
-  return numext::not_equal_strict(float(a), float(b));
-}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) { return !(a == b); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const bfloat16& a, const bfloat16& b) {
-  return float(a) < float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) < bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const bfloat16& a, const bfloat16& b) {
-  return float(a) <= float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) <= bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const bfloat16& a, const bfloat16& b) {
-  return float(a) > float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) > bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const bfloat16& a, const bfloat16& b) {
-  return float(a) >= float(b);
+  const numext::uint16_t a_bits = numext::bit_cast<numext::uint16_t>(a);
+  const numext::uint16_t b_bits = numext::bit_cast<numext::uint16_t>(b);
+  return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) >= bfloat16_map_to_signed(b_bits)) &
+         static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_CUDACC)
@@ -632,23 +656,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float bfloat16_to_float(__bfloat16_raw h) 
 // --- standard functions ---
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const bfloat16& a) {
-  EIGEN_USING_STD(isinf);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isinf)(a);  // Uses HIP hip_bfloat16 isinf operator
-#else
-  return (isinf)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) == 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const bfloat16& a) {
-  EIGEN_USING_STD(isnan);
-#if defined(EIGEN_USE_HIP_BF16)
-  return (isnan)(a);  // Uses HIP hip_bfloat16 isnan operator
-#else
-  return (isnan)(float(a));
-#endif
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) > 0x7f80;
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isfinite)(const bfloat16& a) {
-  return !(isinf EIGEN_NOT_A_MACRO(a)) && !(isnan EIGEN_NOT_A_MACRO(a));
+  return (raw_bfloat16_as_uint16(a) & 0x7fff) < 0x7f80;
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 abs(const bfloat16& a) {
@@ -658,6 +672,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 abs(const bfloat16& a) {
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exp(const bfloat16& a) { return bfloat16(::expf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exp2(const bfloat16& a) { return bfloat16(::exp2f(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 expm1(const bfloat16& a) { return bfloat16(numext::expm1(float(a))); }
+// float covers the bfloat16 range, so the single conversion back rounds correctly.
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ldexp(const bfloat16& a, int exponent) {
+  return bfloat16(numext::ldexp(float(a), exponent));
+}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log(const bfloat16& a) { return bfloat16(::logf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log1p(const bfloat16& a) { return bfloat16(numext::log1p(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log10(const bfloat16& a) { return bfloat16(::log10f(float(a))); }
@@ -684,13 +702,27 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 tanh(const bfloat16& a) { return 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 asinh(const bfloat16& a) { return bfloat16(::asinhf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 acosh(const bfloat16& a) { return bfloat16(::acoshf(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 atanh(const bfloat16& a) { return bfloat16(::atanhf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) { return bfloat16(::floorf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) { return bfloat16(::ceilf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) { return bfloat16(::rintf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) { return bfloat16(::roundf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) { return bfloat16(::truncf(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 exact_float_to_bfloat16(float f) {
+  return raw_uint16_to_bfloat16(static_cast<numext::uint16_t>(numext::bit_cast<numext::uint32_t>(f) >> 16));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 floor(const bfloat16& a) {
+  return exact_float_to_bfloat16(::floorf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ceil(const bfloat16& a) {
+  return exact_float_to_bfloat16(::ceilf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 rint(const bfloat16& a) {
+  return exact_float_to_bfloat16(::rintf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 round(const bfloat16& a) {
+  return exact_float_to_bfloat16(::roundf(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 trunc(const bfloat16& a) {
+  return exact_float_to_bfloat16(::truncf(float(a)));
+}
+// fmod is exact: a - n*b is either a itself or a multiple of the ulp of b that is smaller than |b|.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmod(const bfloat16& a, const bfloat16& b) {
-  return bfloat16(::fmodf(float(a), float(b)));
+  return exact_float_to_bfloat16(::fmodf(float(a), float(b)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16(min)(const bfloat16& a, const bfloat16& b) {
@@ -708,13 +740,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16(max)(const bfloat16& a, const bfl
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmin(const bfloat16& a, const bfloat16& b) {
   const float f1 = static_cast<float>(a);
   const float f2 = static_cast<float>(b);
-  return bfloat16(::fminf(f1, f2));
+  return exact_float_to_bfloat16(::fminf(f1, f2));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmax(const bfloat16& a, const bfloat16& b) {
   const float f1 = static_cast<float>(a);
   const float f2 = static_cast<float>(b);
-  return bfloat16(::fmaxf(f1, f2));
+  return exact_float_to_bfloat16(::fmaxf(f1, f2));
 }
 
 EIGEN_DEVICE_FUNC inline bfloat16 fma(const bfloat16& a, const bfloat16& b, const bfloat16& c) {
@@ -746,7 +778,7 @@ struct random_impl<bfloat16> {
   }
   static EIGEN_DEVICE_FUNC inline bfloat16 run() {
     float result = Impl::run(MantissaBits);
-    return bfloat16(result);
+    return bfloat16_impl::exact_float_to_bfloat16(result);
   }
 };
 
@@ -822,13 +854,13 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 nextafter(const bfloat16& from, c
   }
   uint16_t from_bits = numext::bit_cast<uint16_t>(from);
   bool from_sign = from_bits >> 15;
-  // Whether we are adjusting toward the infinity with the same sign as from.
-  bool toward_inf = (to > from) == !from_sign;
-  if (toward_inf) {
+  if ((from_bits & 0x7fff) == 0) {
+    // From ±0 toward a nonzero value: the neighbor is the smallest subnormal
+    // carrying the sign of the direction (IEEE-754 nextUp/nextDown of zero).
+    from_bits = (to > from) ? uint16_t(0x0001) : uint16_t(0x8001);
+  } else if ((to > from) != from_sign) {
+    // Toward the infinity with the same sign as from: increase the magnitude.
     ++from_bits;
-  } else if ((from_bits & 0x7fff) == 0) {
-    // Adjusting away from inf, but from is zero, so just toggle the sign.
-    from_bits ^= 0x8000;
   } else {
     --from_bits;
   }

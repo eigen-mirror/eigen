@@ -31,10 +31,12 @@ foreach(target IN LISTS EIGEN_BLAS_TARGETS)
   endif()
 
   add_dependencies(blas ${target})
-  install(TARGETS ${target}
-          RUNTIME DESTINATION bin
-          LIBRARY DESTINATION lib
-          ARCHIVE DESTINATION lib)
+  if(EIGEN_INSTALL)
+    install(TARGETS ${target}
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib)
+  endif()
 endforeach()
 
 if(EIGEN_BUILD_TESTING)

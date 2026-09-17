@@ -132,7 +132,7 @@ EIGEN_STRONG_INLINE Packet4f preinterpret<Packet4f, Packet4i>(const Packet4i& a)
 #ifdef EIGEN_VECTORIZE_VSX
 template <>
 inline Packet2l pcast<Packet2d, Packet2l>(const Packet2d& x) {
-  EIGEN_ALIGN_MAX double dtmp[2];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2d>::alignment) double dtmp[2];
   pstore(dtmp, x);
   EIGEN_ALIGN_MAX long long itmp[2] = {static_cast<long long>(dtmp[0]), static_cast<long long>(dtmp[1])};
   return vec_xl(0, itmp);
@@ -142,7 +142,8 @@ template <>
 inline Packet2d pcast<Packet2l, Packet2d>(const Packet2l& x) {
   EIGEN_ALIGN_MAX long long itmp[2];
   vec_xst(x, 0, itmp);
-  EIGEN_ALIGN_MAX double dtmp[2] = {static_cast<double>(itmp[0]), static_cast<double>(itmp[1])};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet2d>::alignment)
+  double dtmp[2] = {static_cast<double>(itmp[0]), static_cast<double>(itmp[1])};
   return pload<Packet2d>(dtmp);
 }
 #endif

@@ -443,7 +443,7 @@ class SuperLUBase : public SparseSolverBase<Derived> {
  *
  * \tparam MatrixType_ the type of the sparse matrix A, it must be a SparseMatrix<>
  *
- * \warning This class is only for the 4.x versions of SuperLU. The 3.x and 5.x versions are not supported.
+ * \warning This class requires at least version 4.0 of SuperLU. The 3.x versions are not supported.
  *
  * \implsparsesolverconcept
  *
@@ -578,8 +578,8 @@ void SuperLU<MatrixType>::factorize(const MatrixType &a) {
 
   StatInit(&m_sluStat);
   SuperLU_gssvx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &ferr, &berr,
-                &m_sluStat, &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &ferr,
+                &berr, &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   m_extractedDataAreDirty = true;
@@ -622,7 +622,7 @@ void SuperLU<MatrixType>::_solve_impl(const MatrixBase<Rhs> &b, MatrixBase<Dest>
   int info = 0;
   RealScalar recip_pivot_growth, rcond;
   SuperLU_gssvx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
                 &m_sluFerr[0], &m_sluBerr[0], &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
@@ -753,7 +753,7 @@ typename SuperLU<MatrixType>::Scalar SuperLU<MatrixType>::determinant() const {
  * factorization using the SuperLU library. This class is aimed to be used as a preconditioner of the iterative linear
  * solvers.
  *
- * \warning This class is only for the 4.x versions of SuperLU. The 3.x and 5.x versions are not supported.
+ * \warning This class requires at least version 4.0 of SuperLU. The 3.x versions are not supported.
  *
  * \tparam MatrixType_ the type of the sparse matrix A, it must be a SparseMatrix<>
  *
@@ -866,8 +866,8 @@ void SuperILU<MatrixType>::factorize(const MatrixType &a) {
 
   StatInit(&m_sluStat);
   SuperLU_gsisx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &m_sluStat,
-                &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   // FIXME: implement more detailed error checking based on SuperLU info codes.
@@ -910,8 +910,8 @@ void SuperILU<MatrixType>::_solve_impl(const MatrixBase<Rhs> &b, MatrixBase<Dest
 
   StatInit(&m_sluStat);
   SuperLU_gsisx(&m_sluOptions, &m_sluA, m_q.data(), m_p.data(), &m_sluEtree[0], &m_sluEqued, &m_sluRscale[0],
-                &m_sluCscale[0], &m_sluL, &m_sluU, NULL, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond, &m_sluStat,
-                &info, Scalar());
+                &m_sluCscale[0], &m_sluL, &m_sluU, nullptr, 0, &m_sluB, &m_sluX, &recip_pivot_growth, &rcond,
+                &m_sluStat, &info, Scalar());
   StatFree(&m_sluStat);
 
   if (x.derived().data() != x_ref.data()) x = x_ref;

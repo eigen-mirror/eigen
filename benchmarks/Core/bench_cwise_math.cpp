@@ -7,7 +7,7 @@
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Core>
-#include <unsupported/Eigen/SpecialFunctions>
+#include <contrib/Eigen/SpecialFunctions>
 
 using namespace Eigen;
 
@@ -58,7 +58,31 @@ BENCH_CWISE_UNARY(Asinh, a.asinh(), -5, 5)
 BENCH_CWISE_UNARY(Acosh, a.acosh(), 1.01, 10)
 BENCH_CWISE_UNARY(Atanh, a.atanh(), -0.99, 0.99)
 BENCH_CWISE_UNARY(Log10, a.log10(), 0.01, 100)
-BENCH_CWISE_UNARY(Erf, Eigen::erf(a), -4, 4)
+
+// mode: 0 = ordinary inputs, 1 = subnormal inputs, 2 = one subnormal per 64 coefficients.
+template <typename Scalar>
+static void BM_Erf(benchmark::State& state) {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr Bits sign = Bits(1) << (8 * sizeof(Scalar) - 1);
+  constexpr Bits minNormal = Bits(1) << (std::numeric_limits<Scalar>::digits - 1);
+  const Index n = state.range(0);
+  const int mode = int(state.range(1));
+  Array<Scalar, Dynamic, 1> a(n), b(n);
+  for (Index i = 0; i < n; ++i) {
+    a(i) = Scalar(double(i % 257 - 128) / 32.0);
+    if (mode == 1 || (mode == 2 && i % 64 == 0)) {
+      const Bits magnitude = Bits(1 + (Bits(i) * 37) % (minNormal - 1));
+      a(i) = numext::bit_cast<Scalar>(Bits(magnitude | (i % 2 ? sign : Bits(0))));
+    }
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    b = Eigen::erf(a);
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
+}
 
 // Simple operations (should be very fast / memory-bound)
 BENCH_CWISE_UNARY(Abs, a.abs(), -100, 100)
@@ -72,6 +96,25 @@ BENCH_CWISE_UNARY(Trunc, a.trunc(), -100, 100)
 
 // Sigmoid: 1 / (1 + exp(-x)), common in ML.
 BENCH_CWISE_UNARY(Sigmoid, Scalar(1) / (Scalar(1) + (-a).exp()), -10, 10)
+
+// Macro for real binary benchmarks (e.g. coefficient-wise min/max).
+#define BENCH_CWISE_BINARY(NAME, EXPR, LO, HI)                                                   \
+  template <typename Scalar>                                                                     \
+  static void BM_##NAME(benchmark::State& state) {                                               \
+    const Index n = state.range(0);                                                              \
+    using Arr = Array<Scalar, Dynamic, 1>;                                                       \
+    Arr a = (Arr::Random(n) + Scalar(1)) * Scalar((double(HI) - double(LO)) / 2.0) + Scalar(LO); \
+    Arr b = (Arr::Random(n) + Scalar(1)) * Scalar((double(HI) - double(LO)) / 2.0) + Scalar(LO); \
+    Arr c(n);                                                                                    \
+    for (auto _ : state) {                                                                       \
+      c = EXPR;                                                                                  \
+      benchmark::DoNotOptimize(c.data());                                                        \
+    }                                                                                            \
+    state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 3);                        \
+  }
+
+BENCH_CWISE_BINARY(Min, a.min(b), -100, 100)
+BENCH_CWISE_BINARY(Max, a.max(b), -100, 100)
 
 // Power: array^scalar
 template <typename Scalar>
@@ -163,7 +206,10 @@ BENCHMARK(BM_Asinh<float>) CWISE_SIZES ->Name("Asinh_float");
 BENCHMARK(BM_Acosh<float>) CWISE_SIZES ->Name("Acosh_float");
 BENCHMARK(BM_Atanh<float>) CWISE_SIZES ->Name("Atanh_float");
 BENCHMARK(BM_Log10<float>) CWISE_SIZES ->Name("Log10_float");
-BENCHMARK(BM_Erf<float>) CWISE_SIZES ->Name("Erf_float");
+BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_float");
+BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
 BENCHMARK(BM_Square<float>) CWISE_SIZES ->Name("Square_float");
 BENCHMARK(BM_Cube<float>) CWISE_SIZES ->Name("Cube_float");
@@ -174,6 +220,8 @@ BENCHMARK(BM_Rint<float>) CWISE_SIZES ->Name("Rint_float");
 BENCHMARK(BM_Trunc<float>) CWISE_SIZES ->Name("Trunc_float");
 BENCHMARK(BM_Sigmoid<float>) CWISE_SIZES ->Name("Sigmoid_float");
 BENCHMARK(BM_Pow<float>) CWISE_SIZES ->Name("Pow_float");
+BENCHMARK(BM_Min<float>) CWISE_SIZES ->Name("Min_float");
+BENCHMARK(BM_Max<float>) CWISE_SIZES ->Name("Max_float");
 
 // --- Register double ---
 BENCHMARK(BM_Exp<double>) CWISE_SIZES ->Name("Exp_double");
@@ -198,7 +246,8 @@ BENCHMARK(BM_Asinh<double>) CWISE_SIZES ->Name("Asinh_double");
 BENCHMARK(BM_Acosh<double>) CWISE_SIZES ->Name("Acosh_double");
 BENCHMARK(BM_Atanh<double>) CWISE_SIZES ->Name("Atanh_double");
 BENCHMARK(BM_Log10<double>) CWISE_SIZES ->Name("Log10_double");
-BENCHMARK(BM_Erf<double>) CWISE_SIZES ->Name("Erf_double");
+BENCHMARK(BM_Erf<double>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Erf_double");
 BENCHMARK(BM_Abs<double>) CWISE_SIZES ->Name("Abs_double");
 BENCHMARK(BM_Square<double>) CWISE_SIZES ->Name("Square_double");
 BENCHMARK(BM_Cube<double>) CWISE_SIZES ->Name("Cube_double");
@@ -209,6 +258,8 @@ BENCHMARK(BM_Rint<double>) CWISE_SIZES ->Name("Rint_double");
 BENCHMARK(BM_Trunc<double>) CWISE_SIZES ->Name("Trunc_double");
 BENCHMARK(BM_Sigmoid<double>) CWISE_SIZES ->Name("Sigmoid_double");
 BENCHMARK(BM_Pow<double>) CWISE_SIZES ->Name("Pow_double");
+BENCHMARK(BM_Min<double>) CWISE_SIZES ->Name("Min_double");
+BENCHMARK(BM_Max<double>) CWISE_SIZES ->Name("Max_double");
 
 // --- Register complex<float> ---
 BENCHMARK(BM_Exp_complex<float>) CWISE_SIZES ->Name("Exp_complexf");

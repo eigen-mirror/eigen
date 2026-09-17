@@ -66,7 +66,7 @@ struct linspaced_op_impl;
 
 template <typename Scalar>
 struct linspaced_op_impl<Scalar, /*IsInteger*/ false> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_DEVICE_FUNC constexpr linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
       : m_low(low),
@@ -207,38 +207,6 @@ struct functor_traits<equalspaced_op<Scalar>> {
 // Users should not have to deal with this structure.
 template <typename Functor>
 using functor_has_linear_access = bool_constant<!has_binary_operator<Functor>::value>;
-
-// For unreliable compilers, let's specialize the has_*ary_operator
-// helpers so that at least built-in nullary functors work fine.
-#if !(EIGEN_COMP_MSVC || EIGEN_COMP_GNUC || EIGEN_COMP_ICC)
-template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_constant_op<Scalar>, IndexType> : std::true_type {};
-template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_constant_op<Scalar>, IndexType> : std::false_type {};
-template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_constant_op<Scalar>, IndexType> : std::false_type {};
-
-template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_identity_op<Scalar>, IndexType> : std::false_type {};
-template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_identity_op<Scalar>, IndexType> : std::false_type {};
-template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_identity_op<Scalar>, IndexType> : std::true_type {};
-
-template <typename Scalar, typename IndexType>
-struct has_nullary_operator<linspaced_op<Scalar>, IndexType> : std::false_type {};
-template <typename Scalar, typename IndexType>
-struct has_unary_operator<linspaced_op<Scalar>, IndexType> : std::true_type {};
-template <typename Scalar, typename IndexType>
-struct has_binary_operator<linspaced_op<Scalar>, IndexType> : std::false_type {};
-
-template <typename Scalar, typename IndexType>
-struct has_nullary_operator<scalar_random_op<Scalar>, IndexType> : std::true_type {};
-template <typename Scalar, typename IndexType>
-struct has_unary_operator<scalar_random_op<Scalar>, IndexType> : std::false_type {};
-template <typename Scalar, typename IndexType>
-struct has_binary_operator<scalar_random_op<Scalar>, IndexType> : std::false_type {};
-#endif
 
 }  // end namespace internal
 

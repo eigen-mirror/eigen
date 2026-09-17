@@ -227,6 +227,23 @@ void initializerListMatrixConstruction() {
     }
     VERIFY_IS_EQUAL(m, m2);
   }
+  // Test braced-init-list assignment.
+  {
+    Matrix<Scalar, 4, 1> m;
+    m = {Scalar(11), Scalar(12), Scalar(13), Scalar(14)};
+    VERIFY_IS_EQUAL(m(0), Scalar(11));
+    VERIFY_IS_EQUAL(m(1), Scalar(12));
+    VERIFY_IS_EQUAL(m(2), Scalar(13));
+    VERIFY_IS_EQUAL(m(3), Scalar(14));
+  }
+  {
+    Matrix<Scalar, 1, 4> m;
+    m = {Scalar(11), Scalar(12), Scalar(13), Scalar(14)};
+    VERIFY_IS_EQUAL(m(0), Scalar(11));
+    VERIFY_IS_EQUAL(m(1), Scalar(12));
+    VERIFY_IS_EQUAL(m(2), Scalar(13));
+    VERIFY_IS_EQUAL(m(3), Scalar(14));
+  }
 }
 
 template <typename Scalar>
@@ -290,6 +307,23 @@ void initializerListArrayConstruction() {
       }
     }
     VERIFY_IS_APPROX(m, m2);
+  }
+  // Test braced-init-list assignment.
+  {
+    Array<Scalar, 4, 1> a;
+    a = {Scalar(11), Scalar(12), Scalar(13), Scalar(14)};
+    VERIFY_IS_EQUAL(a(0), Scalar(11));
+    VERIFY_IS_EQUAL(a(1), Scalar(12));
+    VERIFY_IS_EQUAL(a(2), Scalar(13));
+    VERIFY_IS_EQUAL(a(3), Scalar(14));
+  }
+  {
+    Array<Scalar, 1, 4> a;
+    a = {Scalar(11), Scalar(12), Scalar(13), Scalar(14)};
+    VERIFY_IS_EQUAL(a(0), Scalar(11));
+    VERIFY_IS_EQUAL(a(1), Scalar(12));
+    VERIFY_IS_EQUAL(a(2), Scalar(13));
+    VERIFY_IS_EQUAL(a(3), Scalar(14));
   }
 }
 

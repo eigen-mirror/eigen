@@ -12,7 +12,7 @@
 #define EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
 #include "sparse_solver.h"
 #include <Eigen/PaStiXSupport>
-#include <unsupported/Eigen/SparseExtra>
+#include <contrib/Eigen/SparseExtra>
 
 template <typename T>
 void test_pastix_T() {

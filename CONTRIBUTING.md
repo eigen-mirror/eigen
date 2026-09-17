@@ -2,7 +2,9 @@
 
 Eigen is written and maintained by volunteers. Contributions — code, documentation, bug triage, tests on uncommon platforms, design feedback — are all welcome.
 
-This document is the human-facing on-ramp. For the deeper "how this codebase actually works" reference (architecture, expression templates, SIMD layer, GPU stories, pitfalls), see [`AGENTS.md`](AGENTS.md); it's written for AI coding agents but is also the most up-to-date single-file overview of the repo.
+This document is the human-facing on-ramp. [`AGENTS.md`](AGENTS.md) is the AI-facing repository contract and routes
+readers to focused guides for testing, numerical work, performance, SIMD/GPU, Tensor/ThreadPool, and CI. Those guides
+are also useful to human contributors working in the corresponding areas.
 
 ## Where Eigen lives
 
@@ -10,7 +12,8 @@ This document is the human-facing on-ramp. For the deeper "how this codebase act
 - **Issue tracker:** <https://gitlab.com/libeigen/eigen/-/issues>
 - **CI pipelines:** <https://gitlab.com/libeigen/eigen/-/pipelines>
 - **API documentation (nightly):** <https://libeigen.gitlab.io/eigen/docs-nightly>
-- **Project site:** <https://libeigen.gitlab.io> (note: some pages predate current practice — when in doubt, prefer `AGENTS.md` and this file)
+- **Project site:** <https://libeigen.gitlab.io> (note: some pages predate current practice — when in doubt, prefer
+  this file and the guide map in `AGENTS.md`)
 - **Chat:** [Discord](https://discord.com/channels/777904510169382942/777904791136370758) — the primary support and discussion channel.
 
 ## Ways to contribute
@@ -54,32 +57,38 @@ cmake -S . -B build -G Ninja
 cmake --build build --target buildtests        # build all unit tests
 cmake --build build --target check             # build + run all tests
 cmake --build build --target buildsmoketests   # the smoke set CI gates MRs on
-ctest --test-dir build --parallel --output-on-failure
+ctest --test-dir build --parallel --output-on-failure --no-tests=error
 ```
 
-Other useful targets: `BuildOfficial` (just `test/`), `BuildUnsupported` (just `unsupported/test/`), `buildtests_gpu`, `check_gpu`. Once configured, the build dir also exposes `./buildtests.sh <regex>` and `./check.sh <regex>` for narrowing by test-name regex.
+Other useful targets: `BuildOfficial` (just `test/`), `BuildContrib` (just `contrib/test/`), `buildtests_gpu`, `check_gpu`. Once configured, the build dir also exposes `./buildtests.sh <regex>` and `./check.sh <regex>` for narrowing by test-name regex.
 
-Full reference for CMake options (per-ISA test flags, GPU/SYCL toggles, external BLAS/LAPACK, etc.), the test-split mechanism, and the `VERIFY_*` macro family lives in [`AGENTS.md`](AGENTS.md) § "Build / test".
+For focused build recipes, test registration, split-test mechanics, and assertion guidance, see
+[`.agents/testing.md`](.agents/testing.md). Packet and accelerator validation is covered by
+[`.agents/simd-gpu.md`](.agents/simd-gpu.md). The checked-out CMake files remain authoritative for current options.
 
 > **In-flight migration:** [MR 2159](https://gitlab.com/libeigen/eigen/-/merge_requests/2159) is migrating the test framework from Eigen's own `EIGEN_DECLARE_TEST` / `CALL_SUBTEST_N` macros to Google Test. Until it lands, write new tests with the existing framework (`test/main.h`, `VERIFY_*`, `EIGEN_DECLARE_TEST`, `ei_add_test` in the matching `CMakeLists.txt`).
->
-> **In-flight rename:** [MR 2522](https://gitlab.com/libeigen/eigen/-/merge_requests/2522) renames the top-level `unsupported/` directory to `contrib/`. Paths in this document follow master (still `unsupported/`); substitute `contrib/` mechanically once it lands.
 
 ## Tests and benchmarks
 
 - **Every new feature lands with tests.** Bug fixes should add a regression test that fails before the fix and passes after.
-- **Performance-sensitive changes land with a benchmark** under `benchmarks/` or `unsupported/benchmarks/`. Don't defer benchmarks to a follow-up MR.
+- **Performance-sensitive changes land with a benchmark** under `benchmarks/` or `contrib/benchmarks/`. Don't defer benchmarks to a follow-up MR.
 - **Cover numerical corner cases**, not just typical inputs: ±0, ±∞, NaN, subnormals, domain boundaries, near-overflow / underflow values. Decomposition and solver tests should exercise ill-conditioned and structured matrices (Hilbert, Vandermonde, rank-deficient, near-singular, Jordan blocks, …). The bar is matching LAPACK on conditioning, pivoting strategy, and backward stability. Standard references: Higham's *Accuracy and Stability of Numerical Algorithms* / *Functions of Matrices*, Golub & van Loan's *Matrix Computations*.
-- **New SIMD intrinsics need a `test/packetmath.cpp` entry** (or `unsupported/test/special_packetmath.cpp` for special functions), and a specialization in every architecture backend that supports the type. `Eigen/src/Core/arch/Default/` holds generic SIMD implementations shared across backends; scalar fallbacks live in `Eigen/src/Core/GenericPacketMath.h` and `Eigen/src/Core/MathFunctions.h`.
+- **New SIMD intrinsics need a `test/packetmath.cpp` entry** (or `contrib/test/special_packetmath.cpp` for special functions), and a specialization in every architecture backend that supports the type. `Eigen/src/Core/arch/Default/` holds generic SIMD implementations shared across backends; scalar fallbacks live in `Eigen/src/Core/GenericPacketMath.h` and `Eigen/src/Core/MathFunctions.h`.
 - **Benchmarking discipline.** Benchmarks on a loaded system are meaningless. Before running one: check `uptime` shows a low load average, finish or cancel background builds, and never run two benchmark binaries in the same shell invocation (parallel or chained with `&&`). Run each in its own shell, take medians within a binary, and optionally alternate (A, B, A, B) across separate invocations to detect drift.
 
 ## Coding standards
 
-Eigen has a few hard rules that catch contributors most often. The full discussion is in [`AGENTS.md`](AGENTS.md) § "Agent guidelines (read first)"; the short version:
+Eigen has a few hard rules that catch contributors most often. The repository-wide rules are in
+[`AGENTS.md`](AGENTS.md#non-negotiable-rules), which also routes to task-specific guidance. The short version:
 
-1. **Header-only contract.** Never `#include` anything under `Eigen/src/...` or `unsupported/Eigen/src/...` — `InternalHeaderCheck.h` makes that a hard compile error. User code reaches implementation only through the umbrella headers (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …).
+1. **Header-only contract.** Never `#include` anything under `Eigen/src/...` or `contrib/Eigen/src/...` — `InternalHeaderCheck.h` makes that a hard compile error. User code reaches implementation only through the umbrella headers (`Eigen/Core`, `Eigen/Dense`, `Eigen/SVD`, …).
 2. **Preserve `EIGEN_DEVICE_FUNC`** on coefficient-level methods. Dropping it silently breaks CUDA / HIP / SYCL builds and rarely shows up in local testing.
-3. **Format with `clang-format-17` exactly** — Google base, 120 columns, configured in `.clang-format`. Newer or older `clang-format` will diff against CI. Run `scripts/format.sh` (whole tree) or `clang-format-17 -i <file>` (one file) before pushing. Format failures are the single most common reason an MR is red.
+3. **Format with `clang-format-17` exactly** — Google base, 120 columns, configured in `.clang-format`. Newer or older
+   `clang-format` will diff against CI. CI checks changed lines (`git clang-format --diff --commit <base>`), and the
+   tree is not uniformly clang-format-17 clean. Inspect the selected files' diffs to exclude unrelated changes, then
+   run `git clang-format --binary clang-format-17 --force <base-sha> -- <files>`; `--force` permits unstaged edits.
+   Format new, untracked files with `clang-format-17 -i <files>` because Git's diff omits them. Follow the checks in
+   [`.agents/ci.md`](.agents/ci.md). `scripts/format.sh` is for an intentional whole-tree pass.
 4. **Don't apply general C++ "modernize" cleanups.** No `modernize-*` / `cppcoreguidelines-*` clang-tidy fixes, no replacing `EIGEN_STRONG_INLINE` with `inline`, no reordering includes (`.clang-format` has `SortIncludes: false`). Eigen's conventions are encoded in `.clang-format`'s `StatementMacros` and `AttributeMacros` lists — don't "fix" their indentation.
 5. **Tests use `test/main.h`, not gtest** (today — see migration note above). `VERIFY_*` assertions, `CALL_SUBTEST_N` / `EIGEN_TEST_PART_N` for splitting, `EIGEN_DECLARE_TEST(<name>) { ... }` as the entry point.
 6. **`auto` traps.** `auto x = A + B;` captures a lazy expression holding references that can dangle. Use `.eval()` or an explicit type. Similarly, `.noalias()` is a promise from the caller — only use it when the destination doesn't appear on the right side (so `mat.noalias() = mat * mat` is **wrong**).
@@ -90,9 +99,12 @@ Naming conventions:
 - Methods: camelCase (`coeffRef`, `applyOnTheLeft`).
 - Macros and compile-time constants: `EIGEN_UPPER_CASE` (`EIGEN_DEVICE_FUNC`, `EIGEN_STRONG_INLINE`).
 - Internal implementation lives in the `Eigen::internal` namespace; public API stays in `Eigen::` or module namespaces.
-- Use `eigen_assert(cond)` for runtime preconditions (not raw `assert`); `EIGEN_STATIC_ASSERT(cond, MSG_TOKEN)` for compile-time conditions; `eigen_internal_assert` for internal-only invariants gated on `EIGEN_INTERNAL_DEBUGGING`.
+- Use `eigen_assert(cond)` for runtime preconditions (not raw `assert`) and `eigen_internal_assert` for internal-only
+  invariants gated on `EIGEN_INTERNAL_DEBUGGING`. Compile-time API preconditions use the appropriate
+  `EIGEN_STATIC_ASSERT_*` helper or `EIGEN_STATIC_ASSERT(cond, MSG_TOKEN)` to honor `EIGEN_NO_STATIC_ASSERT` and user
+  overrides. Use `static_assert(cond, "message")` for unconditional implementation invariants.
 
-The canonical class layout is visible in recent additions such as `unsupported/Eigen/src/GPU/DeviceMatrix.h`. Template parameters that get re-exported as public aliases carry a trailing underscore (`template <typename Scalar_, ...>` paired with `using Scalar = Scalar_;` — prefer `using` over `typedef` in new code), member variables use an `m_` prefix (`m_matrix`, `m_isInitialized`), implementation headers under `Eigen/src/...` begin with `// IWYU pragma: private` and `#include "./InternalHeaderCheck.h"`, header guards follow `EIGEN_<NAME>_H`, and implementation detail lives inside nested `namespace Eigen { namespace internal { ... } }`. Public classes carry Doxygen blocks (`\class`, `\brief`, `\tparam`, `\sa`) and link to runnable snippets from `doc/snippets/` via `\include` / `\verbinclude`. When in doubt, copy the style from a recent neighbouring file rather than inventing a new convention.
+The canonical class layout is visible in recent additions such as `contrib/Eigen/src/GPU/DeviceMatrix.h`. Template parameters that get re-exported as public aliases carry a trailing underscore (`template <typename Scalar_, ...>` paired with `using Scalar = Scalar_;` — prefer `using` over `typedef` in new code), member variables use an `m_` prefix (`m_matrix`, `m_isInitialized`), implementation headers under `Eigen/src/...` begin with `// IWYU pragma: private` and `#include "./InternalHeaderCheck.h"`, header guards follow `EIGEN_<NAME>_H`, and implementation detail lives inside nested `namespace Eigen { namespace internal { ... } }`. Public classes carry Doxygen blocks (`\class`, `\brief`, `\tparam`, `\sa`) and link to runnable snippets from `doc/snippets/` via `\include` / `\verbinclude`. When in doubt, copy the style from a recent neighbouring file rather than inventing a new convention.
 
 ### License and SPDX/REUSE headers
 
@@ -168,9 +180,9 @@ For decompositions and solvers specifically, the bar is matching LAPACK on condi
 
 ## Load-bearing modules
 
-Some "unsupported" modules carry stability guarantees beyond what the name suggests:
+Some `contrib/` modules carry stability guarantees beyond what the directory name suggests:
 
-- **`unsupported/Eigen/Tensor`** and **`Eigen/ThreadPool`** together form TensorFlow's core compute backend. "Unsupported" here means *looser API-stability guarantees* — it does **not** mean low-traffic or low-stakes. Breaking changes to header layout, signatures, semantics, or contraction / reduction kernel performance ripple into every TensorFlow build. Prefer additive changes, keep header paths stable, run `unsupported/test/tensor_*` before submitting, and call out any behaviour change prominently in the MR description.
+- **`contrib/Eigen/Tensor`** and **`Eigen/ThreadPool`** together form TensorFlow's core compute backend. The `contrib/` location means *looser API-stability guarantees* — it does **not** mean low-traffic or low-stakes. Breaking changes to header layout, signatures, semantics, or contraction / reduction kernel performance ripple into every TensorFlow build. Prefer additive changes, keep header paths stable, run `contrib/test/tensor_*` before submitting, and call out any behaviour change prominently in the MR description.
 
 ## Communication
 
@@ -180,7 +192,12 @@ Some "unsupported" modules carry stability guarantees beyond what the name sugge
 
 ## Further reading
 
-- [`AGENTS.md`](AGENTS.md) — deep dive on architecture, expression templates, evaluators, the SIMD packet layer, CUDA / HIP / SYCL, multi-threading, common pitfalls, and CI structure.
+- [`AGENTS.md`](AGENTS.md) — repository-wide agent contract, standard workflow, essential Eigen hazards, and the map
+  to task-specific guidance.
+- Task guides: [testing](.agents/testing.md), [numerical code](.agents/numerics.md),
+  [benchmarking](.agents/benchmarking.md), [SIMD/GPU](.agents/simd-gpu.md),
+  [Tensor/ThreadPool](.agents/tensor-threadpool.md), [documentation](.agents/docs.md), and
+  [formatting/CI](.agents/ci.md).
 - [`README.md`](README.md) — high-level project description and pointers to the websites.
 - [`CHANGELOG.md`](CHANGELOG.md) — release-by-release notes.
 - API reference (nightly): <https://libeigen.gitlab.io/eigen/docs-nightly>.

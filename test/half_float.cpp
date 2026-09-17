@@ -127,6 +127,14 @@ void test_numtraits() {
 
   VERIFY(NumTraits<half>::IsSigned);
 
+  // The fp16 machine epsilon is 2^-10 = 0x1400, and NumTraits must agree with
+  // std::numeric_limits (NumTraits used to return 2^-13, making every
+  // epsilon-based threshold 8x too tight).
+  VERIFY_HALF_BITS_EQUAL(NumTraits<half>::epsilon(), 0x1400);
+  VERIFY_HALF_BITS_EQUAL(std::numeric_limits<half>::epsilon(), 0x1400);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(NumTraits<half>::epsilon()),
+                  numext::bit_cast<numext::uint16_t>(std::numeric_limits<half>::epsilon()));
+
   VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(std::numeric_limits<half>::infinity()),
                   numext::bit_cast<numext::uint16_t>(half(std::numeric_limits<float>::infinity())));
   // There is no guarantee that casting a 32-bit NaN to 16-bit has a precise
@@ -334,6 +342,41 @@ void test_product() {
   VERIFY_IS_APPROX(Ch.noalias() += Ah * Bh, (Cf.noalias() += Af * Bf).cast<half>());
 }
 
+void test_nextafter() {
+  VERIFY((numext::isnan)(numext::nextafter(std::numeric_limits<half>::quiet_NaN(), half(1.0f))));
+  VERIFY((numext::isnan)(numext::nextafter(half(1.0f), std::numeric_limits<half>::quiet_NaN())));
+  VERIFY(numext::nextafter(half(0.0f), half(0.0f)) == half(0.0f));
+  VERIFY(numext::nextafter(half(1.0f), half(1.0f)) == half(1.0f));
+  VERIFY(numext::nextafter(half(-1.0f), half(-1.0f)) == half(-1.0f));
+  VERIFY(numext::nextafter(std::numeric_limits<half>::infinity(), std::numeric_limits<half>::infinity()) ==
+         std::numeric_limits<half>::infinity());
+  VERIFY(numext::nextafter(std::numeric_limits<half>::infinity(), half(0.0f)) == (std::numeric_limits<half>::max)());
+  VERIFY(numext::nextafter(-std::numeric_limits<half>::infinity(), half(0.0f)) == -(std::numeric_limits<half>::max)());
+  VERIFY(numext::nextafter(half(1.0f), std::numeric_limits<half>::infinity()) ==
+         half(1.0f) + std::numeric_limits<half>::epsilon());
+  VERIFY(numext::nextafter(half(1.0f), -std::numeric_limits<half>::infinity()) ==
+         half(1.0f) - std::numeric_limits<half>::epsilon() / half(2.0f));
+  VERIFY(numext::nextafter(half(-1.0f), -std::numeric_limits<half>::infinity()) ==
+         half(-1.0f) - std::numeric_limits<half>::epsilon());
+  VERIFY(numext::nextafter(half(-1.0f), std::numeric_limits<half>::infinity()) ==
+         half(-1.0f) + std::numeric_limits<half>::epsilon() / half(2.0f));
+  VERIFY(numext::nextafter((std::numeric_limits<half>::max)(), std::numeric_limits<half>::infinity()) ==
+         std::numeric_limits<half>::infinity());
+  VERIFY(numext::nextafter(-(std::numeric_limits<half>::max)(), -std::numeric_limits<half>::infinity()) ==
+         -std::numeric_limits<half>::infinity());
+  // The neighbors of ±0 are the smallest subnormals with the sign of the
+  // direction, matching std::nextafter (IEEE-754 nextUp/nextDown of zero).
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(0.0f), half(1.0f)), 0x0001);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(-0.0f), half(1.0f)), 0x0001);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(0.0f), half(-1.0f)), 0x8001);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(-0.0f), half(-1.0f)), 0x8001);
+  // from == to returns to, preserving the sign of zero.
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(0.0f), half(-0.0f)), 0x8000);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(-0.0f), half(0.0f)), 0x0000);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(0.0f), half(0.0f)), 0x0000);
+  VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(-0.0f), half(-0.0f)), 0x8000);
+}
+
 EIGEN_DECLARE_TEST(half_float) {
   CALL_SUBTEST(test_numtraits());
   for (int i = 0; i < g_repeat; i++) {
@@ -344,5 +387,6 @@ EIGEN_DECLARE_TEST(half_float) {
     CALL_SUBTEST(test_trigonometric_functions());
     CALL_SUBTEST(test_array());
     CALL_SUBTEST(test_product());
+    CALL_SUBTEST(test_nextafter());
   }
 }

@@ -51,19 +51,19 @@ namespace Eigen {
 template <typename Scalar, int UpLo_ = Lower, typename OrderingType_ = AMDOrdering<int> >
 class IncompleteCholesky : public SparseSolverBase<IncompleteCholesky<Scalar, UpLo_, OrderingType_> > {
  protected:
-  typedef SparseSolverBase<IncompleteCholesky<Scalar, UpLo_, OrderingType_> > Base;
+  using Base = SparseSolverBase<IncompleteCholesky<Scalar, UpLo_, OrderingType_>>;
   using Base::m_isInitialized;
 
  public:
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef OrderingType_ OrderingType;
-  typedef typename OrderingType::PermutationType PermutationType;
-  typedef typename PermutationType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> FactorType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorSx;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorRx;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorIx;
-  typedef std::vector<std::list<StorageIndex> > VectorList;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using OrderingType = OrderingType_;
+  using PermutationType = typename OrderingType::PermutationType;
+  using StorageIndex = typename PermutationType::StorageIndex;
+  using FactorType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using VectorSx = Matrix<Scalar, Dynamic, 1>;
+  using VectorRx = Matrix<RealScalar, Dynamic, 1>;
+  using VectorIx = Matrix<StorageIndex, Dynamic, 1>;
+  using VectorList = std::vector<std::list<StorageIndex>>;
   enum { UpLo = UpLo_ };
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 

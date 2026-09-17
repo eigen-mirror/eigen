@@ -652,47 +652,6 @@ EIGEN_STRONG_INLINE Packet2l pnegate(const Packet2l& a) {
 }
 
 template <>
-EIGEN_STRONG_INLINE Packet4f pconj(const Packet4f& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pconj(const Packet2d& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16c pconj(const Packet16c& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8s pconj(const Packet8s& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4i pconj(const Packet4i& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l pconj(const Packet2l& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet16uc pconj(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pconj(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pconj(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pconj(const Packet2ul& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) {
   return __lsx_vfmul_s(a, b);
 }
@@ -1342,23 +1301,6 @@ EIGEN_STRONG_INLINE Packet2l pabs(const Packet2l& a) {
   return __lsx_vabsd_d(a, pzero(a));
 }
 template <>
-EIGEN_STRONG_INLINE Packet16uc pabs(const Packet16uc& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet8us pabs(const Packet8us& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4ui pabs(const Packet4ui& a) {
-  return a;
-}
-template <>
-EIGEN_STRONG_INLINE Packet2ul pabs(const Packet2ul& a) {
-  return a;
-}
-
-template <>
 EIGEN_STRONG_INLINE Packet16c pabsdiff(const Packet16c& a, const Packet16c& b) {
   return __lsx_vabsd_b(a, b);
 }
@@ -1487,10 +1429,6 @@ EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
   return make_packet4f(f0, f0, f1, f1);
 }
 template <>
-EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  return pset1<Packet2d>(from[0]);
-}
-template <>
 EIGEN_STRONG_INLINE Packet16c ploaddup<Packet16c>(const int8_t* from) {
   Packet16c tmp = pload<Packet16c>(from);
   return __lsx_vilvl_b(tmp, tmp);
@@ -1504,10 +1442,6 @@ template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int32_t* from) {
   Packet4i tmp = pload<Packet4i>(from);
   return __lsx_vilvl_w(tmp, tmp);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2l ploaddup<Packet2l>(const int64_t* from) {
-  return pset1<Packet2l>(from[0]);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc ploaddup<Packet16uc>(const uint8_t* from) {
@@ -1524,11 +1458,6 @@ EIGEN_STRONG_INLINE Packet4ui ploaddup<Packet4ui>(const uint32_t* from) {
   Packet4ui tmp = pload<Packet4ui>(from);
   return __lsx_vilvl_w(tmp, tmp);
 }
-template <>
-EIGEN_STRONG_INLINE Packet2ul ploaddup<Packet2ul>(const uint64_t* from) {
-  return pset1<Packet2ul>(from[0]);
-}
-
 template <>
 EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
   EIGEN_DEBUG_ALIGNED_STORE __lsx_vst(from, to, 0);
@@ -1965,6 +1894,62 @@ template <>
 EIGEN_STRONG_INLINE double predux<Packet2d>(const Packet2d& a) {
   return pfirst<Packet2d>(__lsx_vfadd_d(a, preverse(a)));
 }
+
+template <typename Packet>
+EIGEN_STRONG_INLINE bool predux_any_lsx(const Packet& a) {
+  return __lsx_bnz_v((__m128i)a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2d& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16c& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8s& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4i& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2l& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16uc& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8us& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& a) {
+  return predux_any_lsx(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2ul& a) {
+  return predux_any_lsx(a);
+}
+
 template <>
 EIGEN_STRONG_INLINE int8_t predux<Packet16c>(const Packet16c& a) {
   Packet8s tmp1 = __lsx_vhaddw_h_b(a, a);
@@ -2687,13 +2672,7 @@ EIGEN_STRONG_INLINE Packet4f pzero(const Packet4f& /* a */) {
   return v;
 }
 template <>
-EIGEN_STRONG_INLINE Packet4f pmin<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmin<Packet4f>(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pmax<PropagateNaN, Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return pmax<Packet4f>(a, b);
-}
+struct pminmax_propagates_nan<Packet4f> : bool_constant<true> {};
 template <>
 EIGEN_STRONG_INLINE Packet4f ploadquad<Packet4f>(const float* from) {
   return (__m128)__lsx_vldrepl_w(from, 0);
@@ -2721,13 +2700,7 @@ EIGEN_STRONG_INLINE Packet2d pzero(const Packet2d& /* a */) {
   return v;
 }
 template <>
-EIGEN_STRONG_INLINE Packet2d pmin<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmin<Packet2d>(a, b);
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pmax<PropagateNaN, Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return pmax<Packet2d>(a, b);
-}
+struct pminmax_propagates_nan<Packet2d> : bool_constant<true> {};
 template <>
 EIGEN_STRONG_INLINE Packet2d psignbit(const Packet2d& a) {
   return (__m128d)(__lsx_vsrai_d((__m128i)a, 63));

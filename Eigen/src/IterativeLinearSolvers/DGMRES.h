@@ -25,8 +25,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<DGMRES<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 /** \brief Computes a permutation vector to have a sorted sequence
@@ -97,7 +97,7 @@ void sortWithPermutation(VectorType& vec, IndexType& perm, typename IndexType::S
 template <typename MatrixType_, typename Preconditioner_>
 class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<DGMRES> Base;
+  using Base = IterativeSolverBase<DGMRES>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -108,17 +108,17 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
  public:
   using Base::_solve_impl;
   using Base::_solve_with_guess_impl;
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Preconditioner_ Preconditioner;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> DenseRealMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Matrix<RealScalar, Dynamic, 1> DenseRealVector;
-  typedef Matrix<ComplexScalar, Dynamic, 1> ComplexVector;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using Preconditioner = Preconditioner_;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseRealMatrix = Matrix<RealScalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using DenseRealVector = Matrix<RealScalar, Dynamic, 1>;
+  using ComplexVector = Matrix<ComplexScalar, Dynamic, 1>;
 
   /** Default constructor. */
   DGMRES()
@@ -237,6 +237,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   if (normRhs <= considerAsZero) {
     x.setZero();
     m_error = 0;
+    m_iterations = 0;
     return;
   }
 
@@ -269,6 +270,8 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
       beta = r0.norm();
     }
   }
+  // m_iterations carried the iteration cap for the loops above; report the number actually performed.
+  m_iterations = nbIts;
 }
 
 /**
@@ -344,7 +347,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     m_H.col(it).applyOnTheLeft(it, it + 1, gr[it].adjoint());
     g.applyOnTheLeft(it, it + 1, gr[it].adjoint());
 
-    beta = std::abs(g(it + 1));
+    beta = numext::abs(g(it + 1));
     m_error = beta / normRhs;
     it++;
     nbIts++;
@@ -426,7 +429,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
 
   // Reorder the absolute values of Schur values
   DenseRealVector modulEig(it);
-  for (Index j = 0; j < it; ++j) modulEig(j) = std::abs(eig(j));
+  for (Index j = 0; j < it; ++j) modulEig(j) = numext::abs(eig(j));
   perm.setLinSpaced(it, 0, internal::convert_index<StorageIndex>(it - 1));
   internal::sortWithPermutation(modulEig, perm, neig);
 

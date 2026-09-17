@@ -12,11 +12,11 @@
 #include "main.h"
 #include <Eigen/LU>
 
-template <typename MatrixType>
-void inverse_for_fixed_size(const MatrixType&, std::enable_if_t<MatrixType::SizeAtCompileTime == Dynamic>* = 0) {}
+template <typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime == Dynamic, int> = 0>
+void inverse_for_fixed_size(const MatrixType&) {}
 
-template <typename MatrixType>
-void inverse_for_fixed_size(const MatrixType& m1, std::enable_if_t<MatrixType::SizeAtCompileTime != Dynamic>* = 0) {
+template <typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime != Dynamic, int> = 0>
+void inverse_for_fixed_size(const MatrixType& m1) {
   using std::abs;
 
   MatrixType m2, identity = MatrixType::Identity();

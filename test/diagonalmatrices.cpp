@@ -14,6 +14,9 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
+#include <Eigen/Core>
+#include "MovableScalar.h"
+#include "random_for_arithmetic.h"
 using namespace std;
 template <typename MatrixType>
 void diagonalmatrices(const MatrixType& m) {
@@ -29,14 +32,14 @@ void diagonalmatrices(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = MatrixType::Random(rows, cols);
-  VectorType v1 = VectorType::Random(rows), v2 = VectorType::Random(rows);
-  RowVectorType rv1 = RowVectorType::Random(cols), rv2 = RowVectorType::Random(cols);
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = random_for_arithmetic<MatrixType>(rows, cols);
+  VectorType v1 = random_for_arithmetic<VectorType>(rows), v2 = random_for_arithmetic<VectorType>(rows);
+  RowVectorType rv1 = random_for_arithmetic<RowVectorType>(cols), rv2 = random_for_arithmetic<RowVectorType>(cols);
 
   LeftDiagonalMatrix ldm1(v1), ldm2(v2);
   RightDiagonalMatrix rdm1(rv1), rdm2(rv2);
 
-  Scalar s1 = internal::random<Scalar>();
+  Scalar s1 = random_scalar_for_arithmetic<Scalar>();
 
   SquareMatrixType sq_m1(v1.asDiagonal());
   VERIFY_IS_APPROX(sq_m1, v1.asDiagonal().toDenseMatrix());
@@ -110,13 +113,13 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(m1 * (s1 * rdm1), (m1 * rdm1) * s1);
 
   // Diagonal to dense
-  sq_m1.setRandom();
+  sq_m1 = random_for_arithmetic<SquareMatrixType>(rows, rows);
   sq_m2 = sq_m1;
   VERIFY_IS_APPROX((sq_m1 += (s1 * v1).asDiagonal()), sq_m2 += (s1 * v1).asDiagonal().toDenseMatrix());
   VERIFY_IS_APPROX((sq_m1 -= (s1 * v1).asDiagonal()), sq_m2 -= (s1 * v1).asDiagonal().toDenseMatrix());
   VERIFY_IS_APPROX((sq_m1 = (s1 * v1).asDiagonal()), (s1 * v1).asDiagonal().toDenseMatrix());
 
-  sq_m1.setRandom();
+  sq_m1 = random_for_arithmetic<SquareMatrixType>(rows, rows);
   sq_m2 = v1.asDiagonal();
   sq_m2 = sq_m1 * sq_m2;
   VERIFY_IS_APPROX((sq_m1 * v1.asDiagonal()).col(i), sq_m2.col(i));
@@ -148,9 +151,9 @@ void as_scalar_product(const MatrixType& m) {
   Index rows = m.rows();
   Index depth = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
 
-  VectorType v1 = VectorType::Random(rows);
-  DynVectorType dv1 = DynVectorType::Random(depth);
-  DynRowVectorType drv1 = DynRowVectorType::Random(depth);
+  VectorType v1 = random_for_arithmetic<VectorType>(rows);
+  DynVectorType dv1 = random_for_arithmetic<DynVectorType>(depth);
+  DynRowVectorType drv1 = random_for_arithmetic<DynRowVectorType>(depth);
   DynMatrixType dm1 = dv1;
   DynMatrixType drm1 = drv1;
 
@@ -509,6 +512,74 @@ void structured_diagonal_aliasing() {
   }
 }
 
+template <typename DiagonalType>
+void diagonal_matrix_move(Index size) {
+  using Scalar = typename DiagonalType::Scalar;
+  using VectorType = typename DiagonalType::DiagonalVectorType;
+  STATIC_CHECK(std::is_nothrow_move_constructible<DiagonalType>::value ==
+               std::is_nothrow_move_constructible<VectorType>::value);
+  STATIC_CHECK(VectorType::MaxSizeAtCompileTime != Dynamic || std::is_nothrow_move_assignable<DiagonalType>::value ==
+                                                                  std::is_nothrow_move_assignable<VectorType>::value);
+
+  DiagonalType source;
+  source.resize(size);
+  for (Index i = 0; i < size; ++i) {
+    const Scalar value = Scalar(i + 1);
+    source.diagonal()(i) = value;
+  }
+  const DiagonalType expected(source);
+  DiagonalType copied;
+  copied = source;
+  const Scalar* original_data = source.diagonal().data();
+
+  internal::set_is_malloc_allowed(false);
+  DiagonalType constructed(std::move(source));
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(constructed.rows(), size);
+  if (VectorType::MaxSizeAtCompileTime == Dynamic) VERIFY(constructed.diagonal().data() == original_data);
+  for (Index i = 0; i < size; ++i) {
+    VERIFY_IS_EQUAL(constructed.diagonal()(i), expected.diagonal()(i));
+    VERIFY_IS_EQUAL(copied.diagonal()(i), expected.diagonal()(i));
+  }
+
+  source = expected;
+  DiagonalType assigned;
+  internal::set_is_malloc_allowed(false);
+  assigned = std::move(constructed);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(assigned.rows(), size);
+  if (VectorType::MaxSizeAtCompileTime == Dynamic) VERIFY(assigned.diagonal().data() == original_data);
+  for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(assigned.diagonal()(i), expected.diagonal()(i));
+
+  constructed = expected;
+  // Also move into an existing allocation, with a different size when storage is dynamic.
+  if (VectorType::SizeAtCompileTime == Dynamic) assigned.resize(size == 0 ? 1 : size - 1);
+  original_data = constructed.diagonal().data();
+  internal::set_is_malloc_allowed(false);
+  assigned = std::move(constructed);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(assigned.rows(), size);
+  if (VectorType::MaxSizeAtCompileTime == Dynamic) VERIFY(assigned.diagonal().data() == original_data);
+  for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(assigned.diagonal()(i), expected.diagonal()(i));
+
+  constructed = expected;
+  for (Index i = 0; i < size; ++i) {
+    VERIFY_IS_EQUAL(source.diagonal()(i), expected.diagonal()(i));
+    VERIFY_IS_EQUAL(constructed.diagonal()(i), expected.diagonal()(i));
+  }
+}
+
+template <typename Scalar>
+void diagonal_matrix_moves() {
+  diagonal_matrix_move<DiagonalMatrix<Scalar, 0>>(0);
+  diagonal_matrix_move<DiagonalMatrix<Scalar, 1>>(1);
+  diagonal_matrix_move<DiagonalMatrix<Scalar, 4>>(4);
+  for (Index size : {0, 1, 4, 17}) {
+    diagonal_matrix_move<DiagonalMatrix<Scalar, Dynamic>>(size);
+    diagonal_matrix_move<DiagonalMatrix<Scalar, Dynamic, 17>>(size);
+  }
+}
+
 EIGEN_DECLARE_TEST(diagonalmatrices) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(diagonalmatrices(Matrix<float, 1, 1>()));
@@ -535,4 +606,9 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_10(selfadjoint_diagonal_products<0>());
   CALL_SUBTEST_10(selfadjoint_diagonal_products_block_path<0>());
   CALL_SUBTEST_10(structured_diagonal_aliasing<0>());
+  CALL_SUBTEST_11(diagonal_matrix_moves<float>());
+  CALL_SUBTEST_11(diagonal_matrix_moves<double>());
+  CALL_SUBTEST_11(diagonal_matrix_moves<int>());
+  CALL_SUBTEST_11(diagonal_matrix_moves<std::complex<double>>());
+  CALL_SUBTEST_11(diagonal_matrix_moves<MovableScalar<float>>());
 }

@@ -317,7 +317,7 @@ template <typename tag>
 class SymbolExpr : public BaseExpr<SymbolExpr<tag>> {
  public:
   /** Alias to the template parameter \c tag */
-  typedef tag Tag;
+  using Tag = tag;
 
   constexpr SymbolExpr() = default;
 

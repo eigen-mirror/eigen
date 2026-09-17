@@ -56,6 +56,10 @@ This implementation of \c makeCirculant is much simpler than \ref TopicNewExpres
 
 \section NullaryExpr_Indexing Example 2: indexing rows and columns
 
+\note Since %Eigen 3.4, indexing a matrix with arrays of row and column indices is directly supported
+through \c operator(), see \ref TutorialSlicingIndexing. The example below remains instructive as a
+demonstration of what can be built from nullary expressions.
+
 The goal here is to mimic MatLab's ability to index a matrix through two vectors of indices referencing the rows and columns to be picked respectively, like this:
 
 \snippet nullary_indexing.out main1

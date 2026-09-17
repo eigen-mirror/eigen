@@ -32,9 +32,9 @@ EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, co
                                                        const Preconditioner& precond, Index& iters,
                                                        typename Dest::RealScalar& tol_error) {
   using std::sqrt;
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   RealScalar tol = tol_error;
   Index maxIters = iters;
@@ -105,8 +105,8 @@ namespace internal {
 
 template <typename MatrixType_, typename Preconditioner_>
 struct traits<LeastSquaresConjugateGradient<MatrixType_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -126,8 +126,8 @@ struct traits<LeastSquaresConjugateGradient<MatrixType_, Preconditioner_> > {
   * \implsparsesolverconcept
   *
   * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
-  * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
-  * and NumTraits<Scalar>::epsilon() for the tolerance.
+  * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
+  * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
   *
   * This class can be used as the direct solver classes. Here is a typical usage example:
     \code
@@ -153,7 +153,7 @@ template <typename MatrixType_, typename Preconditioner_>
 class LeastSquaresConjugateGradient
     : public IterativeSolverBase<LeastSquaresConjugateGradient<MatrixType_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<LeastSquaresConjugateGradient> Base;
+  using Base = IterativeSolverBase<LeastSquaresConjugateGradient>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -161,10 +161,10 @@ class LeastSquaresConjugateGradient
   using Base::matrix;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
  public:
   /** Default constructor. */

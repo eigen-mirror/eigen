@@ -18,6 +18,7 @@ namespace Eigen {
 namespace internal {
 
 EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_FLOAT(PacketXf)
+EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE(PacketXd)
 
 }  // end namespace internal
 }  // end namespace Eigen

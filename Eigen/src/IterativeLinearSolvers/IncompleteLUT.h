@@ -30,7 +30,7 @@ namespace internal {
  **/
 template <typename VectorV, typename VectorI>
 Index QuickSplit(VectorV& row, VectorI& ind, Index ncut) {
-  typedef typename VectorV::RealScalar RealScalar;
+  using RealScalar = typename VectorV::RealScalar;
   using std::abs;
   using std::swap;
   Index mid;
@@ -102,16 +102,16 @@ Index QuickSplit(VectorV& row, VectorI& ind, Index ncut) {
 template <typename Scalar_, typename StorageIndex_ = int>
 class IncompleteLUT : public SparseSolverBase<IncompleteLUT<Scalar_, StorageIndex_> > {
  protected:
-  typedef SparseSolverBase<IncompleteLUT> Base;
+  using Base = SparseSolverBase<IncompleteLUT>;
   using Base::m_isInitialized;
 
  public:
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
-  typedef SparseMatrix<Scalar, RowMajor, StorageIndex> FactorType;
+  using Scalar = Scalar_;
+  using StorageIndex = StorageIndex_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
+  using FactorType = SparseMatrix<Scalar, RowMajor, StorageIndex>;
 
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 

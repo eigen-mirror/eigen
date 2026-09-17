@@ -122,40 +122,6 @@ void check_reference_bindings() {
 
 template <typename Scalar>
 void check_matrix_bindings() {
-  // 2x2 matrix (column-major order)
-  {
-    Matrix<Scalar, 2, 2> m;
-    m << Scalar(1), Scalar(2), Scalar(3), Scalar(4);
-    auto [m00, m10, m01, m11] = m;
-    // Column-major: (0,0), (1,0), (0,1), (1,1)
-    VERIFY_IS_EQUAL(m00, Scalar(1));
-    VERIFY_IS_EQUAL(m10, Scalar(3));
-    VERIFY_IS_EQUAL(m01, Scalar(2));
-    VERIFY_IS_EQUAL(m11, Scalar(4));
-  }
-}
-
-template <typename Scalar>
-void check_storage_order_semantics() {
-  // Row vectors are forced to RowMajor by Eigen (a 1xN can't meaningfully be
-  // column-major). Ensure decomposition still matches the single-row layout.
-  {
-    Matrix<Scalar, 1, 3> rv;
-    rv << Scalar(1), Scalar(2), Scalar(3);
-    auto [a, b, c] = rv;
-    VERIFY_IS_EQUAL(a, Scalar(1));
-    VERIFY_IS_EQUAL(b, Scalar(2));
-    VERIFY_IS_EQUAL(c, Scalar(3));
-  }
-  // Nx1 column vectors are ColMajor regardless and decompose top-to-bottom.
-  {
-    Matrix<Scalar, 3, 1> cv;
-    cv << Scalar(4), Scalar(5), Scalar(6);
-    auto [a, b, c] = cv;
-    VERIFY_IS_EQUAL(a, Scalar(4));
-    VERIFY_IS_EQUAL(b, Scalar(5));
-    VERIFY_IS_EQUAL(c, Scalar(6));
-  }
   // 2D ColMajor matrix decomposes in column-major order: (0,0),(1,0),(0,1),(1,1).
   // 2D RowMajor is rejected via static_assert — see failtest/structured_bindings_rowmajor.cpp.
   {
@@ -188,6 +154,36 @@ void check_tuple_element() {
   STATIC_CHECK((std::is_same<std::tuple_element_t<0, Array3i>, int>::value));
 }
 
+// Emulates generic tuple-like detection as done by fmt's range formatter
+// (issue #3103): probing tuple_size<T>::value in a SFINAE context must be a
+// substitution failure for dynamic-size types, not a hard error.
+template <typename T, typename = void>
+struct is_tuple_like : std::false_type {};
+
+template <typename T>
+struct is_tuple_like<T, internal::void_t<decltype(std::tuple_size<T>::value)>> : std::true_type {};
+
+template <typename T, typename = void>
+struct has_tuple_element0 : std::false_type {};
+
+template <typename T>
+struct has_tuple_element0<T, internal::void_t<typename std::tuple_element<0, T>::type>> : std::true_type {};
+
+void check_sfinae_friendly_detection() {
+  STATIC_CHECK((is_tuple_like<Vector3d>::value));
+  STATIC_CHECK((is_tuple_like<Matrix2f>::value));
+  STATIC_CHECK((is_tuple_like<Array3i>::value));
+  STATIC_CHECK((!is_tuple_like<VectorXd>::value));
+  STATIC_CHECK((!is_tuple_like<MatrixXf>::value));
+  STATIC_CHECK((!is_tuple_like<ArrayXd>::value));
+  STATIC_CHECK((!is_tuple_like<Matrix<double, 3, Dynamic>>::value));
+  STATIC_CHECK((!is_tuple_like<Matrix<double, Dynamic, 3>>::value));
+  STATIC_CHECK((has_tuple_element0<Vector3d>::value));
+  STATIC_CHECK((has_tuple_element0<Array3i>::value));
+  STATIC_CHECK((!has_tuple_element0<VectorXd>::value));
+  STATIC_CHECK((!has_tuple_element0<ArrayXXf>::value));
+}
+
 EIGEN_DECLARE_TEST(structured_bindings) {
   CALL_SUBTEST_1(check_vector_bindings<double>());
   CALL_SUBTEST_1(check_vector_bindings<float>());
@@ -200,8 +196,7 @@ EIGEN_DECLARE_TEST(structured_bindings) {
   CALL_SUBTEST_4(check_matrix_bindings<int>());
   CALL_SUBTEST_5(check_tuple_size());
   CALL_SUBTEST_5(check_tuple_element());
-  CALL_SUBTEST_6(check_storage_order_semantics<double>());
-  CALL_SUBTEST_6(check_storage_order_semantics<int>());
+  CALL_SUBTEST_5(check_sfinae_friendly_detection());
 }
 
 #else

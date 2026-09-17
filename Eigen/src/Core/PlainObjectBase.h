@@ -96,14 +96,14 @@ template <typename Derived>
 class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
  public:
   enum { Options = internal::traits<Derived>::Options };
-  typedef typename internal::dense_xpr_base<Derived>::type Base;
+  using Base = typename internal::dense_xpr_base<Derived>::type;
 
-  typedef typename internal::traits<Derived>::StorageKind StorageKind;
-  typedef typename internal::traits<Derived>::Scalar Scalar;
+  using StorageKind = typename internal::traits<Derived>::StorageKind;
+  using Scalar = typename internal::traits<Derived>::Scalar;
 
-  typedef typename internal::packet_traits<Scalar>::type PacketScalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Derived DenseType;
+  using PacketScalar = typename internal::packet_traits<Scalar>::type;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseType = Derived;
 
   using Base::ColsAtCompileTime;
   using Base::Flags;
@@ -114,25 +114,25 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   using Base::RowsAtCompileTime;
   using Base::SizeAtCompileTime;
 
-  typedef Eigen::Map<Derived, Unaligned> MapType;
-  typedef const Eigen::Map<const Derived, Unaligned> ConstMapType;
-  typedef Eigen::Map<Derived, AlignedMax> AlignedMapType;
-  typedef const Eigen::Map<const Derived, AlignedMax> ConstAlignedMapType;
+  using MapType = Eigen::Map<Derived, Unaligned>;
+  using ConstMapType = const Eigen::Map<const Derived, Unaligned>;
+  using AlignedMapType = Eigen::Map<Derived, AlignedMax>;
+  using ConstAlignedMapType = const Eigen::Map<const Derived, AlignedMax>;
   template <typename StrideType>
   struct StridedMapType {
-    typedef Eigen::Map<Derived, Unaligned, StrideType> type;
+    using type = Eigen::Map<Derived, Unaligned, StrideType>;
   };
   template <typename StrideType>
   struct StridedConstMapType {
-    typedef Eigen::Map<const Derived, Unaligned, StrideType> type;
+    using type = Eigen::Map<const Derived, Unaligned, StrideType>;
   };
   template <typename StrideType>
   struct StridedAlignedMapType {
-    typedef Eigen::Map<Derived, AlignedMax, StrideType> type;
+    using type = Eigen::Map<Derived, AlignedMax, StrideType>;
   };
   template <typename StrideType>
   struct StridedConstAlignedMapType {
-    typedef Eigen::Map<const Derived, AlignedMax, StrideType> type;
+    using type = Eigen::Map<const Derived, AlignedMax, StrideType>;
   };
 
  protected:
@@ -559,8 +559,8 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** \name Map
    * These are convenience functions returning Map objects. The Map() static functions return unaligned Map objects,
-   * while the AlignedMap() functions return aligned Map objects and thus should be called only with 16-byte-aligned
-   * \a data pointers.
+   * while the MapAligned() functions return Map objects with \c AlignedMax alignment and thus should be called only
+   * with \a data pointers aligned on an \c EIGEN_MAX_ALIGN_BYTES boundary.
    *
    * Here is an example using strides:
    * \include Matrix_Map_stride.cpp
@@ -740,28 +740,25 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
     return this->derived();
   }
 
-  template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(Index rows, Index cols,
-                                                              std::enable_if_t<Base::SizeAtCompileTime != 2, T0>* = 0) {
+  template <typename T0, typename T1, std::enable_if_t<Base::SizeAtCompileTime != 2, T0>* = nullptr>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(Index rows, Index cols) {
     EIGEN_STATIC_ASSERT(internal::is_valid_index_type<T0>::value && internal::is_valid_index_type<T1>::value,
                         T0 AND T1 MUST BE INTEGER TYPES)
     resize(rows, cols);
   }
 
-  template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(const T0& val0, const T1& val1,
-                                                              std::enable_if_t<Base::SizeAtCompileTime == 2, T0>* = 0) {
+  template <typename T0, typename T1, std::enable_if_t<Base::SizeAtCompileTime == 2, T0>* = nullptr>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(const T0& val0, const T1& val1) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 2)
     m_storage.data()[0] = Scalar(val0);
     m_storage.data()[1] = Scalar(val1);
   }
 
-  template <typename T0, typename T1>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(
-      const Index& val0, const Index& val1,
-      std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<T0, Index>::value) &&
-                           (std::is_same<T1, Index>::value) && Base::SizeAtCompileTime == 2,
-                       T1>* = 0) {
+  template <typename T0, typename T1,
+            std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<T0, Index>::value) &&
+                                 (std::is_same<T1, Index>::value) && Base::SizeAtCompileTime == 2,
+                             int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init2(const Index& val0, const Index& val1) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 2)
     m_storage.data()[0] = Scalar(val0);
     m_storage.data()[1] = Scalar(val1);
@@ -769,36 +766,31 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   // The argument is convertible to the Index type and we either have a non 1x1 Matrix, or a dynamic-sized Array,
   // then the argument is meant to be the size of the object.
-  template <typename T>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(
-      Index size, std::enable_if_t<(Base::SizeAtCompileTime != 1 || !std::is_convertible<T, Scalar>::value) &&
-                                       ((!std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value ||
-                                         Base::SizeAtCompileTime == Dynamic)),
-                                   T>* = 0) {
-    // NOTE MSVC 2008 complains if we directly put bool(NumTraits<T>::IsInteger) as the EIGEN_STATIC_ASSERT argument.
-    const bool is_integer_alike = internal::is_valid_index_type<T>::value;
-    EIGEN_UNUSED_VARIABLE(is_integer_alike);
-    EIGEN_STATIC_ASSERT(is_integer_alike, FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
+  template <typename T,
+            std::enable_if_t<(Base::SizeAtCompileTime != 1 || !std::is_convertible<T, Scalar>::value) &&
+                                 ((!std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value ||
+                                   Base::SizeAtCompileTime == Dynamic)),
+                             int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(Index size) {
+    EIGEN_STATIC_ASSERT(internal::is_valid_index_type<T>::value, FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
     resize(size);
   }
 
   // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar
   // type can be implicitly converted)
-  template <typename T>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(
-      const Scalar& val0,
-      std::enable_if_t<Base::SizeAtCompileTime == 1 && std::is_convertible<T, Scalar>::value, T>* = 0) {
+  template <typename T,
+            std::enable_if_t<Base::SizeAtCompileTime == 1 && std::is_convertible<T, Scalar>::value, int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(const Scalar& val0) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 1)
     m_storage.data()[0] = val0;
   }
 
   // We have a 1x1 matrix/array => the argument is interpreted as the value of the unique coefficient (case where scalar
   // type match the index type)
-  template <typename T>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(
-      const Index& val0, std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<Index, T>::value) &&
-                                              Base::SizeAtCompileTime == 1 && std::is_convertible<T, Scalar>::value,
-                                          T*>* = 0) {
+  template <typename T, std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<Index, T>::value) &&
+                                             Base::SizeAtCompileTime == 1 && std::is_convertible<T, Scalar>::value,
+                                         int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(const Index& val0) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, 1)
     m_storage.data()[0] = Scalar(val0);
   }
@@ -839,25 +831,21 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   }
 
   // For fixed-size Array<Scalar,...>
-  template <typename T>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(
-      const Scalar& val0,
-      std::enable_if_t<Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
-                           std::is_convertible<T, Scalar>::value &&
-                           std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value,
-                       T>* = 0) {
+  template <typename T, std::enable_if_t<Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
+                                             std::is_convertible<T, Scalar>::value &&
+                                             std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value,
+                                         int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(const Scalar& val0) {
     Base::setConstant(val0);
   }
 
   // For fixed-size Array<Index,...>
-  template <typename T>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(
-      const Index& val0,
-      std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<Index, T>::value) &&
-                           Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
-                           std::is_convertible<T, Scalar>::value &&
-                           std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value,
-                       T*>* = 0) {
+  template <typename T, std::enable_if_t<(!std::is_same<Index, Scalar>::value) && (std::is_same<Index, T>::value) &&
+                                             Base::SizeAtCompileTime != Dynamic && Base::SizeAtCompileTime != 1 &&
+                                             std::is_convertible<T, Scalar>::value &&
+                                             std::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value,
+                                         int> = 0>
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void _init1(const Index& val0) {
     Base::setConstant(val0);
   }
 
@@ -972,7 +960,7 @@ struct conservative_resize_like_impl {
 template <typename Derived, typename OtherDerived>
 struct conservative_resize_like_impl<Derived, OtherDerived, true>
     : conservative_resize_like_impl<Derived, OtherDerived, false> {
-  typedef conservative_resize_like_impl<Derived, OtherDerived, false> Base;
+  using Base = conservative_resize_like_impl<Derived, OtherDerived, false>;
   using Base::IsRelocatable;
   using Base::run;
 

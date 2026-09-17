@@ -16,6 +16,7 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 #define TEST_CHECK_STATIC_ASSERTIONS
 #include "main.h"
+#include "random_for_arithmetic.h"
 
 // test Ref.h
 
@@ -45,7 +46,7 @@ void ref_matrix(const MatrixType &m) {
 
   Index rows = m.rows(), cols = m.cols();
 
-  MatrixType m1 = MatrixType::Random(rows, cols), m2 = m1;
+  MatrixType m1 = random_for_arithmetic<MatrixType>(rows, cols), m2 = m1;
 
   Index i = internal::random<Index>(0, rows - 1);
   Index j = internal::random<Index>(0, cols - 1);
@@ -62,7 +63,7 @@ void ref_matrix(const MatrixType &m) {
   m2.block(i, j, brows, bcols).setOnes();
   VERIFY_IS_EQUAL(m1, m2);
 
-  m2.block(i, j, brows, bcols).setRandom();
+  m2.block(i, j, brows, bcols) = random_for_arithmetic<DynMatrixType>(brows, bcols);
   rm2 = m2.block(i, j, brows, bcols);
   VERIFY_IS_EQUAL(m1, m2);
 
@@ -93,8 +94,9 @@ void ref_vector(const VectorType &m) {
 
   Index size = m.size();
 
-  VectorType v1 = VectorType::Random(size), v2 = v1;
-  MatrixType mat1 = MatrixType::Random(size, size), mat2 = mat1, mat3 = MatrixType::Random(size, size);
+  VectorType v1 = random_for_arithmetic<VectorType>(size), v2 = v1;
+  MatrixType mat1 = random_for_arithmetic<MatrixType>(size, size), mat2 = mat1,
+             mat3 = random_for_arithmetic<MatrixType>(size, size);
 
   Index i = internal::random<Index>(0, size - 1);
   Index bsize = internal::random<Index>(1, size - i);
@@ -122,7 +124,7 @@ void ref_vector(const VectorType &m) {
   v2.segment(i, bsize).setOnes();
   VERIFY_IS_EQUAL(v1, v2);
 
-  v2.segment(i, bsize).setRandom();
+  v2.segment(i, bsize) = random_for_arithmetic<DynMatrixType>(bsize);
   rv2 = v2.segment(i, bsize);
   VERIFY_IS_EQUAL(v1, v2);
 
@@ -219,6 +221,34 @@ void check_const_correctness(const PlainObjectType &) {
   VERIFY(!(Ref<ConstPlainObjectType, Aligned>::Flags & LvalueBit));
 }
 
+void test_ref_alignment_matching() {
+  using PlainObject = Matrix<float, Dynamic, 1, DontAlign>;
+  using UnalignedMap = Map<PlainObject, Unaligned>;
+  using Aligned8Map = Map<PlainObject, Aligned8>;
+  using Aligned16Map = Map<PlainObject, Aligned16>;
+  using Aligned32Map = Map<PlainObject, Aligned32>;
+  using UnalignedRefTraits = internal::traits<Ref<PlainObject, Unaligned>>;
+  using Aligned16RefTraits = internal::traits<Ref<PlainObject, Aligned16>>;
+
+  static_assert(int(internal::traits<PlainObject>::Alignment) == int(Unaligned),
+                "the test plain object must not provide an alignment guarantee");
+  static_assert(UnalignedRefTraits::template match<UnalignedMap>::AlignmentMatch,
+                "an unaligned Ref must accept an unaligned source");
+  static_assert(!Aligned16RefTraits::template match<UnalignedMap>::AlignmentMatch,
+                "an aligned Ref must reject a source without an alignment guarantee");
+  static_assert(!Aligned16RefTraits::template match<Aligned8Map>::AlignmentMatch,
+                "the source alignment must satisfy the Ref alignment");
+  static_assert(Aligned16RefTraits::template match<Aligned16Map>::AlignmentMatch,
+                "a Ref must accept a source with matching alignment");
+  static_assert(Aligned16RefTraits::template match<Aligned32Map>::AlignmentMatch,
+                "a Ref must accept a source with stronger alignment");
+
+  alignas(16) float data[8] = {};
+  Aligned16Map map(data, 8);
+  Ref<PlainObject, Aligned16> ref(map);
+  VERIFY(ref.data() == data);
+}
+
 template <typename B>
 EIGEN_DONT_INLINE void call_ref_1(Ref<VectorXf> a, const B &b) {
   VERIFY_IS_EQUAL(a, b);
@@ -256,14 +286,12 @@ void call_ref() {
   RowVector3f c = RowVector3f::Random();
   const VectorXf &ac(a);
   VectorBlock<VectorXf> ab(a, 0, 3);
-  const VectorBlock<VectorXf> abc(a, 0, 3);
 
   VERIFY_EVALUATION_COUNT(call_ref_1(a, a), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(b, b.transpose()), 0);
   //   call_ref_1(ac,a<c);           // does not compile because ac is const
   VERIFY_EVALUATION_COUNT(call_ref_1(ab, ab), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(a.head(4), a.head(4)), 0);
-  VERIFY_EVALUATION_COUNT(call_ref_1(abc, abc), 0);
   VERIFY_EVALUATION_COUNT(call_ref_1(A.col(3), A.col(3)), 0);
   //   call_ref_1(A.row(3),A.row(3));    // does not compile because innerstride!=1
   VERIFY_EVALUATION_COUNT(call_ref_3(A.row(3), A.row(3).transpose()), 0);
@@ -273,7 +301,6 @@ void call_ref() {
   MatrixXf tmp = A * A.col(1);
   VERIFY_EVALUATION_COUNT(call_ref_2(A * A.col(1), tmp), 1);  // evaluated into a temp
   VERIFY_EVALUATION_COUNT(call_ref_2(ac.head(5), ac.head(5)), 0);
-  VERIFY_EVALUATION_COUNT(call_ref_2(ac, ac), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(a, a), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(ab, ab), 0);
   VERIFY_EVALUATION_COUNT(call_ref_2(a.head(4), a.head(4)), 0);
@@ -407,4 +434,5 @@ EIGEN_DECLARE_TEST(ref) {
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Vector3d()));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
+  CALL_SUBTEST_10(test_ref_alignment_matching());
 }

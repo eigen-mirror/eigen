@@ -23,15 +23,15 @@ namespace internal {
 template <typename Scalar, typename StorageIndex>
 class SparseLUImpl {
  public:
-  typedef Matrix<Scalar, Dynamic, 1> ScalarVector;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ScalarMatrix;
-  typedef Map<ScalarMatrix, 0, OuterStride<> > MappedMatrixBlock;
-  typedef typename ScalarVector::RealScalar RealScalar;
-  typedef Ref<Matrix<Scalar, Dynamic, 1> > BlockScalarVector;
-  typedef Ref<Matrix<StorageIndex, Dynamic, 1> > BlockIndexVector;
-  typedef LU_GlobalLU_t<IndexVector, ScalarVector> GlobalLU_t;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> MatrixType;
+  using ScalarVector = Matrix<Scalar, Dynamic, 1>;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
+  using ScalarMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using MappedMatrixBlock = Map<ScalarMatrix, 0, OuterStride<>>;
+  using RealScalar = typename ScalarVector::RealScalar;
+  using BlockScalarVector = Ref<Matrix<Scalar, Dynamic, 1>>;
+  using BlockIndexVector = Ref<Matrix<StorageIndex, Dynamic, 1>>;
+  using GlobalLU_t = LU_GlobalLU_t<IndexVector, ScalarVector>;
+  using MatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
 
  protected:
   template <typename VectorType>

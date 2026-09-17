@@ -177,6 +177,14 @@ void quaternion(void) {
   Quaternion<double> q1d = q1.template cast<double>();
   VERIFY_IS_APPROX(q1d.template cast<Scalar>(), q1);
 
+  // test assignment from 4D quaternion vector
+  {
+    Matrix<Scalar, 4, 1> vec4 = q1.coeffs();
+    AngleAxisx aa;
+    aa = vec4;
+    VERIFY_IS_APPROX(Quaternionx(aa), q1);
+  }
+
   // test bug 369 - improper alignment.
   Quaternionx* q = new Quaternionx;
   delete q;
@@ -326,8 +334,8 @@ void mapQuaternion(void) {
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
   Scalar a = internal::random<Scalar>(-Scalar(EIGEN_PI), Scalar(EIGEN_PI));
 
-  EIGEN_ALIGN_MAX Scalar array1[4];
-  EIGEN_ALIGN_MAX Scalar array2[4];
+  EIGEN_ALIGN_TO_BOUNDARY(Aligned) Scalar array1[4];
+  EIGEN_ALIGN_TO_BOUNDARY(Aligned) Scalar array2[4];
   EIGEN_ALIGN_MAX Scalar array3[4 + 1];
   Scalar* array3unaligned = array3 + 1;
 

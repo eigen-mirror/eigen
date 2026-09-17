@@ -64,14 +64,14 @@ Again, the output shows the aliasing issue. However, by default %Eigen uses a ru
 and exits with a message like
 
 \verbatim
-void Eigen::DenseBase<Derived>::checkTransposeAliasing(const OtherDerived&) const 
-[with OtherDerived = Eigen::Transpose<Eigen::Matrix<int, 2, 2, 0, 2, 2> >, Derived = Eigen::Matrix<int, 2, 2, 0, 2, 2>]: 
-Assertion `(!internal::check_transpose_aliasing_selector<Scalar,internal::blas_traits<Derived>::IsTransposed,OtherDerived>::run(internal::extract_data(derived()), other)) 
+static void Eigen::internal::checkTransposeAliasing_impl<Derived, OtherDerived>::run(const Derived&, const OtherDerived&)
+[with Derived = Eigen::Matrix<int, 2, 2>; OtherDerived = Eigen::Transpose<Eigen::Matrix<int, 2, 2> >]:
+Assertion `(!check_transpose_aliasing_run_time_selector<Scalar, blas_traits<Derived>::IsTransposed, OtherDerived>::run(extract_data(dst), other))
 && "aliasing detected during transposition, use transposeInPlace() or evaluate the rhs into a temporary using .eval()"' failed.
 \endverbatim
 
-The user can turn %Eigen's run-time assertions like the one to detect this aliasing problem off by defining the
-EIGEN_NO_DEBUG macro, and the above program was compiled with this macro turned off in order to illustrate the
+The user can disable %Eigen's run-time assertions, including the one detecting this aliasing problem, by defining the
+EIGEN_NO_DEBUG macro. The above program was compiled with assertions disabled in this way in order to illustrate the
 aliasing problem. See \ref TopicAssertions for more information about %Eigen's run-time assertions.
 
 

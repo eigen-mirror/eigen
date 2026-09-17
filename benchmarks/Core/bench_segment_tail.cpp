@@ -21,7 +21,15 @@
 // ops where each result is consumed by the next. A partial-packet tail store
 // then collides with the consumer's packet load -- the store-to-load
 // forwarding hazard that makes a masked tail far more costly than a scalar
-// one. This is the cost Parts A and B cannot see in isolation.
+// one. This is the cost Parts A and B cannot see in isolation. Chained/Rotation
+// additionally covers the lazy-product shape, whose tail is reached through
+// SliceVectorizedTraversal with InnerUnrolling and through the product
+// evaluator's own partial loads, not through LinearVectorizedTraversal.
+//
+// Part D takes the same traversal as Chained/Rotation but streams over a runtime
+// outer size with nothing reloading the destination, so the segment amortizes a
+// source evaluation instead of stalling a consumer. It is the shape that decides
+// how narrowly the scalar tail may be applied.
 //
 // The active packet size and the value of has_packet_segment per scalar type
 // are emitted as Google Benchmark custom context, so a captured run is
@@ -418,6 +426,66 @@ void BM_Chained_Block23(benchmark::State& state) {
   }
 }
 
+// #3083 Example A: the matrix algebra of one IMU integration step. Its 3x3
+// products are lazy, so unlike the kernels above the destination assignment
+// takes SliceVectorizedTraversal with InnerUnrolling, and the product evaluator
+// itself loads a partial packet. Neither path was covered by the kernels above,
+// which is why this one kept a masked tail after !2581.
+void BM_Chained_Rotation(benchmark::State& state) {
+  Matrix3d S = Matrix3d::Random(), R = Matrix3d::Random(), Xi = Matrix3d::Random();
+  Vector3d a = Vector3d::Random(), v = Vector3d::Zero();
+  const double dt = 0.005;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(S);
+    benchmark::DoNotOptimize(R);
+    benchmark::DoNotOptimize(a);
+    const Matrix3d S2 = S * S;
+    Xi = dt * Matrix3d::Identity() + 0.5 * dt * dt * S + (dt * dt * dt / 6.0) * S2;
+    v += R * Xi * a;
+    benchmark::DoNotOptimize(Xi);
+    benchmark::DoNotOptimize(v);
+    benchmark::ClobberMemory();
+  }
+}
+
+// ===========================================================================
+// Part D : streaming slices (compile-time inner size, runtime outer size)
+//
+// SliceVectorizedTraversal with InnerUnrolling, as in Chained/Rotation, but the
+// tail is paid once per column of a long runtime outer loop and no consumer
+// reloads the destination. Sqrt makes one packet evaluation of the source far
+// cheaper than PacketSize scalar ones, so unlike Part C this shape wants the
+// masked segment; the copy variant is the cheap-source control.
+// ===========================================================================
+
+template <typename T, int Rows>
+void BM_SliceCopy(benchmark::State& state) {
+  const Index cols = state.range(0);
+  using Mat = Matrix<T, Dynamic, Dynamic>;
+  Mat src = Mat::Random(Rows + 9, cols), dst = Mat::Zero(Rows + 9, cols);
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(src.data());
+    dst.template topRows<Rows>() = src.template topRows<Rows>();
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * Rows * cols * static_cast<int64_t>(sizeof(T)) * 2);
+}
+
+template <typename T, int Rows>
+void BM_SliceSqrt(benchmark::State& state) {
+  const Index cols = state.range(0);
+  using Mat = Matrix<T, Dynamic, Dynamic>;
+  Mat src = Mat::Random(Rows + 9, cols).cwiseAbs(), dst = Mat::Zero(Rows + 9, cols);
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(src.data());
+    dst.template topRows<Rows>() = src.template topRows<Rows>().array().sqrt().matrix();
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * Rows * cols * static_cast<int64_t>(sizeof(T)) * 2);
+}
+
 // ===========================================================================
 // Registration
 //
@@ -528,6 +596,18 @@ void add_all_prim_ct() {
   add_prim_ct<T, 7>();
 }
 
+// Part D : one fixed inner size that is not a packet multiple for any supported
+// packet width, swept over outer sizes that span the cache hierarchy.
+template <typename T>
+void add_slice() {
+  const std::string tag = std::string("/") + type_tag<T>() + "/7";
+  for (auto entry : {std::make_pair("Slice/copy" + tag, &BM_SliceCopy<T, 7>),
+                     std::make_pair("Slice/sqrt" + tag, &BM_SliceSqrt<T, 7>)}) {
+    auto* b = benchmark::RegisterBenchmark(entry.first, entry.second);
+    for (int c : {64, 1024, 4096}) b->Arg(c);
+  }
+}
+
 int RegisterAll() {
   add_trait_context<float>("f32");
   add_trait_context<double>("f64");
@@ -554,6 +634,10 @@ int RegisterAll() {
   benchmark::RegisterBenchmark("Chained/Inverse3x3", &BM_Chained_Inverse3x3);
   benchmark::RegisterBenchmark("Chained/Camera", &BM_Chained_Camera);
   benchmark::RegisterBenchmark("Chained/Block23", &BM_Chained_Block23);
+  benchmark::RegisterBenchmark("Chained/Rotation", &BM_Chained_Rotation);
+
+  add_slice<float>();
+  add_slice<double>();
   return 0;
 }
 

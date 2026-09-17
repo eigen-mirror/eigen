@@ -14,7 +14,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-      cmake ninja-build git \
+      cmake ninja-build git ccache \
       gcc-10 g++-10 \
       g++-10-aarch64-linux-gnu \
       clang-14 \

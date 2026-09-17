@@ -19,9 +19,10 @@
  * \sa class CwiseBinaryOp, cwiseAbs2
  */
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, product)
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived,
+                                                                                     internal::scalar_product_op)
     cwiseProduct(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived>& other) const {
-  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, product)(derived(), other.derived());
+  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_product_op)(derived(), other.derived());
 }
 
 template <typename OtherDerived>

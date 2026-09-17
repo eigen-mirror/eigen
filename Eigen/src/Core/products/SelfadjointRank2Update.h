@@ -29,7 +29,7 @@ template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Lower> {
   EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
                                     const Scalar& alpha) {
-    typedef typename packet_traits<Scalar>::type Packet;
+    using Packet = typename packet_traits<Scalar>::type;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
 
@@ -115,7 +115,7 @@ template <typename Scalar, typename Index>
 struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
   EIGEN_DEVICE_FUNC static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v,
                                     const Scalar& alpha) {
-    typedef typename packet_traits<Scalar>::type Packet;
+    using Packet = typename packet_traits<Scalar>::type;
     const Index PacketSize = unpacket_traits<Packet>::size;
     const Scalar cAlpha = numext::conj(alpha);
 
@@ -195,14 +195,14 @@ template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
 EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
-  typedef internal::blas_traits<DerivedU> UBlasTraits;
-  typedef typename UBlasTraits::DirectLinearAccessType ActualUType;
-  typedef internal::remove_all_t<ActualUType> ActualUType_;
+  using UBlasTraits = internal::blas_traits<DerivedU>;
+  using ActualUType = typename UBlasTraits::DirectLinearAccessType;
+  using ActualUType_ = internal::remove_all_t<ActualUType>;
   internal::add_const_on_value_type_t<ActualUType> actualU = UBlasTraits::extract(u.derived());
 
-  typedef internal::blas_traits<DerivedV> VBlasTraits;
-  typedef typename VBlasTraits::DirectLinearAccessType ActualVType;
-  typedef internal::remove_all_t<ActualVType> ActualVType_;
+  using VBlasTraits = internal::blas_traits<DerivedV>;
+  using ActualVType = typename VBlasTraits::DirectLinearAccessType;
+  using ActualVType_ = internal::remove_all_t<ActualVType>;
   internal::add_const_on_value_type_t<ActualVType> actualV = VBlasTraits::extract(v.derived());
 
   // If MatrixType is row major, then we use the routine for lower triangular in the upper triangular case and

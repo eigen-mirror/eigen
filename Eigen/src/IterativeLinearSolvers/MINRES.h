@@ -33,9 +33,9 @@ template <typename MatrixType, typename Rhs, typename Dest, typename Preconditio
 EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond,
                               Index& iters, typename Dest::RealScalar& tol_error) {
   using std::sqrt;
-  typedef typename Dest::RealScalar RealScalar;
-  typedef typename Dest::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename Dest::RealScalar;
+  using Scalar = typename Dest::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   // Check for zero rhs
   const RealScalar rhsNorm(rhs.stableNorm());
@@ -149,8 +149,8 @@ namespace internal {
 
 template <typename MatrixType_, int UpLo_, typename Preconditioner_>
 struct traits<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Preconditioner = Preconditioner_;
 };
 
 }  // namespace internal
@@ -165,11 +165,11 @@ struct traits<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
  * \tparam MatrixType_ the type of the sparse matrix A, can be a dense or a sparse matrix.
  * \tparam UpLo_ the triangular part that will be used for the computations. It can be Lower,
  *               Upper, or Lower|Upper in which the full matrix entries will be considered. Default is Lower.
- * \tparam Preconditioner_ the type of the preconditioner. Default is DiagonalPreconditioner
+ * \tparam Preconditioner_ the type of the preconditioner. Default is IdentityPreconditioner
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
- * and setTolerance() methods. The defaults are the size of the problem for the maximal number of iterations
- * and NumTraits<Scalar>::epsilon() for the tolerance.
+ * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
+ * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
  *
  * This class can be used as the direct solver classes. Here is a typical usage example:
  * \code
@@ -196,7 +196,7 @@ struct traits<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
 template <typename MatrixType_, int UpLo_, typename Preconditioner_>
 class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
  protected:
-  typedef IterativeSolverBase<MINRES> Base;
+  using Base = IterativeSolverBase<MINRES>;
   using Base::m_error;
   using Base::m_info;
   using Base::m_isInitialized;
@@ -205,10 +205,10 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
 
  public:
   using Base::_solve_impl;
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Preconditioner_ Preconditioner;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Preconditioner = Preconditioner_;
 
   enum { UpLo = UpLo_ };
 
@@ -232,19 +232,19 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
   /** \internal */
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
-    typedef typename Base::MatrixWrapper MatrixWrapper;
-    typedef typename Base::ActualMatrixType ActualMatrixType;
+    using MatrixWrapper = typename Base::MatrixWrapper;
+    using ActualMatrixType = typename Base::ActualMatrixType;
     enum {
       TransposeInput = (!MatrixWrapper::MatrixFree) && (UpLo == (Lower | Upper)) && (!MatrixType::IsRowMajor) &&
                        (!NumTraits<Scalar>::IsComplex)
     };
-    typedef std::conditional_t<TransposeInput, Transpose<const ActualMatrixType>, ActualMatrixType const&>
-        RowMajorWrapper;
+    using RowMajorWrapper =
+        std::conditional_t<TransposeInput, Transpose<const ActualMatrixType>, ActualMatrixType const&>;
     EIGEN_STATIC_ASSERT(internal::check_implication(MatrixWrapper::MatrixFree, UpLo == (Lower | Upper)),
                         MATRIX_FREE_CONJUGATE_GRADIENT_IS_COMPATIBLE_WITH_UPPER_UNION_LOWER_MODE_ONLY);
-    typedef std::conditional_t<UpLo == (Lower | Upper), RowMajorWrapper,
-                               typename MatrixWrapper::template ConstSelfAdjointViewReturnType<UpLo>::Type>
-        SelfAdjointWrapper;
+    using SelfAdjointWrapper =
+        std::conditional_t<UpLo == (Lower | Upper), RowMajorWrapper,
+                           typename MatrixWrapper::template ConstSelfAdjointViewReturnType<UpLo>::Type>;
 
     m_iterations = Base::maxIterations();
     m_error = Base::m_tolerance;

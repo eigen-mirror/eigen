@@ -30,51 +30,58 @@
 //
 // Decomposition order follows storage order: column-major by default,
 // so Matrix2d decomposes as (0,0), (1,0), (0,1), (1,1). Only fixed-size
-// column-major Matrix and Array specialize here; Map, Ref, and fixed-size
+// column-major Matrix and Array are tuple-like; Map, Ref, and fixed-size
 // Block intentionally do not participate.
+
+namespace Eigen {
+namespace internal {
+
+// Bases supplying value/type only for fixed-size shapes, leaving the std
+// specializations below memberless for dynamic sizes: generic tuple-like
+// detection probes std::tuple_size<T>::value in a SFINAE context (fmt's range
+// formatter, issue #3103) and needs a substitution failure, not a hard error.
+// An enable_if_t base-clause cannot replace this: base-class-specifier
+// substitution is not a SFINAE context.
+template <int Rows_, int Cols_, bool IsFixedSize_ = (Rows_ != Dynamic && Cols_ != Dynamic)>
+struct structured_binding_size {};
+
+template <int Rows_, int Cols_>
+struct structured_binding_size<Rows_, Cols_, true>
+    : std::integral_constant<size_t, static_cast<size_t>(Rows_) * static_cast<size_t>(Cols_)> {};
+
+// Note: uses Idx_ instead of I to avoid conflict with Eigen's test framework macro.
+template <size_t Idx_, typename Scalar_, int Rows_, int Cols_,
+          bool IsFixedSize_ = (Rows_ != Dynamic && Cols_ != Dynamic)>
+struct structured_binding_element {};
+
+template <size_t Idx_, typename Scalar_, int Rows_, int Cols_>
+struct structured_binding_element<Idx_, Scalar_, Rows_, Cols_, true> {
+  static_assert(Idx_ < static_cast<size_t>(Rows_) * static_cast<size_t>(Cols_), "Index out of range.");
+  using type = Scalar_;
+};
+
+}  // namespace internal
+}  // namespace Eigen
 
 namespace std {
 
-// std::tuple_size for fixed-size Matrix.
-//
-// Deliberately NOT SFINAE-gated on (Rows, Cols) because base-class-specifier
-// substitution is not a SFINAE context (a malformed base via enable_if_t
-// produces a non-SFINAE hard error rather than letting the primary template
-// stay incomplete). The static_assert below produces a friendly diagnostic
-// if generic code probes tuple_size<MatrixXd>.
+// std::tuple_size / std::tuple_element for Matrix.
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct tuple_size<Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
-    : std::integral_constant<size_t, static_cast<size_t>((Rows_ > 0 && Cols_ > 0) ? Rows_* Cols_ : 0)> {
-  static_assert(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic,
-                "Structured bindings require fixed-size Eigen types (e.g. Vector3d, not VectorXd).");
-};
+    : Eigen::internal::structured_binding_size<Rows_, Cols_> {};
 
-// std::tuple_element for fixed-size Matrix.
-// Note: uses Idx_ instead of I to avoid conflict with Eigen's test framework macro.
 template <size_t Idx_, typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
-struct tuple_element<Idx_, Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
-  static_assert(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic,
-                "Structured bindings require fixed-size Eigen types (e.g. Vector3d, not VectorXd).");
-  static_assert(Idx_ < static_cast<size_t>(Rows_ * Cols_), "Index out of range.");
-  using type = Scalar_;
-};
+struct tuple_element<Idx_, Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
+    : Eigen::internal::structured_binding_element<Idx_, Scalar_, Rows_, Cols_> {};
 
-// std::tuple_size for fixed-size Array. See note on Matrix specialization above.
+// std::tuple_size / std::tuple_element for Array.
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct tuple_size<Eigen::Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
-    : std::integral_constant<size_t, static_cast<size_t>((Rows_ > 0 && Cols_ > 0) ? Rows_* Cols_ : 0)> {
-  static_assert(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic,
-                "Structured bindings require fixed-size Eigen types (e.g. Array3d, not ArrayXd).");
-};
+    : Eigen::internal::structured_binding_size<Rows_, Cols_> {};
 
-// std::tuple_element for fixed-size Array.
 template <size_t Idx_, typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
-struct tuple_element<Idx_, Eigen::Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
-  static_assert(Rows_ != Eigen::Dynamic && Cols_ != Eigen::Dynamic,
-                "Structured bindings require fixed-size Eigen types (e.g. Array3d, not ArrayXd).");
-  static_assert(Idx_ < static_cast<size_t>(Rows_ * Cols_), "Index out of range.");
-  using type = Scalar_;
-};
+struct tuple_element<Idx_, Eigen::Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
+    : Eigen::internal::structured_binding_element<Idx_, Scalar_, Rows_, Cols_> {};
 
 }  // namespace std
 

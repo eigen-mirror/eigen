@@ -50,7 +50,7 @@ struct determinant_impl<Derived, 3> {
 
 template <typename Derived>
 struct determinant_impl<Derived, 4> {
-  typedef typename traits<Derived>::Scalar Scalar;
+  using Scalar = typename traits<Derived>::Scalar;
   static EIGEN_DEVICE_FUNC Scalar run(const Derived& m) {
     Scalar d2_01 = det2(m, 0, 1);
     Scalar d2_02 = det2(m, 0, 2);
@@ -87,7 +87,7 @@ struct determinant_impl<Derived, 4> {
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar MatrixBase<Derived>::determinant() const {
   eigen_assert(rows() == cols());
-  typedef typename internal::nested_eval<Derived, Base::RowsAtCompileTime>::type Nested;
+  using Nested = typename internal::nested_eval<Derived, Base::RowsAtCompileTime>::type;
   return internal::determinant_impl<internal::remove_all_t<Nested>>::run(derived());
 }
 

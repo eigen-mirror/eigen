@@ -52,37 +52,37 @@ Here again %Eigen won't introduce any temporary, thus producing a single <b>fuse
 
 The default evaluation strategy is to fuse the operations in a single loop, and %Eigen will choose it except in a few circumstances.
 
-<b>The first circumstance</b> in which %Eigen chooses to evaluate a sub-expression is when it sees an assignment <tt>a = b;</tt> and the expression \c b has the evaluate-before-assigning \link flags flag\endlink.
+<b>The first circumstance</b> in which %Eigen chooses to evaluate a sub-expression is when it sees an assignment <tt>a = b;</tt> where \c b is an expression whose assignment logic mandates evaluation into a temporary.
 The most important example of such an expression is the \link Product matrix product expression\endlink. For example, when you do
 
 \code mat = mat * mat;
 \endcode
 
-%Eigen will evaluate <tt>mat * mat</tt> into a temporary matrix, and then copies it into the original \c mat.
+%Eigen will evaluate <tt>mat * mat</tt> into a temporary matrix, and then copy it into the original \c mat.
 This guarantees a correct result as we saw above that lazy evaluation gives wrong results with matrix products.
 It also doesn't cost much, as the cost of the matrix product itself is much higher.
 Note that this temporary is introduced at evaluation time only, that is, within operator= in this example.
-The expression <tt>mat * mat</tt> still return a abstract product type.
+The expression <tt>mat * mat</tt> still returns an abstract product type.
 
-What if you know that the result does no alias the operand of the product and want to force lazy evaluation? Then use \link MatrixBase::noalias() .noalias()\endlink instead. Here is an example:
+What if you know that the result does not alias the operand of the product and want to force lazy evaluation? Then use \link MatrixBase::noalias() .noalias()\endlink instead. Here is an example:
 
 \code mat1.noalias() = mat2 * mat2;
 \endcode
 
-Here, since we know that mat2 is not the same matrix as mat1, we know that lazy evaluation is not dangerous, so we may force lazy evaluation. Concretely, the effect of noalias() here is to bypass the evaluate-before-assigning \link flags flag\endlink.
+Here, since we know that mat2 is not the same matrix as mat1, we know that lazy evaluation is not dangerous, so we may force lazy evaluation. Concretely, the effect of noalias() here is to let the product be evaluated directly into \c mat1 instead of going through a temporary.
 
-<b>The second circumstance</b> in which %Eigen chooses to evaluate a sub-expression, is when it sees a nested expression such as <tt>a + b</tt> where \c b is already an expression having the evaluate-before-nesting \link flags flag\endlink.
+<b>The second circumstance</b> in which %Eigen chooses to evaluate a sub-expression, is when it sees a nested expression such as <tt>a + b</tt> where \c b is already an expression having the evaluate-before-nesting flag (\c EvalBeforeNestingBit).
 Again, the most important example of such an expression is the \link Product matrix product expression\endlink.
 For example, when you do
 
 \code mat1 = mat2 * mat3 + mat4 * mat5;
 \endcode
 
-the products <tt>mat2 * mat3</tt> and <tt>mat4 * mat5</tt> gets evaluated separately into temporary matrices before being summed up in <tt>mat1</tt>.
+the products <tt>mat2 * mat3</tt> and <tt>mat4 * mat5</tt> get evaluated separately into temporary matrices before being summed up in <tt>mat1</tt>.
 Indeed, to be efficient matrix products need to be evaluated within a destination matrix at hand, and not as simple "dot products".
 For small matrices, however, you might want to enforce a "dot-product" based lazy evaluation with lazyProduct().
 Again, it is important to understand that those temporaries are created at evaluation time only, that is in operator =.
-See TopicPitfalls_auto_keyword for common pitfalls regarding this remark.
+See \ref TopicPitfalls_auto_keyword for common pitfalls regarding this remark.
 
 <b>The third circumstance</b> in which %Eigen chooses to evaluate a sub-expression, is when its cost model shows that the total cost of an operation is reduced if a sub-expression gets evaluated into a temporary.
 Indeed, in certain cases, an intermediate result is sufficiently costly to compute and is reused sufficiently many times, that is worth "caching". Here is an example:

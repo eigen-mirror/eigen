@@ -34,11 +34,11 @@ class RotationBase {
  public:
   enum { Dim = Dim_ };
   /** the scalar type of the coefficients */
-  typedef typename internal::traits<Derived>::Scalar Scalar;
+  using Scalar = typename internal::traits<Derived>::Scalar;
 
   /** corresponding linear transformation matrix type */
-  typedef Matrix<Scalar, Dim, Dim> RotationMatrixType;
-  typedef Matrix<Scalar, Dim, 1> VectorType;
+  using RotationMatrixType = Matrix<Scalar, Dim, Dim>;
+  using VectorType = Matrix<Scalar, Dim, 1>;
 
  public:
   EIGEN_DEVICE_FUNC inline const Derived& derived() const { return *static_cast<const Derived*>(this); }
@@ -112,7 +112,7 @@ namespace internal {
 template <typename RotationDerived, typename MatrixType>
 struct rotation_base_generic_product_selector<RotationDerived, MatrixType, false> {
   enum { Dim = RotationDerived::Dim };
-  typedef Matrix<typename RotationDerived::Scalar, Dim, Dim> ReturnType;
+  using ReturnType = Matrix<typename RotationDerived::Scalar, Dim, Dim>;
   EIGEN_DEVICE_FUNC static inline ReturnType run(const RotationDerived& r, const MatrixType& m) {
     return r.toRotationMatrix() * m;
   }
@@ -120,7 +120,7 @@ struct rotation_base_generic_product_selector<RotationDerived, MatrixType, false
 
 template <typename RotationDerived, typename Scalar, int Dim, int MaxDim>
 struct rotation_base_generic_product_selector<RotationDerived, DiagonalMatrix<Scalar, Dim, MaxDim>, false> {
-  typedef Transform<Scalar, Dim, Affine> ReturnType;
+  using ReturnType = Transform<Scalar, Dim, Affine>;
   EIGEN_DEVICE_FUNC static inline ReturnType run(const RotationDerived& r,
                                                  const DiagonalMatrix<Scalar, Dim, MaxDim>& m) {
     ReturnType res(r);
@@ -132,7 +132,7 @@ struct rotation_base_generic_product_selector<RotationDerived, DiagonalMatrix<Sc
 template <typename RotationDerived, typename OtherVectorType>
 struct rotation_base_generic_product_selector<RotationDerived, OtherVectorType, true> {
   enum { Dim = RotationDerived::Dim };
-  typedef Matrix<typename RotationDerived::Scalar, Dim, 1> ReturnType;
+  using ReturnType = Matrix<typename RotationDerived::Scalar, Dim, 1>;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE ReturnType run(const RotationDerived& r, const OtherVectorType& v) {
     return r._transformVector(v);
   }

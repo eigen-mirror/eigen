@@ -6,9 +6,10 @@
  * \sa MatrixBase::cwiseProduct
  */
 template <typename OtherDerived>
-EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, product)
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived,
+                                                                                     internal::scalar_product_op)
 operator*(const EIGEN_CURRENT_STORAGE_BASE_CLASS<OtherDerived> &other) const {
-  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, product)(derived(), other.derived());
+  return EIGEN_CWISE_BINARY_RETURN_TYPE(Derived, OtherDerived, internal::scalar_product_op)(derived(), other.derived());
 }
 
 /** \returns an expression of the coefficient wise quotient of \c *this and \a other
@@ -101,7 +102,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
  *
  * \sa absolute_difference()
  */
-EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference, absolute_difference)
+EIGEN_MAKE_CWISE_BINARY_OP(absolute_difference, internal::scalar_absolute_difference_op)
 
 /** \returns an expression of the coefficient-wise absolute_difference of \c *this and scalar \a other
  *
@@ -126,14 +127,14 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const
  * Example: \include Cwise_array_power_array.cpp
  * Output: \verbinclude Cwise_array_power_array.out
  */
-EIGEN_MAKE_CWISE_BINARY_OP(pow, pow)
+EIGEN_MAKE_CWISE_BINARY_OP(pow, internal::scalar_pow_op)
 
 /** \returns an expression of the coefficient-wise atan2(\c *this, \a y), where \a y is the given array argument.
  *
  * This function computes the coefficient-wise atan2.
  *
  */
-EIGEN_MAKE_CWISE_BINARY_OP(atan2, atan2)
+EIGEN_MAKE_CWISE_BINARY_OP(atan2, internal::scalar_atan2_op)
 
 // TODO: code generating macros could be moved to Macros.h and could include generation of documentation
 #define EIGEN_MAKE_CWISE_COMP_OP(OP, COMPARATOR)                                                                     \
@@ -244,7 +245,7 @@ EIGEN_MAKE_CWISE_COMP_OP(operator!=, NEQ)
 
 // scalar addition
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator+, sum)
+EIGEN_MAKE_SCALAR_BINARY_OP(operator+, internal::scalar_sum_op)
 #else
 /** \returns an expression of \c *this with each coeff incremented by the constant \a scalar
  *
@@ -267,7 +268,7 @@ friend const CwiseBinaryOp<internal::scalar_sum_op<T, Scalar>, Constant<T>, Deri
 #endif
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP(operator-, difference)
+EIGEN_MAKE_SCALAR_BINARY_OP(operator-, internal::scalar_difference_op)
 #else
 /** \returns an expression of \c *this with each coeff decremented by the constant \a scalar
  *
@@ -290,7 +291,7 @@ friend const CwiseBinaryOp<internal::scalar_difference_op<T, Scalar>, Constant<T
 #endif
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
-EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, quotient)
+EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(operator/, internal::scalar_quotient_op)
 #else
 /**
  * \brief Component-wise division of the scalar \a s by array elements of \a a.

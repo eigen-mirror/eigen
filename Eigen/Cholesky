@@ -38,7 +38,7 @@
 #include "src/Cholesky/LDLT.h"
 #include "src/Cholesky/BunchKaufman.h"
 #ifdef EIGEN_USE_LAPACKE
-#include "src/misc/lapacke_helpers.h"
+#include "src/LAPACKESupport/lapacke_helpers.h"
 #include "src/Cholesky/LLT_LAPACKE.h"
 #endif
 // IWYU pragma: end_exports
