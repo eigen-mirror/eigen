@@ -492,8 +492,8 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
 
 // evaluator adaptor
 template <typename XprType_>
-class redux_evaluator : public internal::evaluator<XprType_> {
-  using Base = internal::evaluator<XprType_>;
+class redux_evaluator : public internal::evaluator<const XprType_> {
+  using Base = internal::evaluator<const XprType_>;
 
  public:
   using XprType = XprType_;

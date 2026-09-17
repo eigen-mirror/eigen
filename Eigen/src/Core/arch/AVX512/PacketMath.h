@@ -1247,6 +1247,13 @@ EIGEN_DEVICE_FUNC inline Packet8d pgather<double, Packet8d>(const Packet8d& src,
 
 template <>
 EIGEN_DEVICE_FUNC inline Packet16f pgather<float, Packet16f>(const float* from, Index stride) {
+  if (stride == 2) {
+    // The overlapping loads end at from[30], not the unused coefficient from[31].
+    const Packet16f low = _mm512_loadu_ps(from);
+    const Packet16f high = _mm512_loadu_ps(from + 15);
+    const Packet16i indices = _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 17, 19, 21, 23, 25, 27, 29, 31);
+    return _mm512_permutex2var_ps(low, indices, high);
+  }
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1255,6 +1262,12 @@ EIGEN_DEVICE_FUNC inline Packet16f pgather<float, Packet16f>(const float* from, 
 }
 template <>
 EIGEN_DEVICE_FUNC inline Packet8d pgather<double, Packet8d>(const double* from, Index stride) {
+  if (stride == 2) {
+    const Packet8d low = _mm512_loadu_pd(from);
+    const Packet8d high = _mm512_loadu_pd(from + 7);
+    const __m512i indices = _mm512_setr_epi64(0, 2, 4, 6, 9, 11, 13, 15);
+    return _mm512_permutex2var_pd(low, indices, high);
+  }
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);

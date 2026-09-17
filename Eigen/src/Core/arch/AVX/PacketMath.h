@@ -1638,11 +1638,32 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const Packet8f& from, uint8_t
 // 4);
 template <>
 EIGEN_DEVICE_FUNC inline Packet8f pgather<float, Packet8f>(const float* from, Index stride) {
+  if (stride == 2) {
+#ifdef EIGEN_VECTORIZE_AVX2
+    // Both loads stay within from[0..14], including when from points to an imaginary component.
+    const Packet8f low = _mm256_loadu_ps(from);
+    const Packet8f high = _mm256_loadu_ps(from + 7);
+    const Packet8f interleaved = _mm256_shuffle_ps(low, high, _MM_SHUFFLE(3, 1, 2, 0));
+    return _mm256_castpd_ps(_mm256_permute4x64_pd(_mm256_castps_pd(interleaved), _MM_SHUFFLE(3, 1, 2, 0)));
+#else
+    const Packet4f low = pgather<float, Packet4f>(from, 2);
+    const Packet4f high = pgather<float, Packet4f>(from + 8, 2);
+    return _mm256_insertf128_ps(_mm256_castps128_ps256(low), high, 1);
+#endif
+  }
   return _mm256_set_ps(from[7 * stride], from[6 * stride], from[5 * stride], from[4 * stride], from[3 * stride],
                        from[2 * stride], from[1 * stride], from[0 * stride]);
 }
 template <>
 EIGEN_DEVICE_FUNC inline Packet4d pgather<double, Packet4d>(const double* from, Index stride) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  if (stride == 2) {
+    const Packet4d low = _mm256_loadu_pd(from);
+    const Packet4d high = _mm256_loadu_pd(from + 3);
+    const Packet4d interleaved = _mm256_shuffle_pd(low, high, 0xa);
+    return _mm256_permute4x64_pd(interleaved, _MM_SHUFFLE(3, 1, 2, 0));
+  }
+#endif
   return _mm256_set_pd(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
 }
 template <>

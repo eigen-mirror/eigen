@@ -1567,6 +1567,10 @@ EIGEN_STRONG_INLINE bool pfirst<Packet16b>(const Packet16b& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
+  if (stride == 2) {
+    // Overlap the loads so the second ends at the last gathered coefficient, from[6].
+    return _mm_shuffle_ps(_mm_loadu_ps(from), _mm_loadu_ps(from + 3), _MM_SHUFFLE(3, 1, 2, 0));
+  }
   return _mm_set_ps(from[3 * stride], from[2 * stride], from[1 * stride], from[0 * stride]);
 }
 template <>
