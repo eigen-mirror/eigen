@@ -35,6 +35,15 @@ void qr_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
   typedef typename MatrixType::Scalar Scalar;
   Matrix<Scalar, Rows, Cols> m1 = Matrix<Scalar, Rows, Cols>::Random();
+  if (Rows < Cols) {
+    // Transposed solves depend on R_11, which has the singular values of the leading square block.
+    static constexpr int Size = (Rows < Cols) ? Rows : Cols;
+    using RealScalar = typename MatrixType::RealScalar;
+    using SingularValues = Matrix<RealScalar, Size, 1>;
+    const SingularValues svs = setupRangeSvs<SingularValues>(Size, RealScalar(0.5), RealScalar(1));
+    auto leading = m1.template topLeftCorner<Size, Size>();
+    generateRandomMatrixSvs(svs, Size, Size, leading);
+  }
   HouseholderQR<Matrix<Scalar, Rows, Cols> > qr(m1);
 
   Matrix<Scalar, Rows, Cols> r = qr.matrixQR();
