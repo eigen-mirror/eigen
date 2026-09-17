@@ -56,8 +56,8 @@ struct traits<Diagonal<MatrixType, DiagIndex> > : traits<MatrixType> {
                               MatrixType::MaxColsAtCompileTime - plain_enum_max(DiagIndex, 0))),
     MaxColsAtCompileTime = 1,
     MaskLvalueBit = is_lvalue<MatrixType>::value ? LvalueBit : 0,
-    Flags = (unsigned int)MatrixTypeNested_::Flags & (RowMajorBit | MaskLvalueBit | DirectAccessBit) &
-            ~RowMajorBit,  // FIXME DirectAccessBit should not be handled by expressions
+    Flags = (unsigned int)MatrixTypeNested_::Flags &
+            (MaskLvalueBit | DirectAccessBit),  // FIXME DirectAccessBit should not be handled by expressions
     MatrixTypeOuterStride = outer_stride_at_compile_time<MatrixType>::value,
     OuterStrideAtCompileTime = 0
   };

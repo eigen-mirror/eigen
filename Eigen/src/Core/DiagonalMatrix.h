@@ -235,6 +235,9 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
   inline DiagonalMatrix(const DiagonalMatrix& other) : m_diagonal(other.diagonal()) {}
 #endif
 
+  /** Move constructor. Moves the stored diagonal vector. */
+  EIGEN_DEVICE_FUNC constexpr DiagonalMatrix(DiagonalMatrix&&) = default;
+
   /** generic constructor from expression of the diagonal coefficients */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC constexpr explicit inline DiagonalMatrix(const MatrixBase<OtherDerived>& other)
@@ -256,6 +259,19 @@ class DiagonalMatrix : public DiagonalBase<DiagonalMatrix<Scalar_, SizeAtCompile
     return *this;
   }
 #endif
+
+  /** Move assignment operator. Transfers dynamic storage and copies inline storage. */
+  EIGEN_DEVICE_FUNC constexpr DiagonalMatrix& operator=(DiagonalMatrix&& other) noexcept(
+      DiagonalVectorType::MaxSizeAtCompileTime == Dynamic &&
+      std::is_nothrow_move_assignable<DiagonalVectorType>::value) {
+    EIGEN_IF_CONSTEXPR (DiagonalVectorType::MaxSizeAtCompileTime == Dynamic) {
+      m_diagonal = std::move(other.m_diagonal);
+    } else {
+      // Preserve the vectorized assignment path for inline storage.
+      m_diagonal = other.m_diagonal;
+    }
+    return *this;
+  }
 
   using InitializeReturnType =
       DiagonalWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, DiagonalVectorType>>;
