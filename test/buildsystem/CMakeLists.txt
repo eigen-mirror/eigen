@@ -21,6 +21,10 @@ if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING OR CMAKE_CROSSCOMPILING_EMUL
 endif()
 
 set(EIGEN_BUILDSYSTEM_SCENARIOS
+    gpu_architectures
+    gpu_compile_options
+    gpu_flags
+    gpu_runtime_linkage
     find_package
     find_package_version_reject
     add_subdirectory
@@ -28,10 +32,12 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off
     install_off_all_options
     exclude_from_all
-    cuda_launcher_wrapper
-    hip_architectures
     suitesparse_reconfigure
     )
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
+  list(APPEND EIGEN_BUILDSYSTEM_SCENARIOS hip_architectures)
+endif()
 
 # find_package version ranges are CMake 3.19 syntax.  On the 3.17 Eigen still
 # supports, "3.4...5" reaches Eigen3ConfigVersion.cmake as one unparsable

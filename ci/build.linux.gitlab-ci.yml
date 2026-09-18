@@ -293,11 +293,11 @@ build:linux:x86-64:nvhpc-26.1:default:contrib:
 .build:linux:cuda:
   extends: .build:linux:cross:x86-64
   # ccache and the inherited cache stanza apply here: the .cu compiles that
-  # dominate these builds now reach the launcher through the wrapper that
-  # ei_cuda_use_compiler_launcher() puts in front of nvcc. A new image costs
-  # one cold build rather than serving stale objects, since ccache hashes the
-  # nvcc it runs and the preprocessed source. nvcc's -M dependency and -dlink
-  # passes are not cacheable and appear as misses in the statistics.
+  # dominate these builds reach the launcher through CMAKE_CUDA_COMPILER_LAUNCHER,
+  # which ei_gpu_testing_enable() copies from CMAKE_CXX_COMPILER_LAUNCHER. A new
+  # image costs one cold build rather than serving stale objects, since ccache
+  # hashes the nvcc it runs and the preprocessed source. nvcc's -M dependency and
+  # -dlink passes are not cacheable and appear as misses in the statistics.
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
@@ -405,8 +405,8 @@ build:linux:cuda-12.6:clang-19:
 # CUDA 13 dropped offline compilation for sm_70, relocated the CCCL headers and
 # ships an nvcc that rejects code every 12.x toolkit accepted (issue #3139 was
 # found on a laptop because no job here compiled with it).  This pair runs on
-# the L4 at sm_89.  It builds on the FindCUDA path like the others; the
-# Windows CUDA 13.0 job already proves that works.
+# the L4 at sm_89, built through CMake's CUDA language like the other Linux
+# CUDA jobs.
 
 # GCC-13, CUDA-13.3 (nvcc)
 build:linux:cuda-13.3:gcc-13:
