@@ -400,7 +400,7 @@ struct safe_scaling<long double, true> : safe_scaling_operations<long double, tr
     EIGEN_USING_STD(frexp);
     int exponent = 0;
     const long double fraction = frexp(value, &exponent);
-    if (fraction == 0.5L) --exponent;
+    if (numext::equal_strict(fraction, 0.5L)) --exponent;
     return compute_factors_from_exponent(exponent);
   }
 
