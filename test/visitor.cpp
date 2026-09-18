@@ -203,34 +203,76 @@ void vectorVisitor(const VectorType& w) {
   }
 }
 
-template <typename Derived, bool Vectorizable>
+template <typename Derived, bool Vectorizable, bool Linear = false>
 struct TrackedVisitor {
   using Scalar = typename DenseBase<Derived>::Scalar;
   static constexpr int PacketSize = Eigen::internal::packet_traits<Scalar>::size;
   static constexpr bool RowMajor = Derived::IsRowMajor;
 
-  void init(Scalar v, Index i, Index j) { return this->operator()(v, i, j); }
+  explicit TrackedVisitor(const Derived& input) : matrix(input) {}
+
+  void init(Scalar v, Index i, Index j) {
+    ++initCalls;
+    this->operator()(v, i, j);
+  }
   template <typename Packet>
   void initpacket(Packet p, Index i, Index j) {
-    return this->packet(p, i, j);
+    ++initCalls;
+    this->packet(p, i, j);
   }
   void operator()(Scalar v, Index i, Index j) {
-    EIGEN_UNUSED_VARIABLE(v);
+    VERIFY_IS_EQUAL(v, matrix.coeff(i, j));
     visited.emplace_back(i, j);
     scalarOps++;
   }
 
   template <typename Packet>
   void packet(Packet p, Index i, Index j) {
-    EIGEN_UNUSED_VARIABLE(p);
-    for (int k = 0; k < PacketSize; k++)
+    Scalar values[PacketSize];
+    internal::pstoreu(values, p);
+    for (int k = 0; k < PacketSize; k++) {
+      VERIFY_IS_EQUAL(values[k], matrix.coeff(RowMajor ? i : i + k, RowMajor ? j + k : j));
       if (RowMajor)
         visited.emplace_back(i, j + k);
       else
         visited.emplace_back(i + k, j);
+    }
     vectorOps++;
   }
+
+  void init(Scalar v, Index index) {
+    ++initCalls;
+    this->operator()(v, index);
+  }
+  void operator()(Scalar v, Index index) {
+    VERIFY_IS_EQUAL(v, matrix.coeff(index));
+    recordIndex(index);
+    ++scalarOps;
+  }
+  template <typename Packet>
+  void initpacket(Packet p, Index index) {
+    ++initCalls;
+    this->packet(p, index);
+  }
+  template <typename Packet>
+  void packet(Packet p, Index index) {
+    Scalar values[PacketSize];
+    internal::pstoreu(values, p);
+    for (int k = 0; k < PacketSize; ++k) {
+      VERIFY_IS_EQUAL(values[k], matrix.coeff(index + k));
+      recordIndex(index + k);
+    }
+    ++vectorOps;
+  }
+  void recordIndex(Index index) {
+    const Index innerSize = RowMajor ? matrix.cols() : matrix.rows();
+    const Index inner = index % innerSize;
+    const Index outer = index / innerSize;
+    visited.emplace_back(RowMajor ? outer : inner, RowMajor ? inner : outer);
+  }
+  const Derived& matrix;
   std::vector<std::pair<Index, Index>> visited;
+  Index initCalls = 0;
   Index scalarOps = 0;
   Index vectorOps = 0;
 };
@@ -240,24 +282,42 @@ namespace internal {
 
 template <typename T, bool Vectorizable>
 struct functor_traits<TrackedVisitor<T, Vectorizable>> {
-  enum { PacketAccess = Vectorizable, Cost = 1 };
+  static constexpr bool PacketAccess = Vectorizable;
+  static constexpr int Cost = 1;
+};
+
+template <typename T>
+struct functor_traits<TrackedVisitor<T, false>> {
+  static constexpr bool PacketAccess = false;
+  static constexpr bool LinearAccess = false;
+  static constexpr int Cost = 1;
+};
+
+template <typename T, bool Vectorizable>
+struct functor_traits<TrackedVisitor<T, Vectorizable, true>> {
+  static constexpr bool PacketAccess = Vectorizable;
+  static constexpr bool LinearAccess = true;
+  static constexpr int Cost = 1;
 };
 
 }  // namespace internal
 }  // namespace Eigen
 
-template <typename Derived, bool Vectorized>
-void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
+template <typename Derived, bool Vectorized, bool Linear = false>
+void checkTraversal(const DenseBase<Derived>& mat) {
   using Scalar = typename DenseBase<Derived>::Scalar;
   static constexpr int PacketSize = Eigen::internal::packet_traits<Scalar>::size;
   static constexpr bool RowMajor = Derived::IsRowMajor;
-  Derived X(mat.rows(), mat.cols());
-  X.setRandom();
-  using Visitor = TrackedVisitor<Derived, Vectorized>;
+  const Derived& X = mat.derived();
+  using Visitor = TrackedVisitor<Derived, Vectorized, Linear>;
   using VisitImpl = Eigen::internal::visit_impl<Derived, Visitor, false>;
-  Visitor visitor;
+  STATIC_CHECK((internal::visitor_has_linear_access<Visitor>::value == Linear));
+  STATIC_CHECK((VisitImpl::LinearAccess == (Linear && bool(internal::evaluator<Derived>::Flags & LinearAccessBit))));
+  Visitor visitor(X);
   visitor.visited.reserve(X.size());
   X.visit(visitor);
+  VERIFY_IS_EQUAL(visitor.visited.size(), static_cast<std::size_t>(X.size()));
+  VERIFY_IS_EQUAL(visitor.initCalls, X.size() == 0 ? 0 : 1);
   Index count = 0;
   for (Index j = 0; j < X.outerSize(); ++j) {
     for (Index i = 0; i < X.innerSize(); ++i) {
@@ -268,35 +328,167 @@ void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
       ++count;
     }
   }
-  Index vectorOps = VisitImpl::Vectorize ? ((X.innerSize() / PacketSize) * X.outerSize()) : 0;
+  Index vectorOps = VisitImpl::Vectorize ? (VisitImpl::LinearAccess ? X.size() / PacketSize
+                                                                    : (X.innerSize() / PacketSize) * X.outerSize())
+                                         : 0;
   Index scalarOps = X.size() - (vectorOps * PacketSize);
   VERIFY_IS_EQUAL(vectorOps, visitor.vectorOps);
   VERIFY_IS_EQUAL(scalarOps, visitor.scalarOps);
+}
+
+template <typename Derived, bool Vectorized, bool Linear = false>
+void checkOptimalTraversal_impl(const DenseBase<Derived>& mat) {
+  Derived matrix = Derived::Random(mat.rows(), mat.cols());
+  checkTraversal<Derived, Vectorized, Linear>(matrix);
+}
+
+template <int Options>
+void checkLinearTraversal() {
+  using MatrixType = Matrix<float, Dynamic, Dynamic, Options>;
+  constexpr int PacketSize = internal::packet_traits<float>::size;
+  using FixedMatrix =
+      Matrix<float, Options == RowMajor ? 2 : PacketSize + 1, Options == RowMajor ? PacketSize + 1 : 2, Options>;
+  using FixedVisitor = TrackedVisitor<FixedMatrix, true, true>;
+  STATIC_CHECK((internal::visit_impl<FixedMatrix, FixedVisitor, false>::Unroll));
+  checkOptimalTraversal_impl<FixedMatrix, false, true>(FixedMatrix());
+  checkOptimalTraversal_impl<FixedMatrix, true, true>(FixedMatrix());
+  checkOptimalTraversal_impl<Matrix<float, 0, 0, Options>, true, true>(Matrix<float, 0, 0, Options>());
+
+  const Index sizes[] = {0, 1, PacketSize - 1, PacketSize, PacketSize + 1, 2 * PacketSize + 1};
+  for (Index inner : sizes) {
+    const Index rows = Options == RowMajor ? 3 : inner;
+    const Index cols = Options == RowMajor ? inner : 3;
+    MatrixType matrix = MatrixType::Random(rows, cols);
+    checkTraversal<MatrixType, false, true>(matrix);
+    checkTraversal<MatrixType, true, true>(matrix);
+
+    MatrixType storage = MatrixType::Random(rows + 2, cols + 2);
+    auto block = storage.block(1, 1, rows, cols);
+    STATIC_CHECK(!(internal::evaluator<decltype(block)>::Flags & LinearAccessBit));
+    checkTraversal<decltype(block), true, true>(block);
+    checkTraversal<decltype(block), false, false>(block);
+
+    using UnalignedMap = Map<MatrixType, Unaligned>;
+    UnalignedMap unaligned(storage.data() + 1, rows, cols);
+    checkTraversal<UnalignedMap, true, true>(unaligned);
+  }
+
+  VectorXf storage = VectorXf::Random(6 * PacketSize + 4);
+  using StridedMap = Map<VectorXf, Unaligned, InnerStride<2>>;
+  StridedMap strided(storage.data(), 3 * PacketSize + 2);
+  checkTraversal<StridedMap, true, true>(strided);
+}
+
+template <typename Derived>
+void checkBooleanVisitors(const DenseBase<Derived>& matrix) {
+  using Scalar = typename Derived::Scalar;
+  Index count = 0;
+  for (Index col = 0; col < matrix.cols(); ++col)
+    for (Index row = 0; row < matrix.rows(); ++row) count += matrix(row, col) != Scalar(0);
+  VERIFY_IS_EQUAL(matrix.count(), count);
+  VERIFY_IS_EQUAL(matrix.all(), count == matrix.size());
+  VERIFY_IS_EQUAL(matrix.any(), count != 0);
+}
+
+template <typename Scalar, int Options>
+void checkBooleanVisitorTraversal() {
+  STATIC_CHECK((internal::visitor_has_linear_access<internal::all_visitor<Scalar>>::value));
+  STATIC_CHECK((internal::visitor_has_linear_access<internal::any_visitor<Scalar>>::value));
+  STATIC_CHECK((internal::visitor_has_linear_access<internal::count_visitor<Scalar>>::value));
+  constexpr int PacketSize = internal::packet_traits<Scalar>::size;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  const Index sizes[] = {0, 1, PacketSize - 1, PacketSize, PacketSize + 1, 2 * PacketSize + 1};
+  for (Index inner : sizes) {
+    MatrixType matrix(Options == RowMajor ? 3 : inner, Options == RowMajor ? inner : 3);
+    for (int value = 0; value <= 1; ++value) {
+      matrix.setConstant(Scalar(value));
+      checkBooleanVisitors(matrix);
+      for (Index index = 0; index < matrix.size(); ++index) {
+        matrix(index) = Scalar(!value);
+        checkBooleanVisitors(matrix);
+        checkBooleanVisitors(matrix.block(0, 0, matrix.rows(), matrix.cols()));
+        checkBooleanVisitors(matrix.array() != Scalar(0));
+        matrix(index) = Scalar(value);
+      }
+    }
+  }
+  Matrix<Scalar, PacketSize + 1, 2, Options> fixed;
+  fixed.setOnes();
+  checkBooleanVisitors(fixed);
+  fixed(fixed.size() - 1) = Scalar(0);
+  checkBooleanVisitors(fixed);
+}
+
+template <bool Vectorize = false>
+struct CountVisitorReads {
+  Index* reads;
+  float operator()(float value) const {
+    ++*reads;
+    return value;
+  }
+  template <typename Packet>
+  Packet packetOp(const Packet& value) const {
+    *reads += internal::unpacket_traits<Packet>::size;
+    return value;
+  }
+};
+
+namespace Eigen {
+namespace internal {
+template <bool Vectorize>
+struct functor_traits<CountVisitorReads<Vectorize>> {
+  static constexpr int Cost = 1;
+  static constexpr bool PacketAccess = Vectorize;
+};
+}  // namespace internal
+}  // namespace Eigen
+
+template <int Options, bool Vectorize = false>
+void checkVisitorShortCircuit() {
+  using MatrixType = Matrix<float, Dynamic, Dynamic, Options>;
+  const Index inner = Vectorize ? 1 : 7;
+  const Index outer = 35;
+  MatrixType matrix(Options == RowMajor ? outer : inner, Options == RowMajor ? inner : outer);
+  for (Index index : {Index(0), Index(1), matrix.size() - 1}) {
+    Index reads = 0;
+    auto counted = matrix.unaryExpr(CountVisitorReads<Vectorize>{&reads});
+    for (int value = 0; value <= 1; ++value) {
+      matrix.setConstant(float(value));
+      matrix(index) = float(!value);
+      reads = 0;
+      VERIFY_IS_EQUAL(value ? counted.all() : counted.any(), !value);
+      VERIFY_IS_EQUAL(reads, index + 1);
+      reads = 0;
+      auto block = counted.block(0, 0, matrix.rows(), matrix.cols());
+      VERIFY_IS_EQUAL(value ? block.all() : block.any(), !value);
+      VERIFY_IS_EQUAL(reads, index + 1);
+    }
+  }
 }
 
 void checkOptimalTraversal() {
   using Scalar = float;
   constexpr int PacketSize = Eigen::internal::packet_traits<Scalar>::size;
   // use sizes that mix vector and scalar ops
-  constexpr int Rows = 3 * PacketSize + 1;
-  constexpr int Cols = 4 * PacketSize + 1;
+  constexpr int Rows = PacketSize + 1;
+  constexpr int Cols = 2;
   int rows = internal::random(PacketSize + 1, EIGEN_TEST_MAX_SIZE);
   int cols = internal::random(PacketSize + 1, EIGEN_TEST_MAX_SIZE);
 
   using UnrollColMajor = Matrix<Scalar, Rows, Cols, ColMajor>;
-  using UnrollRowMajor = Matrix<Scalar, Rows, Cols, RowMajor>;
+  using UnrollRowMajor = Matrix<Scalar, Cols, Rows, RowMajor>;
   using DynamicColMajor = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   using DynamicRowMajor = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   // Scalar-only visitors
   checkOptimalTraversal_impl<UnrollColMajor, false>(UnrollColMajor(Rows, Cols));
-  checkOptimalTraversal_impl<UnrollRowMajor, false>(UnrollRowMajor(Rows, Cols));
+  checkOptimalTraversal_impl<UnrollRowMajor, false>(UnrollRowMajor(Cols, Rows));
   checkOptimalTraversal_impl<DynamicColMajor, false>(DynamicColMajor(rows, cols));
   checkOptimalTraversal_impl<DynamicRowMajor, false>(DynamicRowMajor(rows, cols));
 
   // Vectorized visitors
   checkOptimalTraversal_impl<UnrollColMajor, true>(UnrollColMajor(Rows, Cols));
-  checkOptimalTraversal_impl<UnrollRowMajor, true>(UnrollRowMajor(Rows, Cols));
+  checkOptimalTraversal_impl<UnrollRowMajor, true>(UnrollRowMajor(Cols, Rows));
   checkOptimalTraversal_impl<DynamicColMajor, true>(DynamicColMajor(rows, cols));
   checkOptimalTraversal_impl<DynamicRowMajor, true>(DynamicRowMajor(rows, cols));
 
@@ -390,4 +582,17 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_12(visitor_vec_boundary<float>());
   CALL_SUBTEST_12(visitor_vec_boundary<double>());
   CALL_SUBTEST_12(visitor_vec_boundary<int>());
+
+  CALL_SUBTEST_13(checkLinearTraversal<ColMajor>());
+  CALL_SUBTEST_13(checkLinearTraversal<RowMajor>());
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<bool, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<bool, RowMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<float, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<double, RowMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<int, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_14(checkVisitorShortCircuit<ColMajor>());
+  CALL_SUBTEST_14(checkVisitorShortCircuit<RowMajor>());
+  CALL_SUBTEST_14((checkVisitorShortCircuit<ColMajor, true>()));
+  CALL_SUBTEST_14((checkVisitorShortCircuit<RowMajor, true>()));
 }

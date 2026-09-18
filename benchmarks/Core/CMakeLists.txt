@@ -27,6 +27,14 @@ eigen_add_benchmark(bench_vectorwise_norm bench_vectorwise_norm.cpp)
 eigen_add_benchmark(bench_complex_components bench_complex_components.cpp)
 eigen_add_benchmark(bench_pgather bench_pgather.cpp)
 eigen_add_benchmark(bench_boolean_reductions bench_boolean_reductions.cpp)
+# Separate operations and storage families to avoid moving unrelated hot loops.
+foreach(operation All Any Count)
+  string(TOLOWER ${operation} operation_name)
+  eigen_add_benchmark(bench_visitor_${operation_name} bench_visitor.cpp
+      DEFINITIONS EIGEN_BENCH_VISITOR_OP=${operation} EIGEN_BENCH_VISITOR_STRIDED=false)
+  eigen_add_benchmark(bench_visitor_${operation_name}_strided bench_visitor.cpp
+      DEFINITIONS EIGEN_BENCH_VISITOR_OP=${operation} EIGEN_BENCH_VISITOR_STRIDED=true)
+endforeach()
 eigen_add_benchmark(bench_count bench_count.cpp)
 eigen_add_benchmark(bench_dot bench_dot.cpp)
 eigen_add_benchmark(bench_stable_norm bench_stable_norm.cpp)
