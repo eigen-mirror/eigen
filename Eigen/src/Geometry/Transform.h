@@ -52,6 +52,32 @@ struct transform_construct_from_matrix;
 template <typename TransformType>
 struct transform_take_affine_part;
 
+template <typename LhsScalar, typename RhsScalar, typename BinaryOp, typename TargetScalar, typename = void>
+struct has_matching_binary_op_traits : std::false_type {};
+
+template <typename LhsScalar, typename RhsScalar, typename BinaryOp, typename TargetScalar>
+struct has_matching_binary_op_traits<LhsScalar, RhsScalar, BinaryOp, TargetScalar,
+                                     void_t<typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, BinaryOp>::ReturnType>>
+    : std::integral_constant<
+          bool, std::is_convertible<typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, BinaryOp>::ReturnType,
+                                    TargetScalar>::value ||
+                    std::is_assignable<TargetScalar&,
+                                       typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, BinaryOp>::ReturnType>::value> {};
+
+template <typename TargetScalar, typename Derived, typename LhsScalar, typename RhsScalar, typename BinaryOp,
+          typename = void>
+struct transform_convert_arg {
+  EIGEN_DEVICE_FUNC static auto run(const MatrixBase<Derived>& mat) { return mat.template cast<TargetScalar>(); }
+};
+
+template <typename TargetScalar, typename Derived, typename LhsScalar, typename RhsScalar, typename BinaryOp>
+struct transform_convert_arg<
+    TargetScalar, Derived, LhsScalar, RhsScalar, BinaryOp,
+    std::enable_if_t<std::is_same<typename Derived::Scalar, TargetScalar>::value ||
+                     has_matching_binary_op_traits<LhsScalar, RhsScalar, BinaryOp, TargetScalar>::value>> {
+  EIGEN_DEVICE_FUNC static const Derived& run(const MatrixBase<Derived>& mat) { return mat.derived(); }
+};
+
 template <typename Scalar_, int Dim_, int Mode_, int Options_>
 struct traits<Transform<Scalar_, Dim_, Mode_, Options_> > {
   using Scalar = Scalar_;
@@ -845,7 +871,10 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::translate(
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
-  translationExt() += linearExt() * other;
+  translationExt() +=
+      linearExt() *
+      internal::transform_convert_arg<Scalar, OtherDerived, Scalar, typename OtherDerived::Scalar,
+                                      internal::fast_mult_op<Scalar, typename OtherDerived::Scalar>>::run(other);
   return *this;
 }
 
@@ -859,9 +888,14 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   if (EIGEN_CONST_CONDITIONAL(int(Mode) == int(Projective)))
-    affine() += other * m_matrix.row(Dim);
+    affine() +=
+        internal::transform_convert_arg<Scalar, OtherDerived, typename OtherDerived::Scalar, Scalar,
+                                        internal::fast_mult_op<typename OtherDerived::Scalar, Scalar>>::run(other) *
+        m_matrix.row(Dim);
   else
-    translation() += other;
+    translation() +=
+        internal::transform_convert_arg<Scalar, OtherDerived, Scalar, typename OtherDerived::Scalar,
+                                        internal::scalar_sum_op<Scalar, typename OtherDerived::Scalar>>::run(other);
   return *this;
 }
 
@@ -882,11 +916,89 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
  *
  * \sa rotate(Scalar), class Quaternion, class AngleAxis, prerotate(RotationType)
  */
+namespace internal {
+
+template <typename TransformType, typename RotationType, typename Enable = void>
+struct transform_rotate_impl {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const RotationType& rotation) {
+    t.linearExt() *= internal::toRotationMatrix<typename TransformType::Scalar, TransformType::Dim>(rotation);
+  }
+};
+
+template <typename TransformType, typename Derived>
+struct transform_rotate_impl<TransformType, Derived,
+                             std::enable_if_t<std::is_base_of<MatrixBase<Derived>, Derived>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const Derived& rotation) {
+    using Scalar = typename TransformType::Scalar;
+    t.linearExt() *= internal::transform_convert_arg<
+        Scalar, Derived, Scalar, typename Derived::Scalar,
+        internal::fast_mult_op<Scalar, typename Derived::Scalar>>::run(rotation);
+  }
+};
+
+template <typename TransformType, typename Derived>
+struct transform_rotate_impl<
+    TransformType, Derived,
+    std::enable_if_t<std::is_base_of<RotationBase<Derived, TransformType::Dim>, Derived>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const Derived& rotation) {
+    t.rotate(rotation.toRotationMatrix());
+  }
+};
+
+template <typename TransformType, typename OtherScalar>
+struct transform_rotate_impl<TransformType, OtherScalar, std::enable_if_t<std::is_scalar<OtherScalar>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const OtherScalar& rotation) {
+    EIGEN_STATIC_ASSERT(TransformType::Dim == 2, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    t.rotate(Rotation2D<OtherScalar>(rotation).toRotationMatrix());
+  }
+};
+
+template <typename TransformType, typename RotationType, typename Enable = void>
+struct transform_prerotate_impl {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const RotationType& rotation) {
+    t.matrix().template block<TransformType::Dim, TransformType::HDim>(0, 0) =
+        internal::toRotationMatrix<typename TransformType::Scalar, TransformType::Dim>(rotation) *
+        t.matrix().template block<TransformType::Dim, TransformType::HDim>(0, 0);
+  }
+};
+
+template <typename TransformType, typename Derived>
+struct transform_prerotate_impl<TransformType, Derived,
+                                std::enable_if_t<std::is_base_of<MatrixBase<Derived>, Derived>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const Derived& rotation) {
+    using Scalar = typename TransformType::Scalar;
+    t.matrix().template block<TransformType::Dim, TransformType::HDim>(0, 0) =
+        internal::transform_convert_arg<
+            Scalar, Derived, typename Derived::Scalar, Scalar,
+            internal::fast_mult_op<typename Derived::Scalar, Scalar>>::run(rotation) *
+        t.matrix().template block<TransformType::Dim, TransformType::HDim>(0, 0);
+  }
+};
+
+template <typename TransformType, typename Derived>
+struct transform_prerotate_impl<
+    TransformType, Derived,
+    std::enable_if_t<std::is_base_of<RotationBase<Derived, TransformType::Dim>, Derived>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const Derived& rotation) {
+    t.prerotate(rotation.toRotationMatrix());
+  }
+};
+
+template <typename TransformType, typename OtherScalar>
+struct transform_prerotate_impl<TransformType, OtherScalar, std::enable_if_t<std::is_scalar<OtherScalar>::value>> {
+  EIGEN_DEVICE_FUNC static inline void run(TransformType& t, const OtherScalar& rotation) {
+    EIGEN_STATIC_ASSERT(TransformType::Dim == 2, YOU_MADE_A_PROGRAMMING_MISTAKE)
+    t.prerotate(Rotation2D<OtherScalar>(rotation).toRotationMatrix());
+  }
+};
+
+}  // end namespace internal
+
 template <typename Scalar, int Dim, int Mode, int Options>
 template <typename RotationType>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::rotate(
     const RotationType& rotation) {
-  linearExt() *= internal::toRotationMatrix<Scalar, Dim>(rotation);
+  internal::transform_rotate_impl<Transform, RotationType>::run(*this, rotation);
   return *this;
 }
 
@@ -901,8 +1013,7 @@ template <typename Scalar, int Dim, int Mode, int Options>
 template <typename RotationType>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::prerotate(
     const RotationType& rotation) {
-  m_matrix.template block<Dim, HDim>(0, 0) =
-      internal::toRotationMatrix<Scalar, Dim>(rotation) * m_matrix.template block<Dim, HDim>(0, 0);
+  internal::transform_prerotate_impl<Transform, RotationType>::run(*this, rotation);
   return *this;
 }
 

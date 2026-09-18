@@ -19,6 +19,123 @@ Matrix<T, 2, 1> angleToVec(T a) {
   return Matrix<T, 2, 1>(std::cos(a), std::sin(a));
 }
 
+struct CustomScalarOffset {
+  double value;
+  explicit CustomScalarOffset(double x = 0) : value(x) {}
+};
+inline double operator*(double x, CustomScalarOffset y) { return x * y.value; }
+inline double operator*(CustomScalarOffset x, double y) { return x.value * y; }
+inline double operator+(double x, CustomScalarOffset y) { return x + y.value; }
+inline double& operator+=(double& x, CustomScalarOffset y) { return x += y.value; }
+
+struct CustomPromotedScalar {
+  double value;
+  explicit CustomPromotedScalar(double x = 0) : value(x) {}
+  operator float() const { return static_cast<float>(value); }
+};
+inline CustomPromotedScalar operator*(float x, CustomPromotedScalar y) { return CustomPromotedScalar(double(x) * y.value); }
+inline CustomPromotedScalar operator*(CustomPromotedScalar x, float y) { return CustomPromotedScalar(x.value * double(y)); }
+inline CustomPromotedScalar operator+(float x, CustomPromotedScalar y) { return CustomPromotedScalar(double(x) + y.value); }
+inline CustomPromotedScalar operator+(CustomPromotedScalar x, float y) { return CustomPromotedScalar(x.value + double(y)); }
+inline CustomPromotedScalar operator+(CustomPromotedScalar x, CustomPromotedScalar y) { return CustomPromotedScalar(x.value + y.value); }
+inline float& operator+=(float& x, CustomPromotedScalar y) {
+  x = static_cast<float>(double(x) + y.value);
+  return x;
+}
+
+namespace Eigen {
+template <>
+struct NumTraits<CustomScalarOffset> : NumTraits<double> {
+  static constexpr int RequireInitialization = 1;
+};
+template <typename Op>
+struct ScalarBinaryOpTraits<double, CustomScalarOffset, Op> {
+  using ReturnType = double;
+};
+template <typename Op>
+struct ScalarBinaryOpTraits<CustomScalarOffset, double, Op> {
+  using ReturnType = double;
+};
+
+template <>
+struct NumTraits<CustomPromotedScalar> : NumTraits<double> {
+  static constexpr int RequireInitialization = 1;
+};
+template <typename Op>
+struct ScalarBinaryOpTraits<float, CustomPromotedScalar, Op> {
+  using ReturnType = CustomPromotedScalar;
+};
+template <typename Op>
+struct ScalarBinaryOpTraits<CustomPromotedScalar, float, Op> {
+  using ReturnType = CustomPromotedScalar;
+};
+}  // namespace Eigen
+
+void custom_scalar_test() {
+  {
+    Transform<float, 3, Affine> tf = Transform<float, 3, Affine>::Identity();
+    Matrix<double, 3, 1> vd(1.0, 2.0, 3.0);
+    tf.pretranslate(vd);
+    tf.translate(vd);
+  }
+
+  // Promoted arithmetic where trait result type differs from destination scalar
+  {
+    Transform<float, 3, Affine> t = Transform<float, 3, Affine>::Identity();
+    t.translation().setConstant(16777216.0f);
+    Matrix<CustomPromotedScalar, 3, 1> v;
+    v.setConstant(CustomPromotedScalar(-16777217.0));
+    Transform<float, 3, Affine> pre = t;
+    pre.pretranslate(v);
+    t.translate(v);
+    Vector3f expected(-1.0f, -1.0f, -1.0f);
+    VERIFY_IS_APPROX(t.translation(), expected);
+    VERIFY_IS_APPROX(pre.translation(), expected);
+  }
+
+  using CustomVector3 = Matrix<CustomScalarOffset, 3, 1>;
+  using CustomMatrix3 = Matrix<CustomScalarOffset, 3, 3>;
+
+  // Affine
+  {
+    Affine3d t = Affine3d::Identity();
+    CustomVector3 v;
+    v << CustomScalarOffset(1), CustomScalarOffset(2), CustomScalarOffset(3);
+    t.translate(v);
+    t.pretranslate(v);
+    Vector3d expected(2.0, 4.0, 6.0);
+    VERIFY_IS_APPROX(t.translation(), expected);
+
+    CustomMatrix3 r;
+    r << CustomScalarOffset(1), CustomScalarOffset(0), CustomScalarOffset(0), CustomScalarOffset(0),
+        CustomScalarOffset(1), CustomScalarOffset(0), CustomScalarOffset(0), CustomScalarOffset(0),
+        CustomScalarOffset(1);
+    t.rotate(r);
+    t.prerotate(r);
+    VERIFY_IS_APPROX(t.translation(), expected);
+  }
+
+  // Projective
+  {
+    Projective3d t = Projective3d::Identity();
+    t.matrix().row(3) << 0.1, 0.2, 0.3, 1.0;
+    Matrix4d t_orig = t.matrix();
+
+    CustomVector3 v;
+    v << CustomScalarOffset(1), CustomScalarOffset(2), CustomScalarOffset(3);
+    Matrix4d H = Matrix4d::Identity();
+    H.block<3, 1>(0, 3) << 1.0, 2.0, 3.0;
+
+    Projective3d t_trans = t;
+    t_trans.translate(v);
+    VERIFY_IS_APPROX(t_trans.matrix(), (t_orig * H).eval());
+
+    Projective3d t_pretrans = t;
+    t_pretrans.pretranslate(v);
+    VERIFY_IS_APPROX(t_pretrans.matrix(), (H * t_orig).eval());
+  }
+}
+
 template <typename Scalar, int Mode, int Options>
 void non_projective_only() {
   /* this test covers the following files:
@@ -238,6 +355,89 @@ void transformations() {
   t4 *= sv3;
   VERIFY_IS_APPROX(t6.matrix(), t4.matrix());
 
+  // mixed-scalar operations
+  {
+    using OtherScalar = std::conditional_t<std::is_same<Scalar, float>::value, double, float>;
+    typedef Matrix<OtherScalar, 3, 1> Vector3Other;
+    typedef Matrix<OtherScalar, 3, 3> Matrix3Other;
+    typedef Quaternion<OtherScalar> QuaternionOther;
+    typedef AngleAxis<OtherScalar> AngleAxisOther;
+
+    Vector3Other v_other(OtherScalar(1), OtherScalar(2), OtherScalar(3));
+    Matrix4 H_trans = Matrix4::Identity();
+    H_trans.template block<3, 1>(0, 3) = v_other.template cast<Scalar>();
+
+    Matrix4 full_t3 = Matrix4::Identity();
+    full_t3.template topRows<int(Mode) == int(AffineCompact) ? 3 : 4>() = t3.matrix();
+
+    Transform3 t_trans = t3;
+    t_trans.translate(v_other);
+    Matrix4 expected_trans = (full_t3 * H_trans).eval();
+    VERIFY_IS_APPROX(t_trans.matrix(), (expected_trans.template topRows<int(Mode) == int(AffineCompact) ? 3 : 4>()));
+
+    Transform3 t_pretrans = t3;
+    t_pretrans.pretranslate(v_other);
+    Matrix4 expected_pretrans = (H_trans * full_t3).eval();
+    VERIFY_IS_APPROX(t_pretrans.matrix(),
+                     (expected_pretrans.template topRows<int(Mode) == int(AffineCompact) ? 3 : 4>()));
+
+    AngleAxisOther aa_other(OtherScalar(0.5),
+                            Vector3Other(OtherScalar(1), OtherScalar(2), OtherScalar(3)).normalized());
+    Matrix3Other rot_mat_other = aa_other.toRotationMatrix();
+    QuaternionOther q_other(aa_other);
+
+    Matrix4 H_rot = Matrix4::Identity();
+    H_rot.template block<3, 3>(0, 0) = rot_mat_other.template cast<Scalar>();
+
+    Matrix4 expected_rotate = (full_t3 * H_rot).eval();
+    Matrix4 expected_prerotate = (H_rot * full_t3).eval();
+
+    Transform3 t_rot_mat = t3;
+    t_rot_mat.rotate(rot_mat_other);
+    VERIFY_IS_APPROX(t_rot_mat.matrix(), (expected_rotate.template topRows<int(Mode) == int(AffineCompact) ? 3 : 4>()));
+
+    Transform3 t_rot_aa = t3;
+    t_rot_aa.rotate(aa_other);
+    VERIFY_IS_APPROX(t_rot_aa.matrix(), t_rot_mat.matrix());
+
+    Transform3 t_rot_q = t3;
+    t_rot_q.rotate(q_other);
+    VERIFY_IS_APPROX(t_rot_q.matrix(), t_rot_mat.matrix());
+
+    Transform3 t_prerot_mat = t3;
+    t_prerot_mat.prerotate(rot_mat_other);
+    VERIFY_IS_APPROX(t_prerot_mat.matrix(),
+                     (expected_prerotate.template topRows<int(Mode) == int(AffineCompact) ? 3 : 4>()));
+
+    Transform3 t_prerot_aa = t3;
+    t_prerot_aa.prerotate(aa_other);
+    VERIFY_IS_APPROX(t_prerot_aa.matrix(), t_prerot_mat.matrix());
+
+    Transform3 t_prerot_q = t3;
+    t_prerot_q.prerotate(q_other);
+    VERIFY_IS_APPROX(t_prerot_q.matrix(), t_prerot_mat.matrix());
+
+    // Projective translation with nontrivial last row
+    {
+      Transform<Scalar, 3, Projective> t_proj;
+      t_proj.matrix() = Matrix4::Random();
+      t_proj.matrix().row(3) << Scalar(0.2), Scalar(-0.1), Scalar(0.5), Scalar(1.2);
+      Matrix4 t_proj_mat = t_proj.matrix();
+
+      Vector3Other v_proj(OtherScalar(1.5), OtherScalar(-2.5), OtherScalar(3.5));
+      Matrix4 H_proj = Matrix4::Identity();
+      H_proj.template block<3, 1>(0, 3) = v_proj.template cast<Scalar>();
+
+      Transform<Scalar, 3, Projective> t_trans_proj = t_proj;
+      t_trans_proj.translate(v_proj);
+      VERIFY_IS_APPROX(t_trans_proj.matrix(), (t_proj_mat * H_proj).eval());
+
+      Transform<Scalar, 3, Projective> t_pretrans_proj = t_proj;
+      t_pretrans_proj.pretranslate(v_proj);
+      VERIFY_IS_APPROX(t_pretrans_proj.matrix(), (H_proj * t_proj_mat).eval());
+    }
+  }
+
   // matrix * transform
   VERIFY_IS_APPROX((t3.matrix() * t4).matrix(), (t3 * t4).matrix());
 
@@ -270,6 +470,40 @@ void transformations() {
   Transform2 t23 = t20 * t21;
   t21.preshear(Scalar(2), Scalar(3));
   VERIFY_IS_APPROX(t21, t23);
+
+  // mixed-scalar 2D rotate and prerotate
+  {
+    using OtherScalar = std::conditional_t<std::is_same<Scalar, float>::value, double, float>;
+    typedef Matrix<Scalar, 3, 3> Matrix3_2D;
+    Rotation2D<OtherScalar> r2d_other(OtherScalar(0.4));
+    Matrix<Scalar, 2, 2> r2d_mat = r2d_other.toRotationMatrix().template cast<Scalar>();
+    Matrix3_2D H2_rot = Matrix3_2D::Identity();
+    H2_rot.template block<2, 2>(0, 0) = r2d_mat;
+
+    Matrix3_2D full_t21 = Matrix3_2D::Identity();
+    full_t21.template topRows<int(Mode) == int(AffineCompact) ? 2 : 3>() = t21.matrix();
+
+    Matrix3_2D expected_2d_rotate = (full_t21 * H2_rot).eval();
+    Matrix3_2D expected_2d_prerotate = (H2_rot * full_t21).eval();
+
+    Transform2 t2_rot_mat = t21;
+    t2_rot_mat.rotate(r2d_other.toRotationMatrix());
+    VERIFY_IS_APPROX(t2_rot_mat.matrix(),
+                     (expected_2d_rotate.template topRows<int(Mode) == int(AffineCompact) ? 2 : 3>()));
+
+    Transform2 t2_rot_r2d = t21;
+    t2_rot_r2d.rotate(r2d_other);
+    VERIFY_IS_APPROX(t2_rot_r2d.matrix(), t2_rot_mat.matrix());
+
+    Transform2 t2_prerot_mat = t21;
+    t2_prerot_mat.prerotate(r2d_other.toRotationMatrix());
+    VERIFY_IS_APPROX(t2_prerot_mat.matrix(),
+                     (expected_2d_prerotate.template topRows<int(Mode) == int(AffineCompact) ? 2 : 3>()));
+
+    Transform2 t2_prerot_r2d = t21;
+    t2_prerot_r2d.prerotate(r2d_other);
+    VERIFY_IS_APPROX(t2_prerot_r2d.matrix(), t2_prerot_mat.matrix());
+  }
 
   // Transform - new API
   // 3D
@@ -713,6 +947,7 @@ EIGEN_DECLARE_TEST(geo_transformations) {
     CALL_SUBTEST_1((transformations<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((non_projective_only<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((transformations_computed_scaling_continuity<double, Affine, AutoAlign>()));
+    CALL_SUBTEST_1(custom_scalar_test());
 
     CALL_SUBTEST_2((transformations<float, AffineCompact, AutoAlign>()));
     CALL_SUBTEST_2((non_projective_only<float, AffineCompact, AutoAlign>()));
@@ -723,6 +958,7 @@ EIGEN_DECLARE_TEST(geo_transformations) {
     CALL_SUBTEST_3((transform_alignment<double>()));
 
     CALL_SUBTEST_4((transformations<float, Affine, RowMajor | AutoAlign>()));
+    CALL_SUBTEST_4((transformations<float, Projective, AutoAlign>()));
     CALL_SUBTEST_4((non_projective_only<float, Affine, RowMajor>()));
 
     CALL_SUBTEST_5((transformations<double, AffineCompact, RowMajor | AutoAlign>()));
