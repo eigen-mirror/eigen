@@ -3,6 +3,17 @@
 
 ei_add_failtest("failtest_sanity_check")
 
+ei_add_failtest("bool_subtract")
+ei_add_failtest("bool_negate")
+ei_add_failtest("bool_subtract_assign")
+ei_add_failtest("bool_subtract_product")
+ei_add_failtest("bool_subtract_noalias")
+ei_add_failtest("bool_subtract_noalias_gemv")
+ei_add_failtest("bool_subtract_noalias_inner")
+ei_add_failtest("bool_array_subtract")
+ei_add_failtest("bool_array_negate")
+ei_add_failtest("bool_array_subtract_scalar")
+
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_0")
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_1")
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_2")

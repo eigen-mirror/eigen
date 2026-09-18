@@ -134,16 +134,24 @@ inline bool test_isApproxOrLessThan(const long double& a, const long double& b) 
 }
 #endif  // EIGEN_TEST_NO_LONGDOUBLE
 
+// Boolean subtraction is rejected at compile time, so Boolean coefficients are differenced as int.
+template <typename Scalar>
+using test_difference_scalar_t = std::conditional_t<std::is_same<Scalar, bool>::value, int, Scalar>;
+
 // test_relative_error returns the relative difference between a and b as a real scalar as used in isApprox.
 template <typename T1, typename T2>
 typename NumTraits<typename T1::RealScalar>::NonInteger test_relative_error(const EigenBase<T1>& a,
                                                                             const EigenBase<T2>& b) {
   using std::sqrt;
   typedef typename NumTraits<typename T1::RealScalar>::NonInteger RealScalar;
+  using DiffScalar1 = test_difference_scalar_t<typename T1::Scalar>;
+  using DiffScalar2 = test_difference_scalar_t<typename T2::Scalar>;
   typename internal::nested_eval<T1, 2>::type ea(a.derived());
   typename internal::nested_eval<T2, 2>::type eb(b.derived());
-  return sqrt(RealScalar((ea.matrix() - eb.matrix()).cwiseAbs2().sum()) /
-              RealScalar((std::min)(eb.cwiseAbs2().sum(), ea.cwiseAbs2().sum())));
+  return sqrt(
+      RealScalar(
+          (ea.matrix().template cast<DiffScalar1>() - eb.matrix().template cast<DiffScalar2>()).cwiseAbs2().sum()) /
+      RealScalar((std::min)(eb.cwiseAbs2().sum(), ea.cwiseAbs2().sum())));
 }
 
 template <typename T1, typename T2>

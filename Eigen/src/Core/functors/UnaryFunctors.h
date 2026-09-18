@@ -25,6 +25,8 @@ namespace internal {
  */
 template <typename Scalar>
 struct scalar_opposite_op {
+  EIGEN_STATIC_ASSERT((!std::is_same<Scalar, bool>::value),
+                      BOOLEAN_NEGATION_IS_NOT_SUPPORTED__CAST_TO_A_SIGNED_INTEGER_TYPE)
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const { return numext::negate(a); }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {

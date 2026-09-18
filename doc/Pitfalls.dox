@@ -134,25 +134,17 @@ logical OR and \c * is the logical AND. In particular, the product of two \c boo
 matrix product: coefficient \c (i,j) of <tt>A * B</tt> tells whether row \c i of \c A and column \c j of
 \c B share a \c true entry. This holds for every matrix size and every product implementation.
 
-Operators without a natural Boolean meaning, such as subtraction and negation, fall back to the C++
-integer promotion rules and then convert the result back to \c bool. For instance, both
-<tt>true - false</tt> and <tt>false - true</tt> yield \c true. If you need genuine integer arithmetic on
-0/1 data, use an integer scalar type (and \c cast<int>() where needed) instead of \c bool.
-
-\warning Subtracting a matrix \em product is currently inconsistent with that rule, and the result
-depends on the size of the operands. %Eigen rewrites <tt>dst = X - A * B</tt> into
-<tt>dst = X; dst -= A * B;</tt>, and the compound form scales the product by <tt>Scalar(-1)</tt>, which
-for \c bool is \c true. The subtraction therefore becomes another logical OR whenever the product is
-not evaluated into a temporary first:
+The Boolean semiring has no additive inverse, so subtraction (including \c -=) and unary minus are
+not supported for \c bool matrices or arrays. These operations produce a compile-time diagnostic.
+For integer arithmetic on 0/1 data, cast the operands to a signed integer type before the operation:
 \code
 Matrix<bool, Dynamic, Dynamic> A(n, n), B(n, n);
 A.setOnes();
 B.setOnes();
-Matrix<bool, Dynamic, Dynamic> C = A * B - A * B;   // all true, not zero
+MatrixXi C = A.cast<int>() * B.cast<int>() - A.cast<int>() * B.cast<int>(); // zero
 \endcode
-Fixed-size operands give the zero matrix instead, as do sufficiently small dynamic sizes, which take
-a different product implementation. Evaluating the product first, as in <tt>T = A * B; C = T - T;</tt>,
-always gives the zero matrix. Prefer an integer scalar type when you need to subtract products.
+For coefficient-wise Boolean negation use <tt>!A.array()</tt>; for coefficient-wise XOR use
+<tt>A.array() != B.array()</tt>.
 
 */
 }

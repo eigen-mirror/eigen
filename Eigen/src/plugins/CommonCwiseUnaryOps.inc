@@ -40,6 +40,8 @@ using NegativeReturnType = CwiseUnaryOp<internal::scalar_opposite_op<Scalar>, co
 
 /// \returns an expression of the opposite of \c *this
 ///
+/// \note Unary minus is not supported for \c bool coefficients. Cast to a signed integer type first.
+///
 EIGEN_DOC_UNARY_ADDONS(operator-, opposite)
 ///
 EIGEN_DEVICE_FUNC constexpr inline const NegativeReturnType operator-() const { return NegativeReturnType(derived()); }
