@@ -1151,11 +1151,40 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 // zeroing out some entries, and integer types generate a compile error.
 #if EIGEN_OS_MAC
 // General, Altivec for Apple (VSX were added in ISA v2.06):
-#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+r,v"(X));
+#define EIGEN_PPC_OPTIMIZATION_BARRIER_REGISTERS "+r,v"
 #else
 // General, Altivec, VSX otherwise:
-#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+r,v,wa"(X));
+#define EIGEN_PPC_OPTIMIZATION_BARRIER_REGISTERS "+r,v,wa"
 #endif
+namespace Eigen {
+namespace internal {
+// Complex, class, and union operands go to memory: a class that must stay in memory is a compile error with the
+// register constraints, and complex<float> comes back corrupted at -O3, even with "m" added as an alternative. The two
+// constraints need separate instantiations because GCC rejects an impossible constraint even on a branch not taken.
+template <bool InMemory>
+struct ppc_optimization_barrier_impl {
+  template <typename T>
+  static EIGEN_ALWAYS_INLINE void run(T& x) {
+    __asm__("" : EIGEN_PPC_OPTIMIZATION_BARRIER_REGISTERS(x));
+  }
+};
+template <>
+struct ppc_optimization_barrier_impl<true> {
+  template <typename T>
+  static EIGEN_ALWAYS_INLINE void run(T& x) {
+    __asm__("" : "+m"(x));
+  }
+};
+template <typename T>
+EIGEN_ALWAYS_INLINE void ppc_optimization_barrier(T& x) {
+  // __builtin_classify_type does not evaluate its operand: 9 = complex, 12 = class, 13 = union.
+  constexpr int kTypeClass = __builtin_classify_type(*static_cast<T*>(nullptr));
+  ppc_optimization_barrier_impl<kTypeClass == 9 || kTypeClass == 12 || kTypeClass == 13>::run(x);
+}
+}  // namespace internal
+}  // namespace Eigen
+#undef EIGEN_PPC_OPTIMIZATION_BARRIER_REGISTERS
+#define EIGEN_OPTIMIZATION_BARRIER(X) Eigen::internal::ppc_optimization_barrier(X);
 #elif EIGEN_ARCH_PPC && EIGEN_COMP_CLANG
 // Clang's PPC backend does not accept one register constraint covering all scalar and vector operands. In particular,
 // "wa" crashes the backend for scalar integers narrower than 64 bits.
