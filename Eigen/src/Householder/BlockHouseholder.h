@@ -56,6 +56,9 @@ void make_block_householder_triangular_factor(TriangularFactorType& triFactor, c
  * bottom block — which is the bulk of the work for tall panels — then flows through
  * general_matrix_matrix_product, which parallelizes under OpenMP / EIGEN_GEMM_THREADPOOL.
  */
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DIAGNOSTICS_OFF(disable : 4789, ignored "-Warray-bounds")
+
 template <typename MatrixType, typename VectorsType, typename CoeffsType>
 void apply_block_householder_on_the_left(MatrixType& mat, const VectorsType& vectors, const CoeffsType& hCoeffs,
                                          bool forward) {
@@ -133,6 +136,8 @@ void apply_block_householder_on_the_right(MatrixType& mat, const VectorsType& ve
     mat.rightCols(nbBelow).noalias() -= tmp * vectors.bottomRows(nbBelow).adjoint();
   }
 }
+
+EIGEN_DIAGNOSTICS(pop)
 
 }  // end namespace internal
 
