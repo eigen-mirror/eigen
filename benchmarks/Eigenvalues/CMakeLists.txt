@@ -18,3 +18,4 @@ eigen_add_benchmark(bench_inplace_eigensolver bench_inplace_decomposition.cpp DE
 eigen_add_benchmark(bench_inplace_qz bench_inplace_decomposition.cpp DEFINITIONS BENCH_QZ)
 eigen_add_benchmark(bench_inplace_bunchkaufman bench_inplace_decomposition.cpp DEFINITIONS BENCH_BUNCHKAUFMAN)
 eigen_add_benchmark(bench_tridiagonal_scaling bench_tridiagonal_scaling.cpp)
+eigen_add_benchmark(bench_qz bench_qz.cpp)

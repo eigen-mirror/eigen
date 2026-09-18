@@ -122,6 +122,8 @@ class ComplexQZ {
    */
   ComplexQZ(Index n, bool computeQZ = true, unsigned int maxIters = 400)
       : m_n(n),
+        m_maxIters(maxIters),
+        m_computeQZ(computeQZ),
         m_S(n, n),
         m_T(n, n),
         m_Q(computeQZ ? n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
@@ -129,8 +131,7 @@ class ComplexQZ {
         m_Z(computeQZ ? n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_ws(2 * n),
-        m_computeQZ(computeQZ),
-        m_maxIters(maxIters) {}
+        m_hCoeffs(n) {}
 
   /** \brief Constructor. computes the QZ decomposition of given matrices
    * upon creation
@@ -155,7 +156,8 @@ class ComplexQZ {
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-        m_ws(2 * m_n) {
+        m_ws(2 * m_n),
+        m_hCoeffs(m_n) {
     computeInPlace(computeQZ);
   }
 
@@ -181,7 +183,8 @@ class ComplexQZ {
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
         m_Z(computeQZ ? m_n : (MatrixType::RowsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::RowsAtCompileTime),
             computeQZ ? m_n : (MatrixType::ColsAtCompileTime == Eigen::Dynamic ? 0 : MatrixType::ColsAtCompileTime)),
-        m_ws(2 * m_n) {
+        m_ws(2 * m_n),
+        m_hCoeffs(m_n) {
     computeInPlace(computeQZ);
   }
 
@@ -232,6 +235,7 @@ class ComplexQZ {
   PlainMatrixType m_Q, m_Z;
   RealScalar m_normOfT, m_normOfS;
   Vec m_ws;
+  Vec m_hCoeffs;
 
   // Test if a Scalar is 0 up to a certain tolerance
   static bool is_negligible(const Scalar x, const RealScalar tol = NumTraits<RealScalar>::epsilon()) {
@@ -240,7 +244,7 @@ class ComplexQZ {
 
   void do_QZ_step(Index p, Index q, unsigned int iter);
 
-  inline Mat2 computeZk2(const Row2& b);
+  JacobiRotation<Scalar> computeZk2(const Row2& b);
 
   void computeInPlace(bool computeQZ);
 
@@ -302,12 +306,15 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::hessenbergTriangular() {
   // Perform the QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
-  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qr(m_T);
-
-  if (m_computeQZ) m_Q = qr.householderQ();
+  m_ws.resize(2 * m_n);
+  m_hCoeffs.resize(m_n);
+  internal::householder_qr_inplace_blocked<MatrixType, Vec>::run(m_T, m_hCoeffs, 48, m_ws.data());
+  Map<Vec> workspace(m_ws.data(), m_n);
+  const auto householderQ = householderSequence(m_T, m_hCoeffs.conjugate());
+  if (m_computeQZ) householderQ.evalTo(m_Q, workspace);
 
   // overwrite S with Q* x S
-  m_S.applyOnTheLeft(qr.householderQ().adjoint());
+  householderQ.adjoint().applyThisOnTheLeft(m_S, workspace);
 
   m_T.template triangularView<StrictlyLower>().setZero();
 
@@ -424,6 +431,7 @@ void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const Spar
 
 template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
+  m_ws.resize(2 * m_n);
   Index l = m_n - 1, f;
   unsigned int local_iter = 0;
   computeNorms();
@@ -462,16 +470,11 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
 }
 
 template <typename MatrixType_>
-inline typename ComplexQZ<MatrixType_>::Mat2 ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
-  Mat2 S;
-  S << Scalar(0), Scalar(1), Scalar(1), Scalar(0);
-  Vec2 bprime = S * b.adjoint();
+JacobiRotation<typename ComplexQZ<MatrixType_>::Scalar> ComplexQZ<MatrixType_>::computeZk2(const Row2& b) {
   JacobiRotation<Scalar> J;
-  J.makeGivens(bprime(0), bprime(1));
-  Mat2 Z = S;
-  Z.applyOnTheLeft(0, 1, J);
-  Z = S * Z;
-  return Z;
+  J.makeGivens(numext::conj(b(1)), numext::conj(b(0)));
+  // S J S = J.transpose() for the exchange matrix S and a real Givens cosine.
+  return J.transpose();
 }
 
 template <typename MatrixType_>
@@ -521,26 +524,32 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q, unsigned int iter) {
     // Compute Matrix Zk1 s.t. (b(k+2,k) ... b(k+2, k+2)) Zk1 = (0,0,*)
     Vec3 bprime = (m_T.template block<1, 3>(k + 2, k) * S3).adjoint();
     bprime.makeHouseholder(ess, tau, beta);
-    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3);
-    m_S.template middleCols<3>(k)
-        .topRows((std::min)(k + 4, m_n))
-        .applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
-    m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(S3.transpose());
-    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3);
-    m_T.template middleCols<3>(k)
-        .topRows((std::min)(k + 3, m_n))
-        .applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
-    m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(S3.transpose());
+    auto Sk = m_S.template middleCols<3>(k).topRows((std::min)(k + 4, m_n));
+    auto Tk = m_T.template middleCols<3>(k).topRows((std::min)(k + 3, m_n));
+    // Right multiplication by S3 permutes columns as (2, 0, 1); reverse the swaps for S3^T.
+    Sk.col(0).swap(Sk.col(2));
+    Sk.col(1).swap(Sk.col(2));
+    Sk.applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
+    Sk.col(1).swap(Sk.col(2));
+    Sk.col(0).swap(Sk.col(2));
+    Tk.col(0).swap(Tk.col(2));
+    Tk.col(1).swap(Tk.col(2));
+    Tk.applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
+    Tk.col(1).swap(Tk.col(2));
+    Tk.col(0).swap(Tk.col(2));
     if (m_computeQZ) {
-      m_Z.template middleRows<3>(k).applyOnTheLeft(S3.transpose());
-      m_Z.template middleRows<3>(k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
-      m_Z.template middleRows<3>(k).applyOnTheLeft(S3);
+      auto Zk = m_Z.template middleRows<3>(k);
+      Zk.row(0).swap(Zk.row(2));
+      Zk.row(1).swap(Zk.row(2));
+      Zk.applyHouseholderOnTheLeft(ess, tau, m_ws.data());
+      Zk.row(1).swap(Zk.row(2));
+      Zk.row(0).swap(Zk.row(2));
     }
-    Mat2 Zk2 = computeZk2(m_T.template block<1, 2>(k + 1, k));
-    m_S.template middleCols<2>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(Zk2);
-    m_T.template middleCols<2>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(Zk2);
+    const JacobiRotation<Scalar> Zk2 = computeZk2(m_T.template block<1, 2>(k + 1, k));
+    m_S.template middleCols<2>(k).topRows((std::min)(k + 4, m_n)).applyOnTheRight(0, 1, Zk2);
+    m_T.template middleCols<2>(k).topRows((std::min)(k + 3, m_n)).applyOnTheRight(0, 1, Zk2);
 
-    if (m_computeQZ) m_Z.template middleRows<2>(k).applyOnTheLeft(Zk2.adjoint());
+    if (m_computeQZ) m_Z.template middleRows<2>(k).applyOnTheLeft(0, 1, Zk2.adjoint());
 
     x = m_S(k + 1, k);
     y = m_S(k + 2, k);
@@ -557,12 +566,12 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q, unsigned int iter) {
 
   if (m_computeQZ) m_Q.template middleCols<2>(p + m - 2).applyOnTheRight(0, 1, J);
 
-  // Find a Householder matrix Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
-  Mat2 Zn1 = computeZk2(m_T.template block<1, 2>(p + m - 1, p + m - 2));
-  m_S.template middleCols<2>(p + m - 2).applyOnTheRight(Zn1);
-  m_T.template middleCols<2>(p + m - 2).applyOnTheRight(Zn1);
+  // Find a rotation Zn1 s.t. (b(n,n-1) b(n,n)) * Zn1 = (0 *)
+  const JacobiRotation<Scalar> Zn1 = computeZk2(m_T.template block<1, 2>(p + m - 1, p + m - 2));
+  m_S.template middleCols<2>(p + m - 2).applyOnTheRight(0, 1, Zn1);
+  m_T.template middleCols<2>(p + m - 2).applyOnTheRight(0, 1, Zn1);
 
-  if (m_computeQZ) m_Z.template middleRows<2>(p + m - 2).applyOnTheLeft(Zn1.adjoint());
+  if (m_computeQZ) m_Z.template middleRows<2>(p + m - 2).applyOnTheLeft(0, 1, Zn1.adjoint());
 }
 
 /** \internal we found an undesired non-zero at (i+1,i) on the subdiagonal of S and reduce the block */
