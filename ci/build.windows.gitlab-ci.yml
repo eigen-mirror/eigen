@@ -15,6 +15,8 @@
     # SHA-256-verified ccache when the runner has none; if that also fails,
     # the job builds exactly as before.
     EIGEN_CI_CCACHE: "on"
+    # cache:policy of the .ccache/ pool; see the Linux build template.
+    EIGEN_CI_CCACHE_POLICY: pull-push
     CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
     # Runner-local cache, so no archive-size limit applies; 4G holds a full
     # MSVC buildtests run with headroom and only bounds runner disk use.
@@ -62,6 +64,7 @@
     - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
+      policy: $EIGEN_CI_CCACHE_POLICY
       when: always
 
 ######### MSVC #################################################################

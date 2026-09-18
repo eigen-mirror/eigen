@@ -24,11 +24,17 @@ select:tests:
         --base-sha "${CI_MERGE_REQUEST_DIFF_BASE_SHA}"
         --output-dir affected
     - echo "Build target selection:" && cat affected/targets.txt
+    # A NONE selection compiles nothing, so its build jobs skip downloading the
+    # ccache pool: `push` never restores, and nothing is left to push.
+    - if [ "$(cat affected/targets.txt)" = "NONE" ]; then policy=push; else policy=pull-push; fi
+    - echo "EIGEN_CI_CCACHE_POLICY=${policy}" > affected/ccache.env
   artifacts:
     when: always
     name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_REF_SLUG"
     paths:
       - affected/
+    reports:
+      dotenv: affected/ccache.env
     expire_in: 2 days
   tags:
     - saas-linux-medium-amd64
