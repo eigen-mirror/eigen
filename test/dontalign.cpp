@@ -20,6 +20,7 @@
 template <typename MatrixType>
 void dontalign(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
 
@@ -30,7 +31,12 @@ void dontalign(const MatrixType& m) {
   SquareMatrixType square = SquareMatrixType::Random(rows, rows);
   VectorType v = VectorType::Random(rows);
 
-  VERIFY_IS_APPROX(v, square * square.colPivHouseholderQr().solve(v));
+  const VectorType solution = square.colPivHouseholderQr().solve(v);
+  // Bound the normwise backward error ||Ax-b||_2 / (||A||_F * ||x||_2 + ||b||_2) by 10*n*epsilon.
+  const RealScalar scale = square.norm() * solution.norm() + v.norm();
+  const RealScalar bound = RealScalar(10 * rows) * NumTraits<RealScalar>::epsilon() * scale;
+  VERIFY((numext::isfinite)(bound));
+  VERIFY((square * solution - v).norm() <= bound);
   square = square.inverse().eval();
   a = square * a;
   square = square * square;
