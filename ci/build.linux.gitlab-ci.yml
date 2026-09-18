@@ -839,7 +839,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: [ build:linux:cross:x86-64:clang-14:default, .smoketest:build ]
@@ -849,7 +849,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .smoketest:build ]
@@ -859,7 +859,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:aarch64:clang-14:default:smoketest:
   extends: [ build:linux:cross:aarch64:clang-14:default, .smoketest:build ]
@@ -869,7 +869,7 @@ build:linux:aarch64:clang-14:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 ######## MR Affected Tests #####################################################
 # Opt-in via the `affected-tests` label: build every test the merge request diff
