@@ -91,3 +91,5 @@ foreach(_sb_target
                         CXX_STANDARD_REQUIRED ON
                         CXX_EXTENSIONS OFF)
 endforeach()
+
+ei_add_failtest_fixture()

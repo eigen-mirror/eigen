@@ -356,51 +356,85 @@ macro(ei_add_test testname)
   endif()
 endmacro()
 
-# adds a failtest, i.e. a test that succeed if the program fails to compile
-# note that the test runner for these is CMake itself, when passed -DEIGEN_FAILTEST=ON
-# so here we're just running CMake commands immediately, we're not adding any targets.
+set(EIGEN_FAILTEST_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/EigenFailtest.cmake")
+
+# Adds a compile-failure test pair from ${testname}.cpp: ${testname}_ok must
+# compile, and ${testname}_ko, built with EIGEN_SHOULD_FAIL_TO_BUILD, must not.
+# Neither test builds anything: both inspect the executables that the
+# buildfailtests fixture produced, so ei_add_failtest_fixture() must follow the
+# last ei_add_failtest() call.
 macro(ei_add_failtest testname)
 
   set(test_target_ok ${testname}_ok)
   set(test_target_ko ${testname}_ko)
 
-  # Add executables
   add_executable(${test_target_ok} ${testname}.cpp)
   add_executable(${test_target_ko} ${testname}.cpp)
-
-  # Remove them from the normal build process
   set_target_properties(${test_target_ok} ${test_target_ko} PROPERTIES
                         EXCLUDE_FROM_ALL TRUE
                         EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-
-  # Configure the failing test
   target_compile_definitions(${test_target_ko} PRIVATE EIGEN_SHOULD_FAIL_TO_BUILD)
+  set_property(GLOBAL APPEND PROPERTY EIGEN_FAILTEST_TARGETS ${test_target_ok} ${test_target_ko})
 
-  # Add the tests to ctest.
+  set(test_check_args
+      -DEIGEN_FAILTEST_ACTION=check
+      -DEIGEN_FAILTEST_BINARY_DIR=${CMAKE_BINARY_DIR}
+      -DEIGEN_FAILTEST_CONFIG=$<CONFIG>
+      -DEIGEN_FAILTEST_LOCK=${CMAKE_CURRENT_BINARY_DIR}/buildfailtests.lock
+      -DEIGEN_FAILTEST_OK=${test_target_ok}
+      -DEIGEN_FAILTEST_OK_FILE=$<TARGET_FILE:${test_target_ok}>)
   add_test(NAME ${test_target_ok}
-          COMMAND ${CMAKE_COMMAND} --build . --target ${test_target_ok} --config $<CONFIG>
-          WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+           COMMAND ${CMAKE_COMMAND} ${test_check_args} -P ${EIGEN_FAILTEST_SCRIPT})
   add_test(NAME ${test_target_ko}
-          COMMAND ${CMAKE_COMMAND} --build . --target ${test_target_ko} --config $<CONFIG>
-          WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+           COMMAND ${CMAKE_COMMAND} ${test_check_args}
+                   -DEIGEN_FAILTEST_KO=${test_target_ko}
+                   -DEIGEN_FAILTEST_KO_FILE=$<TARGET_FILE:${test_target_ko}>
+                   -P ${EIGEN_FAILTEST_SCRIPT})
   # Disable emulator if cross-compiling.
   if (CMAKE_CROSSCOMPILING)
     set_property(TEST ${test_target_ok} PROPERTY CROSSCOMPILING_EMULATOR "")
     set_property(TEST ${test_target_ko} PROPERTY CROSSCOMPILING_EMULATOR "")
   endif()
 
-  # Expect the second test to fail
-  set_tests_properties(${test_target_ko} PROPERTIES WILL_FAIL TRUE)
-
-  # The test action is a build in the shared binary directory, so two failtests
-  # running at once drive two concurrent builds over one build system.  A lock
-  # shared by the whole suite serializes those while leaving the ordinary tests
-  # free to run in parallel.  It matters most for ${test_target_ko}: WILL_FAIL
-  # cannot tell the compile error it asserts from a build system that failed for
-  # an unrelated reason, so a race there passes vacuously.
   set_tests_properties(${test_target_ok} ${test_target_ko} PROPERTIES
-                       RESOURCE_LOCK eigen_failtest_build LABELS failtest)
+                       FIXTURES_REQUIRED eigen_failtest LABELS failtest)
 endmacro()
+
+# Registers the buildfailtests test, the fixture that every ei_add_failtest()
+# test requires.  It builds all failtest targets in one keep-going invocation,
+# so the compiles run in parallel under a single build system instead of one
+# build per test, which would have to be serialized: concurrent builds over one
+# binary directory collide.
+function(ei_add_failtest_fixture)
+  get_property(targets GLOBAL PROPERTY EIGEN_FAILTEST_TARGETS)
+  if(NOT targets)
+    return()
+  endif()
+
+  add_custom_target(buildfailtests)
+  add_dependencies(buildfailtests ${targets})
+
+  set(files "")
+  foreach(target IN LISTS targets)
+    string(APPEND files "  \"$<TARGET_FILE:${target}>\"\n")
+  endforeach()
+  set(list_file "${CMAKE_CURRENT_BINARY_DIR}/buildfailtests-$<CONFIG>.cmake")
+  file(GENERATE OUTPUT "${list_file}"
+       CONTENT "set(EIGEN_FAILTEST_TARGETS ${targets})\nset(EIGEN_FAILTEST_FILES\n${files})\n")
+
+  add_test(NAME buildfailtests
+           COMMAND ${CMAKE_COMMAND}
+                   -DEIGEN_FAILTEST_ACTION=build
+                   -DEIGEN_FAILTEST_BINARY_DIR=${CMAKE_BINARY_DIR}
+                   -DEIGEN_FAILTEST_CONFIG=$<CONFIG>
+                   -DEIGEN_FAILTEST_GENERATOR=${CMAKE_GENERATOR}
+                   -DEIGEN_FAILTEST_LIST=${list_file}
+                   -P ${EIGEN_FAILTEST_SCRIPT})
+  if (CMAKE_CROSSCOMPILING)
+    set_property(TEST buildfailtests PROPERTY CROSSCOMPILING_EMULATOR "")
+  endif()
+  set_tests_properties(buildfailtests PROPERTIES FIXTURES_SETUP eigen_failtest LABELS failtest)
+endfunction()
 
 # print a summary of the different options
 macro(ei_testing_print_summary)

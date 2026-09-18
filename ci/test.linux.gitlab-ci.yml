@@ -37,6 +37,16 @@
   variables:
     EIGEN_CI_TARGET_ARCH: x86_64
     EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
+  # A full native selection sums to ~1000 s of test time, about two minutes of
+  # wall time on 8 vCPU, and the 2xlarge pool is the one that queues.  The qemu
+  # jobs keep the 2xlarge runner from .test:linux.
+  tags:
+    - saas-linux-large-amd64
+  # The pass-cache fingerprint cannot see the runner pool, and hosted runners of
+  # every size share one cache, so passes recorded on 2xlarge would skip
+  # unchanged tests on this pool.  A new key makes its first runs execute them.
+  cache:
+    key: "$CI_JOB_NAME_SLUG-testcache-v2"
 
 # GCC-10 (modern stable)
 .test:linux:x86-64:gcc-10:default:
@@ -229,6 +239,10 @@ test:linux:x86-64:clang-19:cxx20:nightly:contrib:
     UBSAN_OPTIONS: print_stacktrace=1
     ASAN_SYMBOLIZER_PATH: /usr/lib/llvm-19/bin/llvm-symbolizer
     EIGEN_CI_CTEST_ARGS: --timeout 2000
+  # An uncached Official run sums to ~2300 s of test time: 130 s wall here,
+  # ~280 s on the large runner.
+  tags:
+    - saas-linux-2xlarge-amd64
 
 test:linux:x86-64:clang-19:default:asan-ubsan:official:
   extends: .test:linux:x86-64:clang-19:default:asan-ubsan
@@ -585,11 +599,10 @@ test:linux:sme512:gcc-14:full:contrib:
     EIGEN_CI_CTEST_EXCLUDE: tensor_thread_pool|FFT
     # Name the compiler the artifacts were built with, not the default-version
     # cross g++. The test stage does compile: the failtest targets are
-    # EXCLUDE_FROM_ALL and their ctest command is `cmake --build`, which reads
-    # the absolute compiler path CMake resolved at configure time, so an image
-    # without that exact binary fails all 62 failtests at once -- and the _ko
-    # halves then pass vacuously, WILL_FAIL being unable to tell the asserted
-    # compile error from a missing compiler. Only the affected tier sees this:
+    # EXCLUDE_FROM_ALL and the buildfailtests fixture builds them with
+    # `cmake --build`, which reads the absolute compiler path CMake resolved at
+    # configure time, so an image without that exact binary fails every _ok and
+    # _ko test at once. Only the affected tier sees this:
     # the :official and :contrib jobs filter by label, and failtests carry
     # neither label. (The buildsystem scenarios, which bake in the same path,
     # no longer register here: test/buildsystem/CMakeLists.txt skips emulator
@@ -1014,7 +1027,7 @@ test:linux:riscv64:gcc-15:default:affected:
   needs: [ build:linux:riscv64:gcc-15:default:affected, select:tests ]
   variables:
     # Compile tests need the amd64 cross toolchain; nested build-system consumers run in test:linux:buildsystem.
-    EIGEN_CI_CTEST_EXCLUDE: (_ok|_ko)$|^buildsystem_
+    EIGEN_CI_CTEST_EXCLUDE: (_ok|_ko)$|^buildfailtests$|^buildsystem_
   rules: !reference [.rules:libeigen:affected-tests:rvv10, rules]
 
 test:linux:cross:riscv64:gcc-15:failtest:affected:
