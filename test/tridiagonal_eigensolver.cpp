@@ -623,7 +623,8 @@ void tridiagonal_eigensolver_scaling_units() {
     VERIFY(vectors.allFinite());
     VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance * matrix.norm());
     VERIFY((vectors.transpose() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
-    solver.computeEigenvalues(d, e, EigenvalueRange::values(double(scale) * 2, double(scale) * 9));
+    solver.computeEigenvalues(
+        d, e, EigenvalueRange::values(static_cast<long double>(scale) * 2, static_cast<long double>(scale) * 9));
     VERIFY_IS_EQUAL(solver.eigenvalues().size(), 2);
     VERIFY((solver.eigenvalues() / scale - expected.segment(1, 2)).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
 
