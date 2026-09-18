@@ -43,12 +43,239 @@ struct trsmKernelR {
                      Index otherStride);
 };
 
+// The packet lanes are independent right-hand sides. Reserve registers for the
+// RHS packets and coefficient broadcasts in addition to the output accumulators.
+template <typename Scalar>
+struct triangular_solve_packet_traits {
+  static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable &&
+                                  (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
+                                  std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2;
+  static constexpr int PacketSize = packet_traits<Scalar>::size;
+  static constexpr int RegisterRows = 4;
+  static constexpr int RhsPackets =
+      plain_enum_max(1, plain_enum_min(2, (gebp_traits<Scalar, Scalar>::NumberOfRegisters - 2) / (RegisterRows + 1)));
+  // Allocation bound, independent of the cache-dependent direct-solve cutoff.
+  static constexpr int WorkspaceRows = 128;
+#if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_TRSM_L_KERNELS
+  static constexpr bool UseUnblocked = false;
+#else
+  static constexpr bool UseUnblocked = Enabled;
+#endif
+
+  template <typename Index>
+  static EIGEN_STRONG_INLINE bool use_unblocked(Index size, Index cols, std::ptrdiff_t l1) {
+    if (!UseUnblocked || size < RegisterRows || size > WorkspaceRows || cols < PacketSize) return false;
+    const int packets = cols >= RhsPackets * PacketSize ? RhsPackets : 1;
+    // Like GEBP's L1 depth model: the RHS tile, reciprocals, and RegisterRows rows
+    // of A are reused along k. Leave half of L1 for streaming and associativity.
+    const std::ptrdiff_t rowBytes = (packets * PacketSize + RegisterRows + 1) * sizeof(Scalar);
+    const std::ptrdiff_t transposeBytes = PacketSize * PacketSize * sizeof(Scalar);
+    return std::ptrdiff_t(size) * rowBytes + transposeBytes <= l1 / 2;
+  }
+};
+
+template <typename Scalar, typename Index, int Mode, int TriStorageOrder>
+struct triangular_solve_packet_kernel {
+  using Traits = triangular_solve_packet_traits<Scalar>;
+  using Packet = typename packet_traits<Scalar>::type;
+  using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
+  static constexpr int PacketSize = Traits::PacketSize;
+  static constexpr bool IsLower = (Mode & Lower) != 0;
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>& x, bool_constant<true>) {
+    // Classify bits: fast-math may assume the arithmetic results are finite.
+    using FloatTraits = binary_floating_point_traits<Scalar>;
+    bool nonfinite = false;
+    for (int p = 0; p < RhsPackets; ++p) {
+      Scalar values[PacketSize];
+      pstoreu(values, x.packet[p]);
+      EIGEN_FAST_MATH_CONSTANT_BARRIER(values);
+      for (int c = 0; c < PacketSize; ++c)
+        nonfinite |= (FloatTraits::bits(values[c]) & FloatTraits::kExponentMask) == FloatTraits::kExponentMask;
+    }
+    return !nonfinite;
+  }
+
+  // Keep disabled scalar instantiations valid in C++14.
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE bool all_finite(const PacketBlock<Packet, RhsPackets>&, bool_constant<false>) {
+    return true;
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void update(PacketBlock<Packet, RhsPackets>& x, const PacketBlock<Packet, RhsPackets>& y,
+                                         Scalar a) {
+    const Packet pa = pset1<Packet>(a);
+    for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pnmadd(pa, y.packet[p], x.packet[p]);
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void scale(PacketBlock<Packet, RhsPackets>& x, Scalar a) {
+    EIGEN_IF_CONSTEXPR (!(Mode & UnitDiag)) {
+      const Packet pa = pset1<Packet>(a);
+      for (int p = 0; p < RhsPackets; ++p) x.packet[p] = pmul(x.packet[p], pa);
+    }
+  }
+
+  template <std::size_t Row, int RhsPackets, std::size_t... Next>
+  static EIGEN_STRONG_INLINE void solve_row(PacketBlock<Packet, RhsPackets>* x, const TriMapper& a,
+                                            const Scalar* inverse, Index r0, Index step, std::index_sequence<Next...>) {
+    const Index row = r0 + Index(Row) * step;
+    scale(x[Row], inverse[row]);
+    int unroll[] = {0, (update(x[Row + 1 + Next], x[Row], a(r0 + Index(Row + 1 + Next) * step, row)), 0)...};
+    EIGEN_UNUSED_VARIABLE(unroll);
+  }
+
+  // GCC generates extra instructions when the accumulator indices come from a loop.
+  template <int RhsPackets, std::size_t... Rows>
+  static EIGEN_STRONG_INLINE void solve_block(Index i, const TriMapper& a, const Scalar* inverse,
+                                              PacketBlock<Packet, RhsPackets>* work, Index r0, Index step,
+                                              std::index_sequence<Rows...>) {
+    PacketBlock<Packet, RhsPackets> x[] = {work[r0 + Index(Rows) * step]...};
+    for (Index k = 0; k < i; ++k) {
+      const Index c = IsLower ? k : r0 + i - k;
+      const PacketBlock<Packet, RhsPackets> y = work[c];
+      int unroll[] = {0, (update(x[Rows], y, a(r0 + Index(Rows) * step, c)), 0)...};
+      EIGEN_UNUSED_VARIABLE(unroll);
+    }
+    // The braced expansion orders the dependent solves by row.
+    int solve_rows[] = {
+        0,
+        (solve_row<Rows>(x, a, inverse, r0, step, std::make_index_sequence<Traits::RegisterRows - Rows - 1>{}), 0)...};
+    EIGEN_UNUSED_VARIABLE(solve_rows);
+    int store_rows[] = {0, (work[r0 + Index(Rows) * step] = x[Rows], 0)...};
+    EIGEN_UNUSED_VARIABLE(store_rows);
+  }
+
+  template <int RhsPackets>
+  static EIGEN_STRONG_INLINE void solve(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
+                                        Index otherStride) {
+    PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index i = 0;
+      for (; i + PacketSize <= size; i += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int c = 0; c < PacketSize; ++c)
+          block.packet[c] = ploadu<Packet>(other + i + (p * PacketSize + c) * otherStride);
+        ptranspose(block);
+        for (int r = 0; r < PacketSize; ++r) work[i + r].packet[p] = block.packet[r];
+      }
+      for (; i < size; ++i)
+        work[i].packet[p] = pgather<Scalar, Packet>(other + i + p * PacketSize * otherStride, otherStride);
+    }
+    Index i = 0;
+    const Index step = IsLower ? 1 : -1;
+    for (; i + Traits::RegisterRows <= size; i += Traits::RegisterRows) {
+      const Index r0 = IsLower ? i : size - i - 1;
+      // Preserve the four-row schedule that keeps GCC and Clang's hot loops compact.
+      EIGEN_IF_CONSTEXPR (Traits::RegisterRows == 4) {
+        const Index r1 = r0 + step, r2 = r1 + step, r3 = r2 + step;
+        PacketBlock<Packet, RhsPackets> x0 = work[r0], x1 = work[r1], x2 = work[r2], x3 = work[r3];
+        for (Index k = 0; k < i; ++k) {
+          const Index c = IsLower ? k : size - k - 1;
+          const PacketBlock<Packet, RhsPackets> y = work[c];
+          update(x0, y, a(r0, c));
+          update(x1, y, a(r1, c));
+          update(x2, y, a(r2, c));
+          update(x3, y, a(r3, c));
+        }
+        scale(x0, inverse[r0]);
+        update(x1, x0, a(r1, r0));
+        update(x2, x0, a(r2, r0));
+        update(x3, x0, a(r3, r0));
+        scale(x1, inverse[r1]);
+        update(x2, x1, a(r2, r1));
+        update(x3, x1, a(r3, r1));
+        scale(x2, inverse[r2]);
+        update(x3, x2, a(r3, r2));
+        scale(x3, inverse[r3]);
+        work[r0] = x0;
+        work[r1] = x1;
+        work[r2] = x2;
+        work[r3] = x3;
+      } else {
+        solve_block(i, a, inverse, work, r0, step, std::make_index_sequence<Traits::RegisterRows>{});
+      }
+    }
+    for (; i < size; ++i) {
+      const Index r = IsLower ? i : size - i - 1;
+      PacketBlock<Packet, RhsPackets> x = work[r];
+      for (Index k = 0; k < i; ++k) {
+        const Index c = IsLower ? k : size - k - 1;
+        update(x, work[c], a(r, c));
+      }
+      scale(x, inverse[r]);
+      work[r] = x;
+    }
+    EIGEN_IF_CONSTEXPR (TriStorageOrder == RowMajor) {
+      // Successive RHS updates can overflow before cancellation in a row's dot product.
+      // Every later row uses all solved rows, propagating nonfinite lanes to the final row.
+      // Retry with the original accumulation order before overwriting any RHS coefficient.
+      if (!all_finite(work[IsLower ? size - 1 : 0], bool_constant<Traits::Enabled>{})) {
+        const Index origin = IsLower ? 0 : size - 1;
+        trsmKernelL<Scalar, Index, Mode, false, TriStorageOrder, 1, false>::kernel(
+            size, Index(RhsPackets * PacketSize), &a(origin, origin), a.stride(), other + origin, Index(1),
+            otherStride);
+        return;
+      }
+    }
+    for (int p = 0; p < RhsPackets; ++p) {
+      Index i = 0;
+      for (; i + PacketSize <= size; i += PacketSize) {
+        PacketBlock<Packet, PacketSize> block;
+        for (int r = 0; r < PacketSize; ++r) block.packet[r] = work[i + r].packet[p];
+        ptranspose(block);
+        for (int c = 0; c < PacketSize; ++c) pstoreu(other + i + (p * PacketSize + c) * otherStride, block.packet[c]);
+      }
+      for (; i < size; ++i)
+        pscatter<Scalar, Packet>(other + i + p * PacketSize * otherStride, work[i].packet[p], otherStride);
+    }
+  }
+
+  static EIGEN_DONT_INLINE void kernel(Index size, Index cols, const Scalar* tri, Index triStride, Scalar* other,
+                                       Index otherStride) {
+    eigen_internal_assert(size <= Traits::WorkspaceRows && cols % PacketSize == 0);
+    EIGEN_IF_CONSTEXPR (!IsLower) {
+      tri -= (size - 1) * (triStride + 1);
+      other -= size - 1;
+    }
+    TriMapper a(tri, triStride);
+    Scalar inverse[Traits::WorkspaceRows];
+    Map<Vector<Scalar, Dynamic>> mapped(inverse, size);
+    EIGEN_IF_CONSTEXPR (Mode & UnitDiag) {
+      mapped.setOnes();
+    } else {
+      const Map<const Vector<Scalar, Dynamic>, Unaligned, InnerStride<Dynamic>> diagonal(
+          tri, size, InnerStride<Dynamic>(triStride + 1));
+      mapped = diagonal.cwiseInverse();
+    }
+    Index j = 0;
+    EIGEN_IF_CONSTEXPR (Traits::RhsPackets > 1) {
+      for (; j + Traits::RhsPackets * PacketSize <= cols; j += Traits::RhsPackets * PacketSize)
+        solve<Traits::RhsPackets>(size, a, inverse, other + j * otherStride, otherStride);
+    }
+    for (; j + PacketSize <= cols; j += PacketSize) solve<1>(size, a, inverse, other + j * otherStride, otherStride);
+  }
+};
+
 template <typename Scalar, typename Index, int Mode, bool Conjugate, int TriStorageOrder, int OtherInnerStride,
           bool Specialized>
 EIGEN_STRONG_INLINE void trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride,
                                      Specialized>::kernel(Index size, Index otherSize, const Scalar* _tri,
                                                           Index triStride, Scalar* _other, Index otherIncr,
                                                           Index otherStride) {
+  EIGEN_IF_CONSTEXPR ((Specialized && OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
+    if (size >= triangular_solve_packet_traits<Scalar>::RegisterRows &&
+        size <= triangular_solve_packet_traits<Scalar>::WorkspaceRows && otherSize >= packet_traits<Scalar>::size) {
+      const Index packetCols = numext::round_down(otherSize, Index(packet_traits<Scalar>::size));
+      triangular_solve_packet_kernel<Scalar, Index, Mode, TriStorageOrder>::kernel(size, packetCols, _tri, triStride,
+                                                                                   _other, otherStride);
+      if (packetCols == otherSize) return;
+      otherSize -= packetCols;
+      _other += packetCols * otherStride;
+    }
+  }
   using TriMapper = const_blas_data_mapper<Scalar, Index, TriStorageOrder>;
   using OtherMapper = blas_data_mapper<Scalar, Index, ColMajor, Unaligned, OtherInnerStride>;
   TriMapper tri(_tri, triStride);
@@ -248,7 +475,15 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
                                                                       level3_blocking<Scalar, Scalar>& blocking) {
   std::ptrdiff_t l1, l2, l3;
   manage_caching_sizes(GetAction, &l1, &l2, &l3);
-
+  EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 && triangular_solve_packet_traits<Scalar>::Enabled)) {
+    using PacketTraits = triangular_solve_packet_traits<Scalar>;
+    if (PacketTraits::use_unblocked(size, otherSize, l1)) {
+      const Index origin = (Mode & Lower) ? 0 : size - 1;
+      trsmKernelL<Scalar, Index, Mode, Conjugate, TriStorageOrder, OtherInnerStride, true>::kernel(
+          size, otherSize, _tri + origin * (triStride + 1), triStride, _other + origin, otherIncr, otherStride);
+      return;
+    }
+  }
 #if defined(EIGEN_VECTORIZE_AVX512) && defined(EIGEN_USE_AVX512_TRSM_L_KERNELS) && EIGEN_USE_AVX512_TRSM_L_KERNELS && \
     EIGEN_ENABLE_AVX512_NOCOPY_TRSM_L_CUTOFFS
   EIGEN_IF_CONSTEXPR ((OtherInnerStride == 1 &&
