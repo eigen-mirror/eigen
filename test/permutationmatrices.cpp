@@ -11,6 +11,8 @@
 #define TEST_ENABLE_TEMPORARY_TRACKING
 
 #include "main.h"
+#include <Eigen/Core>
+#include <cstdint>
 
 using namespace std;
 template <typename MatrixType>
@@ -191,6 +193,81 @@ void test_aliasing() {
   }
 }
 
+template <typename PermutationType, typename OtherPermutationType = PermutationType>
+void permutation_inverse_product(Index size) {
+  PermutationType lhs(size), result(size);
+  OtherPermutationType rhs(size);
+  randomPermutationVector(lhs.indices(), size);
+  randomPermutationVector(rhs.indices(), size);
+  const MatrixXi lhsDense = lhs.toDenseMatrix().template cast<int>();
+  const MatrixXi rhsDense = rhs.toDenseMatrix().template cast<int>();
+  const MatrixXi expected = lhsDense * rhsDense.transpose();
+  result = lhs * rhs.inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result = lhs * rhs.transpose();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result = lhs.indices().asPermutation() * rhs.indices().asPermutation().inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result = Map<PermutationType>(lhs.indices().data(), size) *
+           Map<OtherPermutationType>(rhs.indices().data(), size).inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  using OtherStorageIndex = typename OtherPermutationType::StorageIndex;
+  Matrix<OtherStorageIndex, Dynamic, 1> storage(2 * size);
+  Map<Matrix<OtherStorageIndex, Dynamic, 1>, 0, InnerStride<2>> strided(storage.data(), size);
+  strided = rhs.indices();
+  result = lhs * strided.asPermutation().inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result = lhs;
+  result = result * rhs.inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result.indices() = rhs.indices().template cast<typename PermutationType::StorageIndex>();
+  result = lhs * result.inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+  result = lhs;
+  result = result * result.inverse();
+  VERIFY(result.toDenseMatrix().isIdentity());
+  result = lhs.inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == lhsDense.transpose());
+  result = lhs;
+  result = result.inverse();
+  VERIFY(result.toDenseMatrix().template cast<int>() == lhsDense.transpose());
+  const OtherPermutationType inverse = strided.asPermutation().inverse();
+  VERIFY(inverse.toDenseMatrix().template cast<int>() == rhsDense.transpose());
+}
+
+template <typename PermutationType>
+void permutation_left_transposition(Index size) {
+  PermutationType original(size);
+  randomPermutationVector(original.indices(), size);
+  const MatrixXi dense = original.toDenseMatrix().template cast<int>();
+  PermutationType result(size);
+  MatrixXi expected(size, size);
+  for (Index i = 0; i < size; ++i) {
+    for (Index j = 0; j < size; ++j) {
+      result = original;
+      expected = dense;
+      expected.row(i).swap(expected.row(j));
+      VERIFY(&result.applyTranspositionOnTheLeft(i, j) == &result);
+      VERIFY(result.toDenseMatrix().template cast<int>() == expected);
+    }
+  }
+}
+
+void permutation_inverse_product_temporaries() {
+  PermutationMatrix<Dynamic> lhs(17), rhs(17), result(17);
+  randomPermutationVector(lhs.indices(), lhs.size());
+  randomPermutationVector(rhs.indices(), rhs.size());
+  VERIFY_EVALUATION_COUNT(result = lhs * rhs.inverse(), 1);
+  const MatrixXi expected = lhs.toDenseMatrix() * rhs.toDenseMatrix().transpose();
+  VERIFY(result.toDenseMatrix() == expected);
+  PermutationMatrix<Dynamic> mismatched(18);
+  mismatched.setIdentity();
+  VERIFY_RAISES_ASSERT(lhs * mismatched.inverse());
+  PermutationMatrix<Dynamic> empty(0);
+  VERIFY_EVALUATION_COUNT(result = empty * empty.inverse(), 0);
+  VERIFY_IS_EQUAL(result.size(), 0);
+}
+
 EIGEN_DECLARE_TEST(permutationmatrices) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(permutationmatrices(Matrix<float, 1, 1>()));
@@ -202,6 +279,27 @@ EIGEN_DECLARE_TEST(permutationmatrices) {
         internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_7(permutationmatrices(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+  }
+  CALL_SUBTEST_8(permutation_inverse_product_temporaries());
+  CALL_SUBTEST_8((permutation_inverse_product<PermutationMatrix<4>>(4)));
+  CALL_SUBTEST_8((permutation_inverse_product<PermutationMatrix<Dynamic, 17>>(17)));
+  for (Index size : {0, 1, 2, 7, 8, 9, 15, 16, 17}) {
+    EIGEN_UNUSED_VARIABLE(size);
+    CALL_SUBTEST_8((permutation_inverse_product<PermutationMatrix<Dynamic>>(size)));
+    CALL_SUBTEST_8((permutation_inverse_product<PermutationMatrix<Dynamic, Dynamic, std::int8_t>>(size)));
+    CALL_SUBTEST_8((permutation_inverse_product<PermutationMatrix<Dynamic, Dynamic, std::uint32_t>>(size)));
+    CALL_SUBTEST_8(
+        (permutation_inverse_product<PermutationMatrix<Dynamic>, PermutationMatrix<Dynamic, Dynamic, std::int64_t>>(
+            size)));
+  }
+  CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<4>>(4)));
+  CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<Dynamic, 17>>(17)));
+  for (Index size : {1, 2, 7, 8, 9, 15, 16, 17, 33}) {
+    EIGEN_UNUSED_VARIABLE(size);
+    CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<Dynamic>>(size)));
+    CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<Dynamic, Dynamic, std::int8_t>>(size)));
+    CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<Dynamic, Dynamic, std::uint32_t>>(size)));
+    CALL_SUBTEST_9((permutation_left_transposition<PermutationMatrix<Dynamic, Dynamic, std::int64_t>>(size)));
   }
   CALL_SUBTEST_5(bug890<double>());
   CALL_SUBTEST_4(test_aliasing());

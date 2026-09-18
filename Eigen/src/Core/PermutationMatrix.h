@@ -140,12 +140,23 @@ class PermutationBase : public EigenBase<Derived> {
    * \returns a reference to *this.
    *
    * \warning This is much slower than applyTranspositionOnTheRight(Index,Index):
-   * this has linear complexity and requires a lot of branching.
+   * this has linear complexity.
    *
    * \sa applyTranspositionOnTheRight(Index,Index)
    */
   Derived& applyTranspositionOnTheLeft(Index i, Index j) {
     eigen_assert(i >= 0 && j >= 0 && i < size() && j < size());
+    if (i == j) return derived();
+    EIGEN_IF_CONSTEXPR ((internal::evaluator<IndicesType>::Flags & PacketAccessBit) &&
+                        internal::packet_traits<StorageIndex>::HasCmp) {
+      // Amortize packet setup over at least two packets.
+      if (size() >= 2 * internal::packet_traits<StorageIndex>::size) {
+        const StorageIndex first = StorageIndex(i), second = StorageIndex(j);
+        indices() =
+            indices().cwiseTypedEqual(first).select(second, indices().cwiseTypedEqual(second).select(first, indices()));
+        return derived();
+      }
+    }
     for (Index k = 0; k < size(); ++k) {
       if (indices().coeff(k) == i)
         indices().coeffRef(k) = StorageIndex(j);
@@ -186,7 +197,7 @@ class PermutationBase : public EigenBase<Derived> {
  protected:
   template <typename OtherDerived>
   void assignTranspose(const PermutationBase<OtherDerived>& other) {
-    for (Index i = 0; i < rows(); ++i) indices().coeffRef(other.indices().coeff(i)) = i;
+    for (Index i = 0; i < rows(); ++i) indices().coeffRef(other.indices().coeff(i)) = StorageIndex(i);
   }
   template <typename Lhs, typename Rhs>
   void assignProduct(const Lhs& lhs, const Rhs& rhs) {
@@ -211,7 +222,12 @@ class PermutationBase : public EigenBase<Derived> {
    */
   template <typename Other>
   inline PlainPermutationType operator*(const InverseImpl<Other, PermutationStorage>& other) const {
-    return PlainPermutationType(internal::PermPermProduct, *this, other.eval());
+    const auto& rhs = other.derived().nestedExpression();
+    eigen_assert(size() == rhs.size());
+    PlainPermutationType result(size());
+    // (P * Q.inverse())(Q(i)) = P(i).
+    for (Index i = 0; i < size(); ++i) result.indices().coeffRef(rhs.indices().coeff(i)) = indices().coeff(i);
+    return result;
   }
 
   /** \returns the product of an inverse permutation with another permutation.
@@ -344,9 +360,7 @@ class PermutationMatrix
   PermutationMatrix(const InverseImpl<Other, PermutationStorage>& other)
       : m_indices(other.derived().nestedExpression().size()) {
     eigen_internal_assert(m_indices.size() <= NumTraits<StorageIndex>::highest());
-    StorageIndex end = StorageIndex(m_indices.size());
-    for (StorageIndex i = 0; i < end; ++i)
-      m_indices.coeffRef(other.derived().nestedExpression().indices().coeff(i)) = i;
+    Base::assignTranspose(other.derived().nestedExpression());
   }
   template <typename Lhs, typename Rhs>
   PermutationMatrix(internal::PermPermProduct_t, const Lhs& lhs, const Rhs& rhs) : m_indices(lhs.indices().size()) {
