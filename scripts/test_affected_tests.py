@@ -462,16 +462,23 @@ def test_real_tree():
     check(len(source_targets) > 200,
           "real tree has many test sources, got %d" % len(source_targets))
 
-    # bug1213 and ulp_accuracy are manual add_executable targets: nothing
-    # aggregates them, so the full-suite selection has to name them or those
-    # regressions stop being compiled.  Asserted as an exact set, because a
+    # Manual add_executable targets are named explicitly in full-suite selection.
+    # redux_bounded_compile is also a dependency of redux_bounded; bug1213 and
+    # ulp_accuracy have no aggregate. Asserted as an exact set, because a
     # name that reaches this set without belonging in it makes the build jobs'
     # "not configured in this build" diagnostic permanently non-empty.
-    check(registered.standalone == {"bug1213", "ulp_accuracy"},
+    check(registered.standalone == {"bug1213", "redux_bounded_compile", "ulp_accuracy"},
           "unexpected standalone target set, got %s" % sorted(registered.standalone))
     if "test/bug1213.cpp" in graph.files:
         check("\nbug1213\n" in full_suite(graph, []).targets_file,
               "full mode names bug1213, got %r" % full_suite(graph, []).targets_file)
+
+    check("redux_bounded_compile" in full_suite(graph, []).targets_file.splitlines(),
+          "full mode names redux_bounded_compile")
+    sel = select(graph, ["test/redux_bounded_compile.cpp"])
+    check(sel.mode == "targets" and sel.targets == {"redux_bounded_compile"},
+          "compile regression source selects its target, got %s (%s)"
+          % (sorted(sel.targets), sel.mode))
 
     # test/buildsystem/ is under a test root but is not part of this build.
     check(not any(rel.startswith("test/buildsystem/") for rel in source_targets),

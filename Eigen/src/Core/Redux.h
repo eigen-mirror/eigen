@@ -27,6 +27,37 @@ namespace internal {
  * Part 1 : the logic deciding a strategy for vectorization and unrolling
  ***************************************************************************/
 
+// Bounds used only to exclude unreachable scalar reduction paths. Combining expression
+// storage bounds instead would change PlainObject types and can create oversized inline storage.
+template <typename Xpr>
+struct redux_max_size {
+  static constexpr int Rows = Xpr::MaxRowsAtCompileTime;
+  static constexpr int Cols = Xpr::MaxColsAtCompileTime;
+  static constexpr int Size = Xpr::MaxSizeAtCompileTime;
+};
+
+template <typename Op, typename Lhs, typename Rhs>
+struct redux_max_size<CwiseBinaryOp<Op, Lhs, Rhs>> {
+  using Left = redux_max_size<remove_all_t<Lhs>>;
+  using Right = redux_max_size<remove_all_t<Rhs>>;
+  static constexpr int Rows = min_size_prefer_fixed(Left::Rows, Right::Rows);
+  static constexpr int Cols = min_size_prefer_fixed(Left::Cols, Right::Cols);
+  static constexpr int Size =
+      min_size_prefer_fixed(min_size_prefer_fixed(Left::Size, Right::Size), size_at_compile_time(Rows, Cols));
+};
+
+template <typename Op, typename Arg1, typename Arg2, typename Arg3>
+struct redux_max_size<CwiseTernaryOp<Op, Arg1, Arg2, Arg3>> {
+  using First = redux_max_size<remove_all_t<Arg1>>;
+  using Second = redux_max_size<remove_all_t<Arg2>>;
+  using Third = redux_max_size<remove_all_t<Arg3>>;
+  static constexpr int Rows = min_size_prefer_fixed(First::Rows, min_size_prefer_fixed(Second::Rows, Third::Rows));
+  static constexpr int Cols = min_size_prefer_fixed(First::Cols, min_size_prefer_fixed(Second::Cols, Third::Cols));
+  static constexpr int Size =
+      min_size_prefer_fixed(min_size_prefer_fixed(First::Size, min_size_prefer_fixed(Second::Size, Third::Size)),
+                            size_at_compile_time(Rows, Cols));
+};
+
 template <typename Func, typename Evaluator>
 struct redux_traits {
  public:
@@ -239,10 +270,18 @@ struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
+    using Bounds = redux_max_size<XprType>;
+    constexpr int MaxInnerSize = XprType::IsVectorAtCompileTime ? Bounds::Size
+                                 : XprType::IsRowMajor          ? Bounds::Cols
+                                                                : Bounds::Rows;
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxCommutativeInnerCutoff) {
+        if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      }
     } else {
-      if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxOrderedTreeCutoff) {
+        if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      }
     }
     Scalar res = eval.coeffByOuterInner(0, 0);
     for (Index j = 1; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(0, j));
@@ -307,10 +346,18 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     const Index size = xpr.size();
     eigen_assert(size > 0 && "you are using an empty matrix");
+    // Do not generate wide reduction bodies for bounded expressions that cannot
+    // reach their cutoff (GCC can otherwise diagnose their unreachable loads).
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      EIGEN_IF_CONSTEXPR (redux_max_size<XprType>::Size == Dynamic ||
+                          redux_max_size<XprType>::Size >= kReduxCommutativeCutoff) {
+        if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      }
     } else {
-      if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      EIGEN_IF_CONSTEXPR (redux_max_size<XprType>::Size == Dynamic ||
+                          redux_max_size<XprType>::Size >= kReduxOrderedTreeCutoff) {
+        if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      }
     }
     Scalar res = eval.coeff(0);
     for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
